@@ -1,0 +1,446 @@
+﻿using Logger;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using TDJS_Vision.Forms.CameraAdd;
+using TDJS_Vision.Forms.LightAdd;
+using TDJS_Vision.Forms.ModbusAdd;
+using TDJS_Vision.Forms.PLCAdd;
+using TDJS_Vision.Device;
+using TDJS_Vision.Device.Camera;
+using TDJS_Vision.Device.Light;
+using TDJS_Vision.Device.Modbus;
+using TDJS_Vision.Device.PLC;
+using TDJS_Vision.Node;
+using TDJS_Vision.Device.TCP;
+using TDJS_Vision.Forms.TCPAdd;
+using TDJS_Vision.Node._3_Detection.HTAI;
+
+namespace TDJS_Vision
+{
+    internal class Solution
+    {
+        #region 使用 Lazy<T> 实现线程安全的单例模式
+
+        private static readonly Lazy<Solution> _lazy = new Lazy<Solution>(() => new Solution());
+
+        private Solution() 
+        {
+            AllDevices = new List<IDevice>();
+        }
+
+        public static Solution Instance => _lazy.Value;
+
+        #endregion
+
+        #region 私有字段、属性
+
+        /// <summary>
+        /// 方案运行取消源，通过它控制方案的停止
+        /// </summary>
+        private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+
+        #endregion
+
+        #region 公有字段、属性
+
+        /// <summary>
+        /// 方案包含的所有流程
+        /// </summary>
+        public List<Process> AllProcesses = new List<Process>();
+
+        /// <summary>
+        /// 方案添加的设备总数
+        /// </summary>
+        public int DeviceCount => AllDevices.Count;
+
+        /// <summary>
+        /// 方案已经添加的流程总数
+        /// </summary>
+        public int ProcessCount = 0;
+
+        /// <summary>
+        /// 方案节点统计（包含删除的节点）
+        /// </summary>
+        public int NodeCount = 0;
+
+        /// <summary>
+        /// 方案已经添加的节点
+        /// </summary>
+        public List<NodeBase> Nodes = new List<NodeBase>();
+
+        /// <summary>
+        /// 所有设备
+        /// </summary>
+        public List<IDevice> AllDevices { get; set; }
+        /// <summary>
+        /// 光源设备
+        /// </summary>
+        public List<ILight> LightDevices => AllDevices.OfType<ILight>().ToList();
+
+        /// <summary>
+        /// 相机设备
+        /// </summary>
+        public List<ICamera> CameraDevices => AllDevices.OfType<ICamera>().ToList();
+
+        /// <summary>
+        /// Plc设备
+        /// </summary>
+        public List<IPlc> PlcDevices => AllDevices.OfType<IPlc>().ToList();
+        /// <summary>
+        /// Modbus设备
+        /// </summary>
+        public List<IModbus> ModbusDevices => AllDevices.OfType<IModbus>().ToList();
+        /// <summary>
+        /// TCP设备
+        /// </summary>
+        public List<ITcpDevice> TcpDevices => AllDevices.OfType<ITcpDevice>().ToList();
+
+        /// <summary>
+        /// 方案是否正在运行
+        /// </summary>
+        public bool IsRunning { get; set; } = false;
+        
+        /// <summary>
+        /// 方案总耗时
+        /// </summary>
+        public long RunTime {  get; set; } = -1;
+
+        /// <summary>
+        /// 流程运行间隔
+        /// </summary>
+        public int RunInterval { get; set; } = 0;
+
+        /// <summary>
+        /// 方案被修改
+        /// </summary>
+        public bool IsModify { get; set; } = false;
+
+        /// <summary>
+        /// 方案的共享变量
+        /// </summary>
+        public SharedVariable SharedVariable { get; set; } = new SharedVariable();
+
+        /// <summary>
+        /// 方案文件名
+        /// </summary>
+        public string SolFileName { get; set; }
+        
+        /// <summary>
+        /// 方案AI模型数量,用来实现异步加载完对应数量的模型后通知方案全部加载完成
+        /// </summary>
+        public int SolAiModelNum { get; set; }
+        
+        /// <summary>
+        /// 当前方案已加载的模型数量
+        /// </summary>
+        public int LoadedModelNum {  get; set; }
+
+        /// <summary>
+        /// 方案适配的软件版本
+        /// </summary>
+        public string SolVersion { get; set; } = VersionInfo.VersionInfo.GetExeVer();
+
+        /// <summary>
+        /// 方案运行取消令牌，嵌入到流程和节点中，实现对它们的控制
+        /// </summary>
+        public CancellationToken CancellationToken => _cancellationTokenSource.Token;
+
+        /// <summary>
+        /// 流程运行完更新流程界面和主界面的运行按钮Enable
+        /// </summary>
+        public EventHandler<ProcessRunResult> UpdateRunStatus;
+
+        /// <summary>
+        /// 新建方案、加载方案要清除结果窗口数据
+        /// </summary>
+        public EventHandler RemoveResultData;
+
+        #endregion
+
+        #region 私有方法
+
+
+
+        #endregion
+
+        #region 公有方法
+
+        #region 流程相关操作
+
+        /// <summary>
+        /// 添加流程
+        /// </summary>
+        /// <param name="process"></param>
+        public void AddProcess(Process process)
+        {
+            AllProcesses.Add(process);
+        }
+
+        /// <summary>
+        /// 删除流程
+        /// </summary>
+        /// <param name="process"></param>
+        public void RemoveProcess(Process process)
+        {
+            AllProcesses.Remove(process);
+
+            foreach (var node in process.Nodes)
+            {
+                Solution.Instance.Nodes.Remove(node);
+            }
+        }
+
+        /// <summary>
+        /// 根据流程名称删除流程
+        /// </summary>
+        /// <param name="process"></param>
+        public void RemoveProcess(string processName)
+        {
+            // 查找名称匹配的流程
+            Process processToRemove = AllProcesses.Find(p => p.ProcessName == processName);
+
+            if (processToRemove != null)
+            {
+                // 从列表中移除流程
+                AllProcesses.Remove(processToRemove);
+
+                foreach (var node in processToRemove.Nodes)
+                {
+                    Solution.Instance.Nodes.Remove(node);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 获取所有流程名称
+        /// </summary>
+        /// <returns></returns>
+        public List<string> GetAllProcessName()
+        {
+            List<string> result = new List<string>();
+            foreach (var process in AllProcesses)
+            {
+                result.Add(process.ProcessName);
+            }
+            return result;
+        }
+
+        #endregion
+
+        #region 方案运行/停止、配置加载/保存等相关操作
+
+        /// <summary>
+        /// 流程运行，默认不是循环运行
+        /// </summary>
+        /// <param name="isCyclical"></param>
+        /// <returns></returns>
+        public async Task Run(bool isCyclical = false)
+        {
+            IsRunning = true;
+
+            // 重置运行取消令牌
+            Solution.Instance.ResetTokenSource();
+
+            try
+            {
+                // 按组别分组
+                var groupedByProcessGroup = AllProcesses.GroupBy(p => p.processGroup)
+                                                        .ToList();
+
+                // 存储每个组别下的任务组
+                var taskGroups = new List<Task>();
+
+                // 按组别顺序启动任务组的循环
+                foreach (var processGroup in groupedByProcessGroup)
+                {
+                    taskGroups.Add(Task.Run(async () =>
+                    {
+                        // 按优先级分组
+                        var groupedByPriority = processGroup.GroupBy(p => p.RunLv)
+                                                            .OrderBy(g => g.Key)
+                                                            .ToList();
+
+                        // 当未请求取消时，继续执行
+                        while (!Solution.Instance.CancellationToken.IsCancellationRequested)
+                        {
+                            // 遍历每个优先级组
+                            foreach (var priorityGroup in groupedByPriority)
+                            {
+                                // 创建一个任务列表，用于存储当前优先级组的所有任务
+                                var tasks = new List<Task>();
+
+                                // 遍历当前优先级组中的每个流程
+                                foreach (var process in priorityGroup)
+                                {
+                                    // 为每个流程创建一个异步任务，并添加到任务列表中
+                                    Task processTask = Task.Run(() => process.Run(isCyclical));
+                                    tasks.Add(processTask);
+                                }
+
+                                // 如果任务列表中有任务，则等待所有任务完成
+                                if (tasks.Count > 0)
+                                {
+                                    await Task.WhenAll(tasks);
+                                }
+                            }
+
+                            // 如果不是循环模式，则退出循环
+                            if (!isCyclical)
+                            {
+                                break;
+                            }
+
+                            // 等待指定的时间间隔，然后继续下一轮执行
+                            await Task.Delay(Solution.Instance.RunInterval, Solution.Instance.CancellationToken);
+                        }
+                    }));
+                }
+
+                await Task.WhenAll(taskGroups); // 等待所有组别的任务组完成
+            }
+            catch (OperationCanceledException)
+            {
+                // 处理取消操作异常
+            }
+            catch (Exception ex)
+            {
+                // 处理一般异常
+            }
+            finally
+            {
+                IsRunning = false;
+            }
+        }
+
+        /// <summary>
+        /// 方案运行停止
+        /// </summary>
+        public void Stop()
+        {
+            _cancellationTokenSource.Cancel();
+            IsRunning = false;
+        }
+
+        /// <summary>
+        /// 方案加载
+        /// </summary>
+        /// <returns></returns>
+        public void Load(string configFile, bool flag)
+        {
+            try
+            {
+                if (File.Exists(configFile))
+                {
+                    ConfigHelper.SolLoad(configFile, flag);
+                }
+                else
+                {
+                    throw new Exception("方案文件不存在！");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"反序列化异常!原因：{ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 方案保存
+        /// </summary>
+        public void Save(string solFile)
+        {
+            try
+            {
+                ConfigHelper.SolSave(solFile);
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        #endregion
+
+        #region 控制停止运行的取消令牌
+
+        /// <summary>
+        /// 重置令牌源
+        /// </summary>
+        public void ResetTokenSource()
+        {
+            if(_cancellationTokenSource.IsCancellationRequested)
+                _cancellationTokenSource = new CancellationTokenSource();
+        }
+
+        #endregion
+
+        /// <summary>
+        /// 重置方案
+        /// </summary>
+        public void SolReset()
+        {
+            try
+            {
+                // 释放旧方案的硬件资源（光源、相机、PLC、Modbus、TCP）
+                foreach (var dev in Solution.Instance.AllDevices)
+                {
+                    if (dev is ILight light)
+                        light.Disconnect();
+                    if (dev is ICamera camera)
+                        camera.Dispose();
+                    if (dev is IPlc plc)
+                        plc.Disconnect();
+                    if (dev is IModbus modbus)
+                        modbus.Disconnect();
+                    if (dev is ITcpDevice tcpDev)
+                        tcpDev.Disconnect();
+                }
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, ex.Message, true);
+            }
+
+            // 清空AI模型计数
+            Solution.Instance.SolAiModelNum = 0;
+            Solution.Instance.LoadedModelNum = 0;
+
+            // 清空设备
+            SingleLight.SingleLights.Clear();
+            SingleCamera.SingleCameraList.Clear();
+            SinglePLC.SinglePLCs.Clear();
+            SingleModbus.SingleModbuss.Clear();
+            SingleTcp.SingleTCPs.Clear();
+            Solution.Instance.AllDevices.Clear();
+
+            // 释放AI节点的内存
+            foreach (var node in Solution.Instance.Nodes)
+            {
+                if (node is NodeHTAI nodeAi)
+                {
+                    nodeAi.ReleaseAIResult();
+                    ((ParamFormHTAI)nodeAi.ParamForm).ReleaseAIHandle();
+                }
+            }
+
+            // 清空方案共享变量
+            Solution.Instance.SharedVariable.ClearAll();
+
+            // 清空流程和节点
+            Solution.Instance.ProcessCount = 0;
+            Solution.Instance.AllProcesses.Clear();
+            Solution.Instance.NodeCount = 0;
+            Solution.Instance.Nodes.Clear();
+
+            // 发送清除结果窗口事件
+            RemoveResultData?.Invoke(this, new EventArgs());
+        }
+
+        #endregion
+    }
+}
