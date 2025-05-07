@@ -64,7 +64,7 @@ namespace TDJS_Vision.Device.Camera
         /// 相机品牌
         /// </summary>
         [JsonConverter(typeof(StringEnumConverter))]
-        public DeviceBrand Brand { get; set; } = DeviceBrand.HikVision;
+        public DeviceBrand Brand { get; set; }
         public string ClassName { get; set; } = typeof(CameraHik).FullName;
 
         /// <summary>
@@ -133,6 +133,7 @@ namespace TDJS_Vision.Device.Camera
             {
                 device = DeviceFactory.CreateDevice(devInfo);
                 ManufacturerName = device.DeviceInfo.ManufacturerName;  // 获取相机厂商
+                Brand = ManufacturerName == "Basler" ? DeviceBrand.Basler : ManufacturerName == "HikVision" ? DeviceBrand.HikVision : DeviceBrand.Unknow;
                 var a = device.DeviceInfo; // 无其他用意，调用一次仅为下面能获取到SN
                 DevName = GetDevNameByDevInfo(device.DeviceInfo);
                 UserDefinedName = userName;

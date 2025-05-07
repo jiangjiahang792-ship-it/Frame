@@ -85,6 +85,9 @@
   <PropertyGroup>
     <SignAssembly>false</SignAssembly>
   </PropertyGroup>
+  <PropertyGroup>
+    <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="Basler.Pylon, Version=1.2.0.0, Culture=neutral, PublicKeyToken=e389355f398382ab, processorArchitecture=x86">
       <SpecificVersion>False</SpecificVersion>
@@ -1081,9 +1084,9 @@
     <None Include="Resources\注液孔检测算子示例.png" />
     <None Include="Icon\Logo\瞳达精视.jpg" />
     <Content Include="APP.ico" />
-    <Content Include="空方案.YtSol">
+    <None Include="空方案.TdSol">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

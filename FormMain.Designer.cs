@@ -267,12 +267,12 @@
             // 
             // saveFileDialog1
             // 
-            this.saveFileDialog1.Filter = "视觉方案文件(*.YtSol)|*.YtSol|所有文件(*.*)|*.*";
+            this.saveFileDialog1.Filter = "瞳达视觉方案文件(*.TdSol)|*.TdSol|所有文件(*.*)|*.*";
             // 
             // openFileDialog1
             // 
             this.openFileDialog1.FileName = "openFileDialog1";
-            this.openFileDialog1.Filter = "视觉方案文件(*.YtSol)|*.YtSol|所有文件(*.*)|*.*";
+            this.openFileDialog1.Filter = "瞳达视觉方案文件(*.TdSol)|*.TdSol|所有文件(*.*)|*.*";
             // 
             // tsbt_SolNew
             // 
