@@ -18,6 +18,7 @@ using TDJS_Vision.Forms.PLCAdd;
 using TDJS_Vision.Forms.ModbusAdd;
 using TDJS_Vision.Forms.TCPAdd;
 using TDJS_Vision.Forms.SolRunParam;
+using TDJS_Vision.Forms.Login;
 
 namespace TDJS_Vision
 {
@@ -78,16 +79,16 @@ namespace TDJS_Vision
         /// </summary>
         static FrmAbout frmAbout = new FrmAbout();
         /// <summary>
-        /// 软件操作锁定
+        /// 软件登录
         /// </summary>
-        static FrmOperatorLocker frmLocker = new FrmOperatorLocker();
+        static FormLogin frmLogin = new FormLogin();
         /// <summary>
         /// 系统设置窗口
         /// </summary>
         private FrmSystemSetting frmSystemSetting = new FrmSystemSetting();
 
         #endregion
-
+        private UserRole Role { get; set; } = UserRole.Unknown; // 登录的用户角色
         /// <summary>
         /// 窗口布局配置
         /// </summary>
@@ -129,7 +130,8 @@ namespace TDJS_Vision
             FrmLoggerDlg.HideChangedEvent += HideChangedEvent;
 
             // 界面锁事件
-            frmLocker.OperatorLockerChanged += FrmOperatorLocker_OperatorLockerChanged;
+            FormLogin.LoginEvent += OnLoginEvent;
+            FormLogin.LogoutEvent += OnLogoutEvent;
 
             // 保存快捷键事件处理
             FrmNewProcessWizard.OnShotKeySavePressed += OnShotKeySavePressed;
@@ -139,6 +141,23 @@ namespace TDJS_Vision
 
             // 加载默认方案
             AutoLoadSolution();
+
+            // 设置控件Enable为未登录状态
+            文件ToolStripMenuItem.Enabled = false;
+            设置ToolStripMenuItem.Enabled = false;
+            toolStrip1.Enabled = false;
+        }
+
+        private void OnLoginEvent(object sender, UserRole e)
+        {
+            SetLockStatus(e);
+        }
+        private void OnLogoutEvent(object sender, EventArgs e)
+        {
+            文件ToolStripMenuItem.Enabled = false;
+            设置ToolStripMenuItem.Enabled = false;
+            toolStrip1.Enabled = false;
+            Role = UserRole.Unknown;
         }
 
         /// <summary>
@@ -153,7 +172,7 @@ namespace TDJS_Vision
                     timeOverCount = 0;
                     timerLoadSol.Start();
                     toolStripLabel1.Visible = true;
-                    SetRunStatus(true, true); // 设置为正在加载方案状态
+                    SetRunStatus(Role, true); // 设置为正在加载方案状态
                     Solution.Instance.Load(Settings.Default.SolutionAddress, true);
                 }
                 catch (Exception)
@@ -176,19 +195,19 @@ namespace TDJS_Vision
             {
                 timerLoadSol.Stop();
                 toolStripLabel1.Visible = false;
-                SetRunStatus(false);
+                SetRunStatus(Role, true);
             }
 
             if (Solution.Instance.SolAiModelNum == Solution.Instance.LoadedModelNum)
             {
                 timerLoadSol.Stop();
                 toolStripLabel1.Visible = false;
-                SetRunStatus(false); 
+                SetRunStatus(Role, false); 
                 if (Settings.Default.IsAutoRun && isAutoLoadSol)
                 {
-                    SetRunStatus(true);
+                    SetRunStatus(Role, true);
                     await Solution.Instance.Run(true);
-                    SetRunStatus(false);
+                    SetRunStatus(Role, false);
                 }
             }
             timeOverCount++;
@@ -204,23 +223,63 @@ namespace TDJS_Vision
             保存方案ToolStripMenuItem_Click(null, null);
         }
 
-        private void FrmOperatorLocker_OperatorLockerChanged(object sender, bool e)
-        {
-            SetLockStatus(!e);
-        }
-
         /// <summary>
         /// 界面锁住状态
         /// </summary>
-        private void SetLockStatus(bool isLock)
+        private void SetLockStatus(UserRole role)
         {
-            toolStrip1.Enabled = !isLock;
-            文件ToolStripMenuItem.Enabled = !isLock;
-            设置ToolStripMenuItem.Enabled = !isLock;
-            if (isLock)
-                锁定ToolStripMenuItem.Image = Resources.锁定;
-            else
-                锁定ToolStripMenuItem.Image = Resources.解锁;
+            Role = role;
+            toolStrip1.Enabled = true;
+            switch (role)
+            {
+                case UserRole.Engineer:
+                    文件ToolStripMenuItem.Enabled = true;
+                    设置ToolStripMenuItem.Enabled = true;
+                    tsbt_SolNew.Enabled = true;
+                    tsbt_SolOpen.Enabled = true;
+                    tsbt_SolSaveAs.Enabled = true;
+                    tsbt_SolSave.Enabled = true;
+                    tsbt_ProcessManager.Enabled = true;
+                    tsbt_LightManager.Enabled = true;
+                    tsbt_CameraManager.Enabled = true;
+                    tsbt_PlcManager.Enabled = true;
+                    tsbt_ModbusManager.Enabled = true;
+                    tsbt_TCPManager.Enabled = true;
+                    tsbt_RunParamSetting.Enabled = true;
+                    break;
+                case UserRole.Manager:
+                    文件ToolStripMenuItem.Enabled = false;
+                    设置ToolStripMenuItem.Enabled = false;
+                    tsbt_SolNew.Enabled = false;
+                    tsbt_SolOpen.Enabled = false;
+                    tsbt_SolSaveAs.Enabled = false;
+                    tsbt_SolSave.Enabled = false;
+                    tsbt_ProcessManager.Enabled = false;
+                    tsbt_LightManager.Enabled = false;
+                    tsbt_CameraManager.Enabled = false;
+                    tsbt_PlcManager.Enabled = false;
+                    tsbt_ModbusManager.Enabled = false;
+                    tsbt_TCPManager.Enabled = false;
+                    tsbt_RunParamSetting.Enabled = true;
+                    break;
+                case UserRole.Operator:
+                    文件ToolStripMenuItem.Enabled = false;
+                    设置ToolStripMenuItem.Enabled = false;
+                    tsbt_SolNew.Enabled = false;
+                    tsbt_SolOpen.Enabled = false;
+                    tsbt_SolSaveAs.Enabled = false;
+                    tsbt_SolSave.Enabled = false;
+                    tsbt_ProcessManager.Enabled = false;
+                    tsbt_LightManager.Enabled = false;
+                    tsbt_CameraManager.Enabled = false;
+                    tsbt_PlcManager.Enabled = false;
+                    tsbt_ModbusManager.Enabled = false;
+                    tsbt_TCPManager.Enabled = false;
+                    tsbt_RunParamSetting.Enabled = false;
+                    break;
+                default:
+                    break;
+            }
         }
 
         /// <summary>
@@ -401,21 +460,21 @@ namespace TDJS_Vision
         private async void 停止运行ToolStripMenuItem_Click(object value1, object value2)
         {
             Solution.Instance.Stop();
-            SetRunStatus(false);
+            SetRunStatus(Role, false);
         }
 
         private async void 循环运行ToolStripMenuItem_Click(object value1, object value2)
         {
-            SetRunStatus(true);
+            SetRunStatus(Role, true);
             await Solution.Instance.Run(true);
-            SetRunStatus(false);
+            SetRunStatus(Role, false);
         }
 
         private async void 单次运行ToolStripMenuItem_Click(object value1, object value2)
         {
-            SetRunStatus(true);
+            SetRunStatus(Role, true);
             await Solution.Instance.Run(false);
-            SetRunStatus(false);
+            SetRunStatus(Role, false);
         }
 
         /// <summary>
@@ -423,36 +482,48 @@ namespace TDJS_Vision
         /// </summary>
         /// <param name="isRunning"></param>
         /// <param name="all">停止运行按钮是否和其他一致</param>
-        private void SetRunStatus(bool isRunning, bool all = false)
+        private void SetRunStatus(UserRole role, bool isRun)
         {
             // 运行和停止按钮
-            tsbt_SolRunOnce.Enabled = !isRunning;
-            tsbt_SolRunLoop.Enabled = !isRunning;
-            tsbt_SolRunStop.Enabled = !all ? isRunning : !isRunning;
-
-            // 其他设置禁用/启用
-            tsbt_SolNew.Enabled = !isRunning;
-            tsbt_SolOpen.Enabled = !isRunning;
-            tsbt_SolSaveAs.Enabled = !isRunning;
-            tsbt_SolSave.Enabled = !isRunning;
-            tsbt_ProcessManager.Enabled = !isRunning;
-            tsbt_LightManager.Enabled = !isRunning;
-            tsbt_CameraManager.Enabled = !isRunning;
-            tsbt_PlcManager.Enabled = !isRunning;
-            tsbt_ModbusManager.Enabled = !isRunning;
-            tsbt_TCPManager.Enabled = !isRunning;
-            tsbt_RunParamSetting.Enabled = !isRunning;
-
-            // 文件
-            文件ToolStripMenuItem.Enabled = !isRunning;
-            视图ToolStripMenuItem.Enabled = !isRunning;
-            设置ToolStripMenuItem.Enabled = !isRunning;
-            帮助ToolStripMenuItem.Enabled = !isRunning;
+            tsbt_SolRunOnce.Enabled = !isRun;
+            tsbt_SolRunLoop.Enabled = !isRun;
+            tsbt_SolRunStop.Enabled = isRun;
+            登录ToolStripMenuItem.Enabled = !isRun;
+            switch (role)
+            {
+                case UserRole.Engineer:
+                    // 其他设置禁用/启用
+                    tsbt_SolNew.Enabled = !isRun;
+                    tsbt_SolOpen.Enabled = !isRun;
+                    tsbt_SolSaveAs.Enabled = !isRun;
+                    tsbt_SolSave.Enabled = !isRun;
+                    tsbt_ProcessManager.Enabled = !isRun;
+                    tsbt_LightManager.Enabled = !isRun;
+                    tsbt_CameraManager.Enabled = !isRun;
+                    tsbt_PlcManager.Enabled = !isRun;
+                    tsbt_ModbusManager.Enabled = !isRun;
+                    tsbt_TCPManager.Enabled = !isRun;
+                    tsbt_RunParamSetting.Enabled = !isRun;
+                    // 文件
+                    文件ToolStripMenuItem.Enabled = !isRun;
+                    视图ToolStripMenuItem.Enabled = !isRun;
+                    设置ToolStripMenuItem.Enabled = !isRun;
+                    帮助ToolStripMenuItem.Enabled = !isRun;
+                    break;
+                case UserRole.Manager:
+                    tsbt_RunParamSetting.Enabled = !isRun;
+                    break;
+                case UserRole.Operator:
+                    break;
+                default:
+                    break;
+            }
+            
         }
 
-        private void 操作锁定ToolStripMenuItem_Click(object value1, object value2)
+        private void 用户登录ToolStripMenuItem_Click(object value1, object value2)
         {
-            frmLocker.ShowDialog();
+            frmLogin.ShowDialog();
         }
 
         private void PLC管理ToolStripMenuItem_Click(object value1, object value2)
@@ -524,6 +595,7 @@ namespace TDJS_Vision
         }
 
         private bool isAutoLoadSol = true;
+
         private void 打开方案ToolStripMenuItem_Click(object value1, object value2)
         {
             openFileDialog1.Title = "请选择要打开的方案";
@@ -533,7 +605,7 @@ namespace TDJS_Vision
                 timeOverCount = 0;
                 timerLoadSol.Start();
                 toolStripLabel1.Visible = true;
-                SetRunStatus(true, true); // 设置为正在加载方案状态
+                SetRunStatus(Role, true); // 设置为正在加载方案状态
                 Solution.Instance.Load(openFileDialog1.FileName, true);
             }
         }
@@ -639,9 +711,9 @@ namespace TDJS_Vision
                 运行日志ToolStripMenuItem.Checked = frmLogger.Visible;
         }
 
-        private void 锁定ToolStripMenuItem_Click(object sender, EventArgs e)
+        private void 登录ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            操作锁定ToolStripMenuItem_Click(null, null);
+            用户登录ToolStripMenuItem_Click(null, null);
         }
 
         private void 系统设置ToolStripMenuItem_Click(object sender, EventArgs e)

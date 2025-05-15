@@ -5,6 +5,7 @@ using Logger;
 
 namespace TDJS_Vision
 {
+
     internal static class Program
     {
         /// <summary>
@@ -15,14 +16,7 @@ namespace TDJS_Vision
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            try
-            {
-                Application.Run(new FormMain());
-            }
-            catch (Exception e)
-            {
-                LogHelper.AddLog(MsgLevel.Exception, e.Message, true);
-            }
+            Application.Run(new FormMain());
         }
     }
 }

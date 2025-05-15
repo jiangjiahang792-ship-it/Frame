@@ -93,8 +93,8 @@ namespace TDJS_Vision.Forms.SolRunParam
                 MessageBox.Show("参数不能为空！");
                 return;
             }
-            if (MessageBox.Show("连接前请检查Modbus各项参数无误后，点击确定开始连接！", "提示",
-                MessageBoxButtons.OKCancel) == DialogResult.OK)
+            if (MessageBox.Show("确定连接？", "提示",
+                MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.OK)
             {
                 // 已有Modbus设备的情况下只是更改参数重连
                 if(Solution.Instance.ModbusDevices.Count > 0)

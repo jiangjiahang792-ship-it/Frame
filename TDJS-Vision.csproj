@@ -281,6 +281,12 @@
     <Compile Include="Forms\LightAdd\SingleLight.Designer.cs">
       <DependentUpon>SingleLight.cs</DependentUpon>
     </Compile>
+    <Compile Include="Forms\Login\FormLogin.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\Login\FormLogin.Designer.cs">
+      <DependentUpon>FormLogin.cs</DependentUpon>
+    </Compile>
     <Compile Include="Forms\ProcessNew\FormNewProcessWizard.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -895,6 +901,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\LightAdd\SingleLight.resx">
       <DependentUpon>SingleLight.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\Login\FormLogin.resx">
+      <DependentUpon>FormLogin.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\ProcessNew\FormNewProcessWizard.resx">
       <DependentUpon>FormNewProcessWizard.cs</DependentUpon>

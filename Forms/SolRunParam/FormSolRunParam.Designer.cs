@@ -199,11 +199,10 @@
             // 
             this.labelConnectInfo.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.labelConnectInfo.AutoSize = true;
-            this.labelConnectInfo.Location = new System.Drawing.Point(467, 86);
+            this.labelConnectInfo.Location = new System.Drawing.Point(552, 86);
             this.labelConnectInfo.Name = "labelConnectInfo";
-            this.labelConnectInfo.Size = new System.Drawing.Size(170, 18);
+            this.labelConnectInfo.Size = new System.Drawing.Size(0, 18);
             this.labelConnectInfo.TabIndex = 0;
-            this.labelConnectInfo.Text = "连接提示信息。。。";
             // 
             // uiipTextBoxIP
             // 
@@ -318,11 +317,10 @@
             this.labelTestInfo.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.labelTestInfo.AutoSize = true;
             this.tableLayoutPanel4.SetColumnSpan(this.labelTestInfo, 2);
-            this.labelTestInfo.Location = new System.Drawing.Point(118, 86);
+            this.labelTestInfo.Location = new System.Drawing.Point(221, 86);
             this.labelTestInfo.Name = "labelTestInfo";
-            this.labelTestInfo.Size = new System.Drawing.Size(206, 18);
+            this.labelTestInfo.Size = new System.Drawing.Size(0, 18);
             this.labelTestInfo.TabIndex = 0;
-            this.labelTestInfo.Text = "测试读写提示信息。。。";
             // 
             // comboBoxCoilValue
             // 
@@ -332,7 +330,7 @@
             this.comboBoxCoilValue.Items.AddRange(new object[] {
             "0",
             "1"});
-            this.comboBoxCoilValue.Location = new System.Drawing.Point(714, 18);
+            this.comboBoxCoilValue.Location = new System.Drawing.Point(714, 20);
             this.comboBoxCoilValue.Name = "comboBoxCoilValue";
             this.comboBoxCoilValue.Size = new System.Drawing.Size(121, 26);
             this.comboBoxCoilValue.TabIndex = 3;

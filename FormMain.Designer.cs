@@ -48,7 +48,7 @@
             this.使用教程ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.联系我们ToolStripMenuItem1 = new System.Windows.Forms.ToolStripMenuItem();
             this.关于TDJS_VisionToolStripMenuItem1 = new System.Windows.Forms.ToolStripMenuItem();
-            this.锁定ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.登录ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.dockPanel1 = new WeifenLuo.WinFormsUI.Docking.DockPanel();
             this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
@@ -88,7 +88,7 @@
             this.视图ToolStripMenuItem,
             this.设置ToolStripMenuItem,
             this.帮助ToolStripMenuItem,
-            this.锁定ToolStripMenuItem});
+            this.登录ToolStripMenuItem});
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
             this.menuStrip1.Padding = new System.Windows.Forms.Padding(5, 2, 0, 2);
@@ -244,13 +244,14 @@
             this.关于TDJS_VisionToolStripMenuItem1.Text = "关于";
             this.关于TDJS_VisionToolStripMenuItem1.Click += new System.EventHandler(this.关于TDJS_VisionToolStripMenuItem1_Click);
             // 
-            // 锁定ToolStripMenuItem
+            // 登录ToolStripMenuItem
             // 
-            this.锁定ToolStripMenuItem.Image = global::TDJS_Vision.Properties.Resources.解锁;
-            this.锁定ToolStripMenuItem.Name = "锁定ToolStripMenuItem";
-            this.锁定ToolStripMenuItem.Size = new System.Drawing.Size(38, 28);
-            this.锁定ToolStripMenuItem.ToolTipText = "界面已锁定";
-            this.锁定ToolStripMenuItem.Click += new System.EventHandler(this.锁定ToolStripMenuItem_Click);
+            this.登录ToolStripMenuItem.Checked = true;
+            this.登录ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.登录ToolStripMenuItem.Image = global::TDJS_Vision.Properties.Resources.用户登录;
+            this.登录ToolStripMenuItem.Name = "登录ToolStripMenuItem";
+            this.登录ToolStripMenuItem.Size = new System.Drawing.Size(38, 28);
+            this.登录ToolStripMenuItem.Click += new System.EventHandler(this.登录ToolStripMenuItem_Click);
             // 
             // dockPanel1
             // 
@@ -559,7 +560,7 @@
         private System.Windows.Forms.ToolStripMenuItem 关于TDJS_VisionToolStripMenuItem1;
         private System.Windows.Forms.SaveFileDialog saveFileDialog1;
         private System.Windows.Forms.OpenFileDialog openFileDialog1;
-        private System.Windows.Forms.ToolStripMenuItem 锁定ToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem 登录ToolStripMenuItem;
         private System.Windows.Forms.ToolStripButton tsbt_SolNew;
         private System.Windows.Forms.ToolStripButton tsbt_SolOpen;
         private System.Windows.Forms.ToolStripButton tsbt_SolSaveAs;
