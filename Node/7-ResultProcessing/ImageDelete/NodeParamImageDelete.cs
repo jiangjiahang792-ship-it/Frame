@@ -4,5 +4,7 @@
     {
         public SaveConfiguration saveConfiguration;
         public string SavePath;
+
+        
     }
 }

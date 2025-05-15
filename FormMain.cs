@@ -8,25 +8,23 @@ using TDJS_Vision.Forms.Helper;
 using TDJS_Vision.Forms.ImageViewer;
 using TDJS_Vision.Forms.ProcessNew;
 using TDJS_Vision.Device.Camera;
-using TDJS_Vision.Device.Light;
-using TDJS_Vision.Device.PLC;
 using TDJS_Vision.Forms.ResultView;
 using Sunny.UI;
 using TDJS_Vision.Properties;
 using TDJS_Vision.Forms.SystemSetting;
-using TDJS_Vision.Device.TCP;
-using TDJS_Vision.Device.Modbus;
 using TDJS_Vision.Forms.LightAdd;
 using TDJS_Vision.Forms.CameraAdd;
 using TDJS_Vision.Forms.PLCAdd;
 using TDJS_Vision.Forms.ModbusAdd;
 using TDJS_Vision.Forms.TCPAdd;
-using TDJS_Vision.Node._3_Detection.HTAI;
+using TDJS_Vision.Forms.SolRunParam;
 
 namespace TDJS_Vision
 {
     internal partial class FormMain : Form
     {
+        #region 子窗口
+
         /// <summary>
         /// 光源添加窗口
         /// </summary>
@@ -47,6 +45,10 @@ namespace TDJS_Vision
         /// TCP添加窗口
         /// </summary>
         static FrmTCPListView FrmTcpAdd = new FrmTCPListView();
+        /// <summary>
+        /// 方案运行参数设置窗口
+        /// </summary>
+        static FormSolRunParam FrmSolRunParam = new FormSolRunParam();
         /// <summary>
         /// 图像显示栏
         /// </summary>
@@ -83,6 +85,9 @@ namespace TDJS_Vision
         /// 系统设置窗口
         /// </summary>
         private FrmSystemSetting frmSystemSetting = new FrmSystemSetting();
+
+        #endregion
+
         /// <summary>
         /// 窗口布局配置
         /// </summary>
@@ -373,6 +378,9 @@ namespace TDJS_Vision
                 case "TCP设备":
                     TCP设备ToolStripMenuItem_Click(null, null);
                     break;
+                case "运行参数":
+                    运行参数ToolStripMenuItem_Click(null, null);
+                    break;
                 case "循环运行":
                     循环运行ToolStripMenuItem_Click(null, null);
                     break;
@@ -433,6 +441,7 @@ namespace TDJS_Vision
             tsbt_PlcManager.Enabled = !isRunning;
             tsbt_ModbusManager.Enabled = !isRunning;
             tsbt_TCPManager.Enabled = !isRunning;
+            tsbt_RunParamSetting.Enabled = !isRunning;
 
             // 文件
             文件ToolStripMenuItem.Enabled = !isRunning;
@@ -459,6 +468,11 @@ namespace TDJS_Vision
         private void TCP设备ToolStripMenuItem_Click(object value1, object value2)
         {
             FrmTcpAdd.ShowDialog();
+        }
+
+        private void 运行参数ToolStripMenuItem_Click(object value1, object value2)
+        {
+            FrmSolRunParam.ShowDialog();
         }
 
         private void 相机管理ToolStripMenuItem_Click(object value1, object value2)

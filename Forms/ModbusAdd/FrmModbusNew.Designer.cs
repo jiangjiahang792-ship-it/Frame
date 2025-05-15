@@ -158,7 +158,7 @@
             this.uiipTextBoxIP.FillColor2 = System.Drawing.Color.FromArgb(((int)(((byte)(235)))), ((int)(((byte)(243)))), ((int)(((byte)(255)))));
             this.uiipTextBoxIP.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.uiipTextBoxIP.Location = new System.Drawing.Point(243, 161);
-            this.uiipTextBoxIP.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
+            this.uiipTextBoxIP.Margin = new System.Windows.Forms.Padding(4);
             this.uiipTextBoxIP.MinimumSize = new System.Drawing.Size(1, 1);
             this.uiipTextBoxIP.Name = "uiipTextBoxIP";
             this.uiipTextBoxIP.Padding = new System.Windows.Forms.Padding(1);
@@ -201,7 +201,7 @@
             this.comboBoxType.Items.AddRange(new object[] {
             "作为主站",
             "作为从站"});
-            this.comboBoxType.Location = new System.Drawing.Point(244, 21);
+            this.comboBoxType.Location = new System.Drawing.Point(244, 23);
             this.comboBoxType.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.comboBoxType.Name = "comboBoxType";
             this.comboBoxType.Size = new System.Drawing.Size(219, 28);

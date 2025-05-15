@@ -14,5 +14,6 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PanasonicRead
 
         [JsonConverter(typeof(StringEnumConverter))]
         public DataType DataType { get; set; }
+        
     }
 }

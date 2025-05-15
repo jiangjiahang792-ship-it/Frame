@@ -176,6 +176,12 @@ namespace TDJS_Vision.Device.Camera
         void SetTriggerDelay(float time);
 
         /// <summary>
+        /// 获取触发模式
+        /// </summary>
+        /// <returns></returns>
+        bool GetTriggerMode();
+
+        /// <summary>
         /// 关闭相机
         /// </summary>
         /// <returns></returns>

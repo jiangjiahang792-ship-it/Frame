@@ -778,5 +778,14 @@ namespace TDJS_Vision.Device.Camera
                     return false;
             }
         }
+
+        public bool GetTriggerMode()
+        {
+            if (device == null) throw new Exception("相机对象为空！");
+            IEnumValue isTriggerMode;
+            device.Parameters.GetEnumValue("TriggerMode", out isTriggerMode);
+            bool ret = isTriggerMode.CurEnumEntry.Value == 1;
+            return ret;
+        }
     }
 }

@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.LightOpen
 {
-    internal class NodeParamCameraIO:INodeParam
+    internal class NodeParamCameraIO : INodeParam
     {
         /// <summary>
         /// 相机
@@ -42,5 +42,6 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.LightOpen
         public string NodeResult { get; set; }
 
         public bool Condition { get; set; }
+        
     }
 }

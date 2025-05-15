@@ -43,9 +43,10 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.LightOpen
                 SetStatus(NodeStatus.Unexecuted, "*");
                 base.CheckTokenCancel(token);
 
+                //如果光源资源已释放
+                if (param.Light == null) { throw new Exception("光源对象无效！"); }
                 //如果没有连接则不运行
-                if (!param.Light.IsComOpen)
-                    throw new Exception("光源串口尚未连接！");
+                if (!param.Light.IsComOpen) { throw new Exception("光源串口尚未连接！"); }
 
                 param.Light.TurnOn(param.Brightness, param.Time);
                 long time = SetRunResult(startTime, NodeStatus.Successful);

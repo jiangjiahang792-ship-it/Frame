@@ -39,6 +39,7 @@
             this.contextMenuStrip1 = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.设置流程优先级ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.设置流程组别ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.流程重命名ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.tableLayoutPanel1.SuspendLayout();
             this.contextMenuStrip1.SuspendLayout();
             this.SuspendLayout();
@@ -149,9 +150,10 @@
             this.contextMenuStrip1.ImageScalingSize = new System.Drawing.Size(24, 24);
             this.contextMenuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.设置流程优先级ToolStripMenuItem,
-            this.设置流程组别ToolStripMenuItem});
+            this.设置流程组别ToolStripMenuItem,
+            this.流程重命名ToolStripMenuItem});
             this.contextMenuStrip1.Name = "contextMenuStrip1";
-            this.contextMenuStrip1.Size = new System.Drawing.Size(211, 80);
+            this.contextMenuStrip1.Size = new System.Drawing.Size(211, 104);
             // 
             // 设置流程优先级ToolStripMenuItem
             // 
@@ -166,6 +168,13 @@
             this.设置流程组别ToolStripMenuItem.Size = new System.Drawing.Size(210, 24);
             this.设置流程组别ToolStripMenuItem.Text = "设置流程组别";
             this.设置流程组别ToolStripMenuItem.Click += new System.EventHandler(this.设置流程组别ToolStripMenuItem_Click);
+            // 
+            // 流程重命名ToolStripMenuItem
+            // 
+            this.流程重命名ToolStripMenuItem.Name = "流程重命名ToolStripMenuItem";
+            this.流程重命名ToolStripMenuItem.Size = new System.Drawing.Size(210, 24);
+            this.流程重命名ToolStripMenuItem.Text = "流程重命名";
+            this.流程重命名ToolStripMenuItem.Click += new System.EventHandler(this.流程重命名ToolStripMenuItem_Click);
             // 
             // ProcessEditPanel
             // 
@@ -198,5 +207,6 @@
         private System.Windows.Forms.ContextMenuStrip contextMenuStrip1;
         private System.Windows.Forms.ToolStripMenuItem 设置流程优先级ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 设置流程组别ToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem 流程重命名ToolStripMenuItem;
     }
 }

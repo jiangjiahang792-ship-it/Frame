@@ -29,5 +29,6 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
         /// 异步写入
         /// </summary>
         public bool IsAsync {  get; set; }
+        
     }
 }

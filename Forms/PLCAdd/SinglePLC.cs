@@ -1,11 +1,8 @@
-﻿using Basler.Pylon;
-using Logger;
-using Sunny.UI;
+﻿using Logger;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
-using TDJS_Vision.Forms.LightAdd;
 using TDJS_Vision.Device.PLC;
 
 namespace TDJS_Vision.Forms.PLCAdd

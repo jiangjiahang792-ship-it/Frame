@@ -7,5 +7,7 @@ namespace TDJS_Vision.Node._6_LogicTool.SleepTool
         /// 休眠时间
         /// </summary>
         public int Time;
+
+        
     }
 }

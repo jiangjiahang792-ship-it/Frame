@@ -18,7 +18,7 @@ using TDJS_Vision.Device.PLC;
 using TDJS_Vision.Node;
 using TDJS_Vision.Device.TCP;
 using TDJS_Vision.Forms.TCPAdd;
-using TDJS_Vision.Node._3_Detection.HTAI;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision
 {
@@ -418,15 +418,15 @@ namespace TDJS_Vision
             SingleTcp.SingleTCPs.Clear();
             Solution.Instance.AllDevices.Clear();
 
-            // 释放AI节点的内存
-            foreach (var node in Solution.Instance.Nodes)
-            {
-                if (node is NodeHTAI nodeAi)
-                {
-                    nodeAi.ReleaseAIResult();
-                    ((ParamFormHTAI)nodeAi.ParamForm).ReleaseAIHandle();
-                }
-            }
+            // TODO:释放AI节点的内存 
+            //foreach (var node in Solution.Instance.Nodes)
+            //{
+            //    if (node is NodeTDAI nodeAi)
+            //    {
+            //        nodeAi.ReleaseAIResult();
+            //        ((ParamFormHTAI)nodeAi.ParamForm).ReleaseAIHandle();
+            //    }
+            //}
 
             // 清空方案共享变量
             Solution.Instance.SharedVariable.ClearAll();

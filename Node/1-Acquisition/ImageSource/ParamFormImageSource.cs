@@ -50,7 +50,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 {
                     textBoxImgPath.Text = param.PathText;
                     checkBoxAuto.Checked = param.IsAutoLoop;
-                    if (param.ImagePaths != null &&param.ImagePaths.Count != 0)
+                    if (param.ImagePaths.Count != 0)
                     {
                         checkBoxAuto.Enabled = true;
                     }

@@ -41,5 +41,6 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.TcpClient
         /// 条件为false发送的内容
         /// </summary>
         public string SendContentFalse { get; set; }
+        
     }
 }

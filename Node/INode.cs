@@ -114,9 +114,9 @@ namespace TDJS_Vision.Node
         /// </summary>
         SendResultByPLC,
         /// <summary>
-        /// 汇图AI节点
+        /// 瞳达AI节点
         /// </summary>
-        AIHT,
+        AITD,
         /// <summary>
         /// 存图节点
         /// </summary>
@@ -162,14 +162,6 @@ namespace TDJS_Vision.Node
         /// </summary>
         TemplateMatch,
         /// <summary>
-        /// 长度测量
-        /// </summary>
-        LengthMeasurement,
-        /// <summary>
-        /// 面积测量
-        /// </summary>
-        AreaMeasurement,
-        /// <summary>
         /// ModbusRead读取
         /// </summary>
         ModbusRead,
@@ -190,10 +182,6 @@ namespace TDJS_Vision.Node
         /// </summary>
         ImageRotate,
         /// <summary>
-        /// 两直线平行度
-        /// </summary>
-        LineParallelism,
-        /// <summary>
         /// Modbus软触发
         /// </summary>
         ModbusSoftTrigger,
@@ -205,10 +193,6 @@ namespace TDJS_Vision.Node
         /// 相机IO
         /// </summary>
         CameraIO,
-        /// <summary>
-        /// 注液孔检测
-        /// </summary>
-        InjectionHole,
         /// <summary>
         /// 图像源
         /// </summary>

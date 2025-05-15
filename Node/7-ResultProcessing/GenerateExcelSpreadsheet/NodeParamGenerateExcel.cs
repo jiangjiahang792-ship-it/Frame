@@ -12,5 +12,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.GenerateExcelSpreadsheet
         public string[] Texts = new string[20];
         public bool[] Enables = new bool[10];
         public string filePath;
+
+        
     }
 }

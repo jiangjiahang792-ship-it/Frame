@@ -4,7 +4,7 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
-using TDJS_Vision.Node._3_Detection.HTAI;
+using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._5_EquipmentCommunication.SendResultByPLC;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus

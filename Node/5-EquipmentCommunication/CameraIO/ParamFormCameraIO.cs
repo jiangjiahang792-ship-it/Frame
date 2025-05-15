@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Windows.Forms;
-using TDJS_Vision.Node._3_Detection.HTAI;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.LightOpen
 {

@@ -1,5 +1,5 @@
 ﻿using Newtonsoft.Json;
-using TDJS_Vision.Node._3_Detection.HTAI;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
 {
@@ -9,6 +9,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
         public ResultViewData AiResultData;
         public string Text1;
         public string Text2;
+
+        
     }
 
     internal class DatashowData

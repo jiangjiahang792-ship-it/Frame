@@ -9,9 +9,7 @@ using TDJS_Vision.Node._3_Detection.FindLine;
 using TDJS_Vision.Node._3_Detection.FindCircle;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate;
-using TDJS_Vision.Node._4_Measurement.ParallelLines;
 using TDJS_Vision.Node._5_EquipmentCommunication.LightOpen;
-using TDJS_Vision.Node._3_Detection.HTAI;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop;
 using TDJS_Vision.Node._5_EquipmentCommunication.PanasonicRead;
 using TDJS_Vision.Node._5_EquipmentCommunication.PanasonicWirte;
@@ -29,12 +27,11 @@ using TDJS_Vision.Node._7_ResultProcessing.DataShow;
 using TDJS_Vision.Node._7_ResultProcessing.ResultSummarize;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit;
 using TDJS_Vision.Node._3_Detection.QRScan;
-using TDJS_Vision.Node._5_Measurement.InjectionHoleMeasurement;
 using TDJS_Vision.Node._3_Detection.MatchTemplate;
 using TDJS_Vision.Node._7_ResultProcessing.ImageDelete;
 using TDJS_Vision.Node._6_LogicTool.SharedVariable;
-using System.Diagnostics;
 using TDJS_Vision.Node._7_ResultProcessing.GenerateExcelSpreadsheet;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Forms.ProcessNew
 {
@@ -199,8 +196,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.SendResultByPLC:
                     node = new NodeSendResultByPLC(nodeId, nodeName, _process, nodeType);
                     break;
-                case NodeType.AIHT:
-                    node = new NodeHTAI(nodeId, nodeName, _process, nodeType);
+                case NodeType.AITD:
+                    node = new NodeTDAI(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.ImageSave:
                     node = new NodeImageSave(nodeId, nodeName, _process, nodeType);
@@ -244,9 +241,6 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.ImageRotate:
                     node = new NodeImageRotate(nodeId, nodeName, _process, nodeType);
                     break;
-                case NodeType.LineParallelism:
-                    node = new NodeParallelLines(nodeId, nodeName, _process, nodeType);
-                    break;
                 case NodeType.ModbusSoftTrigger:
                     node = new NodeModbusSoftTrigger(nodeId, nodeName, _process, nodeType);
                     break;
@@ -255,9 +249,6 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.CameraIO:
                     node = new NodeCameraIO(nodeId, nodeName, _process, nodeType);
-                    break;
-                case NodeType.InjectionHole:
-                    node = new NodeInjectionHole(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.ImageSource:
                     node = new NodeImageSource(nodeId, nodeName, _process, nodeType);
@@ -380,6 +371,13 @@ namespace TDJS_Vision.Forms.ProcessNew
         private void 设置流程组别ToolStripMenuItem_Click(object sender, EventArgs e)
         {
             formProcessGroupSetting.ShowDialog();
+        }
+
+        private void 流程重命名ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            FormProcessRename formProcessRename = new FormProcessRename();
+            formProcessRename.SetProcess(_process);
+            formProcessRename.ShowDialog();
         }
     }
 }

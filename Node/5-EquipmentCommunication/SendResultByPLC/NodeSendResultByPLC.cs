@@ -7,7 +7,7 @@ using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using TDJS_Vision.Node._3_Detection.HTAI;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.SendResultByPLC
 {
@@ -49,6 +49,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.SendResultByPLC
                     // 初始化运行状态
                     SetStatus(NodeStatus.Unexecuted, "*");
                     base.CheckTokenCancel(token);
+
 
                     // 获取订阅的算法结果
                     ResultViewData detectResult = form.GetAllResult();

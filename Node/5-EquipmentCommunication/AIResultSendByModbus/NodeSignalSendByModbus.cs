@@ -5,7 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Device.Modbus;
-using TDJS_Vision.Node._3_Detection.HTAI;
+using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._5_EquipmentCommunication.SendResultByPLC;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus

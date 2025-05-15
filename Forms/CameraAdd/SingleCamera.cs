@@ -180,17 +180,6 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// <param name="e"></param>
         private void 移除ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            // 移除设备需要判断当前是否有节点使用该设备
-            foreach (var node in Solution.Instance.Nodes)
-            {
-                if (node is NodeImageSource cameraNode
-                    && cameraNode.ParamForm.Params is NodeParamImageSoucre paramCamera
-                    && Camera.UserDefinedName == paramCamera.Camera.UserDefinedName)
-                {
-                    MessageBox.Show("当前方案的节点正在使用该相机，无法删除相机！", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-            }
             if (IsSelected)
                 SingleCameraRemoveEvent?.Invoke(this, this);
         }

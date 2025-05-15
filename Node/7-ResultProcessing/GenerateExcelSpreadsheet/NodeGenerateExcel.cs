@@ -1,18 +1,11 @@
 ﻿using Logger;
 using OfficeOpenXml;
-using OfficeOpenXml.FormulaParsing.Excel.Functions.DateTime;
-using OpenCvSharp.Aruco;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using TDJS_Vision.Node._3_Detection.HTAI;
-using TDJS_Vision.Node._7_ResultProcessing.ResultSummarize;
-using static Logger.LogHelper;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.GenerateExcelSpreadsheet
 {

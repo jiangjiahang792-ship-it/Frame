@@ -29,6 +29,8 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.SendResultByPLC
         /// 信号保持时间
         /// </summary>
         public double StayTime;
+
+        
     }
 
     public class SignalRowData

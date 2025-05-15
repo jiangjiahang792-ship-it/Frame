@@ -39,5 +39,6 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.TcpServer
         /// 条件为false响应给客户端的内容
         /// </summary>
         public string ResponseContentFalse { get; set; }
+        
     }
 }

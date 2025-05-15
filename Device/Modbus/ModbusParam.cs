@@ -15,6 +15,7 @@ namespace TDJS_Vision.Device.Modbus
         public int Port;
         public string DevName;
         public string UserDefinedName;
+        public ushort HoldTime = 300;// 保持时间默认300ms
 
         public ModbusParam() { }
         public ModbusParam(DevType type, string ip, int port, string devName, string userDefinedName) 

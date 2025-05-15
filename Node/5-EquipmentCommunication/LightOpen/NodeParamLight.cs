@@ -22,5 +22,6 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.LightOpen
         public string LightName { get; set; }
         public int Brightness { get; set; } //光源值
         public int Time { get; set; } //打开时长
+        
     }
 }

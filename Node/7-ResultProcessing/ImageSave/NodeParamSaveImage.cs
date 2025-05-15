@@ -3,7 +3,7 @@ using Newtonsoft.Json.Converters;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using TDJS_Vision.Node._3_Detection.HTAI;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 {
@@ -88,6 +88,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// 条码订阅控件的文本2
         /// </summary>
         public string BarCodeSubText2;
+
+        
 
         #endregion
     }

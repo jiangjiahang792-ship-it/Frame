@@ -2,8 +2,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
-using TDJS_Vision.Device.PLC;
-using TDJS_Vision.Node._3_Detection.HTAI;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 {

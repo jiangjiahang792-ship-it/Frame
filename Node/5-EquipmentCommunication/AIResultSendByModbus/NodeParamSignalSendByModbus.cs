@@ -27,5 +27,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
         //保存订阅节点
         public string Text1;
         public string Text2;
+
+        
     }
 }

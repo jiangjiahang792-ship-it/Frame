@@ -1,7 +1,7 @@
 ﻿using OpenCvSharp;
 using System.ComponentModel;
 using System.Drawing;
-using TDJS_Vision.Node._3_Detection.HTAI;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._3_Detection.FindCircle
 {

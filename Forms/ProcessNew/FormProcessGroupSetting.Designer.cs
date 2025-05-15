@@ -79,7 +79,7 @@
             "3组",
             "4组",
             "5组"});
-            this.comboBox1.Location = new System.Drawing.Point(173, 27);
+            this.comboBox1.Location = new System.Drawing.Point(173, 28);
             this.comboBox1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.comboBox1.Name = "comboBox1";
             this.comboBox1.Size = new System.Drawing.Size(168, 25);

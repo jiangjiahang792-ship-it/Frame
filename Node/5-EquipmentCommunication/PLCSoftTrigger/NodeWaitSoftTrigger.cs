@@ -45,8 +45,8 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PLCSoftTrigger
                         base.CheckTokenCancel(token);
 
                         //如果没有连接则不运行
-                        if (!param.Plc.IsConnect)
-                            throw new Exception("设备尚未连接！");
+                        if (param.Plc == null || !param.Plc.IsConnect)
+                            throw new Exception("PLC设备资源已释放或尚未连接！");//如果没有连接则不运行
 
                         await Task.Run(() =>
                         {

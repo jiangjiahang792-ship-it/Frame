@@ -3,7 +3,7 @@ using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using TDJS_Vision.Node._3_Detection.HTAI;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node
 {
@@ -221,7 +221,7 @@ namespace TDJS_Vision.Node
                 Solution.Instance.Nodes.Remove(this);
                 Process.Nodes.Remove(this);
                 NodeDeletedEvent.Invoke(this, this); 
-                if (this is NodeHTAI)
+                if (this is NodeTDAI)
                 {
                     Solution.Instance.SolAiModelNum--;
                 }
@@ -369,16 +369,6 @@ namespace TDJS_Vision.Node
         {
             FormAddNotes formAddNotes = new FormAddNotes(this);
             formAddNotes.ShowDialog();
-        }
-
-        /// <summary>
-        /// 计时器用于检查节点是否被取消
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void timer1_Tick(object sender, EventArgs e)
-        {
-
         }
     }
 

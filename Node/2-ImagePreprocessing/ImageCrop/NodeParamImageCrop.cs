@@ -33,5 +33,6 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
         /// </summary>
         [JsonConverter(typeof(PolyConverter))]
         public ROI ROI { get; set; }
+        
     }
 }

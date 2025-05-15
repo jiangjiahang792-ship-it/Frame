@@ -90,7 +90,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <exception cref="OperationCanceledException"></exception>
         public override async Task Run(CancellationToken token)
         {
-
             DateTime startTime = DateTime.Now;
             if (!Active)
             {
@@ -156,6 +155,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         }
                         else if (param.ImageSource == "相机")
                         {
+                            if (param.Camera == null) { throw new Exception("相机对象无效！"); }
                             if (!param.Camera.IsOpen) { throw new Exception("相机尚未连接！"); }
 
                             if (param.TriggerSource != TriggerSource.SOFT) { throw new Exception("只有软触发拍照才能手动点击运行！"); }

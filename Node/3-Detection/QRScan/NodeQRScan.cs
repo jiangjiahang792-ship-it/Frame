@@ -1,10 +1,8 @@
 ﻿using Logger;
 using System;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using TDJS_Vision.Node._3_Detection.FindCircle;
-using TDJS_Vision.Node._3_Detection.HTAI;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._3_Detection.QRScan
 {

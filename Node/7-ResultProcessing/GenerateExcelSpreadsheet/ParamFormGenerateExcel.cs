@@ -1,17 +1,7 @@
-﻿using Logger;
-using System;
-using System.Collections;
+﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
-using TDJS_Vision.Node._3_Detection.HTAI;
-using TDJS_Vision.Node._7_ResultProcessing.ResultSummarize;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.GenerateExcelSpreadsheet
 {

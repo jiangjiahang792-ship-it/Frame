@@ -13,5 +13,6 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PLCSoftTrigger
         /// </summary>
         public string PlcName {  get; set; }
         public string Address { get; set; }
+        
     }
 }

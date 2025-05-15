@@ -52,8 +52,8 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
                 base.CheckTokenCancel(token);
 
                 //如果没有连接则不运行
-                if (!param.Device.IsConnect)
-                    throw new Exception("设备尚未连接！");
+                if (param.Device == null || !param.Device.IsConnect)
+                    throw new Exception("Modbus设备资源已释放或尚未连接！");
 
                 //如果是订阅的数据，需要先获取订阅的值
                 if (param.IsSubscribed)
@@ -64,10 +64,17 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
                     case RegistersType.Coils:
                         string[] datas = param.Data.Split(',');
                         bool[] boolArray = datas.Select(part => part.Trim() != "0").ToArray();
-                        if(param.IsAsync)
+                        bool[] falseArray = new bool[boolArray.Length];
+                        if (param.IsAsync)
                             ((ModbusPoll)param.Device).WriteMultipleCoilsAsync(param.StartAddress, boolArray);
                         else
                             ((ModbusPoll)param.Device).WriteMultipleCoils(param.StartAddress, boolArray);
+                        //线圈寄存器保持时间到后，自动恢复
+                        Thread.Sleep(((ModbusPoll)param.Device).ModbusParam.HoldTime);
+                        if (param.IsAsync)
+                            ((ModbusPoll)param.Device).WriteMultipleCoilsAsync(param.StartAddress, falseArray);
+                        else
+                            ((ModbusPoll)param.Device).WriteMultipleCoils(param.StartAddress, falseArray);
                         break;
                     case RegistersType.HoldingRegisters:
                         string[] parts = param.Data.Split(',');

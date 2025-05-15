@@ -22,5 +22,6 @@
         /// 匹配最小得分
         /// </summary>
         public float MinScore { get; set; }
+        
     }
 }

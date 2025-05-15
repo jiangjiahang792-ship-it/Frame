@@ -24,6 +24,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
         /// 图像分割列数
         /// </summary>
         public int Cols;
+
         
     }
 }

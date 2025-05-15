@@ -183,17 +183,6 @@ namespace TDJS_Vision.Forms.LightAdd
         /// <param name="e"></param>
         private void 移除ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            // 移除设备需要判断当前是否有节点使用该设备
-            foreach (var node in Solution.Instance.Nodes)
-            {
-                if (node is NodeLight lightNode
-                    && lightNode.ParamForm.Params is NodeParamLight paramLight
-                    && Light.UserDefinedName == paramLight.Light.UserDefinedName)
-                {
-                    MessageBox.Show("当前方案的节点正在使用该光源，无法删除光源！", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-            }
             if(IsSelected)
                 SingleLightRemoveEvent?.Invoke(this, this);
         }

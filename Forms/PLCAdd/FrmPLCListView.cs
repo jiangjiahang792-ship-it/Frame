@@ -1,18 +1,8 @@
-﻿using Basler.Pylon;
-using Logger;
+﻿using Logger;
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.IO.Ports;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.CameraAdd;
-using TDJS_Vision.Forms.LightAdd;
-using TDJS_Vision.Device.Light;
 using TDJS_Vision.Device.PLC;
 
 namespace TDJS_Vision.Forms.PLCAdd

@@ -50,9 +50,9 @@
             this.关于TDJS_VisionToolStripMenuItem1 = new System.Windows.Forms.ToolStripMenuItem();
             this.锁定ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.dockPanel1 = new WeifenLuo.WinFormsUI.Docking.DockPanel();
-            this.vS2015LightTheme1 = new WeifenLuo.WinFormsUI.Docking.VS2015LightTheme();
             this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
+            this.toolStrip1 = new System.Windows.Forms.ToolStrip();
             this.tsbt_SolNew = new System.Windows.Forms.ToolStripButton();
             this.tsbt_SolOpen = new System.Windows.Forms.ToolStripButton();
             this.tsbt_SolSaveAs = new System.Windows.Forms.ToolStripButton();
@@ -61,12 +61,12 @@
             this.tsbt_LightManager = new System.Windows.Forms.ToolStripButton();
             this.tsbt_CameraManager = new System.Windows.Forms.ToolStripButton();
             this.tsbt_PlcManager = new System.Windows.Forms.ToolStripButton();
+            this.tsbt_ModbusManager = new System.Windows.Forms.ToolStripButton();
+            this.tsbt_TCPManager = new System.Windows.Forms.ToolStripButton();
+            this.tsbt_RunParamSetting = new System.Windows.Forms.ToolStripButton();
             this.tsbt_SolRunOnce = new System.Windows.Forms.ToolStripButton();
             this.tsbt_SolRunLoop = new System.Windows.Forms.ToolStripButton();
             this.tsbt_SolRunStop = new System.Windows.Forms.ToolStripButton();
-            this.toolStrip1 = new System.Windows.Forms.ToolStrip();
-            this.tsbt_ModbusManager = new System.Windows.Forms.ToolStripButton();
-            this.tsbt_TCPManager = new System.Windows.Forms.ToolStripButton();
             this.toolStripLabel1 = new System.Windows.Forms.ToolStripLabel();
             this.BottomToolStripPanel = new System.Windows.Forms.ToolStripPanel();
             this.TopToolStripPanel = new System.Windows.Forms.ToolStripPanel();
@@ -74,6 +74,7 @@
             this.LeftToolStripPanel = new System.Windows.Forms.ToolStripPanel();
             this.ContentPanel = new System.Windows.Forms.ToolStripContentPanel();
             this.timerLoadSol = new System.Windows.Forms.Timer(this.components);
+            this.vS2015DarkTheme1 = new WeifenLuo.WinFormsUI.Docking.VS2015DarkTheme();
             this.menuStrip1.SuspendLayout();
             this.toolStrip1.SuspendLayout();
             this.SuspendLayout();
@@ -259,20 +260,44 @@
             this.dockPanel1.Location = new System.Drawing.Point(0, 73);
             this.dockPanel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.dockPanel1.Name = "dockPanel1";
-            this.dockPanel1.Padding = new System.Windows.Forms.Padding(6);
             this.dockPanel1.ShowAutoHideContentOnHover = false;
             this.dockPanel1.Size = new System.Drawing.Size(1383, 699);
             this.dockPanel1.TabIndex = 2;
-            this.dockPanel1.Theme = this.vS2015LightTheme1;
             // 
             // saveFileDialog1
             // 
-            this.saveFileDialog1.Filter = "瞳达视觉方案文件(*.TdSol)|*.TdSol|所有文件(*.*)|*.*";
+            this.saveFileDialog1.Filter = "视觉方案文件(*.YtSol)|*.YtSol|所有文件(*.*)|*.*";
             // 
             // openFileDialog1
             // 
             this.openFileDialog1.FileName = "openFileDialog1";
-            this.openFileDialog1.Filter = "瞳达视觉方案文件(*.TdSol)|*.TdSol|所有文件(*.*)|*.*";
+            this.openFileDialog1.Filter = "视觉方案文件(*.YtSol)|*.YtSol|所有文件(*.*)|*.*";
+            // 
+            // toolStrip1
+            // 
+            this.toolStrip1.BackColor = System.Drawing.SystemColors.ControlLightLight;
+            this.toolStrip1.ImageScalingSize = new System.Drawing.Size(32, 32);
+            this.toolStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.tsbt_SolNew,
+            this.tsbt_SolOpen,
+            this.tsbt_SolSaveAs,
+            this.tsbt_SolSave,
+            this.tsbt_ProcessManager,
+            this.tsbt_LightManager,
+            this.tsbt_CameraManager,
+            this.tsbt_PlcManager,
+            this.tsbt_ModbusManager,
+            this.tsbt_TCPManager,
+            this.tsbt_RunParamSetting,
+            this.tsbt_SolRunOnce,
+            this.tsbt_SolRunLoop,
+            this.tsbt_SolRunStop,
+            this.toolStripLabel1});
+            this.toolStrip1.Location = new System.Drawing.Point(0, 32);
+            this.toolStrip1.Name = "toolStrip1";
+            this.toolStrip1.Size = new System.Drawing.Size(1383, 41);
+            this.toolStrip1.TabIndex = 1;
+            this.toolStrip1.Text = "toolStrip1";
             // 
             // tsbt_SolNew
             // 
@@ -362,6 +387,37 @@
             this.tsbt_PlcManager.ToolTipText = "PLC管理";
             this.tsbt_PlcManager.Click += new System.EventHandler(this.ToolStripButton_Click);
             // 
+            // tsbt_ModbusManager
+            // 
+            this.tsbt_ModbusManager.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.tsbt_ModbusManager.Image = global::TDJS_Vision.Properties.Resources.Modbus;
+            this.tsbt_ModbusManager.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.tsbt_ModbusManager.Name = "tsbt_ModbusManager";
+            this.tsbt_ModbusManager.Size = new System.Drawing.Size(36, 38);
+            this.tsbt_ModbusManager.Text = "Modbus设备";
+            this.tsbt_ModbusManager.Click += new System.EventHandler(this.ToolStripButton_Click);
+            // 
+            // tsbt_TCPManager
+            // 
+            this.tsbt_TCPManager.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.tsbt_TCPManager.Image = global::TDJS_Vision.Properties.Resources.tcp;
+            this.tsbt_TCPManager.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.tsbt_TCPManager.Name = "tsbt_TCPManager";
+            this.tsbt_TCPManager.Size = new System.Drawing.Size(36, 38);
+            this.tsbt_TCPManager.Text = "TCP设备";
+            this.tsbt_TCPManager.ToolTipText = "TCP设备";
+            this.tsbt_TCPManager.Click += new System.EventHandler(this.ToolStripButton_Click);
+            // 
+            // tsbt_RunParamSetting
+            // 
+            this.tsbt_RunParamSetting.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.tsbt_RunParamSetting.Image = global::TDJS_Vision.Properties.Resources.运行参数;
+            this.tsbt_RunParamSetting.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.tsbt_RunParamSetting.Name = "tsbt_RunParamSetting";
+            this.tsbt_RunParamSetting.Size = new System.Drawing.Size(36, 38);
+            this.tsbt_RunParamSetting.Text = "运行参数";
+            this.tsbt_RunParamSetting.Click += new System.EventHandler(this.ToolStripButton_Click);
+            // 
             // tsbt_SolRunOnce
             // 
             this.tsbt_SolRunOnce.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
@@ -398,52 +454,6 @@
             this.tsbt_SolRunStop.Text = "停止运行";
             this.tsbt_SolRunStop.ToolTipText = "停止运行";
             this.tsbt_SolRunStop.Click += new System.EventHandler(this.ToolStripButton_Click);
-            // 
-            // toolStrip1
-            // 
-            this.toolStrip1.BackColor = System.Drawing.SystemColors.ControlLightLight;
-            this.toolStrip1.ImageScalingSize = new System.Drawing.Size(32, 32);
-            this.toolStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.tsbt_SolNew,
-            this.tsbt_SolOpen,
-            this.tsbt_SolSaveAs,
-            this.tsbt_SolSave,
-            this.tsbt_ProcessManager,
-            this.tsbt_LightManager,
-            this.tsbt_CameraManager,
-            this.tsbt_PlcManager,
-            this.tsbt_ModbusManager,
-            this.tsbt_TCPManager,
-            this.tsbt_SolRunOnce,
-            this.tsbt_SolRunLoop,
-            this.tsbt_SolRunStop,
-            this.toolStripLabel1});
-            this.toolStrip1.Location = new System.Drawing.Point(0, 32);
-            this.toolStrip1.Name = "toolStrip1";
-            this.toolStrip1.Size = new System.Drawing.Size(1383, 41);
-            this.toolStrip1.TabIndex = 1;
-            this.toolStrip1.Text = "toolStrip1";
-            // 
-            // tsbt_ModbusManager
-            // 
-            this.tsbt_ModbusManager.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.tsbt_ModbusManager.Image = global::TDJS_Vision.Properties.Resources.Modbus;
-            this.tsbt_ModbusManager.ImageTransparentColor = System.Drawing.Color.Magenta;
-            this.tsbt_ModbusManager.Name = "tsbt_ModbusManager";
-            this.tsbt_ModbusManager.Size = new System.Drawing.Size(36, 38);
-            this.tsbt_ModbusManager.Text = "Modbus设备";
-            this.tsbt_ModbusManager.Click += new System.EventHandler(this.ToolStripButton_Click);
-            // 
-            // tsbt_TCPManager
-            // 
-            this.tsbt_TCPManager.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.tsbt_TCPManager.Image = global::TDJS_Vision.Properties.Resources.tcp;
-            this.tsbt_TCPManager.ImageTransparentColor = System.Drawing.Color.Magenta;
-            this.tsbt_TCPManager.Name = "tsbt_TCPManager";
-            this.tsbt_TCPManager.Size = new System.Drawing.Size(36, 38);
-            this.tsbt_TCPManager.Text = "TCP设备";
-            this.tsbt_TCPManager.ToolTipText = "TCP设备";
-            this.tsbt_TCPManager.Click += new System.EventHandler(this.ToolStripButton_Click);
             // 
             // toolStripLabel1
             // 
@@ -545,7 +555,6 @@
         private System.Windows.Forms.ToolStripMenuItem 画布设置ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 使用教程ToolStripMenuItem;
         private WeifenLuo.WinFormsUI.Docking.DockPanel dockPanel1;
-        private WeifenLuo.WinFormsUI.Docking.VS2015LightTheme vS2015LightTheme1;
         private System.Windows.Forms.ToolStripMenuItem 联系我们ToolStripMenuItem1;
         private System.Windows.Forms.ToolStripMenuItem 关于TDJS_VisionToolStripMenuItem1;
         private System.Windows.Forms.SaveFileDialog saveFileDialog1;
@@ -572,6 +581,8 @@
         private System.Windows.Forms.ToolStripButton tsbt_TCPManager;
         private System.Windows.Forms.Timer timerLoadSol;
         private System.Windows.Forms.ToolStripLabel toolStripLabel1;
+        private WeifenLuo.WinFormsUI.Docking.VS2015DarkTheme vS2015DarkTheme1;
+        private System.Windows.Forms.ToolStripButton tsbt_RunParamSetting;
     }
 }
 

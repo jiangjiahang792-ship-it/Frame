@@ -39,6 +39,8 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
         /// 写入变量名称
         /// </summary>
         public string WriteName;
+
+        
     }
 
     /// <summary>

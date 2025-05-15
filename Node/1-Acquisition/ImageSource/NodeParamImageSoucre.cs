@@ -32,7 +32,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <summary>
         /// 图片路径列表
         /// </summary>
-        public List<string> ImagePaths { get; set; }
+        public List<string> ImagePaths { get; set; } = new List<string>();
         #endregion
 
         #region 相机参数
@@ -72,6 +72,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// 是否频闪
         /// </summary>
         public bool IsStrobing { get; set; }
+        
 
         #endregion
     }

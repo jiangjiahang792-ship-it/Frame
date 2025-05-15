@@ -63,16 +63,6 @@ namespace TDJS_Vision.Properties {
         /// <summary>
         ///   查找 System.Drawing.Bitmap 类型的本地化资源。
         /// </summary>
-        internal static System.Drawing.Bitmap IMG20240327183803 {
-            get {
-                object obj = ResourceManager.GetObject("IMG20240327183803", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   查找 System.Drawing.Bitmap 类型的本地化资源。
-        /// </summary>
         internal static System.Drawing.Bitmap Modbus {
             get {
                 object obj = ResourceManager.GetObject("Modbus", resourceCulture);
@@ -286,6 +276,16 @@ namespace TDJS_Vision.Properties {
         internal static System.Drawing.Bitmap 解锁 {
             get {
                 object obj = ResourceManager.GetObject("解锁", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   查找 System.Drawing.Bitmap 类型的本地化资源。
+        /// </summary>
+        internal static System.Drawing.Bitmap 运行参数 {
+            get {
+                object obj = ResourceManager.GetObject("运行参数", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }

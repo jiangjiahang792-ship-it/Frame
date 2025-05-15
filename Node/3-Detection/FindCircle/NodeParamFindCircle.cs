@@ -78,6 +78,7 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
         /// </summary>
         [JsonConverter(typeof(PolyConverter))]
         public ROI ROI { get; set; }
+        
     }
     /// <summary>
     /// 圆类型

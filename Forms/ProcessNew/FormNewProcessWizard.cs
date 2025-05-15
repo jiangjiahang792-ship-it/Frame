@@ -24,6 +24,39 @@ namespace TDJS_Vision.Forms.ProcessNew
             this.KeyPreview = true;
             Init();
             Shown += FormNewProcessWizard_Shown;
+            FormProcessRename.ProcessRenameChanged += FormProcessRename_ProcessRenameChanged;
+        }
+        /// <summary>
+        /// 流程重命名事件处理
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void FormProcessRename_ProcessRenameChanged(object sender, (string, string) e)
+        {
+            RenameTabPage(tabControl1, e.Item1, e.Item2);
+        }
+        /// <summary>
+        /// 重命名选项卡
+        /// </summary>
+        /// <param name="tabControl"></param>
+        /// <param name="oldName"></param>
+        /// <param name="newName"></param>
+        public static void RenameTabPage(TabControl tabControl, string oldName, string newName)
+        {
+            // 遍历 TabPages 集合
+            foreach (TabPage tabPage in tabControl.TabPages)
+            {
+                // 检查 TabPage 的 Text 属性是否等于 oldName
+                if (tabPage.Text == oldName)
+                {
+                    // 更改 TabPage 的名称
+                    tabPage.Text = newName;
+                    return; // 找到并重命名后退出循环
+                }
+            }
+
+            // 如果没有找到指定名称的 TabPage，则输出提示信息
+            LogHelper.AddLog(MsgLevel.Exception, $"未找到名为 {oldName} 的 TabPage。",true);
         }
 
         private void FormNewProcessWizard_Shown(object sender, EventArgs e)
@@ -231,7 +264,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     {
                         foreach (var item1 in item.Nodes)
                         {
-                            if (item1.NodeType == NodeType.AIHT)
+                            if (item1.NodeType == NodeType.AITD)
                             {
                                 Solution.Instance.SolAiModelNum--;
                             }

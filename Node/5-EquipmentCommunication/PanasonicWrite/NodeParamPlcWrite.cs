@@ -17,5 +17,6 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PanasonicWirte
         public bool IsSubscribed { get; set; }
         public string Text1 { get; set; }
         public string Text2 { get; set; }
+        
     }
 }

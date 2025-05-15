@@ -16,7 +16,7 @@
     </Node>
     <Node Text="检测识别" ImageName="检测识别" Tag="UNKNOWN" SelectedImageName="检测识别">
       <Nodes>
-        <Node Text="AI检测" ImageName="AI检测" Tag="AIHT" SelectedImageName="AI检测" />
+        <Node Text="AI检测" ImageName="AI检测" Tag="AITD" SelectedImageName="AI检测" />
         <Node Text="直线检测" ImageName="检测直线" Tag="LineFind" SelectedImageName="检测直线" />
         <Node Text="圆检测" ImageName="检测圆" Tag="CircleFind" SelectedImageName="检测圆" />
         <Node Text="二维码识别" ImageName="二维码识别" Tag="QRScan" SelectedImageName="二维码识别" />
@@ -25,10 +25,6 @@
     </Node>
     <Node Text="测量工具" ImageName="测量工具" Tag="UNKNOWN" SelectedImageName="测量工具">
       <Nodes>
-        <Node Text="长度测量" ImageName="长度测量" Tag="LengthMeasurement" SelectedImageName="长度测量" />
-        <Node Text="面积测量" ImageName="面积测量" Tag="AreaMeasurement" SelectedImageName="面积测量" />
-        <Node Text="直线平行度" ImageName="直线平行度" Tag="LineParallelism" SelectedImageName="直线平行度" />
-        <Node Text="注液孔测量" ImageName="注液孔测量" Tag="InjectionHole" SelectedImageName="注液孔测量" />
       </Nodes>
     </Node>
 	<Node Text="设备通信" ImageName="通信工具" Tag="UNKNOWN" SelectedImageName="通信工具">

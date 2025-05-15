@@ -2,7 +2,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using TDJS_Vision.Node._4_Measurement.ParallelLines;
+using YTVisionPro.Node._3_Detection.FindLine;
 
 namespace TDJS_Vision.Node._3_Detection.FindLine
 {

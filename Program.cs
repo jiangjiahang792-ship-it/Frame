@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Reflection;
 using System.Windows.Forms;
+using Logger;
 
 namespace TDJS_Vision
 {
@@ -14,7 +15,14 @@ namespace TDJS_Vision
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new FormMain());
+            try
+            {
+                Application.Run(new FormMain());
+            }
+            catch (Exception e)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, e.Message, true);
+            }
         }
     }
 }

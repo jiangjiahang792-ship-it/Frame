@@ -14,6 +14,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
 
         [JsonConverter(typeof(StringEnumConverter))]
         public RegistersType DataType { get; set; }
+        
     }
 
     /// <summary>

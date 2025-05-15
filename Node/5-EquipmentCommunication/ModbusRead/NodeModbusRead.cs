@@ -53,8 +53,8 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
                 base.CheckTokenCancel(token);
 
                 //如果没有连接则不运行
-                if (!param.Device.IsConnect)
-                    throw new Exception("设备尚未连接！");
+                if (param.Device == null || !param.Device.IsConnect)
+                    throw new Exception("Modbus设备资源已释放或尚未连接！");
 
                 object data = null;
                 switch (param.DataType)

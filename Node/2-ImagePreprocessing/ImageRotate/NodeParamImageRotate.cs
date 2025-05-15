@@ -16,5 +16,6 @@
         /// 图像旋转的角度
         /// </summary>
         public float Angle { get; set; }
+        
     }
 }

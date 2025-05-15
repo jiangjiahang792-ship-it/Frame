@@ -57,6 +57,7 @@ namespace TDJS_Vision.Node._3_Detection.FindLine
         /// </summary>
         [JsonConverter(typeof(PolyConverter))]
         public ROI ROI { get; set; }
+        
     }
     /// <summary>
     /// 直线类型

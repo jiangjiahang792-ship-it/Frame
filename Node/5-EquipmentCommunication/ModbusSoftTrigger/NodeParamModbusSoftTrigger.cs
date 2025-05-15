@@ -18,5 +18,6 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusSoftTrigger
         /// 触点地址
         /// </summary>
         public string Address { get; set; }
+        
     }
 }
