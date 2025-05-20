@@ -1,5 +1,6 @@
 ﻿using Logger;
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -8,7 +9,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
 {
     internal class NodeDataShow : NodeBase
     {
-        public static event EventHandler<DatashowData> DataShow;
+        public static event EventHandler<DataShowData> DataShow;
 
         public NodeDataShow(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
         {
@@ -46,8 +47,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
                     SetStatus(NodeStatus.Unexecuted, "*");
                     base.CheckTokenCancel(token);
 
-                    ResultViewData aiResult = form.GetAiResult();
-                    DataShow?.Invoke(this,new DatashowData($"{ID}.{NodeName}", aiResult));
+                    List<DetectItemResult> aiResult = form.GetAiResult();
+                    DataShow?.Invoke(this,new DataShowData($"{ID}.{NodeName}", aiResult));
 
                     long time = SetRunResult(startTime, NodeStatus.Successful);
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);

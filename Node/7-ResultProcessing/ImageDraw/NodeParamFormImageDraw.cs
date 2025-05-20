@@ -43,44 +43,19 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
         /// 获取订阅的AI结果
         /// </summary>
         /// <returns></returns>
-            public List<DetectItemResult> GetAIResults()
+        public List<DetectItemResult> GetAIResults()
+        {
+            List<DetectItemResult> res = null;
+            try
             {
-                //List<DetectItemResult> res = null;
-                //try
-                //{
-                //    res = nodeSubscription2.GetValue<List<DetectItemResult>>();
-                //}
-                //catch (Exception)
-                //{
-                //    throw new Exception("订阅的结果为null！");
-                //}
-                //return res;
-
-                // 模拟AI结果
-                var results = new List<DetectItemResult>
-                {
-                    new DetectItemResult
-                    {
-                        Name = "胶皮长度",
-                        Results = new List<SingleDetectItemResult>
-                        {
-                            new SingleDetectItemResult
-                            {
-                                IsOk = false,
-                                Value = "异常的值",
-                                Rects = new List<Rect> { new Rect(100, 100, 50, 50) }
-                            },
-                            new SingleDetectItemResult
-                            {
-                                IsOk = true,
-                                Value = "正常的值",
-                                Rects = new List<Rect> { new Rect(200, 200, 60, 60) }
-                            }
-                        }
-                    }
-                };
-                return results;
+                res = nodeSubscription2.GetValue<List<DetectItemResult>>();
             }
+            catch (Exception)
+            {
+                throw new Exception("订阅的结果为null！");
+            }
+            return res;
+        }
         /// <summary>
         /// 保存参数
         /// </summary>

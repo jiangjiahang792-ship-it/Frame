@@ -1,5 +1,7 @@
 ﻿using Logger;
+using OpenCvSharp;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
@@ -49,10 +51,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             // 获取订阅的图像
                             Bitmap srcImg = form.GetImage();
 
+                            // 获取结果（测试数据）
+                            res = TestRun(srcImg, param);
 
-                            //MessageBox.Show($"分数阈值：{param.AIInputInfo.ScoreThreshold}\n模型文件1：{param.AIInputInfo.ModelInfos[0].Path}",
-                            //"提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                            //param.SetCurValue()
+                            // 返回结果
+                            Result = res;
 
                             long time = SetRunResult(startTime, NodeStatus.Successful);
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
@@ -79,12 +82,45 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// </summary>
         /// <param name="image">输入图像</param>
         /// <param name="param">检测项参数</param>
-        public void TestRun(Bitmap image, ref NodeParamTDAI param, ref NodeResultTDAI res)
+        public NodeResultTDAI TestRun(Bitmap image, NodeParamTDAI param)
         {
-            // 第一步：执行AI算法，得到矩形框结果
+            // 第一步：执行AI算法
 
-            // 第二步：将结果渲染到图像上
-
+            // 第二步：结果赋值
+            NodeResultTDAI res = new NodeResultTDAI();
+            res.ResultList = GetResult();
+            return res;
+        }
+        /// <summary>
+        /// 获取模拟结果数据
+        /// </summary>
+        /// <returns></returns>
+        private List<DetectItemResult> GetResult()
+        {
+            // 模拟AI结果
+            var results = new List<DetectItemResult>
+                {
+                    new DetectItemResult
+                    {
+                        Name = "胶皮长度",
+                        Results = new List<SingleDetectItemResult>
+                        {
+                            new SingleDetectItemResult
+                            {
+                                IsOk = false,
+                                Value = "异常的值",
+                                Rects = new List<Rect> { new Rect(100, 100, 50, 50) }
+                            },
+                            new SingleDetectItemResult
+                            {
+                                IsOk = true,
+                                Value = "正常的值",
+                                Rects = new List<Rect> { new Rect(200, 200, 60, 60) }
+                            }
+                        }
+                    }
+                };
+            return results;
         }
 
     }

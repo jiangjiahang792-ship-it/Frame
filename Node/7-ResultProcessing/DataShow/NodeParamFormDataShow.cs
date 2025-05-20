@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Windows.Forms;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
@@ -22,9 +23,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
         /// 获取订阅的结果
         /// </summary>
         /// <returns></returns>
-        public ResultViewData GetAiResult()
+        public List<DetectItemResult> GetAiResult()
         {
-            return nodeSubscription1.GetValue<ResultViewData>();
+            return nodeSubscription1.GetValue<List<DetectItemResult>>();
         }
 
         private void button1_Click(object sender, EventArgs e)

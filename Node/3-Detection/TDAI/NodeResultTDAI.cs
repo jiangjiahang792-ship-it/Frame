@@ -3,6 +3,7 @@ using System.Drawing;
 using TDJS_Vision.Forms.ResultView;
 using System.ComponentModel;
 using OpenCvSharp;
+using System.Linq;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
@@ -45,6 +46,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// 检测项的结果列表
         /// </summary>
         public List<SingleDetectItemResult> Results { get; set; } = new List<SingleDetectItemResult>();
+        /// <summary>
+        /// 返回 Results 中所有 Value 值的拼接字符串，用英文逗号分隔(这个属性只是为了方便在数据结果窗口直接显示)
+        /// </summary>
+        public string ResultsStr
+        {
+            get
+            {
+                if (Results == null || Results.Count == 0)
+                    return string.Empty;
+
+                // 使用 LINQ Select 提取每个 Result 的 Value，并用 string.Join 拼接
+                return string.Join(",", Results.Select(r => r.Value));
+            }
+        }
         /// <summary>
         /// 检测项结果是否OK
         /// </summary>

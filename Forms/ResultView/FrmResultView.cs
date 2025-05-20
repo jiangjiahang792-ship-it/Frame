@@ -58,7 +58,7 @@ namespace TDJS_Vision.Forms.ResultView
             HideChangedEvent?.Invoke(this, EventArgs.Empty);
         }
 
-        private void NodeDataShow_DataShow(object sender, DatashowData e)
+        private void NodeDataShow_DataShow(object sender, DataShowData e)
         {
             // 保证切换到ui线程访问控件
             _uiContext.Post(_ =>
@@ -79,8 +79,6 @@ namespace TDJS_Vision.Forms.ResultView
                     dataGridView.Dock = DockStyle.Fill;
 
                     // 为 DataGridView 添加列
-                    dataGridView.Columns.Add("NodeName", "节点(AI)");
-                    dataGridView.Columns.Add("ClassName", "类型(AI)");
                     dataGridView.Columns.Add("DetectName", "检测项");
                     dataGridView.Columns.Add("SingleResult", "当前判定");
                     dataGridView.Columns.Add("DetectResult", "检出内容");
@@ -110,23 +108,19 @@ namespace TDJS_Vision.Forms.ResultView
                 }
 
                 // 遍历 NGList，将内容更新到 DataGridView 中
-                foreach (var SingleDetectResult in e.AiResultData.SingleRowDataList)
+                foreach (var SingleDetectResult in e.AiResultData)
                 {
                     // 查找是否已经存在该类型
                     var row = dgv.Rows.Cast<DataGridViewRow>().FirstOrDefault(r =>
-                        r.Cells["NodeName"].Value?.ToString() == SingleDetectResult.NodeName &&
-                        r.Cells["ClassName"].Value?.ToString() == SingleDetectResult.ClassName &&
-                        r.Cells["DetectName"].Value?.ToString() == SingleDetectResult.DetectName);
+                        r.Cells["DetectName"].Value?.ToString() == SingleDetectResult.Name);
 
                     if (row == null) // 如果不存在，则添加一行
                     {
                         int rowIndex = dgv.Rows.Add();
-                        dgv.Rows[rowIndex].Cells["NodeName"].Value = SingleDetectResult.NodeName;
-                        dgv.Rows[rowIndex].Cells["ClassName"].Value = SingleDetectResult.ClassName;
-                        dgv.Rows[rowIndex].Cells["DetectName"].Value = SingleDetectResult.DetectName;
+                        dgv.Rows[rowIndex].Cells["DetectName"].Value = SingleDetectResult.Name;
                         dgv.Rows[rowIndex].Cells["SingleResult"].Value = SingleDetectResult.IsOk ? "OK" : "NG";
                         dgv.Rows[rowIndex].Cells["SingleResult"].Style.BackColor = SingleDetectResult.IsOk ? Color.Green : Color.Red;
-                        dgv.Rows[rowIndex].Cells["DetectResult"].Value = SingleDetectResult.DetectResult;
+                        dgv.Rows[rowIndex].Cells["DetectResult"].Value = SingleDetectResult.ResultsStr;
                         dgv.Rows[rowIndex].Cells["CountNG"].Value = SingleDetectResult.IsOk ? 0 : 1;
                         dgv.Rows[rowIndex].Cells["CountOK"].Value = SingleDetectResult.IsOk ? 1 : 0;
                         dgv.Rows[rowIndex].Cells["Total"].Value = 1; // 初始总数为1
@@ -136,7 +130,7 @@ namespace TDJS_Vision.Forms.ResultView
                     {
                         row.Cells["SingleResult"].Value = SingleDetectResult.IsOk ? "OK" : "NG";
                         row.Cells["SingleResult"].Style.BackColor = SingleDetectResult.IsOk ? Color.Green : Color.Red;
-                        row.Cells["DetectResult"].Value = SingleDetectResult.DetectResult;
+                        row.Cells["DetectResult"].Value = SingleDetectResult.ResultsStr;
                         int cNG = Convert.ToInt32(row.Cells["CountNG"].Value);
                         int cOK = Convert.ToInt32(row.Cells["CountOK"].Value);
                         int TotalNum = Convert.ToInt32(row.Cells["Total"].Value);

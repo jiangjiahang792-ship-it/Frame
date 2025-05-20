@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using System.Collections.Generic;
+using Newtonsoft.Json;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
@@ -9,11 +10,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
         public string Text2;
     }
 
-    internal class DatashowData
+    internal class DataShowData
     {
         public string TabPageName;
-        public ResultViewData AiResultData;
-        public DatashowData(string nodename, ResultViewData airesult)
+        public List<DetectItemResult> AiResultData;
+        public DataShowData(string nodename, List<DetectItemResult> airesult)
         {
             TabPageName = nodename;
             AiResultData = airesult;
