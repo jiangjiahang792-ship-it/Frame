@@ -28,7 +28,6 @@ namespace TDJS_Vision
                 SolConfig.Devices = Solution.Instance.AllDevices;
                 SolConfig.NodeCount = Solution.Instance.NodeCount;
                 SolConfig.ProcessCount = Solution.Instance.ProcessCount;
-                SolConfig.SolAiModelNum = Solution.Instance.SolAiModelNum;
 
                 SolConfig.ProcessInfos = new List<ProcessConfig>();
                 foreach (var process in Solution.Instance.AllProcesses)
@@ -143,7 +142,6 @@ namespace TDJS_Vision
                 Solution.Instance.RunInterval = SolConfig.RunInterval;
                 Solution.Instance.NodeCount = SolConfig.NodeCount;
                 Solution.Instance.ProcessCount = SolConfig.ProcessCount;
-                Solution.Instance.SolAiModelNum = SolConfig.SolAiModelNum;
 
                 // 发送反序列化完成事件
                 // 目的：
@@ -172,7 +170,6 @@ namespace TDJS_Vision
         public int RunInterval;     // 流程循环运行间隔时间
         public int NodeCount;       // 开始创建节点使用的ID-1
         public int ProcessCount;    // 开始创建流程使用的ID-1
-        public int SolAiModelNum;   // 方案AI模型计数
         /// <summary>
         /// 方案下的所有设备(光源、相机、PLC)
         /// </summary>

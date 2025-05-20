@@ -3,10 +3,7 @@ using Logger;
 using System;
 using System.Drawing;
 using System.IO;
-using System.Reflection;
 using System.Windows.Forms;
-using TDJS_Vision.Forms.ModbusAdd;
-using TDJS_Vision.Forms.PLCAdd;
 using TDJS_Vision.Forms.TCPAdd;
 using TDJS_Vision.Node;
 
@@ -257,21 +254,6 @@ namespace TDJS_Vision.Forms.ProcessNew
             {
                 tabControl1.Controls.Remove(tabPageToDelete);
                 Solution.Instance.RemoveProcess(tabPageToDelete.Text);
-                // 方案的AI模型计数--
-                foreach (var item in Solution.Instance.AllProcesses)
-                {
-                    if (item.ProcessName == tabPageToDelete.Text)
-                    {
-                        foreach (var item1 in item.Nodes)
-                        {
-                            if (item1.NodeType == NodeType.AITD)
-                            {
-                                Solution.Instance.SolAiModelNum--;
-                            }
-                        }
-                        break;
-                    }
-                }
                 #region 调试代码，上线请注释
 
                 //string res = "";

@@ -220,6 +220,10 @@ namespace TDJS_Vision.Node
         /// <summary>
         /// 生成Excel表格
         /// </summary>
-        GenerateExcel
+        GenerateExcel,
+        /// <summary>
+        /// 图像绘制矩形框或文本
+        /// </summary>
+        ImageDraw
     }
 }

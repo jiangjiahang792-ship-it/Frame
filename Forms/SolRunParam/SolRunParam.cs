@@ -23,23 +23,14 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <param name="exposureTime"></param>
         /// <param name="scoreThrethold"></param>
         /// <param name="nmsScore"></param>
-        private void LoadParamValue(bool isTrigger, string exposureTime, string scoreThrethold, string nmsScore, string address, string file)
+        private void LoadParamValue(bool isTrigger, string exposureTime, string scoreThrethold, string nmsScore, string address, List<DetectItemInfo> infos)
         {
             uiSwitchTriggerMode.Active = isTrigger;
             textBoxExposureTime.Text = exposureTime;
             textBoxScoreThreshold.Text = scoreThrethold;
             textBoxScoreNMS.Text = nmsScore;
             textBoxAddress.Text = address;
-            try
-            {
-                // 尝试获取文件名，如果路径包含非法字符会抛出异常
-                Path.GetFileName(file);
-                LoadLabel(file);
-            }
-            catch (Exception)
-            {
-
-            }
+            LoadDetectItems(infos);
         }
         /// <summary>
         /// 使用流程初始化
@@ -52,7 +43,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 this.process = process;
                 SetEnable(false);
                 bool mode = false; float exposure = 0f; ushort address = 0;
-                float scoreThreshold = 0f, scoreNms = 0f; string labelFile = "";
+                double scoreThreshold = 0f, scoreNms = 0f; List<DetectItemInfo> infos = null;
                 foreach (var node in process.Nodes)
                 {
                     //获取相机触发模式和曝光
@@ -77,9 +68,9 @@ namespace TDJS_Vision.Forms.SolRunParam
                     {
                         if(paramTDAI != null)
                         {
-                            scoreThreshold = paramTDAI.ScoreThreshold;
-                            scoreNms = paramTDAI.ScoreNMS;
-                            labelFile = paramTDAI.LabelPath;
+                            scoreThreshold = paramTDAI.AIInputInfo.ScoreThreshold;
+                            scoreNms = paramTDAI.AIInputInfo.ScoreNMS;
+                            infos = paramTDAI.AIInputInfo.DetectItems;
                             textBoxScoreThreshold.Enabled = true;
                             textBoxScoreNMS.Enabled = true;
                         }
@@ -98,7 +89,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 try
                 {
                     // 加载流程参数值
-                    LoadParamValue(mode, exposure.ToString(), scoreThreshold.ToString(), scoreNms.ToString(), address.ToString(), labelFile);
+                    LoadParamValue(mode, exposure.ToString(), scoreThreshold.ToString(), scoreNms.ToString(), address.ToString(), infos);
                 }
                 catch (Exception){}
             }
@@ -108,12 +99,12 @@ namespace TDJS_Vision.Forms.SolRunParam
             }
         }
         /// <summary>
-        /// 加载标签文件
+        /// 加载检测内容
         /// </summary>
-        /// <param name="labelFile"></param>
-        private void LoadLabel(string labelFile)
+        /// <param name="info"></param>
+        private void LoadDetectItems(List<DetectItemInfo> infos)
         {
-            tdjsParameterGrid1.LoadLabel(labelFile);
+            myDataGridViewForm1.LoadConfig(infos);
         }
         /// <summary>
         /// 设置控件可用性
@@ -142,6 +133,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 {
                     if(nodeImage.ParamForm.Params is NodeParamImageSoucre nodeParam)
                     {
+                        var imgSrc = nodeParam.ImageSource;
                         nodeParam.ImageSource = "本地图像";
                         //打开文件对话框，选择图像文件
                         openFileDialog1.Filter = "bmp图像|*.bmp|所有文件|*.*";
@@ -156,7 +148,8 @@ namespace TDJS_Vision.Forms.SolRunParam
                             //恢复原来的图像路径
                             nodeParam.ImagePath = modelOldPath;
                         }
-                        nodeParam.ImageSource = "相机";
+                        nodeParam.ImageSource = imgSrc;
+                        nodeImage.ParamForm.Params = nodeParam;
                     }
                 }
             }
@@ -189,6 +182,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                             // 临时保存原目录
                             var imgFiles = new List<string>(nodeParam.ImagePaths);
                             var imgPath = nodeParam.ImagePath;
+                            var imageSource = nodeParam.ImageSource;
                             // 设置当前运行参数
                             nodeParam.ImagePath = null;
                             nodeParam.ImagePaths = new List<string>(files);
@@ -205,9 +199,9 @@ namespace TDJS_Vision.Forms.SolRunParam
                             nodeParam.ImagePaths = imgFiles;
                             nodeParam.ImagePath = imgPath;
                             nodeImage.ParamForm.Params = nodeParam;
-                            nodeParam.ImageSource = "相机";
+                            nodeParam.ImageSource = imageSource;
+                            nodeImage.ParamForm.Params = nodeParam;
                         }
-                        //nodeImage.ParamForm.Params = nodeParam;
                         break;
                     }
                 }

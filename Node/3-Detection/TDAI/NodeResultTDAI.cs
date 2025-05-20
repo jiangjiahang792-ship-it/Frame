@@ -1,9 +1,8 @@
-﻿using Newtonsoft.Json.Converters;
-using Newtonsoft.Json;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Drawing;
 using TDJS_Vision.Forms.ResultView;
 using System.ComponentModel;
+using OpenCvSharp;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
@@ -18,14 +17,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         [DisplayName("运行状态码")]
         public NodeRunStatusCode RunStatusCode { get; set; }
 
-        [DisplayName("算法结果")]
-        public ResultViewData ResultData { get; set; }
-
-        [DisplayName("渲染图")]
-        public Bitmap RenderImage { get; set; }
+        [DisplayName("AI结果")]
+        public List<DetectItemResult> ResultList { get; set; } = new List<DetectItemResult>();
 
         [DisplayName("是否全部OK")]
-        public bool IsAllOk { get; set; }
+        public bool IsAllOk { get { return ResultList.TrueForAll(res => res.IsOk); } }
     }
 
     /// <summary>
@@ -35,5 +31,41 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     {
         public bool IsAllOk { get { return SingleRowDataList.TrueForAll(sr => sr.IsOk); } }
         public List<SingleResultViewData> SingleRowDataList = new List<SingleResultViewData>();
+    }
+    /// <summary>
+    /// 检测项结果类
+    /// </summary>
+    internal class DetectItemResult 
+    {
+        /// <summary>
+        /// 检测项名称
+        /// </summary>
+        public string Name { get; set; }
+        /// <summary>
+        /// 检测项的结果列表
+        /// </summary>
+        public List<SingleDetectItemResult> Results { get; set; } = new List<SingleDetectItemResult>();
+        /// <summary>
+        /// 检测项结果是否OK
+        /// </summary>
+        public bool IsOk { get { return Results.TrueForAll(item => item.IsOk); } }
+    }
+    /// <summary>
+    /// 单个检测项结果类
+    /// </summary>
+    internal class SingleDetectItemResult
+    {
+        /// <summary>
+        /// 单个检测项结果是否OK(决定结果矩形框的颜色)
+        /// </summary>
+        public bool IsOk { get; set; }
+        /// <summary>
+        /// 单个检测项的结果值
+        /// </summary>
+        public string Value { get; set; }
+        /// <summary>
+        /// 单个检测项涉及的矩形框列表（用于绘制）
+        /// </summary>
+        public List<Rect> Rects { get; set; } = new List<Rect> { };
     }
 }

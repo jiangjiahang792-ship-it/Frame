@@ -5,12 +5,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
 {
     internal class NodeParamDataShow : INodeParam
     {
-        [JsonIgnore]
-        public ResultViewData AiResultData;
         public string Text1;
         public string Text2;
-
-        
     }
 
     internal class DatashowData

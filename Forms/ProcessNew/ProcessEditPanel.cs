@@ -32,6 +32,7 @@ using TDJS_Vision.Node._7_ResultProcessing.ImageDelete;
 using TDJS_Vision.Node._6_LogicTool.SharedVariable;
 using TDJS_Vision.Node._7_ResultProcessing.GenerateExcelSpreadsheet;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Node._7_ResultProcessing.ImageDraw;
 
 namespace TDJS_Vision.Forms.ProcessNew
 {
@@ -271,8 +272,12 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.GenerateExcel:
                     node = new NodeGenerateExcel(nodeId, nodeName, _process, nodeType);
                     break;
+                case NodeType.ImageDraw:
+                    node = new NodeImageDraw(nodeId, nodeName, _process, nodeType);
+                    break;
                 default:
                     break;
+                    //工具栏图标颜色：蓝 #1296db 紫 #56227a
             }
             if (node == null)
             {

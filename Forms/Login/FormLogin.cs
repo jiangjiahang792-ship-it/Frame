@@ -49,6 +49,15 @@ namespace TDJS_Vision.Forms.Login
             buttonQuit.Enabled = true;
             this.Hide();
         }
+
+        /// <summary>
+        /// 登录角色测试
+        /// </summary>
+        /// <param name="role"></param>
+        public static void LoginTest(UserRole role)
+        {
+            LoginEvent?.Invoke(null, role);
+        }
         /// <summary>
         /// 退出
         /// </summary>

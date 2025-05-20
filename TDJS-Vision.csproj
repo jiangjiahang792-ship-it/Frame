@@ -8,7 +8,7 @@
     <ProjectGuid>{60ADDFFF-D34C-48AA-B84D-03EAB7518169}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <RootNamespace>TDJS_Vision</RootNamespace>
-    <AssemblyName>鹰眼智检系统</AssemblyName>
+    <AssemblyName>瞳达智检大师</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -215,12 +215,6 @@
     <Compile Include="Forms\CameraAdd\SingleCamera.Designer.cs">
       <DependentUpon>SingleCamera.cs</DependentUpon>
     </Compile>
-    <Compile Include="Forms\FrmOperatorLocker.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Forms\FrmOperatorLocker.Designer.cs">
-      <DependentUpon>FrmOperatorLocker.cs</DependentUpon>
-    </Compile>
     <Compile Include="Forms\Helper\ContactUsFormForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -318,6 +312,12 @@
     </Compile>
     <Compile Include="Forms\SolRunParam\FormSolRunParam.Designer.cs">
       <DependentUpon>FormSolRunParam.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\SolRunParam\MyDataGridViewForm.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Forms\SolRunParam\MyDataGridViewForm.Designer.cs">
+      <DependentUpon>MyDataGridViewForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Forms\SolRunParam\SolRunParam.cs">
       <SubType>UserControl</SubType>
@@ -435,19 +435,7 @@
       <DependentUpon>ParamFormImageSplit.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\3-Detection\FindLine\LineUtils.cs" />
-    <Compile Include="Node\3-Detection\TDAI\common\process\normalize.cs" />
-    <Compile Include="Node\3-Detection\TDAI\common\process\permute.cs" />
-    <Compile Include="Node\3-Detection\TDAI\common\process\resize.cs" />
-    <Compile Include="Node\3-Detection\TDAI\common\process\visualize.cs" />
-    <Compile Include="Node\3-Detection\TDAI\common\result\clsresult.cs" />
-    <Compile Include="Node\3-Detection\TDAI\common\result\detresult.cs" />
-    <Compile Include="Node\3-Detection\TDAI\common\result\obbresult.cs" />
-    <Compile Include="Node\3-Detection\TDAI\common\result\poseresult.cs" />
-    <Compile Include="Node\3-Detection\TDAI\common\result\result.cs" />
-    <Compile Include="Node\3-Detection\TDAI\common\result\segresult.cs" />
-    <Compile Include="Node\3-Detection\TDAI\common\utility\slog.cs" />
-    <Compile Include="Node\3-Detection\TDAI\common\utility\utility.cs" />
-    <Compile Include="Node\3-Detection\TDAI\LabelData.cs" />
+    <Compile Include="Node\3-Detection\TDAI\AIInputInfo.cs" />
     <Compile Include="Node\3-Detection\TDAI\NodeTDAI.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -487,16 +475,6 @@
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Node\3-Detection\QRScan\NodeResultQRScan.cs" />
-    <Compile Include="Node\3-Detection\TDAI\TDJSParameterGrid.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
-    <Compile Include="Node\3-Detection\TDAI\TDJSParameterGrid.Designer.cs">
-      <DependentUpon>TDJSParameterGrid.cs</DependentUpon>
-    </Compile>
-    <Compile Include="Node\3-Detection\TDAI\Yolov8Det.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Yolov8DetXX.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Yolov8Obb.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Yolov8Seg.cs" />
     <Compile Include="Node\5-EquipmentCommunication\AIResultSendByModbus\NodeParamSignalSendByModbus.cs" />
     <Compile Include="Node\5-EquipmentCommunication\AIResultSendByModbus\NodeResultSignalSendByModbus.cs" />
     <Compile Include="Node\5-EquipmentCommunication\AIResultSendByModbus\NodeSignalSendByModbus.cs">
@@ -687,6 +665,17 @@
     <Compile Include="Node\6-LogicTool\SharedVariable\NodeSharedVariable.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="Node\7-ResultProcessing\ImageDraw\NodeImageDraw.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\7-ResultProcessing\ImageDraw\NodeParamImageDraw.cs" />
+    <Compile Include="Node\7-ResultProcessing\ImageDraw\NodeParamFormImageDraw.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\7-ResultProcessing\ImageDraw\NodeParamFormImageDraw.Designer.cs">
+      <DependentUpon>NodeParamFormImageDraw.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\7-ResultProcessing\ImageDraw\NodeResultImageDraw.cs" />
     <Compile Include="Node\7-ResultProcessing\GenerateExcelSpreadsheet\NodeGenerateExcel.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -869,9 +858,6 @@
     <EmbeddedResource Include="Forms\CameraAdd\SingleCamera.resx">
       <DependentUpon>SingleCamera.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="Forms\FrmOperatorLocker.resx">
-      <DependentUpon>FrmOperatorLocker.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="Forms\Helper\ContactUsFormForm.resx">
       <DependentUpon>ContactUsFormForm.cs</DependentUpon>
     </EmbeddedResource>
@@ -919,6 +905,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\SolRunParam\FormSolRunParam.resx">
       <DependentUpon>FormSolRunParam.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\SolRunParam\MyDataGridViewForm.resx">
+      <DependentUpon>MyDataGridViewForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\SolRunParam\SolRunParam.resx">
       <DependentUpon>SolRunParam.cs</DependentUpon>
@@ -983,9 +972,6 @@
     <EmbeddedResource Include="Node\3-Detection\QRScan\NodeParamFormQRScan.resx">
       <DependentUpon>NodeParamFormQRScan.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="Node\3-Detection\TDAI\TDJSParameterGrid.resx">
-      <DependentUpon>TDJSParameterGrid.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="Node\5-EquipmentCommunication\AIResultSendByModbus\ParamFormSignalSendByModbus.resx">
       <DependentUpon>ParamFormSignalSendByModbus.cs</DependentUpon>
     </EmbeddedResource>
@@ -1037,6 +1023,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\6-LogicTool\SharedVariable\NodeParamFormSharedVariable.resx">
       <DependentUpon>NodeParamFormSharedVariable.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\7-ResultProcessing\ImageDraw\NodeParamFormImageDraw.resx">
+      <DependentUpon>NodeParamFormImageDraw.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\7-ResultProcessing\GenerateExcelSpreadsheet\NodeGenerateExcel.resx">
       <DependentUpon>NodeGenerateExcel.cs</DependentUpon>

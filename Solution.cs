@@ -129,16 +129,6 @@ namespace TDJS_Vision
         /// 方案文件名
         /// </summary>
         public string SolFileName { get; set; }
-        
-        /// <summary>
-        /// 方案AI模型数量,用来实现异步加载完对应数量的模型后通知方案全部加载完成
-        /// </summary>
-        public int SolAiModelNum { get; set; }
-        
-        /// <summary>
-        /// 当前方案已加载的模型数量
-        /// </summary>
-        public int LoadedModelNum {  get; set; }
 
         /// <summary>
         /// 方案适配的软件版本
@@ -345,7 +335,7 @@ namespace TDJS_Vision
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"反序列化异常!原因：{ex.Message}");
+                MessageBox.Show($"反序列化异常!{ex.Message}");
             }
         }
 
@@ -405,10 +395,6 @@ namespace TDJS_Vision
             {
                 LogHelper.AddLog(MsgLevel.Exception, ex.Message, true);
             }
-
-            // 清空AI模型计数
-            Solution.Instance.SolAiModelNum = 0;
-            Solution.Instance.LoadedModelNum = 0;
 
             // 清空设备
             SingleLight.SingleLights.Clear();

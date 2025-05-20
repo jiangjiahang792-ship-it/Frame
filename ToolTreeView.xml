@@ -51,6 +51,7 @@
     </Node>
     <Node Text="结果处理" ImageName="结果处理" Tag="UNKNOWN" SelectedImageName="结果处理">
       <Nodes>
+        <Node Text="AI结果绘制" ImageName="图像绘制" Tag="ImageDraw" SelectedImageName="图像绘制" />
         <Node Text="保存图片" ImageName="保存图片" Tag="ImageSave" SelectedImageName="保存图片" />
         <Node Text="定期删除图片" ImageName="图片删除" Tag="ImageFileDelete" SelectedImageName="图片删除" />
         <Node Text="结果汇总" ImageName="结果汇总" Tag="Summarize" SelectedImageName="结果汇总" />

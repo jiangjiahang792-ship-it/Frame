@@ -1,25 +1,16 @@
 ﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
-using Logger;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
     internal partial class ParamFormTDAI : Form, INodeParamForm
     {
-        /// <summary>
-        /// 不管加载几次，AI模型个数只增加1
-        /// </summary>
-        private bool flag = false;
-        private readonly static object _lockObject = new object();
-
         private NodeBase _node;
         /// <summary>
         /// 节点参数
         /// </summary>
         public INodeParam Params { get; set; }
-
-        public Yolov8Base Yolov8 = new Yolov8Base();
 
         public ParamFormTDAI()
         {
@@ -45,22 +36,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             return (Bitmap)nodeSubscription1.GetValue<Bitmap>().Clone();
         }
 
-
-        private void button1_Click(object sender, EventArgs e)
-        {
-            openFileDialog1.Filter = "xml文件|*.xml";
-            openFileDialog1.Title = "选择模型文件";
-            string modelOldPath = this.tbModelFlie.Text;
-            if (openFileDialog1.ShowDialog() == DialogResult.OK)
-            {
-                if (modelOldPath != openFileDialog1.FileName)
-                {
-                    this.tbModelFlie.Text = openFileDialog1.FileName;
-                    modelOldPath = openFileDialog1.FileName;
-                }
-            }
-        }
-
         /// <summary>
         /// 反序列化需要设置参数给回界面
         /// </summary>
@@ -71,10 +46,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             {
                 // 还原界面显示
                 nodeSubscription1.SetText(param.Text1, param.Text2);
-                textBoxLabel.Text = param.LabelPath;
-                tbModelFlie.Text = param.ModelPath;
-                comboBoxModelType.Text = param.ModelType;
-                //TODO:还原label参数
+                textBoxConfigPath.Text = param.ConfigPath;
             }
         }
 
@@ -85,56 +57,40 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <param name="e"></param>
         private void bt_chooseLabel_Click(object sender, EventArgs e)
         {
-            openFileDialog1.Filter = "label文件|*.label";
-            openFileDialog1.Title = "选择标签文件";
-            string labelOldPath = this.textBoxLabel.Text;
+            openFileDialog1.Filter = "Json文件|*.json";
+            openFileDialog1.Title = "选择配置文件";
             if (openFileDialog1.ShowDialog() == DialogResult.OK)
             {
-                if (labelOldPath != openFileDialog1.FileName)
-                {
-                    this.textBoxLabel.Text = openFileDialog1.FileName;
-                    tdjsParameterGrid1.LoadLabel(openFileDialog1.FileName);
-                    labelOldPath = openFileDialog1.FileName;
-                }
+                this.textBoxConfigPath.Text = openFileDialog1.FileName;
             }
         }
-
         /// <summary>
-        /// 开始加载模型
+        /// 设置参数
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void buttonModelLoad_Click(object sender, EventArgs e)
+        /// <returns></returns>
+        private bool SaveParams()
         {
             try
             {
-                switch (comboBoxModelType.SelectedIndex)
-                {
-                    case 0:
-                        Yolov8 = new Yolov8Det(tbModelFlie.Text);
-                        break;
-                    case 1:
-                        Yolov8 = new Yolov8DetXX(tbModelFlie.Text);
-                        break;
-                    case 2:
-                        Yolov8 = new Yolov8Obb(tbModelFlie.Text);
-                        break;
-                    case 3:
-                        Yolov8 = new Yolov8Seg(tbModelFlie.Text);
-                        break;
-                    default:
-                        throw new Exception("非法的模型种类索引！");
-                }
+                NodeParamTDAI nodeParamTDAI = new NodeParamTDAI();
+                nodeParamTDAI.Text1 = nodeSubscription1.GetText1();
+                nodeParamTDAI.Text2 = nodeSubscription1.GetText2();
+                nodeParamTDAI.ConfigPath = textBoxConfigPath.Text;
+                nodeParamTDAI.AIInputInfo = new AIInputInfo(textBoxConfigPath.Text);
+                Params = nodeParamTDAI;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                LogHelper.AddLog(MsgLevel.Fatal, "加载模型失败，原因：" + ex.Message, true);
+                MessageBox.Show("参数设置异常，请检查参数设置是否合理！");
+                return false;
             }
+            return true;
         }
 
-        private void button1_Click_1(object sender, EventArgs e)
+        private void button1_Click(object sender, EventArgs e)
         {
-
+            if (SaveParams())
+                Hide();
         }
     }
 }

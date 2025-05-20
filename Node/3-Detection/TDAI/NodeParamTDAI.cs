@@ -1,16 +1,7 @@
-﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-
-namespace TDJS_Vision.Node._3_Detection.TDAI
+﻿namespace TDJS_Vision.Node._3_Detection.TDAI
 {
     internal class NodeParamTDAI : INodeParam
     {
-        /// <summary>
-        /// 模型句柄
-        /// </summary>
-        [JsonIgnore]
-        public IntPtr TreePredictHandle { get; set; }
         /// <summary>
         /// 订阅得节点文本（反序列化用）
         /// </summary>
@@ -20,24 +11,29 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// </summary>
         public string Text2 { get; set; }
         /// <summary>
-        /// 标签文件（反序列化用）
+        /// 配置文件路径
         /// </summary>
-        public string LabelPath { get; set; }
+        public string ConfigPath { get; set; }
         /// <summary>
-        /// 模型文件（反序列化用）
+        /// AI输入信息
         /// </summary>
-        public string ModelPath { get; set; }
+        public AIInputInfo AIInputInfo { get; set; }
         /// <summary>
-        /// 模型类别（反序列化用）
+        /// 给指定的检测项设置当前值
         /// </summary>
-        public string ModelType { get; set; }
-        /// <summary>
-        /// AI得分阈值
-        /// </summary>
-        public float ScoreThreshold { get; set; } = 0.5f;
-        /// <summary>
-        /// 抑制分数
-        /// </summary>
-        public float ScoreNMS { get; set; } = 0.5f;
+        /// <param name="value"></param>
+        public void SetCurValue(string name, string value)
+        {
+            for (int i = 0; i < AIInputInfo.DetectItems.Count; i++)
+            {
+                if (AIInputInfo.DetectItems[i].Name == name)
+                { 
+                    var item = AIInputInfo.DetectItems[i];
+                    item.CurValue = value;
+                    AIInputInfo.DetectItems[i] = item;
+                    break;
+                }
+            }
+        }
     }
 }

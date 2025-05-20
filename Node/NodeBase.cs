@@ -220,11 +220,7 @@ namespace TDJS_Vision.Node
             {
                 Solution.Instance.Nodes.Remove(this);
                 Process.Nodes.Remove(this);
-                NodeDeletedEvent.Invoke(this, this); 
-                if (this is NodeTDAI)
-                {
-                    Solution.Instance.SolAiModelNum--;
-                }
+                NodeDeletedEvent.Invoke(this, this);
             }
 
             #region 测试节点删除后代码

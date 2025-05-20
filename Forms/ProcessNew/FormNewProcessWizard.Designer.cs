@@ -184,11 +184,12 @@ namespace TDJS_Vision.Forms.ProcessNew
             this.imageList1.Images.SetKeyName(29, "共享变量");
             this.imageList1.Images.SetKeyName(30, "延迟执行");
             this.imageList1.Images.SetKeyName(31, "结果处理");
-            this.imageList1.Images.SetKeyName(32, "保存图片");
-            this.imageList1.Images.SetKeyName(33, "检测结果显示");
-            this.imageList1.Images.SetKeyName(34, "结果汇总");
-            this.imageList1.Images.SetKeyName(35, "图片删除");
-            this.imageList1.Images.SetKeyName(36, "导出检测表格");
+            this.imageList1.Images.SetKeyName(32, "图像绘制");
+            this.imageList1.Images.SetKeyName(33, "保存图片");
+            this.imageList1.Images.SetKeyName(34, "检测结果显示");
+            this.imageList1.Images.SetKeyName(35, "结果汇总");
+            this.imageList1.Images.SetKeyName(36, "图片删除");
+            this.imageList1.Images.SetKeyName(37, "导出检测表格");
             // 
             // label1
             // 

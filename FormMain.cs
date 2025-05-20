@@ -19,6 +19,8 @@ using TDJS_Vision.Forms.ModbusAdd;
 using TDJS_Vision.Forms.TCPAdd;
 using TDJS_Vision.Forms.SolRunParam;
 using TDJS_Vision.Forms.Login;
+using System.Threading.Tasks;
+using System.Web.UI.WebControls;
 
 namespace TDJS_Vision
 {
@@ -140,12 +142,17 @@ namespace TDJS_Vision
             FrmPLCAdd.OnShotKeySavePressed += OnShotKeySavePressed;
 
             // 加载默认方案
-            AutoLoadSolution();
+            AutoLoadSolutionAsync();
 
             // 设置控件Enable为未登录状态
             文件ToolStripMenuItem.Enabled = false;
             设置ToolStripMenuItem.Enabled = false;
             toolStrip1.Enabled = false;
+
+#if DEBUG
+            //调试时登录工程师权限
+            FormLogin.LoginTest(UserRole.Engineer); // 测试登录
+#endif
         }
 
         private void OnLoginEvent(object sender, UserRole e)
@@ -163,54 +170,29 @@ namespace TDJS_Vision
         /// <summary>
         /// 软件启动是否加载指定方案
         /// </summary>
-        private void AutoLoadSolution()
+        private async Task AutoLoadSolutionAsync()
         {
             if (Settings.Default.IsAutoLoad)
             {
                 try
                 {
-                    timeOverCount = 0;
-                    timerLoadSol.Start();
                     toolStripLabel1.Visible = true;
                     SetRunStatus(Role, true); // 设置为正在加载方案状态
                     Solution.Instance.Load(Settings.Default.SolutionAddress, true);
+                    toolStripLabel1.Visible = false;
+                    SetRunStatus(Role, false);
                 }
                 catch (Exception)
                 {
-                    LogHelper.AddLog(MsgLevel.Warn, "方案加载失败！", true);
+                    LogHelper.AddLog(MsgLevel.Exception, "方案加载失败！", true);
                 }
-            }
-        }
-
-        /// <summary>
-        /// 定时器检查AI模型是否全部加载完毕
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        int timeOverCount = 0; // 计时器触发次数
-        private async void timerLoadSol_Tick(object sender, EventArgs e)
-        {
-            // 5分钟（5*60*1000/300=1000次）没加载完方案，不再继续加载
-            if(timeOverCount > 1000)
-            {
-                timerLoadSol.Stop();
-                toolStripLabel1.Visible = false;
-                SetRunStatus(Role, true);
-            }
-
-            if (Solution.Instance.SolAiModelNum == Solution.Instance.LoadedModelNum)
-            {
-                timerLoadSol.Stop();
-                toolStripLabel1.Visible = false;
-                SetRunStatus(Role, false); 
-                if (Settings.Default.IsAutoRun && isAutoLoadSol)
+                if (Settings.Default.IsAutoRun)
                 {
                     SetRunStatus(Role, true);
                     await Solution.Instance.Run(true);
                     SetRunStatus(Role, false);
                 }
             }
-            timeOverCount++;
         }
 
         /// <summary>
@@ -601,12 +583,11 @@ namespace TDJS_Vision
             openFileDialog1.Title = "请选择要打开的方案";
             if (openFileDialog1.ShowDialog()  == DialogResult.OK)
             {
-                isAutoLoadSol = false;
-                timeOverCount = 0;
-                timerLoadSol.Start();
                 toolStripLabel1.Visible = true;
                 SetRunStatus(Role, true); // 设置为正在加载方案状态
                 Solution.Instance.Load(openFileDialog1.FileName, true);
+                SetRunStatus(Role, false);
+                toolStripLabel1.Visible = false;
             }
         }
 

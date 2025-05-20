@@ -330,7 +330,7 @@
             this.comboBoxCoilValue.Items.AddRange(new object[] {
             "0",
             "1"});
-            this.comboBoxCoilValue.Location = new System.Drawing.Point(714, 20);
+            this.comboBoxCoilValue.Location = new System.Drawing.Point(714, 18);
             this.comboBoxCoilValue.Name = "comboBoxCoilValue";
             this.comboBoxCoilValue.Size = new System.Drawing.Size(121, 26);
             this.comboBoxCoilValue.TabIndex = 3;

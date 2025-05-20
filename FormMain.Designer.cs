@@ -28,7 +28,6 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FormMain));
             this.menuStrip1 = new System.Windows.Forms.MenuStrip();
             this.文件ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -73,7 +72,6 @@
             this.RightToolStripPanel = new System.Windows.Forms.ToolStripPanel();
             this.LeftToolStripPanel = new System.Windows.Forms.ToolStripPanel();
             this.ContentPanel = new System.Windows.Forms.ToolStripContentPanel();
-            this.timerLoadSol = new System.Windows.Forms.Timer(this.components);
             this.vS2015DarkTheme1 = new WeifenLuo.WinFormsUI.Docking.VS2015DarkTheme();
             this.menuStrip1.SuspendLayout();
             this.toolStrip1.SuspendLayout();
@@ -502,11 +500,6 @@
             // 
             this.ContentPanel.Size = new System.Drawing.Size(1556, 771);
             // 
-            // timerLoadSol
-            // 
-            this.timerLoadSol.Interval = 300;
-            this.timerLoadSol.Tick += new System.EventHandler(this.timerLoadSol_Tick);
-            // 
             // FormMain
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
@@ -523,7 +516,7 @@
             this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.Name = "FormMain";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "鹰眼智检系统 V1.0.0";
+            this.Text = "瞳达智检大师 V1.0.0";
             this.TransparencyKey = System.Drawing.Color.Fuchsia;
             this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FormMain_FormClosing);
@@ -580,7 +573,6 @@
         private System.Windows.Forms.ToolStripContentPanel ContentPanel;
         private System.Windows.Forms.ToolStripButton tsbt_ModbusManager;
         private System.Windows.Forms.ToolStripButton tsbt_TCPManager;
-        private System.Windows.Forms.Timer timerLoadSol;
         private System.Windows.Forms.ToolStripLabel toolStripLabel1;
         private WeifenLuo.WinFormsUI.Docking.VS2015DarkTheme vS2015DarkTheme1;
         private System.Windows.Forms.ToolStripButton tsbt_RunParamSetting;

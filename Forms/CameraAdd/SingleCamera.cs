@@ -62,6 +62,7 @@ namespace TDJS_Vision.Forms.CameraAdd
                 }
                 catch (Exception ex)
                 {
+                    uiSwitch1.Active = false;
                     LogHelper.AddLog(MsgLevel.Exception, $"相机（{camera.UserDefinedName}）打开失败，请检查相机状态！原因：{ex.Message}", true);
                 }
             }
@@ -155,6 +156,7 @@ namespace TDJS_Vision.Forms.CameraAdd
                 }
                 catch (Exception e)
                 {
+                    uiSwitch1.Active = false;
                     LogHelper.AddLog(MsgLevel.Fatal, $"{Camera.UserDefinedName}打开失败！原因：{e.Message}", true);
                 }
             }
