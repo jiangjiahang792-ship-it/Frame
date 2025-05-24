@@ -8,7 +8,7 @@
     <ProjectGuid>{60ADDFFF-D34C-48AA-B84D-03EAB7518169}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <RootNamespace>TDJS_Vision</RootNamespace>
-    <AssemblyName>瞳达智检大师</AssemblyName>
+    <AssemblyName>鹰眼智检视觉系统</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -1106,8 +1106,8 @@
     <None Include="Resources\注液孔检测算子示例.png" />
     <None Include="Icon\Logo\瞳达精视.jpg" />
     <Content Include="APP.ico" />
-    <None Include="空方案.TdSol">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    <None Include="空方案.Sol">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
   <ItemGroup>

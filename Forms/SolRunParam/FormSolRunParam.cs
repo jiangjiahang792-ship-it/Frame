@@ -27,7 +27,7 @@ namespace TDJS_Vision.Forms.SolRunParam
             {
                 
 
-                SolRunParam solRunParam = new SolRunParam();
+                SolRunParamControl solRunParam = new SolRunParamControl();
                 TabPage page = new TabPage();
                 page.Text = process.ProcessName;
                 page.Controls.Add(solRunParam);
@@ -55,12 +55,9 @@ namespace TDJS_Vision.Forms.SolRunParam
                         uiipTextBoxIP.Text = poll.ModbusParam.IP;
                         textBoxPort.Text = poll.ModbusParam.Port.ToString();
                         textBoxHoldTime.Text = poll.ModbusParam.HoldTime.ToString();
-                        tableLayoutPanel2.Visible = poll.IsConnect;
                     }
                 }
             }
-            else
-                tableLayoutPanel2.Visible = false;
 
             #endregion
         }
@@ -88,40 +85,37 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <param name="e"></param>
         private void button1_Click(object sender, EventArgs e)
         {
+            if (Solution.Instance.ModbusDevices.Count == 0)
+            {
+                MessageBox.Show("设备尚未添加！");
+                return;
+            }
             if (string.IsNullOrEmpty(uiipTextBoxIP.Text) || string.IsNullOrEmpty(textBoxPort.Text))
             {
                 MessageBox.Show("参数不能为空！");
                 return;
             }
-            if (MessageBox.Show("确定连接？", "提示",
-                MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.OK)
+            // 连接Modbus
+            foreach (var modbus in Solution.Instance.ModbusDevices)
             {
-                // 已有Modbus设备的情况下只是更改参数重连
-                if(Solution.Instance.ModbusDevices.Count > 0)
+                if (modbus is ModbusPoll poll)
                 {
-                    // 连接Modbus
-                    foreach (var modbus in Solution.Instance.ModbusDevices)
+                    poll.Disconnect();
+                    poll.ModbusParam.IP = uiipTextBoxIP.Text;
+                    poll.ModbusParam.Port = int.Parse(textBoxPort.Text);
+                    poll.ModbusParam.HoldTime = ushort.Parse(textBoxHoldTime.Text);
+                    try
                     {
-                        if (modbus is ModbusPoll poll)
-                        {
-                            poll.Disconnect();
-                            poll.ModbusParam.IP = uiipTextBoxIP.Text;
-                            poll.ModbusParam.Port = int.Parse(textBoxPort.Text);    
-                            poll.ModbusParam.HoldTime = ushort.Parse(textBoxHoldTime.Text);
-                            try
-                            {
-                                poll.Connect();
-                                labelConnectInfo.Text = $"设备连接成功连接！";
-                                labelConnectInfo.ForeColor = System.Drawing.Color.Green;
-                            }
-                            catch (Exception ex)
-                            {
-                                labelConnectInfo.Text = $"设备连接失败！原因：{ex.Message}";
-                                labelConnectInfo.ForeColor = System.Drawing.Color.Red;
-                            }
-                            break;
-                        }
+                        poll.Connect();
+                        labelConnectInfo.Text = $"设备连接成功连接！";
+                        labelConnectInfo.ForeColor = System.Drawing.Color.Green;
                     }
+                    catch (Exception ex)
+                    {
+                        labelConnectInfo.Text = $"设备连接失败！原因：{ex.Message}";
+                        labelConnectInfo.ForeColor = System.Drawing.Color.Red;
+                    }
+                    break;
                 }
             }
         }
@@ -132,6 +126,12 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <param name="e"></param>
         private void buttonRead_Click(object sender, EventArgs e)
         {
+            if (Solution.Instance.ModbusDevices.Count == 0)
+            {
+                MessageBox.Show("设备尚未添加！");
+                return;
+            }
+            bool hasPoll = false;
             foreach (var modbus in Solution.Instance.ModbusDevices)
             {
                 if (modbus is ModbusPoll poll)
@@ -148,8 +148,14 @@ namespace TDJS_Vision.Forms.SolRunParam
                         labelTestInfo.Text = $"读取线圈值失败！原因：{ex.Message}";
                         labelTestInfo.ForeColor = System.Drawing.Color.Red;
                     }
+                    hasPoll = true;
                     break;
                 }
+            }
+            if(!hasPoll)
+            {
+                MessageBox.Show("设备尚未添加！");
+                return;
             }
         }
         /// <summary>
@@ -159,6 +165,12 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <param name="e"></param>
         private void buttonWrite_Click(object sender, EventArgs e)
         {
+            if (Solution.Instance.ModbusDevices.Count == 0)
+            {
+                MessageBox.Show("设备尚未添加！");
+                return;
+            }
+            bool hasPoll = false;
             foreach (var modbus in Solution.Instance.ModbusDevices)
             {
                 if (modbus is ModbusPoll poll)
@@ -175,8 +187,14 @@ namespace TDJS_Vision.Forms.SolRunParam
                         labelTestInfo.Text = $"写入线圈值失败！原因：{ex.Message}";
                         labelTestInfo.ForeColor = System.Drawing.Color.Red;
                     }
+                    hasPoll = true;
                     break;
                 }
+            }
+            if (!hasPoll)
+            {
+                MessageBox.Show("设备尚未添加！");
+                return;
             }
         }
     }

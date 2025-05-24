@@ -2,35 +2,24 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Windows.Forms;
+using TDJS_Vision.Device.Camera;
+using TDJS_Vision.Forms.ImageViewer;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
-using TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite;
 
 namespace TDJS_Vision.Forms.SolRunParam
 {
-    internal partial class SolRunParam : UserControl
+    internal partial class SolRunParamControl : UserControl
     {
-        Process process;
-        public SolRunParam()
+        Process process;//显示哪个流程的参数
+        SolRunData solRunDataInit = new SolRunData();//界面的初始参数
+        SolRunData solRunDataNew = new SolRunData();//界面的最新参数
+        ICamera _camera = null;
+        public static event EventHandler<ImageShowPamra> ImageShowChanged;
+        public SolRunParamControl()
         {
             InitializeComponent();
             Dock = DockStyle.Fill;
-        }
-        /// <summary>
-        /// 加载参数值
-        /// </summary>
-        /// <param name="isTrigger"></param>
-        /// <param name="exposureTime"></param>
-        /// <param name="scoreThrethold"></param>
-        /// <param name="nmsScore"></param>
-        private void LoadParamValue(bool isTrigger, string exposureTime, string scoreThrethold, string nmsScore, string address, List<DetectItemInfo> infos)
-        {
-            uiSwitchTriggerMode.Active = isTrigger;
-            textBoxExposureTime.Text = exposureTime;
-            textBoxScoreThreshold.Text = scoreThrethold;
-            textBoxScoreNMS.Text = nmsScore;
-            textBoxAddress.Text = address;
-            LoadDetectItems(infos);
         }
         /// <summary>
         /// 使用流程初始化
@@ -42,8 +31,6 @@ namespace TDJS_Vision.Forms.SolRunParam
             {
                 this.process = process;
                 SetEnable(false);
-                bool mode = false; float exposure = 0f; ushort address = 0;
-                double scoreThreshold = 0f, scoreNms = 0f; List<DetectItemInfo> infos = null;
                 foreach (var node in process.Nodes)
                 {
                     //获取相机触发模式和曝光
@@ -52,12 +39,23 @@ namespace TDJS_Vision.Forms.SolRunParam
                     {
                         if (nodeParam != null && nodeParam.Camera != null)
                         {
+                            _camera = nodeParam.Camera;
+                            _camera.PublishImageEvent += _camera_PublishImageEvent;
                             try
                             {
-                                mode = nodeParam.Camera.GetTriggerMode();
-                                exposure = nodeParam.Camera.GetExposureTime().CurValue;
-                                uiSwitchTriggerMode.Enabled = true;
+                                //获取参数
+                                solRunDataInit.ExposureTime = nodeParam.Camera.GetExposureTime().CurValue.ToString();
+                                solRunDataInit.Gain = nodeParam.Camera.GetGain().Item2.CurValue.ToString();
+                                solRunDataInit.IsContinue = nodeParam.Camera.GetTriggerMode();
+                                //设置参数
+                                textBoxExposureTime.Text = solRunDataInit.ExposureTime.ToString();
+                                textBoxGain.Text = solRunDataInit.Gain.ToString();
+                                uiSwitchContinue.Active = !solRunDataInit.IsContinue;
+                                //设置控件可用性
                                 textBoxExposureTime.Enabled = true;
+                                textBoxGain.Enabled = true;
+                                uiSwitchContinue.Enabled = true;
+                                buttonOnce.Enabled = true;
                             }
                             catch (Exception) { }
                         }
@@ -68,36 +66,52 @@ namespace TDJS_Vision.Forms.SolRunParam
                     {
                         if(paramTDAI != null)
                         {
-                            scoreThreshold = paramTDAI.AIInputInfo.ScoreThreshold;
-                            scoreNms = paramTDAI.AIInputInfo.ScoreNMS;
-                            infos = paramTDAI.AIInputInfo.DetectItems;
+                            //获取参数
+                            solRunDataInit.ScoreThreshold = paramTDAI.AIInputInfo.ScoreThreshold.ToString();
+                            solRunDataInit.ScoreNMS = paramTDAI.AIInputInfo.ScoreNMS.ToString();
+                            solRunDataInit.DetectItems = paramTDAI.AIInputInfo.DetectItems;
+                            //设置参数
+                            textBoxScoreThreshold.Text = solRunDataInit.ScoreThreshold.ToString();
+                            textBoxScoreNMS.Text = solRunDataInit.ScoreNMS.ToString();
+                            //设置控件可用性
                             textBoxScoreThreshold.Enabled = true;
                             textBoxScoreNMS.Enabled = true;
-                        }
-                    }
-                    //获取通信
-                    if (node is NodeModbusWrite nodeWrite && node.ParamForm.Params
-                        is NodeParamModbusWrite nodeParamModbus)
-                    {
-                        if(nodeParamModbus != null)
-                        {
-                            address = nodeParamModbus.StartAddress;
-                            textBoxAddress.Enabled = true;
                         }
                     }
                 }
                 try
                 {
-                    // 加载流程参数值
-                    LoadParamValue(mode, exposure.ToString(), scoreThreshold.ToString(), scoreNms.ToString(), address.ToString(), infos);
+                    LoadDetectItems(solRunDataInit.DetectItems);
                 }
                 catch (Exception){}
+                //深拷贝
+                solRunDataNew = SolRunData.Copy(solRunDataInit);
             }
             catch (Exception e)
             {
                 throw new Exception(e.Message);
             }
         }
+        /// <summary>
+        /// 相机取图回调
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        /// <exception cref="NotImplementedException"></exception>
+        private void _camera_PublishImageEvent(object sender, System.Drawing.Bitmap e)
+        {
+            foreach (var node in process.Nodes)
+            {
+                if (node is NodeImageShow nodeShow)
+                {
+                    if (nodeShow.ParamForm.Params is NodeParamImageShow showParam)
+                    {
+                        ImageShowChanged?.Invoke(this, new ImageShowPamra(showParam.WindowName, e));
+                    }
+                }
+            }
+        }
+
         /// <summary>
         /// 加载检测内容
         /// </summary>
@@ -112,11 +126,12 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <param name="enable"></param>
         private void SetEnable(bool enable)
         {
-            uiSwitchTriggerMode.Enabled = enable;
+            uiSwitchContinue.Enabled = enable;
+            buttonOnce.Enabled = enable;
             textBoxExposureTime.Enabled = enable;
+            textBoxGain.Enabled = enable;
             textBoxScoreThreshold.Enabled = enable;
             textBoxScoreNMS.Enabled = enable;
-            textBoxAddress.Enabled = enable;
         }
         /// <summary>
         /// 单图点检
@@ -216,6 +231,112 @@ namespace TDJS_Vision.Forms.SolRunParam
         private void buttonSaveAllParam_Click(object sender, EventArgs e)
         {
 
+        }
+        /// <summary>
+        /// 连续采图
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="value"></param>
+        private void uiSwitchContinue_ValueChanged(object sender, bool value)
+        {
+            if (value)
+            {
+                _camera?.SetTriggerMode(false);
+                _camera?.StartGrabbing();
+            }
+            else
+            {
+                _camera?.StopGrabbing();
+                _camera?.SetTriggerMode(true);
+                _camera?.SetTriggerSource(TriggerSource.LINE0);
+                _camera?.StartGrabbing();
+            }
+        }
+        /// <summary>
+        /// 单次采图
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void buttonOnce_Click(object sender, EventArgs e)
+        {
+            _camera.GrabOne();
+
+        }
+
+        /// <summary>
+        /// 参数设置完成时
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void textBoxExposureTime_Leave(object sender, EventArgs e)
+        {
+            if(sender is Control con)
+            {
+                switch (con.Name)
+                {
+                    case "textBoxExposureTime":
+                        if (float.TryParse(textBoxExposureTime.Text, out float exposure))
+                        {
+                            solRunDataNew.ExposureTime = textBoxExposureTime.Text;
+                            _camera?.SetExposureTime(float.Parse(textBoxExposureTime.Text));
+                        }
+                        break;
+                    case "textBoxGain":
+                        if (float.TryParse(textBoxGain.Text, out float gain))
+                        {
+                            solRunDataNew.Gain = textBoxGain.Text;
+                            _camera?.SetGain(float.Parse(textBoxGain.Text));
+                        }
+                        break;
+                    case "textBoxScoreThreshold":
+                        if (double.TryParse(textBoxScoreThreshold.Text, out double scoreThreshold))
+                        {
+                            solRunDataNew.ScoreThreshold = textBoxScoreThreshold.Text;
+                        }
+                        break;
+                    case "textBoxScoreNMS":
+                        if (double.TryParse(textBoxScoreNMS.Text, out double scoreNMS))
+                        {
+                            solRunDataNew.ScoreNMS = textBoxScoreNMS.Text;
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+        /// <summary>
+        /// 编辑完表格时
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void myDataGridViewForm1_Leave(object sender, EventArgs e)
+        {
+            solRunDataNew.DetectItems = myDataGridViewForm1.GetConfig();
+        }
+    }
+    /// <summary>
+    /// SolRunParam数据类
+    /// </summary>
+    internal class SolRunData
+    {
+        public SolRunData() { }
+        public string ExposureTime { get; set; }
+        public string Gain { get; set; }
+        public bool IsContinue { get; set; }
+        public string ScoreThreshold { get; set; }
+        public string ScoreNMS { get; set; }
+        public List<DetectItemInfo> DetectItems { get; set; } = new List<DetectItemInfo>();
+        public static SolRunData Copy(SolRunData src)
+        {
+            var newData = new SolRunData();
+            newData.ExposureTime = src.ExposureTime;
+            newData.Gain = src.Gain;
+            newData.IsContinue = src.IsContinue;
+            newData.ScoreThreshold = src.ScoreThreshold;
+            newData.ScoreNMS = src.ScoreNMS;
+            src.DetectItems.ForEach(item => newData.DetectItems.Add(item));
+            return newData;
         }
     }
 }

@@ -222,8 +222,8 @@ namespace TDJS_Vision.Node
         /// </summary>
         GenerateExcel,
         /// <summary>
-        /// 图像绘制矩形框或文本
+        /// AI结果绘制
         /// </summary>
-        ImageDraw
+        DrawAIResult
     }
 }

@@ -72,11 +72,19 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         {
             try
             {
+                if (string.IsNullOrEmpty(nodeSubscription1.GetText1())
+                || string.IsNullOrEmpty(nodeSubscription1.GetText2())
+                || string.IsNullOrEmpty(textBoxConfigPath.Text)
+                )
+                {
+                    throw new Exception();
+                }
                 NodeParamTDAI nodeParamTDAI = new NodeParamTDAI();
                 nodeParamTDAI.Text1 = nodeSubscription1.GetText1();
                 nodeParamTDAI.Text2 = nodeSubscription1.GetText2();
                 nodeParamTDAI.ConfigPath = textBoxConfigPath.Text;
                 nodeParamTDAI.AIInputInfo = new AIInputInfo(textBoxConfigPath.Text);
+                nodeParamTDAI.IsAutoStudy = uiSwitch1.Active;
                 Params = nodeParamTDAI;
             }
             catch (Exception)

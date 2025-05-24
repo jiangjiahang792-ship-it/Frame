@@ -272,7 +272,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.GenerateExcel:
                     node = new NodeGenerateExcel(nodeId, nodeName, _process, nodeType);
                     break;
-                case NodeType.ImageDraw:
+                case NodeType.DrawAIResult:
                     node = new NodeImageDraw(nodeId, nodeName, _process, nodeType);
                     break;
                 default:

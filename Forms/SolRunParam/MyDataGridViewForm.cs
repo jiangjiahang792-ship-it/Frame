@@ -41,7 +41,7 @@ namespace TDJS_Vision.Forms.SolRunParam
             // 第二列：检测项名称
             var label1Column = new DataGridViewTextBoxColumn
             {
-                HeaderText = "检测内容",
+                HeaderText = "检测项",
                 ReadOnly = true,
                 Name = "Name",
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter },
@@ -78,12 +78,21 @@ namespace TDJS_Vision.Forms.SolRunParam
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter },
                 HeaderCell = { Style = { Alignment = DataGridViewContentAlignment.MiddleCenter } }
             };
+            dataGridView1.Columns.Add(textBox2Column);
+            // 第六列：检测项对应的通信地址
+            var textBox3Column = new DataGridViewTextBoxColumn
+            {
+                HeaderText = "通信地址",
+                Name = "Address",
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter },
+                HeaderCell = { Style = { Alignment = DataGridViewContentAlignment.MiddleCenter } }
+            };
+            dataGridView1.Columns.Add(textBox3Column);
             // 设置列标题的高度
             dataGridView1.ColumnHeadersHeight = 64;
             // 设置行的高度
             dataGridView1.RowTemplate.Height = 36;
-            dataGridView1.Columns.Add(textBox2Column);
-            //5等分表格列宽
+            //等分表格列宽
             foreach (DataGridViewColumn column in dataGridView1.Columns)
             {
                 column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
@@ -95,6 +104,8 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <param name="info"></param>
         public void LoadConfig(List<DetectItemInfo> infos)
         {
+            dataGridView1.Rows.Clear();
+            if (infos == null) return;
             foreach (var info in infos)
             {
                 var row = new DataGridViewRow();
@@ -105,9 +116,34 @@ namespace TDJS_Vision.Forms.SolRunParam
                 row.Cells[2].Value = info.MinValue;
                 row.Cells[3].Value = info.CurValue;
                 row.Cells[4].Value = info.MaxValue;
+                row.Cells[5].Value = info.Address;
 
                 dataGridView1.Rows.Add(row);
             }
+        }
+        /// <summary>
+        /// 从表格中获取检测项配置
+        /// </summary>
+        /// <returns></returns>
+        public List<DetectItemInfo> GetConfig()
+        {
+            dataGridView1.EndEdit();
+            var infos = new List<DetectItemInfo>();
+            foreach (DataGridViewRow row in dataGridView1.Rows)
+            {
+                if (row.IsNewRow) continue;
+                var info = new DetectItemInfo
+                {
+                    Enable = Convert.ToBoolean(row.Cells[0].Value),
+                    Name = row.Cells[1].Value.ToString(),
+                    MinValue = row.Cells[2].Value.ToString(),
+                    CurValue = row.Cells[3].Value.ToString(),
+                    MaxValue = row.Cells[4].Value.ToString(),
+                    Address = row.Cells[5].Value.ToString()
+                };
+                infos.Add(info);
+            }
+            return infos;
         }
 
         private void AddSampleData()

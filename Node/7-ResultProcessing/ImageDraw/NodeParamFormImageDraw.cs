@@ -63,6 +63,15 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
         /// <param name="e"></param>
         private void button1_Click(object sender, EventArgs e)
         {
+            if (string.IsNullOrEmpty(nodeSubscription1.GetText1())
+                || string.IsNullOrEmpty(nodeSubscription1.GetText2())
+                || string.IsNullOrEmpty(nodeSubscription2.GetText1())
+                || string.IsNullOrEmpty(nodeSubscription2.GetText2())
+                )
+            {
+                MessageBox.Show("参数设置不完整！");
+                return;
+            }
             var param = new NodeParamImageDraw();
             param.Text1 = nodeSubscription1.GetText1();
             param.Text2 = nodeSubscription1.GetText2();

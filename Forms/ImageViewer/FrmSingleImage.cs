@@ -2,6 +2,7 @@
 using System.Windows.Forms;
 using WeifenLuo.WinFormsUI.Docking;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
+using TDJS_Vision.Forms.SolRunParam;
 
 namespace TDJS_Vision.Forms.ImageViewer
 {
@@ -13,6 +14,7 @@ namespace TDJS_Vision.Forms.ImageViewer
             InitializeComponent();
             this.Text = $"图像窗口{++i}";
             NodeImageShow.ImageShowChanged += NodeImageShow_ImageShowChanged;
+            SolRunParamControl.ImageShowChanged += NodeImageShow_ImageShowChanged;
         }
 
         private void NodeImageShow_ImageShowChanged(object sender, ImageShowPamra e)

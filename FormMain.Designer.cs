@@ -265,12 +265,12 @@
             // 
             // saveFileDialog1
             // 
-            this.saveFileDialog1.Filter = "视觉方案文件(*.YtSol)|*.YtSol|所有文件(*.*)|*.*";
+            this.saveFileDialog1.Filter = "视觉方案文件(*.Sol)|*.Sol|所有文件(*.*)|*.*";
             // 
             // openFileDialog1
             // 
             this.openFileDialog1.FileName = "openFileDialog1";
-            this.openFileDialog1.Filter = "视觉方案文件(*.YtSol)|*.YtSol|所有文件(*.*)|*.*";
+            this.openFileDialog1.Filter = "视觉方案文件(*.Sol)|*.Sol|所有文件(*.*)|*.*";
             // 
             // toolStrip1
             // 
@@ -516,7 +516,7 @@
             this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.Name = "FormMain";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "瞳达智检大师 V1.0.0";
+            this.Text = "鹰眼智检视觉系统 V1.0.0";
             this.TransparencyKey = System.Drawing.Color.Fuchsia;
             this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FormMain_FormClosing);

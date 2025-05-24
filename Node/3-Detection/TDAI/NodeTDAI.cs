@@ -99,29 +99,28 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         {
             // 模拟AI结果
             var results = new List<DetectItemResult>
+            {
+                new DetectItemResult
                 {
-                    new DetectItemResult
+                    Name = "胶皮长度",
+                    Results = new List<SingleDetectItemResult>
                     {
-                        Name = "胶皮长度",
-                        Results = new List<SingleDetectItemResult>
+                        new SingleDetectItemResult
                         {
-                            new SingleDetectItemResult
-                            {
-                                IsOk = false,
-                                Value = "异常的值",
-                                Rects = new List<Rect> { new Rect(100, 100, 50, 50) }
-                            },
-                            new SingleDetectItemResult
-                            {
-                                IsOk = true,
-                                Value = "正常的值",
-                                Rects = new List<Rect> { new Rect(200, 200, 60, 60) }
-                            }
+                            IsOk = false,
+                            Value = "异常的值",
+                            Rects = new List<Rect> { new Rect(100, 100, 50, 50) }
+                        },
+                        new SingleDetectItemResult
+                        {
+                            IsOk = true,
+                            Value = "正常的值",
+                            Rects = new List<Rect> { new Rect(200, 200, 60, 60) }
                         }
                     }
-                };
+                }
+            };
             return results;
         }
-
     }
 }

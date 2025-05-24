@@ -19,6 +19,10 @@
         /// </summary>
         public AIInputInfo AIInputInfo { get; set; }
         /// <summary>
+        /// 是否一键学习
+        /// </summary>
+        public bool IsAutoStudy { get; set; }
+        /// <summary>
         /// 给指定的检测项设置当前值
         /// </summary>
         /// <param name="value"></param>
