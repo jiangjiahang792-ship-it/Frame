@@ -57,8 +57,8 @@ namespace TDJS_Vision.Forms.CameraAdd
                 try
                 {
                     Camera.Open();
-                    Camera.SetTriggerMode(true);
                     Camera.StartGrabbing();
+                    Camera.SetTriggerMode(true);
                 }
                 catch (Exception ex)
                 {

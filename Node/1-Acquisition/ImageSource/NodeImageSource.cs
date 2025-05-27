@@ -33,8 +33,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// 当前图片
         /// </summary>
         private Bitmap _bitmap;
-        // 读写锁保护相同图像文件的多线程访问安全
-        private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
+
         public NodeImageSource(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
         {
             ParamForm = new ParamFormImageSource(this);
@@ -160,10 +159,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
                             if (param.TriggerSource != TriggerSource.SOFT) { throw new Exception("只有软触发拍照才能手动点击运行！"); }
 
-                            // 解绑硬触发取流事件、绑定软触发
-                            param.Camera.PublishImageEvent -= ((ParamFormImageSource)ParamForm).CameraHard_PublishImageEvent;
-                            param.Camera.PublishImageEvent -= CameraSoft_PublishImageEvent;
-                            param.Camera.PublishImageEvent += CameraSoft_PublishImageEvent;
+                            // 绑定软触发取流事件
+                            param.Camera.Subscribe(CameraSoft_PublishImageEvent);
+                            param.Camera.SetActiveSubscriber(CameraSoft_PublishImageEvent);
 
                             // 频闪才需要每次设置相机参数，不频闪的话在参数界面设置一次即可
                             if (param.IsStrobing)

@@ -3,6 +3,7 @@ using MvCameraControl;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using TDJS_Vision.Forms.ImageViewer;
 
 namespace TDJS_Vision.Device.Camera
 {
@@ -24,10 +25,6 @@ namespace TDJS_Vision.Device.Camera
         /// </summary>
         string UserDefinedName { get; set; }
         /// <summary>
-        /// 抓取图片事件
-        /// </summary>
-        event EventHandler<Bitmap> PublishImageEvent;
-        /// <summary>
         /// 相机是否连接
         /// </summary>
         bool IsOpen { get; set; }
@@ -48,6 +45,28 @@ namespace TDJS_Vision.Device.Camera
         /// 创建设备，反序列化用
         /// </summary>
         void CreateDevice();
+        /// <summary>
+        /// 相机订阅当前取流方法，内部已处理重复订阅
+        /// </summary>
+        /// <param name="handler"></param>
+        void Subscribe(EventHandler<Bitmap> handler);
+
+        /// <summary>
+        /// 相机取消订阅当前取流方法
+        /// </summary>
+        /// <param name="handler"></param>
+        void Unsubscribe(EventHandler<Bitmap> handler);
+        /// <summary>
+        /// 获取当前活跃的取流订阅者
+        /// </summary>
+        /// <returns></returns>
+        EventHandler<Bitmap> GetActiveSubscriber();
+        /// <summary>
+        /// 设置当前活跃的取流订阅者，取流时仅有此方法处理图像数据。
+        /// </summary>
+        /// <param name="handler"></param>
+        void SetActiveSubscriber(EventHandler<Bitmap> handler);
+
         /// <summary>
         /// 开启相机
         /// </summary>
@@ -85,6 +104,7 @@ namespace TDJS_Vision.Device.Camera
         /// <returns></returns>
         void SetTriggerSource(TriggerSource triggerSource);
 
+        TriggerSource GetTriggerSource();
         /// <summary>
         /// 设置硬件触发时的触发沿
         /// </summary>

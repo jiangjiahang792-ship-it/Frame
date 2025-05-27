@@ -113,6 +113,7 @@ namespace TDJS_Vision.Device.Modbus
         /// <param name="e"></param>
         private void DataStore_DataStoreWrittenTo(object sender, DataStoreEventArgs e)
         {
+#if DEBUG
             try
             {
                 switch (e.ModbusDataType)
@@ -135,7 +136,7 @@ namespace TDJS_Vision.Device.Modbus
             {
                 LogHelper.AddLog(MsgLevel.Exception, ex.Message, true);
             }
-
+#endif
         }
 
         /// <summary>
@@ -145,6 +146,7 @@ namespace TDJS_Vision.Device.Modbus
         /// <param name="e"></param>
         private void Slave_ModbusSlaveRequestReceived(object sender, ModbusSlaveRequestEventArgs e)
         {
+#if DEBUG
             try
             {
                 LogHelper.AddLog(MsgLevel.Info, $"从站({UserDefinedName})接收请求数据: " + JsonConvert.SerializeObject(e.Message), true);
@@ -153,6 +155,7 @@ namespace TDJS_Vision.Device.Modbus
             {
                 LogHelper.AddLog(MsgLevel.Exception, ex.Message, true);
             }
+#endif
         }
 
         /// <summary>

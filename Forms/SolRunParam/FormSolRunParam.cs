@@ -12,7 +12,6 @@ namespace TDJS_Vision.Forms.SolRunParam
             InitializeComponent();
             comboBoxCoilValue.SelectedIndex = 1;
         }
-
         /// <summary>
         /// 窗体显示事件
         /// </summary>
@@ -198,4 +197,5 @@ namespace TDJS_Vision.Forms.SolRunParam
             }
         }
     }
+
 }

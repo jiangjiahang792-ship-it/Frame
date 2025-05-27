@@ -12,7 +12,8 @@ namespace TDJS_Vision.Forms.CameraAdd
         {
             InitializeComponent();
             _camera = camera;
-            camera.PublishImageEvent += Camera_PublishImageEvent;
+            camera.Subscribe(Camera_PublishImageEvent);
+            camera.SetActiveSubscriber(Camera_PublishImageEvent);
         }
 
         private void Camera_PublishImageEvent(object sender, Bitmap e)

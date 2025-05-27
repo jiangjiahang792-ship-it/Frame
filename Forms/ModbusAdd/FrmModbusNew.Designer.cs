@@ -154,7 +154,6 @@
             // uiipTextBoxIP
             // 
             this.uiipTextBoxIP.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.uiipTextBoxIP.Enabled = false;
             this.uiipTextBoxIP.FillColor2 = System.Drawing.Color.FromArgb(((int)(((byte)(235)))), ((int)(((byte)(243)))), ((int)(((byte)(255)))));
             this.uiipTextBoxIP.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.uiipTextBoxIP.Location = new System.Drawing.Point(243, 161);

@@ -414,10 +414,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 // 如果是硬触发
                 if (_nodeParamImageSource.TriggerSource != TriggerSource.Auto && _nodeParamImageSource.TriggerSource != TriggerSource.SOFT)
                 {
-                    // 解绑软触发取流事件、绑定硬触发
-                    _nodeParamImageSource.Camera.PublishImageEvent -= ((NodeImageSource)_node).CameraSoft_PublishImageEvent;
-                    _nodeParamImageSource.Camera.PublishImageEvent -= CameraHard_PublishImageEvent;
-                    _nodeParamImageSource.Camera.PublishImageEvent += CameraHard_PublishImageEvent;
+                    // 绑定硬触发取流
+                    _nodeParamImageSource.Camera.Subscribe(CameraHard_PublishImageEvent);
+                    _nodeParamImageSource.Camera.SetActiveSubscriber(CameraHard_PublishImageEvent);
                 }
             }
 

@@ -8,6 +8,8 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using System.Threading.Tasks;
 using Sunny.UI;
+using TDJS_Vision.Forms.ImageViewer;
+using System.Linq;
 
 namespace TDJS_Vision.Device.Camera
 {
@@ -25,11 +27,6 @@ namespace TDJS_Vision.Device.Camera
         public event EventHandler<bool> ConnectStatusEvent;
 
         /// <summary>
-        /// 抓取图片事件
-        /// </summary>
-        public event EventHandler<Bitmap> PublishImageEvent;
-
-        /// <summary>
         /// 单个海康相机信息
         /// </summary>
         private MvCameraControl.IDevice device = null;
@@ -43,6 +40,11 @@ namespace TDJS_Vision.Device.Camera
         /// 设备是否启用
         /// </summary>
         public bool IsOpen { get; set; }
+
+        /// <summary>
+        /// 相机的触发源
+        /// </summary>
+        public TriggerSource TriggerSource { get; set; }
 
         /// <summary>
         /// 设备类型
@@ -229,6 +231,7 @@ namespace TDJS_Vision.Device.Camera
                 throw new Exception($"相机（{UserDefinedName}）打开失败！");
             }
             IsOpen = true;
+            TriggerSource = GetTriggerSource();
             ConnectStatusEvent?.Invoke(this, true);
             //ch: 判断是否为gige设备 | en: Determine whether it is a GigE device
             if (device is IGigEDevice)
@@ -294,8 +297,50 @@ namespace TDJS_Vision.Device.Camera
                     pal.Entries[j] = Color.FromArgb(j, j, j);
                 inputImage.ToBitmap().Palette = pal;
             }
-            PublishImageEvent?.Invoke(this, inputImage.ToBitmap());
+            // 只调用当前活跃的订阅者
+            _activeSubscriber?.Invoke(this, inputImage.ToBitmap());
         }
+
+        #region 实现该相机对象发布的图像只能有一个订阅者接收
+
+        // 所有订阅者列表
+        private List<WeakReference<EventHandler<Bitmap>>> _subscribers = new List<WeakReference<EventHandler<Bitmap>>>();
+
+        // 当前允许接收图像的订阅者
+        private EventHandler<Bitmap> _activeSubscriber;
+
+        // 订阅方法
+        public void Subscribe(EventHandler<Bitmap> handler)
+        {
+            // 避免重复订阅
+            if (_subscribers.Any(wr => wr.TryGetTarget(out var existing) && existing == handler))
+                return;
+
+            _subscribers.Add(new WeakReference<EventHandler<Bitmap>>(handler));
+        }
+
+        // 取消订阅
+        public void Unsubscribe(EventHandler<Bitmap> handler)
+        {
+            _subscribers.RemoveAll(wr =>
+            {
+                if (wr.TryGetTarget(out var target))
+                    return target == handler;
+                return true; // Remove dead references
+            });
+        }
+        // 获取当前活跃的订阅者
+        public EventHandler<Bitmap> GetActiveSubscriber()
+        {
+            return _activeSubscriber;
+        }
+        // 设置当前活跃的订阅者
+        public void SetActiveSubscriber(EventHandler<Bitmap> handler)
+        {
+            _activeSubscriber = handler;
+        }
+
+        #endregion
 
         /// <summary>
         /// 设置相机触发模式
@@ -308,7 +353,43 @@ namespace TDJS_Vision.Device.Camera
         }
 
         /// <summary>
-        /// 设置软硬触发
+        /// 获取相机触发源
+        /// </summary>
+        /// <param name="triggerSource"></param>
+        public TriggerSource GetTriggerSource()
+        {
+            if (device == null) throw new Exception("相机对象为空！");
+            if (!GetTriggerMode())
+                return TriggerSource.Auto;
+
+            IEnumValue triggerSourceEnum;
+            device.Parameters.GetEnumValue("TriggerSource", out triggerSourceEnum);
+
+            switch (triggerSourceEnum.CurEnumEntry.Value)
+            {
+                case 0:
+                    TriggerSource = ManufacturerName == "Basler" ? TriggerSource.SOFT : TriggerSource.LINE0;
+                    return TriggerSource;
+                case 1:
+                    TriggerSource = ManufacturerName == "Basler" ? TriggerSource.LINE1 : TriggerSource.LINE1;
+                    return TriggerSource;
+                case 2:
+                    TriggerSource = ManufacturerName == "Basler" ? TriggerSource.LINE2 : TriggerSource.LINE2;
+                    return TriggerSource;
+                case 3:
+                    TriggerSource = ManufacturerName == "Basler" ? TriggerSource.LINE3 : TriggerSource.LINE3;
+                    return TriggerSource;
+                case 7:
+                    TriggerSource = TriggerSource.SOFT;
+                    return TriggerSource;
+                default:
+                    TriggerSource = TriggerSource.Auto;
+                    return TriggerSource;
+            }
+        }
+
+        /// <summary>
+        /// 设置触发源，AUTO表示自动触发（非触发模式），SOFT表示软件触发，LINE0-3表示硬件触发
         /// </summary>
         /// <param name="trigBySoft"></param>
         /// <returns></returns>
@@ -326,6 +407,9 @@ namespace TDJS_Vision.Device.Camera
             {
                 switch (triggerSource)
                 {
+                    case TriggerSource.Auto:
+                        SetTriggerMode(false);
+                        break;
                     case TriggerSource.SOFT:
                         device.Parameters.SetEnumValue("TriggerSource", 0);
                         break;
@@ -346,6 +430,9 @@ namespace TDJS_Vision.Device.Camera
             {
                 switch (triggerSource)
                 {
+                    case TriggerSource.Auto:
+                        SetTriggerMode(false);
+                        break;
                     case TriggerSource.SOFT:
                         device.Parameters.SetEnumValue("TriggerSource", 7);
                         break;
@@ -365,6 +452,7 @@ namespace TDJS_Vision.Device.Camera
                         break;
                 }
             }
+            TriggerSource = triggerSource;
         }
 
         /// <summary>

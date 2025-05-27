@@ -3,6 +3,7 @@ using System.Windows.Forms;
 using WeifenLuo.WinFormsUI.Docking;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Forms.SolRunParam;
+using System;
 
 namespace TDJS_Vision.Forms.ImageViewer
 {
@@ -57,4 +58,13 @@ namespace TDJS_Vision.Forms.ImageViewer
             Bitmap = bitmap;
         }
     }
+    /// <summary>
+    /// 在什么运行状态下发布图像
+    /// </summary>
+    internal enum ImagePublicType
+    {
+        SOFT, // 软触发
+        HARD,  // 硬触发
+        DEBUG, // 调试
+    };
 }

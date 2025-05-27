@@ -166,7 +166,10 @@ namespace TDJS_Vision.Forms.CameraAdd
                 foreach (var item in Solution.Instance.CameraDevices)
                 {
                     if (item.IsOpen)
+                    {
                         item.SetTriggerMode(true);
+                        item.SetTriggerSource(TriggerSource.LINE0); // 默认设置触发源为LINE0
+                    }
                 }
             } 
             catch(Exception ex)

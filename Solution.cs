@@ -19,6 +19,7 @@ using TDJS_Vision.Node;
 using TDJS_Vision.Device.TCP;
 using TDJS_Vision.Forms.TCPAdd;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Forms.ImageViewer;
 
 namespace TDJS_Vision
 {

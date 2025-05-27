@@ -1,12 +1,7 @@
 ﻿using Logger;
 using System;
-using System.IO.Ports;
-using System.Net;
 using System.Windows.Forms;
 using TDJS_Vision.Device.Modbus;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
-using TDJS_Vision.Device.PLC;
-using TDJS_Vision.Device;
 
 namespace TDJS_Vision.Forms.ModbusAdd
 {

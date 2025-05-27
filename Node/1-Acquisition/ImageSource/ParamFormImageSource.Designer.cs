@@ -113,7 +113,7 @@
             this.comboBoxImgSource.Items.AddRange(new object[] {
             "本地图像",
             "相机"});
-            this.comboBoxImgSource.Location = new System.Drawing.Point(354, 13);
+            this.comboBoxImgSource.Location = new System.Drawing.Point(354, 12);
             this.comboBoxImgSource.Name = "comboBoxImgSource";
             this.comboBoxImgSource.Size = new System.Drawing.Size(188, 25);
             this.comboBoxImgSource.TabIndex = 1;
@@ -239,7 +239,7 @@
             this.comboBoxChoiceCamera.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxChoiceCamera.Font = new System.Drawing.Font("宋体", 10.5F);
             this.comboBoxChoiceCamera.FormattingEnabled = true;
-            this.comboBoxChoiceCamera.Location = new System.Drawing.Point(355, 15);
+            this.comboBoxChoiceCamera.Location = new System.Drawing.Point(355, 14);
             this.comboBoxChoiceCamera.Name = "comboBoxChoiceCamera";
             this.comboBoxChoiceCamera.Size = new System.Drawing.Size(188, 25);
             this.comboBoxChoiceCamera.TabIndex = 1;
@@ -269,7 +269,7 @@
             "Line2",
             "Line3",
             "Line4"});
-            this.comboBoxTriggerMode.Location = new System.Drawing.Point(355, 70);
+            this.comboBoxTriggerMode.Location = new System.Drawing.Point(355, 69);
             this.comboBoxTriggerMode.Name = "comboBoxTriggerMode";
             this.comboBoxTriggerMode.Size = new System.Drawing.Size(188, 25);
             this.comboBoxTriggerMode.TabIndex = 1;
@@ -298,7 +298,7 @@
             "下降沿",
             "高电平",
             "低电平"});
-            this.comboBoxTriggerEdge.Location = new System.Drawing.Point(355, 125);
+            this.comboBoxTriggerEdge.Location = new System.Drawing.Point(355, 124);
             this.comboBoxTriggerEdge.Name = "comboBoxTriggerEdge";
             this.comboBoxTriggerEdge.Size = new System.Drawing.Size(188, 25);
             this.comboBoxTriggerEdge.TabIndex = 1;
