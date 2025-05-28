@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Sunny.UI;
 using TDJS_Vision.Forms.ImageViewer;
 using System.Linq;
+using WeifenLuo.WinFormsUI.Docking;
 
 namespace TDJS_Vision.Device.Camera
 {
@@ -691,7 +692,7 @@ namespace TDJS_Vision.Device.Camera
         /// 设置增益
         /// </summary>
         /// <param name="gainValue"></param>
-        public void SetGain(float gainValue)
+        public void SetGain(double gainValue)
         {
             if (device == null) throw new Exception("相机对象为空！");
             device.Parameters.SetEnumValue("GainAuto", 0);
@@ -701,7 +702,7 @@ namespace TDJS_Vision.Device.Camera
             }
             else
             {
-                device.Parameters.SetFloatValue("Gain", gainValue);
+                device.Parameters.SetFloatValue("Gain", (float)gainValue);
             }
         }
 
@@ -709,18 +710,18 @@ namespace TDJS_Vision.Device.Camera
         /// 设置曝光 
         /// </summary>
         /// <param name="time"></param>
-        public void SetExposureTime(float time)
+        public void SetExposureTime(double time)
         {
             if (device == null) throw new Exception("相机对象为空！");
             device.Parameters.SetEnumValue("ExposureAuto", 0);
 
             if (ManufacturerName == "Basler")
             {
-                device.Parameters.SetFloatValue("ExposureTimeAbs", time);
+                device.Parameters.SetFloatValue("ExposureTimeAbs", (float)time);
             }
             else
             {
-                device.Parameters.SetFloatValue("ExposureTime", time);
+                device.Parameters.SetFloatValue("ExposureTime", (float)time);
             }
         }
 
@@ -728,17 +729,17 @@ namespace TDJS_Vision.Device.Camera
         /// 设置触发延迟
         /// </summary>
         /// <param name="time">单位us</param>
-        public void SetTriggerDelay(float time)
+        public void SetTriggerDelay(double time)
         {
             if (device == null) throw new Exception("相机对象为空！");
 
             if (ManufacturerName == "Basler")
             {
-                device.Parameters.SetFloatValue("TriggerDelayAbs", time);
+                device.Parameters.SetFloatValue("TriggerDelayAbs", (float)time);
             }
             else
             {
-                device.Parameters.SetFloatValue("TriggerDelay", time);
+                device.Parameters.SetFloatValue("TriggerDelay", (float)time);
             }
         }
 

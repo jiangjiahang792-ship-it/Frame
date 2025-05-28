@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
+using Logger;
 using TDJS_Vision.Device.Camera;
 using TDJS_Vision.Forms.ImageViewer;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
@@ -18,9 +19,11 @@ namespace TDJS_Vision.Forms.SolRunParam
         ICamera _camera = null;
         TriggerSource triggerSrc;
         NodeTDAI _nodeTDAI;//AI节点
+        NodeImageSource _nodeSource;//图像源节点
         string _windowsName; // 图像显示窗口名
         EventHandler<Bitmap> preEventHandler = null;//前一个活动的相机图像发布事件处理器
-        public static event EventHandler<ImageShowPamra> ImageShowChanged;
+        public static event EventHandler<ImageShowPamra> ImageShowChanged; // 发布图像到窗口显示
+        public static event EventHandler RefreshParamView; // 通知节点参数界面刷新事件
         public SolRunParamControl()
         {
             InitializeComponent();
@@ -43,6 +46,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                     if (node is NodeImageSource nodeSource && node.ParamForm.Params
                         is NodeParamImageSoucre nodeParam)
                     {
+                        _nodeSource = nodeSource;
                         if (nodeParam != null && nodeParam.Camera != null)
                         {
                             // 订阅相机图像发布事件
@@ -55,12 +59,13 @@ namespace TDJS_Vision.Forms.SolRunParam
                                 //获取参数
                                 solRunDataInit.ExposureTime = nodeParam.Camera.GetExposureTime().CurValue.ToString();
                                 var (intV, flloatV) = nodeParam.Camera.GetGain();
-                                var gain = intV == null ? flloatV.CurValue : intV.CurValue;
+                                //float四舍五入到0位小数，海康官方使用float类型存储增益会丢失精度，如设置2会变成2.000……或1.999……
+                                var gain = intV == null ? (float)Math.Round(flloatV.CurValue, 0) : intV.CurValue;
                                 solRunDataInit.Gain = gain.ToString();
                                 triggerSrc = _camera.GetTriggerSource();
                                 //设置参数
                                 textBoxExposureTime.Text = solRunDataInit.ExposureTime.ToString();
-                                textBoxGain.Text = solRunDataInit.Gain.ToString();
+                                textBoxGain.Text = solRunDataInit.Gain;
                                 uiSwitchContinue.Active = nodeParam.Camera.GetTriggerSource() == TriggerSource.Auto ? true : false;
                                 //设置控件可用性
                                 textBoxExposureTime.Enabled = true;
@@ -260,14 +265,21 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             try
             {
+                if(_nodeSource.ParamForm.Params is NodeParamImageSoucre imageSrcParams)
+                {
+                    imageSrcParams.ExposureTime = double.Parse(textBoxExposureTime.Text);
+                    imageSrcParams.Gain = double.Parse(textBoxGain.Text);
+                }
                 if(_nodeTDAI.ParamForm.Params is NodeParamTDAI aiParams)
                 {
-                    aiParams.AIInputInfo.ScoreThreshold = (float)decimal.Parse(solRunDataNew.ScoreThreshold);
-                    aiParams.AIInputInfo.ScoreNMS = (float)decimal.Parse(solRunDataNew.ScoreNMS);
+                    aiParams.AIInputInfo.ScoreThreshold = double.Parse(solRunDataNew.ScoreThreshold);
+                    aiParams.AIInputInfo.ScoreNMS = double.Parse(solRunDataNew.ScoreNMS);
                     aiParams.AIInputInfo.DetectItems = solRunDataNew.DetectItems;
-                    _nodeTDAI.ParamForm.Params = aiParams;
-                    //2025年5月27日 TODO:节点参数有更新，应该触发节点参数界面刷新当前设置的值
                 }
+                //2025年5月27日 节点参数有更新，应该触发节点参数界面刷新当前设置的值
+                RefreshParamView?.Invoke(this, EventArgs.Empty);
+                Solution.Instance.Save(Solution.Instance.SolFileName);
+                LogHelper.AddLog(MsgLevel.Info, $"当前参数设置已经成功保存到方案文件！路径：{Solution.Instance.SolFileName}", true);
             }
             catch (Exception)
             {

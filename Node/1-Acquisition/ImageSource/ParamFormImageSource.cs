@@ -7,6 +7,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Device.Camera;
+using TDJS_Vision.Forms.SolRunParam;
 
 namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 {
@@ -35,6 +36,16 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             _formHeight = this.Height;
             _node = node;
             comboBoxImgSource.SelectedIndex = 0;
+            SolRunParamControl.RefreshParamView += SolRunParamControl_RefreshParamView;
+        }
+
+        private void SolRunParamControl_RefreshParamView(object sender, EventArgs e)
+        {
+            if(Params is NodeParamImageSoucre paramSrc)
+            {
+                numericUpDownExposureTime.Value = (decimal)paramSrc.ExposureTime;
+                numericUpDownGain.Value = (decimal)paramSrc.Gain;
+            }
         }
 
         /// <summary>
@@ -236,7 +247,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <param name="delay"></param>
         /// <param name="exposureTime"></param>
         /// <param name="gain"></param>
-        private void SetCameraParams(ICamera camera, TriggerSource triggerSource, TriggerEdge triggerEdge, int delay, float exposureTime, float gain)
+        private void SetCameraParams(ICamera camera, TriggerSource triggerSource, TriggerEdge triggerEdge, int delay, double exposureTime, double gain)
         {
             camera.SetTriggerSource(triggerSource);     // 设置触发源
             camera.SetTriggerEdge(triggerEdge);         // 设置硬触发边沿

@@ -63,11 +63,11 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <summary>
         /// 曝光时间
         /// </summary>
-        public float ExposureTime { get; set; }
+        public double ExposureTime { get; set; }
         /// <summary>
         /// 增益
         /// </summary>
-        public float Gain { get; set; }
+        public double Gain { get; set; }
         /// <summary>
         /// 是否频闪
         /// </summary>

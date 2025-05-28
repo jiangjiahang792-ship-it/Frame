@@ -122,7 +122,7 @@ namespace TDJS_Vision.Device.Camera
         ///  设置增益
         /// </summary>
         /// <param name="gainValue"></param>
-        void SetGain(float gainValue);
+        void SetGain(double gainValue);
 
         /// <summary>
         /// 获取相机曝光
@@ -187,13 +187,13 @@ namespace TDJS_Vision.Device.Camera
         /// </summary>
         /// <param name="ExposureTime"></param>
         /// <returns></returns>
-        void SetExposureTime(float time);
+        void SetExposureTime(double time);
 
         /// <summary>
         /// 设置触发延迟
         /// </summary>
         /// <param name="time"></param>
-        void SetTriggerDelay(float time);
+        void SetTriggerDelay(double time);
 
         /// <summary>
         /// 获取触发模式
