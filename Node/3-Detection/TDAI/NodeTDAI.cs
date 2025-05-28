@@ -108,13 +108,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         new SingleDetectItemResult
                         {
                             IsOk = false,
-                            Value = "异常的值",
+                            Value = "100.23",
                             Rects = new List<Rect> { new Rect(100, 100, 50, 50) }
                         },
                         new SingleDetectItemResult
                         {
                             IsOk = true,
-                            Value = "正常的值",
+                            Value = "56.32",
                             Rects = new List<Rect> { new Rect(200, 200, 60, 60) }
                         }
                     }

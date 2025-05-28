@@ -72,13 +72,22 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                 MessageBox.Show("参数设置不完整！");
                 return;
             }
-            var param = new NodeParamImageDraw();
-            param.Text1 = nodeSubscription1.GetText1();
-            param.Text2 = nodeSubscription1.GetText2();
-            param.Text3 = nodeSubscription2.GetText1();
-            param.Text4 = nodeSubscription2.GetText2();
-            Params = param;
-            Hide();
+            try
+            {
+                var param = new NodeParamImageDraw();
+                param.Text1 = nodeSubscription1.GetText1();
+                param.Text2 = nodeSubscription1.GetText2();
+                param.Text3 = nodeSubscription2.GetText1();
+                param.Text4 = nodeSubscription2.GetText2();
+                param.FontSize = int.Parse(textBox_FontSize.Text);
+                param.LineWidth = int.Parse(textBox_LineWidth.Text);
+                Params = param;
+                Hide();
+            }
+            catch (Exception)
+            {
+                MessageBox.Show("参数设置不合理！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
         /// <summary>
         /// 反序列化需要设置参数给回界面
@@ -91,6 +100,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                 // 还原界面显示
                 nodeSubscription1.SetText(param.Text1, param.Text2);
                 nodeSubscription2.SetText(param.Text3, param.Text4);
+                textBox_FontSize.Text = param.FontSize.ToString();
+                textBox_LineWidth.Text = param.LineWidth.ToString();
             }
         }
     }

@@ -11,6 +11,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
         public string Text2;
         public string Text3;
         public string Text4;
+        public int FontSize;
+        public int LineWidth;
     }
 
     internal class DatashowData
