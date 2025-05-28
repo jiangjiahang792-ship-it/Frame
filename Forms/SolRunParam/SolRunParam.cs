@@ -86,13 +86,16 @@ namespace TDJS_Vision.Forms.SolRunParam
                             //获取参数
                             solRunDataInit.ScoreThreshold = paramTDAI.AIInputInfo.ScoreThreshold.ToString();
                             solRunDataInit.ScoreNMS = paramTDAI.AIInputInfo.ScoreNMS.ToString();
+                            solRunDataInit.IsAutoLearn = paramTDAI.IsAutoStudy;
                             solRunDataInit.DetectItems = paramTDAI.AIInputInfo.DetectItems;
                             //设置参数
                             textBoxScoreThreshold.Text = solRunDataInit.ScoreThreshold.ToString();
                             textBoxScoreNMS.Text = solRunDataInit.ScoreNMS.ToString();
+                            uiSwitch_Learning.Active = solRunDataInit.IsAutoLearn;
                             //设置控件可用性
                             textBoxScoreThreshold.Enabled = true;
                             textBoxScoreNMS.Enabled = true;
+                            uiSwitch_Learning.Enabled = true;
                         }
                     }
                     if (node is NodeImageShow nodeShow)
@@ -147,6 +150,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         private void SetEnable(bool enable)
         {
             uiSwitchContinue.Enabled = enable;
+            uiSwitch_Learning.Enabled = enable;
             buttonOnce.Enabled = enable;
             textBoxExposureTime.Enabled = enable;
             textBoxGain.Enabled = enable;
@@ -274,6 +278,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 {
                     aiParams.AIInputInfo.ScoreThreshold = double.Parse(solRunDataNew.ScoreThreshold);
                     aiParams.AIInputInfo.ScoreNMS = double.Parse(solRunDataNew.ScoreNMS);
+                    aiParams.IsAutoStudy = solRunDataNew.IsAutoLearn;
                     aiParams.AIInputInfo.DetectItems = solRunDataNew.DetectItems;
                 }
                 //2025年5月27日 节点参数有更新，应该触发节点参数界面刷新当前设置的值
@@ -378,6 +383,15 @@ namespace TDJS_Vision.Forms.SolRunParam
             }
         }
         /// <summary>
+        /// 一键学习
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="value"></param>
+        private void uiSwitch_Learning_ValueChanged(object sender, bool value)
+        {
+            solRunDataNew.IsAutoLearn = value;
+        }
+        /// <summary>
         /// 编辑完表格时
         /// </summary>
         /// <param name="sender"></param>
@@ -394,6 +408,7 @@ namespace TDJS_Vision.Forms.SolRunParam
             public SolRunData() { }
             public string ExposureTime { get; set; }
             public string Gain { get; set; }
+            public bool IsAutoLearn { get; set; } // 是否一键学习
             public string ScoreThreshold { get; set; }
             public string ScoreNMS { get; set; }
             public List<DetectItemInfo> DetectItems { get; set; } = new List<DetectItemInfo>();
@@ -402,6 +417,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 var newData = new SolRunData();
                 newData.ExposureTime = src.ExposureTime;
                 newData.Gain = src.Gain;
+                newData.IsAutoLearn = src.IsAutoLearn;
                 newData.ScoreThreshold = src.ScoreThreshold;
                 newData.ScoreNMS = src.ScoreNMS;
                 src.DetectItems.ForEach(item => newData.DetectItems.Add(item));

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
+using TDJS_Vision.Forms.SolRunParam;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
@@ -15,6 +16,19 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         public ParamFormTDAI()
         {
             InitializeComponent();
+            SolRunParamControl.RefreshParamView += SolRunParamControl_RefreshParamView;
+        }
+        /// <summary>
+        /// 刷新从SolRunParamControl设置的参数
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void SolRunParamControl_RefreshParamView(object sender, EventArgs e)
+        {
+            if(Params is NodeParamTDAI param)
+            {
+                uiSwitch_Learning.Active = param.IsAutoStudy;
+            }
         }
 
         /// <summary>
@@ -84,7 +98,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 nodeParamTDAI.Text2 = nodeSubscription1.GetText2();
                 nodeParamTDAI.ConfigPath = textBoxConfigPath.Text;
                 nodeParamTDAI.AIInputInfo = new AIInputInfo(textBoxConfigPath.Text);
-                nodeParamTDAI.IsAutoStudy = uiSwitch1.Active;
+                nodeParamTDAI.IsAutoStudy = uiSwitch_Learning.Active;
                 Params = nodeParamTDAI;
             }
             catch (Exception)

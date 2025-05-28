@@ -30,7 +30,6 @@
         {
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.buttonSaveAllParam = new System.Windows.Forms.Button();
-            this.myDataGridViewForm1 = new TDJS_Vision.Forms.SolRunParam.MyDataGridViewForm();
             this.label1 = new System.Windows.Forms.Label();
             this.textBoxExposureTime = new System.Windows.Forms.TextBox();
             this.label3 = new System.Windows.Forms.Label();
@@ -40,12 +39,15 @@
             this.label2 = new System.Windows.Forms.Label();
             this.textBoxGain = new System.Windows.Forms.TextBox();
             this.label5 = new System.Windows.Forms.Label();
-            this.buttonSingleImg = new System.Windows.Forms.Button();
-            this.buttonCatalogueImg = new System.Windows.Forms.Button();
             this.buttonOnce = new System.Windows.Forms.Button();
             this.uiSwitchContinue = new Sunny.UI.UISwitch();
+            this.buttonCatalogueImg = new System.Windows.Forms.Button();
+            this.buttonSingleImg = new System.Windows.Forms.Button();
+            this.uiSwitch_Learning = new Sunny.UI.UISwitch();
+            this.label6 = new System.Windows.Forms.Label();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
             this.folderBrowserDialog1 = new System.Windows.Forms.FolderBrowserDialog();
+            this.myDataGridViewForm1 = new TDJS_Vision.Forms.SolRunParam.MyDataGridViewForm();
             this.tableLayoutPanel1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -69,10 +71,12 @@
             this.tableLayoutPanel1.Controls.Add(this.label2, 0, 1);
             this.tableLayoutPanel1.Controls.Add(this.textBoxGain, 1, 1);
             this.tableLayoutPanel1.Controls.Add(this.label5, 2, 0);
-            this.tableLayoutPanel1.Controls.Add(this.buttonSingleImg, 4, 0);
-            this.tableLayoutPanel1.Controls.Add(this.buttonCatalogueImg, 4, 1);
             this.tableLayoutPanel1.Controls.Add(this.buttonOnce, 3, 1);
             this.tableLayoutPanel1.Controls.Add(this.uiSwitchContinue, 3, 0);
+            this.tableLayoutPanel1.Controls.Add(this.buttonCatalogueImg, 5, 1);
+            this.tableLayoutPanel1.Controls.Add(this.buttonSingleImg, 4, 1);
+            this.tableLayoutPanel1.Controls.Add(this.uiSwitch_Learning, 5, 0);
+            this.tableLayoutPanel1.Controls.Add(this.label6, 4, 0);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
@@ -99,18 +103,6 @@
             this.buttonSaveAllParam.Text = "保存设置";
             this.buttonSaveAllParam.UseVisualStyleBackColor = false;
             this.buttonSaveAllParam.Click += new System.EventHandler(this.buttonSaveAllParam_Click);
-            // 
-            // myDataGridViewForm1
-            // 
-            this.tableLayoutPanel1.SetColumnSpan(this.myDataGridViewForm1, 6);
-            this.myDataGridViewForm1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.myDataGridViewForm1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.myDataGridViewForm1.Location = new System.Drawing.Point(3, 130);
-            this.myDataGridViewForm1.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
-            this.myDataGridViewForm1.Name = "myDataGridViewForm1";
-            this.myDataGridViewForm1.Size = new System.Drawing.Size(1057, 326);
-            this.myDataGridViewForm1.TabIndex = 7;
-            this.myDataGridViewForm1.Leave += new System.EventHandler(this.myDataGridViewForm1_Leave);
             // 
             // label1
             // 
@@ -215,30 +207,6 @@
             this.label5.TabIndex = 2;
             this.label5.Text = "连续采图";
             // 
-            // buttonSingleImg
-            // 
-            this.buttonSingleImg.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.buttonSingleImg.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonSingleImg.Location = new System.Drawing.Point(711, 3);
-            this.buttonSingleImg.Name = "buttonSingleImg";
-            this.buttonSingleImg.Size = new System.Drawing.Size(171, 36);
-            this.buttonSingleImg.TabIndex = 0;
-            this.buttonSingleImg.Text = "单图测试";
-            this.buttonSingleImg.UseVisualStyleBackColor = true;
-            this.buttonSingleImg.Click += new System.EventHandler(this.buttonSingleImg_Click);
-            // 
-            // buttonCatalogueImg
-            // 
-            this.buttonCatalogueImg.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.buttonCatalogueImg.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonCatalogueImg.Location = new System.Drawing.Point(711, 45);
-            this.buttonCatalogueImg.Name = "buttonCatalogueImg";
-            this.buttonCatalogueImg.Size = new System.Drawing.Size(171, 36);
-            this.buttonCatalogueImg.TabIndex = 0;
-            this.buttonCatalogueImg.Text = "多图测试";
-            this.buttonCatalogueImg.UseVisualStyleBackColor = true;
-            this.buttonCatalogueImg.Click += new System.EventHandler(this.buttonCatalogueImg_Click);
-            // 
             // buttonOnce
             // 
             this.buttonOnce.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -264,9 +232,69 @@
             this.uiSwitchContinue.Text = "uiSwitch1";
             this.uiSwitchContinue.ValueChanged += new Sunny.UI.UISwitch.OnValueChanged(this.uiSwitchContinue_ValueChanged);
             // 
+            // buttonCatalogueImg
+            // 
+            this.buttonCatalogueImg.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.buttonCatalogueImg.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.buttonCatalogueImg.Location = new System.Drawing.Point(888, 45);
+            this.buttonCatalogueImg.Name = "buttonCatalogueImg";
+            this.buttonCatalogueImg.Size = new System.Drawing.Size(172, 36);
+            this.buttonCatalogueImg.TabIndex = 0;
+            this.buttonCatalogueImg.Text = "多图测试";
+            this.buttonCatalogueImg.UseVisualStyleBackColor = true;
+            this.buttonCatalogueImg.Click += new System.EventHandler(this.buttonCatalogueImg_Click);
+            // 
+            // buttonSingleImg
+            // 
+            this.buttonSingleImg.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.buttonSingleImg.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.buttonSingleImg.Location = new System.Drawing.Point(711, 45);
+            this.buttonSingleImg.Name = "buttonSingleImg";
+            this.buttonSingleImg.Size = new System.Drawing.Size(171, 36);
+            this.buttonSingleImg.TabIndex = 0;
+            this.buttonSingleImg.Text = "单图测试";
+            this.buttonSingleImg.UseVisualStyleBackColor = true;
+            this.buttonSingleImg.Click += new System.EventHandler(this.buttonSingleImg_Click);
+            // 
+            // uiSwitch_Learning
+            // 
+            this.uiSwitch_Learning.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.uiSwitch_Learning.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.uiSwitch_Learning.Location = new System.Drawing.Point(915, 6);
+            this.uiSwitch_Learning.Margin = new System.Windows.Forms.Padding(30, 6, 30, 6);
+            this.uiSwitch_Learning.MinimumSize = new System.Drawing.Size(1, 1);
+            this.uiSwitch_Learning.Name = "uiSwitch_Learning";
+            this.uiSwitch_Learning.Size = new System.Drawing.Size(118, 30);
+            this.uiSwitch_Learning.TabIndex = 8;
+            this.uiSwitch_Learning.Text = "uiSwitch1";
+            this.uiSwitch_Learning.ValueChanged += new Sunny.UI.UISwitch.OnValueChanged(this.uiSwitch_Learning_ValueChanged);
+            // 
+            // label6
+            // 
+            this.label6.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.label6.AutoSize = true;
+            this.label6.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.label6.Location = new System.Drawing.Point(756, 12);
+            this.label6.Name = "label6";
+            this.label6.Size = new System.Drawing.Size(80, 18);
+            this.label6.TabIndex = 2;
+            this.label6.Text = "一键学习";
+            // 
             // openFileDialog1
             // 
             this.openFileDialog1.FileName = "openFileDialog1";
+            // 
+            // myDataGridViewForm1
+            // 
+            this.tableLayoutPanel1.SetColumnSpan(this.myDataGridViewForm1, 6);
+            this.myDataGridViewForm1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.myDataGridViewForm1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.myDataGridViewForm1.Location = new System.Drawing.Point(3, 130);
+            this.myDataGridViewForm1.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.myDataGridViewForm1.Name = "myDataGridViewForm1";
+            this.myDataGridViewForm1.Size = new System.Drawing.Size(1057, 326);
+            this.myDataGridViewForm1.TabIndex = 7;
+            this.myDataGridViewForm1.Leave += new System.EventHandler(this.myDataGridViewForm1_Leave);
             // 
             // SolRunParamControl
             // 
@@ -301,5 +329,7 @@
         private System.Windows.Forms.Label label5;
         private System.Windows.Forms.Button buttonOnce;
         private Sunny.UI.UISwitch uiSwitchContinue;
+        private Sunny.UI.UISwitch uiSwitch_Learning;
+        private System.Windows.Forms.Label label6;
     }
 }

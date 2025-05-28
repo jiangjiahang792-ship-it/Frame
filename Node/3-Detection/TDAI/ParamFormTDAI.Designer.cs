@@ -31,14 +31,14 @@
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ParamFormTDAI));
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.label12 = new System.Windows.Forms.Label();
+            this.nodeSubscription1 = new TDJS_Vision.Node.NodeSubscription();
             this.label2 = new System.Windows.Forms.Label();
             this.textBoxConfigPath = new System.Windows.Forms.TextBox();
             this.bt_ConfigSelect = new System.Windows.Forms.Button();
             this.button1 = new System.Windows.Forms.Button();
-            this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
-            this.nodeSubscription1 = new TDJS_Vision.Node.NodeSubscription();
             this.label1 = new System.Windows.Forms.Label();
-            this.uiSwitch1 = new Sunny.UI.UISwitch();
+            this.uiSwitch_Learning = new Sunny.UI.UISwitch();
+            this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
             this.tableLayoutPanel1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -56,7 +56,7 @@
             this.tableLayoutPanel1.Controls.Add(this.bt_ConfigSelect, 3, 1);
             this.tableLayoutPanel1.Controls.Add(this.button1, 0, 3);
             this.tableLayoutPanel1.Controls.Add(this.label1, 0, 2);
-            this.tableLayoutPanel1.Controls.Add(this.uiSwitch1, 1, 2);
+            this.tableLayoutPanel1.Controls.Add(this.uiSwitch_Learning, 1, 2);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Top;
             this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
             this.tableLayoutPanel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
@@ -79,6 +79,17 @@
             this.label12.Size = new System.Drawing.Size(80, 18);
             this.label12.TabIndex = 4;
             this.label12.Text = "订阅图像";
+            // 
+            // nodeSubscription1
+            // 
+            this.nodeSubscription1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.tableLayoutPanel1.SetColumnSpan(this.nodeSubscription1, 2);
+            this.nodeSubscription1.Location = new System.Drawing.Point(192, 3);
+            this.nodeSubscription1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.nodeSubscription1.MinimumSize = new System.Drawing.Size(231, 50);
+            this.nodeSubscription1.Name = "nodeSubscription1";
+            this.nodeSubscription1.Size = new System.Drawing.Size(412, 50);
+            this.nodeSubscription1.TabIndex = 7;
             // 
             // label2
             // 
@@ -130,21 +141,6 @@
             this.button1.UseVisualStyleBackColor = true;
             this.button1.Click += new System.EventHandler(this.button1_Click);
             // 
-            // openFileDialog1
-            // 
-            this.openFileDialog1.FileName = "openFileDialog1";
-            // 
-            // nodeSubscription1
-            // 
-            this.nodeSubscription1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
-            this.tableLayoutPanel1.SetColumnSpan(this.nodeSubscription1, 2);
-            this.nodeSubscription1.Location = new System.Drawing.Point(192, 3);
-            this.nodeSubscription1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.nodeSubscription1.MinimumSize = new System.Drawing.Size(231, 50);
-            this.nodeSubscription1.Name = "nodeSubscription1";
-            this.nodeSubscription1.Size = new System.Drawing.Size(412, 50);
-            this.nodeSubscription1.TabIndex = 7;
-            // 
             // label1
             // 
             this.label1.Anchor = System.Windows.Forms.AnchorStyles.None;
@@ -156,16 +152,20 @@
             this.label1.TabIndex = 4;
             this.label1.Text = "一键学习";
             // 
-            // uiSwitch1
+            // uiSwitch_Learning
             // 
-            this.uiSwitch1.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.uiSwitch1.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.uiSwitch1.Location = new System.Drawing.Point(224, 128);
-            this.uiSwitch1.MinimumSize = new System.Drawing.Size(1, 1);
-            this.uiSwitch1.Name = "uiSwitch1";
-            this.uiSwitch1.Size = new System.Drawing.Size(75, 29);
-            this.uiSwitch1.TabIndex = 9;
-            this.uiSwitch1.Text = "uiSwitch1";
+            this.uiSwitch_Learning.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.uiSwitch_Learning.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.uiSwitch_Learning.Location = new System.Drawing.Point(224, 128);
+            this.uiSwitch_Learning.MinimumSize = new System.Drawing.Size(1, 1);
+            this.uiSwitch_Learning.Name = "uiSwitch_Learning";
+            this.uiSwitch_Learning.Size = new System.Drawing.Size(75, 29);
+            this.uiSwitch_Learning.TabIndex = 9;
+            this.uiSwitch_Learning.Text = "uiSwitch1";
+            // 
+            // openFileDialog1
+            // 
+            this.openFileDialog1.FileName = "openFileDialog1";
             // 
             // ParamFormTDAI
             // 
@@ -196,6 +196,6 @@
         private System.Windows.Forms.Button bt_ConfigSelect;
         private System.Windows.Forms.Button button1;
         private System.Windows.Forms.Label label1;
-        private Sunny.UI.UISwitch uiSwitch1;
+        private Sunny.UI.UISwitch uiSwitch_Learning;
     }
 }
