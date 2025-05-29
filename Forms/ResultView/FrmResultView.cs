@@ -94,6 +94,15 @@ namespace TDJS_Vision.Forms.ResultView
                     {
                         column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
                     }
+                    // 设置行头不显示
+                    dataGridView.RowHeadersVisible = false;
+
+                    // 设置用户不可增删行
+                    dataGridView.AllowUserToAddRows = false;
+                    dataGridView.AllowUserToDeleteRows = false;
+
+                    // 设置选中模式
+                    dataGridView.SelectionMode = DataGridViewSelectionMode.CellSelect;
 
                     // 将 DataGridView 添加到 TabPage 中
                     tabPage.Controls.Add(dataGridView);

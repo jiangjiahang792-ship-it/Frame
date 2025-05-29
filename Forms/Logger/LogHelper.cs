@@ -13,6 +13,7 @@ namespace Logger
         static readonly string LogDictory = Environment.CurrentDirectory + @"\Logs\";
         static event EventHandler<LevelAndInfo> LogAddEvent;
         private static readonly object _logFileLocker = new object();
+        private static bool OnlyLogException = false; // 是否仅记录异常日志
 
         #region 日志等级和日志内容结构体
         struct LevelAndInfo
@@ -189,6 +190,8 @@ namespace Logger
             [CallerLineNumber] int lineNumber = 0
             )
         {
+            if (OnlyLogException && (level == MsgLevel.Info || level == MsgLevel.Debug))
+                return; // 如果仅记录异常日志，且当前日志不是异常，则不记录
             SingleLog singleLog = new SingleLog();
             singleLog.MakeLog(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), $"{level}", logInfo, filePath, memberName, $"{lineNumber}");
             // 写入本地文件Log
@@ -289,6 +292,16 @@ namespace Logger
                 UseShellExecute = true
             };
             Process.Start(startInfo);
+        }
+        /// <summary>
+        /// 仅记录异常日志
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void 仅记录异常日志ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            仅记录异常日志ToolStripMenuItem.Checked = !仅记录异常日志ToolStripMenuItem.Checked;
+            OnlyLogException = 仅记录异常日志ToolStripMenuItem.Checked ? true : false;
         }
     }
 }

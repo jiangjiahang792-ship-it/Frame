@@ -130,7 +130,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 nodeParamTDAI.IsAutoStudy = uiSwitch_Learning.Active;
                 Params = nodeParamTDAI;
                 // 异步加载模型
-                Task.Run(() => LoadModel(nodeParamTDAI));
+                //Task.Run(() => LoadModel(nodeParamTDAI));
             }
             catch (Exception)
             {

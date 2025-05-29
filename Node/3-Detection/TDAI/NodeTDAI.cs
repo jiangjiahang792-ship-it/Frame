@@ -88,9 +88,65 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
             // 第二步：结果赋值
             NodeResultTDAI res = new NodeResultTDAI();
-            res.ResultList = GetResult();
+            //res.ResultList = GetResult(); 
+            res.ResultList = GetTestResults(image);
             return res;
         }
+
+        /// <summary>
+        /// 获取测试用例结果数据
+        /// </summary>
+        /// <returns></returns>
+        public static List<DetectItemResult> GetTestResults(Bitmap image)
+        {
+            var rand = new Random();
+            var resultItems = new List<DetectItemResult>();
+            var itemNames = new[]
+            {
+                "露线芯长度",
+                "咬胶长度",
+                "后铆角面积",
+                "前铆角宽度"
+            };
+
+            // 可以控制生成多少个 DetectItemResult 对象
+            int itemCount = rand.Next(1, 5); // 生成 1~4 个不同项
+            for (int i = 0; i < itemCount; i++)
+            {
+                var itemName = itemNames[rand.Next(itemNames.Length)];
+                int resultCount = rand.Next(1, 3); // 每个项有 1~2 个 SingleDetectItemResult
+
+                var detectItem = new DetectItemResult
+                {
+                    Name = itemName,
+                    Results = new List<SingleDetectItemResult>()
+                };
+
+                for (int j = 0; j < resultCount; j++)
+                {
+                    double value = Math.Round(rand.NextDouble() * 200, 2);
+                    bool isOk = value >= 20 && value <= 180;
+
+                    // 随机生成一个矩形，确保不超过输入图像边界
+                    int width = rand.Next(20, 150);
+                    int height = rand.Next(20, 150);
+                    int x = rand.Next(0, image.Width - width);
+                    int y = rand.Next(0, image.Height - height);
+
+                    detectItem.Results.Add(new SingleDetectItemResult
+                    {
+                        IsOk = isOk,
+                        Value = value.ToString("F2"),
+                        Rects = new List<Rect> { new Rect(x, y, width, height) }
+                    });
+                }
+
+                resultItems.Add(detectItem);
+            }
+
+            return resultItems;
+        }
+
         /// <summary>
         /// 获取模拟结果数据
         /// </summary>
@@ -102,20 +158,39 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             {
                 new DetectItemResult
                 {
-                    Name = "胶皮长度",
+                    Name = "露线芯长度",
                     Results = new List<SingleDetectItemResult>
                     {
                         new SingleDetectItemResult
                         {
                             IsOk = false,
-                            Value = "100.23",
-                            Rects = new List<Rect> { new Rect(100, 100, 50, 50) }
+                            Value = "120.23",
+                            Rects = new List<Rect> { new Rect(100, 100, 80, 150) }
                         },
                         new SingleDetectItemResult
                         {
                             IsOk = true,
                             Value = "56.32",
-                            Rects = new List<Rect> { new Rect(200, 200, 60, 60) }
+                            Rects = new List<Rect> { new Rect(200, 200, 70, 120) }
+                        }
+                    }
+                },
+                new DetectItemResult
+                {
+                    Name = "咬胶长度",
+                    Results = new List<SingleDetectItemResult>
+                    {
+                        new SingleDetectItemResult
+                        {
+                            IsOk = true,
+                            Value = "42.21",
+                            Rects = new List<Rect> { new Rect(400, 300, 80, 150) }
+                        },
+                        new SingleDetectItemResult
+                        {
+                            IsOk = true,
+                            Value = "23.86",
+                            Rects = new List<Rect> { new Rect(300, 500, 70, 120) }
                         }
                     }
                 }
