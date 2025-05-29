@@ -475,6 +475,7 @@
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Node\3-Detection\QRScan\NodeResultQRScan.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8.cs" />
     <Compile Include="Node\5-EquipmentCommunication\AIResultSendByModbus\NodeParamSignalSendByModbus.cs" />
     <Compile Include="Node\5-EquipmentCommunication\AIResultSendByModbus\NodeResultSignalSendByModbus.cs" />
     <Compile Include="Node\5-EquipmentCommunication\AIResultSendByModbus\NodeSignalSendByModbus.cs">

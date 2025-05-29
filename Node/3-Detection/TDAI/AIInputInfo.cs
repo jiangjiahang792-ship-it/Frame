@@ -18,27 +18,23 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <summary>
         /// NMS阈值
         /// </summary>
-        public double ScoreNMS { get; set; } = 0.5f; 
+        public double ScoreNMS { get; set; } = 0.5f;
+        /// <summary>
+        /// 类别名称列表
+        /// </summary>
+        public List<string> ClassNames { get; set; } = new List<string>();
         /// <summary>
         /// 所有检测项信息
         /// </summary>
         public List<DetectItemInfo> DetectItems { get; set; } = new List<DetectItemInfo>();
         /// <summary>
-        /// 所有模型信息
+        /// 模型信息
         /// </summary>
-        public List<ModelInfo> ModelInfos { get; set; } = new List<ModelInfo>();
+        public ModelInfo ModelInfo { get; set; }
         /// <summary>
         /// 默认构造函数
         /// </summary>
         public AIInputInfo() { }
-        /// <summary>
-        /// 使用文件构造本类对象
-        /// </summary>
-        /// <param name="file"></param>
-        public AIInputInfo(string file) 
-        {
-            Load(file);
-        }
         /// <summary>
         /// 测试填充数据函数
         /// </summary>
@@ -59,10 +55,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             for (int i = 0; i < 3; i++)
             {
                 ModelInfo model = new ModelInfo();
-                model.Path = AppDomain.CurrentDomain.BaseDirectory + "model" + i + ".xml";
+                model.XmlPath = AppDomain.CurrentDomain.BaseDirectory + "model" + i + ".xml.enc";
+                model.BinPath = AppDomain.CurrentDomain.BaseDirectory + "model" + i + ".bin.enc";
                 model.ModelType = i == 0 ? ModelType.DET : i == 1 ? ModelType.OBB : ModelType.SEG;
-                model.IsEncrypted = false;
-                ModelInfos.Add(model);
+                model.IsEncrypted = true;
+                ModelInfo = model;
             }
             // 序列化当前对象
             string json = JsonConvert.SerializeObject(this, Formatting.Indented);
@@ -97,26 +94,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             string json = JsonConvert.SerializeObject(this, Formatting.Indented);
             // 可选：保存到文件
             System.IO.File.WriteAllText(path, json);
-        }
-        /// <summary>
-        /// 加载指定路径的配置文件转为JSON对象
-        /// </summary>
-        /// <param name="path"></param>
-        public void Load(string path)
-        {
-            try
-            {
-                string text = System.IO.File.ReadAllText(path);
-                AIInputInfo data = JsonConvert.DeserializeObject<AIInputInfo>(text);
-                ScoreThreshold = data.ScoreThreshold;
-                ScoreNMS = data.ScoreNMS;
-                DetectItems = data.DetectItems;
-                ModelInfos = data.ModelInfos;
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
         }
     }
 
@@ -157,18 +134,27 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     internal struct ModelInfo
     {
         /// <summary>
-        /// 模型文件
-        /// </summary>
-        public string Path { get; set; }
-        /// <summary>
         /// 模型类型
         /// </summary>
         [JsonConverter(typeof(StringEnumConverter))]
         public ModelType ModelType { get; set; }
         /// <summary>
-        /// 是否是加密模型
+        /// 设备类型
+        /// </summary>
+        [JsonConverter(typeof(StringEnumConverter))]
+        public DeviceType DeviceType { get; set; }
+        /// <summary>
+        /// 是否是加密模型（加密模型用到xml和bin）
         /// </summary>
         public bool IsEncrypted { get; set; }
+        /// <summary>
+        /// xml文件
+        /// </summary>
+        public string XmlPath { get; set; }
+        /// <summary>
+        /// bin文件
+        /// </summary>
+        public string BinPath { get; set; }
     }
 
     /// <summary>
@@ -189,4 +175,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// </summary>
         SEG
     }
+    /// <summary>
+    /// AI推理的设备类型
+    /// </summary>
+    internal enum DeviceType 
+    {
+        CPU,
+        GPU
+    }
+
 }

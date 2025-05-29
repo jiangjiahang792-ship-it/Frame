@@ -1,4 +1,6 @@
-﻿namespace TDJS_Vision.Node._3_Detection.TDAI
+﻿using System.Collections.Generic;
+
+namespace TDJS_Vision.Node._3_Detection.TDAI
 {
     internal class NodeParamTDAI : INodeParam
     {
@@ -15,9 +17,13 @@
         /// </summary>
         public string ConfigPath { get; set; }
         /// <summary>
-        /// AI输入信息
+        /// AI模型配置列表
         /// </summary>
-        public AIInputInfo AIInputInfo { get; set; }
+        public List<AIInputInfo> AIInputInfoList { get; set; }
+        /// <summary>
+        /// 选择的模型索引（AI模型配置列表会有多个模型信息，需要指定使用哪个模型）
+        /// </summary>
+        public int SelectedModelIndex { get; set; }
         /// <summary>
         /// 是否一键学习
         /// </summary>
@@ -28,14 +34,17 @@
         /// <param name="value"></param>
         public void SetCurValue(string name, string value)
         {
-            for (int i = 0; i < AIInputInfo.DetectItems.Count; i++)
+            foreach (var info in AIInputInfoList)
             {
-                if (AIInputInfo.DetectItems[i].Name == name)
-                { 
-                    var item = AIInputInfo.DetectItems[i];
-                    item.CurValue = value;
-                    AIInputInfo.DetectItems[i] = item;
-                    break;
+                for (int i = 0; i < info.DetectItems.Count; i++)
+                {
+                    if (info.DetectItems[i].Name == name)
+                    {
+                        var item = info.DetectItems[i];
+                        item.CurValue = value;
+                        info.DetectItems[i] = item;
+                        break;
+                    }
                 }
             }
         }

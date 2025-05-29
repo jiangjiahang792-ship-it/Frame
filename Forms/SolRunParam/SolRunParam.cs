@@ -84,10 +84,10 @@ namespace TDJS_Vision.Forms.SolRunParam
                         if (paramTDAI != null)
                         {
                             //获取参数
-                            solRunDataInit.ScoreThreshold = paramTDAI.AIInputInfo.ScoreThreshold.ToString();
-                            solRunDataInit.ScoreNMS = paramTDAI.AIInputInfo.ScoreNMS.ToString();
+                            solRunDataInit.ScoreThreshold = paramTDAI.AIInputInfoList[paramTDAI.SelectedModelIndex].ScoreThreshold.ToString();
+                            solRunDataInit.ScoreNMS = paramTDAI.AIInputInfoList[paramTDAI.SelectedModelIndex].ScoreNMS.ToString();
                             solRunDataInit.IsAutoLearn = paramTDAI.IsAutoStudy;
-                            solRunDataInit.DetectItems = paramTDAI.AIInputInfo.DetectItems;
+                            solRunDataInit.DetectItems = paramTDAI.AIInputInfoList[paramTDAI.SelectedModelIndex].DetectItems;
                             //设置参数
                             textBoxScoreThreshold.Text = solRunDataInit.ScoreThreshold.ToString();
                             textBoxScoreNMS.Text = solRunDataInit.ScoreNMS.ToString();
@@ -276,10 +276,10 @@ namespace TDJS_Vision.Forms.SolRunParam
                 }
                 if(_nodeTDAI.ParamForm.Params is NodeParamTDAI aiParams)
                 {
-                    aiParams.AIInputInfo.ScoreThreshold = double.Parse(solRunDataNew.ScoreThreshold);
-                    aiParams.AIInputInfo.ScoreNMS = double.Parse(solRunDataNew.ScoreNMS);
+                    aiParams.AIInputInfoList[aiParams.SelectedModelIndex].ScoreThreshold = double.Parse(solRunDataNew.ScoreThreshold);
+                    aiParams.AIInputInfoList[aiParams.SelectedModelIndex].ScoreNMS = double.Parse(solRunDataNew.ScoreNMS);
                     aiParams.IsAutoStudy = solRunDataNew.IsAutoLearn;
-                    aiParams.AIInputInfo.DetectItems = solRunDataNew.DetectItems;
+                    aiParams.AIInputInfoList[aiParams.SelectedModelIndex].DetectItems = solRunDataNew.DetectItems;
                 }
                 //2025年5月27日 节点参数有更新，应该触发节点参数界面刷新当前设置的值
                 RefreshParamView?.Invoke(this, EventArgs.Empty);
