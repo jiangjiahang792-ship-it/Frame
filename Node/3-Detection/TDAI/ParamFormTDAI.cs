@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Logger;
 using Newtonsoft.Json;
+using Sunny.UI;
 using TDJS_Vision.Forms.SolRunParam;
 using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
@@ -16,7 +17,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     internal partial class ParamFormTDAI : Form, INodeParamForm
     {
         private NodeBase _node;
-        private List<AIInputInfo> tmpInfoList;
         /// <summary>
         /// 节点参数
         /// </summary>
@@ -57,6 +57,15 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         public Bitmap GetImage()
         {
             return (Bitmap)nodeSubscription1.GetValue<Bitmap>().Clone();
+        }        
+        
+        /// <summary>
+        /// 获取AI检测项配置
+        /// </summary>
+        /// <returns></returns>
+        public AIInputInfo GetAIDetectItemConfig()
+        {
+            return ((NodeParamTDAI)Params).AIInputInfo;
         }
 
         /// <summary>
@@ -70,6 +79,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 // 还原界面显示
                 nodeSubscription1.SetText(param.Text1, param.Text2);
                 textBoxConfigPath.Text = param.ConfigPath;
+                uiSwitch_Learning.Active = param.IsAutoStudy;
+                if(!string.IsNullOrEmpty(param.ConfigPath) && File.Exists(param.ConfigPath))
+                {
+                    try
+                    {
+                        string text = File.ReadAllText(textBoxConfigPath.Text);
+                        ((NodeParamTDAI)Params).AIInputInfo = JsonConvert.DeserializeObject<AIInputInfo>(text);// 反序列化配置
+                    }
+                    catch (Exception ex)
+                    {
+                        ((NodeParamTDAI)Params).AIInputInfo = null;
+                        LogHelper.AddLog(MsgLevel.Exception, $"AI配置文件解析失败！原因：{ex.Message}", true);
+                    }
+                }
             }
         }
 
@@ -85,22 +108,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             if (openFileDialog1.ShowDialog() == DialogResult.OK)
             {
                 this.textBoxConfigPath.Text = openFileDialog1.FileName;
-                string text = File.ReadAllText(textBoxConfigPath.Text);
                 try
                 {
-                    tmpInfoList = JsonConvert.DeserializeObject<List<AIInputInfo>>(text);// 反序列化配置
-                    comboBoxModelIndex.Items.Clear();
-                    for (int i = 0; i < tmpInfoList.Count; i++)
-                    {
-                        comboBoxModelIndex.Items.Add(i.ToString());
-                    }
-                    if (comboBoxModelIndex.Items.Count > 0)
-                        comboBoxModelIndex.SelectedIndex = 0; // 默认选择第一个模型
-                    else
-                        throw new Exception("解析到模型个数为0！");
+                    string text = File.ReadAllText(textBoxConfigPath.Text);
+                    ((NodeParamTDAI)Params).AIInputInfo = JsonConvert.DeserializeObject<AIInputInfo>(text);// 反序列化配置
                 }
                 catch (Exception ex)
                 {
+                    ((NodeParamTDAI)Params).AIInputInfo = null;
                     LogHelper.AddLog(MsgLevel.Exception, $"AI配置文件解析失败！原因：{ex.Message}", true);
                 }
             }
@@ -124,17 +139,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 nodeParamTDAI.Text1 = nodeSubscription1.GetText1();
                 nodeParamTDAI.Text2 = nodeSubscription1.GetText2();
                 nodeParamTDAI.ConfigPath = textBoxConfigPath.Text;
-                string text = File.ReadAllText(textBoxConfigPath.Text);
-                nodeParamTDAI.AIInputInfoList = tmpInfoList;
-                nodeParamTDAI.SelectedModelIndex = comboBoxModelIndex.SelectedIndex;
+                if (((NodeParamTDAI)Params).AIInputInfo == null)
+                    throw new Exception("配置文件解析失败！");
                 nodeParamTDAI.IsAutoStudy = uiSwitch_Learning.Active;
                 Params = nodeParamTDAI;
                 // 异步加载模型
                 //Task.Run(() => LoadModel(nodeParamTDAI));
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                MessageBox.Show("参数设置异常，请检查参数设置是否合理！");
+                MessageBox.Show($"参数设置异常，原因：{e.Message}");
                 return false;
             }
             return true;
@@ -146,7 +160,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         {
             try
             {
-                var modelInfo = param.AIInputInfoList[param.SelectedModelIndex];
+                var modelInfo = param.AIInputInfo;
                 IntPtr handle = IntPtr.Zero;
                 // 是否加密模型
                 if (modelInfo.ModelInfo.IsEncrypted)

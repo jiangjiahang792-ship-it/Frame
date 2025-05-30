@@ -18,7 +18,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         [DisplayName("运行状态码")]
         public NodeRunStatusCode RunStatusCode { get; set; }
 
-        [DisplayName("AI结果")]
+        [DisplayName("AI检测项配置")]
+        public AIInputInfo AIInputInfo { get; set; }
+
+        [DisplayName("AI输出结果")]
         public List<DetectItemResult> ResultList { get; set; } = new List<DetectItemResult>();
 
         [DisplayName("是否全部OK")]

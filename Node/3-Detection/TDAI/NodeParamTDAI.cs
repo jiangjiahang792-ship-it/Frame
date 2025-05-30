@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using Basler.Pylon;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
@@ -17,13 +18,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// </summary>
         public string ConfigPath { get; set; }
         /// <summary>
-        /// AI模型配置列表
+        /// AI模型配置
         /// </summary>
-        public List<AIInputInfo> AIInputInfoList { get; set; }
-        /// <summary>
-        /// 选择的模型索引（AI模型配置列表会有多个模型信息，需要指定使用哪个模型）
-        /// </summary>
-        public int SelectedModelIndex { get; set; }
+        public AIInputInfo AIInputInfo { get; set; }
         /// <summary>
         /// 是否一键学习
         /// </summary>
@@ -34,17 +31,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <param name="value"></param>
         public void SetCurValue(string name, string value)
         {
-            foreach (var info in AIInputInfoList)
+            for (int i = 0; i < AIInputInfo.DetectItems.Count; i++)
             {
-                for (int i = 0; i < info.DetectItems.Count; i++)
+                if (AIInputInfo.DetectItems[i].Name == name)
                 {
-                    if (info.DetectItems[i].Name == name)
-                    {
-                        var item = info.DetectItems[i];
-                        item.CurValue = value;
-                        info.DetectItems[i] = item;
-                        break;
-                    }
+                    var item = AIInputInfo.DetectItems[i];
+                    item.CurValue = value;
+                    AIInputInfo.DetectItems[i] = item;
+                    break;
                 }
             }
         }

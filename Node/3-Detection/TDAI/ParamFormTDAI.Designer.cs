@@ -36,11 +36,9 @@
             this.textBoxConfigPath = new System.Windows.Forms.TextBox();
             this.bt_ConfigSelect = new System.Windows.Forms.Button();
             this.button1 = new System.Windows.Forms.Button();
-            this.label1 = new System.Windows.Forms.Label();
             this.uiSwitch_Learning = new Sunny.UI.UISwitch();
+            this.label1 = new System.Windows.Forms.Label();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
-            this.label3 = new System.Windows.Forms.Label();
-            this.comboBoxModelIndex = new System.Windows.Forms.ComboBox();
             this.tableLayoutPanel1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -57,10 +55,8 @@
             this.tableLayoutPanel1.Controls.Add(this.textBoxConfigPath, 1, 1);
             this.tableLayoutPanel1.Controls.Add(this.bt_ConfigSelect, 3, 1);
             this.tableLayoutPanel1.Controls.Add(this.button1, 0, 3);
-            this.tableLayoutPanel1.Controls.Add(this.uiSwitch_Learning, 3, 2);
-            this.tableLayoutPanel1.Controls.Add(this.label1, 2, 2);
-            this.tableLayoutPanel1.Controls.Add(this.label3, 0, 2);
-            this.tableLayoutPanel1.Controls.Add(this.comboBoxModelIndex, 1, 2);
+            this.tableLayoutPanel1.Controls.Add(this.label1, 0, 2);
+            this.tableLayoutPanel1.Controls.Add(this.uiSwitch_Learning, 1, 2);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Top;
             this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
             this.tableLayoutPanel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
@@ -145,53 +141,31 @@
             this.button1.UseVisualStyleBackColor = true;
             this.button1.Click += new System.EventHandler(this.button1_Click);
             // 
-            // label1
-            // 
-            this.label1.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.label1.AutoSize = true;
-            this.label1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label1.Location = new System.Drawing.Point(431, 133);
-            this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(80, 18);
-            this.label1.TabIndex = 4;
-            this.label1.Text = "一键学习";
-            // 
             // uiSwitch_Learning
             // 
             this.uiSwitch_Learning.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.uiSwitch_Learning.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.uiSwitch_Learning.Location = new System.Drawing.Point(626, 128);
+            this.uiSwitch_Learning.Location = new System.Drawing.Point(224, 128);
             this.uiSwitch_Learning.MinimumSize = new System.Drawing.Size(1, 1);
             this.uiSwitch_Learning.Name = "uiSwitch_Learning";
             this.uiSwitch_Learning.Size = new System.Drawing.Size(75, 29);
             this.uiSwitch_Learning.TabIndex = 9;
             this.uiSwitch_Learning.Text = "uiSwitch1";
             // 
+            // label1
+            // 
+            this.label1.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.label1.AutoSize = true;
+            this.label1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.label1.Location = new System.Drawing.Point(54, 133);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(80, 18);
+            this.label1.TabIndex = 4;
+            this.label1.Text = "一键学习";
+            // 
             // openFileDialog1
             // 
             this.openFileDialog1.FileName = "openFileDialog1";
-            // 
-            // label3
-            // 
-            this.label3.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.label3.AutoSize = true;
-            this.label3.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label3.Location = new System.Drawing.Point(54, 133);
-            this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(80, 18);
-            this.label3.TabIndex = 4;
-            this.label3.Text = "模型索引";
-            // 
-            // comboBoxModelIndex
-            // 
-            this.comboBoxModelIndex.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.comboBoxModelIndex.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboBoxModelIndex.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.comboBoxModelIndex.FormattingEnabled = true;
-            this.comboBoxModelIndex.Location = new System.Drawing.Point(201, 131);
-            this.comboBoxModelIndex.Name = "comboBoxModelIndex";
-            this.comboBoxModelIndex.Size = new System.Drawing.Size(121, 26);
-            this.comboBoxModelIndex.TabIndex = 10;
             // 
             // ParamFormTDAI
             // 
@@ -223,7 +197,5 @@
         private System.Windows.Forms.Button button1;
         private System.Windows.Forms.Label label1;
         private Sunny.UI.UISwitch uiSwitch_Learning;
-        private System.Windows.Forms.Label label3;
-        private System.Windows.Forms.ComboBox comboBoxModelIndex;
     }
 }

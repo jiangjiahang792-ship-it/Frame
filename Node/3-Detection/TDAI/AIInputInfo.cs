@@ -122,10 +122,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// 当前检测项的值
         /// </summary>
         public string CurValue { get; set; }
-        /// <summary>
-        /// Modbus通信地址
-        /// </summary>
-        public string Address { get; set; }
     }
 
     /// <summary>

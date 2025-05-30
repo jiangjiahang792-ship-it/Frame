@@ -50,66 +50,66 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     SetStatus(NodeStatus.Unexecuted, "*");
                     base.CheckTokenCancel(token);
 
-                    ResultViewData aiResult = form.GetAiResult();
+                    List<DetectItemResult> aiResult = form.GetAiResult();
 
-                    List<SignalRowData> allMatchingRows = new List<SignalRowData>();
+                    //List<SignalRowData> allMatchingRows = new List<SignalRowData>();
 
-                    if(aiResult.IsAllOk)
-                    {
-                        string nodeName = "OK";
-                        string className = "OK";
-                        var matchingRows = FindMatchSignalRow(param.Data, nodeName, className);
-                        if (matchingRows != null && matchingRows.Count > 0)
-                        {
-                            allMatchingRows.AddRange(matchingRows);
-                        }
-                        else
-                        {
-                            // 记录没有找到匹配信号行的日志
-                            throw new Exception($"节点({ID}.{NodeName})没有设置{nodeName}-{className}的信号！");
-                        }
-                    }
-                    else
-                    {
-                        foreach (var item in aiResult.SingleRowDataList)
-                        {
-                            if (item.IsOk)
-                                continue;
-                            string nodeName = item.NodeName;
-                            string className = item.ClassName;
-                            var matchingRows = FindMatchSignalRow(param.Data, nodeName, className);
-                            if (matchingRows != null && matchingRows.Count > 0)
-                            {
-                                allMatchingRows.AddRange(matchingRows);
-                            }
-                            else
-                            {
-                                throw new Exception($"节点({ID}.{NodeName})没有设置{nodeName}-{className}的信号！");
-                            }
-                        }
-                    }
+                    //if(aiResult.IsAllOk)
+                    //{
+                    //    string nodeName = "OK";
+                    //    string className = "OK";
+                    //    //var matchingRows = FindMatchSignalRow(param.BindingData, nodeName, className);
+                    //    if (matchingRows != null && matchingRows.Count > 0)
+                    //    {
+                    //        allMatchingRows.AddRange(matchingRows);
+                    //    }
+                    //    else
+                    //    {
+                    //        // 记录没有找到匹配信号行的日志
+                    //        throw new Exception($"节点({ID}.{NodeName})没有设置{nodeName}-{className}的信号！");
+                    //    }
+                    //}
+                    //else
+                    //{
+                    //    foreach (var item in aiResult.SingleRowDataList)
+                    //    {
+                    //        if (item.IsOk)
+                    //            continue;
+                    //        string nodeName = item.NodeName;
+                    //        string className = item.ClassName;
+                    //        var matchingRows = FindMatchSignalRow(param.Data, nodeName, className);
+                    //        if (matchingRows != null && matchingRows.Count > 0)
+                    //        {
+                    //            allMatchingRows.AddRange(matchingRows);
+                    //        }
+                    //        else
+                    //        {
+                    //            throw new Exception($"节点({ID}.{NodeName})没有设置{nodeName}-{className}的信号！");
+                    //        }
+                    //    }
+                    //}
 
-                    // 按Modbus分组，并在每个组中找到信号等级最大的行
-                    var maxSignalRowsByModbus = allMatchingRows
-                    .GroupBy(row => row.DevName)
-                    .Select(group => group.OrderByDescending(row => row.SignalLevel).FirstOrDefault())
-                    .ToList();
+                    //// 按Modbus分组，并在每个组中找到信号等级最大的行
+                    //var maxSignalRowsByModbus = allMatchingRows
+                    //.GroupBy(row => row.DevName)
+                    //.Select(group => group.OrderByDescending(row => row.SignalLevel).FirstOrDefault())
+                    //.ToList();
 
-                    if (maxSignalRowsByModbus.Count == 0)
-                    {
-                        throw new Exception($"节点({ID}.{NodeName})没有匹配到对应的信号！");
-                    }
+                    //if (maxSignalRowsByModbus.Count == 0)
+                    //{
+                    //    throw new Exception($"节点({ID}.{NodeName})没有匹配到对应的信号！");
+                    //}
 
-                    await Task.Run(() =>
-                    {
-                        // 发送信号到对应的Modbus
-                        foreach (var maxSignalRow in maxSignalRowsByModbus)
-                        {
-                            SendSignalToModbus(maxSignalRow, param.StayTime, token);
-                        }
-                    });
-                    long time = SetRunResult(startTime, NodeStatus.Successful);
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                    //await Task.Run(() =>
+                    //{
+                    //    // 发送信号到对应的Modbus
+                    //    foreach (var maxSignalRow in maxSignalRowsByModbus)
+                    //    {
+                    //        SendSignalToModbus(maxSignalRow, param.StayTime, token);
+                    //    }
+                    //});
+                    //long time = SetRunResult(startTime, NodeStatus.Successful);
+                    //LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
                 }
                 catch (OperationCanceledException)
                 {
@@ -126,11 +126,11 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
             }
         }
 
-        private List<SignalRowData> FindMatchSignalRow(List<SignalRowData> list, string nodeName, string className)
-        {
-            var matchingRows = list.Where(row => row.NodeName == nodeName && row.ClassName == className).ToList();
-            return matchingRows;
-        }
+        //private List<SignalRowData> FindMatchSignalRow(List<SignalRowData> list, string nodeName, string className)
+        //{
+        //    var matchingRows = list.Where(row => row.NodeName == nodeName && row.ClassName == className).ToList();
+        //    return matchingRows;
+        //}
 
         private async void SendSignalToModbus(SignalRowData dataRow, double time, CancellationToken token)
         {

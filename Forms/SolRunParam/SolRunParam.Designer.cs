@@ -106,13 +106,15 @@
             // 
             // myDataGridViewForm1
             // 
+            this.myDataGridViewForm1.AutoScroll = true;
+            this.myDataGridViewForm1.AutoSize = true;
             this.tableLayoutPanel1.SetColumnSpan(this.myDataGridViewForm1, 6);
             this.myDataGridViewForm1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.myDataGridViewForm1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.myDataGridViewForm1.Location = new System.Drawing.Point(3, 130);
             this.myDataGridViewForm1.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.myDataGridViewForm1.Name = "myDataGridViewForm1";
-            this.myDataGridViewForm1.Size = new System.Drawing.Size(1057, 326);
+            this.myDataGridViewForm1.Size = new System.Drawing.Size(1057, 288);
             this.myDataGridViewForm1.TabIndex = 7;
             this.myDataGridViewForm1.Leave += new System.EventHandler(this.myDataGridViewForm1_Leave);
             // 
