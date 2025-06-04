@@ -1,14 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Logger;
 using Newtonsoft.Json;
-using Sunny.UI;
 using TDJS_Vision.Forms.SolRunParam;
 using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
@@ -17,6 +13,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     internal partial class ParamFormTDAI : Form, INodeParamForm
     {
         private NodeBase _node;
+        AIInputInfo aIInputInfo;
         /// <summary>
         /// 节点参数
         /// </summary>
@@ -57,15 +54,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         public Bitmap GetImage()
         {
             return (Bitmap)nodeSubscription1.GetValue<Bitmap>().Clone();
-        }        
-        
-        /// <summary>
-        /// 获取AI检测项配置
-        /// </summary>
-        /// <returns></returns>
-        public AIInputInfo GetAIDetectItemConfig()
-        {
-            return ((NodeParamTDAI)Params).AIInputInfo;
         }
 
         /// <summary>
@@ -85,14 +73,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     try
                     {
                         string text = File.ReadAllText(textBoxConfigPath.Text);
-                        ((NodeParamTDAI)Params).AIInputInfo = JsonConvert.DeserializeObject<AIInputInfo>(text);// 反序列化配置
+                        aIInputInfo = JsonConvert.DeserializeObject<AIInputInfo>(text);// 反序列化配置
                     }
                     catch (Exception ex)
                     {
-                        ((NodeParamTDAI)Params).AIInputInfo = null;
+                        aIInputInfo = null;
                         LogHelper.AddLog(MsgLevel.Exception, $"AI配置文件解析失败！原因：{ex.Message}", true);
                     }
                 }
+                // 异步加载模型
+                Task.Run(() => LoadModel(param));
             }
         }
 
@@ -111,11 +101,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 try
                 {
                     string text = File.ReadAllText(textBoxConfigPath.Text);
-                    ((NodeParamTDAI)Params).AIInputInfo = JsonConvert.DeserializeObject<AIInputInfo>(text);// 反序列化配置
+                    aIInputInfo = JsonConvert.DeserializeObject<AIInputInfo>(text);// 反序列化配置
                 }
                 catch (Exception ex)
                 {
-                    ((NodeParamTDAI)Params).AIInputInfo = null;
+                    aIInputInfo = null;
                     LogHelper.AddLog(MsgLevel.Exception, $"AI配置文件解析失败！原因：{ex.Message}", true);
                 }
             }
@@ -139,12 +129,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 nodeParamTDAI.Text1 = nodeSubscription1.GetText1();
                 nodeParamTDAI.Text2 = nodeSubscription1.GetText2();
                 nodeParamTDAI.ConfigPath = textBoxConfigPath.Text;
-                if (((NodeParamTDAI)Params).AIInputInfo == null)
+                if (aIInputInfo == null)
                     throw new Exception("配置文件解析失败！");
+                nodeParamTDAI.AIInputInfo = aIInputInfo;
                 nodeParamTDAI.IsAutoStudy = uiSwitch_Learning.Active;
                 Params = nodeParamTDAI;
                 // 异步加载模型
-                //Task.Run(() => LoadModel(nodeParamTDAI));
+                Task.Run(() => LoadModel(nodeParamTDAI));
             }
             catch (Exception e)
             {
@@ -160,27 +151,18 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         {
             try
             {
+                LogHelper.AddLog(MsgLevel.Info, $"开始加载模型：{param.AIInputInfo.ModelInfo.ModelPath}", true);
                 var modelInfo = param.AIInputInfo;
-                IntPtr handle = IntPtr.Zero;
                 // 是否加密模型
                 if (modelInfo.ModelInfo.IsEncrypted)
                 {
-                    byte[] Key = Encoding.UTF8.GetBytes("12345678912345671234567891234567"); // 32字节密钥
-                    byte[] IV = Encoding.UTF8.GetBytes("1234567891234567");   // 16字节IV
-
-                    // 1. 端子解密模型到临时文件
-                    string tempXmlPath = Path.GetTempFileName();
-                    string tempBinPath = Path.GetTempFileName();
-
-                    YoloV8.DecryptFile(modelInfo.ModelInfo.XmlPath, tempXmlPath, Key, IV);
-                    YoloV8.DecryptFile(modelInfo.ModelInfo.BinPath, tempBinPath, Key, IV);
-
-                    //handle = YoloV8.CreateDetector(modelInfo.ModelInfo.XmlPath, modelInfo.ModelInfo.BinPath, modelInfo.ModelInfo.ClassNames, modelInfo.ModelInfo.ClassCount, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
+                    param.Handle = YoloV8.CreateDetector(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ClassNames.Count, 640, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
                 }
                 else
                 {
 
                 }
+                LogHelper.AddLog(MsgLevel.Info, $"模型：{param.AIInputInfo.ModelInfo.ModelPath} 加载完成！", true);
             }
             catch (Exception e)
             {

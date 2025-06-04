@@ -12,6 +12,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
     using System.IO;
     using Logger;
     using System.Security.Cryptography;
+    using System.Drawing.Imaging;
+    using System.Drawing;
 
     internal class YoloV8
     {
@@ -48,14 +50,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         // 加载 DLL 并绑定函数
         static YoloV8()
         {
-            string dllPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Yolo.dll");
+            string dllPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "yolo_dll.dll");
 
             if (!File.Exists(dllPath))
-                LogHelper.AddLog(MsgLevel.Exception, $"找不到 Yolo.dll，请确保它位于应用程序目录: {dllPath}", true);
+                LogHelper.AddLog(MsgLevel.Exception, $"找不到 yolo_dll.dll，请确保它位于应用程序目录: {dllPath}", true);
 
             _hModule = LoadLibrary(dllPath);
             if (_hModule == IntPtr.Zero)
-                LogHelper.AddLog(MsgLevel.Exception, "加载 Yolo.dll 失败!", true);
+                LogHelper.AddLog(MsgLevel.Exception, "加载 yolo_dll.dll 失败!", true);
 
             // 获取函数地址并绑定到委托
             _createDetector = Marshal.GetDelegateForFunctionPointer<CreateDetectorDelegate>(GetProcAddress(_hModule, "CreateDetector"));
@@ -124,7 +126,34 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             }
         }
 
+        /// <summary>
+        /// Bitmap转换为 BGR24 格式的 byte[]
+        /// </summary>
+        /// <param name="bitmap"></param>
+        /// <returns></returns>
+        public static byte[] ConvertBitmapToBgr24(Bitmap bitmap)
+        {
+            // 创建一个新的 24bpp BGR 格式的 Bitmap
+            Bitmap bgrBitmap = new Bitmap(bitmap.Width, bitmap.Height, PixelFormat.Format24bppRgb);
 
+            using (Graphics g = Graphics.FromImage(bgrBitmap))
+            {
+                g.DrawImage(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
+            }
+
+            // 锁定图像内存
+            var rect = new Rectangle(0, 0, bgrBitmap.Width, bgrBitmap.Height);
+            var bmpData = bgrBitmap.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+
+            int bufferSize = Math.Abs(bmpData.Stride) * bgrBitmap.Height;
+            byte[] buffer = new byte[bufferSize];
+
+            // 复制图像数据到 byte[]
+            System.Runtime.InteropServices.Marshal.Copy(bmpData.Scan0, buffer, 0, bufferSize);
+            bgrBitmap.UnlockBits(bmpData);
+
+            return buffer;
+        }
         // 接口使用示例
         //IntPtr detector = Yolo8.CreateDetector("yolov8s.onnx", new[] { "person", "car", "dog" }, 3, 640, 0.25f, 0.45f);
         //DetectionResult[] results = new DetectionResult[100];

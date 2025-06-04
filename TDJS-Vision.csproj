@@ -1090,10 +1090,10 @@
       <SubType>Designer</SubType>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
-    <None Include="Node\3-Detection\QRScan\model\detect.caffemodel" />
-    <None Include="Node\3-Detection\QRScan\model\detect.prototxt" />
-    <None Include="Node\3-Detection\QRScan\model\sr.caffemodel" />
-    <None Include="Node\3-Detection\QRScan\model\sr.prototxt" />
+    <None Include="Node\3-Detection\QRScan\QRCodeModel\detect.caffemodel" />
+    <None Include="Node\3-Detection\QRScan\QRCodeModel\detect.prototxt" />
+    <None Include="Node\3-Detection\QRScan\QRCodeModel\sr.caffemodel" />
+    <None Include="Node\3-Detection\QRScan\QRCodeModel\sr.prototxt" />
     <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
@@ -1189,6 +1189,6 @@
 rem /E：复制所有子目录，即使它们为空。
 rem /Y：覆盖现有文件而不提示。
 rem /I：如果目标不存在，则假定目标必须是目录。
-xcopy "$(ProjectDir)Node\3-Detection\QRScan\model\*" "model\" /E /Y /I</PostBuildEvent>
+xcopy "$(ProjectDir)Node\3-Detection\QRScan\QRCodeModel\*" "QRCodeModel\" /E /Y /I</PostBuildEvent>
   </PropertyGroup>
 </Project>

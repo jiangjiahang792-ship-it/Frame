@@ -103,6 +103,7 @@ namespace TDJS_Vision
         public FormMain()
         {
             InitializeComponent();
+            this.dockPanel1.Theme = new VS2015LightTheme();
         }
         /// <summary>
         /// 主窗口加载
@@ -315,7 +316,7 @@ namespace TDJS_Vision
             }
             catch (Exception ex)
             {
-                LoadDefaultDockPanel();
+                //LoadDefaultDockPanel();
             }
         }
         /// <summary>
@@ -338,7 +339,7 @@ namespace TDJS_Vision
         /// <returns></returns>
         private static IDockContent GetContentFromPersistString(string persistString)
         {
-            if (persistString == typeof(Forms.ImageViewer.FrmImageViewer).ToString())
+            if (persistString == typeof(FrmImageViewer).ToString())
                 return FrmImgeDlg;
 
             else if (persistString == typeof(FrmResultView).ToString())
@@ -625,7 +626,8 @@ namespace TDJS_Vision
 
         private void 默认视图ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            LoadDefaultDockPanel();
+            if(默认视图ToolStripMenuItem.Checked)
+                LoadDefaultDockPanel();
         }
 
         private void 检测图像视图ToolStripMenuItem_Click(object sender, EventArgs e)

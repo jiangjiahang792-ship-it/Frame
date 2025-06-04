@@ -28,10 +28,10 @@ namespace TDJS_Vision.Node._3_Detection.QRScan
             // 加载模型
             Task.Run(() =>
             {
-                string detect_caffe_model = ".\\model\\detect.caffemodel";
-                string detect_prototxt = ".\\model\\detect.prototxt";
-                string sr_caffe_model = ".\\model\\sr.caffemodel";
-                string sr_prototxt = ".\\model\\sr.prototxt";
+                string detect_caffe_model = ".\\QRCodeModel\\detect.caffemodel";
+                string detect_prototxt = ".\\QRCodeModel\\detect.prototxt";
+                string sr_caffe_model = ".\\QRCodeModel\\sr.caffemodel";
+                string sr_prototxt = ".\\QRCodeModel\\sr.prototxt";
 
                 weChatQRCode = WeChatQRCode.Create(
                     detect_prototxt,

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Device.Camera;
@@ -141,7 +142,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         // 选择图像
         private void buttonChoiceImg_Click(object sender, EventArgs e)
         {
-            openFileDialog1.Filter = "BMP图片|*.BMP|所有图片|*.*";
+            openFileDialog1.Filter = "图片文件 (*.BMP, *.JPG, *.JPEG, *.PNG)|*.BMP;*.JPG;*.JPEG;*.PNG|所有文件 (*.*)|*.*";
             openFileDialog1.Multiselect = true;
             openFileDialog1.Title = "请选择图片";
             if (openFileDialog1.ShowDialog() == DialogResult.OK)
@@ -319,17 +320,20 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 }
 
                 _nodeParamImageSource.PathText = textBoxImgPath.Text;
-
-                if (textBoxImgPath.Text.EndsWith(".bmp")) // 判断是否为单个图片
+                // 判断是否为单张图片
+                if (textBoxImgPath.Text.EndsWith(".bmp") || textBoxImgPath.Text.EndsWith(".jpg") 
+                    || textBoxImgPath.Text.EndsWith(".jpeg") || textBoxImgPath.Text.EndsWith(".png")) 
                 {
                     _nodeParamImageSource.ImagePath = this.textBoxImgPath.Text;
                 }
                 else
                 {
-                    // 获取文件夹下所有文件的路径
-                    string[] files = Directory.GetFiles(textBoxImgPath.Text, "*.bmp"); // 只获取扩展名为 .bmp 的文件
-                    // 将文件路径存储到列表中
-                    _nodeParamImageSource.ImagePaths = new List<string>(files);
+                    var extensions = new[] { ".bmp", ".jpg", ".jpeg", ".png" }; // 你想要支持的所有扩展名
+                    var files = Directory.GetFiles(textBoxImgPath.Text)
+                                         .Where(s => extensions.Any(e => s.EndsWith(e, StringComparison.OrdinalIgnoreCase)))
+                                         .ToList();
+
+                    _nodeParamImageSource.ImagePaths = files;
                 }
 
                 _nodeParamImageSource.IsAutoLoop = checkBoxAuto.Checked;

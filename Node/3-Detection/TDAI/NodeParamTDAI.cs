@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Basler.Pylon;
+using Newtonsoft.Json;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
@@ -25,6 +27,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// 是否一键学习
         /// </summary>
         public bool IsAutoStudy { get; set; }
+        /// <summary>
+        /// AI检测句柄(不参与序列化)
+        /// </summary>
+        [JsonIgnore]
+        public IntPtr Handle { get; set; }
         /// <summary>
         /// 给指定的检测项设置当前值
         /// </summary>

@@ -6,7 +6,10 @@ using System.Drawing;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 using System.Windows.Forms;
+using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
+using static TDJS_Vision.Node._3_Detection.TDAI.Yolo8.YoloV8;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
@@ -51,13 +54,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
                             // 获取订阅的图像
                             Bitmap srcImg = form.GetImage();
-                            var config = form.GetAIDetectItemConfig();
+
+                            // 开始检测
+                            DetectionResult[] results = new DetectionResult[1000];
+                            int result_count = YoloV8.Detect(param.Handle, YoloV8.ConvertBitmapToBgr24(srcImg), srcImg.Width, srcImg.Height, 3, results);
+
+                            // 输出检测项配置
+                            res.AIInputInfo = param.AIInputInfo;
+
+                            // 输出AI结果
+                            ProcessingAIResults(results, result_count, ref res);
 
                             // 获取结果（测试数据）
-                            res = TestRun(srcImg, param, config);
+                            //res = TestRun(srcImg, param, config);
 
-                            // 检测项配置
-                            res.AIInputInfo = config;
 
                             // 返回结果
                             Result = res;
@@ -82,6 +92,98 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             }
 
         }
+        /// <summary>
+        /// 处理AI结果
+        /// </summary>
+        public static void ProcessingAIResults(DetectionResult[] results, int resultCount, ref NodeResultTDAI nodeResult)
+        {
+            nodeResult.ResultList.Clear();
+            for (int i = 0; i < resultCount; ++i)
+            {
+                DetectionResult result = results[i];
+                Rect rect = new Rect(result.left, result.top, result.width, result.height);
+
+                // 如果当前检测项不测,直接跳过
+                if (!nodeResult.AIInputInfo.DetectItems[result.class_id].Enable)
+                    continue;
+
+                switch (nodeResult.AIInputInfo.ClassNames[result.class_id])
+                {
+                    case "out_line":
+                        HandleOutLine(result, rect, ref nodeResult);
+                        break;
+
+                    case "front_foot":
+                        HandleOutLine(result, rect, ref nodeResult);
+                        break;
+
+                    case "line":
+                        HandleOutLine(result, rect, ref nodeResult);
+                        break;
+
+                    case "rubber":
+                        HandleOutLine(result, rect, ref nodeResult);
+                        break;
+
+                    case "behind_foot":
+                        HandleOutLine(result, rect, ref nodeResult);
+                        break;
+
+                    case "waterproof_plug":
+                        HandleOutLine(result, rect, ref nodeResult);
+                        break;
+
+                    case "only_rubber":
+                        HandleOutLine(result, rect, ref nodeResult);
+                        break;
+
+                    case "only_line":
+                        HandleOutLine(result, rect, ref nodeResult);
+                        break;
+
+                    case "fly_line":
+                        HandleOutLine(result, rect, ref nodeResult);
+                        break;
+
+                    case "fly_rubber":
+                        HandleOutLine(result, rect, ref nodeResult);
+                        break;
+
+                    default:
+                        break;
+                }
+
+                //Cv2.Rectangle(img, rect, colors[result.class_id % 6], 2);
+                //string label = $"{class_names[result.class_id]}:{result.score:F2}";
+                //Cv2.PutText(img, label, new Point(rect.X, rect.Y - 5), HersheyFonts.HersheySimplex, 0.5, Scalar.White, 1);
+
+            }
+        }
+
+        #region 处理不同检测项的结果
+
+        private static void HandleOutLine(DetectionResult result, Rect rect, ref NodeResultTDAI nodeResult)
+        {
+            var itemRes = new SingleDetectItemResult();
+            itemRes.Rects.Add(rect);
+            itemRes.Value = rect.Width.ToString();
+            double curV = double.Parse(itemRes.Value);
+            double minV = double.Parse(nodeResult.AIInputInfo.DetectItems[result.class_id].MinValue);
+            double maxV = double.Parse(nodeResult.AIInputInfo.DetectItems[result.class_id].MaxValue);
+            itemRes.IsOk = (curV >= minV && curV <= maxV) ? true : false;
+
+            var deteItem = new DetectItemResult();
+            deteItem.Name = nodeResult.AIInputInfo.DetectItems[result.class_id].Name;
+            deteItem.Results.Add(itemRes);
+            nodeResult.ResultList.Add(deteItem);
+
+            nodeResult.AIInputInfo.DetectItems[result.class_id].CurValue = itemRes.Value;
+        }
+
+        #endregion
+
+        #region 假数据供测试使用
+
         /// <summary>
         /// 测试运行
         /// </summary>
@@ -159,5 +261,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                               .Where(name => !string.IsNullOrWhiteSpace(name)) // 可选过滤空名
                               .ToList();
         }
+
+        #endregion
     }
 }

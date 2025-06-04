@@ -53,7 +53,7 @@
             this.label1.Location = new System.Drawing.Point(54, 0);
             this.label1.Margin = new System.Windows.Forms.Padding(0);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(214, 79);
+            this.label1.Size = new System.Drawing.Size(212, 77);
             this.label1.TabIndex = 0;
             this.label1.Text = "节点名称";
             this.label1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -128,7 +128,7 @@
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
             this.tableLayoutPanel1.RowCount = 1;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(407, 79);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(405, 77);
             this.tableLayoutPanel1.TabIndex = 1;
             this.tableLayoutPanel1.MouseClick += new System.Windows.Forms.MouseEventHandler(this.label1_MouseClick);
             this.tableLayoutPanel1.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.label1_MouseDoubleClick);
@@ -139,7 +139,7 @@
             this.uiLight1.CenterColor = System.Drawing.Color.Lime;
             this.uiLight1.ContextMenuStrip = this.contextMenuStrip1;
             this.uiLight1.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.uiLight1.Location = new System.Drawing.Point(25, 25);
+            this.uiLight1.Location = new System.Drawing.Point(25, 24);
             this.uiLight1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.uiLight1.MinimumSize = new System.Drawing.Size(1, 1);
             this.uiLight1.Name = "uiLight1";
@@ -160,7 +160,7 @@
             this.label2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label2.AutoSize = true;
             this.label2.ContextMenuStrip = this.contextMenuStrip1;
-            this.label2.Location = new System.Drawing.Point(325, 32);
+            this.label2.Location = new System.Drawing.Point(323, 31);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(39, 15);
             this.label2.TabIndex = 2;
@@ -174,7 +174,7 @@
             this.label3.AutoSize = true;
             this.label3.Font = new System.Drawing.Font("黑体", 10.5F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.label3.ForeColor = System.Drawing.SystemColors.Desktop;
-            this.label3.Location = new System.Drawing.Point(272, 30);
+            this.label3.Location = new System.Drawing.Point(270, 29);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(28, 18);
             this.label3.TabIndex = 2;
@@ -193,10 +193,11 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.Controls.Add(this.tableLayoutPanel1);
             this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.Name = "NodeBase";
-            this.Size = new System.Drawing.Size(407, 79);
+            this.Size = new System.Drawing.Size(405, 77);
             this.contextMenuStrip1.ResumeLayout(false);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();

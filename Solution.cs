@@ -20,6 +20,7 @@ using TDJS_Vision.Device.TCP;
 using TDJS_Vision.Forms.TCPAdd;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Forms.ImageViewer;
+using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
 namespace TDJS_Vision
 {
@@ -405,15 +406,16 @@ namespace TDJS_Vision
             SingleTcp.SingleTCPs.Clear();
             Solution.Instance.AllDevices.Clear();
 
-            // TODO:释放AI节点的内存 
-            //foreach (var node in Solution.Instance.Nodes)
-            //{
-            //    if (node is NodeTDAI nodeAi)
-            //    {
-            //        nodeAi.ReleaseAIResult();
-            //        ((ParamFormHTAI)nodeAi.ParamForm).ReleaseAIHandle();
-            //    }
-            //}
+            // 释放AI节点的内存 
+            foreach (var node in Solution.Instance.Nodes)
+            {
+                if (node is NodeTDAI nodeAi)
+                {
+                    if (nodeAi.ParamForm.Params == null)
+                        return;
+                    YoloV8.DestroyDetector(((NodeParamTDAI)nodeAi.ParamForm.Params).Handle);
+                }
+            }
 
             // 清空方案共享变量
             Solution.Instance.SharedVariable.ClearAll();

@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
 namespace TDJS_Vision.Node
 {
@@ -221,6 +222,11 @@ namespace TDJS_Vision.Node
                 Solution.Instance.Nodes.Remove(this);
                 Process.Nodes.Remove(this);
                 NodeDeletedEvent.Invoke(this, this);
+                // 移除AI节点需要释放AI句柄
+                if (NodeType == NodeType.AITD)
+                {
+                    YoloV8.DestroyDetector(((NodeParamTDAI)ParamForm.Params).Handle);
+                }
             }
 
             #region 测试节点删除后代码

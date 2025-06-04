@@ -14,11 +14,15 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <summary>
         /// 置信度阈值
         /// </summary>
-        public double ScoreThreshold { get; set; } = 0.5f;
+        public float ScoreThreshold { get; set; } = 0.5f;
         /// <summary>
         /// NMS阈值
         /// </summary>
-        public double ScoreNMS { get; set; } = 0.5f;
+        public float ScoreNMS { get; set; } = 0.5f;
+        /// <summary>
+        /// 模型信息
+        /// </summary>
+        public ModelInfo ModelInfo { get; set; }
         /// <summary>
         /// 类别名称列表
         /// </summary>
@@ -27,10 +31,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// 所有检测项信息
         /// </summary>
         public List<DetectItemInfo> DetectItems { get; set; } = new List<DetectItemInfo>();
-        /// <summary>
-        /// 模型信息
-        /// </summary>
-        public ModelInfo ModelInfo { get; set; }
         /// <summary>
         /// 默认构造函数
         /// </summary>
@@ -55,8 +55,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             for (int i = 0; i < 3; i++)
             {
                 ModelInfo model = new ModelInfo();
-                model.XmlPath = AppDomain.CurrentDomain.BaseDirectory + "model" + i + ".xml.enc";
-                model.BinPath = AppDomain.CurrentDomain.BaseDirectory + "model" + i + ".bin.enc";
+                model.ModelPath = AppDomain.CurrentDomain.BaseDirectory + "model" + i + ".onnx";
                 model.ModelType = i == 0 ? ModelType.DET : i == 1 ? ModelType.OBB : ModelType.SEG;
                 model.IsEncrypted = true;
                 ModelInfo = model;
@@ -100,7 +99,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     /// <summary>
     /// 检测项信息
     /// </summary>
-    internal struct DetectItemInfo
+    internal class DetectItemInfo
     {
         /// <summary>
         /// 检测项名称
@@ -140,17 +139,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         [JsonConverter(typeof(StringEnumConverter))]
         public DeviceType DeviceType { get; set; }
         /// <summary>
-        /// 是否是加密模型（加密模型用到xml和bin）
+        /// 是否是加密模型
         /// </summary>
         public bool IsEncrypted { get; set; }
         /// <summary>
-        /// xml文件
+        /// 加密模型路径文件
         /// </summary>
-        public string XmlPath { get; set; }
-        /// <summary>
-        /// bin文件
-        /// </summary>
-        public string BinPath { get; set; }
+        public string ModelPath { get; set; }
     }
 
     /// <summary>

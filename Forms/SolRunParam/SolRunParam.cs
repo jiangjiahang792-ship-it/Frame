@@ -278,8 +278,8 @@ namespace TDJS_Vision.Forms.SolRunParam
                 }
                 if(_nodeTDAI.ParamForm.Params is NodeParamTDAI aiParams && textBoxScoreThreshold.Enabled)
                 {
-                    aiParams.AIInputInfo.ScoreThreshold = double.Parse(solRunDataNew.ScoreThreshold);
-                    aiParams.AIInputInfo.ScoreNMS = double.Parse(solRunDataNew.ScoreNMS);
+                    aiParams.AIInputInfo.ScoreThreshold = float.Parse(solRunDataNew.ScoreThreshold);
+                    aiParams.AIInputInfo.ScoreNMS = float.Parse(solRunDataNew.ScoreNMS);
                     aiParams.IsAutoStudy = solRunDataNew.IsAutoLearn;
                     // 也要更新AI节点的检测项配置
                     aiParams.AIInputInfo.DetectItems = solRunDataNew.DetectItems;
