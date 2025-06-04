@@ -15,6 +15,12 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
 
         // Modbus设备名称
         public string ModbusName;
+        
+        // 信号自动重置
+        public bool IsAutoReset;
+
+        // 信号保持时间
+        public int SignalHoldTime;
 
         // 信号列表绑定的数据
         public BindingList<DetectItemRow> BindingData;

@@ -1,6 +1,10 @@
 ﻿using Logger;
+using OfficeOpenXml.FormulaParsing.LexicalAnalysis;
+using Sunny.UI;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -50,66 +54,39 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     SetStatus(NodeStatus.Unexecuted, "*");
                     base.CheckTokenCancel(token);
 
+                    // 获取AI检测结果
                     List<DetectItemResult> aiResult = form.GetAiResult();
 
-                    //List<SignalRowData> allMatchingRows = new List<SignalRowData>();
+                    // 获取“检测项-地址”映射关系
+                    var map = form.GetMapping();
 
-                    //if(aiResult.IsAllOk)
-                    //{
-                    //    string nodeName = "OK";
-                    //    string className = "OK";
-                    //    //var matchingRows = FindMatchSignalRow(param.BindingData, nodeName, className);
-                    //    if (matchingRows != null && matchingRows.Count > 0)
-                    //    {
-                    //        allMatchingRows.AddRange(matchingRows);
-                    //    }
-                    //    else
-                    //    {
-                    //        // 记录没有找到匹配信号行的日志
-                    //        throw new Exception($"节点({ID}.{NodeName})没有设置{nodeName}-{className}的信号！");
-                    //    }
-                    //}
-                    //else
-                    //{
-                    //    foreach (var item in aiResult.SingleRowDataList)
-                    //    {
-                    //        if (item.IsOk)
-                    //            continue;
-                    //        string nodeName = item.NodeName;
-                    //        string className = item.ClassName;
-                    //        var matchingRows = FindMatchSignalRow(param.Data, nodeName, className);
-                    //        if (matchingRows != null && matchingRows.Count > 0)
-                    //        {
-                    //            allMatchingRows.AddRange(matchingRows);
-                    //        }
-                    //        else
-                    //        {
-                    //            throw new Exception($"节点({ID}.{NodeName})没有设置{nodeName}-{className}的信号！");
-                    //        }
-                    //    }
-                    //}
+                    // 获取信号配置
+                    BindingList<DetectItemRow> signalConfigs = param.BindingData;
 
-                    //// 按Modbus分组，并在每个组中找到信号等级最大的行
-                    //var maxSignalRowsByModbus = allMatchingRows
-                    //.GroupBy(row => row.DevName)
-                    //.Select(group => group.OrderByDescending(row => row.SignalLevel).FirstOrDefault())
-                    //.ToList();
+                    #region 判断检测项是否配置了信号
 
-                    //if (maxSignalRowsByModbus.Count == 0)
-                    //{
-                    //    throw new Exception($"节点({ID}.{NodeName})没有匹配到对应的信号！");
-                    //}
+                    var (isExist, missingNames) = CheckAiResultExistInSignalConfig(aiResult, signalConfigs);
+                    if(!isExist)
+                    {
+                        string str = "";
+                        for (int i = 0; i < missingNames.Count; i++)
+                        {
+                            if (i != (missingNames.Count - 1))
+                                str += $"“{missingNames[i]}”、";
+                            else
+                                str += $"“{missingNames[i]}”";
+                        }
+                        LogHelper.AddLog(MsgLevel.Exception, $"识别到检测项{str}尚未配置信号！");
+                        throw new Exception($"识别到检测项{str}尚未配置信号！");
+                    }
 
-                    //await Task.Run(() =>
-                    //{
-                    //    // 发送信号到对应的Modbus
-                    //    foreach (var maxSignalRow in maxSignalRowsByModbus)
-                    //    {
-                    //        SendSignalToModbus(maxSignalRow, param.StayTime, token);
-                    //    }
-                    //});
-                    //long time = SetRunResult(startTime, NodeStatus.Successful);
-                    //LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                    #endregion
+
+                    // 执行线圈信号写入
+                    await SendToModbus(aiResult, map, param.SignalHoldTime, param.IsAutoReset, token);
+
+                    long time = SetRunResult(startTime, NodeStatus.Successful);
+                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
                 }
                 catch (OperationCanceledException)
                 {
@@ -126,66 +103,135 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
             }
         }
 
-        //private List<SignalRowData> FindMatchSignalRow(List<SignalRowData> list, string nodeName, string className)
-        //{
-        //    var matchingRows = list.Where(row => row.NodeName == nodeName && row.ClassName == className).ToList();
-        //    return matchingRows;
-        //}
-
-        private async void SendSignalToModbus(SignalRowData dataRow, double time, CancellationToken token)
+        /// <summary>
+        /// 判断检出结果是否配置了信号
+        /// </summary>
+        /// <param name="aiResult"></param>
+        /// <param name="signalConfigs"></param>
+        private (bool, List<string>) CheckAiResultExistInSignalConfig(List<DetectItemResult> aiResult, BindingList<DetectItemRow> signalConfigs)
         {
-            if (dataRow != null)
+            // 收集所有存在的检测项名称（支持多个用 ; 分隔的情况）
+            var allValidNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var row in signalConfigs)
             {
-                foreach (var ModbusTmp in Solution.Instance.ModbusDevices)
+                if (!string.IsNullOrWhiteSpace(row.DetectItems))
                 {
-                    if (ModbusTmp is ModbusPoll modbuspolltmp)
+                    string[] items = row.DetectItems.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var item in items)
                     {
-                        ushort address = ushort.Parse(dataRow.SignalAddress);
-                        try
+                        string trimmed = item.Trim();
+                        if (!string.IsNullOrWhiteSpace(trimmed))
                         {
-                            DateTime startTime = DateTime.Now;
-
-                            do
-                            {
-                                base.CheckTokenCancel(token);
-                                modbuspolltmp.WriteSingleCoil(address, true);
-
-                                long timeTotal = (long)(DateTime.Now - startTime).TotalMilliseconds;
-                                if (timeTotal > 5000)
-                                    throw new Exception("发送AI检测结果信号存在超时，请检查Modbus通信是否正常！");
-
-                            } while (!(modbuspolltmp.ReadCoils(address, 1)[0]));
-
-                            // 信号保持时间
-                            await ExecuteSleepAsync((int)time);
-
-                            do
-                            {
-                                base.CheckTokenCancel(token);
-                                modbuspolltmp.WriteSingleCoil(address, false);
-
-                                long timeTotal = (long)(DateTime.Now - startTime).TotalMilliseconds;
-                                if (timeTotal > 5000)
-                                    throw new Exception("重置AI检测结果信号存在超时，请检查Modbus通信是否正常！");
-
-                            } while (modbuspolltmp.ReadCoils(address, 1)[0]);
-
-                            LogHelper.AddLog(MsgLevel.Info, $"{dataRow.SignalAddress}信号发送成功!", true);
-                            break;
-                        }
-                        catch (Exception)
-                        {
-                            throw;
+                            allValidNames.Add(trimmed);
                         }
                     }
                 }
             }
-        }
 
+            // 检查 aiResult 中的 Name 是否都在 allValidNames 中
+            var missingNames = aiResult
+                .Where(r => !allValidNames.Contains(r.Name.Trim()))
+                .Select(r => r.Name)
+                .ToList();
+
+            if (missingNames.Count == 0)
+            {
+                return (true, new List<string>());
+            }
+            else
+            {
+                return (false, missingNames);
+            }
+        }
         private async Task ExecuteSleepAsync(int timeInMilliseconds)
         {
             // 使用 Task.Delay 在后台线程上执行异步睡眠操作
             await Task.Delay(timeInMilliseconds);
         }
+
+        /// <summary>
+        /// 发送检测项对应的modbus信号
+        /// </summary>
+        /// <param name="detectedItems"></param>
+        /// <param name="mapping"></param>
+        /// <param name=""></param>
+        /// <param name="time"></param>
+        /// <param name="token"></param>
+        private async Task SendToModbus(List<DetectItemResult> aiResult, Dictionary<string, DetectItemAddress> mapping, double holdTime, bool isAutoReset, CancellationToken token)
+        {
+            try
+            {
+                // 使用 HashSet 去重 (设备名 + 地址)
+                var sentTargets = new HashSet<(string CommModbus, string SignalAddress)>();
+
+                foreach (var result in aiResult)
+                {
+                    if (mapping.TryGetValue(result.Name, out var config))
+                    {
+                        // 不符合config.Judgment条件就直接跳过
+                        if (!config.ShouldSend(result.IsOk))
+                            continue;
+
+                        var targetKey = (config.CommModbus, config.SignalAddress);
+                        
+                        // 如果该信号没发过才要发
+                        if (!sentTargets.Contains(targetKey))
+                        {
+                            var modbuspolltmp = (ModbusPoll)Solution.Instance.ModbusDevices.Find(mod => mod.UserDefinedName == targetKey.CommModbus);
+                            ushort address = ushort.Parse(targetKey.SignalAddress);
+                            //do
+                            //{
+                            //    base.CheckTokenCancel(token);
+                            //    modbuspolltmp.WriteSingleCoil(address, true);
+
+                            //} while (!(modbuspolltmp.ReadCoils(address, 1)[0]));
+                            modbuspolltmp.WriteSingleCoil(address, true);
+
+                            // 如果需要自动重置信号
+                            if (isAutoReset)
+                            {
+                                // 信号保持时间
+                                await ExecuteSleepAsync((int)holdTime);
+
+                                //do
+                                //{
+                                //    base.CheckTokenCancel(token);
+                                //    modbuspolltmp.WriteSingleCoil(address, false);
+                                //} while (modbuspolltmp.ReadCoils(address, 1)[0]);
+                                modbuspolltmp.WriteSingleCoil(address, false);
+                            }
+                            // 标记已发送
+                            sentTargets.Add(targetKey);
+                        }
+                    }
+                    else
+                    {
+                        LogHelper.AddLog(MsgLevel.Exception, $"[未配置] 检测项 [{result.Name}] 没有找到对应的 Modbus 配置", true);
+                    }
+                }
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception) { throw; }
+        }
     }
+    /// <summary>
+    /// 检测项地址
+    /// </summary>
+    public class DetectItemAddress
+    {
+        public string CommModbus { get; set; }
+        public string SignalAddress { get; set; }
+        public string Judgment { get; set; }  // "检测项OK时"或“检测项NG时”
+
+        public bool ShouldSend(bool isOk)
+        {
+            if (Judgment == "检测项OK时")
+                return isOk;
+            else if (Judgment == "检测项NG时")
+                return !isOk;
+            return false;
+        }
+    }
+
 }
