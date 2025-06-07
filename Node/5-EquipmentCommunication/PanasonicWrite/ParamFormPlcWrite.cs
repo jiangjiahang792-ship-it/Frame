@@ -3,10 +3,11 @@ using Sunny.UI;
 using System;
 using System.Windows.Forms;
 using TDJS_Vision.Device.PLC;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.PanasonicWirte
 {
-    internal partial class ParamFormPlcWrite : Form, INodeParamForm
+    internal partial class ParamFormPlcWrite : FormBase, INodeParamForm
     {
         public ParamFormPlcWrite()
         {
@@ -93,19 +94,19 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PanasonicWirte
             if (comboBoxPLCList.Text.IsNullOrEmpty() || comboBoxPLCList.Text == "[未设置]")
             {
                 LogHelper.AddLog(MsgLevel.Exception, "PLC不能为空！", true);
-                MessageBox.Show("PLC不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("PLC不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             if (string.IsNullOrEmpty(this.textBoxAddress.Text))
             {
                 LogHelper.AddLog(MsgLevel.Exception, "信号地址为空", true);
-                MessageBox.Show("信号地址为空", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("信号地址为空", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             if (this.comboBoxDataType.Text == "字符串类型" && string.IsNullOrEmpty(this.textBoxCustomData.Text) && this.radioButton1.Checked)
             {
                 LogHelper.AddLog(MsgLevel.Exception, "写入字符串类型需要设置值", true);
-                MessageBox.Show("写入字符串类型需要设置值", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("写入字符串类型需要设置值", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 

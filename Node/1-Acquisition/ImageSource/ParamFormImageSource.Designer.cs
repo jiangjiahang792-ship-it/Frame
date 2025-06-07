@@ -74,9 +74,9 @@
             this.flowLayoutPanel1.Controls.Add(this.tableLayoutPanelCamera);
             this.flowLayoutPanel1.Controls.Add(this.tableLayoutPanelSave);
             this.flowLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.flowLayoutPanel1.Location = new System.Drawing.Point(0, 0);
+            this.flowLayoutPanel1.Location = new System.Drawing.Point(2, 32);
             this.flowLayoutPanel1.Name = "flowLayoutPanel1";
-            this.flowLayoutPanel1.Size = new System.Drawing.Size(606, 688);
+            this.flowLayoutPanel1.Size = new System.Drawing.Size(602, 654);
             this.flowLayoutPanel1.TabIndex = 0;
             // 
             // tableLayoutPanel1
@@ -435,6 +435,7 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "图像源";
             this.Load += new System.EventHandler(this.ParamFormImageSource_Load);
+            this.Controls.SetChildIndex(this.flowLayoutPanel1, 0);
             this.flowLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();

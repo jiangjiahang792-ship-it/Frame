@@ -255,6 +255,7 @@
             this.Name = "FrmModbusNew";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "添加Modbus";
+            this.Controls.SetChildIndex(this.tableLayoutPanel1, 0);
             this.groupBox2.ResumeLayout(false);
             this.tableLayoutPanel2.ResumeLayout(false);
             this.tableLayoutPanel2.PerformLayout();

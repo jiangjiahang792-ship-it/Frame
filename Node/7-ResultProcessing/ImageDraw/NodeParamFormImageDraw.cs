@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using OpenCvSharp;
+using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
 {
-    internal partial class NodeParamFormImageDraw : Form, INodeParamForm
+    internal partial class NodeParamFormImageDraw : FormBase, INodeParamForm
     {
         public NodeParamFormImageDraw()
         {
@@ -69,7 +70,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                 || string.IsNullOrEmpty(nodeSubscription2.GetText2())
                 )
             {
-                MessageBox.Show("参数设置不完整！");
+                MessageBoxTD.Show("参数设置不完整！");
                 return;
             }
             try
@@ -86,7 +87,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
             }
             catch (Exception)
             {
-                MessageBox.Show("参数设置不合理！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("参数设置不合理！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
         /// <summary>

@@ -77,7 +77,7 @@
             this.tableLayoutPanel1.Controls.Add(this.label2, 0, 1);
             this.tableLayoutPanel1.Controls.Add(this.checkBox1, 1, 1);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
+            this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 32);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
             this.tableLayoutPanel1.RowCount = 7;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 8F));
@@ -87,7 +87,7 @@
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 16F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 8F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(806, 631);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(802, 597);
             this.tableLayoutPanel1.TabIndex = 0;
             // 
             // groupBox4
@@ -96,11 +96,11 @@
             this.tableLayoutPanel1.SetColumnSpan(this.groupBox4, 2);
             this.groupBox4.Controls.Add(this.textBoxResponseData);
             this.groupBox4.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.groupBox4.Location = new System.Drawing.Point(57, 480);
+            this.groupBox4.Location = new System.Drawing.Point(55, 453);
             this.groupBox4.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.groupBox4.Name = "groupBox4";
             this.groupBox4.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.groupBox4.Size = new System.Drawing.Size(692, 96);
+            this.groupBox4.Size = new System.Drawing.Size(692, 91);
             this.groupBox4.TabIndex = 4;
             this.groupBox4.TabStop = false;
             this.groupBox4.Text = "服务器响应内容";
@@ -112,7 +112,7 @@
             this.textBoxResponseData.Location = new System.Drawing.Point(3, 22);
             this.textBoxResponseData.Multiline = true;
             this.textBoxResponseData.Name = "textBoxResponseData";
-            this.textBoxResponseData.Size = new System.Drawing.Size(686, 72);
+            this.textBoxResponseData.Size = new System.Drawing.Size(686, 67);
             this.textBoxResponseData.TabIndex = 3;
             // 
             // tabControl1
@@ -123,7 +123,7 @@
             this.tabControl1.Controls.Add(this.tabPage1);
             this.tabControl1.Controls.Add(this.tabPage2);
             this.tabControl1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.tabControl1.Location = new System.Drawing.Point(59, 115);
+            this.tabControl1.Location = new System.Drawing.Point(57, 99);
             this.tabControl1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tabControl1.Name = "tabControl1";
             this.tabControl1.RightToLeft = System.Windows.Forms.RightToLeft.No;
@@ -230,11 +230,11 @@
             // nodeSubscription1
             // 
             this.nodeSubscription1.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.nodeSubscription1.Location = new System.Drawing.Point(387, 6);
+            this.nodeSubscription1.Location = new System.Drawing.Point(373, 6);
             this.nodeSubscription1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.nodeSubscription1.MinimumSize = new System.Drawing.Size(231, 50);
             this.nodeSubscription1.Name = "nodeSubscription1";
-            this.nodeSubscription1.Size = new System.Drawing.Size(231, 50);
+            this.nodeSubscription1.Size = new System.Drawing.Size(260, 50);
             this.nodeSubscription1.TabIndex = 5;
             // 
             // groupBox1
@@ -242,11 +242,11 @@
             this.groupBox1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.tableLayoutPanel3.SetColumnSpan(this.groupBox1, 2);
             this.groupBox1.Controls.Add(this.textBoxResponseTrue);
-            this.groupBox1.Location = new System.Drawing.Point(256, 116);
+            this.groupBox1.Location = new System.Drawing.Point(164, 64);
             this.groupBox1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.groupBox1.Name = "groupBox1";
             this.groupBox1.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.groupBox1.Size = new System.Drawing.Size(158, 16);
+            this.groupBox1.Size = new System.Drawing.Size(342, 119);
             this.groupBox1.TabIndex = 4;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "条件为true时发送的内容";
@@ -257,7 +257,7 @@
             this.textBoxResponseTrue.Location = new System.Drawing.Point(3, 22);
             this.textBoxResponseTrue.Multiline = true;
             this.textBoxResponseTrue.Name = "textBoxResponseTrue";
-            this.textBoxResponseTrue.Size = new System.Drawing.Size(152, 0);
+            this.textBoxResponseTrue.Size = new System.Drawing.Size(336, 95);
             this.textBoxResponseTrue.TabIndex = 3;
             this.textBoxResponseTrue.Text = "1OK,";
             // 
@@ -266,11 +266,11 @@
             this.groupBox2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.tableLayoutPanel3.SetColumnSpan(this.groupBox2, 2);
             this.groupBox2.Controls.Add(this.textBoxResponseFalse);
-            this.groupBox2.Location = new System.Drawing.Point(256, 239);
+            this.groupBox2.Location = new System.Drawing.Point(162, 191);
             this.groupBox2.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.groupBox2.Name = "groupBox2";
             this.groupBox2.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.groupBox2.Size = new System.Drawing.Size(158, 17);
+            this.groupBox2.Size = new System.Drawing.Size(346, 114);
             this.groupBox2.TabIndex = 4;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "条件为false时发送的内容";
@@ -281,7 +281,7 @@
             this.textBoxResponseFalse.Location = new System.Drawing.Point(3, 22);
             this.textBoxResponseFalse.Multiline = true;
             this.textBoxResponseFalse.Name = "textBoxResponseFalse";
-            this.textBoxResponseFalse.Size = new System.Drawing.Size(152, 0);
+            this.textBoxResponseFalse.Size = new System.Drawing.Size(340, 90);
             this.textBoxResponseFalse.TabIndex = 3;
             this.textBoxResponseFalse.Text = "1NG,";
             // 
@@ -290,7 +290,7 @@
             this.label1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label1.AutoSize = true;
             this.label1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label1.Location = new System.Drawing.Point(143, 16);
+            this.label1.Location = new System.Drawing.Point(142, 14);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(116, 18);
             this.label1.TabIndex = 0;
@@ -302,7 +302,7 @@
             this.comboBoxTCPDev.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxTCPDev.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.comboBoxTCPDev.FormattingEnabled = true;
-            this.comboBoxTCPDev.Location = new System.Drawing.Point(494, 12);
+            this.comboBoxTCPDev.Location = new System.Drawing.Point(491, 10);
             this.comboBoxTCPDev.Name = "comboBoxTCPDev";
             this.comboBoxTCPDev.Size = new System.Drawing.Size(221, 25);
             this.comboBoxTCPDev.TabIndex = 1;
@@ -311,7 +311,7 @@
             // 
             this.buttonRun.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonRun.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonRun.Location = new System.Drawing.Point(153, 588);
+            this.buttonRun.Location = new System.Drawing.Point(152, 555);
             this.buttonRun.Name = "buttonRun";
             this.buttonRun.Size = new System.Drawing.Size(97, 32);
             this.buttonRun.TabIndex = 2;
@@ -323,7 +323,7 @@
             // 
             this.buttonSave.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonSave.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonSave.Location = new System.Drawing.Point(556, 588);
+            this.buttonSave.Location = new System.Drawing.Point(553, 555);
             this.buttonSave.Name = "buttonSave";
             this.buttonSave.Size = new System.Drawing.Size(97, 32);
             this.buttonSave.TabIndex = 2;
@@ -336,7 +336,7 @@
             this.label2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label2.AutoSize = true;
             this.label2.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label2.Location = new System.Drawing.Point(107, 66);
+            this.label2.Location = new System.Drawing.Point(106, 61);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(188, 18);
             this.label2.TabIndex = 0;
@@ -347,7 +347,7 @@
             this.checkBox1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.checkBox1.AutoSize = true;
             this.checkBox1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.checkBox1.Location = new System.Drawing.Point(580, 64);
+            this.checkBox1.Location = new System.Drawing.Point(577, 59);
             this.checkBox1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.checkBox1.Name = "checkBox1";
             this.checkBox1.Size = new System.Drawing.Size(48, 22);
@@ -368,6 +368,7 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "TCP客户端发送";
             this.Shown += new System.EventHandler(this.ParamFormRead_Shown);
+            this.Controls.SetChildIndex(this.tableLayoutPanel1, 0);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();
             this.groupBox4.ResumeLayout(false);

@@ -71,6 +71,8 @@ namespace TDJS_Vision.Forms.ResultView
                 {
                     tabPage = new TabPage(e.TabPageName);
                     tabPage.Name = e.TabPageName;
+                    // 背景颜色
+                    //tabPage.BackColor = Color.DarkSlateGray;
                     tabControl1.TabPages.Add(tabPage);
 
                     // 创建 DataGridView 并设置它的 Dock 属性为 Fill，以便充满整个 TabPage
@@ -94,6 +96,10 @@ namespace TDJS_Vision.Forms.ResultView
                     {
                         column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
                     }
+
+                    // 背景颜色
+                    //dataGridView.BackgroundColor = Color.DarkSlateGray;
+
                     // 设置行头不显示
                     dataGridView.RowHeadersVisible = false;
 

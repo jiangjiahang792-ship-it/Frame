@@ -3,7 +3,7 @@ using System.Windows.Forms;
 
 namespace TDJS_Vision.Node
 {
-    internal partial class FormAddNotes : Form
+    internal partial class FormAddNotes : FormBase
     {
         private NodeBase _node;
         public FormAddNotes(NodeBase node)

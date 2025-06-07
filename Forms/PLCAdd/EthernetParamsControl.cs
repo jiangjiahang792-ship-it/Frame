@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Device.PLC;
+using TDJS_Vision.Forms.YTMessageBox;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace TDJS_Vision.Forms.PLCAdd
@@ -44,7 +45,7 @@ namespace TDJS_Vision.Forms.PLCAdd
                     plc.PLCParms = pLCParms;
                 }
             }
-            MessageBox.Show("保存设置成功！");
+            MessageBoxTD.Show("保存设置成功！");
         }
 
         /// <summary>

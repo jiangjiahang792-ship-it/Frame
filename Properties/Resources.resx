@@ -121,14 +121,8 @@
   <data name="光源" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\光源.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
-  <data name="添加流程" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Icon\添加流程.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
   <data name="保存项目" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\保存项目.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="注液孔检测算子示例" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\注液孔检测算子示例.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
   <data name="打开项目" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\打开项目.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
@@ -154,6 +148,9 @@
   <data name="停止执行" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\停止执行.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
+  <data name="运行参数" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Icon\运行参数.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
   <data name="方案设置" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\方案设置.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
@@ -162,9 +159,6 @@
   </data>
   <data name="锁定" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\锁定.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="流程添加" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Icon\流程添加.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
   <data name="工具箱" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\工具箱.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
@@ -187,7 +181,7 @@
   <data name="相机" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\相机.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
-  <data name="运行参数" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Icon\运行参数.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  <data name="添加流程" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Icon\添加流程.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
 </root>

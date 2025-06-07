@@ -4,11 +4,12 @@ using System;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Device.Modbus;
+using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
 {
-    internal partial class ParamFormModbusWrite : Form, INodeParamForm
+    internal partial class ParamFormModbusWrite : FormBase, INodeParamForm
     {
         public INodeParam Params { get; set; }
 
@@ -82,7 +83,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
             if (comboBoxModbusDev.Text.IsNullOrEmpty() || comboBoxModbusDev.Text == "[未设置]")
             {
                 LogHelper.AddLog(MsgLevel.Exception, "Modbus不能为空！", true);
-                MessageBox.Show("Modbus不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("Modbus不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             ushort adress;
@@ -93,7 +94,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
             catch (Exception)
             {
                 LogHelper.AddLog(MsgLevel.Exception, "无效的起始地址", true);
-                MessageBox.Show("无效的起始地址", "错误提示", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBoxTD.Show("无效的起始地址", "错误提示", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 

@@ -3,10 +3,11 @@ using Sunny.UI;
 using System;
 using System.Windows.Forms;
 using TDJS_Vision.Device.Modbus;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusSoftTrigger
 {
-    internal partial class ParamFormModbusSoftTrigger : Form, INodeParamForm
+    internal partial class ParamFormModbusSoftTrigger : FormBase, INodeParamForm
     {
         public INodeParam Params { get; set; }
 
@@ -52,13 +53,13 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusSoftTrigger
             if (comboBoxModBusList.Text.IsNullOrEmpty() || comboBoxModBusList.Text == "[未设置]")
             {
                 LogHelper.AddLog(MsgLevel.Exception, "PLC不能为空！", true);
-                MessageBox.Show("PLC不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("PLC不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             if (string.IsNullOrEmpty(this.textBoxAddress.Text))
             {
                 LogHelper.AddLog(MsgLevel.Exception, "信号地址为空", true);
-                MessageBox.Show("信号地址为空", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("信号地址为空", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 

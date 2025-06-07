@@ -3,7 +3,7 @@ using System.Windows.Forms;
 
 namespace TDJS_Vision.Forms.Helper
 {
-    internal partial class ContactUsFormForm : Form
+    internal partial class ContactUsFormForm : FormBase
     {
         public ContactUsFormForm()
         {

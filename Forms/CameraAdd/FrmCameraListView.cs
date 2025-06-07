@@ -5,10 +5,11 @@ using Logger;
 using System.Diagnostics;
 using TDJS_Vision.Forms.LightAdd;
 using System.Linq;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Forms.CameraAdd
 {
-    internal partial class FrmCameraListView : Form
+    internal partial class FrmCameraListView : FormBase
     {
         /// <summary>
         /// 添加相机时通过快捷键保存方案的事件
@@ -127,7 +128,7 @@ namespace TDJS_Vision.Forms.CameraAdd
             {
                 SingleCamera.SingleCameraList.Remove(singleCamera);
                 LogHelper.AddLog(MsgLevel.Fatal, $"添加相机失败:{ex.Message}", true);
-                MessageBox.Show("添加失败！原因：" + ex.Message);
+                MessageBoxTD.Show("添加失败！原因：" + ex.Message);
             }
         }
         

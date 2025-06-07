@@ -6,11 +6,12 @@ using System.Windows.Forms;
 using Logger;
 using Newtonsoft.Json;
 using TDJS_Vision.Forms.SolRunParam;
+using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
-    internal partial class ParamFormTDAI : Form, INodeParamForm
+    internal partial class ParamFormTDAI : FormBase, INodeParamForm
     {
         private NodeBase _node;
         AIInputInfo aIInputInfo;
@@ -139,7 +140,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             }
             catch (Exception e)
             {
-                MessageBox.Show($"参数设置异常，原因：{e.Message}");
+                MessageBoxTD.Show($"参数设置异常，原因：{e.Message}");
                 return false;
             }
             return true;

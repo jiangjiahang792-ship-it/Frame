@@ -5,11 +5,12 @@ using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using Logger;
+using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
 {
-    internal partial class ParamFormSignalSendByModbus : Form, INodeParamForm
+    internal partial class ParamFormSignalSendByModbus : FormBase, INodeParamForm
     {
         private NodeBase nodeBase;
         private Dictionary<string, DetectItemAddress> mapping;
@@ -228,7 +229,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"参数保存异常！原因:{ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBoxTD.Show($"参数保存异常！原因:{ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

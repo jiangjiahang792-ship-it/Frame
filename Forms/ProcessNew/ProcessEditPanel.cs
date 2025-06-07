@@ -33,6 +33,7 @@ using TDJS_Vision.Node._6_LogicTool.SharedVariable;
 using TDJS_Vision.Node._7_ResultProcessing.GenerateExcelSpreadsheet;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._7_ResultProcessing.ImageDraw;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Forms.ProcessNew
 {
@@ -130,7 +131,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBoxTD.Show(ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     LogHelper.AddLog(MsgLevel.Exception, ex.Message, true);
                 }
             }
@@ -155,7 +156,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBoxTD.Show(ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     if(showInfo)
                         LogHelper.AddLog(MsgLevel.Exception, $"=> 节点（{nodeInfo.ID}.{nodeInfo.NodeName}）加载失败！原因：{ex.Message}", true);
                     continue;

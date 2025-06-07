@@ -74,11 +74,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             //{
             //    string text = System.IO.File.ReadAllText(AppDomain.CurrentDomain.BaseDirectory + "AIInputInfo.json");
             //    AIInputInfo data = JsonConvert.DeserializeObject<AIInputInfo>(text);
-            //    MessageBox.Show("解析配置文件成功！\n分数阈值：" + data.ScoreThreshold.ToString() + "\n抑制分数：" + data.ScoreNMS.ToString());
+            //    MessageBoxTD.Show("解析配置文件成功！\n分数阈值：" + data.ScoreThreshold.ToString() + "\n抑制分数：" + data.ScoreNMS.ToString());
             //}
             //catch (Exception ex)
             //{
-            //    MessageBox.Show("解析配置文件失败！" + ex.Message);
+            //    MessageBoxTD.Show("解析配置文件失败！" + ex.Message);
             //}
 
             #endregion

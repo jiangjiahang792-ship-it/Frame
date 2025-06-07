@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 {
     /// <summary>
     /// 模版创建窗口类
     /// </summary>
-    internal partial class TemplateCreate : Form
+    internal partial class TemplateCreate : FormBase
     {
         public TemplateCreate()
         {
@@ -105,10 +106,10 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 }
                 catch (Exception)
                 {
-                    MessageBox.Show("保存失败！");
+                    MessageBoxTD.Show("保存失败！");
                     return;
                 }
-                MessageBox.Show("保存成功！");
+                MessageBoxTD.Show("保存成功！");
             }
         }
 

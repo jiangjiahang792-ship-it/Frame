@@ -7,10 +7,11 @@ using System.Windows.Forms;
 using TDJS_Vision.Forms.CameraAdd;
 using TDJS_Vision.Device.Light;
 using System.Linq;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Forms.LightAdd
 {
-    internal partial class FrmLightListView : Form
+    internal partial class FrmLightListView : FormBase
     {
         /// <summary>
         /// 添加光源时通过快捷键保存方案的事件
@@ -153,9 +154,9 @@ namespace TDJS_Vision.Forms.LightAdd
             {
                 SingleLight.SingleLights.Remove(singleLight);
                 LogHelper.AddLog(MsgLevel.Fatal, $"添加光源失败:{ex.Message}", true);
-                MessageBox.Show($"添加光源失败:{ex.Message}");
+                MessageBoxTD.Show($"添加光源失败:{ex.Message}");
             }
-            //MessageBox.Show($"光源控件个数：{SingleLight.SingleLights.Count}，方案中光源个数：{Solution.Instance.LightDevices.Count}");
+            //MessageBoxTD.Show($"光源控件个数：{SingleLight.SingleLights.Count}，方案中光源个数：{Solution.Instance.LightDevices.Count}");
         }
 
         /// <summary>

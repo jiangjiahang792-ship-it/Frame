@@ -2,10 +2,11 @@
 using System;
 using System.Windows.Forms;
 using TDJS_Vision.Device.Modbus;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Forms.ModbusAdd
 {
-    internal partial class FrmModbusNew : Form
+    internal partial class FrmModbusNew : FormBase
     {
         /// <summary>
         /// Modbus添加事件
@@ -40,14 +41,14 @@ namespace TDJS_Vision.Forms.ModbusAdd
         {
             if (string.IsNullOrEmpty(uiipTextBoxIP.Text) || string.IsNullOrEmpty(textBoxSlaveID.Text) || string.IsNullOrEmpty(textBoxPort.Text) || string.IsNullOrEmpty(this.textBoxDevName.Text))
             {
-                MessageBox.Show("参数不能为空！");
+                MessageBoxTD.Show("参数不能为空！");
                 return;
             }
 
             // 已添加设备冲突判断
             if (Solution.Instance.ModbusDevices.Exists(modbus => modbus.UserDefinedName == textBoxDevName.Text))
             {
-                MessageBox.Show("Modbus设备名称重复！");
+                MessageBoxTD.Show("Modbus设备名称重复！");
                 LogHelper.AddLog(MsgLevel.Warn, "Modbus设备名称重复！", true);
                 return;
             }
@@ -72,12 +73,12 @@ namespace TDJS_Vision.Forms.ModbusAdd
             catch(NotImplementedException ex)
             {
                 LogHelper.AddLog(MsgLevel.Warn, ex.Message, true);
-                MessageBox.Show(ex.Message);
+                MessageBoxTD.Show(ex.Message);
             }
             catch (Exception ex)
             {
                 LogHelper.AddLog(MsgLevel.Warn, "添加Modbus时参数设置错误！", true);
-                MessageBox.Show("请检查Modbus参数是否有误！");
+                MessageBoxTD.Show("请检查Modbus参数是否有误！");
             }
         }
 

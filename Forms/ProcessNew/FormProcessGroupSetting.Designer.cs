@@ -117,6 +117,7 @@
             this.Name = "FormProcessGroupSetting";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "设置流程组别";
+            this.Controls.SetChildIndex(this.tableLayoutPanel1, 0);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();
             this.ResumeLayout(false);

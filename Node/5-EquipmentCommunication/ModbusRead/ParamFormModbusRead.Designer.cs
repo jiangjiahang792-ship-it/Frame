@@ -68,7 +68,7 @@
             this.tableLayoutPanel1.Controls.Add(this.buttonRun, 1, 4);
             this.tableLayoutPanel1.Controls.Add(this.groupBox1, 0, 0);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
+            this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 32);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
             this.tableLayoutPanel1.RowCount = 5;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
@@ -76,7 +76,7 @@
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(736, 389);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(732, 355);
             this.tableLayoutPanel1.TabIndex = 0;
             // 
             // label1
@@ -84,7 +84,7 @@
             this.label1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label1.AutoSize = true;
             this.label1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label1.Location = new System.Drawing.Point(309, 29);
+            this.label1.Location = new System.Drawing.Point(308, 26);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(116, 18);
             this.label1.TabIndex = 0;
@@ -96,7 +96,7 @@
             this.comboBoxModbusDev.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxModbusDev.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.comboBoxModbusDev.FormattingEnabled = true;
-            this.comboBoxModbusDev.Location = new System.Drawing.Point(528, 26);
+            this.comboBoxModbusDev.Location = new System.Drawing.Point(525, 23);
             this.comboBoxModbusDev.Name = "comboBoxModbusDev";
             this.comboBoxModbusDev.Size = new System.Drawing.Size(170, 25);
             this.comboBoxModbusDev.TabIndex = 1;
@@ -106,7 +106,7 @@
             this.label2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label2.AutoSize = true;
             this.label2.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label2.Location = new System.Drawing.Point(318, 106);
+            this.label2.Location = new System.Drawing.Point(317, 97);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(98, 18);
             this.label2.TabIndex = 0;
@@ -117,7 +117,7 @@
             this.label3.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label3.AutoSize = true;
             this.label3.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label3.Location = new System.Drawing.Point(309, 183);
+            this.label3.Location = new System.Drawing.Point(308, 168);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(116, 18);
             this.label3.TabIndex = 0;
@@ -128,7 +128,7 @@
             this.label4.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label4.AutoSize = true;
             this.label4.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label4.Location = new System.Drawing.Point(318, 260);
+            this.label4.Location = new System.Drawing.Point(317, 239);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(98, 18);
             this.label4.TabIndex = 0;
@@ -138,7 +138,7 @@
             // 
             this.textBoxAddress.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxAddress.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxAddress.Location = new System.Drawing.Point(528, 102);
+            this.textBoxAddress.Location = new System.Drawing.Point(525, 93);
             this.textBoxAddress.Name = "textBoxAddress";
             this.textBoxAddress.Size = new System.Drawing.Size(169, 27);
             this.textBoxAddress.TabIndex = 3;
@@ -147,7 +147,7 @@
             // 
             this.buttonSave.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonSave.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonSave.Location = new System.Drawing.Point(564, 332);
+            this.buttonSave.Location = new System.Drawing.Point(561, 303);
             this.buttonSave.Name = "buttonSave";
             this.buttonSave.Size = new System.Drawing.Size(97, 32);
             this.buttonSave.TabIndex = 2;
@@ -159,7 +159,7 @@
             // 
             this.textBoxLength.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxLength.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxLength.Location = new System.Drawing.Point(528, 256);
+            this.textBoxLength.Location = new System.Drawing.Point(525, 235);
             this.textBoxLength.Name = "textBoxLength";
             this.textBoxLength.Size = new System.Drawing.Size(169, 27);
             this.textBoxLength.TabIndex = 3;
@@ -175,7 +175,7 @@
             "离散量输入",
             "输入寄存器",
             "保持寄存器"});
-            this.comboBox2.Location = new System.Drawing.Point(528, 180);
+            this.comboBox2.Location = new System.Drawing.Point(525, 165);
             this.comboBox2.Name = "comboBox2";
             this.comboBox2.Size = new System.Drawing.Size(170, 25);
             this.comboBox2.TabIndex = 1;
@@ -184,7 +184,7 @@
             // 
             this.buttonRun.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonRun.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonRun.Location = new System.Drawing.Point(319, 332);
+            this.buttonRun.Location = new System.Drawing.Point(317, 303);
             this.buttonRun.Name = "buttonRun";
             this.buttonRun.Size = new System.Drawing.Size(97, 32);
             this.buttonRun.TabIndex = 2;
@@ -202,7 +202,7 @@
             this.groupBox1.Name = "groupBox1";
             this.groupBox1.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tableLayoutPanel1.SetRowSpan(this.groupBox1, 5);
-            this.groupBox1.Size = new System.Drawing.Size(239, 385);
+            this.groupBox1.Size = new System.Drawing.Size(238, 351);
             this.groupBox1.TabIndex = 5;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "结果显示";
@@ -217,7 +217,7 @@
             this.listBox1.Location = new System.Drawing.Point(3, 22);
             this.listBox1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.listBox1.Name = "listBox1";
-            this.listBox1.Size = new System.Drawing.Size(233, 361);
+            this.listBox1.Size = new System.Drawing.Size(232, 327);
             this.listBox1.TabIndex = 4;
             // 
             // contextMenuStrip1
@@ -248,6 +248,7 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "Modbus读取";
             this.Shown += new System.EventHandler(this.ParamFormRead_Shown);
+            this.Controls.SetChildIndex(this.tableLayoutPanel1, 0);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();
             this.groupBox1.ResumeLayout(false);

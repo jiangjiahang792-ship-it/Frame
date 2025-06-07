@@ -8,7 +8,7 @@ using System.Linq;
 
 namespace TDJS_Vision.Forms.TCPAdd
 {
-    internal partial class FrmTCPListView : Form
+    internal partial class FrmTCPListView : FormBase
     {
         /// <summary>
         /// 添加TCP时通过快捷键保存方案的事件

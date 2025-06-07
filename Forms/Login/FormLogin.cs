@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Windows.Forms;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Forms.Login
 {
-    public partial class FormLogin : Form
+    internal partial class FormLogin : FormBase
     {
         public static EventHandler<UserRole> LoginEvent;
         public static EventHandler LogoutEvent;
@@ -22,7 +22,7 @@ namespace TDJS_Vision.Forms.Login
         {
             if(string.IsNullOrEmpty(textBoxPassword.Text))
             {
-                MessageBox.Show("请输入密码！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("请输入密码！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             //工程师
@@ -40,7 +40,7 @@ namespace TDJS_Vision.Forms.Login
             }//密码错误
             else
             {
-                MessageBox.Show("密码错误！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("密码错误！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             comboBox1.Enabled = false;

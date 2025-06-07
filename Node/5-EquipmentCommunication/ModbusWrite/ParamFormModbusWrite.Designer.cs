@@ -78,7 +78,7 @@
             this.tableLayoutPanel1.Controls.Add(this.radioButton2, 1, 4);
             this.tableLayoutPanel1.Controls.Add(this.tabControl1, 0, 5);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
+            this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 32);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
             this.tableLayoutPanel1.RowCount = 7;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 13.28601F));
@@ -88,7 +88,7 @@
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 13.28601F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20.28392F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 13.28601F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(688, 489);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(684, 455);
             this.tableLayoutPanel1.TabIndex = 0;
             // 
             // label1
@@ -96,7 +96,7 @@
             this.label1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label1.AutoSize = true;
             this.label1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label1.Location = new System.Drawing.Point(114, 23);
+            this.label1.Location = new System.Drawing.Point(113, 21);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(116, 18);
             this.label1.TabIndex = 0;
@@ -106,7 +106,7 @@
             // 
             this.buttonRun.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonRun.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonRun.Location = new System.Drawing.Point(123, 438);
+            this.buttonRun.Location = new System.Drawing.Point(122, 407);
             this.buttonRun.Name = "buttonRun";
             this.buttonRun.Size = new System.Drawing.Size(97, 32);
             this.buttonRun.TabIndex = 2;
@@ -120,7 +120,7 @@
             this.comboBoxModbusDev.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxModbusDev.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.comboBoxModbusDev.FormattingEnabled = true;
-            this.comboBoxModbusDev.Location = new System.Drawing.Point(431, 19);
+            this.comboBoxModbusDev.Location = new System.Drawing.Point(428, 17);
             this.comboBoxModbusDev.Name = "comboBoxModbusDev";
             this.comboBoxModbusDev.Size = new System.Drawing.Size(170, 25);
             this.comboBoxModbusDev.TabIndex = 1;
@@ -130,7 +130,7 @@
             this.label2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label2.AutoSize = true;
             this.label2.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label2.Location = new System.Drawing.Point(123, 87);
+            this.label2.Location = new System.Drawing.Point(122, 81);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(98, 18);
             this.label2.TabIndex = 0;
@@ -141,7 +141,7 @@
             this.label3.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label3.AutoSize = true;
             this.label3.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label3.Location = new System.Drawing.Point(114, 151);
+            this.label3.Location = new System.Drawing.Point(113, 141);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(116, 18);
             this.label3.TabIndex = 0;
@@ -151,7 +151,7 @@
             // 
             this.textBoxAddress.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxAddress.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxAddress.Location = new System.Drawing.Point(431, 82);
+            this.textBoxAddress.Location = new System.Drawing.Point(428, 76);
             this.textBoxAddress.Name = "textBoxAddress";
             this.textBoxAddress.Size = new System.Drawing.Size(169, 27);
             this.textBoxAddress.TabIndex = 3;
@@ -160,7 +160,7 @@
             // 
             this.buttonSave.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonSave.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonSave.Location = new System.Drawing.Point(467, 438);
+            this.buttonSave.Location = new System.Drawing.Point(464, 407);
             this.buttonSave.Name = "buttonSave";
             this.buttonSave.Size = new System.Drawing.Size(97, 32);
             this.buttonSave.TabIndex = 2;
@@ -177,7 +177,7 @@
             this.comboBoxType.Items.AddRange(new object[] {
             "线圈",
             "保持寄存器"});
-            this.comboBoxType.Location = new System.Drawing.Point(431, 147);
+            this.comboBoxType.Location = new System.Drawing.Point(428, 137);
             this.comboBoxType.Name = "comboBoxType";
             this.comboBoxType.Size = new System.Drawing.Size(170, 25);
             this.comboBoxType.TabIndex = 1;
@@ -189,7 +189,7 @@
             this.checkBox1.Checked = true;
             this.checkBox1.CheckState = System.Windows.Forms.CheckState.Checked;
             this.checkBox1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.checkBox1.Location = new System.Drawing.Point(492, 213);
+            this.checkBox1.Location = new System.Drawing.Point(489, 199);
             this.checkBox1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.checkBox1.Name = "checkBox1";
             this.checkBox1.Size = new System.Drawing.Size(48, 22);
@@ -202,7 +202,7 @@
             this.label5.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label5.AutoSize = true;
             this.label5.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label5.Location = new System.Drawing.Point(114, 215);
+            this.label5.Location = new System.Drawing.Point(113, 201);
             this.label5.Name = "label5";
             this.label5.Size = new System.Drawing.Size(116, 18);
             this.label5.TabIndex = 0;
@@ -214,7 +214,7 @@
             this.radioButton1.AutoSize = true;
             this.radioButton1.Checked = true;
             this.radioButton1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.radioButton1.Location = new System.Drawing.Point(103, 277);
+            this.radioButton1.Location = new System.Drawing.Point(102, 259);
             this.radioButton1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.radioButton1.Name = "radioButton1";
             this.radioButton1.Size = new System.Drawing.Size(137, 22);
@@ -229,7 +229,7 @@
             this.radioButton2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.radioButton2.AutoSize = true;
             this.radioButton2.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.radioButton2.Location = new System.Drawing.Point(438, 277);
+            this.radioButton2.Location = new System.Drawing.Point(435, 259);
             this.radioButton2.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.radioButton2.Name = "radioButton2";
             this.radioButton2.Size = new System.Drawing.Size(155, 22);
@@ -245,11 +245,11 @@
             this.tabControl1.Controls.Add(this.tabPage1);
             this.tabControl1.Controls.Add(this.tabPage2);
             this.tabControl1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.tabControl1.Location = new System.Drawing.Point(34, 322);
+            this.tabControl1.Location = new System.Drawing.Point(32, 302);
             this.tabControl1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tabControl1.Name = "tabControl1";
             this.tabControl1.SelectedIndex = 0;
-            this.tabControl1.Size = new System.Drawing.Size(619, 94);
+            this.tabControl1.Size = new System.Drawing.Size(619, 88);
             this.tabControl1.TabIndex = 6;
             // 
             // tabPage1
@@ -260,7 +260,7 @@
             this.tabPage1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tabPage1.Name = "tabPage1";
             this.tabPage1.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.tabPage1.Size = new System.Drawing.Size(611, 63);
+            this.tabPage1.Size = new System.Drawing.Size(611, 57);
             this.tabPage1.TabIndex = 0;
             this.tabPage1.Text = "订阅数据";
             // 
@@ -268,8 +268,8 @@
             // 
             this.tableLayoutPanel3.BackColor = System.Drawing.SystemColors.Control;
             this.tableLayoutPanel3.ColumnCount = 2;
-            this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
+            this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 30F));
+            this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 70F));
             this.tableLayoutPanel3.Controls.Add(this.label6, 0, 0);
             this.tableLayoutPanel3.Controls.Add(this.nodeSubscription1, 1, 0);
             this.tableLayoutPanel3.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -277,15 +277,15 @@
             this.tableLayoutPanel3.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tableLayoutPanel3.Name = "tableLayoutPanel3";
             this.tableLayoutPanel3.RowCount = 1;
-            this.tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.tableLayoutPanel3.Size = new System.Drawing.Size(605, 59);
+            this.tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
+            this.tableLayoutPanel3.Size = new System.Drawing.Size(605, 53);
             this.tableLayoutPanel3.TabIndex = 1;
             // 
             // label6
             // 
             this.label6.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label6.AutoSize = true;
-            this.label6.Location = new System.Drawing.Point(111, 20);
+            this.label6.Location = new System.Drawing.Point(50, 17);
             this.label6.Name = "label6";
             this.label6.Size = new System.Drawing.Size(80, 18);
             this.label6.TabIndex = 0;
@@ -294,11 +294,11 @@
             // nodeSubscription1
             // 
             this.nodeSubscription1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.nodeSubscription1.Location = new System.Drawing.Point(305, 2);
+            this.nodeSubscription1.Location = new System.Drawing.Point(184, 2);
             this.nodeSubscription1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.nodeSubscription1.MinimumSize = new System.Drawing.Size(231, 50);
             this.nodeSubscription1.Name = "nodeSubscription1";
-            this.nodeSubscription1.Size = new System.Drawing.Size(297, 55);
+            this.nodeSubscription1.Size = new System.Drawing.Size(418, 50);
             this.nodeSubscription1.TabIndex = 1;
             // 
             // tabPage2
@@ -308,7 +308,7 @@
             this.tabPage2.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tabPage2.Name = "tabPage2";
             this.tabPage2.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.tabPage2.Size = new System.Drawing.Size(611, 63);
+            this.tabPage2.Size = new System.Drawing.Size(611, 57);
             this.tabPage2.TabIndex = 1;
             this.tabPage2.Text = "自定义数据";
             this.tabPage2.UseVisualStyleBackColor = true;
@@ -327,14 +327,14 @@
             this.tableLayoutPanel2.Name = "tableLayoutPanel2";
             this.tableLayoutPanel2.RowCount = 1;
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.tableLayoutPanel2.Size = new System.Drawing.Size(605, 59);
+            this.tableLayoutPanel2.Size = new System.Drawing.Size(605, 53);
             this.tableLayoutPanel2.TabIndex = 0;
             // 
             // label4
             // 
             this.label4.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(16, 20);
+            this.label4.Location = new System.Drawing.Point(16, 17);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(269, 18);
             this.label4.TabIndex = 0;
@@ -342,11 +342,11 @@
             // 
             // textBoxData
             // 
-            this.textBoxData.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.textBoxData.Location = new System.Drawing.Point(414, 5);
+            this.textBoxData.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.textBoxData.Location = new System.Drawing.Point(305, 3);
             this.textBoxData.Multiline = true;
             this.textBoxData.Name = "textBoxData";
-            this.textBoxData.Size = new System.Drawing.Size(78, 48);
+            this.textBoxData.Size = new System.Drawing.Size(297, 47);
             this.textBoxData.TabIndex = 3;
             this.textBoxData.Text = "1,2,3";
             // 
@@ -363,6 +363,7 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "Modbus写入";
             this.Shown += new System.EventHandler(this.ParamFormRead_Shown);
+            this.Controls.SetChildIndex(this.tableLayoutPanel1, 0);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();
             this.tabControl1.ResumeLayout(false);

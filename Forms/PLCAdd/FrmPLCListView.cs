@@ -7,7 +7,7 @@ using TDJS_Vision.Device.PLC;
 
 namespace TDJS_Vision.Forms.PLCAdd
 {
-    internal partial class FrmPLCListView : Form
+    internal partial class FrmPLCListView : FormBase
     {
         /// <summary>
         /// 添加PLC时通过快捷键保存方案的事件

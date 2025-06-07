@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
@@ -206,14 +207,14 @@ namespace TDJS_Vision.Node
             //{
             //    str0 += node.NodeName + "\n";
             //}
-            //MessageBox.Show("删除前方案节点：" + str0);
+            //MessageBoxTD.Show("删除前方案节点：" + str0);
 
             //string str1 = "";
             //foreach (var node in Process.Nodes)
             //{
             //    str1 += node.NodeName + "\n";
             //}
-            //MessageBox.Show("删除前流程节点：" + str1);
+            //MessageBoxTD.Show("删除前流程节点：" + str1);
 
             #endregion
 
@@ -236,14 +237,14 @@ namespace TDJS_Vision.Node
             //{
             //    str2 += node.NodeName + "\n";
             //}
-            //MessageBox.Show("删除后方案节点：" + str2);
+            //MessageBoxTD.Show("删除后方案节点：" + str2);
 
             //string str3 = "";
             //foreach (var node in Process.Nodes)
             //{
             //    str3 += node.NodeName + "\n";
             //}
-            //MessageBox.Show("删除后流程节点：" + str3);
+            //MessageBoxTD.Show("删除后流程节点：" + str3);
 
             #endregion
         }

@@ -48,11 +48,11 @@
             this.tableLayoutPanel1.Controls.Add(this.groupBox1, 0, 0);
             this.tableLayoutPanel1.Controls.Add(this.groupBox2, 1, 0);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
+            this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 32);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
             this.tableLayoutPanel1.RowCount = 1;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(894, 561);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(890, 527);
             this.tableLayoutPanel1.TabIndex = 0;
             // 
             // groupBox1
@@ -63,7 +63,7 @@
             this.groupBox1.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Bold);
             this.groupBox1.Location = new System.Drawing.Point(3, 3);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(217, 555);
+            this.groupBox1.Size = new System.Drawing.Size(216, 521);
             this.groupBox1.TabIndex = 0;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "设备列表";
@@ -76,7 +76,7 @@
             this.flowLayoutPanel1.Font = new System.Drawing.Font("宋体", 10F);
             this.flowLayoutPanel1.Location = new System.Drawing.Point(3, 26);
             this.flowLayoutPanel1.Name = "flowLayoutPanel1";
-            this.flowLayoutPanel1.Size = new System.Drawing.Size(211, 526);
+            this.flowLayoutPanel1.Size = new System.Drawing.Size(210, 492);
             this.flowLayoutPanel1.TabIndex = 1;
             // 
             // button1
@@ -94,9 +94,9 @@
             this.groupBox2.Controls.Add(this.panel1);
             this.groupBox2.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBox2.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.groupBox2.Location = new System.Drawing.Point(226, 3);
+            this.groupBox2.Location = new System.Drawing.Point(225, 3);
             this.groupBox2.Name = "groupBox2";
-            this.groupBox2.Size = new System.Drawing.Size(665, 555);
+            this.groupBox2.Size = new System.Drawing.Size(662, 521);
             this.groupBox2.TabIndex = 1;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "通信参数";
@@ -116,10 +116,13 @@
             this.ClientSize = new System.Drawing.Size(894, 561);
             this.Controls.Add(this.tableLayoutPanel1);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
             this.Name = "FrmPLCListView";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "PLC设备管理";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FrmPLCListView_FormClosing);
+            this.Controls.SetChildIndex(this.tableLayoutPanel1, 0);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.groupBox1.ResumeLayout(false);
             this.groupBox2.ResumeLayout(false);

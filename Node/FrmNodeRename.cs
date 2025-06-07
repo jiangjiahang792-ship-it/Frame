@@ -3,7 +3,7 @@ using System.Windows.Forms;
 
 namespace TDJS_Vision.Node
 {
-    internal partial class FrmNodeRename : Form
+    internal partial class FrmNodeRename : FormBase
     {
         public static event EventHandler<RenameResult> RenameChangeEvent;
         private string nodeNameOld;

@@ -5,7 +5,7 @@ using System.Windows.Forms;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.GenerateExcelSpreadsheet
 {
-    internal partial class ParamFormGenerateExcel : Form, INodeParamForm
+    internal partial class ParamFormGenerateExcel : FormBase, INodeParamForm
     {
         public Dictionary<int, bool> Dictionary = new Dictionary<int, bool>();
 

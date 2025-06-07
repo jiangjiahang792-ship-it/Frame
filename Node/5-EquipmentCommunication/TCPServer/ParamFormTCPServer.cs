@@ -5,10 +5,11 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Xml.Schema;
 using TDJS_Vision.Device.TCP;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.TcpServer
 {
-    internal partial class ParamFormTCPServer : Form, INodeParamForm
+    internal partial class ParamFormTCPServer : FormBase, INodeParamForm
     {
         public INodeParam Params { get; set; }
         public delegate Task AsyncEventHandler<T>(object sender, T e);
@@ -115,14 +116,14 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.TcpServer
             if (comboBoxClientIp.Text.IsNullOrEmpty() || comboBoxClientIp.Text == "[未设置]")
             {
                 LogHelper.AddLog(MsgLevel.Exception, "未选择TCP设备！", true);
-                MessageBox.Show("未选择TCP设备！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("未选择TCP设备！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
             if ((tabControl1.SelectedIndex == 0 && textBoxNoConditionContent.Text.IsNullOrEmpty()) ||
                 (tabControl1.SelectedIndex == 1 && (textBoxResponseTrue.Text.IsNullOrEmpty() || textBoxResponseFalse.Text.IsNullOrEmpty())))
             {
                 LogHelper.AddLog(MsgLevel.Exception, "发送内容不能为空！", true);
-                MessageBox.Show("发送内容不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("发送内容不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
 

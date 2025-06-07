@@ -1,17 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Diagnostics;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 
 namespace TDJS_Vision.Forms.ProcessNew
 {
-    internal partial class FormProcessGroupSetting : Form
+    internal partial class FormProcessGroupSetting : FormBase
     {
         private Process _process;
         public FormProcessGroupSetting(Process process)

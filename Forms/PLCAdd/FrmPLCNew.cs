@@ -3,10 +3,11 @@ using System;
 using System.IO.Ports;
 using System.Windows.Forms;
 using TDJS_Vision.Device.PLC;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Forms.PLCAdd
 {
-    internal partial class FrmPLCNew : Form
+    internal partial class FrmPLCNew : FormBase
     {
         /// <summary>
         /// PLC添加事件
@@ -78,7 +79,7 @@ namespace TDJS_Vision.Forms.PLCAdd
                         bool exist = Solution.Instance.PlcDevices.Exists(plc => plc.PLCParms.SerialParms.PortName == comboBox2.Text || plc.UserDefinedName == textBox2.Text);
                         if (exist)
                         {
-                            MessageBox.Show("PLC的串口号和用户自定义名不能相同！");
+                            MessageBoxTD.Show("PLC的串口号和用户自定义名不能相同！");
                             LogHelper.AddLog(MsgLevel.Warn, "PLC的串口号和用户自定义名不能相同！", true);
                             return;
                         }
@@ -90,12 +91,12 @@ namespace TDJS_Vision.Forms.PLCAdd
                 catch (Exception ex)
                 {
                     LogHelper.AddLog(MsgLevel.Warn, "添加PLC时参数设置错误！\n" + ex, true);
-                    MessageBox.Show("请检查PLC参数是否有误！");
+                    MessageBoxTD.Show("请检查PLC参数是否有误！");
                 }
             }
             else
             {
-                MessageBox.Show("请添加PLC设备名称！");
+                MessageBoxTD.Show("请添加PLC设备名称！");
             }
         }
     }

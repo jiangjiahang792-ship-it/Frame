@@ -6,11 +6,12 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.SendResultByPLC
 {
-    internal partial class ParamFormSendResultByPLC : Form, INodeParamForm
+    internal partial class ParamFormSendResultByPLC : FormBase, INodeParamForm
     {
         /// <summary>
         /// 信号列表
@@ -197,23 +198,23 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.SendResultByPLC
 
             if(string.IsNullOrEmpty(textBox3.Text) && siganlType == SiganlType.AING)
             {
-                MessageBox.Show($"未选择深度学习文件路径");
+                MessageBoxTD.Show($"未选择深度学习文件路径");
                 return;
             }
             if (exists)
             {
-                MessageBox.Show("相同节点和缺陷类型的数据已经存在，无法重复添加！");
+                MessageBoxTD.Show("相同节点和缺陷类型的数据已经存在，无法重复添加！");
                 return;
             }
             if(string.IsNullOrEmpty(SignalAddress))
             {
-                MessageBox.Show($"{ClassName}信号地址为空");
+                MessageBoxTD.Show($"{ClassName}信号地址为空");
                 return;
             }
 
             if(PLC == "[未设置]")
             {
-                MessageBox.Show($"未选择PLC");
+                MessageBoxTD.Show($"未选择PLC");
                 return;
             }
 
@@ -398,7 +399,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.SendResultByPLC
             }
             catch (Exception)
             {
-                MessageBox.Show("不合法的参数！");
+                MessageBoxTD.Show("不合法的参数！");
                 e.Cancel = true;
             }
         }

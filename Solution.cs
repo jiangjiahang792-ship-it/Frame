@@ -21,6 +21,7 @@ using TDJS_Vision.Forms.TCPAdd;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Forms.ImageViewer;
 using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision
 {
@@ -337,7 +338,7 @@ namespace TDJS_Vision
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"反序列化异常!{ex.Message}");
+                MessageBoxTD.Show($"反序列化异常!{ex.Message}");
             }
         }
 

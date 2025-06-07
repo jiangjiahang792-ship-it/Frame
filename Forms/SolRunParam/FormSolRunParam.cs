@@ -2,10 +2,11 @@
 using System.Windows.Forms;
 using Logger;
 using TDJS_Vision.Device.Modbus;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Forms.SolRunParam
 {
-    internal partial class FormSolRunParam : Form
+    internal partial class FormSolRunParam : FormBase
     {
         public FormSolRunParam()
         {
@@ -86,12 +87,12 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             if (Solution.Instance.ModbusDevices.Count == 0)
             {
-                MessageBox.Show("设备尚未添加！");
+                MessageBoxTD.Show("设备尚未添加！");
                 return;
             }
             if (string.IsNullOrEmpty(uiipTextBoxIP.Text) || string.IsNullOrEmpty(textBoxPort.Text))
             {
-                MessageBox.Show("参数不能为空！");
+                MessageBoxTD.Show("参数不能为空！");
                 return;
             }
             // 连接Modbus
@@ -127,7 +128,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             if (Solution.Instance.ModbusDevices.Count == 0)
             {
-                MessageBox.Show("设备尚未添加！");
+                MessageBoxTD.Show("设备尚未添加！");
                 return;
             }
             bool hasPoll = false;
@@ -153,7 +154,7 @@ namespace TDJS_Vision.Forms.SolRunParam
             }
             if(!hasPoll)
             {
-                MessageBox.Show("设备尚未添加！");
+                MessageBoxTD.Show("设备尚未添加！");
                 return;
             }
         }
@@ -166,7 +167,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             if (Solution.Instance.ModbusDevices.Count == 0)
             {
-                MessageBox.Show("设备尚未添加！");
+                MessageBoxTD.Show("设备尚未添加！");
                 return;
             }
             bool hasPoll = false;
@@ -192,7 +193,7 @@ namespace TDJS_Vision.Forms.SolRunParam
             }
             if (!hasPoll)
             {
-                MessageBox.Show("设备尚未添加！");
+                MessageBoxTD.Show("设备尚未添加！");
                 return;
             }
         }

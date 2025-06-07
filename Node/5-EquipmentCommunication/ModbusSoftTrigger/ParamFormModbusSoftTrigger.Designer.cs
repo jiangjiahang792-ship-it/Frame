@@ -49,13 +49,13 @@
             this.tableLayoutPanel1.Controls.Add(this.textBoxAddress, 1, 1);
             this.tableLayoutPanel1.Controls.Add(this.button1, 0, 2);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
+            this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 32);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
             this.tableLayoutPanel1.RowCount = 3;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 33.33333F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 33.33333F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 33.33333F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(413, 237);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(409, 203);
             this.tableLayoutPanel1.TabIndex = 0;
             // 
             // labelModBusName
@@ -63,7 +63,7 @@
             this.labelModBusName.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.labelModBusName.AutoSize = true;
             this.labelModBusName.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.labelModBusName.Location = new System.Drawing.Point(17, 30);
+            this.labelModBusName.Location = new System.Drawing.Point(16, 24);
             this.labelModBusName.Name = "labelModBusName";
             this.labelModBusName.Size = new System.Drawing.Size(116, 18);
             this.labelModBusName.TabIndex = 0;
@@ -75,7 +75,7 @@
             this.comboBoxModBusList.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxModBusList.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.comboBoxModBusList.FormattingEnabled = true;
-            this.comboBoxModBusList.Location = new System.Drawing.Point(205, 27);
+            this.comboBoxModBusList.Location = new System.Drawing.Point(203, 21);
             this.comboBoxModBusList.Name = "comboBoxModBusList";
             this.comboBoxModBusList.Size = new System.Drawing.Size(152, 25);
             this.comboBoxModBusList.TabIndex = 1;
@@ -85,7 +85,7 @@
             this.labelAddress.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.labelAddress.AutoSize = true;
             this.labelAddress.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.labelAddress.Location = new System.Drawing.Point(26, 109);
+            this.labelAddress.Location = new System.Drawing.Point(25, 91);
             this.labelAddress.Name = "labelAddress";
             this.labelAddress.Size = new System.Drawing.Size(98, 18);
             this.labelAddress.TabIndex = 0;
@@ -95,7 +95,7 @@
             // 
             this.textBoxAddress.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxAddress.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxAddress.Location = new System.Drawing.Point(205, 105);
+            this.textBoxAddress.Location = new System.Drawing.Point(203, 87);
             this.textBoxAddress.Name = "textBoxAddress";
             this.textBoxAddress.Size = new System.Drawing.Size(152, 27);
             this.textBoxAddress.TabIndex = 2;
@@ -105,7 +105,7 @@
             this.button1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.tableLayoutPanel1.SetColumnSpan(this.button1, 2);
             this.button1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.button1.Location = new System.Drawing.Point(160, 179);
+            this.button1.Location = new System.Drawing.Point(158, 150);
             this.button1.Name = "button1";
             this.button1.Size = new System.Drawing.Size(93, 36);
             this.button1.TabIndex = 3;
@@ -126,6 +126,7 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "Modbus软触发信号";
             this.Load += new System.EventHandler(this.ParamFormModbusSoftTrigger_Load);
+            this.Controls.SetChildIndex(this.tableLayoutPanel1, 0);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();
             this.ResumeLayout(false);

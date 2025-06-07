@@ -9,7 +9,7 @@ using System.Linq;
 
 namespace TDJS_Vision.Forms.ModbusAdd
 {
-    internal partial class FrmModbusListView : Form
+    internal partial class FrmModbusListView : FormBase
     {
         /// <summary>
         /// 添加Modbus时通过快捷键保存方案的事件

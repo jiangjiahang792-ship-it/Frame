@@ -5,10 +5,11 @@ using System.Drawing;
 using System.Windows.Forms;
 using Size = OpenCvSharp.Size;
 using Point = OpenCvSharp.Point;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 {
-    internal partial class NodeParamFormMatchTemplate : Form, INodeParamForm
+    internal partial class NodeParamFormMatchTemplate : FormBase, INodeParamForm
     {
         private Process process;//所属流程
         private NodeBase node;//所属节点
@@ -116,7 +117,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"模版匹配异常：原因：{ex.Message}");
+                MessageBoxTD.Show($"模版匹配异常：原因：{ex.Message}");
             }
         }
 
@@ -273,7 +274,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"参数设置异常，原因：{ex.Message}");
+                MessageBoxTD.Show($"参数设置异常，原因：{ex.Message}");
                 return false;
             }
             return true;
@@ -317,7 +318,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             catch (Exception)
             {
                 if (textBox2.Text.Length != 0)
-                    MessageBox.Show("参数不合法！");
+                    MessageBoxTD.Show("参数不合法！");
             }
         }
 
@@ -335,7 +336,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             catch (Exception)
             {
                 if (textBox3.Text.Length != 0)
-                    MessageBox.Show("参数不合法！");
+                    MessageBoxTD.Show("参数不合法！");
             }
         }
     }

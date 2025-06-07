@@ -7,7 +7,7 @@ using System.Windows.Forms;
 
 namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
 {
-    internal partial class NodeParamFormImageRotate : Form, INodeParamForm
+    internal partial class NodeParamFormImageRotate : FormBase, INodeParamForm
     {
         private Mat originalImage;
         private float angle;

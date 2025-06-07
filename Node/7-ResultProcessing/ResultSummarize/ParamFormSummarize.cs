@@ -4,7 +4,7 @@ using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ResultSummarize
 {
-    internal partial class ParamFormSummarize : Form, INodeParamForm
+    internal partial class ParamFormSummarize : FormBase, INodeParamForm
     {
         public ParamFormSummarize()
         {

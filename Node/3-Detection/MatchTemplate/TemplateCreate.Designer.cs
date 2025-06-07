@@ -29,8 +29,8 @@
         private void InitializeComponent()
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(TemplateCreate));
-            this.imageROIEditControl1 = new TDJS_Vision.Forms.ShapeDraw.ImageROIEditControl();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
+            this.imageROIEditControl1 = new TDJS_Vision.Forms.ShapeDraw.ImageROIEditControl();
             this.nodeSubscription1 = new TDJS_Vision.Node.NodeSubscription();
             this.button2 = new System.Windows.Forms.Button();
             this.textBox1 = new System.Windows.Forms.TextBox();
@@ -41,17 +41,6 @@
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
             this.tableLayoutPanel1.SuspendLayout();
             this.SuspendLayout();
-            // 
-            // imageROIEditControl1
-            // 
-            this.tableLayoutPanel1.SetColumnSpan(this.imageROIEditControl1, 3);
-            this.imageROIEditControl1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.imageROIEditControl1.Location = new System.Drawing.Point(4, 119);
-            this.imageROIEditControl1.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            this.imageROIEditControl1.Name = "imageROIEditControl1";
-            this.tableLayoutPanel1.SetRowSpan(this.imageROIEditControl1, 2);
-            this.imageROIEditControl1.Size = new System.Drawing.Size(814, 463);
-            this.imageROIEditControl1.TabIndex = 0;
             // 
             // tableLayoutPanel1
             // 
@@ -67,7 +56,7 @@
             this.tableLayoutPanel1.Controls.Add(this.checkBox1, 2, 0);
             this.tableLayoutPanel1.Controls.Add(this.button3, 2, 1);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
+            this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 32);
             this.tableLayoutPanel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
             this.tableLayoutPanel1.RowCount = 4;
@@ -75,14 +64,25 @@
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 10F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 40F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 40F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(822, 585);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(818, 551);
             this.tableLayoutPanel1.TabIndex = 1;
+            // 
+            // imageROIEditControl1
+            // 
+            this.tableLayoutPanel1.SetColumnSpan(this.imageROIEditControl1, 3);
+            this.imageROIEditControl1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.imageROIEditControl1.Location = new System.Drawing.Point(4, 113);
+            this.imageROIEditControl1.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            this.imageROIEditControl1.Name = "imageROIEditControl1";
+            this.tableLayoutPanel1.SetRowSpan(this.imageROIEditControl1, 2);
+            this.imageROIEditControl1.Size = new System.Drawing.Size(810, 435);
+            this.imageROIEditControl1.TabIndex = 0;
             // 
             // nodeSubscription1
             // 
             this.nodeSubscription1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.nodeSubscription1.Enabled = false;
-            this.nodeSubscription1.Location = new System.Drawing.Point(29, 60);
+            this.nodeSubscription1.Location = new System.Drawing.Point(28, 57);
             this.nodeSubscription1.Margin = new System.Windows.Forms.Padding(4, 2, 4, 2);
             this.nodeSubscription1.MinimumSize = new System.Drawing.Size(283, 58);
             this.nodeSubscription1.Name = "nodeSubscription1";
@@ -93,7 +93,7 @@
             // 
             this.button2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.button2.Enabled = false;
-            this.button2.Location = new System.Drawing.Point(496, 69);
+            this.button2.Location = new System.Drawing.Point(494, 64);
             this.button2.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.button2.Name = "button2";
             this.button2.Size = new System.Drawing.Size(76, 36);
@@ -105,7 +105,7 @@
             // textBox1
             // 
             this.textBox1.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.textBox1.Location = new System.Drawing.Point(33, 16);
+            this.textBox1.Location = new System.Drawing.Point(32, 15);
             this.textBox1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.textBox1.Name = "textBox1";
             this.textBox1.Size = new System.Drawing.Size(373, 25);
@@ -114,7 +114,7 @@
             // button1
             // 
             this.button1.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.button1.Location = new System.Drawing.Point(496, 10);
+            this.button1.Location = new System.Drawing.Point(494, 8);
             this.button1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.button1.Name = "button1";
             this.button1.Size = new System.Drawing.Size(76, 38);
@@ -127,8 +127,8 @@
             // 
             this.checkBox1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.checkBox1.AutoSize = true;
-            this.checkBox1.Location = new System.Drawing.Point(666, 19);
-            this.checkBox1.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.checkBox1.Location = new System.Drawing.Point(663, 18);
+            this.checkBox1.Margin = new System.Windows.Forms.Padding(2);
             this.checkBox1.Name = "checkBox1";
             this.checkBox1.Size = new System.Drawing.Size(119, 19);
             this.checkBox1.TabIndex = 4;
@@ -139,7 +139,7 @@
             // button3
             // 
             this.button3.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.button3.Location = new System.Drawing.Point(680, 67);
+            this.button3.Location = new System.Drawing.Point(676, 63);
             this.button3.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.button3.Name = "button3";
             this.button3.Size = new System.Drawing.Size(92, 39);
@@ -171,6 +171,7 @@
             this.Name = "TemplateCreate";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "创建模版";
+            this.Controls.SetChildIndex(this.tableLayoutPanel1, 0);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();
             this.ResumeLayout(false);

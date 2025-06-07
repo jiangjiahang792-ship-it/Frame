@@ -3,7 +3,7 @@ using System.Windows.Forms;
 
 namespace TDJS_Vision.Forms.ImageViewer
 {
-    public partial class CanvasSet : Form
+    internal partial class CanvasSet : FormBase
     {
         /// <summary>
         /// 画布数量改变事件

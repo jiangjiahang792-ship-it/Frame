@@ -5,7 +5,7 @@ using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
 {
-    internal partial class NodeParamFormDataShow : Form, INodeParamForm
+    internal partial class NodeParamFormDataShow : FormBase, INodeParamForm
     {
         public NodeParamFormDataShow()
         {

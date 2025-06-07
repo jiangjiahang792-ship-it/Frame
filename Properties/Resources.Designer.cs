@@ -193,29 +193,9 @@ namespace TDJS_Vision.Properties {
         /// <summary>
         ///   查找 System.Drawing.Bitmap 类型的本地化资源。
         /// </summary>
-        internal static System.Drawing.Bitmap 注液孔检测算子示例 {
-            get {
-                object obj = ResourceManager.GetObject("注液孔检测算子示例", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   查找 System.Drawing.Bitmap 类型的本地化资源。
-        /// </summary>
         internal static System.Drawing.Bitmap 流程删除 {
             get {
                 object obj = ResourceManager.GetObject("流程删除", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   查找 System.Drawing.Bitmap 类型的本地化资源。
-        /// </summary>
-        internal static System.Drawing.Bitmap 流程添加 {
-            get {
-                object obj = ResourceManager.GetObject("流程添加", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }

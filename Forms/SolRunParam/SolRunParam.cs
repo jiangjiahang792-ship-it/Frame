@@ -7,6 +7,7 @@ using Logger;
 using Newtonsoft.Json;
 using TDJS_Vision.Device.Camera;
 using TDJS_Vision.Forms.ImageViewer;
+using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
@@ -215,7 +216,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                         {
                             if (string.IsNullOrEmpty(folderBrowserDialog1.SelectedPath))
                             {
-                                MessageBox.Show(this, "文件夹路径不能为空", "提示");
+                                MessageBoxTD.Show("文件夹路径不能为空");
                                 return;
                             }
                             // 只获取扩展名为 .bmp 的文件
@@ -234,7 +235,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                             for (int i = 0; i < files.Length; i++)
                             {
                                 process.Run(false);
-                                MessageBox.Show($"图像{files[NodeImageSource.LastIndex]}检测完毕！");
+                                MessageBoxTD.Show($"图像{files[NodeImageSource.LastIndex]}检测完毕！");
                             }
                             //恢复原来的图像路径
                             nodeParam.ImagePaths = imgFiles;
@@ -260,11 +261,11 @@ namespace TDJS_Vision.Forms.SolRunParam
             {
                 SaveConfigs();
 
-                MessageBox.Show("当前参数已成功保存！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBoxTD.Show("当前参数已成功保存！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception)
             {
-                MessageBox.Show("参数保存失败，请检查参数是否设置无误！", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBoxTD.Show("参数保存失败，请检查参数是否设置无误！", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
         public void SaveConfigs()

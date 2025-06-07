@@ -32,7 +32,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FormNewProcessWizard));
-            gCursorLib.TextShadower textShadower1 = new gCursorLib.TextShadower();
+            gCursorLib.TextShadower textShadower4 = new gCursorLib.TextShadower();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.buttonRemove = new System.Windows.Forms.Button();
             this.buttonAdd = new System.Windows.Forms.Button();
@@ -51,30 +51,30 @@ namespace TDJS_Vision.Forms.ProcessNew
             // tableLayoutPanel1
             // 
             this.tableLayoutPanel1.ColumnCount = 3;
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 35F));
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 45F));
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 20F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle());
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle());
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 100F));
             this.tableLayoutPanel1.Controls.Add(this.buttonRemove, 2, 1);
             this.tableLayoutPanel1.Controls.Add(this.buttonAdd, 2, 0);
             this.tableLayoutPanel1.Controls.Add(this.tabControl1, 1, 0);
             this.tableLayoutPanel1.Controls.Add(this.treeView1, 0, 1);
             this.tableLayoutPanel1.Controls.Add(this.label1, 0, 0);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
+            this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 32);
             this.tableLayoutPanel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
             this.tableLayoutPanel1.RowCount = 3;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 10F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 10F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 80F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(921, 651);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(880, 658);
             this.tableLayoutPanel1.TabIndex = 0;
             // 
             // buttonRemove
             // 
             this.buttonRemove.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonRemove.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.buttonRemove.Location = new System.Drawing.Point(776, 75);
+            this.buttonRemove.Location = new System.Drawing.Point(739, 75);
             this.buttonRemove.Margin = new System.Windows.Forms.Padding(4);
             this.buttonRemove.Name = "buttonRemove";
             this.buttonRemove.Size = new System.Drawing.Size(105, 44);
@@ -87,7 +87,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             // 
             this.buttonAdd.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonAdd.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.buttonAdd.Location = new System.Drawing.Point(778, 10);
+            this.buttonAdd.Location = new System.Drawing.Point(741, 10);
             this.buttonAdd.Margin = new System.Windows.Forms.Padding(4);
             this.buttonAdd.Name = "buttonAdd";
             this.buttonAdd.Size = new System.Drawing.Size(101, 44);
@@ -99,28 +99,28 @@ namespace TDJS_Vision.Forms.ProcessNew
             // tabControl1
             // 
             this.tabControl1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tabControl1.Location = new System.Drawing.Point(325, 2);
+            this.tabControl1.Location = new System.Drawing.Point(311, 2);
             this.tabControl1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tabControl1.Name = "tabControl1";
             this.tableLayoutPanel1.SetRowSpan(this.tabControl1, 3);
             this.tabControl1.SelectedIndex = 0;
-            this.tabControl1.Size = new System.Drawing.Size(408, 647);
+            this.tabControl1.Size = new System.Drawing.Size(390, 654);
             this.tabControl1.TabIndex = 1;
             // 
             // treeView1
             // 
             this.treeView1.AllowDrop = true;
-            this.treeView1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.treeView1.ContextMenuStrip = this.contextMenuStrip1;
+            this.treeView1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.treeView1.Font = new System.Drawing.Font("微软雅黑", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.treeView1.ImageIndex = 0;
             this.treeView1.ImageList = this.imageList1;
-            this.treeView1.Location = new System.Drawing.Point(3, 68);
+            this.treeView1.Location = new System.Drawing.Point(3, 67);
             this.treeView1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.treeView1.Name = "treeView1";
             this.tableLayoutPanel1.SetRowSpan(this.treeView1, 2);
             this.treeView1.SelectedImageIndex = 0;
-            this.treeView1.Size = new System.Drawing.Size(315, 580);
+            this.treeView1.Size = new System.Drawing.Size(302, 589);
             this.treeView1.TabIndex = 3;
             this.treeView1.MouseDown += new System.Windows.Forms.MouseEventHandler(this.treeView1_MouseDown);
             this.treeView1.MouseMove += new System.Windows.Forms.MouseEventHandler(this.treeView1_MouseMove);
@@ -152,54 +152,52 @@ namespace TDJS_Vision.Forms.ProcessNew
             // 
             this.imageList1.ImageStream = ((System.Windows.Forms.ImageListStreamer)(resources.GetObject("imageList1.ImageStream")));
             this.imageList1.TransparentColor = System.Drawing.Color.Transparent;
-            this.imageList1.Images.SetKeyName(0, "工具箱.png");
-            this.imageList1.Images.SetKeyName(1, "图像采集");
-            this.imageList1.Images.SetKeyName(2, "图像源");
-            this.imageList1.Images.SetKeyName(3, "图像显示");
-            this.imageList1.Images.SetKeyName(4, "图像处理");
-            this.imageList1.Images.SetKeyName(5, "图像裁剪");
-            this.imageList1.Images.SetKeyName(6, "图像旋转");
-            this.imageList1.Images.SetKeyName(7, "图像分割");
-            this.imageList1.Images.SetKeyName(8, "检测识别");
-            this.imageList1.Images.SetKeyName(9, "AI检测");
-            this.imageList1.Images.SetKeyName(10, "检测直线");
-            this.imageList1.Images.SetKeyName(11, "检测圆");
-            this.imageList1.Images.SetKeyName(12, "二维码识别");
-            this.imageList1.Images.SetKeyName(13, "模版匹配");
-            this.imageList1.Images.SetKeyName(14, "测量工具");
-            this.imageList1.Images.SetKeyName(15, "通信工具");
-            this.imageList1.Images.SetKeyName(16, "打开光源");
-            this.imageList1.Images.SetKeyName(17, "相机IO");
-            this.imageList1.Images.SetKeyName(18, "PLC读");
-            this.imageList1.Images.SetKeyName(19, "PLC写");
-            this.imageList1.Images.SetKeyName(20, "PLC软触发");
-            this.imageList1.Images.SetKeyName(21, "PLC发送结果");
-            this.imageList1.Images.SetKeyName(22, "客户端请求");
-            this.imageList1.Images.SetKeyName(23, "服务器响应");
-            this.imageList1.Images.SetKeyName(24, "Modbus读取");
-            this.imageList1.Images.SetKeyName(25, "Modbus写入");
-            this.imageList1.Images.SetKeyName(26, "Modbus软触发");
-            this.imageList1.Images.SetKeyName(27, "Modbus发送AI结果");
-            this.imageList1.Images.SetKeyName(28, "逻辑工具");
-            this.imageList1.Images.SetKeyName(29, "共享变量");
-            this.imageList1.Images.SetKeyName(30, "延迟执行");
-            this.imageList1.Images.SetKeyName(31, "结果处理");
-            this.imageList1.Images.SetKeyName(32, "AI结果绘制");
-            this.imageList1.Images.SetKeyName(33, "保存图片");
-            this.imageList1.Images.SetKeyName(34, "检测结果显示");
-            this.imageList1.Images.SetKeyName(35, "结果汇总");
-            this.imageList1.Images.SetKeyName(36, "图片删除");
-            this.imageList1.Images.SetKeyName(37, "导出检测表格");
+            this.imageList1.Images.SetKeyName(0, "图像采集");
+            this.imageList1.Images.SetKeyName(1, "图像源");
+            this.imageList1.Images.SetKeyName(2, "图像显示");
+            this.imageList1.Images.SetKeyName(3, "图像处理");
+            this.imageList1.Images.SetKeyName(4, "图像裁剪");
+            this.imageList1.Images.SetKeyName(5, "图像旋转");
+            this.imageList1.Images.SetKeyName(6, "图像分割");
+            this.imageList1.Images.SetKeyName(7, "检测识别");
+            this.imageList1.Images.SetKeyName(8, "AI检测");
+            this.imageList1.Images.SetKeyName(9, "检测直线");
+            this.imageList1.Images.SetKeyName(10, "检测圆");
+            this.imageList1.Images.SetKeyName(11, "二维码识别");
+            this.imageList1.Images.SetKeyName(12, "模版匹配");
+            this.imageList1.Images.SetKeyName(13, "测量工具");
+            this.imageList1.Images.SetKeyName(14, "通信工具");
+            this.imageList1.Images.SetKeyName(15, "打开光源");
+            this.imageList1.Images.SetKeyName(16, "相机IO");
+            this.imageList1.Images.SetKeyName(17, "PLC读");
+            this.imageList1.Images.SetKeyName(18, "PLC写");
+            this.imageList1.Images.SetKeyName(19, "PLC软触发");
+            this.imageList1.Images.SetKeyName(20, "PLC发送结果");
+            this.imageList1.Images.SetKeyName(21, "客户端请求");
+            this.imageList1.Images.SetKeyName(22, "服务器响应");
+            this.imageList1.Images.SetKeyName(23, "Modbus读取");
+            this.imageList1.Images.SetKeyName(24, "Modbus写入");
+            this.imageList1.Images.SetKeyName(25, "Modbus软触发");
+            this.imageList1.Images.SetKeyName(26, "Modbus发送AI结果");
+            this.imageList1.Images.SetKeyName(27, "逻辑工具");
+            this.imageList1.Images.SetKeyName(28, "共享变量");
+            this.imageList1.Images.SetKeyName(29, "延迟执行");
+            this.imageList1.Images.SetKeyName(30, "结果处理");
+            this.imageList1.Images.SetKeyName(31, "AI结果绘制");
+            this.imageList1.Images.SetKeyName(32, "保存图片");
+            this.imageList1.Images.SetKeyName(33, "检测结果显示");
+            this.imageList1.Images.SetKeyName(34, "结果汇总");
+            this.imageList1.Images.SetKeyName(35, "图片删除");
+            this.imageList1.Images.SetKeyName(36, "导出检测表格");
             // 
             // label1
             // 
             this.label1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label1.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, ((System.Drawing.FontStyle)((System.Drawing.FontStyle.Italic | System.Drawing.FontStyle.Underline))), System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label1.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(192)))), ((int)(((byte)(192)))));
+            this.label1.ForeColor = System.Drawing.Color.MediumTurquoise;
+            this.label1.Image = global::TDJS_Vision.Properties.Resources.工具箱;
             this.label1.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.label1.ImageIndex = 0;
-            this.label1.ImageList = this.imageList1;
-            this.label1.Location = new System.Drawing.Point(97, 12);
+            this.label1.Location = new System.Drawing.Point(90, 12);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(128, 40);
             this.label1.TabIndex = 4;
@@ -235,16 +233,16 @@ namespace TDJS_Vision.Forms.ProcessNew
             this.gCursor1.gTextMultiline = false;
             this.gCursor1.gTextShadow = false;
             this.gCursor1.gTextShadowColor = System.Drawing.Color.Black;
-            textShadower1.Alignment = System.Drawing.ContentAlignment.MiddleCenter;
-            textShadower1.Blur = 2F;
-            textShadower1.Font = new System.Drawing.Font("Arial", 7F, System.Drawing.FontStyle.Bold);
-            textShadower1.Offset = ((System.Drawing.PointF)(resources.GetObject("textShadower1.Offset")));
-            textShadower1.Padding = new System.Windows.Forms.Padding(0);
-            textShadower1.ShadowColor = System.Drawing.Color.Black;
-            textShadower1.ShadowTransp = 128;
-            textShadower1.Text = "Drop Shadow";
-            textShadower1.TextColor = System.Drawing.Color.Blue;
-            this.gCursor1.gTextShadower = textShadower1;
+            textShadower4.Alignment = System.Drawing.ContentAlignment.MiddleCenter;
+            textShadower4.Blur = 2F;
+            textShadower4.Font = new System.Drawing.Font("Arial", 7F, System.Drawing.FontStyle.Bold);
+            textShadower4.Offset = ((System.Drawing.PointF)(resources.GetObject("textShadower4.Offset")));
+            textShadower4.Padding = new System.Windows.Forms.Padding(0);
+            textShadower4.ShadowColor = System.Drawing.Color.Black;
+            textShadower4.ShadowTransp = 128;
+            textShadower4.Text = "Drop Shadow";
+            textShadower4.TextColor = System.Drawing.Color.Blue;
+            this.gCursor1.gTextShadower = textShadower4;
             this.gCursor1.gTTransp = 0;
             this.gCursor1.gType = gCursorLib.gCursor.eType.Text;
             // 
@@ -252,9 +250,8 @@ namespace TDJS_Vision.Forms.ProcessNew
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(921, 651);
+            this.ClientSize = new System.Drawing.Size(884, 692);
             this.Controls.Add(this.tableLayoutPanel1);
-            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.MaximizeBox = false;
@@ -263,6 +260,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "流程编辑";
             this.GiveFeedback += new System.Windows.Forms.GiveFeedbackEventHandler(this.Form1_GiveFeedback);
+            this.Controls.SetChildIndex(this.tableLayoutPanel1, 0);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.contextMenuStrip1.ResumeLayout(false);
             this.ResumeLayout(false);

@@ -9,10 +9,11 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Device.Camera;
 using TDJS_Vision.Forms.SolRunParam;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 {
-    internal partial class ParamFormImageSource : Form, INodeParamForm
+    internal partial class ParamFormImageSource : FormBase, INodeParamForm
     {
         /// <summary>
         /// 硬触发完成事件
@@ -149,7 +150,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             {
                 if (string.IsNullOrEmpty(openFileDialog1.FileName))
                 {
-                    MessageBox.Show(this, "文件夹路径不能为空", "提示");
+                    MessageBoxTD.Show("文件夹路径不能为空");
                     return;
                 }
                 textBoxImgPath.Text = openFileDialog1.FileName;
@@ -166,7 +167,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             {
                 if (string.IsNullOrEmpty(folderBrowserDialog1.SelectedPath))
                 {
-                    MessageBox.Show(this, "文件夹路径不能为空", "提示");
+                    MessageBoxTD.Show("文件夹路径不能为空");
                     return;
                 }
                 textBoxImgPath.Text = folderBrowserDialog1.SelectedPath;
@@ -314,7 +315,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             {
                 if (string.IsNullOrEmpty(textBoxImgPath.Text))
                 {
-                    MessageBox.Show("未选择图片");
+                    MessageBoxTD.Show("未选择图片");
                     LogHelper.AddLog(MsgLevel.Fatal, "未选择图片", true);
                     return false;
                 }
@@ -346,7 +347,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 float gain;
                 if (comboBoxChoiceCamera.Text == "[未设置]" || comboBoxChoiceCamera.Text.IsNullOrEmpty())
                 {
-                    MessageBox.Show("相机为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBoxTD.Show("相机为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
                 }
 

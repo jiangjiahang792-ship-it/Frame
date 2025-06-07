@@ -4,7 +4,7 @@ using System.Windows.Forms;
 
 namespace TDJS_Vision.Forms.ProcessNew
 {
-    internal partial class FormSetProcessLv : Form
+    internal partial class FormSetProcessLv : FormBase
     {
         private Process _process;
         public FormSetProcessLv(Process process)

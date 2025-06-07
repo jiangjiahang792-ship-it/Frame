@@ -30,7 +30,6 @@
         {
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.buttonSaveAllParam = new System.Windows.Forms.Button();
-            this.myDataGridViewForm1 = new TDJS_Vision.Forms.SolRunParam.MyDataGridViewForm();
             this.label1 = new System.Windows.Forms.Label();
             this.textBoxExposureTime = new System.Windows.Forms.TextBox();
             this.label3 = new System.Windows.Forms.Label();
@@ -48,6 +47,7 @@
             this.label6 = new System.Windows.Forms.Label();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
             this.folderBrowserDialog1 = new System.Windows.Forms.FolderBrowserDialog();
+            this.myDataGridViewForm1 = new TDJS_Vision.Forms.SolRunParam.MyDataGridViewForm();
             this.tableLayoutPanel1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -91,10 +91,11 @@
             // 
             // buttonSaveAllParam
             // 
-            this.buttonSaveAllParam.BackColor = System.Drawing.SystemColors.ActiveCaption;
+            this.buttonSaveAllParam.BackColor = System.Drawing.SystemColors.Control;
             this.buttonSaveAllParam.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.buttonSaveAllParam.FlatStyle = System.Windows.Forms.FlatStyle.System;
             this.buttonSaveAllParam.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonSaveAllParam.ForeColor = System.Drawing.SystemColors.Desktop;
+            this.buttonSaveAllParam.ForeColor = System.Drawing.SystemColors.ControlText;
             this.buttonSaveAllParam.Location = new System.Drawing.Point(885, 84);
             this.buttonSaveAllParam.Margin = new System.Windows.Forms.Padding(0);
             this.buttonSaveAllParam.Name = "buttonSaveAllParam";
@@ -103,20 +104,6 @@
             this.buttonSaveAllParam.Text = "保存设置";
             this.buttonSaveAllParam.UseVisualStyleBackColor = false;
             this.buttonSaveAllParam.Click += new System.EventHandler(this.buttonSaveAllParam_Click);
-            // 
-            // myDataGridViewForm1
-            // 
-            this.myDataGridViewForm1.AutoScroll = true;
-            this.myDataGridViewForm1.AutoSize = true;
-            this.tableLayoutPanel1.SetColumnSpan(this.myDataGridViewForm1, 6);
-            this.myDataGridViewForm1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.myDataGridViewForm1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.myDataGridViewForm1.Location = new System.Drawing.Point(3, 130);
-            this.myDataGridViewForm1.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
-            this.myDataGridViewForm1.Name = "myDataGridViewForm1";
-            this.myDataGridViewForm1.Size = new System.Drawing.Size(1057, 288);
-            this.myDataGridViewForm1.TabIndex = 7;
-            this.myDataGridViewForm1.Leave += new System.EventHandler(this.myDataGridViewForm1_Leave);
             // 
             // label1
             // 
@@ -223,18 +210,22 @@
             // 
             // buttonOnce
             // 
+            this.buttonOnce.BackColor = System.Drawing.SystemColors.Control;
             this.buttonOnce.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.buttonOnce.FlatStyle = System.Windows.Forms.FlatStyle.System;
             this.buttonOnce.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.buttonOnce.ForeColor = System.Drawing.SystemColors.ControlText;
             this.buttonOnce.Location = new System.Drawing.Point(534, 45);
             this.buttonOnce.Name = "buttonOnce";
             this.buttonOnce.Size = new System.Drawing.Size(171, 36);
             this.buttonOnce.TabIndex = 0;
             this.buttonOnce.Text = "单次采图";
-            this.buttonOnce.UseVisualStyleBackColor = true;
+            this.buttonOnce.UseVisualStyleBackColor = false;
             this.buttonOnce.Click += new System.EventHandler(this.buttonOnce_Click);
             // 
             // uiSwitchContinue
             // 
+            this.uiSwitchContinue.ActiveColor = System.Drawing.Color.MediumTurquoise;
             this.uiSwitchContinue.Dock = System.Windows.Forms.DockStyle.Fill;
             this.uiSwitchContinue.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.uiSwitchContinue.Location = new System.Drawing.Point(561, 6);
@@ -248,30 +239,37 @@
             // 
             // buttonCatalogueImg
             // 
+            this.buttonCatalogueImg.BackColor = System.Drawing.SystemColors.Control;
             this.buttonCatalogueImg.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.buttonCatalogueImg.FlatStyle = System.Windows.Forms.FlatStyle.System;
             this.buttonCatalogueImg.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.buttonCatalogueImg.ForeColor = System.Drawing.SystemColors.ControlText;
             this.buttonCatalogueImg.Location = new System.Drawing.Point(888, 45);
             this.buttonCatalogueImg.Name = "buttonCatalogueImg";
             this.buttonCatalogueImg.Size = new System.Drawing.Size(172, 36);
             this.buttonCatalogueImg.TabIndex = 0;
             this.buttonCatalogueImg.Text = "多图测试";
-            this.buttonCatalogueImg.UseVisualStyleBackColor = true;
+            this.buttonCatalogueImg.UseVisualStyleBackColor = false;
             this.buttonCatalogueImg.Click += new System.EventHandler(this.buttonCatalogueImg_Click);
             // 
             // buttonSingleImg
             // 
+            this.buttonSingleImg.BackColor = System.Drawing.SystemColors.Control;
             this.buttonSingleImg.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.buttonSingleImg.FlatStyle = System.Windows.Forms.FlatStyle.System;
             this.buttonSingleImg.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.buttonSingleImg.ForeColor = System.Drawing.SystemColors.ControlText;
             this.buttonSingleImg.Location = new System.Drawing.Point(711, 45);
             this.buttonSingleImg.Name = "buttonSingleImg";
             this.buttonSingleImg.Size = new System.Drawing.Size(171, 36);
             this.buttonSingleImg.TabIndex = 0;
             this.buttonSingleImg.Text = "单图测试";
-            this.buttonSingleImg.UseVisualStyleBackColor = true;
+            this.buttonSingleImg.UseVisualStyleBackColor = false;
             this.buttonSingleImg.Click += new System.EventHandler(this.buttonSingleImg_Click);
             // 
             // uiSwitch_Learning
             // 
+            this.uiSwitch_Learning.ActiveColor = System.Drawing.Color.MediumTurquoise;
             this.uiSwitch_Learning.Dock = System.Windows.Forms.DockStyle.Fill;
             this.uiSwitch_Learning.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.uiSwitch_Learning.Location = new System.Drawing.Point(915, 6);
@@ -297,6 +295,20 @@
             // openFileDialog1
             // 
             this.openFileDialog1.FileName = "openFileDialog1";
+            // 
+            // myDataGridViewForm1
+            // 
+            this.myDataGridViewForm1.AutoScroll = true;
+            this.myDataGridViewForm1.AutoSize = true;
+            this.tableLayoutPanel1.SetColumnSpan(this.myDataGridViewForm1, 6);
+            this.myDataGridViewForm1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.myDataGridViewForm1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.myDataGridViewForm1.Location = new System.Drawing.Point(3, 130);
+            this.myDataGridViewForm1.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.myDataGridViewForm1.Name = "myDataGridViewForm1";
+            this.myDataGridViewForm1.Size = new System.Drawing.Size(1057, 288);
+            this.myDataGridViewForm1.TabIndex = 7;
+            this.myDataGridViewForm1.Leave += new System.EventHandler(this.myDataGridViewForm1_Leave);
             // 
             // SolRunParamControl
             // 

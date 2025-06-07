@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Windows.Forms;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Forms.ProcessNew
 {
-    internal partial class FormProcessRename : Form
+    internal partial class FormProcessRename : FormBase
     {
         Process process;
         public static event EventHandler<(string, string)> ProcessRenameChanged;
@@ -28,7 +29,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
             else
             {
-                MessageBox.Show("流程名称不能为空！");
+                MessageBoxTD.Show("流程名称不能为空！");
             }
         }
     }

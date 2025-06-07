@@ -45,12 +45,12 @@
             this.tableLayoutPanel1.Controls.Add(this.textBox1, 1, 0);
             this.tableLayoutPanel1.Controls.Add(this.button1, 0, 1);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
+            this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 32);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
             this.tableLayoutPanel1.RowCount = 2;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(396, 158);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(392, 124);
             this.tableLayoutPanel1.TabIndex = 0;
             // 
             // label1
@@ -58,7 +58,7 @@
             this.label1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label1.AutoSize = true;
             this.label1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label1.Location = new System.Drawing.Point(50, 30);
+            this.label1.Location = new System.Drawing.Point(49, 22);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(98, 18);
             this.label1.TabIndex = 0;
@@ -68,7 +68,7 @@
             // 
             this.textBox1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBox1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBox1.Location = new System.Drawing.Point(219, 25);
+            this.textBox1.Location = new System.Drawing.Point(216, 17);
             this.textBox1.Name = "textBox1";
             this.textBox1.Size = new System.Drawing.Size(155, 28);
             this.textBox1.TabIndex = 1;
@@ -77,7 +77,7 @@
             // 
             this.button1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.tableLayoutPanel1.SetColumnSpan(this.button1, 2);
-            this.button1.Location = new System.Drawing.Point(154, 99);
+            this.button1.Location = new System.Drawing.Point(152, 73);
             this.button1.Name = "button1";
             this.button1.Size = new System.Drawing.Size(87, 39);
             this.button1.TabIndex = 2;
@@ -97,6 +97,7 @@
             this.Name = "FormProcessRename";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "流程重命名";
+            this.Controls.SetChildIndex(this.tableLayoutPanel1, 0);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();
             this.ResumeLayout(false);

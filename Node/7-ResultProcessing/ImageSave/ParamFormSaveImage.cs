@@ -2,11 +2,12 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 {
-    internal partial class ParamFormImageSave : Form, INodeParamForm
+    internal partial class ParamFormImageSave : FormBase, INodeParamForm
     {
         /// <summary>
         /// 节点参数
@@ -138,13 +139,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         {
             if (string.IsNullOrEmpty(textBox1.Text))
             {
-                MessageBox.Show("未选择存图路径");
+                MessageBoxTD.Show("未选择存图路径");
                 LogHelper.AddLog(MsgLevel.Fatal, "未选择存图路径", true);
                 return;
             }
             if(Convert.ToUInt16(this.numericUpDown1.Value) > 100 && Convert.ToUInt16(this.numericUpDown1.Value) < 0)
             {
-                MessageBox.Show("压缩阈值范围不合法！");
+                MessageBoxTD.Show("压缩阈值范围不合法！");
                 LogHelper.AddLog(MsgLevel.Fatal, "压缩阈值范围不合法！", true);
                 return;
             }

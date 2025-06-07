@@ -5,7 +5,7 @@ using TDJS_Vision.Forms.ShapeDraw;
 
 namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
 {
-    internal partial class NodeParamFormImageCrop : Form, INodeParamForm
+    internal partial class NodeParamFormImageCrop : FormBase, INodeParamForm
     {
         private Process process;//所属流程
         private NodeBase node;//所属节点

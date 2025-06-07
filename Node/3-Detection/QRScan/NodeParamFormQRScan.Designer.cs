@@ -68,10 +68,10 @@
             this.panel1.Controls.Add(this.panel2);
             this.panel1.Controls.Add(this.tableLayoutPanel1);
             this.panel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.panel1.Location = new System.Drawing.Point(0, 0);
+            this.panel1.Location = new System.Drawing.Point(2, 32);
             this.panel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.panel1.Name = "panel1";
-            this.panel1.Size = new System.Drawing.Size(920, 597);
+            this.panel1.Size = new System.Drawing.Size(916, 563);
             this.panel1.TabIndex = 4;
             // 
             // panel2
@@ -82,7 +82,7 @@
             this.panel2.Location = new System.Drawing.Point(0, 371);
             this.panel2.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.panel2.Name = "panel2";
-            this.panel2.Size = new System.Drawing.Size(920, 226);
+            this.panel2.Size = new System.Drawing.Size(916, 192);
             this.panel2.TabIndex = 4;
             // 
             // tableLayoutPanel2
@@ -107,7 +107,7 @@
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
-            this.tableLayoutPanel2.Size = new System.Drawing.Size(454, 226);
+            this.tableLayoutPanel2.Size = new System.Drawing.Size(450, 192);
             this.tableLayoutPanel2.TabIndex = 3;
             this.tableLayoutPanel2.Visible = false;
             // 
@@ -115,7 +115,7 @@
             // 
             this.label1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(80, 20);
+            this.label1.Location = new System.Drawing.Point(79, 16);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(67, 15);
             this.label1.TabIndex = 0;
@@ -124,7 +124,7 @@
             // textBox3
             // 
             this.textBox3.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.textBox3.Location = new System.Drawing.Point(290, 184);
+            this.textBox3.Location = new System.Drawing.Point(287, 155);
             this.textBox3.Name = "textBox3";
             this.textBox3.Size = new System.Drawing.Size(100, 25);
             this.textBox3.TabIndex = 6;
@@ -135,7 +135,7 @@
             // 
             this.label4.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(12, 189);
+            this.label4.Location = new System.Drawing.Point(11, 160);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(202, 15);
             this.label4.TabIndex = 7;
@@ -145,7 +145,7 @@
             // 
             this.label2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(50, 76);
+            this.label2.Location = new System.Drawing.Point(49, 64);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(127, 15);
             this.label2.TabIndex = 4;
@@ -154,7 +154,7 @@
             // textBox2
             // 
             this.textBox2.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.textBox2.Location = new System.Drawing.Point(290, 71);
+            this.textBox2.Location = new System.Drawing.Point(287, 59);
             this.textBox2.Name = "textBox2";
             this.textBox2.Size = new System.Drawing.Size(100, 25);
             this.textBox2.TabIndex = 5;
@@ -167,7 +167,7 @@
             this.checkBox1.AutoSize = true;
             this.checkBox1.Checked = true;
             this.checkBox1.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.checkBox1.Location = new System.Drawing.Point(311, 130);
+            this.checkBox1.Location = new System.Drawing.Point(308, 110);
             this.checkBox1.Name = "checkBox1";
             this.checkBox1.Size = new System.Drawing.Size(59, 19);
             this.checkBox1.TabIndex = 3;
@@ -177,7 +177,7 @@
             // textBoxBlurSize
             // 
             this.textBoxBlurSize.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.textBoxBlurSize.Location = new System.Drawing.Point(296, 15);
+            this.textBoxBlurSize.Location = new System.Drawing.Point(293, 11);
             this.textBoxBlurSize.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.textBoxBlurSize.Name = "textBoxBlurSize";
             this.textBoxBlurSize.Size = new System.Drawing.Size(89, 25);
@@ -189,7 +189,7 @@
             // 
             this.label3.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(35, 132);
+            this.label3.Location = new System.Drawing.Point(34, 112);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(157, 15);
             this.label3.TabIndex = 2;
@@ -206,20 +206,20 @@
             this.tableLayoutPanel3.Controls.Add(this.buttonRun, 0, 2);
             this.tableLayoutPanel3.Controls.Add(this.buttonSave, 1, 2);
             this.tableLayoutPanel3.Dock = System.Windows.Forms.DockStyle.Right;
-            this.tableLayoutPanel3.Location = new System.Drawing.Point(454, 0);
+            this.tableLayoutPanel3.Location = new System.Drawing.Point(450, 0);
             this.tableLayoutPanel3.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tableLayoutPanel3.Name = "tableLayoutPanel3";
             this.tableLayoutPanel3.RowCount = 3;
             this.tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
             this.tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
             this.tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
-            this.tableLayoutPanel3.Size = new System.Drawing.Size(466, 226);
+            this.tableLayoutPanel3.Size = new System.Drawing.Size(466, 192);
             this.tableLayoutPanel3.TabIndex = 0;
             // 
             // button3
             // 
             this.button3.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.button3.Location = new System.Drawing.Point(297, 96);
+            this.button3.Location = new System.Drawing.Point(297, 79);
             this.button3.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.button3.Name = "button3";
             this.button3.Size = new System.Drawing.Size(104, 33);
@@ -232,7 +232,7 @@
             // 
             this.nodeSubscription1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.tableLayoutPanel3.SetColumnSpan(this.nodeSubscription1, 2);
-            this.nodeSubscription1.Location = new System.Drawing.Point(30, 12);
+            this.nodeSubscription1.Location = new System.Drawing.Point(30, 7);
             this.nodeSubscription1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.nodeSubscription1.MinimumSize = new System.Drawing.Size(231, 50);
             this.nodeSubscription1.Name = "nodeSubscription1";
@@ -243,7 +243,7 @@
             // 
             this.checkBoxMoreParams.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.checkBoxMoreParams.AutoSize = true;
-            this.checkBoxMoreParams.Location = new System.Drawing.Point(71, 103);
+            this.checkBoxMoreParams.Location = new System.Drawing.Point(71, 86);
             this.checkBoxMoreParams.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.checkBoxMoreParams.Name = "checkBoxMoreParams";
             this.checkBoxMoreParams.Size = new System.Drawing.Size(89, 19);
@@ -255,7 +255,7 @@
             // buttonRun
             // 
             this.buttonRun.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.buttonRun.Location = new System.Drawing.Point(85, 171);
+            this.buttonRun.Location = new System.Drawing.Point(85, 143);
             this.buttonRun.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.buttonRun.Name = "buttonRun";
             this.buttonRun.Size = new System.Drawing.Size(62, 33);
@@ -267,7 +267,7 @@
             // buttonSave
             // 
             this.buttonSave.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.buttonSave.Location = new System.Drawing.Point(318, 171);
+            this.buttonSave.Location = new System.Drawing.Point(318, 143);
             this.buttonSave.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.buttonSave.Name = "buttonSave";
             this.buttonSave.Size = new System.Drawing.Size(62, 33);
@@ -290,18 +290,18 @@
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
             this.tableLayoutPanel1.RowCount = 1;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(920, 371);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(916, 371);
             this.tableLayoutPanel1.TabIndex = 3;
             // 
             // groupBox1
             // 
             this.groupBox1.Controls.Add(this.pictureBoxCanny);
             this.groupBox1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.groupBox1.Location = new System.Drawing.Point(463, 2);
+            this.groupBox1.Location = new System.Drawing.Point(461, 2);
             this.groupBox1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.groupBox1.Name = "groupBox1";
             this.groupBox1.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.groupBox1.Size = new System.Drawing.Size(454, 367);
+            this.groupBox1.Size = new System.Drawing.Size(452, 367);
             this.groupBox1.TabIndex = 3;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "边缘检测图像";
@@ -313,7 +313,7 @@
             this.pictureBoxCanny.Location = new System.Drawing.Point(3, 20);
             this.pictureBoxCanny.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.pictureBoxCanny.Name = "pictureBoxCanny";
-            this.pictureBoxCanny.Size = new System.Drawing.Size(448, 345);
+            this.pictureBoxCanny.Size = new System.Drawing.Size(446, 345);
             this.pictureBoxCanny.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
             this.pictureBoxCanny.TabIndex = 2;
             this.pictureBoxCanny.TabStop = false;
@@ -326,7 +326,7 @@
             this.groupBox2.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.groupBox2.Name = "groupBox2";
             this.groupBox2.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.groupBox2.Size = new System.Drawing.Size(454, 367);
+            this.groupBox2.Size = new System.Drawing.Size(452, 367);
             this.groupBox2.TabIndex = 3;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "原图(右键绘制ROI)";
@@ -337,7 +337,7 @@
             this.imageROIEditControl1.Location = new System.Drawing.Point(3, 20);
             this.imageROIEditControl1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.imageROIEditControl1.Name = "imageROIEditControl1";
-            this.imageROIEditControl1.Size = new System.Drawing.Size(448, 345);
+            this.imageROIEditControl1.Size = new System.Drawing.Size(446, 345);
             this.imageROIEditControl1.TabIndex = 4;
             // 
             // toolTip1
@@ -356,6 +356,7 @@
             this.Name = "NodeParamFormQRScan";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "二维码识别";
+            this.Controls.SetChildIndex(this.panel1, 0);
             this.panel1.ResumeLayout(false);
             this.panel2.ResumeLayout(false);
             this.tableLayoutPanel2.ResumeLayout(false);

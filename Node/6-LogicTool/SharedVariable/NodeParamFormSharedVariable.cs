@@ -1,10 +1,11 @@
 ﻿using Sunny.UI;
 using System;
 using System.Windows.Forms;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
 {
-    internal partial class NodeParamFormSharedVariable : Form, INodeParamForm
+    internal partial class NodeParamFormSharedVariable : FormBase, INodeParamForm
     {
         // 前一个变量名称
         private string _preVariable = null;
@@ -116,7 +117,7 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
             }
             catch (Exception)
             {
-                MessageBox.Show("参数设置异常！", "异常", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+                MessageBoxTD.Show("参数设置异常！", "异常", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
                 return;
             }
             Hide();
@@ -193,8 +194,8 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
         /// <param name="e"></param>
         private void radioButton_CheckedChanged(object sender, EventArgs e)
         {
-            panel2.Enabled = radioButton1.Checked;
-            panel3.Enabled = radioButton2.Checked;
+            tableLayoutPanel2.Enabled = radioButton1.Checked;
+            tableLayoutPanel3.Enabled = radioButton2.Checked;
         }
 
         private void checkBox1_CheckedChanged(object sender, EventArgs e)

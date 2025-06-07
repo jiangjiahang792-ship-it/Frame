@@ -92,51 +92,6 @@ namespace TDJS_Vision
 
                 #endregion
 
-                #region 测试代码
-
-                // 测试反序列化后的设备是否可用
-                //foreach (var dev in SolConfig.Devices)
-                //{
-                //    if (dev is ICamera hik)
-                //    {
-                //        // 反序列化完必须调用CreateDevice才能还原相机对象
-                //        hik.CreateDevice();
-
-                //        Solution.Instance.CameraDevices[0] = hik;
-
-                //        hik.Open();
-
-                //        MessageBox.Show($"相机是否打开：{hik.IsOpen}\n 设备类型：{hik.DevType}\n SN：{hik.SN}\n 品牌：{hik.Brand}\n" +
-                //            $"设备名称：{hik.DevName}\n 用户自定义名称：{hik.UserDefinedName}");
-
-                //    }
-                //    else if(dev is ILight light)
-                //    {
-                //        light.CreateDevice();
-                //        MessageBox.Show($"光源是否打开：{light.IsOpen}\n 设备类型：{light.DevType}\n 品牌：{light.Brand}\n" +
-                //            $"设备名称：{light.DevName}\n 用户自定义名称：{light.UserDefinedName}");
-                //    }
-                //    else if(dev is IPlc plc)
-                //    {
-                //        plc.CreateDevice();
-                //        MessageBox.Show($"PLC是否连接：{plc.IsConnect}\n 设备类型：{plc.DevType}\n 品牌：{plc.Brand}\n" +
-                //            $"设备名称：{plc.DevName}\n 用户自定义名称：{plc.UserDefinedName}");
-                //    }
-                //}
-
-                // 打印反序列化节点结果
-                //foreach (var processConfig in SolConfig.ProcessInfos)
-                //{
-                //    string ss = $"流程名称：{processConfig.ProcessName} \n流程启用：{processConfig.Enable}\n";
-                //    foreach (var nodeInfo in processConfig.NodeInfos)
-                //    {
-                //        ss += $"\n节点参数：{nodeInfo.NodeParam}\n";
-                //    }
-                //    MessageBox.Show(ss);
-                //}
-
-                #endregion
-
                 Solution.Instance.SolVersion = SolConfig.SolVer;
                 Solution.Instance.SolFileName = SolConfig.SolName;
                 Solution.Instance.RunInterval = SolConfig.RunInterval;

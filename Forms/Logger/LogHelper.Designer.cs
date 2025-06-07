@@ -33,6 +33,7 @@ namespace Logger
             this.contextMenuStrip1 = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.btnClear = new System.Windows.Forms.ToolStripMenuItem();
             this.打开日志目录ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.仅记录异常日志ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.listBoxAll = new System.Windows.Forms.ListBox();
             this.tabControl1 = new System.Windows.Forms.TabControl();
             this.pageAll = new System.Windows.Forms.TabPage();
@@ -47,7 +48,6 @@ namespace Logger
             this.tabPageFatal = new System.Windows.Forms.TabPage();
             this.listBoxFatal = new System.Windows.Forms.ListBox();
             this.imageList1 = new System.Windows.Forms.ImageList(this.components);
-            this.仅记录异常日志ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.contextMenuStrip1.SuspendLayout();
             this.tabControl1.SuspendLayout();
             this.pageAll.SuspendLayout();
@@ -66,13 +66,13 @@ namespace Logger
             this.打开日志目录ToolStripMenuItem,
             this.仅记录异常日志ToolStripMenuItem});
             this.contextMenuStrip1.Name = "contextMenuStrip1";
-            this.contextMenuStrip1.Size = new System.Drawing.Size(211, 104);
+            this.contextMenuStrip1.Size = new System.Drawing.Size(184, 76);
             // 
             // btnClear
             // 
             this.btnClear.Font = new System.Drawing.Font("微软雅黑", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.btnClear.Name = "btnClear";
-            this.btnClear.Size = new System.Drawing.Size(210, 24);
+            this.btnClear.Size = new System.Drawing.Size(183, 24);
             this.btnClear.Text = "清空显示";
             this.btnClear.Click += new System.EventHandler(this.btnClear_Click);
             // 
@@ -80,13 +80,21 @@ namespace Logger
             // 
             this.打开日志目录ToolStripMenuItem.Font = new System.Drawing.Font("微软雅黑", 9F, System.Drawing.FontStyle.Bold);
             this.打开日志目录ToolStripMenuItem.Name = "打开日志目录ToolStripMenuItem";
-            this.打开日志目录ToolStripMenuItem.Size = new System.Drawing.Size(210, 24);
+            this.打开日志目录ToolStripMenuItem.Size = new System.Drawing.Size(183, 24);
             this.打开日志目录ToolStripMenuItem.Text = "打开日志目录";
             this.打开日志目录ToolStripMenuItem.Click += new System.EventHandler(this.打开日志目录ToolStripMenuItem_Click);
             // 
+            // 仅记录异常日志ToolStripMenuItem
+            // 
+            this.仅记录异常日志ToolStripMenuItem.Font = new System.Drawing.Font("微软雅黑", 9F, System.Drawing.FontStyle.Bold);
+            this.仅记录异常日志ToolStripMenuItem.Name = "仅记录异常日志ToolStripMenuItem";
+            this.仅记录异常日志ToolStripMenuItem.Size = new System.Drawing.Size(183, 24);
+            this.仅记录异常日志ToolStripMenuItem.Text = "仅记录异常日志";
+            this.仅记录异常日志ToolStripMenuItem.Click += new System.EventHandler(this.仅记录异常日志ToolStripMenuItem_Click);
+            // 
             // listBoxAll
             // 
-            this.listBoxAll.BackColor = System.Drawing.SystemColors.Window;
+            this.listBoxAll.BackColor = System.Drawing.SystemColors.Control;
             this.listBoxAll.ContextMenuStrip = this.contextMenuStrip1;
             this.listBoxAll.Dock = System.Windows.Forms.DockStyle.Fill;
             this.listBoxAll.DrawMode = System.Windows.Forms.DrawMode.OwnerDrawFixed;
@@ -99,7 +107,6 @@ namespace Logger
             this.listBoxAll.Size = new System.Drawing.Size(662, 310);
             this.listBoxAll.TabIndex = 0;
             this.listBoxAll.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.listBox1_DrawItem);
-            this.listBoxAll.DoubleClick += new System.EventHandler(this.listBox1_DoubleClick);
             // 
             // tabControl1
             // 
@@ -144,7 +151,7 @@ namespace Logger
             // 
             // listBoxInfo
             // 
-            this.listBoxInfo.BackColor = System.Drawing.SystemColors.Window;
+            this.listBoxInfo.BackColor = System.Drawing.SystemColors.Control;
             this.listBoxInfo.ContextMenuStrip = this.contextMenuStrip1;
             this.listBoxInfo.Dock = System.Windows.Forms.DockStyle.Fill;
             this.listBoxInfo.DrawMode = System.Windows.Forms.DrawMode.OwnerDrawFixed;
@@ -157,7 +164,6 @@ namespace Logger
             this.listBoxInfo.Size = new System.Drawing.Size(662, 310);
             this.listBoxInfo.TabIndex = 1;
             this.listBoxInfo.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.listBox1_DrawItem);
-            this.listBoxInfo.DoubleClick += new System.EventHandler(this.listBox1_DoubleClick);
             // 
             // padeDebug
             // 
@@ -172,7 +178,7 @@ namespace Logger
             // 
             // listBoxDebug
             // 
-            this.listBoxDebug.BackColor = System.Drawing.SystemColors.Window;
+            this.listBoxDebug.BackColor = System.Drawing.SystemColors.Control;
             this.listBoxDebug.ContextMenuStrip = this.contextMenuStrip1;
             this.listBoxDebug.Dock = System.Windows.Forms.DockStyle.Fill;
             this.listBoxDebug.DrawMode = System.Windows.Forms.DrawMode.OwnerDrawFixed;
@@ -185,7 +191,6 @@ namespace Logger
             this.listBoxDebug.Size = new System.Drawing.Size(668, 316);
             this.listBoxDebug.TabIndex = 1;
             this.listBoxDebug.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.listBox1_DrawItem);
-            this.listBoxDebug.DoubleClick += new System.EventHandler(this.listBox1_DoubleClick);
             // 
             // pageWarn
             // 
@@ -200,7 +205,7 @@ namespace Logger
             // 
             // listBoxWarn
             // 
-            this.listBoxWarn.BackColor = System.Drawing.SystemColors.Window;
+            this.listBoxWarn.BackColor = System.Drawing.SystemColors.Control;
             this.listBoxWarn.ContextMenuStrip = this.contextMenuStrip1;
             this.listBoxWarn.Dock = System.Windows.Forms.DockStyle.Fill;
             this.listBoxWarn.DrawMode = System.Windows.Forms.DrawMode.OwnerDrawFixed;
@@ -213,7 +218,6 @@ namespace Logger
             this.listBoxWarn.Size = new System.Drawing.Size(668, 316);
             this.listBoxWarn.TabIndex = 1;
             this.listBoxWarn.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.listBox1_DrawItem);
-            this.listBoxWarn.DoubleClick += new System.EventHandler(this.listBox1_DoubleClick);
             // 
             // pageExpection
             // 
@@ -228,7 +232,7 @@ namespace Logger
             // 
             // listBoxExpection
             // 
-            this.listBoxExpection.BackColor = System.Drawing.SystemColors.Window;
+            this.listBoxExpection.BackColor = System.Drawing.SystemColors.Control;
             this.listBoxExpection.ContextMenuStrip = this.contextMenuStrip1;
             this.listBoxExpection.Dock = System.Windows.Forms.DockStyle.Fill;
             this.listBoxExpection.DrawMode = System.Windows.Forms.DrawMode.OwnerDrawFixed;
@@ -241,7 +245,6 @@ namespace Logger
             this.listBoxExpection.Size = new System.Drawing.Size(668, 316);
             this.listBoxExpection.TabIndex = 2;
             this.listBoxExpection.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.listBox1_DrawItem);
-            this.listBoxExpection.DoubleClick += new System.EventHandler(this.listBox1_DoubleClick);
             // 
             // tabPageFatal
             // 
@@ -257,7 +260,7 @@ namespace Logger
             // 
             // listBoxFatal
             // 
-            this.listBoxFatal.BackColor = System.Drawing.SystemColors.Window;
+            this.listBoxFatal.BackColor = System.Drawing.SystemColors.Control;
             this.listBoxFatal.ContextMenuStrip = this.contextMenuStrip1;
             this.listBoxFatal.Dock = System.Windows.Forms.DockStyle.Fill;
             this.listBoxFatal.DrawMode = System.Windows.Forms.DrawMode.OwnerDrawFixed;
@@ -270,7 +273,6 @@ namespace Logger
             this.listBoxFatal.Size = new System.Drawing.Size(662, 310);
             this.listBoxFatal.TabIndex = 3;
             this.listBoxFatal.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.listBox1_DrawItem);
-            this.listBoxFatal.DoubleClick += new System.EventHandler(this.listBox1_DoubleClick);
             // 
             // imageList1
             // 
@@ -282,14 +284,6 @@ namespace Logger
             this.imageList1.Images.SetKeyName(3, "警告.png");
             this.imageList1.Images.SetKeyName(4, "致命.png");
             this.imageList1.Images.SetKeyName(5, "异常.png");
-            // 
-            // 仅记录异常日志ToolStripMenuItem
-            // 
-            this.仅记录异常日志ToolStripMenuItem.Font = new System.Drawing.Font("微软雅黑", 9F, System.Drawing.FontStyle.Bold);
-            this.仅记录异常日志ToolStripMenuItem.Name = "仅记录异常日志ToolStripMenuItem";
-            this.仅记录异常日志ToolStripMenuItem.Size = new System.Drawing.Size(210, 24);
-            this.仅记录异常日志ToolStripMenuItem.Text = "仅记录异常日志";
-            this.仅记录异常日志ToolStripMenuItem.Click += new System.EventHandler(this.仅记录异常日志ToolStripMenuItem_Click);
             // 
             // LogHelper
             // 

@@ -6,10 +6,11 @@ using System.Windows.Forms;
 using System.Linq;
 using Logger;
 using Point = OpenCvSharp.Point;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Node._3_Detection.FindLine
 {
-    internal partial class NodeParamFormFindLine : Form, INodeParamForm
+    internal partial class NodeParamFormFindLine : FormBase, INodeParamForm
     {
         private Process process;//所属流程
         private NodeBase node;//所属节点
@@ -145,7 +146,7 @@ namespace TDJS_Vision.Node._3_Detection.FindLine
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"检测异常：{ex.Message}");
+                MessageBoxTD.Show($"检测异常：{ex.Message}");
                 LogHelper.AddLog(MsgLevel.Exception, $"节点({node.ID}.{node.Name})检测异常，原因：{ex.Message}", true);
             }
         }
@@ -186,7 +187,7 @@ namespace TDJS_Vision.Node._3_Detection.FindLine
             }
             catch (Exception)
             {
-                MessageBox.Show("参数设置异常，请检查参数设置是否合理！");
+                MessageBoxTD.Show("参数设置异常，请检查参数设置是否合理！");
                 return false;
             }
             return true;

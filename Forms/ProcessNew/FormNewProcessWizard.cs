@@ -5,11 +5,12 @@ using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.TCPAdd;
+using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node;
 
 namespace TDJS_Vision.Forms.ProcessNew
 {
-    internal partial class FormNewProcessWizard : Form
+    internal partial class FormNewProcessWizard : FormBase
     {
         // 编辑流程时通过快捷键保存方案的事件
         public event EventHandler OnShotKeySavePressed;
@@ -220,7 +221,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             //{
             //    res += name + "\n";
             //}
-            //MessageBox.Show($"方案中流程名称：\n{res}");
+            //MessageBoxTD.Show($"方案中流程名称：\n{res}");
 
             #endregion
         }
@@ -234,7 +235,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             if(tabControl1.Controls.Count == 0)
                 return;
-            if(MessageBox.Show("删除当前流程无法找回，确定删除？", "警告", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No)
+            if(MessageBoxTD.Show("删除当前流程无法找回，确定删除？", "警告", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No)
                 return;
 
             TabPage tabPageToDelete = null;
@@ -261,14 +262,14 @@ namespace TDJS_Vision.Forms.ProcessNew
                 //{
                 //    res += name + "\n";
                 //}
-                //MessageBox.Show($"方案中流程名称：\n{res}");
+                //MessageBoxTD.Show($"方案中流程名称：\n{res}");
 
                 //string res = "";
                 //foreach (var node in Solution.Instance.Nodes)
                 //{
                 //    res += node.ID + "\n";
                 //}
-                //MessageBox.Show($"方案中节点：\n{res}");
+                //MessageBoxTD.Show($"方案中节点：\n{res}");
 
                 #endregion
             }

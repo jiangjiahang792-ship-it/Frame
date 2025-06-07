@@ -4,10 +4,11 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.ImageViewer;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 {
-    internal partial class ParamFormImageShow : Form, INodeParamForm
+    internal partial class ParamFormImageShow : FormBase, INodeParamForm
     {
         public ParamFormImageShow()
         {
@@ -64,13 +65,13 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         {
             if (nodeSubscription1.GetText1().IsNullOrEmpty())
             {
-                MessageBox.Show("未订阅任何结果！");
+                MessageBoxTD.Show("未订阅任何结果！");
                 LogHelper.AddLog(MsgLevel.Fatal, "未订阅任何结果！", true);
                 return;
             }
             if (WindowNameList.Text.IsNullOrEmpty())
             {
-                MessageBox.Show("图像窗口名称不能为空！");
+                MessageBoxTD.Show("图像窗口名称不能为空！");
                 LogHelper.AddLog(MsgLevel.Fatal, "图像窗口名称不能为空！", true);
                 return;
             }

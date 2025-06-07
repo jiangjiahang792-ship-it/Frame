@@ -54,8 +54,8 @@
             this.toolStrip1 = new System.Windows.Forms.ToolStrip();
             this.tsbt_SolNew = new System.Windows.Forms.ToolStripButton();
             this.tsbt_SolOpen = new System.Windows.Forms.ToolStripButton();
-            this.tsbt_SolSaveAs = new System.Windows.Forms.ToolStripButton();
             this.tsbt_SolSave = new System.Windows.Forms.ToolStripButton();
+            this.tsbt_SolSaveAs = new System.Windows.Forms.ToolStripButton();
             this.tsbt_ProcessManager = new System.Windows.Forms.ToolStripButton();
             this.tsbt_LightManager = new System.Windows.Forms.ToolStripButton();
             this.tsbt_CameraManager = new System.Windows.Forms.ToolStripButton();
@@ -72,14 +72,16 @@
             this.RightToolStripPanel = new System.Windows.Forms.ToolStripPanel();
             this.LeftToolStripPanel = new System.Windows.Forms.ToolStripPanel();
             this.ContentPanel = new System.Windows.Forms.ToolStripContentPanel();
-            this.vS2015DarkTheme1 = new WeifenLuo.WinFormsUI.Docking.VS2015DarkTheme();
+            this.tableLayoutPanel2 = new System.Windows.Forms.TableLayoutPanel();
             this.menuStrip1.SuspendLayout();
             this.toolStrip1.SuspendLayout();
+            this.tableLayoutPanel2.SuspendLayout();
             this.SuspendLayout();
             // 
             // menuStrip1
             // 
-            this.menuStrip1.BackColor = System.Drawing.SystemColors.ControlLightLight;
+            this.menuStrip1.BackColor = System.Drawing.SystemColors.Control;
+            this.menuStrip1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.menuStrip1.ImageScalingSize = new System.Drawing.Size(24, 24);
             this.menuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.文件ToolStripMenuItem,
@@ -90,12 +92,13 @@
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
             this.menuStrip1.Padding = new System.Windows.Forms.Padding(5, 2, 0, 2);
-            this.menuStrip1.Size = new System.Drawing.Size(1383, 32);
+            this.menuStrip1.Size = new System.Drawing.Size(1379, 32);
             this.menuStrip1.TabIndex = 0;
             this.menuStrip1.Text = "menuStrip1";
             // 
             // 文件ToolStripMenuItem
             // 
+            this.文件ToolStripMenuItem.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
             this.文件ToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.新建方案ToolStripMenuItem,
             this.打开方案ToolStripMenuItem,
@@ -155,7 +158,7 @@
             this.默认视图ToolStripMenuItem.CheckOnClick = true;
             this.默认视图ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.默认视图ToolStripMenuItem.Name = "默认视图ToolStripMenuItem";
-            this.默认视图ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
+            this.默认视图ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
             this.默认视图ToolStripMenuItem.Text = "默认视图";
             this.默认视图ToolStripMenuItem.Click += new System.EventHandler(this.默认视图ToolStripMenuItem_Click);
             // 
@@ -165,7 +168,7 @@
             this.图像显示ToolStripMenuItem.CheckOnClick = true;
             this.图像显示ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.图像显示ToolStripMenuItem.Name = "图像显示ToolStripMenuItem";
-            this.图像显示ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
+            this.图像显示ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
             this.图像显示ToolStripMenuItem.Text = "检测图像视图";
             this.图像显示ToolStripMenuItem.Click += new System.EventHandler(this.检测图像视图ToolStripMenuItem_Click);
             // 
@@ -175,7 +178,7 @@
             this.检测结果ToolStripMenuItem.CheckOnClick = true;
             this.检测结果ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.检测结果ToolStripMenuItem.Name = "检测结果ToolStripMenuItem";
-            this.检测结果ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
+            this.检测结果ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
             this.检测结果ToolStripMenuItem.Text = "检测结果视图";
             this.检测结果ToolStripMenuItem.Click += new System.EventHandler(this.检测结果视图ToolStripMenuItem_Click);
             // 
@@ -185,12 +188,13 @@
             this.运行日志ToolStripMenuItem.CheckOnClick = true;
             this.运行日志ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.运行日志ToolStripMenuItem.Name = "运行日志ToolStripMenuItem";
-            this.运行日志ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
+            this.运行日志ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
             this.运行日志ToolStripMenuItem.Text = "运行日志视图";
             this.运行日志ToolStripMenuItem.Click += new System.EventHandler(this.运行日志视图ToolStripMenuItem_Click);
             // 
             // 设置ToolStripMenuItem
             // 
+            this.设置ToolStripMenuItem.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
             this.设置ToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.画布设置ToolStripMenuItem,
             this.系统设置ToolStripMenuItem});
@@ -201,19 +205,20 @@
             // 画布设置ToolStripMenuItem
             // 
             this.画布设置ToolStripMenuItem.Name = "画布设置ToolStripMenuItem";
-            this.画布设置ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
+            this.画布设置ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
             this.画布设置ToolStripMenuItem.Text = "图像画布设置";
             this.画布设置ToolStripMenuItem.Click += new System.EventHandler(this.画布设置ToolStripMenuItem_Click);
             // 
             // 系统设置ToolStripMenuItem
             // 
             this.系统设置ToolStripMenuItem.Name = "系统设置ToolStripMenuItem";
-            this.系统设置ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
+            this.系统设置ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
             this.系统设置ToolStripMenuItem.Text = "系统设置";
             this.系统设置ToolStripMenuItem.Click += new System.EventHandler(this.系统设置ToolStripMenuItem_Click);
             // 
             // 帮助ToolStripMenuItem
             // 
+            this.帮助ToolStripMenuItem.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
             this.帮助ToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.使用教程ToolStripMenuItem,
             this.联系我们ToolStripMenuItem1,
@@ -225,20 +230,20 @@
             // 使用教程ToolStripMenuItem
             // 
             this.使用教程ToolStripMenuItem.Name = "使用教程ToolStripMenuItem";
-            this.使用教程ToolStripMenuItem.Size = new System.Drawing.Size(152, 26);
+            this.使用教程ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
             this.使用教程ToolStripMenuItem.Text = "使用教程";
             // 
             // 联系我们ToolStripMenuItem1
             // 
             this.联系我们ToolStripMenuItem1.Name = "联系我们ToolStripMenuItem1";
-            this.联系我们ToolStripMenuItem1.Size = new System.Drawing.Size(152, 26);
+            this.联系我们ToolStripMenuItem1.Size = new System.Drawing.Size(224, 26);
             this.联系我们ToolStripMenuItem1.Text = "联系我们";
             this.联系我们ToolStripMenuItem1.Click += new System.EventHandler(this.联系我们ToolStripMenuItem_Click);
             // 
             // 关于TDJS_VisionToolStripMenuItem1
             // 
             this.关于TDJS_VisionToolStripMenuItem1.Name = "关于TDJS_VisionToolStripMenuItem1";
-            this.关于TDJS_VisionToolStripMenuItem1.Size = new System.Drawing.Size(152, 26);
+            this.关于TDJS_VisionToolStripMenuItem1.Size = new System.Drawing.Size(224, 26);
             this.关于TDJS_VisionToolStripMenuItem1.Text = "关于";
             this.关于TDJS_VisionToolStripMenuItem1.Click += new System.EventHandler(this.关于TDJS_VisionToolStripMenuItem1_Click);
             // 
@@ -253,14 +258,15 @@
             // 
             // dockPanel1
             // 
+            this.dockPanel1.BackColor = System.Drawing.SystemColors.Control;
             this.dockPanel1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.dockPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.dockPanel1.DockBackColor = System.Drawing.Color.FromArgb(((int)(((byte)(238)))), ((int)(((byte)(238)))), ((int)(((byte)(242)))));
-            this.dockPanel1.Location = new System.Drawing.Point(0, 73);
+            this.dockPanel1.Location = new System.Drawing.Point(3, 75);
             this.dockPanel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.dockPanel1.Name = "dockPanel1";
             this.dockPanel1.ShowAutoHideContentOnHover = false;
-            this.dockPanel1.Size = new System.Drawing.Size(1383, 699);
+            this.dockPanel1.Size = new System.Drawing.Size(1373, 666);
             this.dockPanel1.TabIndex = 2;
             // 
             // saveFileDialog1
@@ -274,13 +280,15 @@
             // 
             // toolStrip1
             // 
-            this.toolStrip1.BackColor = System.Drawing.SystemColors.ControlLightLight;
+            this.toolStrip1.BackColor = System.Drawing.SystemColors.Control;
+            this.toolStrip1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.toolStrip1.GripStyle = System.Windows.Forms.ToolStripGripStyle.Hidden;
             this.toolStrip1.ImageScalingSize = new System.Drawing.Size(32, 32);
             this.toolStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.tsbt_SolNew,
             this.tsbt_SolOpen,
-            this.tsbt_SolSaveAs,
             this.tsbt_SolSave,
+            this.tsbt_SolSaveAs,
             this.tsbt_ProcessManager,
             this.tsbt_LightManager,
             this.tsbt_CameraManager,
@@ -294,7 +302,7 @@
             this.toolStripLabel1});
             this.toolStrip1.Location = new System.Drawing.Point(0, 32);
             this.toolStrip1.Name = "toolStrip1";
-            this.toolStrip1.Size = new System.Drawing.Size(1383, 41);
+            this.toolStrip1.Size = new System.Drawing.Size(1379, 41);
             this.toolStrip1.TabIndex = 1;
             this.toolStrip1.Text = "toolStrip1";
             // 
@@ -320,17 +328,6 @@
             this.tsbt_SolOpen.ToolTipText = "打开方案";
             this.tsbt_SolOpen.Click += new System.EventHandler(this.ToolStripButton_Click);
             // 
-            // tsbt_SolSaveAs
-            // 
-            this.tsbt_SolSaveAs.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.tsbt_SolSaveAs.Image = global::TDJS_Vision.Properties.Resources.另存为;
-            this.tsbt_SolSaveAs.ImageTransparentColor = System.Drawing.Color.Magenta;
-            this.tsbt_SolSaveAs.Name = "tsbt_SolSaveAs";
-            this.tsbt_SolSaveAs.Size = new System.Drawing.Size(36, 38);
-            this.tsbt_SolSaveAs.Text = "另存方案";
-            this.tsbt_SolSaveAs.ToolTipText = "另存方案";
-            this.tsbt_SolSaveAs.Click += new System.EventHandler(this.ToolStripButton_Click);
-            // 
             // tsbt_SolSave
             // 
             this.tsbt_SolSave.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
@@ -342,10 +339,21 @@
             this.tsbt_SolSave.ToolTipText = "保存方案";
             this.tsbt_SolSave.Click += new System.EventHandler(this.ToolStripButton_Click);
             // 
+            // tsbt_SolSaveAs
+            // 
+            this.tsbt_SolSaveAs.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.tsbt_SolSaveAs.Image = global::TDJS_Vision.Properties.Resources.另存为;
+            this.tsbt_SolSaveAs.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.tsbt_SolSaveAs.Name = "tsbt_SolSaveAs";
+            this.tsbt_SolSaveAs.Size = new System.Drawing.Size(36, 38);
+            this.tsbt_SolSaveAs.Text = "另存方案";
+            this.tsbt_SolSaveAs.ToolTipText = "另存方案";
+            this.tsbt_SolSaveAs.Click += new System.EventHandler(this.ToolStripButton_Click);
+            // 
             // tsbt_ProcessManager
             // 
             this.tsbt_ProcessManager.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.tsbt_ProcessManager.Image = global::TDJS_Vision.Properties.Resources.添加流程;
+            this.tsbt_ProcessManager.Image = ((System.Drawing.Image)(resources.GetObject("tsbt_ProcessManager.Image")));
             this.tsbt_ProcessManager.ImageTransparentColor = System.Drawing.Color.Magenta;
             this.tsbt_ProcessManager.Name = "tsbt_ProcessManager";
             this.tsbt_ProcessManager.Size = new System.Drawing.Size(36, 38);
@@ -378,7 +386,7 @@
             // tsbt_PlcManager
             // 
             this.tsbt_PlcManager.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.tsbt_PlcManager.Image = ((System.Drawing.Image)(resources.GetObject("tsbt_PlcManager.Image")));
+            this.tsbt_PlcManager.Image = global::TDJS_Vision.Properties.Resources.PLC;
             this.tsbt_PlcManager.ImageTransparentColor = System.Drawing.Color.Magenta;
             this.tsbt_PlcManager.Name = "tsbt_PlcManager";
             this.tsbt_PlcManager.Size = new System.Drawing.Size(36, 38);
@@ -500,31 +508,48 @@
             // 
             this.ContentPanel.Size = new System.Drawing.Size(1556, 771);
             // 
+            // tableLayoutPanel2
+            // 
+            this.tableLayoutPanel2.AutoSize = true;
+            this.tableLayoutPanel2.BackColor = System.Drawing.SystemColors.Control;
+            this.tableLayoutPanel2.ColumnCount = 1;
+            this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
+            this.tableLayoutPanel2.Controls.Add(this.toolStrip1, 0, 1);
+            this.tableLayoutPanel2.Controls.Add(this.menuStrip1, 0, 0);
+            this.tableLayoutPanel2.Controls.Add(this.dockPanel1, 0, 2);
+            this.tableLayoutPanel2.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.tableLayoutPanel2.Location = new System.Drawing.Point(2, 29);
+            this.tableLayoutPanel2.Name = "tableLayoutPanel2";
+            this.tableLayoutPanel2.RowCount = 3;
+            this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle());
+            this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle());
+            this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle());
+            this.tableLayoutPanel2.Size = new System.Drawing.Size(1379, 741);
+            this.tableLayoutPanel2.TabIndex = 5;
+            // 
             // FormMain
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.BackColor = System.Drawing.SystemColors.ControlDarkDark;
+            this.BackColor = System.Drawing.SystemColors.Control;
             this.ClientSize = new System.Drawing.Size(1383, 772);
-            this.Controls.Add(this.dockPanel1);
-            this.Controls.Add(this.toolStrip1);
-            this.Controls.Add(this.menuStrip1);
-            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
+            this.Controls.Add(this.tableLayoutPanel2);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.IsMdiContainer = true;
             this.MainMenuStrip = this.menuStrip1;
             this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.Name = "FormMain";
-            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "鹰眼智检视觉系统 V1.0.0";
             this.TransparencyKey = System.Drawing.Color.Fuchsia;
-            this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FormMain_FormClosing);
             this.Load += new System.EventHandler(this.FormMain_Load);
+            this.Controls.SetChildIndex(this.tableLayoutPanel2, 0);
             this.menuStrip1.ResumeLayout(false);
             this.menuStrip1.PerformLayout();
             this.toolStrip1.ResumeLayout(false);
             this.toolStrip1.PerformLayout();
+            this.tableLayoutPanel2.ResumeLayout(false);
+            this.tableLayoutPanel2.PerformLayout();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -574,8 +599,8 @@
         private System.Windows.Forms.ToolStripButton tsbt_ModbusManager;
         private System.Windows.Forms.ToolStripButton tsbt_TCPManager;
         private System.Windows.Forms.ToolStripLabel toolStripLabel1;
-        private WeifenLuo.WinFormsUI.Docking.VS2015DarkTheme vS2015DarkTheme1;
         private System.Windows.Forms.ToolStripButton tsbt_RunParamSetting;
+        private System.Windows.Forms.TableLayoutPanel tableLayoutPanel2;
     }
 }
 

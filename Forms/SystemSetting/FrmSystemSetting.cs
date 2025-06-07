@@ -1,20 +1,14 @@
 ﻿using IWshRuntimeLibrary;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
+using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Properties;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.Button;
 
 namespace TDJS_Vision.Forms.SystemSetting
 {
-    public partial class FrmSystemSetting : Form
+    internal partial class FrmSystemSetting : FormBase
     {
         public FrmSystemSetting()
         {
@@ -261,7 +255,7 @@ namespace TDJS_Vision.Forms.SystemSetting
             }
             catch (Exception)
             {
-                MessageBox.Show("请设置合理的值！");
+                MessageBoxTD.Show("请设置合理的值！");
             }
         }
 

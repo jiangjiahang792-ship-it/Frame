@@ -3,7 +3,6 @@ using System;
 using System.IO;
 using System.Windows.Forms;
 using WeifenLuo.WinFormsUI.Docking;
-using TDJS_Vision.Forms;
 using TDJS_Vision.Forms.Helper;
 using TDJS_Vision.Forms.ImageViewer;
 using TDJS_Vision.Forms.ProcessNew;
@@ -20,11 +19,12 @@ using TDJS_Vision.Forms.TCPAdd;
 using TDJS_Vision.Forms.SolRunParam;
 using TDJS_Vision.Forms.Login;
 using System.Threading.Tasks;
-using System.Web.UI.WebControls;
+using TDJS_Vision.Forms.YTMessageBox;
+using System.Drawing;
 
 namespace TDJS_Vision
 {
-    internal partial class FormMain : Form
+    internal partial class FormMain : FormBase
     {
         #region 子窗口
 
@@ -103,7 +103,7 @@ namespace TDJS_Vision
         public FormMain()
         {
             InitializeComponent();
-            this.dockPanel1.Theme = new VS2015LightTheme();
+            this.dockPanel1.Theme = new GreenTheme();
         }
         /// <summary>
         /// 主窗口加载
@@ -273,7 +273,7 @@ namespace TDJS_Vision
         private void FormMain_FormClosing(object sender, FormClosingEventArgs e)
         {
             // 主程序关闭提醒
-            if(MessageBox.Show("确认关闭程序？", "提示", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) == DialogResult.Cancel)
+            if(MessageBoxTD.Show("确认关闭程序？", "提示", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) == DialogResult.Cancel)
             {
                 e.Cancel = true;
                 return;
@@ -283,7 +283,7 @@ namespace TDJS_Vision
             if (Solution.Instance.IsRunning)
             {
                 e.Cancel = true;
-                MessageBox.Show("请先停止当前任务再关闭！");
+                MessageBoxTD.Show("请先停止当前任务再关闭！");
                 return;
             }
 
@@ -371,7 +371,7 @@ namespace TDJS_Vision
                         保存方案ToolStripMenuItem_Click(sender, e);
                         break;
                     case "退出":
-                        if (MessageBox.Show("确认退出？") == DialogResult.OK)
+                        if (MessageBoxTD.Show("确认退出？") == DialogResult.OK)
                             Close();
                         break;
                     default:
@@ -551,7 +551,7 @@ namespace TDJS_Vision
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"方案保存失败！原因：{ex.Message}");
+                    MessageBoxTD.Show($"方案保存失败！原因：{ex.Message}");
                 }
             }
         }
@@ -573,7 +573,7 @@ namespace TDJS_Vision
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"方案保存失败！原因：{ex.Message}");
+                MessageBoxTD.Show($"方案保存失败！原因：{ex.Message}");
             }
         }
 

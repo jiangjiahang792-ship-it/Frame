@@ -3,10 +3,11 @@ using Sunny.UI;
 using System;
 using System.Windows.Forms;
 using TDJS_Vision.Device.PLC;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.PanasonicRead
 {
-    internal partial class ParamFormPlcRead : Form, INodeParamForm
+    internal partial class ParamFormPlcRead : FormBase, INodeParamForm
     {
         public INodeParam Params { get; set; }
         
@@ -60,19 +61,19 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PanasonicRead
             if (comboBox1.Text.IsNullOrEmpty() || comboBox1.Text == "[未设置]")
             {
                 LogHelper.AddLog(MsgLevel.Exception, "PLC不能为空！", true);
-                MessageBox.Show("PLC不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("PLC不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             if (string.IsNullOrEmpty(this.textBox1.Text))
             {
                 LogHelper.AddLog(MsgLevel.Exception, "信号地址为空", true);
-                MessageBox.Show("信号地址为空", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("信号地址为空", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             if(this.comboBox2.Text == "字符串类型" && string.IsNullOrEmpty(this.textBox3.Text))
             {
                 LogHelper.AddLog(MsgLevel.Exception, "读取字符串类型需要设置读取长度", true);
-                MessageBox.Show("读取字符串类型需要设置读取长度", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("读取字符串类型需要设置读取长度", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -110,7 +111,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PanasonicRead
                     catch (Exception ex)
                     {
                         LogHelper.AddLog(MsgLevel.Exception, ex.Message, true);
-                        MessageBox.Show("保存失败,请检查参数是否有误！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        MessageBoxTD.Show("保存失败,请检查参数是否有误！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
                     break;

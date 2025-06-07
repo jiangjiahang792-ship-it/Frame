@@ -89,24 +89,24 @@
             this.tableLayoutPanel1.Controls.Add(this.groupBox4, 0, 1);
             this.tableLayoutPanel1.Controls.Add(this.panel1, 2, 0);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
+            this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 32);
             this.tableLayoutPanel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
             this.tableLayoutPanel1.RowCount = 2;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(1469, 788);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(1009, 442);
             this.tableLayoutPanel1.TabIndex = 1;
             // 
             // groupBox1
             // 
             this.groupBox1.Controls.Add(this.pictureBoxCanny);
             this.groupBox1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.groupBox1.Location = new System.Drawing.Point(517, 2);
+            this.groupBox1.Location = new System.Drawing.Point(356, 2);
             this.groupBox1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.groupBox1.Name = "groupBox1";
             this.groupBox1.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.groupBox1.Size = new System.Drawing.Size(508, 390);
+            this.groupBox1.Size = new System.Drawing.Size(347, 217);
             this.groupBox1.TabIndex = 3;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "边缘检测图像";
@@ -118,7 +118,7 @@
             this.pictureBoxCanny.Location = new System.Drawing.Point(3, 20);
             this.pictureBoxCanny.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.pictureBoxCanny.Name = "pictureBoxCanny";
-            this.pictureBoxCanny.Size = new System.Drawing.Size(502, 368);
+            this.pictureBoxCanny.Size = new System.Drawing.Size(341, 195);
             this.pictureBoxCanny.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
             this.pictureBoxCanny.TabIndex = 2;
             this.pictureBoxCanny.TabStop = false;
@@ -131,7 +131,7 @@
             this.groupBox2.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.groupBox2.Name = "groupBox2";
             this.groupBox2.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.groupBox2.Size = new System.Drawing.Size(508, 390);
+            this.groupBox2.Size = new System.Drawing.Size(347, 217);
             this.groupBox2.TabIndex = 3;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "原图(右键绘制ROI)";
@@ -142,18 +142,18 @@
             this.imageROIEditControl1.Location = new System.Drawing.Point(3, 20);
             this.imageROIEditControl1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.imageROIEditControl1.Name = "imageROIEditControl1";
-            this.imageROIEditControl1.Size = new System.Drawing.Size(502, 368);
+            this.imageROIEditControl1.Size = new System.Drawing.Size(341, 195);
             this.imageROIEditControl1.TabIndex = 4;
             // 
             // groupBox3
             // 
             this.groupBox3.Controls.Add(this.pictureBoxResult2);
             this.groupBox3.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.groupBox3.Location = new System.Drawing.Point(517, 396);
+            this.groupBox3.Location = new System.Drawing.Point(356, 223);
             this.groupBox3.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.groupBox3.Name = "groupBox3";
             this.groupBox3.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.groupBox3.Size = new System.Drawing.Size(508, 390);
+            this.groupBox3.Size = new System.Drawing.Size(347, 217);
             this.groupBox3.TabIndex = 3;
             this.groupBox3.TabStop = false;
             this.groupBox3.Text = "筛选后的直线";
@@ -165,7 +165,7 @@
             this.pictureBoxResult2.Location = new System.Drawing.Point(3, 20);
             this.pictureBoxResult2.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.pictureBoxResult2.Name = "pictureBoxResult2";
-            this.pictureBoxResult2.Size = new System.Drawing.Size(502, 368);
+            this.pictureBoxResult2.Size = new System.Drawing.Size(341, 195);
             this.pictureBoxResult2.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
             this.pictureBoxResult2.TabIndex = 2;
             this.pictureBoxResult2.TabStop = false;
@@ -174,11 +174,11 @@
             // 
             this.groupBox4.Controls.Add(this.pictureBoxResult1);
             this.groupBox4.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.groupBox4.Location = new System.Drawing.Point(3, 396);
+            this.groupBox4.Location = new System.Drawing.Point(3, 223);
             this.groupBox4.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.groupBox4.Name = "groupBox4";
             this.groupBox4.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.groupBox4.Size = new System.Drawing.Size(508, 390);
+            this.groupBox4.Size = new System.Drawing.Size(347, 217);
             this.groupBox4.TabIndex = 3;
             this.groupBox4.TabStop = false;
             this.groupBox4.Text = "检测到的直线";
@@ -190,21 +190,22 @@
             this.pictureBoxResult1.Location = new System.Drawing.Point(3, 20);
             this.pictureBoxResult1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.pictureBoxResult1.Name = "pictureBoxResult1";
-            this.pictureBoxResult1.Size = new System.Drawing.Size(502, 368);
+            this.pictureBoxResult1.Size = new System.Drawing.Size(341, 195);
             this.pictureBoxResult1.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
             this.pictureBoxResult1.TabIndex = 2;
             this.pictureBoxResult1.TabStop = false;
             // 
             // panel1
             // 
+            this.panel1.AutoScroll = true;
             this.panel1.Controls.Add(this.tableLayoutPanel3);
             this.panel1.Controls.Add(this.tableLayoutPanel2);
             this.panel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.panel1.Location = new System.Drawing.Point(1031, 2);
+            this.panel1.Location = new System.Drawing.Point(709, 2);
             this.panel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.panel1.Name = "panel1";
             this.tableLayoutPanel1.SetRowSpan(this.panel1, 2);
-            this.panel1.Size = new System.Drawing.Size(435, 784);
+            this.panel1.Size = new System.Drawing.Size(297, 438);
             this.panel1.TabIndex = 4;
             // 
             // tableLayoutPanel3
@@ -225,14 +226,14 @@
             this.tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 33.33333F));
             this.tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 33.33333F));
             this.tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 33.33333F));
-            this.tableLayoutPanel3.Size = new System.Drawing.Size(435, 182);
+            this.tableLayoutPanel3.Size = new System.Drawing.Size(276, 182);
             this.tableLayoutPanel3.TabIndex = 0;
             // 
             // buttonRun
             // 
             this.buttonRun.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonRun.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonRun.Location = new System.Drawing.Point(77, 134);
+            this.buttonRun.Location = new System.Drawing.Point(37, 134);
             this.buttonRun.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.buttonRun.Name = "buttonRun";
             this.buttonRun.Size = new System.Drawing.Size(62, 33);
@@ -245,7 +246,7 @@
             // 
             this.buttonSave.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonSave.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonSave.Location = new System.Drawing.Point(295, 134);
+            this.buttonSave.Location = new System.Drawing.Point(175, 134);
             this.buttonSave.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.buttonSave.Name = "buttonSave";
             this.buttonSave.Size = new System.Drawing.Size(62, 33);
@@ -258,7 +259,7 @@
             // 
             this.button3.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.button3.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.button3.Location = new System.Drawing.Point(274, 73);
+            this.button3.Location = new System.Drawing.Point(154, 73);
             this.button3.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.button3.Name = "button3";
             this.button3.Size = new System.Drawing.Size(104, 33);
@@ -275,7 +276,7 @@
             this.nodeSubscription1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.nodeSubscription1.MinimumSize = new System.Drawing.Size(231, 50);
             this.nodeSubscription1.Name = "nodeSubscription1";
-            this.nodeSubscription1.Size = new System.Drawing.Size(429, 56);
+            this.nodeSubscription1.Size = new System.Drawing.Size(270, 56);
             this.nodeSubscription1.TabIndex = 3;
             // 
             // checkBoxMoreParams
@@ -283,7 +284,7 @@
             this.checkBoxMoreParams.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.checkBoxMoreParams.AutoSize = true;
             this.checkBoxMoreParams.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.checkBoxMoreParams.Location = new System.Drawing.Point(57, 79);
+            this.checkBoxMoreParams.Location = new System.Drawing.Point(17, 79);
             this.checkBoxMoreParams.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.checkBoxMoreParams.Name = "checkBoxMoreParams";
             this.checkBoxMoreParams.Size = new System.Drawing.Size(102, 22);
@@ -313,7 +314,7 @@
             this.tableLayoutPanel2.Controls.Add(this.textBoxMaxDistance, 1, 6);
             this.tableLayoutPanel2.Controls.Add(this.comboBox1, 0, 7);
             this.tableLayoutPanel2.Dock = System.Windows.Forms.DockStyle.Bottom;
-            this.tableLayoutPanel2.Location = new System.Drawing.Point(0, 231);
+            this.tableLayoutPanel2.Location = new System.Drawing.Point(0, 182);
             this.tableLayoutPanel2.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tableLayoutPanel2.Name = "tableLayoutPanel2";
             this.tableLayoutPanel2.RowCount = 8;
@@ -326,7 +327,7 @@
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 10.92657F));
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 10.92657F));
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 17F));
-            this.tableLayoutPanel2.Size = new System.Drawing.Size(435, 553);
+            this.tableLayoutPanel2.Size = new System.Drawing.Size(276, 553);
             this.tableLayoutPanel2.TabIndex = 3;
             this.tableLayoutPanel2.Visible = false;
             // 
@@ -335,7 +336,7 @@
             this.label3.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label3.AutoSize = true;
             this.label3.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label3.Location = new System.Drawing.Point(64, 25);
+            this.label3.Location = new System.Drawing.Point(24, 25);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(89, 18);
             this.label3.TabIndex = 0;
@@ -345,7 +346,7 @@
             // 
             this.textBoxBlurSize.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxBlurSize.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxBlurSize.Location = new System.Drawing.Point(281, 21);
+            this.textBoxBlurSize.Location = new System.Drawing.Point(162, 21);
             this.textBoxBlurSize.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.textBoxBlurSize.Name = "textBoxBlurSize";
             this.textBoxBlurSize.Size = new System.Drawing.Size(89, 27);
@@ -358,7 +359,7 @@
             this.label1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label1.AutoSize = true;
             this.label1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label1.Location = new System.Drawing.Point(73, 94);
+            this.label1.Location = new System.Drawing.Point(33, 94);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(71, 18);
             this.label1.TabIndex = 0;
@@ -368,7 +369,7 @@
             // 
             this.textBoxThreshold1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxThreshold1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxThreshold1.Location = new System.Drawing.Point(281, 90);
+            this.textBoxThreshold1.Location = new System.Drawing.Point(162, 90);
             this.textBoxThreshold1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.textBoxThreshold1.Name = "textBoxThreshold1";
             this.textBoxThreshold1.Size = new System.Drawing.Size(89, 27);
@@ -381,7 +382,7 @@
             this.label2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label2.AutoSize = true;
             this.label2.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label2.Location = new System.Drawing.Point(73, 163);
+            this.label2.Location = new System.Drawing.Point(33, 163);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(71, 18);
             this.label2.TabIndex = 0;
@@ -391,7 +392,7 @@
             // 
             this.textBoxThreshold2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxThreshold2.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxThreshold2.Location = new System.Drawing.Point(281, 159);
+            this.textBoxThreshold2.Location = new System.Drawing.Point(162, 159);
             this.textBoxThreshold2.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.textBoxThreshold2.Name = "textBoxThreshold2";
             this.textBoxThreshold2.Size = new System.Drawing.Size(89, 27);
@@ -404,9 +405,9 @@
             this.label4.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label4.AutoSize = true;
             this.label4.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label4.Location = new System.Drawing.Point(28, 232);
+            this.label4.Location = new System.Drawing.Point(11, 223);
             this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(161, 18);
+            this.label4.Size = new System.Drawing.Size(116, 36);
             this.label4.TabIndex = 0;
             this.label4.Text = "是否使用 L2 范数?";
             // 
@@ -418,7 +419,7 @@
             this.checkBoxUseL2.Checked = true;
             this.checkBoxUseL2.CheckState = System.Windows.Forms.CheckState.Checked;
             this.checkBoxUseL2.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.checkBoxUseL2.Location = new System.Drawing.Point(317, 233);
+            this.checkBoxUseL2.Location = new System.Drawing.Point(198, 233);
             this.checkBoxUseL2.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.checkBoxUseL2.Name = "checkBoxUseL2";
             this.checkBoxUseL2.Size = new System.Drawing.Size(18, 17);
@@ -430,7 +431,7 @@
             this.label7.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label7.AutoSize = true;
             this.label7.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label7.Location = new System.Drawing.Point(50, 301);
+            this.label7.Location = new System.Drawing.Point(11, 301);
             this.label7.Name = "label7";
             this.label7.Size = new System.Drawing.Size(116, 18);
             this.label7.TabIndex = 0;
@@ -440,7 +441,7 @@
             // 
             this.textBoxCount.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxCount.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxCount.Location = new System.Drawing.Point(281, 297);
+            this.textBoxCount.Location = new System.Drawing.Point(162, 297);
             this.textBoxCount.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.textBoxCount.Name = "textBoxCount";
             this.textBoxCount.Size = new System.Drawing.Size(89, 27);
@@ -453,9 +454,9 @@
             this.label8.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label8.AutoSize = true;
             this.label8.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label8.Location = new System.Drawing.Point(37, 370);
+            this.label8.Location = new System.Drawing.Point(11, 361);
             this.label8.Name = "label8";
-            this.label8.Size = new System.Drawing.Size(143, 18);
+            this.label8.Size = new System.Drawing.Size(116, 36);
             this.label8.TabIndex = 0;
             this.label8.Text = "直线的最短长度?";
             // 
@@ -463,7 +464,7 @@
             // 
             this.textBoxMinLength.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxMinLength.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxMinLength.Location = new System.Drawing.Point(281, 366);
+            this.textBoxMinLength.Location = new System.Drawing.Point(162, 366);
             this.textBoxMinLength.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.textBoxMinLength.Name = "textBoxMinLength";
             this.textBoxMinLength.Size = new System.Drawing.Size(89, 27);
@@ -476,9 +477,9 @@
             this.label9.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label9.AutoSize = true;
             this.label9.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label9.Location = new System.Drawing.Point(28, 439);
+            this.label9.Location = new System.Drawing.Point(11, 430);
             this.label9.Name = "label9";
-            this.label9.Size = new System.Drawing.Size(161, 18);
+            this.label9.Size = new System.Drawing.Size(116, 36);
             this.label9.TabIndex = 0;
             this.label9.Text = "两直线的最大距离?";
             // 
@@ -486,7 +487,7 @@
             // 
             this.textBoxMaxDistance.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxMaxDistance.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxMaxDistance.Location = new System.Drawing.Point(281, 435);
+            this.textBoxMaxDistance.Location = new System.Drawing.Point(162, 435);
             this.textBoxMaxDistance.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.textBoxMaxDistance.Name = "textBoxMaxDistance";
             this.textBoxMaxDistance.Size = new System.Drawing.Size(89, 27);
@@ -508,10 +509,10 @@
             "输出最下面一条",
             "输出最左边一条",
             "输出最右边一条"});
-            this.comboBox1.Location = new System.Drawing.Point(74, 505);
+            this.comboBox1.Location = new System.Drawing.Point(3, 505);
             this.comboBox1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.comboBox1.Name = "comboBox1";
-            this.comboBox1.Size = new System.Drawing.Size(287, 25);
+            this.comboBox1.Size = new System.Drawing.Size(270, 25);
             this.comboBox1.TabIndex = 3;
             this.comboBox1.SelectedIndexChanged += new System.EventHandler(this.comboBox1_SelectedIndexChanged);
             // 
@@ -526,9 +527,8 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1469, 788);
+            this.ClientSize = new System.Drawing.Size(1013, 476);
             this.Controls.Add(this.tableLayoutPanel1);
-            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.MaximizeBox = false;
@@ -536,6 +536,7 @@
             this.Name = "NodeParamFormFindLine";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "查找直线参数";
+            this.Controls.SetChildIndex(this.tableLayoutPanel1, 0);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.groupBox1.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.pictureBoxCanny)).EndInit();

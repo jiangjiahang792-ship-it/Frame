@@ -178,6 +178,21 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ConfigHelper.cs" />
+    <Compile Include="Forms\YTMessageBox\MessageBoxTD.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\YTMessageBox\MessageBoxTD.Designer.cs">
+      <DependentUpon>MessageBoxTD.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="StyleHelper.cs" />
+    <Compile Include="CustomGreenTheme.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Device\Modbus\IModbus.cs" />
     <Compile Include="Device\Modbus\ModbusSlave.cs" />
     <Compile Include="Device\PLC\PlcResult.cs" />
@@ -185,6 +200,12 @@
     <Compile Include="Device\TCP\TCPClient.cs" />
     <Compile Include="Device\TCP\TcpParam.cs" />
     <Compile Include="Device\TCP\TcpServer.cs" />
+    <Compile Include="FormBase.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormBase.Designer.cs">
+      <DependentUpon>FormBase.cs</DependentUpon>
+    </Compile>
     <Compile Include="FormMain.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -738,12 +759,6 @@
     <Compile Include="Forms\Logger\FrmLogger.Designer.cs">
       <DependentUpon>FrmLogger.cs</DependentUpon>
     </Compile>
-    <Compile Include="Forms\Logger\LogDetail.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Forms\Logger\LogDetail.Designer.cs">
-      <DependentUpon>LogDetail.cs</DependentUpon>
-    </Compile>
     <Compile Include="Forms\Logger\LoggerClass.cs" />
     <Compile Include="Forms\Logger\LogHelper.cs">
       <SubType>UserControl</SubType>
@@ -836,13 +851,11 @@
     <Compile Include="Process.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Properties\Resources.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>Resources.resx</DependentUpon>
-    </Compile>
     <Compile Include="SharedVariable.cs" />
     <Compile Include="Solution.cs" />
+    <EmbeddedResource Include="FormBase.resx">
+      <DependentUpon>FormBase.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="FormMain.resx">
       <DependentUpon>FormMain.cs</DependentUpon>
     </EmbeddedResource>
@@ -939,6 +952,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\SystemSetting\FrmSystemSetting.resx">
       <DependentUpon>FrmSystemSetting.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\YTMessageBox\MessageBoxTD.resx">
+      <DependentUpon>MessageBoxTD.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\YTMessageBox\YTMessageBox.resx">
       <DependentUpon>YTMessageBox.cs</DependentUpon>
@@ -1051,9 +1067,6 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\Logger\FrmLogger.resx">
       <DependentUpon>FrmLogger.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Forms\Logger\LogDetail.resx">
-      <DependentUpon>LogDetail.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\Logger\LogHelper.resx">
       <DependentUpon>LogHelper.cs</DependentUpon>

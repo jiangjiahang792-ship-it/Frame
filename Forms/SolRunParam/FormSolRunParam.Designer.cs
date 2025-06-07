@@ -65,10 +65,10 @@
             this.tabControl1.Controls.Add(this.tabPage1);
             this.tabControl1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tabControl1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.tabControl1.Location = new System.Drawing.Point(0, 0);
+            this.tabControl1.Location = new System.Drawing.Point(2, 32);
             this.tabControl1.Name = "tabControl1";
             this.tabControl1.SelectedIndex = 0;
-            this.tabControl1.Size = new System.Drawing.Size(913, 499);
+            this.tabControl1.Size = new System.Drawing.Size(909, 465);
             this.tabControl1.TabIndex = 0;
             // 
             // tabPage1
@@ -77,7 +77,7 @@
             this.tabPage1.Location = new System.Drawing.Point(4, 28);
             this.tabPage1.Name = "tabPage1";
             this.tabPage1.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage1.Size = new System.Drawing.Size(905, 467);
+            this.tabPage1.Size = new System.Drawing.Size(901, 433);
             this.tabPage1.TabIndex = 0;
             this.tabPage1.Text = "Modbus通信";
             this.tabPage1.UseVisualStyleBackColor = true;
@@ -94,7 +94,7 @@
             this.tableLayoutPanel2.RowCount = 2;
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.tableLayoutPanel2.Size = new System.Drawing.Size(899, 320);
+            this.tableLayoutPanel2.Size = new System.Drawing.Size(895, 320);
             this.tableLayoutPanel2.TabIndex = 1;
             // 
             // groupBox1
@@ -103,7 +103,7 @@
             this.groupBox1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBox1.Location = new System.Drawing.Point(3, 3);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(893, 154);
+            this.groupBox1.Size = new System.Drawing.Size(889, 154);
             this.groupBox1.TabIndex = 0;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "通信连接";
@@ -129,14 +129,14 @@
             this.tableLayoutPanel3.RowCount = 2;
             this.tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.tableLayoutPanel3.Size = new System.Drawing.Size(887, 127);
+            this.tableLayoutPanel3.Size = new System.Drawing.Size(883, 127);
             this.tableLayoutPanel3.TabIndex = 0;
             // 
             // label2
             // 
             this.label2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(530, 22);
+            this.label2.Location = new System.Drawing.Point(528, 22);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(44, 18);
             this.label2.TabIndex = 0;
@@ -165,7 +165,7 @@
             // textBoxHoldTime
             // 
             this.textBoxHoldTime.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.textBoxHoldTime.Location = new System.Drawing.Point(255, 81);
+            this.textBoxHoldTime.Location = new System.Drawing.Point(254, 81);
             this.textBoxHoldTime.Name = "textBoxHoldTime";
             this.textBoxHoldTime.Size = new System.Drawing.Size(152, 28);
             this.textBoxHoldTime.TabIndex = 1;
@@ -175,9 +175,11 @@
             // buttonConnect
             // 
             this.buttonConnect.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.buttonConnect.BackColor = System.Drawing.SystemColors.ActiveCaption;
+            this.buttonConnect.BackColor = System.Drawing.SystemColors.Control;
+            this.buttonConnect.FlatStyle = System.Windows.Forms.FlatStyle.System;
             this.buttonConnect.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonConnect.Location = new System.Drawing.Point(717, 74);
+            this.buttonConnect.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.buttonConnect.Location = new System.Drawing.Point(713, 74);
             this.buttonConnect.Name = "buttonConnect";
             this.buttonConnect.Size = new System.Drawing.Size(116, 41);
             this.buttonConnect.TabIndex = 2;
@@ -188,7 +190,7 @@
             // textBoxPort
             // 
             this.textBoxPort.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.textBoxPort.Location = new System.Drawing.Point(699, 17);
+            this.textBoxPort.Location = new System.Drawing.Point(695, 17);
             this.textBoxPort.Name = "textBoxPort";
             this.textBoxPort.Size = new System.Drawing.Size(152, 28);
             this.textBoxPort.TabIndex = 1;
@@ -199,7 +201,7 @@
             // 
             this.labelConnectInfo.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.labelConnectInfo.AutoSize = true;
-            this.labelConnectInfo.Location = new System.Drawing.Point(552, 86);
+            this.labelConnectInfo.Location = new System.Drawing.Point(550, 86);
             this.labelConnectInfo.Name = "labelConnectInfo";
             this.labelConnectInfo.Size = new System.Drawing.Size(0, 18);
             this.labelConnectInfo.TabIndex = 0;
@@ -209,7 +211,7 @@
             this.uiipTextBoxIP.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.uiipTextBoxIP.FillColor2 = System.Drawing.Color.FromArgb(((int)(((byte)(235)))), ((int)(((byte)(243)))), ((int)(((byte)(255)))));
             this.uiipTextBoxIP.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.uiipTextBoxIP.Location = new System.Drawing.Point(237, 17);
+            this.uiipTextBoxIP.Location = new System.Drawing.Point(235, 17);
             this.uiipTextBoxIP.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
             this.uiipTextBoxIP.MinimumSize = new System.Drawing.Size(1, 1);
             this.uiipTextBoxIP.Name = "uiipTextBoxIP";
@@ -228,7 +230,7 @@
             this.groupBox2.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBox2.Location = new System.Drawing.Point(3, 163);
             this.groupBox2.Name = "groupBox2";
-            this.groupBox2.Size = new System.Drawing.Size(893, 154);
+            this.groupBox2.Size = new System.Drawing.Size(889, 154);
             this.groupBox2.TabIndex = 1;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "测试连接";
@@ -253,14 +255,14 @@
             this.tableLayoutPanel4.RowCount = 2;
             this.tableLayoutPanel4.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanel4.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.tableLayoutPanel4.Size = new System.Drawing.Size(887, 127);
+            this.tableLayoutPanel4.Size = new System.Drawing.Size(883, 127);
             this.tableLayoutPanel4.TabIndex = 0;
             // 
             // label6
             // 
             this.label6.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label6.AutoSize = true;
-            this.label6.Location = new System.Drawing.Point(503, 22);
+            this.label6.Location = new System.Drawing.Point(501, 22);
             this.label6.Name = "label6";
             this.label6.Size = new System.Drawing.Size(98, 18);
             this.label6.TabIndex = 0;
@@ -269,7 +271,7 @@
             // textBoxAddress
             // 
             this.textBoxAddress.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.textBoxAddress.Location = new System.Drawing.Point(255, 17);
+            this.textBoxAddress.Location = new System.Drawing.Point(254, 17);
             this.textBoxAddress.Name = "textBoxAddress";
             this.textBoxAddress.Size = new System.Drawing.Size(152, 28);
             this.textBoxAddress.TabIndex = 1;
@@ -289,9 +291,11 @@
             // buttonWrite
             // 
             this.buttonWrite.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.buttonWrite.BackColor = System.Drawing.SystemColors.ActiveCaption;
+            this.buttonWrite.BackColor = System.Drawing.SystemColors.Control;
+            this.buttonWrite.FlatStyle = System.Windows.Forms.FlatStyle.System;
             this.buttonWrite.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonWrite.Location = new System.Drawing.Point(717, 74);
+            this.buttonWrite.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.buttonWrite.Location = new System.Drawing.Point(713, 74);
             this.buttonWrite.Name = "buttonWrite";
             this.buttonWrite.Size = new System.Drawing.Size(116, 41);
             this.buttonWrite.TabIndex = 2;
@@ -302,9 +306,11 @@
             // buttonRead
             // 
             this.buttonRead.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.buttonRead.BackColor = System.Drawing.SystemColors.ActiveCaption;
+            this.buttonRead.BackColor = System.Drawing.SystemColors.Control;
+            this.buttonRead.FlatStyle = System.Windows.Forms.FlatStyle.System;
             this.buttonRead.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonRead.Location = new System.Drawing.Point(494, 74);
+            this.buttonRead.ForeColor = System.Drawing.SystemColors.ControlText;
+            this.buttonRead.Location = new System.Drawing.Point(492, 74);
             this.buttonRead.Name = "buttonRead";
             this.buttonRead.Size = new System.Drawing.Size(116, 41);
             this.buttonRead.TabIndex = 2;
@@ -317,7 +323,7 @@
             this.labelTestInfo.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.labelTestInfo.AutoSize = true;
             this.tableLayoutPanel4.SetColumnSpan(this.labelTestInfo, 2);
-            this.labelTestInfo.Location = new System.Drawing.Point(221, 86);
+            this.labelTestInfo.Location = new System.Drawing.Point(220, 86);
             this.labelTestInfo.Name = "labelTestInfo";
             this.labelTestInfo.Size = new System.Drawing.Size(0, 18);
             this.labelTestInfo.TabIndex = 0;
@@ -330,7 +336,7 @@
             this.comboBoxCoilValue.Items.AddRange(new object[] {
             "0",
             "1"});
-            this.comboBoxCoilValue.Location = new System.Drawing.Point(714, 18);
+            this.comboBoxCoilValue.Location = new System.Drawing.Point(711, 18);
             this.comboBoxCoilValue.Name = "comboBoxCoilValue";
             this.comboBoxCoilValue.Size = new System.Drawing.Size(121, 26);
             this.comboBoxCoilValue.TabIndex = 3;
@@ -348,6 +354,7 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "运行参数设置";
             this.Shown += new System.EventHandler(this.FormSolRunParam_Shown);
+            this.Controls.SetChildIndex(this.tabControl1, 0);
             this.tabControl1.ResumeLayout(false);
             this.tabPage1.ResumeLayout(false);
             this.tableLayoutPanel2.ResumeLayout(false);

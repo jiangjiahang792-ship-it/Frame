@@ -3,10 +3,11 @@ using Sunny.UI;
 using System;
 using System.Windows.Forms;
 using TDJS_Vision.Device.PLC;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.PLCSoftTrigger
 {
-    internal partial class ParamFormWaitSoftTrigger : Form, INodeParamForm
+    internal partial class ParamFormWaitSoftTrigger : FormBase, INodeParamForm
     {
         public INodeParam Params { get; set; }
         
@@ -55,13 +56,13 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PLCSoftTrigger
             if (comboBox1.Text.IsNullOrEmpty() || comboBox1.Text == "[未设置]")
             {
                 LogHelper.AddLog(MsgLevel.Exception, "PLC不能为空！", true);
-                MessageBox.Show("PLC不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("PLC不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             if (string.IsNullOrEmpty(this.textBox1.Text))
             {
                 LogHelper.AddLog(MsgLevel.Exception, "信号地址为空", true);
-                MessageBox.Show("信号地址为空", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBoxTD.Show("信号地址为空", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
