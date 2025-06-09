@@ -78,7 +78,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusSoftTrigger
             try
             {
                 bool[] readResult;
-                var modbusPoll = param.modbus as ModbusPoll;
+                var modbusPoll = param.modbus as ModbusTcpPoll;
                 // 读取拍照信号
                 do
                 {

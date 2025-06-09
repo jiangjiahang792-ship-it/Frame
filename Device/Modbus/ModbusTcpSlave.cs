@@ -8,21 +8,21 @@ using Newtonsoft.Json;
 
 namespace TDJS_Vision.Device.Modbus
 {
-    internal class ModbusSlave : IModbus
+    internal class ModbusTcpSlave : IModbus
     {
         private TcpListener _server;
-        public ModbusParam ModbusParam { get; set; }
+        public IModbusParam ModbusParam { get; set; }
         public string DevName { get; set; }
         public string UserDefinedName { get; set; }
-        public DevType DevType { get; set; } = DevType.ModbusSlave;
+        public DevType DevType { get; set; } = DevType.ModbusTcpSlave;
         public DeviceBrand Brand { get; set; } = DeviceBrand.Unknow;
-        public string ClassName { get; set; } = typeof(ModbusSlave).FullName;
+        public string ClassName { get; set; } = typeof(ModbusTcpSlave).FullName;
 
         public bool IsConnect { get; set; }
 
         public event EventHandler<bool> ConnectStatusEvent;
 
-        private ModbusTcpSlave _slave;
+        private global::Modbus.Device.ModbusTcpSlave _slave;
 
         #region 反序列化使用
 
@@ -30,7 +30,7 @@ namespace TDJS_Vision.Device.Modbus
         /// 指定反序列化的构造函数
         /// </summary>
         [JsonConstructor]
-        public ModbusSlave() { }
+        public ModbusTcpSlave() { }
 
         public void CreateDevice()
         {
@@ -46,7 +46,7 @@ namespace TDJS_Vision.Device.Modbus
 
         #endregion  
 
-        public ModbusSlave(ModbusParam modbusParam)
+        public ModbusTcpSlave(ModbusTcpParam modbusParam)
         {
             ModbusParam = modbusParam;
             DevName = modbusParam.DevName;
@@ -61,8 +61,8 @@ namespace TDJS_Vision.Device.Modbus
             try
             {
                 // 创建TCP通信对象以及初始化TCP从站
-                _server = new TcpListener(IPAddress.Any, ModbusParam.Port);
-                _slave = ModbusTcpSlave.CreateTcp(ModbusParam.ID, _server);
+                _server = new TcpListener(IPAddress.Any, ((ModbusTcpParam)ModbusParam).Port);
+                _slave = global::Modbus.Device.ModbusTcpSlave.CreateTcp(((ModbusTcpParam)ModbusParam).ID, _server);
                 //创建寄存器存储对象
                 _slave.DataStore = DataStoreFactory.CreateDefaultDataStore(10, 10, 10, 10);
                 //Modbus命令写入DataStore时发生

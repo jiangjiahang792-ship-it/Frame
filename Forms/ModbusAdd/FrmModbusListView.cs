@@ -119,7 +119,7 @@ namespace TDJS_Vision.Forms.ModbusAdd
             _frmAdd.ShowDialog();
         }
 
-        private void FrmAdd_ModbusAddEvent(object sender, ModbusParam e)
+        private void FrmAdd_ModbusAddEvent(object sender, IModbusParam e)
         {
             SingleModbus singleModbus = null;
             try

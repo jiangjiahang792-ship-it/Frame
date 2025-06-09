@@ -178,6 +178,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ConfigHelper.cs" />
+    <Compile Include="Device\Modbus\ModbusRTUParam.cs" />
+    <Compile Include="Device\Modbus\ModbusRTUPoll.cs" />
     <Compile Include="Forms\YTMessageBox\MessageBoxTD.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -189,12 +191,11 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
-    <Compile Include="StyleHelper.cs" />
     <Compile Include="CustomGreenTheme.cs">
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Device\Modbus\IModbus.cs" />
-    <Compile Include="Device\Modbus\ModbusSlave.cs" />
+    <Compile Include="Device\Modbus\ModbusTcpSlave.cs" />
     <Compile Include="Device\PLC\PlcResult.cs" />
     <Compile Include="Device\TCP\ITcp.cs" />
     <Compile Include="Device\TCP\TCPClient.cs" />
@@ -442,8 +443,8 @@
     <Compile Include="Device\Camera\ICamera.cs" />
     <Compile Include="Device\IDevice.cs" />
     <Compile Include="Device\Light\LightRsee.cs" />
-    <Compile Include="Device\Modbus\ModbusPoll.cs" />
-    <Compile Include="Device\Modbus\ModbusParam.cs" />
+    <Compile Include="Device\Modbus\ModbusTcpPoll.cs" />
+    <Compile Include="Device\Modbus\ModbusTcpParam.cs" />
     <Compile Include="Node\2-ImagePreprocessing\ImageSplit\NodeImageSplit.cs">
       <SubType>UserControl</SubType>
     </Compile>

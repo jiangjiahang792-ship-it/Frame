@@ -178,28 +178,23 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                         // 如果该信号没发过才要发
                         if (!sentTargets.Contains(targetKey))
                         {
-                            var modbuspolltmp = (ModbusPoll)Solution.Instance.ModbusDevices.Find(mod => mod.UserDefinedName == targetKey.CommModbus);
+                            var modbus = Solution.Instance.ModbusDevices.Find(mod => mod.UserDefinedName == targetKey.CommModbus);
                             ushort address = ushort.Parse(targetKey.SignalAddress);
-                            //do
-                            //{
-                            //    base.CheckTokenCancel(token);
-                            //    modbuspolltmp.WriteSingleCoil(address, true);
-
-                            //} while (!(modbuspolltmp.ReadCoils(address, 1)[0]));
-                            modbuspolltmp.WriteSingleCoil(address, true);
+                            // 根据RTU还是TCP类型来调用不同的写入方法
+                            if (modbus.DevType == Device.DevType.ModbusRTUPoll)
+                                ((ModbusRTUPoll)modbus).WriteSingleCoil(address, true);
+                            else if (modbus.DevType == Device.DevType.ModbusTcpPoll)
+                                ((ModbusTcpPoll)modbus).WriteSingleCoil(address, true);
 
                             // 如果需要自动重置信号
                             if (isAutoReset)
                             {
                                 // 信号保持时间
-                                await ExecuteSleepAsync((int)holdTime);
-
-                                //do
-                                //{
-                                //    base.CheckTokenCancel(token);
-                                //    modbuspolltmp.WriteSingleCoil(address, false);
-                                //} while (modbuspolltmp.ReadCoils(address, 1)[0]);
-                                modbuspolltmp.WriteSingleCoil(address, false);
+                                await ExecuteSleepAsync((int)holdTime); 
+                                if (modbus.DevType == Device.DevType.ModbusRTUPoll)
+                                    ((ModbusRTUPoll)modbus).WriteSingleCoil(address, true);
+                                else if (modbus.DevType == Device.DevType.ModbusTcpPoll)
+                                    ((ModbusTcpPoll)modbus).WriteSingleCoil(address, true);
                             }
                             // 标记已发送
                             sentTargets.Add(targetKey);

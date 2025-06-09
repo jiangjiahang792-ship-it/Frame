@@ -6,8 +6,6 @@ using System.Drawing;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Web;
-using System.Windows.Forms;
 using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 using static TDJS_Vision.Node._3_Detection.TDAI.Yolo8.YoloV8;
 
@@ -90,7 +88,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     }
                 }
             }
-
         }
         /// <summary>
         /// 处理AI结果
@@ -152,11 +149,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     default:
                         break;
                 }
-
-                //Cv2.Rectangle(img, rect, colors[result.class_id % 6], 2);
-                //string label = $"{class_names[result.class_id]}:{result.score:F2}";
-                //Cv2.PutText(img, label, new Point(rect.X, rect.Y - 5), HersheyFonts.HersheySimplex, 0.5, Scalar.White, 1);
-
             }
         }
 

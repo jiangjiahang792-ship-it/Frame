@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Device;
 using TDJS_Vision.Device.Modbus;
@@ -21,7 +20,7 @@ namespace TDJS_Vision.Forms.ModbusAdd
         /// <summary>
         /// 设备参数
         /// </summary>
-        public ModbusParam Parms = new ModbusParam();
+        public IModbusParam Parms;
         /// <summary>
         /// 是否选中
         /// </summary>
@@ -70,7 +69,7 @@ namespace TDJS_Vision.Forms.ModbusAdd
             SingleModbuss.Add(this);
         }
 
-        public SingleModbus(ModbusParam param)
+        public SingleModbus(IModbusParam param)
         {
             InitializeComponent();
             this.label1.Text = param.UserDefinedName;
@@ -80,11 +79,14 @@ namespace TDJS_Vision.Forms.ModbusAdd
                 ModbusParamsControl = new ModbusParamsControl(param);
                 switch (param.DevType)
                 {
-                    case DevType.ModbusPoll:
-                        ModbusDevice = new ModbusPoll(param);
+                    case DevType.ModbusRTUPoll:
+                        ModbusDevice = new ModbusRTUPoll((ModbusRTUParam)param);
                         break;
-                    case DevType.ModbusSlave:
-                        ModbusDevice = new ModbusSlave(param);
+                    case DevType.ModbusTcpPoll:
+                        ModbusDevice = new ModbusTcpPoll((ModbusTcpParam)param);
+                        break;
+                    case DevType.ModbusTcpSlave:
+                        ModbusDevice = new ModbusTcpSlave((ModbusTcpParam)param);
                         break;
                     default:
                         break;

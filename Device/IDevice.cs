@@ -56,13 +56,21 @@ namespace TDJS_Vision.Device
         /// </summary>
         PLC,
         /// <summary>
-        /// Modbu主站
+        /// ModbuRTU主站
         /// </summary>
-        ModbusPoll,
+        ModbusRTUPoll,
+        /// <summary>
+        /// ModbuRTU从站
+        /// </summary>
+        ModbusRTUSlave,
+        /// <summary>
+        /// ModbuTcp主站
+        /// </summary>
+        ModbusTcpPoll,
         /// <summary>
         /// Modbu从站
         /// </summary>
-        ModbusSlave,
+        ModbusTcpSlave,
         /// <summary>
         /// Tcpf服务器
         /// </summary>

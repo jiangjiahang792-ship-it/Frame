@@ -66,23 +66,23 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
                         bool[] boolArray = datas.Select(part => part.Trim() != "0").ToArray();
                         bool[] falseArray = new bool[boolArray.Length];
                         if (param.IsAsync)
-                            ((ModbusPoll)param.Device).WriteMultipleCoilsAsync(param.StartAddress, boolArray);
+                            ((ModbusTcpPoll)param.Device).WriteMultipleCoilsAsync(param.StartAddress, boolArray);
                         else
-                            ((ModbusPoll)param.Device).WriteMultipleCoils(param.StartAddress, boolArray);
+                            ((ModbusTcpPoll)param.Device).WriteMultipleCoils(param.StartAddress, boolArray);
                         //线圈寄存器保持时间到后，自动恢复
-                        Thread.Sleep(((ModbusPoll)param.Device).ModbusParam.HoldTime);
+                        Thread.Sleep(((ModbusTcpPoll)param.Device).ModbusParam.HoldTime);
                         if (param.IsAsync)
-                            ((ModbusPoll)param.Device).WriteMultipleCoilsAsync(param.StartAddress, falseArray);
+                            ((ModbusTcpPoll)param.Device).WriteMultipleCoilsAsync(param.StartAddress, falseArray);
                         else
-                            ((ModbusPoll)param.Device).WriteMultipleCoils(param.StartAddress, falseArray);
+                            ((ModbusTcpPoll)param.Device).WriteMultipleCoils(param.StartAddress, falseArray);
                         break;
                     case RegistersType.HoldingRegisters:
                         string[] parts = param.Data.Split(',');
                         ushort[] ushortArray = Array.ConvertAll(parts, part => ushort.Parse(part.Trim()));
                         if (param.IsAsync)
-                            ((ModbusPoll)param.Device).WriteMultipleRegistersAsync(param.StartAddress, ushortArray);
+                            ((ModbusTcpPoll)param.Device).WriteMultipleRegistersAsync(param.StartAddress, ushortArray);
                         else
-                            ((ModbusPoll)param.Device).WriteMultipleRegisters(param.StartAddress, ushortArray);
+                            ((ModbusTcpPoll)param.Device).WriteMultipleRegisters(param.StartAddress, ushortArray);
                         break;
                     default:
                         break;

@@ -46,10 +46,9 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
             // 初始化Modbus列表,只显示添加的Modbus用户自定义名称
             foreach (var modbus in Solution.Instance.ModbusDevices)
             {
-                // 从站作为服务器不能发起请求
-                if(modbus.ModbusParam.DevType == Device.DevType.ModbusSlave)
-                    continue;
-                comboBoxModbusDev.Items.Add(modbus.UserDefinedName);
+                if (modbus.ModbusParam.DevType == Device.DevType.ModbusRTUPoll
+                || modbus.ModbusParam.DevType == Device.DevType.ModbusTcpPoll)
+                    comboBoxModbusDev.Items.Add(modbus.UserDefinedName);
             }
             int index1 = comboBoxModbusDev.Items.IndexOf(text1);
             comboBoxModbusDev.SelectedIndex = index1 == -1 ? 0 : index1;

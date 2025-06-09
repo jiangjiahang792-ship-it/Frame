@@ -20,7 +20,6 @@ using TDJS_Vision.Forms.SolRunParam;
 using TDJS_Vision.Forms.Login;
 using System.Threading.Tasks;
 using TDJS_Vision.Forms.YTMessageBox;
-using System.Drawing;
 
 namespace TDJS_Vision
 {

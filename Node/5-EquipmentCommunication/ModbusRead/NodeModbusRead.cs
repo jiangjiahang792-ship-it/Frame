@@ -60,16 +60,16 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
                 switch (param.DataType)
                 {
                     case RegistersType.Coils:
-                        data = await ((ModbusPoll)param.Device).ReadCoilsAsync(param.StartAddress, param.Count);
+                        data = await ((ModbusTcpPoll)param.Device).ReadCoilsAsync(param.StartAddress, param.Count);
                         break;
                     case RegistersType.DiscreteInput:
-                        data = await ((ModbusPoll)param.Device).ReadInputsAsync(param.StartAddress, param.Count);
+                        data = await ((ModbusTcpPoll)param.Device).ReadInputsAsync(param.StartAddress, param.Count);
                         break;
                     case RegistersType.InputRegisters:
-                        data = await ((ModbusPoll)param.Device).ReadInputRegistersAsync(param.StartAddress, param.Count);
+                        data = await ((ModbusTcpPoll)param.Device).ReadInputRegistersAsync(param.StartAddress, param.Count);
                         break;
                     case RegistersType.HoldingRegisters:
-                        data = await ((ModbusPoll)param.Device).ReadHoldingRegistersAsync(param.StartAddress, param.Count);
+                        data = await ((ModbusTcpPoll)param.Device).ReadHoldingRegistersAsync(param.StartAddress, param.Count);
                         break;
                     default:
                         break;

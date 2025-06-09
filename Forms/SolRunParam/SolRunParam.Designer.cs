@@ -30,6 +30,7 @@
         {
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.buttonSaveAllParam = new System.Windows.Forms.Button();
+            this.myDataGridViewForm1 = new TDJS_Vision.Forms.SolRunParam.MyDataGridViewForm();
             this.label1 = new System.Windows.Forms.Label();
             this.textBoxExposureTime = new System.Windows.Forms.TextBox();
             this.label3 = new System.Windows.Forms.Label();
@@ -47,7 +48,6 @@
             this.label6 = new System.Windows.Forms.Label();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
             this.folderBrowserDialog1 = new System.Windows.Forms.FolderBrowserDialog();
-            this.myDataGridViewForm1 = new TDJS_Vision.Forms.SolRunParam.MyDataGridViewForm();
             this.tableLayoutPanel1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -104,6 +104,20 @@
             this.buttonSaveAllParam.Text = "保存设置";
             this.buttonSaveAllParam.UseVisualStyleBackColor = false;
             this.buttonSaveAllParam.Click += new System.EventHandler(this.buttonSaveAllParam_Click);
+            // 
+            // myDataGridViewForm1
+            // 
+            this.myDataGridViewForm1.AutoScroll = true;
+            this.myDataGridViewForm1.AutoSize = true;
+            this.tableLayoutPanel1.SetColumnSpan(this.myDataGridViewForm1, 6);
+            this.myDataGridViewForm1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.myDataGridViewForm1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.myDataGridViewForm1.Location = new System.Drawing.Point(3, 130);
+            this.myDataGridViewForm1.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.myDataGridViewForm1.Name = "myDataGridViewForm1";
+            this.myDataGridViewForm1.Size = new System.Drawing.Size(1057, 288);
+            this.myDataGridViewForm1.TabIndex = 7;
+            this.myDataGridViewForm1.Leave += new System.EventHandler(this.myDataGridViewForm1_Leave);
             // 
             // label1
             // 
@@ -295,20 +309,6 @@
             // openFileDialog1
             // 
             this.openFileDialog1.FileName = "openFileDialog1";
-            // 
-            // myDataGridViewForm1
-            // 
-            this.myDataGridViewForm1.AutoScroll = true;
-            this.myDataGridViewForm1.AutoSize = true;
-            this.tableLayoutPanel1.SetColumnSpan(this.myDataGridViewForm1, 6);
-            this.myDataGridViewForm1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.myDataGridViewForm1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.myDataGridViewForm1.Location = new System.Drawing.Point(3, 130);
-            this.myDataGridViewForm1.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
-            this.myDataGridViewForm1.Name = "myDataGridViewForm1";
-            this.myDataGridViewForm1.Size = new System.Drawing.Size(1057, 288);
-            this.myDataGridViewForm1.TabIndex = 7;
-            this.myDataGridViewForm1.Leave += new System.EventHandler(this.myDataGridViewForm1_Leave);
             // 
             // SolRunParamControl
             // 

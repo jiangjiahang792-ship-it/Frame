@@ -59,7 +59,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
             foreach (var modbus in Solution.Instance.ModbusDevices)
             {
                 // 从站作为服务器不能发起请求
-                if (modbus.ModbusParam.DevType == Device.DevType.ModbusSlave)
+                if (modbus.ModbusParam.DevType == Device.DevType.ModbusTcpSlave)
                     continue;
                 comboBoxModbusDev.Items.Add(modbus.UserDefinedName);
             }
