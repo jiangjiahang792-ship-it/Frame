@@ -123,33 +123,33 @@ namespace TDJS_Vision.Forms.ResultView
                 }
 
                 // 遍历 NGList，将内容更新到 DataGridView 中
-                foreach (var SingleDetectResult in e.AiResultData)
+                foreach (var DetectResult in e.AiResultData)
                 {
                     // 查找是否已经存在该类型
                     var row = dgv.Rows.Cast<DataGridViewRow>().FirstOrDefault(r =>
-                        r.Cells["DetectName"].Value?.ToString() == SingleDetectResult.Name);
+                        r.Cells["DetectName"].Value?.ToString() == DetectResult.Name);
 
                     if (row == null) // 如果不存在，则添加一行
                     {
                         int rowIndex = dgv.Rows.Add();
-                        dgv.Rows[rowIndex].Cells["DetectName"].Value = SingleDetectResult.Name;
-                        dgv.Rows[rowIndex].Cells["SingleResult"].Value = SingleDetectResult.IsOk ? "OK" : "NG";
-                        dgv.Rows[rowIndex].Cells["SingleResult"].Style.BackColor = SingleDetectResult.IsOk ? Color.Green : Color.Red;
-                        dgv.Rows[rowIndex].Cells["DetectResult"].Value = SingleDetectResult.ResultsStr;
-                        dgv.Rows[rowIndex].Cells["CountNG"].Value = SingleDetectResult.IsOk ? 0 : 1;
-                        dgv.Rows[rowIndex].Cells["CountOK"].Value = SingleDetectResult.IsOk ? 1 : 0;
+                        dgv.Rows[rowIndex].Cells["DetectName"].Value = DetectResult.Name;
+                        dgv.Rows[rowIndex].Cells["SingleResult"].Value = (DetectResult.IsOk && DetectResult.IsCountOk) ? "OK" : "NG";
+                        dgv.Rows[rowIndex].Cells["SingleResult"].Style.BackColor = (DetectResult.IsOk && DetectResult.IsCountOk) ? Color.Green : Color.Red;
+                        dgv.Rows[rowIndex].Cells["DetectResult"].Value = DetectResult.ResultsStr;
+                        dgv.Rows[rowIndex].Cells["CountNG"].Value = DetectResult.IsOk ? 0 : 1;
+                        dgv.Rows[rowIndex].Cells["CountOK"].Value = DetectResult.IsOk ? 1 : 0;
                         dgv.Rows[rowIndex].Cells["Total"].Value = 1; // 初始总数为1
-                        dgv.Rows[rowIndex].Cells["Yield"].Value = SingleDetectResult.IsOk ? 100.00 + "%" : 0.00 + "%";// 良率
+                        dgv.Rows[rowIndex].Cells["Yield"].Value = DetectResult.IsOk ? 100.00 + "%" : 0.00 + "%";// 良率
                     }
                     else // 如果存在，则更新“个数”和其他信息
                     {
-                        row.Cells["SingleResult"].Value = SingleDetectResult.IsOk ? "OK" : "NG";
-                        row.Cells["SingleResult"].Style.BackColor = SingleDetectResult.IsOk ? Color.Green : Color.Red;
-                        row.Cells["DetectResult"].Value = SingleDetectResult.ResultsStr;
+                        row.Cells["SingleResult"].Value = (DetectResult.IsOk && DetectResult.IsCountOk) ? "OK" : "NG";
+                        row.Cells["SingleResult"].Style.BackColor = (DetectResult.IsOk && DetectResult.IsCountOk) ? Color.Green : Color.Red;
+                        row.Cells["DetectResult"].Value = DetectResult.ResultsStr;
                         int cNG = Convert.ToInt32(row.Cells["CountNG"].Value);
                         int cOK = Convert.ToInt32(row.Cells["CountOK"].Value);
                         int TotalNum = Convert.ToInt32(row.Cells["Total"].Value);
-                        if (SingleDetectResult.IsOk)
+                        if (DetectResult.IsOk)
                             row.Cells["CountOK"].Value = cOK + 1;
                         else
                             row.Cells["CountNG"].Value = cNG + 1;

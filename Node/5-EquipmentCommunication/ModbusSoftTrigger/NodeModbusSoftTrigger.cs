@@ -78,15 +78,14 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusSoftTrigger
             try
             {
                 bool[] readResult;
-                var modbusPoll = param.modbus as ModbusTcpPoll;
                 // 读取拍照信号
                 do
                 {
                     base.CheckTokenCancel(token);
-                    readResult = modbusPoll.ReadCoils(Convert.ToUInt16(param.Address), 1);
+                    readResult = param.modbus.ReadCoils(Convert.ToUInt16(param.Address), 1);
                 } while (!readResult.All(b => b == true));  // 读取失败或读取不到拍照信号为true均需要重试
                                                             // 重置拍照信号
-                modbusPoll.WriteSingleCoil(Convert.ToUInt16(param.Address), false);
+                param.modbus.WriteSingleCoil(Convert.ToUInt16(param.Address), false);
                 LogHelper.AddLog(MsgLevel.Info, $"{param.Address}信号发送成功", true);
             }
             catch (OperationCanceledException ex)

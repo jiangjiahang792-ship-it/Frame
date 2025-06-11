@@ -12,6 +12,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     internal class AIInputInfo
     {
         /// <summary>
+        /// 模型大小
+        /// </summary>
+        public int ModelSize { get; set; }
+        /// <summary>
         /// 置信度阈值
         /// </summary>
         public float ScoreThreshold { get; set; } = 0.5f;

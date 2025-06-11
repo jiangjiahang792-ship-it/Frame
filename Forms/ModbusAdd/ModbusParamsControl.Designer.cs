@@ -39,13 +39,11 @@
             this.label3 = new System.Windows.Forms.Label();
             this.label5 = new System.Windows.Forms.Label();
             this.label4 = new System.Windows.Forms.Label();
-            this.label6 = new System.Windows.Forms.Label();
             this.labelCom = new System.Windows.Forms.Label();
             this.labelBaudRate = new System.Windows.Forms.Label();
             this.labelDataBits = new System.Windows.Forms.Label();
             this.labelStopBits = new System.Windows.Forms.Label();
             this.labelPairty = new System.Windows.Forms.Label();
-            this.labelID = new System.Windows.Forms.Label();
             this.tableLayoutPanel1.SuspendLayout();
             this.tableLayoutPanel2.SuspendLayout();
             this.SuspendLayout();
@@ -59,13 +57,13 @@
             this.tableLayoutPanel1.Controls.Add(this.uiLabel2, 0, 1);
             this.tableLayoutPanel1.Controls.Add(this.uiLabelIP, 1, 0);
             this.tableLayoutPanel1.Controls.Add(this.uiLabelPort, 1, 1);
-            this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
+            this.tableLayoutPanel1.Location = new System.Drawing.Point(37, 41);
             this.tableLayoutPanel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
             this.tableLayoutPanel1.RowCount = 2;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(382, 127);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(352, 115);
             this.tableLayoutPanel1.TabIndex = 0;
             // 
             // uiLabel1
@@ -73,9 +71,9 @@
             this.uiLabel1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.uiLabel1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.uiLabel1.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(48)))), ((int)(((byte)(48)))), ((int)(((byte)(48)))));
-            this.uiLabel1.Location = new System.Drawing.Point(5, 20);
+            this.uiLabel1.Location = new System.Drawing.Point(3, 17);
             this.uiLabel1.Name = "uiLabel1";
-            this.uiLabel1.Size = new System.Drawing.Size(122, 22);
+            this.uiLabel1.Size = new System.Drawing.Size(117, 22);
             this.uiLabel1.TabIndex = 0;
             this.uiLabel1.Text = "IP地址";
             this.uiLabel1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -85,7 +83,7 @@
             this.uiLabel2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.uiLabel2.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.uiLabel2.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(48)))), ((int)(((byte)(48)))), ((int)(((byte)(48)))));
-            this.uiLabel2.Location = new System.Drawing.Point(13, 85);
+            this.uiLabel2.Location = new System.Drawing.Point(8, 76);
             this.uiLabel2.Name = "uiLabel2";
             this.uiLabel2.Size = new System.Drawing.Size(106, 19);
             this.uiLabel2.TabIndex = 0;
@@ -97,7 +95,7 @@
             this.uiLabelIP.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.uiLabelIP.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.uiLabelIP.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(48)))), ((int)(((byte)(48)))), ((int)(((byte)(48)))));
-            this.uiLabelIP.Location = new System.Drawing.Point(151, 20);
+            this.uiLabelIP.Location = new System.Drawing.Point(131, 17);
             this.uiLabelIP.Name = "uiLabelIP";
             this.uiLabelIP.Size = new System.Drawing.Size(212, 22);
             this.uiLabelIP.TabIndex = 0;
@@ -109,7 +107,7 @@
             this.uiLabelPort.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.uiLabelPort.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.uiLabelPort.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(48)))), ((int)(((byte)(48)))), ((int)(((byte)(48)))));
-            this.uiLabelPort.Location = new System.Drawing.Point(165, 84);
+            this.uiLabelPort.Location = new System.Drawing.Point(145, 75);
             this.uiLabelPort.Name = "uiLabelPort";
             this.uiLabelPort.Size = new System.Drawing.Size(184, 22);
             this.uiLabelPort.TabIndex = 0;
@@ -126,30 +124,27 @@
             this.tableLayoutPanel2.Controls.Add(this.label3, 0, 2);
             this.tableLayoutPanel2.Controls.Add(this.label5, 0, 4);
             this.tableLayoutPanel2.Controls.Add(this.label4, 0, 3);
-            this.tableLayoutPanel2.Controls.Add(this.label6, 0, 5);
             this.tableLayoutPanel2.Controls.Add(this.labelCom, 1, 0);
             this.tableLayoutPanel2.Controls.Add(this.labelBaudRate, 1, 1);
             this.tableLayoutPanel2.Controls.Add(this.labelDataBits, 1, 2);
             this.tableLayoutPanel2.Controls.Add(this.labelStopBits, 1, 3);
             this.tableLayoutPanel2.Controls.Add(this.labelPairty, 1, 4);
-            this.tableLayoutPanel2.Controls.Add(this.labelID, 1, 5);
             this.tableLayoutPanel2.Location = new System.Drawing.Point(426, 41);
             this.tableLayoutPanel2.Name = "tableLayoutPanel2";
-            this.tableLayoutPanel2.RowCount = 6;
+            this.tableLayoutPanel2.RowCount = 5;
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 14.28572F));
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 14.28572F));
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 14.28572F));
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 14.28572F));
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 14.28572F));
-            this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 14.28572F));
-            this.tableLayoutPanel2.Size = new System.Drawing.Size(452, 398);
+            this.tableLayoutPanel2.Size = new System.Drawing.Size(452, 341);
             this.tableLayoutPanel2.TabIndex = 2;
             // 
             // label1
             // 
             this.label1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(86, 25);
+            this.label1.Location = new System.Drawing.Point(86, 26);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(52, 15);
             this.label1.TabIndex = 0;
@@ -159,7 +154,7 @@
             // 
             this.label2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(86, 91);
+            this.label2.Location = new System.Drawing.Point(86, 94);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(52, 15);
             this.label2.TabIndex = 0;
@@ -169,7 +164,7 @@
             // 
             this.label3.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(86, 157);
+            this.label3.Location = new System.Drawing.Point(86, 162);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(52, 15);
             this.label3.TabIndex = 0;
@@ -179,7 +174,7 @@
             // 
             this.label5.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label5.AutoSize = true;
-            this.label5.Location = new System.Drawing.Point(86, 289);
+            this.label5.Location = new System.Drawing.Point(86, 299);
             this.label5.Name = "label5";
             this.label5.Size = new System.Drawing.Size(52, 15);
             this.label5.TabIndex = 0;
@@ -189,27 +184,17 @@
             // 
             this.label4.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(86, 223);
+            this.label4.Location = new System.Drawing.Point(86, 230);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(52, 15);
             this.label4.TabIndex = 0;
             this.label4.Text = "停止位";
             // 
-            // label6
-            // 
-            this.label6.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.label6.AutoSize = true;
-            this.label6.Location = new System.Drawing.Point(94, 356);
-            this.label6.Name = "label6";
-            this.label6.Size = new System.Drawing.Size(37, 15);
-            this.label6.TabIndex = 0;
-            this.label6.Text = "站号";
-            // 
             // labelCom
             // 
             this.labelCom.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.labelCom.AutoSize = true;
-            this.labelCom.Location = new System.Drawing.Point(319, 25);
+            this.labelCom.Location = new System.Drawing.Point(319, 26);
             this.labelCom.Name = "labelCom";
             this.labelCom.Size = new System.Drawing.Size(39, 15);
             this.labelCom.TabIndex = 0;
@@ -219,7 +204,7 @@
             // 
             this.labelBaudRate.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.labelBaudRate.AutoSize = true;
-            this.labelBaudRate.Location = new System.Drawing.Point(319, 91);
+            this.labelBaudRate.Location = new System.Drawing.Point(319, 94);
             this.labelBaudRate.Name = "labelBaudRate";
             this.labelBaudRate.Size = new System.Drawing.Size(39, 15);
             this.labelBaudRate.TabIndex = 0;
@@ -229,7 +214,7 @@
             // 
             this.labelDataBits.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.labelDataBits.AutoSize = true;
-            this.labelDataBits.Location = new System.Drawing.Point(331, 157);
+            this.labelDataBits.Location = new System.Drawing.Point(331, 162);
             this.labelDataBits.Name = "labelDataBits";
             this.labelDataBits.Size = new System.Drawing.Size(15, 15);
             this.labelDataBits.TabIndex = 0;
@@ -239,7 +224,7 @@
             // 
             this.labelStopBits.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.labelStopBits.AutoSize = true;
-            this.labelStopBits.Location = new System.Drawing.Point(331, 223);
+            this.labelStopBits.Location = new System.Drawing.Point(331, 230);
             this.labelStopBits.Name = "labelStopBits";
             this.labelStopBits.Size = new System.Drawing.Size(15, 15);
             this.labelStopBits.TabIndex = 0;
@@ -249,21 +234,11 @@
             // 
             this.labelPairty.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.labelPairty.AutoSize = true;
-            this.labelPairty.Location = new System.Drawing.Point(319, 289);
+            this.labelPairty.Location = new System.Drawing.Point(319, 299);
             this.labelPairty.Name = "labelPairty";
             this.labelPairty.Size = new System.Drawing.Size(39, 15);
             this.labelPairty.TabIndex = 0;
             this.labelPairty.Text = "None";
-            // 
-            // labelID
-            // 
-            this.labelID.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.labelID.AutoSize = true;
-            this.labelID.Location = new System.Drawing.Point(331, 356);
-            this.labelID.Name = "labelID";
-            this.labelID.Size = new System.Drawing.Size(15, 15);
-            this.labelID.TabIndex = 0;
-            this.labelID.Text = "1";
             // 
             // ModbusParamsControl
             // 
@@ -294,12 +269,10 @@
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.Label label5;
         private System.Windows.Forms.Label label4;
-        private System.Windows.Forms.Label label6;
         private System.Windows.Forms.Label labelCom;
         private System.Windows.Forms.Label labelBaudRate;
         private System.Windows.Forms.Label labelDataBits;
         private System.Windows.Forms.Label labelStopBits;
         private System.Windows.Forms.Label labelPairty;
-        private System.Windows.Forms.Label labelID;
     }
 }

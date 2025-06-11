@@ -121,6 +121,9 @@
   <data name="光源" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\光源.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
+  <data name="添加流程" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Icon\添加流程.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
   <data name="保存项目" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\保存项目.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
@@ -151,8 +154,8 @@
   <data name="运行参数" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\运行参数.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
-  <data name="方案设置" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Icon\方案设置.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  <data name="单次执行" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Icon\单次执行.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
   <data name="瞳达精视" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\Logo\瞳达精视.jpg;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
@@ -166,22 +169,13 @@
   <data name="解锁" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\解锁.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
-  <data name="单次执行" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Icon\单次执行.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
   <data name="另存为" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\另存为.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
   <data name="新建方案" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\新建方案.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
-  <data name="监听" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Icon\监听.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
   <data name="相机" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Icon\相机.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
-  <data name="添加流程" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Icon\添加流程.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
 </root>

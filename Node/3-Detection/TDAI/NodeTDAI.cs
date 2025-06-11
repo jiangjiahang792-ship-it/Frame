@@ -61,10 +61,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             res.AIInputInfo = param.AIInputInfo;
 
                             // 输出AI结果
-                            ProcessingAIResults(results, result_count, ref res);
+                            res.ResultList.Clear();
+
+                            //超日项目的结果解析
+                            AI.ResultParse(results, result_count, ref res);
+
+                            //// 线芯项目
+                            //ProcessingAIResults(results, result_count, ref res);
 
                             // 获取结果（测试数据）
-                            //res = TestRun(srcImg, param, config);
+                            //res = TestRun(srcImg, param, res.AIInputInfo);
 
 
                             // 返回结果
@@ -94,11 +100,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// </summary>
         public static void ProcessingAIResults(DetectionResult[] results, int resultCount, ref NodeResultTDAI nodeResult)
         {
-            nodeResult.ResultList.Clear();
             for (int i = 0; i < resultCount; ++i)
             {
                 DetectionResult result = results[i];
-                Rect rect = new Rect(result.left, result.top, result.width, result.height);
+                Rectangle rect = new Rectangle(result.left, result.top, result.width, result.height);
 
                 // 如果当前检测项不测,直接跳过
                 if (!nodeResult.AIInputInfo.DetectItems[result.class_id].Enable)
@@ -154,7 +159,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
         #region 处理不同检测项的结果
 
-        private static void HandleOutLine(DetectionResult result, Rect rect, ref NodeResultTDAI nodeResult)
+        private static void HandleOutLine(DetectionResult result, Rectangle rect, ref NodeResultTDAI nodeResult)
         {
             var itemRes = new SingleDetectItemResult();
             itemRes.Rects.Add(rect);
@@ -229,7 +234,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     {
                         IsOk = isOk,
                         Value = value.ToString("F2"),
-                        Rects = new List<Rect> { new Rect(x, y, width, height) }
+                        Rects = new List<Rectangle> { new Rectangle(x, y, width, height) }
                     });
                 }
 

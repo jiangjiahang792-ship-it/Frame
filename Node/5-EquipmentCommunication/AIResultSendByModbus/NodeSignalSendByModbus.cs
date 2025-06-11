@@ -1,5 +1,4 @@
 ﻿using Logger;
-using OfficeOpenXml.FormulaParsing.LexicalAnalysis;
 using Sunny.UI;
 using System;
 using System.Collections.Generic;
@@ -8,9 +7,7 @@ using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using TDJS_Vision.Device.Modbus;
 using TDJS_Vision.Node._3_Detection.TDAI;
-using TDJS_Vision.Node._5_EquipmentCommunication.SendResultByPLC;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
 {
@@ -144,11 +141,6 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                 return (false, missingNames);
             }
         }
-        private async Task ExecuteSleepAsync(int timeInMilliseconds)
-        {
-            // 使用 Task.Delay 在后台线程上执行异步睡眠操作
-            await Task.Delay(timeInMilliseconds);
-        }
 
         /// <summary>
         /// 发送检测项对应的modbus信号
@@ -170,7 +162,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     if (mapping.TryGetValue(result.Name, out var config))
                     {
                         // 不符合config.Judgment条件就直接跳过
-                        if (!config.ShouldSend(result.IsOk))
+                        if (!config.ShouldSend((result.IsOk && result.IsCountOk)))
                             continue;
 
                         var targetKey = (config.CommModbus, config.SignalAddress);
@@ -178,23 +170,22 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                         // 如果该信号没发过才要发
                         if (!sentTargets.Contains(targetKey))
                         {
-                            var modbus = Solution.Instance.ModbusDevices.Find(mod => mod.UserDefinedName == targetKey.CommModbus);
-                            ushort address = ushort.Parse(targetKey.SignalAddress);
-                            // 根据RTU还是TCP类型来调用不同的写入方法
-                            if (modbus.DevType == Device.DevType.ModbusRTUPoll)
-                                ((ModbusRTUPoll)modbus).WriteSingleCoil(address, true);
-                            else if (modbus.DevType == Device.DevType.ModbusTcpPoll)
-                                ((ModbusTcpPoll)modbus).WriteSingleCoil(address, true);
+                            //await SendSignal(targetKey, isAutoReset, holdTime, sentTargets);
+                             var modbus = Solution.Instance.ModbusDevices.Find(mod => mod.UserDefinedName == targetKey.Item1);
+                            if (modbus == null)
+                                throw new Exception($"不存在名称为{targetKey.Item1}的Modbus设备，请检查该设备是否已经被移除！");
+                            ushort address = ushort.Parse(targetKey.Item2);
 
-                            // 如果需要自动重置信号
+                            // 内部会根据RTU还是TCP类型来调用不同的写入方法
+                            await modbus.WriteSingleCoilAsync(address, true);
+
+                            // 保持设定时间后自动重置信号
                             if (isAutoReset)
                             {
-                                // 信号保持时间
-                                await ExecuteSleepAsync((int)holdTime); 
-                                if (modbus.DevType == Device.DevType.ModbusRTUPoll)
-                                    ((ModbusRTUPoll)modbus).WriteSingleCoil(address, true);
-                                else if (modbus.DevType == Device.DevType.ModbusTcpPoll)
-                                    ((ModbusTcpPoll)modbus).WriteSingleCoil(address, true);
+                                await Task.Delay((int)holdTime).ContinueWith(t =>
+                                {
+                                    modbus.WriteSingleCoilAsync(address, false);
+                                });
                             }
                             // 标记已发送
                             sentTargets.Add(targetKey);

@@ -183,16 +183,6 @@ namespace TDJS_Vision.Properties {
         /// <summary>
         ///   查找 System.Drawing.Bitmap 类型的本地化资源。
         /// </summary>
-        internal static System.Drawing.Bitmap 方案设置 {
-            get {
-                object obj = ResourceManager.GetObject("方案设置", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   查找 System.Drawing.Bitmap 类型的本地化资源。
-        /// </summary>
         internal static System.Drawing.Bitmap 流程删除 {
             get {
                 object obj = ResourceManager.GetObject("流程删除", resourceCulture);
@@ -216,16 +206,6 @@ namespace TDJS_Vision.Properties {
         internal static System.Drawing.Bitmap 用户登录 {
             get {
                 object obj = ResourceManager.GetObject("用户登录", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   查找 System.Drawing.Bitmap 类型的本地化资源。
-        /// </summary>
-        internal static System.Drawing.Bitmap 监听 {
-            get {
-                object obj = ResourceManager.GetObject("监听", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }

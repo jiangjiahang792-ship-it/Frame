@@ -20,8 +20,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// </summary>
         public string ConfigPath { get; set; }
         /// <summary>
-        /// AI模型配置
+        /// AI模型配置(不参与序列化)
         /// </summary>
+        [JsonIgnore]
         public AIInputInfo AIInputInfo { get; set; }
         /// <summary>
         /// 是否一键学习

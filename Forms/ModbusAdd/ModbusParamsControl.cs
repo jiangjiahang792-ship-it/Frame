@@ -19,7 +19,6 @@ namespace TDJS_Vision.Forms.ModbusAdd
                     labelDataBits.Text = paramSerialPoll.DataBits.ToString();
                     labelPairty.Text = paramSerialPoll.Parity.ToString();
                     labelStopBits.Text = paramSerialPoll.StopBits.ToString();
-                    labelID.Text = paramSerialPoll.ID.ToString();
                     SetVisible2();
                     break;
                 case Device.DevType.ModbusRTUSlave:

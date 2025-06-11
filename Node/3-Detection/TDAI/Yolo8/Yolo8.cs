@@ -50,14 +50,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         // 加载 DLL 并绑定函数
         static YoloV8()
         {
-            string dllPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "yolo_dll.dll");
+            string dllPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "yolo_det.dll");
 
             if (!File.Exists(dllPath))
-                LogHelper.AddLog(MsgLevel.Exception, $"找不到 yolo_dll.dll，请确保它位于应用程序目录: {dllPath}", true);
+                LogHelper.AddLog(MsgLevel.Exception, $"找不到 yolo_det.dll，请确保它位于应用程序目录: {dllPath}", true);
 
             _hModule = LoadLibrary(dllPath);
             if (_hModule == IntPtr.Zero)
-                LogHelper.AddLog(MsgLevel.Exception, "加载 yolo_dll.dll 失败!", true);
+                LogHelper.AddLog(MsgLevel.Exception, "加载 yolo_det.dll 失败!", true);
 
             // 获取函数地址并绑定到委托
             _createDetector = Marshal.GetDelegateForFunctionPointer<CreateDetectorDelegate>(GetProcAddress(_hModule, "CreateDetector"));

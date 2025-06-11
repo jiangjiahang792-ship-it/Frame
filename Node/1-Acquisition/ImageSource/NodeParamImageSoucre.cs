@@ -32,6 +32,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <summary>
         /// 图片路径列表
         /// </summary>
+        [JsonIgnore]
         public List<string> ImagePaths { get; set; } = new List<string>();
         #endregion
 

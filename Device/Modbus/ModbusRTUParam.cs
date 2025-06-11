@@ -24,10 +24,6 @@ namespace TDJS_Vision.Device.Modbus
         /// </summary>
         public ushort HoldTime { get; set; } = 30;
         /// <summary>
-        /// 站号
-        /// </summary>
-        public byte ID { get; set; }
-        /// <summary>
         /// COM号
         /// </summary>
         public string PortName { get; set; }
@@ -47,6 +43,9 @@ namespace TDJS_Vision.Device.Modbus
         /// 停止位
         /// </summary>
         public StopBits StopBits { get; set; }
+        /// <summary>
+        /// 反序列化用
+        /// </summary>
         public string ClassName { get; set; } = typeof(ModbusRTUParam).FullName;
     }
 }

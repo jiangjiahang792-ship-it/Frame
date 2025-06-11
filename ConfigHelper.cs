@@ -82,6 +82,7 @@ namespace TDJS_Vision
             {
                 string json = File.ReadAllText(solFile);
                 SolConfig = JsonConvert.DeserializeObject<SolConfig>(json);
+                SolConfig.SolName = solFile;
 
                 if (SolConfig == null)
                     throw new Exception("方案配置文件已损坏！");

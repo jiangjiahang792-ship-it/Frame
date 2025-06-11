@@ -82,6 +82,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                 param.Text4 = nodeSubscription2.GetText2();
                 param.FontSize = int.Parse(textBox_FontSize.Text);
                 param.LineWidth = int.Parse(textBox_LineWidth.Text);
+                param.TextLoc = radioButtonLeftUp.Checked ? TextLoc.LeftUp : radioButtonRightDown.Checked ? TextLoc.RightDown : TextLoc.FollowBox;
                 Params = param;
                 Hide();
             }
@@ -103,6 +104,20 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                 nodeSubscription2.SetText(param.Text3, param.Text4);
                 textBox_FontSize.Text = param.FontSize.ToString();
                 textBox_LineWidth.Text = param.LineWidth.ToString();
+                switch (param.TextLoc)
+                {
+                    case TextLoc.LeftUp:
+                        radioButtonLeftUp.Checked = true;
+                        break;
+                    case TextLoc.RightDown:
+                        radioButtonRightDown.Checked = true;
+                        break;
+                    case TextLoc.FollowBox:
+                        radioButtonFollowBox.Checked = true;
+                        break;
+                    default:
+                        break;
+                }
             }
         }
     }

@@ -2,7 +2,6 @@
 using System.Drawing;
 using TDJS_Vision.Forms.ResultView;
 using System.ComponentModel;
-using OpenCvSharp;
 using System.Linq;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
@@ -67,6 +66,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// 检测项结果是否OK
         /// </summary>
         public bool IsOk { get { return Results.TrueForAll(item => item.IsOk); } }
+        /// <summary>
+        /// 检测项结果个数是否OK
+        /// </summary>
+        public bool IsCountOk { get; set; }
     }
     /// <summary>
     /// 单个检测项结果类
@@ -84,6 +87,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <summary>
         /// 单个检测项涉及的矩形框列表（用于绘制）
         /// </summary>
-        public List<Rect> Rects { get; set; } = new List<Rect> { };
+        public List<Rectangle> Rects { get; set; } = new List<Rectangle> { };
     }
 }

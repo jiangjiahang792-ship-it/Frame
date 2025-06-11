@@ -5,6 +5,7 @@ using System.Net;
 using Modbus.Data;
 using Logger;
 using Newtonsoft.Json;
+using System.Threading.Tasks;
 
 namespace TDJS_Vision.Device.Modbus
 {
@@ -175,6 +176,100 @@ namespace TDJS_Vision.Device.Modbus
             }
         }
 
+
+        #region 以下接口不需要具体实现，当前类为Modbus从站类型，不具备以下功能
+
+        public bool[] ReadCoils(ushort startAddress, ushort numberOfPoints)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<bool[]> ReadCoilsAsync(ushort startAddress, ushort numberOfPoints)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool[] ReadInputs(ushort startAddress, ushort numberOfPoints)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<bool[]> ReadInputsAsync(ushort startAddress, ushort numberOfPoints)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ushort[] ReadInputRegisters(ushort startAddress, ushort numberOfPoints)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<ushort[]> ReadInputRegistersAsync(ushort startAddress, ushort numberOfPoints)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ushort[] ReadHoldingRegisters(ushort startAddress, ushort numberOfPoints)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<ushort[]> ReadHoldingRegistersAsync(ushort startAddress, ushort numberOfPoints)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void WriteSingleCoil(ushort coilAddress, bool value)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task WriteSingleCoilAsync(ushort coilAddress, bool value)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void WriteSingleRegister(ushort registerAddress, ushort value)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task WriteSingleRegisterAsync(ushort registerAddress, ushort value)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void WriteMultipleRegisters(ushort startAddress, ushort[] data)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task WriteMultipleRegistersAsync(ushort startAddress, ushort[] data)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void WriteMultipleCoils(ushort startAddress, bool[] data)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task WriteMultipleCoilsAsync(ushort startAddress, bool[] data)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ushort[] ReadWriteMultipleRegisters(ushort startReadAddress, ushort numberOfPointsToRead, ushort startWriteAddress, ushort[] writeData)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<ushort[]> ReadWriteMultipleRegistersAsync(ushort startReadAddress, ushort numberOfPointsToRead, ushort startWriteAddress, ushort[] writeData)
+        {
+            throw new NotImplementedException();
+        }
+
+        #endregion
     }
 }
 

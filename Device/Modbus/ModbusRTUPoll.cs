@@ -13,7 +13,7 @@ namespace TDJS_Vision.Device.Modbus
     internal class ModbusRTUPoll : IModbus
     {
         private SerialPort _serialPort;
-        private IModbusMaster _master;
+        private ModbusSerialMaster _master;
 
         public string DevName { get; set; }
         public string UserDefinedName { get; set; }
@@ -70,8 +70,8 @@ namespace TDJS_Vision.Device.Modbus
                     stopBits: param.StopBits
                 )
                 {
-                    ReadTimeout = 500,
-                    WriteTimeout = 500,
+                    //ReadTimeout = 500,
+                    //WriteTimeout = 500,
                     Encoding = System.Text.Encoding.ASCII
                 };
 
@@ -115,42 +115,42 @@ namespace TDJS_Vision.Device.Modbus
 
         public bool[] ReadCoils(ushort startAddress, ushort numberOfPoints)
         {
-            return _master.ReadCoils(((ModbusRTUParam)ModbusParam).ID, startAddress, numberOfPoints);
+            return _master.ReadCoils(1, startAddress, numberOfPoints);
         }
 
         public Task<bool[]> ReadCoilsAsync(ushort startAddress, ushort numberOfPoints)
         {
-            return _master.ReadCoilsAsync(((ModbusRTUParam)ModbusParam).ID, startAddress, numberOfPoints);
+            return _master.ReadCoilsAsync(1, startAddress, numberOfPoints);
         }
 
         public bool[] ReadInputs(ushort startAddress, ushort numberOfPoints)
         {
-            return _master.ReadInputs(((ModbusRTUParam)ModbusParam).ID, startAddress, numberOfPoints);
+            return _master.ReadInputs(1, startAddress, numberOfPoints);
         }
 
         public Task<bool[]> ReadInputsAsync(ushort startAddress, ushort numberOfPoints)
         {
-            return _master.ReadInputsAsync(((ModbusRTUParam)ModbusParam).ID, startAddress, numberOfPoints);
+            return _master.ReadInputsAsync(1, startAddress, numberOfPoints);
         }
 
         public ushort[] ReadInputRegisters(ushort startAddress, ushort numberOfPoints)
         {
-            return _master.ReadInputRegisters(((ModbusRTUParam)ModbusParam).ID, startAddress, numberOfPoints);
+            return _master.ReadInputRegisters(1, startAddress, numberOfPoints);
         }
 
         public Task<ushort[]> ReadInputRegistersAsync(ushort startAddress, ushort numberOfPoints)
         {
-            return _master.ReadInputRegistersAsync(((ModbusRTUParam)ModbusParam).ID, startAddress, numberOfPoints);
+            return _master.ReadInputRegistersAsync(1, startAddress, numberOfPoints);
         }
 
         public ushort[] ReadHoldingRegisters(ushort startAddress, ushort numberOfPoints)
         {
-            return _master.ReadHoldingRegisters(((ModbusRTUParam)ModbusParam).ID, startAddress, numberOfPoints);
+            return _master.ReadHoldingRegisters(1, startAddress, numberOfPoints);
         }
 
         public Task<ushort[]> ReadHoldingRegistersAsync(ushort startAddress, ushort numberOfPoints)
         {
-            return _master.ReadHoldingRegistersAsync(((ModbusRTUParam)ModbusParam).ID, startAddress, numberOfPoints);
+            return _master.ReadHoldingRegistersAsync(1, startAddress, numberOfPoints);
         }
 
         #endregion
@@ -159,35 +159,35 @@ namespace TDJS_Vision.Device.Modbus
 
         public void WriteSingleCoil(ushort coilAddress, bool value)
         {
-            _master.WriteSingleCoil(((ModbusRTUParam)ModbusParam).ID, coilAddress, value);
+            _master.WriteSingleCoil(1, coilAddress, value);
         }
 
         public Task WriteSingleCoilAsync(ushort coilAddress, bool value) =>
-            _master.WriteSingleCoilAsync(((ModbusRTUParam)ModbusParam).ID, coilAddress, value);
+            _master.WriteSingleCoilAsync(1, coilAddress, value);
 
         public void WriteSingleRegister(ushort registerAddress, ushort value)
         {
-            _master.WriteSingleRegister(((ModbusRTUParam)ModbusParam).ID, registerAddress, value);
+            _master.WriteSingleRegister(1, registerAddress, value);
         }
 
         public Task WriteSingleRegisterAsync(ushort registerAddress, ushort value) =>
-            _master.WriteSingleRegisterAsync(((ModbusRTUParam)ModbusParam).ID, registerAddress, value);
+            _master.WriteSingleRegisterAsync(1, registerAddress, value);
 
         public void WriteMultipleRegisters(ushort startAddress, ushort[] data)
         {
-            _master.WriteMultipleRegisters(((ModbusRTUParam)ModbusParam).ID, startAddress, data);
+            _master.WriteMultipleRegisters(1, startAddress, data);
         }
 
         public Task WriteMultipleRegistersAsync(ushort startAddress, ushort[] data) =>
-            _master.WriteMultipleRegistersAsync(((ModbusRTUParam)ModbusParam).ID, startAddress, data);
+            _master.WriteMultipleRegistersAsync(1, startAddress, data);
 
         public void WriteMultipleCoils(ushort startAddress, bool[] data)
         {
-            _master.WriteMultipleCoils(((ModbusRTUParam)ModbusParam).ID, startAddress, data);
+            _master.WriteMultipleCoils(1, startAddress, data);
         }
 
         public Task WriteMultipleCoilsAsync(ushort startAddress, bool[] data) =>
-            _master.WriteMultipleCoilsAsync(((ModbusRTUParam)ModbusParam).ID, startAddress, data);
+            _master.WriteMultipleCoilsAsync(1, startAddress, data);
 
         #endregion
 
@@ -195,12 +195,12 @@ namespace TDJS_Vision.Device.Modbus
 
         public ushort[] ReadWriteMultipleRegisters(ushort startReadAddress, ushort numberOfPointsToRead, ushort startWriteAddress, ushort[] writeData)
         {
-            return _master.ReadWriteMultipleRegisters(((ModbusRTUParam)ModbusParam).ID, startReadAddress, numberOfPointsToRead, startWriteAddress, writeData);
+            return _master.ReadWriteMultipleRegisters(1, startReadAddress, numberOfPointsToRead, startWriteAddress, writeData);
         }
 
         public Task<ushort[]> ReadWriteMultipleRegistersAsync(ushort startReadAddress, ushort numberOfPointsToRead, ushort startWriteAddress, ushort[] writeData)
         {
-            return _master.ReadWriteMultipleRegistersAsync(((ModbusRTUParam)ModbusParam).ID, startReadAddress, numberOfPointsToRead, startWriteAddress, writeData);
+            return _master.ReadWriteMultipleRegistersAsync(1, startReadAddress, numberOfPointsToRead, startWriteAddress, writeData);
         }
 
         #endregion

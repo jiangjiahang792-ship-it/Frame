@@ -67,6 +67,16 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     {
                         checkBoxAuto.Enabled = true;
                     }
+                    // “选择目录”需要获取目录下所有图像文件
+                    if (Directory.Exists(param.PathText))
+                    {
+                        var extensions = new[] { ".bmp", ".jpg", ".jpeg", ".png" };
+                        var files = Directory.GetFiles(textBoxImgPath.Text)
+                                             .Where(s => extensions.Any(e => s.EndsWith(e, StringComparison.OrdinalIgnoreCase)))
+                                             .ToList();
+
+                        param.ImagePaths = files;
+                    }
                 }
                 else if (param.ImageSource == "相机")
                 {

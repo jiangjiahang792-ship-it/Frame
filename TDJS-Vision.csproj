@@ -8,7 +8,7 @@
     <ProjectGuid>{60ADDFFF-D34C-48AA-B84D-03EAB7518169}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <RootNamespace>TDJS_Vision</RootNamespace>
-    <AssemblyName>鹰眼智检视觉系统</AssemblyName>
+    <AssemblyName>TD-Vision</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -186,6 +186,7 @@
     <Compile Include="Forms\YTMessageBox\MessageBoxTD.Designer.cs">
       <DependentUpon>MessageBoxTD.cs</DependentUpon>
     </Compile>
+    <Compile Include="Node\3-Detection\TDAI\AI.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -1120,7 +1121,6 @@
     </Compile>
     <None Include="Resources\注液孔检测算子示例.png" />
     <None Include="Icon\Logo\瞳达精视.jpg" />
-    <Content Include="APP.ico" />
     <None Include="空方案.Sol">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
@@ -1151,6 +1151,7 @@
     <Folder Include="Node\4-Measurement\" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="APP.ico" />
     <Content Include="dll\Basler.Pylon.dll" />
     <Content Include="dll\HslCommunication.dll" />
     <Content Include="dll\MvCameraControl.Net.dll" />
@@ -1158,6 +1159,7 @@
     <None Include="Icon\Modbus.png" />
     <None Include="Icon\tcp.png" />
     <None Include="Icon\运行参数.png" />
+    <None Include="Icon\Logo\APP.ico" />
     <Content Include="ToolTreeView.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

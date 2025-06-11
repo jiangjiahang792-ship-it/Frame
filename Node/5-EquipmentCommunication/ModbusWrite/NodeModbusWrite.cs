@@ -59,6 +59,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
                 if (param.IsSubscribed)
                     param.Data = ((ParamFormModbusWrite)ParamForm).GetSubValue();
 
+                var modbus = param.Device as IModbus;
                 switch (param.DataType)
                 {
                     case RegistersType.Coils:
@@ -66,23 +67,27 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
                         bool[] boolArray = datas.Select(part => part.Trim() != "0").ToArray();
                         bool[] falseArray = new bool[boolArray.Length];
                         if (param.IsAsync)
-                            ((ModbusTcpPoll)param.Device).WriteMultipleCoilsAsync(param.StartAddress, boolArray);
+                            modbus.WriteMultipleCoilsAsync(param.StartAddress, boolArray);
                         else
-                            ((ModbusTcpPoll)param.Device).WriteMultipleCoils(param.StartAddress, boolArray);
-                        //线圈寄存器保持时间到后，自动恢复
-                        Thread.Sleep(((ModbusTcpPoll)param.Device).ModbusParam.HoldTime);
-                        if (param.IsAsync)
-                            ((ModbusTcpPoll)param.Device).WriteMultipleCoilsAsync(param.StartAddress, falseArray);
-                        else
-                            ((ModbusTcpPoll)param.Device).WriteMultipleCoils(param.StartAddress, falseArray);
+                            modbus.WriteMultipleCoils(param.StartAddress, boolArray);
+                        //线圈寄存器保持时间
+                        Thread.Sleep(modbus.ModbusParam.HoldTime);
+                        // 是否自动重置线圈
+                        if (param.IsAutoReset)
+                        {
+                            if (param.IsAsync)
+                                modbus.WriteMultipleCoilsAsync(param.StartAddress, falseArray);
+                            else
+                                modbus.WriteMultipleCoils(param.StartAddress, falseArray);
+                        }
                         break;
                     case RegistersType.HoldingRegisters:
                         string[] parts = param.Data.Split(',');
                         ushort[] ushortArray = Array.ConvertAll(parts, part => ushort.Parse(part.Trim()));
                         if (param.IsAsync)
-                            ((ModbusTcpPoll)param.Device).WriteMultipleRegistersAsync(param.StartAddress, ushortArray);
+                            modbus.WriteMultipleRegistersAsync(param.StartAddress, ushortArray);
                         else
-                            ((ModbusTcpPoll)param.Device).WriteMultipleRegisters(param.StartAddress, ushortArray);
+                            modbus.WriteMultipleRegisters(param.StartAddress, ushortArray);
                         break;
                     default:
                         break;

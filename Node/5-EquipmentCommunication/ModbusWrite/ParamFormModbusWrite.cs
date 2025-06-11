@@ -136,6 +136,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
                 nodeParamWrite.Text1 = nodeSubscription1.GetText1();
                 nodeParamWrite.Text2 = nodeSubscription1.GetText2();
             }
+            nodeParamWrite.IsAutoReset = checkBoxAutoReset.Checked;
             Params = nodeParamWrite;
         }
 
@@ -196,6 +197,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
                     radioButton2.Checked = true;
                     textBoxData.Text = param.Data.ToString();
                 }
+                checkBoxAutoReset.Checked = param.IsAutoReset;
             }
         }
 

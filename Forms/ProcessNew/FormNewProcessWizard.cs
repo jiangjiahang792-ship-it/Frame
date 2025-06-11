@@ -1,5 +1,6 @@
 ﻿using gCursorLib;
 using Logger;
+using Sunny.UI;
 using System;
 using System.Drawing;
 using System.IO;
@@ -178,6 +179,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                 tabPage.Controls.Add(nodeEditPanel);
                 tabControl1.Controls.Add(tabPage);
             }
+            //方案文件中的SolName和方案实际所在路径有可能不一致，需要保存一次
+            ConfigHelper.SolSave(Solution.Instance.SolFileName);
         }
 
         /// <summary>

@@ -20,6 +20,7 @@ using TDJS_Vision.Forms.SolRunParam;
 using TDJS_Vision.Forms.Login;
 using System.Threading.Tasks;
 using TDJS_Vision.Forms.YTMessageBox;
+using System.Drawing;
 
 namespace TDJS_Vision
 {
@@ -89,6 +90,8 @@ namespace TDJS_Vision
         private FrmSystemSetting frmSystemSetting = new FrmSystemSetting();
 
         #endregion
+
+        private Form _invisibleMainForm;
         private UserRole Role { get; set; } = UserRole.Unknown; // 登录的用户角色
         /// <summary>
         /// 窗口布局配置
@@ -102,6 +105,7 @@ namespace TDJS_Vision
         public FormMain()
         {
             InitializeComponent();
+            // 自定义主题设置
             this.dockPanel1.Theme = new GreenTheme();
         }
         /// <summary>
@@ -115,7 +119,7 @@ namespace TDJS_Vision
             InitDockPanel();
 
             // 设置主窗口标题
-            Text = $"鹰眼智检系统 V{Solution.Instance.SolVersion}";
+            Text = $"TD-Vision V{Solution.Instance.SolVersion}";
 
             // 初始化海康相机SDK
             CameraHik.InitSDK();

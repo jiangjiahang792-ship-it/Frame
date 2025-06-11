@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
@@ -13,6 +14,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
         public string Text4;
         public int FontSize;
         public int LineWidth;
+        [JsonConverter(typeof(StringEnumConverter))]
+        public TextLoc TextLoc;
     }
 
     internal class DatashowData
@@ -24,5 +27,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
             TabPageName = nodename;
             AiResultData = airesult;
         }
+    }
+    /// <summary>
+    /// 文字绘制位置
+    /// </summary>
+    internal enum TextLoc
+    {
+        LeftUp,//左上
+        RightDown,//右下
+        FollowBox//跟随结果矩形框
     }
 }

@@ -37,8 +37,6 @@
             this.tabControl1 = new System.Windows.Forms.TabControl();
             this.tabPage1 = new System.Windows.Forms.TabPage();
             this.tableLayoutPanel4 = new System.Windows.Forms.TableLayoutPanel();
-            this.textBoxRTUDevName = new System.Windows.Forms.TextBox();
-            this.label6 = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
             this.comboBoxCom = new System.Windows.Forms.ComboBox();
             this.label2 = new System.Windows.Forms.Label();
@@ -67,6 +65,8 @@
             this.textBoxTcpSlaveID = new System.Windows.Forms.TextBox();
             this.label10 = new System.Windows.Forms.Label();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
+            this.textBoxRTUDevName = new System.Windows.Forms.TextBox();
+            this.label6 = new System.Windows.Forms.Label();
             this.groupBox2.SuspendLayout();
             this.tabControl1.SuspendLayout();
             this.tabPage1.SuspendLayout();
@@ -82,7 +82,7 @@
             // 
             this.buttonTcpPoll.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonTcpPoll.Font = new System.Drawing.Font("黑体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonTcpPoll.Location = new System.Drawing.Point(282, 193);
+            this.buttonTcpPoll.Location = new System.Drawing.Point(355, 193);
             this.buttonTcpPoll.Margin = new System.Windows.Forms.Padding(53, 3, 53, 3);
             this.buttonTcpPoll.Name = "buttonTcpPoll";
             this.buttonTcpPoll.Size = new System.Drawing.Size(108, 37);
@@ -95,7 +95,7 @@
             // 
             this.textBoxTcpPollDevName.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxTcpPollDevName.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxTcpPollDevName.Location = new System.Drawing.Point(224, 135);
+            this.textBoxTcpPollDevName.Location = new System.Drawing.Point(297, 135);
             this.textBoxTcpPollDevName.Name = "textBoxTcpPollDevName";
             this.textBoxTcpPollDevName.Size = new System.Drawing.Size(224, 30);
             this.textBoxTcpPollDevName.TabIndex = 0;
@@ -109,7 +109,7 @@
             this.label5.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.label5.Location = new System.Drawing.Point(3, 20);
             this.label5.Name = "label5";
-            this.label5.Size = new System.Drawing.Size(168, 20);
+            this.label5.Size = new System.Drawing.Size(206, 20);
             this.label5.TabIndex = 2;
             this.label5.Text = "IP地址";
             this.label5.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -121,7 +121,7 @@
             this.label4.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.label4.Location = new System.Drawing.Point(3, 80);
             this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(168, 20);
+            this.label4.Size = new System.Drawing.Size(206, 20);
             this.label4.TabIndex = 1;
             this.label4.Text = "端口";
             this.label4.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -135,7 +135,7 @@
             this.groupBox2.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.groupBox2.Name = "groupBox2";
             this.groupBox2.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.groupBox2.Size = new System.Drawing.Size(518, 468);
+            this.groupBox2.Size = new System.Drawing.Size(626, 513);
             this.groupBox2.TabIndex = 12;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "设备信息(选择其中一种)";
@@ -149,7 +149,7 @@
             this.tabControl1.Location = new System.Drawing.Point(3, 25);
             this.tabControl1.Name = "tabControl1";
             this.tabControl1.SelectedIndex = 0;
-            this.tabControl1.Size = new System.Drawing.Size(512, 441);
+            this.tabControl1.Size = new System.Drawing.Size(620, 486);
             this.tabControl1.TabIndex = 15;
             // 
             // tabPage1
@@ -158,7 +158,7 @@
             this.tabPage1.Location = new System.Drawing.Point(4, 30);
             this.tabPage1.Name = "tabPage1";
             this.tabPage1.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage1.Size = new System.Drawing.Size(504, 407);
+            this.tabPage1.Size = new System.Drawing.Size(612, 452);
             this.tabPage1.TabIndex = 0;
             this.tabPage1.Text = "RTU主站";
             this.tabPage1.UseVisualStyleBackColor = true;
@@ -168,8 +168,6 @@
             this.tableLayoutPanel4.ColumnCount = 2;
             this.tableLayoutPanel4.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanel4.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.tableLayoutPanel4.Controls.Add(this.textBoxRTUDevName, 1, 5);
-            this.tableLayoutPanel4.Controls.Add(this.label6, 0, 5);
             this.tableLayoutPanel4.Controls.Add(this.label1, 0, 0);
             this.tableLayoutPanel4.Controls.Add(this.comboBoxCom, 1, 0);
             this.tableLayoutPanel4.Controls.Add(this.label2, 0, 1);
@@ -181,6 +179,8 @@
             this.tableLayoutPanel4.Controls.Add(this.label18, 0, 2);
             this.tableLayoutPanel4.Controls.Add(this.label19, 0, 3);
             this.tableLayoutPanel4.Controls.Add(this.buttonRTUPoll, 1, 6);
+            this.tableLayoutPanel4.Controls.Add(this.label6, 0, 5);
+            this.tableLayoutPanel4.Controls.Add(this.textBoxRTUDevName, 1, 5);
             this.tableLayoutPanel4.Dock = System.Windows.Forms.DockStyle.Top;
             this.tableLayoutPanel4.Location = new System.Drawing.Point(3, 3);
             this.tableLayoutPanel4.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
@@ -193,31 +193,9 @@
             this.tableLayoutPanel4.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 14.28571F));
             this.tableLayoutPanel4.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 14.28571F));
             this.tableLayoutPanel4.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 14.28571F));
-            this.tableLayoutPanel4.Size = new System.Drawing.Size(498, 381);
+            this.tableLayoutPanel4.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
+            this.tableLayoutPanel4.Size = new System.Drawing.Size(606, 381);
             this.tableLayoutPanel4.TabIndex = 14;
-            // 
-            // textBoxRTUDevName
-            // 
-            this.textBoxRTUDevName.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.textBoxRTUDevName.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxRTUDevName.Location = new System.Drawing.Point(261, 282);
-            this.textBoxRTUDevName.Name = "textBoxRTUDevName";
-            this.textBoxRTUDevName.Size = new System.Drawing.Size(224, 30);
-            this.textBoxRTUDevName.TabIndex = 13;
-            this.textBoxRTUDevName.Text = "ModbusRTU主站1";
-            this.textBoxRTUDevName.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            // 
-            // label6
-            // 
-            this.label6.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
-            this.label6.AutoSize = true;
-            this.label6.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label6.Location = new System.Drawing.Point(3, 287);
-            this.label6.Name = "label6";
-            this.label6.Size = new System.Drawing.Size(243, 20);
-            this.label6.TabIndex = 12;
-            this.label6.Text = "设备名称";
-            this.label6.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // label1
             // 
@@ -226,7 +204,7 @@
             this.label1.Font = new System.Drawing.Font("宋体", 12F);
             this.label1.Location = new System.Drawing.Point(3, 17);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(243, 20);
+            this.label1.Size = new System.Drawing.Size(297, 20);
             this.label1.TabIndex = 2;
             this.label1.Text = "串口号";
             this.label1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -238,10 +216,10 @@
             this.comboBoxCom.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxCom.Font = new System.Drawing.Font("宋体", 12F);
             this.comboBoxCom.FormattingEnabled = true;
-            this.comboBoxCom.Location = new System.Drawing.Point(252, 13);
+            this.comboBoxCom.Location = new System.Drawing.Point(306, 13);
             this.comboBoxCom.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.comboBoxCom.Name = "comboBoxCom";
-            this.comboBoxCom.Size = new System.Drawing.Size(243, 28);
+            this.comboBoxCom.Size = new System.Drawing.Size(297, 28);
             this.comboBoxCom.TabIndex = 1;
             // 
             // label2
@@ -251,7 +229,7 @@
             this.label2.Font = new System.Drawing.Font("宋体", 12F);
             this.label2.Location = new System.Drawing.Point(3, 71);
             this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(243, 20);
+            this.label2.Size = new System.Drawing.Size(297, 20);
             this.label2.TabIndex = 1;
             this.label2.Text = "波特率";
             this.label2.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -267,10 +245,10 @@
             "无",
             "奇",
             "偶"});
-            this.comboBoxParity.Location = new System.Drawing.Point(252, 229);
+            this.comboBoxParity.Location = new System.Drawing.Point(306, 229);
             this.comboBoxParity.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.comboBoxParity.Name = "comboBoxParity";
-            this.comboBoxParity.Size = new System.Drawing.Size(243, 28);
+            this.comboBoxParity.Size = new System.Drawing.Size(297, 28);
             this.comboBoxParity.TabIndex = 5;
             // 
             // comboBoxBaute
@@ -287,10 +265,10 @@
             "38400",
             "57600",
             "115200"});
-            this.comboBoxBaute.Location = new System.Drawing.Point(252, 67);
+            this.comboBoxBaute.Location = new System.Drawing.Point(306, 67);
             this.comboBoxBaute.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.comboBoxBaute.Name = "comboBoxBaute";
-            this.comboBoxBaute.Size = new System.Drawing.Size(243, 28);
+            this.comboBoxBaute.Size = new System.Drawing.Size(297, 28);
             this.comboBoxBaute.TabIndex = 2;
             // 
             // label17
@@ -300,7 +278,7 @@
             this.label17.Font = new System.Drawing.Font("宋体", 12F);
             this.label17.Location = new System.Drawing.Point(3, 233);
             this.label17.Name = "label17";
-            this.label17.Size = new System.Drawing.Size(243, 20);
+            this.label17.Size = new System.Drawing.Size(297, 20);
             this.label17.TabIndex = 9;
             this.label17.Text = "校验位";
             this.label17.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -317,10 +295,10 @@
             "6",
             "7",
             "8"});
-            this.comboBoxDataBit.Location = new System.Drawing.Point(252, 121);
+            this.comboBoxDataBit.Location = new System.Drawing.Point(306, 121);
             this.comboBoxDataBit.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.comboBoxDataBit.Name = "comboBoxDataBit";
-            this.comboBoxDataBit.Size = new System.Drawing.Size(243, 28);
+            this.comboBoxDataBit.Size = new System.Drawing.Size(297, 28);
             this.comboBoxDataBit.TabIndex = 3;
             // 
             // comboBoxStopBit
@@ -334,10 +312,10 @@
             "1",
             "1.5",
             "2"});
-            this.comboBoxStopBit.Location = new System.Drawing.Point(252, 175);
+            this.comboBoxStopBit.Location = new System.Drawing.Point(306, 175);
             this.comboBoxStopBit.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.comboBoxStopBit.Name = "comboBoxStopBit";
-            this.comboBoxStopBit.Size = new System.Drawing.Size(243, 28);
+            this.comboBoxStopBit.Size = new System.Drawing.Size(297, 28);
             this.comboBoxStopBit.TabIndex = 4;
             // 
             // label18
@@ -347,7 +325,7 @@
             this.label18.Font = new System.Drawing.Font("宋体", 12F);
             this.label18.Location = new System.Drawing.Point(3, 125);
             this.label18.Name = "label18";
-            this.label18.Size = new System.Drawing.Size(243, 20);
+            this.label18.Size = new System.Drawing.Size(297, 20);
             this.label18.TabIndex = 3;
             this.label18.Text = "数据位";
             this.label18.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -359,7 +337,7 @@
             this.label19.Font = new System.Drawing.Font("宋体", 12F);
             this.label19.Location = new System.Drawing.Point(3, 179);
             this.label19.Name = "label19";
-            this.label19.Size = new System.Drawing.Size(243, 20);
+            this.label19.Size = new System.Drawing.Size(297, 20);
             this.label19.TabIndex = 4;
             this.label19.Text = "停止位";
             this.label19.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -368,7 +346,7 @@
             // 
             this.buttonRTUPoll.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonRTUPoll.Font = new System.Drawing.Font("黑体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonRTUPoll.Location = new System.Drawing.Point(319, 334);
+            this.buttonRTUPoll.Location = new System.Drawing.Point(400, 334);
             this.buttonRTUPoll.Margin = new System.Windows.Forms.Padding(53, 3, 53, 3);
             this.buttonRTUPoll.Name = "buttonRTUPoll";
             this.buttonRTUPoll.Size = new System.Drawing.Size(108, 37);
@@ -383,7 +361,7 @@
             this.tabPage2.Location = new System.Drawing.Point(4, 30);
             this.tabPage2.Name = "tabPage2";
             this.tabPage2.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage2.Size = new System.Drawing.Size(504, 407);
+            this.tabPage2.Size = new System.Drawing.Size(612, 452);
             this.tabPage2.TabIndex = 1;
             this.tabPage2.Text = "TCP主站";
             this.tabPage2.UseVisualStyleBackColor = true;
@@ -410,7 +388,7 @@
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
-            this.tableLayoutPanel2.Size = new System.Drawing.Size(498, 243);
+            this.tableLayoutPanel2.Size = new System.Drawing.Size(606, 243);
             this.tableLayoutPanel2.TabIndex = 12;
             // 
             // label3
@@ -420,7 +398,7 @@
             this.label3.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.label3.Location = new System.Drawing.Point(3, 140);
             this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(168, 20);
+            this.label3.Size = new System.Drawing.Size(206, 20);
             this.label3.TabIndex = 11;
             this.label3.Text = "设备名称";
             this.label3.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -430,7 +408,7 @@
             this.uiipTextBoxTcpPollIP.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.uiipTextBoxTcpPollIP.FillColor2 = System.Drawing.Color.FromArgb(((int)(((byte)(235)))), ((int)(((byte)(243)))), ((int)(((byte)(255)))));
             this.uiipTextBoxTcpPollIP.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.uiipTextBoxTcpPollIP.Location = new System.Drawing.Point(226, 16);
+            this.uiipTextBoxTcpPollIP.Location = new System.Drawing.Point(299, 16);
             this.uiipTextBoxTcpPollIP.Margin = new System.Windows.Forms.Padding(4);
             this.uiipTextBoxTcpPollIP.MinimumSize = new System.Drawing.Size(1, 1);
             this.uiipTextBoxTcpPollIP.Name = "uiipTextBoxTcpPollIP";
@@ -447,7 +425,7 @@
             // 
             this.textBoxTcpPollPort.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxTcpPollPort.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxTcpPollPort.Location = new System.Drawing.Point(224, 75);
+            this.textBoxTcpPollPort.Location = new System.Drawing.Point(297, 75);
             this.textBoxTcpPollPort.Name = "textBoxTcpPollPort";
             this.textBoxTcpPollPort.Size = new System.Drawing.Size(224, 30);
             this.textBoxTcpPollPort.TabIndex = 0;
@@ -460,7 +438,7 @@
             this.tabPage3.Location = new System.Drawing.Point(4, 30);
             this.tabPage3.Name = "tabPage3";
             this.tabPage3.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage3.Size = new System.Drawing.Size(504, 407);
+            this.tabPage3.Size = new System.Drawing.Size(612, 452);
             this.tabPage3.TabIndex = 2;
             this.tabPage3.Text = "TCP从站";
             this.tabPage3.UseVisualStyleBackColor = true;
@@ -489,7 +467,7 @@
             this.tableLayoutPanelTCPSlave.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
             this.tableLayoutPanelTCPSlave.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
             this.tableLayoutPanelTCPSlave.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
-            this.tableLayoutPanelTCPSlave.Size = new System.Drawing.Size(498, 262);
+            this.tableLayoutPanelTCPSlave.Size = new System.Drawing.Size(606, 262);
             this.tableLayoutPanelTCPSlave.TabIndex = 12;
             // 
             // label7
@@ -499,7 +477,7 @@
             this.label7.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.label7.Location = new System.Drawing.Point(3, 120);
             this.label7.Name = "label7";
-            this.label7.Size = new System.Drawing.Size(168, 20);
+            this.label7.Size = new System.Drawing.Size(206, 20);
             this.label7.TabIndex = 1;
             this.label7.Text = "端口";
             this.label7.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -511,7 +489,7 @@
             this.label8.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.label8.Location = new System.Drawing.Point(3, 68);
             this.label8.Name = "label8";
-            this.label8.Size = new System.Drawing.Size(168, 20);
+            this.label8.Size = new System.Drawing.Size(206, 20);
             this.label8.TabIndex = 2;
             this.label8.Text = "IP连接";
             this.label8.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -520,7 +498,7 @@
             // 
             this.textBoxTcpSlaveDevName.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxTcpSlaveDevName.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxTcpSlaveDevName.Location = new System.Drawing.Point(224, 167);
+            this.textBoxTcpSlaveDevName.Location = new System.Drawing.Point(297, 167);
             this.textBoxTcpSlaveDevName.Name = "textBoxTcpSlaveDevName";
             this.textBoxTcpSlaveDevName.Size = new System.Drawing.Size(224, 30);
             this.textBoxTcpSlaveDevName.TabIndex = 0;
@@ -531,7 +509,7 @@
             // 
             this.buttonTcpSlave.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonTcpSlave.Font = new System.Drawing.Font("黑体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonTcpSlave.Location = new System.Drawing.Point(282, 216);
+            this.buttonTcpSlave.Location = new System.Drawing.Point(355, 216);
             this.buttonTcpSlave.Margin = new System.Windows.Forms.Padding(53, 3, 53, 3);
             this.buttonTcpSlave.Name = "buttonTcpSlave";
             this.buttonTcpSlave.Size = new System.Drawing.Size(108, 37);
@@ -547,7 +525,7 @@
             this.label9.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.label9.Location = new System.Drawing.Point(3, 172);
             this.label9.Name = "label9";
-            this.label9.Size = new System.Drawing.Size(168, 20);
+            this.label9.Size = new System.Drawing.Size(206, 20);
             this.label9.TabIndex = 11;
             this.label9.Text = "设备名称";
             this.label9.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -556,7 +534,7 @@
             // 
             this.textBoxTcpSlavePort.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxTcpSlavePort.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxTcpSlavePort.Location = new System.Drawing.Point(224, 115);
+            this.textBoxTcpSlavePort.Location = new System.Drawing.Point(297, 115);
             this.textBoxTcpSlavePort.Name = "textBoxTcpSlavePort";
             this.textBoxTcpSlavePort.Size = new System.Drawing.Size(224, 30);
             this.textBoxTcpSlavePort.TabIndex = 0;
@@ -570,7 +548,7 @@
             this.label11.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.label11.Location = new System.Drawing.Point(3, 16);
             this.label11.Name = "label11";
-            this.label11.Size = new System.Drawing.Size(168, 20);
+            this.label11.Size = new System.Drawing.Size(206, 20);
             this.label11.TabIndex = 2;
             this.label11.Text = "从站ID";
             this.label11.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -579,7 +557,7 @@
             // 
             this.textBoxTcpSlaveID.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxTcpSlaveID.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxTcpSlaveID.Location = new System.Drawing.Point(224, 11);
+            this.textBoxTcpSlaveID.Location = new System.Drawing.Point(297, 11);
             this.textBoxTcpSlaveID.Name = "textBoxTcpSlaveID";
             this.textBoxTcpSlaveID.Size = new System.Drawing.Size(224, 30);
             this.textBoxTcpSlaveID.TabIndex = 0;
@@ -591,9 +569,9 @@
             this.label10.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
             this.label10.AutoSize = true;
             this.label10.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label10.Location = new System.Drawing.Point(177, 68);
+            this.label10.Location = new System.Drawing.Point(215, 68);
             this.label10.Name = "label10";
-            this.label10.Size = new System.Drawing.Size(318, 20);
+            this.label10.Size = new System.Drawing.Size(388, 20);
             this.label10.TabIndex = 2;
             this.label10.Text = "任意IP";
             this.label10.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -608,14 +586,37 @@
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
             this.tableLayoutPanel1.RowCount = 1;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(524, 472);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(632, 517);
             this.tableLayoutPanel1.TabIndex = 14;
+            // 
+            // textBoxRTUDevName
+            // 
+            this.textBoxRTUDevName.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.textBoxRTUDevName.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.textBoxRTUDevName.Location = new System.Drawing.Point(342, 282);
+            this.textBoxRTUDevName.Name = "textBoxRTUDevName";
+            this.textBoxRTUDevName.Size = new System.Drawing.Size(224, 30);
+            this.textBoxRTUDevName.TabIndex = 13;
+            this.textBoxRTUDevName.Text = "ModbusRTU主站1";
+            this.textBoxRTUDevName.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            // 
+            // label6
+            // 
+            this.label6.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.label6.AutoSize = true;
+            this.label6.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.label6.Location = new System.Drawing.Point(3, 287);
+            this.label6.Name = "label6";
+            this.label6.Size = new System.Drawing.Size(297, 20);
+            this.label6.TabIndex = 12;
+            this.label6.Text = "设备名称";
+            this.label6.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // FrmModbusNew
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(528, 506);
+            this.ClientSize = new System.Drawing.Size(636, 551);
             this.Controls.Add(this.tableLayoutPanel1);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MaximizeBox = false;
@@ -676,8 +677,8 @@
         private System.Windows.Forms.TabPage tabPage1;
         private System.Windows.Forms.TabPage tabPage2;
         private System.Windows.Forms.TabPage tabPage3;
-        private System.Windows.Forms.TextBox textBoxRTUDevName;
-        private System.Windows.Forms.Label label6;
         private System.Windows.Forms.Button buttonRTUPoll;
+        private System.Windows.Forms.Label label6;
+        private System.Windows.Forms.TextBox textBoxRTUDevName;
     }
 }

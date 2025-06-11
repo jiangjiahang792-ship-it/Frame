@@ -96,7 +96,7 @@
             this.comboBoxModbusDev.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxModbusDev.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.comboBoxModbusDev.FormattingEnabled = true;
-            this.comboBoxModbusDev.Location = new System.Drawing.Point(525, 23);
+            this.comboBoxModbusDev.Location = new System.Drawing.Point(525, 22);
             this.comboBoxModbusDev.Name = "comboBoxModbusDev";
             this.comboBoxModbusDev.Size = new System.Drawing.Size(170, 25);
             this.comboBoxModbusDev.TabIndex = 1;
@@ -175,7 +175,7 @@
             "离散量输入",
             "输入寄存器",
             "保持寄存器"});
-            this.comboBox2.Location = new System.Drawing.Point(525, 165);
+            this.comboBox2.Location = new System.Drawing.Point(525, 164);
             this.comboBox2.Name = "comboBox2";
             this.comboBox2.Size = new System.Drawing.Size(170, 25);
             this.comboBox2.TabIndex = 1;

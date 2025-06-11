@@ -29,6 +29,10 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
         /// 异步写入
         /// </summary>
         public bool IsAsync {  get; set; }
+        /// <summary>
+        /// 是否自动重置线圈信号
+        /// </summary>
+        public bool IsAutoReset { get; set; }
         
     }
 }

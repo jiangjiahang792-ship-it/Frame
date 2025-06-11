@@ -75,6 +75,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     {
                         string text = File.ReadAllText(textBoxConfigPath.Text);
                         aIInputInfo = JsonConvert.DeserializeObject<AIInputInfo>(text);// 反序列化配置
+                        param.AIInputInfo = aIInputInfo;// 还原该配置到节点参数
                     }
                     catch (Exception ex)
                     {
@@ -157,7 +158,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 // 是否加密模型
                 if (modelInfo.ModelInfo.IsEncrypted)
                 {
-                    param.Handle = YoloV8.CreateDetector(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ClassNames.Count, 640, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
+                    param.Handle = YoloV8.CreateDetector(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ClassNames.Count, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
                 }
                 else
                 {

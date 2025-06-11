@@ -158,7 +158,7 @@
             this.默认视图ToolStripMenuItem.CheckOnClick = true;
             this.默认视图ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.默认视图ToolStripMenuItem.Name = "默认视图ToolStripMenuItem";
-            this.默认视图ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
+            this.默认视图ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
             this.默认视图ToolStripMenuItem.Text = "默认视图";
             this.默认视图ToolStripMenuItem.Click += new System.EventHandler(this.默认视图ToolStripMenuItem_Click);
             // 
@@ -168,7 +168,7 @@
             this.图像显示ToolStripMenuItem.CheckOnClick = true;
             this.图像显示ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.图像显示ToolStripMenuItem.Name = "图像显示ToolStripMenuItem";
-            this.图像显示ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
+            this.图像显示ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
             this.图像显示ToolStripMenuItem.Text = "检测图像视图";
             this.图像显示ToolStripMenuItem.Click += new System.EventHandler(this.检测图像视图ToolStripMenuItem_Click);
             // 
@@ -178,7 +178,7 @@
             this.检测结果ToolStripMenuItem.CheckOnClick = true;
             this.检测结果ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.检测结果ToolStripMenuItem.Name = "检测结果ToolStripMenuItem";
-            this.检测结果ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
+            this.检测结果ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
             this.检测结果ToolStripMenuItem.Text = "检测结果视图";
             this.检测结果ToolStripMenuItem.Click += new System.EventHandler(this.检测结果视图ToolStripMenuItem_Click);
             // 
@@ -188,7 +188,7 @@
             this.运行日志ToolStripMenuItem.CheckOnClick = true;
             this.运行日志ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.运行日志ToolStripMenuItem.Name = "运行日志ToolStripMenuItem";
-            this.运行日志ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
+            this.运行日志ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
             this.运行日志ToolStripMenuItem.Text = "运行日志视图";
             this.运行日志ToolStripMenuItem.Click += new System.EventHandler(this.运行日志视图ToolStripMenuItem_Click);
             // 
@@ -205,14 +205,14 @@
             // 画布设置ToolStripMenuItem
             // 
             this.画布设置ToolStripMenuItem.Name = "画布设置ToolStripMenuItem";
-            this.画布设置ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
+            this.画布设置ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
             this.画布设置ToolStripMenuItem.Text = "图像画布设置";
             this.画布设置ToolStripMenuItem.Click += new System.EventHandler(this.画布设置ToolStripMenuItem_Click);
             // 
             // 系统设置ToolStripMenuItem
             // 
             this.系统设置ToolStripMenuItem.Name = "系统设置ToolStripMenuItem";
-            this.系统设置ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
+            this.系统设置ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
             this.系统设置ToolStripMenuItem.Text = "系统设置";
             this.系统设置ToolStripMenuItem.Click += new System.EventHandler(this.系统设置ToolStripMenuItem_Click);
             // 
@@ -230,20 +230,20 @@
             // 使用教程ToolStripMenuItem
             // 
             this.使用教程ToolStripMenuItem.Name = "使用教程ToolStripMenuItem";
-            this.使用教程ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
+            this.使用教程ToolStripMenuItem.Size = new System.Drawing.Size(152, 26);
             this.使用教程ToolStripMenuItem.Text = "使用教程";
             // 
             // 联系我们ToolStripMenuItem1
             // 
             this.联系我们ToolStripMenuItem1.Name = "联系我们ToolStripMenuItem1";
-            this.联系我们ToolStripMenuItem1.Size = new System.Drawing.Size(224, 26);
+            this.联系我们ToolStripMenuItem1.Size = new System.Drawing.Size(152, 26);
             this.联系我们ToolStripMenuItem1.Text = "联系我们";
             this.联系我们ToolStripMenuItem1.Click += new System.EventHandler(this.联系我们ToolStripMenuItem_Click);
             // 
             // 关于TDJS_VisionToolStripMenuItem1
             // 
             this.关于TDJS_VisionToolStripMenuItem1.Name = "关于TDJS_VisionToolStripMenuItem1";
-            this.关于TDJS_VisionToolStripMenuItem1.Size = new System.Drawing.Size(224, 26);
+            this.关于TDJS_VisionToolStripMenuItem1.Size = new System.Drawing.Size(152, 26);
             this.关于TDJS_VisionToolStripMenuItem1.Text = "关于";
             this.关于TDJS_VisionToolStripMenuItem1.Click += new System.EventHandler(this.关于TDJS_VisionToolStripMenuItem1_Click);
             // 
@@ -518,13 +518,13 @@
             this.tableLayoutPanel2.Controls.Add(this.menuStrip1, 0, 0);
             this.tableLayoutPanel2.Controls.Add(this.dockPanel1, 0, 2);
             this.tableLayoutPanel2.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tableLayoutPanel2.Location = new System.Drawing.Point(2, 29);
+            this.tableLayoutPanel2.Location = new System.Drawing.Point(2, 32);
             this.tableLayoutPanel2.Name = "tableLayoutPanel2";
             this.tableLayoutPanel2.RowCount = 3;
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle());
-            this.tableLayoutPanel2.Size = new System.Drawing.Size(1379, 741);
+            this.tableLayoutPanel2.Size = new System.Drawing.Size(1379, 738);
             this.tableLayoutPanel2.TabIndex = 5;
             // 
             // FormMain
@@ -539,8 +539,10 @@
             this.MainMenuStrip = this.menuStrip1;
             this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.Name = "FormMain";
-            this.Text = "鹰眼智检视觉系统 V1.0.0";
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
+            this.Text = "TD-Vision V2.0.0";
             this.TransparencyKey = System.Drawing.Color.Fuchsia;
+            this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FormMain_FormClosing);
             this.Load += new System.EventHandler(this.FormMain_Load);
             this.Controls.SetChildIndex(this.tableLayoutPanel2, 0);

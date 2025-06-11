@@ -260,8 +260,7 @@ namespace TDJS_Vision.Forms.SolRunParam
             try
             {
                 SaveConfigs();
-
-                MessageBoxTD.Show("当前参数已成功保存！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                new YTMessageBox.YTMessageBox("当前参数已成功保存！").Show();
             }
             catch (Exception)
             {
