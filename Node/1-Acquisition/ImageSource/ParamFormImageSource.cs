@@ -106,6 +106,18 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         if (camera.UserDefinedName == param.CameraName)
                         {
                             param.Camera = camera;
+                            // 不是频闪应用可以在参数界面只设置一次,是频闪的话相机需要在节点运行时每次设置
+                            if (!param.IsStrobing)
+                                SetCameraParams(param.Camera, param.TriggerSource, param.TriggerEdge, param.TriggerDelay
+                                    , param.ExposureTime, param.Gain);
+
+                            // 如果是硬触发
+                            if (param.TriggerSource != TriggerSource.Auto && param.TriggerSource != TriggerSource.SOFT)
+                            {
+                                // 绑定硬触发取流
+                                param.Camera.Subscribe(CameraHard_PublishImageEvent);
+                                param.Camera.SetActiveSubscriber(CameraHard_PublishImageEvent);
+                            }
                         }
                     }
                 }

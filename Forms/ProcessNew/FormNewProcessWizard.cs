@@ -238,7 +238,8 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             if(tabControl1.Controls.Count == 0)
                 return;
-            if(MessageBoxTD.Show("删除当前流程无法找回，确定删除？", "警告", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No)
+            var res = MessageBoxTD.Show("删除当前流程无法找回，确定删除？", "警告", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (res == DialogResult.No || res == DialogResult.None)
                 return;
 
             TabPage tabPageToDelete = null;

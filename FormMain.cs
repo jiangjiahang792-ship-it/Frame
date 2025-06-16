@@ -108,6 +108,14 @@ namespace TDJS_Vision
             // 自定义主题设置
             this.dockPanel1.Theme = new GreenTheme();
         }
+        string args = string.Empty;
+        public FormMain(string args)
+        {
+            InitializeComponent();
+            // 自定义主题设置
+            this.dockPanel1.Theme = new GreenTheme();
+            this.args = args ?? string.Empty;
+        }
         /// <summary>
         /// 主窗口加载
         /// </summary>
@@ -157,6 +165,13 @@ namespace TDJS_Vision
             //调试时登录工程师权限
             FormLogin.LoginTest(UserRole.Engineer); // 测试登录
 #endif
+
+            // 双击关联的方案文件，加载指定方案
+            if (!string.IsNullOrEmpty(this.args))
+            {
+                ConfigHelper.SolLoad(this.args, true); // 加载指定方案
+                this.args = string.Empty; // 清空参数，避免重复加载
+            }
         }
 
         private void OnLoginEvent(object sender, UserRole e)

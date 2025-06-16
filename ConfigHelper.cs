@@ -176,11 +176,11 @@ namespace TDJS_Vision
         public INodeParam NodeParam;
     }
 
- 
+
     /// <summary>
     /// 用于多态序列化
     /// </summary>
-    internal class PolyConverter : JsonConverter
+    public class PolyConverter : JsonConverter
     {
         public override bool CanConvert(Type objectType)
         {

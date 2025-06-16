@@ -12,11 +12,23 @@ namespace TDJS_Vision
         /// 应用程序的主入口点。
         /// </summary>
         [STAThread]
-        static void Main()
+        static void Main(string[] args)
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new FormMain());
+            string solutionPath = null;
+
+            if (args.Length > 0)
+            {
+                solutionPath = args[0];
+                if (solutionPath.EndsWith(".sln", StringComparison.OrdinalIgnoreCase))
+                {
+                    // 路径合法，传递给主窗体
+                    Application.Run(new FormMain(solutionPath));
+                    return;
+                }
+            }
+            Application.Run(new FormMain(solutionPath));
         }
     }
 }

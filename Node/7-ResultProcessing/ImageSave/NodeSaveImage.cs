@@ -62,7 +62,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                                 throw new Exception($"获取条码结果失败！");
                         }
                         if (param.NeedOkNg)
-                            param.ResultViewData = form.GetAiResult();
+                            param.AiDetectResult = form.GetAiResult();
                         param.Image = form.GetImage();
 
                         // 参数合法性判断
@@ -118,44 +118,45 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                 imageSavePath = Path.Combine(imageSavePath, dayNight);
             }
 
+            // 确定要保存哪种图片
+            bool allAreOk = param.AiDetectResult.Count > 0 && param.AiDetectResult.TrueForAll(x => x.IsOk);
+            string okNg = allAreOk ? "OK" : "NG";
             // 当需要创建OK/NG子目录存图时
             if (param.NeedOkNg)
             {
-                if (param.ResultViewData == null)
+                if (param.AiDetectResult == null)
                     throw new Exception($"无法获取/解析AI检测结果！");
 
-                // 确定要保存哪种图片
-                string okNg = param.ResultViewData.IsAllOk ? "OK" : "NG";
                 imageSavePath = Path.Combine(imageSavePath, okNg);
                 switch (param.ImageTypeToSave)
                 {
                     case ImageTypeToSave.OkAndNg:
-                        if (param.ResultViewData.IsAllOk)
+                        if (allAreOk)
                         {
                             paths.Add(imageSavePath);
                         }
                         else
                         {
-                            foreach (var res in param.ResultViewData.SingleRowDataList)
+                            foreach (var res in param.AiDetectResult)
                             {
                                 if (!res.IsOk)
-                                    paths.Add(Path.Combine(imageSavePath, res.ClassName));
+                                    paths.Add(Path.Combine(imageSavePath, res.Name));
                             }
                         }
                         break;
                     case ImageTypeToSave.OnlyOk:
-                        if (param.ResultViewData.IsAllOk)
+                        if (allAreOk)
                         {
                             paths.Add(imageSavePath);
                         }
                         break;
                     case ImageTypeToSave.OnlyNg:
-                        if (!param.ResultViewData.IsAllOk)
+                        if (!allAreOk)
                         {
-                            foreach (var res in param.ResultViewData.SingleRowDataList)
+                            foreach (var res in param.AiDetectResult)
                             {
                                 if (!res.IsOk)
-                                    paths.Add(Path.Combine(imageSavePath, res.ClassName));
+                                    paths.Add(Path.Combine(imageSavePath, res.Name));
                             }
                         }
                         break;
@@ -173,13 +174,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                         paths.Add(imageSavePath);
                         break;
                     case ImageTypeToSave.OnlyOk:
-                        if (param.ResultViewData.IsAllOk)
+                        if (allAreOk)
                         {
                             paths.Add(imageSavePath);
                         }
                         break;
                     case ImageTypeToSave.OnlyNg:
-                        if (!param.ResultViewData.IsAllOk)
+                        if (!allAreOk)
                         {
                             paths.Add(imageSavePath);
                         }

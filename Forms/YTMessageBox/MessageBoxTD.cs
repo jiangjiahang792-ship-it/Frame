@@ -6,6 +6,7 @@ namespace TDJS_Vision.Forms.YTMessageBox
     internal partial class MessageBoxTD : FormBase
     {
         private DialogResult result = DialogResult.None;
+        private MessageBoxButtons buttons;
 
         public MessageBoxTD()
         {
@@ -77,7 +78,7 @@ namespace TDJS_Vision.Forms.YTMessageBox
                     tableLayoutPanel2.Controls.Remove(bt);
                 }
             }
-
+            this.buttons = buttons;
             switch (buttons)
             {
                 case MessageBoxButtons.OK:
@@ -132,6 +133,21 @@ namespace TDJS_Vision.Forms.YTMessageBox
                     btnNo.Click += (s, e) => { result = DialogResult.No; this.Close(); };
                     tableLayoutPanel2.Controls.Add(btnYes, 1, 1);
                     tableLayoutPanel2.Controls.Add(btnNo, 0, 1);
+                    break;
+                default:
+                    var btnOk2 = new Button
+                    {
+                        Text = "确定",
+                        Width = 80,
+                        DialogResult = DialogResult.Yes,
+                        Anchor = AnchorStyles.None,
+                        BackColor = Color.LightSeaGreen,
+                        ForeColor = SystemColors.Control,
+                        FlatStyle = FlatStyle.Flat,
+                        TabStop = false
+                    };
+                    btnOk2.Click += (s, e) => { result = DialogResult.OK; this.Close(); };
+                    tableLayoutPanel2.Controls.Add(btnOk2, 1, 1);
                     break;
             }
         }

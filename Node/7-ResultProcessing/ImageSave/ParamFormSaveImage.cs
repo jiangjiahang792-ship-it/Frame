@@ -1,5 +1,6 @@
 ﻿using Logger;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
@@ -118,11 +119,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <summary>
         /// 获取AI结果订阅控件的值
         /// </summary>
-        public ResultViewData GetAiResult()
+        public List<DetectItemResult> GetAiResult()
         {
             try
             {
-                return nodeSubscriptionAiRes.GetValue<ResultViewData>();
+                return nodeSubscriptionAiRes.GetValue<List<DetectItemResult>>();
             }
             catch (Exception)
             {

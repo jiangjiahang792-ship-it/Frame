@@ -26,7 +26,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <summary>
         /// AI检测结果
         /// </summary>
-        public ResultViewData ResultViewData;
+        public List<DetectItemResult> AiDetectResult;
         /// <summary>
         /// 图片是否是以条码命名
         /// </summary>
