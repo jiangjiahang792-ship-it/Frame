@@ -13,10 +13,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
     internal class NodeImageSource : NodeBase
     {
         /// <summary>
-        /// 图像发布事件
-        /// </summary>
-        public static event EventHandler<ImageShowPamra> ImageShowChanged;
-        /// <summary>
         /// 自动重置事件，用于确保软触发或者硬触发
         /// 采集到图像才继续往下执行其他节点
         /// </summary>
@@ -115,8 +111,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         {
                             if (param.ImagePath != null)
                             {
-                                _bitmap = new Bitmap(param.ImagePath);
-                                ImageShowChanged?.Invoke(this, new ImageShowPamra(param.WindowName, _bitmap));
+                                using (var tempImage = Image.FromFile(param.ImagePath))
+                                {
+                                    _bitmap = new Bitmap(tempImage);
+                                }
                                 res.Bitmap = _bitmap;
                             }
                             else
@@ -126,8 +124,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                                 {
                                     // 获取下一张图片
                                     _nextImagePath = param.ImagePaths[LastIndex];
-                                    _bitmap = new Bitmap(_nextImagePath);
-                                    ImageShowChanged?.Invoke(this, new ImageShowPamra(param.WindowName, _bitmap));
+                                    using (var tempImage = Image.FromFile(_nextImagePath))
+                                    {
+                                        _bitmap = new Bitmap(tempImage);
+                                    }
                                     res.Bitmap = _bitmap;
                                     // 计算下次运行的索引位置
                                     LastIndex = (LastIndex + 1) % param.ImagePaths.Count;
@@ -137,15 +137,19 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                                     if (LastIndex == 0)
                                     {
                                         _nextImagePath = param.ImagePaths[LastIndex];
-                                        _bitmap = new Bitmap(_nextImagePath);
-                                        ImageShowChanged?.Invoke(this, new ImageShowPamra(param.WindowName, _bitmap));
+                                        using (var tempImage = Image.FromFile(_nextImagePath))
+                                        {
+                                            _bitmap = new Bitmap(tempImage);
+                                        }
                                         res.Bitmap = _bitmap;
                                         return;
                                     }
                                     // 获取当前路径图片
                                     _nextImagePath = param.ImagePaths[LastIndex - 1];
-                                    _bitmap = new Bitmap(_nextImagePath);
-                                    ImageShowChanged?.Invoke(this, new ImageShowPamra(param.WindowName, _bitmap));
+                                    using (var tempImage = Image.FromFile(_nextImagePath))
+                                    {
+                                        _bitmap = new Bitmap(tempImage);
+                                    }
                                     res.Bitmap = _bitmap;
                                 }
 
@@ -176,12 +180,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                             param.Camera.GrabOne(); // 软触发
                             bool result = _autoResetEvent.WaitOne(1000);// 软触发1s内取不到图也得返回
                             if (!result) { throw new Exception("软触发取图超时！"); }
-
-                            await Task.Run(() =>
-                            {
-                                // 发送采集到的图像
-                                ImageShowChanged?.Invoke(this, new ImageShowPamra(param.WindowName, ((NodeResultImageSource)Result).Bitmap));
-                            });
                         }
 
                         long time = SetRunResult(startTime, NodeStatus.Successful);

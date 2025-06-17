@@ -11,10 +11,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// 图像源
         /// </summary>
         public string ImageSource { get; set; }
-        /// <summary>
-        /// 要显示的窗口名称
-        /// </summary>
-        public string WindowName { get; set; }
 
         #region 本地图像参数
         /// <summary>

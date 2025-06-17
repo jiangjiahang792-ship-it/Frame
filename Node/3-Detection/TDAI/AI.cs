@@ -1,6 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Web.UI;
+using OpenCvSharp;
 using OpenCvSharp.Aruco;
 using Sunny.UI;
 using static TDJS_Vision.Node._3_Detection.TDAI.Yolo8.YoloV8;
@@ -37,8 +39,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 }
                 ResMap[result.class_id].Add(result);
             }
-            // 使用LINQ按键进行排序
+            // 使用LINQ按键class_id从小到大进行排序
             var sortedDictionary = new SortedDictionary<int, List<DetectionResult>>(ResMap);
+            var rect = new List<Rectangle>();
             foreach (var pair in sortedDictionary)
             {
                 // 如果当前检测项不测,直接跳过
@@ -51,22 +54,22 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 switch (pair.Key)
                 {
                     case 0:  // "type-c"
-                        ParseTypeC(pair, minV, maxV, true, ref nodeResult);
+                        rect = ParseTypeC(pair, minV, maxV, ref nodeResult);
                         break;
                     case 1:  // "solder", 和type_c一样只用根据数量判断OK/NG
-                        ParseTypeC(pair, minV, maxV, true, ref nodeResult);
+                        ParseTypeC(pair, minV, maxV, ref nodeResult);
                         break;
-                    case 2:  // "solder_ng", 和type_c一样只用根据数量判断OK/NG, 但是该项子在范围内即为NG
-                        ParseTypeC(pair, minV, maxV, false, ref nodeResult);
+                    case 2:  // "solder_ng", 需要判断数量和面积的OK/NG
+                        ParseSolderNg(pair, minV, maxV, rect, ref nodeResult);
                         break;
                     case 3:  // "line"
                         ParseLineLen(pair, minV, maxV, ref nodeResult);
                         break;
                     case 4:  // "black", 和type_c一样只用根据数量判断OK/NG
-                        ParseTypeC(pair, minV, maxV, true, ref nodeResult);
+                        ParseTypeC(pair, minV, maxV, ref nodeResult);
                         break;
                     case 5:  // "red", 和type_c一样只用根据数量判断OK/NG
-                        ParseTypeC(pair, minV, maxV, true, ref nodeResult);
+                        ParseTypeC(pair, minV, maxV, ref nodeResult);
                         break;
                     default:
                         break;
@@ -94,8 +97,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <param name="maxV"></param>
         /// <param name="IsOkDetectItem">标记该项是不是OK类型的，是IsOk默认赋值true，否IsOk默认赋值fals</param>
         /// <param name="nodeResult"></param>
-        private static void ParseTypeC(KeyValuePair<int, List<DetectionResult>> pair, double minV, double maxV, bool IsOkDetectItem, ref NodeResultTDAI nodeResult)
+        private static List<Rectangle> ParseTypeC(KeyValuePair<int, List<DetectionResult>> pair, double minV, double maxV, ref NodeResultTDAI nodeResult)
         {
+            List<Rectangle> rects = new List<Rectangle>();
             // type_c当前检出数量
             double curV = double.Parse(pair.Value.Count.ToString());
 
@@ -108,15 +112,64 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 // 构建单个检测项结果
                 var itemRes = new SingleDetectItemResult();
                 Rectangle rect = new Rectangle(result.left, result.top, result.width, result.height);
+                rects.Add(rect);
                 itemRes.Value = "1"; // 检测项只考虑计数时此项默认"1"
-                itemRes.IsOk = IsOkDetectItem;
+                itemRes.IsOk = true; // 只要检测到即为OK
                 itemRes.Rects.Add(rect);
                 deteItem.Results.Add(itemRes);
             }
+            deteItem.IsOk = deteItem.Results.TrueForAll(item => item.IsOk);
             deteItem.IsCountOk = IsValueOk(curV, minV, maxV); // 设置检测项内的结果数量是否OK
             nodeResult.ResultList.Add(deteItem);
             nodeResult.AIInputInfo.DetectItems[pair.Key].CurValue = curV.ToString();
-        }        
+            return rects;
+        }
+        /// <summary>
+        /// 解析焊锡NG的数量以及面积是否OK/NG
+        /// </summary>
+        /// <param name="pair"></param>
+        /// <param name="minV"></param>
+        /// <param name="maxV"></param>
+        /// <param name="IsOkDetectItem"></param>
+        /// <param name="nodeResult"></param>
+        private static void ParseSolderNg(KeyValuePair<int, List<DetectionResult>> pair, double minV, double maxV, List<Rectangle> rects, ref NodeResultTDAI nodeResult)
+        {
+            // 构建“焊锡不良”结果数据
+            var solderNgRes = new DetectItemResult();
+            solderNgRes.Name = nodeResult.AIInputInfo.DetectItems[pair.Key].Name;
+            // 当前检出焊锡不良结果个数
+            double curV = double.Parse(pair.Value.Count.ToString());
+            // 没有检测到焊锡不良，直接返回结果
+            if(curV == 0)
+            {
+                solderNgRes.IsOk = true;
+                solderNgRes.IsCountOk = true; // 设置焊锡不良的结果数量是否OK
+                nodeResult.ResultList.Add(solderNgRes);
+                nodeResult.AIInputInfo.DetectItems[pair.Key].CurValue = curV.ToString();
+                return;
+            }
+            // 检测到焊锡不良结果，需要逐一添加单个结果
+            string valueStr = "";
+            foreach (var result in pair.Value)
+            {
+                // 构建单个检测项结果
+                var itemRes = new SingleDetectItemResult();
+                Rectangle rect = new Rectangle(result.left, result.top, result.width, result.height);
+                var area = result.width * result.height;
+                itemRes.Value = area.ToString(); // 检测项的值是面积
+                // 该不良焊点是否在TypeC区域内，不在的话直接NG, 在的话要根据面积判断OK/NG
+                var resultRect = rects.Find(rectTmp => rectTmp.Contains(rect)); 
+                itemRes.IsOk = (resultRect == null || resultRect == default(Rectangle)) ? false : IsValueOk(area, minV, maxV);
+                itemRes.Rects.Add(rect);
+                solderNgRes.Results.Add(itemRes);
+                valueStr += (itemRes.Value + ",");
+            }
+            solderNgRes.IsOk = solderNgRes.Results.TrueForAll(item => item.IsOk);
+            //Results中不良个数为0，该项的IsCountOk为true
+            solderNgRes.IsCountOk = solderNgRes.Results.Count(item => !item.IsOk) == 0 ? true : false;
+            nodeResult.ResultList.Add(solderNgRes);
+            nodeResult.AIInputInfo.DetectItems[pair.Key].CurValue = valueStr.TrimEnd(',');;
+        }
         /// <summary>
         /// 解析露线芯长度
         /// </summary>
@@ -124,6 +177,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         {
             // 构建检测项结果
             var deteItem = new DetectItemResult();
+            deteItem.Name = nodeResult.AIInputInfo.DetectItems[pair.Key].Name;
             string valueStr = "";
             foreach (var result in pair.Value)
             {
@@ -137,10 +191,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 deteItem.Results.Add(itemRes);
                 valueStr += (itemRes.Value + ",");
             }
+            deteItem.IsOk = deteItem.Results.TrueForAll(item => item.IsOk);
             deteItem.IsCountOk = true; // 检测项不需要检测结果个数的情况下，IsCountOk默认设置true表数量OK
-            deteItem.Name = nodeResult.AIInputInfo.DetectItems[pair.Key].Name;
             nodeResult.ResultList.Add(deteItem);
-
             nodeResult.AIInputInfo.DetectItems[pair.Key].CurValue = valueStr.TrimEnd(',');
         }
     }

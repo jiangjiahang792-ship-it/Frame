@@ -24,7 +24,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         public List<DetectItemResult> ResultList { get; set; } = new List<DetectItemResult>();
 
         [DisplayName("是否全部OK")]
-        public bool IsAllOk { get { return ResultList.TrueForAll(res => res.IsOk); } }
+        public bool IsAllOk { get { return ResultList.TrueForAll(res => res.IsOk && res.IsCountOk); } }
     }
 
     /// <summary>
@@ -65,7 +65,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <summary>
         /// 检测项结果是否OK
         /// </summary>
-        public bool IsOk { get { return Results.TrueForAll(item => item.IsOk); } }
+        public bool IsOk { get; set; }
         /// <summary>
         /// 检测项结果个数是否OK
         /// </summary>
