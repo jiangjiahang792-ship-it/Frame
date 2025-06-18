@@ -1,0 +1,17 @@
+{
+  "SolVer": "2.1.0.0",
+  "SolName": "D:\\MyProjects\\TypeC\\方案文件\\超日项目测试.Sol",
+  "RunInterval": 0,
+  "NodeCount": 0,
+  "ProcessCount": 1,
+  "Devices": {},
+  "ProcessInfos": [
+    {
+      "ProcessName": "流程1",
+      "NodeInfos": [],
+      "Enable": true,
+      "Level": "Lv5",
+      "Group": "Group1"
+    }
+  ]
+}

@@ -1,0 +1,169 @@
+{
+  "SolVer": "2.0.0.0",
+  "SolName": "D:\\MyProjects\\TypeC\\方案文件\\超日项目.Sol",
+  "RunInterval": 0,
+  "NodeCount": 8,
+  "ProcessCount": 1,
+  "Devices": {
+    "ModbusRTU主站1": {
+      "DevName": "ModbusRTU主站1",
+      "UserDefinedName": "ModbusRTU主站1",
+      "ModbusParam": {
+        "TDJS_Vision.Device.Modbus.ModbusRTUParam": {
+          "DevType": "ModbusRTUPoll",
+          "DevName": "ModbusRTU主站1",
+          "UserDefinedName": "ModbusRTU主站1",
+          "HoldTime": 30,
+          "PortName": "COM1",
+          "BaudRate": 9600,
+          "Parity": 0,
+          "DataBits": 8,
+          "StopBits": 1,
+          "ClassName": "TDJS_Vision.Device.Modbus.ModbusRTUParam"
+        }
+      },
+      "IsConnect": true,
+      "DevType": "ModbusRTUPoll",
+      "Brand": "Unknow",
+      "ClassName": "TDJS_Vision.Device.Modbus.ModbusRTUPoll"
+    }
+  },
+  "ProcessInfos": [
+    {
+      "ProcessName": "流程1",
+      "NodeInfos": [
+        {
+          "NodeType": "ImageSource",
+          "NodeName": "图像源",
+          "ID": 1,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageSoucre": {
+              "ImageSource": "本地图像",
+              "PathText": "D:\\MyProjects\\TypeC\\图像\\2025_04_03-第二台机_ng",
+              "ImagePath": null,
+              "IsAutoLoop": true,
+              "CameraName": null,
+              "TriggerSource": "Auto",
+              "TriggerEdge": "Rising",
+              "TriggerDelay": 0,
+              "ExposureTime": 0.0,
+              "Gain": 0.0,
+              "IsStrobing": false
+            }
+          }
+        },
+        {
+          "NodeType": "ImageShow",
+          "NodeName": "图像显示",
+          "ID": 2,
+          "Active": false,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageShow": {
+              "WindowName": "图像窗口1",
+              "Text1": "1.图像源",
+              "Text2": "图像"
+            }
+          }
+        },
+        {
+          "NodeType": "AITD",
+          "NodeName": "AI检测",
+          "ID": 3,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._3_Detection.TDAI.NodeParamTDAI": {
+              "Text1": "1.图像源",
+              "Text2": "图像",
+              "ConfigPath": "D:\\MyProjects\\TypeC\\方案文件\\超日ai模型配置.json",
+              "IsAutoStudy": false
+            }
+          }
+        },
+        {
+          "NodeType": "AIResultSendByModbus",
+          "NodeName": "Modbus发送AI结果",
+          "ID": 4,
+          "Active": true,
+          "Selected": true,
+          "NodeParam": {
+            "TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus.NodeParamSignalSendByModbus": {
+              "Text1": "3.AI检测",
+              "Text2": "AI输出结果",
+              "ModbusName": "ModbusRTU主站1",
+              "IsAutoReset": false,
+              "SignalHoldTime": 50,
+              "BindingData": [
+                {
+                  "DetectItems": "Type-C数量;焊点数量;不良焊锡面积;露线芯长度;黑色线数量;红色线数量",
+                  "Value": true,
+                  "SignalAddress": "1",
+                  "CommModbus": "ModbusRTU主站1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "NodeType": "DrawAIResult",
+          "NodeName": "AI结果绘制",
+          "ID": 5,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.ImageDraw.NodeParamImageDraw": {
+              "Text1": "1.图像源",
+              "Text2": "图像",
+              "Text3": "3.AI检测",
+              "Text4": "AI输出结果",
+              "FontSize": 40,
+              "LineWidth": 8,
+              "TextLoc": "RightDown"
+            }
+          }
+        },
+        {
+          "NodeType": "DetectResultShow",
+          "NodeName": "检测结果显示",
+          "ID": 6,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.DataShow.NodeParamDataShow": {
+              "Text1": "3.AI检测",
+              "Text2": "AI输出结果"
+            }
+          }
+        },
+        {
+          "NodeType": "ImageSave",
+          "NodeName": "保存图片",
+          "ID": 7,
+          "Active": false,
+          "Selected": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "ImageShow",
+          "NodeName": "图像显示",
+          "ID": 8,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageShow": {
+              "WindowName": "图像窗口1",
+              "Text1": "5.AI结果绘制",
+              "Text2": "结果图像"
+            }
+          }
+        }
+      ],
+      "Enable": true,
+      "Level": "Lv5",
+      "Group": "Group1"
+    }
+  ]
+}
