@@ -81,6 +81,25 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
 
                     // 执行线圈信号写入
                     await SendToModbus(aiResult, map, param.SignalHoldTime, param.IsAutoReset, token);
+                    //if (aiResult.TrueForAll(i => (i.IsOk && i.IsCountOk)))
+                    //{
+                    //    var modbus = param.ModbusDevice;
+                    //    if (modbus == null)
+                    //        throw new Exception($"不存在的Modbus设备，请检查设备是否已经被移除！");
+                    //    ushort address = ushort.Parse(targetKey.Item2);
+
+                    //    // 内部会根据RTU还是TCP类型来调用不同的写入方法
+                    //    await modbus.WriteSingleCoilAsync(address, config.Value);
+
+                    //    // 保持设定时间后自动重置信号
+                    //    if (param.IsAutoReset)
+                    //    {
+                    //        await Task.Delay((int)param.SignalHoldTime).ContinueWith(t =>
+                    //        {
+                    //            modbus.WriteSingleCoilAsync(address, !config.Value);
+                    //        });
+                    //    }
+                    //}
 
                     long time = SetRunResult(startTime, NodeStatus.Successful);
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
@@ -154,51 +173,73 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
         {
             try
             {
-                // 使用 HashSet 去重 (设备名 + 地址)
-                var sentTargets = new HashSet<(string CommModbus, string SignalAddress)>();
+                // 使用字典来按 (设备名, 地址) 分组
+                var grouped = new Dictionary<(string CommModbus, string SignalAddress), List<DetectItemResult>>();
 
                 foreach (var result in aiResult)
                 {
-                    if (mapping.TryGetValue(result.Name, out var config))
-                    {
-                        // 不符合config.Judgment条件就直接跳过
-                        if (!config.ShouldSend((result.IsOk && result.IsCountOk)))
-                            continue;
-
-                        var targetKey = (config.CommModbus, config.SignalAddress);
-                        
-                        // 如果该信号没发过才要发
-                        if (!sentTargets.Contains(targetKey))
-                        {
-                            //await SendSignal(targetKey, isAutoReset, holdTime, sentTargets);
-                             var modbus = Solution.Instance.ModbusDevices.Find(mod => mod.UserDefinedName == targetKey.Item1);
-                            if (modbus == null)
-                                throw new Exception($"不存在名称为{targetKey.Item1}的Modbus设备，请检查该设备是否已经被移除！");
-                            ushort address = ushort.Parse(targetKey.Item2);
-
-                            // 内部会根据RTU还是TCP类型来调用不同的写入方法
-                            await modbus.WriteSingleCoilAsync(address, true);
-
-                            // 保持设定时间后自动重置信号
-                            if (isAutoReset)
-                            {
-                                await Task.Delay((int)holdTime).ContinueWith(t =>
-                                {
-                                    modbus.WriteSingleCoilAsync(address, false);
-                                });
-                            }
-                            // 标记已发送
-                            sentTargets.Add(targetKey);
-                        }
-                    }
-                    else
+                    if (!mapping.TryGetValue(result.Name, out var config))
                     {
                         LogHelper.AddLog(MsgLevel.Exception, $"[未配置] 检测项 [{result.Name}] 没有找到对应的 Modbus 配置", true);
+                        continue;
+                    }
+
+                    var key = (config.CommModbus, config.SignalAddress);
+
+                    if (!grouped.ContainsKey(key))
+                    {
+                        grouped[key] = new List<DetectItemResult>();
+                    }
+
+                    grouped[key].Add(result);
+                }
+
+                // 遍历每个分组，判断是否所有项都 OK
+                foreach (var group in grouped)
+                {
+                    var key = group.Key;
+                    var results = group.Value;
+
+                    // 判断这个组中是否所有检测项都通过
+                    bool allOk = results.All(r => r.IsOk && r.IsCountOk);
+
+                    if (!allOk)
+                        continue;
+
+                    // 获取 Modbus 设备
+                    var modbus = Solution.Instance.ModbusDevices.Find(mod => mod.UserDefinedName == key.CommModbus);
+                    if (modbus == null)
+                        throw new Exception($"不存在名称为 {key.CommModbus} 的Modbus设备，请检查该设备是否已经被移除！");
+
+                    // 解析地址
+                    if (!ushort.TryParse(key.SignalAddress, out var address))
+                        throw new FormatException($"无法解析地址 [{key.SignalAddress}]");
+
+                    // 获取写入值（取任意一个的值即可，因为它们共用同一地址）
+                    var value = mapping.FirstOrDefault(x => x.Key == results[0].Name).Value?.Value ?? true;
+
+                    // 写入信号
+                    await modbus.WriteSingleCoilAsync(address, value);
+
+                    // 自动复位
+                    if (isAutoReset)
+                    {
+                        int delayMs = (int)holdTime;
+                        await Task.Delay(delayMs, token); // 支持取消
+                        await modbus.WriteSingleCoilAsync(address, !value);
                     }
                 }
             }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception) { throw; }
+            catch (OperationCanceledException)
+            {
+                LogHelper.AddLog(MsgLevel.Warn, "Modbus发送被取消");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Fatal, $"Modbus发送异常：{ex.Message}\n{ex.StackTrace}");
+                throw;
+            }
         }
     }
     /// <summary>
@@ -206,18 +247,18 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
     /// </summary>
     public class DetectItemAddress
     {
+        /// <summary>
+        /// Modbus设备名
+        /// </summary>
         public string CommModbus { get; set; }
+        /// <summary>
+        /// 信号地址
+        /// </summary>
         public string SignalAddress { get; set; }
-        public string Judgment { get; set; }  // "检测项OK时"或“检测项NG时”
-
-        public bool ShouldSend(bool isOk)
-        {
-            if (Judgment == "检测项OK时")
-                return isOk;
-            else if (Judgment == "检测项NG时")
-                return !isOk;
-            return false;
-        }
+        /// <summary>
+        /// 线圈值
+        /// </summary>
+        public bool Value {  get; set; }
     }
 
 }

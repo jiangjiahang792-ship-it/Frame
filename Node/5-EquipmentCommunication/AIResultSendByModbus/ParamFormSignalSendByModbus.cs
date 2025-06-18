@@ -75,7 +75,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     {
                         CommModbus = row.CommModbus,
                         SignalAddress = row.SignalAddress,
-                        Judgment = row.Judgment
+                        Value = row.Value
                     };
                 }
             }
@@ -255,22 +255,6 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
             detectItemsColumn.HeaderCell.Style.BackColor = color;
             dataGridView1.Columns.Add(detectItemsColumn);
 
-            // 判定列：下拉选项为 "检测项OK时", "检测项NG时"
-            var judgmentItems = new List<string> { "检测项OK时", "检测项NG时" };
-
-            var judgmentColumn = new DataGridViewComboBoxColumn
-            {
-                Name = "JudgmentColumn",
-                HeaderText = "判定(可选)",
-                DataPropertyName = "Judgment", // 对应 DetectItemRow.Judgment 属性
-                DataSource = new BindingSource(judgmentItems, null),
-                ValueType = typeof(string),     // 确保绑定类型正确
-                SortMode = DataGridViewColumnSortMode.NotSortable,
-                AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells
-            };
-            judgmentColumn.HeaderCell.Style.BackColor = color;
-            dataGridView1.Columns.Add(judgmentColumn);
-
             // 新增列3：通信Modbus（不可编辑字符串）
             var commModbusColumn = new DataGridViewTextBoxColumn
             {
@@ -293,6 +277,23 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
             };
             signalAddressColumn.HeaderCell.Style.BackColor = color;
             dataGridView1.Columns.Add(signalAddressColumn);
+
+
+            // 检测项OK时发送的值：下拉选项为 "1", "0"
+            var valueItems = new List<bool> { true, false };
+
+            var valueColumn = new DataGridViewComboBoxColumn
+            {
+                Name = "Value",
+                HeaderText = "OK信号值",
+                DataPropertyName = "Value", // 对应 DetectItemRow.Value 属性
+                DataSource = new BindingSource(valueItems, null),
+                ValueType = typeof(bool),     // 确保绑定类型正确
+                SortMode = DataGridViewColumnSortMode.NotSortable,
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells
+            };
+            valueColumn.HeaderCell.Style.BackColor = color;
+            dataGridView1.Columns.Add(valueColumn);
         }
 
         /// <summary>
@@ -313,7 +314,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     dataSource.Add(new DetectItemRow
                     {
                         DetectItems = itemText,
-                        Judgment = "检测项NG时",
+                        Value = true,
                         SignalAddress = signalAddressCounter.ToString(),
                         CommModbus = comboBoxModBusList.Text,
                     });
@@ -341,7 +342,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
             dataSource.Add(new DetectItemRow
             {
                 DetectItems = names,
-                Judgment = "检测项NG时",
+                Value = true,
                 SignalAddress = "0",
                 CommModbus = comboBoxModBusList.Text,
             });
@@ -363,7 +364,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     dataSource.Add(new DetectItemRow
                     {
                         DetectItems = itemText,
-                        Judgment = "检测项NG时",
+                        Value = true,
                         SignalAddress = signalAddressCounter.ToString(),
                         CommModbus = comboBoxModBusList.Text,
                     });
@@ -408,8 +409,8 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
         // 检测项，例如："露线芯长度;咬胶长度"
         public string DetectItems { get; set; }
 
-        // 判定结果，“检测项OK时” 或 “检测项NG时”
-        public string Judgment { get; set; }
+        // 发送的值，“1” 或 “0”
+        public bool Value { get; set; }
 
         // Modbus线圈地址，例如："0"
         public string SignalAddress { get; set; }
