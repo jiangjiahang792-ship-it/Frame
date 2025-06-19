@@ -414,7 +414,7 @@ namespace TDJS_Vision
                 {
                     if (nodeAi.ParamForm.Params == null)
                         return;
-                    YoloV8.DestroyDetector(((NodeParamTDAI)nodeAi.ParamForm.Params).Handle);
+                    YoloV8Det.DestroyDetector(((NodeParamTDAI)nodeAi.ParamForm.Params).Handle);
                 }
             }
 

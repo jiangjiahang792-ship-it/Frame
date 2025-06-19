@@ -187,6 +187,8 @@
       <DependentUpon>MessageBoxTD.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\3-Detection\TDAI\AI.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Pose.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Seg.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -498,7 +500,7 @@
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Node\3-Detection\QRScan\NodeResultQRScan.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Det.cs" />
     <Compile Include="Node\5-EquipmentCommunication\AIResultSendByModbus\ParamFormSignalSendByModbus.cs">
       <SubType>Form</SubType>
     </Compile>

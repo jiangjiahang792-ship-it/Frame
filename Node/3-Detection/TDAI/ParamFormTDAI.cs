@@ -158,7 +158,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 // 是否加密模型
                 if (modelInfo.ModelInfo.IsEncrypted)
                 {
-                    param.Handle = YoloV8.CreateDetector(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ClassNames.Count, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
+                    param.Handle = YoloV8Det.CreateDetector(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ClassNames.Count, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
                 }
                 else
                 {

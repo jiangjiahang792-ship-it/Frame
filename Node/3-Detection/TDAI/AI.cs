@@ -5,7 +5,7 @@ using System.Web.UI;
 using OpenCvSharp;
 using OpenCvSharp.Aruco;
 using Sunny.UI;
-using static TDJS_Vision.Node._3_Detection.TDAI.Yolo8.YoloV8;
+using static TDJS_Vision.Node._3_Detection.TDAI.Yolo8.YoloV8Det;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {

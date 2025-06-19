@@ -1,21 +1,28 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
+using System.IO;
+using Logger;
+using System.Security.Cryptography;
+using System.Drawing.Imaging;
+using System.Drawing;
+
 
 namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 {
-    using System;
-    using System.Runtime.InteropServices;
-    using System.IO;
-    using Logger;
-    using System.Security.Cryptography;
-    using System.Drawing.Imaging;
-    using System.Drawing;
+    #region 使用示例
 
-    internal class YoloV8
+    //IntPtr detector = Yolo8.CreateDetector("yolov8s.onnx", new[] { "person", "car", "dog" }, 3, 640, 0.25f, 0.45f);
+    //DetectionResult[] results = new DetectionResult[100];
+    //int count = Yolo8.Detect(detector, imageData, width, height, 3, results);
+    //// ...
+    //Yolo8.DestroyDetector(detector);
+
+    #endregion
+
+    /// <summary>
+    /// YoloV8Det 类用于加载和调用 yolo_det.dll 中的函数
+    /// </summary>
+    internal class YoloV8Det
     {
         // 检测结果结构体
         [StructLayout(LayoutKind.Sequential)]
@@ -48,7 +55,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         private static DetectDelegate _detect;
 
         // 加载 DLL 并绑定函数
-        static YoloV8()
+        static YoloV8Det()
         {
             string dllPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "yolo_det.dll");
 
@@ -154,12 +161,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 
             return buffer;
         }
-        // 接口使用示例
-        //IntPtr detector = Yolo8.CreateDetector("yolov8s.onnx", new[] { "person", "car", "dog" }, 3, 640, 0.25f, 0.45f);
-        //DetectionResult[] results = new DetectionResult[100];
-        //int count = Yolo8.Detect(detector, imageData, width, height, 3, results);
-        //// ...
-        //Yolo8.DestroyDetector(detector);
 
         // Win32 API 函数声明
         [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]

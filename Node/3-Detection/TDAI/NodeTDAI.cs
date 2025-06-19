@@ -7,7 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
-using static TDJS_Vision.Node._3_Detection.TDAI.Yolo8.YoloV8;
+using static TDJS_Vision.Node._3_Detection.TDAI.Yolo8.YoloV8Det;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
@@ -55,7 +55,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
                             // 开始检测
                             DetectionResult[] results = new DetectionResult[1000];
-                            int result_count = YoloV8.Detect(param.Handle, YoloV8.ConvertBitmapToBgr24(srcImg), srcImg.Width, srcImg.Height, 3, results);
+                            int result_count = YoloV8Det.Detect(param.Handle, YoloV8Det.ConvertBitmapToBgr24(srcImg), srcImg.Width, srcImg.Height, 3, results);
 
                             // 输出检测项配置
                             res.AIInputInfo = param.AIInputInfo;
