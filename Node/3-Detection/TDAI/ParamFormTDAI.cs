@@ -155,15 +155,32 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             {
                 LogHelper.AddLog(MsgLevel.Info, $"开始加载模型：{param.AIInputInfo.ModelInfo.ModelPath}", true);
                 var modelInfo = param.AIInputInfo;
-                // 是否加密模型
-                if (modelInfo.ModelInfo.IsEncrypted)
+                // 根据模型类别不同进行加载
+                switch (modelInfo.ModelInfo.ModelType)
                 {
-                    param.Handle = YoloV8Det.CreateDetector(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ClassNames.Count, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
-                }
-                else
-                {
+                    case ModelType.DET:
+                        if (modelInfo.ModelInfo.IsEncrypted) // 如果是加密模型
+                            param.Handle = YoloV8Det.CreateDetector(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ClassNames.Count, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
+                        break;
+                    case ModelType.OBB:
+                        throw new NotImplementedException("OBB模型加载未实现");
+                        break;
+                    case ModelType.SEG:
+                        if (modelInfo.ModelInfo.IsEncrypted) // 如果是加密模型
+                            param.Handle = Yolo8Seg.Initialize(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ClassNames.Count, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
+                        break;
+                    case ModelType.POSE:
+                        if (modelInfo.ModelInfo.IsEncrypted) // 如果是加密模型
+                            param.Handle = Yolo8Pose.Initialize(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ClassNames.Count, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS, modelInfo.ModelInfo.KeyPointNum);
+                        break;
+                    default:
+                        break;
 
                 }
+
+                //统一注册模型句柄到模型管理
+                ModelHandleManager.Register(param.Handle, modelInfo.ModelInfo.ModelType);
+
                 LogHelper.AddLog(MsgLevel.Info, $"模型：{param.AIInputInfo.ModelInfo.ModelPath} 加载完成！", true);
             }
             catch (Exception e)

@@ -22,7 +22,7 @@ namespace TDJS_Vision
         {
             try
             {
-                SolConfig.SolVer = Solution.Instance.SolVersion;
+                SolConfig.SolVer = VersionInfo.VersionInfo.GetExeVer();
                 SolConfig.SolName = solFile;
                 SolConfig.RunInterval = Solution.Instance.RunInterval;
                 SolConfig.Devices = Solution.Instance.AllDevices;

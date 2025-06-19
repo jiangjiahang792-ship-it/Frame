@@ -226,7 +226,7 @@ namespace TDJS_Vision.Node
                 // 移除AI节点需要释放AI句柄
                 if (NodeType == NodeType.AITD)
                 {
-                    YoloV8Det.DestroyDetector(((NodeParamTDAI)ParamForm.Params).Handle);
+                    ModelHandleManager.ReleaseModel(((NodeParamTDAI)ParamForm.Params).Handle);
                 }
             }
 

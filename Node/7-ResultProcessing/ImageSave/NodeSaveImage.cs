@@ -104,30 +104,32 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             imageSavePath = Path.Combine(param.SavePath, nowDataTime);
 
             // 3.图片名称
-            string imageName = param.IsBarCode ? param.Barcode : time.ToString("yyyy-MM-dd HH-mm-ss");
+            string imageName = param.IsBarCode ? param.Barcode : time.ToString("yyyy-MM-dd_HH-mm-ss-fff");
             if (param.NeedCompress)
                 imageName += "(压缩图)";
 
-            // 4.存图路径拼接
-            List<string> paths = new List<string>();
 
-            //区分早晚班
+            // 4.是否区分早晚班
             if (param.IsDayNight)
             {
                 string dayNight = IsDayWorking(time.TimeOfDay, param.DayDataTime, param.NightDataTime) ? "早班" : "晚班";
                 imageSavePath = Path.Combine(imageSavePath, dayNight);
             }
 
-            // 确定要保存哪种图片
-            bool allAreOk = param.AiDetectResult.Count > 0 && param.AiDetectResult.TrueForAll(x => x.IsOk);
-            string okNg = allAreOk ? "OK" : "NG";
-            // 当需要创建OK/NG子目录存图时
+            List<string> paths = new List<string>();
+
+            // 5.是否区分OK/NG
             if (param.NeedOkNg)
             {
                 if (param.AiDetectResult == null)
                     throw new Exception($"无法获取/解析AI检测结果！");
 
+                // 根据AI检测总结果判断创建OK/NG文件夹
+                bool allAreOk = param.AiDetectResult.Count > 0 && param.AiDetectResult.TrueForAll(x => x.IsOk);
+                string okNg = allAreOk ? "OK" : "NG";
                 imageSavePath = Path.Combine(imageSavePath, okNg);
+
+                //要保存什么图片
                 switch (param.ImageTypeToSave)
                 {
                     case ImageTypeToSave.OkAndNg:
@@ -164,38 +166,20 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                         break;
                 }
 
+                foreach (var path in paths)
+                {
+                    SaveImageTask saveImageTask = await Task.Run(() =>
+                    {
+                        return QueueImageForSave(param.Image, path, imageName, param.NeedCompress, param.CompressValue);
+                    });
+                    processor.EnqueueImage(saveImageTask);
+                }
             }
             else
             {
-                // 当不需要创建OK/NG子目录存图时
-                switch (param.ImageTypeToSave)
-                {
-                    case ImageTypeToSave.OkAndNg:
-                        paths.Add(imageSavePath);
-                        break;
-                    case ImageTypeToSave.OnlyOk:
-                        if (allAreOk)
-                        {
-                            paths.Add(imageSavePath);
-                        }
-                        break;
-                    case ImageTypeToSave.OnlyNg:
-                        if (!allAreOk)
-                        {
-                            paths.Add(imageSavePath);
-                        }
-                        break;
-                    default:
-                        break;
-                }
-            }
-
-
-            foreach (var path in paths)
-            {
                 SaveImageTask saveImageTask = await Task.Run(() =>
                 {
-                    return QueueImageForSave(param.Image, path, imageName, param.NeedCompress, param.CompressValue);
+                    return QueueImageForSave(param.Image, imageSavePath, imageName, param.NeedCompress, param.CompressValue);
                 });
                 processor.EnqueueImage(saveImageTask);
             }

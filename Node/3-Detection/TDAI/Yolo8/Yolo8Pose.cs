@@ -2,34 +2,76 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using Logger;
+using OpenCvSharp;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 {
     #region 使用示例
-    
-    //// 初始化模型
-    //Yolo8Pose.Initialize("best-pose.onnx", new[] { "person" }, 1, 640, 0.5f, 0.4f, 17);
 
-    //// 图像数据准备（假设已经获取）
-    //byte[] imageData = File.ReadAllBytes("test.jpg");
-    //int width = 640;
-    //int height = 480;
-    //int channels = 3;
+    //static void Main()
+    //{
+    //    // 初始化模型
+    //    string modelPath = "D:\\OpenVino_DLL\\model\\TrumpetPose_encrypted1.onnx";
+    //    string[] classLabels = { "Trumpet" };
+    //    int modelSize = 320;
+    //    float scoreThreshold = 0.5f;
+    //    float nmsThreshold = 0.45f;
+    //    int keyPointNum = 12;
+    //    IntPtr handle = Yolo8Pose.Initialize(modelPath, classLabels, classLabels.Length, modelSize, scoreThreshold, nmsThreshold, keyPointNum);
 
-    //// 执行推理
-    //IntPtr boxesData, keypointsData;
-    //int boxesCount, keypointsCount, keypointsPerObject;
+    //    // 读取图像
+    //    Mat image = Cv2.ImRead("D:\\OpenVino_DLL\\model\\Trumpet.jpg", ImreadModes.Color);
+    //    byte[] imageData = new byte[image.Total() * image.ElemSize()];
+    //    Marshal.Copy(image.Data, imageData, 0, imageData.Length);
 
-    //Yolo8Pose.Inference(imageData, width, height, channels,
-    //                    out boxesData, out boxesCount,
-    //                    out keypointsData, out keypointsCount,
-    //                    out keypointsPerObject);
+    //    // 进行推理
+    //    IntPtr boxesDataPtr;
+    //    int boxesCount;
+    //    IntPtr keypointsDataPtr;
+    //    int keypointsCount;
+    //    int keypointsPerObject;
+    //    Yolo8Pose.Inference(imageData, image.Width, image.Height, image.Channels(), out boxesDataPtr, out boxesCount, out keypointsDataPtr, out keypointsCount, out keypointsPerObject);
 
-    //// TODO: 解析 boxesData 和 keypointsData 指针中的内容
+    //    // 将指针转换为数组
+    //    float[] boxesData = new float[boxesCount];
+    //    float[] keypointsData = new float[keypointsCount];
+    //    Marshal.Copy(boxesDataPtr, boxesData, 0, boxesCount);
+    //    Marshal.Copy(keypointsDataPtr, keypointsData, 0, keypointsCount);
 
-    //// 清理资源
-    //Yolo8Pose.Cleanup();
-   
+    //    // 可视化结果
+    //    for (int i = 0; i < boxesCount; i += 4)
+    //    {
+    //        int x = (int)boxesData[i];
+    //        int y = (int)boxesData[i + 1];
+    //        int width = (int)boxesData[i + 2];
+    //        int height = (int)boxesData[i + 3];
+    //        Rect rect = new Rect(x, y, width, height);
+    //        Cv2.Rectangle(image, rect, Scalar.Red, 2);
+    //    }
+
+    //    for (int i = 0; i < keypointsCount; i += keypointsPerObject)
+    //    {
+    //        for (int j = 0; j < keypointsPerObject; j += 3)
+    //        {
+    //            int x = (int)keypointsData[i + j];
+    //            int y = (int)keypointsData[i + j + 1];
+    //            Point point = new Point(x, y);
+    //            Cv2.Circle(image, point, 5, Scalar.Green, -1);
+    //        }
+    //    }
+
+    //    // 显示图像
+    //    Cv2.ImShow("Detection Result", image);
+    //    Cv2.WaitKey(0);
+
+    //    // 释放内存
+    //    Marshal.FreeHGlobal(boxesDataPtr);
+    //    Marshal.FreeHGlobal(keypointsDataPtr);
+
+    //    // 清理资源
+    //    Yolo8Pose.Cleanup(handle);
+    //}
+
     #endregion
 
     /// <summary>
@@ -39,16 +81,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
     {
         // 委托定义
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void InitializeDelegate(string modelPath, string[] classLabels, int classCount, int modelSize, float scoreThreshold, float nmsThreshold, int keyPointNum);
+        public delegate IntPtr InitializeDelegate(string modelPath, string[] classLabels, int classCount, int modelSize, float scoreThreshold, float nmsThreshold, int keyPointNum);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void InferenceDelegate(byte[] imageData, int width, int height, int channels,
-                                              out IntPtr boxesData, out int boxesCount,
-                                              out IntPtr keypointsData, out int keypointsCount,
-                                              out int keypointsPerObject);
+        public delegate IntPtr InferenceDelegate(byte[] imageData, int width, int height, int channels,
+                                                out IntPtr boxesData, out int boxesCount,
+                                                out IntPtr keypointsData, out int keypointsCount,
+                                                out int keypointsPerObject);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void CleanupDelegate();
+        public delegate void CleanupDelegate(IntPtr inference);
 
         // DLL 句柄和函数委托
         private static IntPtr _hModule = IntPtr.Zero;
@@ -86,20 +128,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <summary>
         /// 初始化模型
         /// </summary>
-        public static void Initialize(string modelPath, string[] classLabels, int classCount, int modelSize, float scoreThreshold, float nmsThreshold, int keyPointNum)
+        public static IntPtr Initialize(string modelPath, string[] classLabels, int classCount, int modelSize, float scoreThreshold, float nmsThreshold, int keyPointNum)
         {
-            _initialize(modelPath, classLabels, classCount, modelSize, scoreThreshold, nmsThreshold, keyPointNum);
+            return _initialize(modelPath, classLabels, classCount, modelSize, scoreThreshold, nmsThreshold, keyPointNum);
         }
 
         /// <summary>
         /// 执行姿态检测推理
         /// </summary>
-        public static void Inference(byte[] imageData, int width, int height, int channels,
+        public static IntPtr Inference(byte[] imageData, int width, int height, int channels,
                                      out IntPtr boxesData, out int boxesCount,
                                      out IntPtr keypointsData, out int keypointsCount,
                                      out int keypointsPerObject)
         {
-            _inference(imageData, width, height, channels,
+            return _inference(imageData, width, height, channels,
                        out boxesData, out boxesCount,
                        out keypointsData, out keypointsCount,
                        out keypointsPerObject);
@@ -108,9 +150,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <summary>
         /// 清理资源
         /// </summary>
-        public static void Cleanup()
+        public static void Cleanup(IntPtr inference)
         {
-            _cleanup();
+            _cleanup(inference);
         }
 
         // Win32 API 声明

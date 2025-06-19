@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Device.Camera;
 using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 using static TDJS_Vision.Node._3_Detection.TDAI.Yolo8.YoloV8Det;
 
@@ -54,17 +55,32 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             Bitmap srcImg = form.GetImage();
 
                             // 开始检测
-                            DetectionResult[] results = new DetectionResult[1000];
-                            int result_count = YoloV8Det.Detect(param.Handle, YoloV8Det.ConvertBitmapToBgr24(srcImg), srcImg.Width, srcImg.Height, 3, results);
+                            var modelType = ModelHandleManager.GetModelHandleType(param.Handle);
 
-                            // 输出检测项配置
-                            res.AIInputInfo = param.AIInputInfo;
+                            switch (modelType)
+                            {
+                                case ModelType.DET:
 
-                            // 输出AI结果
-                            res.ResultList.Clear();
+                                    DetectionResult[] results = new DetectionResult[1000];
+                                    int result_count = YoloV8Det.Detect(param.Handle, CameraHik.ConvertBitmapToBgr24(srcImg), srcImg.Width, srcImg.Height, 3, results);
+                                    // 输出检测项配置
+                                    res.AIInputInfo = param.AIInputInfo;
+                                    // 输出AI结果
+                                    res.ResultList.Clear();
+                                    //超日项目的结果解析
+                                    AI.ResultParse(results, result_count, ref res);
 
-                            //超日项目的结果解析
-                            AI.ResultParse(results, result_count, ref res);
+                                    break;
+                                case ModelType.OBB:
+                                    throw new NotImplementedException("OBB模型检测未实现");
+                                    break;
+                                case ModelType.SEG:
+                                    break;
+                                case ModelType.POSE:
+                                    break;
+                                default:
+                                    break;
+                            }
 
                             //// 线芯项目
                             //ProcessingAIResults(results, result_count, ref res);

@@ -62,6 +62,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 model.ModelPath = AppDomain.CurrentDomain.BaseDirectory + "model" + i + ".onnx";
                 model.ModelType = i == 0 ? ModelType.DET : i == 1 ? ModelType.OBB : ModelType.SEG;
                 model.IsEncrypted = true;
+                model.KeyPointNum = 16;
                 ModelInfo = model;
             }
             // 序列化当前对象
@@ -150,6 +151,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// 加密模型路径文件
         /// </summary>
         public string ModelPath { get; set; }
+        /// <summary>
+        /// 姿态估计的关键点数量,仅在ModelType为POSE时使用
+        /// </summary>
+        public int KeyPointNum { get; set; }
     }
 
     /// <summary>
@@ -168,7 +173,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <summary>
         /// 像素分割
         /// </summary>
-        SEG
+        SEG,
+        /// <summary>
+        /// 姿态估计
+        /// </summary>
+        POSE
     }
     /// <summary>
     /// AI推理的设备类型

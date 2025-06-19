@@ -49,6 +49,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             // 流程没启用不运行
             if(!Process.Enable)
                 return;
+
+            // 主窗口设置按钮运行状态
+            Program.MainForm?.SetRunStatus(true);
+
             // 设置图像结果
             ((NodeResultImageSource)Result).Bitmap = e.Bitmap;
             // 设置本节点的运行状态
@@ -60,8 +64,11 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 // 继续在该节点往下执行
                 await Process.RunForHardTrigger(this, (long)(DateTime.Now - e.StartTime).TotalMilliseconds);
             }
-            catch (Exception)
+            catch (Exception) { }
+            finally
             {
+                // 主窗口设置按钮运行状态
+                Program.MainForm?.SetRunStatus(false);
             }
         }
 

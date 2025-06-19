@@ -62,6 +62,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         private void checkBoxSaveWithNG_CheckedChanged(object sender, EventArgs e)
         {
             panel6.Enabled = checkBoxSaveWithNG.Checked;
+            radioButtonOKAndNG.Enabled = checkBoxSaveWithNG.Checked;
+            radioButtonOK.Enabled = checkBoxSaveWithNG.Checked;
+            radioButtonNG.Enabled = checkBoxSaveWithNG.Checked;
         }
 
         /// <summary>

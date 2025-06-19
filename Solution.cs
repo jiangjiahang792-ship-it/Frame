@@ -136,7 +136,7 @@ namespace TDJS_Vision
         /// <summary>
         /// 方案适配的软件版本
         /// </summary>
-        public string SolVersion { get; set; } = VersionInfo.VersionInfo.GetExeVer();
+        public string SolVersion { get; set; }
 
         /// <summary>
         /// 方案运行取消令牌，嵌入到流程和节点中，实现对它们的控制
@@ -407,16 +407,8 @@ namespace TDJS_Vision
             SingleTcp.SingleTCPs.Clear();
             Solution.Instance.AllDevices.Clear();
 
-            // 释放AI节点的内存 
-            foreach (var node in Solution.Instance.Nodes)
-            {
-                if (node is NodeTDAI nodeAi)
-                {
-                    if (nodeAi.ParamForm.Params == null)
-                        return;
-                    YoloV8Det.DestroyDetector(((NodeParamTDAI)nodeAi.ParamForm.Params).Handle);
-                }
-            }
+            // 释放AI节点的模型句柄
+            ModelHandleManager.ReleaseAllModel();
 
             // 清空方案共享变量
             Solution.Instance.SharedVariable.ClearAll();

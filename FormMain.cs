@@ -127,7 +127,7 @@ namespace TDJS_Vision
             InitDockPanel();
 
             // 设置主窗口标题
-            Text = $"TD-Vision V{Solution.Instance.SolVersion}";
+            Text = $"TD-Vision V{VersionInfo.VersionInfo.GetExeVer()}";
 
             // 初始化海康相机SDK
             CameraHik.InitSDK();
@@ -196,10 +196,10 @@ namespace TDJS_Vision
                 try
                 {
                     toolStripLabel1.Visible = true;
-                    SetRunStatus(Role, true); // 设置为正在加载方案状态
+                    SetRunStatus(true); // 设置为正在加载方案状态
                     Solution.Instance.Load(Settings.Default.SolutionAddress, true);
                     toolStripLabel1.Visible = false;
-                    SetRunStatus(Role, false);
+                    SetRunStatus(false);
                 }
                 catch (Exception)
                 {
@@ -207,9 +207,9 @@ namespace TDJS_Vision
                 }
                 if (Settings.Default.IsAutoRun)
                 {
-                    SetRunStatus(Role, true);
+                    SetRunStatus(true);
                     await Solution.Instance.Run(true);
-                    SetRunStatus(Role, false);
+                    SetRunStatus(false);
                 }
             }
         }
@@ -291,7 +291,8 @@ namespace TDJS_Vision
         private void FormMain_FormClosing(object sender, FormClosingEventArgs e)
         {
             // 主程序关闭提醒
-            if(MessageBoxTD.Show("确认关闭程序？", "提示", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) == DialogResult.Cancel)
+            var res = MessageBoxTD.Show("确认关闭程序？", "提示", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
+            if (res == DialogResult.Cancel || res == DialogResult.None)
             {
                 e.Cancel = true;
                 return;
@@ -300,9 +301,12 @@ namespace TDJS_Vision
             // 检测任务正在运行提示
             if (Solution.Instance.IsRunning)
             {
-                e.Cancel = true;
-                MessageBoxTD.Show("请先停止当前任务再关闭！");
-                return;
+                var res1 = MessageBoxTD.Show("请先停止当前任务再关闭！");
+                if (res1 == DialogResult.OK || res1 == DialogResult.None)
+                {
+                    e.Cancel = true;
+                    return;
+                }
             }
 
             // 释放方案资源
@@ -461,21 +465,21 @@ namespace TDJS_Vision
         private async void 停止运行ToolStripMenuItem_Click(object value1, object value2)
         {
             Solution.Instance.Stop();
-            SetRunStatus(Role, false);
+            SetRunStatus(false);
         }
 
         private async void 循环运行ToolStripMenuItem_Click(object value1, object value2)
         {
-            SetRunStatus(Role, true);
+            SetRunStatus(true);
             await Solution.Instance.Run(true);
-            SetRunStatus(Role, false);
+            SetRunStatus(false);
         }
 
         private async void 单次运行ToolStripMenuItem_Click(object value1, object value2)
         {
-            SetRunStatus(Role, true);
+            SetRunStatus(true);
             await Solution.Instance.Run(false);
-            SetRunStatus(Role, false);
+            SetRunStatus(false);
         }
 
         /// <summary>
@@ -483,14 +487,14 @@ namespace TDJS_Vision
         /// </summary>
         /// <param name="isRunning"></param>
         /// <param name="all">停止运行按钮是否和其他一致</param>
-        private void SetRunStatus(UserRole role, bool isRun)
+        public void SetRunStatus(bool isRun)
         {
             // 运行和停止按钮
             tsbt_SolRunOnce.Enabled = !isRun;
             tsbt_SolRunLoop.Enabled = !isRun;
             tsbt_SolRunStop.Enabled = isRun;
             登录ToolStripMenuItem.Enabled = !isRun;
-            switch (role)
+            switch (Role)
             {
                 case UserRole.Engineer:
                     // 其他设置禁用/启用
@@ -595,17 +599,15 @@ namespace TDJS_Vision
             }
         }
 
-        private bool isAutoLoadSol = true;
-
         private void 打开方案ToolStripMenuItem_Click(object value1, object value2)
         {
             openFileDialog1.Title = "请选择要打开的方案";
             if (openFileDialog1.ShowDialog()  == DialogResult.OK)
             {
                 toolStripLabel1.Visible = true;
-                SetRunStatus(Role, true); // 设置为正在加载方案状态
+                SetRunStatus(true); // 设置为正在加载方案状态
                 Solution.Instance.Load(openFileDialog1.FileName, true);
-                SetRunStatus(Role, false);
+                SetRunStatus(false);
                 toolStripLabel1.Visible = false;
             }
         }

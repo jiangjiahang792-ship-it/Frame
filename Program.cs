@@ -8,6 +8,7 @@ namespace TDJS_Vision
 
     internal static class Program
     {
+        public static FormMain MainForm { get; private set; } = null;
         /// <summary>
         /// 应用程序的主入口点。
         /// </summary>
@@ -21,14 +22,16 @@ namespace TDJS_Vision
             if (args.Length > 0)
             {
                 solutionPath = args[0];
-                if (solutionPath.EndsWith(".sln", StringComparison.OrdinalIgnoreCase))
+                if (solutionPath.EndsWith(".Sol", StringComparison.OrdinalIgnoreCase))
                 {
+                    MainForm = new FormMain(solutionPath);
                     // 路径合法，传递给主窗体
-                    Application.Run(new FormMain(solutionPath));
+                    Application.Run(MainForm);
                     return;
                 }
             }
-            Application.Run(new FormMain(solutionPath));
+            MainForm = new FormMain(solutionPath);
+            Application.Run(MainForm);
         }
     }
 }

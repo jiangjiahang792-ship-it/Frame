@@ -321,6 +321,7 @@
             this.radioButtonOKAndNG.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.radioButtonOKAndNG.AutoSize = true;
             this.radioButtonOKAndNG.Checked = true;
+            this.radioButtonOKAndNG.Enabled = false;
             this.radioButtonOKAndNG.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.radioButtonOKAndNG.Location = new System.Drawing.Point(352, 30);
             this.radioButtonOKAndNG.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
@@ -335,6 +336,7 @@
             // 
             this.radioButtonOK.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.radioButtonOK.AutoSize = true;
+            this.radioButtonOK.Enabled = false;
             this.radioButtonOK.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.radioButtonOK.Location = new System.Drawing.Point(502, 30);
             this.radioButtonOK.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
@@ -348,6 +350,7 @@
             // 
             this.radioButtonNG.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.radioButtonNG.AutoSize = true;
+            this.radioButtonNG.Enabled = false;
             this.radioButtonNG.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.radioButtonNG.Location = new System.Drawing.Point(660, 30);
             this.radioButtonNG.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
@@ -582,14 +585,14 @@
             this.panel1.Location = new System.Drawing.Point(2, 32);
             this.panel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.panel1.Name = "panel1";
-            this.panel1.Size = new System.Drawing.Size(964, 739);
+            this.panel1.Size = new System.Drawing.Size(964, 783);
             this.panel1.TabIndex = 12;
             // 
             // panel10
             // 
             this.panel10.Controls.Add(this.tableLayoutPanel2);
             this.panel10.Dock = System.Windows.Forms.DockStyle.Bottom;
-            this.panel10.Location = new System.Drawing.Point(0, 685);
+            this.panel10.Location = new System.Drawing.Point(0, 729);
             this.panel10.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.panel10.Name = "panel10";
             this.panel10.Size = new System.Drawing.Size(964, 54);
@@ -747,7 +750,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(968, 773);
+            this.ClientSize = new System.Drawing.Size(968, 817);
             this.Controls.Add(this.panel1);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MaximizeBox = false;
