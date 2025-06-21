@@ -136,10 +136,10 @@ namespace TDJS_Vision.Forms.ResultView
                         dgv.Rows[rowIndex].Cells["SingleResult"].Value = (DetectResult.IsOk && DetectResult.IsCountOk) ? "OK" : "NG";
                         dgv.Rows[rowIndex].Cells["SingleResult"].Style.BackColor = (DetectResult.IsOk && DetectResult.IsCountOk) ? Color.Green : Color.Red;
                         dgv.Rows[rowIndex].Cells["DetectResult"].Value = DetectResult.ResultsStr;
-                        dgv.Rows[rowIndex].Cells["CountNG"].Value = DetectResult.IsOk ? 0 : 1;
-                        dgv.Rows[rowIndex].Cells["CountOK"].Value = DetectResult.IsOk ? 1 : 0;
+                        dgv.Rows[rowIndex].Cells["CountNG"].Value = (DetectResult.IsOk && DetectResult.IsCountOk) ? 0 : 1;
+                        dgv.Rows[rowIndex].Cells["CountOK"].Value = (DetectResult.IsOk && DetectResult.IsCountOk) ? 1 : 0;
                         dgv.Rows[rowIndex].Cells["Total"].Value = 1; // 初始总数为1
-                        dgv.Rows[rowIndex].Cells["Yield"].Value = DetectResult.IsOk ? 100.00 + "%" : 0.00 + "%";// 良率
+                        dgv.Rows[rowIndex].Cells["Yield"].Value = (DetectResult.IsOk && DetectResult.IsCountOk) ? 100.00 + "%" : 0.00 + "%";// 良率
                     }
                     else // 如果存在，则更新“个数”和其他信息
                     {
@@ -149,7 +149,7 @@ namespace TDJS_Vision.Forms.ResultView
                         int cNG = Convert.ToInt32(row.Cells["CountNG"].Value);
                         int cOK = Convert.ToInt32(row.Cells["CountOK"].Value);
                         int TotalNum = Convert.ToInt32(row.Cells["Total"].Value);
-                        if (DetectResult.IsOk)
+                        if ((DetectResult.IsOk && DetectResult.IsCountOk))
                             row.Cells["CountOK"].Value = cOK + 1;
                         else
                             row.Cells["CountNG"].Value = cNG + 1;

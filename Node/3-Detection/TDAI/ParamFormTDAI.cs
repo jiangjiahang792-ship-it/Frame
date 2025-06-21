@@ -160,10 +160,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 {
                     case ModelType.DET:
                         if (modelInfo.ModelInfo.IsEncrypted) // 如果是加密模型
-                            param.Handle = YoloV8Det.CreateDetector(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ClassNames.Count, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
+                            param.Handle = Yolo8Det.CreateDetector(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ClassNames.Count, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
                         break;
                     case ModelType.OBB:
-                        throw new NotImplementedException("OBB模型加载未实现");
+                        if(modelInfo.ModelInfo.IsEncrypted)
+                            param.Handle = Yolo8Obb.CreateDetector(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ClassNames.Count, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS, modelInfo.ScoreThreshold);
                         break;
                     case ModelType.SEG:
                         if (modelInfo.ModelInfo.IsEncrypted) // 如果是加密模型

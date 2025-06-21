@@ -1,7 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using Logger;
+using OfficeOpenXml.FormulaParsing.Excel.Functions.Math;
+using OpenCvSharp;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 {
@@ -115,13 +118,41 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <summary>
         /// 执行推理
         /// </summary>
-        public static void Infer(IntPtr context, byte[] imageData, int width, int height, int channels,
-                                 out int boxCount, out IntPtr boxData, out IntPtr scoreData, out IntPtr classIdData,
-                                 out int maskCount, out IntPtr maskWidth, out IntPtr maskHeight, out IntPtr maskData)
+        /// <summary>
+        /// 执行推理并返回检测结果数组
+        /// </summary>
+        public static int Infer(IntPtr handle, byte[] image_data, int width, int height, int channels, [Out] List<SegResult> detectResults)
         {
-            _infer(context, imageData, width, height, channels,
+            int boxCount;
+            IntPtr boxData, scoreData, classIdData;
+            int maskCount;
+            IntPtr maskWidth, maskHeight, maskData;
+
+            _infer(handle, image_data, width, height, channels,
                    out boxCount, out boxData, out scoreData, out classIdData,
                    out maskCount, out maskWidth, out maskHeight, out maskData);
+
+            if (boxData != IntPtr.Zero)
+            {
+                for (int i = 0; i < boxCount; i++)
+                {
+                    int left = Marshal.ReadInt32(boxData, i * 4 * sizeof(int));
+                    int top = Marshal.ReadInt32(boxData, (i * 4 + 1) * sizeof(int));
+                    int rect_width = Marshal.ReadInt32(boxData, (i * 4 + 2) * sizeof(int));
+                    int rect_height = Marshal.ReadInt32(boxData, (i * 4 + 3) * sizeof(int));
+
+                    float score = BitConverter.ToSingle(BitConverter.GetBytes(Marshal.ReadInt32(scoreData, i * sizeof(float))), 0);
+                    int class_id = Marshal.ReadInt32(classIdData, i * sizeof(int));
+
+                    detectResults.Add(new SegResult()
+                    {
+                        ClassId = class_id,
+                        Score = score,
+                        Box = new Rect(left, top, rect_width, rect_height)
+                    });
+                }
+            }
+            return boxCount;
         }
 
         /// <summary>

@@ -1,5 +1,4 @@
 ﻿using Logger;
-using OpenCvSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -8,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Device.Camera;
 using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
-using static TDJS_Vision.Node._3_Detection.TDAI.Yolo8.YoloV8Det;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
@@ -54,33 +52,53 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             // 获取订阅的图像
                             Bitmap srcImg = form.GetImage();
 
-                            // 开始检测
+                            // 获取模型句柄种类
                             var modelType = ModelHandleManager.GetModelHandleType(param.Handle);
+
+                            // 清空上次AI结果
+                            res.ResultList.Clear();
+
+                            // 4种模型通用检出结果
+                            int result_count = 0;
 
                             switch (modelType)
                             {
                                 case ModelType.DET:
 
-                                    DetectionResult[] results = new DetectionResult[1000];
-                                    int result_count = YoloV8Det.Detect(param.Handle, CameraHik.ConvertBitmapToBgr24(srcImg), srcImg.Width, srcImg.Height, 3, results);
+                                    List<DetResult> det_results = new List<DetResult>();
+                                    result_count = Yolo8Det.Detect(param.Handle, CameraHik.ConvertBitmapToBgr24(srcImg), srcImg.Width, srcImg.Height, 3, det_results);
                                     // 输出检测项配置
                                     res.AIInputInfo = param.AIInputInfo;
-                                    // 输出AI结果
-                                    res.ResultList.Clear();
                                     //超日项目的结果解析
-                                    AI.ResultParse(results, result_count, ref res);
+                                    AI.ResultParse(det_results, result_count, ref res);
+                                    break;
 
-                                    break;
                                 case ModelType.OBB:
-                                    throw new NotImplementedException("OBB模型检测未实现");
+
+                                    List<ObbResult> obb_results = new List<ObbResult>();
+                                    result_count = Yolo8Obb.Detect(param.Handle, CameraHik.ConvertBitmapToBgr24(srcImg), srcImg.Width, srcImg.Height, 3, obb_results);
+                                    // TODO: 根据项目需要解析Ai结果
                                     break;
+
                                 case ModelType.SEG:
+
+                                    List<SegResult> seg_results = new List<SegResult>();
+                                    result_count = Yolo8Seg.Infer(param.Handle, CameraHik.ConvertBitmapToBgr24(srcImg), srcImg.Width, srcImg.Height, 3, seg_results);
+                                    // TODO: 根据项目需要解析Ai结果
                                     break;
+
                                 case ModelType.POSE:
+
+                                    List<PoseResult> pose_results = new List<PoseResult>();
+                                    result_count = Yolo8Pose.Infer(param.Handle, CameraHik.ConvertBitmapToBgr24(srcImg), srcImg.Width, srcImg.Height, 3, pose_results);
+                                    // TODO: 根据项目需要解析Ai结果
                                     break;
+
                                 default:
                                     break;
                             }
+
+                            #region 测试数据
 
                             //// 线芯项目
                             //ProcessingAIResults(results, result_count, ref res);
@@ -88,6 +106,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             // 获取结果（测试数据）
                             //res = TestRun(srcImg, param, res.AIInputInfo);
 
+                            #endregion
 
                             // 返回结果
                             Result = res;
@@ -114,18 +133,18 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <summary>
         /// 处理AI结果
         /// </summary>
-        public static void ProcessingAIResults(DetectionResult[] results, int resultCount, ref NodeResultTDAI nodeResult)
+        public static void ProcessingAIResults(List<DetResult> results, int resultCount, ref NodeResultTDAI nodeResult)
         {
             for (int i = 0; i < resultCount; ++i)
             {
-                DetectionResult result = results[i];
-                Rectangle rect = new Rectangle(result.left, result.top, result.width, result.height);
+                DetResult result = results[i];
+                Rectangle rect = new Rectangle(result.Box.Left, result.Box.Top, result.Box.Width, result.Box.Height);
 
                 // 如果当前检测项不测,直接跳过
-                if (!nodeResult.AIInputInfo.DetectItems[result.class_id].Enable)
+                if (!nodeResult.AIInputInfo.DetectItems[result.ClassId].Enable)
                     continue;
 
-                switch (nodeResult.AIInputInfo.ClassNames[result.class_id])
+                switch (nodeResult.AIInputInfo.ClassNames[result.ClassId])
                 {
                     case "out_line":
                         HandleOutLine(result, rect, ref nodeResult);
@@ -175,22 +194,22 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
         #region 处理不同检测项的结果
 
-        private static void HandleOutLine(DetectionResult result, Rectangle rect, ref NodeResultTDAI nodeResult)
+        private static void HandleOutLine(DetResult result, Rectangle rect, ref NodeResultTDAI nodeResult)
         {
             var itemRes = new SingleDetectItemResult();
             itemRes.Rects.Add(rect);
             itemRes.Value = rect.Width.ToString();
             double curV = double.Parse(itemRes.Value);
-            double minV = double.Parse(nodeResult.AIInputInfo.DetectItems[result.class_id].MinValue);
-            double maxV = double.Parse(nodeResult.AIInputInfo.DetectItems[result.class_id].MaxValue);
+            double minV = double.Parse(nodeResult.AIInputInfo.DetectItems[result.ClassId].MinValue);
+            double maxV = double.Parse(nodeResult.AIInputInfo.DetectItems[result.ClassId].MaxValue);
             itemRes.IsOk = (curV >= minV && curV <= maxV) ? true : false;
 
             var deteItem = new DetectItemResult();
-            deteItem.Name = nodeResult.AIInputInfo.DetectItems[result.class_id].Name;
+            deteItem.Name = nodeResult.AIInputInfo.DetectItems[result.ClassId].Name;
             deteItem.Results.Add(itemRes);
             nodeResult.ResultList.Add(deteItem);
 
-            nodeResult.AIInputInfo.DetectItems[result.class_id].CurValue = itemRes.Value;
+            nodeResult.AIInputInfo.DetectItems[result.ClassId].CurValue = itemRes.Value;
         }
 
         #endregion

@@ -1,11 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
-using System.Web.UI;
-using OpenCvSharp;
-using OpenCvSharp.Aruco;
-using Sunny.UI;
-using static TDJS_Vision.Node._3_Detection.TDAI.Yolo8.YoloV8Det;
+using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
@@ -25,22 +21,22 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <param name="results">AI检测原始结果数据</param>
         /// <param name="resultCount">AI检测出来的结果个数</param>
         /// <param name="nodeResult">解析之后的结果数据</param>
-        public static void ResultParse(DetectionResult[] results, int resultCount, ref NodeResultTDAI nodeResult)
+        public static void ResultParse(List<DetResult> results, int resultCount, ref NodeResultTDAI nodeResult)
         {
-            Dictionary<int, List<DetectionResult>> ResMap = new Dictionary<int, List<DetectionResult>>();
+            Dictionary<int, List<DetResult>> ResMap = new Dictionary<int, List<DetResult>>();
             // 遍历每一个检出结果，根据class_id将结果保存到对应列表中
             for (int i = 0; i < resultCount; ++i)
             {
-                DetectionResult result = results[i];
+                DetResult result = results[i];
                 // 判断该id是否存在,不存在需要先创建列表才能添加，防止nul异常
-                if(!ResMap.ContainsKey(result.class_id))
+                if(!ResMap.ContainsKey(result.ClassId))
                 {
-                    ResMap[result.class_id] = new List<DetectionResult>();
+                    ResMap[result.ClassId] = new List<DetResult>();
                 }
-                ResMap[result.class_id].Add(result);
+                ResMap[result.ClassId].Add(result);
             }
             // 使用LINQ按键class_id从小到大进行排序
-            var sortedDictionary = new SortedDictionary<int, List<DetectionResult>>(ResMap);
+            var sortedDictionary = new SortedDictionary<int, List<DetResult>>(ResMap);
             var rect = new List<Rectangle>();
             foreach (var pair in sortedDictionary)
             {
@@ -97,7 +93,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <param name="maxV"></param>
         /// <param name="IsOkDetectItem">标记该项是不是OK类型的，是IsOk默认赋值true，否IsOk默认赋值fals</param>
         /// <param name="nodeResult"></param>
-        private static List<Rectangle> ParseTypeC(KeyValuePair<int, List<DetectionResult>> pair, double minV, double maxV, ref NodeResultTDAI nodeResult)
+        private static List<Rectangle> ParseTypeC(KeyValuePair<int, List<DetResult>> pair, double minV, double maxV, ref NodeResultTDAI nodeResult)
         {
             List<Rectangle> rects = new List<Rectangle>();
             // type_c当前检出数量
@@ -111,7 +107,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             {
                 // 构建单个检测项结果
                 var itemRes = new SingleDetectItemResult();
-                Rectangle rect = new Rectangle(result.left, result.top, result.width, result.height);
+                Rectangle rect = new Rectangle(result.Box.Left, result.Box.Top, result.Box.Width, result.Box.Height);
                 rects.Add(rect);
                 itemRes.Value = "1"; // 检测项只考虑计数时此项默认"1"
                 itemRes.IsOk = true; // 只要检测到即为OK
@@ -132,7 +128,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <param name="maxV"></param>
         /// <param name="IsOkDetectItem"></param>
         /// <param name="nodeResult"></param>
-        private static void ParseSolderNg(KeyValuePair<int, List<DetectionResult>> pair, double minV, double maxV, List<Rectangle> rects, ref NodeResultTDAI nodeResult)
+        private static void ParseSolderNg(KeyValuePair<int, List<DetResult>> pair, double minV, double maxV, List<Rectangle> rects, ref NodeResultTDAI nodeResult)
         {
             // 构建“焊锡不良”结果数据
             var solderNgRes = new DetectItemResult();
@@ -154,12 +150,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             {
                 // 构建单个检测项结果
                 var itemRes = new SingleDetectItemResult();
-                Rectangle rect = new Rectangle(result.left, result.top, result.width, result.height);
-                var area = result.width * result.height;
+                Rectangle rect = new Rectangle(result.Box.Left, result.Box.Top, result.Box.Width, result.Box.Height);
+                var area = result.Box.Width * result.Box.Height;
                 itemRes.Value = area.ToString(); // 检测项的值是面积
+
                 // 该不良焊点是否在TypeC区域内，不在的话直接NG, 在的话要根据面积判断OK/NG
-                var resultRect = rects.Find(rectTmp => rectTmp.Contains(rect)); 
-                itemRes.IsOk = (resultRect == null || resultRect == default(Rectangle)) ? false : IsValueOk(area, minV, maxV);
+                //var resultRect = rects.Find(rectTmp => rectTmp.Contains(rect));
+                //itemRes.IsOk = (resultRect == null || resultRect == default(Rectangle)) ? false : IsValueOk(area, minV, maxV);
+
+                //var resultRect = rects.Find(rectTmp => rectTmp.Contains(rect));
+                itemRes.IsOk = IsValueOk(area, minV, maxV);
+
                 itemRes.Rects.Add(rect);
                 solderNgRes.Results.Add(itemRes);
                 valueStr += (itemRes.Value + ",");
@@ -173,7 +174,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <summary>
         /// 解析露线芯长度
         /// </summary>
-        private static void ParseLineLen(KeyValuePair<int, List<DetectionResult>> pair, double minV, double maxV, ref NodeResultTDAI nodeResult)
+        private static void ParseLineLen(KeyValuePair<int, List<DetResult>> pair, double minV, double maxV, ref NodeResultTDAI nodeResult)
         {
             // 构建检测项结果
             var deteItem = new DetectItemResult();
@@ -183,10 +184,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             {
                 // 构建单个检测项结果
                 var itemRes = new SingleDetectItemResult();
-                Rectangle rect = new Rectangle(result.left, result.top, result.width, result.height);
+                Rectangle rect = new Rectangle(result.Box.Left, result.Box.Top, result.Box.Width, result.Box.Height);
                 itemRes.Rects.Add(rect);
-                itemRes.Value = result.height.ToString(); // 把矩形框的高当做露线芯长度
-                itemRes.IsOk = IsValueOk(double.Parse(result.height.ToString()), minV, maxV);
+                itemRes.Value = result.Box.Height.ToString(); // 把矩形框的高当做露线芯长度
+                itemRes.IsOk = IsValueOk(double.Parse(result.Box.Height.ToString()), minV, maxV);
                 // 添加到检测项结果中
                 deteItem.Results.Add(itemRes);
                 valueStr += (itemRes.Value + ",");

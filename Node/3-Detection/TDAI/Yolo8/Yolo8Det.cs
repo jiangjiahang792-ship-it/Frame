@@ -3,8 +3,8 @@ using System.Runtime.InteropServices;
 using System.IO;
 using Logger;
 using System.Security.Cryptography;
-using System.Drawing.Imaging;
-using System.Drawing;
+using OpenCvSharp;
+using System.Collections.Generic;
 
 
 namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
@@ -22,9 +22,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
     /// <summary>
     /// YoloV8Det 类用于加载和调用 yolo_det.dll 中的函数
     /// </summary>
-    internal class YoloV8Det
+    internal class Yolo8Det
     {
-        // 检测结果结构体
+        // 定义检测结果结构体
         [StructLayout(LayoutKind.Sequential)]
         public struct DetectionResult
         {
@@ -35,7 +35,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             public int width;
             public int height;
         }
-
         // 定义委托类型，对应 DLL 中的函数指针
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate IntPtr CreateDetectorDelegate(string model_path, string[] class_names, int class_count, int model_size, float score_threshold, float nms_threshold);
@@ -55,7 +54,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         private static DetectDelegate _detect;
 
         // 加载 DLL 并绑定函数
-        static YoloV8Det()
+        static Yolo8Det()
         {
             string dllPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "yolo_det.dll");
 
@@ -106,9 +105,26 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <param name="channels"></param>
         /// <param name="results"></param>
         /// <returns></returns>
-        public static int Detect(IntPtr detector, byte[] img_data, int width, int height, int channels, [Out] DetectionResult[] results)
+        public static int Detect(IntPtr detector, byte[] img_data, int width, int height, int channels, [Out] List<DetResult> detectResults)
         {
-            return _detect(detector, img_data, width, height, channels, results);
+            DetectionResult[] results = new DetectionResult[1000];
+            int count = _detect(detector, img_data, width, height, channels, results);
+
+            if (results != null && results.Length >= count)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    var dr = results[i];
+                    detectResults.Add(new DetResult()
+                    {
+                        ClassId = dr.class_id,
+                        Score = dr.score,
+                        Box = new Rect(dr.left, dr.top, dr.width, dr.height)
+                    });
+                }
+            }
+
+            return count;
         }
         /// <summary>
         /// 解密文件

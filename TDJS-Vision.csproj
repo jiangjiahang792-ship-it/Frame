@@ -187,7 +187,9 @@
       <DependentUpon>MessageBoxTD.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\3-Detection\TDAI\AI.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Yolo8\IDetectResult.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\ModelHandleManager.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Obb.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Pose.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Seg.cs" />
     <Compile Include="Properties\Resources.Designer.cs">

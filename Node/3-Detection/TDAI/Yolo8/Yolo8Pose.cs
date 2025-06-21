@@ -1,7 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using Logger;
+using OfficeOpenXml.FormulaParsing.Excel.Functions.Math;
+using OfficeOpenXml.FormulaParsing.Excel.Functions.Text;
 using OpenCvSharp;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
@@ -81,10 +85,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
     {
         // 委托定义
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate IntPtr InitializeDelegate(string modelPath, string[] classLabels, int classCount, int modelSize, float scoreThreshold, float nmsThreshold, int keyPointNum);
+        public delegate IntPtr InitializeDelegate(string modelPath, string[] classLabels, int classCount, int modelSize, 
+                                                float scoreThreshold, float nmsThreshold, int keyPointNum);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate IntPtr InferenceDelegate(byte[] imageData, int width, int height, int channels,
+        public delegate int InferenceDelegate(IntPtr handle, byte[] imageData, int width, int height, int channels,
                                                 out IntPtr boxesData, out int boxesCount,
                                                 out IntPtr keypointsData, out int keypointsCount,
                                                 out int keypointsPerObject);
@@ -136,15 +141,54 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <summary>
         /// 执行姿态检测推理
         /// </summary>
-        public static IntPtr Inference(byte[] imageData, int width, int height, int channels,
-                                     out IntPtr boxesData, out int boxesCount,
-                                     out IntPtr keypointsData, out int keypointsCount,
-                                     out int keypointsPerObject)
+        public static int Infer(IntPtr handle, byte[] image_data, int width, int height, int channels, [Out] List<PoseResult> detectResults)
         {
-            return _inference(imageData, width, height, channels,
-                       out boxesData, out boxesCount,
-                       out keypointsData, out keypointsCount,
-                       out keypointsPerObject);
+            IntPtr boxesDataPtr;
+            int boxesCount;
+            IntPtr keypointsDataPtr;
+            int keypointsCount;
+            int keypointsPerObject;
+
+            _inference(handle, image_data, width, height, channels, out boxesDataPtr, out boxesCount,
+                                                        out keypointsDataPtr, out keypointsCount, out keypointsPerObject);
+            int objectCount = boxesCount / 4;
+
+            if (boxesDataPtr != IntPtr.Zero)
+            {
+                for (int i = 0; i < objectCount; i++)
+                {
+
+                    int left = (int)ReadFloat(boxesDataPtr, i * 4 * sizeof(float));
+                    int top = (int)ReadFloat(boxesDataPtr, (i * 4 + 1) * sizeof(float));
+                    int rect_width = (int)ReadFloat(boxesDataPtr, (i * 4 + 2) * sizeof(float));
+                    int rect_height = (int)ReadFloat(boxesDataPtr, (i * 4 + 3) * sizeof(float));
+                    var result = new PoseResult
+                    {
+                        ClassId = 0, // Pose模型不应该给出，可默认为 0
+                        Score = 1.0f, // Pose模型不应该给出，可默认为 1.0f
+                        Box = new Rect(left, top, rect_width, rect_height), // 创建矩形框
+                        KeyPoints = new List<Point>() // 初始化关键点列表
+                    };
+
+                    for (int j = 0; j < keypointsPerObject / 2; j++) // 每个关键点需要2个float值(x, y)
+                    {
+                        float x = ReadFloat(keypointsDataPtr, (i * (keypointsPerObject / 2) + j) * 2 * sizeof(float));
+                        float y = ReadFloat(keypointsDataPtr, ((i * (keypointsPerObject / 2) + j) * 2 + 1) * sizeof(float));
+
+                        result.KeyPoints.Add(new Point(x, y)); // 添加新关键点到列表
+                    }
+
+                    detectResults.Add(result);
+                }
+
+                Marshal.FreeHGlobal(boxesDataPtr);
+                Marshal.FreeHGlobal(keypointsDataPtr);
+            }
+            return boxesCount;
+        }
+        private static float ReadFloat(IntPtr ptr, int offset)
+        {
+            return BitConverter.ToSingle(BitConverter.GetBytes(Marshal.ReadInt32(ptr, offset)), 0);
         }
 
         /// <summary>

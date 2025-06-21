@@ -10,7 +10,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
     //ModelHandleManager.Register(detectorHandle, ModelType.DET);
 
     //// 后续释放时只需传入句柄即可
-    //ModelHandleManager.AutoRelease(detectorHandle);
+    //ModelHandleManager.ReleaseModel(detectorHandle);
 
     #endregion
 
@@ -84,13 +84,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             switch (type)
             {
                 case ModelType.DET:
-                    YoloV8Det.DestroyDetector(handle);
+                    Yolo8Det.DestroyDetector(handle);
                     break;
                 case ModelType.SEG:
                     Yolo8Seg.Release(handle);
                     break;
                 case ModelType.POSE:
                     Yolo8Pose.Cleanup(handle);
+                    break;
+                case ModelType.OBB:
+                    Yolo8Obb.DestroyDetector(handle);
                     break;
                 default:
                     throw new ArgumentException("不支持的资源类型");
