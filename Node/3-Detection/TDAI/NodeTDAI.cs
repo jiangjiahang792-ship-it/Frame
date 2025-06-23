@@ -60,6 +60,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
                             // 4种模型通用检出结果
                             int result_count = 0;
+                            int keypoint_count = 0;
 
                             switch (modelType)
                             {
@@ -89,8 +90,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
                                 case ModelType.POSE:
 
-                                    List<PoseResult> pose_results = new List<PoseResult>();
-                                    result_count = Yolo8Pose.Infer(param.Handle, CameraHik.ConvertBitmapToBgr24(srcImg), srcImg.Width, srcImg.Height, 3, pose_results);
+                                    PoseResult pose_result = new PoseResult();
+                                    (result_count, keypoint_count) = Yolo8Pose.Infer(param.Handle, CameraHik.ConvertBitmapToBgr24(srcImg), srcImg.Width, srcImg.Height, 3, pose_result);
                                     // TODO: 根据项目需要解析Ai结果
                                     break;
 

@@ -32,10 +32,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
     [StructLayout(LayoutKind.Sequential)]
     public struct PoseResult : IDetectResult
     {
-        public int ClassId;    
-        public float Score;
-        public Rect Box;
-        public List<Point> KeyPoints; 
+        public List<Rect> Boxs;
+        public List<Point> KeyPoints;
     }
 
     // 定义 SegResult 结构体

@@ -141,54 +141,46 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <summary>
         /// 执行姿态检测推理
         /// </summary>
-        public static int Infer(IntPtr handle, byte[] image_data, int width, int height, int channels, [Out] List<PoseResult> detectResults)
+        public static (int, int) Infer(IntPtr handle, byte[] image_data, int width, int height, int channels, [Out] PoseResult detectResult)
         {
+            // 进行推理
             IntPtr boxesDataPtr;
             int boxesCount;
             IntPtr keypointsDataPtr;
             int keypointsCount;
             int keypointsPerObject;
+            _inference(handle, image_data, width, height, channels, out boxesDataPtr, out boxesCount, out keypointsDataPtr, out keypointsCount, out keypointsPerObject);
 
-            _inference(handle, image_data, width, height, channels, out boxesDataPtr, out boxesCount,
-                                                        out keypointsDataPtr, out keypointsCount, out keypointsPerObject);
-            int objectCount = boxesCount / 4;
+            // 将指针转换为数组
+            float[] boxesData = new float[boxesCount];
+            float[] keypointsData = new float[keypointsCount];
+            Marshal.Copy(boxesDataPtr, boxesData, 0, boxesCount);
+            Marshal.Copy(keypointsDataPtr, keypointsData, 0, keypointsCount);
 
-            if (boxesDataPtr != IntPtr.Zero)
+            detectResult.Boxs = new List<Rect>();
+            detectResult.KeyPoints = new List<Point>();
+            // 可视化结果
+            for (int i = 0; i < boxesCount; i += 4)
             {
-                for (int i = 0; i < objectCount; i++)
-                {
-
-                    int left = (int)ReadFloat(boxesDataPtr, i * 4 * sizeof(float));
-                    int top = (int)ReadFloat(boxesDataPtr, (i * 4 + 1) * sizeof(float));
-                    int rect_width = (int)ReadFloat(boxesDataPtr, (i * 4 + 2) * sizeof(float));
-                    int rect_height = (int)ReadFloat(boxesDataPtr, (i * 4 + 3) * sizeof(float));
-                    var result = new PoseResult
-                    {
-                        ClassId = 0, // Pose模型不应该给出，可默认为 0
-                        Score = 1.0f, // Pose模型不应该给出，可默认为 1.0f
-                        Box = new Rect(left, top, rect_width, rect_height), // 创建矩形框
-                        KeyPoints = new List<Point>() // 初始化关键点列表
-                    };
-
-                    for (int j = 0; j < keypointsPerObject / 2; j++) // 每个关键点需要2个float值(x, y)
-                    {
-                        float x = ReadFloat(keypointsDataPtr, (i * (keypointsPerObject / 2) + j) * 2 * sizeof(float));
-                        float y = ReadFloat(keypointsDataPtr, ((i * (keypointsPerObject / 2) + j) * 2 + 1) * sizeof(float));
-
-                        result.KeyPoints.Add(new Point(x, y)); // 添加新关键点到列表
-                    }
-
-                    detectResults.Add(result);
-                }
-
-                Marshal.FreeHGlobal(boxesDataPtr);
-                Marshal.FreeHGlobal(keypointsDataPtr);
+                int x = (int)boxesData[i];
+                int y = (int)boxesData[i + 1];
+                int rect_width = (int)boxesData[i + 2];
+                int rect_height = (int)boxesData[i + 3];
+                Rect rect = new Rect(x, y, rect_width, rect_height);
+                detectResult.Boxs.Add(rect);
             }
-            return boxesCount;
-        }
-        private static float ReadFloat(IntPtr ptr, int offset)
-        {
-            return BitConverter.ToSingle(BitConverter.GetBytes(Marshal.ReadInt32(ptr, offset)), 0);
+
+            for (int i = 0; i < keypointsCount; i += keypointsPerObject)
+            {
+                for (int j = 0; j < keypointsPerObject; j += 3)
+                {
+                    int x = (int)keypointsData[i + j];
+                    int y = (int)keypointsData[i + j + 1];
+                    Point point = new Point(x, y);
+                    detectResult.KeyPoints.Add(point);
+                }
+            }
+            return (boxesCount/4, keypointsCount/ keypointsPerObject);
         }
 
         /// <summary>
