@@ -73,6 +73,7 @@
             this.LeftToolStripPanel = new System.Windows.Forms.ToolStripPanel();
             this.ContentPanel = new System.Windows.Forms.ToolStripContentPanel();
             this.tableLayoutPanel2 = new System.Windows.Forms.TableLayoutPanel();
+            this.公司Logo视图ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.toolStrip1.SuspendLayout();
             this.tableLayoutPanel2.SuspendLayout();
@@ -147,7 +148,8 @@
             this.默认视图ToolStripMenuItem,
             this.图像显示ToolStripMenuItem,
             this.检测结果ToolStripMenuItem,
-            this.运行日志ToolStripMenuItem});
+            this.运行日志ToolStripMenuItem,
+            this.公司Logo视图ToolStripMenuItem});
             this.视图ToolStripMenuItem.Name = "视图ToolStripMenuItem";
             this.视图ToolStripMenuItem.Size = new System.Drawing.Size(53, 28);
             this.视图ToolStripMenuItem.Text = "视图";
@@ -158,7 +160,7 @@
             this.默认视图ToolStripMenuItem.CheckOnClick = true;
             this.默认视图ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.默认视图ToolStripMenuItem.Name = "默认视图ToolStripMenuItem";
-            this.默认视图ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
+            this.默认视图ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
             this.默认视图ToolStripMenuItem.Text = "默认视图";
             this.默认视图ToolStripMenuItem.Click += new System.EventHandler(this.默认视图ToolStripMenuItem_Click);
             // 
@@ -168,7 +170,7 @@
             this.图像显示ToolStripMenuItem.CheckOnClick = true;
             this.图像显示ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.图像显示ToolStripMenuItem.Name = "图像显示ToolStripMenuItem";
-            this.图像显示ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
+            this.图像显示ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
             this.图像显示ToolStripMenuItem.Text = "检测图像视图";
             this.图像显示ToolStripMenuItem.Click += new System.EventHandler(this.检测图像视图ToolStripMenuItem_Click);
             // 
@@ -178,7 +180,7 @@
             this.检测结果ToolStripMenuItem.CheckOnClick = true;
             this.检测结果ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.检测结果ToolStripMenuItem.Name = "检测结果ToolStripMenuItem";
-            this.检测结果ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
+            this.检测结果ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
             this.检测结果ToolStripMenuItem.Text = "检测结果视图";
             this.检测结果ToolStripMenuItem.Click += new System.EventHandler(this.检测结果视图ToolStripMenuItem_Click);
             // 
@@ -188,7 +190,7 @@
             this.运行日志ToolStripMenuItem.CheckOnClick = true;
             this.运行日志ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.运行日志ToolStripMenuItem.Name = "运行日志ToolStripMenuItem";
-            this.运行日志ToolStripMenuItem.Size = new System.Drawing.Size(182, 26);
+            this.运行日志ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
             this.运行日志ToolStripMenuItem.Text = "运行日志视图";
             this.运行日志ToolStripMenuItem.Click += new System.EventHandler(this.运行日志视图ToolStripMenuItem_Click);
             // 
@@ -527,6 +529,15 @@
             this.tableLayoutPanel2.Size = new System.Drawing.Size(1379, 738);
             this.tableLayoutPanel2.TabIndex = 5;
             // 
+            // 公司Logo视图ToolStripMenuItem
+            // 
+            this.公司Logo视图ToolStripMenuItem.Checked = true;
+            this.公司Logo视图ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.公司Logo视图ToolStripMenuItem.Name = "公司Logo视图ToolStripMenuItem";
+            this.公司Logo视图ToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
+            this.公司Logo视图ToolStripMenuItem.Text = "公司Logo视图";
+            this.公司Logo视图ToolStripMenuItem.Click += new System.EventHandler(this.公司Logo视图ToolStripMenuItem_Click);
+            // 
             // FormMain
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
@@ -603,6 +614,7 @@
         private System.Windows.Forms.ToolStripLabel toolStripLabel1;
         private System.Windows.Forms.ToolStripButton tsbt_RunParamSetting;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel2;
+        private System.Windows.Forms.ToolStripMenuItem 公司Logo视图ToolStripMenuItem;
     }
 }
 

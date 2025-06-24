@@ -47,12 +47,12 @@ namespace TDJS_Vision
         public void Initialize(DockPanelColorPalette palette)
         {
             // 工具提示/自动隐藏条
-            palette.AutoHideStripDefault.Background = Color.FromArgb(40, 120, 120);
-            palette.AutoHideStripDefault.Border = Color.FromArgb(39, 174, 96);
+            palette.AutoHideStripDefault.Background = Color.MediumTurquoise;
+            palette.AutoHideStripDefault.Border = Color.MediumTurquoise;
             palette.AutoHideStripDefault.Text = Color.White;
 
-            palette.AutoHideStripHovered.Background = Color.FromArgb(50, 220, 120);
-            palette.AutoHideStripHovered.Border = Color.FromArgb(40, 180, 100);
+            palette.AutoHideStripHovered.Background = Color.LightSeaGreen;
+            palette.AutoHideStripHovered.Border = Color.LightSeaGreen;
             palette.AutoHideStripHovered.Text = Color.White;
 
             // 标签页 - 未选中
@@ -65,12 +65,10 @@ namespace TDJS_Vision
             // 标签页 - 选中（激活状态）
             palette.TabSelectedActive.Background = Color.LightSeaGreen;
             palette.TabSelectedActive.Text = Color.White;
-            palette.TabSelectedActive.Button = Color.White;
 
             // 标签页 - 选中（非激活状态）
             palette.TabSelectedInactive.Background = Color.MediumTurquoise;
             palette.TabSelectedInactive.Text = Color.White;
-            palette.TabSelectedInactive.Button = Color.White;
 
             // 主窗口背景
             palette.MainWindowActive.Background = SystemColors.Control;
@@ -78,18 +76,14 @@ namespace TDJS_Vision
             // 状态栏
             palette.MainWindowStatusBarDefault.Background = Color.MediumTurquoise;
             palette.MainWindowStatusBarDefault.Text = Color.White;
-            palette.MainWindowStatusBarDefault.Highlight = Color.MediumTurquoise;
-            palette.MainWindowStatusBarDefault.HighlightText = Color.White;
 
             // 工具窗口标题栏 - 激活
             palette.ToolWindowCaptionActive.Background = Color.LightSeaGreen;
             palette.ToolWindowCaptionActive.Text = Color.White;
-            palette.ToolWindowCaptionActive.Button = Color.White;
 
             // 工具窗口标题栏 - 非激活
             palette.ToolWindowCaptionInactive.Background = Color.MediumTurquoise;
             palette.ToolWindowCaptionInactive.Text = Color.White;
-            palette.ToolWindowCaptionInactive.Button = Color.White;
 
             // 工具窗口标签页 - 选中
             palette.ToolWindowTabSelectedActive.Background = Color.LightSeaGreen;
@@ -107,25 +101,20 @@ namespace TDJS_Vision
             palette.ToolWindowBorder = Color.FromArgb(30, 30, 30);
 
             // 命令栏 / 菜单
-            palette.CommandBarMenuDefault.Background = Color.FromArgb(39, 130, 96);
+            palette.CommandBarMenuDefault.Background = Color.LightSeaGreen;
             palette.CommandBarMenuDefault.Text = Color.White;
 
-            palette.CommandBarMenuPopupDefault.BackgroundTop = Color.FromArgb(39, 130, 96);
+            palette.CommandBarMenuPopupDefault.BackgroundTop = Color.LightSeaGreen;
             palette.CommandBarMenuPopupDefault.BackgroundBottom = Color.FromArgb(30, 30, 30);
             palette.CommandBarMenuPopupDefault.Border = Color.FromArgb(60, 60, 60);
             palette.CommandBarMenuPopupDefault.Separator = Color.FromArgb(60, 60, 60);
             palette.CommandBarMenuPopupDefault.CheckmarkBackground = Color.FromArgb(46, 204, 113);
 
-            palette.CommandBarMenuPopupHovered.ItemBackground = Color.FromArgb(39, 174, 96);
+            palette.CommandBarMenuPopupHovered.ItemBackground = Color.LightSeaGreen;
             palette.CommandBarMenuPopupHovered.Text = Color.White;
 
-            // 溢出按钮
-            palette.OverflowButtonDefault.Glyph = Color.White;
-            palette.OverflowButtonHovered.Background = Color.FromArgb(40, 180, 100);
-            palette.OverflowButtonHovered.Glyph = Color.White;
-
             // 拖拽目标
-            palette.DockTarget.Background = Color.FromArgb(39, 130, 96);
+            palette.DockTarget.Background = Color.LightSeaGreen;
             palette.DockTarget.Border = Color.FromArgb(46, 204, 113);
             palette.DockTarget.GlyphArrow = Color.White;
         }

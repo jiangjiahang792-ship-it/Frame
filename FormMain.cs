@@ -21,6 +21,7 @@ using TDJS_Vision.Forms.Login;
 using System.Threading.Tasks;
 using TDJS_Vision.Forms.YTMessageBox;
 using System.Drawing;
+using TDJS_Vision.Forms.LogoView;
 
 namespace TDJS_Vision
 {
@@ -64,6 +65,10 @@ namespace TDJS_Vision
         /// 日志栏
         /// </summary>
         static FrmLogger FrmLoggerDlg = new FrmLogger();
+        /// <summary>
+        /// 客户公司Logo显示窗口
+        /// </summary>
+        static FrmLogo FrmLogoDlg = new FrmLogo();
         /// <summary>
         /// 流程创建窗口
         /// </summary>
@@ -136,12 +141,14 @@ namespace TDJS_Vision
             运行日志ToolStripMenuItem.Checked = FrmLoggerDlg.Visible;
             检测结果ToolStripMenuItem.Checked = FrmResultDlg.Visible;
             图像显示ToolStripMenuItem.Checked = FrmImgeDlg.Visible;
+            公司Logo视图ToolStripMenuItem.Checked = FrmLogoDlg.Visible;
             默认视图ToolStripMenuItem.Checked = FrmLoggerDlg.Visible && FrmResultDlg.Visible && FrmImgeDlg.Visible ? true : false;
 
             // 布局同步更新事件
             FrmImgeDlg.HideChangedEvent += HideChangedEvent;
             FrmResultDlg.HideChangedEvent += HideChangedEvent;
             FrmLoggerDlg.HideChangedEvent += HideChangedEvent;
+            FrmLogoDlg.HideChangedEvent += HideChangedEvent;
 
             // 界面锁事件
             FormLogin.LoginEvent += OnLoginEvent;
@@ -338,7 +345,7 @@ namespace TDJS_Vision
             }
             catch (Exception ex)
             {
-                //LoadDefaultDockPanel();
+                LoadDefaultDockPanel();
             }
         }
         /// <summary>
@@ -347,11 +354,13 @@ namespace TDJS_Vision
         private void LoadDefaultDockPanel()
         {
             FrmImgeDlg.Show(dockPanel1, DockState.Document);
-            FrmResultDlg.Show(dockPanel1, DockState.DockRight);
-            FrmLoggerDlg.Show(dockPanel1, DockState.DockBottom);
+            FrmResultDlg.Show(FrmImgeDlg.Pane, DockAlignment.Right, 0.25);
+            FrmLoggerDlg.Show(dockPanel1, DockState.Document);
+            FrmLogoDlg.Show(FrmResultDlg.Pane, DockAlignment.Top, 0.5);
             图像显示ToolStripMenuItem.Checked = true;
             检测结果ToolStripMenuItem.Checked = true;
             运行日志ToolStripMenuItem.Checked = true;
+            公司Logo视图ToolStripMenuItem.Checked = true;
             this.dockPanel1.SaveAsXml(DockPanelConfig);
         }
         /// <summary>
@@ -370,6 +379,8 @@ namespace TDJS_Vision
             else if (persistString == typeof(FrmLogger).ToString())
                 return FrmLoggerDlg;
 
+            else if (persistString == typeof(FrmLogo).ToString())
+                return FrmLogoDlg;
             else
                 return null;
         }
@@ -662,7 +673,7 @@ namespace TDJS_Vision
             {
                 FrmImgeDlg.Show(); // 如果窗口隐藏，显示它
                 图像显示ToolStripMenuItem.Checked = true;
-                默认视图ToolStripMenuItem.Checked = FrmLoggerDlg.Visible && FrmResultDlg.Visible && FrmImgeDlg.Visible ? true : false;
+                默认视图ToolStripMenuItem.Checked = FrmLoggerDlg.Visible && FrmResultDlg.Visible && FrmImgeDlg.Visible && FrmLogoDlg.Visible ? true : false;
             }
             this.dockPanel1.SaveAsXml(DockPanelConfig);
         }
@@ -679,7 +690,7 @@ namespace TDJS_Vision
             {
                 FrmResultDlg.Show(); // 如果窗口隐藏，显示它
                 检测结果ToolStripMenuItem.Checked = true;
-                默认视图ToolStripMenuItem.Checked = FrmLoggerDlg.Visible && FrmResultDlg.Visible && FrmImgeDlg.Visible ? true : false;
+                默认视图ToolStripMenuItem.Checked = FrmLoggerDlg.Visible && FrmResultDlg.Visible && FrmImgeDlg.Visible && FrmLogoDlg.Visible ? true : false;
             }
             this.dockPanel1.SaveAsXml(DockPanelConfig);
         }
@@ -696,7 +707,24 @@ namespace TDJS_Vision
             {
                 FrmLoggerDlg.Show(); // 如果窗口隐藏，显示它
                 运行日志ToolStripMenuItem.Checked = true;
-                默认视图ToolStripMenuItem.Checked = FrmLoggerDlg.Visible && FrmResultDlg.Visible && FrmImgeDlg.Visible ? true : false;
+                默认视图ToolStripMenuItem.Checked = FrmLoggerDlg.Visible && FrmResultDlg.Visible && FrmImgeDlg.Visible && FrmLogoDlg.Visible ? true : false;
+            }
+            this.dockPanel1.SaveAsXml(DockPanelConfig);
+        }
+
+        private void 公司Logo视图ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (FrmLogoDlg.Visible)
+            {
+                FrmLogoDlg.Hide(); // 如果窗口可见，隐藏它
+                公司Logo视图ToolStripMenuItem.Checked = false;
+                默认视图ToolStripMenuItem.Checked = false;
+            }
+            else
+            {
+                FrmLogoDlg.Show(); // 如果窗口隐藏，显示它
+                公司Logo视图ToolStripMenuItem.Checked = true;
+                默认视图ToolStripMenuItem.Checked = FrmLoggerDlg.Visible && FrmResultDlg.Visible && FrmImgeDlg.Visible && FrmLogoDlg.Visible? true : false;
             }
             this.dockPanel1.SaveAsXml(DockPanelConfig);
         }
@@ -706,12 +734,15 @@ namespace TDJS_Vision
             FrmImageViewer frmImageViewer = sender as FrmImageViewer;
             FrmResultView frmResultView = sender as FrmResultView;
             FrmLogger frmLogger = sender as FrmLogger;
+            FrmLogo frmLogo = sender as FrmLogo;
             if (frmImageViewer != null)
                 图像显示ToolStripMenuItem.Checked = frmImageViewer.Visible;
             else if (frmResultView != null)
                 检测结果ToolStripMenuItem.Checked = frmResultView.Visible;
             else if (frmLogger != null)
                 运行日志ToolStripMenuItem.Checked = frmLogger.Visible;
+            else if (frmLogo != null)
+                公司Logo视图ToolStripMenuItem.Checked = frmLogo.Visible;
         }
 
         private void 登录ToolStripMenuItem_Click(object sender, EventArgs e)
