@@ -45,9 +45,9 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
         /// 获取订阅的AI结果
         /// </summary>
         /// <returns></returns>
-        public List<DetectItemResult> GetAiResult()
+        public AiResult GetAiResult()
         {
-            return nodeSubscription1.GetValue<List<DetectItemResult>>();
+            return nodeSubscription1.GetValue<AiResult>();
         }
 
         /// <summary>
@@ -111,6 +111,8 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                         break;
                     }
                 }
+                checkBoxUseRegister.Checked = param.IsRegister;
+
                 // 自动重置信号
                 checkBoxReSet.Checked = param.IsAutoReset;
 
@@ -217,6 +219,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                 param.Text1 = nodeSubscription1.GetText1();
                 param.Text2 = nodeSubscription1.GetText2();
                 param.ModbusName = comboBoxModBusList.Text;
+                param.IsRegister = checkBoxUseRegister.Checked;
                 param.ModbusDevice = Solution.Instance.ModbusDevices
                     .FirstOrDefault(dev => dev.UserDefinedName == param.ModbusName);
                 param.IsAutoReset = checkBoxReSet.Checked;

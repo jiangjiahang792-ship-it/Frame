@@ -52,7 +52,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     base.CheckTokenCancel(token);
 
                     // 获取AI检测结果
-                    List<DetectItemResult> aiResult = form.GetAiResult();
+                    AiResult aiResult = form.GetAiResult();
 
                     // 获取“检测项-地址”映射关系
                     var map = form.GetMapping();
@@ -80,26 +80,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     #endregion
 
                     // 执行线圈信号写入
-                    await SendToModbus(aiResult, map, param.SignalHoldTime, param.IsAutoReset, token);
-                    //if (aiResult.TrueForAll(i => (i.IsOk && i.IsCountOk)))
-                    //{
-                    //    var modbus = param.ModbusDevice;
-                    //    if (modbus == null)
-                    //        throw new Exception($"不存在的Modbus设备，请检查设备是否已经被移除！");
-                    //    ushort address = ushort.Parse(targetKey.Item2);
-
-                    //    // 内部会根据RTU还是TCP类型来调用不同的写入方法
-                    //    await modbus.WriteSingleCoilAsync(address, config.Value);
-
-                    //    // 保持设定时间后自动重置信号
-                    //    if (param.IsAutoReset)
-                    //    {
-                    //        await Task.Delay((int)param.SignalHoldTime).ContinueWith(t =>
-                    //        {
-                    //            modbus.WriteSingleCoilAsync(address, !config.Value);
-                    //        });
-                    //    }
-                    //}
+                    await SendToModbus(aiResult, map, param.SignalHoldTime, param.IsAutoReset, token, param.IsRegister);
 
                     long time = SetRunResult(startTime, NodeStatus.Successful);
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
@@ -122,11 +103,12 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
         /// <summary>
         /// 判断检出结果是否配置了信号
         /// </summary>
-        /// <param name="aiResult"></param>
-        /// <param name="signalConfigs"></param>
-        private (bool, List<string>) CheckAiResultExistInSignalConfig(List<DetectItemResult> aiResult, BindingList<DetectItemRow> signalConfigs)
+        /// <param name="aiResult">AI检出结果</param>
+        /// <param name="signalConfigs">信号配置列表</param>
+        /// <returns>(是否全部存在, 不存在的名称列表)</returns>
+        private (bool, List<string>) CheckAiResultExistInSignalConfig(AiResult aiResult, BindingList<DetectItemRow> signalConfigs)
         {
-            // 收集所有存在的检测项名称（支持多个用 ; 分隔的情况）
+            // 收集所有有效的检测项名称（支持多个用 ; 分隔的情况）
             var allValidNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var row in signalConfigs)
@@ -145,11 +127,23 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                 }
             }
 
-            // 检查 aiResult 中的 Name 是否都在 allValidNames 中
-            var missingNames = aiResult
-                .Where(r => !allValidNames.Contains(r.Name.Trim()))
-                .Select(r => r.Name)
-                .ToList();
+            // 获取 AI 检测结果中所有的检测项名称
+            var missingNames = new List<string>();
+
+            foreach (var kvp in aiResult.DetectResults)
+            {
+                // kvp.Key 是检测项名称，kvp.Value 是 SingleDetectResult 的列表
+                if (!allValidNames.Contains(kvp.Key.Trim()))
+                {
+                    // 如果该检测项名称不在有效名称集合中，则添加到缺失名称列表中
+                    missingNames.Add(kvp.Key);
+                }
+                else
+                {
+                    // 如果需要进一步检查每个 SingleDetectResult 是否符合某些条件，可以在此处进行
+                    // 这里假设只需要检查检测项名称的存在性
+                }
+            }
 
             if (missingNames.Count == 0)
             {
@@ -162,25 +156,28 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
         }
 
         /// <summary>
-        /// 发送检测项对应的modbus信号
+        /// 发送检测项对应的 Modbus 信号
         /// </summary>
-        /// <param name="detectedItems"></param>
-        /// <param name="mapping"></param>
-        /// <param name=""></param>
-        /// <param name="time"></param>
-        /// <param name="token"></param>
-        private async Task SendToModbus(List<DetectItemResult> aiResult, Dictionary<string, DetectItemAddress> mapping, double holdTime, bool isAutoReset, CancellationToken token)
+        /// <param name="aiResult">AI检出结果</param>
+        /// <param name="mapping">检测项与Modbus地址的映射表</param>
+        /// <param name="holdTime">保持时间（毫秒）</param>
+        /// <param name="isAutoReset">是否自动复位</param>
+        /// <param name="token">取消令牌</param>
+        private async Task SendToModbus(AiResult aiResult, Dictionary<string, DetectItemAddress> mapping, double holdTime, bool isAutoReset, CancellationToken token, bool isRegister)
         {
             try
             {
                 // 使用字典来按 (设备名, 地址) 分组
-                var grouped = new Dictionary<(string CommModbus, string SignalAddress), List<DetectItemResult>>();
+                var grouped = new Dictionary<(string CommModbus, string SignalAddress), List<SingleDetectResult>>();
 
-                foreach (var result in aiResult)
+                foreach (var kvp in aiResult.DetectResults)
                 {
-                    if (!mapping.TryGetValue(result.Name, out var config))
+                    string itemName = kvp.Key;
+                    List<SingleDetectResult> results = kvp.Value;
+
+                    if (!mapping.TryGetValue(itemName, out var config))
                     {
-                        LogHelper.AddLog(MsgLevel.Exception, $"[未配置] 检测项 [{result.Name}] 没有找到对应的 Modbus 配置", true);
+                        LogHelper.AddLog(MsgLevel.Exception, $"[未配置] 检测项 [{itemName}] 没有找到对应的 Modbus 配置", true);
                         continue;
                     }
 
@@ -188,10 +185,11 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
 
                     if (!grouped.ContainsKey(key))
                     {
-                        grouped[key] = new List<DetectItemResult>();
+                        grouped[key] = new List<SingleDetectResult>();
                     }
 
-                    grouped[key].Add(result);
+                    // 将该组下的所有 SingleDetectResult 加入同一个组
+                    grouped[key].AddRange(results);
                 }
 
                 // 遍历每个分组，判断是否所有项都 OK
@@ -201,7 +199,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     var results = group.Value;
 
                     // 判断这个组中是否所有检测项都通过
-                    bool allOk = results.All(r => r.IsOk && r.IsCountOk);
+                    bool allOk = results.All(r => r.IsOk);
 
                     if (!allOk)
                         continue;
@@ -219,14 +217,20 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     var value = mapping.FirstOrDefault(x => x.Key == results[0].Name).Value?.Value ?? true;
 
                     // 写入信号
-                    await modbus.WriteSingleCoilAsync(address, value);
+                    if(isRegister)
+                        await modbus.WriteSingleRegisterAsync(address, ushort.Parse(value.ToString()));
+                    else
+                        await modbus.WriteSingleCoilAsync(address, value);
 
                     // 自动复位
                     if (isAutoReset)
                     {
                         int delayMs = (int)holdTime;
                         await Task.Delay(delayMs, token); // 支持取消
-                        await modbus.WriteSingleCoilAsync(address, !value);
+                        if (isRegister)
+                            await modbus.WriteSingleRegisterAsync(address, ushort.Parse((!value).ToString()));
+                        else
+                            await modbus.WriteSingleCoilAsync(address, !value);
                     }
                 }
             }

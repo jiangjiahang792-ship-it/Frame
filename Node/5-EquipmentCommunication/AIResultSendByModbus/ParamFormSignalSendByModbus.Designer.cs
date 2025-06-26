@@ -49,6 +49,7 @@
             this.checkBoxReSet = new System.Windows.Forms.CheckBox();
             this.label2 = new System.Windows.Forms.Label();
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
+            this.checkBoxUseRegister = new System.Windows.Forms.CheckBox();
             this.tableLayoutPanel1.SuspendLayout();
             this.groupBoxSignalView.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).BeginInit();
@@ -59,12 +60,12 @@
             // tableLayoutPanel1
             // 
             this.tableLayoutPanel1.ColumnCount = 6;
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 13.9986F));
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 13.9986F));
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 15.9984F));
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 18.66813F));
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 18.66813F));
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 18.66813F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 12.08018F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 16.10691F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 22.147F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 12.08018F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 18.79287F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 18.79287F));
             this.tableLayoutPanel1.Controls.Add(this.groupBoxSignalView, 2, 2);
             this.tableLayoutPanel1.Controls.Add(this.groupBox1, 0, 2);
             this.tableLayoutPanel1.Controls.Add(this.nodeSubscription1, 1, 0);
@@ -73,6 +74,7 @@
             this.tableLayoutPanel1.Controls.Add(this.buttonSave, 5, 0);
             this.tableLayoutPanel1.Controls.Add(this.tableLayoutPanel2, 0, 1);
             this.tableLayoutPanel1.Controls.Add(this.label2, 0, 0);
+            this.tableLayoutPanel1.Controls.Add(this.checkBoxUseRegister, 2, 0);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 32);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
@@ -89,11 +91,11 @@
             this.groupBoxSignalView.Controls.Add(this.dataGridView1);
             this.groupBoxSignalView.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBoxSignalView.Font = new System.Drawing.Font("宋体", 10F, System.Drawing.FontStyle.Bold);
-            this.groupBoxSignalView.Location = new System.Drawing.Point(321, 123);
+            this.groupBoxSignalView.Location = new System.Drawing.Point(323, 123);
             this.groupBoxSignalView.Margin = new System.Windows.Forms.Padding(3, 3, 30, 3);
             this.groupBoxSignalView.Name = "groupBoxSignalView";
             this.groupBoxSignalView.Padding = new System.Windows.Forms.Padding(3, 3, 3, 30);
-            this.groupBoxSignalView.Size = new System.Drawing.Size(788, 348);
+            this.groupBoxSignalView.Size = new System.Drawing.Size(786, 348);
             this.groupBoxSignalView.TabIndex = 0;
             this.groupBoxSignalView.TabStop = false;
             this.groupBoxSignalView.Text = "信号列表";
@@ -112,7 +114,7 @@
             this.dataGridView1.RowHeadersWidth = 51;
             this.dataGridView1.RowTemplate.Height = 27;
             this.dataGridView1.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.CellSelect;
-            this.dataGridView1.Size = new System.Drawing.Size(782, 295);
+            this.dataGridView1.Size = new System.Drawing.Size(780, 295);
             this.dataGridView1.TabIndex = 0;
             // 
             // groupBox1
@@ -124,7 +126,7 @@
             this.groupBox1.Location = new System.Drawing.Point(30, 123);
             this.groupBox1.Margin = new System.Windows.Forms.Padding(30, 3, 3, 30);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(285, 321);
+            this.groupBox1.Size = new System.Drawing.Size(287, 321);
             this.groupBox1.TabIndex = 12;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "所有检测项";
@@ -136,18 +138,17 @@
             this.checkedListBox1.Location = new System.Drawing.Point(3, 21);
             this.checkedListBox1.Margin = new System.Windows.Forms.Padding(3, 20, 3, 3);
             this.checkedListBox1.Name = "checkedListBox1";
-            this.checkedListBox1.Size = new System.Drawing.Size(279, 297);
+            this.checkedListBox1.Size = new System.Drawing.Size(281, 297);
             this.checkedListBox1.TabIndex = 11;
             // 
             // nodeSubscription1
             // 
-            this.tableLayoutPanel1.SetColumnSpan(this.nodeSubscription1, 2);
             this.nodeSubscription1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.nodeSubscription1.Location = new System.Drawing.Point(162, 2);
+            this.nodeSubscription1.Location = new System.Drawing.Point(140, 2);
             this.nodeSubscription1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.nodeSubscription1.MinimumSize = new System.Drawing.Size(231, 50);
             this.nodeSubscription1.Name = "nodeSubscription1";
-            this.nodeSubscription1.Size = new System.Drawing.Size(335, 56);
+            this.nodeSubscription1.Size = new System.Drawing.Size(231, 56);
             this.nodeSubscription1.TabIndex = 10;
             // 
             // label4
@@ -155,7 +156,7 @@
             this.label4.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label4.AutoSize = true;
             this.label4.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label4.Location = new System.Drawing.Point(548, 21);
+            this.label4.Location = new System.Drawing.Point(582, 21);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(116, 18);
             this.label4.TabIndex = 2;
@@ -167,7 +168,7 @@
             this.comboBoxModBusList.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxModBusList.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.comboBoxModBusList.FormattingEnabled = true;
-            this.comboBoxModBusList.Location = new System.Drawing.Point(715, 17);
+            this.comboBoxModBusList.Location = new System.Drawing.Point(713, 17);
             this.comboBoxModBusList.Name = "comboBoxModBusList";
             this.comboBoxModBusList.Size = new System.Drawing.Size(206, 25);
             this.comboBoxModBusList.TabIndex = 3;
@@ -305,7 +306,7 @@
             this.label2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label2.AutoSize = true;
             this.label2.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label2.Location = new System.Drawing.Point(30, 21);
+            this.label2.Location = new System.Drawing.Point(19, 21);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(98, 18);
             this.label2.TabIndex = 2;
@@ -318,6 +319,17 @@
             this.toolTip1.InitialDelay = 200;
             this.toolTip1.ReshowDelay = 40;
             this.toolTip1.ToolTipTitle = "效果";
+            // 
+            // checkBoxUseRegister
+            // 
+            this.checkBoxUseRegister.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.checkBoxUseRegister.AutoSize = true;
+            this.checkBoxUseRegister.Location = new System.Drawing.Point(394, 20);
+            this.checkBoxUseRegister.Name = "checkBoxUseRegister";
+            this.checkBoxUseRegister.Size = new System.Drawing.Size(104, 19);
+            this.checkBoxUseRegister.TabIndex = 16;
+            this.checkBoxUseRegister.Text = "使用寄存器";
+            this.checkBoxUseRegister.UseVisualStyleBackColor = true;
             // 
             // ParamFormSignalSendByModbus
             // 
@@ -365,5 +377,6 @@
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel2;
         private System.Windows.Forms.CheckBox checkBoxReSet;
         private System.Windows.Forms.Label label2;
+        private System.Windows.Forms.CheckBox checkBoxUseRegister;
     }
 }

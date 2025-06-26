@@ -15,6 +15,9 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
 
         // Modbus设备名称
         public string ModbusName;
+
+        // 是否发送到寄存器
+        public bool IsRegister;
         
         // 信号自动重置
         public bool IsAutoReset;

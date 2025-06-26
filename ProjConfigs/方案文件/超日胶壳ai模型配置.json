@@ -1,0 +1,77 @@
+{
+  "ModelName": "胶壳",
+  "ModelSize": 640,
+  "ScoreThreshold": 0.5,
+  "ScoreNMS": 0.4,
+  "ModelInfo": {
+    "ModelType": "OBB",
+    "DeviceType": "CPU",
+    "IsEncrypted": true,
+    "ModelPath": "D:\\MyCode\\C#\\TDJS-Vision\\ProjConfigs\\Model\\Shell_encrypted.onnx",
+    "KeyPointNum": 0
+  },
+  "ClassNames": [
+    "shell",
+    "shrapnel",
+    "tip",
+    "ng"
+  ],
+  "DetectItems": [
+    {
+      "Name": "胶壳数量",
+      "MinValue": "1",
+      "MaxValue": "1",
+      "Enable": true,
+      "CurValue": "1"
+    },
+    {
+      "Name": "胶壳角度",
+      "MinValue": "-3",
+      "MaxValue": "3",
+      "Enable": true,
+      "CurValue": "0"
+    },
+    {
+      "Name": "弹片数量",
+      "MinValue": "9",
+      "MaxValue": "9",
+      "Enable": true,
+      "CurValue": "7"
+    },
+    {
+      "Name": "弹片长度",
+      "MinValue": "18",
+      "MaxValue": "20",
+      "Enable": true,
+      "CurValue": ""
+    },
+    {
+      "Name": "针尖数量",
+      "MinValue": "9",
+      "MaxValue": "9",
+      "Enable": true,
+      "CurValue": "7"
+    },
+    {
+      "Name": "针尖长度",
+      "MinValue": "80",
+      "MaxValue": "96",
+      "Enable": true,
+      "CurValue": "90"
+    },
+    {
+      "Name": "针尖角度",
+      "MinValue": "-3",
+      "MaxValue": "3",
+      "Enable": true,
+      "CurValue": "0"
+    },
+    {
+      "Name": "外观不良",
+      "MinValue": "0",
+      "MaxValue": "0",
+      "Enable": true,
+      "CurValue": "0"
+    }
+  ]
+}

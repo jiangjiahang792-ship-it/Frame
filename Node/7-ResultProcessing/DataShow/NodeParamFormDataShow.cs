@@ -23,9 +23,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
         /// 获取订阅的结果
         /// </summary>
         /// <returns></returns>
-        public List<DetectItemResult> GetAiResult()
+        public AiResult GetAiResult()
         {
-            return nodeSubscription1.GetValue<List<DetectItemResult>>();
+            return nodeSubscription1.GetValue<AiResult>();
         }
 
         private void button1_Click(object sender, EventArgs e)

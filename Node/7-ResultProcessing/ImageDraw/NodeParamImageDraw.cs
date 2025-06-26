@@ -35,6 +35,5 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
     {
         LeftUp,//左上
         RightDown,//右下
-        FollowBox//跟随结果矩形框
     }
 }

@@ -1,0 +1,54 @@
+{
+  "ModelName": "线芯",
+  "ModelSize": 640,
+  "ScoreThreshold": 0.5,
+  "ScoreNMS": 0.5,
+  "ModelInfo": {
+    "ModelType": "OBB",
+    "DeviceType": "CPU",
+    "IsEncrypted": true,
+    "ModelPath": "D:\\MyCode\\C#\\TDJS-Vision\\ProjConfigs\\Model\\Line_encrypted.onnx",
+    "KeyPointNum": 0
+  },
+  "ClassNames": [
+    "line",
+    "rubber"
+  ],
+  "DetectItems": [
+    {
+      "Name": "线芯数量",
+      "MinValue": "4",
+      "MaxValue": "4",
+      "Enable": true,
+      "CurValue": "4"
+    },
+    {
+      "Name": "线芯长度",
+      "MinValue": "133",
+      "MaxValue": "210",
+      "Enable": true,
+      "CurValue": "210.31,208.96,207.42,206.78"
+    },
+    {
+      "Name": "线芯宽度",
+      "MinValue": "22",
+      "MaxValue": "42",
+      "Enable": true,
+      "CurValue": "38.67,38.60,38.55,39.40"
+    },
+    {
+      "Name": "线芯角度",
+      "MinValue": "-5",
+      "MaxValue": "5",
+      "Enable": true,
+      "CurValue": "1.16,0.09,0.19,179.70"
+    },
+    {
+      "Name": "剥口偏移",
+      "MinValue": "0",
+      "MaxValue": "11",
+      "Enable": true,
+      "CurValue": ""
+    }
+  ]
+}

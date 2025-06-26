@@ -11,6 +11,8 @@ using System.Drawing.Drawing2D;
 using Sunny.UI.Win32;
 //using System.Windows.Media;
 using System.Drawing;
+using System.Numerics;
+using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
 {
@@ -86,12 +88,51 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
     internal static class ImageDrawer
     {
         /// <summary>
+        /// 获取旋转矩形的4个顶点
+        /// </summary>
+        /// <param name="rrect"></param>
+        /// <returns></returns>
+        private static PointF[] GetVertices(RotatedRect rrect)
+        {
+            // 将角度从度转换为弧度
+            double angleRad = rrect.angle * Math.PI / 180.0;
+
+            // 计算旋转矩阵所需的基本三角函数值
+            float cosA = (float)Math.Cos(angleRad);
+            float sinA = (float)Math.Sin(angleRad);
+
+            // 获取中心点坐标和半宽高
+            float cx = rrect.center.x;
+            float cy = rrect.center.y;
+            float halfWidth = rrect.size.width / 2;
+            float halfHeight = rrect.size.height / 2;
+
+            // 初始化四个顶点的位置（未旋转前）
+            PointF[] points = new PointF[4]
+            {
+                new PointF(-halfWidth, -halfHeight),
+                new PointF(halfWidth, -halfHeight),
+                new PointF(halfWidth, halfHeight),
+                new PointF(-halfWidth, halfHeight)
+            };
+
+            // 应用旋转和平移到每个点上
+            for (int i = 0; i < points.Length; i++)
+            {
+                float tempX = points[i].X * cosA - points[i].Y * sinA + cx;
+                float tempY = points[i].X * sinA + points[i].Y * cosA + cy;
+                points[i] = new PointF(tempX, tempY);
+            }
+
+            return points;
+        }
+        /// <summary>
         /// 在图像上根据检测结果绘制矩形框（使用 GDI+）
         /// </summary>
         /// <param name="sourceBitmap"></param>
         /// <param name="detectResults"></param>
         /// <returns></returns>
-        public static Bitmap DrawDetectionRectangles(Bitmap sourceBitmap, List<DetectItemResult> detectResults, NodeParamImageDraw parm)
+        public static Bitmap DrawDetectionRectangles(Bitmap sourceBitmap, AiResult detectResults, NodeParamImageDraw parm)
         {
             var cllonedBitmap = (Bitmap)sourceBitmap.Clone();
             // 创建一个 Graphics 对象用于绘制
@@ -108,9 +149,6 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                     case TextLoc.RightDown:
                         DrawBottomRightBox(g, detectResults, parm, cllonedBitmap.Size);
                         break;
-                    case TextLoc.FollowBox:
-                        DrawFollowBox(g, detectResults, parm);
-                        break;
                     default:
                         break;
                 }
@@ -123,74 +161,44 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
         /// <param name="g"></param>
         /// <param name="detectResults"></param>
         /// <param name="parm"></param>
-        //private static void DrawFollowBox(Graphics g, List<DetectItemResult> detectResults, NodeParamImageDraw parm)
-        //{
-        //    foreach (var item in detectResults)
-        //    {
-        //        foreach (var result in item.Results)
-        //        {
-        //            var colorRect = result.IsOk ? Color.Green : Color.Red;
-
-        //            foreach (var rect in result.Rects)
-        //            {
-        //                // 绘制矩形框
-        //                using (Pen pen = new Pen(colorRect, parm.LineWidth))
-        //                {
-        //                    g.DrawRectangle(pen, rect.X, rect.Y, rect.Width, rect.Height);
-        //                }
-
-        //            }
-        //        }
-
-        //        // 使用 Graphics 绘制中文文本
-        //        var colorText = item.IsOk ? Color.Green : Color.Red;
-        //        using (Font font = new Font("Microsoft YaHei", parm.FontSize))
-        //        using (Brush brush = new SolidBrush(colorText))
-        //        {
-        //            string text = $"{item.Name}: " + (item.IsOk ? "OK" : "NG");
-        //            SizeF textSize = g.MeasureString(text, font);
-
-        //            // 计算文本位置，避免超出图片边界
-        //            g.DrawString(text, font, brush, textPosition);
-        //        }
-        //    }
-        //}
-        private static void DrawOnLeftUp(Graphics g, List<DetectItemResult> detectResults, NodeParamImageDraw parm)
+        private static void DrawOnLeftUp(Graphics g, AiResult aiResult, NodeParamImageDraw parm)
         {
-            // 定义初始Y坐标和行高（这里假设为字体高度加上一定间隔）
-            float initialY = 30; // 起始Y坐标
-            int lineSpacing = 10; // 行间距
+            float initialY = 30;
+            int lineSpacing = 10;
 
-            foreach (var item in detectResults)
+            // 1. 先绘制所有旋转矩形框
+            foreach (var colorRect in aiResult.Rects)
             {
-                foreach (var result in item.Results)
-                {
-                    var colorRect = result.IsOk ? Color.Green : Color.Red;
+                PointF[] vertices = GetVertices(colorRect.RotatedRect);
 
-                    foreach (var rect in result.Rects)
-                    {
-                        // 绘制矩形框
-                        using (Pen pen = new Pen(colorRect, parm.LineWidth))
-                        {
-                            g.DrawRectangle(pen, rect.X, rect.Y, rect.Width, rect.Height);
-                        }
-                    }
+                using (Pen pen = new Pen(colorRect.Color, parm.LineWidth))
+                {
+                    g.DrawPolygon(pen, vertices);
                 }
+            }
 
-                // 使用 Graphics 绘制中文文本
-                var colorText = (item.IsOk && item.IsCountOk) ? Color.Green : Color.Red;
-                using (Font font = new Font("Microsoft YaHei", parm.FontSize))
-                using (Brush brush = new SolidBrush(colorText))
+            // 2. 再绘制线条
+            foreach (var line in aiResult.Lines)
+            {
+                using (Pen pen = new Pen(line.Color, parm.LineWidth))
                 {
-                    string text = $"{item.Name}: " + ((item.IsOk && item.IsCountOk) ? "OK" : "NG");
-                    SizeF textSize = g.MeasureString(text, font);
+                    g.DrawLine(pen, line.P1, line.P2);
+                }
+            }
 
-                    // 计算文本位置，避免超出图片边界
-                    PointF textPosition = new PointF(30, initialY); // X坐标固定，Y坐标从initialY开始
+            // 3. 最后绘制文本信息（来自 Texts 成员）
+            foreach (var textInfo in aiResult.Texts)
+            {
+                using (Font font = new Font("Microsoft YaHei", parm.FontSize))
+                using (Brush brush = new SolidBrush(textInfo.Color))
+                {
+                    string text = textInfo.Text;
+                    SizeF textSize = g.MeasureString(text, font);
+                    PointF textPosition = new PointF(30, initialY);
+
                     g.DrawString(text, font, brush, textPosition);
 
-                    // 更新initialY，为下一个文本项预留空间
-                    initialY += textSize.Height + lineSpacing; // 更新Y坐标，加上文本高度和行间距
+                    initialY += textSize.Height + lineSpacing;
                 }
             }
         }
@@ -200,82 +208,53 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
         /// <param name="g"></param>
         /// <param name="detectResults"></param>
         /// <param name="parm"></param>
-        private static void DrawBottomRightBox(Graphics g, List<DetectItemResult> detectResults, NodeParamImageDraw parm, Size imageSize)
+
+        private static void DrawBottomRightBox(Graphics g, AiResult aiResult, NodeParamImageDraw parm, Size imageSize)
         {
-            // 定义初始Y坐标（从底部开始）和行高（这里假设为字体高度加上一定间隔）
-            float initialY = imageSize.Height - 120; // 起始Y坐标为图片高度减去一个小偏移量，避免超出边界
+            // 定义初始Y坐标（从底部开始）和行高
+            float initialY = imageSize.Height - 30; // 起始Y坐标为图片高度减去一个小偏移量
             int lineSpacing = 10; // 行间距
 
-            // 反转列表以便从最后一个元素开始绘制
-            var reversedDetectResults = new Stack<DetectItemResult>(detectResults);
-
-            foreach (var item in reversedDetectResults)
+            // 首先绘制所有旋转矩形框
+            foreach (var colorRect in aiResult.Rects)
             {
-                foreach (var result in item.Results)
+                PointF[] vertices = GetVertices(colorRect.RotatedRect); // 获取旋转矩形的4个顶点
+
+                using (Pen pen = new Pen(colorRect.Color, parm.LineWidth)) // 使用 ColorRotatedRect 内部的颜色属性
                 {
-                    var colorRect = result.IsOk ? Color.Green : Color.Red;
-
-                    foreach (var rect in result.Rects)
-                    {
-                        // 绘制矩形框（如果需要调整位置，请参考之前的逻辑）
-                        using (Pen pen = new Pen(colorRect, parm.LineWidth))
-                        {
-                            g.DrawRectangle(pen, rect.X, rect.Y, rect.Width, rect.Height);
-                        }
-                    }
-                }
-
-                // 使用 Graphics 绘制中文文本
-                var colorText = (item.IsOk && item.IsCountOk) ? Color.Green : Color.Red;
-                using (Font font = new Font("Microsoft YaHei", parm.FontSize))
-                using (Brush brush = new SolidBrush(colorText))
-                {
-                    string text = $"{item.Name}: " + ((item.IsOk && item.IsCountOk) ? "OK" : "NG");
-                    SizeF textSize = g.MeasureString(text, font);
-
-                    // 计算文本位置，避免超出图片边界
-                    PointF textPosition = new PointF(imageSize.Width - textSize.Width - 120, initialY); // X坐标从右侧开始预留空间
-                    g.DrawString(text, font, brush, textPosition);
-
-                    // 更新initialY，为下一个文本项预留空间（向上移动）
-                    initialY -= textSize.Height + lineSpacing; // 更新Y坐标，减去文本高度和行间距
+                    g.DrawPolygon(pen, vertices); // 绘制旋转矩形
                 }
             }
-        }
-        /// <summary>
-        /// 绘制跟随矩形框
-        /// </summary>
-        /// <param name="g"></param>
-        /// <param name="detectResults"></param>
-        /// <param name="parm"></param>
-        private static void DrawFollowBox(Graphics g, List<DetectItemResult> detectResults, NodeParamImageDraw parm)
-        {
-            foreach (var item in detectResults)
+
+            // 绘制所有颜色线条
+            foreach (var line in aiResult.Lines)
             {
-                foreach (var result in item.Results)
+                using (Pen pen = new Pen(line.Color, parm.LineWidth))
                 {
-                    var color = result.IsOk ? Color.Green : Color.Red;
+                    g.DrawLine(pen, line.P1, line.P2);
+                }
+            }
 
-                    foreach (var rect in result.Rects)
-                    {
-                        // 绘制矩形框
-                        using (Pen pen = new Pen(color, parm.LineWidth))
-                        {
-                            g.DrawRectangle(pen, rect.X, rect.Y, rect.Width, rect.Height);
-                        }
+            // 然后绘制文本
+            aiResult.Texts.Reverse();// 从底部开始逐行向上绘制文本
+            foreach (var textInfo in aiResult.Texts) 
+            {
+                using (Font font = new Font("Microsoft YaHei", parm.FontSize))
+                using (Brush brush = new SolidBrush(textInfo.Color))
+                {
+                    SizeF textSize = g.MeasureString(textInfo.Text, font);
 
-                        // 使用 Graphics 绘制中文文本
-                        using (Font font = new Font("Microsoft YaHei", parm.FontSize)) // 确保选择支持中文的字体
-                        using (Brush brush = new SolidBrush(color))
-                        {
-                            string text = $"{item.Name}: {result.Value}";
-                            SizeF textSize = g.MeasureString(text, font);
+                    // 检查是否会在画布顶部越界
+                    if (initialY - textSize.Height < 0)
+                        break; // 如果下一行文本将超出上边界，则停止绘制
 
-                            // 计算文本位置，避免超出图片边界
-                            PointF textPosition = new PointF(rect.X, rect.Y - textSize.Height > 0 ? rect.Y - textSize.Height - 5 : rect.Y + rect.Height + 5);
-                            g.DrawString(text, font, brush, textPosition);
-                        }
-                    }
+                    // 设置文本位置在右下角区域
+                    PointF textPosition = new PointF(imageSize.Width - textSize.Width - 30, initialY - textSize.Height);
+
+                    g.DrawString(textInfo.Text, font, brush, textPosition);
+
+                    // 更新 Y 坐标，向上移动一行
+                    initialY -= textSize.Height + lineSpacing;
                 }
             }
         }

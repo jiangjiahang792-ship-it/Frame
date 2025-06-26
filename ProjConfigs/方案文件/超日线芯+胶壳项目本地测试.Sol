@@ -1,0 +1,302 @@
+{
+  "SolVer": "2.2.2.0",
+  "SolName": "D:\\MyCode\\C#\\TDJS-Vision\\ProjConfigs\\方案文件\\超日线芯+胶壳项目本地测试.Sol",
+  "RunInterval": 0,
+  "NodeCount": 22,
+  "ProcessCount": 4,
+  "Devices": {},
+  "ProcessInfos": [
+    {
+      "ProcessName": "线芯检测",
+      "NodeInfos": [
+        {
+          "NodeType": "ImageSource",
+          "NodeName": "图像源",
+          "ID": 15,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "AITD",
+          "NodeName": "AI检测",
+          "ID": 16,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "DrawAIResult",
+          "NodeName": "AI结果绘制",
+          "ID": 17,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "AIResultSendByModbus",
+          "NodeName": "Modbus发送AI结果",
+          "ID": 18,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "ImageSave",
+          "NodeName": "保存图片",
+          "ID": 19,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "DetectResultShow",
+          "NodeName": "检测结果显示",
+          "ID": 20,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": null
+        }
+      ],
+      "Enable": false,
+      "Level": "Lv5",
+      "Group": "Group1"
+    },
+    {
+      "ProcessName": "胶壳检测",
+      "NodeInfos": [
+        {
+          "NodeType": "ImageSource",
+          "NodeName": "图像源",
+          "ID": 1,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "AITD",
+          "NodeName": "AI检测",
+          "ID": 2,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "DrawAIResult",
+          "NodeName": "AI结果绘制",
+          "ID": 3,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "AIResultSendByModbus",
+          "NodeName": "Modbus发送AI结果",
+          "ID": 12,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "ImageSave",
+          "NodeName": "保存图片",
+          "ID": 13,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "DetectResultShow",
+          "NodeName": "检测结果显示",
+          "ID": 14,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": null
+        }
+      ],
+      "Enable": false,
+      "Level": "Lv5",
+      "Group": "Group1"
+    },
+    {
+      "ProcessName": "线芯(本地)",
+      "NodeInfos": [
+        {
+          "NodeType": "ImageSource",
+          "NodeName": "图像源",
+          "ID": 4,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageSoucre": {
+              "ImageSource": "本地图像",
+              "PathText": "D:\\MyCode\\C#\\TDJS-Vision\\ProjConfigs\\图像\\1.jpg",
+              "ImagePath": "D:\\MyCode\\C#\\TDJS-Vision\\ProjConfigs\\图像\\1.jpg",
+              "IsAutoLoop": false,
+              "CameraName": null,
+              "TriggerSource": "Auto",
+              "TriggerEdge": "Rising",
+              "TriggerDelay": 0,
+              "ExposureTime": 0.0,
+              "Gain": 0.0,
+              "IsStrobing": false
+            }
+          }
+        },
+        {
+          "NodeType": "AITD",
+          "NodeName": "AI检测",
+          "ID": 5,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._3_Detection.TDAI.NodeParamTDAI": {
+              "Text1": "4.图像源",
+              "Text2": "图像",
+              "ConfigPath": "D:\\MyCode\\C#\\TDJS-Vision\\ProjConfigs\\方案文件\\超日线芯ai模型配置.json",
+              "IsAutoStudy": false
+            }
+          }
+        },
+        {
+          "NodeType": "DrawAIResult",
+          "NodeName": "AI结果绘制",
+          "ID": 6,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.ImageDraw.NodeParamImageDraw": {
+              "Text1": "4.图像源",
+              "Text2": "图像",
+              "Text3": "5.AI检测",
+              "Text4": "AI输出结果",
+              "FontSize": 40,
+              "LineWidth": 5,
+              "TextLoc": "LeftUp"
+            }
+          }
+        },
+        {
+          "NodeType": "ImageShow",
+          "NodeName": "图像显示",
+          "ID": 7,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageShow": {
+              "WindowName": "图像窗口1",
+              "Text1": "6.AI结果绘制",
+              "Text2": "结果图像"
+            }
+          }
+        },
+        {
+          "NodeType": "DetectResultShow",
+          "NodeName": "检测结果显示",
+          "ID": 21,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.DataShow.NodeParamDataShow": {
+              "Text1": "5.AI检测",
+              "Text2": "AI输出结果"
+            }
+          }
+        }
+      ],
+      "Enable": true,
+      "Level": "Lv5",
+      "Group": "Group1"
+    },
+    {
+      "ProcessName": "胶壳(本地)",
+      "NodeInfos": [
+        {
+          "NodeType": "ImageSource",
+          "NodeName": "图像源",
+          "ID": 8,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageSoucre": {
+              "ImageSource": "本地图像",
+              "PathText": "D:\\MyCode\\C#\\TDJS-Vision\\ProjConfigs\\图像\\2-1.jpg",
+              "ImagePath": "D:\\MyCode\\C#\\TDJS-Vision\\ProjConfigs\\图像\\2-1.jpg",
+              "IsAutoLoop": false,
+              "CameraName": null,
+              "TriggerSource": "Auto",
+              "TriggerEdge": "Rising",
+              "TriggerDelay": 0,
+              "ExposureTime": 0.0,
+              "Gain": 0.0,
+              "IsStrobing": false
+            }
+          }
+        },
+        {
+          "NodeType": "AITD",
+          "NodeName": "AI检测",
+          "ID": 9,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._3_Detection.TDAI.NodeParamTDAI": {
+              "Text1": "8.图像源",
+              "Text2": "图像",
+              "ConfigPath": "D:\\MyCode\\C#\\TDJS-Vision\\ProjConfigs\\方案文件\\超日胶壳ai模型配置.json",
+              "IsAutoStudy": false
+            }
+          }
+        },
+        {
+          "NodeType": "DrawAIResult",
+          "NodeName": "AI结果绘制",
+          "ID": 10,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.ImageDraw.NodeParamImageDraw": {
+              "Text1": "8.图像源",
+              "Text2": "图像",
+              "Text3": "9.AI检测",
+              "Text4": "AI输出结果",
+              "FontSize": 20,
+              "LineWidth": 3,
+              "TextLoc": "LeftUp"
+            }
+          }
+        },
+        {
+          "NodeType": "ImageShow",
+          "NodeName": "图像显示",
+          "ID": 11,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageShow": {
+              "WindowName": "图像窗口2",
+              "Text1": "10.AI结果绘制",
+              "Text2": "结果图像"
+            }
+          }
+        },
+        {
+          "NodeType": "DetectResultShow",
+          "NodeName": "检测结果显示",
+          "ID": 22,
+          "Active": true,
+          "Selected": true,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.DataShow.NodeParamDataShow": {
+              "Text1": "9.AI检测",
+              "Text2": "AI输出结果"
+            }
+          }
+        }
+      ],
+      "Enable": true,
+      "Level": "Lv5",
+      "Group": "Group1"
+    }
+  ]
+}

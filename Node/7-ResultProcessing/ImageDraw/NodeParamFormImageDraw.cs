@@ -44,12 +44,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
         /// 获取订阅的AI结果
         /// </summary>
         /// <returns></returns>
-        public List<DetectItemResult> GetAIResults()
+        public AiResult GetAIResults()
         {
-            List<DetectItemResult> res = null;
+            AiResult res = null;
             try
             {
-                res = nodeSubscription2.GetValue<List<DetectItemResult>>();
+                res = nodeSubscription2.GetValue<AiResult>();
             }
             catch (Exception)
             {
@@ -82,7 +82,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                 param.Text4 = nodeSubscription2.GetText2();
                 param.FontSize = int.Parse(textBox_FontSize.Text);
                 param.LineWidth = int.Parse(textBox_LineWidth.Text);
-                param.TextLoc = radioButtonLeftUp.Checked ? TextLoc.LeftUp : radioButtonRightDown.Checked ? TextLoc.RightDown : TextLoc.FollowBox;
+                param.TextLoc = radioButtonLeftUp.Checked ? TextLoc.LeftUp : TextLoc.RightDown;
                 Params = param;
                 Hide();
             }
@@ -111,9 +111,6 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                         break;
                     case TextLoc.RightDown:
                         radioButtonRightDown.Checked = true;
-                        break;
-                    case TextLoc.FollowBox:
-                        radioButtonFollowBox.Checked = true;
                         break;
                     default:
                         break;

@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using static TDJS_Vision.Node._7_ResultProcessing.ImageSave.ImageQueueProcessor;
@@ -62,7 +63,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                                 throw new Exception($"获取条码结果失败！");
                         }
                         if (param.NeedOkNg)
-                            param.AiDetectResult = form.GetAiResult();
+                            param.AiResult = form.GetAiResult();
                         param.Image = form.GetImage();
 
                         // 参数合法性判断
@@ -121,11 +122,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             // 5.是否区分OK/NG
             if (param.NeedOkNg)
             {
-                if (param.AiDetectResult == null)
+                if (param.AiResult == null)
                     throw new Exception($"无法获取/解析AI检测结果！");
 
                 // 根据AI检测总结果判断创建OK/NG文件夹
-                bool allAreOk = param.AiDetectResult.Count > 0 && param.AiDetectResult.TrueForAll(x => x.IsOk);
+                bool allAreOk = param.AiResult.DetectResults.Count > 0 && param.AiResult.DetectResults.All(pair => pair.Value.All(v => v.IsOk));
                 string okNg = allAreOk ? "OK" : "NG";
                 imageSavePath = Path.Combine(imageSavePath, okNg);
 
@@ -139,10 +140,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                         }
                         else
                         {
-                            foreach (var res in param.AiDetectResult)
+                            foreach (var pair in param.AiResult.DetectResults)
                             {
-                                if (!res.IsOk)
-                                    paths.Add(Path.Combine(imageSavePath, res.Name));
+                                if (!pair.Value.TrueForAll(item => item.IsOk))
+                                    paths.Add(Path.Combine(imageSavePath, pair.Key));
                             }
                         }
                         break;
@@ -155,10 +156,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                     case ImageTypeToSave.OnlyNg:
                         if (!allAreOk)
                         {
-                            foreach (var res in param.AiDetectResult)
+                            foreach (var pair in param.AiResult.DetectResults)
                             {
-                                if (!res.IsOk)
-                                    paths.Add(Path.Combine(imageSavePath, res.Name));
+                                if (!pair.Value.TrueForAll(item => item.IsOk))
+                                    paths.Add(Path.Combine(imageSavePath, pair.Key));
                             }
                         }
                         break;

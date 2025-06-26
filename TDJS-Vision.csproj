@@ -123,6 +123,7 @@
       <HintPath>packages\OpenCvSharp4.Extensions.4.10.0.20240616\lib\net48\OpenCvSharp.Extensions.dll</HintPath>
     </Reference>
     <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
     <Reference Include="SunnyUI, Version=3.6.8.1, Culture=neutral, PublicKeyToken=27d7d2e821d97aeb, processorArchitecture=MSIL">
       <HintPath>packages\SunnyUI.3.6.8.1\lib\net472\SunnyUI.dll</HintPath>
     </Reference>

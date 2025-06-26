@@ -47,7 +47,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
                     SetStatus(NodeStatus.Unexecuted, "*");
                     base.CheckTokenCancel(token);
 
-                    List<DetectItemResult> aiResult = form.GetAiResult();
+                    AiResult aiResult = form.GetAiResult();
                     DataShow?.Invoke(this,new DataShowData($"{ID}.{NodeName}", aiResult));
 
                     long time = SetRunResult(startTime, NodeStatus.Successful);

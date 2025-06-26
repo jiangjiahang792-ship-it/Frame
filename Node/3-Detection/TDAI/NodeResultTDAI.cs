@@ -3,6 +3,7 @@ using System.Drawing;
 using TDJS_Vision.Forms.ResultView;
 using System.ComponentModel;
 using System.Linq;
+using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
@@ -21,10 +22,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         public AIInputInfo AIInputInfo { get; set; }
 
         [DisplayName("AI输出结果")]
-        public List<DetectItemResult> ResultList { get; set; } = new List<DetectItemResult>();
-
-        [DisplayName("是否全部OK")]
-        public bool IsAllOk { get { return ResultList.TrueForAll(res => res.IsOk && res.IsCountOk); } }
+        public AiResult AiResult { get; set; } = new AiResult();
     }
 
     /// <summary>
@@ -36,57 +34,114 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         public List<SingleResultViewData> SingleRowDataList = new List<SingleResultViewData>();
     }
     /// <summary>
-    /// 检测项结果类
+    /// AI检出结果
     /// </summary>
-    internal class DetectItemResult 
+    internal class AiResult
     {
+        /// <summary>
+        /// 所有检测项的OK/NG
+        /// </summary>
+        public Dictionary<string, List<SingleDetectResult>> DetectResults { get; set; } = new Dictionary<string, List<SingleDetectResult>>();
+        /// <summary>
+        /// 带颜色的检测框
+        /// </summary>
+        public List<ColorRotatedRect> Rects { get; set; } = new List<ColorRotatedRect>();
+        /// <summary>
+        /// 带颜色的文本
+        /// </summary>
+        public List<ColorText> Texts { get; set; } = new List<ColorText>();
+        /// <summary>
+        /// 带颜色的线段
+        /// </summary>
+        public List<ColorLine> Lines { get; set; } = new List<ColorLine>();
+
+        /// <summary>
+        /// 清空结果
+        /// </summary>
+        public void Clear ()
+        {
+            DetectResults.Clear();
+            Rects.Clear(); 
+            Texts.Clear(); 
+            Lines.Clear();
+        }
+    }
+
+    /// <summary>
+    /// 单个检测项结果
+    /// </summary>
+    internal class SingleDetectResult
+    {
+        /// <summary>
+        /// 检测值
+        /// </summary>
+        public string Value { get; set; }
+        /// <summary>
+        /// 检测项是否OK
+        /// </summary>
+        public bool IsOk { get; set; }
         /// <summary>
         /// 检测项名称
         /// </summary>
         public string Name { get; set; }
+    }
+    /// <summary>
+    /// 带有颜色标记的旋转矩形框
+    /// </summary>
+    internal class ColorRotatedRect
+    {
+        public ColorRotatedRect(RotatedRect rotatedRect)
+        {
+            this.RotatedRect = rotatedRect;
+        }
+
+        private List<bool> _flags = new List<bool>();
         /// <summary>
-        /// 检测项的结果列表
+        /// 旋转矩形
         /// </summary>
-        public List<SingleDetectItemResult> Results { get; set; } = new List<SingleDetectItemResult>();
+        public RotatedRect RotatedRect {  get; set; }
         /// <summary>
-        /// 返回 Results 中所有 Value 值的拼接字符串，用英文逗号分隔(这个属性只是为了方便在数据结果窗口直接显示)
+        /// 绘制的颜色
         /// </summary>
-        public string ResultsStr
+        public Color Color
         {
             get
             {
-                if (Results == null || Results.Count == 0)
-                    return string.Empty;
-
-                // 使用 LINQ Select 提取每个 Result 的 Value，并用 string.Join 拼接
-                return string.Join(",", Results.Select(r => r.Value));
+                return _flags.TrueForAll(item => item == true) ? Color.Green : Color.Red;
             }
         }
         /// <summary>
-        /// 检测项结果是否OK
+        /// 添加的条件决定绘制的颜色
         /// </summary>
-        public bool IsOk { get; set; }
-        /// <summary>
-        /// 检测项结果个数是否OK
-        /// </summary>
-        public bool IsCountOk { get; set; }
+        /// <param name="flag"></param>
+        public void AddFlag(bool flag) 
+        {
+            _flags.Add(flag);
+        }
     }
+
     /// <summary>
-    /// 单个检测项结果类
+    /// 带颜色的文本
     /// </summary>
-    internal class SingleDetectItemResult
+    internal class ColorText
     {
-        /// <summary>
-        /// 单个检测项结果是否OK(决定结果矩形框的颜色)
-        /// </summary>
-        public bool IsOk { get; set; }
-        /// <summary>
-        /// 单个检测项的结果值
-        /// </summary>
-        public string Value { get; set; }
-        /// <summary>
-        /// 单个检测项涉及的矩形框列表（用于绘制）
-        /// </summary>
-        public List<Rectangle> Rects { get; set; } = new List<Rectangle> { };
+        public string Text { get; set; }
+        public Color Color { get; set; }
+        public ColorText(string text, Color color)
+        {
+            Text = text;
+            Color = color;
+        }
     }
+
+    /// <summary>
+    /// 带颜色的线段
+    /// </summary>
+    internal class ColorLine
+    {
+        public PointF P1 { get; set; }
+        public PointF P2 { get; set; }
+        public Color Color { get; set; }
+    }
+
 }

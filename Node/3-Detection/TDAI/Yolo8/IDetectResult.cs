@@ -8,12 +8,9 @@ using OpenCvSharp;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 {
-    // 定义接口 IDetectResult
-    internal interface IDetectResult { }
-
     // 定义DetResult结构体
     [StructLayout(LayoutKind.Sequential)]
-    public struct DetResult : IDetectResult
+    public struct DetResult
     {
         public int ClassId;
         public float Score;
@@ -21,7 +18,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
     }
     // 定义 ObbResult 结构体
     [StructLayout(LayoutKind.Sequential)]
-    public struct ObbResult : IDetectResult
+    public struct ObbResult
     {
         public RotatedRect RotateBox;
         public int ClassId;
@@ -30,7 +27,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 
     // 定义 PoseResult 结构体
     [StructLayout(LayoutKind.Sequential)]
-    public struct PoseResult : IDetectResult
+    public struct PoseResult
     {
         public List<Rect> Boxs;
         public List<Point> KeyPoints;
@@ -38,7 +35,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 
     // 定义 SegResult 结构体
     [StructLayout(LayoutKind.Sequential)]
-    public struct SegResult : IDetectResult
+    public struct SegResult
     {
         public int ClassId;
         public float Score;
@@ -65,5 +62,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
     {
         public float width;
         public float height;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RotatedRectResult
+    {
+        public float center_x;
+        public float center_y;
+        public float width;
+        public float height;
+        public float angle;
+        public int class_id;
+        public float confidence;
     }
 }

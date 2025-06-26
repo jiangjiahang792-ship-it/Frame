@@ -12,6 +12,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     internal class AIInputInfo
     {
         /// <summary>
+        /// 模型名称
+        /// </summary>
+        public string ModelName { get; set; }
+        /// <summary>
         /// 模型大小
         /// </summary>
         public int ModelSize { get; set; }

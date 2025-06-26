@@ -164,7 +164,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         break;
                     case ModelType.OBB:
                         if(modelInfo.ModelInfo.IsEncrypted)
-                            param.Handle = Yolo8Obb.CreateDetector(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ClassNames.Count, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS, modelInfo.ScoreThreshold);
+                            param.Handle = Yolo8Obb.CreateDetector(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ClassNames.Count, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
                         break;
                     case ModelType.SEG:
                         if (modelInfo.ModelInfo.IsEncrypted) // 如果是加密模型

@@ -43,7 +43,6 @@
             this.tableLayoutPanel2 = new System.Windows.Forms.TableLayoutPanel();
             this.radioButtonLeftUp = new System.Windows.Forms.RadioButton();
             this.radioButtonRightDown = new System.Windows.Forms.RadioButton();
-            this.radioButtonFollowBox = new System.Windows.Forms.RadioButton();
             this.tableLayoutPanel1.SuspendLayout();
             this.tableLayoutPanel2.SuspendLayout();
             this.SuspendLayout();
@@ -196,15 +195,12 @@
             this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanel2.Controls.Add(this.radioButtonLeftUp, 0, 0);
             this.tableLayoutPanel2.Controls.Add(this.radioButtonRightDown, 1, 0);
-            this.tableLayoutPanel2.Controls.Add(this.radioButtonFollowBox, 0, 1);
             this.tableLayoutPanel2.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel2.Location = new System.Drawing.Point(250, 231);
             this.tableLayoutPanel2.Name = "tableLayoutPanel2";
-            this.tableLayoutPanel2.RowCount = 2;
-            this.tableLayoutPanel1.SetRowSpan(this.tableLayoutPanel2, 2);
+            this.tableLayoutPanel2.RowCount = 1;
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
-            this.tableLayoutPanel2.Size = new System.Drawing.Size(413, 108);
+            this.tableLayoutPanel2.Size = new System.Drawing.Size(413, 51);
             this.tableLayoutPanel2.TabIndex = 6;
             // 
             // radioButtonLeftUp
@@ -212,7 +208,7 @@
             this.radioButtonLeftUp.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.radioButtonLeftUp.AutoSize = true;
             this.radioButtonLeftUp.Checked = true;
-            this.radioButtonLeftUp.Location = new System.Drawing.Point(66, 17);
+            this.radioButtonLeftUp.Location = new System.Drawing.Point(66, 16);
             this.radioButtonLeftUp.Name = "radioButtonLeftUp";
             this.radioButtonLeftUp.Size = new System.Drawing.Size(73, 19);
             this.radioButtonLeftUp.TabIndex = 5;
@@ -224,24 +220,12 @@
             // 
             this.radioButtonRightDown.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.radioButtonRightDown.AutoSize = true;
-            this.radioButtonRightDown.Location = new System.Drawing.Point(273, 17);
+            this.radioButtonRightDown.Location = new System.Drawing.Point(273, 16);
             this.radioButtonRightDown.Name = "radioButtonRightDown";
             this.radioButtonRightDown.Size = new System.Drawing.Size(73, 19);
             this.radioButtonRightDown.TabIndex = 5;
             this.radioButtonRightDown.Text = "右下角";
             this.radioButtonRightDown.UseVisualStyleBackColor = true;
-            // 
-            // radioButtonFollowBox
-            // 
-            this.radioButtonFollowBox.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.radioButtonFollowBox.AutoSize = true;
-            this.radioButtonFollowBox.Location = new System.Drawing.Point(51, 71);
-            this.radioButtonFollowBox.Name = "radioButtonFollowBox";
-            this.radioButtonFollowBox.Size = new System.Drawing.Size(103, 19);
-            this.radioButtonFollowBox.TabIndex = 5;
-            this.radioButtonFollowBox.TabStop = true;
-            this.radioButtonFollowBox.Text = "跟随结果框";
-            this.radioButtonFollowBox.UseVisualStyleBackColor = true;
             // 
             // NodeParamFormImageDraw
             // 
@@ -281,6 +265,5 @@
         private System.Windows.Forms.RadioButton radioButtonLeftUp;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel2;
         private System.Windows.Forms.RadioButton radioButtonRightDown;
-        private System.Windows.Forms.RadioButton radioButtonFollowBox;
     }
 }

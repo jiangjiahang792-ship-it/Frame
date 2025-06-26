@@ -122,11 +122,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <summary>
         /// 获取AI结果订阅控件的值
         /// </summary>
-        public List<DetectItemResult> GetAiResult()
+        public AiResult GetAiResult()
         {
             try
             {
-                return nodeSubscriptionAiRes.GetValue<List<DetectItemResult>>();
+                return nodeSubscriptionAiRes.GetValue<AiResult>();
             }
             catch (Exception)
             {

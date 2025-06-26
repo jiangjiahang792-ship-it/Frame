@@ -13,8 +13,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
     internal class DataShowData
     {
         public string TabPageName;
-        public List<DetectItemResult> AiResultData;
-        public DataShowData(string nodename, List<DetectItemResult> airesult)
+        public AiResult AiResultData;
+        public DataShowData(string nodename, AiResult airesult)
         {
             TabPageName = nodename;
             AiResultData = airesult;
