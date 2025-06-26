@@ -25,30 +25,30 @@
     {
       "Name": "线芯长度",
       "MinValue": "133",
-      "MaxValue": "210",
+      "MaxValue": "220",
       "Enable": true,
-      "CurValue": "210.31,208.96,207.42,206.78"
+      "CurValue": "210.30,208.91,207.34,206.73"
     },
     {
       "Name": "线芯宽度",
       "MinValue": "22",
       "MaxValue": "42",
       "Enable": true,
-      "CurValue": "38.67,38.60,38.55,39.40"
+      "CurValue": "38.67,38.61,38.56,39.39"
     },
     {
       "Name": "线芯角度",
       "MinValue": "-5",
       "MaxValue": "5",
       "Enable": true,
-      "CurValue": "1.16,0.09,0.19,179.70"
+      "CurValue": "1.16,0.09,0.19,-0.30"
     },
     {
       "Name": "剥口偏移",
       "MinValue": "0",
-      "MaxValue": "11",
+      "MaxValue": "5",
       "Enable": true,
-      "CurValue": ""
+      "CurValue": "0.91"
     }
   ]
 }

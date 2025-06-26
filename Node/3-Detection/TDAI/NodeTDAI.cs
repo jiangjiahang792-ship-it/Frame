@@ -68,6 +68,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
                                     List<DetResult> det_results = new List<DetResult>();
                                     result_count = Yolo8Det.Detect(param.Handle, CameraHik.ConvertBitmapToBgr24(srcImg), srcImg.Width, srcImg.Height, 3, det_results);
+                                    // 输出检测项配置
+                                    res.AIInputInfo = param.AIInputInfo;
+                                    //超日项目的结果解析
+                                    AI.TypeCResultParse(det_results, result_count, ref res); 
                                     break;
 
                                 case ModelType.OBB:

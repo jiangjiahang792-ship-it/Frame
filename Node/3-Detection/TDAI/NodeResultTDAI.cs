@@ -94,6 +94,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         {
             this.RotatedRect = rotatedRect;
         }
+        public ColorRotatedRect(int x, int y, int width, int height)
+        {
+            RotatedRect rect = new RotatedRect();
+            rect.center.x = x + width / 2.0f;
+            rect.center.y = y + height / 2.0f;
+            rect.size.width = width;
+            rect.size.height = height;
+            rect.angle = 0.0f;
+            this.RotatedRect = rect;
+        }
 
         private List<bool> _flags = new List<bool>();
         /// <summary>
@@ -142,6 +152,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         public PointF P1 { get; set; }
         public PointF P2 { get; set; }
         public Color Color { get; set; }
+
+        public ColorLine(PointF p1, PointF p2, Color color)
+        {
+            P1 = p1;
+            P2 = p2;
+            Color = color;
+        }
     }
 
 }

@@ -19,6 +19,166 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     internal class AI
     {
         /// <summary>
+        /// 解析Type-C检测结果
+        /// </summary>
+        public static void TypeCResultParse(List<DetResult> results, int resultCount, ref NodeResultTDAI nodeResult)
+        {
+            // 按照class_id分组
+            var sortDic = SortDetResults(results, resultCount);
+
+            #region 获取检测项的上下限
+            var typeCRange = GetMinMaxValues(nodeResult, "Type-C数量");
+            var soldeNumRange = GetMinMaxValues(nodeResult, "焊点数量");
+            var solderNgRange = GetMinMaxValues(nodeResult, "不良焊锡面积");
+            var lineCoreLenRange = GetMinMaxValues(nodeResult, "露线芯长度");
+            var blackLineRange = GetMinMaxValues(nodeResult, "黑色线数量");
+            var redLineRange = GetMinMaxValues(nodeResult, "红色线数量");
+            #endregion
+
+            #region 初始化 DetectResults 列表
+            nodeResult.AiResult.DetectResults["Type-C数量"] = new List<SingleDetectResult>();
+            nodeResult.AiResult.DetectResults["焊点数量"] = new List<SingleDetectResult>();
+            nodeResult.AiResult.DetectResults["不良焊锡面积"] = new List<SingleDetectResult>();
+            nodeResult.AiResult.DetectResults["露线芯长度"] = new List<SingleDetectResult>();
+            nodeResult.AiResult.DetectResults["黑色线数量"] = new List<SingleDetectResult>();
+            nodeResult.AiResult.DetectResults["红色线数量"] = new List<SingleDetectResult>();
+            #endregion
+
+            #region 添加“Type-C数量”检测结果
+            nodeResult.AiResult.DetectResults["Type-C数量"].Add(
+                BuildSingleDetectResult(
+                    "Type-C数量",
+                    sortDic[0].Count,
+                        GetItemEnableStatus(nodeResult, "Type-C数量"),
+                    typeCRange.min,
+                    typeCRange.max
+                )
+            );
+
+            // 设置“Type-C数量”当前值
+            SetDetectItemCurValue(ref nodeResult, "Type-C数量", sortDic[0].Count.ToString());
+            #endregion
+
+            #region 添加“焊点数量”检测结果
+            nodeResult.AiResult.DetectResults["焊点数量"].Add(
+                BuildSingleDetectResult(
+                    "焊点数量",
+                    sortDic[1].Count,
+                    GetItemEnableStatus(nodeResult, "焊点数量"),
+                    typeCRange.min,
+                    typeCRange.max
+                )
+            );
+            // 设置“焊点数量”当前值
+            SetDetectItemCurValue(ref nodeResult, "焊点数量", sortDic[1].Count.ToString());
+            #endregion
+
+            #region 添加“黑色线数量”检测结果
+            nodeResult.AiResult.DetectResults["黑色线数量"].Add(
+                BuildSingleDetectResult(
+                    "黑色线数量",
+                    sortDic[4].Count,
+                    GetItemEnableStatus(nodeResult, "黑色线数量"),
+                    typeCRange.min,
+                    typeCRange.max
+                )
+            );
+            // 设置“黑色线数量”当前值
+            SetDetectItemCurValue(ref nodeResult, "黑色线数量", sortDic[4].Count.ToString());
+            #endregion
+
+            #region 添加“红色线数量”检测结果
+            nodeResult.AiResult.DetectResults["红色线数量"].Add(
+                BuildSingleDetectResult(
+                    "红色线数量",
+                    sortDic[5].Count,
+                    GetItemEnableStatus(nodeResult, "红色线数量"),
+                    typeCRange.min,
+                    typeCRange.max
+                )
+            );
+            // 设置“红色线数量”当前值
+            SetDetectItemCurValue(ref nodeResult, "红色线数量", sortDic[5].Count.ToString());
+            #endregion
+
+            // 定义三个临时列表用于收集实测数值
+            List<string> solderNgs = new List<string>();
+            List<string> lineCoreLens = new List<string>();
+
+            #region 添加“不良焊锡面积”和“露线芯长度”检测结果
+            foreach (var item in sortDic[2])
+            {
+                // 获取不良焊锡面积是否OK的状态
+                int areaSolderNg = item.Box.Width * item.Box.Height;
+                bool okSolderNgArea = IsValueOk(areaSolderNg, solderNgRange.min, solderNgRange.max);
+
+                // 给矩形框打上多个OK/NG判断条件并添加到结果
+                var rotatedRect = new ColorRotatedRect(item.Box.X, item.Box.Y, item.Box.Width, item.Box.Height);
+                rotatedRect.AddFlag(okSolderNgArea);
+                nodeResult.AiResult.Rects.Add(rotatedRect);
+
+                // 收集原始数值用于后续拼接
+                solderNgs.Add(areaSolderNg.ToString("F2"));
+
+                // 添加“不良焊锡面积”检测结果
+                nodeResult.AiResult.DetectResults["不良焊锡面积"].Add(
+                    BuildSingleDetectResult(
+                        "不良焊锡面积",
+                        areaSolderNg,
+                        GetItemEnableStatus(nodeResult, "不良焊锡面积"),
+                        solderNgRange.min,
+                        solderNgRange.max
+                    )
+                );
+            }
+            foreach (var item in sortDic[3])
+            {
+                // 获取露线芯长度是否OK的状态
+                int lineCoreLen = item.Box.Height;
+                bool oklineCoreLen = IsValueOk(lineCoreLen, solderNgRange.min, solderNgRange.max);
+
+                // 给矩形框打上多个OK/NG判断条件并添加到结果
+                var rotatedRect = new ColorRotatedRect(item.Box.X, item.Box.Y, item.Box.Width, item.Box.Height);
+                rotatedRect.AddFlag(oklineCoreLen);
+                nodeResult.AiResult.Rects.Add(rotatedRect);
+
+                // 收集原始数值用于后续拼接
+                lineCoreLens.Add(lineCoreLen.ToString("F2"));
+
+                // 添加“露线芯长度”检测结果
+                nodeResult.AiResult.DetectResults["露线芯长度"].Add(
+                    BuildSingleDetectResult(
+                        "露线芯长度",
+                        lineCoreLen,
+                        GetItemEnableStatus(nodeResult, "露线芯长度"),
+                        solderNgRange.min,
+                        solderNgRange.max
+                    )
+                );
+            }
+
+            // 拼接为字符串
+            string solderNgsStr = string.Join(",", solderNgs);
+            string lineCoreLensStr = string.Join(",", lineCoreLens);
+
+            // 设置检测项当前值
+            SetDetectItemCurValue(ref nodeResult, "不良焊锡面积", solderNgsStr);
+            SetDetectItemCurValue(ref nodeResult, "露线芯长度", lineCoreLensStr);
+
+            #endregion
+
+            #region 添加绘制的文本
+
+            foreach (var pair in nodeResult.AiResult.DetectResults)
+            {
+                var isOk = pair.Value.TrueForAll(i => i.IsOk);
+                nodeResult.AiResult.Texts.Add(new ColorText(pair.Key + (isOk ? ": OK" : ": NG"), isOk ? Color.Green : Color.Red));
+            }
+
+            #endregion
+        }
+
+        /// <summary>
         /// 解析线芯检测结果
         /// </summary>
         public static void LineCoreResultParse(List<ObbResult> results, int resultCount, ref NodeResultTDAI nodeResult)
@@ -26,51 +186,56 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             // 按照class_id分组
             var sortDic = SortOBBResults(results, resultCount);
 
-            // 获取检测项的上下限
+            #region 获取检测项的上下限
             var lineCoreRange = GetMinMaxValues(nodeResult, "线芯数量");
             var heightRange = GetMinMaxValues(nodeResult, "线芯长度");
             var widthRange = GetMinMaxValues(nodeResult, "线芯宽度");
             var angleRange = GetMinMaxValues(nodeResult, "线芯角度");
+            var lineCoreOffsetRange = GetMinMaxValues(nodeResult, "剥口偏移");
+            #endregion
 
-            // 初始化 DetectResults 列表
+            #region 初始化 DetectResults 列表
             nodeResult.AiResult.DetectResults["线芯数量"] = new List<SingleDetectResult>();
             nodeResult.AiResult.DetectResults["线芯长度"] = new List<SingleDetectResult>();
             nodeResult.AiResult.DetectResults["线芯宽度"] = new List<SingleDetectResult>();
             nodeResult.AiResult.DetectResults["线芯角度"] = new List<SingleDetectResult>();
+            nodeResult.AiResult.DetectResults["剥口偏移"] = new List<SingleDetectResult>();
+            #endregion
 
-
-            // 添加“线芯数量”检测结果
-            bool okLineCore = IsValueOk(sortDic[0].Count, lineCoreRange.min, lineCoreRange.max);
+            #region 添加“线芯数量”检测结果
             nodeResult.AiResult.DetectResults["线芯数量"].Add(
                 BuildSingleDetectResult(
                     "线芯数量",
                     sortDic[0].Count,
-                    okLineCore,
-                    nodeResult.AIInputInfo.DetectItems.FirstOrDefault(x => x.Name == "线芯数量").Enable,
+                    GetItemEnableStatus(nodeResult, "线芯数量"),
                     lineCoreRange.min,
                     lineCoreRange.max
                 )
             );
             // 设置“线芯数量”当前值
-            SetDetectItemCurValue(ref nodeResult, "线芯数量", sortDic[0].Count.ToString("F2"));
+            SetDetectItemCurValue(ref nodeResult, "线芯数量", sortDic[0].Count.ToString());
+            #endregion
 
             // 定义三个临时列表用于收集实测数值
             List<string> lengths = new List<string>();
             List<string> widths = new List<string>();
             List<string> angles = new List<string>();
 
-            // 遍历线芯标签结果
+            #region 添加“线芯长度”、“线芯宽度”、“线芯角度”和"剥口偏移"检测结果
+            List<float> maxYPoints = new List<float>();
             foreach (var item in sortDic[0])
             {
                 // 获取各维度是否OK的状态
                 bool okHeight = IsValueOk(item.RotateBox.size.height, heightRange.min, heightRange.max);
                 bool okWidth = IsValueOk(item.RotateBox.size.width, widthRange.min, widthRange.max);
                 bool okAngle = IsValueOk(item.RotateBox.angle, angleRange.min, angleRange.max);
+                maxYPoints.Add(GetMaxYOfRotatedRectCorners(item.RotateBox));
 
                 // 给矩形框打上多个OK/NG判断条件并添加到结果
                 var rotatedRect = new ColorRotatedRect(item.RotateBox);
                 rotatedRect.AddFlag(okHeight);
                 rotatedRect.AddFlag(okWidth);
+                rotatedRect.AddFlag(okAngle);
                 nodeResult.AiResult.Rects.Add(rotatedRect);
 
                 // 收集原始数值用于后续拼接
@@ -83,8 +248,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     BuildSingleDetectResult(
                         "线芯长度",
                         item.RotateBox.size.height,
-                        okHeight,
-                        nodeResult.AIInputInfo.DetectItems.FirstOrDefault(x => x.Name == "线芯长度").Enable,
+                        GetItemEnableStatus(nodeResult, "线芯长度"),
                         heightRange.min,
                         heightRange.max
                     )
@@ -95,8 +259,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     BuildSingleDetectResult(
                         "线芯宽度",
                         item.RotateBox.size.width,
-                        okWidth,
-                        nodeResult.AIInputInfo.DetectItems.FirstOrDefault(x => x.Name == "线芯宽度").Enable,
+                        GetItemEnableStatus(nodeResult, "线芯宽度"),
                         widthRange.min,
                         widthRange.max
                     )
@@ -107,8 +270,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     BuildSingleDetectResult(
                         "线芯角度",
                         item.RotateBox.angle,
-                        okAngle,
-                        nodeResult.AIInputInfo.DetectItems.FirstOrDefault(x => x.Name == "线芯角度").Enable,
+                        GetItemEnableStatus(nodeResult, "线芯角度"),
                         angleRange.min,
                         angleRange.max
                     )
@@ -119,12 +281,47 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             string widthStr = string.Join(",", widths);
             string angleStr = string.Join(",", angles);
 
+
+            // 添加“剥口偏移”检测结果
+            float offset = maxYPoints.Max() - maxYPoints.Min();
+            bool islineCoreOffsetOk = IsValueOk(offset, lineCoreOffsetRange.min, lineCoreOffsetRange.max);
+            nodeResult.AiResult.DetectResults["剥口偏移"].Add(
+                BuildSingleDetectResult(
+                    "剥口偏移",
+                    offset,
+                    GetItemEnableStatus(nodeResult, "剥口偏移"),
+                    lineCoreOffsetRange.min,
+                    lineCoreOffsetRange.max
+                )
+            );
+            float leftBottomX, rightBottomX;
+            // 添加要绘制的线
+            GetLeftmostAndRightmostBottomXs(nodeResult.AiResult.Rects.Select(crr => crr.RotatedRect).ToList(), out leftBottomX, out rightBottomX);
+            nodeResult.AiResult.Lines.Add(new ColorLine(new PointF(leftBottomX, maxYPoints.Min()), new PointF(rightBottomX, maxYPoints.Min()), 
+                islineCoreOffsetOk ? Color.Green : Color.Red));
+            nodeResult.AiResult.Lines.Add(new ColorLine(new PointF(leftBottomX, maxYPoints.Max()), new PointF(rightBottomX, maxYPoints.Max()),
+                islineCoreOffsetOk ? Color.Green : Color.Red));
+
             // 设置检测项当前值
-            SetDetectItemCurValue(ref nodeResult, "线芯数量", lengthStr);
+            SetDetectItemCurValue(ref nodeResult, "线芯长度", lengthStr);
             SetDetectItemCurValue(ref nodeResult, "线芯宽度", widthStr);
             SetDetectItemCurValue(ref nodeResult, "线芯角度", angleStr);
+            SetDetectItemCurValue(ref nodeResult, "剥口偏移", offset.ToString("F2"));
 
+
+            #endregion
+
+            #region 添加绘制的文本
+
+            foreach (var pair in nodeResult.AiResult.DetectResults)
+            {
+                var isOk = pair.Value.TrueForAll(i => i.IsOk);
+                nodeResult.AiResult.Texts.Add(new ColorText(pair.Key + (isOk ? ": OK" : ": NG"), isOk ? Color.Green : Color.Red));
+            }
+
+            #endregion
         }
+
         /// <summary>
         /// 解析胶壳结果
         /// </summary>
@@ -173,19 +370,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
             #region 添加“胶壳数量”检测结果
             var res0 = sortDic.ContainsKey(0) ? sortDic[0].Count : 0;
-            bool okGelCoatCount = IsValueOk(res0, gelCoatCountRange.min, gelCoatCountRange.max);
             nodeResult.AiResult.DetectResults["胶壳数量"].Add(
                 BuildSingleDetectResult(
                     "胶壳数量",
                     res0,
-                    okGelCoatCount,
                     GetItemEnableStatus(nodeResult, "胶壳数量"),
                     gelCoatCountRange.min,
                     gelCoatCountRange.max
                 )
             );
             // 设置“胶壳数量”当前值
-            SetDetectItemCurValue(ref nodeResult, "胶壳数量", res0.ToString("F2"));
+            SetDetectItemCurValue(ref nodeResult, "胶壳数量", res0.ToString());
             #endregion
 
             #region 添加“胶壳角度”检测结果（遍历）
@@ -207,7 +402,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         BuildSingleDetectResult(
                             "胶壳角度",
                             angle,
-                            okAngle,
                             GetItemEnableStatus(nodeResult, "胶壳角度"),
                             gelCoatAngleRange.min,
                             gelCoatAngleRange.max
@@ -219,12 +413,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
             #region 添加“弹片数量”检测结果
             var res1 = sortDic.ContainsKey(0) ? sortDic[1].Count : 0;
-            bool okShrapnelCount = IsValueOk(res1, shrapnelCountRange.min, shrapnelCountRange.max);
             nodeResult.AiResult.DetectResults["弹片数量"].Add(
                 BuildSingleDetectResult(
                     "弹片数量",
                     res1,
-                    okShrapnelCount,
                     GetItemEnableStatus(nodeResult, "弹片数量"),
                     shrapnelCountRange.min,
                     shrapnelCountRange.max
@@ -253,7 +445,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         BuildSingleDetectResult(
                             "弹片长度",
                             length,
-                            okLength,
                             GetItemEnableStatus(nodeResult, "弹片长度"),
                             shrapnelLengthRange.min,
                             shrapnelLengthRange.max
@@ -265,12 +456,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
             #region 添加“针尖数量”检测结果
             var res2 = sortDic.ContainsKey(0) ? sortDic[2].Count : 0;
-            bool okPinTipCount = IsValueOk(res2, pinTipCountRange.min, pinTipCountRange.max);
             nodeResult.AiResult.DetectResults["针尖数量"].Add(
                 BuildSingleDetectResult(
                     "针尖数量",
                     res2,
-                    okPinTipCount,
                     GetItemEnableStatus(nodeResult, "针尖数量"),
                     pinTipCountRange.min,
                     pinTipCountRange.max
@@ -299,7 +488,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         BuildSingleDetectResult(
                             "针尖长度",
                             length,
-                            okLength,
                             GetItemEnableStatus(nodeResult, "针尖长度"),
                             pinTipLengthRange.min,
                             pinTipLengthRange.max
@@ -328,7 +516,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         BuildSingleDetectResult(
                             "针尖角度",
                             angle,
-                            okAngle,
                             GetItemEnableStatus(nodeResult, "针尖角度"),
                             pinTipAngleRange.min,
                             pinTipAngleRange.max
@@ -340,12 +527,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
             #region 添加“外观不良”检测结果
             var res3 = sortDic.ContainsKey(0) ? sortDic[0].Count : 0;
-            bool okAppearance = IsValueOk(sortDic.ContainsKey(3) ? sortDic[3].Count : 0, appearanceCountRange.min, appearanceCountRange.max);
             nodeResult.AiResult.DetectResults["外观不良"].Add(
                 BuildSingleDetectResult(
                     "外观不良",
-                    sortDic.ContainsKey(3) ? sortDic[3].Count : 0,
-                    okAppearance,
+                    res3,
                     GetItemEnableStatus(nodeResult, "外观不良"),
                     appearanceCountRange.min,
                     appearanceCountRange.max
@@ -353,16 +538,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             );
             // 设置“外观不良”当前值
             SetDetectItemCurValue(ref nodeResult, "外观不良", res3.ToString("F2"));
-            #endregion
-
-            #region 添加结果矩形框
-
-            // 给矩形框打上多个OK/NG判断条件并添加到结果
-            //var rotatedRect = new ColorRotatedRect(item.RotateBox);
-            //rotatedRect.AddFlag(okHeight);
-            //rotatedRect.AddFlag(okWidth);
-            //nodeResult.AiResult.Rects.Add(rotatedRect);
-
             #endregion
 
             // 设置检测项当前值
@@ -374,7 +549,57 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             SetDetectItemCurValue(ref nodeResult, "弹片长度", shrapnelLensStr);
             SetDetectItemCurValue(ref nodeResult, "针尖长度", tipLensStr);
             SetDetectItemCurValue(ref nodeResult, "针尖角度", tipAnglesStr);
+
+
+            #region 添加绘制的文本
+
+            foreach (var pair in nodeResult.AiResult.DetectResults)
+            {
+                var isOk = pair.Value.TrueForAll(i => i.IsOk);
+                nodeResult.AiResult.Texts.Add(new ColorText(pair.Key + (isOk ? ": OK" : ": NG"), isOk ? Color.Green : Color.Red));
+            }
+
+            #endregion
         }
+
+        /// <summary>
+        /// 获取旋转矩形列表中最左边矩形的左下顶点的x，和最右边矩形的右下顶点的x
+        /// </summary>
+        /// <param name="rects"></param>
+        /// <param name="leftBottomX"></param>
+        /// <param name="rightBottomX"></param>
+        /// <returns></returns>
+        public static bool GetLeftmostAndRightmostBottomXs(List<RotatedRect> rects, out float leftBottomX, out float rightBottomX)
+        {
+            leftBottomX = 0;
+            rightBottomX = 0;
+
+            if (rects == null || rects.Count == 0)
+                return false;
+
+            // 找出最左边和最右边的矩形
+            var leftmostRect = rects.OrderBy(r => r.center.x).First();
+            var rightmostRect = rects.OrderByDescending(r => r.center.x).First();
+
+            // 获取它们的四个角点
+            PointF[] leftCorners = GetRotatedRectCorners(leftmostRect);
+            PointF[] rightCorners = GetRotatedRectCorners(rightmostRect);
+
+            // 找出底边两个点（y 最大的两个点）
+            var leftBottomPoints = leftCorners.OrderByDescending(p => p.Y).Take(2).ToArray();
+            var rightBottomPoints = rightCorners.OrderByDescending(p => p.Y).Take(2).ToArray();
+
+            // 左边矩形：按 x 排序，取最小的是左下点
+            Array.Sort(leftBottomPoints, (a, b) => a.X.CompareTo(b.X));
+            leftBottomX = leftBottomPoints[0].X;
+
+            // 右边矩形：按 x 排序，取最大的是右下点
+            Array.Sort(rightBottomPoints, (a, b) => b.X.CompareTo(a.X));
+            rightBottomX = rightBottomPoints[0].X;
+
+            return true;
+        }
+
         /// <summary>
         /// 设置检测项当前实测值
         /// </summary>
@@ -421,7 +646,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <param name="minV"></param>
         /// <param name="maxV"></param>
         /// <returns></returns>
-        private static SingleDetectResult BuildSingleDetectResult(string name, float value, bool isOk, bool enable, double minV, double maxV)
+        private static SingleDetectResult BuildSingleDetectResult(string name, float value, bool enable, double minV, double maxV)
         {
             return new SingleDetectResult
             {
@@ -429,6 +654,70 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 Value = value.ToString("F2"),
                 IsOk = enable ? IsValueOk(value, minV, maxV) : true
             };
+        }
+        private static SingleDetectResult BuildSingleDetectResult(string name, int value, bool enable, double minV, double maxV)
+        {
+            return new SingleDetectResult
+            {
+                Name = name,
+                Value = value.ToString(),
+                IsOk = enable ? IsValueOk(value, minV, maxV) : true
+            };
+        }
+        /// <summary>
+        /// 获取旋转矩形的四个顶点中的最大Y值
+        /// </summary>
+        /// <param name="rect"></param>
+        /// <returns></returns>
+        public static float GetMaxYOfRotatedRectCorners(RotatedRect rect)
+        {
+            // 获取四个角点
+            PointF[] corners = GetRotatedRectCorners(rect);
+
+            // 取 y 坐标最大值
+            return corners.Max(p => p.Y);
+        }
+        /// <summary>
+        /// 获取旋转矩形的四个顶点
+        /// </summary>
+        /// <param name="rect"></param>
+        /// <returns></returns>
+        public static PointF[] GetRotatedRectCorners(RotatedRect rect)
+        {
+            PointF[] corners = new PointF[4];
+
+            float angleRad = rect.angle * (float)Math.PI / 180.0f;
+            float cosA = (float)Math.Cos(angleRad);
+            float sinA = (float)Math.Sin(angleRad);
+
+            float cx = rect.center.x;
+            float cy = rect.center.y;
+
+            float w2 = rect.size.width / 2.0f;
+            float h2 = rect.size.height / 2.0f;
+
+            // 四个未旋转的顶点（相对于中心）
+            PointF[] unrotated = new PointF[]
+            {
+        new PointF(-w2, -h2),
+        new PointF( w2, -h2),
+        new PointF( w2,  h2),
+        new PointF(-w2,  h2)
+            };
+
+            for (int i = 0; i < 4; i++)
+            {
+                float x = unrotated[i].X;
+                float y = unrotated[i].Y;
+
+                // 应用旋转
+                float rx = x * cosA - y * sinA + cx;
+                float ry = x * sinA + y * cosA + cy;
+
+                corners[i] = new PointF(rx, ry);
+            }
+
+            return corners;
         }
         /// <summary>
         /// 添加检出数量一类的结果
@@ -471,6 +760,26 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             {
                 throw;
             }
+        }
+        /// <summary>
+        /// 排序Det结果
+        /// </summary>
+        private static SortedDictionary<int, List<DetResult>> SortDetResults(List<DetResult> results, int resultCount)
+        {
+            Dictionary<int, List<DetResult>> ResMap = new Dictionary<int, List<DetResult>>();
+            // 遍历每一个检出结果，根据class_id将结果保存到对应列表中
+            for (int i = 0; i < resultCount; ++i)
+            {
+                DetResult result = results[i];
+                // 判断该id是否存在,不存在需要先创建列表才能添加，防止nul异常
+                if (!ResMap.ContainsKey(result.ClassId))
+                {
+                    ResMap[result.ClassId] = new List<DetResult>();
+                }
+                ResMap[result.ClassId].Add(result);
+            }
+            // 使用LINQ按键class_id从小到大进行排序
+            return new SortedDictionary<int, List<DetResult>>(ResMap);
         }
         /// <summary>
         /// 排序OBB结果

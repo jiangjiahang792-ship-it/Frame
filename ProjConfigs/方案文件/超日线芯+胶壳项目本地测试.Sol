@@ -2,8 +2,8 @@
   "SolVer": "2.2.2.0",
   "SolName": "D:\\MyCode\\C#\\TDJS-Vision\\ProjConfigs\\方案文件\\超日线芯+胶壳项目本地测试.Sol",
   "RunInterval": 0,
-  "NodeCount": 22,
-  "ProcessCount": 4,
+  "NodeCount": 30,
+  "ProcessCount": 6,
   "Devices": {},
   "ProcessInfos": [
     {
@@ -148,7 +148,7 @@
           "NodeName": "AI检测",
           "ID": 5,
           "Active": true,
-          "Selected": false,
+          "Selected": true,
           "NodeParam": {
             "TDJS_Vision.Node._3_Detection.TDAI.NodeParamTDAI": {
               "Text1": "4.图像源",
@@ -285,10 +285,100 @@
           "NodeName": "检测结果显示",
           "ID": 22,
           "Active": true,
-          "Selected": true,
+          "Selected": false,
           "NodeParam": {
             "TDJS_Vision.Node._7_ResultProcessing.DataShow.NodeParamDataShow": {
               "Text1": "9.AI检测",
+              "Text2": "AI输出结果"
+            }
+          }
+        }
+      ],
+      "Enable": false,
+      "Level": "Lv5",
+      "Group": "Group1"
+    },
+    {
+      "ProcessName": "TypeC焊锡检测",
+      "NodeInfos": [
+        {
+          "NodeType": "ImageSource",
+          "NodeName": "图像源",
+          "ID": 23,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageSoucre": {
+              "ImageSource": "本地图像",
+              "PathText": "D:\\MyProjects\\TypeC\\图像\\2025_04_03_13_34_283.jpg",
+              "ImagePath": "D:\\MyProjects\\TypeC\\图像\\2025_04_03_13_34_283.jpg",
+              "IsAutoLoop": false,
+              "CameraName": null,
+              "TriggerSource": "Auto",
+              "TriggerEdge": "Rising",
+              "TriggerDelay": 0,
+              "ExposureTime": 0.0,
+              "Gain": 0.0,
+              "IsStrobing": false
+            }
+          }
+        },
+        {
+          "NodeType": "AITD",
+          "NodeName": "AI检测",
+          "ID": 24,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._3_Detection.TDAI.NodeParamTDAI": {
+              "Text1": "23.图像源",
+              "Text2": "图像",
+              "ConfigPath": "D:\\MyProjects\\TypeC\\方案文件\\超日ai模型配置.json",
+              "IsAutoStudy": false
+            }
+          }
+        },
+        {
+          "NodeType": "DrawAIResult",
+          "NodeName": "AI结果绘制",
+          "ID": 25,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.ImageDraw.NodeParamImageDraw": {
+              "Text1": "23.图像源",
+              "Text2": "图像",
+              "Text3": "24.AI检测",
+              "Text4": "AI输出结果",
+              "FontSize": 50,
+              "LineWidth": 12,
+              "TextLoc": "LeftUp"
+            }
+          }
+        },
+        {
+          "NodeType": "ImageShow",
+          "NodeName": "图像显示",
+          "ID": 26,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageShow": {
+              "WindowName": "图像窗口2",
+              "Text1": "25.AI结果绘制",
+              "Text2": "结果图像"
+            }
+          }
+        },
+        {
+          "NodeType": "DetectResultShow",
+          "NodeName": "检测结果显示",
+          "ID": 27,
+          "Active": true,
+          "Selected": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.DataShow.NodeParamDataShow": {
+              "Text1": "24.AI检测",
               "Text2": "AI输出结果"
             }
           }
