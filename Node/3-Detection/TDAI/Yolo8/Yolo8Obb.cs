@@ -72,6 +72,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public static int Detect(IntPtr handle, byte[] image_data, int width, int height, int channels, [Out] List<ObbResult> detectResults)
         {
+            if (handle == IntPtr.Zero)
+                throw new Exception("模型句柄为空！");
             // 先清空输出列表
             detectResults.Clear();
 
@@ -117,7 +119,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public static void DestroyDetector(IntPtr detector)
         {
-            _destroyDetector(detector);
+            if (detector != IntPtr.Zero)
+                _destroyDetector(detector);
         }
 
         /// <summary>

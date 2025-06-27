@@ -143,6 +143,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public static (int, int) Infer(IntPtr handle, byte[] image_data, int width, int height, int channels, [Out] PoseResult detectResult)
         {
+
+            if (handle == IntPtr.Zero)
+                throw new Exception("模型句柄为空！");
             // 进行推理
             IntPtr boxesDataPtr;
             int boxesCount;
@@ -188,7 +191,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public static void Cleanup(IntPtr inference)
         {
-            _cleanup(inference);
+            if (inference != IntPtr.Zero)
+                _cleanup(inference);
         }
 
         // Win32 API 声明

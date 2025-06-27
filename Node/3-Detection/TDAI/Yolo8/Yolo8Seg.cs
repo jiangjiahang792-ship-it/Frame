@@ -123,6 +123,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public static int Infer(IntPtr handle, byte[] image_data, int width, int height, int channels, [Out] List<SegResult> detectResults)
         {
+
+            if (handle == IntPtr.Zero)
+                throw new Exception("模型句柄为空！");
             int boxCount;
             IntPtr boxData, scoreData, classIdData;
             int maskCount;
@@ -160,7 +163,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public static void Release(IntPtr context)
         {
-            _release(context);
+            if (context != IntPtr.Zero)
+                _release(context);
         }
 
         // Win32 API 函数声明

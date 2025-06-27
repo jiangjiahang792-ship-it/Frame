@@ -93,7 +93,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <param name="detector"></param>
         public static void DestroyDetector(IntPtr detector)
         {
-            _destroyDetector(detector);
+            if (detector != IntPtr.Zero)
+                _destroyDetector(detector);
         }
         /// <summary>
         /// 执行AI检测
@@ -107,6 +108,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <returns></returns>
         public static int Detect(IntPtr detector, byte[] img_data, int width, int height, int channels, [Out] List<DetResult> detectResults)
         {
+            if (detector == IntPtr.Zero)
+                throw new Exception("模型句柄为空！");
             DetectionResult[] results = new DetectionResult[1000];
             int count = _detect(detector, img_data, width, height, channels, results);
 
