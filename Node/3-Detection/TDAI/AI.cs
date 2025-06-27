@@ -132,25 +132,36 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
             if (sortDic.ContainsKey(0))
             {
+                bool okTypeCNum = GetItemEnableStatus(nodeResult, "Type-C数量") ? IsValueOk(sortDic[0].Count, typeCRange.min, typeCRange.max) : true;
                 nodeResult.AiResult.DetectResults["Type-C数量"].Add(
                     BuildSingleDetectResult(
                         "Type-C数量",
                         sortDic[0].Count,
-                            GetItemEnableStatus(nodeResult, "Type-C数量"),
+                        GetItemEnableStatus(nodeResult, "Type-C数量"),
                         typeCRange.min,
                         typeCRange.max
                     )
                 );
+                foreach (var item in sortDic[0])
+                {
+                    // 给矩形框打上多个OK/NG判断条件并添加到结果
+                    var rotatedRect = new ColorRotatedRect(item.Box.X, item.Box.Y, item.Box.Width, item.Box.Height);
+                    rotatedRect.AddFlag(okTypeCNum);
+                    nodeResult.AiResult.Rects.Add(rotatedRect);
+                }
+
+                // 设置“Type-C数量”当前值
+                SetDetectItemCurValue(ref nodeResult, "Type-C数量", sortDic[0].Count.ToString());
             }
 
-            // 设置“Type-C数量”当前值
-            SetDetectItemCurValue(ref nodeResult, "Type-C数量", sortDic[0].Count.ToString());
 
             #endregion
 
             #region 添加“焊点数量”检测结果
             if (sortDic.ContainsKey(1))
             {
+
+                bool okSolderNum = GetItemEnableStatus(nodeResult, "焊点数量") ? IsValueOk(sortDic[1].Count, soldeNumRange.min, soldeNumRange.max) : true;
                 nodeResult.AiResult.DetectResults["焊点数量"].Add(
                     BuildSingleDetectResult(
                         "焊点数量",
@@ -160,6 +171,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         soldeNumRange.max
                     )
                 );
+                foreach (var item in sortDic[1])
+                {
+                    // 给矩形框打上多个OK/NG判断条件并添加到结果
+                    var rotatedRect = new ColorRotatedRect(item.Box.X, item.Box.Y, item.Box.Width, item.Box.Height);
+                    rotatedRect.AddFlag(okSolderNum);
+                    nodeResult.AiResult.Rects.Add(rotatedRect);
+                }
                 // 设置“焊点数量”当前值
                 SetDetectItemCurValue(ref nodeResult, "焊点数量", sortDic[1].Count.ToString());
             }
@@ -168,15 +186,23 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             #region 添加“黑色线数量”检测结果
             if (sortDic.ContainsKey(4))
             {
+                bool okBlackNum = GetItemEnableStatus(nodeResult, "黑色线数量") ? IsValueOk(sortDic[4].Count, blackLineRange.min, blackLineRange.max) : true;
                 nodeResult.AiResult.DetectResults["黑色线数量"].Add(
-                BuildSingleDetectResult(
-                    "黑色线数量",
-                    sortDic[4].Count,
-                    GetItemEnableStatus(nodeResult, "黑色线数量"),
-                    blackLineRange.min,
-                    blackLineRange.max
-                )
+                    BuildSingleDetectResult(
+                        "黑色线数量",
+                        sortDic[4].Count,
+                        GetItemEnableStatus(nodeResult, "黑色线数量"),
+                        blackLineRange.min,
+                        blackLineRange.max
+                    )
                 );
+                foreach (var item in sortDic[4])
+                {
+                    // 给矩形框打上多个OK/NG判断条件并添加到结果
+                    var rotatedRect = new ColorRotatedRect(item.Box.X, item.Box.Y, item.Box.Width, item.Box.Height);
+                    rotatedRect.AddFlag(okBlackNum);
+                    nodeResult.AiResult.Rects.Add(rotatedRect);
+                }
                 // 设置“黑色线数量”当前值
                 SetDetectItemCurValue(ref nodeResult, "黑色线数量", sortDic[4].Count.ToString());
             }
@@ -185,6 +211,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             #region 添加“红色线数量”检测结果
             if (sortDic.ContainsKey(5))
             {
+                bool okRedNum = GetItemEnableStatus(nodeResult, "红色线数量") ? IsValueOk(sortDic[5].Count, redLineRange.min, redLineRange.max) : true;
                 nodeResult.AiResult.DetectResults["红色线数量"].Add(
                     BuildSingleDetectResult(
                         "红色线数量",
@@ -194,6 +221,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         redLineRange.max
                     )
                 );
+                foreach (var item in sortDic[5])
+                {
+                    // 给矩形框打上多个OK/NG判断条件并添加到结果
+                    var rotatedRect = new ColorRotatedRect(item.Box.X, item.Box.Y, item.Box.Width, item.Box.Height);
+                    rotatedRect.AddFlag(okRedNum);
+                    nodeResult.AiResult.Rects.Add(rotatedRect);
+                }
                 // 设置“红色线数量”当前值
                 SetDetectItemCurValue(ref nodeResult, "红色线数量", sortDic[5].Count.ToString());
             }
