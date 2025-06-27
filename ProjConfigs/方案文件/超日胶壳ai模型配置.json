@@ -29,49 +29,49 @@
       "MinValue": "-3",
       "MaxValue": "3",
       "Enable": true,
-      "CurValue": "0"
+      "CurValue": "0.52"
     },
     {
       "Name": "弹片数量",
       "MinValue": "9",
       "MaxValue": "9",
       "Enable": true,
-      "CurValue": "7"
+      "CurValue": "9"
     },
     {
       "Name": "弹片长度",
       "MinValue": "18",
       "MaxValue": "20",
       "Enable": true,
-      "CurValue": ""
+      "CurValue": "19.34,18.74,19.43,19.36,19.19,19.20,19.55,19.57,19.29"
     },
     {
       "Name": "针尖数量",
       "MinValue": "9",
       "MaxValue": "9",
       "Enable": true,
-      "CurValue": "7"
+      "CurValue": "9"
     },
     {
       "Name": "针尖长度",
       "MinValue": "80",
-      "MaxValue": "96",
+      "MaxValue": "106",
       "Enable": true,
-      "CurValue": "90"
+      "CurValue": "105.33,104.69,104.34,99.28,102.35,101.66,100.97,102.84,103.64"
     },
     {
       "Name": "针尖角度",
       "MinValue": "-3",
       "MaxValue": "3",
       "Enable": true,
-      "CurValue": "0"
+      "CurValue": "0.66,0.65,0.70,0.55,0.70,0.71,0.68,0.73,0.63"
     },
     {
       "Name": "外观不良",
       "MinValue": "0",
       "MaxValue": "0",
-      "Enable": true,
-      "CurValue": "0"
+      "Enable": false,
+      "CurValue": "1"
     }
   ]
 }

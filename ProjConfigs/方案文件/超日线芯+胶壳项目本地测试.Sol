@@ -148,7 +148,7 @@
           "NodeName": "AI检测",
           "ID": 5,
           "Active": true,
-          "Selected": true,
+          "Selected": false,
           "NodeParam": {
             "TDJS_Vision.Node._3_Detection.TDAI.NodeParamTDAI": {
               "Text1": "4.图像源",
@@ -181,7 +181,7 @@
           "NodeName": "图像显示",
           "ID": 7,
           "Active": true,
-          "Selected": false,
+          "Selected": true,
           "NodeParam": {
             "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageShow": {
               "WindowName": "图像窗口1",
@@ -294,7 +294,7 @@
           }
         }
       ],
-      "Enable": false,
+      "Enable": true,
       "Level": "Lv5",
       "Group": "Group1"
     },
@@ -364,7 +364,7 @@
           "Selected": false,
           "NodeParam": {
             "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageShow": {
-              "WindowName": "图像窗口2",
+              "WindowName": "图像窗口3",
               "Text1": "25.AI结果绘制",
               "Text2": "结果图像"
             }

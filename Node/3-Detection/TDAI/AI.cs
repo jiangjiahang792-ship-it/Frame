@@ -65,8 +65,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     "焊点数量",
                     sortDic[1].Count,
                     GetItemEnableStatus(nodeResult, "焊点数量"),
-                    typeCRange.min,
-                    typeCRange.max
+                    soldeNumRange.min,
+                    soldeNumRange.max
                 )
             );
             // 设置“焊点数量”当前值
@@ -79,8 +79,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     "黑色线数量",
                     sortDic[4].Count,
                     GetItemEnableStatus(nodeResult, "黑色线数量"),
-                    typeCRange.min,
-                    typeCRange.max
+                    blackLineRange.min,
+                    blackLineRange.max
                 )
             );
             // 设置“黑色线数量”当前值
@@ -93,8 +93,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     "红色线数量",
                     sortDic[5].Count,
                     GetItemEnableStatus(nodeResult, "红色线数量"),
-                    typeCRange.min,
-                    typeCRange.max
+                    redLineRange.min,
+                    redLineRange.max
                 )
             );
             // 设置“红色线数量”当前值
@@ -135,7 +135,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             {
                 // 获取露线芯长度是否OK的状态
                 int lineCoreLen = item.Box.Height;
-                bool oklineCoreLen = IsValueOk(lineCoreLen, solderNgRange.min, solderNgRange.max);
+                bool oklineCoreLen = IsValueOk(lineCoreLen, lineCoreLenRange.min, lineCoreLenRange.max);
 
                 // 给矩形框打上多个OK/NG判断条件并添加到结果
                 var rotatedRect = new ColorRotatedRect(item.Box.X, item.Box.Y, item.Box.Width, item.Box.Height);
@@ -151,8 +151,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         "露线芯长度",
                         lineCoreLen,
                         GetItemEnableStatus(nodeResult, "露线芯长度"),
-                        solderNgRange.min,
-                        solderNgRange.max
+                        lineCoreLenRange.min,
+                        lineCoreLenRange.max
                     )
                 );
             }
@@ -412,7 +412,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             #endregion
 
             #region 添加“弹片数量”检测结果
-            var res1 = sortDic.ContainsKey(0) ? sortDic[1].Count : 0;
+            var res1 = sortDic.ContainsKey(1) ? sortDic[1].Count : 0;
             nodeResult.AiResult.DetectResults["弹片数量"].Add(
                 BuildSingleDetectResult(
                     "弹片数量",
@@ -423,7 +423,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 )
             );
             // 设置“弹片数量”当前值
-            SetDetectItemCurValue(ref nodeResult, "弹片数量", res1.ToString("F2"));
+            SetDetectItemCurValue(ref nodeResult, "弹片数量", res1.ToString());
             #endregion
 
             #region 添加“弹片长度”检测结果（遍历）
@@ -455,7 +455,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             #endregion
 
             #region 添加“针尖数量”检测结果
-            var res2 = sortDic.ContainsKey(0) ? sortDic[2].Count : 0;
+            var res2 = sortDic.ContainsKey(2) ? sortDic[2].Count : 0;
             nodeResult.AiResult.DetectResults["针尖数量"].Add(
                 BuildSingleDetectResult(
                     "针尖数量",
@@ -466,10 +466,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 )
             );
             // 设置“针尖数量”当前值
-            SetDetectItemCurValue(ref nodeResult, "针尖数量", res2.ToString("F2"));
+            SetDetectItemCurValue(ref nodeResult, "针尖数量", res2.ToString());
             #endregion
 
-            #region 添加“针尖长度”检测结果（遍历）
+            #region 添加“针尖长度”和“针尖角度”检测结果
             if (sortDic.ContainsKey(2))
             {
                 foreach (var item in sortDic[2])
@@ -477,12 +477,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     float length = item.RotateBox.size.height;
                     bool okLength = IsValueOk(length, pinTipLengthRange.min, pinTipLengthRange.max);
 
+                    float angle = item.RotateBox.angle;
+                    bool okAngle = IsValueOk(angle, pinTipAngleRange.min, pinTipAngleRange.max);
+
                     // 给矩形框打上OK/NG判断条件并添加到结果
                     var rotatedRect = new ColorRotatedRect(item.RotateBox);
                     rotatedRect.AddFlag(okLength);
+                    rotatedRect.AddFlag(okAngle);
                     nodeResult.AiResult.Rects.Add(rotatedRect);
 
                     tipLens.Add(length.ToString("F2"));
+                    tipAngles.Add(angle.ToString("F2"));
 
                     nodeResult.AiResult.DetectResults["针尖长度"].Add(
                         BuildSingleDetectResult(
@@ -493,24 +498,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             pinTipLengthRange.max
                         )
                     );
-                }
-            }
-            #endregion
-
-            #region 添加“针尖角度”检测结果（遍历）
-            if (sortDic.ContainsKey(2))
-            {
-                foreach (var item in sortDic[2])
-                {
-                    float angle = item.RotateBox.angle;
-                    bool okAngle = IsValueOk(angle, pinTipAngleRange.min, pinTipAngleRange.max);
-
-                    // 给矩形框打上OK/NG判断条件并添加到结果
-                    var rotatedRect = new ColorRotatedRect(item.RotateBox);
-                    rotatedRect.AddFlag(okAngle);
-                    nodeResult.AiResult.Rects.Add(rotatedRect);
-
-                    tipAngles.Add(angle.ToString("F2"));
 
                     nodeResult.AiResult.DetectResults["针尖角度"].Add(
                         BuildSingleDetectResult(
@@ -526,7 +513,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             #endregion
 
             #region 添加“外观不良”检测结果
-            var res3 = sortDic.ContainsKey(0) ? sortDic[0].Count : 0;
+            var res3 = sortDic.ContainsKey(3) ? sortDic[3].Count : 0;
             nodeResult.AiResult.DetectResults["外观不良"].Add(
                 BuildSingleDetectResult(
                     "外观不良",
@@ -537,7 +524,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 )
             );
             // 设置“外观不良”当前值
-            SetDetectItemCurValue(ref nodeResult, "外观不良", res3.ToString("F2"));
+            SetDetectItemCurValue(ref nodeResult, "外观不良", res3.ToString());
             #endregion
 
             // 设置检测项当前值
@@ -814,8 +801,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 var box = result.RotateBox;
                 float angleDeg = box.angle;
 
-                // 如果角度绝对值超过 45°，说明矩形竖直方向为主，需要旋转 90° 并交换宽高
-                if (Math.Abs(angleDeg) > 45)
+                // 如果角度绝对值超过 135°，需要旋转 180° 不需要交换宽高
+                if (Math.Abs(angleDeg) > 135)
+                {
+                    // 180°-检出角度
+                    box.angle = 180.0f - angleDeg;
+                }// 如果角度绝对值超过 45°，需要旋转 90° 并交换宽高
+                else if (Math.Abs(angleDeg) > 45)
                 {
                     // 90°-检出角度
                     box.angle = 90.0f - angleDeg;
