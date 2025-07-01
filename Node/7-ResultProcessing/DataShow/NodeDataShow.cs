@@ -21,14 +21,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
         /// <summary>
         /// 节点运行
         /// </summary>
-        public override async Task Run(CancellationToken token)
+        public override async Task<NodeReturnFlag> Run(CancellationToken token)
         {
             DateTime startTime = DateTime.Now;
 
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return;
+                return NodeReturnFlag.StopRun;
             }
 
             if (ParamForm.Params == null)
@@ -50,8 +50,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
                     AiResult aiResult = form.GetAiResult();
                     DataShow?.Invoke(this,new DataShowData($"{ID}.{NodeName}", aiResult));
 
-                    long time = SetRunResult(startTime, NodeStatus.Successful);
+                    var time = SetRunResult(startTime, NodeStatus.Successful);
+                    Result.RunTime = time;
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                    return NodeReturnFlag.ContinueRun;
                 }
                 catch (OperationCanceledException)
                 {
@@ -66,6 +68,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
                     throw new Exception($"节点({ID}.{NodeName})运行失败！原因:{ex.Message}");
                 }
             }
+            return NodeReturnFlag.StopRun;
         }
     }
 }

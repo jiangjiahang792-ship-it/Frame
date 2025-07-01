@@ -1,18 +1,13 @@
 ﻿using Logger;
-using OpenCvSharp.Extensions;
-//using OpenCvSharp;
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using Sunny.UI.Win32;
-//using System.Windows.Media;
-using System.Drawing;
-using System.Numerics;
 using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
 {
@@ -30,14 +25,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
         /// <summary>
         /// 节点运行
         /// </summary>
-        public override async Task Run(CancellationToken token)
+        public override async Task<NodeReturnFlag> Run(CancellationToken token)
         {
             DateTime startTime = DateTime.Now;
 
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return;
+                return NodeReturnFlag.StopRun;
             }
 
             if (ParamForm.Params == null)
@@ -64,8 +59,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                     // 输出绘制后的图像
                     ((NodeResultImageDraw)Result).RenderImage = image;
 
-                    long time = SetRunResult(startTime, NodeStatus.Successful);
+                    var time = SetRunResult(startTime, NodeStatus.Successful);
+                    Result.RunTime = time;
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                    return NodeReturnFlag.ContinueRun;
                 }
                 catch (OperationCanceledException)
                 {
@@ -80,6 +77,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                     throw new Exception($"节点({ID}.{NodeName})运行失败！原因:{ex.Message}");
                 }
             }
+            return NodeReturnFlag.StopRun;
         }
     }
     /// <summary>
@@ -155,6 +153,49 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
             }
             return cllonedBitmap;
         }
+        public static RectangleF RotatedRectToRectangleF(RotatedRect rotatedRect)
+        {
+            // 获取旋转矩形的四个顶点
+            PointF[] points = GetRotatedRectVertices(rotatedRect);
+
+            // 计算包围这四个点的最小矩形
+            float minX = points.Min(p => p.X);
+            float maxX = points.Max(p => p.X);
+            float minY = points.Min(p => p.Y);
+            float maxY = points.Max(p => p.Y);
+
+            return new RectangleF(minX, minY, maxX - minX, maxY - minY);
+        }
+
+        private static PointF[] GetRotatedRectVertices(RotatedRect rect)
+        {
+            // 从旋转矩形中获取宽高的一半
+            float halfWidth = rect.size.width / 2;
+            float halfHeight = rect.size.height / 2;
+
+            // 定义旋转矩阵
+            Matrix matrix = new Matrix();
+            matrix.RotateAt(rect.angle, new PointF(rect.center.x, rect.center.y));
+
+            // 四个角点相对于中心点的坐标（未旋转时）
+            PointF[] points =
+            {
+            new PointF(-halfWidth, -halfHeight),
+            new PointF(halfWidth, -halfHeight),
+            new PointF(halfWidth, halfHeight),
+            new PointF(-halfWidth, halfHeight)
+        };
+
+            // 将每个点都加上中心点坐标，并应用旋转
+            for (int i = 0; i < points.Length; i++)
+            {
+                points[i].X += rect.center.x;
+                points[i].Y += rect.center.y;
+                matrix.TransformPoints(points);
+            }
+
+            return points;
+        }
         /// <summary>
         /// 绘制到左上角
         /// </summary>
@@ -166,18 +207,82 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
             float initialY = 30;
             int lineSpacing = 10;
 
-            // 1. 先绘制所有旋转矩形框
-            foreach (var colorRect in aiResult.Rects)
+            // 1. 先绘制之前缓存的NG矩形框（但跳过那些与当前帧有重合的）
+            foreach (var ngPair in aiResult.RectsNgMap)
             {
-                PointF[] vertices = GetVertices(colorRect.RotatedRect);
+                string itemName = ngPair.Key; // 检测项名称，例如 "焊点数量"
+                List<ColorRotatedRect> ngRects = ngPair.Value;
 
-                using (Pen pen = new Pen(colorRect.Color, parm.LineWidth))
+                // 获取当前检测项对应的当前帧的所有 Rect 的 RectangleF 范围
+                List<RectangleF> currentRectBounds = new List<RectangleF>();
+                if (aiResult.CurRectsMap.TryGetValue(itemName, out var currentRects))
                 {
-                    g.DrawPolygon(pen, vertices);
+                    foreach (var colorRect in currentRects)
+                    {
+                        currentRectBounds.Add(RotatedRectToRectangleF(colorRect.RotatedRect));
+                    }
+                }
+
+                // 绘制 NG 框
+                foreach (var colorRect in ngRects)
+                {
+                    RectangleF ngRectBounds = RotatedRectToRectangleF(colorRect.RotatedRect);
+
+                    // 判断是否与当前检测项的任何一个 Rect 重合
+                    bool isOverlap = currentRectBounds.Any(cr => cr.IntersectsWith(ngRectBounds));
+
+                    if (!isOverlap)
+                    {
+                        PointF[] vertices = GetVertices(colorRect.RotatedRect);
+
+                        using (Pen pen = new Pen(colorRect.Color, parm.LineWidth))
+                        {
+                            g.DrawPolygon(pen, vertices);
+                        }
+                    }
                 }
             }
 
-            // 2. 再绘制线条
+            // 2. 再绘制当前旋转矩形框（保持原逻辑不变）
+            foreach (var pair in aiResult.CurRectsMap)
+            {
+                foreach (var colorRect in pair.Value)
+                {
+                    PointF[] vertices = GetVertices(colorRect.RotatedRect);
+
+                    using (Pen pen = new Pen(colorRect.Color, parm.LineWidth))
+                    {
+                        g.DrawPolygon(pen, vertices);
+                    }
+                }
+            }
+
+            //// 1. 先绘制之前缓存的NG矩形框
+            //foreach (var pair in aiResult.RectsNgMap)
+            //{
+            //    foreach (var colorRect in pair.Value)
+            //    {
+            //        PointF[] vertices = GetVertices(colorRect.RotatedRect);
+
+            //        using (Pen pen = new Pen(colorRect.Color, parm.LineWidth))
+            //        {
+            //            g.DrawPolygon(pen, vertices);
+            //        }
+            //    }
+            //}
+
+            //// 2. 再绘制当前旋转矩形框
+            //foreach (var colorRect in aiResult.Rects)
+            //{
+            //    PointF[] vertices = GetVertices(colorRect.RotatedRect);
+
+            //    using (Pen pen = new Pen(colorRect.Color, parm.LineWidth))
+            //    {
+            //        g.DrawPolygon(pen, vertices);
+            //    }
+            //}
+
+            // 3. 再绘制线条
             foreach (var line in aiResult.Lines)
             {
                 using (Pen pen = new Pen(line.Color, parm.LineWidth))
@@ -186,7 +291,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                 }
             }
 
-            // 3. 最后绘制文本信息（来自 Texts 成员）
+            // 4. 最后绘制文本信息（来自 Texts 成员）
             foreach (var textInfo in aiResult.Texts)
             {
                 using (Font font = new Font("Microsoft YaHei", parm.FontSize))
@@ -215,16 +320,67 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
             float initialY = imageSize.Height - 30; // 起始Y坐标为图片高度减去一个小偏移量
             int lineSpacing = 10; // 行间距
 
-            // 首先绘制所有旋转矩形框
-            foreach (var colorRect in aiResult.Rects)
-            {
-                PointF[] vertices = GetVertices(colorRect.RotatedRect); // 获取旋转矩形的4个顶点
 
-                using (Pen pen = new Pen(colorRect.Color, parm.LineWidth)) // 使用 ColorRotatedRect 内部的颜色属性
+            // 1. 先绘制之前缓存的NG矩形框（但跳过那些与当前帧有重合的）
+            foreach (var ngPair in aiResult.RectsNgMap)
+            {
+                string itemName = ngPair.Key; // 检测项名称，例如 "焊点数量"
+                List<ColorRotatedRect> ngRects = ngPair.Value;
+
+                // 获取当前检测项对应的当前帧的所有 Rect 的 RectangleF 范围
+                List<RectangleF> currentRectBounds = new List<RectangleF>();
+                if (aiResult.CurRectsMap.TryGetValue(itemName, out var currentRects))
                 {
-                    g.DrawPolygon(pen, vertices); // 绘制旋转矩形
+                    foreach (var colorRect in currentRects)
+                    {
+                        currentRectBounds.Add(RotatedRectToRectangleF(colorRect.RotatedRect));
+                    }
+                }
+
+                // 绘制 NG 框
+                foreach (var colorRect in ngRects)
+                {
+                    RectangleF ngRectBounds = RotatedRectToRectangleF(colorRect.RotatedRect);
+
+                    // 判断是否与当前检测项的任何一个 Rect 重合
+                    bool isOverlap = currentRectBounds.Any(cr => cr.IntersectsWith(ngRectBounds));
+
+                    if (!isOverlap)
+                    {
+                        PointF[] vertices = GetVertices(colorRect.RotatedRect);
+
+                        using (Pen pen = new Pen(colorRect.Color, parm.LineWidth))
+                        {
+                            g.DrawPolygon(pen, vertices);
+                        }
+                    }
                 }
             }
+
+            // 2. 再绘制当前旋转矩形框（保持原逻辑不变）
+            foreach (var pair in aiResult.CurRectsMap)
+            {
+                foreach (var colorRect in pair.Value)
+                {
+                    PointF[] vertices = GetVertices(colorRect.RotatedRect);
+
+                    using (Pen pen = new Pen(colorRect.Color, parm.LineWidth))
+                    {
+                        g.DrawPolygon(pen, vertices);
+                    }
+                }
+            }
+
+            //// 首先绘制所有旋转矩形框
+            //foreach (var colorRect in aiResult.Rects)
+            //{
+            //    PointF[] vertices = GetVertices(colorRect.RotatedRect); // 获取旋转矩形的4个顶点
+
+            //    using (Pen pen = new Pen(colorRect.Color, parm.LineWidth)) // 使用 ColorRotatedRect 内部的颜色属性
+            //    {
+            //        g.DrawPolygon(pen, vertices); // 绘制旋转矩形
+            //    }
+            //}
 
             // 绘制所有颜色线条
             foreach (var line in aiResult.Lines)

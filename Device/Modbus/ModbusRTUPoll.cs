@@ -120,7 +120,12 @@ namespace TDJS_Vision.Device.Modbus
 
         public Task<bool[]> ReadCoilsAsync(ushort startAddress, ushort numberOfPoints)
         {
-            return _master.ReadCoilsAsync(1, startAddress, numberOfPoints);
+            Task<bool[]> res;
+            lock (this)
+            {
+                res = _master.ReadCoilsAsync(1, startAddress, numberOfPoints);
+            }
+            return res;
         }
 
         public bool[] ReadInputs(ushort startAddress, ushort numberOfPoints)
@@ -130,7 +135,12 @@ namespace TDJS_Vision.Device.Modbus
 
         public Task<bool[]> ReadInputsAsync(ushort startAddress, ushort numberOfPoints)
         {
-            return _master.ReadInputsAsync(1, startAddress, numberOfPoints);
+            Task<bool[]> res;
+            lock (this)
+            {
+                res = _master.ReadInputsAsync(1, startAddress, numberOfPoints);
+            }
+            return res;
         }
 
         public ushort[] ReadInputRegisters(ushort startAddress, ushort numberOfPoints)

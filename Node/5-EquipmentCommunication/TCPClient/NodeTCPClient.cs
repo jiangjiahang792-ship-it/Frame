@@ -30,14 +30,14 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.TcpClient
         /// <summary>
         /// 节点运行
         /// </summary>
-        public override async Task Run(CancellationToken token)
+        public override async Task<NodeReturnFlag> Run(CancellationToken token)
         {
             DateTime startTime = DateTime.Now;
 
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return;
+                return NodeReturnFlag.StopRun;
             }
             if (ParamForm.Params == null)
             {
@@ -61,6 +61,11 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.TcpClient
 
                 //发起请求
                 SendRequest(param, startTime);
+
+                var time = SetRunResult(startTime, NodeStatus.Successful);
+                Result.RunTime = time;
+                LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                return NodeReturnFlag.ContinueRun;
             }
             catch (OperationCanceledException)
             {

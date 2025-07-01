@@ -232,6 +232,7 @@ namespace TDJS_Vision
         /// </summary>
         /// <param name="isCyclical"></param>
         /// <returns></returns>
+
         public async Task Run(bool isCyclical = false)
         {
             IsRunning = true;

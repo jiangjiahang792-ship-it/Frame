@@ -127,6 +127,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// </summary>
         public bool Enable { get; set; }
         /// <summary>
+        /// 是否为统计“数量型”检测项
+        /// </summary>
+        public bool IsCountItem { get; set; }
+        /// <summary>
         /// 当前检测项的值
         /// </summary>
         public string CurValue { get; set; }

@@ -57,6 +57,10 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
         /// </summary>
         Bool,
         /// <summary>
+        /// 布尔数组类型
+        /// </summary>
+        BoolArr,
+        /// <summary>
         /// 整型
         /// </summary>
         Int,

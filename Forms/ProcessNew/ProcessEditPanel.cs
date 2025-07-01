@@ -34,6 +34,7 @@ using TDJS_Vision.Node._7_ResultProcessing.GenerateExcelSpreadsheet;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._7_ResultProcessing.ImageDraw;
 using TDJS_Vision.Forms.YTMessageBox;
+using TDJS_Vision.Node._6_LogicTool.ConditionRun;
 
 namespace TDJS_Vision.Forms.ProcessNew
 {
@@ -275,6 +276,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.DrawAIResult:
                     node = new NodeImageDraw(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.ConditionRun:
+                    node = new NodeConditionRun(nodeId, nodeName, _process, nodeType);
                     break;
                 default:
                     break;

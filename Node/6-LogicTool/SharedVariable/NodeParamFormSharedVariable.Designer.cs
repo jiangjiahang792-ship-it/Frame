@@ -163,7 +163,7 @@
             this.comboBoxVars.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.comboBoxVars.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxVars.FormattingEnabled = true;
-            this.comboBoxVars.Location = new System.Drawing.Point(224, 20);
+            this.comboBoxVars.Location = new System.Drawing.Point(224, 21);
             this.comboBoxVars.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.comboBoxVars.Name = "comboBoxVars";
             this.comboBoxVars.Size = new System.Drawing.Size(211, 25);
@@ -188,6 +188,7 @@
             this.comboBoxTypes.Items.AddRange(new object[] {
             "任意类型",
             "布尔",
+            "布尔数组",
             "整型",
             "字符串",
             "单精度浮点",
@@ -195,7 +196,7 @@
             "Bitmap图像",
             "Bitmap图像数组",
             "算法结果"});
-            this.comboBoxTypes.Location = new System.Drawing.Point(224, 87);
+            this.comboBoxTypes.Location = new System.Drawing.Point(224, 88);
             this.comboBoxTypes.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.comboBoxTypes.Name = "comboBoxTypes";
             this.comboBoxTypes.Size = new System.Drawing.Size(212, 25);
@@ -227,7 +228,7 @@
             "数组第4个",
             "数组第5个",
             "数组第6个"});
-            this.comboBoxWhichOne.Location = new System.Drawing.Point(460, 87);
+            this.comboBoxWhichOne.Location = new System.Drawing.Point(460, 88);
             this.comboBoxWhichOne.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.comboBoxWhichOne.Name = "comboBoxWhichOne";
             this.comboBoxWhichOne.Size = new System.Drawing.Size(179, 25);

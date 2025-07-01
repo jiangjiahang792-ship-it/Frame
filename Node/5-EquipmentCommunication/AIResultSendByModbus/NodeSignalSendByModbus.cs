@@ -23,14 +23,14 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
         /// <summary>
         /// 节点运行
         /// </summary>
-        public override async Task Run(CancellationToken token)
+        public override async Task<NodeReturnFlag> Run(CancellationToken token)
         {
             DateTime startTime = DateTime.Now;
 
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return;
+                return NodeReturnFlag.StopRun;
             }
 
 
@@ -82,8 +82,10 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     // 执行线圈信号写入
                     await SendToModbus(aiResult, map, param.SignalHoldTime, param.IsAutoReset, token, param.IsRegister);
 
-                    long time = SetRunResult(startTime, NodeStatus.Successful);
+                    var time = SetRunResult(startTime, NodeStatus.Successful);
+                    Result.RunTime = time;
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                    return NodeReturnFlag.ContinueRun;
                 }
                 catch (OperationCanceledException)
                 {
@@ -98,6 +100,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     throw new Exception($"节点({ID}.{NodeName})运行失败！原因:{ex.Message}");
                 }
             }
+            return NodeReturnFlag.StopRun;
         }
 
         /// <summary>
@@ -192,17 +195,11 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     grouped[key].AddRange(results);
                 }
 
-                // 遍历每个分组，判断是否所有项都 OK
+                // 遍历每个分组
                 foreach (var group in grouped)
                 {
                     var key = group.Key;
                     var results = group.Value;
-
-                    // 判断这个组中是否所有检测项都通过
-                    bool allOk = results.All(r => r.IsOk);
-
-                    if (!allOk)
-                        continue;
 
                     // 获取 Modbus 设备
                     var modbus = Solution.Instance.ModbusDevices.Find(mod => mod.UserDefinedName == key.CommModbus);
@@ -213,14 +210,21 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     if (!ushort.TryParse(key.SignalAddress, out var address))
                         throw new FormatException($"无法解析地址 [{key.SignalAddress}]");
 
-                    // 获取写入值（取任意一个的值即可，因为它们共用同一地址）
-                    var value = mapping.FirstOrDefault(x => x.Key == results[0].Name).Value?.Value ?? true;
+                    // 获取写入值（取任意一个检测项的Ok和Ng值即可，因为它们共用同一Modbus设备和信号地址）
+                    var valueOk = mapping.FirstOrDefault(x => x.Key == results[0].Name).Value.OkValue;
+                    var valueNg = mapping.FirstOrDefault(x => x.Key == results[0].Name).Value.NgValue;
+
+                    // 判断这个组中是否所有检测项都通过
+                    bool allOk = results.All(r => r.IsOk);
+
+                    // 确定发送的值
+                    var valueToSend = allOk ? valueOk : valueNg;
 
                     // 写入信号
-                    if(isRegister)
-                        await modbus.WriteSingleRegisterAsync(address, ushort.Parse(value.ToString()));
+                    if (isRegister)
+                        await modbus.WriteSingleRegisterAsync(address, valueToSend);
                     else
-                        await modbus.WriteSingleCoilAsync(address, value);
+                        await modbus.WriteSingleCoilAsync(address, valueToSend != 0);
 
                     // 自动复位
                     if (isAutoReset)
@@ -228,9 +232,9 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                         int delayMs = (int)holdTime;
                         await Task.Delay(delayMs, token); // 支持取消
                         if (isRegister)
-                            await modbus.WriteSingleRegisterAsync(address, ushort.Parse((!value).ToString()));
+                            await modbus.WriteSingleRegisterAsync(address, 0);
                         else
-                            await modbus.WriteSingleCoilAsync(address, !value);
+                            await modbus.WriteSingleCoilAsync(address, false);
                     }
                 }
             }
@@ -260,9 +264,12 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
         /// </summary>
         public string SignalAddress { get; set; }
         /// <summary>
-        /// 线圈值
+        /// Ok信号值
         /// </summary>
-        public bool Value {  get; set; }
+        public ushort OkValue {  get; set; }
+        /// <summary>
+        /// Ng信号值
+        /// </summary>
+        public ushort NgValue { get; set; }
     }
-
 }

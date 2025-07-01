@@ -1,7 +1,9 @@
 ﻿using Sunny.UI;
 using System;
+using System.Drawing;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
 {
@@ -76,6 +78,9 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
                     case "布尔":
                         param.Type = SharedVarTypeEnum.Bool;
                         break;
+                    case "布尔数组":
+                        param.Type = SharedVarTypeEnum.BoolArr;
+                        break;
                     case "整型":
                         param.Type = SharedVarTypeEnum.Int;
                         break;
@@ -105,13 +110,52 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
                 param.Text2 = nodeSubscription1.GetText2();
                 param.WriteName = textBox1.Text;
 
-                // 共享变量要提前写入默认值，要不然其他地方添加读取共享变量时获取不到该变量的名称
-                if(_preVariable != null && _preVariable != textBox1.Text)
+                // 要在读该变量之前写入默认值，要不然获取不到该变量
+                if (!param.IsRead)
                 {
-                    Solution.Instance.SharedVariable.Remove(_preVariable);
+                    switch (param.Type)
+                    {
+                        case SharedVarTypeEnum.AllType:
+                            Solution.Instance.SharedVariable.SetValue(textBox1.Text, new object());
+                            break;
+                        case SharedVarTypeEnum.Bool:
+                            Solution.Instance.SharedVariable.SetValue(textBox1.Text, false);
+                            break;
+                        case SharedVarTypeEnum.BoolArr:
+                            Solution.Instance.SharedVariable.SetValue(textBox1.Text, new bool[]{ false });
+                            break;
+                        case SharedVarTypeEnum.Int:
+                            Solution.Instance.SharedVariable.SetValue(textBox1.Text, 0);
+                            break;
+                        case SharedVarTypeEnum.String:
+                            Solution.Instance.SharedVariable.SetValue(textBox1.Text, "");
+                            break;
+                        case SharedVarTypeEnum.Float:
+                            Solution.Instance.SharedVariable.SetValue(textBox1.Text, 0.0f);
+                            break;
+                        case SharedVarTypeEnum.Double:
+                            Solution.Instance.SharedVariable.SetValue(textBox1.Text, 0.0f);
+                            break;
+                        case SharedVarTypeEnum.Bitmap:
+                            Solution.Instance.SharedVariable.SetValue(textBox1.Text, default(Bitmap));
+                            break;
+                        case SharedVarTypeEnum.BitmapArr:
+                            Solution.Instance.SharedVariable.SetValue(textBox1.Text, default(Bitmap[]));
+                            break;
+                        case SharedVarTypeEnum.ResultViewData:
+                            Solution.Instance.SharedVariable.SetValue(textBox1.Text, default(ResultViewData));
+                            break;
+                        default:
+                            break;
+                    }
                 }
-                Solution.Instance.SharedVariable.SetValue(textBox1.Text, default(object));
-                _preVariable = textBox1.Text;
+
+                //if(_preVariable != null && _preVariable != textBox1.Text)
+                //{
+                //    Solution.Instance.SharedVariable.Remove(_preVariable);
+                //}
+                //Solution.Instance.SharedVariable.SetValue(textBox1.Text, default(object));
+                //_preVariable = textBox1.Text;
 
                 Params = param;
             }
@@ -143,7 +187,6 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
                 radioButton1.Checked = param.IsRead;
                 radioButton2.Checked = !param.IsRead;
 
-                //this.comboBoxVars.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;   DropDownList不能使用text赋值，不生效
                 comboBoxVars.Items.Add(param.ReadName);
                 comboBoxVars.SelectedItem = param.ReadName;
 
@@ -156,26 +199,29 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
                     case SharedVarTypeEnum.Bool:
                         comboBoxTypes.SelectedIndex = 1;
                         break;
-                    case SharedVarTypeEnum.Int:
+                    case SharedVarTypeEnum.BoolArr:
                         comboBoxTypes.SelectedIndex = 2;
                         break;
-                    case SharedVarTypeEnum.String:
+                    case SharedVarTypeEnum.Int:
                         comboBoxTypes.SelectedIndex = 3;
                         break;
-                    case SharedVarTypeEnum.Float:
+                    case SharedVarTypeEnum.String:
                         comboBoxTypes.SelectedIndex = 4;
                         break;
-                    case SharedVarTypeEnum.Double:
+                    case SharedVarTypeEnum.Float:
                         comboBoxTypes.SelectedIndex = 5;
                         break;
-                    case SharedVarTypeEnum.Bitmap:
+                    case SharedVarTypeEnum.Double:
                         comboBoxTypes.SelectedIndex = 6;
                         break;
-                    case SharedVarTypeEnum.BitmapArr:      //漏了一个   SharedVarTypeEnum.BitmapArr  
+                    case SharedVarTypeEnum.Bitmap:
                         comboBoxTypes.SelectedIndex = 7;
                         break;
-                    case SharedVarTypeEnum.ResultViewData:
+                    case SharedVarTypeEnum.BitmapArr:
                         comboBoxTypes.SelectedIndex = 8;
+                        break;
+                    case SharedVarTypeEnum.ResultViewData:
+                        comboBoxTypes.SelectedIndex = 9;
                         break;
                     default:
                         break;

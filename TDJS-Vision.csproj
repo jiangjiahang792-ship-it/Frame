@@ -199,6 +199,17 @@
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Obb.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Pose.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Seg.cs" />
+    <Compile Include="Node\6-LogicTool\ConditionRun\NodeParamFormConditionRun.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\ConditionRun\NodeParamFormConditionRun.Designer.cs">
+      <DependentUpon>NodeParamFormConditionRun.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\ConditionRun\NodeParamConditionRun.cs" />
+    <Compile Include="Node\6-LogicTool\ConditionRun\NodeResultConditionRun.cs" />
+    <Compile Include="Node\6-LogicTool\ConditionRun\NodeConditionRun.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -1057,6 +1068,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\6-LogicTool\SharedVariable\NodeParamFormSharedVariable.resx">
       <DependentUpon>NodeParamFormSharedVariable.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\6-LogicTool\ConditionRun\NodeParamFormConditionRun.resx">
+      <DependentUpon>NodeParamFormConditionRun.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\7-ResultProcessing\ImageDraw\NodeParamFormImageDraw.resx">
       <DependentUpon>NodeParamFormImageDraw.cs</DependentUpon>

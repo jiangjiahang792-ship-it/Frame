@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using TDJS_Vision.Device.Modbus;
+using TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusSoftTrigger
 {
@@ -18,6 +19,10 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusSoftTrigger
         /// 触点地址
         /// </summary>
         public string Address { get; set; }
-        
+        /// <summary>
+        /// 寄存器类型
+        /// </summary>
+        public RegistersType Type { get; set; }
+
     }
 }

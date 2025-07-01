@@ -22,302 +22,294 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <summary>
         /// 解析Type-C检测结果
         /// </summary>
-        public static void TypeCResultParse(List<DetResult> results, int resultCount, ref NodeResultTDAI nodeResult)
+        public static void TypeCResultParse2(List<DetResult> results, int resultCount, ref NodeResultTDAI nodeResult)
         {
-            // 按照class_id分组
-            var sortDic = SortDetResults(results, resultCount);
+            // 如果检测项配置为空或没有启用的检测项，则直接返回，不进行后续处理
+            if (nodeResult?.AIInputInfo?.DetectItems == null || !nodeResult.AIInputInfo.DetectItems.Any())
+                return;
 
-            #region 获取检测项的上下限
-            var typeCRange = GetMinMaxValues(nodeResult, "Type-C数量");
-            var soldeNumRange = GetMinMaxValues(nodeResult, "焊点数量");
-            var solderNgRange = GetMinMaxValues(nodeResult, "不良焊锡面积");
-            var lineCoreLenRange = GetMinMaxValues(nodeResult, "露线芯长度");
-            var blackLineRange = GetMinMaxValues(nodeResult, "黑色线数量");
-            var redLineRange = GetMinMaxValues(nodeResult, "红色线数量");
-            #endregion
+            // 用来保存检测结果的检测项OK/NG、带颜色的框、带颜色的文本
+            var detectResults = new Dictionary<string, List<SingleDetectResult>>();
+            var texts = new List<ColorText>();
 
-            #region 初始化 DetectResults 列表
-            nodeResult.AiResult.DetectResults["Type-C数量"] = new List<SingleDetectResult>();
-            nodeResult.AiResult.DetectResults["焊点数量"] = new List<SingleDetectResult>();
-            nodeResult.AiResult.DetectResults["不良焊锡面积"] = new List<SingleDetectResult>();
-            nodeResult.AiResult.DetectResults["露线芯长度"] = new List<SingleDetectResult>();
-            nodeResult.AiResult.DetectResults["黑色线数量"] = new List<SingleDetectResult>();
-            nodeResult.AiResult.DetectResults["红色线数量"] = new List<SingleDetectResult>();
-            #endregion
-
-            #region 检查每个标签是否都有结果，没有的话要构造对应检测项的NG结果
-
-            if (!sortDic.ContainsKey(0)) //"type-c"
+            foreach (var item in nodeResult.AIInputInfo.DetectItems)
             {
-                nodeResult.AiResult.DetectResults["Type-C数量"].Add(
-                    new SingleDetectResult
+                // 检测项没启用就不用处理
+                if (!item.Enable) continue;
+
+                string itemName = item.Name;
+                bool hasData = false;
+
+                #region 提取函数定义，某个检测项的值取自哪个class_id结果的什么属性？
+
+                Func<DetResult, string> extractValueFunc = null;
+
+                switch (itemName)
+                {
+                    case "Type-C数量":
+                        extractValueFunc = r => r.ClassId == 0 ? "1" : null;
+                        break;
+                    case "焊点数量":
+                        extractValueFunc = r => r.ClassId == 1 ? "1" : null;
+                        break;
+                    case "不良焊锡面积":
+                        extractValueFunc = r => r.ClassId == 2 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
+                        break;
+                    case "露线芯长度":
+                        extractValueFunc = r => r.ClassId == 3 ? r.Box.Height.ToString("F2") : null;
+                        break;
+                    case "黑色线数量":
+                        extractValueFunc = r => r.ClassId == 4 ? "1" : null;
+                        break;
+                    case "红色线数量":
+                        extractValueFunc = r => r.ClassId == 5 ? "1" : null;
+                        break;
+                    default:
+                        extractValueFunc = null;
+                        break;
+                }
+
+                if (extractValueFunc == null)
+                    continue;
+
+                #endregion
+
+                #region 匹配结果提取
+
+                var matchedResults = results.Where(r =>
+                {
+                    string value = extractValueFunc(r);
+                    return value != null;
+                }).ToList();
+
+                #endregion
+
+                var singleResults = new List<SingleDetectResult>();
+
+                #region 正常情况: 检测项已启用，模型有检出该项的DetResult结果
+
+                // 获取当前检测项是否为“数量型”
+                bool isCountItem = item.IsCountItem;
+
+                if (isCountItem)
+                {
+                    // 数量型检测项：统计总数，只添加一次结果
+                    int count = matchedResults.Count;
+                    string valueStr = count.ToString();
+                    bool isOk = false;
+
+                    #region 判断检测项是否OK
+
+                    if (count > 0)
                     {
-                        Name = "Type-C数量",
-                        Value = int.MinValue.ToString(),// 数值可以填这个，只要保证不在OK的上下限范围即可
-                        IsOk = false
+                        // 有结果时才判断上下限
+                        bool minOk = float.TryParse(item.MinValue, out float min) && count >= min;
+                        bool maxOk = float.TryParse(item.MaxValue, out float max) && count <= max;
+                        isOk = minOk && maxOk;
                     }
-                );
-                // 设置“Type-C数量”当前值
-                SetDetectItemCurValue(ref nodeResult, "Type-C数量", int.MinValue.ToString());
-            }
-            if (!sortDic.ContainsKey(1))//"solder"
-            {
-                nodeResult.AiResult.DetectResults["焊点数量"].Add(
-                    new SingleDetectResult
+                    else
                     {
-                        Name = "焊点数量",
-                        Value = int.MinValue.ToString(),// 数值可以填这个，只要保证不在OK的上下限范围即可
-                        IsOk = false
+                        // 没有结果时，默认值 -1，直接标记为 NG
+                        valueStr = "-1";
+                        isOk = false;
                     }
-                );
-                // 设置“焊点数量”当前值
-                SetDetectItemCurValue(ref nodeResult, "焊点数量", int.MinValue.ToString());
-            }
-            // "solder_ng"特殊，没有不用添加
-            //if (!sortDic.ContainsKey(2))//"solder_ng"
-            //{
-            //    nodeResult.AiResult.DetectResults["不良焊锡面积"].Add(
-            //        new SingleDetectResult
-            //        {
-            //            Name = "不良焊锡面积",
-            //            Value = int.MinValue.ToString(),// 数值可以填这个，只要保证不在OK的上下限范围即可
-            //            IsOk = false
-            //        }
-            //    );
-            //    // 设置“不良焊锡面积”当前值
-            //    SetDetectItemCurValue(ref nodeResult, "不良焊锡面积", int.MinValue.ToString());
-            //}
-            if (!sortDic.ContainsKey(3))//"line"
-            {
-                nodeResult.AiResult.DetectResults["露线芯长度"].Add(
-                    new SingleDetectResult
+
+                    #endregion
+
+                    #region 添加检测项结果
+
+                    var singleResult = new SingleDetectResult
                     {
-                        Name = "露线芯长度",
-                        Value = int.MinValue.ToString(),// 数值可以填这个，只要保证不在OK的上下限范围即可
-                        IsOk = false
-                    }
-                );
-                // 设置“露线芯长度”当前值
-                SetDetectItemCurValue(ref nodeResult, "露线芯长度", int.MinValue.ToString());
-            }
-            if (!sortDic.ContainsKey(4))//"black"
-            {
-                nodeResult.AiResult.DetectResults["黑色线数量"].Add(
-                    new SingleDetectResult
+                        Name = itemName,
+                        Value = valueStr,
+                        IsOk = isOk
+                    };
+                    singleResults.Add(singleResult);
+
+                    #endregion
+
+                    #region 添加矩形框
+
+                    if (count > 0)
                     {
-                        Name = "黑色线数量",
-                        Value = int.MinValue.ToString(),// 数值可以填这个，只要保证不在OK的上下限范围即可
-                        IsOk = false
+
+                        if (nodeResult.AiResult.CurRectsMap.ContainsKey(itemName))
+                            nodeResult.AiResult.CurRectsMap[itemName].Clear();
+                        else
+                            nodeResult.AiResult.CurRectsMap.Add(itemName, new List<ColorRotatedRect>());
+                        foreach (var aiRes in matchedResults)
+                        {
+                            var rect = new ColorRotatedRect(
+                                (int)aiRes.Box.X,
+                                (int)aiRes.Box.Y,
+                                (int)aiRes.Box.Width,
+                                (int)aiRes.Box.Height
+                            );
+                            rect.AddFlag(true);
+                            nodeResult.AiResult.CurRectsMap[itemName].Add(rect);
+
+                        }
+
+                        // 当该检测项是OK时，能拿到齐全的框
+                        // 改成红色作为齐全的NG框，用于后续绘制
+                        if (isOk)
+                        {
+                            if (nodeResult.AiResult.RectsNgMap.ContainsKey(itemName))
+                                nodeResult.AiResult.RectsNgMap[itemName].Clear();
+                            else
+                                nodeResult.AiResult.RectsNgMap.Add(itemName, new List<ColorRotatedRect>());
+                            foreach (var aiRes in matchedResults)
+                            {
+                                var rectNG = new ColorRotatedRect(
+                                    (int)aiRes.Box.X,
+                                    (int)aiRes.Box.Y,
+                                    (int)aiRes.Box.Width,
+                                    (int)aiRes.Box.Height
+                                );
+                                rectNG.AddFlag(false);
+                                nodeResult.AiResult.RectsNgMap[itemName].Add(rectNG);
+                            }
+                        }
                     }
-                );
-                // 设置“黑色线数量”当前值
-                SetDetectItemCurValue(ref nodeResult, "黑色线数量", int.MinValue.ToString());
-            }
-            if (!sortDic.ContainsKey(5))//"red"
-            {
-                nodeResult.AiResult.DetectResults["红色线数量"].Add(
-                    new SingleDetectResult
+
+                    #endregion
+
+                    #region 添加文本信息
+
+                    texts.Add(new ColorText(
+                        $"{itemName}: {(isOk ? "OK" : "NG")}",
+                        isOk ? Color.Green : Color.Red
+                    ));
+
+                    #endregion
+
+                    hasData = true;
+                }
+                else
+                {
+                    HashSet<string> addedRectKeys = new HashSet<string>(); // 非数量型仍需去重
+
+                    foreach (var result in matchedResults)
                     {
-                        Name = "红色线数量",
-                        Value = int.MinValue.ToString(),// 数值可以填这个，只要保证不在OK的上下限范围即可
-                        IsOk = false
+                        string rawValue = extractValueFunc(result);
+                        if (!float.TryParse(rawValue, out float value))
+                            continue;
+
+                        bool minOk = float.TryParse(item.MinValue, out float min) && value >= min;
+                        bool maxOk = float.TryParse(item.MaxValue, out float max) && value <= max;
+                        bool isOk = minOk && maxOk;
+
+                        var singleResult = new SingleDetectResult
+                        {
+                            Name = itemName,
+                            Value = rawValue,
+                            IsOk = isOk
+                        };
+                        singleResults.Add(singleResult);
+
+                        string rectKey = $"{result.Box.X},{result.Box.Y},{result.Box.Width},{result.Box.Height}";
+
+                        // 添加 Rect（如果还没加过）
+                        if (!addedRectKeys.Contains(rectKey))
+                        {
+                            var rect = new ColorRotatedRect(
+                                (int)result.Box.X,
+                                (int)result.Box.Y,
+                                (int)result.Box.Width,
+                                (int)result.Box.Height
+                            );
+                            rect.AddFlag(isOk); // 初始颜色由该检测项决定
+                            addedRectKeys.Add(rectKey);
+
+                            if (nodeResult.AiResult.CurRectsMap.ContainsKey(itemName))
+                                nodeResult.AiResult.CurRectsMap[itemName].Clear();
+                            else
+                                nodeResult.AiResult.CurRectsMap.Add(itemName, new List<ColorRotatedRect>());
+                            nodeResult.AiResult.CurRectsMap[itemName].Add(rect);
+
+                        }
+                        else
+                        {
+                            // 如果已经加过，则更新颜色（只要有一个 NG 就设为红色）
+                            int index = nodeResult.AiResult.CurRectsMap[itemName].FindIndex(r =>
+                                r.RotatedRect.center.x == result.Box.X + result.Box.Width / 2 &&
+                                r.RotatedRect.center.y == result.Box.Y + result.Box.Height / 2 &&
+                                r.RotatedRect.size.width == result.Box.Width &&
+                                r.RotatedRect.size.height == result.Box.Height);
+
+                            if (index >= 0)
+                            {
+                                nodeResult.AiResult.CurRectsMap[itemName][index].AddFlag(isOk); // 更新颜色依据
+                            }
+                        }
+
+                        // 添加 Text（仅首次出现该检测项时添加，避免重复）
+                        if (!texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                        {
+                            texts.Add(new ColorText(
+                                $"{itemName}: {(isOk ? "OK" : "NG")}",
+                                isOk ? Color.Green : Color.Red
+                            ));
+                        }
+
+                        hasData = true;
                     }
-                );
-                // 设置“红色线数量”当前值
-                SetDetectItemCurValue(ref nodeResult, "红色线数量", int.MinValue.ToString());
-            }
-            #endregion
-
-            #region 添加“Type-C数量”检测结果
-
-            if (sortDic.ContainsKey(0))
-            {
-                bool okTypeCNum = GetItemEnableStatus(nodeResult, "Type-C数量") ? IsValueOk(sortDic[0].Count, typeCRange.min, typeCRange.max) : true;
-                nodeResult.AiResult.DetectResults["Type-C数量"].Add(
-                    BuildSingleDetectResult(
-                        "Type-C数量",
-                        sortDic[0].Count,
-                        GetItemEnableStatus(nodeResult, "Type-C数量"),
-                        typeCRange.min,
-                        typeCRange.max
-                    )
-                );
-                foreach (var item in sortDic[0])
-                {
-                    // 给矩形框打上多个OK/NG判断条件并添加到结果
-                    var rotatedRect = new ColorRotatedRect(item.Box.X, item.Box.Y, item.Box.Width, item.Box.Height);
-                    rotatedRect.AddFlag(okTypeCNum);
-                    nodeResult.AiResult.Rects.Add(rotatedRect);
                 }
 
-                // 设置“Type-C数量”当前值
-                SetDetectItemCurValue(ref nodeResult, "Type-C数量", sortDic[0].Count.ToString());
-            }
+                #endregion
 
 
-            #endregion
+                #region 特殊情况处理：检测项已启用，但模型没有检出一个该项的DetResult结果
 
-            #region 添加“焊点数量”检测结果
-            if (sortDic.ContainsKey(1))
-            {
+                // 对于数量型检测项，在正常流程中已处理了这种情况（valueStr = "-1", isOk = false）
+                // 所以这里只需处理非数量型检测项中的特殊案例："不良焊锡面积"
 
-                bool okSolderNum = GetItemEnableStatus(nodeResult, "焊点数量") ? IsValueOk(sortDic[1].Count, soldeNumRange.min, soldeNumRange.max) : true;
-                nodeResult.AiResult.DetectResults["焊点数量"].Add(
-                    BuildSingleDetectResult(
-                        "焊点数量",
-                        sortDic[1].Count,
-                        GetItemEnableStatus(nodeResult, "焊点数量"),
-                        soldeNumRange.min,
-                        soldeNumRange.max
-                    )
-                );
-                foreach (var item in sortDic[1])
+                if (!matchedResults.Any() && item.Enable && !isCountItem)
                 {
-                    // 给矩形框打上多个OK/NG判断条件并添加到结果
-                    var rotatedRect = new ColorRotatedRect(item.Box.X, item.Box.Y, item.Box.Width, item.Box.Height);
-                    rotatedRect.AddFlag(okSolderNum);
-                    nodeResult.AiResult.Rects.Add(rotatedRect);
+                    string defaultValue = null;
+                    bool isSpecialCaseOk = false;
+
+                    // 对于“存在”即NG的检测项要这样设置
+                    if (itemName == "不良焊锡面积")
+                    {
+                        defaultValue = "0";
+                        isSpecialCaseOk = true;
+                    }
+
+                    // 对于“不存在”即NG的检测项要这样设置
+                    if (defaultValue != null)
+                    {
+                        var singleResult = new SingleDetectResult
+                        {
+                            Name = itemName,
+                            Value = defaultValue,
+                            IsOk = isSpecialCaseOk
+                        };
+                        singleResults.Add(singleResult);
+
+                        // 添加全局提示文本（例如“未检测到不良焊锡”）
+                        texts.Add(new ColorText(
+                            $"{itemName}: {(isSpecialCaseOk ? "OK" : "NG")}",
+                            isSpecialCaseOk ? Color.Green : Color.Red
+                        ));
+
+                        hasData = true;
+                    }
                 }
-                // 设置“焊点数量”当前值
-                SetDetectItemCurValue(ref nodeResult, "焊点数量", sortDic[1].Count.ToString());
-            }
-            #endregion
 
-            #region 添加“黑色线数量”检测结果
-            if (sortDic.ContainsKey(4))
-            {
-                bool okBlackNum = GetItemEnableStatus(nodeResult, "黑色线数量") ? IsValueOk(sortDic[4].Count, blackLineRange.min, blackLineRange.max) : true;
-                nodeResult.AiResult.DetectResults["黑色线数量"].Add(
-                    BuildSingleDetectResult(
-                        "黑色线数量",
-                        sortDic[4].Count,
-                        GetItemEnableStatus(nodeResult, "黑色线数量"),
-                        blackLineRange.min,
-                        blackLineRange.max
-                    )
-                );
-                foreach (var item in sortDic[4])
+                #endregion
+
+                // 添加一个检测项的结果数据
+                if (hasData)
                 {
-                    // 给矩形框打上多个OK/NG判断条件并添加到结果
-                    var rotatedRect = new ColorRotatedRect(item.Box.X, item.Box.Y, item.Box.Width, item.Box.Height);
-                    rotatedRect.AddFlag(okBlackNum);
-                    nodeResult.AiResult.Rects.Add(rotatedRect);
-                }
-                // 设置“黑色线数量”当前值
-                SetDetectItemCurValue(ref nodeResult, "黑色线数量", sortDic[4].Count.ToString());
-            }
-            #endregion
-
-            #region 添加“红色线数量”检测结果
-            if (sortDic.ContainsKey(5))
-            {
-                bool okRedNum = GetItemEnableStatus(nodeResult, "红色线数量") ? IsValueOk(sortDic[5].Count, redLineRange.min, redLineRange.max) : true;
-                nodeResult.AiResult.DetectResults["红色线数量"].Add(
-                    BuildSingleDetectResult(
-                        "红色线数量",
-                        sortDic[5].Count,
-                        GetItemEnableStatus(nodeResult, "红色线数量"),
-                        redLineRange.min,
-                        redLineRange.max
-                    )
-                );
-                foreach (var item in sortDic[5])
-                {
-                    // 给矩形框打上多个OK/NG判断条件并添加到结果
-                    var rotatedRect = new ColorRotatedRect(item.Box.X, item.Box.Y, item.Box.Width, item.Box.Height);
-                    rotatedRect.AddFlag(okRedNum);
-                    nodeResult.AiResult.Rects.Add(rotatedRect);
-                }
-                // 设置“红色线数量”当前值
-                SetDetectItemCurValue(ref nodeResult, "红色线数量", sortDic[5].Count.ToString());
-            }
-            #endregion
-
-            // 定义三个临时列表用于收集实测数值
-            List<string> solderNgs = new List<string>();
-            List<string> lineCoreLens = new List<string>();
-
-            #region 添加“不良焊锡面积”和“露线芯长度”检测结果
-
-            if (sortDic.ContainsKey(2))
-            {
-                foreach (var item in sortDic[2])
-                {
-                    // 获取不良焊锡面积是否OK的状态
-                    int areaSolderNg = item.Box.Width * item.Box.Height;
-                    bool okSolderNgArea = GetItemEnableStatus(nodeResult, "不良焊锡面积") ? IsValueOk(areaSolderNg, solderNgRange.min, solderNgRange.max) : true;
-
-                    // 给矩形框打上多个OK/NG判断条件并添加到结果
-                    var rotatedRect = new ColorRotatedRect(item.Box.X, item.Box.Y, item.Box.Width, item.Box.Height);
-                    rotatedRect.AddFlag(okSolderNgArea);
-                    nodeResult.AiResult.Rects.Add(rotatedRect);
-
-                    // 收集原始数值用于后续拼接
-                    solderNgs.Add(areaSolderNg.ToString("F2"));
-
-                    // 添加“不良焊锡面积”检测结果
-                    nodeResult.AiResult.DetectResults["不良焊锡面积"].Add(
-                        BuildSingleDetectResult(
-                            "不良焊锡面积",
-                            areaSolderNg,
-                            GetItemEnableStatus(nodeResult, "不良焊锡面积"),
-                            solderNgRange.min,
-                            solderNgRange.max
-                        )
-                    );
-                }
-            }
-            if (sortDic.ContainsKey(3))
-            {
-                foreach (var item in sortDic[3])
-                {
-                    // 获取露线芯长度是否OK的状态
-                    int lineCoreLen = item.Box.Height;
-                    bool oklineCoreLen = GetItemEnableStatus(nodeResult, "露线芯长度") ? IsValueOk(lineCoreLen, lineCoreLenRange.min, lineCoreLenRange.max) : true;
-
-                    // 给矩形框打上多个OK/NG判断条件并添加到结果
-                    var rotatedRect = new ColorRotatedRect(item.Box.X, item.Box.Y, item.Box.Width, item.Box.Height);
-                    rotatedRect.AddFlag(oklineCoreLen);
-                    nodeResult.AiResult.Rects.Add(rotatedRect);
-
-                    // 收集原始数值用于后续拼接
-                    lineCoreLens.Add(lineCoreLen.ToString("F2"));
-
-                    // 添加“露线芯长度”检测结果
-                    nodeResult.AiResult.DetectResults["露线芯长度"].Add(
-                        BuildSingleDetectResult(
-                            "露线芯长度",
-                            lineCoreLen,
-                            GetItemEnableStatus(nodeResult, "露线芯长度"),
-                            lineCoreLenRange.min,
-                            lineCoreLenRange.max
-                        )
-                    );
+                    detectResults[itemName] = singleResults;
                 }
             }
 
-            if (sortDic.ContainsKey(0) && sortDic.ContainsKey(1) && sortDic.ContainsKey(3) && sortDic.ContainsKey(4) && sortDic.ContainsKey(5))
-            {
-                // 拼接为字符串
-                string solderNgsStr = string.Join(",", solderNgs);
-                string lineCoreLensStr = string.Join(",", lineCoreLens);
-
-                // 设置检测项当前值
-                SetDetectItemCurValue(ref nodeResult, "不良焊锡面积", solderNgsStr);
-                SetDetectItemCurValue(ref nodeResult, "露线芯长度", lineCoreLensStr);
-            }
-
-            #endregion
-
-            #region 添加绘制的文本
-
-            foreach (var pair in nodeResult.AiResult.DetectResults)
-            {
-                var isOk = pair.Value.TrueForAll(i => i.IsOk);
-                nodeResult.AiResult.Texts.Add(new ColorText(pair.Key + (isOk ? ": OK" : ": NG"), isOk ? Color.Green : Color.Red));
-            }
-
-            #endregion
+            // 更新 AiResult
+            nodeResult.AiResult.DetectResults = detectResults;
+            //nodeResult.AiResult.Rects = rects;
+            nodeResult.AiResult.Texts = texts;
         }
 
         /// <summary>
@@ -398,7 +390,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     rotatedRect.AddFlag(okHeight);
                     rotatedRect.AddFlag(okWidth);
                     rotatedRect.AddFlag(okAngle);
-                    nodeResult.AiResult.Rects.Add(rotatedRect);
+                        
+                    nodeResult.AiResult.CurRectsMap.Add("长宽角度", new List<ColorRotatedRect>());
+                    nodeResult.AiResult.CurRectsMap["长宽角度"].Add(rotatedRect);
 
                     // 收集原始数值用于后续拼接
                     lengths.Add(item.RotateBox.size.height.ToString("F2"));
@@ -458,7 +452,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 );
                 float leftBottomX, rightBottomX;
                 // 添加要绘制的线
-                GetLeftmostAndRightmostBottomXs(nodeResult.AiResult.Rects.Select(crr => crr.RotatedRect).ToList(), out leftBottomX, out rightBottomX);
+                GetLeftmostAndRightmostBottomXs(nodeResult.AiResult.CurRectsMap["长宽角度"].Select(crr => crr.RotatedRect).ToList(), out leftBottomX, out rightBottomX);
                 nodeResult.AiResult.Lines.Add(new ColorLine(new PointF(leftBottomX, maxYPoints.Min()), new PointF(rightBottomX, maxYPoints.Min()),
                     islineCoreOffsetOk ? Color.Green : Color.Red));
                 nodeResult.AiResult.Lines.Add(new ColorLine(new PointF(leftBottomX, maxYPoints.Max()), new PointF(rightBottomX, maxYPoints.Max()),
@@ -614,23 +608,25 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
             if (sortDic.ContainsKey(0))
             {
+                string itemName = "胶壳角度";
                 foreach (var item in sortDic[0])
                 {
                     float angle = item.RotateBox.angle;
-                    bool okAngle = GetItemEnableStatus(nodeResult, "胶壳角度") ? IsValueOk(angle, gelCoatAngleRange.min, gelCoatAngleRange.max) : true;
+                    bool okAngle = GetItemEnableStatus(nodeResult, itemName) ? IsValueOk(angle, gelCoatAngleRange.min, gelCoatAngleRange.max) : true;
 
                     // 给矩形框打上OK/NG判断条件并添加到结果
                     var rotatedRect = new ColorRotatedRect(item.RotateBox);
                     rotatedRect.AddFlag(okAngle);
-                    nodeResult.AiResult.Rects.Add(rotatedRect);
+                    nodeResult.AiResult.CurRectsMap.Add(itemName, new List<ColorRotatedRect>());
+                    nodeResult.AiResult.CurRectsMap[itemName].Add(rotatedRect);
 
                     shellAngles.Add(item.RotateBox.angle.ToString("F2"));
 
-                    nodeResult.AiResult.DetectResults["胶壳角度"].Add(
+                    nodeResult.AiResult.DetectResults[itemName].Add(
                         BuildSingleDetectResult(
-                            "胶壳角度",
+                            itemName,
                             angle,
-                            GetItemEnableStatus(nodeResult, "胶壳角度"),
+                            GetItemEnableStatus(nodeResult, itemName),
                             gelCoatAngleRange.min,
                             gelCoatAngleRange.max
                         )
@@ -661,6 +657,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             #region 添加“弹片长度”检测结果（遍历）
             if (sortDic.ContainsKey(1))
             {
+                string itemName = "弹片长度";
                 foreach (var item in sortDic[1])
                 {
                     float length = item.RotateBox.size.height;
@@ -669,7 +666,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     // 给矩形框打上OK/NG判断条件并添加到结果
                     var rotatedRect = new ColorRotatedRect(item.RotateBox);
                     rotatedRect.AddFlag(okLength);
-                    nodeResult.AiResult.Rects.Add(rotatedRect);
+                    nodeResult.AiResult.CurRectsMap.Add(itemName, new List<ColorRotatedRect>());
+                    nodeResult.AiResult.CurRectsMap[itemName].Add(rotatedRect);
 
                     shrapnelLens.Add(length.ToString("F2"));
 
@@ -708,38 +706,41 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             #region 添加“针尖长度”和“针尖角度”检测结果
             if (sortDic.ContainsKey(2))
             {
+                string itemName1 = "针尖长度";
+                string itemName2 = "针尖角度";
                 foreach (var item in sortDic[2])
                 {
                     float length = item.RotateBox.size.height;
-                    bool okLength = GetItemEnableStatus(nodeResult, "针尖长度") ? IsValueOk(length, pinTipLengthRange.min, pinTipLengthRange.max) : true;
+                    bool okLength = GetItemEnableStatus(nodeResult, itemName1) ? IsValueOk(length, pinTipLengthRange.min, pinTipLengthRange.max) : true;
 
                     float angle = item.RotateBox.angle;
-                    bool okAngle = GetItemEnableStatus(nodeResult, "针尖角度") ? IsValueOk(angle, pinTipAngleRange.min, pinTipAngleRange.max) : true;
+                    bool okAngle = GetItemEnableStatus(nodeResult, itemName2) ? IsValueOk(angle, pinTipAngleRange.min, pinTipAngleRange.max) : true;
 
                     // 给矩形框打上OK/NG判断条件并添加到结果
                     var rotatedRect = new ColorRotatedRect(item.RotateBox);
                     rotatedRect.AddFlag(okLength);
                     rotatedRect.AddFlag(okAngle);
-                    nodeResult.AiResult.Rects.Add(rotatedRect);
+                    nodeResult.AiResult.CurRectsMap.Add(itemName1, new List<ColorRotatedRect>());
+                    nodeResult.AiResult.CurRectsMap[itemName1].Add(rotatedRect);
 
                     tipLens.Add(length.ToString("F2"));
                     tipAngles.Add(angle.ToString("F2"));
 
-                    nodeResult.AiResult.DetectResults["针尖长度"].Add(
+                    nodeResult.AiResult.DetectResults[itemName1].Add(
                         BuildSingleDetectResult(
-                            "针尖长度",
+                            itemName1,
                             length,
-                            GetItemEnableStatus(nodeResult, "针尖长度"),
+                            GetItemEnableStatus(nodeResult, itemName1),
                             pinTipLengthRange.min,
                             pinTipLengthRange.max
                         )
                     );
 
-                    nodeResult.AiResult.DetectResults["针尖角度"].Add(
+                    nodeResult.AiResult.DetectResults[itemName2].Add(
                         BuildSingleDetectResult(
-                            "针尖角度",
+                            itemName2,
                             angle,
-                            GetItemEnableStatus(nodeResult, "针尖角度"),
+                            GetItemEnableStatus(nodeResult, itemName2),
                             pinTipAngleRange.min,
                             pinTipAngleRange.max
                         )
@@ -948,68 +949,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             }
 
             return corners;
-        }
-        /// <summary>
-        /// 添加检出数量一类的结果
-        /// </summary>
-        /// <param name="nodeResult"></param>
-        /// <param name="itemName"></param>
-        /// <param name="classId"></param>
-        /// <param name="sortDic"></param>
-        /// <exception cref="Exception"></exception>
-        private static void AddDetectionResultOfNum(NodeResultTDAI nodeResult, string itemName, int classId, SortedDictionary<int, List<ObbResult>> sortDic)
-        {
-            try
-            {
-
-                // 获取检测项配置
-                var itemInfo = nodeResult.AIInputInfo.DetectItems.FirstOrDefault(x => x.Name == itemName);
-                if (itemInfo == null)
-                    throw new Exception($"配置中找不到名为“{itemName}”对应的检测项！");
-
-                // 解析最小最大值
-                double minV = double.Parse(itemInfo.MinValue);
-                double maxV = double.Parse(itemInfo.MaxValue);
-
-                // 获取当前类别数量
-                int count = sortDic.ContainsKey(classId) ? sortDic[classId].Count : 0;
-
-                // 构建检测结果
-                var detectResult = new SingleDetectResult
-                {
-                    Name = itemName,
-                    Value = count.ToString(),
-                    IsOk = itemInfo.Enable ? IsValueOk(count, minV, maxV) : true
-                };
-
-                // 写入结果字典（替换原有列表）
-                if (itemInfo.Enable)
-                    nodeResult.AiResult.DetectResults[itemName] = new List<SingleDetectResult> { detectResult };
-            }
-            catch (Exception)
-            {
-                throw;
-            }
-        }
-        /// <summary>
-        /// 排序Det结果
-        /// </summary>
-        private static SortedDictionary<int, List<DetResult>> SortDetResults(List<DetResult> results, int resultCount)
-        {
-            Dictionary<int, List<DetResult>> ResMap = new Dictionary<int, List<DetResult>>();
-            // 遍历每一个检出结果，根据class_id将结果保存到对应列表中
-            for (int i = 0; i < resultCount; ++i)
-            {
-                DetResult result = results[i];
-                // 判断该id是否存在,不存在需要先创建列表才能添加，防止nul异常
-                if (!ResMap.ContainsKey(result.ClassId))
-                {
-                    ResMap[result.ClassId] = new List<DetResult>();
-                }
-                ResMap[result.ClassId].Add(result);
-            }
-            // 使用LINQ按键class_id从小到大进行排序
-            return new SortedDictionary<int, List<DetResult>>(ResMap);
         }
         /// <summary>
         /// 排序OBB结果

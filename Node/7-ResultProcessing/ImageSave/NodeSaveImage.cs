@@ -29,7 +29,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <summary>
         /// 节点运行
         /// </summary>
-        public override async Task Run(CancellationToken token)
+        public override async Task<NodeReturnFlag> Run(CancellationToken token)
         {
             DateTime startTime = DateTime.Now;
 
@@ -37,7 +37,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return;
+                return NodeReturnFlag.StopRun;
             }
             if (ParamForm.Params == null)
             {
@@ -74,8 +74,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 
                         // 异步队列存图
                         await SaveImage(param);
-                        long time = SetRunResult(startTime, NodeStatus.Successful);
+                        var time = SetRunResult(startTime, NodeStatus.Successful);
+                        Result.RunTime = time;
                         LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                        return NodeReturnFlag.ContinueRun;
                     }
                     catch (OperationCanceledException)
                     {
@@ -92,6 +94,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 
                 }
             }
+            return NodeReturnFlag.StopRun;
         }
 
         private async Task SaveImage(NodeParamSaveImage param)
@@ -107,7 +110,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             // 3.图片名称
             string imageName = param.IsBarCode ? param.Barcode : time.ToString("yyyy-MM-dd_HH-mm-ss-fff");
             if (param.NeedCompress)
-                imageName += "(压缩图)";
+                imageName += "-CAN"; // 压缩图
 
 
             // 4.是否区分早晚班
@@ -231,14 +234,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         private string GetFileName(string filePath, string fileName)
         {
             string newFileName = fileName;
-            string fullPath = Path.Combine(filePath, newFileName + ".bmp");
+            string fullPath = Path.Combine(filePath, newFileName + ".jpg");
             if (File.Exists(fullPath))
             {
                 int suffix = 1;
                 do
                 {
                     newFileName = $"{fileName}_{suffix}";
-                    fullPath = Path.Combine(filePath, newFileName + ".bmp");
+                    fullPath = Path.Combine(filePath, newFileName + ".jpg");
                     suffix++;
                 }
                 while (File.Exists(fullPath));

@@ -21,14 +21,14 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
         /// <summary>
         /// 节点运行
         /// </summary>
-        public override async Task Run(CancellationToken token)
+        public override async Task<NodeReturnFlag> Run(CancellationToken token)
         {
             DateTime startTime = DateTime.Now;
             // 参数合法性校验
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return;
+                return NodeReturnFlag.StopRun;
             }
             if (ParamForm.Params == null)
             {
@@ -49,10 +49,10 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
                         NodeResultImageSplit res = new NodeResultImageSplit();
                         var img = paramForm.GetImage();
                         res.Bitmaps = SplitImage(img, param.Rows, param.Cols);
+                        var time = SetRunResult(startTime, NodeStatus.Successful);
+                        res.RunTime = time;
                         Result = res;
 
-                        SetRunResult(startTime, NodeStatus.Successful);
-                        long time = SetRunResult(startTime, NodeStatus.Successful);
                         LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
                     }
                     catch (OperationCanceledException)
@@ -69,7 +69,8 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
                     }
                 }
             }
-            
+
+            return NodeReturnFlag.StopRun;
         }
 
         /// <summary>

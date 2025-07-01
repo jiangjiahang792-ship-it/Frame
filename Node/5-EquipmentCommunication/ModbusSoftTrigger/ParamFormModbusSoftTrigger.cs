@@ -78,6 +78,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusSoftTrigger
             param.modbus = modBus;
             param.ModBusName = comboBoxModBusList.Text;
             param.Address = this.textBoxAddress.Text;
+            param.Type = radioButton1.Checked ? ModbusRead.RegistersType.Coils : ModbusRead.RegistersType.DiscreteInput;
             Params = param;
             Hide();
         }
@@ -100,6 +101,8 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusSoftTrigger
                         break;
                     }
                 }
+                radioButton1.Checked = param.Type == ModbusRead.RegistersType.Coils ? true : false;
+                radioButton2.Checked = param.Type == ModbusRead.RegistersType.DiscreteInput ? true : false;
             }
         }
 

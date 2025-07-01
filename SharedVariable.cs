@@ -1,20 +1,32 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace TDJS_Vision
 {
     /// <summary>
-    /// 共享变量类
+    /// 线程安全的共享变量类
     /// </summary>
     public class SharedVariable : Dictionary<string, object>
     {
+        private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
+
         /// <summary>
         /// 获取所有共享变量名称
         /// </summary>
         /// <returns></returns>
         public IEnumerable<string> GetNames()
         {
-            return Keys;
+            try
+            {
+                _lock.EnterReadLock();
+                return new List<string>(Keys);
+            }
+            finally
+            {
+                if (_lock.IsReadLockHeld)
+                    _lock.ExitReadLock();
+            }
         }
 
         /// <summary>
@@ -24,17 +36,27 @@ namespace TDJS_Vision
         /// <param name="name"></param>
         /// <returns></returns>
         /// <exception cref="KeyNotFoundException"></exception>
+        /// <exception cref="InvalidCastException"></exception>
         public T GetValue<T>(string name)
         {
-            if (TryGetValue(name, out object value))
+            try
             {
-                if (value is T typedValue)
+                _lock.EnterReadLock();
+                if (TryGetValue(name, out object value))
                 {
-                    return typedValue;
+                    if (value is T typedValue)
+                    {
+                        return typedValue;
+                    }
+                    throw new InvalidCastException($"共享变量名称为 “{name}”的值不能转化为类型“{typeof(T).Name}”！");
                 }
-                throw new InvalidCastException($"共享变量名称为 “{name}”的值不能转化为类型“{typeof(T).Name}”！");
+                throw new KeyNotFoundException($"找不到名为“{name}”的共享变量！");
             }
-            throw new KeyNotFoundException($"找不到名为“{name}”的共享变量！");
+            finally
+            {
+                if (_lock.IsReadLockHeld)
+                    _lock.ExitReadLock();
+            }
         }
 
         /// <summary>
@@ -45,11 +67,20 @@ namespace TDJS_Vision
         /// <exception cref="KeyNotFoundException"></exception>
         public object GetValue(string name)
         {
-            if (TryGetValue(name, out object value))
+            try
             {
-                return value;
+                _lock.EnterReadLock();
+                if (TryGetValue(name, out object value))
+                {
+                    return value;
+                }
+                throw new KeyNotFoundException($"找不到名为“{name}”的共享变量！");
             }
-            throw new KeyNotFoundException($"找不到名为“{name}”的共享变量！");
+            finally
+            {
+                if (_lock.IsReadLockHeld)
+                    _lock.ExitReadLock();
+            }
         }
 
         /// <summary>
@@ -59,7 +90,16 @@ namespace TDJS_Vision
         /// <param name="value"></param>
         public void SetValue(string name, object value)
         {
-            this[name] = value;
+            try
+            {
+                _lock.EnterWriteLock();
+                this[name] = value;
+            }
+            finally
+            {
+                if (_lock.IsWriteLockHeld)
+                    _lock.ExitWriteLock();
+            }
         }
 
         /// <summary>
@@ -69,7 +109,16 @@ namespace TDJS_Vision
         /// <returns></returns>
         public bool Exist(string name)
         {
-            return ContainsKey(name);
+            try
+            {
+                _lock.EnterReadLock();
+                return ContainsKey(name);
+            }
+            finally
+            {
+                if (_lock.IsReadLockHeld)
+                    _lock.ExitReadLock();
+            }
         }
 
         /// <summary>
@@ -79,7 +128,16 @@ namespace TDJS_Vision
         /// <returns></returns>
         public bool RemoveOne(string name)
         {
-            return Remove(name);
+            try
+            {
+                _lock.EnterWriteLock();
+                return Remove(name);
+            }
+            finally
+            {
+                if (_lock.IsWriteLockHeld)
+                    _lock.ExitWriteLock();
+            }
         }
 
         /// <summary>
@@ -87,7 +145,16 @@ namespace TDJS_Vision
         /// </summary>
         public void ClearAll()
         {
-            Clear();
+            try
+            {
+                _lock.EnterWriteLock();
+                Clear();
+            }
+            finally
+            {
+                if (_lock.IsWriteLockHeld)
+                    _lock.ExitWriteLock();
+            }
         }
     }
 }

@@ -18,14 +18,14 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
         /// <summary>
         /// 节点运行
         /// </summary>
-        public override async Task Run(CancellationToken token)
+        public override async Task<NodeReturnFlag> Run(CancellationToken token)
         {
             DateTime startTime = DateTime.Now;
             // 参数合法性校验
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return;
+                return NodeReturnFlag.StopRun;
             }
             if (ParamForm.Params == null)
             {
@@ -54,10 +54,11 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
                         NodeResultImageCrop nodeResultImageCrop = new NodeResultImageCrop();
                         nodeResultImageCrop.Image = roiImg;
                         nodeResultImageCrop.Rectangle = rect;
+                        var time = SetRunResult(startTime, NodeStatus.Successful);
+                        nodeResultImageCrop.RunTime = time;
                         Result = nodeResultImageCrop;
-                        SetRunResult(startTime, NodeStatus.Successful);
-                        long time = SetRunResult(startTime, NodeStatus.Successful);
                         LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，ROI图像坐标：({rect.X},{rect.Y})，宽：{rect.Width}，高：{rect.Height} )", true);
+                        return NodeReturnFlag.StopRun;
                     }
                     catch (OperationCanceledException)
                     {
@@ -73,6 +74,8 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
                     }
                 }
             }
+
+            return NodeReturnFlag.ContinueRun;
         }
     }
 }

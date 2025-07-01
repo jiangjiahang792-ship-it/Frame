@@ -19,14 +19,14 @@ namespace TDJS_Vision.Node._3_Detection.QRScan
         /// <summary>
         /// 节点运行
         /// </summary>
-        public override async Task Run(CancellationToken token)
+        public override async Task<NodeReturnFlag> Run(CancellationToken token)
         {
             DateTime startTime = DateTime.Now;
             // 参数合法性校验
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return;
+                return NodeReturnFlag.StopRun;
             }
             if (ParamForm.Params == null)
             {
@@ -45,7 +45,7 @@ namespace TDJS_Vision.Node._3_Detection.QRScan
                         SetStatus(NodeStatus.Unexecuted, "*");
                         base.CheckTokenCancel(token);
 
-                        long time = 0;
+                        var time = 0;
                         var res = ((NodeResultQRScan)Result);
                         var codes = await form.QRCodeDetect(false);
 
@@ -67,12 +67,12 @@ namespace TDJS_Vision.Node._3_Detection.QRScan
                         {
                             res.Result.SingleRowDataList.Add(new Forms.ResultView.SingleResultViewData("", "", $"{ID}.{NodeName}", codes[0], true));
                         }
-
-                        Result = res;
-
                         time = SetRunResult(startTime, NodeStatus.Successful);
+                        res.RunTime = time;
+                        Result = res;
                         SetRunResult(startTime, NodeStatus.Successful);
                         LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，二维码数据为:“{codes[0]}”", true);
+                        return NodeReturnFlag.ContinueRun;
                     }
                     catch (OperationCanceledException)
                     {
@@ -88,6 +88,7 @@ namespace TDJS_Vision.Node._3_Detection.QRScan
                     }
                 }
             }
+            return NodeReturnFlag.StopRun;
 
         }
     }

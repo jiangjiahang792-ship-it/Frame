@@ -80,6 +80,18 @@ namespace TDJS_Vision.Forms.SolRunParam
                 HeaderCell = { Style = { Alignment = DataGridViewContentAlignment.MiddleCenter } }
             };
             dataGridView1.Columns.Add(textBox2Column);
+
+            // 第六列：是否属于统计个数类的检测项
+            var checkBox2Column = new DataGridViewCheckBoxColumn
+            {
+                HeaderText = "数量型",
+                Name = "Enable",
+                Width = 32,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter },
+                HeaderCell = { Style = { Alignment = DataGridViewContentAlignment.MiddleCenter } }
+            };
+            dataGridView1.Columns.Add(checkBox2Column);
+
             // 设置列标题的高度
             dataGridView1.ColumnHeadersHeight = 64;
             // 设置行的高度
@@ -108,57 +120,12 @@ namespace TDJS_Vision.Forms.SolRunParam
                 row.Cells[2].Value = info.MinValue;
                 row.Cells[3].Value = info.CurValue;
                 row.Cells[4].Value = info.MaxValue;
+                row.Cells[5].Value = info.IsCountItem;
 
                 dataGridView1.Rows.Add(row);
             }
         }
-        /// <summary>
-        /// 获取表格所有的检测项数据
-        /// </summary>
-        /// <returns></returns>
-        public List<DetectItemInfo> GetConfigData()
-        {
-            List<DetectItemInfo> result = new List<DetectItemInfo>();
 
-            foreach (DataGridViewRow row in dataGridView1.Rows)
-            {
-                if (row.IsNewRow) continue; // 跳过新增行
-
-                try
-                {
-                    var item = new DetectItemInfo();
-
-                    // 注意：请确保列索引与你的 DataGridView 列顺序一致
-                    item.Name = row.Cells[0].Value?.ToString() ?? string.Empty;
-                    item.MinValue = row.Cells[1].Value?.ToString() ?? string.Empty;
-                    item.MaxValue = row.Cells[2].Value?.ToString() ?? string.Empty;
-
-                    // 处理 Enable 列：必须是布尔值
-                    if (row.Cells[3].Value is bool enableBool)
-                    {
-                        item.Enable = enableBool;
-                    }
-                    else if (bool.TryParse(row.Cells[3].Value?.ToString(), out bool parsed))
-                    {
-                        item.Enable = parsed;
-                    }
-                    else
-                    {
-                        item.Enable = false; // 默认不启用
-                    }
-
-                    item.CurValue = row.Cells[4].Value?.ToString() ?? string.Empty;
-
-                    result.Add(item);
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.AddLog(MsgLevel.Fatal, $"读取行失败：{ex.Message}",true);
-                }
-            }
-
-            return result;
-        }
         /// <summary>
         /// 从表格中获取检测项配置
         /// </summary>
@@ -176,28 +143,12 @@ namespace TDJS_Vision.Forms.SolRunParam
                     Name = row.Cells[1].Value.ToString(),
                     MinValue = row.Cells[2].Value.ToString(),
                     CurValue = row.Cells[3].Value.ToString(),
-                    MaxValue = row.Cells[4].Value.ToString()
+                    MaxValue = row.Cells[4].Value.ToString(),
+                    IsCountItem = Convert.ToBoolean(row.Cells[5].Value)
                 };
                 infos.Add(info);
             }
             return infos;
-        }
-
-        private void AddSampleData()
-        {
-            for (int i = 0; i < 5; i++)
-            {
-                var row = new DataGridViewRow();
-                row.CreateCells(dataGridView1);
-
-                row.Cells[0].Value = false; // CheckBox 默认值
-                row.Cells[1].Value = "检测项" + i;
-                row.Cells[2].Value = "0"; // TextBox 值
-                row.Cells[3].Value = "mm"; // Label 单位
-                row.Cells[4].Value = ""; // 备注 TextBox
-
-                dataGridView1.Rows.Add(row);
-            }
         }
     }
 }

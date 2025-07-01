@@ -22,7 +22,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
             toolTip1.SetToolTip(checkBoxReSet, "发送信号后在保持时间结束自动重置信号");
             toolTip1.SetToolTip(buttonAuto1, "清空信号列表，对当前勾选的每一项检测项，在信号列表中生成一行信号配置");
             toolTip1.SetToolTip(buttonAuto2, "清空信号列表，对当前勾选的所有检测项，在信号列表中仅生成一行信号配置");
-            toolTip1.SetToolTip(buttonAdd, "不清空信号列表，在原有信号列表上新增，被勾选的每一项检测项均在信号列表中生成一行信号配置");
+            toolTip1.SetToolTip(buttonAdd1, "不清空信号列表，在原有信号列表上新增，被勾选的每一项检测项均在信号列表中生成一行信号配置");
         }
 
         private void Form1_Shown(object sender, EventArgs e)
@@ -75,7 +75,8 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     {
                         CommModbus = row.CommModbus,
                         SignalAddress = row.SignalAddress,
-                        Value = row.Value
+                        OkValue = row.OkValue,
+                        NgValue = row.NgValue,
                     };
                 }
             }
@@ -198,14 +199,24 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
             GenerateDataGridViewData2();
         }
         /// <summary>
-        /// 增量配置
+        /// 增量配置1
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
         private void buttonAdd_Click(object sender, EventArgs e)
         {
-            GenerateDataGridViewDataInc();
+            GenerateDataGridViewDataInc1();
         }
+        /// <summary>
+        /// 增量配置2
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void buttonAdd2_Click(object sender, EventArgs e)
+        {
+            GenerateDataGridViewDataInc2();
+        }
+
         /// <summary>
         /// 保存配置
         /// </summary>
@@ -241,12 +252,10 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
         private void InitializeDataGridView()
         {
             dataGridView1.AutoGenerateColumns = false;
-
-            // 清除已有列
             dataGridView1.Columns.Clear();
             var color = Color.SteelBlue;
 
-            // 列1：检测项（不可编辑字符串，多个检测项用分号分隔）
+            // 列1：检测项（只读）
             var detectItemsColumn = new DataGridViewTextBoxColumn
             {
                 DataPropertyName = "DetectItems",
@@ -258,7 +267,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
             detectItemsColumn.HeaderCell.Style.BackColor = color;
             dataGridView1.Columns.Add(detectItemsColumn);
 
-            // 新增列3：通信Modbus（不可编辑字符串）
+            // 列2：通信Modbus（只读）
             var commModbusColumn = new DataGridViewTextBoxColumn
             {
                 DataPropertyName = "CommModbus",
@@ -270,33 +279,43 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
             commModbusColumn.HeaderCell.Style.BackColor = color;
             dataGridView1.Columns.Add(commModbusColumn);
 
-            // 列4：信号地址（可编辑字符串）
+            // 列3：信号地址（可编辑）
             var signalAddressColumn = new DataGridViewTextBoxColumn
             {
                 DataPropertyName = "SignalAddress",
-                HeaderText = "信号地址(可编辑)",
+                HeaderText = "信号地址",
                 Name = "SignalAddressColumn",
-                SortMode = DataGridViewColumnSortMode.NotSortable
+                SortMode = DataGridViewColumnSortMode.NotSortable,
+                ReadOnly = false
             };
             signalAddressColumn.HeaderCell.Style.BackColor = color;
             dataGridView1.Columns.Add(signalAddressColumn);
 
-
-            // 检测项OK时发送的值：下拉选项为 "1", "0"
-            var valueItems = new List<bool> { true, false };
-
-            var valueColumn = new DataGridViewComboBoxColumn
+            // 列4：OK发送值（可编辑文本框）
+            var okValueColumn = new DataGridViewTextBoxColumn
             {
-                Name = "Value",
-                HeaderText = "OK信号值",
-                DataPropertyName = "Value", // 对应 DetectItemRow.Value 属性
-                DataSource = new BindingSource(valueItems, null),
-                ValueType = typeof(bool),     // 确保绑定类型正确
+                DataPropertyName = "OkValue",
+                HeaderText = "OK发送值",
+                Name = "OkValueColumn",
                 SortMode = DataGridViewColumnSortMode.NotSortable,
-                AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells
+                ReadOnly = false,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleRight }
             };
-            valueColumn.HeaderCell.Style.BackColor = color;
-            dataGridView1.Columns.Add(valueColumn);
+            okValueColumn.HeaderCell.Style.BackColor = color;
+            dataGridView1.Columns.Add(okValueColumn);
+
+            // 列5：NG发送值（可编辑文本框）
+            var ngValueColumn = new DataGridViewTextBoxColumn
+            {
+                DataPropertyName = "NgValue",
+                HeaderText = "NG发送值",
+                Name = "NgValueColumn",
+                SortMode = DataGridViewColumnSortMode.NotSortable,
+                ReadOnly = false,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleRight }
+            };
+            ngValueColumn.HeaderCell.Style.BackColor = color;
+            dataGridView1.Columns.Add(ngValueColumn);
         }
 
         /// <summary>
@@ -317,9 +336,10 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     dataSource.Add(new DetectItemRow
                     {
                         DetectItems = itemText,
-                        Value = true,
-                        SignalAddress = signalAddressCounter.ToString(),
                         CommModbus = comboBoxModBusList.Text,
+                        SignalAddress = signalAddressCounter.ToString(),
+                        OkValue = 1,
+                        NgValue = 0,
                     });
 
                     signalAddressCounter++;
@@ -345,16 +365,17 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
             dataSource.Add(new DetectItemRow
             {
                 DetectItems = names,
-                Value = true,
-                SignalAddress = "0",
                 CommModbus = comboBoxModBusList.Text,
+                SignalAddress = "0",
+                OkValue = 1,
+                NgValue= 0,
             });
             dataGridView1.DataSource = dataSource;
         }
         /// <summary>
-        /// 增量配置的数据源构造
+        /// 增量配置1的数据源构造
         /// </summary>
-        private void GenerateDataGridViewDataInc()
+        private void GenerateDataGridViewDataInc1()
         {
             var dataSource = dataGridView1.DataSource as BindingList<DetectItemRow>;
             int signalAddressCounter = 0;
@@ -367,14 +388,39 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
                     dataSource.Add(new DetectItemRow
                     {
                         DetectItems = itemText,
-                        Value = true,
-                        SignalAddress = signalAddressCounter.ToString(),
                         CommModbus = comboBoxModBusList.Text,
+                        SignalAddress = signalAddressCounter.ToString(),
+                        OkValue = 1,
+                        NgValue = 0,
                     });
 
                     signalAddressCounter++;
                 }
             }
+            dataGridView1.DataSource = dataSource;
+        }
+        /// <summary>
+        /// 增量配置2的数据源构造
+        /// </summary>
+        private void GenerateDataGridViewDataInc2()
+        {
+            var dataSource = dataGridView1.DataSource as BindingList<DetectItemRow>;
+            string names = "";
+            for (int i = 0; i < checkedListBox1.CheckedItems.Count; i++)
+            {
+                var itemText = checkedListBox1.CheckedItems[i].ToString();
+                names += itemText;
+                if (i != (checkedListBox1.CheckedItems.Count - 1))
+                    names += ";";
+            }
+            dataSource.Add(new DetectItemRow
+            {
+                DetectItems = names,
+                CommModbus = comboBoxModBusList.Text,
+                SignalAddress = "0",
+                OkValue = 1,
+                NgValue = 0,
+            });
             dataGridView1.DataSource = dataSource;
         }
         /// <summary>
@@ -409,17 +455,10 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSendByModbus
     /// </summary>
     internal class DetectItemRow
     {
-        // 检测项，例如："露线芯长度;咬胶长度"
-        public string DetectItems { get; set; }
-
-        // 发送的值，“1” 或 “0”
-        public bool Value { get; set; }
-
-        // Modbus线圈地址，例如："0"
-        public string SignalAddress { get; set; }
-
-        // 通信Modbus
-        public string CommModbus { get; set; }
-
+        public string DetectItems { get; set; }      // 检测项名称（多个用分号隔开）
+        public string CommModbus { get; set; }       // Modbus设备名
+        public string SignalAddress { get; set; }    // 信号地址
+        public ushort OkValue { get; set; }          // OK时发送的值
+        public ushort NgValue { get; set; }          // NG时发送的值
     }
 }

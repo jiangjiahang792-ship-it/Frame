@@ -24,14 +24,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <summary>
         /// 节点运行
         /// </summary>
-        public override async Task Run(CancellationToken token)
+        public override async Task<NodeReturnFlag> Run(CancellationToken token)
         {
             DateTime startTime = DateTime.Now;
 
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return;
+                return NodeReturnFlag.StopRun;
             }
             if (ParamForm.Params == null)
             {
@@ -57,8 +57,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             // 获取模型句柄种类
                             var modelType = ModelHandleManager.GetModelHandleType(param.Handle);
 
-                            // 清空上次AI结果
-                            res.AiResult?.Clear();
+                            // 清空上次矩形
+                            res.AiResult.CurRectsMap.Clear();
 
                             // 4种模型检出结果解析
                             int result_count = 0;
@@ -73,7 +73,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     // 输出检测项配置
                                     res.AIInputInfo = param.AIInputInfo;
                                     //超日项目的结果解析
-                                    AI.TypeCResultParse(det_results, result_count, ref res); 
+                                    AI.TypeCResultParse2(det_results, result_count, ref res); 
                                     break;
 
                                 case ModelType.OBB:
@@ -118,11 +118,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                 default:
                                     break;
                             }
+
+                            var time = SetRunResult(startTime, NodeStatus.Successful);
+                            res.RunTime = time;
                             // 返回结果
                             Result = res;
-
-                            long time = SetRunResult(startTime, NodeStatus.Successful);
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                            return NodeReturnFlag.ContinueRun;
                         }
                         catch (OperationCanceledException)
                         {
@@ -139,6 +141,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     }
                 }
             }
+            return NodeReturnFlag.StopRun;
         }
     }
 }

@@ -33,23 +33,32 @@ namespace TDJS_Vision.Node
     /// </summary>
     internal interface INodeResult 
     {
-        /// <summary>
-        /// 节点运行状态
-        /// </summary>
-        NodeStatus Status { get; set; }
-        /// <summary>
-        /// 节点运行时间ms，计算方法：
-        /// Stopwatch stopwatch = new Stopwatch();
-        /// DateTime endTime = DateTime.Now;
-        /// TimeSpan elapsed = endTime - startTime;
-        /// long elapsedMilliseconds = elapsed.TotalMilliseconds;
-        /// </summary>
-        long RunTime {  get; set; }
-        /// <summary>
-        /// 运行状态码
-        /// </summary>
-        NodeRunStatusCode RunStatusCode { get; set; }
+        int RunTime { get; set; } // 运行时间
+    }
 
+    internal enum NodeStatus
+    {
+        /// <summary>
+        /// 未运行
+        /// </summary>
+        Unexecuted,
+        /// <summary>
+        /// 运行成功
+        /// </summary>
+        Successful,
+        /// <summary>
+        /// 运行失败
+        /// </summary>
+        Failed
+    }
+
+    /// <summary>
+    /// 用来控制当前节点运行完是否继续运行流程下一个节点
+    /// </summary>
+    internal enum NodeReturnFlag
+    {
+        ContinueRun,
+        StopRun
     }
 
     /// <summary>
@@ -224,6 +233,10 @@ namespace TDJS_Vision.Node
         /// <summary>
         /// AI结果绘制
         /// </summary>
-        DrawAIResult
+        DrawAIResult,
+        /// <summary>
+        /// 条件运行
+        /// </summary>
+        ConditionRun
     }
 }

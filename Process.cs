@@ -92,31 +92,38 @@ namespace TDJS_Vision
         /// </summary>
         public async Task Run(bool isCyclical)
         {
-            // 节点数为0或流程不启用则不运行
             if (Nodes.Count == 0 || !Enable)
                 return;
+
             RunTime = 0;
-            // 界面运行按钮Enable设置为运行中
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(true, false, ProcessName));
 
             LogHelper.AddLog(MsgLevel.Info, $"-----------------------------------------------------  【{ProcessName}】（开始）  -----------------------------------------------------", true);
             IsRuning = true;
             Success = false;
+
             foreach (var node in _nodes)
             {
                 try
                 {
-                    // 点检模式（非循环运行方案模式）需要跳过流程中第一个节点是“PLC软触发”或“Modbus软触发”节点
-                    if (node == _nodes[0] && (node.NodeType == NodeType.WaitSoftTrigger || node.NodeType == NodeType.ModbusSoftTrigger) && !isCyclical)
-                        continue;
-                    await node.Run(Solution.Instance.CancellationToken);
+                    NodeReturnFlag result = await node.Run(Solution.Instance.CancellationToken);
                     RunTime += node.Result.RunTime;
+
+                    if (result == NodeReturnFlag.StopRun)
+                    {
+                        // 当前节点要求停止后续节点执行
+                        Success = true; // 可以设置为成功或其他状态
+                        IsRuning = false;
+
+                        LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（提前完成）  ---------------------------------", true);
+                        UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
+                        return; // 提前退出整个流程
+                    }
                 }
                 catch (OperationCanceledException ex)
                 {
                     Success = false;
                     IsRuning = false;
-                    RunTime += node.Result.RunTime;
                     LogHelper.AddLog(MsgLevel.Warn, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（运行中断）  ---------------------------------", true);
                     UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                     throw ex;
@@ -125,13 +132,13 @@ namespace TDJS_Vision
                 {
                     Success = false;
                     IsRuning = false;
-                    RunTime += node.Result.RunTime;
                     LogHelper.AddLog(MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（失败）  ---------------------------------", true);
                     UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                     throw ex;
                 }
             }
 
+            // 所有节点都执行完毕
             Success = true;
             IsRuning = false;
             LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（成功）  ---------------------------------", true);
@@ -145,7 +152,7 @@ namespace TDJS_Vision
         /// </summary>
         public async Task RunForHardTrigger(NodeBase nodeShot, long time)
         {
-            // 重置运行取消令牌
+            // 重置取消令牌
             Solution.Instance.ResetTokenSource();
 
             // 节点数为0或流程不启用则不运行
@@ -153,27 +160,40 @@ namespace TDJS_Vision
                 return;
 
             RunTime = 0;
-            // 更新运行状态
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(true, false, ProcessName));
             IsRuning = true;
             Success = false;
+
             foreach (var node in _nodes)
             {
                 try
                 {
                     if (nodeShot == node)
                     {
+                        // 模拟该节点运行时间，并跳过真实执行
                         RunTime += time;
                         continue;
                     }
-                    await node.Run(Solution.Instance.CancellationToken);
+
+                    // 正常执行节点
+                    NodeReturnFlag result = await node.Run(Solution.Instance.CancellationToken);
                     RunTime += node.Result.RunTime;
+
+                    // 判断是否继续执行后续节点
+                    if (result == NodeReturnFlag.StopRun)
+                    {
+                        Success = true; // 或者根据业务需求设置为 false
+                        IsRuning = false;
+
+                        LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（提前完成）  ---------------------------------", true);
+                        UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
+                        return; // 提前退出整个流程
+                    }
                 }
                 catch (OperationCanceledException ex)
                 {
                     Success = false;
                     IsRuning = false;
-                    RunTime += node.Result.RunTime;
                     LogHelper.AddLog(MsgLevel.Warn, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（运行中断）  ---------------------------------", true);
                     UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                     throw ex;
@@ -189,6 +209,7 @@ namespace TDJS_Vision
                 }
             }
 
+            // 所有节点都成功执行
             Success = true;
             IsRuning = false;
             LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（成功）  ---------------------------------", true);

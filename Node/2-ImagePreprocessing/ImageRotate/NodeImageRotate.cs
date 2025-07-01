@@ -18,14 +18,14 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
         /// <summary>
         /// 节点运行
         /// </summary>
-        public override async Task Run(CancellationToken token)
+        public override async Task<NodeReturnFlag> Run(CancellationToken token)
         {
             DateTime startTime = DateTime.Now;
             // 参数合法性校验
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return;
+                return NodeReturnFlag.StopRun;
             }
             if (ParamForm.Params == null)
             {
@@ -46,10 +46,11 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
 
                         NodeResultImageRotate nodeResultImageRotate = new NodeResultImageRotate();
                         nodeResultImageRotate.Image = form.ImageRotate(BitmapConverter.ToMat(form.GetImage()), param.Angle);
+                        var time = SetRunResult(startTime, NodeStatus.Successful);
+                        nodeResultImageRotate.RunTime = time;
                         Result = nodeResultImageRotate;
-                        SetRunResult(startTime, NodeStatus.Successful);
-                        long time = SetRunResult(startTime, NodeStatus.Successful);
                         LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                        return NodeReturnFlag.ContinueRun;
                     }
                     catch (OperationCanceledException)
                     {
@@ -65,6 +66,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
                     }
                 }
             }
+            return NodeReturnFlag.StopRun;
         }
     }
 }

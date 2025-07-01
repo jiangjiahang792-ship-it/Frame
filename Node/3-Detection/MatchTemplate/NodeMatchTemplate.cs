@@ -19,14 +19,14 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// <summary>
         /// 节点运行
         /// </summary>
-        public override async Task Run(CancellationToken token)
+        public override async Task<NodeReturnFlag> Run(CancellationToken token)
         {
             DateTime startTime = DateTime.Now;
             // 参数合法性校验
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return;
+                return NodeReturnFlag.StopRun;
             }
             if (ParamForm.Params == null)
             {
@@ -60,9 +60,10 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         if (!isOk)
                             throw new Exception($"当前图像匹配得分为{score.ToString("F2")}, 低于该节点设置的得分阈值，请检查图像成像是否异常，或降低设置的得分阈值！");
 
-                        long time = SetRunResult(startTime, NodeStatus.Successful);
-                        SetRunResult(startTime, NodeStatus.Successful);
+                        var time = SetRunResult(startTime, NodeStatus.Successful);
+                        Result.RunTime = time;
                         LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，匹配得分：{score.ToString("F2")}, 匹配是否成功: {isOk}", true);
+                        return NodeReturnFlag.ContinueRun;
                     }
                     catch (OperationCanceledException)
                     {
@@ -78,6 +79,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                     }
                 }
             }
+            return NodeReturnFlag.StopRun;
 
         }
     }

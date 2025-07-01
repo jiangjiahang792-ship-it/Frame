@@ -41,15 +41,16 @@
             this.buttonSave = new System.Windows.Forms.Button();
             this.tableLayoutPanel2 = new System.Windows.Forms.TableLayoutPanel();
             this.checkBoxAutoSelect = new System.Windows.Forms.CheckBox();
-            this.buttonAdd = new System.Windows.Forms.Button();
+            this.buttonAdd1 = new System.Windows.Forms.Button();
             this.buttonAuto2 = new System.Windows.Forms.Button();
             this.buttonAuto1 = new System.Windows.Forms.Button();
             this.textBoxHoldTime = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
             this.checkBoxReSet = new System.Windows.Forms.CheckBox();
+            this.buttonAdd2 = new System.Windows.Forms.Button();
             this.label2 = new System.Windows.Forms.Label();
-            this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
             this.checkBoxUseRegister = new System.Windows.Forms.CheckBox();
+            this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
             this.tableLayoutPanel1.SuspendLayout();
             this.groupBoxSignalView.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).BeginInit();
@@ -189,22 +190,24 @@
             // 
             // tableLayoutPanel2
             // 
-            this.tableLayoutPanel2.ColumnCount = 7;
+            this.tableLayoutPanel2.ColumnCount = 8;
             this.tableLayoutPanel1.SetColumnSpan(this.tableLayoutPanel2, 6);
-            this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 13F));
-            this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 15F));
             this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 12F));
-            this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 15F));
-            this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 15F));
-            this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 15F));
-            this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 15F));
+            this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 14F));
+            this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 14F));
+            this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 12F));
+            this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 12F));
+            this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 12F));
+            this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 12F));
+            this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 12F));
             this.tableLayoutPanel2.Controls.Add(this.checkBoxAutoSelect, 0, 0);
-            this.tableLayoutPanel2.Controls.Add(this.buttonAdd, 6, 0);
+            this.tableLayoutPanel2.Controls.Add(this.buttonAdd1, 6, 0);
             this.tableLayoutPanel2.Controls.Add(this.buttonAuto2, 5, 0);
             this.tableLayoutPanel2.Controls.Add(this.buttonAuto1, 4, 0);
             this.tableLayoutPanel2.Controls.Add(this.textBoxHoldTime, 3, 0);
             this.tableLayoutPanel2.Controls.Add(this.label1, 2, 0);
             this.tableLayoutPanel2.Controls.Add(this.checkBoxReSet, 1, 0);
+            this.tableLayoutPanel2.Controls.Add(this.buttonAdd2, 7, 0);
             this.tableLayoutPanel2.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel2.Location = new System.Drawing.Point(3, 63);
             this.tableLayoutPanel2.Name = "tableLayoutPanel2";
@@ -218,7 +221,7 @@
             this.checkBoxAutoSelect.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.checkBoxAutoSelect.AutoSize = true;
             this.checkBoxAutoSelect.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.checkBoxAutoSelect.Location = new System.Drawing.Point(22, 16);
+            this.checkBoxAutoSelect.Location = new System.Drawing.Point(16, 16);
             this.checkBoxAutoSelect.Name = "checkBoxAutoSelect";
             this.checkBoxAutoSelect.Size = new System.Drawing.Size(102, 22);
             this.checkBoxAutoSelect.TabIndex = 14;
@@ -226,25 +229,25 @@
             this.checkBoxAutoSelect.UseVisualStyleBackColor = true;
             this.checkBoxAutoSelect.CheckedChanged += new System.EventHandler(this.checkBoxAutoSelect_CheckedChanged);
             // 
-            // buttonAdd
+            // buttonAdd1
             // 
-            this.buttonAdd.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.buttonAdd.BackColor = System.Drawing.Color.LightSteelBlue;
-            this.buttonAdd.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonAdd.Location = new System.Drawing.Point(983, 7);
-            this.buttonAdd.Name = "buttonAdd";
-            this.buttonAdd.Size = new System.Drawing.Size(125, 40);
-            this.buttonAdd.TabIndex = 1;
-            this.buttonAdd.Text = "增量配置 ?";
-            this.buttonAdd.UseVisualStyleBackColor = false;
-            this.buttonAdd.Click += new System.EventHandler(this.buttonAdd_Click);
+            this.buttonAdd1.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.buttonAdd1.BackColor = System.Drawing.Color.LightSteelBlue;
+            this.buttonAdd1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.buttonAdd1.Location = new System.Drawing.Point(861, 7);
+            this.buttonAdd1.Name = "buttonAdd1";
+            this.buttonAdd1.Size = new System.Drawing.Size(125, 40);
+            this.buttonAdd1.TabIndex = 1;
+            this.buttonAdd1.Text = "增量配置1 ?";
+            this.buttonAdd1.UseVisualStyleBackColor = false;
+            this.buttonAdd1.Click += new System.EventHandler(this.buttonAdd_Click);
             // 
             // buttonAuto2
             // 
             this.buttonAuto2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonAuto2.BackColor = System.Drawing.Color.LightSteelBlue;
             this.buttonAuto2.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonAuto2.Location = new System.Drawing.Point(811, 7);
+            this.buttonAuto2.Location = new System.Drawing.Point(726, 7);
             this.buttonAuto2.Name = "buttonAuto2";
             this.buttonAuto2.Size = new System.Drawing.Size(125, 40);
             this.buttonAuto2.TabIndex = 1;
@@ -257,7 +260,7 @@
             this.buttonAuto1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonAuto1.BackColor = System.Drawing.Color.LightSteelBlue;
             this.buttonAuto1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonAuto1.Location = new System.Drawing.Point(641, 6);
+            this.buttonAuto1.Location = new System.Drawing.Point(590, 6);
             this.buttonAuto1.Name = "buttonAuto1";
             this.buttonAuto1.Size = new System.Drawing.Size(126, 41);
             this.buttonAuto1.TabIndex = 1;
@@ -269,7 +272,7 @@
             // 
             this.textBoxHoldTime.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBoxHoldTime.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxHoldTime.Location = new System.Drawing.Point(477, 13);
+            this.textBoxHoldTime.Location = new System.Drawing.Point(460, 13);
             this.textBoxHoldTime.Name = "textBoxHoldTime";
             this.textBoxHoldTime.Size = new System.Drawing.Size(116, 28);
             this.textBoxHoldTime.TabIndex = 13;
@@ -281,7 +284,7 @@
             this.label1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label1.AutoSize = true;
             this.label1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label1.Location = new System.Drawing.Point(325, 18);
+            this.label1.Location = new System.Drawing.Point(314, 18);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(116, 18);
             this.label1.TabIndex = 4;
@@ -294,12 +297,25 @@
             this.checkBoxReSet.Checked = true;
             this.checkBoxReSet.CheckState = System.Windows.Forms.CheckState.Checked;
             this.checkBoxReSet.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.checkBoxReSet.Location = new System.Drawing.Point(171, 16);
+            this.checkBoxReSet.Location = new System.Drawing.Point(154, 16);
             this.checkBoxReSet.Name = "checkBoxReSet";
             this.checkBoxReSet.Size = new System.Drawing.Size(120, 22);
             this.checkBoxReSet.TabIndex = 14;
             this.checkBoxReSet.Text = "信号重置 ?";
             this.checkBoxReSet.UseVisualStyleBackColor = true;
+            // 
+            // buttonAdd2
+            // 
+            this.buttonAdd2.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.buttonAdd2.BackColor = System.Drawing.Color.LightSteelBlue;
+            this.buttonAdd2.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.buttonAdd2.Location = new System.Drawing.Point(999, 7);
+            this.buttonAdd2.Name = "buttonAdd2";
+            this.buttonAdd2.Size = new System.Drawing.Size(125, 40);
+            this.buttonAdd2.TabIndex = 1;
+            this.buttonAdd2.Text = "增量配置2 ?";
+            this.buttonAdd2.UseVisualStyleBackColor = false;
+            this.buttonAdd2.Click += new System.EventHandler(this.buttonAdd2_Click);
             // 
             // label2
             // 
@@ -312,14 +328,6 @@
             this.label2.TabIndex = 2;
             this.label2.Text = "订阅AI结果";
             // 
-            // toolTip1
-            // 
-            this.toolTip1.AutomaticDelay = 200;
-            this.toolTip1.AutoPopDelay = 4000;
-            this.toolTip1.InitialDelay = 200;
-            this.toolTip1.ReshowDelay = 40;
-            this.toolTip1.ToolTipTitle = "效果";
-            // 
             // checkBoxUseRegister
             // 
             this.checkBoxUseRegister.Anchor = System.Windows.Forms.AnchorStyles.None;
@@ -330,6 +338,14 @@
             this.checkBoxUseRegister.TabIndex = 16;
             this.checkBoxUseRegister.Text = "使用寄存器";
             this.checkBoxUseRegister.UseVisualStyleBackColor = true;
+            // 
+            // toolTip1
+            // 
+            this.toolTip1.AutomaticDelay = 200;
+            this.toolTip1.AutoPopDelay = 4000;
+            this.toolTip1.InitialDelay = 200;
+            this.toolTip1.ReshowDelay = 40;
+            this.toolTip1.ToolTipTitle = "效果";
             // 
             // ParamFormSignalSendByModbus
             // 
@@ -369,7 +385,7 @@
         private System.Windows.Forms.GroupBox groupBox1;
         private System.Windows.Forms.Button buttonAuto2;
         private System.Windows.Forms.Button buttonAuto1;
-        private System.Windows.Forms.Button buttonAdd;
+        private System.Windows.Forms.Button buttonAdd1;
         private System.Windows.Forms.ToolTip toolTip1;
         private System.Windows.Forms.TextBox textBoxHoldTime;
         private System.Windows.Forms.Label label1;
@@ -378,5 +394,6 @@
         private System.Windows.Forms.CheckBox checkBoxReSet;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.CheckBox checkBoxUseRegister;
+        private System.Windows.Forms.Button buttonAdd2;
     }
 }

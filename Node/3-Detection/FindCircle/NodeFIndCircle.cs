@@ -22,14 +22,14 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
         /// <summary>
         /// 节点运行
         /// </summary>
-        public override async Task Run(CancellationToken token)
+        public override async Task<NodeReturnFlag> Run(CancellationToken token)
         {
             DateTime startTime = DateTime.Now;
             // 参数合法性校验
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return;
+                return NodeReturnFlag.StopRun;
             }
             if (ParamForm.Params == null)
             {
@@ -66,9 +66,11 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
                         ((NodeResultFindCircle)Result).Result.SingleRowDataList.Add(new Forms.ResultView.SingleResultViewData
                                                                     ("", "", $"{ID}.{NodeName}", res, res == "OK" ? true : false));
 
-                        SetRunResult(startTime, NodeStatus.Successful);
-                        long time = SetRunResult(startTime, NodeStatus.Successful);
+                        var time = SetRunResult(startTime, NodeStatus.Successful);
+                        Result.RunTime = time;
                         LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，圆半径：{Circle.Radius} 像素, 圆心：({Circle.Center.X},{Circle.Center.Y}), 判定：{res}", true);
+
+                        return NodeReturnFlag.ContinueRun;
                     }
                     catch (OperationCanceledException)
                     {
@@ -84,6 +86,7 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
                     }
                 }
             }
+            return NodeReturnFlag.StopRun;
 
         }
     }

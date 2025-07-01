@@ -163,7 +163,7 @@
             this.textBox_FontSize.Name = "textBox_FontSize";
             this.textBox_FontSize.Size = new System.Drawing.Size(163, 28);
             this.textBox_FontSize.TabIndex = 4;
-            this.textBox_FontSize.Text = "20";
+            this.textBox_FontSize.Text = "40";
             this.textBox_FontSize.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // textBox_LineWidth
@@ -174,7 +174,7 @@
             this.textBox_LineWidth.Name = "textBox_LineWidth";
             this.textBox_LineWidth.Size = new System.Drawing.Size(163, 28);
             this.textBox_LineWidth.TabIndex = 4;
-            this.textBox_LineWidth.Text = "3";
+            this.textBox_LineWidth.Text = "6";
             this.textBox_LineWidth.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // label5

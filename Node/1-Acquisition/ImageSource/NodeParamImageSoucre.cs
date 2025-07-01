@@ -66,9 +66,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// </summary>
         public double Gain { get; set; }
         /// <summary>
-        /// 是否频闪
+        /// 是否每次设置参数
         /// </summary>
-        public bool IsStrobing { get; set; }
+        public bool IsEveryTime { get; set; }
         
 
         #endregion

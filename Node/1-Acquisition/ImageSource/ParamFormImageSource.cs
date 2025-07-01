@@ -98,7 +98,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     numericUpDownExposureTime.Text = param.ExposureTime.ToString();
                     numericUpDownGain.Text = param.Gain.ToString();
                     // 是否频闪
-                    int index1 = comboBoxStrobe.Items.IndexOf(param.IsStrobing ? "是" : "否");
+                    int index1 = comboBoxStrobe.Items.IndexOf(param.IsEveryTime ? "是" : "否");
                     comboBoxStrobe.SelectedIndex = index1 == -1 ? 0 : index1;
                     // 还原节点使用的相机
                     foreach (var camera in Solution.Instance.CameraDevices)
@@ -107,7 +107,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         {
                             param.Camera = camera;
                             // 不是频闪应用可以在参数界面只设置一次,是频闪的话相机需要在节点运行时每次设置
-                            if (!param.IsStrobing)
+                            if (!param.IsEveryTime)
                                 SetCameraParams(param.Camera, param.TriggerSource, param.TriggerEdge, param.TriggerDelay
                                     , param.ExposureTime, param.Gain);
 
@@ -439,13 +439,13 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 _nodeParamImageSource.ExposureTime = exposureTime;
                 //增益设置
                 _nodeParamImageSource.Gain = gain;
-                // 是否频闪应用
-                _nodeParamImageSource.IsStrobing = comboBoxStrobe.Text == "否" ? false : true;
+                // 是否每次设置参数
+                _nodeParamImageSource.IsEveryTime = comboBoxStrobe.Text == "否" ? false : true;
 
                 #endregion
 
                 // 不是频闪应用可以在参数界面只设置一次,是频闪的话相机需要在节点运行时每次设置
-                if (!_nodeParamImageSource.IsStrobing)
+                if (!_nodeParamImageSource.IsEveryTime)
                     SetCameraParams(_nodeParamImageSource.Camera, _nodeParamImageSource.TriggerSource, _nodeParamImageSource.TriggerEdge, _nodeParamImageSource.TriggerDelay
                         , _nodeParamImageSource.ExposureTime, _nodeParamImageSource.Gain);
 

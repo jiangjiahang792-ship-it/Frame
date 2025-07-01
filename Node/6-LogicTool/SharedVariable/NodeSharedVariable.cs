@@ -19,7 +19,7 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
         /// <summary>
         /// 节点运行
         /// </summary>
-        public override async Task Run(CancellationToken token)
+        public override async Task<NodeReturnFlag> Run(CancellationToken token)
         {
             DateTime startTime = DateTime.Now;
 
@@ -27,7 +27,7 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return;
+                return NodeReturnFlag.StopRun;
             }
             if (ParamForm.Params == null)
             {
@@ -58,6 +58,9 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
                                 {
                                     case SharedVarTypeEnum.AllType:
                                     case SharedVarTypeEnum.Bool:
+                                    case SharedVarTypeEnum.BoolArr:
+                                        result.Value = val == null ? false : ((bool[])(val))[param.Index];
+                                        break;
                                     case SharedVarTypeEnum.Int:
                                     case SharedVarTypeEnum.String:
                                     case SharedVarTypeEnum.Float:
@@ -76,18 +79,17 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
                             }
                             result.Type = param.Type;
                             resStr = $"{result.Value}";
-                            Result = result;
-
-                            long time = SetRunResult(startTime, NodeStatus.Successful);
-                            LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms, 读到的共享变量为：“{resStr})”", true);
                         }
                         else
                         {
                             Solution.Instance.SharedVariable.SetValue(param.WriteName, form.GetSubValue());
-
-                            long time = SetRunResult(startTime, NodeStatus.Successful);
-                            LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
                         }
+
+                        var time = SetRunResult(startTime, NodeStatus.Successful);
+                        Result.RunTime = time;
+                        Result = result;
+                        LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                        return NodeReturnFlag.ContinueRun;
                     }
                     catch (OperationCanceledException)
                     {
@@ -103,6 +105,7 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
                     }
                 }
             }
+            return NodeReturnFlag.StopRun;
         }
 
         private static List<Bitmap> ConvertToBitmapArray(object obj)

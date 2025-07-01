@@ -9,15 +9,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 {
     internal class NodeResultTDAI : INodeResult
     {
-        [DisplayName("运行状态")]
-        public NodeStatus Status { get; set; }
-
-        [DisplayName("节点耗时")]
-        public long RunTime { get; set; }
-
-        [DisplayName("运行状态码")]
-        public NodeRunStatusCode RunStatusCode { get; set; }
-
+        public int RunTime { get; set; }
         [DisplayName("AI检测项配置")]
         public AIInputInfo AIInputInfo { get; set; }
 
@@ -43,9 +35,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// </summary>
         public Dictionary<string, List<SingleDetectResult>> DetectResults { get; set; } = new Dictionary<string, List<SingleDetectResult>>();
         /// <summary>
-        /// 带颜色的检测框
+        /// 带颜色的当前结果检测框
         /// </summary>
-        public List<ColorRotatedRect> Rects { get; set; } = new List<ColorRotatedRect>();
+        public Dictionary<string, List<ColorRotatedRect>> CurRectsMap { get; set; } = new Dictionary<string, List<ColorRotatedRect>>();
+        /// <summary>
+        /// 带颜色的缓存上次NG结果的检测框
+        /// </summary>
+        public Dictionary<string, List<ColorRotatedRect>> RectsNgMap { get; set; } = new Dictionary<string, List<ColorRotatedRect>>();
         /// <summary>
         /// 带颜色的文本
         /// </summary>
@@ -54,17 +50,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// 带颜色的线段
         /// </summary>
         public List<ColorLine> Lines { get; set; } = new List<ColorLine>();
-
-        /// <summary>
-        /// 清空结果
-        /// </summary>
-        public void Clear ()
-        {
-            DetectResults.Clear();
-            Rects.Clear(); 
-            Texts.Clear(); 
-            Lines.Clear();
-        }
     }
 
     /// <summary>

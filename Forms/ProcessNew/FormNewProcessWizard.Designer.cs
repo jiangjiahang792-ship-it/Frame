@@ -32,7 +32,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FormNewProcessWizard));
-            gCursorLib.TextShadower textShadower4 = new gCursorLib.TextShadower();
+            gCursorLib.TextShadower textShadower1 = new gCursorLib.TextShadower();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.buttonRemove = new System.Windows.Forms.Button();
             this.buttonAdd = new System.Windows.Forms.Button();
@@ -181,14 +181,15 @@ namespace TDJS_Vision.Forms.ProcessNew
             this.imageList1.Images.SetKeyName(26, "Modbus发送AI结果");
             this.imageList1.Images.SetKeyName(27, "逻辑工具");
             this.imageList1.Images.SetKeyName(28, "共享变量");
-            this.imageList1.Images.SetKeyName(29, "延迟执行");
-            this.imageList1.Images.SetKeyName(30, "结果处理");
-            this.imageList1.Images.SetKeyName(31, "AI结果绘制");
-            this.imageList1.Images.SetKeyName(32, "保存图片");
-            this.imageList1.Images.SetKeyName(33, "检测结果显示");
-            this.imageList1.Images.SetKeyName(34, "结果汇总");
-            this.imageList1.Images.SetKeyName(35, "图片删除");
-            this.imageList1.Images.SetKeyName(36, "导出检测表格");
+            this.imageList1.Images.SetKeyName(29, "条件运行");
+            this.imageList1.Images.SetKeyName(30, "延迟执行");
+            this.imageList1.Images.SetKeyName(31, "结果处理");
+            this.imageList1.Images.SetKeyName(32, "AI结果绘制");
+            this.imageList1.Images.SetKeyName(33, "保存图片");
+            this.imageList1.Images.SetKeyName(34, "检测结果显示");
+            this.imageList1.Images.SetKeyName(35, "结果汇总");
+            this.imageList1.Images.SetKeyName(36, "图片删除");
+            this.imageList1.Images.SetKeyName(37, "导出检测表格");
             // 
             // label1
             // 
@@ -233,16 +234,16 @@ namespace TDJS_Vision.Forms.ProcessNew
             this.gCursor1.gTextMultiline = false;
             this.gCursor1.gTextShadow = false;
             this.gCursor1.gTextShadowColor = System.Drawing.Color.Black;
-            textShadower4.Alignment = System.Drawing.ContentAlignment.MiddleCenter;
-            textShadower4.Blur = 2F;
-            textShadower4.Font = new System.Drawing.Font("Arial", 7F, System.Drawing.FontStyle.Bold);
-            textShadower4.Offset = ((System.Drawing.PointF)(resources.GetObject("textShadower4.Offset")));
-            textShadower4.Padding = new System.Windows.Forms.Padding(0);
-            textShadower4.ShadowColor = System.Drawing.Color.Black;
-            textShadower4.ShadowTransp = 128;
-            textShadower4.Text = "Drop Shadow";
-            textShadower4.TextColor = System.Drawing.Color.Blue;
-            this.gCursor1.gTextShadower = textShadower4;
+            textShadower1.Alignment = System.Drawing.ContentAlignment.MiddleCenter;
+            textShadower1.Blur = 2F;
+            textShadower1.Font = new System.Drawing.Font("Arial", 7F, System.Drawing.FontStyle.Bold);
+            textShadower1.Offset = ((System.Drawing.PointF)(resources.GetObject("textShadower1.Offset")));
+            textShadower1.Padding = new System.Windows.Forms.Padding(0);
+            textShadower1.ShadowColor = System.Drawing.Color.Black;
+            textShadower1.ShadowTransp = 128;
+            textShadower1.Text = "Drop Shadow";
+            textShadower1.TextColor = System.Drawing.Color.Blue;
+            this.gCursor1.gTextShadower = textShadower1;
             this.gCursor1.gTTransp = 0;
             this.gCursor1.gType = gCursorLib.gCursor.eType.Text;
             // 

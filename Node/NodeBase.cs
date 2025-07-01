@@ -98,9 +98,9 @@ namespace TDJS_Vision.Node
             return Task.CompletedTask;
         }
 
-        public virtual Task Run(CancellationToken token)
+        public virtual Task<NodeReturnFlag> Run(CancellationToken token)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(NodeReturnFlag.ContinueRun);
         }
 
         /// <summary>
@@ -181,15 +181,10 @@ namespace TDJS_Vision.Node
         /// </summary>
         /// <param name="stopwatch"></param>
         /// <param name="status"></param>
-        public long SetRunResult(DateTime startTime, NodeStatus status)
+        public int SetRunResult(DateTime startTime, NodeStatus status)
         {
-            long elapsedMi11iseconds = (long)(DateTime.Now - startTime).TotalMilliseconds;
+            int elapsedMi11iseconds = (int)(DateTime.Now - startTime).TotalMilliseconds;
             SetStatus(status, elapsedMi11iseconds.ToString());
-            Result.RunTime = elapsedMi11iseconds;
-            Result.Status = status;
-            Result.RunStatusCode = status == NodeStatus.Successful ? NodeRunStatusCode.OK
-                                : status == NodeStatus.Unexecuted ? NodeRunStatusCode.UNEXECUTED
-                                : NodeRunStatusCode.UNKNOW_ERROR;
             return elapsedMi11iseconds;
         }
 
@@ -375,23 +370,5 @@ namespace TDJS_Vision.Node
         }
     }
 
-    /// <summary>
-    /// 节点运行状态
-    /// </summary>
-    internal enum NodeStatus
-    {
-        /// <summary>
-        /// 未运行的
-        /// </summary>
-        Unexecuted,
-        /// <summary>
-        /// 运行成功的
-        /// </summary>
-        Successful,
-        /// <summary>
-        /// 运行失败的
-        /// </summary>
-        Failed
-    }
 
 }
