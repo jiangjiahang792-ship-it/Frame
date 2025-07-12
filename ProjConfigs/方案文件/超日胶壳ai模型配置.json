@@ -7,7 +7,7 @@
     "ModelType": "OBB",
     "DeviceType": "CPU",
     "IsEncrypted": true,
-    "ModelPath": "D:\\MyProjects\\TypeC\\Model\\Shell_encrypted.onnx",
+    "ModelPath": "D:\\MyProjects\\ChaoRi\\LineCore+GelCoat+TypeC\\Shell_encrypted.onnx",
     "KeyPointNum": 0
   },
   "ClassNames": [
@@ -19,11 +19,11 @@
   "DetectItems": [
     {
       "Name": "胶壳数量",
-      "MinValue": "1",
-      "MaxValue": "1",
+      "MinValue": "6",
+      "MaxValue": "6",
       "Enable": true,
       "IsCountItem": true,
-      "CurValue": "1"
+      "CurValue": "6"
     },
     {
       "Name": "胶壳角度",
@@ -31,55 +31,55 @@
       "MaxValue": "3",
       "Enable": true,
       "IsCountItem": false,
-      "CurValue": "0.52"
+      "CurValue": "-0.72,-0.74,-1.11,0.27,-0.23,-0.44,"
     },
     {
       "Name": "弹片数量",
-      "MinValue": "9",
-      "MaxValue": "9",
+      "MinValue": "12",
+      "MaxValue": "12",
       "Enable": true,
       "IsCountItem": true,
-      "CurValue": "9"
+      "CurValue": "12"
     },
     {
       "Name": "弹片长度",
-      "MinValue": "18",
-      "MaxValue": "20",
+      "MinValue": "20",
+      "MaxValue": "30",
       "Enable": true,
       "IsCountItem": false,
-      "CurValue": "19.34,18.74,19.43,19.36,19.19,19.20,19.55,19.57,19.29"
+      "CurValue": "23.60,23.80,23.61,23.36,22.86,23.42,22.83,22.76,23.07,22.96,23.60,22.63,"
     },
     {
       "Name": "针尖数量",
       "MinValue": "9",
       "MaxValue": "9",
-      "Enable": true,
+      "Enable": false,
       "IsCountItem": true,
-      "CurValue": "9"
+      "CurValue": "-1"
     },
     {
       "Name": "针尖长度",
-      "MinValue": "80",
-      "MaxValue": "106",
-      "Enable": true,
+      "MinValue": "90",
+      "MaxValue": "110",
+      "Enable": false,
       "IsCountItem": false,
-      "CurValue": "105.33,104.69,104.34,99.28,102.35,101.66,100.97,102.84,103.64"
+      "CurValue": ""
     },
     {
       "Name": "针尖角度",
       "MinValue": "-3",
       "MaxValue": "3",
-      "Enable": true,
-      "IsCountItem": true,
-      "CurValue": "0.66,0.65,0.70,0.55,0.70,0.71,0.68,0.73,0.63"
+      "Enable": false,
+      "IsCountItem": false,
+      "CurValue": ""
     },
     {
       "Name": "外观不良",
-      "MinValue": "0",
+      "MinValue": "-1",
       "MaxValue": "0",
-      "Enable": false,
+      "Enable": true,
       "IsCountItem": true,
-      "CurValue": "1"
+      "CurValue": "-1"
     }
   ]
 }
