@@ -193,7 +193,15 @@
     <Compile Include="Forms\YTMessageBox\MessageBoxTD.Designer.cs">
       <DependentUpon>MessageBoxTD.cs</DependentUpon>
     </Compile>
-    <Compile Include="Node\3-Detection\TDAI\AI.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\Connector.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\GelCoat.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\LineCore.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\LineCoreCrossSection.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\ParseCommon.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\PiercingMachine.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\PiercingMachineLineSequence.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\TerminalClass12.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\TypeCResultParse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\IDetectResult.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\IYolo8.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\ModelHandleManager.cs" />
