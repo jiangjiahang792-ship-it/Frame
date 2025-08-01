@@ -181,6 +181,7 @@
     <Compile Include="ConfigHelper.cs" />
     <Compile Include="Device\Modbus\ModbusRTUParam.cs" />
     <Compile Include="Device\Modbus\ModbusRTUPoll.cs" />
+    <Compile Include="Device\PLC\PlcMelsec.cs" />
     <Compile Include="Forms\LogoView\FrmLogo.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -531,15 +532,15 @@
     </Compile>
     <Compile Include="Node\3-Detection\QRScan\NodeResultQRScan.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Det.cs" />
-    <Compile Include="Node\5-EquipmentCommunication\AIResultSendByModbus\ParamFormSignalSendByModbus.cs">
+    <Compile Include="Node\5-EquipmentCommunication\AIResultSend\ParamFormSignalSend.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="Node\5-EquipmentCommunication\AIResultSendByModbus\ParamFormSignalSendByModbus.Designer.cs">
-      <DependentUpon>ParamFormSignalSendByModbus.cs</DependentUpon>
+    <Compile Include="Node\5-EquipmentCommunication\AIResultSend\ParamFormSignalSend.Designer.cs">
+      <DependentUpon>ParamFormSignalSend.cs</DependentUpon>
     </Compile>
-    <Compile Include="Node\5-EquipmentCommunication\AIResultSendByModbus\NodeParamSignalSendByModbus.cs" />
-    <Compile Include="Node\5-EquipmentCommunication\AIResultSendByModbus\NodeResultSignalSendByModbus.cs" />
-    <Compile Include="Node\5-EquipmentCommunication\AIResultSendByModbus\NodeSignalSendByModbus.cs">
+    <Compile Include="Node\5-EquipmentCommunication\AIResultSend\NodeParamSignalSend.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\AIResultSend\NodeResultSignalSend.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\AIResultSend\NodeSignalSend.cs">
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Node\5-EquipmentCommunication\SendResultByPLC\NodeSendResultByPLC.cs">
@@ -1026,8 +1027,8 @@
     <EmbeddedResource Include="Node\3-Detection\QRScan\NodeParamFormQRScan.resx">
       <DependentUpon>NodeParamFormQRScan.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="Node\5-EquipmentCommunication\AIResultSendByModbus\ParamFormSignalSendByModbus.resx">
-      <DependentUpon>ParamFormSignalSendByModbus.cs</DependentUpon>
+    <EmbeddedResource Include="Node\5-EquipmentCommunication\AIResultSend\ParamFormSignalSend.resx">
+      <DependentUpon>ParamFormSignalSend.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\5-EquipmentCommunication\SendResultByPLC\ParamFormSendResultByPLC.resx">
       <DependentUpon>ParamFormSendResultByPLC.cs</DependentUpon>
