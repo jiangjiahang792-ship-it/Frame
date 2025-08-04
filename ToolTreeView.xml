@@ -33,13 +33,12 @@
         <Node Text="相机IO" ImageName="相机IO" Tag="CameraIO" SelectedImageName="相机IO" />
         <Node Text="PLC读取" ImageName="PLC读" Tag="PLCRead" SelectedImageName="PLC读" />
         <Node Text="PLC写入" ImageName="PLC写" Tag="PLCWrite" SelectedImageName="PLC写" />
-        <Node Text="PLC软触发" ImageName="PLC软触发" Tag="WaitSoftTrigger" SelectedImageName="PLC软触发" />
-        <Node Text="PLC发送结果" ImageName="PLC发送结果" Tag="SendResultByPLC" SelectedImageName="PLC发送结果" />
+        <Node Text="监听PLC软触发信号" ImageName="PLC软触发" Tag="WaitSoftTrigger" SelectedImageName="PLC软触发" />
         <Node Text="TCP请求" ImageName="客户端请求" Tag="TCPClientRequest" SelectedImageName="客户端请求" />
         <Node Text="TCP响应" ImageName="服务器响应" Tag="TCPServerResponse" SelectedImageName="服务器响应" />
         <Node Text="Modbus读取" ImageName="Modbus读取" Tag="ModbusRead" SelectedImageName="Modbus读取" />
         <Node Text="Modbus写入" ImageName="Modbus写入" Tag="ModbusWrite" SelectedImageName="Modbus写入" />
-        <Node Text="Modbus软触发" ImageName="Modbus软触发" Tag="ModbusSoftTrigger" SelectedImageName="Modbus软触发" />
+        <Node Text="监听Modbus软触发信号" ImageName="Modbus软触发" Tag="ModbusSoftTrigger" SelectedImageName="Modbus软触发" />
       </Nodes>
     </Node>
     <Node Text="逻辑工具" ImageName="逻辑工具" Tag="UNKNOWN" SelectedImageName="逻辑工具">

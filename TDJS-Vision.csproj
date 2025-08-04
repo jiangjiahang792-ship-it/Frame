@@ -215,6 +215,28 @@
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Obb.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Pose.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Seg.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\PlcRead\NodeParamPlcRead.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\PlcRead\NodePlcRead.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\PlcRead\NodeResultPlcRead.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\PlcRead\ParamFormPlcRead.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\PlcRead\ParamFormPlcRead.Designer.cs">
+      <DependentUpon>ParamFormPlcRead.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\PlcWrite\NodeParamPlcWrite.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\PlcWrite\NodePlcWrite.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\PlcWrite\NodeResultPlcWrite.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\PlcWrite\ParamFormPlcWrite.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\PlcWrite\ParamFormPlcWrite.Designer.cs">
+      <DependentUpon>ParamFormPlcWrite.cs</DependentUpon>
+    </Compile>
     <Compile Include="Node\6-LogicTool\ConditionRun\NodeParamFormConditionRun.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -549,29 +571,6 @@
     <Compile Include="Node\5-EquipmentCommunication\AIResultSend\NodeSignalSend.cs">
       <SubType>UserControl</SubType>
     </Compile>
-    <Compile Include="Node\5-EquipmentCommunication\SendResultByPLC\NodeSendResultByPLC.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
-    <Compile Include="Node\5-EquipmentCommunication\SendResultByPLC\NodeInfo.cs" />
-    <Compile Include="Node\5-EquipmentCommunication\SendResultByPLC\NodeParamSendResultByPLC.cs" />
-    <Compile Include="Node\5-EquipmentCommunication\SendResultByPLC\NodeResultSendResultByPLC.cs" />
-    <Compile Include="Node\5-EquipmentCommunication\SendResultByPLC\ParamFormSendResultByPLC.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Node\5-EquipmentCommunication\SendResultByPLC\ParamFormSendResultByPLC.Designer.cs">
-      <DependentUpon>ParamFormSendResultByPLC.cs</DependentUpon>
-    </Compile>
-    <Compile Include="Node\5-EquipmentCommunication\PanasonicWrite\NodeParamPlcWrite.cs" />
-    <Compile Include="Node\5-EquipmentCommunication\PanasonicWrite\NodePlcWrite.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
-    <Compile Include="Node\5-EquipmentCommunication\PanasonicWrite\NodeResultPlcWrite.cs" />
-    <Compile Include="Node\5-EquipmentCommunication\PanasonicWrite\ParamFormPlcWrite.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Node\5-EquipmentCommunication\PanasonicWrite\ParamFormPlcWrite.Designer.cs">
-      <DependentUpon>ParamFormPlcWrite.cs</DependentUpon>
-    </Compile>
     <Compile Include="Node\5-EquipmentCommunication\TcpClient\NodeTCPClient.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -832,17 +831,6 @@
     <Compile Include="Node\5-EquipmentCommunication\PLCSoftTrigger\ParamFormWaitSoftTrigger.Designer.cs">
       <DependentUpon>ParamFormWaitSoftTrigger.cs</DependentUpon>
     </Compile>
-    <Compile Include="Node\5-EquipmentCommunication\PanasonicRead\NodeParamPlcRead.cs" />
-    <Compile Include="Node\5-EquipmentCommunication\PanasonicRead\NodeResultPlcRead.cs" />
-    <Compile Include="Node\5-EquipmentCommunication\PanasonicRead\NodePlcRead.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
-    <Compile Include="Node\5-EquipmentCommunication\PanasonicRead\ParamFormPlcRead.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Node\5-EquipmentCommunication\PanasonicRead\ParamFormPlcRead.Designer.cs">
-      <DependentUpon>ParamFormPlcRead.cs</DependentUpon>
-    </Compile>
     <Compile Include="Node\7-ResultProcessing\DataShow\NodeDataShow.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -1039,11 +1027,10 @@
     <EmbeddedResource Include="Node\5-EquipmentCommunication\AIResultSend\ParamFormSignalSend.resx">
       <DependentUpon>ParamFormSignalSend.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="Node\5-EquipmentCommunication\SendResultByPLC\ParamFormSendResultByPLC.resx">
-      <DependentUpon>ParamFormSendResultByPLC.cs</DependentUpon>
-      <SubType>Designer</SubType>
+    <EmbeddedResource Include="Node\5-EquipmentCommunication\PlcRead\ParamFormPlcRead.resx">
+      <DependentUpon>ParamFormPlcRead.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="Node\5-EquipmentCommunication\PanasonicWrite\ParamFormPlcWrite.resx">
+    <EmbeddedResource Include="Node\5-EquipmentCommunication\PlcWrite\ParamFormPlcWrite.resx">
       <DependentUpon>ParamFormPlcWrite.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\5-EquipmentCommunication\TcpClient\ParamFormTCPClient.resx">
@@ -1132,9 +1119,6 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\5-EquipmentCommunication\PLCSoftTrigger\ParamFormWaitSoftTrigger.resx">
       <DependentUpon>ParamFormWaitSoftTrigger.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Node\5-EquipmentCommunication\PanasonicRead\ParamFormPlcRead.resx">
-      <DependentUpon>ParamFormPlcRead.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\7-ResultProcessing\DataShow\NodeParamFormDataShow.resx">
       <DependentUpon>NodeParamFormDataShow.cs</DependentUpon>
