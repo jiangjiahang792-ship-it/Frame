@@ -188,6 +188,12 @@
     <Compile Include="FormAIConfigTool.Designer.cs">
       <DependentUpon>FormAIConfigTool.cs</DependentUpon>
     </Compile>
+    <Compile Include="Forms\GlobalSignalSettings\FormGlobalSignal.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\GlobalSignalSettings\FormGlobalSignal.Designer.cs">
+      <DependentUpon>FormGlobalSignal.cs</DependentUpon>
+    </Compile>
     <Compile Include="Forms\LogoView\FrmLogo.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -903,6 +909,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\CameraAdd\SingleCamera.resx">
       <DependentUpon>SingleCamera.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\GlobalSignalSettings\FormGlobalSignal.resx">
+      <DependentUpon>FormGlobalSignal.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\Helper\ContactUsFormForm.resx">
       <DependentUpon>ContactUsFormForm.cs</DependentUpon>
