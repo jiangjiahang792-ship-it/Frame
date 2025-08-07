@@ -46,6 +46,7 @@
         <Node Text="共享变量" ImageName="共享变量" Tag="SharedVariable" SelectedImageName="共享变量" />
         <Node Text="条件运行" ImageName="条件运行" Tag="ConditionRun" SelectedImageName="条件运行" />
         <Node Text="延迟执行" ImageName="延迟执行" Tag="SleepTool" SelectedImageName="延迟执行" />
+        <Node Text="触发同组流程" ImageName="触发同组流程" Tag="ProcessTrigger" SelectedImageName="触发同组流程" />
       </Nodes>
     </Node>
     <Node Text="结果处理" ImageName="结果处理" Tag="UNKNOWN" SelectedImageName="结果处理">

@@ -254,6 +254,17 @@
     <Compile Include="Node\6-LogicTool\ConditionRun\NodeConditionRun.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="Node\6-LogicTool\ProcessTrigger\NodeProcessTrigger.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\ProcessTrigger\NodeParamProcessTrigger.cs" />
+    <Compile Include="Node\6-LogicTool\ProcessTrigger\NodeParamFormProcessTrigger.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\ProcessTrigger\NodeParamFormProcessTrigger.Designer.cs">
+      <DependentUpon>NodeParamFormProcessTrigger.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\ProcessTrigger\NodeResultProcessTrigger.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -1080,6 +1091,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\1-Acquisition\ImageShow\ParamFormImageShow.resx">
       <DependentUpon>ParamFormImageShow.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\6-LogicTool\ProcessTrigger\NodeParamFormProcessTrigger.resx">
+      <DependentUpon>NodeParamFormProcessTrigger.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\6-LogicTool\SharedVariable\NodeParamFormSharedVariable.resx">
       <DependentUpon>NodeParamFormSharedVariable.cs</DependentUpon>
