@@ -254,6 +254,17 @@
     <Compile Include="Node\6-LogicTool\ConditionRun\NodeConditionRun.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="Node\6-LogicTool\ProcessSignal\NodeProcessSignal.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\ProcessSignal\NodeParamProcessSignal.cs" />
+    <Compile Include="Node\6-LogicTool\ProcessSignal\NodeParamFormProcessSignal.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\ProcessSignal\NodeParamFormProcessSignal.Designer.cs">
+      <DependentUpon>NodeParamFormProcessSignal.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\ProcessSignal\NodeResultProcessSignal.cs" />
     <Compile Include="Node\6-LogicTool\ProcessTrigger\NodeProcessTrigger.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -1091,6 +1102,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\1-Acquisition\ImageShow\ParamFormImageShow.resx">
       <DependentUpon>ParamFormImageShow.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\6-LogicTool\ProcessSignal\NodeParamFormProcessSignal.resx">
+      <DependentUpon>NodeParamFormProcessSignal.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\6-LogicTool\ProcessTrigger\NodeParamFormProcessTrigger.resx">
       <DependentUpon>NodeParamFormProcessTrigger.cs</DependentUpon>
