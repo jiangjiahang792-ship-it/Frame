@@ -48,6 +48,9 @@
         <Node Text="延迟执行" ImageName="延迟执行" Tag="SleepTool" SelectedImageName="延迟执行" />
         <Node Text="触发同组流程" ImageName="触发同组流程" Tag="ProcessTrigger" SelectedImageName="触发同组流程" />
         <Node Text="流程信号" ImageName="流程信号" Tag="ProcessSignal" SelectedImageName="流程信号" />
+        <Node Text="如果" ImageName="If" Tag="If" SelectedImageName="If" />
+        <Node Text="否则" ImageName="Else" Tag="Else" SelectedImageName="Else" />
+        <Node Text="结束如果" ImageName="EndIf" Tag="EndIf" SelectedImageName="EndIf" />
       </Nodes>
     </Node>
     <Node Text="结果处理" ImageName="结果处理" Tag="UNKNOWN" SelectedImageName="结果处理">

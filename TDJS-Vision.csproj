@@ -96,11 +96,12 @@
     <Reference Include="EPPlus, Version=4.5.3.3, Culture=neutral, PublicKeyToken=ea159fdaa78159a1, processorArchitecture=MSIL">
       <HintPath>packages\EPPlus.4.5.3.3\lib\net40\EPPlus.dll</HintPath>
     </Reference>
-    <Reference Include="HslCommunication, Version=10.6.1.0, Culture=neutral, PublicKeyToken=3d72ad3b6b5ec0e3, processorArchitecture=MSIL">
-      <HintPath>packages\HslCommunication.10.6.1\lib\net451\HslCommunication.dll</HintPath>
-    </Reference>
     <Reference Include="gCursor">
       <HintPath>dll\gCursor.dll</HintPath>
+    </Reference>
+    <Reference Include="HslCommunication, Version=12.3.0.0, Culture=neutral, PublicKeyToken=3d72ad3b6b5ec0e3, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>dll\HslCommunication.dll</HintPath>
     </Reference>
     <Reference Include="JsonSubTypes, Version=2.0.1.0, Culture=neutral, PublicKeyToken=ee75fc290dbc1176, processorArchitecture=MSIL">
       <HintPath>packages\JsonSubTypes.2.0.1\lib\net47\JsonSubTypes.dll</HintPath>
@@ -254,6 +255,27 @@
     <Compile Include="Node\6-LogicTool\ConditionRun\NodeConditionRun.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="Node\6-LogicTool\Else\NodeElse.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\Else\NodeParamElse.cs" />
+    <Compile Include="Node\6-LogicTool\Else\NodeResultElse.cs" />
+    <Compile Include="Node\6-LogicTool\EndIf\NodeEndIf.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\EndIf\NodeParamEndIf.cs" />
+    <Compile Include="Node\6-LogicTool\EndIf\NodeResultEndIf.cs" />
+    <Compile Include="Node\6-LogicTool\If\NodeIf.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\If\NodeParamFormIf.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\If\NodeParamFormIf.Designer.cs">
+      <DependentUpon>NodeParamFormIf.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\If\NodeParamIf.cs" />
+    <Compile Include="Node\6-LogicTool\If\NodeResultIf.cs" />
     <Compile Include="Node\6-LogicTool\ProcessSignal\NodeProcessSignal.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -1103,6 +1125,9 @@
     <EmbeddedResource Include="Node\1-Acquisition\ImageShow\ParamFormImageShow.resx">
       <DependentUpon>ParamFormImageShow.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Node\6-LogicTool\If\NodeParamFormIf.resx">
+      <DependentUpon>NodeParamFormIf.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Node\6-LogicTool\ProcessSignal\NodeParamFormProcessSignal.resx">
       <DependentUpon>NodeParamFormProcessSignal.cs</DependentUpon>
     </EmbeddedResource>
@@ -1232,6 +1257,7 @@
     <Content Include="Logo.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <None Include="Resources\打扫.png" />
     <Content Include="ToolTreeView.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
