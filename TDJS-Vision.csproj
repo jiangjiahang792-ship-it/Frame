@@ -195,6 +195,12 @@
     <Compile Include="Forms\GlobalSignalSettings\FormGlobalSignal.Designer.cs">
       <DependentUpon>FormGlobalSignal.cs</DependentUpon>
     </Compile>
+    <Compile Include="Forms\ImageViewer\MatViewer.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\ImageViewer\MatViewer.Designer.cs">
+      <DependentUpon>MatViewer.cs</DependentUpon>
+    </Compile>
     <Compile Include="Forms\LogoView\FrmLogo.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -207,6 +213,17 @@
     <Compile Include="Forms\YTMessageBox\MessageBoxTD.Designer.cs">
       <DependentUpon>MessageBoxTD.cs</DependentUpon>
     </Compile>
+    <Compile Include="Node\3-Detection\BatteryEar\NodeBatteryEar.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\BatteryEar\NodeParamFormBatteryEar.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\BatteryEar\NodeParamFormBatteryEar.Designer.cs">
+      <DependentUpon>NodeParamFormBatteryEar.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\BatteryEar\NodeParamBatteryEar.cs" />
+    <Compile Include="Node\3-Detection\BatteryEar\NodeResultBatteryEar.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\Connector.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\GelCoat.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\LineCore.cs" />
@@ -972,6 +989,9 @@
     <EmbeddedResource Include="Forms\ImageViewer\FrmSingleImage.resx">
       <DependentUpon>FrmSingleImage.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Forms\ImageViewer\MatViewer.resx">
+      <DependentUpon>MatViewer.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Forms\ImageViewer\YTPictrueBox.resx">
       <DependentUpon>YTPictrueBox.cs</DependentUpon>
     </EmbeddedResource>
@@ -1064,6 +1084,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\2-ImagePreprocessing\ImageSplit\ParamFormImageSplit.resx">
       <DependentUpon>ParamFormImageSplit.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\3-Detection\BatteryEar\NodeParamFormBatteryEar.resx">
+      <DependentUpon>NodeParamFormBatteryEar.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\3-Detection\TDAI\ParamFormTDAI.resx">
       <DependentUpon>ParamFormTDAI.cs</DependentUpon>
@@ -1258,6 +1281,8 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <None Include="Resources\打扫.png" />
+    <Content Include="Node\3-Detection\BatteryEar\Template_Mark.bmp" />
+    <Content Include="Node\3-Detection\BatteryEar\Template_JiEr.bmp" />
     <Content Include="ToolTreeView.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -1303,6 +1328,7 @@
 rem /E：复制所有子目录，即使它们为空。
 rem /Y：覆盖现有文件而不提示。
 rem /I：如果目标不存在，则假定目标必须是目录。
-xcopy "$(ProjectDir)Node\3-Detection\QRScan\QRCodeModel\*" "QRCodeModel\" /E /Y /I</PostBuildEvent>
+xcopy "$(ProjectDir)Node\3-Detection\QRScan\QRCodeModel\*" "QRCodeModel\" /E /Y /I
+xcopy "$(ProjectDir)Node\3-Detection\BatteryEar\*.bmp" "Template\BatteryEar\" /E /Y /I</PostBuildEvent>
   </PropertyGroup>
 </Project>
