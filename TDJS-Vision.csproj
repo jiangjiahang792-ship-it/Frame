@@ -263,6 +263,7 @@
     <Compile Include="Forms\MyCSharpScript\CSharpScriptEngine.cs" />
     <Compile Include="Forms\MyCSharpScript\MyAutoComplete.cs" />
     <Compile Include="Forms\MyCSharpScript\MyListBoxWriter .cs" />
+    <Compile Include="Forms\MyCSharpScript\ScriptGlobalVariable.cs" />
     <Compile Include="Forms\SelectDetectItem\FormSelectDetectItem.cs">
       <SubType>Form</SubType>
     </Compile>
