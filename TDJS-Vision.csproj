@@ -226,6 +226,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ConfigHelper.cs" />
+    <Compile Include="Device\Light\LightTDJS.cs" />
     <Compile Include="Device\Modbus\ModbusRTUParam.cs" />
     <Compile Include="Device\Modbus\ModbusRTUPoll.cs" />
     <Compile Include="Device\PLC\PlcMelsec.cs" />
