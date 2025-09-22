@@ -32,6 +32,7 @@
       <Nodes>
         <Node Text="打开光源" ImageName="打开光源" Tag="LightSourceControl" SelectedImageName="打开光源" />
         <Node Text="相机IO" ImageName="相机IO" Tag="CameraIO" SelectedImageName="相机IO" />
+        <Node Text="串口发送" ImageName="串口发送" Tag="ComSend" SelectedImageName="串口发送" />
         <Node Text="PLC读取" ImageName="PLC读" Tag="PLCRead" SelectedImageName="PLC读" />
         <Node Text="PLC写入" ImageName="PLC写" Tag="PLCWrite" SelectedImageName="PLC写" />
         <Node Text="监听PLC软触发信号" ImageName="PLC软触发" Tag="WaitSoftTrigger" SelectedImageName="PLC软触发" />
