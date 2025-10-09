@@ -237,6 +237,18 @@
     <Compile Include="FormAIConfigTool.Designer.cs">
       <DependentUpon>FormAIConfigTool.cs</DependentUpon>
     </Compile>
+    <Compile Include="Forms\DetectItemManager\DetectItemListBox.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Forms\DetectItemManager\DetectItemListBox.Designer.cs">
+      <DependentUpon>DetectItemListBox.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\DetectItemManager\FormDetectItemManager.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\DetectItemManager\FormDetectItemManager.Designer.cs">
+      <DependentUpon>FormDetectItemManager.cs</DependentUpon>
+    </Compile>
     <Compile Include="Forms\GlobalSignalSettings\FormGlobalSignal.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -425,6 +437,18 @@
       <DependentUpon>NodeParamFormProcessTrigger.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\6-LogicTool\ProcessTrigger\NodeResultProcessTrigger.cs" />
+    <Compile Include="Node\6-LogicTool\WaitProcessComplete\NodeParamFormWaitProcessComplete.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\WaitProcessComplete\NodeParamFormWaitProcessComplete.Designer.cs">
+      <DependentUpon>NodeParamFormWaitProcessComplete.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\WaitProcessComplete\NodeParamWaitProcessComplete.cs" />
+    <Compile Include="Node\6-LogicTool\WaitProcessComplete\NodeResultWaitProcessComplete.cs" />
+    <Compile Include="Node\6-LogicTool\WaitProcessComplete\NodeWaitProcessComplete.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="ProcessCompletionTracker.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -1081,6 +1105,12 @@
     <EmbeddedResource Include="Forms\CameraAdd\SingleCamera.resx">
       <DependentUpon>SingleCamera.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Forms\DetectItemManager\DetectItemListBox.resx">
+      <DependentUpon>DetectItemListBox.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\DetectItemManager\FormDetectItemManager.resx">
+      <DependentUpon>FormDetectItemManager.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Forms\GlobalSignalSettings\FormGlobalSignal.resx">
       <DependentUpon>FormGlobalSignal.cs</DependentUpon>
     </EmbeddedResource>
@@ -1296,6 +1326,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\6-LogicTool\ConditionRun\NodeParamFormConditionRun.resx">
       <DependentUpon>NodeParamFormConditionRun.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\6-LogicTool\WaitProcessComplete\NodeParamFormWaitProcessComplete.resx">
+      <DependentUpon>NodeParamFormWaitProcessComplete.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\7-ResultProcessing\ImageDraw\NodeParamFormImageDraw.resx">
       <DependentUpon>NodeParamFormImageDraw.cs</DependentUpon>

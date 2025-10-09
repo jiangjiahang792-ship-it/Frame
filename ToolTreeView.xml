@@ -49,6 +49,7 @@
         <Node Text="条件运行" ImageName="条件运行" Tag="ConditionRun" SelectedImageName="条件运行" />
         <Node Text="延迟执行" ImageName="延迟执行" Tag="SleepTool" SelectedImageName="延迟执行" />
         <Node Text="触发同组流程" ImageName="触发同组流程" Tag="ProcessTrigger" SelectedImageName="触发同组流程" />
+        <Node Text="等待流程完成" ImageName="等待流程完成" Tag="WaitProcessComplete" SelectedImageName="等待流程完成" />
         <Node Text="流程信号" ImageName="流程信号" Tag="ProcessSignal" SelectedImageName="流程信号" />
         <Node Text="如果" ImageName="If" Tag="If" SelectedImageName="If" />
         <Node Text="否则" ImageName="Else" Tag="Else" SelectedImageName="Else" />
