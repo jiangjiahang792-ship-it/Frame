@@ -8,7 +8,7 @@
     <ProjectGuid>{60ADDFFF-D34C-48AA-B84D-03EAB7518169}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <RootNamespace>TDJS_Vision</RootNamespace>
-    <AssemblyName>TD-Vision</AssemblyName>
+    <AssemblyName>机器视觉检测软件V2.0</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
