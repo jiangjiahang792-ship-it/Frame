@@ -313,6 +313,12 @@
     <Compile Include="Forms\YTMessageBox\MessageBoxTD.Designer.cs">
       <DependentUpon>MessageBoxTD.cs</DependentUpon>
     </Compile>
+    <Compile Include="Node\3-Detection\BatteryEar\FormNewTemplate.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\BatteryEar\FormNewTemplate.Designer.cs">
+      <DependentUpon>FormNewTemplate.cs</DependentUpon>
+    </Compile>
     <Compile Include="Node\3-Detection\BatteryEar\NodeBatteryEar.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -1243,6 +1249,9 @@
     <EmbeddedResource Include="Node\2-ImagePreprocessing\ImageSplit\ParamFormImageSplit.resx">
       <DependentUpon>ParamFormImageSplit.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Node\3-Detection\BatteryEar\FormNewTemplate.resx">
+      <DependentUpon>FormNewTemplate.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Node\3-Detection\BatteryEar\NodeParamFormBatteryEar.resx">
       <DependentUpon>NodeParamFormBatteryEar.cs</DependentUpon>
     </EmbeddedResource>
@@ -1446,12 +1455,12 @@
     <None Include="Icon\运行参数.png" />
     <None Include="Icon\Logo\APP.ico" />
     <None Include="Icon\串口.png" />
+    <None Include="Icon\Other\模版添加.png" />
+    <None Include="Icon\Other\添加模版.png" />
     <Content Include="Logo.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <None Include="Resources\打扫.png" />
-    <Content Include="Node\3-Detection\BatteryEar\Template_Mark.bmp" />
-    <Content Include="Node\3-Detection\BatteryEar\Template_JiEr.bmp" />
     <Content Include="ToolTreeView.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -1468,7 +1477,6 @@
     <Content Include="Icon\新建方案.png" />
     <Content Include="Icon\方案设置.png" />
     <None Include="Icon\流程删除.png" />
-    <None Include="Icon\流程添加.png" />
     <Content Include="Icon\点检模式.png" />
     <Content Include="Icon\用户登录.png" />
     <None Include="Icon\监听.png" />
@@ -1502,6 +1510,6 @@ rem /E：复制所有子目录，即使它们为空。
 rem /Y：覆盖现有文件而不提示。
 rem /I：如果目标不存在，则假定目标必须是目录。
 xcopy "$(ProjectDir)Node\3-Detection\QRScan\QRCodeModel\*" "QRCodeModel\" /E /Y /I
-xcopy "$(ProjectDir)Node\3-Detection\BatteryEar\*.bmp" "Template\BatteryEar\" /E /Y /I</PostBuildEvent>
+xcopy "$(ProjectDir)Node\3-Detection\BatteryEar\添加模版.png" "Template\BatteryEar\" /E /Y /I</PostBuildEvent>
   </PropertyGroup>
 </Project>
