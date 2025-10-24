@@ -230,6 +230,7 @@
     <Compile Include="Device\Light\LightTDJS.cs" />
     <Compile Include="Device\Modbus\ModbusRTUParam.cs" />
     <Compile Include="Device\Modbus\ModbusRTUPoll.cs" />
+    <Compile Include="Device\Modbus\ModbusTcpPoll.cs" />
     <Compile Include="Device\PLC\PlcMelsec.cs" />
     <Compile Include="FormAIConfigTool.cs">
       <SubType>Form</SubType>
@@ -712,7 +713,6 @@
     <Compile Include="Device\Camera\ICamera.cs" />
     <Compile Include="Device\IDevice.cs" />
     <Compile Include="Device\Light\LightRsee.cs" />
-    <Compile Include="Device\Modbus\ModbusTcpPoll.cs" />
     <Compile Include="Device\Modbus\ModbusTcpParam.cs" />
     <Compile Include="Node\2-ImagePreprocessing\ImageSplit\NodeImageSplit.cs">
       <SubType>UserControl</SubType>
