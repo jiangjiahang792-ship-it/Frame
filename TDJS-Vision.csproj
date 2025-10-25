@@ -331,15 +331,12 @@
     </Compile>
     <Compile Include="Node\3-Detection\BatteryEar\NodeParamBatteryEar.cs" />
     <Compile Include="Node\3-Detection\BatteryEar\NodeResultBatteryEar.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Parse\Connector.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Parse\GelCoat.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Parse\LineCore.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Parse\LineCoreCrossSection.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ParseCommon.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Parse\PiercingMachine.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Parse\PiercingMachineLineSequence.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Parse\TerminalClass12.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Parse\TypeCResultParse.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\USBSegClass6.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\USB_Tail.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_Filling_rubber_Back.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_Filling_rubber_Front.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_More_Terminal_9Class.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\IDetectResult.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\IYolo8.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\ModelHandleManager.cs" />
@@ -422,6 +419,17 @@
     </Compile>
     <Compile Include="Node\6-LogicTool\If\NodeParamIf.cs" />
     <Compile Include="Node\6-LogicTool\If\NodeResultIf.cs" />
+    <Compile Include="Node\6-LogicTool\MessageBox\NodeMessageBox.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\MessageBox\NodeParamFormMessageBox.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\MessageBox\NodeParamFormMessageBox.Designer.cs">
+      <DependentUpon>NodeParamFormMessageBox.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\MessageBox\NodeParamMessageBox.cs" />
+    <Compile Include="Node\6-LogicTool\MessageBox\NodeResultMessageBox.cs" />
     <Compile Include="Node\6-LogicTool\ProcessSignal\NodeProcessSignal.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -1323,6 +1331,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\6-LogicTool\If\NodeParamFormIf.resx">
       <DependentUpon>NodeParamFormIf.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\6-LogicTool\MessageBox\NodeParamFormMessageBox.resx">
+      <DependentUpon>NodeParamFormMessageBox.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\6-LogicTool\ProcessSignal\NodeParamFormProcessSignal.resx">
       <DependentUpon>NodeParamFormProcessSignal.cs</DependentUpon>

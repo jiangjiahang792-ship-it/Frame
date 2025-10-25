@@ -55,6 +55,7 @@
         <Node Text="否则" ImageName="Else" Tag="Else" SelectedImageName="Else" />
         <Node Text="结束如果" ImageName="EndIf" Tag="EndIf" SelectedImageName="EndIf" />
         <Node Text="C#脚本" ImageName="C#脚本" Tag="CSharpScript" SelectedImageName="C#脚本" />
+		<Node Text="弹窗" ImageName="弹窗" Tag="MessageBox" SelectedImageName="弹窗" />
       </Nodes>
     </Node>
     <Node Text="结果处理" ImageName="结果处理" Tag="UNKNOWN" SelectedImageName="结果处理">
