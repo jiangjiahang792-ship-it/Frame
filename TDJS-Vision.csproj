@@ -343,6 +343,29 @@
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Obb.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Pose.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Seg.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\ERUIIO\GetIOValue.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\ERUIIO\GetIOValue.Designer.cs">
+      <DependentUpon>GetIOValue.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\ERUIIO\IOCheck.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\ERUIIO\IOCheck.Designer.cs">
+      <DependentUpon>IOCheck.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\ERUIIO\NodeERUIIO.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\ERUIIO\NodeParamERUIIO.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\ERUIIO\NodeResultERUIIO.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\ERUIIO\ParamFormERUIIO.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\ERUIIO\ParamFormERUIIO.Designer.cs">
+      <DependentUpon>ParamFormERUIIO.cs</DependentUpon>
+    </Compile>
     <Compile Include="Node\5-EquipmentCommunication\PlcRead\NodeParamPlcRead.cs" />
     <Compile Include="Node\5-EquipmentCommunication\PlcRead\NodePlcRead.cs">
       <SubType>UserControl</SubType>
@@ -1277,6 +1300,15 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\5-EquipmentCommunication\AIResultSend\ParamFormSignalSend.resx">
       <DependentUpon>ParamFormSignalSend.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\5-EquipmentCommunication\ERUIIO\GetIOValue.resx">
+      <DependentUpon>GetIOValue.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\5-EquipmentCommunication\ERUIIO\IOCheck.resx">
+      <DependentUpon>IOCheck.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\5-EquipmentCommunication\ERUIIO\ParamFormERUIIO.resx">
+      <DependentUpon>ParamFormERUIIO.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\5-EquipmentCommunication\PlcRead\ParamFormPlcRead.resx">
       <DependentUpon>ParamFormPlcRead.cs</DependentUpon>
