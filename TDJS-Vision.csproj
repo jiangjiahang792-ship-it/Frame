@@ -339,6 +339,13 @@
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_Filling_rubber_Back.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_Filling_rubber_Front.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_More_Terminal_9Class.cs" />
+    <Compile Include="Node\3-Detection\TDAI\TDAICommuntionDetectionConfig.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\TDAI\TDAICommuntionDetectionConfig.Designer.cs">
+      <DependentUpon>TDAICommuntionDetectionConfig.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\TDAI\TDAICommuntionParam.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\IDetectResult.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\IYolo8.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\ModelHandleManager.cs" />
@@ -1299,6 +1306,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\3-Detection\QRScan\NodeParamFormQRScan.resx">
       <DependentUpon>NodeParamFormQRScan.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\3-Detection\TDAI\TDAICommuntionDetectionConfig.resx">
+      <DependentUpon>TDAICommuntionDetectionConfig.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\5-EquipmentCommunication\AIResultSend\ParamFormSignalSend.resx">
       <DependentUpon>ParamFormSignalSend.cs</DependentUpon>
