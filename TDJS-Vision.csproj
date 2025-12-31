@@ -331,6 +331,18 @@
     </Compile>
     <Compile Include="Node\3-Detection\BatteryEar\NodeParamBatteryEar.cs" />
     <Compile Include="Node\3-Detection\BatteryEar\NodeResultBatteryEar.cs" />
+    <Compile Include="Node\3-Detection\ColorDiscern\ColorCreate.cs" />
+    <Compile Include="Node\3-Detection\ColorDiscern\ColorCreate.Designer.cs">
+      <DependentUpon>ColorCreate.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\ColorDiscern\ColorRecognitionManager.cs" />
+    <Compile Include="Node\3-Detection\ColorDiscern\NodeColorDiscern.cs" />
+    <Compile Include="Node\3-Detection\ColorDiscern\NodeParamColorDiscern.cs" />
+    <Compile Include="Node\3-Detection\ColorDiscern\NodeParamFormColorDiscern.cs" />
+    <Compile Include="Node\3-Detection\ColorDiscern\NodeParamFormColorDiscern.Designer.cs">
+      <DependentUpon>NodeParamFormColorDiscern.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\ColorDiscern\NodeResultColorDiscern.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\LineCoreCrossSection.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ParseCommon.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12Parse.cs" />
@@ -1294,6 +1306,12 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\3-Detection\BatteryEar\NodeParamFormBatteryEar.resx">
       <DependentUpon>NodeParamFormBatteryEar.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\3-Detection\ColorDiscern\ColorCreate.resx">
+      <DependentUpon>ColorCreate.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\3-Detection\ColorDiscern\NodeParamFormColorDiscern.resx">
+      <DependentUpon>NodeParamFormColorDiscern.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\3-Detection\TDAI\ParamFormTDAI.resx">
       <DependentUpon>ParamFormTDAI.cs</DependentUpon>
