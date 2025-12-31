@@ -256,6 +256,12 @@
     <Compile Include="Forms\DispShowImage\ShowImageControl.Designer.cs">
       <DependentUpon>ShowImageControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Forms\FlowDirectionPanelContrls\FlowDirectionPanel.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Forms\FlowDirectionPanelContrls\FlowDirectionPanel.Designer.cs">
+      <DependentUpon>FlowDirectionPanel.cs</DependentUpon>
+    </Compile>
     <Compile Include="Forms\GlobalSignalSettings\FormGlobalSignal.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -337,24 +343,6 @@
     </Compile>
     <Compile Include="Node\3-Detection\BatteryEar\NodeParamBatteryEar.cs" />
     <Compile Include="Node\3-Detection\BatteryEar\NodeResultBatteryEar.cs" />
-    <Compile Include="Node\3-Detection\ColorDiscern\ColorCreate.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Node\3-Detection\ColorDiscern\ColorCreate.Designer.cs">
-      <DependentUpon>ColorCreate.cs</DependentUpon>
-    </Compile>
-    <Compile Include="Node\3-Detection\ColorDiscern\ColorRecognitionManager.cs" />
-    <Compile Include="Node\3-Detection\ColorDiscern\NodeColorDiscern.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
-    <Compile Include="Node\3-Detection\ColorDiscern\NodeParamColorDiscern.cs" />
-    <Compile Include="Node\3-Detection\ColorDiscern\NodeParamFormColorDiscern.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Node\3-Detection\ColorDiscern\NodeParamFormColorDiscern.Designer.cs">
-      <DependentUpon>NodeParamFormColorDiscern.cs</DependentUpon>
-    </Compile>
-    <Compile Include="Node\3-Detection\ColorDiscern\NodeResultColorDiscern.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\LineCoreCrossSection.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ParseCommon.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12Parse.cs" />
@@ -1321,12 +1309,6 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\3-Detection\BatteryEar\NodeParamFormBatteryEar.resx">
       <DependentUpon>NodeParamFormBatteryEar.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Node\3-Detection\ColorDiscern\ColorCreate.resx">
-      <DependentUpon>ColorCreate.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Node\3-Detection\ColorDiscern\NodeParamFormColorDiscern.resx">
-      <DependentUpon>NodeParamFormColorDiscern.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\3-Detection\TDAI\ParamFormTDAI.resx">
       <DependentUpon>ParamFormTDAI.cs</DependentUpon>
