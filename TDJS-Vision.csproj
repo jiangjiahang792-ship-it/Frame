@@ -250,6 +250,12 @@
     <Compile Include="Forms\DetectItemManager\FormDetectItemManager.Designer.cs">
       <DependentUpon>FormDetectItemManager.cs</DependentUpon>
     </Compile>
+    <Compile Include="Forms\DispShowImage\ShowImageControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Forms\DispShowImage\ShowImageControl.Designer.cs">
+      <DependentUpon>ShowImageControl.cs</DependentUpon>
+    </Compile>
     <Compile Include="Forms\GlobalSignalSettings\FormGlobalSignal.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -331,14 +337,20 @@
     </Compile>
     <Compile Include="Node\3-Detection\BatteryEar\NodeParamBatteryEar.cs" />
     <Compile Include="Node\3-Detection\BatteryEar\NodeResultBatteryEar.cs" />
-    <Compile Include="Node\3-Detection\ColorDiscern\ColorCreate.cs" />
+    <Compile Include="Node\3-Detection\ColorDiscern\ColorCreate.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Node\3-Detection\ColorDiscern\ColorCreate.Designer.cs">
       <DependentUpon>ColorCreate.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\3-Detection\ColorDiscern\ColorRecognitionManager.cs" />
-    <Compile Include="Node\3-Detection\ColorDiscern\NodeColorDiscern.cs" />
+    <Compile Include="Node\3-Detection\ColorDiscern\NodeColorDiscern.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="Node\3-Detection\ColorDiscern\NodeParamColorDiscern.cs" />
-    <Compile Include="Node\3-Detection\ColorDiscern\NodeParamFormColorDiscern.cs" />
+    <Compile Include="Node\3-Detection\ColorDiscern\NodeParamFormColorDiscern.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Node\3-Detection\ColorDiscern\NodeParamFormColorDiscern.Designer.cs">
       <DependentUpon>NodeParamFormColorDiscern.cs</DependentUpon>
     </Compile>
@@ -1168,6 +1180,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\DetectItemManager\FormDetectItemManager.resx">
       <DependentUpon>FormDetectItemManager.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\DispShowImage\ShowImageControl.resx">
+      <DependentUpon>ShowImageControl.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\GlobalSignalSettings\FormGlobalSignal.resx">
       <DependentUpon>FormGlobalSignal.cs</DependentUpon>
