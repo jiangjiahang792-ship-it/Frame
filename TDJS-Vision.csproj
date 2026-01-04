@@ -326,6 +326,7 @@
     <Compile Include="Forms\YTMessageBox\MessageBoxTD.Designer.cs">
       <DependentUpon>MessageBoxTD.cs</DependentUpon>
     </Compile>
+    <Compile Include="JsonProjectSerializer.cs" />
     <Compile Include="Node\3-Detection\BatteryEar\FormNewTemplate.cs">
       <SubType>Form</SubType>
     </Compile>
