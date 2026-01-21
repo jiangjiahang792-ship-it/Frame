@@ -344,6 +344,17 @@
     </Compile>
     <Compile Include="Node\3-Detection\BatteryEar\NodeParamBatteryEar.cs" />
     <Compile Include="Node\3-Detection\BatteryEar\NodeResultBatteryEar.cs" />
+    <Compile Include="Node\3-Detection\BinaryAnalysis\NodeBinaryAnalysis.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\BinaryAnalysis\NodeParamBinaryAnalysis.cs" />
+    <Compile Include="Node\3-Detection\BinaryAnalysis\NodeParamFormBinaryAnalysis.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\BinaryAnalysis\NodeParamFormBinaryAnalysis.Designer.cs">
+      <DependentUpon>NodeParamFormBinaryAnalysis.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\BinaryAnalysis\NodeResultBinaryAnalysis.cs" />
     <Compile Include="Node\3-Detection\ColorDiscern\ColorCreate.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -1328,6 +1339,9 @@
     <EmbeddedResource Include="Node\3-Detection\BatteryEar\NodeParamFormBatteryEar.resx">
       <DependentUpon>NodeParamFormBatteryEar.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Node\3-Detection\BinaryAnalysis\NodeParamFormBinaryAnalysis.resx">
+      <DependentUpon>NodeParamFormBinaryAnalysis.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Node\3-Detection\ColorDiscern\ColorCreate.resx">
       <DependentUpon>ColorCreate.cs</DependentUpon>
     </EmbeddedResource>
@@ -1556,6 +1570,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <None Include="Resources\打扫.png" />
+    <None Include="Resources\绘制.png" />
     <Content Include="ToolTreeView.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
