@@ -23,6 +23,7 @@
         <Node Text="模版匹配" ImageName="模版匹配" Tag="MatchTemplate" SelectedImageName="模版匹配" />
         <Node Text="电池极耳检测" ImageName="极耳检测" Tag="BatteryEar" SelectedImageName="极耳检测" />
         <Node Text="颜色识别" ImageName="颜色识别" Tag="RGBDiscern" SelectedImageName="颜色识别" />
+        <Node Text="二值化分析" ImageName="二值化分析" Tag="BinarizationAnalysis" SelectedImageName="二值化分析" />
       </Nodes>
     </Node>
     <Node Text="测量工具" ImageName="测量工具" Tag="UNKNOWN" SelectedImageName="测量工具">
