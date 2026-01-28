@@ -393,6 +393,17 @@
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Obb.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Pose.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Seg.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\CamerIOManual\NodeCameraIOManual.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\CamerIOManual\NodeParamCameraIOManual.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\CamerIOManual\NodeResultCameraIOManual.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\CamerIOManual\ParamFormCameraIOManual.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\CamerIOManual\ParamFormCameraIOManual.Designer.cs">
+      <DependentUpon>ParamFormCameraIOManual.cs</DependentUpon>
+    </Compile>
     <Compile Include="Node\5-EquipmentCommunication\ERUIIO\GetIOValue.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -1365,6 +1376,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\5-EquipmentCommunication\AIResultSend\ParamFormSignalSend.resx">
       <DependentUpon>ParamFormSignalSend.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\5-EquipmentCommunication\CamerIOManual\ParamFormCameraIOManual.resx">
+      <DependentUpon>ParamFormCameraIOManual.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\5-EquipmentCommunication\ERUIIO\GetIOValue.resx">
       <DependentUpon>GetIOValue.cs</DependentUpon>
