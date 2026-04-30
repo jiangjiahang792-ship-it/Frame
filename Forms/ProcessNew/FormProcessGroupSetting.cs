@@ -31,6 +31,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case ProcessGroup.Group5:
                     comboBox1.SelectedIndex = 4;
                     break;
+                case ProcessGroup.Group6:
+                    comboBox1.SelectedIndex = 5;
+                    break;
                 default:
                     break;
             }
@@ -54,6 +57,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case 4:
                     _process.Group = ProcessGroup.Group5;
+                    break;
+                case 5:
+                    _process.Group = ProcessGroup.Group6;
                     break;
             }
             Hide();

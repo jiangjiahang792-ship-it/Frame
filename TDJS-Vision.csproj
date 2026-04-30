@@ -372,6 +372,7 @@
       <DependentUpon>NodeParamFormColorDiscern.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\3-Detection\ColorDiscern\NodeResultColorDiscern.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\ClosingTerminals_encrypted_Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\HuaYangUSBClass.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\LineCoreCrossSection.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ParseCommon.cs" />

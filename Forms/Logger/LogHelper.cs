@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
+using System.Threading.Tasks;
 
 namespace Logger
 {
@@ -262,8 +263,61 @@ namespace Logger
             }
         }
 
+        private static DateTime _lastCheckTime = DateTime.MinValue;
+        private static bool _isChecking = false;
+
+        private static void CheckAndClearLogFolder()
+        {
+            if ((DateTime.Now - _lastCheckTime).TotalHours < 1 || _isChecking) return;
+            _isChecking = true;
+            _lastCheckTime = DateTime.Now;
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    if (!Directory.Exists(LogDictory)) return;
+
+                    long size = 0;
+                    DirectoryInfo dir = new DirectoryInfo(LogDictory);
+                    FileInfo[] files = dir.GetFiles("*.log");
+                    foreach (var file in files)
+                    {
+                        size += file.Length;
+                    }
+                    
+                    if (size > 20L * 1024 * 1024 * 1024)
+                    {
+                        Array.Sort(files, (a, b) => a.LastWriteTime.CompareTo(b.LastWriteTime));
+                        
+                        foreach (var file in files)
+                        {
+                            try
+                            {
+                                file.Delete();
+                                size -= file.Length;
+                                if (size < 15L * 1024 * 1024 * 1024) break; 
+                            }
+                            catch
+                            {
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                }
+                finally
+                {
+                    _isChecking = false;
+                }
+            });
+        }
+
         private static void WriteLog(SingleLog singleLog)
         {
+            CheckAndClearLogFolder();
+
             string msg = singleLog.GetString();
             if (!Directory.Exists(LogDictory))
             {
