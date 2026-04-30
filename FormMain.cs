@@ -241,7 +241,7 @@ namespace TDJS_Vision
                 {
                     SetLockStatus(UserRole.Low);
                     SetRunStatus(true);
-                    await Solution.Instance.Run(true);
+                    await Solution.Instance.Run(true,false);
                     SetRunStatus(false);
                 }
             }
@@ -535,7 +535,7 @@ namespace TDJS_Vision
         {
             await FormGlobalSignal.SendGlobalSignals(this, true);
             SetRunStatus(true);
-            await Solution.Instance.Run(true);
+            await Solution.Instance.Run(true,false);
             SetRunStatus(false);
         }
 

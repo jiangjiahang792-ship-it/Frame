@@ -4,6 +4,7 @@ using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Threading;
@@ -35,6 +36,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             ParamForm.SetNodeBelong(this);
             Result = new NodeResultImageSource();
         }
+
         public string LoadTestImage(NodeParamImageSoucre param, NodeResultImageSource res)
         {
             if (!string.IsNullOrEmpty(param.ImagePath))

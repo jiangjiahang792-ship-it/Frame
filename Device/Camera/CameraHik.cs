@@ -2,6 +2,7 @@
 using MvCameraControl;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using OfficeOpenXml.FormulaParsing.Excel.Functions.Math;
 using OpenCvSharp.Dnn;
 using Sunny.UI;
 using System;
@@ -27,6 +28,7 @@ namespace TDJS_Vision.Device.Camera
         /// 连接状态改变事件
         /// </summary>
         public event EventHandler<bool> ConnectStatusEvent;
+        public event Action<Bitmap> OnImageReceived;
 
         /// <summary>
         /// 单个海康相机信息
@@ -312,11 +314,25 @@ namespace TDJS_Vision.Device.Camera
                         return false;
                     }
                 }
-
+                // 订阅图像回调函数
+                device.StreamGrabber.FrameGrabedEvent += GetImageCallBack;
             }
             return true;
         }
 
+        int count = 0;
+
+        /// <summary>
+        /// 取流回调
+        /// </summary>
+        private void GetImageCallBack(object sender, FrameGrabbedEventArgs e)
+        {
+            // 处理每一帧图像
+            var image = ConvertImageFormat(e.FrameOut.Image, device.PixelTypeConverter);
+            count++;
+            LogHelper.AddLog(MsgLevel.Exception, $"进入到回调函数{DevName} , 触发次数:{count}", true);
+            OnImageReceived?.Invoke(image);
+        }
 
         /// <summary>
         /// 主动获取一帧图像
@@ -878,6 +894,7 @@ namespace TDJS_Vision.Device.Camera
             {
                 StopGrabbing();
             }
+            ConnectStatusEvent?.Invoke(this, false);
             device.Close();
             IsOpen = false;
             ConnectStatusEvent?.Invoke(this, false);

@@ -1,4 +1,6 @@
 ﻿using Logger;
+using OpenCvSharp;
+using OpenCvSharp.Extensions;
 using Sunny.UI;
 using System;
 using System.Collections.Generic;
@@ -111,8 +113,24 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                                     , param.ExposureTime, param.Gain, param.TimeOut);
                         }
                     }
+
+                    //这里注册相机回调触发事件
+                    param.Camera.OnImageReceived += Camera_OnImageReceived;
                 }
 
+            }
+        }
+
+        private void Camera_OnImageReceived(Bitmap bitmap)
+        {
+            if (_node is NodeImageSource source)
+            {
+                if (source.Result is NodeResultImageSource res)
+                {
+                    if (!Solution.Instance.IsRunning) return;
+                    res.OutputImage.Bitmaps = new List<Mat>() { bitmap.ToMat() };
+                    _node.Process.Run(_node, false);
+                }
             }
         }
 
@@ -431,6 +449,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 if (!_nodeParamImageSource.IsEveryTime)
                     SetCameraParams(_nodeParamImageSource.Camera, _nodeParamImageSource.TriggerModel, _nodeParamImageSource.TriggerSource, _nodeParamImageSource.TriggerEdge, _nodeParamImageSource.TriggerDelay
                         , _nodeParamImageSource.ExposureTime, _nodeParamImageSource.Gain, _nodeParamImageSource.TimeOut);
+
+                //这里注册相机回调触发事件
+                _nodeParamImageSource.Camera.OnImageReceived -= Camera_OnImageReceived;
+                _nodeParamImageSource.Camera.OnImageReceived += Camera_OnImageReceived;
 
             }
 

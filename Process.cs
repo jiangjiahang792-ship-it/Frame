@@ -391,6 +391,106 @@ namespace TDJS_Vision
             ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Completed);
         }
 
+
+        /// <summary>
+        /// 流程开始运行
+        /// </summary>
+        public async Task Run(NodeBase nodeImage,bool isCyclical)
+        {
+            if (Nodes.Count == 0 || !Enable)
+                return;
+
+            // 清除上次运行状态显示
+            foreach (var node in Nodes)
+            {
+                node.SetStatus(NodeStatus.Unexecuted, "*");
+            }
+
+            RunTime = 0;
+            UpdateRunStatus?.Invoke(this, new ProcessRunResult(true, false, ProcessName));
+
+            if (ShowLog)
+                LogHelper.AddLog(MsgLevel.Info, $"-----------------------------------------------------  【{ProcessName}】（开始）  -----------------------------------------------------", true);
+            IsRuning = true;
+            Success = false;
+
+            for (int i = 0; i < _nodes.Count; i++)
+            {
+                NodeBase node = _nodes[i];
+                try
+                {
+                    if (node==nodeImage)
+                        continue;
+                    if (!node.Active)
+                        continue;
+
+                    NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
+                    RunTime += node.Result.RunTime;
+
+                    // 检查还要不要继续运行
+                    if (result.Flag == NodeRunFlag.StopRun)
+                    {
+                        // 当前节点要求停止后续节点执行
+                        Success = true; // 可以设置为成功或其他状态
+                        IsRuning = false;
+
+                        if (ShowLog)
+                            LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（提前完成）  ---------------------------------", true);
+                        UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
+                        ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
+                        return; // 提前退出整个流程
+                    }
+
+                    #region 实现IF^Else逻辑
+
+                    // ✅ 让节点返回“下一个要执行的索引”
+                    //    -1 表示顺序执行下一个（i+1）
+                    //    其他表示跳转到指定索引
+                    // 跳转
+                    if (result.NextIndex == -1)
+                    {
+                        // 顺序执行下一个
+                        continue;
+                    }
+                    else
+                    {
+                        // 跳转
+                        i = result.NextIndex - 1; // for 循环会 +1，所以先 -1
+                    }
+                    #endregion
+                }
+                catch (OperationCanceledException ex)
+                {
+                    Success = false;
+                    IsRuning = false;
+                    if (ShowLog)
+                        LogHelper.AddLog(MsgLevel.Warn, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（运行中断）  ---------------------------------", true);
+                    UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
+                    ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
+                    throw ex;
+                }
+                catch (Exception ex)
+                {
+                    Success = false;
+                    IsRuning = false;
+                    if (ShowLog)
+                        LogHelper.AddLog(MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（失败）  ---------------------------------", true);
+                    UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
+                    ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Failed, ex);
+                    throw ex;
+                }
+            }
+
+            // 所有节点都执行完毕
+            Success = true;
+            IsRuning = false;
+            if (ShowLog)
+                LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（成功）  ---------------------------------", true);
+            UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
+            ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Completed);
+        }
+
+
         /// <summary>
         /// 专用于需要订阅刷新前一个节点图像的节点
         /// 要在参数节点处停止运行

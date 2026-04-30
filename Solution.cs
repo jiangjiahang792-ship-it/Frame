@@ -381,6 +381,36 @@ namespace TDJS_Vision
             }
         }
 
+        public async Task Run(bool isCyclical = false,bool is1=false)
+        {
+            if (AllProcesses == null || AllProcesses.Count == 0)
+                return;
+
+            IsRunning = true;
+            Solution.Instance.ResetTokenSource();
+            var _cts = CancellationTokenSource.CreateLinkedTokenSource(Solution.Instance.CancellationToken);
+
+            try
+            {
+                await Task.Run(() =>
+                {
+                    while (!_cts.IsCancellationRequested) { }
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                // 正常取消
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, $"方案运行异常: {ex.Message}", true);
+            }
+            finally
+            {
+                IsRunning = false;
+            }
+        }
+
         /// <summary>
         /// 方案运行停止
         /// </summary>

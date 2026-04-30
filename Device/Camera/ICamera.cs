@@ -17,6 +17,11 @@ namespace TDJS_Vision.Device.Camera
         /// 连接状态改变事件
         /// </summary>
         event EventHandler<bool> ConnectStatusEvent;
+
+        /// <summary>
+        /// 供外部硬触发流程
+        /// </summary>
+        event Action<Bitmap> OnImageReceived;
         /// <summary>
         /// 硬件硬件名称
         /// </summary>
