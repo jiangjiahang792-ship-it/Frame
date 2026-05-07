@@ -11,10 +11,17 @@ namespace TDJS_Vision.Forms.SolRunParam
     public partial class FormSolRunParam : FormBase
     {
         private IDevice curDevice = null;
+        private string selectedProcessName = string.Empty;
+        private bool showSingleProcessOnly = false;
         public FormSolRunParam()
         {
             InitializeComponent();
             comboBoxCoilValue.SelectedIndex = 1;
+        }
+        public FormSolRunParam(string processName) : this()
+        {
+            selectedProcessName = processName ?? string.Empty;
+            showSingleProcessOnly = true;
         }
         /// <summary>
         /// 窗体显示事件
@@ -26,9 +33,14 @@ namespace TDJS_Vision.Forms.SolRunParam
             #region 创建选项卡
 
             RemoveAllExceptSpecifiedPage(tabControl1, "Modbus通信");//保留“Modbus通信”选项卡,删除所有
+            if (showSingleProcessOnly)
+            {
+                RemoveAllTabPages(tabControl1);
+            }
             foreach (var process in Solution.Instance.AllProcesses)
             {
-                
+                if (showSingleProcessOnly && process.ProcessName != selectedProcessName)
+                    continue;
 
                 SolRunParamControl solRunParam = new SolRunParamControl();
                 TabPage page = new TabPage();
@@ -47,7 +59,12 @@ namespace TDJS_Vision.Forms.SolRunParam
 
             #endregion
 
+            SelectProcessPage();
+
             #region 显示Modbus通信参数
+
+            if (showSingleProcessOnly)
+                return;
 
             if(Solution.Instance.ModbusDevices.Count > 0)
             {
@@ -75,6 +92,27 @@ namespace TDJS_Vision.Forms.SolRunParam
             }
 
             #endregion
+        }
+        private void SelectProcessPage()
+        {
+            if (string.IsNullOrEmpty(selectedProcessName))
+                return;
+
+            foreach (TabPage page in tabControl1.TabPages)
+            {
+                if (page.Text == selectedProcessName)
+                {
+                    tabControl1.SelectedTab = page;
+                    return;
+                }
+            }
+        }
+        private void RemoveAllTabPages(TabControl tabControl)
+        {
+            for (int i = tabControl.TabPages.Count - 1; i >= 0; i--)
+            {
+                tabControl.TabPages.RemoveAt(i);
+            }
         }
         /// <summary>
         /// 显示modbusRTU参数

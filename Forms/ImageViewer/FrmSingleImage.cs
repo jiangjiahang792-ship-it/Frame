@@ -7,6 +7,7 @@ using System;
 using Logger;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
+using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Forms.ImageViewer
 {
@@ -14,6 +15,7 @@ namespace TDJS_Vision.Forms.ImageViewer
     {
 
         public string FormName;
+        private Process _process;
 
         public FrmSingleImage(string name)
         {
@@ -23,6 +25,8 @@ namespace TDJS_Vision.Forms.ImageViewer
             NodeImageShow.ImageShowChanged += NodeImageShow_ImageShowChanged;
             NodeImageShow.ImageShowWindowNameChanged += NodeImageShow_ImageShowWindowNameChanged1;
             SolRunParamControl.ImageShowChanged += NodeImageShow_ImageShowChanged;
+            button1.Click += button1_Click;
+            button2.Click += button2_Click;
         }
 
         private void NodeImageShow_ImageShowWindowNameChanged1(Process process, string winName)
@@ -30,6 +34,7 @@ namespace TDJS_Vision.Forms.ImageViewer
             if (this.FormName != winName)
                 return;
 
+            _process = process;
             
             // 封装 UI 更新操作
             Action updateImage = () =>
@@ -102,6 +107,70 @@ namespace TDJS_Vision.Forms.ImageViewer
             FrmImageViewer.CurWindowsNum--;
             e.Cancel = true;
             Hide();
+        }
+
+        private Process GetCurrentProcess()
+        {
+            if (_process != null)
+                return _process;
+
+            foreach (var process in Solution.Instance.AllProcesses)
+            {
+                foreach (var node in process.Nodes)
+                {
+                    if (node is NodeImageShow nodeShow &&
+                        nodeShow.ParamForm.Params is NodeParamImageShow showParam &&
+                        showParam.WindowName == FormName)
+                    {
+                        _process = process;
+                        return _process;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            var process = GetCurrentProcess();
+            if (process == null)
+            {
+                MessageBoxTD.Show("未找到当前图像窗口对应的工位！");
+                return;
+            }
+
+            try
+            {
+                using (var solRunParam = new SolRunParamControl())
+                {
+                    solRunParam.Init(process);
+                    if (!solRunParam.StartAutoLearning())
+                    {
+                        MessageBoxTD.Show("当前工位未配置AI节点，无法一键学习！");
+                        return;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show($"一键学习失败！原因：{ex.Message}");
+            }
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            var process = GetCurrentProcess();
+            if (process == null)
+            {
+                MessageBoxTD.Show("未找到当前图像窗口对应的工位！");
+                return;
+            }
+
+            using (var form = new FormSolRunParam(process.ProcessName))
+            {
+                form.ShowDialog(this);
+            }
         }
     }
     public class ImageShowPamra

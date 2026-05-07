@@ -318,6 +318,15 @@ namespace TDJS_Vision.Forms.SolRunParam
                 throw;
             }
         }
+        public bool StartAutoLearning()
+        {
+            if (_nodeTDAI == null || !uiSwitch_Learning.Enabled)
+                return false;
+
+            uiSwitch_Learning.Active = true;
+            SaveConfigs();
+            return true;
+        }
         CancellationTokenSource tokenSource;
         /// <summary>
         /// 连续采图
