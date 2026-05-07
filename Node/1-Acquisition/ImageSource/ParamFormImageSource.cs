@@ -121,18 +121,64 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             }
         }
 
+        private readonly SemaphoreSlim _hardTriggerRunLock = new SemaphoreSlim(1, 1);
+
         private void Camera_OnImageReceived(Bitmap bitmap)
         {
-            if (_node is NodeImageSource source)
+            if (bitmap == null)
+                return;
+
+            if (!Solution.Instance.IsRunning)
+                return;
+
+            if (!(_node is NodeImageSource source))
+                return;
+
+            if (!(source.Result is NodeResultImageSource res))
+                return;
+
+            Mat mat;
+            try
             {
-                if (source.Result is NodeResultImageSource res)
+                using (var bmp = (Bitmap)bitmap.Clone())
                 {
-                    if (!Solution.Instance.IsRunning) return;
-                    res.OutputImage.Bitmaps = new List<Mat>() { bitmap.ToMat() };
-                    _node.Process.Run(_node, false);
+                    mat = bmp.ToMat().Clone();
                 }
             }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, $"硬触发图像转换失败：{ex.Message}", true);
+                return;
+            }
+
+            // 当前流程还没跑完，本次触发直接丢弃，避免同一个流程重入
+            if (!_hardTriggerRunLock.Wait(0))
+            {
+                mat.Dispose();
+                LogHelper.AddLog(MsgLevel.Warn, $"流程【{_node.Process.ProcessName}】仍在运行，本次硬触发丢弃。", true);
+                return;
+            }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    res.OutputImage.Bitmaps = new List<Mat>() { mat };
+
+                    await _node.Process.Run(_node, false);
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.AddLog(MsgLevel.Exception,
+                        $"硬触发流程【{_node.Process.ProcessName}】运行异常：{ex.Message}", true);
+                }
+                finally
+                {
+                    _hardTriggerRunLock.Release();
+                }
+            });
         }
+
 
         /// <summary>
         /// 节点订阅结果
