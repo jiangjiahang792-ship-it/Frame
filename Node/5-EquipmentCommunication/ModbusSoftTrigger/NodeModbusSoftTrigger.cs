@@ -1,4 +1,5 @@
 ﻿using Logger;
+using OfficeOpenXml.FormulaParsing.Excel.Functions.Math;
 using System;
 using System.Linq;
 using System.Threading;
@@ -103,6 +104,9 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusSoftTrigger
                     }
                     Thread.Sleep(10); 
                 } while (!value);  // 读取失败或读取不到拍照信号为true均需要重试
+
+                LogHelper.AddLog(MsgLevel.Exception, $"收到触发信号 {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+
                 // 重置拍照信号，DiscreteInput只读不用重置
                 if (param.Reset && param.Type == ModbusRead.RegistersType.Bool)
                 {

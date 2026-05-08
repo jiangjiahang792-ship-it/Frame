@@ -327,10 +327,10 @@ namespace TDJS_Vision.Device.Camera
         /// </summary>
         private void GetImageCallBack(object sender, FrameGrabbedEventArgs e)
         {
+            LogHelper.AddLog(MsgLevel.Exception, $"进入到回调函数{DevName} , 触发次数:{count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
             // 处理每一帧图像
             var image = ConvertImageFormat(e.FrameOut.Image, device.PixelTypeConverter);
             count++;
-            LogHelper.AddLog(MsgLevel.Exception, $"进入到回调函数{DevName} , 触发次数:{count}", true);
             OnImageReceived?.Invoke(image);
         }
 
@@ -344,6 +344,7 @@ namespace TDJS_Vision.Device.Camera
             {
                 if (TriggerSource == TriggerSource.SOFT)
                 {
+                    LogHelper.AddLog(MsgLevel.Exception, $"准备软触发 {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
                     GrabOne();
                 }
                 IFrameOut frame;

@@ -128,7 +128,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             if (bitmap == null)
                 return;
 
-            if (!Solution.Instance.IsRunning)
+            if (!Solution.Instance.IsRunning && !_node.Process.IsHandRun)
                 return;
 
             if (!(_node is NodeImageSource source))

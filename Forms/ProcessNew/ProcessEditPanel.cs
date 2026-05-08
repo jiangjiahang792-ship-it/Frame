@@ -121,12 +121,27 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         private void RunStatusChange(object sender, ProcessRunResult e)
         {
-            if(_process.ProcessName == e.ProcessName)
+            // 线程安全判断 + 操作UI控件
+            if (_process.ProcessName == e.ProcessName)
             {
-                label2.Text = $"耗时:{_process.RunTime} ms";
-                buttonRun.Enabled = !e.IsRunning;
-                uiSwitchEnable.Enabled = !e.IsRunning;
-                uiLedBulb1.Color = e.IsRunning ? Color.DarkGray : e.IsSuccess ? Color.LawnGreen : Color.Red;
+                // 跨线程操作UI，必须用 Invoke
+                if (this.InvokeRequired)
+                {
+                    this.Invoke(new Action(() =>
+                    {
+                        label2.Text = $"耗时:{_process.RunTime} ms";
+                        buttonRun.Enabled = !e.IsRunning;
+                        uiSwitchEnable.Enabled = !e.IsRunning;
+                        uiLedBulb1.Color = e.IsRunning ? Color.DarkGray : e.IsSuccess ? Color.LawnGreen : Color.Red;
+                    }));
+                }
+                else
+                {
+                    label2.Text = $"耗时:{_process.RunTime} ms";
+                    buttonRun.Enabled = !e.IsRunning;
+                    uiSwitchEnable.Enabled = !e.IsRunning;
+                    uiLedBulb1.Color = e.IsRunning ? Color.DarkGray : e.IsSuccess ? Color.LawnGreen : Color.Red;
+                }
             }
         }
 
