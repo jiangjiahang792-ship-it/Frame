@@ -1,4 +1,4 @@
-﻿using Logger;
+using Logger;
 using System;
 using System.IO;
 using System.Windows.Forms;
@@ -403,11 +403,25 @@ namespace TDJS_Vision
         {
             FrmImgeDlg.Show(dockPanel1, DockState.Document);
             FrmResultDlg.Show(FrmImgeDlg.Pane, DockAlignment.Right, 0.25);
-            FrmLoggerDlg.Show(dockPanel1, DockState.Document);
+            
+            // 运行状态下不默认打开日志窗口
+            if (!Solution.Instance.IsRunning)
+            {
+                FrmLoggerDlg.Show(dockPanel1, DockState.Document);
+                运行日志ToolStripMenuItem.Checked = true;
+            }
+            else
+            {
+                if (FrmLoggerDlg.Visible)
+                {
+                    FrmLoggerDlg.Hide();
+                }
+                运行日志ToolStripMenuItem.Checked = false;
+            }
+            
             FrmLogoDlg.Show(FrmResultDlg.Pane, DockAlignment.Top, 0.5);
             图像显示ToolStripMenuItem.Checked = true;
             检测结果ToolStripMenuItem.Checked = true;
-            运行日志ToolStripMenuItem.Checked = true;
             公司Logo视图ToolStripMenuItem.Checked = true;
             this.dockPanel1.SaveAsXml(DockPanelConfig);
         }
@@ -571,6 +585,11 @@ namespace TDJS_Vision
         // 实际更新 UI 的方法
         private void UpdateUI(bool isRun)
         {
+            if (!isRun)
+            {
+                FrmLoggerDlg.FlushLogs();
+            }
+
             // 运行和停止按钮
             tsbt_SolRunOnce.Enabled = !isRun;
             tsbt_SolRunLoop.Enabled = !isRun;
@@ -797,6 +816,11 @@ namespace TDJS_Vision
             }
             else
             {
+                if (Solution.Instance.IsRunning)
+                {
+                    MessageBoxTD.Show("请先停止当前运行的任务后再打开日志窗口！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
                 FrmLoggerDlg.Show(); // 如果窗口隐藏，显示它
                 运行日志ToolStripMenuItem.Checked = true;
                 默认视图ToolStripMenuItem.Checked = FrmLoggerDlg.Visible && FrmResultDlg.Visible && FrmImgeDlg.Visible && FrmLogoDlg.Visible ? true : false;

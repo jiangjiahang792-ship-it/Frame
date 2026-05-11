@@ -28,6 +28,15 @@ namespace Logger
 
         private static bool OnlyLogException = false; // 仅记录异常日志
 
+        // 高精度时间戳机制（规避 Windows DateTime.Now 的 ~15ms 精度限制）
+        private static readonly DateTime _baseTime = DateTime.Now;
+        private static readonly Stopwatch _timestampStopwatch = Stopwatch.StartNew();
+
+        private static string GetHighResTimestamp()
+        {
+            // 通过 Stopwatch 的高精度 Elapsed 累加到初始时间上，提供微秒（.ffffff）级时间戳
+            return _baseTime.Add(_timestampStopwatch.Elapsed).ToString("yyyy-MM-dd HH:mm:ss.ffffff");
+        }
         #region 日志级别和信息结构体
         struct LevelAndInfo
         {
@@ -99,8 +108,83 @@ namespace Logger
             }
         }
 
+        private static readonly ConcurrentQueue<LevelAndInfo> _pendingLogs = new ConcurrentQueue<LevelAndInfo>();
+
+        public void FlushPendingLogs()
+        {
+            if (_pendingLogs.IsEmpty) return;
+            
+            if (this.InvokeRequired)
+            {
+                this.BeginInvoke((MethodInvoker)delegate { FlushPendingLogsInternal(); });
+            }
+            else
+            {
+                FlushPendingLogsInternal();
+            }
+        }
+
+        private void FlushPendingLogsInternal()
+        {
+            listBoxAll.BeginUpdate();
+            
+            while (_pendingLogs.TryDequeue(out LevelAndInfo item))
+            {
+                switch (item.Level)
+                {
+                    case MsgLevel.Debug:
+                        ControlListBox(item.Info, listBoxDebug);
+                        break;
+                    case MsgLevel.Info:
+                        ControlListBox(item.Info, listBoxInfo);
+                        break;
+                    case MsgLevel.Warn:
+                        ControlListBox(item.Info, listBoxWarn);
+                        break;
+                    case MsgLevel.Exception:
+                        ControlListBox(item.Info, listBoxExpection);
+                        break;
+                    case MsgLevel.Fatal:
+                        ControlListBox(item.Info, listBoxFatal);
+                        break;
+                    default:
+                        break;
+                }
+                listBoxAll.Items.Add(item.Info);
+            }
+            
+            if (listBoxAll.Items.Count > 0)
+            {
+                listBoxAll.SelectedIndex = listBoxAll.Items.Count - 1;
+                listBoxAll.SelectedIndex = -1;
+            }
+
+            if (listBoxAll.Items.Count > 1000)
+            {
+                listBoxAll.Items.Clear();
+            }
+
+            listBoxAll.EndUpdate();
+        }
+
         private void LogHelper_LogAddEvent(object sender, LevelAndInfo levelAndInfo)
         {
+            // 判断当前软件是否正在运行，如果运行则不刷新日志UI（避免UI假死），暂存到队列
+            if (TDJS_Vision.Solution.Instance.IsRunning)
+            {
+                _pendingLogs.Enqueue(levelAndInfo);
+                while (_pendingLogs.Count > 1000)
+                {
+                    _pendingLogs.TryDequeue(out _);
+                }
+                return;
+            }
+
+            if (!_pendingLogs.IsEmpty)
+            {
+                FlushPendingLogs();
+            }
+
             if (this.InvokeRequired)
             {
                 this.BeginInvoke((MethodInvoker)delegate
@@ -245,7 +329,7 @@ namespace Logger
             if (OnlyLogException && (level == MsgLevel.Info || level == MsgLevel.Debug))
                 return; // 过滤非异常日志
             SingleLog singleLog = new SingleLog();
-            singleLog.MakeLog(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), $"{level}", logInfo, filePath, memberName, $"{lineNumber}");
+            singleLog.MakeLog(GetHighResTimestamp(), $"{level}", logInfo, filePath, memberName, $"{lineNumber}");
             
             // 封装写文件和事件触发逻辑为匿名委托压入队列
             _logQueue.Add(() =>

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
@@ -112,6 +112,11 @@ namespace Logger
             e.Cancel = true;  // 取消关闭事件，防止窗口关闭
             this.Hide(); // 隐藏窗口
             HideChangedEvent?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void FlushLogs()
+        {
+            logHelper1?.FlushPendingLogs();
         }
 
     }
