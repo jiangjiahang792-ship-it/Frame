@@ -315,7 +315,7 @@ namespace TDJS_Vision.Device.Camera
                     }
                 }
                 // 订阅图像回调函数
-                device.StreamGrabber.FrameGrabedEvent += GetImageCallBack;
+                //device.StreamGrabber.FrameGrabedEvent += GetImageCallBack;
             }
             return true;
         }
@@ -344,7 +344,6 @@ namespace TDJS_Vision.Device.Camera
             {
                 if (TriggerSource == TriggerSource.SOFT)
                 {
-                    LogHelper.AddLog(MsgLevel.Exception, $"准备软触发 {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
                     GrabOne();
                 }
                 IFrameOut frame;
@@ -401,7 +400,6 @@ namespace TDJS_Vision.Device.Camera
             return inputImage.ToBitmap();
         }
 
-
         public TriggerModel GetTriggerMode()
         {
             if (device == null) throw new Exception("相机对象为空！");
@@ -417,7 +415,7 @@ namespace TDJS_Vision.Device.Camera
         public void SetTriggerMode(TriggerModel triggerModel)
         {
             if (device == null) throw new Exception("相机对象为空！");
-            device.Parameters.SetEnumValue("TriggerMode", triggerModel==TriggerModel.On ? 1u : 0u);
+            int result = device.Parameters.SetEnumValue("TriggerMode", triggerModel==TriggerModel.On ? 1u : 0u);
         }
 
         /// <summary>
@@ -525,7 +523,7 @@ namespace TDJS_Vision.Device.Camera
                         SetTriggerMode(TriggerModel.Off);
                         break;
                     case TriggerSource.SOFT:
-                        device.Parameters.SetEnumValue("TriggerSource", 7);
+                        int result = device.Parameters.SetEnumValue("TriggerSource", 7);
                         break;
                     case TriggerSource.LINE0:
                         device.Parameters.SetEnumValue("TriggerSource", 0);
@@ -579,7 +577,7 @@ namespace TDJS_Vision.Device.Camera
         public void GrabOne()
         {
             if (device == null) throw new Exception("相机对象为空！");
-            device.Parameters.SetCommandValue("TriggerSoftware");
+            int result = device.Parameters.SetCommandValue("TriggerSoftware");
         }
 
         /// <summary>
