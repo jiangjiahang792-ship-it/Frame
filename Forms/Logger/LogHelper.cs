@@ -1,10 +1,11 @@
-using System;
+ï»¿using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
 
 namespace Logger
 {
@@ -12,10 +13,11 @@ namespace Logger
     {
         static readonly string LogDictory = Environment.CurrentDirectory + @"\Logs\";
         static event EventHandler<LevelAndInfo> LogAddEvent;
-        private static readonly object _logFileLocker = new object();
-        private static bool OnlyLogException = false; // ÊÇ·ñ½ö¼ÇÂ¼Òì³£ÈÕÖ¾
+        private static readonly BlockingCollection<Action> _logQueue = new BlockingCollection<Action>();
+        static LogHelper() { Task.Factory.StartNew(() => { foreach (var action in _logQueue.GetConsumingEnumerable()) { try { action?.Invoke(); } catch { } } }, TaskCreationOptions.LongRunning); }
+        private static bool OnlyLogException = false; // ï¿½Ç·ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ì³£ï¿½ï¿½Ö¾
 
-        #region ÈÕÖ¾µÈ¼¶ºÍÈÕÖ¾ÄÚÈÝ½á¹¹Ìå
+        #region ï¿½ï¿½Ö¾ï¿½È¼ï¿½ï¿½ï¿½ï¿½ï¿½Ö¾ï¿½ï¿½ï¿½Ý½á¹¹ï¿½ï¿½
         struct LevelAndInfo
         {
             public MsgLevel Level { get; set; }
@@ -23,7 +25,7 @@ namespace Logger
         }
         #endregion
 
-        #region µ¥ÌõÈÕÖ¾½á¹¹Ìå
+        #region ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¾ï¿½á¹¹ï¿½ï¿½
         public struct SingleLog
         {
             public string LogTime;
@@ -64,16 +66,16 @@ namespace Logger
         {
             if (listBox.Items.Count == 0) return;
 
-            // »ñÈ¡ Graphics ¶ÔÏóÓÃÓÚ²âÁ¿×Ö·û´®¿í¶È
+            // ï¿½ï¿½È¡ Graphics ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú²ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
             using (Graphics g = listBox.CreateGraphics())
             {
                 int maxWidth = 0;
 
-                // ±éÀúËùÓÐÏî£¬ÕÒµ½×î³¤µÄÒ»Ïî
+                // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½î£¬ï¿½Òµï¿½ï¿½î³¤ï¿½ï¿½Ò»ï¿½ï¿½
                 foreach (var item in listBox.Items)
                 {
                     string text = item.ToString();
-                    // Ê¹ÓÃ MeasureString ²âÁ¿×Ö·û´®¿í¶È
+                    // Ê¹ï¿½ï¿½ MeasureString ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
                     SizeF size = g.MeasureString(text, listBox.Font);
                     if (size.Width > maxWidth)
                     {
@@ -81,7 +83,7 @@ namespace Logger
                     }
                 }
 
-                // ÉèÖÃ HorizontalExtent ÒÔ±ãÏÔÊ¾Ë®Æ½¹ö¶¯Ìõ
+                // ï¿½ï¿½ï¿½ï¿½ HorizontalExtent ï¿½Ô±ï¿½ï¿½ï¿½Ê¾Ë®Æ½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
                 listBox.HorizontalExtent = maxWidth;
             }
         }
@@ -90,9 +92,9 @@ namespace Logger
         {
             if (this.InvokeRequired)
             {
-                this.Invoke((MethodInvoker)delegate
+                this.BeginInvoke((MethodInvoker)delegate
                 {
-                    // ÏÔÊ¾µ½ÌØ¶¨ÈÕÖ¾µÈ¼¶À¸
+                    // ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½Ø¶ï¿½ï¿½ï¿½Ö¾ï¿½È¼ï¿½ï¿½ï¿½
                     switch (levelAndInfo.Level)
                     {
                         case MsgLevel.Debug:
@@ -113,21 +115,20 @@ namespace Logger
                         default:
                             break;
                     }
-                    // Í¬Ê±ÏÔÊ¾µ½È«²¿ÈÕÖ¾À¸
+                    // Í¬Ê±ï¿½ï¿½Ê¾ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½Ö¾ï¿½ï¿½
                     listBoxAll.Items.Add(levelAndInfo.Info);
                     listBoxAll.SelectedIndex = listBoxAll.Items.Count - 1;
-                    listBoxAll.SelectedIndex = -1;    //ÊÇ·ñÈ¡ÏûÑ¡ÖÐÐÐ
-                    // ÏÔÊ¾1000Ìõºó×Ô¶¯Çå³ýUIÈÕÖ¾
+                    listBoxAll.SelectedIndex = -1;    //ï¿½Ç·ï¿½È¡ï¿½ï¿½Ñ¡ï¿½ï¿½ï¿½ï¿½
+                    // ï¿½ï¿½Ê¾1000ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½UIï¿½ï¿½Ö¾
                     if (listBoxAll.Items.Count > 1000)
                     {
                         listBoxAll.Items.Clear();
                     }
-                    Application.DoEvents();
                 });
             }
             else
             {
-                // ÏÔÊ¾µ½ÌØ¶¨ÈÕÖ¾µÈ¼¶À¸
+                // ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½Ø¶ï¿½ï¿½ï¿½Ö¾ï¿½È¼ï¿½ï¿½ï¿½
                 switch (levelAndInfo.Level)
                 {
                     case MsgLevel.Debug:
@@ -148,16 +149,15 @@ namespace Logger
                     default:
                         break;
                 }
-                // Í¬Ê±ÏÔÊ¾µ½È«²¿ÈÕÖ¾À¸
+                // Í¬Ê±ï¿½ï¿½Ê¾ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½Ö¾ï¿½ï¿½
                 listBoxAll.Items.Add(levelAndInfo.Info);
                 listBoxAll.SelectedIndex = listBoxAll.Items.Count - 1;
-                listBoxAll.SelectedIndex = -1;    //ÊÇ·ñÈ¡ÏûÑ¡ÖÐÐÐ
-                // ÏÔÊ¾1000Ìõºó×Ô¶¯Çå³ýUIÈÕÖ¾
+                listBoxAll.SelectedIndex = -1;    //ï¿½Ç·ï¿½È¡ï¿½ï¿½Ñ¡ï¿½ï¿½ï¿½ï¿½
+                // ï¿½ï¿½Ê¾1000ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½UIï¿½ï¿½Ö¾
                 if (listBoxAll.Items.Count > 1000)
                 {
                     listBoxAll.Items.Clear();
                 }
-                Application.DoEvents();
             }
         }
 
@@ -194,18 +194,18 @@ namespace Logger
                 else
                     mybsh = Brushes.DarkGray;
 
-                // ÅÐ¶ÏÊÇ·ñÊÇÑ¡ÖÐÏî
+                // ï¿½Ð¶ï¿½ï¿½Ç·ï¿½ï¿½ï¿½Ñ¡ï¿½ï¿½ï¿½ï¿½
                 bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
 
-                // ÉèÖÃ±³¾°ÑÕÉ«
+                // ï¿½ï¿½ï¿½Ã±ï¿½ï¿½ï¿½ï¿½ï¿½É«
                 if (isSelected)
                 {
-                    e.Graphics.FillRectangle(Brushes.MediumTurquoise, e.Bounds); // Ñ¡ÖÐÊ±±³¾°ÑÕÉ«
-                    mybsh = Brushes.White; // Ñ¡ÖÐÊ±ÎÄ×ÖÑÕÉ«
+                    e.Graphics.FillRectangle(Brushes.MediumTurquoise, e.Bounds); // Ñ¡ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É«
+                    mybsh = Brushes.White; // Ñ¡ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É«
                 }
                 else
                 {
-                    e.Graphics.FillRectangle(Brushes.White, e.Bounds); // Ä¬ÈÏ±³¾°É«
+                    e.Graphics.FillRectangle(Brushes.White, e.Bounds); // Ä¬ï¿½Ï±ï¿½ï¿½ï¿½É«
                 }
 
                 e.DrawFocusRectangle();
@@ -214,14 +214,14 @@ namespace Logger
         }
 
         /// <summary>
-        /// Ìí¼ÓÒ»ÌõÈÕÖ¾
+        /// ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½Ö¾
         /// </summary>
-        /// <param name="level">ÈÕÖ¾µÈ¼¶</param>
-        /// <param name="logInfo">ÈÕÖ¾ÄÚÈÝ</param>
-        /// <param name="isDisplay">ÈÕÖ¾Ð´ÈëÎÄ¼þµÄÍ¬Ê±ÊÇ·ñÏÔÊ¾ÔÚ´°¿Ú£¬trueÐèÒª½çÃæ´øÈÕÖ¾¿Ø¼þ£¬false½ö½öÐ´ÈëÈÕÖ¾ÎÄ¼þ</param>
-        /// <param name="filePath">´òÓ¡³öÈÕÖ¾µÄ´úÂëÎÄ¼þÃû</param>
-        /// <param name="memberName">ÈÕÖ¾ÔÚÄÄ¸öº¯Êý´òÓ¡</param>
-        /// <param name="lineNumber">ÈÕÖ¾ÔÚ´úÂëÎÄ¼þµÄÄÄÒ»ÐÐ</param>
+        /// <param name="level">ï¿½ï¿½Ö¾ï¿½È¼ï¿½</param>
+        /// <param name="logInfo">ï¿½ï¿½Ö¾ï¿½ï¿½ï¿½ï¿½</param>
+        /// <param name="isDisplay">ï¿½ï¿½Ö¾Ð´ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½Í¬Ê±ï¿½Ç·ï¿½ï¿½ï¿½Ê¾ï¿½Ú´ï¿½ï¿½Ú£ï¿½trueï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¾ï¿½Ø¼ï¿½ï¿½ï¿½falseï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ï¿½ï¿½Ö¾ï¿½Ä¼ï¿½</param>
+        /// <param name="filePath">ï¿½ï¿½Ó¡ï¿½ï¿½ï¿½ï¿½Ö¾ï¿½Ä´ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½</param>
+        /// <param name="memberName">ï¿½ï¿½Ö¾ï¿½ï¿½ï¿½Ä¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¡</param>
+        /// <param name="lineNumber">ï¿½ï¿½Ö¾ï¿½Ú´ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½</param>
         public static void AddLog(
             MsgLevel level,
             string logInfo,
@@ -232,25 +232,18 @@ namespace Logger
             )
         {
             if (OnlyLogException && (level == MsgLevel.Info || level == MsgLevel.Debug))
-                return; // Èç¹û½ö¼ÇÂ¼Òì³£ÈÕÖ¾£¬ÇÒµ±Ç°ÈÕÖ¾²»ÊÇÒì³££¬Ôò²»¼ÇÂ¼
+                return; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ì³£ï¿½ï¿½Ö¾ï¿½ï¿½ï¿½Òµï¿½Ç°ï¿½ï¿½Ö¾ï¿½ï¿½ï¿½ï¿½ï¿½ì³£ï¿½ï¿½ï¿½ò²»¼ï¿½Â¼
             SingleLog singleLog = new SingleLog();
             singleLog.MakeLog(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), $"{level}", logInfo, filePath, memberName, $"{lineNumber}");
-            // Ð´Èë±¾µØÎÄ¼þLog
-            lock (_logFileLocker)
-            {
+            // Ð´ï¿½ë±¾ï¿½ï¿½ï¿½Ä¼ï¿½Log
+            _logQueue.Add(() => {
                 WriteLog(singleLog);
-            }
-            // ÏÔÊ¾µ½½çÃæµÄLog
-            if (isDisplay)
-            {
-                string logToShow = singleLog.LogTime + singleLog.Separator + singleLog.LogLevel + singleLog.Separator + singleLog.LogInfo;
-                LevelAndInfo levelAndInfo = new LevelAndInfo
-                {
-                    Level = level,
-                    Info = logToShow
-                };
-                LogAddEvent?.Invoke(null, levelAndInfo);
-            }
+                if (isDisplay) {
+                    string logToShow = singleLog.LogTime + singleLog.Separator + singleLog.LogLevel + singleLog.Separator + singleLog.LogInfo;
+                    LevelAndInfo levelAndInfo = new LevelAndInfo { Level = level, Info = logToShow };
+                    LogAddEvent?.Invoke(null, levelAndInfo);
+                }
+            });
         }
 
         private void ControlListBox(string logToShow, ListBox myListBox)
@@ -364,9 +357,9 @@ namespace Logger
 
         }
 
-        private void ´ò¿ªÈÕÖ¾Ä¿Â¼ToolStripMenuItem_Click(object sender, EventArgs e)
+        private void ï¿½ï¿½ï¿½ï¿½Ö¾Ä¿Â¼ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            // Ê¹ÓÃ Process.Start ÔËÐÐÎÄ¼þ¹ÜÀíÆ÷´ò¿ªÈÕÖ¾ÎÄ¼þ¼Ð
+            // Ê¹ï¿½ï¿½ Process.Start ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¾ï¿½Ä¼ï¿½ï¿½ï¿½
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = "explorer.exe",
@@ -376,14 +369,14 @@ namespace Logger
             Process.Start(startInfo);
         }
         /// <summary>
-        /// ½ö¼ÇÂ¼Òì³£ÈÕÖ¾
+        /// ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ì³£ï¿½ï¿½Ö¾
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void ½ö¼ÇÂ¼Òì³£ÈÕÖ¾ToolStripMenuItem_Click(object sender, EventArgs e)
+        private void ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ì³£ï¿½ï¿½Ö¾ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            ½ö¼ÇÂ¼Òì³£ÈÕÖ¾ToolStripMenuItem.Checked = !½ö¼ÇÂ¼Òì³£ÈÕÖ¾ToolStripMenuItem.Checked;
-            OnlyLogException = ½ö¼ÇÂ¼Òì³£ÈÕÖ¾ToolStripMenuItem.Checked ? true : false;
+            ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ì³£ï¿½ï¿½Ö¾ToolStripMenuItem.Checked = !ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ì³£ï¿½ï¿½Ö¾ToolStripMenuItem.Checked;
+            OnlyLogException = ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ì³£ï¿½ï¿½Ö¾ToolStripMenuItem.Checked ? true : false;
         }
     }
 }
