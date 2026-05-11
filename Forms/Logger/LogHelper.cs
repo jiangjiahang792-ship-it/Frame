@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -14,10 +14,21 @@ namespace Logger
         static readonly string LogDictory = Environment.CurrentDirectory + @"\Logs\";
         static event EventHandler<LevelAndInfo> LogAddEvent;
         private static readonly BlockingCollection<Action> _logQueue = new BlockingCollection<Action>();
-        static LogHelper() { Task.Factory.StartNew(() => { foreach (var action in _logQueue.GetConsumingEnumerable()) { try { action?.Invoke(); } catch { } } }, TaskCreationOptions.LongRunning); }
-        private static bool OnlyLogException = false; // �Ƿ����¼�쳣��־
 
-        #region ��־�ȼ�����־���ݽṹ��
+        static LogHelper()
+        {
+            Task.Factory.StartNew(() =>
+            {
+                foreach (var action in _logQueue.GetConsumingEnumerable())
+                {
+                    try { action?.Invoke(); } catch { }
+                }
+            }, TaskCreationOptions.LongRunning);
+        }
+
+        private static bool OnlyLogException = false; // 仅记录异常日志
+
+        #region 日志级别和信息结构体
         struct LevelAndInfo
         {
             public MsgLevel Level { get; set; }
@@ -25,7 +36,7 @@ namespace Logger
         }
         #endregion
 
-        #region ������־�ṹ��
+        #region 单条日志结构体
         public struct SingleLog
         {
             public string LogTime;
@@ -66,16 +77,16 @@ namespace Logger
         {
             if (listBox.Items.Count == 0) return;
 
-            // ��ȡ Graphics �������ڲ����ַ������
+            // 获取 Graphics 对象以测量字符串宽度
             using (Graphics g = listBox.CreateGraphics())
             {
                 int maxWidth = 0;
 
-                // ����������ҵ����һ��
+                // 遍历寻找最长字符串
                 foreach (var item in listBox.Items)
                 {
                     string text = item.ToString();
-                    // ʹ�� MeasureString �����ַ������
+                    // 测量字符串渲染后的尺寸
                     SizeF size = g.MeasureString(text, listBox.Font);
                     if (size.Width > maxWidth)
                     {
@@ -83,7 +94,7 @@ namespace Logger
                     }
                 }
 
-                // ���� HorizontalExtent �Ա���ʾˮƽ������
+                // 设置水平滚动条宽度
                 listBox.HorizontalExtent = maxWidth;
             }
         }
@@ -94,7 +105,7 @@ namespace Logger
             {
                 this.BeginInvoke((MethodInvoker)delegate
                 {
-                    // ��ʾ���ض���־�ȼ���
+                    // 根据日志级别分发到不同列表控件
                     switch (levelAndInfo.Level)
                     {
                         case MsgLevel.Debug:
@@ -115,11 +126,11 @@ namespace Logger
                         default:
                             break;
                     }
-                    // ͬʱ��ʾ��ȫ����־��
+                    // 同步在全局列表显示
                     listBoxAll.Items.Add(levelAndInfo.Info);
                     listBoxAll.SelectedIndex = listBoxAll.Items.Count - 1;
-                    listBoxAll.SelectedIndex = -1;    //�Ƿ�ȡ��ѡ����
-                    // ��ʾ1000�����Զ����UI��־
+                    listBoxAll.SelectedIndex = -1;    // 取消选中效果
+                    // 限制最大UI行数，防止内存溢出
                     if (listBoxAll.Items.Count > 1000)
                     {
                         listBoxAll.Items.Clear();
@@ -128,7 +139,7 @@ namespace Logger
             }
             else
             {
-                // ��ʾ���ض���־�ȼ���
+                // 根据日志级别分发到不同列表控件
                 switch (levelAndInfo.Level)
                 {
                     case MsgLevel.Debug:
@@ -149,11 +160,11 @@ namespace Logger
                     default:
                         break;
                 }
-                // ͬʱ��ʾ��ȫ����־��
+                // 同步在全局列表显示
                 listBoxAll.Items.Add(levelAndInfo.Info);
                 listBoxAll.SelectedIndex = listBoxAll.Items.Count - 1;
-                listBoxAll.SelectedIndex = -1;    //�Ƿ�ȡ��ѡ����
-                // ��ʾ1000�����Զ����UI��־
+                listBoxAll.SelectedIndex = -1;    // 取消选中效果
+                // 限制最大UI行数，防止内存溢出
                 if (listBoxAll.Items.Count > 1000)
                 {
                     listBoxAll.Items.Clear();
@@ -194,18 +205,18 @@ namespace Logger
                 else
                     mybsh = Brushes.DarkGray;
 
-                // �ж��Ƿ���ѡ����
+                // 判断项是否被选中
                 bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
 
-                // ���ñ�����ɫ
+                // 配置不同状态下背景色与前景色
                 if (isSelected)
                 {
-                    e.Graphics.FillRectangle(Brushes.MediumTurquoise, e.Bounds); // ѡ��ʱ������ɫ
-                    mybsh = Brushes.White; // ѡ��ʱ������ɫ
+                    e.Graphics.FillRectangle(Brushes.MediumTurquoise, e.Bounds); // 选中时背景
+                    mybsh = Brushes.White; // 选中时文字颜色
                 }
                 else
                 {
-                    e.Graphics.FillRectangle(Brushes.White, e.Bounds); // Ĭ�ϱ���ɫ
+                    e.Graphics.FillRectangle(Brushes.White, e.Bounds); // 默认背景
                 }
 
                 e.DrawFocusRectangle();
@@ -214,14 +225,14 @@ namespace Logger
         }
 
         /// <summary>
-        /// ���һ����־
+        /// 记录一条日志并触发异步落地
         /// </summary>
-        /// <param name="level">��־�ȼ�</param>
-        /// <param name="logInfo">��־����</param>
-        /// <param name="isDisplay">��־д���ļ���ͬʱ�Ƿ���ʾ�ڴ��ڣ�true��Ҫ�������־�ؼ���false����д����־�ļ�</param>
-        /// <param name="filePath">��ӡ����־�Ĵ����ļ���</param>
-        /// <param name="memberName">��־���ĸ�������ӡ</param>
-        /// <param name="lineNumber">��־�ڴ����ļ�����һ��</param>
+        /// <param name="level">日志级别</param>
+        /// <param name="logInfo">日志正文内容</param>
+        /// <param name="isDisplay">是否在界面上显示（true: 刷新UI并写文件, false: 仅写文件）</param>
+        /// <param name="filePath">调用者所在文件</param>
+        /// <param name="memberName">调用者方法名</param>
+        /// <param name="lineNumber">调用者行号</param>
         public static void AddLog(
             MsgLevel level,
             string logInfo,
@@ -232,15 +243,22 @@ namespace Logger
             )
         {
             if (OnlyLogException && (level == MsgLevel.Info || level == MsgLevel.Debug))
-                return; // �������¼�쳣��־���ҵ�ǰ��־�����쳣���򲻼�¼
+                return; // 过滤非异常日志
             SingleLog singleLog = new SingleLog();
             singleLog.MakeLog(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), $"{level}", logInfo, filePath, memberName, $"{lineNumber}");
-            // д�뱾���ļ�Log
-            _logQueue.Add(() => {
+            
+            // 封装写文件和事件触发逻辑为匿名委托压入队列
+            _logQueue.Add(() =>
+            {
                 WriteLog(singleLog);
-                if (isDisplay) {
+                if (isDisplay)
+                {
                     string logToShow = singleLog.LogTime + singleLog.Separator + singleLog.LogLevel + singleLog.Separator + singleLog.LogInfo;
-                    LevelAndInfo levelAndInfo = new LevelAndInfo { Level = level, Info = logToShow };
+                    LevelAndInfo levelAndInfo = new LevelAndInfo
+                    {
+                        Level = level,
+                        Info = logToShow
+                    };
                     LogAddEvent?.Invoke(null, levelAndInfo);
                 }
             });
@@ -357,9 +375,9 @@ namespace Logger
 
         }
 
-        private void ����־Ŀ¼ToolStripMenuItem_Click(object sender, EventArgs e)
+        private void 打开日志目录ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            // ʹ�� Process.Start �����ļ�����������־�ļ���
+            // 使用 Process.Start 打开日志目录
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = "explorer.exe",
@@ -368,15 +386,16 @@ namespace Logger
             };
             Process.Start(startInfo);
         }
+
         /// <summary>
-        /// ����¼�쳣��־
+        /// 菜单项：仅记录异常日志
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void ����¼�쳣��־ToolStripMenuItem_Click(object sender, EventArgs e)
+        private void 仅记录异常日志ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            ����¼�쳣��־ToolStripMenuItem.Checked = !����¼�쳣��־ToolStripMenuItem.Checked;
-            OnlyLogException = ����¼�쳣��־ToolStripMenuItem.Checked ? true : false;
+            仅记录异常日志ToolStripMenuItem.Checked = !仅记录异常日志ToolStripMenuItem.Checked;
+            OnlyLogException = 仅记录异常日志ToolStripMenuItem.Checked ? true : false;
         }
     }
 }
