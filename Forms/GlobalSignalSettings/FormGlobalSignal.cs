@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -20,6 +20,8 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
             Shown += FormGlobalSignal_Shown;
             dataGridView1.Leave += DataGridView1_Leave;
             dataGridView2.Leave += DataGridView2_Leave;
+            dataGridView3.Leave += DataGridView3_Leave;
+            dataGridView3.CellClick += dataGridView1_CellClick;
         }
         /// <summary>
         /// 点击删除按钮
@@ -45,7 +47,7 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
                 }
                 else if (sender is DataGridView view2 && view2 == dataGridView2)
                 {
-                    // 检查点击是否发生在 deleteColumn1 列
+                    // 检查点击是否发生在 deleteColumn2 列
                     if (e.ColumnIndex == dataGridView2.Columns["deleteColumn2"].Index && e.RowIndex >= 0)
                     {
                         // 获取被点击的行
@@ -53,6 +55,18 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
                         if (row.IsNewRow) return;
                         // 删除当前行
                         dataGridView2.Rows.Remove(row);
+                    }
+                }
+                else if (sender is DataGridView view3 && view3 == dataGridView3)
+                {
+                    // 检查点击是否发生在 dataGridViewButtonColumn1 列
+                    if (e.ColumnIndex == dataGridView3.Columns["dataGridViewButtonColumn1"].Index && e.RowIndex >= 0)
+                    {
+                        // 获取被点击的行
+                        DataGridViewRow row = dataGridView3.Rows[e.RowIndex];
+                        if (row.IsNewRow) return;
+                        // 删除当前行
+                        dataGridView3.Rows.Remove(row);
                     }
                 }
             }
@@ -294,6 +308,17 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
                 Solution.Instance.GlobalSignal = new GlobalSignal();
             Solution.Instance.GlobalSignal.StopSignals = GetConfig(dataGridView2);
         }
+        /// <summary>
+        /// dataGridView3 离开事件
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void DataGridView3_Leave(object sender, EventArgs e)
+        {
+            if (Solution.Instance.GlobalSignal == null)
+                Solution.Instance.GlobalSignal = new GlobalSignal();
+            Solution.Instance.GlobalSignal.ListenSignals = GetConfig(dataGridView3);
+        }
 
         private void FormGlobalSignal_Shown(object sender, EventArgs e)
         {
@@ -302,15 +327,21 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
             // 设置列标题的高度
             dataGridView1.ColumnHeadersHeight = 64;
             dataGridView2.ColumnHeadersHeight = 64;
+            dataGridView3.ColumnHeadersHeight = 64;
             // 设置行的高度
             dataGridView1.RowTemplate.Height = 36;
             dataGridView2.RowTemplate.Height = 36;
+            dataGridView3.RowTemplate.Height = 36;
             //等分表格列宽
             foreach (DataGridViewColumn column in dataGridView1.Columns)
             {
                 column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
             }
             foreach (DataGridViewColumn column in dataGridView2.Columns)
+            {
+                column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            }
+            foreach (DataGridViewColumn column in dataGridView3.Columns)
             {
                 column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
             }
@@ -322,10 +353,12 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
                 var deviceNames = Solution.Instance.AllDevices.Where(d => d is IPlc || d is IModbus).Select(d => d.DevName).ToList();
                 deviceColumn1.DataSource = deviceNames;
                 deviceColumn2.DataSource = deviceNames;
+                dataGridViewComboBoxColumn1.DataSource = deviceNames;
                 if (Solution.Instance.GlobalSignal != null)
                 {
                     LoadConfig(dataGridView1, Solution.Instance.GlobalSignal.ReadySignals);
                     LoadConfig(dataGridView2, Solution.Instance.GlobalSignal.StopSignals);
+                    LoadConfig(dataGridView3, Solution.Instance.GlobalSignal.ListenSignals);
                 }
             }
             catch (Exception ex)
@@ -395,6 +428,7 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
                 Solution.Instance.GlobalSignal = new GlobalSignal();
             Solution.Instance.GlobalSignal.ReadySignals = GetConfig(dataGridView1);
             Solution.Instance.GlobalSignal.StopSignals = GetConfig(dataGridView2);
+            Solution.Instance.GlobalSignal.ListenSignals = GetConfig(dataGridView3);
         }
     }
     /// <summary>
@@ -410,6 +444,10 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
         /// 停止信号
         /// </summary>
         public List<SingleGlobalSignalSettings> StopSignals { get; set; } = new List<SingleGlobalSignalSettings>();
+        /// <summary>
+        /// 监听信号
+        /// </summary>
+        public List<SingleGlobalSignalSettings> ListenSignals { get; set; } = new List<SingleGlobalSignalSettings>();
         /// <summary>
         /// 默认构造函数
         /// </summary>
