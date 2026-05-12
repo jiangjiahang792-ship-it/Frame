@@ -241,8 +241,16 @@ namespace TDJS_Vision
                 {
                     SetLockStatus(UserRole.Low);
                     SetRunStatus(true);
-                    await Solution.Instance.Run(true,false);
-                    SetRunStatus(false);
+                    FormGlobalSignal.StartListenSignals();
+                    try
+                    {
+                        await Solution.Instance.Run(true,false);
+                    }
+                    finally
+                    {
+                        FormGlobalSignal.StopListenSignals();
+                        SetRunStatus(false);
+                    }
                 }
             }
         }
@@ -541,6 +549,7 @@ namespace TDJS_Vision
         private async void 停止运行ToolStripMenuItem_Click(object value1, object value2)
         {
             Solution.Instance.Stop();
+            FormGlobalSignal.StopListenSignals();
             SetRunStatus(false);
             await FormGlobalSignal.SendGlobalSignals(this, false);
         }
@@ -549,17 +558,33 @@ namespace TDJS_Vision
         {
             await FormGlobalSignal.SendGlobalSignals(this, true);
             SetRunStatus(true);
-            await Solution.Instance.Run(true);
-            //await Solution.Instance.Run(true,false);
-            SetRunStatus(false);
+            FormGlobalSignal.StartListenSignals();
+            try
+            {
+                await Solution.Instance.Run(true);
+                //await Solution.Instance.Run(true,false);
+            }
+            finally
+            {
+                FormGlobalSignal.StopListenSignals();
+                SetRunStatus(false);
+            }
         }
 
         private async void 单次运行ToolStripMenuItem_Click(object value1, object value2)
         {
             await FormGlobalSignal.SendGlobalSignals(this, true);
             SetRunStatus(true);
-            await Solution.Instance.Run(false);
-            SetRunStatus(false);
+            FormGlobalSignal.StartListenSignals();
+            try
+            {
+                await Solution.Instance.Run(false);
+            }
+            finally
+            {
+                FormGlobalSignal.StopListenSignals();
+                SetRunStatus(false);
+            }
             await FormGlobalSignal.SendGlobalSignals(this, false);
         }
 

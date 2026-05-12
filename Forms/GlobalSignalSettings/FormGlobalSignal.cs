@@ -6,10 +6,10 @@ using System.Threading.Tasks;
 using System.Threading;
 using System.Windows.Forms;
 using Logger;
+using Newtonsoft.Json;
 using TDJS_Vision.Device;
 using TDJS_Vision.Device.Modbus;
 using TDJS_Vision.Device.PLC;
-using TDJS_Vision.Forms.COMAdd;
 using TDJS_Vision.Forms.ProcessNew;
 
 namespace TDJS_Vision.Forms.GlobalSignalSettings
@@ -27,7 +27,6 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
             dataGridView2.Leave += DataGridView2_Leave;
             dataGridView3.Leave += DataGridView3_Leave;
             dataGridView3.CellClick += dataGridView1_CellClick;
-            FrmCOMListView.OnCOMDeserializationCompletionEvent += FormGlobalSignal_OnSolutionLoadFinished;
         }
         /// <summary>
         /// 点击删除按钮
@@ -292,13 +291,8 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
         }
 
         /// <summary>
-        /// 方案加载完成后启动监听信号线程。
+        /// 监听信号线程控制。
         /// </summary>
-        private void FormGlobalSignal_OnSolutionLoadFinished(object sender, bool e)
-        {
-            StartListenSignals();
-        }
-
         /// <summary>
         /// 为 dataGridView3 中配置的每一条监听信号启动一个独立线程。
         /// </summary>
@@ -315,6 +309,9 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
             {
                 if (signal == null || !signal.Enable || string.IsNullOrEmpty(signal.DeviceName) || string.IsNullOrEmpty(signal.Address))
                     continue;
+
+                signal.SignalValue = false;
+                signal.SignalTriggered = false;
 
                 var token = _listenSignalCts.Token;
                 Thread thread = new Thread(() => ListenSignalLoop(signal, token));
@@ -339,13 +336,28 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
         {
             while (!token.IsCancellationRequested)
             {
+                bool isMatched = false;
+
                 try
                 {
-                    signal.SignalValue = ReadSignalMatched(signal);
+                    isMatched = ReadSignalMatched(signal);
                 }
                 catch
                 {
-                    signal.SignalValue = false;
+                    isMatched = false;
+                }
+
+                if (isMatched)
+                {
+                    if (!signal.SignalTriggered)
+                    {
+                        signal.SignalValue = true;
+                        signal.SignalTriggered = true;
+                    }
+                }
+                else
+                {
+                    signal.SignalTriggered = false;
                 }
 
                 Thread.Sleep(ListenInterval);
@@ -590,6 +602,8 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
         /// 监听信号当前是否满足配置值，后续节点可读取该值。
         /// </summary>
         public bool SignalValue { get; set; }
+        [JsonIgnore]
+        public bool SignalTriggered { get; set; }
         public SingleGlobalSignalSettings(string devName, string address, string type, string value, bool enable)
         {
             DeviceName = devName;
@@ -598,6 +612,7 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
             Value = value;
             Enable = enable;
             SignalValue = false;
+            SignalTriggered = false;
         }
     }
 }
