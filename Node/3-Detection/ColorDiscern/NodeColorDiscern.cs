@@ -6,8 +6,6 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
-using TDJS_Vision.Forms.DispShowImage;
-using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.ColorDiscern;
 using TDJS_Vision.Node._3_Detection.TDAI;
 

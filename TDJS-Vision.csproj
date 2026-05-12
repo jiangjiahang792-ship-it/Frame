@@ -429,6 +429,17 @@
     <Compile Include="Node\5-EquipmentCommunication\ERUIIO\ParamFormERUIIO.Designer.cs">
       <DependentUpon>ParamFormERUIIO.cs</DependentUpon>
     </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\FlagRead\NodeParamFlagRead.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\FlagRead\NodeFlagRead.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\FlagRead\NodeResultFlagRead.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\FlagRead\ParamFormFlagRead.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\5-EquipmentCommunication\FlagRead\ParamFormFlagRead.Designer.cs">
+      <DependentUpon>ParamFormFlagRead.cs</DependentUpon>
+    </Compile>
     <Compile Include="Node\5-EquipmentCommunication\PlcRead\NodeParamPlcRead.cs" />
     <Compile Include="Node\5-EquipmentCommunication\PlcRead\NodePlcRead.cs">
       <SubType>UserControl</SubType>
@@ -1390,6 +1401,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\5-EquipmentCommunication\ERUIIO\ParamFormERUIIO.resx">
       <DependentUpon>ParamFormERUIIO.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\5-EquipmentCommunication\FlagRead\ParamFormFlagRead.resx">
+      <DependentUpon>ParamFormFlagRead.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\5-EquipmentCommunication\PlcRead\ParamFormPlcRead.resx">
       <DependentUpon>ParamFormPlcRead.cs</DependentUpon>

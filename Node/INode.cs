@@ -315,5 +315,9 @@ namespace TDJS_Vision.Node
         /// 相机IO手动控制
         /// </summary>
         CameraIOManual,
+        /// <summary>
+        /// 监听信号读取
+        /// </summary>
+        ReadFlag,
     }
 }

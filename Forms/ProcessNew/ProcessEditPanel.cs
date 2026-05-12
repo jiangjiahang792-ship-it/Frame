@@ -368,6 +368,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.CameraIOManual:
                     node = new NodeCameraIOManual(nodeId, nodeName, _process, nodeType);
                     break;
+                case NodeType.ReadFlag:
+                    node = new NodeFlagRead(nodeId, nodeName, _process, nodeType);
+                    break;
                 default:
                     break;
                     //工具栏图标颜色：蓝 #1296db 紫 #56227a

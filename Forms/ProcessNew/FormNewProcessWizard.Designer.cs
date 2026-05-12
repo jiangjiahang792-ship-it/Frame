@@ -184,26 +184,27 @@ namespace TDJS_Vision.Forms.ProcessNew
             this.imageList1.Images.SetKeyName(28, "Modbus写入");
             this.imageList1.Images.SetKeyName(29, "Modbus软触发");
             this.imageList1.Images.SetKeyName(30, "科锐IO模块");
-            this.imageList1.Images.SetKeyName(31, "逻辑工具");
-            this.imageList1.Images.SetKeyName(32, "共享变量");
-            this.imageList1.Images.SetKeyName(33, "条件运行");
-            this.imageList1.Images.SetKeyName(34, "延迟执行");
-            this.imageList1.Images.SetKeyName(35, "触发同组流程");
-            this.imageList1.Images.SetKeyName(36, "等待流程完成");
-            this.imageList1.Images.SetKeyName(37, "流程信号");
-            this.imageList1.Images.SetKeyName(38, "If");
-            this.imageList1.Images.SetKeyName(39, "Else");
-            this.imageList1.Images.SetKeyName(40, "EndIf");
-            this.imageList1.Images.SetKeyName(41, "C#脚本");
-            this.imageList1.Images.SetKeyName(42, "弹窗");
-            this.imageList1.Images.SetKeyName(43, "结果处理");
-            this.imageList1.Images.SetKeyName(44, "发送AI结果");
-            this.imageList1.Images.SetKeyName(45, "AI结果绘制");
-            this.imageList1.Images.SetKeyName(46, "保存图片");
-            this.imageList1.Images.SetKeyName(47, "检测结果显示");
-            this.imageList1.Images.SetKeyName(48, "结果汇总");
-            this.imageList1.Images.SetKeyName(49, "图片删除");
-            this.imageList1.Images.SetKeyName(50, "导出检测表格");
+            this.imageList1.Images.SetKeyName(31, "监听Flag信号");
+            this.imageList1.Images.SetKeyName(32, "逻辑工具");
+            this.imageList1.Images.SetKeyName(33, "共享变量");
+            this.imageList1.Images.SetKeyName(34, "条件运行");
+            this.imageList1.Images.SetKeyName(35, "延迟执行");
+            this.imageList1.Images.SetKeyName(36, "触发同组流程");
+            this.imageList1.Images.SetKeyName(37, "等待流程完成");
+            this.imageList1.Images.SetKeyName(38, "流程信号");
+            this.imageList1.Images.SetKeyName(39, "If");
+            this.imageList1.Images.SetKeyName(40, "Else");
+            this.imageList1.Images.SetKeyName(41, "EndIf");
+            this.imageList1.Images.SetKeyName(42, "C#脚本");
+            this.imageList1.Images.SetKeyName(43, "弹窗");
+            this.imageList1.Images.SetKeyName(44, "结果处理");
+            this.imageList1.Images.SetKeyName(45, "发送AI结果");
+            this.imageList1.Images.SetKeyName(46, "AI结果绘制");
+            this.imageList1.Images.SetKeyName(47, "保存图片");
+            this.imageList1.Images.SetKeyName(48, "检测结果显示");
+            this.imageList1.Images.SetKeyName(49, "结果汇总");
+            this.imageList1.Images.SetKeyName(50, "图片删除");
+            this.imageList1.Images.SetKeyName(51, "导出检测表格");
             // 
             // label1
             // 

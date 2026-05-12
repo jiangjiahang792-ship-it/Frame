@@ -3,17 +3,22 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Threading;
 using System.Windows.Forms;
 using Logger;
 using TDJS_Vision.Device;
 using TDJS_Vision.Device.Modbus;
 using TDJS_Vision.Device.PLC;
+using TDJS_Vision.Forms.COMAdd;
 using TDJS_Vision.Forms.ProcessNew;
 
 namespace TDJS_Vision.Forms.GlobalSignalSettings
 {
     public partial class FormGlobalSignal : Form
     {
+        private const int ListenInterval = 50;
+        private static CancellationTokenSource _listenSignalCts;
+
         public FormGlobalSignal()
         {
             InitializeComponent();
@@ -22,6 +27,7 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
             dataGridView2.Leave += DataGridView2_Leave;
             dataGridView3.Leave += DataGridView3_Leave;
             dataGridView3.CellClick += dataGridView1_CellClick;
+            FrmCOMListView.OnCOMDeserializationCompletionEvent += FormGlobalSignal_OnSolutionLoadFinished;
         }
         /// <summary>
         /// 点击删除按钮
@@ -284,6 +290,122 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
 
             return registers;
         }
+
+        /// <summary>
+        /// 方案加载完成后启动监听信号线程。
+        /// </summary>
+        private void FormGlobalSignal_OnSolutionLoadFinished(object sender, bool e)
+        {
+            StartListenSignals();
+        }
+
+        /// <summary>
+        /// 为 dataGridView3 中配置的每一条监听信号启动一个独立线程。
+        /// </summary>
+        public static void StartListenSignals()
+        {
+            StopListenSignals();
+
+            var signals = Solution.Instance.GlobalSignal?.ListenSignals;
+            if (signals == null || signals.Count == 0)
+                return;
+
+            _listenSignalCts = new CancellationTokenSource();
+            foreach (var signal in signals)
+            {
+                if (signal == null || !signal.Enable || string.IsNullOrEmpty(signal.DeviceName) || string.IsNullOrEmpty(signal.Address))
+                    continue;
+
+                var token = _listenSignalCts.Token;
+                Thread thread = new Thread(() => ListenSignalLoop(signal, token));
+                thread.IsBackground = true;
+                thread.Start();
+            }
+        }
+
+        /// <summary>
+        /// 停止所有监听信号线程。
+        /// </summary>
+        public static void StopListenSignals()
+        {
+            if (_listenSignalCts == null)
+                return;
+
+            _listenSignalCts.Cancel();
+            _listenSignalCts = null;
+        }
+
+        private static void ListenSignalLoop(SingleGlobalSignalSettings signal, CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    signal.SignalValue = ReadSignalMatched(signal);
+                }
+                catch
+                {
+                    signal.SignalValue = false;
+                }
+
+                Thread.Sleep(ListenInterval);
+            }
+        }
+
+        private static bool ReadSignalMatched(SingleGlobalSignalSettings signal)
+        {
+            var device = Solution.Instance.AllDevices.Find(r => r.DevName == signal.DeviceName);
+            if (device == null)
+                return false;
+
+            if (device is IPlc plc)
+            {
+                if (!plc.IsConnect)
+                    return false;
+
+                switch (signal.Type)
+                {
+                    case "布尔类型":
+                        return plc.ReadBool(signal.Address).Content == ParseBoolValue(signal.Value);
+                    case "整数类型":
+                        return plc.ReadInt32(signal.Address).Content == int.Parse(signal.Value);
+                    case "字符串类型":
+                        return plc.ReadString(signal.Address, (ushort)Math.Max(1, signal.Value.Length)).Content == signal.Value;
+                    default:
+                        return false;
+                }
+            }
+
+            if (device is IModbus modbus)
+            {
+                if (!modbus.IsConnect)
+                    return false;
+
+                switch (signal.Type)
+                {
+                    case "布尔类型":
+                        bool[] boolValues = modbus.ReadBool(signal.Address, 1);
+                        return boolValues != null && boolValues.Length > 0 && boolValues[0] == ParseBoolValue(signal.Value);
+                    case "整数类型":
+                        int[] intValues = modbus.ReadInt32(signal.Address, 1);
+                        return intValues != null && intValues.Length > 0 && intValues[0] == int.Parse(signal.Value);
+                    case "字符串类型":
+                        ushort[] expected = StringToHoldingRegisters(signal.Value);
+                        ushort[] actual = modbus.ReadUInt16(signal.Address, (ushort)expected.Length);
+                        return expected.SequenceEqual(actual ?? new ushort[0]);
+                    default:
+                        return false;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ParseBoolValue(string value)
+        {
+            return value.Equals("True", StringComparison.OrdinalIgnoreCase) || value == "1";
+        }
+
         /// <summary>
         /// dataGridView1 离开事件
         /// </summary>
@@ -464,6 +586,10 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
         public string Type { get; set; }
         public string Value { get; set; }
         public bool Enable { get; set; }
+        /// <summary>
+        /// 监听信号当前是否满足配置值，后续节点可读取该值。
+        /// </summary>
+        public bool SignalValue { get; set; }
         public SingleGlobalSignalSettings(string devName, string address, string type, string value, bool enable)
         {
             DeviceName = devName;
@@ -471,6 +597,7 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
             Type = type;
             Value = value;
             Enable = enable;
+            SignalValue = false;
         }
     }
 }
