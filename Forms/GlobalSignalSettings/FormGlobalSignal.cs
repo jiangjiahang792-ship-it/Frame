@@ -1,16 +1,15 @@
+using Logger;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
-using Logger;
-using Newtonsoft.Json;
 using TDJS_Vision.Device;
 using TDJS_Vision.Device.Modbus;
 using TDJS_Vision.Device.PLC;
-using TDJS_Vision.Forms.ProcessNew;
 
 namespace TDJS_Vision.Forms.GlobalSignalSettings
 {

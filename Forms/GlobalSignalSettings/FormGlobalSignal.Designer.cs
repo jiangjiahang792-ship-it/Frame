@@ -334,7 +334,8 @@
             this.dataGridViewComboBoxColumn2.Items.AddRange(new object[] {
             "布尔类型",
             "整数类型",
-            "字符串类型"});
+            "字符串类型",
+            "离散输入类型"});
             this.dataGridViewComboBoxColumn2.MinimumWidth = 6;
             this.dataGridViewComboBoxColumn2.Name = "dataGridViewComboBoxColumn2";
             this.dataGridViewComboBoxColumn2.Width = 125;
