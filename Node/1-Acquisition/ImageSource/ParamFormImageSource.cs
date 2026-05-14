@@ -115,7 +115,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     }
 
                     //这里注册相机回调触发事件
-                    //param.Camera.OnImageReceived += Camera_OnImageReceived;
+                    param.Camera.OnImageReceived += Camera_OnImageReceived;
                 }
 
             }
@@ -497,8 +497,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         , _nodeParamImageSource.ExposureTime, _nodeParamImageSource.Gain, _nodeParamImageSource.TimeOut);
 
                 //这里注册相机回调触发事件
-                //_nodeParamImageSource.Camera.OnImageReceived -= Camera_OnImageReceived;
-                //_nodeParamImageSource.Camera.OnImageReceived += Camera_OnImageReceived;
+                _nodeParamImageSource.Camera.OnImageReceived -= Camera_OnImageReceived;
+                _nodeParamImageSource.Camera.OnImageReceived += Camera_OnImageReceived;
 
             }
 

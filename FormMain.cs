@@ -561,8 +561,8 @@ namespace TDJS_Vision
             FormGlobalSignal.StartListenSignals();
             try
             {
-                await Solution.Instance.Run(true);
-                //await Solution.Instance.Run(true,false);
+                //await Solution.Instance.Run(true);
+                await Solution.Instance.Run(true,false);
             }
             finally
             {
