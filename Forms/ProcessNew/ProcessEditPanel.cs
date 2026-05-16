@@ -78,6 +78,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         public ProcessEditPanel(string processName, bool showInfo = true, ProcessConfig processConfig = null)
         {
             InitializeComponent();
+            BindLanguage();
             _process = new Process(processName);
             _processLvSet = new FormSetProcessLv(_process);
             formProcessGroupSetting = new FormProcessGroupSetting(_process);
@@ -108,15 +109,59 @@ namespace TDJS_Vision.Forms.ProcessNew
                 _process.RunLv = processConfig.Level;
                 _process.Group = processConfig.Group;
                 _stack.Clear();
-                label1.Text = $"节点数:0";
+                UpdateNodeCountText();
                 if(showInfo)
-                    LogHelper.AddLog(MsgLevel.Debug, $"================================================= 正在加载流程（{_process.ProcessName}）=================================================", true);
+                    LogHelper.AddLog(MsgLevel.Debug, LanguageManager.Format("ProcessNew.LoadingProcess", _process.ProcessName), true);
                 // 阻塞UI去创建流程
                 CreateProcess(processConfig, showInfo);
                 uiSwitchEnable.Active = processConfig.Enable;
                 if(showInfo)
-                    LogHelper.AddLog(MsgLevel.Debug, $"================================================ 流程（{_process.ProcessName}）已加载完成 ================================================", true);
+                    LogHelper.AddLog(MsgLevel.Debug, LanguageManager.Format("ProcessNew.ProcessLoaded", _process.ProcessName), true);
             }
+            LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+            Disposed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+        }
+
+        private void BindLanguage()
+        {
+            LanguageManager.Bind(设置流程优先级ToolStripMenuItem, "ProcessNew.SetPriority");
+            LanguageManager.Bind(设置流程组别ToolStripMenuItem, "ProcessNew.SetGroup");
+            LanguageManager.Bind(流程重命名ToolStripMenuItem, "ProcessNew.RenameProcess");
+            LanguageManager.Bind(是否输出日志ToolStripMenuItem, "ProcessNew.OutputLog");
+            LanguageManager.Bind(是否为触发流程ToolStripMenuItem, "ProcessNew.PassiveTriggeredProcess");
+            ApplyLanguage();
+        }
+
+        private void LanguageManager_LanguageChanged(object sender, EventArgs e)
+        {
+            ApplyLanguage();
+        }
+
+        private void ApplyLanguage()
+        {
+            LanguageManager.Apply(this);
+            LanguageManager.ApplyToolStripItem(设置流程优先级ToolStripMenuItem);
+            LanguageManager.ApplyToolStripItem(设置流程组别ToolStripMenuItem);
+            LanguageManager.ApplyToolStripItem(流程重命名ToolStripMenuItem);
+            LanguageManager.ApplyToolStripItem(是否输出日志ToolStripMenuItem);
+            LanguageManager.ApplyToolStripItem(是否为触发流程ToolStripMenuItem);
+            buttonClean.Text = string.Empty;
+            buttonRun.Text = string.Empty;
+            buttonStop.Text = string.Empty;
+            uiSwitchEnable.ActiveText = LanguageManager.T("Common.Enabled");
+            uiSwitchEnable.InActiveText = LanguageManager.T("Common.Disabled");
+            UpdateNodeCountText();
+            UpdateRunTimeText();
+        }
+
+        private void UpdateNodeCountText()
+        {
+            label1.Text = LanguageManager.Format("ProcessNew.NodeCount", _stack.Count);
+        }
+
+        private void UpdateRunTimeText()
+        {
+            label2.Text = LanguageManager.Format("ProcessNew.Elapsed", _process?.RunTime ?? 0);
         }
 
         private void RunStatusChange(object sender, ProcessRunResult e)
@@ -129,7 +174,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 {
                     this.Invoke(new Action(() =>
                     {
-                        label2.Text = $"耗时:{_process.RunTime} ms";
+                        UpdateRunTimeText();
                         buttonRun.Enabled = !e.IsRunning;
                         uiSwitchEnable.Enabled = !e.IsRunning;
                         uiLedBulb1.Color = e.IsRunning ? Color.DarkGray : e.IsSuccess ? Color.LawnGreen : Color.Red;
@@ -137,7 +182,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 }
                 else
                 {
-                    label2.Text = $"耗时:{_process.RunTime} ms";
+                    UpdateRunTimeText();
                     buttonRun.Enabled = !e.IsRunning;
                     uiSwitchEnable.Enabled = !e.IsRunning;
                     uiLedBulb1.Color = e.IsRunning ? Color.DarkGray : e.IsSuccess ? Color.LawnGreen : Color.Red;
@@ -178,7 +223,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 }
                 catch (Exception ex)
                 {
-                    MessageBoxTD.Show(ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBoxTD.Show(ex.Message, LanguageManager.T("Common.Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                     LogHelper.AddLog(MsgLevel.Exception, ex.Message, true);
                 }
             }
@@ -202,13 +247,13 @@ namespace TDJS_Vision.Forms.ProcessNew
                         nodeBase.ParamForm.SetParam2Form();
                     }
                     if (showInfo)
-                        LogHelper.AddLog(MsgLevel.Info, $"=> 节点（{nodeInfo.ID}.{nodeInfo.NodeName}）已加载", true);
+                        LogHelper.AddLog(MsgLevel.Info, LanguageManager.Format("ProcessNew.NodeLoaded", nodeInfo.ID, nodeInfo.NodeName), true);
                 }
                 catch (Exception ex)
                 {
-                    MessageBoxTD.Show(ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBoxTD.Show(ex.Message, LanguageManager.T("Common.Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                     if(showInfo)
-                        LogHelper.AddLog(MsgLevel.Exception, $"=> 节点（{nodeInfo.ID}.{nodeInfo.NodeName}）加载失败！原因：{ex.Message}", true);
+                        LogHelper.AddLog(MsgLevel.Exception, LanguageManager.Format("ProcessNew.NodeLoadFailed", nodeInfo.ID, nodeInfo.NodeName, ex.Message), true);
                     continue;
                 }
             }
@@ -378,7 +423,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (node == null)
             {
                 --Solution.Instance.NodeCount;
-                throw new Exception("当前节点类型创建失败！");
+                throw new Exception(LanguageManager.T("ProcessNew.NodeCreateFailed"));
             }
             node.Size = new Size(this.Size.Width - 5, 42);
             node.Dock = DockStyle.Top;
@@ -391,7 +436,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             #endregion
 
             //更新节点数量到界面
-            label1.Text = $"节点数:{_stack.Count}";
+            UpdateNodeCountText();
 
             return node;
         }
@@ -419,7 +464,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             UpdateNode();
 
             //更新节点数量到界面
-            label1.Text = $"节点数:{_stack.Count}";
+            UpdateNodeCountText();
         }
 
         /// <summary>
@@ -483,9 +528,9 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             _process.Enable = value;
             if (value)
-                LogHelper.AddLog(MsgLevel.Info, $"{_process.ProcessName}启用", true);
+                LogHelper.AddLog(MsgLevel.Info, LanguageManager.Format("ProcessNew.ProcessEnabled", _process.ProcessName), true);
             else
-                LogHelper.AddLog(MsgLevel.Info, $"{_process.ProcessName}禁用", true);
+                LogHelper.AddLog(MsgLevel.Info, LanguageManager.Format("ProcessNew.ProcessDisabled", _process.ProcessName), true);
         }
 
         private void 设置流程优先级ToolStripMenuItem_Click(object sender, EventArgs e)

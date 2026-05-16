@@ -17,6 +17,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         public CanvasSet()
         {
             InitializeComponent();
+            BindLanguage();
             foreach (var control in tableLayoutPanel17.Controls)
             {
                 if(control is TableLayoutPanel tableLayoutPanel)
@@ -31,6 +32,60 @@ namespace TDJS_Vision.Forms.ImageViewer
                     }
                 }
             }
+            LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+            FormClosed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+        }
+
+        private void BindLanguage()
+        {
+            LanguageManager.Bind(this, "ImageViewer.CanvasLayoutTitle");
+            LanguageManager.Bind(button1, "Common.OK");
+            LanguageManager.Bind(button2, "Common.Cancel");
+            ApplyLanguage();
+        }
+
+        private void LanguageManager_LanguageChanged(object sender, EventArgs e)
+        {
+            ApplyLanguage();
+        }
+
+        private void ApplyLanguage()
+        {
+            LanguageManager.Apply(this);
+            foreach (var control in tableLayoutPanel17.Controls)
+            {
+                if (control is RadioButton radioButton)
+                {
+                    int num = GetRadioButtonNumber(radioButton);
+                    radioButton.Tag = num;
+                    radioButton.Text = LanguageManager.Format("ImageViewer.CanvasName", num);
+                }
+            }
+        }
+
+        private int GetRadioButtonNumber(RadioButton radioButton)
+        {
+            if (radioButton.Tag is int num)
+                return num;
+
+            if (radioButton.Name.StartsWith("radioButton") &&
+                int.TryParse(radioButton.Name.Substring("radioButton".Length), out num))
+                return num;
+
+            string text = radioButton.Text;
+            if (!string.IsNullOrEmpty(text))
+            {
+                var digits = string.Empty;
+                foreach (char c in text)
+                {
+                    if (char.IsDigit(c))
+                        digits += c;
+                }
+                if (int.TryParse(digits, out num))
+                    return num;
+            }
+
+            return 0;
         }
 
         private void TableLayoutPanel_MouseClick(object sender, MouseEventArgs e)
@@ -88,9 +143,7 @@ namespace TDJS_Vision.Forms.ImageViewer
                 {
                     if(radioButton.Checked)
                     {
-                        string text = radioButton.Text;
-                        text = text.Remove(0, 2);
-                        int num = int.Parse(text);
+                        int num = GetRadioButtonNumber(radioButton);
                         if(num != FrmImageViewer.CurWindowsNum)
                             WindowNumChangeEvent?.Invoke(this, num);
                     }
@@ -111,9 +164,7 @@ namespace TDJS_Vision.Forms.ImageViewer
             {
                 if (control is RadioButton radioButton)
                 {
-                    string text = radioButton.Text;
-                    text = text.Remove(0, 2);
-                    int num = int.Parse(text);
+                    int num = GetRadioButtonNumber(radioButton);
                     if (num == FrmImageViewer.CurWindowsNum)
                     {
                         radioButton.Checked = true;

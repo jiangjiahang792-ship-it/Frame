@@ -19,6 +19,13 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             InitializeComponent();
             Init();
+            LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+        }
+
+        private void LanguageManager_LanguageChanged(object sender, EventArgs e)
+        {
+            ApplyLanguage();
+            RefreshDetectItemNames();
         }
         /// <summary>
         /// 初始化数据表格
@@ -100,6 +107,37 @@ namespace TDJS_Vision.Forms.SolRunParam
             foreach (DataGridViewColumn column in dataGridView1.Columns)
             {
                 column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            }
+
+            ApplyLanguage();
+        }
+
+        private void ApplyLanguage()
+        {
+            if (dataGridView1.Columns.Contains("Enable"))
+                dataGridView1.Columns["Enable"].HeaderText = LanguageManager.T("SolRunParam.Enable");
+            if (dataGridView1.Columns.Contains("Name"))
+                dataGridView1.Columns["Name"].HeaderText = LanguageManager.T("SolRunParam.DetectItem");
+            if (dataGridView1.Columns.Contains("MinValue"))
+                dataGridView1.Columns["MinValue"].HeaderText = LanguageManager.T("SolRunParam.MinValue");
+            if (dataGridView1.Columns.Contains("Value"))
+                dataGridView1.Columns["Value"].HeaderText = LanguageManager.T("SolRunParam.CurrentValue");
+            if (dataGridView1.Columns.Contains("MaxValue"))
+                dataGridView1.Columns["MaxValue"].HeaderText = LanguageManager.T("SolRunParam.MaxValue");
+            if (dataGridView1.Columns.Count > 5)
+                dataGridView1.Columns[5].HeaderText = LanguageManager.T("SolRunParam.CountItem");
+        }
+
+        private void RefreshDetectItemNames()
+        {
+            foreach (DataGridViewRow row in dataGridView1.Rows)
+            {
+                if (row.IsNewRow)
+                    continue;
+
+                var key = row.Cells[1].Tag?.ToString();
+                if (!string.IsNullOrWhiteSpace(key))
+                    row.Cells[1].Value = DetectItemLanguage.GetDisplayName(key);
             }
         }
         /// <summary>

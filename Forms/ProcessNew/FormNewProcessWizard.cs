@@ -23,8 +23,35 @@ namespace TDJS_Vision.Forms.ProcessNew
             FrmCOMListView.OnCOMDeserializationCompletionEvent += Deserialization;
             this.KeyPreview = true;
             Init();
+            BindLanguage();
             Shown += FormNewProcessWizard_Shown;
             FormProcessRename.ProcessRenameChanged += FormProcessRename_ProcessRenameChanged;
+            LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+            FormClosed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+        }
+
+        private void BindLanguage()
+        {
+            LanguageManager.Bind(this, "ProcessNew.EditorTitle");
+            LanguageManager.Bind(label1, "ProcessNew.Toolbox");
+            LanguageManager.Bind(buttonAdd, "ProcessNew.AddProcess");
+            LanguageManager.Bind(buttonRemove, "ProcessNew.DeleteProcess");
+            LanguageManager.Bind(全部展开ToolStripMenuItem, "ProcessNew.ExpandAll");
+            LanguageManager.Bind(全部折叠ToolStripMenuItem, "ProcessNew.CollapseAll");
+            ApplyLanguage();
+        }
+
+        private void LanguageManager_LanguageChanged(object sender, EventArgs e)
+        {
+            ApplyLanguage();
+            ApplyToolboxLanguage();
+        }
+
+        private void ApplyLanguage()
+        {
+            LanguageManager.Apply(this);
+            LanguageManager.ApplyToolStripItem(全部展开ToolStripMenuItem);
+            LanguageManager.ApplyToolStripItem(全部折叠ToolStripMenuItem);
         }
         /// <summary>
         /// 流程重命名事件处理
@@ -57,12 +84,70 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
 
             // 如果没有找到指定名称的 TabPage，则输出提示信息
-            LogHelper.AddLog(MsgLevel.Exception, $"未找到名为 {oldName} 的 TabPage。",true);
+            LogHelper.AddLog(MsgLevel.Exception, LanguageManager.Format("ProcessNew.TabPageNotFound", oldName),true);
         }
 
         private void FormNewProcessWizard_Shown(object sender, EventArgs e)
         {
+            ApplyToolboxLanguage();
             treeView1.ExpandAll();
+        }
+
+        private void ApplyToolboxLanguage()
+        {
+            foreach (TreeNode node in treeView1.Nodes)
+                ApplyToolboxNodeLanguage(node);
+        }
+
+        private void ApplyToolboxNodeLanguage(TreeNode node)
+        {
+            if (node == null)
+                return;
+
+            if (node.Tag is NodeType nodeType && nodeType != NodeType.UNKNOWN)
+            {
+                node.Text = LanguageManager.T("ProcessNew.NodeType." + nodeType);
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(node.Name))
+                    node.Name = GetToolboxCategoryKey(node.Text);
+
+                node.Text = LanguageManager.T(node.Name);
+            }
+
+            foreach (TreeNode child in node.Nodes)
+                ApplyToolboxNodeLanguage(child);
+        }
+
+        private string GetToolboxCategoryKey(string text)
+        {
+            switch (text)
+            {
+                case "图像采集":
+                case "Image Acquisition":
+                    return "ProcessNew.Category.ImageAcquisition";
+                case "图像处理":
+                case "Image Processing":
+                    return "ProcessNew.Category.ImageProcessing";
+                case "检测识别":
+                case "Detection":
+                    return "ProcessNew.Category.Detection";
+                case "测量工具":
+                case "Measurement Tools":
+                    return "ProcessNew.Category.Measurement";
+                case "设备通信":
+                case "Device Communication":
+                    return "ProcessNew.Category.Communication";
+                case "逻辑工具":
+                case "Logic Tools":
+                    return "ProcessNew.Category.Logic";
+                case "结果处理":
+                case "Result Processing":
+                    return "ProcessNew.Category.ResultProcessing";
+                default:
+                    return text;
+            }
         }
 
         /// <summary>
@@ -77,16 +162,17 @@ namespace TDJS_Vision.Forms.ProcessNew
                 {
                     TreeViewSerializer.DeserializeTreeView(treeView1, filePath);
                     treeView1.ImageList = imageList1;
+                    ApplyToolboxLanguage();
                     treeView1.ExpandAll();
                 }
                 catch (Exception ex)
                 {
-                    LogHelper.AddLog(MsgLevel.Exception, "流程编辑窗口工具箱配置文件ToolTreeView.xml反序列化失败！原因：" + ex.Message, true);
+                    LogHelper.AddLog(MsgLevel.Exception, LanguageManager.Format("ProcessNew.ToolboxDeserializeFailed", ex.Message), true);
                 }
             }
             else
             {
-                LogHelper.AddLog(MsgLevel.Exception, "流程编辑窗口工具箱配置文件ToolTreeView.xml缺失！", true);
+                LogHelper.AddLog(MsgLevel.Exception, LanguageManager.T("ProcessNew.ToolboxMissing"), true);
             }
         }
 
@@ -214,10 +300,10 @@ namespace TDJS_Vision.Forms.ProcessNew
             tabPage.Name = $"process{Solution.Instance.ProcessCount}";
             tabPage.Padding = new Padding(3);
             tabPage.Size = new System.Drawing.Size(465, 643);
-            tabPage.Text = $"{Solution.Instance.ProcessCount}.流程{Solution.Instance.ProcessCount}";
+            tabPage.Text = $"{Solution.Instance.ProcessCount}.{LanguageManager.Format("ProcessNew.DefaultProcessName", Solution.Instance.ProcessCount)}";
             tabPage.UseVisualStyleBackColor = true;
 
-            ProcessEditPanel nodeEditPanel = new ProcessEditPanel($"流程{Solution.Instance.ProcessCount}");
+            ProcessEditPanel nodeEditPanel = new ProcessEditPanel(LanguageManager.Format("ProcessNew.DefaultProcessName", Solution.Instance.ProcessCount));
             nodeEditPanel.Dock = DockStyle.Fill;
             tabPage.Controls.Add(nodeEditPanel);
             tabControl1.Controls.Add(tabPage);
@@ -233,7 +319,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             if(tabControl1.Controls.Count == 0)
                 return;
-            var res = MessageBoxTD.Show("删除当前流程无法找回，确定删除？", "警告", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            var res = MessageBoxTD.Show(LanguageManager.T("ProcessNew.DeleteProcessConfirm"), LanguageManager.T("Common.Warning"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (res == DialogResult.No || res == DialogResult.None)
                 return;
 

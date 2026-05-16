@@ -10,7 +10,16 @@ namespace TDJS_Vision.Forms.ImageViewer
         public MatViewer(string name)
         {
             InitializeComponent();
+            LanguageManager.Bind(button1, "Common.Close");
+            LanguageManager.Apply(this);
             Text = name;
+            LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+            FormClosed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+        }
+
+        private void LanguageManager_LanguageChanged(object sender, EventArgs e)
+        {
+            LanguageManager.Apply(button1);
         }
 
         public static void ShowImage(string name, Mat mat)

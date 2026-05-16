@@ -11,7 +11,28 @@ namespace TDJS_Vision.Forms.ProcessNew
         public FormProcessRename()
         {
             InitializeComponent();
+            BindLanguage();
             Shown += FormProcessRename_Shown;
+            LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+            FormClosed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+        }
+
+        private void BindLanguage()
+        {
+            LanguageManager.Bind(this, "ProcessNew.RenameProcess");
+            LanguageManager.Bind(label1, "ProcessNew.NewProcessName");
+            LanguageManager.Bind(button1, "Common.OK");
+            ApplyLanguage();
+        }
+
+        private void LanguageManager_LanguageChanged(object sender, EventArgs e)
+        {
+            ApplyLanguage();
+        }
+
+        private void ApplyLanguage()
+        {
+            LanguageManager.Apply(this);
         }
 
         private void FormProcessRename_Shown(object sender, EventArgs e)
@@ -35,7 +56,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
             else
             {
-                MessageBoxTD.Show("流程名称不能为空或者带有“.”！");
+                MessageBoxTD.Show(LanguageManager.T("ProcessNew.InvalidProcessName"));
             }
         }
     }

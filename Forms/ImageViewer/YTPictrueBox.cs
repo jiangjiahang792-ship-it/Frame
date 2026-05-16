@@ -19,6 +19,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         public YTPictrueBox()
         {
             InitializeComponent();
+            BindLanguage();
             // 设置图像的最小尺寸防止缩小到看不见
             pictureBox1.MinimumSize = new Size(100, 100);
             //绑定事件处理函数
@@ -31,6 +32,33 @@ namespace TDJS_Vision.Forms.ImageViewer
             pictureBox1.MouseWheel += pictureBox1_MouseWheel;
             // 绑定上下文菜单
             this.ContextMenuStrip = contextMenuStrip1;
+            LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+            Disposed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+        }
+
+        private void BindLanguage()
+        {
+            LanguageManager.Bind(保存图片ToolStripMenuItem, "ImageViewer.Save");
+            LanguageManager.Bind(还原ToolStripMenuItem, "ImageViewer.Restore");
+            LanguageManager.Bind(默认大小ToolStripMenuItem, "ImageViewer.DefaultSize");
+            LanguageManager.Bind(上次大小ToolStripMenuItem, "ImageViewer.PreviousSize");
+            LanguageManager.Bind(清空图像ToolStripMenuItem, "ImageViewer.ClearImage");
+            ApplyLanguage();
+        }
+
+        private void LanguageManager_LanguageChanged(object sender, EventArgs e)
+        {
+            ApplyLanguage();
+        }
+
+        private void ApplyLanguage()
+        {
+            LanguageManager.ApplyToolStripItem(保存图片ToolStripMenuItem);
+            LanguageManager.ApplyToolStripItem(还原ToolStripMenuItem);
+            LanguageManager.ApplyToolStripItem(清空图像ToolStripMenuItem);
+            var filter = LanguageManager.T("ImageViewer.SaveImageFilter");
+            if (!string.IsNullOrWhiteSpace(filter) && filter.Contains("|"))
+                saveFileDialog1.Filter = filter;
         }
 
         /// <summary>
@@ -277,18 +305,18 @@ namespace TDJS_Vision.Forms.ImageViewer
                     if (pictureBox1.Image != null)
                     {
                         pictureBox1.Image.Save(saveFileDialog1.FileName);
-                        YTMessageBox.YTMessageBox yTMessageBox = new YTMessageBox.YTMessageBox("图像保存成功！");
+                        YTMessageBox.YTMessageBox yTMessageBox = new YTMessageBox.YTMessageBox(LanguageManager.T("ImageViewer.ImageSaveSuccess"));
                         yTMessageBox.Show();
                     }
                     else
                     {
-                        MessageBoxTD.Show("图像为空！");
+                        MessageBoxTD.Show(LanguageManager.T("ImageViewer.ImageEmpty"));
                         return;
                     }
                 }
                 catch (Exception ex)
                 {
-                    MessageBoxTD.Show("图像保存失败！");
+                    MessageBoxTD.Show(LanguageManager.T("ImageViewer.ImageSaveFailed"));
                     return;
                 }
             }

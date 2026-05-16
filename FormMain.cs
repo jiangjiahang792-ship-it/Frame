@@ -31,6 +31,14 @@ namespace TDJS_Vision
 {
     public partial class FormMain : FormBase
     {
+        private static readonly bool LanguageInitialized = InitializeLanguageManager();
+
+        private static bool InitializeLanguageManager()
+        {
+            LanguageManager.Initialize();
+            return true;
+        }
+
         #region 子窗口
 
         /// <summary>

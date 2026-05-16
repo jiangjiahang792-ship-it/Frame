@@ -10,8 +10,35 @@ namespace TDJS_Vision.Forms.ProcessNew
         public FormSetProcessLv(Process process)
         {
             InitializeComponent();
+            BindLanguage();
             Shown += FormSetProcessLv_Shown;
             _process = process;
+            LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+            FormClosed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+        }
+
+        private void BindLanguage()
+        {
+            LanguageManager.Bind(this, "ProcessNew.SetPriority");
+            LanguageManager.Bind(label1, "ProcessNew.Priority");
+            LanguageManager.Bind(button1, "Common.OK");
+            ApplyLanguage();
+        }
+
+        private void LanguageManager_LanguageChanged(object sender, EventArgs e)
+        {
+            ApplyLanguage();
+        }
+
+        private void ApplyLanguage()
+        {
+            LanguageManager.Apply(this);
+            int selected = comboBox1.SelectedIndex;
+            comboBox1.Items.Clear();
+            for (int i = 1; i <= 5; i++)
+                comboBox1.Items.Add(LanguageManager.Format("ProcessNew.LevelName", i));
+            if (selected >= 0 && selected < comboBox1.Items.Count)
+                comboBox1.SelectedIndex = selected;
         }
 
         private void FormSetProcessLv_Shown(object sender, EventArgs e)

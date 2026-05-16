@@ -17,6 +17,9 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             InitializeComponent();
             comboBoxCoilValue.SelectedIndex = 1;
+            BindLanguage();
+            LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+            FormClosed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
         }
         public FormSolRunParam(string processName) : this()
         {
@@ -32,7 +35,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             #region 创建选项卡
 
-            RemoveAllExceptSpecifiedPage(tabControl1, "Modbus通信");//保留“Modbus通信”选项卡,删除所有
+            RemoveAllExceptSpecifiedPage(tabControl1, tabPage1);//保留“Modbus通信”选项卡,删除所有
             if (showSingleProcessOnly)
             {
                 RemoveAllTabPages(tabControl1);
@@ -53,7 +56,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 }
                 catch (Exception ex)
                 {
-                    LogHelper.AddLog(MsgLevel.Fatal, $"“{process.ProcessName}”加载设置参数失败！原因：{ex.Message}", true);
+                    LogHelper.AddLog(MsgLevel.Fatal, LanguageManager.Format("SolRunParam.LoadProcessParamFailed", process.ProcessName, ex.Message), true);
                 }
             }
 
@@ -92,6 +95,51 @@ namespace TDJS_Vision.Forms.SolRunParam
             }
 
             #endregion
+        }
+
+        private void BindLanguage()
+        {
+            LanguageManager.Bind(this, "SolRunParam.Title");
+            LanguageManager.Bind(tabPage1, "SolRunParam.ModbusCommunication");
+            LanguageManager.Bind(groupBox1, "SolRunParam.CommunicationConnection");
+            LanguageManager.Bind(groupBox2, "SolRunParam.TestConnection");
+            LanguageManager.Bind(label1, "SolRunParam.IPAddress");
+            LanguageManager.Bind(label2, "SolRunParam.Port");
+            LanguageManager.Bind(label3, "SolRunParam.CoilAddress");
+            LanguageManager.Bind(label4, "SolRunParam.SerialPort");
+            LanguageManager.Bind(label5, "SolRunParam.BaudRate");
+            LanguageManager.Bind(label6, "SolRunParam.WriteCoilValue");
+            LanguageManager.Bind(label7, "SolRunParam.HoldTime");
+            LanguageManager.Bind(label8, "SolRunParam.DataBits");
+            LanguageManager.Bind(label9, "SolRunParam.Parity");
+            LanguageManager.Bind(label10, "SolRunParam.StopBits");
+            LanguageManager.Bind(buttonCon1, "Common.Connect");
+            LanguageManager.Bind(buttonCon2, "Common.Connect");
+            LanguageManager.Bind(buttonRead, "SolRunParam.TestRead");
+            LanguageManager.Bind(buttonWrite, "SolRunParam.TestWrite");
+            ApplyLanguage();
+        }
+
+        private void LanguageManager_LanguageChanged(object sender, EventArgs e)
+        {
+            ApplyLanguage();
+        }
+
+        private void ApplyLanguage()
+        {
+            LanguageManager.Apply(this);
+            ApplyParityItems();
+        }
+
+        private void ApplyParityItems()
+        {
+            int selectedIndex = comboBoxParity.SelectedIndex;
+            comboBoxParity.Items.Clear();
+            comboBoxParity.Items.Add(LanguageManager.T("SolRunParam.ParityNone"));
+            comboBoxParity.Items.Add(LanguageManager.T("SolRunParam.ParityOdd"));
+            comboBoxParity.Items.Add(LanguageManager.T("SolRunParam.ParityEven"));
+            if (selectedIndex >= 0 && selectedIndex < comboBoxParity.Items.Count)
+                comboBoxParity.SelectedIndex = selectedIndex;
         }
         private void SelectProcessPage()
         {
@@ -150,9 +198,8 @@ namespace TDJS_Vision.Forms.SolRunParam
             comboBoxStopBit.SelectedIndex = index4 == -1 ? -1 : index4;
 
             // 校验位
-            int index5 = comboBoxParity.Items.IndexOf(((ModbusRTUParam)dev.ModbusParam).Parity == Parity.Odd ? "奇"
-               : ((ModbusRTUParam)dev.ModbusParam).Parity == Parity.Even ? "偶": "无");
-            comboBoxParity.SelectedIndex = index5 == -1 ? -1 : index5;
+            comboBoxParity.SelectedIndex = ((ModbusRTUParam)dev.ModbusParam).Parity == Parity.Odd ? 1
+               : ((ModbusRTUParam)dev.ModbusParam).Parity == Parity.Even ? 2 : 0;
         }
         /// <summary>
         /// 显示Modbus TCP参数
@@ -177,13 +224,13 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// </summary>
         /// <param name="tabControl"></param>
         /// <param name="pageNameToKeep"></param>
-        private void RemoveAllExceptSpecifiedPage(TabControl tabControl, string pageNameToKeep)
+        private void RemoveAllExceptSpecifiedPage(TabControl tabControl, TabPage pageToKeep)
         {
             // 由于在遍历集合时不能直接修改该集合（如添加或移除项），我们需要使用逆序遍历或者创建一个新的列表来存储需要移除的项。
             // 这里我们选择直接在循环中操作，但使用了倒序遍历以避免索引问题。
             for (int i = tabControl.TabPages.Count - 1; i >= 0; i--)
             {
-                if (tabControl.TabPages[i].Text != pageNameToKeep)
+                if (tabControl.TabPages[i] != pageToKeep)
                 {
                     tabControl.TabPages.RemoveAt(i);
                 }
@@ -198,12 +245,12 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             if (Solution.Instance.ModbusDevices.Count == 0)
             {
-                MessageBoxTD.Show("设备尚未添加！");
+                MessageBoxTD.Show(LanguageManager.T("SolRunParam.DeviceNotAdded"));
                 return;
             }
             if (string.IsNullOrEmpty(uiipTextBoxIP.Text) || string.IsNullOrEmpty(textBoxPort.Text))
             {
-                MessageBoxTD.Show("参数不能为空！");
+                MessageBoxTD.Show(LanguageManager.T("SolRunParam.ParamRequired"));
                 return;
             }
             try
@@ -219,11 +266,11 @@ namespace TDJS_Vision.Forms.SolRunParam
                         paramRtuPoll.BaudRate = int.Parse(comboBoxBaute.Text);
                         paramRtuPoll.DataBits = int.Parse(comboBoxDataBit.Text);
                         paramRtuPoll.StopBits = (StopBits)Enum.Parse(typeof(StopBits), comboBoxStopBit.Text);
-                        paramRtuPoll.Parity = comboBoxParity.Text == "奇" ? Parity.Odd : comboBoxParity.Text == "偶" ? Parity.Even : Parity.None;
+                        paramRtuPoll.Parity = comboBoxParity.SelectedIndex == 1 ? Parity.Odd : comboBoxParity.SelectedIndex == 2 ? Parity.Even : Parity.None;
 
                         rtuPoll.Connect();
                         curDevice = rtuPoll;
-                        labelConnectInfo1.Text = $"设备连接成功连接！";
+                        labelConnectInfo1.Text = LanguageManager.T("SolRunParam.DeviceConnectSuccess");
                         labelConnectInfo1.ForeColor = System.Drawing.Color.Green;
                         break;
                     case DevType.ModbusTcpPoll:
@@ -237,7 +284,7 @@ namespace TDJS_Vision.Forms.SolRunParam
 
                         tcpPoll.Connect();
                         curDevice = tcpPoll;
-                        labelConnectInfo2.Text = $"设备连接成功连接！";
+                        labelConnectInfo2.Text = LanguageManager.T("SolRunParam.DeviceConnectSuccess");
                         labelConnectInfo2.ForeColor = System.Drawing.Color.Green;
                         break;
                     default:
@@ -248,12 +295,12 @@ namespace TDJS_Vision.Forms.SolRunParam
             {
                 if(curDevice.DevType == DevType.ModbusRTUPoll)
                 {
-                    labelConnectInfo1.Text = $"设备连接失败！原因：{ex.Message}";
+                    labelConnectInfo1.Text = LanguageManager.Format("SolRunParam.DeviceConnectFailed", ex.Message);
                     labelConnectInfo1.ForeColor = System.Drawing.Color.Red;
                 }
                 else if (curDevice.DevType == DevType.ModbusTcpPoll)
                 {
-                    labelConnectInfo2.Text = $"设备连接失败！原因：{ex.Message}";
+                    labelConnectInfo2.Text = LanguageManager.Format("SolRunParam.DeviceConnectFailed", ex.Message);
                     labelConnectInfo2.ForeColor = System.Drawing.Color.Red;
                     return;
                 }
@@ -268,7 +315,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             if (Solution.Instance.ModbusDevices.Count == 0)
             {
-                MessageBoxTD.Show("设备尚未添加！");
+                MessageBoxTD.Show(LanguageManager.T("SolRunParam.DeviceNotAdded"));
                 return;
             }
             try
@@ -278,16 +325,16 @@ namespace TDJS_Vision.Forms.SolRunParam
                 {
                     case DevType.ModbusRTUPoll:
                         var rtuPoll = curDevice as ModbusRTUPoll;
-                        if (rtuPoll == null || !rtuPoll.IsConnect) throw new Exception("Modbus设备已失效或未打开");
+                        if (rtuPoll == null || !rtuPoll.IsConnect) throw new Exception(LanguageManager.T("SolRunParam.ModbusInvalidOrClosed"));
                         var valueRtu = rtuPoll.ReadBool(textBoxAddress.Text, 1);
-                        labelTestInfo.Text = $"读取线圈值成功！值为：{valueRtu[0]}";
+                        labelTestInfo.Text = LanguageManager.Format("SolRunParam.ReadCoilSuccess", valueRtu[0]);
                         labelTestInfo.ForeColor = System.Drawing.Color.Green;
                         break;
                     case DevType.ModbusTcpPoll:
                         var tcpPoll = curDevice as ModbusTcpPoll;
-                        if (tcpPoll == null || !tcpPoll.IsConnect) throw new Exception("Modbus设备已失效或未打开");
+                        if (tcpPoll == null || !tcpPoll.IsConnect) throw new Exception(LanguageManager.T("SolRunParam.ModbusInvalidOrClosed"));
                         var valueTcp = tcpPoll.ReadBool(textBoxAddress.Text, 1);
-                        labelTestInfo.Text = $"读取线圈值成功！值为：{valueTcp[0]}";
+                        labelTestInfo.Text = LanguageManager.Format("SolRunParam.ReadCoilSuccess", valueTcp[0]);
                         labelTestInfo.ForeColor = System.Drawing.Color.Green;
                         break;
                     default:
@@ -296,7 +343,7 @@ namespace TDJS_Vision.Forms.SolRunParam
             }
             catch (Exception ex)
             {
-                labelTestInfo.Text = $"读取线圈值失败！原因：{ex.Message}";
+                labelTestInfo.Text = LanguageManager.Format("SolRunParam.ReadCoilFailed", ex.Message);
                 labelTestInfo.ForeColor = System.Drawing.Color.Red;
             }
         }
@@ -309,7 +356,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             if (Solution.Instance.ModbusDevices.Count == 0)
             {
-                MessageBoxTD.Show("设备尚未添加！");
+                MessageBoxTD.Show(LanguageManager.T("SolRunParam.DeviceNotAdded"));
                 return;
             }
             try
@@ -318,17 +365,17 @@ namespace TDJS_Vision.Forms.SolRunParam
                 {
                     case DevType.ModbusRTUPoll:
                         var rtuPoll = curDevice as ModbusRTUPoll;
-                        if (rtuPoll == null || !rtuPoll.IsConnect) throw new Exception("Modbus设备已失效或未打开");
+                        if (rtuPoll == null || !rtuPoll.IsConnect) throw new Exception(LanguageManager.T("SolRunParam.ModbusInvalidOrClosed"));
                         rtuPoll.Write(textBoxAddress.Text, comboBoxCoilValue.Text == "1");
-                        labelTestInfo.Text = $"写入线圈值成功！";
+                        labelTestInfo.Text = LanguageManager.T("SolRunParam.WriteCoilSuccess");
                         labelTestInfo.ForeColor = System.Drawing.Color.Green;
                         break;
                     case DevType.ModbusTcpPoll:
                         //var tcpPoll = curDevice as ModbusTcpPoll;
                         var tcpPoll = curDevice as ModbusTcpPoll;
-                        if (tcpPoll == null || !tcpPoll.IsConnect) throw new Exception("Modbus设备已失效或未打开");
+                        if (tcpPoll == null || !tcpPoll.IsConnect) throw new Exception(LanguageManager.T("SolRunParam.ModbusInvalidOrClosed"));
                         tcpPoll.Write(textBoxAddress.Text, comboBoxCoilValue.Text == "1");
-                        labelTestInfo.Text = $"写入线圈值成功！";
+                        labelTestInfo.Text = LanguageManager.T("SolRunParam.WriteCoilSuccess");
                         labelTestInfo.ForeColor = System.Drawing.Color.Green;
                         break;
                     default:
@@ -337,7 +384,7 @@ namespace TDJS_Vision.Forms.SolRunParam
             }
             catch (Exception ex)
             {
-                labelTestInfo.Text = $"写入线圈值失败！原因：{ex.Message}";
+                labelTestInfo.Text = LanguageManager.Format("SolRunParam.WriteCoilFailed", ex.Message);
                 labelTestInfo.ForeColor = System.Drawing.Color.Red;
             }
         }

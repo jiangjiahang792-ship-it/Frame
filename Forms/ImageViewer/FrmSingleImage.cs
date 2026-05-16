@@ -20,6 +20,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         public FrmSingleImage(string name)
         {
             InitializeComponent();
+            BindLanguage();
             this.Text = name;
             FormName = name;
             NodeImageShow.ImageShowChanged += NodeImageShow_ImageShowChanged;
@@ -27,6 +28,26 @@ namespace TDJS_Vision.Forms.ImageViewer
             SolRunParamControl.ImageShowChanged += NodeImageShow_ImageShowChanged;
             button1.Click += button1_Click;
             button2.Click += button2_Click;
+            LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+            FormClosed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+        }
+
+        private void BindLanguage()
+        {
+            LanguageManager.Bind(button1, "ImageViewer.OneClickLearning");
+            LanguageManager.Bind(button2, "ImageViewer.ManualParam");
+            ApplyLanguage();
+        }
+
+        private void LanguageManager_LanguageChanged(object sender, EventArgs e)
+        {
+            ApplyLanguage();
+        }
+
+        private void ApplyLanguage()
+        {
+            LanguageManager.Apply(button1);
+            LanguageManager.Apply(button2);
         }
 
         private void NodeImageShow_ImageShowWindowNameChanged1(Process process, string winName)
@@ -136,7 +157,7 @@ namespace TDJS_Vision.Forms.ImageViewer
             var process = GetCurrentProcess();
             if (process == null)
             {
-                MessageBoxTD.Show("未找到当前图像窗口对应的工位！");
+                MessageBoxTD.Show(LanguageManager.T("ImageViewer.ProcessNotFound"));
                 return;
             }
 
@@ -147,14 +168,14 @@ namespace TDJS_Vision.Forms.ImageViewer
                     solRunParam.Init(process);
                     if (!solRunParam.StartAutoLearning())
                     {
-                        MessageBoxTD.Show("当前工位未配置AI节点，无法一键学习！");
+                        MessageBoxTD.Show(LanguageManager.T("ImageViewer.AINodeNotConfigured"));
                         return;
                     }
                 }
             }
             catch (Exception ex)
             {
-                MessageBoxTD.Show($"一键学习失败！原因：{ex.Message}");
+                MessageBoxTD.Show(LanguageManager.Format("ImageViewer.OneClickLearningFailed", ex.Message));
             }
         }
 
@@ -163,7 +184,7 @@ namespace TDJS_Vision.Forms.ImageViewer
             var process = GetCurrentProcess();
             if (process == null)
             {
-                MessageBoxTD.Show("未找到当前图像窗口对应的工位！");
+                MessageBoxTD.Show(LanguageManager.T("ImageViewer.ProcessNotFound"));
                 return;
             }
 

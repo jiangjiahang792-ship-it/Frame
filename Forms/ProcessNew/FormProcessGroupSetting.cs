@@ -8,8 +8,35 @@ namespace TDJS_Vision.Forms.ProcessNew
         public FormProcessGroupSetting(Process process)
         {
             InitializeComponent();
+            BindLanguage();
             Shown += FormProcessGroupSetting_show;
             _process = process;
+            LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+            FormClosed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+        }
+
+        private void BindLanguage()
+        {
+            LanguageManager.Bind(this, "ProcessNew.SetGroup");
+            LanguageManager.Bind(label1, "ProcessNew.Group");
+            LanguageManager.Bind(button1, "Common.OK");
+            ApplyLanguage();
+        }
+
+        private void LanguageManager_LanguageChanged(object sender, EventArgs e)
+        {
+            ApplyLanguage();
+        }
+
+        private void ApplyLanguage()
+        {
+            LanguageManager.Apply(this);
+            int selected = comboBox1.SelectedIndex;
+            comboBox1.Items.Clear();
+            for (int i = 1; i <= 6; i++)
+                comboBox1.Items.Add(LanguageManager.Format("ProcessNew.GroupName", i));
+            if (selected >= 0 && selected < comboBox1.Items.Count)
+                comboBox1.SelectedIndex = selected;
         }
 
         private void FormProcessGroupSetting_show(object sender, EventArgs e)

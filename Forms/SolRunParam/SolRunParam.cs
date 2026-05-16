@@ -34,6 +34,36 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             InitializeComponent();
             Dock = DockStyle.Fill;
+            BindLanguage();
+            LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+            Disposed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+        }
+
+        private void BindLanguage()
+        {
+            LanguageManager.Bind(label1, "SolRunParam.Exposure");
+            LanguageManager.Bind(label2, "SolRunParam.Gain");
+            LanguageManager.Bind(label3, "SolRunParam.ScoreThreshold");
+            LanguageManager.Bind(label4, "SolRunParam.NMSScore");
+            LanguageManager.Bind(label5, "SolRunParam.ContinuousGrab");
+            LanguageManager.Bind(label6, "SolRunParam.OneClickLearning");
+            LanguageManager.Bind(buttonOnce, "SolRunParam.GrabOnce");
+            LanguageManager.Bind(buttonSingleImg, "SolRunParam.SingleImageTest");
+            LanguageManager.Bind(buttonCatalogueImg, "SolRunParam.MultiImageTest");
+            LanguageManager.Bind(buttonSaveAllParam, "SolRunParam.SaveSettings");
+            ApplyLanguage();
+        }
+
+        private void LanguageManager_LanguageChanged(object sender, EventArgs e)
+        {
+            ApplyLanguage();
+        }
+
+        private void ApplyLanguage()
+        {
+            LanguageManager.Apply(this);
+            uiSwitchROI.ActiveText = LanguageManager.T("SolRunParam.ROIEnabled");
+            uiSwitchROI.InActiveText = LanguageManager.T("SolRunParam.ROIDisabled");
         }
 
         /// <summary>
@@ -178,8 +208,8 @@ namespace TDJS_Vision.Forms.SolRunParam
                         var imgSrc = nodeParam.ImageSource;
                         nodeParam.ImageSource = "本地图像";
                         //打开文件对话框，选择图像文件
-                        openFileDialog1.Filter = "图像文件|*.bmp;*.jpg;*.jpeg;*.png|BMP图像|*.bmp|JPEG图像|*.jpg;*.jpeg|PNG图像|*.png|所有文件|*.*";
-                        openFileDialog1.Title = "选择图像文件";
+                        openFileDialog1.Filter = LanguageManager.T("SolRunParam.ImageFileFilter");
+                        openFileDialog1.Title = LanguageManager.T("SolRunParam.SelectImageFile");
                         string modelOldPath = nodeParam.ImagePath;
                         if (openFileDialog1.ShowDialog() == DialogResult.OK)
                         {
@@ -210,13 +240,13 @@ namespace TDJS_Vision.Forms.SolRunParam
                 {
                     if (nodeImage.ParamForm.Params is NodeParamImageSoucre nodeParam)
                     {
-                        folderBrowserDialog1.Description = "选择图像文件夹";
+                        folderBrowserDialog1.Description = LanguageManager.T("SolRunParam.SelectImageFolder");
 
                         if (folderBrowserDialog1.ShowDialog() == DialogResult.OK)
                         {
                             if (string.IsNullOrEmpty(folderBrowserDialog1.SelectedPath))
                             {
-                                MessageBoxTD.Show("文件夹路径不能为空");
+                                MessageBoxTD.Show(LanguageManager.T("SolRunParam.FolderPathRequired"));
                                 return;
                             }
                             // 定义支持的图像扩展名（全部小写，便于比较）
@@ -241,7 +271,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                             for (int i = 0; i < files.Length; i++)
                             {
                                 process.Run(false);
-                                MessageBoxTD.Show($"图像{files[nodeImage.LastIndex]}检测完毕！");
+                                MessageBoxTD.Show(LanguageManager.Format("SolRunParam.ImageDetectionComplete", files[nodeImage.LastIndex]));
                             }
                             //恢复原来的图像路径
                             nodeParam.ImagePaths = imgFiles;
@@ -266,11 +296,11 @@ namespace TDJS_Vision.Forms.SolRunParam
             try
             {
                 SaveConfigs();
-                new YTMessageBox.YTMessageBox("当前参数已成功保存！").Show();
+                new YTMessageBox.YTMessageBox(LanguageManager.T("SolRunParam.ParamSaveSuccess")).Show();
             }
             catch (Exception)
             {
-                MessageBoxTD.Show("参数保存失败，请检查参数是否设置无误！", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBoxTD.Show(LanguageManager.T("SolRunParam.ParamSaveFailed"), LanguageManager.T("Common.Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
         public void SaveConfigs()
@@ -311,7 +341,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 //2025年5月27日 节点参数有更新，应该触发节点参数界面刷新当前设置的值
                 RefreshParamView?.Invoke(this, EventArgs.Empty);
                 Solution.Instance.Save(Solution.Instance.SolFileName);
-                LogHelper.AddLog(MsgLevel.Info, $"当前参数设置已经成功保存到方案文件！路径：{Solution.Instance.SolFileName}", true);
+                LogHelper.AddLog(MsgLevel.Info, LanguageManager.Format("SolRunParam.ParamSavedToSolution", Solution.Instance.SolFileName), true);
             }
             catch (Exception)
             {

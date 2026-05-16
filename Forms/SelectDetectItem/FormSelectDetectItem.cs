@@ -12,12 +12,37 @@ namespace TDJS_Vision.Forms.SelectDetectItem
         public FormSelectDetectItem()
         {
             InitializeComponent();
+            BindLanguage();
             Shown += FormSelectDetectItem_Shown;
+            LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+            FormClosed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
         }
 
         private void FormSelectDetectItem_Shown(object sender, EventArgs e)
         {
             InitData(Solution.Instance.DetectItemDic);
+        }
+
+        private void BindLanguage()
+        {
+            LanguageManager.Bind(this, "SelectDetectItem.Title");
+            LanguageManager.Bind(button1, "Common.Close");
+            LanguageManager.Bind(button2, "SelectDetectItem.SelectCurrent");
+            LanguageManager.Bind(button3, "SelectDetectItem.CancelCurrent");
+            LanguageManager.Bind(button4, "SelectDetectItem.SelectAll");
+            LanguageManager.Bind(button5, "SelectDetectItem.CancelAll");
+            ApplyLanguage();
+        }
+
+        private void LanguageManager_LanguageChanged(object sender, EventArgs e)
+        {
+            ApplyLanguage();
+            InitData(Solution.Instance.DetectItemDic);
+        }
+
+        private void ApplyLanguage()
+        {
+            LanguageManager.Apply(this);
         }
 
         /// <summary>
@@ -43,7 +68,10 @@ namespace TDJS_Vision.Forms.SelectDetectItem
                         // 遍历所有选中的项
                         for (int i = 0; i < checkedListBox.CheckedItems.Count; i++)
                         {
-                            selectedItems.Add(checkedListBox.CheckedItems[i].ToString());
+                            if (checkedListBox.CheckedItems[i] is DetectItemListEntry entry)
+                                selectedItems.Add(entry.Key);
+                            else
+                                selectedItems.Add(DetectItemLanguage.NormalizeName(checkedListBox.CheckedItems[i].ToString()));
                         }
                     }
                 }
@@ -97,12 +125,12 @@ namespace TDJS_Vision.Forms.SelectDetectItem
                 foreach (var item in items)
                 {
                     // 添加项到 CheckedListBox
-                    clb.Items.Add(item.Name, item.Enable); // 添加名称并设置初始选中状态
+                    clb.Items.Add(new DetectItemListEntry(item.Name), item.Enable); // 添加名称并设置初始选中状态
                 }
             }
             catch (Exception ex)
             {
-                LogHelper.AddLog(MsgLevel.Exception, $"刷新检测项配置失败！原因：{ex.Message}", true);
+                LogHelper.AddLog(MsgLevel.Exception, LanguageManager.Format("SelectDetectItem.RefreshFailed", ex.Message), true);
             }
         }
 
@@ -196,6 +224,21 @@ namespace TDJS_Vision.Forms.SelectDetectItem
                         }
                     }
                 }
+            }
+        }
+
+        private sealed class DetectItemListEntry
+        {
+            public DetectItemListEntry(string name)
+            {
+                Key = DetectItemLanguage.NormalizeName(name);
+            }
+
+            public string Key { get; }
+
+            public override string ToString()
+            {
+                return DetectItemLanguage.GetDisplayName(Key);
             }
         }
     }
