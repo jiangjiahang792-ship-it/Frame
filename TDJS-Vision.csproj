@@ -226,6 +226,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ConfigHelper.cs" />
+    <Compile Include="LanguageManager.cs" />
     <Compile Include="Device\COM\ComDevice.cs" />
     <Compile Include="Device\Light\LightTDJS.cs" />
     <Compile Include="Device\Modbus\ModbusRTUParam.cs" />
@@ -1602,6 +1603,12 @@
     <None Include="Resources\打扫.png" />
     <None Include="Resources\绘制.png" />
     <Content Include="ToolTreeView.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Languages\zh-CN.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Languages\en-US.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Icon\保存项目.png" />

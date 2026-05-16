@@ -44,7 +44,7 @@
         <Node Text="Modbus读取" ImageName="Modbus读取" Tag="ModbusRead" SelectedImageName="Modbus读取" />
         <Node Text="Modbus写入" ImageName="Modbus写入" Tag="ModbusWrite" SelectedImageName="Modbus写入" />
         <Node Text="监听Modbus软触发信号" ImageName="Modbus软触发" Tag="ModbusSoftTrigger" SelectedImageName="Modbus软触发" />
-        <Node Text="监听全局信号" ImageName="PLC软触发" Tag="FlagRead" SelectedImageName="PLC软触发" />
+        <Node Text="监听全局信号" ImageName="PLC软触发" Tag="ReadFlag" SelectedImageName="PLC软触发" />
         <Node Text="科锐IO模块" ImageName="科锐IO模块" Tag="ERUIIO" SelectedImageName="科锐IO模块" />
       </Nodes>
     </Node>

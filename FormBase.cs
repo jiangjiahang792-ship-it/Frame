@@ -32,6 +32,13 @@ namespace TDJS_Vision
             labelMaxBox.Visible = MaximizeBox;
             FormBorderStyle = FormBorderStyle.None; // 去掉默认边框
         }
+
+        protected override void OnTextChanged(EventArgs e)
+        {
+            base.OnTextChanged(e);
+            if (labelTitle != null)
+                labelTitle.Text = Text;
+        }
         /// <summary>
         /// 最小化窗口
         /// </summary>

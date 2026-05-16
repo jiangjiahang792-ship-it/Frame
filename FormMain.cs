@@ -125,10 +125,14 @@ namespace TDJS_Vision
         /// 反序列化DockContent代理
         /// </summary>
         private DeserializeDockContent DeserializeDockContent = new DeserializeDockContent(GetContentFromPersistString);
+        private ToolStripLabel languageToolStripLabel;
+        private ToolStripComboBox languageToolStripComboBox;
+        private bool isApplyingLanguage;
 
         public FormMain()
         {
             InitializeComponent();
+            InitializeLanguageUI();
             // 自定义主题设置
             this.dockPanel1.Theme = new GreenTheme();
         }
@@ -136,6 +140,7 @@ namespace TDJS_Vision
         public FormMain(string args)
         {
             InitializeComponent();
+            InitializeLanguageUI();
             // 自定义主题设置
             this.dockPanel1.Theme = new GreenTheme();
             this.args = args ?? string.Empty;
@@ -150,8 +155,7 @@ namespace TDJS_Vision
             // 初始化主窗口布局
             InitDockPanel();
 
-            // 设置主窗口标题
-            Text = $"机器视觉AI检测系统V{VersionInfo.VersionInfo.GetExeVer()}";
+            ApplyLanguage();
 
             // 初始化海康相机SDK
             CameraHik.InitSDK();
@@ -206,6 +210,139 @@ namespace TDJS_Vision
             }
         }
 
+        private void InitializeLanguageUI()
+        {
+            LanguageManager.Initialize();
+            BindLanguageKeys();
+
+            languageToolStripLabel = new ToolStripLabel();
+            LanguageManager.Bind(languageToolStripLabel, "Common.Language");
+
+            languageToolStripComboBox = new ToolStripComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = 120
+            };
+
+            var loginIndex = menuStrip1.Items.IndexOf(登录ToolStripMenuItem);
+            if (loginIndex < 0)
+                loginIndex = menuStrip1.Items.Count;
+            menuStrip1.Items.Insert(loginIndex, languageToolStripLabel);
+            menuStrip1.Items.Insert(loginIndex + 1, languageToolStripComboBox);
+
+            LoadLanguageOptions();
+            languageToolStripComboBox.SelectedIndexChanged += LanguageToolStripComboBox_SelectedIndexChanged;
+            LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+            ApplyLanguage();
+        }
+
+        private void BindLanguageKeys()
+        {
+            LanguageManager.Bind(文件ToolStripMenuItem, "Main.File");
+            LanguageManager.Bind(新建方案ToolStripMenuItem, "Main.NewSolution");
+            LanguageManager.Bind(打开方案ToolStripMenuItem, "Main.OpenSolution");
+            LanguageManager.Bind(保存方案ToolStripMenuItem, "Main.SaveSolution");
+            LanguageManager.Bind(另存方案ToolStripMenuItem, "Main.SaveSolutionAs");
+            LanguageManager.Bind(视图ToolStripMenuItem, "Main.View");
+            LanguageManager.Bind(默认视图ToolStripMenuItem, "Main.DefaultView");
+            LanguageManager.Bind(图像显示ToolStripMenuItem, "Main.ImageView");
+            LanguageManager.Bind(检测结果ToolStripMenuItem, "Main.ResultView");
+            LanguageManager.Bind(运行日志ToolStripMenuItem, "Main.LogView");
+            LanguageManager.Bind(公司Logo视图ToolStripMenuItem, "Main.LogoView");
+            LanguageManager.Bind(设置ToolStripMenuItem, "Main.Settings");
+            LanguageManager.Bind(aI配置工具ToolStripMenuItem, "Main.AIConfigTool");
+            LanguageManager.Bind(检测项配置ToolStripMenuItem, "Main.DetectItemConfig");
+            LanguageManager.Bind(画布设置ToolStripMenuItem, "Main.CanvasSetting");
+            LanguageManager.Bind(系统设置ToolStripMenuItem, "Main.SystemSetting");
+            LanguageManager.Bind(全局信号设置ToolStripMenuItem, "Main.GlobalSignalSetting");
+            LanguageManager.Bind(帮助ToolStripMenuItem, "Main.Help");
+            LanguageManager.Bind(使用教程ToolStripMenuItem, "Main.Tutorial");
+            LanguageManager.Bind(联系我们ToolStripMenuItem1, "Main.ContactUs");
+            LanguageManager.Bind(关于TDJS_VisionToolStripMenuItem1, "Main.About");
+            LanguageManager.Bind(登录ToolStripMenuItem, "Main.Login");
+            LanguageManager.Bind(tsbt_SolNew, "Main.NewSolution", "Main.NewSolution");
+            LanguageManager.Bind(tsbt_SolOpen, "Main.OpenSolution", "Main.OpenSolution");
+            LanguageManager.Bind(tsbt_SolSave, "Main.SaveSolution", "Main.SaveSolution");
+            LanguageManager.Bind(tsbt_SolSaveAs, "Main.SaveSolutionAs", "Main.SaveSolutionAs");
+            LanguageManager.Bind(tsbt_ProcessManager, "Main.ProcessManager", "Main.ProcessManager");
+            LanguageManager.Bind(tsbt_LightManager, "Main.LightManager", "Main.LightManager");
+            LanguageManager.Bind(tsbt_CameraManager, "Main.CameraManager", "Main.CameraManager");
+            LanguageManager.Bind(tsbt_PlcManager, "Main.PLCManager", "Main.PLCManager");
+            LanguageManager.Bind(tsbt_ModbusManager, "Main.ModbusManager", "Main.ModbusManager");
+            LanguageManager.Bind(tsbt_TCPManager, "Main.TCPManager", "Main.TCPManager");
+            LanguageManager.Bind(tsbt_ComManager, "Main.COMManager", "Main.COMManager");
+            LanguageManager.Bind(tsbt_RunParamSetting, "Main.RunParam", "Main.RunParam");
+            LanguageManager.Bind(tsbt_ClearCount, "Main.ClearCount", "Main.ClearCount");
+            LanguageManager.Bind(tsbt_SolRunOnce, "Main.RunOnce", "Main.RunOnce");
+            LanguageManager.Bind(tsbt_SolRunLoop, "Main.RunLoop", "Main.RunLoop");
+            LanguageManager.Bind(tsbt_SolRunStop, "Main.StopRun", "Main.StopRun");
+            LanguageManager.Bind(toolStripLabel1, "Main.SolutionLoading");
+        }
+
+        private void LoadLanguageOptions()
+        {
+            isApplyingLanguage = true;
+            try
+            {
+                languageToolStripComboBox.Items.Clear();
+                foreach (var language in LanguageManager.GetAvailableLanguages())
+                    languageToolStripComboBox.Items.Add(language);
+
+                for (int i = 0; i < languageToolStripComboBox.Items.Count; i++)
+                {
+                    if (languageToolStripComboBox.Items[i] is LanguageInfo info &&
+                        info.Culture == LanguageManager.CurrentCulture)
+                    {
+                        languageToolStripComboBox.SelectedIndex = i;
+                        break;
+                    }
+                }
+            }
+            finally
+            {
+                isApplyingLanguage = false;
+            }
+        }
+
+        private void LanguageToolStripComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (isApplyingLanguage)
+                return;
+
+            if (languageToolStripComboBox.SelectedItem is LanguageInfo info)
+                LanguageManager.SetLanguage(info.Culture);
+        }
+
+        private void LanguageManager_LanguageChanged(object sender, EventArgs e)
+        {
+            ApplyLanguage();
+        }
+
+        private void ApplyLanguage()
+        {
+            isApplyingLanguage = true;
+            try
+            {
+                Text = string.Format(LanguageManager.T("Main.Title"), VersionInfo.VersionInfo.GetExeVer());
+                LanguageManager.ApplyToolStrip(menuStrip1);
+                LanguageManager.ApplyToolStrip(toolStrip1);
+
+                for (int i = 0; i < languageToolStripComboBox.Items.Count; i++)
+                {
+                    if (languageToolStripComboBox.Items[i] is LanguageInfo info &&
+                        info.Culture == LanguageManager.CurrentCulture)
+                    {
+                        languageToolStripComboBox.SelectedIndex = i;
+                        break;
+                    }
+                }
+            }
+            finally
+            {
+                isApplyingLanguage = false;
+            }
+        }
+
         private void OnLoginEvent(object sender, UserRole e)
         {
             SetLockStatus(e);
@@ -235,7 +372,7 @@ namespace TDJS_Vision
                 }
                 catch (Exception)
                 {
-                    LogHelper.AddLog(MsgLevel.Exception, "方案加载失败！", true);
+                    LogHelper.AddLog(MsgLevel.Exception, LanguageManager.T("Log.LoadSolutionFailed"), true);
                 }
                 if (Settings.Default.IsAutoRun)
                 {
@@ -335,7 +472,7 @@ namespace TDJS_Vision
         private void FormMain_FormClosing(object sender, FormClosingEventArgs e)
         {
             // 主程序关闭提醒
-            var res = MessageBoxTD.Show("确认关闭程序？", "提示", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
+            var res = MessageBoxTD.Show(LanguageManager.T("Dialog.ConfirmClose"), LanguageManager.T("Common.Tip"), MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
             if (res == DialogResult.Cancel || res == DialogResult.None)
             {
                 e.Cancel = true;
@@ -345,7 +482,7 @@ namespace TDJS_Vision
             // 检测任务正在运行提示
             if (Solution.Instance.IsRunning)
             {
-                var res1 = MessageBoxTD.Show("请先停止当前任务再关闭！");
+                var res1 = MessageBoxTD.Show(LanguageManager.T("Dialog.StopTaskBeforeClose"));
                 if (res1 == DialogResult.OK || res1 == DialogResult.None)
                 {
                     e.Cancel = true;
@@ -370,7 +507,7 @@ namespace TDJS_Vision
                     }
                     catch (Exception ex)
                     {
-                        MessageBoxTD.Show($"方案保存失败！原因：{ex.Message}");
+                        MessageBoxTD.Show(string.Format(LanguageManager.T("Dialog.SaveSolutionFailed"), ex.Message));
                     }
                 }
 
@@ -459,27 +596,14 @@ namespace TDJS_Vision
         {
             if (sender is ToolStripMenuItem item)
             {
-                switch (item.Text)
-                {
-                    case "新建方案":
-                        新建方案ToolStripMenuItem_Click(sender, e);
-                        break;
-                    case "打开方案":
-                        打开方案ToolStripMenuItem_Click(sender, e);
-                        break;
-                    case "另存方案":
-                        另存方案ToolStripMenuItem_Click(sender, e);
-                        break;
-                    case "保存方案":
-                        保存方案ToolStripMenuItem_Click(sender, e);
-                        break;
-                    case "退出":
-                        if (MessageBoxTD.Show("确认退出？") == DialogResult.OK)
-                            Close();
-                        break;
-                    default:
-                        break;
-                }
+                if (item == 新建方案ToolStripMenuItem)
+                    新建方案ToolStripMenuItem_Click(sender, e);
+                else if (item == 打开方案ToolStripMenuItem)
+                    打开方案ToolStripMenuItem_Click(sender, e);
+                else if (item == 另存方案ToolStripMenuItem)
+                    另存方案ToolStripMenuItem_Click(sender, e);
+                else if (item == 保存方案ToolStripMenuItem)
+                    保存方案ToolStripMenuItem_Click(sender, e);
             }
         }
 
@@ -491,54 +615,36 @@ namespace TDJS_Vision
         private void ToolStripButton_Click(object sender, EventArgs e)
         {
             ToolStripButton tsbt = sender as ToolStripButton;
-            switch (tsbt.Text)
-            {
-                case "新建方案":
-                    新建方案ToolStripMenuItem_Click(null, null);
-                    break;
-                case "打开方案":
-                    打开方案ToolStripMenuItem_Click(null, null);
-                    break;
-                case "另存方案":
-                    另存方案ToolStripMenuItem_Click(null, null);
-                    break;
-                case "保存方案":
-                    保存方案ToolStripMenuItem_Click(null, null);
-                    break;
-                case "流程管理":
-                    流程管理ToolStripMenuItem_Click(null, null);
-                    break;
-                case "光源管理":
-                    光源管理ToolStripMenuItem_Click(null, null);
-                    break;
-                case "相机管理":
-                    相机管理ToolStripMenuItem_Click(null, null);
-                    break;
-                case "PLC管理":
-                    PLC管理ToolStripMenuItem_Click(null, null);
-                    break;
-                case "Modbus管理":
-                    Modbus设备ToolStripMenuItem_Click(null, null);
-                    break;
-                case "TCP管理":
-                    TCP设备ToolStripMenuItem_Click(null, null);
-                    break;
-                case "串口管理":
-                    串口管理ToolStripMenuItem_Click(null, null);
-                    break;
-                case "运行参数":
-                    运行参数ToolStripMenuItem_Click(null, null);
-                    break;
-                case "循环运行":
-                    循环运行ToolStripMenuItem_Click(null, null);
-                    break;
-                case "单次运行":
-                    单次运行ToolStripMenuItem_Click(null, null);
-                    break;
-                case "停止运行":
-                    停止运行ToolStripMenuItem_Click(null, null);
-                    break;
-            }
+            if (tsbt == tsbt_SolNew)
+                新建方案ToolStripMenuItem_Click(null, null);
+            else if (tsbt == tsbt_SolOpen)
+                打开方案ToolStripMenuItem_Click(null, null);
+            else if (tsbt == tsbt_SolSaveAs)
+                另存方案ToolStripMenuItem_Click(null, null);
+            else if (tsbt == tsbt_SolSave)
+                保存方案ToolStripMenuItem_Click(null, null);
+            else if (tsbt == tsbt_ProcessManager)
+                流程管理ToolStripMenuItem_Click(null, null);
+            else if (tsbt == tsbt_LightManager)
+                光源管理ToolStripMenuItem_Click(null, null);
+            else if (tsbt == tsbt_CameraManager)
+                相机管理ToolStripMenuItem_Click(null, null);
+            else if (tsbt == tsbt_PlcManager)
+                PLC管理ToolStripMenuItem_Click(null, null);
+            else if (tsbt == tsbt_ModbusManager)
+                Modbus设备ToolStripMenuItem_Click(null, null);
+            else if (tsbt == tsbt_TCPManager)
+                TCP设备ToolStripMenuItem_Click(null, null);
+            else if (tsbt == tsbt_ComManager)
+                串口管理ToolStripMenuItem_Click(null, null);
+            else if (tsbt == tsbt_RunParamSetting)
+                运行参数ToolStripMenuItem_Click(null, null);
+            else if (tsbt == tsbt_SolRunLoop)
+                循环运行ToolStripMenuItem_Click(null, null);
+            else if (tsbt == tsbt_SolRunOnce)
+                单次运行ToolStripMenuItem_Click(null, null);
+            else if (tsbt == tsbt_SolRunStop)
+                停止运行ToolStripMenuItem_Click(null, null);
         }
 
         private void 流程管理ToolStripMenuItem_Click(object value1, object value2)
@@ -696,20 +802,20 @@ namespace TDJS_Vision
         {
             if (Solution.Instance.SolFileName.IsNullOrEmpty())
             {
-                MessageBoxTD.Show("请先保存方案再另存！");
+                MessageBoxTD.Show(LanguageManager.T("Dialog.SaveBeforeSaveAs"));
                 return;
             }
-            saveFileDialog1.Title = "方案另存为";
+            saveFileDialog1.Title = LanguageManager.T("Dialog.SaveSolutionAsTitle");
             if (saveFileDialog1.ShowDialog() == DialogResult.OK)
             {
                 try
                 {
                     Solution.Instance.Save(saveFileDialog1.FileName);
-                    LogHelper.AddLog(MsgLevel.Info, $"方案另存成功！路径：{saveFileDialog1.FileName}", true);
+                    LogHelper.AddLog(MsgLevel.Info, string.Format(LanguageManager.T("Log.SaveSolutionAsSuccess"), saveFileDialog1.FileName), true);
                 }
                 catch (Exception ex)
                 {
-                    MessageBoxTD.Show($"方案保存失败！原因：{ex.Message}");
+                    MessageBoxTD.Show(string.Format(LanguageManager.T("Dialog.SaveSolutionFailed"), ex.Message));
                 }
             }
         }
@@ -718,7 +824,7 @@ namespace TDJS_Vision
         {
             if (Solution.Instance.SolFileName.IsNullOrEmpty())
             {
-                saveFileDialog1.Title = "请选择方案保存路径";
+                saveFileDialog1.Title = LanguageManager.T("Dialog.SelectSaveSolutionPath");
                 if (saveFileDialog1.ShowDialog() == DialogResult.OK)
                     Solution.Instance.SolFileName = saveFileDialog1.FileName;
                 else
@@ -727,17 +833,17 @@ namespace TDJS_Vision
             try
             {
                 Solution.Instance.Save(Solution.Instance.SolFileName);
-                LogHelper.AddLog(MsgLevel.Info, $"方案保存成功！路径：{Solution.Instance.SolFileName}", true);
+                LogHelper.AddLog(MsgLevel.Info, string.Format(LanguageManager.T("Log.SaveSolutionSuccess"), Solution.Instance.SolFileName), true);
             }
             catch (Exception ex)
             {
-                MessageBoxTD.Show($"方案保存失败！原因：{ex.Message}");
+                MessageBoxTD.Show(string.Format(LanguageManager.T("Dialog.SaveSolutionFailed"), ex.Message));
             }
         }
 
         private void 打开方案ToolStripMenuItem_Click(object value1, object value2)
         {
-            openFileDialog1.Title = "请选择要打开的方案";
+            openFileDialog1.Title = LanguageManager.T("Dialog.SelectOpenSolution");
             if (openFileDialog1.ShowDialog()  == DialogResult.OK)
             {
                 toolStripLabel1.Visible = true;
@@ -758,7 +864,7 @@ namespace TDJS_Vision
             // 新建方案实际和调用加载空方案一样(传入false，表示不需要打印反序列化的信息因为新建方案实际上就是加载一个空的方案)
             Solution.Instance.Load(Application.StartupPath + "\\空方案.Sol", false);
             Solution.Instance.SolFileName = string.Empty;
-            LogHelper.AddLog(MsgLevel.Info, $"新建方案成功！", true);
+            LogHelper.AddLog(MsgLevel.Info, LanguageManager.T("Log.NewSolutionSuccess"), true);
         }
 
         private void 联系我们ToolStripMenuItem_Click(object sender, EventArgs e)
@@ -837,7 +943,7 @@ namespace TDJS_Vision
             {
                 if (Solution.Instance.IsRunning)
                 {
-                    MessageBoxTD.Show("请先停止当前运行的任务后再打开日志窗口！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBoxTD.Show(LanguageManager.T("Dialog.StopTaskBeforeOpenLog"), LanguageManager.T("Common.Tip"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
                 FrmLoggerDlg.Show(); // 如果窗口隐藏，显示它
