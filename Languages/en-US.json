@@ -291,5 +291,11 @@
   "ImageViewer.ProcessNotFound": "No station was found for the current image window.",
   "ImageViewer.AINodeNotConfigured": "The current station has no AI node configured, so one-click learning is unavailable.",
   "ImageViewer.OneClickLearningFailed": "One-click learning failed. Reason: {0}",
-  "ImageViewer.ImageWindow": "Image Window {0}"
+  "ImageViewer.ImageWindow": "Image Window {0}",
+  "ImageViewer.ImageShowTitle": "Image Display",
+  "ImageViewer.WindowName": "Window Name",
+  "ImageViewer.SubscribeImage": "Subscribe Image",
+  "ImageViewer.WindowNameNotFound": "The corresponding image window name was not found.",
+  "ImageViewer.NoSubscribedResult": "No result has been subscribed.",
+  "ImageViewer.WindowNameRequired": "Image window name cannot be empty."
 }

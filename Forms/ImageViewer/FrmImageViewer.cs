@@ -111,7 +111,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         {
             for (int i = 0; i < 16; i++)
             {
-                FrmSingleImage imageWin = new FrmSingleImage(LanguageManager.Format("ImageViewer.ImageWindow", i + 1));
+                FrmSingleImage imageWin = new FrmSingleImage(FrmSingleImage.GetWindowKey(i + 1));
                 _frmSingleImages.Add(imageWin);
             }
         }

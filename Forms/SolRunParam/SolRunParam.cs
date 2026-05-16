@@ -151,7 +151,8 @@ namespace TDJS_Vision.Forms.SolRunParam
                     {
                         if (nodeShow.ParamForm.Params is NodeParamImageShow showParam)
                         {
-                            _windowsName = showParam.WindowName;
+                            _windowsName = FrmSingleImage.NormalizeWindowKey(showParam.WindowName);
+                            showParam.WindowName = _windowsName;
                         }
                     }
                 }

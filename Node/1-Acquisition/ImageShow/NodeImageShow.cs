@@ -55,6 +55,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 {
                     try
                     {
+                        param.WindowName = FrmSingleImage.NormalizeWindowKey(param.WindowName);
                         // 初始化状态
                         SetStatus(NodeStatus.Unexecuted, "*");
                         base.CheckTokenCancel(token);

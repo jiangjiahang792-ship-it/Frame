@@ -15,14 +15,15 @@ namespace TDJS_Vision.Forms.ImageViewer
     {
 
         public string FormName;
+        private bool _isBoundToProcess;
         private Process _process;
 
         public FrmSingleImage(string name)
         {
             InitializeComponent();
             BindLanguage();
-            this.Text = name;
-            FormName = name;
+            FormName = NormalizeWindowKey(name);
+            this.Text = GetWindowDisplayName(FormName);
             NodeImageShow.ImageShowChanged += NodeImageShow_ImageShowChanged;
             NodeImageShow.ImageShowWindowNameChanged += NodeImageShow_ImageShowWindowNameChanged1;
             SolRunParamControl.ImageShowChanged += NodeImageShow_ImageShowChanged;
@@ -48,14 +49,60 @@ namespace TDJS_Vision.Forms.ImageViewer
         {
             LanguageManager.Apply(button1);
             LanguageManager.Apply(button2);
+            if (!_isBoundToProcess)
+                Text = GetWindowDisplayName(FormName);
+        }
+
+        public static string GetWindowKey(int index)
+        {
+            return "ImageWindow" + index;
+        }
+
+        public static string NormalizeWindowKey(string windowName)
+        {
+            if (string.IsNullOrWhiteSpace(windowName))
+                return string.Empty;
+
+            if (windowName.StartsWith("ImageWindow", StringComparison.OrdinalIgnoreCase))
+                return windowName;
+
+            bool isImageWindowName = windowName.StartsWith("图像窗口", StringComparison.OrdinalIgnoreCase) ||
+                windowName.StartsWith("Image Window", StringComparison.OrdinalIgnoreCase);
+            if (!isImageWindowName)
+                return windowName;
+
+            string numberText = string.Empty;
+            foreach (char c in windowName)
+            {
+                if (char.IsDigit(c))
+                    numberText += c;
+            }
+
+            if (int.TryParse(numberText, out int index) && index > 0)
+                return GetWindowKey(index);
+
+            return windowName;
+        }
+
+        public static string GetWindowDisplayName(string windowName)
+        {
+            string key = NormalizeWindowKey(windowName);
+            if (key.StartsWith("ImageWindow", StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(key.Substring("ImageWindow".Length), out int index))
+            {
+                return LanguageManager.Format("ImageViewer.ImageWindow", index);
+            }
+
+            return windowName;
         }
 
         private void NodeImageShow_ImageShowWindowNameChanged1(Process process, string winName)
         {
-            if (this.FormName != winName)
+            if (FormName != NormalizeWindowKey(winName))
                 return;
 
             _process = process;
+            _isBoundToProcess = true;
             
             // 封装 UI 更新操作
             Action updateImage = () =>
@@ -96,7 +143,7 @@ namespace TDJS_Vision.Forms.ImageViewer
 
         private void NodeImageShow_ImageShowChanged(object sender, ImageShowPamra e)
         {
-            if (this.FormName != e.WinName)
+            if (FormName != NormalizeWindowKey(e.WinName))
                 return;
 
 
@@ -141,7 +188,7 @@ namespace TDJS_Vision.Forms.ImageViewer
                 {
                     if (node is NodeImageShow nodeShow &&
                         nodeShow.ParamForm.Params is NodeParamImageShow showParam &&
-                        showParam.WindowName == FormName)
+                        NormalizeWindowKey(showParam.WindowName) == FormName)
                     {
                         _process = process;
                         return _process;
@@ -200,7 +247,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         public Bitmap Bitmap;
         public ImageShowPamra(string winname, Bitmap bitmap)
         {
-            WinName = winname;
+            WinName = FrmSingleImage.NormalizeWindowKey(winname);
             Bitmap = bitmap;
         }
     }
