@@ -17,6 +17,7 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
     {
         private const int ListenInterval = 50;
         private static CancellationTokenSource _listenSignalCts;
+        private bool _isLoadingConfig;
 
         public FormGlobalSignal()
         {
@@ -26,6 +27,10 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
             dataGridView2.Leave += DataGridView2_Leave;
             dataGridView3.Leave += DataGridView3_Leave;
             dataGridView3.CellClick += dataGridView1_CellClick;
+            dataGridView3.CellEndEdit += DataGridView3_CellEndEdit;
+            dataGridView3.CellValueChanged += DataGridView3_CellValueChanged;
+            dataGridView3.CurrentCellDirtyStateChanged += DataGridView3_CurrentCellDirtyStateChanged;
+            dataGridView3.RowsRemoved += DataGridView3_RowsRemoved;
         }
         /// <summary>
         /// 点击删除按钮
@@ -448,9 +453,46 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
         /// <param name="e"></param>
         private void DataGridView3_Leave(object sender, EventArgs e)
         {
+            SaveListenSignalsAndRefresh();
+        }
+
+        private void DataGridView3_CellEndEdit(object sender, DataGridViewCellEventArgs e)
+        {
+            SaveListenSignalsAndRefresh();
+        }
+
+        private void DataGridView3_CellValueChanged(object sender, DataGridViewCellEventArgs e)
+        {
+            SaveListenSignalsAndRefresh();
+        }
+
+        private void DataGridView3_CurrentCellDirtyStateChanged(object sender, EventArgs e)
+        {
+            if (dataGridView3.IsCurrentCellDirty)
+            {
+                dataGridView3.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            }
+        }
+
+        private void DataGridView3_RowsRemoved(object sender, DataGridViewRowsRemovedEventArgs e)
+        {
+            SaveListenSignalsAndRefresh();
+        }
+
+        private void SaveListenSignalsAndRefresh()
+        {
+            if (_isLoadingConfig)
+                return;
+
             if (Solution.Instance.GlobalSignal == null)
                 Solution.Instance.GlobalSignal = new GlobalSignal();
-            Solution.Instance.GlobalSignal.ListenSignals = GetConfig(dataGridView3);
+
+            var listenSignals = GetConfig(dataGridView3);
+            if (listenSignals == null)
+                return;
+
+            Solution.Instance.GlobalSignal.ListenSignals = listenSignals;
+            StartListenSignals();
         }
 
         private void FormGlobalSignal_Shown(object sender, EventArgs e)
@@ -483,6 +525,7 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
             #region 初始化表格数据
             try
             {
+                _isLoadingConfig = true;
                 var deviceNames = Solution.Instance.AllDevices.Where(d => d is IPlc || d is IModbus).Select(d => d.DevName).ToList();
                 deviceColumn1.DataSource = deviceNames;
                 deviceColumn2.DataSource = deviceNames;
@@ -493,6 +536,7 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
                     LoadConfig(dataGridView2, Solution.Instance.GlobalSignal.StopSignals);
                     LoadConfig(dataGridView3, Solution.Instance.GlobalSignal.ListenSignals);
                 }
+                _isLoadingConfig = false;
             }
             catch (Exception ex)
             {
@@ -542,7 +586,7 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
                         row.Cells[1].Value?.ToString() ?? string.Empty,
                         row.Cells[2].Value?.ToString() ?? string.Empty,
                         row.Cells[3].Value?.ToString() ?? string.Empty,
-                        Convert.ToBoolean(row.Cells[4].Value)
+                        Convert.ToBoolean(row.Cells[4].Value ?? false)
                     );
                     infos.Add(info);
                 }
@@ -561,7 +605,7 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
                 Solution.Instance.GlobalSignal = new GlobalSignal();
             Solution.Instance.GlobalSignal.ReadySignals = GetConfig(dataGridView1);
             Solution.Instance.GlobalSignal.StopSignals = GetConfig(dataGridView2);
-            Solution.Instance.GlobalSignal.ListenSignals = GetConfig(dataGridView3);
+            SaveListenSignalsAndRefresh();
         }
     }
     /// <summary>

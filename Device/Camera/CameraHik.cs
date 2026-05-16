@@ -315,7 +315,7 @@ namespace TDJS_Vision.Device.Camera
                     }
                 }
                 // 订阅图像回调函数
-                device.StreamGrabber.FrameGrabedEvent += GetImageCallBack;
+                //device.StreamGrabber.FrameGrabedEvent += GetImageCallBack;
             }
             return true;
         }
@@ -893,7 +893,7 @@ namespace TDJS_Vision.Device.Camera
             {
                 StopGrabbing();
             }
-            device.StreamGrabber.FrameGrabedEvent -= GetImageCallBack;
+            //device.StreamGrabber.FrameGrabedEvent -= GetImageCallBack;
             ConnectStatusEvent?.Invoke(this, false);
             device.Close();
             IsOpen = false;

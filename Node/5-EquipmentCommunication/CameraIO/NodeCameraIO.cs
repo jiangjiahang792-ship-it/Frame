@@ -50,21 +50,14 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
                                 try
                                 {
                                     token.ThrowIfCancellationRequested();
-
-                                    //param.Camera.SetLineSelector(param.LineSelector);
                                     param.Camera.SetLineMode(param.LineMode);
-
-                                    param.Camera.SetIO(param.LineSelector, true);
-
-                                    // 打开
                                     param.Camera.SetLineInverter(true);
 
                                     // 这里一定会等待！
                                     await MicrosecondDelayAsync(param.HoldTime);
 
                                     // 延迟结束后才会执行！
-                                    //param.Camera.SetLineInverter(false);
-                                    param.Camera.SetIO(param.LineSelector, false);
+                                    param.Camera.SetLineInverter(false);
                                 }
                                 catch
                                 {
@@ -76,15 +69,12 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
                         else {
                             //后续还会发先置为Off状态
                             token.ThrowIfCancellationRequested();
-                            //param.Camera.SetLineSelector(param.LineSelector);
+                            param.Camera.SetLineSelector(param.LineSelector);
                             param.Camera.SetLineMode(param.LineMode);
-                            //param.Camera.SetLineInverter(true);
 
-                            param.Camera.SetIO(param.LineSelector, true);
-
+                            param.Camera.SetLineInverter(true);
                             await MicrosecondDelayAsync(param.HoldTime);
-
-                            param.Camera.SetIO(param.LineSelector, false);
+                            param.Camera.SetLineInverter(false);
                         }
                         
                         var time = SetRunResult(startTime, NodeStatus.Successful);

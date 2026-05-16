@@ -241,9 +241,9 @@ namespace TDJS_Vision
                 {
                     SetLockStatus(UserRole.Low);
                     SetRunStatus(true);
-                    FormGlobalSignal.StartListenSignals();
                     try
                     {
+                        FormGlobalSignal.StartListenSignals();
                         await Solution.Instance.Run(true,false);
                     }
                     finally
@@ -549,7 +549,6 @@ namespace TDJS_Vision
         private async void 停止运行ToolStripMenuItem_Click(object value1, object value2)
         {
             Solution.Instance.Stop();
-            FormGlobalSignal.StopListenSignals();
             SetRunStatus(false);
             await FormGlobalSignal.SendGlobalSignals(this, false);
         }
@@ -558,15 +557,12 @@ namespace TDJS_Vision
         {
             await FormGlobalSignal.SendGlobalSignals(this, true);
             SetRunStatus(true);
-            FormGlobalSignal.StartListenSignals();
             try
             {
-                //await Solution.Instance.Run(true);
-                await Solution.Instance.Run(true,false);
+                await Solution.Instance.Run(true);
             }
             finally
             {
-                FormGlobalSignal.StopListenSignals();
                 SetRunStatus(false);
             }
         }
@@ -575,14 +571,12 @@ namespace TDJS_Vision
         {
             await FormGlobalSignal.SendGlobalSignals(this, true);
             SetRunStatus(true);
-            FormGlobalSignal.StartListenSignals();
             try
             {
                 await Solution.Instance.Run(false);
             }
             finally
             {
-                FormGlobalSignal.StopListenSignals();
                 SetRunStatus(false);
             }
             await FormGlobalSignal.SendGlobalSignals(this, false);
