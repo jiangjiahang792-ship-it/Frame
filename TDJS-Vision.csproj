@@ -226,6 +226,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ConfigHelper.cs" />
+    <Compile Include="DetectItemLanguage.cs" />
     <Compile Include="LanguageManager.cs" />
     <Compile Include="Device\COM\ComDevice.cs" />
     <Compile Include="Device\Light\LightTDJS.cs" />

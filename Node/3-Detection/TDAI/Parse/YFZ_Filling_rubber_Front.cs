@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -35,6 +35,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         {
             // 当前使用的检测项配置
             var deteItems = Solution.Instance.DetectItemDic[param.CurDetectItemName];
+            ParseCommon.NormalizeDetectItems(deteItems);
 
             // 用来保存检测结果的检测项OK/NG、带颜色的框、带颜色的文本
             var detectResults = new Dictionary<string, List<SingleDetectResult>>();
@@ -62,22 +63,22 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                 switch (itemName)
                 {
-                    case "定位":
+                    case "DetectItem.Positioning":
                         extractValueFunc = r => r.ClassId == 0 ? "1": null;
                         break;
-                    case "端子数量":
+                    case "DetectItem.TerminalCount":
                         extractValueFunc = r => r.ClassId == 1 ? "1" : null;
                         break;
-                    case "间距":
+                    case "DetectItem.Spacing":
                         extractValueFunc = r => r.ClassId == 1 ? "1" : null;
                         break;
-                    case "线弯曲":
+                    case "DetectItem.WireBent":
                         extractValueFunc = r => r.ClassId == 2 ?"1" : null;
                         break;
-                    case "线在槽":
+                    case "DetectItem.WireInSlot":
                         extractValueFunc = r => r.ClassId == 3 ? "1" : null;
                         break;
-                    case "线不在槽":
+                    case "DetectItem.WireOutOfSlot":
                         extractValueFunc = r => r.ClassId == 4 ? "1" : null;
                         break;        
                     default:
@@ -124,8 +125,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                     List<string> ngCountItems = new List<string>()
                     {
-                        "线不在槽",
-                        "线弯曲"
+                        "DetectItem.WireOutOfSlot",
+                        "DetectItem.WireBent"
 
                     };
 
@@ -139,11 +140,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         isOk = minOk && maxOk;
 
                         // 规则覆盖：当存在“线不在槽”(class_id=5)时，“线在槽”(class_id=4)的框必须为绿色
-                        if (itemName == "线在槽" && hasClass4)
+                        if (itemName == "DetectItem.WireInSlot" && hasClass4)
                             isOk = true;
 
                         // 规则覆盖：当“线不在槽”数量>0时，其框必须为红色
-                        if (itemName == "线不在槽" && count > 0)
+                        if (itemName == "DetectItem.WireOutOfSlot" && count > 0)
                             isOk = false;
                     }
                     else
@@ -186,13 +187,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         foreach (var aiRes in matchedResults)
                         {
                             // “线在槽”在存在 class_id=5 时绿框
-                            if (itemName == "线在槽" && results != null && results.Any(r => r.ClassId == 4))
+                            if (itemName == "DetectItem.WireInSlot" && results != null && results.Any(r => r.ClassId == 4))
                             {
                                 ParseCommon.AddRect(addedRectKeys, aiRes.Box, true, ref nodeResult);
                                 continue;
                             }
                             // “线不在槽”只要 count>0 红框
-                            if (itemName == "线不在槽" && count > 0)
+                            if (itemName == "DetectItem.WireOutOfSlot" && count > 0)
                             {
                                 ParseCommon.AddRect(addedRectKeys, aiRes.Box, false, ref nodeResult);
                                 continue;
@@ -208,10 +209,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     #region 添加文本信息
 
                     var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                     {
                         texts.Add(new ColorText(
-                            $"{itemName}: {((param.IsAutoStudy ? true : isOk) ? "OK" : "NG")}",
+                            $"{ParseCommon.GetDisplayName(itemName)}: {((param.IsAutoStudy ? true : isOk) ? "OK" : "NG")}",
                             (param.IsAutoStudy ? true : isOk) ? Color.Green : Color.Red
                         ));
                     }
@@ -228,7 +229,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     bool allOk = true;
                     var valueStr = "";
 
-                    if (itemName == "间距")
+                    if (itemName == "DetectItem.Spacing")
                     {
                         shrapnelRes = matchedResults;
                         continue;
@@ -290,7 +291,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                             rawValue = value.ToString("F2"); // 保留两位小数
                         }
 
-                        if (itemName == "咬胶占比")
+                        if (itemName == "DetectItem.BiteGlueRatio")
                         {
                             rubber_left = result.Box.Left;
                             rubber_right = result.Box.Right;
@@ -298,7 +299,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                             continue;
                         }
                         // 保存“咬胶占比”所需的数据
-                        if (itemName == "后铆脚露线芯长度")
+                        if (itemName == "DetectItem.BackRivetCoreLength")
                             line_right = result.Box.Right;
 
                         
@@ -336,14 +337,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     }
 
                     // 不是“咬胶占比”时
-                    if (itemName != "咬胶占比")
+                    if (itemName != "DetectItem.BiteGlueRatio")
                     {
                         // 遍历完成后统一添加文本信息
                         var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                         {
                             texts.Add(new ColorText(
-                                $"{itemName}: {((param.IsAutoStudy ? true : allOk) ? "OK" : "NG")}",
+                                $"{ParseCommon.GetDisplayName(itemName)}: {((param.IsAutoStudy ? true : allOk) ? "OK" : "NG")}",
                                 (param.IsAutoStudy ? true : allOk) ? Color.Green : Color.Red
                             ));
                         }
@@ -368,7 +369,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
 
                     //对于“存在”即NG的检测项要这样设置
-                    if (itemName == "线不在槽"|| itemName == "线弯曲")
+                    if (itemName == "DetectItem.WireOutOfSlot"|| itemName == "DetectItem.WireBent")
                     {
                         defaultValue = "0";
                         isSpecialCaseOk = true;
@@ -387,10 +388,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                         // 添加文本
                         var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                         {
                             texts.Add(new ColorText(
-                                $"{itemName}: {(isSpecialCaseOk ? "OK" : "NG")}",
+                                $"{ParseCommon.GetDisplayName(itemName)}: {(isSpecialCaseOk ? "OK" : "NG")}",
                                 isSpecialCaseOk ? Color.Green : Color.Red
                             ));
                         }
@@ -413,7 +414,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             #region 单独处理“咬胶占比”结果
 
 
-            //string name = "咬胶占比";
+            //string name = "DetectItem.BiteGlueRatio";
             //var resultList = new List<SingleDetectResult>();
             //var res = new SingleDetectResult();
             //res.Name = name;
@@ -453,8 +454,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
             var resultList = new List<SingleDetectResult>();
             string valueRes = string.Empty;
-            var enable = ParseCommon.GetItemEnableStatus(deteItems, "间距");
-            var itemInfo = deteItems.Find(i => i.Name == "间距");
+            var enable = ParseCommon.GetItemEnableStatus(deteItems, "DetectItem.Spacing");
+            var itemInfo = deteItems.Find(i => i.Name == "DetectItem.Spacing");
 
             if (enable)
             {
@@ -488,7 +489,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                         resultList.Add(new SingleDetectResult
                         {
-                            Name = "间距",
+                            Name = "DetectItem.Spacing",
                             Value = raw,
                             IsOk = param.IsAutoStudy ? true : isOk
                         });
@@ -500,25 +501,25 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         // 自动学习
                         if (param.IsAutoStudy)
                         {
-                            if (!_autoStudyDatas.ContainsKey("间距"))
-                                _autoStudyDatas.Add("间距", new List<float>());
-                            _autoStudyDatas["间距"].Add(d);
+                            if (!_autoStudyDatas.ContainsKey("DetectItem.Spacing"))
+                                _autoStudyDatas.Add("DetectItem.Spacing", new List<float>());
+                            _autoStudyDatas["DetectItem.Spacing"].Add(d);
                         }
                     }
 
                     // 汇总文本
 
-                    if (enable && !texts.Any(t => t.Text.StartsWith("间距:")))
+                    if (enable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName("DetectItem.Spacing")}:")))
                     {
                         texts.Add(new ColorText(
-                            $"间距: {(param.IsAutoStudy ? "OK" : (allOk ? "OK" : "NG"))}",
+                            $"{ParseCommon.GetDisplayName("DetectItem.Spacing")}: {(param.IsAutoStudy ? "OK" : (allOk ? "OK" : "NG"))}",
                             (param.IsAutoStudy ? true : allOk) ? Color.Green : Color.Red
                         ));
                     }
 
                     // 设置当前检测项的值到结果中
-                    ParseCommon.SetDetectItemCurValue(ref param, "间距", valueRes.TrimEnd(','));
-                    detectResults["间距"] = resultList;
+                    ParseCommon.SetDetectItemCurValue(ref param, "DetectItem.Spacing", valueRes.TrimEnd(','));
+                    detectResults["DetectItem.Spacing"] = resultList;
                 }
 
             }
@@ -602,9 +603,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         // 添加自动学习数据
                         if (param.IsAutoStudy)
                         {
-                            if (!_autoStudyDatas.ContainsKey("咬胶占比"))
-                                _autoStudyDatas.Add("咬胶占比", new List<float>());
-                            _autoStudyDatas["咬胶占比"].Add(d);
+                            if (!_autoStudyDatas.ContainsKey("DetectItem.BiteGlueRatio"))
+                                _autoStudyDatas.Add("DetectItem.BiteGlueRatio", new List<float>());
+                            _autoStudyDatas["DetectItem.BiteGlueRatio"].Add(d);
                         }
 
                         value += d.ToString("F2") + ",";

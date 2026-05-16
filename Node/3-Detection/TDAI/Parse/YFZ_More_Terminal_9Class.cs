@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -35,6 +35,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         {
             // 当前使用的检测项配置
             var deteItems = Solution.Instance.DetectItemDic[param.CurDetectItemName];
+            ParseCommon.NormalizeDetectItems(deteItems);
 
             // 用来保存检测结果的检测项OK/NG、带颜色的框、带颜色的文本
             var detectResults = new Dictionary<string, List<SingleDetectResult>>();
@@ -60,34 +61,34 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                 switch (itemName)
                 {
-                    case "前铆脚露线芯长度":
+                    case "DetectItem.FrontRivetCoreLength":
                         extractValueFunc = r => r.ClassId == 0 ? r.Box.Width.ToString("F2") : null;
                         break;
-                    case "前铆脚面积":
+                    case "DetectItem.FrontRivetArea":
                         extractValueFunc = r => r.ClassId == 1 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
                         break;
-                    case "后铆脚露线芯长度":
+                    case "DetectItem.BackRivetCoreLength":
                         extractValueFunc = r => r.ClassId == 2 ? r.Box.Width.ToString("F2") : null;
                         break;
-                    case "咬胶占比":
+                    case "DetectItem.BiteGlueRatio":
                         extractValueFunc = r => r.ClassId == 3 ? "1" : null;
                         break;
-                    case "后铆脚面积":
+                    case "DetectItem.BackRivetArea":
                         extractValueFunc = r => r.ClassId == 4 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
                         break;
-                    case "端子头":
+                    case "DetectItem.TerminalHead":
                         extractValueFunc = r => r.ClassId == 5 ? "1" : null;
                         break;
-                    case "飞丝":
+                    case "DetectItem.FlyingWire":
                         extractValueFunc = r => r.ClassId == 6 ? "1" : null;
                         break;
-                    case "红线数量":
+                    case "DetectItem.RedWireCount":
                         extractValueFunc = r => r.ClassId == 7 ? "1" : null;
                         break;
-                    case "黑线数量":
+                    case "DetectItem.BlackWireCount":
                         extractValueFunc = r => r.ClassId == 8 ? "1" : null;
                         break;
-                    case "红黑线序":
+                    case "DetectItem.RedBlackWireOrder":
                         extractValueFunc = r => r.ClassId == 8 ? "1" : null;
                         break;
                     default:
@@ -134,7 +135,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                     List<string> ngCountItems = new List<string>()
                     {
-                        "飞丝"
+                        "DetectItem.FlyingWire"
                        
                     };
 
@@ -184,10 +185,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     #region 添加文本信息
 
                     var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                     {
                         texts.Add(new ColorText(
-                            $"{itemName}: {((param.IsAutoStudy ? true : isOk) ? "OK" : "NG")}",
+                            $"{ParseCommon.GetDisplayName(itemName)}: {((param.IsAutoStudy ? true : isOk) ? "OK" : "NG")}",
                             (param.IsAutoStudy ? true : isOk) ? Color.Green : Color.Red
                         ));
                     }
@@ -217,7 +218,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                             rawValue = value.ToString("F2"); // 保留两位小数
                         }
 
-                        if (itemName == "咬胶占比")
+                        if (itemName == "DetectItem.BiteGlueRatio")
                         {
                             rubber_left = result.Box.Left;
                             rubber_right = result.Box.Right;
@@ -225,7 +226,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                             continue;
                         }                        
                         // 保存“咬胶占比”所需的数据
-                        if (itemName == "后铆脚露线芯长度")
+                        if (itemName == "DetectItem.BackRivetCoreLength")
                             line_right = result.Box.Right;
 
                         bool minOk = float.TryParse(item.MinValue, out float min) && value >= min;
@@ -260,14 +261,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     }
 
                     // 不是“咬胶占比”时
-                    if (itemName != "咬胶占比")
+                    if (itemName != "DetectItem.BiteGlueRatio")
                     {
                         // 遍历完成后统一添加文本信息
                         var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                         {
                             texts.Add(new ColorText(
-                                $"{itemName}: {((param.IsAutoStudy ? true : allOk) ? "OK" : "NG")}",
+                                $"{ParseCommon.GetDisplayName(itemName)}: {((param.IsAutoStudy ? true : allOk) ? "OK" : "NG")}",
                                 (param.IsAutoStudy ? true : allOk) ? Color.Green : Color.Red
                             ));
                         }
@@ -292,7 +293,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
 
                     //对于“存在”即NG的检测项要这样设置
-                    if (itemName == "飞丝")
+                    if (itemName == "DetectItem.FlyingWire")
                     {
                         defaultValue = "0";
                         isSpecialCaseOk = true;
@@ -311,10 +312,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                         // 添加文本
                         var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                         {
                             texts.Add(new ColorText(
-                                $"{itemName}: {(isSpecialCaseOk ? "OK" : "NG")}",
+                                $"{ParseCommon.GetDisplayName(itemName)}: {(isSpecialCaseOk ? "OK" : "NG")}",
                                 isSpecialCaseOk ? Color.Green : Color.Red
                             ));
                         }
@@ -337,7 +338,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             #region 单独处理“咬胶占比”结果
 
 
-            string name = "咬胶占比";
+            string name = "DetectItem.BiteGlueRatio";
             var resultList = new List<SingleDetectResult>();
             var res = new SingleDetectResult();
             res.Name = name;
@@ -377,7 +378,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             }
             #endregion
 
-            //string name1 = "红黑线序";
+            //string name1 = "DetectItem.RedBlackWireOrder";
             //res.Name = name1;
             //var enable1 = ParseCommon.GetItemEnableStatus(param, name1);
             //if (enable1)

@@ -128,14 +128,15 @@ namespace TDJS_Vision.Forms.ResultView
                 {
                     // 查找是否已经存在该类型
                     var row = dgv.Rows.Cast<DataGridViewRow>().FirstOrDefault(r =>
-                        r.Cells["DetectName"].Value?.ToString() == pair.Key);
+                        (r.Tag?.ToString() ?? r.Cells["DetectName"].Value?.ToString()) == pair.Key);
 
                     bool isOk = pair.Value.TrueForAll(r => r.IsOk); // 当前检测项是否OK
                     string resultValue = string.Join(",", pair.Value.Select(r => r.Value));
                     if (row == null) // 如果不存在，则添加一行
                     {
                         int rowIndex = dgv.Rows.Add();
-                        dgv.Rows[rowIndex].Cells["DetectName"].Value = pair.Key;
+                        dgv.Rows[rowIndex].Tag = pair.Key;
+                        dgv.Rows[rowIndex].Cells["DetectName"].Value = DetectItemLanguage.GetDisplayName(pair.Key);
                         dgv.Rows[rowIndex].Cells["SingleResult"].Value = isOk ? "OK" : "NG";
                         dgv.Rows[rowIndex].Cells["SingleResult"].Style.BackColor = isOk ? Color.Green : Color.Red;
                         dgv.Rows[rowIndex].Cells["DetectResult"].Value = resultValue;

@@ -1,4 +1,4 @@
-﻿using Logger;
+using Logger;
 using Logger;
 using OpenCvSharp;
 using OpenCvSharp;
@@ -33,6 +33,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         {
             // 当前使用的检测项配置
             var deteItems = Solution.Instance.DetectItemDic[param.CurDetectItemName];
+            ParseCommon.NormalizeDetectItems(deteItems);
 
             // 用来保存检测结果的检测项OK/NG、带颜色的框、带颜色的文本
             var detectResults = new Dictionary<string, List<SingleDetectResult>>();
@@ -54,50 +55,50 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                 switch (itemName)
                 {
-                    case "Type-C金属数量":
+                    case "DetectItem.TypeCMetalCount":
                         extractValueFunc = r => r.ClassId == 0 ? "1" : null;
                         break;
-                    case "Type-C金属上边界":
+                    case "DetectItem.TypeCMetalTop":
                         extractValueFunc = r => r.ClassId == 0 ? $"{r.Box.TopLeft.Y}" : null;
                         break;
-                    case "Type-C金属宽度":
+                    case "DetectItem.TypeCMetalWidth":
                         extractValueFunc = r => r.ClassId == 0 ? $"{r.Box.Width}" : null;
                         break;
-                    case "Type-C金属高度":
+                    case "DetectItem.TypeCMetalHeight":
                         extractValueFunc = r => r.ClassId == 0 ? $"{r.Box.Height }" : null;
                         break;
 
-                    case "Type-C焊锡数量":
+                    case "DetectItem.TypeCSolderCount":
                         extractValueFunc = r => r.ClassId == 1 ? $"1" : null;
                         break;
-                    case "Type-C焊锡上边界":
+                    case "DetectItem.TypeCSolderTop":
                         extractValueFunc = r => r.ClassId == 1 ? $"{r.Box.TopLeft.Y}" : null;
                         break;
 
-                    case "Type-A金属数量":
+                    case "DetectItem.TypeAMetalCount":
                         extractValueFunc = r => r.ClassId == 2 ? "1" : null;
                         break;
-                    case "Type-A金属上边界": 
+                    case "DetectItem.TypeAMetalTop": 
                         extractValueFunc = r => r.ClassId == 2 ? $"{r.Box.Top}" : null;
                         break;
-                    case "Type-A金属宽度":
+                    case "DetectItem.TypeAMetalWidth":
                         extractValueFunc = r => r.ClassId == 2 ? $"{r.Box.Width}" : null;
                         break;
-                    case "Type-A金属高度":
+                    case "DetectItem.TypeAMetalHeight":
                         extractValueFunc = r => r.ClassId == 2 ? $"{r.Box.Height}" : null;
                         break;
 
-                    case "Type-A焊锡数量":
+                    case "DetectItem.TypeASolderCount":
                         extractValueFunc = r => r.ClassId == 3 ? $"1" : null;
                         break;
-                    case "Type-A焊锡上边界":
+                    case "DetectItem.TypeASolderTop":
                         extractValueFunc = r => r.ClassId == 3 ? $"{r.Box.Top}" : null;
                         break;
                         
-                    case "线在槽":
+                    case "DetectItem.WireInSlot":
                         extractValueFunc = r => r.ClassId == 4 ? $"1" : null;
                         break;
-                    case "线不在槽":
+                    case "DetectItem.WireOutOfSlot":
                         extractValueFunc = r => r.ClassId == 5 ? $"1" : null;
                         break;
                     default:
@@ -155,7 +156,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     }
                     else
                     {
-                        if (itemName == "线不在槽")
+                        if (itemName == "DetectItem.WireOutOfSlot")
                         {
                             // 没有结果时，默认值 0，直接标记为 NG
                             valueStr = "0";
@@ -187,7 +188,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                     #region 添加矩形框
 
-                    if (itemName == "Type-C金属数量" || itemName == "Type-C焊锡数量" || itemName == "Type-A金属数量" || itemName == "Type-A焊锡数量" || itemName == "线在槽")
+                    if (itemName == "DetectItem.TypeCMetalCount" || itemName == "DetectItem.TypeCSolderCount" || itemName == "DetectItem.TypeAMetalCount" || itemName == "DetectItem.TypeASolderCount" || itemName == "DetectItem.WireInSlot")
                     {
                         if (count > 0)
                         {
@@ -219,10 +220,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     #region 添加文本信息
 
                     var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                     {
                         texts.Add(new ColorText(
-                            $"{itemName}:{(isOk ? "OK" : "NG")}",
+                            $"{ParseCommon.GetDisplayName(itemName)}:{(isOk ? "OK" : "NG")}",
                             (param.IsAutoStudy ? true : isOk) ? Color.Green : Color.Red
                         ));
                     }
@@ -289,7 +290,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     {
                         // -------- 添加文本显示 --------0
                         texts.Add(new ColorText(
-                            $"{itemName}: {(allOk ? "OK" : "NG")} ",
+                            $"{ParseCommon.GetDisplayName(itemName)}: {(allOk ? "OK" : "NG")} ",
                             (param.IsAutoStudy ? true : allOk) ? Color.Green : Color.Red
                         ));
 
@@ -331,7 +332,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                         // 添加全局提示文本（例如“未检测到不良焊锡”）
                         texts.Add(new ColorText(
-                            $"{itemName}: {(isSpecialCaseOk ? "OK" : "NG")}",
+                            $"{ParseCommon.GetDisplayName(itemName)}: {(isSpecialCaseOk ? "OK" : "NG")}",
                             isSpecialCaseOk ? Color.Green : Color.Red
                         ));
 

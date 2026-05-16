@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -31,6 +31,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         {
             // 当前使用的检测项配置
             var deteItems = Solution.Instance.DetectItemDic[param.CurDetectItemName];
+            ParseCommon.NormalizeDetectItems(deteItems);
 
             // 用来保存检测结果的检测项OK/NG、带颜色的框、带颜色的文本
             var detectResults = new Dictionary<string, List<SingleDetectResult>>();
@@ -52,22 +53,22 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 
                 switch (itemName)
                 {
-                    case "A_C插头数量":
+                    case "DetectItem.ACPlugCount":
                         extractValueFunc = r => r.ClassId == 0 ? "1" : null;
                         break;
-                    case "A_C插头到位":
+                    case "DetectItem.ACPlugInPlace":
                         extractValueFunc = r => r.ClassId == 0 ? $"{r.Box.X}-{r.Box.Y}-{r.Box.Width}-{r.Box.Height}" : null;
                         break;
-                    case "A_C插尾数量":
+                    case "DetectItem.ACTailCount":
                         extractValueFunc = r => r.ClassId == 1 ? "1" : null;
                         break;
-                    case "A_C插尾到位":
+                    case "DetectItem.ACTailInPlace":
                         extractValueFunc = r => r.ClassId == 1 ? $"{r.Box.X}-{r.Box.Y}-{r.Box.Width}-{r.Box.Height}" : null;
                         break;                    
-                    case "线在槽":
+                    case "DetectItem.WireInSlot":
                         extractValueFunc = r => r.ClassId == 2 ? "1" : null;
                         break;
-                    case "线不在槽":
+                    case "DetectItem.WireOutOfSlot":
                         extractValueFunc = r => r.ClassId == 3 ? "1" : null;
                         break;
                     default:
@@ -115,7 +116,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                     List<string> ngCountItems = new List<string>()
                     {
-                        "线不在槽"
+                        "DetectItem.WireOutOfSlot"
 
                     };
                     #region 判断检测项是否OK
@@ -128,11 +129,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         isOk = minOk && maxOk;
 
                         // 规则覆盖：当存在“线不在槽”(class_id=5)时，“线在槽”(class_id=4)的框必须为绿色
-                        if (itemName == "线在槽" && hasClass2)
+                        if (itemName == "DetectItem.WireInSlot" && hasClass2)
                             isOk = true;
 
                         // 规则覆盖：当“线不在槽”数量>0时，其框必须为红色
-                        if (itemName == "线不在槽" && count > 0)
+                        if (itemName == "DetectItem.WireOutOfSlot" && count > 0)
                             isOk = false;
                     }
                     else
@@ -166,13 +167,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         foreach (var aiRes in matchedResults)
                         {
                             // “线在槽”在存在 class_id=2 时绿框
-                            if (itemName == "线在槽" && results != null && results.Any(r => r.ClassId == 2))
+                            if (itemName == "DetectItem.WireInSlot" && results != null && results.Any(r => r.ClassId == 2))
                             {
                                 ParseCommon.AddRect(addedRectKeys, aiRes.Box, true, ref nodeResult);
                                 continue;
                             }
                             // “线不在槽”只要 count>0 红框
-                            if (itemName == "线不在槽" && count > 0)
+                            if (itemName == "DetectItem.WireOutOfSlot" && count > 0)
                             {
                                 ParseCommon.AddRect(addedRectKeys, aiRes.Box, false, ref nodeResult);
                                 continue;
@@ -189,10 +190,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     #region 添加文本信息
 
                     var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                     {
                         texts.Add(new ColorText(
-                            $"{itemName}: {((param.IsAutoStudy ? true : isOk) ? "OK" : "NG")}",
+                            $"{ParseCommon.GetDisplayName(itemName)}: {((param.IsAutoStudy ? true : isOk) ? "OK" : "NG")}",
                             (param.IsAutoStudy ? true : isOk) ? Color.Green : Color.Red // 如果是自动学习模式，则文本默认标记为绿色OK
                         ));
                     }
@@ -275,10 +276,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     }
                     // 遍历完成后统一添加文本信息
                     var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                     {
                         texts.Add(new ColorText(
-                            $"{itemName}: {((param.IsAutoStudy ? true : allOk) ? "OK" : "NG")}",
+                            $"{ParseCommon.GetDisplayName(itemName)}: {((param.IsAutoStudy ? true : allOk) ? "OK" : "NG")}",
                             (param.IsAutoStudy ? true : allOk) ? Color.Green : Color.Red
                         ));
                     }
@@ -304,7 +305,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     bool isSpecialCaseOk = false;
 
                     //对于“存在”即NG的检测项要这样设置
-                    if (itemName == "线不在槽")
+                    if (itemName == "DetectItem.WireOutOfSlot")
                     {
                         defaultValue = "0";
                         isSpecialCaseOk = true;
@@ -323,7 +324,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                         // 添加全局提示文本（例如“未检测到不良焊锡”）
                         texts.Add(new ColorText(
-                            $"{itemName}: {(isSpecialCaseOk ? "OK" : "NG")}",
+                            $"{ParseCommon.GetDisplayName(itemName)}: {(isSpecialCaseOk ? "OK" : "NG")}",
                             isSpecialCaseOk ? Color.Green : Color.Red
                         ));
 

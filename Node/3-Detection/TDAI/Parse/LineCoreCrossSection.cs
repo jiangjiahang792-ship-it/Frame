@@ -1,4 +1,4 @@
-﻿using Logger;
+using Logger;
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
@@ -32,6 +32,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         {
             // 当前使用的检测项配置
             var deteItems = Solution.Instance.DetectItemDic[param.CurDetectItemName];
+            ParseCommon.NormalizeDetectItems(deteItems);
 
             // 用来保存检测结果的检测项OK/NG、带颜色的框、带颜色的文本
             var detectResults = new Dictionary<string, List<SingleDetectResult>>();
@@ -53,10 +54,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                 switch (itemName)
                 {
-                    case "线芯数量":
+                    case "DetectItem.CoreCount":
                         extractValueFunc = r => r.ClassId == 0 ? "1" : null;
                         break;
-                    case "线芯聚拢度":
+                    case "DetectItem.CoreGathering":
                         extractValueFunc = r => r.ClassId == 0 ? $"{r.Box.X}-{r.Box.Y}-{r.Box.Width}-{r.Box.Height}" : null;
                         break;
                     default:
@@ -158,10 +159,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     #region 添加文本信息
 
                     var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                     {
                         texts.Add(new ColorText(
-                            $"{itemName}: {count}",
+                            $"{ParseCommon.GetDisplayName(itemName)}: {count}",
                             (param.IsAutoStudy ? true : isOk) ? Color.Green : Color.Red // 如果是自动学习模式，则文本默认标记为绿色OK
                         ));
                     }
@@ -216,10 +217,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     }
                     // 遍历完成后统一添加文本信息
                     var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                     {
                         texts.Add(new ColorText(
-                            $"{itemName}: {((param.IsAutoStudy ? true : allOk) ? "OK" : "NG")}",
+                            $"{ParseCommon.GetDisplayName(itemName)}: {((param.IsAutoStudy ? true : allOk) ? "OK" : "NG")}",
                             (param.IsAutoStudy ? true : allOk) ? Color.Green : Color.Red
                         ));
                     }
@@ -264,7 +265,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                         // 添加全局提示文本（例如“未检测到不良焊锡”）
                         texts.Add(new ColorText(
-                            $"{itemName}: {(isSpecialCaseOk ? "OK" : "NG")}",
+                            $"{ParseCommon.GetDisplayName(itemName)}: {(isSpecialCaseOk ? "OK" : "NG")}",
                             isSpecialCaseOk ? Color.Green : Color.Red
                         ));
 
@@ -297,18 +298,18 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             else process.NGNumber++;
 
             texts.Add(new ColorText(
-                   $"当前产品总数量: {process.OKNumber + process.NGNumber}",
+                   LanguageManager.Format("Result.TotalCount", process.OKNumber + process.NGNumber),
                    Color.Green));
 
             texts.Add(new ColorText(
-                   $"当前良品总数量: {process.OKNumber}",
+                   LanguageManager.Format("Result.OKCount", process.OKNumber),
                    Color.Green));
             texts.Add(new ColorText(
-                   $"当前良品率: {((process.OKNumber * 1.0) / (process.OKNumber + process.NGNumber) * 100).ToString("F2")}",
+                   LanguageManager.Format("Result.Yield", ((process.OKNumber * 1.0) / (process.OKNumber + process.NGNumber) * 100).ToString("F2")),
                    Color.Green));
 
             texts.Add(new ColorText(
-                   $"当前产品结果: {(allOk2 ? "OK" : "NG")}",
+                   LanguageManager.Format("Result.ProductResult", allOk2 ? "OK" : "NG"),
                    allOk2 ? Color.Green : Color.Red));
 
             //nodeResult.AlgorithmResult.Rects = rects;

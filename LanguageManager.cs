@@ -92,6 +92,11 @@ namespace TDJS_Vision
             return key;
         }
 
+        public static string Format(string key, params object[] args)
+        {
+            return string.Format(T(key), args);
+        }
+
         public static void Bind(Control control, string textKey)
         {
             if (control != null)

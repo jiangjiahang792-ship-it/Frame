@@ -1,4 +1,4 @@
-﻿using OpenCvSharp;
+using OpenCvSharp;
 using OpenCvSharp.Dnn;
 using Sunny.UI;
 using Sunny.UI.Win32;
@@ -38,6 +38,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         {
             // 当前使用的检测项配置
             var deteItems = Solution.Instance.DetectItemDic[param.CurDetectItemName];
+            ParseCommon.NormalizeDetectItems(deteItems);
 
             // 用来保存检测结果的检测项OK/NG、带颜色的框、带颜色的文本
             var detectResults = new Dictionary<string, List<SingleDetectResult>>();
@@ -61,34 +62,34 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                 switch (itemName)
                 {
-                    case "前铆脚露线芯长度":
+                    case "DetectItem.FrontRivetCoreLength":
                         extractValueFunc = r => r.ClassId == 0 ? r.Box.Width.ToString("F2") : null;
                         break;
                     
-                    case "前铆脚面积":
+                    case "DetectItem.FrontRivetArea":
                         extractValueFunc = r => r.ClassId == 1 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
                         break;
-                    case "后铆脚露线芯长度":
+                    case "DetectItem.BackRivetCoreLength":
                         extractValueFunc = r => r.ClassId == 2 ? r.Box.Width.ToString("F2") : null;
                         break;
-                    case "后铆脚面积":
+                    case "DetectItem.BackRivetArea":
                         extractValueFunc = r => r.ClassId == 4 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
                         break;
 
-                    case "正插防水栓面积":
+                    case "DetectItem.ForwardWaterproofPlugArea":
                         extractValueFunc = r => r.ClassId == 5 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
                         break;
-                    case "飞丝":
+                    case "DetectItem.FlyingWire":
                         extractValueFunc = r => r.ClassId == 8 ? "1" : null;
                         break;
-                    case "反插防水栓":
+                    case "DetectItem.ReverseWaterproofPlug":
                         extractValueFunc = r => r.ClassId == 10 ? "1" : null;
                         break;
-                    case "防水栓破损":
+                    case "DetectItem.WaterproofPlugDamaged":
                         extractValueFunc = r => r.ClassId == 11 ? "1" : null;
                         break;
 
-                    case "咬胶长度":
+                    case "DetectItem.BiteGlueLength":
                         extractValueFunc = r =>
                         {
                             if (r.ClassId == 1)
@@ -104,19 +105,19 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                         break;
 
-                    case "线芯长度":
+                    case "DetectItem.CoreLength":
                         extractValueFunc = r => r.ClassId == 7 ? r.Box.Width.ToString("F2") : null;
                         break;
 
-                    case "线芯高度":
+                    case "DetectItem.CoreHeight":
                         extractValueFunc = r => r.ClassId == 7 ? r.Box.Height.ToString("F2") : null;
                         break;
 
-                    case "正插防水栓长度":
+                    case "DetectItem.ForwardWaterproofPlugLength":
                         extractValueFunc = r => r.ClassId == 5 ? r.Box.Width.ToString("F2") : null;
                         break;
 
-                    case "正插防水栓高度":
+                    case "DetectItem.ForwardWaterproofPlugHeight":
                         extractValueFunc = r => r.ClassId == 5 ? r.Box.Height.ToString("F2") : null;
                         break;
 
@@ -163,9 +164,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                     List<string> ngCountItems = new List<string>()
                     {
-                        "注塑状态脱落",
-                        "缺胶",
-                        "脏污"
+                        "DetectItem.InjectionDetached",
+                        "DetectItem.GlueMissing",
+                        "DetectItem.Dirty"
                     };
 
                     #region 判断检测项是否OK
@@ -214,10 +215,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     #region 添加文本信息
 
                     var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                     {
                         texts.Add(new ColorText(
-                            $"{itemName}: {((param.IsAutoStudy ? true : isOk) ? "OK" : "NG")}",
+                            $"{ParseCommon.GetDisplayName(itemName)}: {((param.IsAutoStudy ? true : isOk) ? "OK" : "NG")}",
                             (param.IsAutoStudy ? true : isOk) ? Color.Green : Color.Red
                         ));
                     }
@@ -240,7 +241,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         if (!float.TryParse(rawValue, out float value))
                             continue;
 
-                        if (itemName == "咬胶长度")
+                        if (itemName == "DetectItem.BiteGlueLength")
                         {
                             bool exists = valuePairs.Any(v => v.classId == 1) && valuePairs.Any(v => v.classId == 4);
                             if (exists)
@@ -299,7 +300,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     {
                         // -------- 添加文本显示 --------0
                         texts.Add(new ColorText(
-                            $"{itemName}: {(matchedResults.Count > 0 ? valueStr : "0")} " +
+                            $"{ParseCommon.GetDisplayName(itemName)}: {(matchedResults.Count > 0 ? valueStr : "0")} " +
                             $"设定值: [{item.MinValue}, {item.MaxValue}]",
                             (param.IsAutoStudy ? true : allOk) ? Color.Green : Color.Red
                         ));
@@ -339,10 +340,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                         // 添加文本
                         var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                         {
                             texts.Add(new ColorText(
-                                $"{itemName}: 0",
+                                $"{ParseCommon.GetDisplayName(itemName)}: 0",
                                 isSpecialCaseOk ? Color.Green : Color.Red
                             ));
                         }
@@ -378,19 +379,19 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             else process.NGNumber++;
 
             texts.Add(new ColorText(
-                   $"当前产品总数量: {process.OKNumber + process.NGNumber}",
+                   LanguageManager.Format("Result.TotalCount", process.OKNumber + process.NGNumber),
                    Color.Green));
 
             texts.Add(new ColorText(
-                   $"当前良品总数量: {process.OKNumber}",
+                   LanguageManager.Format("Result.OKCount", process.OKNumber),
                    Color.Green));
 
             texts.Add(new ColorText(
-                   $"当前良品率: {((process.OKNumber * 1.0) / (process.OKNumber + process.NGNumber) * 100).ToString("F2")}",
+                   LanguageManager.Format("Result.Yield", ((process.OKNumber * 1.0) / (process.OKNumber + process.NGNumber) * 100).ToString("F2")),
                    Color.Green));
 
             texts.Add(new ColorText(
-                   $"当前产品结果: {(allOk2 ? "OK" : "NG")}",
+                   LanguageManager.Format("Result.ProductResult", allOk2 ? "OK" : "NG"),
                    allOk2 ? Color.Green : Color.Red));
 
             //nodeResult.AlgorithmResult.Rects = rects;

@@ -50,6 +50,7 @@ namespace TDJS_Vision.Forms.DetectItemManager
         /// <param name="info"></param>
         public void LoadConfig(string name, List<DetectItemInfo> infos)
         {
+            DetectItemLanguage.NormalizeItems(infos);
             labelName.Text = name;
             myDataGridViewForm1.LoadConfig(infos);
         }

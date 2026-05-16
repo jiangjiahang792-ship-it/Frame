@@ -123,6 +123,7 @@ namespace TDJS_Vision.Forms.DetectItemManager
                 {
                     string text = File.ReadAllText(paths[i]);
                     infos = JsonConvert.DeserializeObject<List<DetectItemInfo>>(text);// 反序列化配置
+                    DetectItemLanguage.NormalizeItems(infos);
                 }
                 catch (Exception ex)
                 {

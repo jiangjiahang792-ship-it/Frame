@@ -110,13 +110,15 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             dataGridView1.Rows.Clear();
             if (infos == null) return;
+            DetectItemLanguage.NormalizeItems(infos);
             foreach (var info in infos)
             {
                 var row = new DataGridViewRow();
                 row.CreateCells(dataGridView1);
 
                 row.Cells[0].Value = info.Enable;
-                row.Cells[1].Value = info.Name;
+                row.Cells[1].Value = DetectItemLanguage.GetDisplayName(info.Name);
+                row.Cells[1].Tag = info.Name;
                 row.Cells[2].Value = info.MinValue;
                 row.Cells[3].Value = info.CurValue;
                 row.Cells[4].Value = info.MaxValue;
@@ -142,7 +144,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                     var info = new DetectItemInfo
                     {
                         Enable = Convert.ToBoolean(row.Cells[0].Value),
-                        Name = row.Cells[1].Value.ToString(),
+                        Name = DetectItemLanguage.NormalizeName(row.Cells[1].Tag?.ToString() ?? row.Cells[1].Value.ToString()),
                         MinValue = row.Cells[2].Value.ToString(),
                         CurValue = row.Cells[3].Value.ToString(),
                         MaxValue = row.Cells[4].Value.ToString(),

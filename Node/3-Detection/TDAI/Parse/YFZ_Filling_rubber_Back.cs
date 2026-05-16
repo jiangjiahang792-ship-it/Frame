@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -32,6 +32,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         {
             // 当前使用的检测项配置
             var deteItems = Solution.Instance.DetectItemDic[param.CurDetectItemName];
+            ParseCommon.NormalizeDetectItems(deteItems);
 
             // 用来保存检测结果的检测项OK/NG、带颜色的框、带颜色的文本
             var detectResults = new Dictionary<string, List<SingleDetectResult>>();
@@ -57,22 +58,22 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                 switch (itemName)
                 {
-                    case "注塑状态存在":
+                    case "DetectItem.InjectionExists":
                         extractValueFunc = r => r.ClassId == 0 ? "1" : null;
                         break;
-                    case "注塑状态脱落":
+                    case "DetectItem.InjectionDetached":
                         extractValueFunc = r => r.ClassId == 1 ? "1" : null;
                         break;
-                    case "注塑个数":
+                    case "DetectItem.InjectionCount":
                         extractValueFunc = r => r.ClassId == 2 ? "1" : null;
                         break;
-                    case "注塑面积":
+                    case "DetectItem.InjectionArea":
                         extractValueFunc = r => r.ClassId == 2 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
                         break;
-                    case "缺胶":
+                    case "DetectItem.GlueMissing":
                         extractValueFunc = r => r.ClassId == 3 ? "1" : null;
                         break;
-                    case "脏污":
+                    case "DetectItem.Dirty":
                         extractValueFunc = r => r.ClassId == 4 ? "1" : null;
                         break;
                     default:
@@ -119,9 +120,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                     List<string> ngCountItems = new List<string>()
                     {
-                        "注塑状态脱落",
-                        "缺胶",
-                        "脏污"
+                        "DetectItem.InjectionDetached",
+                        "DetectItem.GlueMissing",
+                        "DetectItem.Dirty"
                     };
 
                     #region 判断检测项是否OK
@@ -170,10 +171,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     #region 添加文本信息
 
                     var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                     {
                         texts.Add(new ColorText(
-                            $"{itemName}: {((param.IsAutoStudy ? true : isOk) ? "OK" : "NG")}",
+                            $"{ParseCommon.GetDisplayName(itemName)}: {((param.IsAutoStudy ? true : isOk) ? "OK" : "NG")}",
                             (param.IsAutoStudy ? true : isOk) ? Color.Green : Color.Red
                         ));
                     }
@@ -203,7 +204,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                             rawValue = value.ToString("F2"); // 保留两位小数
                         }
 
-                        if (itemName == "注塑面积")
+                        if (itemName == "DetectItem.InjectionArea")
                             line_right = result.Box.Width*result.Box.Height;
 
                         bool minOk = float.TryParse(item.MinValue, out float min) && value >= min;
@@ -238,24 +239,24 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     }
                     // 遍历完成后统一添加文本信息
                     var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                     {
                         texts.Add(new ColorText(
-                            $"{itemName}: {((param.IsAutoStudy ? true : allOk) ? "OK" : "NG")}",
+                            $"{ParseCommon.GetDisplayName(itemName)}: {((param.IsAutoStudy ? true : allOk) ? "OK" : "NG")}",
                             (param.IsAutoStudy ? true : allOk) ? Color.Green : Color.Red
                         ));
                     }
                     // 设置当前检测项的值到结果中
                     ParseCommon.SetDetectItemCurValue(ref param, itemName, valueStr.TrimEnd(','));
                     // 不是“咬胶占比”时
-                    //if (itemName != "咬胶占比")
+                    //if (itemName != "DetectItem.BiteGlueRatio")
                     //{
                     //    // 遍历完成后统一添加文本信息
                     //    var isEnable = ParseCommon.GetItemEnableStatus(param, itemName);
-                    //    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                    //    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                     //    {
                     //        texts.Add(new ColorText(
-                    //            $"{itemName}: {((param.IsAutoStudy ? true : allOk) ? "OK" : "NG")}",
+                    //            $"{ParseCommon.GetDisplayName(itemName)}: {((param.IsAutoStudy ? true : allOk) ? "OK" : "NG")}",
                     //            (param.IsAutoStudy ? true : allOk) ? Color.Green : Color.Red
                     //        ));
                     //    }
@@ -296,10 +297,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                         // 添加文本
                         var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
+                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                         {
                             texts.Add(new ColorText(
-                                $"{itemName}: {(isSpecialCaseOk ? "OK" : "NG")}",
+                                $"{ParseCommon.GetDisplayName(itemName)}: {(isSpecialCaseOk ? "OK" : "NG")}",
                                 isSpecialCaseOk ? Color.Green : Color.Red
                             ));
                         }
@@ -322,7 +323,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             #region 单独处理“咬胶占比”结果
 
 
-            //string name = "咬胶占比";
+            //string name = "DetectItem.BiteGlueRatio";
             //var resultList = new List<SingleDetectResult>();
             //var res = new SingleDetectResult();
             //res.Name = name;

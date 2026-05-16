@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -135,11 +135,22 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         /// </summary>
         public static void SetDetectItemCurValue(ref NodeParamTDAI param, string detectItemName, string value)
         {
+            detectItemName = DetectItemLanguage.NormalizeName(detectItemName);
             var detectItem = Solution.Instance.DetectItemDic[param.CurDetectItemName].FirstOrDefault(x => x.Name == detectItemName);
             if (detectItem != null)
             {
                 detectItem.CurValue = value;
             }
+        }
+
+        public static void NormalizeDetectItems(List<DetectItemInfo> detectItemInfos)
+        {
+            DetectItemLanguage.NormalizeItems(detectItemInfos);
+        }
+
+        public static string GetDisplayName(string detectItemName)
+        {
+            return DetectItemLanguage.GetDisplayName(detectItemName);
         }
 
         /// <summary>
@@ -221,6 +232,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         /// </summary>
         public static bool GetItemEnableStatus(List<DetectItemInfo> items, string itemName)
         {
+            itemName = DetectItemLanguage.NormalizeName(itemName);
             return items.FirstOrDefault(x => x.Name == itemName)?.Enable ?? false;
         }
 
