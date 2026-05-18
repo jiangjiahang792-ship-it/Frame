@@ -378,6 +378,7 @@
     <Compile Include="Node\3-Detection\TDAI\Parse\HuaYangUSBClass.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\LineCoreCrossSection.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ParseCommon.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\RL12angondingParse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\USBSegClass6.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\USB_Tail.cs" />
