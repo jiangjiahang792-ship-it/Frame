@@ -152,7 +152,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     switch (param.ModelName)
                                     {
                                         case ModelName.RL_12类线芯模型:
-                                            RL12angondingParse.Parse(det_results, result_count, param, Process,ref res);
+                                            RL12Parse.Parse(det_results, result_count, param, Process,ref res);
                                             break;
                                         case ModelName.合压模型:
                                             ClosingTerminals_encrypted_Parse.Parse(det_results, result_count, param, Process,ref res);
