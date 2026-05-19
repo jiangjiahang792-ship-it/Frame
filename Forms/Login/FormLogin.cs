@@ -26,7 +26,7 @@ namespace TDJS_Vision.Forms.Login
                 return;
             }
             //高级
-            if (comboBox1.SelectedIndex == 0 && textBoxPassword.Text == "tdjs")
+            if (comboBox1.SelectedIndex == 0 && textBoxPassword.Text == "1111")
             {
                 LoginEvent?.Invoke(this, UserRole.Hight);
             }//中级
