@@ -1,6 +1,7 @@
 ﻿using Logger;
 using Sunny.UI;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
@@ -16,8 +17,8 @@ namespace TDJS_Vision.Node
     /// 【描述】: 这是一个自定义控件类，用于订阅某个流程Process中的节点的运行结果。
     /// 【使用教程】：界面拖出本控件到节点参数设置界面后，还需要在节点参数设置界面类中的SetNodeBelong中
     /// 初始化,如"nodeSubscription1.Init(node)"；最后需要在节点类的构造函数设置“节点参数设置窗口”
-    /// 所属的节点，如HTAI节点类：ParamForm.SetNodeBelong(this)，这样即可订阅到之前节点结果。
-    ///【注意事项】: 截止当前为止节点仅仅支持在当前流程订阅当前节点之前的节点结果。
+    /// 所属的节点，如HTAI节点类：ParamForm.SetNodeBelong(this)，这样即可订阅到图上游节点结果。
+    ///【注意事项】: 节点仅支持订阅当前流程图中能够连接到当前节点的上游节点结果。
     ///
     /// </summary>
     public partial class NodeSubscription : UserControl
@@ -45,12 +46,18 @@ namespace TDJS_Vision.Node
         /// </summary>
         private void RenameChangeEvent(object sender, RenameResult e)
         {
-            // 只有订阅控件所在节点和重命名的节点同属于一条流程，且前者ID大于后者ID时，才需要前者更新下拉框节点名称
-            if (_node.Process.Nodes.Exists(node => node.ID == e.NodeId) && _node.ID > e.NodeId)
+            if (_node == null || _node.Process == null)
+                return;
+
+            // 只有重命名节点仍是图上游节点时，才需要更新订阅候选名称。
+            if (_node.Process.GetUpstreamNodes(_node).Exists(node => node.ID == e.NodeId))
             {
-                _text1 = $"{e.NodeId}.{e.NodeNameOld}";
-                _text2 = $"{e.NodeId}.{e.NodeNameNew}";
-                UpdateComboBoxItem(_text1, _text2);
+                string oldText = $"{e.NodeId}.{e.NodeNameOld}";
+                string newText = $"{e.NodeId}.{e.NodeNameNew}";
+                if (_text1 == oldText)
+                    _text1 = newText;
+
+                UpdateComboBoxItem(oldText, newText);
             }
         }
 
@@ -80,9 +87,21 @@ namespace TDJS_Vision.Node
 
         public void Init(NodeBase node)
         {
+            if (_node != null && _node.Process != null)
+                _node.Process.ConnectionsChanged -= Process_ConnectionsChanged;
+
             _node = node;
-            InitNodeIdList(); //把节点id小于当前节点id的节点的节点加入到下拉框中
+            InitNodeIdList();
+            if (_node != null && _node.Process != null)
+                _node.Process.ConnectionsChanged += Process_ConnectionsChanged;
+
+            NodeBase.NodeDeletedEvent -= NodeBase_NodeDeletedEvent;
             NodeBase.NodeDeletedEvent += NodeBase_NodeDeletedEvent;
+        }
+
+        private void Process_ConnectionsChanged(object sender, EventArgs e)
+        {
+            RefreshNodeIdList(true);
         }
 
         /// <summary>
@@ -93,16 +112,13 @@ namespace TDJS_Vision.Node
         private void NodeBase_NodeDeletedEvent(object sender, NodeBase e)
         {
             // 移除的节点是当前实例的订阅节点，要置空
-            if(_selectedNode != null && e.ID == _selectedNode.ID)
-                _selectedNode = null;
+            if (_selectedNode != null && e.ID == _selectedNode.ID)
+                ClearSelectedNode();
+
             // 更新节点列表
             comboBox1.Items.Remove($"{e.ID}.{e.NodeName}");
-            if(comboBox1.Items.Count == 0)
-            {
-                comboBox2.Items.Clear();
-                comboBox2.Text = "";
-                _text2 = "";
-            }
+            if (comboBox1.Items.Count == 0)
+                ClearSelectedNode();
         }
 
         /// <summary>
@@ -111,30 +127,46 @@ namespace TDJS_Vision.Node
         /// <param name="ids"></param>
         private void InitNodeIdList()
         {
-            if (_node == null) return;
-            comboBox1.Items.Clear();
-            foreach (var node in _node.Process.Nodes)
-            {
-                if (node.ID < _node.ID)
-                {
-                    comboBox1.Items.Add($"{node.ID}.{node.NodeName}");
-                }
-            }
-            if (comboBox1.Items.Count > 0)
-            {
-                comboBox1.SelectedIndex = 0;
-                _text1 = (string)comboBox1.Items[0];
+            RefreshNodeIdList(false);
+        }
 
-                foreach (var node in _node.Process.Nodes)
-                {
-                    if ($"{node.ID}.{node.NodeName}" == _text1)
-                    {
-                        _selectedNode = node;
-                        InitProperties(node, "", true);
-                        break;
-                    }
-                }
+        private void RefreshNodeIdList(bool preserveSelection)
+        {
+            if (_node == null || _node.Process == null)
+                return;
+
+            string selectedNodeText = preserveSelection ? _text1 : string.Empty;
+            string selectedResultText = _text2;
+            comboBox1.Items.Clear();
+
+            List<NodeBase> upstreamNodes = _node.Process.GetUpstreamNodes(_node);
+            foreach (NodeBase node in upstreamNodes)
+                comboBox1.Items.Add(GetNodeText(node));
+
+            if (comboBox1.Items.Count == 0)
+            {
+                ClearSelectedNode();
+                return;
             }
+
+            if (!selectedNodeText.IsNullOrEmpty())
+            {
+                int selectedIndex = comboBox1.Items.IndexOf(selectedNodeText);
+                if (selectedIndex >= 0)
+                {
+                    comboBox1.SelectedIndex = selectedIndex;
+                    SetSelectedNode(selectedNodeText, selectedResultText);
+                    return;
+                }
+
+                // 原订阅节点断开了上游关系，保留候选列表但清空当前订阅。
+                ClearSelectedNode();
+                return;
+            }
+
+            comboBox1.SelectedIndex = 0;
+            _text1 = (string)comboBox1.Items[0];
+            SetSelectedNode(_text1, string.Empty, true);
         }
 
         /// <summary>
@@ -144,15 +176,7 @@ namespace TDJS_Vision.Node
         /// <param name="e"></param>
         private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
         {
-            foreach (var node in _node.Process.Nodes)
-            {
-                if($"{node.ID}.{node.NodeName}" == comboBox1.Text)
-                {
-                    _selectedNode = node;
-                    _text1 = comboBox1.Text;
-                    InitProperties(node, _text2);
-                }
-            }
+            SetSelectedNode(comboBox1.Text, _text2);
         }
 
         /// <summary>
@@ -196,7 +220,7 @@ namespace TDJS_Vision.Node
         /// <returns></returns>
         public T GetValue<T>()
         {
-            if(_text2.IsNullOrEmpty())
+            if (_selectedNode == null || _text2.IsNullOrEmpty())
                 throw new Exception($"节点无法获取订阅的值!");
 
             var propertyInfo = _selectedNode.Result.GetType().GetProperties().ToList().Find(item => item.DisplayName() == _text2);
@@ -246,23 +270,46 @@ namespace TDJS_Vision.Node
         //反序列化使用
         public void SetText(string text1, string text2)
         {
-            for (int i = 0; i < comboBox1.Items.Count; i++)
+            _text1 = text1;
+            _text2 = text2;
+            int index = comboBox1.Items.IndexOf(text1);
+            if (index >= 0)
             {
-                if(text1 == comboBox1.Items[i].ToString())
-                {
-                    comboBox1.SelectedIndex = i;
-                    _text1 = text1;
-                    foreach (var node in _node.Process.Nodes)
-                    {
-                        if ($"{node.ID}.{node.NodeName}" == _text1)
-                        {
-                            _selectedNode = node;
-                            InitProperties(node, text2);
-                        }
-                    }
-                    break;
-                }
+                comboBox1.SelectedIndex = index;
+                SetSelectedNode(text1, text2);
             }
+        }
+
+        private void SetSelectedNode(string nodeText, string resultText, bool needRefresh = false)
+        {
+            if (_node == null || _node.Process == null || nodeText.IsNullOrEmpty())
+                return;
+
+            foreach (NodeBase node in _node.Process.GetUpstreamNodes(_node))
+            {
+                if (GetNodeText(node) != nodeText)
+                    continue;
+
+                _selectedNode = node;
+                _text1 = nodeText;
+                InitProperties(node, resultText, needRefresh);
+                return;
+            }
+        }
+
+        private void ClearSelectedNode()
+        {
+            _selectedNode = null;
+            _text1 = string.Empty;
+            _text2 = string.Empty;
+            comboBox1.SelectedIndex = -1;
+            comboBox2.Items.Clear();
+            comboBox2.Text = string.Empty;
+        }
+
+        private static string GetNodeText(NodeBase node)
+        {
+            return $"{node.ID}.{node.NodeName}";
         }
 
         private void comboBox2_SelectedIndexChanged(object sender, EventArgs e)

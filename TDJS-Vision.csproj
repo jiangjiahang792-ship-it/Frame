@@ -1094,6 +1094,9 @@
       <DependentUpon>ImageROIEditControl.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\INode.cs" />
+    <Compile Include="Forms\ProcessNew\ProcessFlowCanvas.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Forms\ProcessNew\ProcessEditPanel.cs">
       <SubType>UserControl</SubType>
     </Compile>

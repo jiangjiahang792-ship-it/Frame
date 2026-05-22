@@ -32,7 +32,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FormNewProcessWizard));
-            gCursorLib.TextShadower textShadower1 = new gCursorLib.TextShadower();
+            gCursorLib.TextShadower textShadower2 = new gCursorLib.TextShadower();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.buttonRemove = new System.Windows.Forms.Button();
             this.buttonAdd = new System.Windows.Forms.Button();
@@ -249,16 +249,16 @@ namespace TDJS_Vision.Forms.ProcessNew
             this.gCursor1.gTextMultiline = false;
             this.gCursor1.gTextShadow = false;
             this.gCursor1.gTextShadowColor = System.Drawing.Color.Black;
-            textShadower1.Alignment = System.Drawing.ContentAlignment.MiddleCenter;
-            textShadower1.Blur = 2F;
-            textShadower1.Font = new System.Drawing.Font("Arial", 7F, System.Drawing.FontStyle.Bold);
-            textShadower1.Offset = ((System.Drawing.PointF)(resources.GetObject("textShadower1.Offset")));
-            textShadower1.Padding = new System.Windows.Forms.Padding(0);
-            textShadower1.ShadowColor = System.Drawing.Color.Black;
-            textShadower1.ShadowTransp = 128;
-            textShadower1.Text = "Drop Shadow";
-            textShadower1.TextColor = System.Drawing.Color.Blue;
-            this.gCursor1.gTextShadower = textShadower1;
+            textShadower2.Alignment = System.Drawing.ContentAlignment.MiddleCenter;
+            textShadower2.Blur = 2F;
+            textShadower2.Font = new System.Drawing.Font("Arial", 7F, System.Drawing.FontStyle.Bold);
+            textShadower2.Offset = ((System.Drawing.PointF)(resources.GetObject("textShadower2.Offset")));
+            textShadower2.Padding = new System.Windows.Forms.Padding(0);
+            textShadower2.ShadowColor = System.Drawing.Color.Black;
+            textShadower2.ShadowTransp = 128;
+            textShadower2.Text = "Drop Shadow";
+            textShadower2.TextColor = System.Drawing.Color.Blue;
+            this.gCursor1.gTextShadower = textShadower2;
             this.gCursor1.gTTransp = 0;
             this.gCursor1.gType = gCursorLib.gCursor.eType.Text;
             // 

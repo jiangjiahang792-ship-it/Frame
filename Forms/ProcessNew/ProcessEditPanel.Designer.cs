@@ -36,16 +36,26 @@
             this.uiSwitchEnable = new Sunny.UI.UISwitch();
             this.label1 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
-            this.panel1 = new System.Windows.Forms.Panel();
+            this.processFlowCanvas = new TDJS_Vision.Forms.ProcessNew.ProcessFlowCanvas();
             this.contextMenuStrip1 = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.设置流程优先级ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.设置流程组别ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.流程重命名ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.是否输出日志ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.是否为触发流程ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.contextMenuStripFlowCanvas = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.打开节点参数ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.设为起始节点ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.启用节点ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.禁用节点ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.重命名节点ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.添加节点备注ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.删除节点ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.删除连线ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.buttonRun = new System.Windows.Forms.Button();
             this.tableLayoutPanel1.SuspendLayout();
             this.contextMenuStrip1.SuspendLayout();
+            this.contextMenuStripFlowCanvas.SuspendLayout();
             this.SuspendLayout();
             // 
             // tableLayoutPanel1
@@ -155,21 +165,20 @@
             this.label2.Text = "流程耗时:0ms";
             this.label2.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.label2.MouseClick += new System.Windows.Forms.MouseEventHandler(this.label1_MouseClick);
-            // 
-            // panel1
-            // 
-            this.panel1.AllowDrop = true;
-            this.panel1.AutoScroll = true;
-            this.panel1.ContextMenuStrip = this.contextMenuStrip1;
-            this.panel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.panel1.Location = new System.Drawing.Point(0, 61);
-            this.panel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.panel1.Name = "panel1";
-            this.panel1.Padding = new System.Windows.Forms.Padding(0, 0, 0, 77);
-            this.panel1.Size = new System.Drawing.Size(616, 709);
-            this.panel1.TabIndex = 1;
-            this.panel1.DragDrop += new System.Windows.Forms.DragEventHandler(this.NodeEditPanel_DragDrop);
-            this.panel1.DragEnter += new System.Windows.Forms.DragEventHandler(this.NodeEditPanel_DragEnter);
+            //
+            // processFlowCanvas
+            //
+            this.processFlowCanvas.AllowDrop = true;
+            this.processFlowCanvas.AutoScroll = true;
+            this.processFlowCanvas.ContextMenuStrip = this.contextMenuStripFlowCanvas;
+            this.processFlowCanvas.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.processFlowCanvas.Location = new System.Drawing.Point(0, 61);
+            this.processFlowCanvas.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.processFlowCanvas.Name = "processFlowCanvas";
+            this.processFlowCanvas.Size = new System.Drawing.Size(616, 709);
+            this.processFlowCanvas.TabIndex = 1;
+            this.processFlowCanvas.DragDrop += new System.Windows.Forms.DragEventHandler(this.NodeEditPanel_DragDrop);
+            this.processFlowCanvas.DragEnter += new System.Windows.Forms.DragEventHandler(this.NodeEditPanel_DragEnter);
             // 
             // contextMenuStrip1
             // 
@@ -219,9 +228,81 @@
             this.是否为触发流程ToolStripMenuItem.Size = new System.Drawing.Size(224, 32);
             this.是否为触发流程ToolStripMenuItem.Text = "是否为被触发流程";
             this.是否为触发流程ToolStripMenuItem.Click += new System.EventHandler(this.是否为触发流程ToolStripMenuItem_Click);
-            // 
+            //
+            // contextMenuStripFlowCanvas
+            //
+            this.contextMenuStripFlowCanvas.ImageScalingSize = new System.Drawing.Size(24, 24);
+            this.contextMenuStripFlowCanvas.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.打开节点参数ToolStripMenuItem,
+            this.设为起始节点ToolStripMenuItem,
+            this.启用节点ToolStripMenuItem,
+            this.禁用节点ToolStripMenuItem,
+            this.重命名节点ToolStripMenuItem,
+            this.添加节点备注ToolStripMenuItem,
+            this.删除节点ToolStripMenuItem,
+            this.删除连线ToolStripMenuItem});
+            this.contextMenuStripFlowCanvas.Name = "contextMenuStripFlowCanvas";
+            this.contextMenuStripFlowCanvas.Size = new System.Drawing.Size(189, 260);
+            this.contextMenuStripFlowCanvas.Opening += new System.ComponentModel.CancelEventHandler(this.contextMenuStripFlowCanvas_Opening);
+            //
+            // 打开节点参数ToolStripMenuItem
+            //
+            this.打开节点参数ToolStripMenuItem.Name = "打开节点参数ToolStripMenuItem";
+            this.打开节点参数ToolStripMenuItem.Size = new System.Drawing.Size(188, 32);
+            this.打开节点参数ToolStripMenuItem.Text = "打开节点参数";
+            this.打开节点参数ToolStripMenuItem.Click += new System.EventHandler(this.打开节点参数ToolStripMenuItem_Click);
+            //
+            // 设为起始节点ToolStripMenuItem
+            //
+            this.设为起始节点ToolStripMenuItem.Name = "设为起始节点ToolStripMenuItem";
+            this.设为起始节点ToolStripMenuItem.Size = new System.Drawing.Size(188, 32);
+            this.设为起始节点ToolStripMenuItem.Text = "设为起始节点";
+            this.设为起始节点ToolStripMenuItem.Click += new System.EventHandler(this.设为起始节点ToolStripMenuItem_Click);
+            //
+            // 启用节点ToolStripMenuItem
+            //
+            this.启用节点ToolStripMenuItem.Name = "启用节点ToolStripMenuItem";
+            this.启用节点ToolStripMenuItem.Size = new System.Drawing.Size(188, 32);
+            this.启用节点ToolStripMenuItem.Text = "启用节点";
+            this.启用节点ToolStripMenuItem.Click += new System.EventHandler(this.启用节点ToolStripMenuItem_Click);
+            //
+            // 禁用节点ToolStripMenuItem
+            //
+            this.禁用节点ToolStripMenuItem.Name = "禁用节点ToolStripMenuItem";
+            this.禁用节点ToolStripMenuItem.Size = new System.Drawing.Size(188, 32);
+            this.禁用节点ToolStripMenuItem.Text = "禁用节点";
+            this.禁用节点ToolStripMenuItem.Click += new System.EventHandler(this.禁用节点ToolStripMenuItem_Click);
+            //
+            // 重命名节点ToolStripMenuItem
+            //
+            this.重命名节点ToolStripMenuItem.Name = "重命名节点ToolStripMenuItem";
+            this.重命名节点ToolStripMenuItem.Size = new System.Drawing.Size(188, 32);
+            this.重命名节点ToolStripMenuItem.Text = "重命名节点";
+            this.重命名节点ToolStripMenuItem.Click += new System.EventHandler(this.重命名节点ToolStripMenuItem_Click);
+            //
+            // 添加节点备注ToolStripMenuItem
+            //
+            this.添加节点备注ToolStripMenuItem.Name = "添加节点备注ToolStripMenuItem";
+            this.添加节点备注ToolStripMenuItem.Size = new System.Drawing.Size(188, 32);
+            this.添加节点备注ToolStripMenuItem.Text = "添加节点备注";
+            this.添加节点备注ToolStripMenuItem.Click += new System.EventHandler(this.添加节点备注ToolStripMenuItem_Click);
+            //
+            // 删除节点ToolStripMenuItem
+            //
+            this.删除节点ToolStripMenuItem.Name = "删除节点ToolStripMenuItem";
+            this.删除节点ToolStripMenuItem.Size = new System.Drawing.Size(188, 32);
+            this.删除节点ToolStripMenuItem.Text = "删除节点";
+            this.删除节点ToolStripMenuItem.Click += new System.EventHandler(this.删除节点ToolStripMenuItem_Click);
+            //
+            // 删除连线ToolStripMenuItem
+            //
+            this.删除连线ToolStripMenuItem.Name = "删除连线ToolStripMenuItem";
+            this.删除连线ToolStripMenuItem.Size = new System.Drawing.Size(188, 32);
+            this.删除连线ToolStripMenuItem.Text = "删除连线";
+            this.删除连线ToolStripMenuItem.Click += new System.EventHandler(this.删除连线ToolStripMenuItem_Click);
+            //
             // buttonRun
-            // 
+            //
             this.buttonRun.BackColor = System.Drawing.SystemColors.ControlLight;
             this.buttonRun.Dock = System.Windows.Forms.DockStyle.Fill;
             this.buttonRun.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
@@ -240,7 +321,7 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.ButtonHighlight;
-            this.Controls.Add(this.panel1);
+            this.Controls.Add(this.processFlowCanvas);
             this.Controls.Add(this.tableLayoutPanel1);
             this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.Name = "ProcessEditPanel";
@@ -250,6 +331,7 @@
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();
             this.contextMenuStrip1.ResumeLayout(false);
+            this.contextMenuStripFlowCanvas.ResumeLayout(false);
             this.ResumeLayout(false);
 
         }
@@ -258,7 +340,7 @@
 
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
         private Sunny.UI.UISwitch uiSwitchEnable;
-        private System.Windows.Forms.Panel panel1;
+        private TDJS_Vision.Forms.ProcessNew.ProcessFlowCanvas processFlowCanvas;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Label label2;
         private Sunny.UI.UILedBulb uiLedBulb1;
@@ -268,6 +350,15 @@
         private System.Windows.Forms.ToolStripMenuItem 流程重命名ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 是否输出日志ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 是否为触发流程ToolStripMenuItem;
+        private System.Windows.Forms.ContextMenuStrip contextMenuStripFlowCanvas;
+        private System.Windows.Forms.ToolStripMenuItem 打开节点参数ToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem 设为起始节点ToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem 启用节点ToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem 禁用节点ToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem 重命名节点ToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem 添加节点备注ToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem 删除节点ToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem 删除连线ToolStripMenuItem;
         private System.Windows.Forms.Button buttonClean;
         private System.Windows.Forms.Button buttonStop;
         private System.Windows.Forms.Button buttonRun;

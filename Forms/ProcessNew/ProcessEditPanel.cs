@@ -80,6 +80,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             InitializeComponent();
             BindLanguage();
             _process = new Process(processName);
+            processFlowCanvas.BindProcess(_process);
             _processLvSet = new FormSetProcessLv(_process);
             formProcessGroupSetting = new FormProcessGroupSetting(_process);
             Process.UpdateRunStatus += RunStatusChange;
@@ -219,7 +220,11 @@ namespace TDJS_Vision.Forms.ProcessNew
                 DragData data = (DragData)e.Data.GetData(DragDataFormat);
                 try
                 {
-                    CreateNode(data.NodeType, data.Text);
+                    Point? canvasLocation = null;
+                    if (sender == processFlowCanvas)
+                        canvasLocation = processFlowCanvas.ScreenToCanvasPoint(new Point(e.X, e.Y));
+
+                    CreateNode(data.NodeType, data.Text, -1, canvasLocation);
                 }
                 catch (Exception ex)
                 {
@@ -230,15 +235,25 @@ namespace TDJS_Vision.Forms.ProcessNew
         }
         private void CreateProcess(ProcessConfig processConfig, bool showInfo)
         {
+            int nodeIndex = 0;
             foreach (var nodeInfo in processConfig.NodeInfos)
             {
                 NodeBase nodeBase = null;
                 try
                 {
+                    Point canvasLocation = nodeInfo.HasCanvasLayout
+                        ? new Point(nodeInfo.CanvasX, nodeInfo.CanvasY)
+                        : processFlowCanvas.GetDefaultNodeLocation(nodeIndex);
+
                     // 1.还原节点
-                    nodeBase = CreateNode(nodeInfo.NodeType, nodeInfo.NodeName, nodeInfo.ID);
+                    nodeBase = CreateNode(nodeInfo.NodeType, nodeInfo.NodeName, nodeInfo.ID, canvasLocation);
                     nodeBase.Selected = nodeInfo.Selected;
                     nodeBase.Active = nodeInfo.Active;
+                    nodeBase.IsStartNode = nodeInfo.IsStartNode ||
+                        (!processConfig.HasCanvasGraph && nodeIndex == 0);
+                    if (nodeInfo.CanvasWidth > 0 && nodeInfo.CanvasHeight > 0)
+                        nodeBase.CanvasSize = new Size(nodeInfo.CanvasWidth, nodeInfo.CanvasHeight);
+
                     if (nodeInfo.NodeParam != null)
                     {
                         // 2.还原节点的参数
@@ -256,7 +271,12 @@ namespace TDJS_Vision.Forms.ProcessNew
                         LogHelper.AddLog(MsgLevel.Exception, LanguageManager.Format("ProcessNew.NodeLoadFailed", nodeInfo.ID, nodeInfo.NodeName, ex.Message), true);
                     continue;
                 }
+
+                nodeIndex++;
             }
+
+            RestoreProcessConnections(processConfig);
+            processFlowCanvas.RefreshNodes();
         }
 
         /// <summary>
@@ -266,7 +286,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// <param name="nodeName"></param>
         /// <param name="id"></param>
         /// <returns></returns>
-        private NodeBase CreateNode(NodeType nodeType, string nodeName, int id = -1)
+        private NodeBase CreateNode(NodeType nodeType, string nodeName, int id = -1, Point? canvasLocation = null)
         {
 
             NodeBase node = null;
@@ -425,12 +445,20 @@ namespace TDJS_Vision.Forms.ProcessNew
                 --Solution.Instance.NodeCount;
                 throw new Exception(LanguageManager.T("ProcessNew.NodeCreateFailed"));
             }
-            node.Size = new Size(this.Size.Width - 5, 42);
-            node.Dock = DockStyle.Top;
+            node.CanvasSize = ProcessFlowCanvas.DefaultCanvasNodeSize;
+            if (_process.Nodes.Count == 0)
+                node.IsStartNode = true;
+
+            Point location = canvasLocation ?? processFlowCanvas.GetDefaultNodeLocation(_process.Nodes.Count);
+            node.CanvasLocation = location;
+            foreach (NodeBase processNode in _process.Nodes)
+                processNode.Selected = false;
+            node.Selected = true;
             NodeBase.NodeDeletedEvent += NewNode_NodeDeletedEvent;
             _stack.Push(node);
             Solution.Instance.Nodes.Add(node);
             _process.AddNode(node);
+            processFlowCanvas.AddNode(node, location);
             UpdateNode();
 
             #endregion
@@ -461,6 +489,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 }
             }
 
+            _process.RemoveNodeConnections(e.ID);
             UpdateNode();
 
             //更新节点数量到界面
@@ -472,11 +501,69 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// </summary>
         private void UpdateNode()
         {
-            this.panel1.Controls.Clear();
-            foreach (var item in _stack)
+            processFlowCanvas.RefreshNodes();
+        }
+
+        private void RestoreProcessConnections(ProcessConfig processConfig)
+        {
+            _process.Connections.Clear();
+
+            if (processConfig.ConnectionInfos != null && processConfig.ConnectionInfos.Count > 0)
             {
-                this.panel1.Controls.Add(item);
+                foreach (var connectionInfo in processConfig.ConnectionInfos)
+                {
+                    if (!ProcessContainsNode(connectionInfo.FromNodeId) ||
+                        !ProcessContainsNode(connectionInfo.ToNodeId))
+                        continue;
+
+                    ProcessConnection connection = new ProcessConnection
+                    {
+                        FromNodeId = connectionInfo.FromNodeId,
+                        ToNodeId = connectionInfo.ToNodeId,
+                        FromAnchor = string.IsNullOrEmpty(connectionInfo.FromAnchor) ? "Right" : connectionInfo.FromAnchor,
+                        ToAnchor = string.IsNullOrEmpty(connectionInfo.ToAnchor) ? "Left" : connectionInfo.ToAnchor,
+                        Branch = connectionInfo.Branch
+                    };
+
+                    if (!string.IsNullOrEmpty(connectionInfo.ID))
+                        connection.ID = connectionInfo.ID;
+
+                    _process.Connections.Add(connection);
+                }
+
+                _process.NotifyConnectionsChanged();
+                return;
             }
+
+            if (!processConfig.HasCanvasGraph)
+                CreateLegacyOrderedConnections();
+
+            _process.NotifyConnectionsChanged();
+        }
+
+        private void CreateLegacyOrderedConnections()
+        {
+            for (int index = 0; index < _process.Nodes.Count - 1; index++)
+            {
+                _process.Connections.Add(new ProcessConnection
+                {
+                    FromNodeId = _process.Nodes[index].ID,
+                    ToNodeId = _process.Nodes[index + 1].ID,
+                    FromAnchor = "Right",
+                    ToAnchor = "Left"
+                });
+            }
+        }
+
+        private bool ProcessContainsNode(int nodeId)
+        {
+            foreach (var node in _process.Nodes)
+            {
+                if (node.ID == nodeId)
+                    return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -573,6 +660,63 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             if (e.Button == MouseButtons.Right)
                 contextMenuStrip1.Show(Cursor.Position);
+        }
+
+        private void contextMenuStripFlowCanvas_Opening(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            NodeBase selectedNode = processFlowCanvas.SelectedNode;
+            bool hasNode = selectedNode != null;
+            bool hasConnection = processFlowCanvas.SelectedConnection != null;
+
+            打开节点参数ToolStripMenuItem.Enabled = hasNode && selectedNode.Active;
+            设为起始节点ToolStripMenuItem.Enabled = hasNode && !selectedNode.IsStartNode;
+            启用节点ToolStripMenuItem.Enabled = hasNode && !selectedNode.Active;
+            禁用节点ToolStripMenuItem.Enabled = hasNode && selectedNode.Active;
+            重命名节点ToolStripMenuItem.Enabled = hasNode;
+            添加节点备注ToolStripMenuItem.Enabled = hasNode;
+            删除节点ToolStripMenuItem.Enabled = hasNode;
+            删除连线ToolStripMenuItem.Enabled = hasConnection;
+            e.Cancel = !hasNode && !hasConnection;
+        }
+
+        private void 打开节点参数ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            processFlowCanvas.OpenSelectedNodeParameters();
+        }
+
+        private void 删除节点ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            processFlowCanvas.DeleteSelectedNode();
+        }
+
+        private void 设为起始节点ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            processFlowCanvas.SetSelectedNodeAsStart();
+        }
+
+        private void 启用节点ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            processFlowCanvas.EnableSelectedNode();
+        }
+
+        private void 禁用节点ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            processFlowCanvas.DisableSelectedNode();
+        }
+
+        private void 重命名节点ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            processFlowCanvas.RenameSelectedNode();
+        }
+
+        private void 添加节点备注ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            processFlowCanvas.EditSelectedNodeNotes();
+        }
+
+        private void 删除连线ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            processFlowCanvas.DeleteSelectedConnection();
         }
     }
 }

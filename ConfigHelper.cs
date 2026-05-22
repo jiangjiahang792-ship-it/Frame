@@ -50,6 +50,7 @@ namespace TDJS_Vision
                     processConfig.IsPassiveTriggered = process.IsPassiveTriggered;
                     processConfig.OKNumber = process.OKNumber;
                     processConfig.NGNumber = process.NGNumber;
+                    processConfig.HasCanvasGraph = true;
                     processConfig.NodeInfos.Clear();
                     foreach (var nodeConfig in process.Nodes)
                     {
@@ -59,9 +60,28 @@ namespace TDJS_Vision
                         node.ID = nodeConfig.ID;
                         node.Active = nodeConfig.Active;
                         node.Selected = nodeConfig.Selected;
+                        node.HasCanvasLayout = true;
+                        node.CanvasX = nodeConfig.CanvasLocation.X;
+                        node.CanvasY = nodeConfig.CanvasLocation.Y;
+                        node.CanvasWidth = nodeConfig.CanvasSize.Width;
+                        node.CanvasHeight = nodeConfig.CanvasSize.Height;
+                        node.IsStartNode = nodeConfig.IsStartNode;
                         if (nodeConfig.ParamForm != null && nodeConfig.ParamForm.Params != null)
                             node.NodeParam = nodeConfig.ParamForm.Params;
                         processConfig.NodeInfos.Add(node);
+                    }
+                    processConfig.ConnectionInfos.Clear();
+                    foreach (var connection in process.Connections)
+                    {
+                        processConfig.ConnectionInfos.Add(new ProcessConnectionConfig
+                        {
+                            ID = connection.ID,
+                            FromNodeId = connection.FromNodeId,
+                            ToNodeId = connection.ToNodeId,
+                            FromAnchor = connection.FromAnchor,
+                            ToAnchor = connection.ToAnchor,
+                            Branch = connection.Branch
+                        });
                     }
                     SolConfig.ProcessInfos.Add(processConfig);
                 }
@@ -225,6 +245,16 @@ namespace TDJS_Vision
         public List<NodeConfig> NodeInfos = new List<NodeConfig>();
 
         /// <summary>
+        /// 指示流程配置已使用画布图结构保存。
+        /// </summary>
+        public bool HasCanvasGraph;
+
+        /// <summary>
+        /// 流程画布中的连接关系。
+        /// </summary>
+        public List<ProcessConnectionConfig> ConnectionInfos = new List<ProcessConnectionConfig>();
+
+        /// <summary>
         /// OK数量
         /// </summary>
         public int OKNumber;
@@ -242,8 +272,25 @@ namespace TDJS_Vision
         public int ID;
         public bool Active;
         public bool Selected;
+        public bool HasCanvasLayout;
+        public int CanvasX;
+        public int CanvasY;
+        public int CanvasWidth;
+        public int CanvasHeight;
+        public bool IsStartNode;
         [JsonConverter(typeof(PolyConverter))]
         public INodeParam NodeParam;
+    }
+
+    public class ProcessConnectionConfig
+    {
+        public string ID;
+        public int FromNodeId;
+        public int ToNodeId;
+        public string FromAnchor;
+        public string ToAnchor;
+        [JsonConverter(typeof(StringEnumConverter))]
+        public ProcessConnectionBranch Branch;
     }
 
     /// <summary>

@@ -48,13 +48,21 @@ namespace TDJS_Vision.Node._6_LogicTool.If
                         bool condition = false;
                         condition = form.GetCondition();
 
-                        // 查找匹配的 Else 和 EndIf
-                        FindElseAndEndIf(Process.Nodes, Process.Nodes.IndexOf(this), out int elseIndex, out int endIndex);
-
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         Result.RunTime = time;
                         if (showLog)
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+
+                        if (Process.HasConditionalBranchConnections(ID))
+                        {
+                            Process.SkipNextElseBlock = false;
+                            return new NodeReturn(
+                                NodeRunFlag.ContinueRun,
+                                condition ? ProcessConnectionBranch.True : ProcessConnectionBranch.False);
+                        }
+
+                        // 旧顺序执行兼容：查找匹配的 Else 和 EndIf。
+                        FindElseAndEndIf(Process.Nodes, Process.Nodes.IndexOf(this), out int elseIndex, out int endIndex);
 
                         if (condition)
                         {

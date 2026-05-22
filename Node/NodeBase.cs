@@ -17,6 +17,8 @@ namespace TDJS_Vision.Node
         private bool _selected = false;
         private string _nodeName;
         private string _notes = "无备注"; // 节点备注
+        private NodeStatus _runtimeStatus = NodeStatus.Unexecuted;
+        private string _runtimeTimeText = "*";
         private FrmNodeRename _frmNodeRename;
         /// <summary>
         /// 节点所属流程
@@ -32,6 +34,11 @@ namespace TDJS_Vision.Node
         /// 节点改名后要刷新节点订阅控件的下拉框节点名称
         /// </summary>
         public static EventHandler<RenameResult> RefreshNodeSubControl;
+
+        /// <summary>
+        /// 节点运行状态变化后通知自由画布刷新对应节点。
+        /// </summary>
+        public static event EventHandler<NodeBase> NodeStatusChanged;
 
         /// <summary>
         /// 因为是控件类，提供无参构造函数让设计器可以显示出来
@@ -131,6 +138,31 @@ namespace TDJS_Vision.Node
         public string NodeName { get => _nodeName; set => _nodeName = value; }
 
         /// <summary>
+        /// 节点在流程画布中的位置。
+        /// </summary>
+        public Point CanvasLocation { get; set; } = new Point(40, 40);
+
+        /// <summary>
+        /// 节点在流程画布中的显示尺寸。
+        /// </summary>
+        public Size CanvasSize { get; set; } = new Size(240, 64);
+
+        /// <summary>
+        /// 流程图执行模式下的起始节点标记。
+        /// </summary>
+        public bool IsStartNode { get; set; }
+
+        /// <summary>
+        /// 当前运行状态，供自由画布绘制节点状态使用。
+        /// </summary>
+        public NodeStatus RuntimeStatus { get { return _runtimeStatus; } }
+
+        /// <summary>
+        /// 当前运行耗时文本，供自由画布绘制节点状态使用。
+        /// </summary>
+        public string RuntimeTimeText { get { return _runtimeTimeText; } }
+
+        /// <summary>
         /// 删除节点事件
         /// </summary>
         public static event EventHandler<NodeBase> NodeDeletedEvent;
@@ -171,13 +203,32 @@ namespace TDJS_Vision.Node
 
         private void UpdateNodeUI(NodeStatus status, string time)
         {
-            label2.Text = $"{time} ms";
-            switch (status)
+            string displayTime = string.IsNullOrEmpty(time) ? "*" : time;
+            NodeStatus displayStatus = status;
+            if (status == NodeStatus.Unexecuted &&
+                displayTime == "*" &&
+                Process != null &&
+                Process.IsRuning)
+            {
+                displayStatus = NodeStatus.Running;
+            }
+
+            _runtimeStatus = displayStatus;
+            _runtimeTimeText = displayTime;
+
+            label2.Text = displayStatus == NodeStatus.Running ? "运行中" : $"{displayTime} ms";
+            switch (displayStatus)
             {
                 case NodeStatus.Unexecuted:
                     uiLight1.State = Sunny.UI.UILightState.Off;
                     label2.ForeColor = uiLight1.OffColor;
                     label2.Text = $"* ms";
+                    break;
+                case NodeStatus.Running:
+                    uiLight1.OnColor = Color.Goldenrod;
+                    uiLight1.OnCenterColor = Color.Gold;
+                    uiLight1.State = Sunny.UI.UILightState.Blink;
+                    label2.ForeColor = Color.Goldenrod;
                     break;
                 case NodeStatus.Successful:
                     uiLight1.OnColor = Color.Green;
@@ -194,6 +245,8 @@ namespace TDJS_Vision.Node
                 default:
                     break;
             }
+
+            NodeStatusChanged?.Invoke(this, this);
         }
 
         /// <summary>
@@ -233,21 +286,7 @@ namespace TDJS_Vision.Node
 
             #endregion
 
-            if (Selected)
-            {
-                Solution.Instance.Nodes.Remove(this);
-                Process.Nodes.Remove(this);
-                NodeDeletedEvent.Invoke(this, this);
-                // 移除AI节点需要释放AI句柄
-                if (NodeType == NodeType.AITD)
-                {
-                    if (ParamForm.Params == null)
-                        return;
-                    ModelHandleManager.Destroy(((NodeParamTDAI)ParamForm.Params).Yolo8);
-                }
-                // 移除的节点如果包含了加载的检测项也需要从静态全局检测项中移除
-                TDAI.DetectItemMap.Remove($"{this.ID}.{this.NodeName}");
-            }
+            DeleteFromProcess();
 
             #region 测试节点删除后代码
 
@@ -269,13 +308,34 @@ namespace TDJS_Vision.Node
         }
 
         /// <summary>
+        /// 删除当前选中的节点，并通知流程编辑器清理关联状态。
+        /// </summary>
+        public bool DeleteFromProcess()
+        {
+            if (!Selected)
+                return false;
+
+            Solution.Instance.Nodes.Remove(this);
+            Process.Nodes.Remove(this);
+            NodeDeletedEvent?.Invoke(this, this);
+
+            // 移除AI节点需要释放AI句柄
+            if (NodeType == NodeType.AITD && ParamForm.Params is NodeParamTDAI param)
+                ModelHandleManager.Destroy(param.Yolo8);
+
+            // 移除的节点如果包含了加载的检测项也需要从静态全局检测项中移除
+            TDAI.DetectItemMap.Remove($"{this.ID}.{this.NodeName}");
+            return true;
+        }
+
+        /// <summary>
         /// 设置节点为启用状态
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
         private void 启用ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            SetActive(true);
+            EnableNode();
         }
 
         /// <summary>
@@ -284,6 +344,16 @@ namespace TDJS_Vision.Node
         /// <param name="sender"></param>
         /// <param name="e"></param>
         private void 禁用ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            DisableNode();
+        }
+
+        public void EnableNode()
+        {
+            SetActive(true);
+        }
+
+        public void DisableNode()
         {
             SetActive(false);
             NodeDisableEvent?.Invoke(this, false);
@@ -385,10 +455,21 @@ namespace TDJS_Vision.Node
 
         private void 重命名ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            _frmNodeRename.ShowDialog();
+            ShowRenameDialog();
         }
 
         private void 添加备注ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            ShowNotesDialog();
+        }
+
+        public void ShowRenameDialog()
+        {
+            if (_frmNodeRename != null)
+                _frmNodeRename.ShowDialog();
+        }
+
+        public void ShowNotesDialog()
         {
             FormAddNotes formAddNotes = new FormAddNotes(this);
             formAddNotes.ShowDialog();

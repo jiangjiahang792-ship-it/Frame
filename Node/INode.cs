@@ -50,6 +50,10 @@ namespace TDJS_Vision.Node
         /// </summary>
         public int NextIndex = -1;
         /// <summary>
+        /// 图执行模式下要跟随的输出分支。
+        /// </summary>
+        public ProcessConnectionBranch NextBranch = ProcessConnectionBranch.Default;
+        /// <summary>
         /// 构造函数
         /// </summary>
         /// <param name="flag"></param>
@@ -59,6 +63,12 @@ namespace TDJS_Vision.Node
             Flag = flag;
             NextIndex = nextIndex;
         }
+
+        public NodeReturn(NodeRunFlag flag, ProcessConnectionBranch nextBranch)
+        {
+            Flag = flag;
+            NextBranch = nextBranch;
+        }
     }
 
     public enum NodeStatus
@@ -67,6 +77,10 @@ namespace TDJS_Vision.Node
         /// 未运行
         /// </summary>
         Unexecuted,
+        /// <summary>
+        /// 运行中
+        /// </summary>
+        Running,
         /// <summary>
         /// 运行成功
         /// </summary>
