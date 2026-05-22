@@ -15,7 +15,7 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
 {
     public partial class FormGlobalSignal : Form
     {
-        private const int ListenInterval = 50;
+        private const int ListenInterval = 1;
         private static CancellationTokenSource _listenSignalCts;
         private bool _isLoadingConfig;
 
@@ -387,11 +387,13 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
                         return plc.ReadInt32(signal.Address).Content == int.Parse(signal.Value);
                     case "字符串类型":
                         return plc.ReadString(signal.Address, (ushort)Math.Max(1, signal.Value.Length)).Content == signal.Value;
+                    case "short类型":
+                        return plc.ReadInt16(signal.Address).Content == int.Parse(signal.Value);
                     default:
                         return false;
                 }
             }
-
+            
             if (device is IModbus modbus)
             {
                 if (!modbus.IsConnect)
@@ -409,11 +411,16 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
                         ushort[] expected = StringToHoldingRegisters(signal.Value);
                         ushort[] actual = modbus.ReadUInt16(signal.Address, (ushort)expected.Length);
                         return expected.SequenceEqual(actual ?? new ushort[0]);
+                    case "short类型":
+                        short[] shortValues = modbus.ReadInt16(signal.Address, 1);
+                        return shortValues != null && shortValues.Length > 0 && shortValues[0] == int.Parse(signal.Value);
+                    case "ushort类型":
+                        ushort[] ushortValues = modbus.ReadUInt16(signal.Address, 1);
+                        return ushortValues != null && ushortValues.Length > 0 && ushortValues[0] == int.Parse(signal.Value);
                     default:
                         return false;
                 }
             }
-
             return false;
         }
 
@@ -487,7 +494,7 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
             if (Solution.Instance.GlobalSignal == null)
                 Solution.Instance.GlobalSignal = new GlobalSignal();
 
-            var listenSignals = GetConfig(dataGridView3);
+            var listenSignals = GetListenConfig();
             if (listenSignals == null)
                 return;
 
@@ -563,10 +570,55 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
                 row.Cells[2].Value = info.Type;
                 row.Cells[3].Value = info.Value;
                 row.Cells[4].Value = info.Enable;
+                row.Tag = info;
 
                 dataGridView.Rows.Add(row);
             }
         }
+
+        private List<SingleGlobalSignalSettings> GetListenConfig()
+        {
+            dataGridView3.EndEdit();
+            var infos = new List<SingleGlobalSignalSettings>();
+            try
+            {
+                foreach (DataGridViewRow row in dataGridView3.Rows)
+                {
+                    if (row.IsNewRow) continue;
+
+                    var deviceName = row.Cells[0].Value?.ToString() ?? string.Empty;
+                    var address = row.Cells[1].Value?.ToString() ?? string.Empty;
+                    var type = row.Cells[2].Value?.ToString() ?? string.Empty;
+                    var value = row.Cells[3].Value?.ToString() ?? string.Empty;
+                    var enable = Convert.ToBoolean(row.Cells[4].Value ?? false);
+                    var info = row.Tag as SingleGlobalSignalSettings;
+
+                    if (info == null)
+                    {
+                        info = new SingleGlobalSignalSettings(deviceName, address, type, value, enable);
+                        row.Tag = info;
+                    }
+                    else
+                    {
+                        info.DeviceName = deviceName;
+                        info.Address = address;
+                        info.Type = type;
+                        info.Value = value;
+                        info.Enable = enable;
+                    }
+
+                    infos.Add(info);
+                }
+            }
+            catch (Exception e)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, e.Message, true);
+                return null;
+            }
+
+            return infos;
+        }
+
         /// <summary>
         /// 获取表格的数据
         /// </summary>

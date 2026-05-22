@@ -92,15 +92,24 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
 
         private SingleGlobalSignalSettings ResolveSignal(NodeParamFlagRead param)
         {
-            if (param.Signal != null)
-                return param.Signal;
-
             var signals = Solution.Instance.GlobalSignal?.ListenSignals;
             if (signals == null)
                 return null;
 
             foreach (var signal in signals)
             {
+                if (signal == null)
+                    continue;
+
+                if (ReferenceEquals(signal, param.Signal))
+                    return signal;
+            }
+
+            foreach (var signal in signals)
+            {
+                if (signal == null)
+                    continue;
+
                 if (ParamFormFlagRead.BuildSignalKey(signal) == param.SignalKey)
                 {
                     param.Signal = signal;
@@ -108,6 +117,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                 }
             }
 
+            param.Signal = null;
             return null;
         }
     }

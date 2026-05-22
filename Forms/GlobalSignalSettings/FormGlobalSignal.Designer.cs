@@ -334,6 +334,8 @@
             this.dataGridViewComboBoxColumn2.Items.AddRange(new object[] {
             "布尔类型",
             "整数类型",
+            "short类型",
+            "ushort类型",
             "字符串类型",
             "离散输入类型"});
             this.dataGridViewComboBoxColumn2.MinimumWidth = 6;
@@ -342,7 +344,7 @@
             // 
             // dataGridViewTextBoxColumn2
             // 
-            this.dataGridViewTextBoxColumn2.HeaderText = "上升沿";
+            this.dataGridViewTextBoxColumn2.HeaderText = "数据值";
             this.dataGridViewTextBoxColumn2.MinimumWidth = 6;
             this.dataGridViewTextBoxColumn2.Name = "dataGridViewTextBoxColumn2";
             this.dataGridViewTextBoxColumn2.Width = 125;
