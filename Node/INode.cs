@@ -286,6 +286,10 @@ namespace TDJS_Vision.Node
         /// </summary>
         If,
         /// <summary>
+        /// 多条件判断节点
+        /// </summary>
+        MultiCondition,
+        /// <summary>
         /// Else节点
         /// </summary>
         Else,

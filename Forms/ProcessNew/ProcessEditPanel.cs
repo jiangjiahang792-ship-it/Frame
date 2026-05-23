@@ -39,6 +39,7 @@ using TDJS_Vision.Node._6_LogicTool.Else;
 using TDJS_Vision.Node._6_LogicTool.EndIf;
 using TDJS_Vision.Node._6_LogicTool.If;
 using TDJS_Vision.Node._6_LogicTool.MessageBox;
+using TDJS_Vision.Node._6_LogicTool.MultiCondition;
 using TDJS_Vision.Node._6_LogicTool.ProcessSignal;
 using TDJS_Vision.Node._6_LogicTool.ProcessTrigger;
 using TDJS_Vision.Node._6_LogicTool.SharedVariable;
@@ -631,6 +632,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.If:
                     node = new NodeIf(nodeId, nodeName, _process, nodeType);
                     break;
+                case NodeType.MultiCondition:
+                    node = new NodeMultiCondition(nodeId, nodeName, _process, nodeType);
+                    break;
                 case NodeType.Else:
                     node = new NodeElse(nodeId, nodeName, _process, nodeType);
                     break;
@@ -1143,6 +1147,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 Point pasteOffset = GetNextPasteOffset(_copiedNodeSnapshot);
                 Dictionary<int, NodeBase> pastedNodeMap = new Dictionary<int, NodeBase>();
                 Dictionary<string, string> nodeTextMap = new Dictionary<string, string>();
+                Dictionary<int, int> nodeIdMap = new Dictionary<int, int>();
 
                 foreach (NodeCopyItem item in _copiedNodeSnapshot.Nodes)
                 {
@@ -1161,6 +1166,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     processFlowCanvas.AddNode(pastedNode, pasteLocation);
                     pastedNodes.Add(pastedNode);
                     pastedNodeMap[item.SourceNodeId] = pastedNode;
+                    nodeIdMap[item.SourceNodeId] = pastedNode.ID;
                     nodeTextMap[$"{item.SourceNodeId}.{item.NodeName}"] = $"{pastedNode.ID}.{pastedNode.NodeName}";
                 }
 
@@ -1169,7 +1175,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     if (pastedNode.ParamForm == null || pastedNode.ParamForm.Params == null)
                         continue;
 
-                    RemapInternalNodeReferences(pastedNode.ParamForm.Params, nodeTextMap);
+                    RemapInternalNodeReferences(pastedNode.ParamForm.Params, nodeTextMap, nodeIdMap);
                     pastedNode.ParamForm.SetParam2Form();
                 }
 
@@ -1314,6 +1320,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         private static void RemapInternalNodeReferences(
             object target,
             Dictionary<string, string> nodeTextMap,
+            Dictionary<int, int> nodeIdMap = null,
             int depth = 0)
         {
             if (target == null || nodeTextMap == null || nodeTextMap.Count == 0 || depth > 5)
@@ -1332,7 +1339,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (enumerable != null)
             {
                 foreach (object item in enumerable)
-                    RemapInternalNodeReferences(item, nodeTextMap, depth + 1);
+                    RemapInternalNodeReferences(item, nodeTextMap, nodeIdMap, depth + 1);
 
                 return;
             }
@@ -1343,6 +1350,18 @@ namespace TDJS_Vision.Forms.ProcessNew
                     !property.CanWrite ||
                     property.GetIndexParameters().Length > 0)
                 {
+                    continue;
+                }
+
+                if (property.PropertyType == typeof(int) &&
+                    nodeIdMap != null &&
+                    string.Equals(property.Name, "SourceNodeId", StringComparison.OrdinalIgnoreCase))
+                {
+                    int oldNodeId = (int)property.GetValue(target, null);
+                    int newNodeId;
+                    if (nodeIdMap.TryGetValue(oldNodeId, out newNodeId))
+                        property.SetValue(target, newNodeId, null);
+
                     continue;
                 }
 
@@ -1363,7 +1382,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     continue;
 
                 object value = property.GetValue(target, null);
-                RemapInternalNodeReferences(value, nodeTextMap, depth + 1);
+                RemapInternalNodeReferences(value, nodeTextMap, nodeIdMap, depth + 1);
             }
         }
 

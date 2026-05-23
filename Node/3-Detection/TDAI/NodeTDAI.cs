@@ -56,6 +56,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             SetStatus(NodeStatus.Unexecuted, "*");
                             base.CheckTokenCancel(token);
 
+                            EnsureModelReady(param);
+
                             // 清空上次检测结果
                             res.AlgorithmResult.Clear();
 
@@ -134,6 +136,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     List<DetResult> det_results = new List<DetResult>();
 
                                     var handleDet = param.Yolo8 as Yolo8Det;
+                                    if (handleDet == null)
+                                        throw new Exception("AI模型句柄类型与DET模型不匹配，请重新加载模型！");
                                     for (int i = 0; i < inputImage.Bitmaps.Count; i++)
                                     {
                                         List<DetResult> tmp = new List<DetResult>();
@@ -174,6 +178,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     {
                                         List<ObbResult> tmp = new List<ObbResult>();
                                         var handle = param.Yolo8 as Yolo8Obb;
+                                        if (handle == null)
+                                            throw new Exception("AI模型句柄类型与OBB模型不匹配，请重新加载模型！");
                                         var img = inputImage.Bitmaps[i].Clone();
                                         if (inputImage.Rectangles.Count != 0)
                                         {
@@ -212,6 +218,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     {
                                         List<SegResult> tmp = new List<SegResult>();
                                         var handle = param.Yolo8 as Yolo8Seg;
+                                        if (handle == null)
+                                            throw new Exception("AI模型句柄类型与SEG模型不匹配，请重新加载模型！");
                                         var img = inputImage.Bitmaps[i].Clone();
                                         if (inputImage.Rectangles.Count != 0)
                                         {
@@ -268,19 +276,40 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         catch (OperationCanceledException)
                         {
                             LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})运行取消！", true);
-                            SetRunResult(startTime, NodeStatus.Unexecuted);
+                            int time = SetRunResult(startTime, NodeStatus.Unexecuted);
+                            Result.RunTime = time;
                             throw new OperationCanceledException($"节点({ID}.{NodeName})运行取消！");
                         }
                         catch (Exception ex)
                         {
                             LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
-                            SetRunResult(startTime, NodeStatus.Failed);
+                            int time = SetRunResult(startTime, NodeStatus.Failed);
+                            Result.RunTime = time;
                             throw new Exception($"节点({ID}.{NodeName})运行失败！原因:{ex.Message}");
                         }
                     }
                 }
             }
             return new NodeReturn(NodeRunFlag.StopRun);
+        }
+
+        private static void EnsureModelReady(NodeParamTDAI param)
+        {
+            if (param.AIInputInfo == null)
+                throw new Exception("AI配置未加载或解析失败，请重新选择配置文件并保存参数！");
+
+            string modelPath = param.AIInputInfo.ModelInfo.ModelPath;
+            if (string.IsNullOrWhiteSpace(modelPath))
+                throw new Exception("AI模型路径为空，请检查AI配置文件！");
+
+            if (param.Yolo8 == null)
+                throw new Exception($"AI模型未加载成功，不能运行推理！模型路径：{modelPath}");
+
+            if (param.Yolo8.ModelType != param.AIInputInfo.ModelInfo.ModelType)
+            {
+                throw new Exception(
+                    $"AI模型句柄类型({param.Yolo8.ModelType})与配置类型({param.AIInputInfo.ModelInfo.ModelType})不一致，请重新加载模型！");
+            }
         }
 
         /// <summary>

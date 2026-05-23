@@ -520,6 +520,17 @@
     </Compile>
     <Compile Include="Node\6-LogicTool\If\NodeParamIf.cs" />
     <Compile Include="Node\6-LogicTool\If\NodeResultIf.cs" />
+    <Compile Include="Node\6-LogicTool\MultiCondition\NodeMultiCondition.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\MultiCondition\NodeParamFormMultiCondition.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\MultiCondition\NodeParamFormMultiCondition.Designer.cs">
+      <DependentUpon>NodeParamFormMultiCondition.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\MultiCondition\NodeParamMultiCondition.cs" />
+    <Compile Include="Node\6-LogicTool\MultiCondition\NodeResultMultiCondition.cs" />
     <Compile Include="Node\6-LogicTool\MessageBox\NodeMessageBox.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -1468,6 +1479,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\6-LogicTool\MessageBox\NodeParamFormMessageBox.resx">
       <DependentUpon>NodeParamFormMessageBox.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\6-LogicTool\MultiCondition\NodeParamFormMultiCondition.resx">
+      <DependentUpon>NodeParamFormMultiCondition.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\6-LogicTool\ProcessSignal\NodeParamFormProcessSignal.resx">
       <DependentUpon>NodeParamFormProcessSignal.cs</DependentUpon>

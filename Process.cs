@@ -387,7 +387,7 @@ namespace TDJS_Vision
                 return ProcessConnectionBranch.Default;
 
             NodeBase fromNode = GetNodeById(connection.FromNodeId);
-            if (fromNode == null || fromNode.NodeType != NodeType.If)
+            if (!IsConditionalBranchNode(fromNode))
                 return ProcessConnectionBranch.Default;
 
             if (string.Equals(connection.FromAnchor, "Right", StringComparison.OrdinalIgnoreCase))
@@ -397,6 +397,12 @@ namespace TDJS_Vision
                 return ProcessConnectionBranch.False;
 
             return ProcessConnectionBranch.Default;
+        }
+
+        private static bool IsConditionalBranchNode(NodeBase node)
+        {
+            return node != null &&
+                (node.NodeType == NodeType.If || node.NodeType == NodeType.MultiCondition);
         }
 
         private bool HasIncomingConnection(int nodeId)

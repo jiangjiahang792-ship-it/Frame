@@ -16,7 +16,7 @@ This means the target is not only a visual style change. The work includes:
 
 ## Current Step
 
-The current implementation step is **Phase 13: Flow Editor UI Layout Polish**.
+The current implementation step is **Phase 15: OpenCV Caliper, Circle, And Ellipse Tool Integration Planning**.
 
 ### Latest Progress
 
@@ -129,6 +129,29 @@ The current implementation step is **Phase 13: Flow Editor UI Layout Polish**.
   - [x] Image preview and minimap now render as designer-visible overlay controls above the canvas instead of being painted into the scrollable node layer.
   - [x] Fixed preview/minimap flicker while scrolling by keeping both overlays out of the `AutoScroll` paint surface.
   - [x] Removed high-frequency overlay invalidation during node dragging and rubber-band selection so canvas interactions stay responsive.
+- Phase 14 multi-condition logic node planning:
+  - [x] New request captured: create a node and parameter UI based on `Node/6-LogicTool/If` that supports freely adding multiple conditions.
+  - [x] Condition source selection should choose a property from an upstream node result; in normal cases this means public `INodeResult` output properties.
+  - [x] The circled UI area in the provided reference image is planned as an upstream-node/result-property picker.
+  - [x] WinForms controls added for this feature must be declared and laid out in the corresponding `.Designer.cs` files so the designer can display them.
+- Phase 14 multi-condition logic node first implementation pass:
+  - [x] Added `NodeType.MultiCondition` and a new `Node/6-LogicTool/MultiCondition` node family.
+  - [x] Added serializable condition rows with match mode, source node id/text, property path, operator, values, and note.
+  - [x] Added a designer-visible parameter form with condition rows plus an upstream node/result-property tree.
+  - [x] Added reflection-based evaluation for scalar values, nested result properties, and common OK/NG boolean patterns.
+  - [x] Connected the new node to graph-native True/False branch routing.
+  - [x] Added toolbox/language entries and copy/paste remapping for internal `SourceNodeId` references.
+- Phase 14 multi-condition UI feedback fixes:
+  - [x] Added a runtime/designer fallback so `NodeParamFormMultiCondition.InitializeOperatorColumn` can recreate `ColumnOperator` when the designer file is regenerated without the column instance.
+  - [x] Adjusted the condition grid columns to use fill layout, larger row/header height, and minimum widths so table content is no longer clipped by narrow cells.
+- Phase 15 OpenCV caliper/circle/ellipse integration planning:
+  - [x] Read and compared the reference algorithms from `D:\MyCode\PrivateMyComputerCoder\Test\_OpenCv颜色2`.
+  - [x] Confirmed all three tools share the same core pipeline: grayscale input, caliper sampling, 1D gradient edge search, edge polarity/mode selection, parabolic sub-pixel correction, then geometric fitting.
+  - [x] Confirmed `CaliperLineTool` fits line results with `Cv2.FitLine`, `CaliperCircleTool` solves circle least squares with `Cv2.Solve(..., SVD)`, and `FindEllipseTool` fits ellipse results with `Cv2.FitEllipse`.
+  - [x] Confirmed the current `ShowImageControl` already supports basic line/circle ROI drawing, but does not yet expose the reference solution's circle-caliper and ellipse-caliper ROI types needed for the new tools.
+- TDAI stability fix:
+  - [x] Added a model-readiness guard before `NodeTDAI` reads `param.Yolo8.ModelType`, so a failed startup model load now reports a clear model/config error instead of throwing a null reference.
+  - [x] Made `ParamFormTDAI.LoadModel(...)` clear `param.Yolo8` on load failure and log failures without dereferencing missing AI config data.
 - Build verification:
   - [x] `TDJS-Vision.sln` builds successfully after the scheduling, branch, and subscription-stale-result fixes.
   - [x] `TDJS-Vision.sln` builds successfully after the Phase 11 undo/redo first implementation pass.
@@ -146,6 +169,8 @@ The current implementation step is **Phase 13: Flow Editor UI Layout Polish**.
   - [x] `TDJS-Vision.sln` builds successfully after the auto-size process action strip, preview selector, preview cache, and AI draw optimization pass.
   - [x] `TDJS-Vision.sln` builds successfully after moving preview/minimap to independent overlay controls and fixing drag/selection overlay refresh cost.
   - [x] `TDJS-Vision.sln` builds successfully after the process-header reference-style pass and vector command button pass.
+  - [x] `TDJS-Vision.sln` builds successfully after the Phase 14 multi-condition node first implementation pass.
+  - [x] `TDJS-Vision.sln` builds successfully after the TDAI startup model-load guard.
 - Verified subscription regression points:
   - [x] A node with `A -> C` and `B -> C` shows both `A` and `B` as subscription candidates.
   - [x] Deleting a connection removes the disconnected node from subscription candidates.
@@ -192,6 +217,13 @@ The current implementation step is **Phase 13: Flow Editor UI Layout Polish**.
   - [x] UI-verify preview/minimap stay fixed without flicker during canvas scroll and zoom.
   - [x] UI-verify node dragging, multi-node dragging, and rubber-band selection remain responsive after overlay separation.
   - [ ] UI-verify floating module flyout, tab-adjacent process actions, preview overlay, and minimap navigation.
+  - [x] Add Phase 14 multi-condition logic node plan to this task file.
+  - [ ] Inspect existing `Node/6-LogicTool/If` node, params, result, save/restore, and graph branch behavior before implementation.
+  - [ ] Design the new multi-condition node type, parameter model, result model, and toolbox creation entry.
+  - [ ] Implement the multi-condition parameter UI with designer-visible controls.
+  - [ ] Implement upstream `INodeResult` property discovery and condition source selection.
+  - [ ] Implement runtime evaluation and True/False graph branch output.
+  - [ ] Build-verify and UI-verify multi-condition node editing, save/load, and graph execution.
 
 - [x] The flow editor has entered graph-aware subscription migration.
 - [x] Subscription candidates should come from graph upstream nodes, not from ordered node list position.
@@ -626,6 +658,137 @@ Reference direction:
 - [x] Ensure minimap works with zoom and scroll viewport navigation in the first pass.
 - [ ] Ensure minimap works with selection and snap-to-grid.
 - [ ] UI-verify large graphs with many nodes and connections.
+
+## Phase 14: Multi-Condition Logic Node
+
+Reference direction:
+
+- Use the existing `Node/6-LogicTool/If` node as the behavior and branch-output reference.
+- Add a new logic node that can evaluate multiple user-defined conditions instead of a single fixed `If` expression.
+- The condition editor should let the user pick an upstream node and one of that node result object's public properties, usually from `INodeResult`.
+- The UI reference is the provided condition-checking panel: the condition cell should support opening a picker tree that lists upstream nodes and selectable result properties.
+- Keep graph-native branch behavior aligned with the current flow-canvas `If`: True should continue through the True branch, False through the False branch.
+
+### Phase 14.1: Requirement And Model Design
+
+- [x] Inspect current `NodeIf`, `NodeParamIf`, `NodeResultIf`, and parameter form implementation.
+- [x] Decide the new node name and `NodeType` entry, for example `MultiCondition`, `ConditionCheck`, or another project-appropriate Chinese display name.
+- [x] Define a serializable condition parameter model:
+  - [x] Condition name.
+  - [x] Optional note/comment.
+  - [x] Source node ID and display text.
+  - [x] Source result property path.
+  - [x] Comparison operator.
+  - [x] Expected value or expected range.
+  - [x] Value type metadata for restore and UI editing.
+- [x] Define the whole-node match mode:
+  - [x] All conditions must pass.
+  - [x] Any condition may pass.
+  - [x] Reserve custom expression/grouping for a later pass if needed.
+- [x] Define the result model so downstream nodes can read:
+  - [x] Overall boolean result.
+  - [x] Per-condition pass/fail details.
+  - [ ] Optional display text for logs/result tab.
+
+### Phase 14.2: Upstream Result Property Picker
+
+- [x] Reuse graph upstream lookup rules so the picker only lists valid upstream nodes.
+- [x] List upstream nodes by `ID.NodeName`, with a `None` option.
+- [x] Reflect over each upstream node's `Result` object and list public readable properties from `INodeResult` implementations.
+- [x] Support common scalar property types first: `bool`, numeric types, `string`, enum, and nullable versions.
+- [x] Decide first-pass behavior for complex properties such as images, collections, and custom result objects.
+- [x] Persist source references by stable node ID plus property path, not only by visible text.
+- [x] Refresh or invalidate source selections when graph connections change, upstream nodes are deleted, or upstream nodes are renamed.
+
+### Phase 14.3: Parameter UI
+
+- [x] Build the parameter form based on the existing `If` parameter UI style.
+- [x] Add designer-visible controls in `.Designer.cs` files, following the project WinForms rule.
+- [x] Support add, delete, and edit condition rows.
+- [x] Provide a condition source picker opened from the condition cell/link button.
+- [x] Provide operator and value editors appropriate to the selected source property type.
+- [x] Keep Chinese labels readable and compact.
+- [ ] Add a result display tab or area for overall result and per-condition evaluation details.
+
+### Phase 14.4: Runtime Evaluation And Flow Branching
+
+- [x] On run, validate all selected source nodes are upstream and have successful results for the current process run.
+- [x] Read the selected `INodeResult` property value by reflection or a small typed accessor helper.
+- [x] Evaluate each condition according to its operator and value type.
+- [x] Apply the selected match mode to produce the overall boolean result.
+- [x] Return `NodeReturn.NextBranch` as True or False so existing graph-native branch routing can execute the correct outgoing connection.
+- [x] Log clear failure messages when a source node/result/property is missing or has not run in the current process run.
+- [x] Avoid falling back to legacy ordered-list continuation for graph-native False paths.
+
+### Phase 14.5: Save/Restore And Compatibility
+
+- [x] Save and restore all condition rows through the existing node parameter persistence path.
+- [x] Keep old `.Sol` files loadable when they do not contain the new node type.
+- [x] Ensure renamed upstream nodes keep stable node-ID based references and update visible display text.
+- [x] Ensure copied/pasted multi-condition nodes remap internal upstream references when the source nodes are copied in the same batch.
+- [x] Ensure deleting graph connections clears or marks now-invalid condition sources.
+
+### Phase 14.6: Verification
+
+- [x] Build-verify after adding the node type and UI.
+- [ ] UI-verify adding, deleting, and editing multiple condition rows.
+- [ ] UI-verify upstream result property picker with one upstream node and multiple upstream nodes.
+- [ ] UI-verify save/load restores condition rows and selected properties.
+- [ ] Runtime-verify All mode True and False outcomes.
+- [ ] Runtime-verify Any mode True and False outcomes.
+  - [ ] Runtime-verify missing/stale upstream results fail clearly instead of reading old results.
+  - [ ] Runtime-verify True and False outgoing graph branches from the new node.
+
+## Phase 15: OpenCV Caliper, Circle, And Ellipse Tool Integration
+
+Reference source:
+
+- `D:\MyCode\PrivateMyComputerCoder\Test\_OpenCv颜色2\卡尺工具\CaliperLineTool.cs`
+- `D:\MyCode\PrivateMyComputerCoder\Test\_OpenCv颜色2\找圆工具\CaliperCircleTool.cs`
+- `D:\MyCode\PrivateMyComputerCoder\Test\_OpenCv颜色2\找椭圆工具\FindEllipseTool.cs`
+- UI/ROI reference: `D:\MyCode\PrivateMyComputerCoder\Test\_OpenCv颜色2\ShowImageControl.cs`
+
+### Phase 15.1: Algorithm Understanding
+
+- [x] `CaliperLineTool` samples multiple rectangular calipers along a base line, searches each caliper profile for an edge point, and fits the final line from valid edge points.
+- [x] `CaliperCircleTool` samples radial calipers around a base circle or arc, searches edges along each radial profile, and fits the final circle from at least three edge points.
+- [x] `FindEllipseTool` samples normal-direction calipers around a rotated base ellipse, searches edges along each profile, and fits the final ellipse from at least five edge points.
+- [x] Shared parameters include caliper count, caliper width/height, edge strength threshold, edge polarity, and edge find mode.
+- [x] Shared edge logic supports `DarkToLight`, `LightToDark`, and `Both`, plus `First`, `Last`, and `Best` candidate selection.
+- [x] Shared precision path uses local gradient peak interpolation for sub-pixel edge coordinates.
+
+### Phase 15.2: Integration Design
+
+- [ ] Decide whether to add three new detection nodes or upgrade the existing `FindLine` and `FindCircle` nodes while adding a new `FindEllipse` node.
+- [ ] Extract the reusable caliper edge-search code into a project namespace shared by line, circle, and ellipse tools.
+- [ ] Normalize common enums and result types so all three tools expose consistent output to downstream `INodeResult` consumers.
+- [ ] Keep algorithm input based on current project `OutputImage`/`Mat` conventions instead of repeatedly converting through `Bitmap` when a `Mat` is already available.
+- [ ] Define result display objects: fitted geometry, edge points, point count, success flag, message, and annotated output image.
+
+### Phase 15.3: ROI And Parameter UI
+
+- [ ] Add missing circle-caliper and ellipse-caliper ROI support to the current `Forms\DispShowImage\ShowImageControl.cs`, using the reference control as the behavior guide.
+- [ ] Add all WinForms controls for new/changed parameter forms in `.Designer.cs` files so the Visual Studio designer can display them.
+- [ ] Provide line, circle, and ellipse ROI editing with caliper count, width, height, edge strength, polarity, and find mode controls.
+- [ ] Preserve save/restore compatibility for ROI and algorithm parameters.
+- [ ] Ensure parameter forms can preview sampled calipers and fitted results on the image control.
+
+### Phase 15.4: Node Runtime
+
+- [ ] Implement or upgrade the line caliper node runtime.
+- [ ] Implement or upgrade the circle caliper node runtime.
+- [ ] Implement the ellipse caliper node runtime.
+- [ ] Register any new node types in toolbox XML, language JSON files, `NodeType`, node creation switches, and project file entries.
+- [ ] Ensure result properties are discoverable by the new multi-condition node's upstream `INodeResult` picker.
+- [ ] Add clear failure messages for missing images, insufficient edge points, and failed fitting.
+
+### Phase 15.5: Verification
+
+- [ ] Build-verify after adding the shared algorithm layer.
+- [ ] Build-verify after adding ROI/control support.
+- [ ] Build-verify after adding each node family.
+- [ ] Runtime-verify line, circle, and ellipse tools on synthetic images with known geometry.
+- [ ] UI-verify ROI editing, preview rendering, save/load, and graph execution.
 
 ## Recommended Implementation Order
 

@@ -263,6 +263,7 @@
   "ProcessNew.NodeType.ProcessTrigger": "触发同组流程",
   "ProcessNew.NodeType.ProcessSignal": "流程信号",
   "ProcessNew.NodeType.If": "如果",
+  "ProcessNew.NodeType.MultiCondition": "多条件判断",
   "ProcessNew.NodeType.Else": "否则",
   "ProcessNew.NodeType.EndIf": "结束如果",
   "ProcessNew.NodeType.BatteryEar": "电池极耳检测",

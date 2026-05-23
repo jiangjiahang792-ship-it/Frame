@@ -350,9 +350,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// </summary>
         private void LoadModel(NodeParamTDAI param)
         {
+            string modelPath = "未知模型";
             try
             {
-                LogHelper.AddLog(MsgLevel.Info, $"开始加载模型：{param.AIInputInfo.ModelInfo.ModelPath}", true);
+                if (param == null)
+                    throw new Exception("节点参数为空，无法加载模型！");
+                if (param.AIInputInfo == null)
+                    throw new Exception("AI配置未加载或解析失败，无法加载模型！");
+
+                param.Yolo8 = null;
+                modelPath = param.AIInputInfo.ModelInfo.ModelPath;
+                LogHelper.AddLog(MsgLevel.Info, $"开始加载模型：{modelPath}", true);
                 var modelInfo = param.AIInputInfo;
 
                 // 如果是加密模型
@@ -393,11 +401,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 //统一注册模型句柄到模型管理
                 ModelHandleManager.Add(param.Yolo8);
 
-                LogHelper.AddLog(MsgLevel.Info, $"模型：{param.AIInputInfo.ModelInfo.ModelPath} 加载完成！", true);
+                LogHelper.AddLog(MsgLevel.Info, $"模型：{modelPath} 加载完成！", true);
             }
             catch (Exception e)
             {
-                LogHelper.AddLog(MsgLevel.Exception, $"加载模型: {param.AIInputInfo.ModelInfo.ModelPath} 失败！原因：{e.Message}", true);
+                if (param != null)
+                    param.Yolo8 = null;
+                LogHelper.AddLog(MsgLevel.Exception, $"加载模型: {modelPath} 失败！原因：{e.Message}", true);
             }
         }
 

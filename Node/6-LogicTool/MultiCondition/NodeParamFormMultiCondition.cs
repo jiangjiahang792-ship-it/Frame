@@ -1,0 +1,522 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Reflection;
+using System.Windows.Forms;
+using TDJS_Vision.Forms.YTMessageBox;
+
+namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
+{
+    public partial class NodeParamFormMultiCondition : FormBase, INodeParamForm
+    {
+        private NodeBase _node;
+        private BindingList<ConditionRowViewModel> _conditionRows;
+
+        public NodeParamFormMultiCondition()
+        {
+            InitializeComponent();
+            _conditionRows = new BindingList<ConditionRowViewModel>();
+            EnsureConditionGridColumns();
+            InitializeOperatorColumn();
+            comboBoxMatchMode.SelectedIndex = 0;
+            dataGridViewConditions.DataSource = _conditionRows;
+            NodeBase.RefreshNodeSubControl += NodeBase_RefreshNodeSubControl;
+            NodeBase.NodeDeletedEvent += NodeBase_NodeDeletedEvent;
+        }
+
+        public INodeParam Params { get; set; }
+
+        public void SetNodeBelong(NodeBase node)
+        {
+            if (_node != null && _node.Process != null)
+                _node.Process.ConnectionsChanged -= Process_ConnectionsChanged;
+
+            _node = node;
+            if (_node != null && _node.Process != null)
+                _node.Process.ConnectionsChanged += Process_ConnectionsChanged;
+
+            RefreshSourceTree();
+        }
+
+        public void SetParam2Form()
+        {
+            NodeParamMultiCondition param = Params as NodeParamMultiCondition;
+            if (param == null)
+                param = new NodeParamMultiCondition();
+
+            SetMatchMode(param.MatchMode);
+            _conditionRows = new BindingList<ConditionRowViewModel>();
+            if (param.Conditions != null)
+            {
+                for (int index = 0; index < param.Conditions.Count; index++)
+                    _conditionRows.Add(ConditionRowViewModel.FromCondition(param.Conditions[index], index));
+            }
+
+            dataGridViewConditions.DataSource = _conditionRows;
+            RefreshSourceTree();
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            if (_node != null && _node.Process != null)
+                _node.Process.ConnectionsChanged -= Process_ConnectionsChanged;
+
+            NodeBase.RefreshNodeSubControl -= NodeBase_RefreshNodeSubControl;
+            NodeBase.NodeDeletedEvent -= NodeBase_NodeDeletedEvent;
+            base.OnFormClosed(e);
+        }
+
+        private void InitializeOperatorColumn()
+        {
+            EnsureConditionGridColumns();
+            ColumnOperator.DataSource = GetOperatorOptions();
+            ColumnOperator.DisplayMember = "Text";
+            ColumnOperator.ValueMember = "Value";
+        }
+
+        private void EnsureConditionGridColumns()
+        {
+            dataGridViewConditions.AutoGenerateColumns = false;
+
+            if (ColumnName == null)
+                ColumnName = new DataGridViewTextBoxColumn();
+            if (ColumnSourceNode == null)
+                ColumnSourceNode = new DataGridViewTextBoxColumn();
+            if (ColumnProperty == null)
+                ColumnProperty = new DataGridViewTextBoxColumn();
+            if (ColumnOperator == null)
+                ColumnOperator = new DataGridViewComboBoxColumn();
+            if (ColumnValue1 == null)
+                ColumnValue1 = new DataGridViewTextBoxColumn();
+            if (ColumnValue2 == null)
+                ColumnValue2 = new DataGridViewTextBoxColumn();
+            if (ColumnNote == null)
+                ColumnNote = new DataGridViewTextBoxColumn();
+
+            ConfigureConditionGridColumns();
+
+            if (dataGridViewConditions.Columns.Count == 0)
+            {
+                dataGridViewConditions.Columns.AddRange(new DataGridViewColumn[]
+                {
+                    ColumnName,
+                    ColumnSourceNode,
+                    ColumnProperty,
+                    ColumnOperator,
+                    ColumnValue1,
+                    ColumnValue2,
+                    ColumnNote
+                });
+            }
+        }
+
+        private void ConfigureConditionGridColumns()
+        {
+            dataGridViewConditions.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridViewConditions.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
+            dataGridViewConditions.RowTemplate.Height = 32;
+            dataGridViewConditions.ColumnHeadersHeight = 32;
+
+            ColumnName.DataPropertyName = "Name";
+            ColumnName.HeaderText = "名称";
+            ColumnName.MinimumWidth = 80;
+            ColumnName.Name = "ColumnName";
+            ColumnName.FillWeight = 90F;
+
+            ColumnSourceNode.DataPropertyName = "SourceNodeText";
+            ColumnSourceNode.HeaderText = "节点";
+            ColumnSourceNode.MinimumWidth = 150;
+            ColumnSourceNode.Name = "ColumnSourceNode";
+            ColumnSourceNode.ReadOnly = true;
+            ColumnSourceNode.FillWeight = 165F;
+
+            ColumnProperty.DataPropertyName = "PropertyDisplayName";
+            ColumnProperty.HeaderText = "属性";
+            ColumnProperty.MinimumWidth = 190;
+            ColumnProperty.Name = "ColumnProperty";
+            ColumnProperty.ReadOnly = true;
+            ColumnProperty.FillWeight = 230F;
+
+            ColumnOperator.DataPropertyName = "Operator";
+            ColumnOperator.DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox;
+            ColumnOperator.HeaderText = "操作";
+            ColumnOperator.MinimumWidth = 145;
+            ColumnOperator.Name = "ColumnOperator";
+            ColumnOperator.Resizable = DataGridViewTriState.True;
+            ColumnOperator.SortMode = DataGridViewColumnSortMode.Automatic;
+            ColumnOperator.FillWeight = 155F;
+
+            ColumnValue1.DataPropertyName = "Value1";
+            ColumnValue1.HeaderText = "值1";
+            ColumnValue1.MinimumWidth = 80;
+            ColumnValue1.Name = "ColumnValue1";
+            ColumnValue1.FillWeight = 95F;
+
+            ColumnValue2.DataPropertyName = "Value2";
+            ColumnValue2.HeaderText = "值2";
+            ColumnValue2.MinimumWidth = 80;
+            ColumnValue2.Name = "ColumnValue2";
+            ColumnValue2.FillWeight = 95F;
+
+            ColumnNote.DataPropertyName = "Note";
+            ColumnNote.HeaderText = "注释";
+            ColumnNote.MinimumWidth = 130;
+            ColumnNote.Name = "ColumnNote";
+            ColumnNote.FillWeight = 150F;
+        }
+
+        private static List<OperatorOption> GetOperatorOptions()
+        {
+            return new List<OperatorOption>
+            {
+                new OperatorOption("等于", MultiConditionOperator.Equals),
+                new OperatorOption("不等于", MultiConditionOperator.NotEquals),
+                new OperatorOption("大于", MultiConditionOperator.GreaterThan),
+                new OperatorOption("大于等于", MultiConditionOperator.GreaterThanOrEqual),
+                new OperatorOption("小于", MultiConditionOperator.LessThan),
+                new OperatorOption("小于等于", MultiConditionOperator.LessThanOrEqual),
+                new OperatorOption("包含", MultiConditionOperator.Contains),
+                new OperatorOption("不包含", MultiConditionOperator.NotContains),
+                new OperatorOption("为True/OK", MultiConditionOperator.IsTrue),
+                new OperatorOption("为False/NG", MultiConditionOperator.IsFalse),
+                new OperatorOption("在范围内", MultiConditionOperator.Between),
+                new OperatorOption("不在范围内", MultiConditionOperator.NotBetween),
+                new OperatorOption("为空", MultiConditionOperator.IsNull),
+                new OperatorOption("不为空", MultiConditionOperator.IsNotNull)
+            };
+        }
+
+        private void buttonAdd_Click(object sender, EventArgs e)
+        {
+            ConditionRowViewModel row = new ConditionRowViewModel
+            {
+                Name = "条件" + (_conditionRows.Count + 1),
+                Operator = MultiConditionOperator.Equals
+            };
+            _conditionRows.Add(row);
+            SelectRow(_conditionRows.Count - 1);
+        }
+
+        private void buttonRemove_Click(object sender, EventArgs e)
+        {
+            int index = GetCurrentRowIndex();
+            if (index < 0)
+                return;
+
+            _conditionRows.RemoveAt(index);
+            if (_conditionRows.Count > 0)
+                SelectRow(Math.Min(index, _conditionRows.Count - 1));
+        }
+
+        private void buttonSelectProperty_Click(object sender, EventArgs e)
+        {
+            ApplySelectedPropertyToCurrentRow();
+        }
+
+        private void treeViewSources_NodeMouseDoubleClick(object sender, TreeNodeMouseClickEventArgs e)
+        {
+            ApplySelectedPropertyToCurrentRow();
+        }
+
+        private void buttonSave_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                Params = BuildParamFromForm();
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show($"参数设置异常原因：{ex.Message}", "异常", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+                return;
+            }
+
+            Hide();
+        }
+
+        private void buttonCancel_Click(object sender, EventArgs e)
+        {
+            SetParam2Form();
+            Hide();
+        }
+
+        private NodeParamMultiCondition BuildParamFromForm()
+        {
+            dataGridViewConditions.EndEdit();
+            if (_conditionRows.Count == 0)
+                throw new Exception("至少需要添加一个条件！");
+
+            NodeParamMultiCondition param = new NodeParamMultiCondition
+            {
+                MatchMode = GetSelectedMatchMode(),
+                Conditions = new List<MultiConditionItem>()
+            };
+
+            for (int index = 0; index < _conditionRows.Count; index++)
+            {
+                MultiConditionItem condition = _conditionRows[index].ToCondition(index);
+                if (condition.SourceNodeId <= 0 || string.IsNullOrWhiteSpace(condition.PropertyPath))
+                    throw new Exception($"第{index + 1}行没有选择上游节点结果属性！");
+
+                param.Conditions.Add(condition);
+            }
+
+            return param;
+        }
+
+        private void ApplySelectedPropertyToCurrentRow()
+        {
+            ResultPropertyOption option = treeViewSources.SelectedNode == null
+                ? null
+                : treeViewSources.SelectedNode.Tag as ResultPropertyOption;
+            if (option == null)
+                return;
+
+            int index = GetCurrentRowIndex();
+            if (index < 0)
+            {
+                buttonAdd_Click(this, EventArgs.Empty);
+                index = GetCurrentRowIndex();
+            }
+
+            if (index < 0)
+                return;
+
+            ConditionRowViewModel row = _conditionRows[index];
+            row.SourceNodeId = option.SourceNodeId;
+            row.SourceNodeText = option.SourceNodeText;
+            row.PropertyPath = option.PropertyPath;
+            row.PropertyDisplayName = option.PropertyDisplayName;
+            row.ValueTypeName = option.ValueType == null ? string.Empty : option.ValueType.FullName;
+
+            if (option.ValueType == typeof(bool) ||
+                Nullable.GetUnderlyingType(option.ValueType) == typeof(bool))
+            {
+                row.Operator = MultiConditionOperator.IsTrue;
+            }
+
+            _conditionRows.ResetItem(index);
+        }
+
+        private int GetCurrentRowIndex()
+        {
+            if (dataGridViewConditions.CurrentRow == null)
+                return -1;
+
+            return dataGridViewConditions.CurrentRow.Index;
+        }
+
+        private void SelectRow(int index)
+        {
+            if (index < 0 || index >= dataGridViewConditions.Rows.Count)
+                return;
+
+            dataGridViewConditions.ClearSelection();
+            dataGridViewConditions.Rows[index].Selected = true;
+            dataGridViewConditions.CurrentCell = dataGridViewConditions.Rows[index].Cells[0];
+        }
+
+        private MultiConditionMatchMode GetSelectedMatchMode()
+        {
+            return comboBoxMatchMode.SelectedIndex == 1
+                ? MultiConditionMatchMode.Any
+                : MultiConditionMatchMode.All;
+        }
+
+        private void SetMatchMode(MultiConditionMatchMode matchMode)
+        {
+            comboBoxMatchMode.SelectedIndex = matchMode == MultiConditionMatchMode.Any ? 1 : 0;
+        }
+
+        private void Process_ConnectionsChanged(object sender, EventArgs e)
+        {
+            RefreshSourceTree();
+        }
+
+        private void NodeBase_RefreshNodeSubControl(object sender, RenameResult e)
+        {
+            if (_node == null || _node.Process == null)
+                return;
+
+            RefreshSourceTree();
+            foreach (ConditionRowViewModel row in _conditionRows)
+            {
+                if (row.SourceNodeId == e.NodeId)
+                    row.SourceNodeText = e.NodeId + "." + e.NodeNameNew;
+            }
+
+            _conditionRows.ResetBindings();
+        }
+
+        private void NodeBase_NodeDeletedEvent(object sender, NodeBase deletedNode)
+        {
+            if (deletedNode == null)
+                return;
+
+            RefreshSourceTree();
+        }
+
+        private void RefreshSourceTree()
+        {
+            treeViewSources.BeginUpdate();
+            treeViewSources.Nodes.Clear();
+
+            TreeNode noneNode = new TreeNode("无");
+            treeViewSources.Nodes.Add(noneNode);
+
+            if (_node != null && _node.Process != null)
+            {
+                List<NodeBase> upstreamNodes = _node.Process.GetUpstreamNodes(_node);
+                foreach (NodeBase sourceNode in upstreamNodes)
+                {
+                    TreeNode sourceTreeNode = new TreeNode(GetNodeText(sourceNode));
+                    treeViewSources.Nodes.Add(sourceTreeNode);
+
+                    if (sourceNode.Result != null)
+                        AddMemberNodes(sourceTreeNode, sourceNode, sourceNode.Result.GetType(), string.Empty, string.Empty, 0);
+                }
+            }
+
+            treeViewSources.ExpandAll();
+            treeViewSources.EndUpdate();
+        }
+
+        private void AddMemberNodes(
+            TreeNode parentNode,
+            NodeBase sourceNode,
+            Type ownerType,
+            string pathPrefix,
+            string displayPrefix,
+            int depth)
+        {
+            foreach (MemberInfo member in MultiConditionReflection.GetReadableMembers(ownerType))
+            {
+                Type memberType = MultiConditionReflection.GetMemberType(member);
+                if (MultiConditionReflection.IsIgnoredMemberType(memberType))
+                    continue;
+
+                string displayName = MultiConditionReflection.GetDisplayName(member);
+                string propertyPath = string.IsNullOrEmpty(pathPrefix)
+                    ? member.Name
+                    : pathPrefix + "." + member.Name;
+                string propertyDisplay = string.IsNullOrEmpty(displayPrefix)
+                    ? displayName
+                    : displayPrefix + "." + displayName;
+
+                if (MultiConditionReflection.IsSelectableMemberType(memberType))
+                {
+                    TreeNode propertyNode = new TreeNode(displayName);
+                    propertyNode.Tag = new ResultPropertyOption
+                    {
+                        SourceNodeId = sourceNode.ID,
+                        SourceNodeText = GetNodeText(sourceNode),
+                        PropertyPath = propertyPath,
+                        PropertyDisplayName = propertyDisplay,
+                        ValueType = memberType
+                    };
+                    parentNode.Nodes.Add(propertyNode);
+                    continue;
+                }
+
+                if (depth >= 2 || !MultiConditionReflection.CanInspectMemberType(memberType))
+                    continue;
+
+                TreeNode groupNode = new TreeNode(displayName);
+                parentNode.Nodes.Add(groupNode);
+                AddMemberNodes(groupNode, sourceNode, memberType, propertyPath, propertyDisplay, depth + 1);
+                if (groupNode.Nodes.Count == 0)
+                    parentNode.Nodes.Remove(groupNode);
+            }
+        }
+
+        private static string GetNodeText(NodeBase node)
+        {
+            return node.ID + "." + node.NodeName;
+        }
+
+        private sealed class OperatorOption
+        {
+            public OperatorOption(string text, MultiConditionOperator value)
+            {
+                Text = text;
+                Value = value;
+            }
+
+            public string Text { get; private set; }
+
+            public MultiConditionOperator Value { get; private set; }
+        }
+
+        private sealed class ResultPropertyOption
+        {
+            public int SourceNodeId { get; set; }
+
+            public string SourceNodeText { get; set; }
+
+            public string PropertyPath { get; set; }
+
+            public string PropertyDisplayName { get; set; }
+
+            public Type ValueType { get; set; }
+        }
+
+        private sealed class ConditionRowViewModel
+        {
+            public string Name { get; set; }
+
+            public string SourceNodeText { get; set; }
+
+            public string PropertyDisplayName { get; set; }
+
+            public MultiConditionOperator Operator { get; set; }
+
+            public string Value1 { get; set; }
+
+            public string Value2 { get; set; }
+
+            public string Note { get; set; }
+
+            public int SourceNodeId { get; set; }
+
+            public string PropertyPath { get; set; }
+
+            public string ValueTypeName { get; set; }
+
+            public static ConditionRowViewModel FromCondition(MultiConditionItem condition, int index)
+            {
+                if (condition == null)
+                    condition = new MultiConditionItem();
+
+                return new ConditionRowViewModel
+                {
+                    Name = string.IsNullOrWhiteSpace(condition.Name) ? "条件" + (index + 1) : condition.Name,
+                    SourceNodeText = condition.SourceNodeText,
+                    PropertyDisplayName = condition.PropertyDisplayName,
+                    Operator = condition.Operator,
+                    Value1 = condition.Value1,
+                    Value2 = condition.Value2,
+                    Note = condition.Note,
+                    SourceNodeId = condition.SourceNodeId,
+                    PropertyPath = condition.PropertyPath,
+                    ValueTypeName = condition.ValueTypeName
+                };
+            }
+
+            public MultiConditionItem ToCondition(int index)
+            {
+                return new MultiConditionItem
+                {
+                    Name = string.IsNullOrWhiteSpace(Name) ? "条件" + (index + 1) : Name.Trim(),
+                    Note = Note,
+                    SourceNodeId = SourceNodeId,
+                    SourceNodeText = SourceNodeText,
+                    PropertyPath = PropertyPath,
+                    PropertyDisplayName = PropertyDisplayName,
+                    ValueTypeName = ValueTypeName,
+                    Operator = Operator,
+                    Value1 = Value1,
+                    Value2 = Value2
+                };
+            }
+        }
+    }
+}

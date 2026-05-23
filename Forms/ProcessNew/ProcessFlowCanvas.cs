@@ -1909,8 +1909,9 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
 
             DrawAnchor(graphics, node, "Top");
-            DrawAnchor(graphics, node, "Right", nodeType == NodeType.If ? "T" : null);
-            DrawAnchor(graphics, node, "Bottom", nodeType == NodeType.If ? "F" : null);
+            bool conditionalBranchNode = IsConditionalBranchNode(node);
+            DrawAnchor(graphics, node, "Right", conditionalBranchNode ? "T" : null);
+            DrawAnchor(graphics, node, "Bottom", conditionalBranchNode ? "F" : null);
             DrawAnchor(graphics, node, "Left");
         }
 
@@ -2361,7 +2362,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         private ProcessConnectionBranch GetConnectionBranch(NodeBase fromNode, string fromAnchor)
         {
-            if (fromNode == null || fromNode.NodeType != NodeType.If)
+            if (!IsConditionalBranchNode(fromNode))
                 return ProcessConnectionBranch.Default;
 
             if (fromAnchor == "Right")
@@ -2479,6 +2480,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.ImageSplit:
                     return Color.FromArgb(18, 132, 219);
                 case NodeType.If:
+                case NodeType.MultiCondition:
                 case NodeType.Else:
                 case NodeType.EndIf:
                 case NodeType.ConditionRun:
@@ -2493,6 +2495,12 @@ namespace TDJS_Vision.Forms.ProcessNew
                 default:
                     return Color.FromArgb(42, 157, 143);
             }
+        }
+
+        private static bool IsConditionalBranchNode(NodeBase node)
+        {
+            return node != null &&
+                (node.NodeType == NodeType.If || node.NodeType == NodeType.MultiCondition);
         }
 
         private static class CanvasPathRouter
