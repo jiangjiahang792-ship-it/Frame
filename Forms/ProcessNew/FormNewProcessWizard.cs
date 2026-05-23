@@ -796,6 +796,10 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.RGBDiscern:
                 case NodeType.BinarizationAnalysis:
                     return Color.FromArgb(125, 84, 188);
+                case NodeType.CaliperLine:
+                case NodeType.CaliperCircle:
+                case NodeType.CaliperEllipse:
+                    return Color.FromArgb(70, 166, 190);
                 case NodeType.LightSourceControl:
                 case NodeType.CameraIO:
                 case NodeType.CameraIOManual:
@@ -860,6 +864,12 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return "LN";
                 case NodeType.CircleFind:
                     return "CR";
+                case NodeType.CaliperLine:
+                    return "CL";
+                case NodeType.CaliperCircle:
+                    return "CC";
+                case NodeType.CaliperEllipse:
+                    return "CE";
                 case NodeType.QRScan:
                     return "QR";
                 case NodeType.MatchTemplate:

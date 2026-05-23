@@ -28,6 +28,9 @@
     </Node>
     <Node Text="测量工具" ImageName="测量工具" Tag="UNKNOWN" SelectedImageName="测量工具">
       <Nodes>
+        <Node Text="卡尺找线" ImageName="卡尺找线" Tag="CaliperLine" SelectedImageName="卡尺找线" />
+        <Node Text="卡尺找圆" ImageName="卡尺找圆" Tag="CaliperCircle" SelectedImageName="卡尺找圆" />
+        <Node Text="卡尺找椭圆" ImageName="卡尺找椭圆" Tag="CaliperEllipse" SelectedImageName="卡尺找椭圆" />
       </Nodes>
     </Node>
 	<Node Text="设备通信" ImageName="通信工具" Tag="UNKNOWN" SelectedImageName="通信工具">

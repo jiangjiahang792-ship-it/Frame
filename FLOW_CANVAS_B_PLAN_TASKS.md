@@ -149,6 +149,19 @@ The current implementation step is **Phase 15: OpenCV Caliper, Circle, And Ellip
   - [x] Confirmed all three tools share the same core pipeline: grayscale input, caliper sampling, 1D gradient edge search, edge polarity/mode selection, parabolic sub-pixel correction, then geometric fitting.
   - [x] Confirmed `CaliperLineTool` fits line results with `Cv2.FitLine`, `CaliperCircleTool` solves circle least squares with `Cv2.Solve(..., SVD)`, and `FindEllipseTool` fits ellipse results with `Cv2.FitEllipse`.
   - [x] Confirmed the current `ShowImageControl` already supports basic line/circle ROI drawing, but does not yet expose the reference solution's circle-caliper and ellipse-caliper ROI types needed for the new tools.
+- Phase 15 OpenCV measurement integration first implementation pass:
+  - [x] Added shared caliper measurement algorithm code under `Node\4-Measurement\Common`.
+  - [x] Added three new measurement nodes under `Node\4-Measurement`: `CaliperLine`, `CaliperCircle`, and `CaliperEllipse`.
+  - [x] Added designer-visible WinForms parameter forms for the three nodes, with image subscription, numeric geometry/caliper settings, run preview, and save support.
+  - [x] Registered the three node types in `NodeType`, process node creation, toolbox XML, language JSON files, and project compile items.
+  - [x] Exposed scalar result properties such as OK flag, edge point count, fitted geometry, and algorithm time so downstream `INodeResult` property pickers can read them.
+- Phase 15 measurement ROI interaction feedback pass:
+  - [x] Merged the reference `ShowImageControl` circle-caliper and ellipse-caliper ROI APIs/classes into the current project control while keeping existing display compatibility APIs.
+  - [x] Replaced the three measurement parameter-form preview `PictureBox` controls with designer-visible `ShowImageControl` controls.
+  - [x] The line, circle, and ellipse measurement forms now create draggable caliper ROI overlays and read the latest ROI geometry back before save/run.
+  - [x] Left-side line/circle/ellipse ROI parameter edits now immediately refresh the right-side caliper ROI overlay, including caliper count, width, height, position, radius/angle, and direction changes.
+  - [x] Changing caliper count/width/height now preserves the current dragged ROI position instead of rebuilding from stale left-side coordinate text.
+  - [x] `ShowImageControl.ImageBitmap` no longer calls `ShowFit()` on every image assignment, so run-preview updates keep the current zoom and pan.
 - TDAI stability fix:
   - [x] Added a model-readiness guard before `NodeTDAI` reads `param.Yolo8.ModelType`, so a failed startup model load now reports a clear model/config error instead of throwing a null reference.
   - [x] Made `ParamFormTDAI.LoadModel(...)` clear `param.Yolo8` on load failure and log failures without dereferencing missing AI config data.
@@ -171,6 +184,10 @@ The current implementation step is **Phase 15: OpenCV Caliper, Circle, And Ellip
   - [x] `TDJS-Vision.sln` builds successfully after the process-header reference-style pass and vector command button pass.
   - [x] `TDJS-Vision.sln` builds successfully after the Phase 14 multi-condition node first implementation pass.
   - [x] `TDJS-Vision.sln` builds successfully after the TDAI startup model-load guard.
+  - [x] `TDJS-Vision.sln` builds successfully after the Phase 15 measurement caliper/circle/ellipse first implementation pass.
+  - [x] `TDJS-Vision.sln` builds successfully after the Phase 15 measurement ROI interaction feedback pass.
+  - [x] `TDJS-Vision.sln` builds successfully after the Phase 15 left-parameter-to-ROI realtime sync fix.
+  - [x] `TDJS-Vision.sln` builds successfully after preserving dragged ROI position during caliper parameter edits and removing automatic image recentering.
 - Verified subscription regression points:
   - [x] A node with `A -> C` and `B -> C` shows both `A` and `B` as subscription candidates.
   - [x] Deleting a connection removes the disconnected node from subscription candidates.
@@ -759,34 +776,34 @@ Reference source:
 
 ### Phase 15.2: Integration Design
 
-- [ ] Decide whether to add three new detection nodes or upgrade the existing `FindLine` and `FindCircle` nodes while adding a new `FindEllipse` node.
-- [ ] Extract the reusable caliper edge-search code into a project namespace shared by line, circle, and ellipse tools.
-- [ ] Normalize common enums and result types so all three tools expose consistent output to downstream `INodeResult` consumers.
-- [ ] Keep algorithm input based on current project `OutputImage`/`Mat` conventions instead of repeatedly converting through `Bitmap` when a `Mat` is already available.
-- [ ] Define result display objects: fitted geometry, edge points, point count, success flag, message, and annotated output image.
+- [x] Decide to add three new measurement nodes instead of changing existing `FindLine` and `FindCircle` detection nodes.
+- [x] Extract the reusable caliper edge-search code into a project namespace shared by line, circle, and ellipse tools.
+- [x] Normalize common enums and result types so all three tools expose consistent output to downstream `INodeResult` consumers.
+- [x] Keep algorithm input based on current project `OutputImage`/`Mat` conventions instead of repeatedly converting through `Bitmap` when a `Mat` is already available.
+- [x] Define result display objects: fitted geometry, edge points, point count, success flag, message, and annotated output image.
 
 ### Phase 15.3: ROI And Parameter UI
 
-- [ ] Add missing circle-caliper and ellipse-caliper ROI support to the current `Forms\DispShowImage\ShowImageControl.cs`, using the reference control as the behavior guide.
-- [ ] Add all WinForms controls for new/changed parameter forms in `.Designer.cs` files so the Visual Studio designer can display them.
-- [ ] Provide line, circle, and ellipse ROI editing with caliper count, width, height, edge strength, polarity, and find mode controls.
-- [ ] Preserve save/restore compatibility for ROI and algorithm parameters.
-- [ ] Ensure parameter forms can preview sampled calipers and fitted results on the image control.
+- [x] Add missing circle-caliper and ellipse-caliper ROI support to the current `Forms\DispShowImage\ShowImageControl.cs`, using the reference control as the behavior guide.
+- [x] Add all WinForms controls for new/changed parameter forms in `.Designer.cs` files so the Visual Studio designer can display them.
+- [x] Provide line, circle, and ellipse ROI editing with caliper count, width, height, edge strength, polarity, and find mode controls.
+- [x] Preserve save/restore compatibility for algorithm parameters through the existing node parameter persistence path.
+- [x] Ensure parameter forms can preview edge points and fitted results on the preview image.
 
 ### Phase 15.4: Node Runtime
 
-- [ ] Implement or upgrade the line caliper node runtime.
-- [ ] Implement or upgrade the circle caliper node runtime.
-- [ ] Implement the ellipse caliper node runtime.
-- [ ] Register any new node types in toolbox XML, language JSON files, `NodeType`, node creation switches, and project file entries.
-- [ ] Ensure result properties are discoverable by the new multi-condition node's upstream `INodeResult` picker.
-- [ ] Add clear failure messages for missing images, insufficient edge points, and failed fitting.
+- [x] Implement or upgrade the line caliper node runtime.
+- [x] Implement or upgrade the circle caliper node runtime.
+- [x] Implement the ellipse caliper node runtime.
+- [x] Register any new node types in toolbox XML, language JSON files, `NodeType`, node creation switches, and project file entries.
+- [x] Ensure result properties are discoverable by the new multi-condition node's upstream `INodeResult` picker.
+- [x] Add clear failure messages for missing images, insufficient edge points, and failed fitting.
 
 ### Phase 15.5: Verification
 
-- [ ] Build-verify after adding the shared algorithm layer.
-- [ ] Build-verify after adding ROI/control support.
-- [ ] Build-verify after adding each node family.
+- [x] Build-verify after adding the shared algorithm layer.
+- [x] Build-verify after adding ROI/control support.
+- [x] Build-verify after adding each node family.
 - [ ] Runtime-verify line, circle, and ellipse tools on synthetic images with known geometry.
 - [ ] UI-verify ROI editing, preview rendering, save/load, and graph execution.
 

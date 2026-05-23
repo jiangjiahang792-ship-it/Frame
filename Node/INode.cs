@@ -202,6 +202,18 @@ namespace TDJS_Vision.Node
         /// </summary>
         CircleFind,
         /// <summary>
+        /// 卡尺找线
+        /// </summary>
+        CaliperLine,
+        /// <summary>
+        /// 卡尺找圆
+        /// </summary>
+        CaliperCircle,
+        /// <summary>
+        /// 卡尺找椭圆
+        /// </summary>
+        CaliperEllipse,
+        /// <summary>
         /// 模板匹配
         /// </summary>
         TemplateMatch,

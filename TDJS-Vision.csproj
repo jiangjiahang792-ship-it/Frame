@@ -330,6 +330,41 @@
       <DependentUpon>MessageBoxTD.cs</DependentUpon>
     </Compile>
     <Compile Include="JsonProjectSerializer.cs" />
+    <Compile Include="Node\4-Measurement\Common\CaliperMeasurementAlgorithm.cs" />
+    <Compile Include="Node\4-Measurement\Common\MeasurementNodeHelper.cs" />
+    <Compile Include="Node\4-Measurement\CaliperLine\NodeCaliperLine.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\CaliperLine\NodeParamCaliperLine.cs" />
+    <Compile Include="Node\4-Measurement\CaliperLine\NodeParamFormCaliperLine.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\CaliperLine\NodeParamFormCaliperLine.Designer.cs">
+      <DependentUpon>NodeParamFormCaliperLine.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\4-Measurement\CaliperLine\NodeResultCaliperLine.cs" />
+    <Compile Include="Node\4-Measurement\CaliperCircle\NodeCaliperCircle.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\CaliperCircle\NodeParamCaliperCircle.cs" />
+    <Compile Include="Node\4-Measurement\CaliperCircle\NodeParamFormCaliperCircle.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\CaliperCircle\NodeParamFormCaliperCircle.Designer.cs">
+      <DependentUpon>NodeParamFormCaliperCircle.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\4-Measurement\CaliperCircle\NodeResultCaliperCircle.cs" />
+    <Compile Include="Node\4-Measurement\CaliperEllipse\NodeCaliperEllipse.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\CaliperEllipse\NodeParamCaliperEllipse.cs" />
+    <Compile Include="Node\4-Measurement\CaliperEllipse\NodeParamFormCaliperEllipse.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\CaliperEllipse\NodeParamFormCaliperEllipse.Designer.cs">
+      <DependentUpon>NodeParamFormCaliperEllipse.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\4-Measurement\CaliperEllipse\NodeResultCaliperEllipse.cs" />
     <Compile Include="Node\3-Detection\BatteryEar\FormNewTemplate.cs">
       <SubType>Form</SubType>
     </Compile>

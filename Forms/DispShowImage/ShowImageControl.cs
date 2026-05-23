@@ -193,7 +193,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                         }
                     }
                 }
-                if (value != null) SafeInvoke(() => ShowFit());
+                SafeInvalidate();
             }
         }
 
@@ -262,6 +262,20 @@ namespace TDJS_Vision.Forms.DispShowImage
         /// <summary>兼容旧版名称</summary>
         public void ClearRois() { lock (_roiLock) _dynamicRois.Clear(); SafeInvalidate(); }
 
+        public void ClearDynamicRoi() { lock (_roiLock) _dynamicRois.Clear(); SafeInvalidate(); }
+
+        public void ClearStaticRoi() { lock (_roiLock) _staticRois.Clear(); SafeInvalidate(); }
+
+        public int DynamicRoiCount { get { lock (_roiLock) return _dynamicRois.Count; } }
+
+        public IRoiShape GetDynamicRoi(int index)
+        {
+            lock (_roiLock)
+            {
+                return index >= 0 && index < _dynamicRois.Count ? _dynamicRois[index] : null;
+            }
+        }
+
         /// <summary>安全设置图像（线程安全）</summary>
         public void SetImage(Bitmap bmp) => SafeInvoke(() => { ImageBitmap = bmp; });
 
@@ -309,9 +323,11 @@ namespace TDJS_Vision.Forms.DispShowImage
 
         public List<RoiRotatedRect> GetAllDynamicRects() { lock (_roiLock) return _dynamicRois.OfType<RoiRotatedRect>().ToList(); }
         public List<RoiCaliper> GetAllDynamicCalipers() { lock (_roiLock) return _dynamicRois.OfType<RoiCaliper>().ToList(); }
+        public List<RoiCircleCaliper> GetAllDynamicCircleCalipers() { lock (_roiLock) return _dynamicRois.OfType<RoiCircleCaliper>().ToList(); }
         public List<RoiCircle> GetAllDynamicCircles() { lock (_roiLock) return _dynamicRois.OfType<RoiCircle>().ToList(); }
         public List<RoiPolygon> GetAllDynamicPolygons() { lock (_roiLock) return _dynamicRois.OfType<RoiPolygon>().ToList(); }
         public List<RoiLine> GetAllDynamicLines() { lock (_roiLock) return _dynamicRois.OfType<RoiLine>().ToList(); }
+        public List<RoiEllipseCaliper> GetAllDynamicEllipseCalipers() { lock (_roiLock) return _dynamicRois.OfType<RoiEllipseCaliper>().ToList(); }
 
         public string GetSelectedRoiInfo()
         {
@@ -321,6 +337,8 @@ namespace TDJS_Vision.Forms.DispShowImage
                 if (r == null) return "未选中";
                 string info = $"Center:({r.GetCenter().X:F1},{r.GetCenter().Y:F1}) Type:{r.GetType().Name}";
                 if (r is RoiCaliper cp) info += $" W:{cp.CaliperWidth:F1} H:{cp.CaliperHeight:F1} N:{cp.Count}";
+                if (r is RoiCircleCaliper cc) info += $" R:{cc.Radius:F1} Angle:({cc.StartAngle:F0}~{cc.EndAngle:F0}) N:{cc.Count}";
+                if (r is RoiEllipseCaliper ec) info += $" W:{ec.W:F1} H:{ec.H:F1} Phi:{ec.Phi:F1} N:{ec.Count}";
                 return info;
             }
         }
@@ -330,7 +348,12 @@ namespace TDJS_Vision.Forms.DispShowImage
         public void AddStaticRect(float cx, float cy, float w, float h, float phi = 0, Color? c = null, string l = "") { lock (_roiLock) _staticRois.Add(new RoiRotatedRect(cx, cy, w, h, phi) { ShapeColor = c ?? Color.Red, Label = l, IsStatic = true }); SafeInvalidate(); }
         public void AddDynamicCaliper(float sx, float sy, float ex, float ey, float cw, float ch, int count, Color? c = null, string l = "") { lock (_roiLock) _dynamicRois.Add(new RoiCaliper(sx, sy, ex, ey, cw, ch, count) { ShapeColor = c ?? Color.Lime, Label = l }); SafeInvalidate(); }
         public void AddStaticCaliper(float sx, float sy, float ex, float ey, float cw, float ch, int count, Color? c = null, string l = "") { lock (_roiLock) _staticRois.Add(new RoiCaliper(sx, sy, ex, ey, cw, ch, count) { ShapeColor = c ?? Color.Red, Label = l, IsStatic = true }); SafeInvalidate(); }
+        public void AddDynamicCircleCaliper(float cx, float cy, float r, float sa, float ea, float cw, float ch, int count, Color? c = null, string l = "") { lock (_roiLock) _dynamicRois.Add(new RoiCircleCaliper(cx, cy, r, sa, ea, cw, ch, count) { ShapeColor = c ?? Color.DodgerBlue, Label = l }); SafeInvalidate(); }
+        public void AddStaticCircleCaliper(float cx, float cy, float r, float sa, float ea, float cw, float ch, int count, Color? c = null, string l = "") { lock (_roiLock) _staticRois.Add(new RoiCircleCaliper(cx, cy, r, sa, ea, cw, ch, count) { ShapeColor = c ?? Color.Orange, Label = l, IsStatic = true }); SafeInvalidate(); }
         public void AddDynamicCircle(float cx, float cy, float r, Color? c = null, string l = "") { lock (_roiLock) _dynamicRois.Add(new RoiCircle(cx, cy, r) { ShapeColor = c ?? Color.Lime, Label = l }); SafeInvalidate(); }
+        public void AddDynamicEllipseCaliper(float cx, float cy, float w, float h, float phi, float cw, float ch, int count, Color? c = null, string l = "") { lock (_roiLock) _dynamicRois.Add(new RoiEllipseCaliper(cx, cy, w, h, phi, cw, ch, count) { ShapeColor = c ?? Color.DodgerBlue, Label = l }); SafeInvalidate(); }
+        public void AddStaticEllipseCaliper(float cx, float cy, float w, float h, float phi, float cw, float ch, int count, Color? c = null, string l = "") { lock (_roiLock) _staticRois.Add(new RoiEllipseCaliper(cx, cy, w, h, phi, cw, ch, count) { ShapeColor = c ?? Color.Red, Label = l, IsStatic = true }); SafeInvalidate(); }
+        public void AddStaticEllipse(float cx, float cy, float w, float h, float phi = 0, Color? c = null, string l = "") { lock (_roiLock) _staticRois.Add(new RoiEllipse(cx, cy, w, h, phi) { ShapeColor = c ?? Color.Cyan, Label = l, IsStatic = true }); SafeInvalidate(); }
         public void AddDynamicPolygon(List<PointF> pts, Color? c = null, string l = "") { lock (_roiLock) _dynamicRois.Add(new RoiPolygon(pts) { ShapeColor = c ?? Color.Lime, Label = l }); SafeInvalidate(); }
         public void AddStaticPolygon(List<PointF> pts, Color? c = null, string l = "") { lock (_roiLock) _staticRois.Add(new RoiPolygon(pts) { ShapeColor = c ?? Color.Red, Label = l, IsStatic = true }); SafeInvalidate(); }
         public void AddContour(List<PointF> pts, Color? c = null) { lock (_roiLock) _staticRois.Add(new RoiContour(pts, c ?? Color.Magenta)); SafeInvalidate(); }
@@ -844,6 +867,441 @@ namespace TDJS_Vision.Forms.DispShowImage
             public void BeginDrag(PointF p) { _sPt = p; _oSX = SX; _oSY = SY; _oEX = EX; _oEY = EY; _oCH = CaliperHeight; _oCW = CaliperWidth; }
             public void DragTo(PointF p, int h) { float dx = p.X - _sPt.X, dy = p.Y - _sPt.Y; if (h == 0) { SX = _oSX + dx; SY = _oSY + dy; EX = _oEX + dx; EY = _oEY + dy; } else if (h == 1) { SX = _oSX + dx; SY = _oSY + dy; } else if (h == 2) { EX = _oEX + dx; EY = _oEY + dy; } else if (h == 3) { PointF center = GetCenter(); dx = EX - SX; dy = EY - SY; float segLen = (float)Math.Sqrt(dx * dx + dy * dy); float phi = (float)(Math.Atan2(dy, dx) * 180.0 / Math.PI); PointF lp = RotatePoint(p, center, (float)(-phi * Math.PI / 180.0)); CaliperHeight = Math.Max(5, Math.Abs(lp.Y - center.Y) * 2); CaliperWidth = Math.Min(segLen, Math.Max(3, Math.Abs(lp.X - center.X) * 2)); } }
             private static PointF RotatePoint(PointF p, PointF c, float r) { float s = (float)Math.Sin(r), co = (float)Math.Cos(r); return new PointF(co * (p.X - c.X) - s * (p.Y - c.Y) + c.X, s * (p.X - c.X) + co * (p.Y - c.Y) + c.Y); }
+        }
+
+        public class RoiCircleCaliper : IRoiShape
+        {
+            public float CX, CY, Radius, CaliperHeight, CaliperWidth;
+            public float StartAngle, EndAngle;
+            public int Count;
+            public int Direction { get; set; } = 0;
+            public bool IsSelected { get; set; }
+            public bool IsStatic { get; set; }
+            public string Label { get; set; }
+            public Color ShapeColor { get; set; }
+
+            private float _oCX, _oCY, _oR, _oCH, _oCW, _oSA, _oEA;
+            private PointF _sPt;
+
+            public RoiCircleCaliper(float cx, float cy, float r, float sa, float ea, float cw, float ch, int count = 20)
+            {
+                CX = cx;
+                CY = cy;
+                Radius = r;
+                StartAngle = sa;
+                EndAngle = ea;
+                CaliperWidth = cw;
+                CaliperHeight = ch;
+                Count = Math.Max(1, count);
+                ShapeColor = Color.DodgerBlue;
+            }
+
+            public PointF GetCenter() => new PointF(CX, CY);
+
+            public void Draw(Graphics g, float s, PointF o)
+            {
+                var st = g.Save();
+                PointF sc = new PointF(CX * s + o.X, CY * s + o.Y);
+                g.TranslateTransform(sc.X, sc.Y);
+
+                float sr = Radius * s;
+                float sw = CaliperWidth * s;
+                float sh = CaliperHeight * s;
+                float reqSpan = EndAngle - StartAngle;
+                bool isFullCircle = Math.Abs(Math.Abs(reqSpan) - 360) < 0.1f;
+                Color mainCol = (IsSelected && !IsStatic) ? Color.DodgerBlue : ShapeColor;
+
+                using (Pen p = new Pen(mainCol, 2f))
+                {
+                    if (isFullCircle)
+                        g.DrawEllipse(p, -sr, -sr, sr * 2, sr * 2);
+                    else
+                        g.DrawArc(p, -sr, -sr, sr * 2, sr * 2, StartAngle, reqSpan);
+
+                    for (int i = 0; i < Count; i++)
+                    {
+                        float ratio = Count == 1 ? 0.5f : (float)i / (Count - 1);
+                        if (isFullCircle && Count > 1)
+                            ratio = (float)i / Count;
+
+                        float angleDeg = StartAngle + reqSpan * ratio;
+                        var innerSt = g.Save();
+                        g.RotateTransform(angleDeg);
+                        g.DrawRectangle(p, sr - sh / 2, -sw / 2, sh, sw);
+                        g.Restore(innerSt);
+                    }
+
+                    float midAngle = StartAngle + reqSpan / 2f;
+                    var arrSt = g.Save();
+                    g.RotateTransform(midAngle);
+                    using (Pen ap = new Pen(mainCol, 2f))
+                    {
+                        ap.DashStyle = DashStyle.Dash;
+                        g.DrawLine(ap, sr - sh / 2, 0, sr + sh / 2, 0);
+                        ap.DashStyle = DashStyle.Solid;
+                        float arrowSize = Math.Min(12, sh / 4 + 4);
+                        PointF[] arrowHead = Direction == 0
+                            ? new[] { new PointF(sr + sh / 2 - arrowSize, -arrowSize * 0.8f), new PointF(sr + sh / 2 - arrowSize, arrowSize * 0.8f), new PointF(sr + sh / 2, 0) }
+                            : new[] { new PointF(sr - sh / 2 + arrowSize, -arrowSize * 0.8f), new PointF(sr - sh / 2 + arrowSize, arrowSize * 0.8f), new PointF(sr - sh / 2, 0) };
+                        using (Brush b = new SolidBrush(mainCol))
+                            g.FillPolygon(b, arrowHead);
+                    }
+                    g.Restore(arrSt);
+                }
+
+                if (!IsStatic && IsSelected)
+                {
+                    using (Brush wb = new SolidBrush(Color.White))
+                    using (Pen bp = new Pen(mainCol, 2f))
+                    {
+                        g.FillEllipse(wb, -7, -7, 14, 14);
+                        g.DrawEllipse(bp, -7, -7, 14, 14);
+
+                        if (!isFullCircle)
+                        {
+                            float sx = sr * (float)Math.Cos(StartAngle * Math.PI / 180);
+                            float sy = sr * (float)Math.Sin(StartAngle * Math.PI / 180);
+                            float ex = sr * (float)Math.Cos(EndAngle * Math.PI / 180);
+                            float ey = sr * (float)Math.Sin(EndAngle * Math.PI / 180);
+                            g.FillEllipse(wb, sx - 6, sy - 6, 12, 12);
+                            g.DrawEllipse(bp, sx - 6, sy - 6, 12, 12);
+                            g.FillEllipse(wb, ex - 6, ey - 6, 12, 12);
+                            g.DrawEllipse(bp, ex - 6, ey - 6, 12, 12);
+                        }
+                    }
+
+                    using (Brush orb = new SolidBrush(Color.Orange))
+                    {
+                        float rHAngle = isFullCircle ? 0 : StartAngle + reqSpan / 2f;
+                        float rx = sr * (float)Math.Cos(rHAngle * Math.PI / 180);
+                        float ry = sr * (float)Math.Sin(rHAngle * Math.PI / 180);
+                        g.FillRectangle(orb, rx - 6, ry - 6, 12, 12);
+
+                        float whHAngle = isFullCircle ? -90 : StartAngle + reqSpan / 2f;
+                        float whx = (sr + sh / 2) * (float)Math.Cos(whHAngle * Math.PI / 180);
+                        float why = (sr + sh / 2) * (float)Math.Sin(whHAngle * Math.PI / 180);
+                        g.FillRectangle(orb, whx - 6, why - 6, 12, 12);
+                    }
+                }
+
+                g.Restore(st);
+                if (IsSelected) DrawLabel(g, Label, sc);
+            }
+
+            public int HitTest(Point p, float s, PointF o)
+            {
+                if (IsStatic) return -1;
+                PointF sc = new PointF(CX * s + o.X, CY * s + o.Y);
+                float tx = p.X - sc.X;
+                float ty = p.Y - sc.Y;
+                float dist = (float)Math.Sqrt(tx * tx + ty * ty);
+                float sr = Radius * s;
+                float sh = CaliperHeight * s;
+                float reqSpan = EndAngle - StartAngle;
+                bool isFullCircle = Math.Abs(Math.Abs(reqSpan) - 360) < 0.1f;
+
+                float whHAngle = isFullCircle ? -90 : StartAngle + reqSpan / 2f;
+                float whx = (sr + sh / 2) * (float)Math.Cos(whHAngle * Math.PI / 180);
+                float why = (sr + sh / 2) * (float)Math.Sin(whHAngle * Math.PI / 180);
+                if (Math.Sqrt((tx - whx) * (tx - whx) + (ty - why) * (ty - why)) < 12) return 4;
+
+                float rHAngle = isFullCircle ? 0 : StartAngle + reqSpan / 2f;
+                float rx = sr * (float)Math.Cos(rHAngle * Math.PI / 180);
+                float ry = sr * (float)Math.Sin(rHAngle * Math.PI / 180);
+                if (Math.Sqrt((tx - rx) * (tx - rx) + (ty - ry) * (ty - ry)) < 12) return 3;
+
+                if (dist < 14) return 0;
+
+                if (!isFullCircle)
+                {
+                    float sx = sr * (float)Math.Cos(StartAngle * Math.PI / 180);
+                    float sy = sr * (float)Math.Sin(StartAngle * Math.PI / 180);
+                    if (Math.Sqrt((tx - sx) * (tx - sx) + (ty - sy) * (ty - sy)) < 12) return 1;
+
+                    float ex = sr * (float)Math.Cos(EndAngle * Math.PI / 180);
+                    float ey = sr * (float)Math.Sin(EndAngle * Math.PI / 180);
+                    if (Math.Sqrt((tx - ex) * (tx - ex) + (ty - ey) * (ty - ey)) < 12) return 2;
+                }
+
+                if (dist >= sr - sh / 2 - 5 && dist <= sr + sh / 2 + 5)
+                {
+                    if (isFullCircle) return 0;
+
+                    float a = (float)(Math.Atan2(ty, tx) * 180 / Math.PI);
+                    a = a >= 0 ? a : a + 360;
+                    float sa = StartAngle % 360; if (sa < 0) sa += 360;
+                    float ea = EndAngle % 360; if (ea < 0) ea += 360;
+                    bool inArc = sa <= ea ? (a >= sa && a <= ea) : (a >= sa || a <= ea);
+                    if (inArc) return 0;
+                }
+
+                return -1;
+            }
+
+            public void BeginDrag(PointF p)
+            {
+                _sPt = p;
+                _oCX = CX;
+                _oCY = CY;
+                _oR = Radius;
+                _oSA = StartAngle;
+                _oEA = EndAngle;
+                _oCH = CaliperHeight;
+                _oCW = CaliperWidth;
+            }
+
+            public void DragTo(PointF p, int h)
+            {
+                if (h == 0)
+                {
+                    CX = _oCX + p.X - _sPt.X;
+                    CY = _oCY + p.Y - _sPt.Y;
+                }
+                else if (h == 1)
+                {
+                    StartAngle = (float)(Math.Atan2(p.Y - CY, p.X - CX) * 180 / Math.PI);
+                }
+                else if (h == 2)
+                {
+                    EndAngle = (float)(Math.Atan2(p.Y - CY, p.X - CX) * 180 / Math.PI);
+                }
+                else if (h == 3)
+                {
+                    Radius = Math.Max(5, (float)Math.Sqrt(Math.Pow(p.X - CX, 2) + Math.Pow(p.Y - CY, 2)));
+                }
+                else if (h == 4)
+                {
+                    float dist = (float)Math.Sqrt(Math.Pow(p.X - CX, 2) + Math.Pow(p.Y - CY, 2));
+                    CaliperHeight = Math.Max(5, Math.Abs(dist - Radius) * 2);
+
+                    float reqSpan = _oEA - _oSA;
+                    bool isFullCircle = Math.Abs(Math.Abs(reqSpan) - 360) < 0.1f;
+                    float whHAngle = isFullCircle ? -90 : _oSA + reqSpan / 2f;
+                    PointF lp = RotatePoint(p, new PointF(CX, CY), (float)(-whHAngle * Math.PI / 180.0));
+                    CaliperWidth = Math.Max(3, Math.Abs(lp.Y - CY) * 2);
+                }
+            }
+
+            private static PointF RotatePoint(PointF p, PointF c, float r) { float s = (float)Math.Sin(r), co = (float)Math.Cos(r); return new PointF(co * (p.X - c.X) - s * (p.Y - c.Y) + c.X, s * (p.X - c.X) + co * (p.Y - c.Y) + c.Y); }
+        }
+
+        public class RoiEllipseCaliper : IRoiShape
+        {
+            public float CX, CY, W, H, Phi;
+            public float CaliperWidth, CaliperHeight;
+            public int Count;
+            public int Direction { get; set; } = 0;
+            public bool IsSelected { get; set; }
+            public bool IsStatic { get; set; }
+            public string Label { get; set; }
+            public Color ShapeColor { get; set; }
+
+            private float _oCX, _oCY, _oW, _oH, _oPhi, _oCH, _oCW;
+            private PointF _sPt;
+            private float _startAngleOffset;
+
+            public RoiEllipseCaliper(float cx, float cy, float w, float h, float phi, float cw, float ch, int count = 30)
+            {
+                CX = cx;
+                CY = cy;
+                W = w;
+                H = h;
+                Phi = phi;
+                CaliperWidth = cw;
+                CaliperHeight = ch;
+                Count = Math.Max(1, count);
+                ShapeColor = Color.DodgerBlue;
+            }
+
+            public PointF GetCenter() => new PointF(CX, CY);
+
+            public void Draw(Graphics g, float s, PointF o)
+            {
+                var st = g.Save();
+                PointF sc = new PointF(CX * s + o.X, CY * s + o.Y);
+                g.TranslateTransform(sc.X, sc.Y);
+                g.RotateTransform(Phi);
+
+                float sw = W * s;
+                float sh = H * s;
+                float scw = CaliperWidth * s;
+                float sch = CaliperHeight * s;
+                float a = sw / 2f;
+                float b = sh / 2f;
+                Color mainCol = (IsSelected && !IsStatic) ? Color.DodgerBlue : ShapeColor;
+
+                using (Pen p = new Pen(mainCol, 2f))
+                {
+                    g.DrawEllipse(p, -a, -b, sw, sh);
+                    using (Pen d = new Pen(Color.Lime, 1f) { DashStyle = DashStyle.Dash })
+                        g.DrawRectangle(d, -a, -b, sw, sh);
+
+                    for (int i = 0; i < Count; i++)
+                    {
+                        float t = (float)(2.0 * Math.PI * i / Count);
+                        float cost = (float)Math.Cos(t);
+                        float sint = (float)Math.Sin(t);
+                        float lx = a * cost;
+                        float ly = b * sint;
+                        float nx = cost / Math.Max(1f, a);
+                        float ny = sint / Math.Max(1f, b);
+                        float len = (float)Math.Sqrt(nx * nx + ny * ny);
+                        nx /= len;
+                        ny /= len;
+
+                        var innerSt = g.Save();
+                        g.TranslateTransform(lx, ly);
+                        g.RotateTransform((float)(Math.Atan2(ny, nx) * 180.0 / Math.PI));
+                        g.DrawRectangle(p, -sch / 2, -scw / 2, sch, scw);
+                        g.Restore(innerSt);
+                    }
+
+                    var arrSt = g.Save();
+                    g.TranslateTransform(a, 0);
+                    using (Pen ap = new Pen(mainCol, 2f))
+                    {
+                        ap.DashStyle = DashStyle.Dash;
+                        g.DrawLine(ap, -sch / 2, 0, sch / 2, 0);
+                        ap.DashStyle = DashStyle.Solid;
+                        float arrowSize = Math.Min(12, sch / 4 + 4);
+                        PointF[] arrowHead = Direction == 0
+                            ? new[] { new PointF(sch / 2 - arrowSize, -arrowSize * 0.8f), new PointF(sch / 2 - arrowSize, arrowSize * 0.8f), new PointF(sch / 2, 0) }
+                            : new[] { new PointF(-sch / 2 + arrowSize, -arrowSize * 0.8f), new PointF(-sch / 2 + arrowSize, arrowSize * 0.8f), new PointF(-sch / 2, 0) };
+                        using (Brush brush = new SolidBrush(mainCol))
+                            g.FillPolygon(brush, arrowHead);
+                    }
+                    g.Restore(arrSt);
+                }
+
+                if (!IsStatic && IsSelected)
+                {
+                    using (Brush orb = new SolidBrush(Color.Orange))
+                    {
+                        g.FillRectangle(orb, -a - 4, -b - 4, 8, 8);
+                        g.FillRectangle(orb, a - 4, -b - 4, 8, 8);
+                        g.FillRectangle(orb, a - 4, b - 4, 8, 8);
+                        g.FillRectangle(orb, -a - 4, b - 4, 8, 8);
+                        using (Pen pen = new Pen(Color.Orange, 2f))
+                            g.DrawArc(pen, a + 5, -b - 15, 15, 15, -90, 180);
+                        g.FillRectangle(orb, a + sch / 2 - 6, -6, 12, 12);
+                    }
+                }
+
+                g.Restore(st);
+                DrawCross(g, sc);
+                DrawLabel(g, Label, sc);
+            }
+
+            public int HitTest(Point p, float s, PointF o)
+            {
+                if (IsStatic) return -1;
+                PointF lp = RotatePoint(p, new PointF(CX * s + o.X, CY * s + o.Y), (float)(-Phi * Math.PI / 180.0));
+                float sw = W * s;
+                float sh = H * s;
+                float tx = lp.X - (CX * s + o.X);
+                float ty = lp.Y - (CY * s + o.Y);
+                float sch = CaliperHeight * s;
+
+                if (Math.Abs(tx - (sw / 2 + sch / 2)) < 12 && Math.Abs(ty) < 12) return 6;
+                if (Math.Abs(tx - sw / 2 - 10) < 15 && Math.Abs(ty + sh / 2 + 10) < 15) return 5;
+                if (Math.Abs(tx + sw / 2) < 8 && Math.Abs(ty + sh / 2) < 8) return 1;
+                if (Math.Abs(tx - sw / 2) < 8 && Math.Abs(ty + sh / 2) < 8) return 2;
+                if (Math.Abs(tx - sw / 2) < 8 && Math.Abs(ty - sh / 2) < 8) return 3;
+                if (Math.Abs(tx + sw / 2) < 8 && Math.Abs(ty - sh / 2) < 8) return 4;
+                return Math.Abs(tx) <= sw / 2 + sch / 2 && Math.Abs(ty) <= sh / 2 + sch / 2 ? 0 : -1;
+            }
+
+            public void BeginDrag(PointF p)
+            {
+                _sPt = p;
+                _oCX = CX;
+                _oCY = CY;
+                _oW = W;
+                _oH = H;
+                _oPhi = Phi;
+                _oCH = CaliperHeight;
+                _oCW = CaliperWidth;
+                _startAngleOffset = Phi - (float)(Math.Atan2(p.Y - CY, p.X - CX) * 180.0 / Math.PI);
+            }
+
+            public void DragTo(PointF p, int h)
+            {
+                if (h == 0)
+                {
+                    CX = _oCX + (p.X - _sPt.X);
+                    CY = _oCY + (p.Y - _sPt.Y);
+                }
+                else if (h == 5)
+                {
+                    double currentRad = Math.Atan2(p.Y - CY, p.X - CX);
+                    Phi = _startAngleOffset + (float)(currentRad * 180.0 / Math.PI);
+                }
+                else if (h == 6)
+                {
+                    var lp = RotatePoint(p, new PointF(CX, CY), (float)(-Phi * Math.PI / 180.0));
+                    CaliperHeight = Math.Max(5, Math.Abs(lp.X - CX - W / 2) * 2);
+                    CaliperWidth = Math.Max(3, Math.Abs(lp.Y - CY) * 2);
+                }
+                else
+                {
+                    var lp = RotatePoint(p, new PointF(CX, CY), (float)(-Phi * Math.PI / 180.0));
+                    var slp = RotatePoint(_sPt, new PointF(CX, CY), (float)(-Phi * Math.PI / 180.0));
+                    float dx = (lp.X - slp.X) * 2;
+                    float dy = (lp.Y - slp.Y) * 2;
+                    if (h == 3) { W = Math.Max(10, _oW + dx); H = Math.Max(10, _oH + dy); }
+                    else if (h == 1) { W = Math.Max(10, _oW - dx); H = Math.Max(10, _oH - dy); }
+                    else if (h == 2) { W = Math.Max(10, _oW + dx); H = Math.Max(10, _oH - dy); }
+                    else if (h == 4) { W = Math.Max(10, _oW - dx); H = Math.Max(10, _oH + dy); }
+                }
+            }
+
+            private static PointF RotatePoint(PointF p, PointF c, float r) { float s = (float)Math.Sin(r), co = (float)Math.Cos(r); return new PointF(co * (p.X - c.X) - s * (p.Y - c.Y) + c.X, s * (p.X - c.X) + co * (p.Y - c.Y) + c.Y); }
+        }
+
+        public class RoiEllipse : IRoiShape
+        {
+            public float CX, CY, W, H, Phi;
+            public bool IsSelected { get; set; }
+            public bool IsStatic { get; set; }
+            public string Label { get; set; }
+            public Color ShapeColor { get; set; }
+
+            public RoiEllipse(float cx, float cy, float w, float h, float phi)
+            {
+                CX = cx;
+                CY = cy;
+                W = w;
+                H = h;
+                Phi = phi;
+                ShapeColor = Color.Lime;
+            }
+
+            public PointF GetCenter() => new PointF(CX, CY);
+
+            public void Draw(Graphics g, float s, PointF o)
+            {
+                var st = g.Save();
+                PointF sc = new PointF(CX * s + o.X, CY * s + o.Y);
+                g.TranslateTransform(sc.X, sc.Y);
+                g.RotateTransform(Phi);
+                float sw = W * s;
+                float sh = H * s;
+                Color drawCol = (IsSelected && !IsStatic) ? Color.Cyan : ShapeColor;
+                using (Pen p = new Pen(drawCol, 2f))
+                {
+                    g.DrawEllipse(p, -sw / 2, -sh / 2, sw, sh);
+                    if (!IsStatic)
+                        using (Pen d = new Pen(Color.Black, 1.5f) { DashStyle = DashStyle.Dash })
+                            g.DrawEllipse(d, -sw / 2 + 2, -sh / 2 + 2, sw - 4, sh - 4);
+                }
+                g.Restore(st);
+                DrawCross(g, sc);
+                DrawLabel(g, Label, sc);
+            }
+
+            public int HitTest(Point p, float s, PointF o) => -1;
+            public void BeginDrag(PointF p) { }
+            public void DragTo(PointF p, int h) { }
         }
 
         public class RoiTextBlock : IRoiShape

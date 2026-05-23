@@ -1,0 +1,53 @@
+using OpenCvSharp;
+using OpenCvSharp.Extensions;
+using System;
+using System.Drawing;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
+
+namespace TDJS_Vision.Node._4_Measurement.Common
+{
+    internal static class MeasurementNodeHelper
+    {
+        public static Mat GetFirstMat(OutputImage outputImage)
+        {
+            if (outputImage == null)
+                throw new Exception("订阅图像为空！");
+
+            if (outputImage.Bitmaps != null && outputImage.Bitmaps.Count > 0 && outputImage.Bitmaps[0] != null && !outputImage.Bitmaps[0].Empty())
+                return outputImage.Bitmaps[0].Clone();
+
+            if (outputImage.SrcImg != null && !outputImage.SrcImg.Empty())
+                return outputImage.SrcImg.Clone();
+
+            throw new Exception("订阅节点没有输出有效图像！");
+        }
+
+        public static Bitmap ToPreviewBitmap(Mat image)
+        {
+            if (image == null || image.Empty())
+                return null;
+            return BitmapConverter.ToBitmap(image);
+        }
+
+        public static Mat EnsureBgr(Mat image)
+        {
+            if (image == null || image.Empty())
+                throw new Exception("绘制图像为空！");
+
+            Mat bgr = new Mat();
+            if (image.Channels() == 1)
+                Cv2.CvtColor(image, bgr, ColorConversionCodes.GRAY2BGR);
+            else if (image.Channels() == 4)
+                Cv2.CvtColor(image, bgr, ColorConversionCodes.BGRA2BGR);
+            else
+                image.CopyTo(bgr);
+            return bgr;
+        }
+
+        public static void DrawEdgePoints(Mat image, System.Collections.Generic.IEnumerable<PointF> points, Scalar color)
+        {
+            foreach (PointF point in points)
+                Cv2.Circle(image, new OpenCvSharp.Point((int)Math.Round(point.X), (int)Math.Round(point.Y)), 2, color, -1);
+        }
+    }
+}
