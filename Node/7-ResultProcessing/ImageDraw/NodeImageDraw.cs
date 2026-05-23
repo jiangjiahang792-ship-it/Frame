@@ -60,10 +60,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                     Mat image = form.GetImage();
                     var aiResult = form.GetAIResults();
                     var colorResult = form.GetColorResults();
-                    var image2 = ImageDrawer.DrawDetectionRectangles(image.ToBitmap(), aiResult, param, colorResult);
 
-                    // 输出绘制后的图像
-                    ((NodeResultImageDraw)Result).OutputImage.Bitmaps = new List<Mat>() { image2.ToMat() };
+                    using (Bitmap imageBitmap = BitmapConverter.ToBitmap(image))
+                    {
+                        ImageDrawer.DrawDetectionRectangles(imageBitmap, aiResult, param, colorResult);
+
+                        // 输出绘制后的图像
+                        ((NodeResultImageDraw)Result).OutputImage.Bitmaps = new List<Mat>() { BitmapConverter.ToMat(imageBitmap) };
+                    }
 
                     var time = SetRunResult(startTime, NodeStatus.Successful);
                     Result.RunTime = time;
@@ -137,13 +141,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
         /// <param name="sourceBitmap"></param>
         /// <param name="detectResults"></param>
         /// <returns></returns>
-        public static Bitmap DrawDetectionRectangles(Bitmap sourceBitmap, AlgorithmResult detectResults, NodeParamImageDraw parm, AlgorithmResult colorResults=null)
+        public static void DrawDetectionRectangles(Bitmap sourceBitmap, AlgorithmResult detectResults, NodeParamImageDraw parm, AlgorithmResult colorResults=null)
         {
             AlgorithmResult result = new AlgorithmResult();
 
-            var cllonedBitmap = (Bitmap)sourceBitmap.Clone();
             // 创建一个 Graphics 对象用于绘制
-            using (Graphics g = Graphics.FromImage(cllonedBitmap))
+            using (Graphics g = Graphics.FromImage(sourceBitmap))
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 if (colorResults != null && colorResults is AlgorithmResult)
@@ -160,13 +163,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                         DrawOnLeftUp(g, result, parm);
                         break;
                     case TextLoc.RightDown:
-                        DrawBottomRightBox(g, result, parm, cllonedBitmap.Size);
+                        DrawBottomRightBox(g, result, parm, sourceBitmap.Size);
                         break;
                     default:
                         break;
                 }
             }
-            return cllonedBitmap;
         }
         public static RectangleF RotatedRectToRectangleF(RotatedRect rotatedRect)
         {
@@ -243,18 +245,20 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
             }
 
             // 4. 再绘制文本信息（来自 Texts 成员）
-            foreach (var textInfo in aiResult.Texts)
+            using (Font font = new Font("Microsoft YaHei", parm.FontSize))
             {
-                using (Font font = new Font("Microsoft YaHei", parm.FontSize))
-                using (Brush brush = new SolidBrush(textInfo.Color))
+                foreach (var textInfo in aiResult.Texts)
                 {
-                    string text = textInfo.Text;
-                    SizeF textSize = g.MeasureString(text, font);
-                    PointF textPosition = new PointF(30, initialY);
+                    using (Brush brush = new SolidBrush(textInfo.Color))
+                    {
+                        string text = textInfo.Text;
+                        SizeF textSize = g.MeasureString(text, font);
+                        PointF textPosition = new PointF(30, initialY);
 
-                    g.DrawString(text, font, brush, textPosition);
+                        g.DrawString(text, font, brush, textPosition);
 
-                    initialY += textSize.Height + lineSpacing;
+                        initialY += textSize.Height + lineSpacing;
+                    }
                 }
             }
 
@@ -313,25 +317,27 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
             }
 
             // 然后绘制文本
-            aiResult.Texts.Reverse();// 从底部开始逐行向上绘制文本
-            foreach (var textInfo in aiResult.Texts) 
+            using (Font font = new Font("Microsoft YaHei", parm.FontSize))
             {
-                using (Font font = new Font("Microsoft YaHei", parm.FontSize))
-                using (Brush brush = new SolidBrush(textInfo.Color))
+                for (int index = aiResult.Texts.Count - 1; index >= 0; index--)
                 {
-                    SizeF textSize = g.MeasureString(textInfo.Text, font);
+                    var textInfo = aiResult.Texts[index];
+                    using (Brush brush = new SolidBrush(textInfo.Color))
+                    {
+                        SizeF textSize = g.MeasureString(textInfo.Text, font);
 
-                    // 检查是否会在画布顶部越界
-                    if (initialY - textSize.Height < 0)
-                        break; // 如果下一行文本将超出上边界，则停止绘制
+                        // 检查是否会在画布顶部越界
+                        if (initialY - textSize.Height < 0)
+                            break; // 如果下一行文本将超出上边界，则停止绘制
 
-                    // 设置文本位置在右下角区域
-                    PointF textPosition = new PointF(imageSize.Width - textSize.Width - 30, initialY - textSize.Height);
+                        // 设置文本位置在右下角区域
+                        PointF textPosition = new PointF(imageSize.Width - textSize.Width - 30, initialY - textSize.Height);
 
-                    g.DrawString(textInfo.Text, font, brush, textPosition);
+                        g.DrawString(textInfo.Text, font, brush, textPosition);
 
-                    // 更新 Y 坐标，向上移动一行
-                    initialY -= textSize.Height + lineSpacing;
+                        // 更新 Y 坐标，向上移动一行
+                        initialY -= textSize.Height + lineSpacing;
+                    }
                 }
             }
         }

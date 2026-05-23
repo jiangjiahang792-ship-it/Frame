@@ -389,7 +389,7 @@ namespace TDJS_Vision
                     try
                     {
                         FormGlobalSignal.StartListenSignals();
-                        await Solution.Instance.Run(true,false);
+                        await Solution.Instance.Run(true);
                     }
                     finally
                     {

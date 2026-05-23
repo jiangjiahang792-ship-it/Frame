@@ -202,7 +202,6 @@
             // 
             // showImageControl1
             // 
-            this.showImageControl1.AllowUpscale = false;
             this.showImageControl1.BackgroundColorCustom = System.Drawing.Color.Black;
             this.showImageControl1.BackgroundImageCustom = null;
             this.showImageControl1.BackgroundLayoutMode = TDJS_Vision.Forms.DispShowImage.ShowImageControl.BackgroundImageLayoutMode.Fill;

@@ -28,15 +28,8 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.SuspendLayout();
-            // 
-            // ShowImageControl
-            // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
+            components = new System.ComponentModel.Container();
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.Name = "ShowImageControl";
-            this.ResumeLayout(false);
-
         }
 
         #endregion

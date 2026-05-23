@@ -11,6 +11,18 @@ namespace TDJS_Vision
     /// </summary>
     public partial class FormBase : Form
     {
+        private const int ResizeBorderWidth = 8;
+        private const int WmNcHitTest = 0x0084;
+        private const int HtClient = 1;
+        private const int HtLeft = 10;
+        private const int HtRight = 11;
+        private const int HtTop = 12;
+        private const int HtTopLeft = 13;
+        private const int HtTopRight = 14;
+        private const int HtBottom = 15;
+        private const int HtBottomLeft = 16;
+        private const int HtBottomRight = 17;
+
         private bool dragging = false;
         private Point offset;
         public FormBase()
@@ -30,7 +42,53 @@ namespace TDJS_Vision
             labelTitle.Text = Text; // 设置标题栏文本为窗体标题
             labelMinBox.Visible = MinimizeBox;
             labelMaxBox.Visible = MaximizeBox;
+            labelMaxBox.Text = WindowState == FormWindowState.Maximized ? "🗗" : "🗖";
+            MaximizedBounds = Screen.FromHandle(Handle).WorkingArea;
             FormBorderStyle = FormBorderStyle.None; // 去掉默认边框
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            base.WndProc(ref m);
+            if (m.Msg != WmNcHitTest ||
+                WindowState == FormWindowState.Maximized ||
+                FormBorderStyle != FormBorderStyle.None)
+            {
+                return;
+            }
+
+            Point cursor = PointToClient(GetPointFromLParam(m.LParam));
+            bool left = cursor.X <= ResizeBorderWidth;
+            bool right = cursor.X >= ClientSize.Width - ResizeBorderWidth;
+            bool top = cursor.Y <= ResizeBorderWidth;
+            bool bottom = cursor.Y >= ClientSize.Height - ResizeBorderWidth;
+
+            if (left && top)
+                m.Result = (IntPtr)HtTopLeft;
+            else if (right && top)
+                m.Result = (IntPtr)HtTopRight;
+            else if (left && bottom)
+                m.Result = (IntPtr)HtBottomLeft;
+            else if (right && bottom)
+                m.Result = (IntPtr)HtBottomRight;
+            else if (left)
+                m.Result = (IntPtr)HtLeft;
+            else if (right)
+                m.Result = (IntPtr)HtRight;
+            else if (top)
+                m.Result = (IntPtr)HtTop;
+            else if (bottom)
+                m.Result = (IntPtr)HtBottom;
+            else if (m.Result == (IntPtr)HtClient)
+                m.Result = (IntPtr)HtClient;
+        }
+
+        private static Point GetPointFromLParam(IntPtr lParam)
+        {
+            int value = unchecked((int)lParam.ToInt64());
+            int x = (short)(value & 0xFFFF);
+            int y = (short)((value >> 16) & 0xFFFF);
+            return new Point(x, y);
         }
 
         protected override void OnTextChanged(EventArgs e)

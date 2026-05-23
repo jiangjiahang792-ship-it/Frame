@@ -53,16 +53,20 @@ namespace TDJS_Vision.Node._6_LogicTool.If
                         if (showLog)
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
 
-                        if (Process.HasConditionalBranchConnections(ID))
+                        // 旧顺序执行兼容：查找匹配的 Else 和 EndIf。
+                        FindElseAndEndIf(Process.Nodes, Process.Nodes.IndexOf(this), out int elseIndex, out int endIndex);
+
+                        bool shouldUseGraphBranching =
+                            Process.HasConditionalBranchConnections(ID) ||
+                            (Process.HasCanvasGraph && elseIndex == -1 && endIndex == -1);
+
+                        if (shouldUseGraphBranching)
                         {
                             Process.SkipNextElseBlock = false;
                             return new NodeReturn(
                                 NodeRunFlag.ContinueRun,
                                 condition ? ProcessConnectionBranch.True : ProcessConnectionBranch.False);
                         }
-
-                        // 旧顺序执行兼容：查找匹配的 Else 和 EndIf。
-                        FindElseAndEndIf(Process.Nodes, Process.Nodes.IndexOf(this), out int elseIndex, out int endIndex);
 
                         if (condition)
                         {

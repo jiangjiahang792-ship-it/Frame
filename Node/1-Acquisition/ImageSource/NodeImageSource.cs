@@ -148,7 +148,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         }
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         Result.RunTime = time;
-                        Console.WriteLine("时间: "+ DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+                        //Console.WriteLine("时间: "+ DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
                         if (showLog)
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
 

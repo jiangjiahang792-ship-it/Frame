@@ -59,6 +59,12 @@ namespace TDJS_Vision
         public List<ProcessConnection> Connections { get => _connections; }
 
         /// <summary>
+        /// 当前流程是否按自由画布图模式解释连接语义。
+        /// 旧顺序流程自动生成的兼容连接不按 If 锚点推导 True/False 分支。
+        /// </summary>
+        public bool HasCanvasGraph { get; set; } = true;
+
+        /// <summary>
         /// 画布连线增删后通知订阅控件重新计算上游节点。
         /// </summary>
         public event EventHandler ConnectionsChanged;
@@ -76,6 +82,11 @@ namespace TDJS_Vision
         /// 流程是否正在运行
         /// </summary>
         public bool IsRuning { get; set; } = false;
+
+        /// <summary>
+        /// 当前流程运行批次，用于判断节点结果是否来自本次运行。
+        /// </summary>
+        public int CurrentRunId { get; private set; }
 
         /// <summary>
         /// 流程运行优先级
@@ -137,6 +148,8 @@ namespace TDJS_Vision
             if (connection == null)
                 return;
 
+            HasCanvasGraph = true;
+            NormalizeConnectionBranch(connection);
             _connections.Add(connection);
             NotifyConnectionsChanged();
         }
@@ -196,11 +209,19 @@ namespace TDJS_Vision
             foreach (ProcessConnection connection in _connections)
             {
                 if (connection.FromNodeId == nodeId &&
-                    connection.Branch != ProcessConnectionBranch.Default)
+                    GetEffectiveConnectionBranch(connection) != ProcessConnectionBranch.Default)
                     return true;
             }
 
             return false;
+        }
+
+        public void NormalizeConnectionBranch(ProcessConnection connection)
+        {
+            if (connection == null || connection.Branch != ProcessConnectionBranch.Default)
+                return;
+
+            connection.Branch = GetEffectiveConnectionBranch(connection);
         }
 
         private bool ShouldRunByConnections()
@@ -349,10 +370,33 @@ namespace TDJS_Vision
 
         private bool ConnectionMatchesBranch(ProcessConnection connection, ProcessConnectionBranch branch)
         {
-            if (branch == ProcessConnectionBranch.Default)
-                return connection.Branch == ProcessConnectionBranch.Default;
+            ProcessConnectionBranch connectionBranch = GetEffectiveConnectionBranch(connection);
 
-            return connection.Branch == branch;
+            if (branch == ProcessConnectionBranch.Default)
+                return connectionBranch == ProcessConnectionBranch.Default;
+
+            return connectionBranch == branch;
+        }
+
+        private ProcessConnectionBranch GetEffectiveConnectionBranch(ProcessConnection connection)
+        {
+            if (connection == null || connection.Branch != ProcessConnectionBranch.Default)
+                return connection == null ? ProcessConnectionBranch.Default : connection.Branch;
+
+            if (!HasCanvasGraph)
+                return ProcessConnectionBranch.Default;
+
+            NodeBase fromNode = GetNodeById(connection.FromNodeId);
+            if (fromNode == null || fromNode.NodeType != NodeType.If)
+                return ProcessConnectionBranch.Default;
+
+            if (string.Equals(connection.FromAnchor, "Right", StringComparison.OrdinalIgnoreCase))
+                return ProcessConnectionBranch.True;
+
+            if (string.Equals(connection.FromAnchor, "Bottom", StringComparison.OrdinalIgnoreCase))
+                return ProcessConnectionBranch.False;
+
+            return ProcessConnectionBranch.Default;
         }
 
         private bool HasIncomingConnection(int nodeId)
@@ -394,6 +438,13 @@ namespace TDJS_Vision
         {
             if (node != null)
                 node.SetStatus(NodeStatus.Running, "*");
+        }
+
+        private void BeginProcessRun()
+        {
+            CurrentRunId = CurrentRunId == int.MaxValue ? 1 : CurrentRunId + 1;
+            foreach (var node in Nodes)
+                node.BeginProcessRun(CurrentRunId);
         }
 
 
@@ -495,11 +546,7 @@ namespace TDJS_Vision
                 if (process.Nodes.Count == 0 || !process.Enable)
                     return;
 
-                // 清除上次运行状态显示
-                foreach (var node in process.Nodes)
-                {
-                    node.SetStatus(NodeStatus.Unexecuted, "*");
-                }
+                process.BeginProcessRun();
 
                 process.RunTime = 0;
                 UpdateRunStatus?.Invoke(process, new ProcessRunResult(true, false, process.ProcessName));
@@ -633,11 +680,7 @@ namespace TDJS_Vision
             if (Nodes.Count == 0 || !Enable)
                 return;
 
-            // 清除上次运行状态显示
-            foreach (var node in Nodes)
-            {
-                node.SetStatus(NodeStatus.Unexecuted, "*");
-            }
+            BeginProcessRun();
 
             RunTime = 0;
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(true, false, ProcessName));
@@ -771,11 +814,7 @@ namespace TDJS_Vision
             if (Nodes.Count == 0 || !Enable)
                 return;
 
-            // 清除上次运行状态显示
-            foreach (var node in Nodes)
-            {
-                node.SetStatus(NodeStatus.Unexecuted, "*");
-            }
+            BeginProcessRun();
 
             RunTime = 0;
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(true, false, ProcessName));
@@ -917,6 +956,7 @@ namespace TDJS_Vision
             if (Nodes.Count == 0 || !Enable)
                 return;
 
+            BeginProcessRun();
             RunTime = 0;
             // 更新运行状态
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(true, false, ProcessName));

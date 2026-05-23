@@ -163,6 +163,26 @@ namespace TDJS_Vision.Node
         public string RuntimeTimeText { get { return _runtimeTimeText; } }
 
         /// <summary>
+        /// 当前节点最近一次成功运行所属的流程运行批次。
+        /// </summary>
+        public int LastSuccessfulRunId { get; private set; }
+
+        public void BeginProcessRun(int runId)
+        {
+            if (LastSuccessfulRunId == runId)
+                LastSuccessfulRunId = 0;
+
+            SetStatus(NodeStatus.Unexecuted, "*");
+        }
+
+        public bool HasSuccessfulResultForRun(int runId)
+        {
+            return runId > 0 &&
+                LastSuccessfulRunId == runId &&
+                RuntimeStatus == NodeStatus.Successful;
+        }
+
+        /// <summary>
         /// 删除节点事件
         /// </summary>
         public static event EventHandler<NodeBase> NodeDeletedEvent;
@@ -180,6 +200,11 @@ namespace TDJS_Vision.Node
         {
             _notes = text;
             toolTip1.SetToolTip(this.label3, _notes);
+        }
+
+        public string Notes
+        {
+            get { return _notes; }
         }
 
         /// <summary>
@@ -257,6 +282,14 @@ namespace TDJS_Vision.Node
         public int SetRunResult(DateTime startTime, NodeStatus status)
         {
             int elapsedMi11iseconds = (int)(DateTime.Now - startTime).TotalMilliseconds;
+            if (Process != null && Process.CurrentRunId > 0)
+            {
+                if (status == NodeStatus.Successful)
+                    LastSuccessfulRunId = Process.CurrentRunId;
+                else if (LastSuccessfulRunId == Process.CurrentRunId)
+                    LastSuccessfulRunId = 0;
+            }
+
             SetStatus(status, elapsedMi11iseconds.ToString());
             return elapsedMi11iseconds;
         }
@@ -310,7 +343,7 @@ namespace TDJS_Vision.Node
         /// <summary>
         /// 删除当前选中的节点，并通知流程编辑器清理关联状态。
         /// </summary>
-        public bool DeleteFromProcess()
+        public bool DeleteFromProcess(bool releaseResources = true)
         {
             if (!Selected)
                 return false;
@@ -318,6 +351,9 @@ namespace TDJS_Vision.Node
             Solution.Instance.Nodes.Remove(this);
             Process.Nodes.Remove(this);
             NodeDeletedEvent?.Invoke(this, this);
+
+            if (!releaseResources)
+                return true;
 
             // 移除AI节点需要释放AI句柄
             if (NodeType == NodeType.AITD && ParamForm.Params is NodeParamTDAI param)

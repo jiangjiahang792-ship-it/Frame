@@ -16,15 +16,136 @@ This means the target is not only a visual style change. The work includes:
 
 ## Current Step
 
-The current implementation step is **Phase 10: Runtime State On Canvas**.
+The current implementation step is **Phase 13: Flow Editor UI Layout Polish**.
 
 ### Latest Progress
 
 - Completed through the first **Phase 10: Runtime State On Canvas** code pass.
 - Fixed one graph runtime scheduling regression found during Phase 10 checks:
   - [x] For `A -> B` plus standalone `C`, running `A` now completes the `A -> B` component before moving to independent source node `C`.
+- Fixed two additional runtime regressions found during Phase 10 checks:
+  - [x] Restored/new `If` graph connections now interpret `Right` as True and `Bottom` as False even when older saved connection data still has `Branch = Default`.
+  - [x] During a process run, subscriptions can no longer read stale results from an upstream node that has not successfully run in the current run.
+- Addressed latest UI feedback with a second Phase 10 runtime pass:
+  - [x] Graph-native `If = false` no longer falls back to legacy ordered-list continuation when no matching `Else/EndIf` exists.
+  - [x] Runtime subscription freshness now uses the current process run id, so disabled or branch-skipped upstream nodes cannot provide prior-run results.
+- Phase 10 UI regression status:
+  - [x] Simple, branch, disabled, failed, stopped, and runtime-state-refresh checks passed in the UI.
+  - [ ] Passive-triggered graph-flow verification is intentionally deferred.
+- Phase 11 undo/redo first implementation pass:
+  - [x] `ProcessFlowCanvas` now owns a canvas edit history stack.
+  - [x] Undo/redo supports node creation, node deletion, node movement, connection creation, connection deletion, start-node changes, and node enable/disable changes.
+  - [x] `Ctrl+Z`, `Ctrl+Y`, and `Ctrl+Shift+Z` were temporarily removed after UI feedback; undo/redo is currently available from the canvas context menu.
+  - [x] Canvas context menu now includes undo and redo entries.
+  - [x] Node deletion can preserve the node object for undo without releasing node resources.
+  - [x] Fixed node-move undo redraw leaving a stale visual residue at the pre-undo location.
+  - [x] UI verification for the undo/redo pass passed after removing shortcuts and fixing node-move redraw residue.
+- Phase 11 copy/paste first implementation pass:
+  - [x] Canvas context menu now includes copy node and paste node entries.
+  - [x] Copy/paste supports selected single node and selected multiple nodes.
+  - [x] Pasted nodes receive a new node ID and a unique copied node name.
+  - [x] Pasted nodes clone parameters, notes, active state, size, and canvas placement.
+  - [x] Paste is registered as a node creation edit, so existing undo/redo can remove and restore the pasted node.
+  - [x] UI verification for the single-node copy/paste pass passed.
+- Phase 11 multi-select and multi-node edit first implementation pass:
+  - [x] Canvas supports rubber-band selection with a dashed selection rectangle.
+  - [x] Nodes intersecting the selection rectangle become selected as a group.
+  - [x] Dragging any selected node moves the selected group together.
+  - [x] Deleting selected nodes removes them as a grouped undo/redo edit and restores attached connections on undo.
+  - [x] Enabling or disabling selected nodes is grouped in undo/redo.
+  - [x] Multi-node copy/paste copies internal connections among the selected nodes.
+  - [x] Pasted internal connections are remapped from old node IDs to new node IDs.
+  - [x] Pasted parameter text references such as `ID.NodeName` are remapped when they refer to nodes copied in the same batch.
+  - [x] UI verification for multi-select, group move, group delete, and multi-node copy/paste passed.
+- Phase 11 zoom first implementation pass:
+  - [x] Canvas supports zoom from 50% to 200%.
+  - [x] Right-click canvas menu includes zoom in, zoom out, and reset zoom commands.
+  - [x] `Ctrl + mouse wheel` zooms around the mouse pointer.
+  - [x] Drawing, hit-testing, rubber-band selection, dragging, connection interaction, and paste location use zoom-aware coordinate conversion.
+  - [x] Canvas shows the current zoom percentage.
+  - [x] Scrolling after zoom forces a full repaint so the zoom percentage overlay does not leave duplicate residues.
+  - [x] UI verification for zoom interactions passed.
+- Phase 11 snap-to-grid first implementation pass:
+  - [x] Canvas has a right-click menu toggle for snap-to-grid.
+  - [x] Dragged nodes snap to the nearest 24px grid point when the toggle is enabled.
+  - [x] Toolbox-created nodes use the snap rule when the toggle is enabled.
+  - [x] Multi-node paste snaps the pasted group target while preserving relative node placement.
+- Phase 13 UI layout polish planning:
+  - [x] Use `D:\MyCode\PublicWook\TDVision\TDVision\TDVision\UI\FlowCanvasPanel.cs` as the visual and connection-routing reference.
+  - [x] Split the UI polish work into staged deliverables so the current graph editor remains usable after each step.
+  - [x] Phase 13.1: Dark canvas surface, compact node styling, and routed arrow connections first code pass.
+  - [x] Phase 13.2: Toolbox layout cleanup and left-side navigation density improvements.
+  - [x] Phase 13.3: Process tab/header command bar cleanup.
+  - [x] Phase 13.4: Optional right-side image/result preview panel.
+  - [x] Phase 13.5: Minimap and viewport polish.
+- Phase 13.1 canvas visual and connection polish:
+  - [x] Canvas background now uses a dark workbench surface.
+  - [x] Grid lines use subtle dark minor/major grid styling.
+  - [x] Nodes have a cleaner light-card style with shadow, status color, and selected orange accent.
+  - [x] `ProcessFlowCanvas` now uses a routed arrow path based on the `TDVision` `PathRouter` approach.
+  - [x] Connection hit-testing now uses the same routed path as drawing.
+  - [x] `If` branch labels remain visible on routed true/false connections.
+  - [x] UI verification accepted before starting Phase 13.2.
+- Phase 13.2 toolbox layout first implementation pass:
+  - [x] Toolbox controls are now grouped inside a designer-visible `panelToolbox`.
+  - [x] Left toolbox width was reduced from the old fixed 394px layout.
+  - [x] Toolbox can collapse to a narrow left rail and expand again.
+  - [x] Toolbox tree uses a darker, denser visual style.
+  - [x] Toolbox icons are generated from category/node type names at runtime.
+  - [x] Drag cursor preview uses the generated toolbox icons.
+- Phase 13.2 toolbox feedback pass:
+  - [x] Replaced the visible expanded toolbox tree with a left category rail plus a selected-category module grid.
+  - [x] Toolbox category clicks rebuild the visible module cards for that category only.
+  - [x] Module cards keep the existing `DragData` drag source behavior for canvas node creation.
+  - [x] The process editor window now opens maximized and exposes minimize, maximize/restore, close, and border resize behavior.
+- Phase 13.2 floating toolbox feedback pass:
+  - [x] The left toolbox now defaults to a compact category rail only.
+  - [x] Clicking a category opens the module grid as a floating flyout over the editor surface.
+  - [x] Starting a module drag closes the floating flyout after the drag operation.
+- Phase 13.3 process header first implementation pass:
+  - [x] Moved add/delete process actions into a compact top action strip instead of the old right-side empty column.
+  - [x] Restyled process tabs with a compact dark owner-drawn tab header.
+  - [x] Restyled the per-process run/stop/clean/enable row as a compact dark command bar.
+- Phase 13.3 process header feedback pass:
+  - [x] The add-process button is now a compact blue `+` positioned beside the process tabs.
+  - [x] The tab-adjacent action strip now auto-sizes for add/delete process commands so neither action is clipped.
+  - [x] The tab-adjacent `+` placement now uses the actual last tab rectangle to avoid header/action misalignment.
+  - [x] Per-process command bars now show only single run, loop run, and stop on the active process page.
+  - [x] Added first-pass loop run behavior that repeatedly runs the active process until stop/cancellation.
+  - [x] Restyled the process tab strip to match the dark reference header with red status dots, stronger selected-tab text, and darker inactive tabs.
+  - [x] Removed the visible numeric prefix from owner-drawn process tab text while keeping the underlying tab text unchanged for existing process lookup.
+  - [x] Extended the dark tab-adjacent action surface across the empty header area so the default light tab background no longer shows.
+  - [x] Replaced low-resolution run/loop/stop resource images with GDI+ vector-drawn command glyphs.
+- Phase 13.4 image and viewport preview first pass:
+  - [x] `ProcessFlowCanvas` draws a floating image preview panel at the top-right of the canvas.
+  - [x] The preview panel now binds to selected-node `OutputImage` data when available, with a latest image-output fallback.
+  - [x] The preview header selector now opens a list of available process image outputs for manual selection.
+  - [x] The preview header shows the image node title and live RGB values while hovering over the preview image.
+  - [x] `ProcessFlowCanvas` draws a minimap at the bottom-right of the canvas.
+  - [x] The minimap supports click/drag viewport navigation.
+- Phase 13 performance feedback pass:
+  - [x] The preview overlay now caches the converted bitmap instead of converting `Mat` to `Bitmap` on every paint/zoom redraw.
+  - [x] AI result drawing no longer clones the entire bitmap before drawing, and reuses the text font within each draw pass.
+  - [x] Image preview and minimap now render as designer-visible overlay controls above the canvas instead of being painted into the scrollable node layer.
+  - [x] Fixed preview/minimap flicker while scrolling by keeping both overlays out of the `AutoScroll` paint surface.
+  - [x] Removed high-frequency overlay invalidation during node dragging and rubber-band selection so canvas interactions stay responsive.
 - Build verification:
-  - [x] `TDJS-Vision.sln` builds successfully after the scheduling fix.
+  - [x] `TDJS-Vision.sln` builds successfully after the scheduling, branch, and subscription-stale-result fixes.
+  - [x] `TDJS-Vision.sln` builds successfully after the Phase 11 undo/redo first implementation pass.
+  - [x] `TDJS-Vision.sln` builds successfully after fixing node-move undo redraw residue and removing undo/redo shortcuts.
+  - [x] `TDJS-Vision.sln` builds successfully after the Phase 11 copy/paste first implementation pass.
+  - [x] `TDJS-Vision.sln` builds successfully after the Phase 11 multi-select and multi-node copy/paste first implementation pass.
+  - [x] `TDJS-Vision.sln` builds successfully after the Phase 11 zoom first implementation pass.
+  - [x] `TDJS-Vision.sln` builds successfully after fixing zoom percentage overlay residue during scroll.
+  - [x] `TDJS-Vision.sln` builds successfully after the Phase 11 snap-to-grid first implementation pass.
+  - [x] `TDJS-Vision.sln` builds successfully after the Phase 13.1 canvas visual and routed-connection pass.
+  - [x] `TDJS-Vision.sln` builds successfully after the Phase 13.2 toolbox layout first implementation pass.
+  - [x] `TDJS-Vision.sln` builds successfully after the toolbox category-rail feedback pass and the Phase 13.3 command-bar first pass.
+  - [x] `TDJS-Vision.sln` builds successfully after the floating toolbox, tab-adjacent add button, image preview, and minimap pass.
+  - [x] `TDJS-Vision.sln` builds successfully after the per-process run/loop/stop command pass and preview data-binding pass.
+  - [x] `TDJS-Vision.sln` builds successfully after the auto-size process action strip, preview selector, preview cache, and AI draw optimization pass.
+  - [x] `TDJS-Vision.sln` builds successfully after moving preview/minimap to independent overlay controls and fixing drag/selection overlay refresh cost.
+  - [x] `TDJS-Vision.sln` builds successfully after the process-header reference-style pass and vector command button pass.
 - Verified subscription regression points:
   - [x] A node with `A -> C` and `B -> C` shows both `A` and `B` as subscription candidates.
   - [x] Deleting a connection removes the disconnected node from subscription candidates.
@@ -38,7 +159,39 @@ The current implementation step is **Phase 10: Runtime State On Canvas**.
   - [x] `ProcessFlowCanvas` refreshes affected node regions when node status changes.
   - [x] Running, success, failed, disabled, selected, and unexecuted states now have distinct canvas styling.
 - Next task:
-  - [ ] Run Phase 10 UI regression checks for simple, branch, failed, stopped, and passive-triggered graphs.
+  - [x] Recheck `If = false` graph branch behavior in the UI.
+  - [x] Recheck disabled upstream node behavior in the UI: `A -> B -> C`, disable `B`, then `C` should fail instead of reading `B`'s last result.
+  - [x] Continue Phase 10 UI regression checks for simple, branch, failed, and stopped graphs.
+  - [ ] Defer passive-triggered graph-flow regression check.
+  - [x] Begin Phase 11 editor quality features.
+  - [x] UI-verify the first undo/redo implementation pass.
+  - [x] Continue with copy/paste node support.
+  - [x] UI-verify the first copy/paste implementation pass.
+  - [x] Continue with multi-node copy/paste and internal connection remapping.
+  - [x] UI-verify multi-select, group move/delete, and multi-node copy/paste.
+  - [x] Continue with zoom support.
+  - [x] UI-verify zoom interactions.
+  - [x] Continue with snap-to-grid support.
+  - [ ] UI-verify snap-to-grid interactions.
+  - [x] Begin Phase 13 flow editor UI layout polish.
+  - [x] Implement Phase 13.1 canvas visual and connection polish.
+  - [x] UI-verify Phase 13.1 canvas visual and routed-connection interactions.
+  - [x] Implement Phase 13.2 toolbox layout first pass.
+  - [ ] UI-verify Phase 13.2 toolbox collapse/expand and drag creation.
+  - [x] Implement toolbox category rail and selected-category module grid per latest UI feedback.
+  - [x] Implement maximized/resizable process editor window behavior.
+  - [x] Implement compact process tab/action header and run command bar first pass.
+  - [ ] UI-verify category rail switching, module drag creation, window resize, and compact command bar behavior.
+  - [ ] UI-verify reference-style process header visuals and vector run/loop/stop command buttons.
+  - [x] Convert selected-category modules to a floating flyout.
+  - [x] Move the add-process `+` beside the process tabs.
+  - [x] Add first-pass right-side image preview and bottom-right minimap overlays.
+  - [x] Auto-size the compact process action strip so add/delete commands are not clipped.
+  - [x] Bind the right-side preview overlay to selected-node image output data.
+  - [x] Add a preview selector menu for process image outputs.
+  - [x] UI-verify preview/minimap stay fixed without flicker during canvas scroll and zoom.
+  - [x] UI-verify node dragging, multi-node dragging, and rubber-band selection remain responsive after overlay separation.
+  - [ ] UI-verify floating module flyout, tab-adjacent process actions, preview overlay, and minimap navigation.
 
 - [x] The flow editor has entered graph-aware subscription migration.
 - [x] Subscription candidates should come from graph upstream nodes, not from ordered node list position.
@@ -171,8 +324,8 @@ The current implementation step is **Phase 10: Runtime State On Canvas**.
 
 - [x] Single-click select a node.
 - [x] Drag one node to a new location.
-- [ ] Drag multiple selected nodes.
-- [ ] Rubber-band select nodes.
+- [x] Drag multiple selected nodes.
+- [x] Rubber-band select nodes.
 - [x] Delete selected nodes.
 - [x] Remove connections attached to deleted nodes.
 - [x] Rename a node from canvas interaction.
@@ -279,7 +432,10 @@ The current implementation step is **Phase 10: Runtime State On Canvas**.
 - [x] Accept multiple persisted start nodes at runtime even though the current canvas menu keeps one explicit start node selected.
 - [x] Treat new `If` connections from the `Right` anchor as True branches.
 - [x] Treat new `If` connections from the `Bottom` anchor as False branches.
+- [x] Infer canvas `If` branch semantics from restored `Right` and `Bottom` anchors when older saved data still has `Branch = Default`.
 - [x] Persist and restore branch type with each connection.
+- [x] Prevent disabled or branch-skipped upstream nodes from serving stale subscription results during the current run.
+- [x] Track per-process run ids so subscription reads can distinguish current-run results from prior-run cached results.
 
 ### Existing logic compatibility
 
@@ -306,11 +462,40 @@ The current implementation step is **Phase 10: Runtime State On Canvas**.
 ## Phase 11: Editor Quality Features
 
 - [ ] Add undo and redo for graph edits.
+  - [x] First code pass supports undo/redo for node creation, node deletion, node movement, connection creation/deletion, start-node changes, and node enable/disable changes.
+  - [x] Added canvas context-menu entries for undo/redo.
+  - [x] Temporarily removed Ctrl+Z/Ctrl+Y/Ctrl+Shift+Z shortcuts after UI feedback.
+  - [x] Added context-menu undo/redo commands in `ProcessEditPanel.Designer.cs`.
+  - [x] Node-count display refreshes after undo/redo changes that add or remove nodes.
+  - [x] Deleted nodes are detached without releasing resources when the action is undoable.
+  - [x] Fixed node-move undo redraw residue by invalidating the canvas after applying the restored location.
+  - [x] UI-verify undo/redo edit scenarios.
 - [ ] Add copy and paste for nodes.
+  - [x] First code pass supports copying and pasting one selected node from the canvas context menu.
+  - [x] First multi-node pass supports copying and pasting all selected nodes from the canvas context menu.
+  - [x] Pasted nodes copy parameter objects through JSON cloning and then restore their parameter forms with `SetParam2Form()`.
+  - [x] Pasted nodes copy node notes, active state, display size, and canvas placement offset from the last right-click location.
+  - [x] Paste participates in the existing undo/redo node-create flow.
+  - [x] UI-verify single-node copy/paste edit scenarios.
+  - [x] UI-verify multi-node copy/paste edit scenarios.
 - [ ] Remap node IDs and internal graph references during paste.
+  - [x] Single-node paste assigns a fresh node ID through the normal `CreateNode` path.
+  - [x] Pasted node names are made unique with a `_复制` suffix.
+  - [x] Existing subscription text inside pasted parameters is preserved; it can resolve again after valid upstream graph connections are created.
+  - [x] Multi-node paste remaps copied internal connections to the new node IDs.
+  - [x] Multi-node paste remaps copied parameter string references when they point to nodes in the copied batch.
+  - [x] UI-verify internal connection and copied subscription remapping.
 - [ ] Add zoom if needed.
+  - [x] First code pass supports right-click zoom in, zoom out, reset zoom, and `Ctrl + mouse wheel` zoom.
+  - [x] Zoom keeps node canvas coordinates unchanged and scales only rendering, hit-testing, and scrollable canvas size.
+  - [x] Current zoom percentage is displayed on the canvas.
+  - [x] UI-verify zoom edit scenarios.
 - [ ] Add minimap if needed.
 - [ ] Add snap-to-grid if needed.
+  - [x] First code pass adds a right-click menu toggle for snap-to-grid.
+  - [x] Node drag and toolbox-created nodes snap to the canvas grid when enabled.
+  - [x] Multi-node paste snaps the pasted group target while keeping copied node spacing intact.
+  - [ ] UI-verify snap-to-grid edit scenarios.
 - [ ] Improve connection routing around nodes.
 - [x] Add context menus for canvas, nodes, and connections.
 
@@ -327,6 +512,28 @@ The current implementation step is **Phase 10: Runtime State On Canvas**.
 - [ ] Delete a connection without deleting its nodes.
 - [ ] Select and deselect nodes and connections.
 - [ ] Double-click nodes and open current parameter forms.
+- [ ] Undo/redo node creation.
+- [ ] Undo/redo node movement.
+- [ ] Undo/redo node deletion and attached connection restore.
+- [ ] Undo/redo connection creation and deletion.
+- [ ] Undo/redo start-node changes.
+- [ ] Undo/redo node enable/disable changes.
+- [x] Copy and paste one node.
+- [x] Paste repeatedly and confirm unique IDs/names and offset locations.
+- [x] Undo/redo pasted node creation.
+- [x] Rubber-band select multiple nodes.
+- [x] Drag selected nodes as a group.
+- [x] Delete selected nodes as a group and undo/redo the deletion.
+- [x] Copy and paste multiple connected nodes.
+- [x] Confirm pasted internal connections use the new node IDs.
+- [x] Confirm pasted internal subscription references use the new node text.
+- [x] Zoom in and zoom out from the context menu.
+- [x] Zoom in and zoom out with `Ctrl + mouse wheel`.
+- [x] At non-100% zoom, verify node click, drag, rubber-band selection, connection creation, connection selection, and paste location.
+- [ ] Enable snap-to-grid and drag one node.
+- [ ] Enable snap-to-grid and drag selected nodes as a group.
+- [ ] Enable snap-to-grid and paste copied nodes.
+- [ ] Enable snap-to-grid at non-100% zoom and verify drag/drop placement.
 
 ### Parameters
 
@@ -346,14 +553,79 @@ The current implementation step is **Phase 10: Runtime State On Canvas**.
 
 ### Runtime
 
-- [ ] Run a simple graph with one start node.
-- [ ] Run a graph with a branch.
-- [ ] Run a graph with disabled nodes.
-- [ ] Run a graph with a failed node.
+- [x] Run a simple graph with one start node.
+- [x] Run a graph with a branch.
+- [x] Recheck `If = false` only follows False connections and does not continue through True/default downstream nodes.
+- [x] Run a graph with disabled nodes.
+- [x] Recheck disabled upstream node does not provide stale subscription data to downstream nodes.
+- [x] Run a graph with a failed node.
 - [x] Verify `A -> B` is not blocked by a failing standalone `C` because the `A -> B` component runs first.
-- [ ] Stop a running graph.
-- [ ] Run passive-triggered graph flows.
-- [ ] Verify runtime state refresh on canvas after the Phase 10 code pass.
+- [x] Stop a running graph.
+- [ ] Run passive-triggered graph flows. Deferred for now.
+- [x] Verify runtime state refresh on canvas after the Phase 10 code pass.
+
+## Phase 13: Flow Editor UI Layout Polish
+
+Reference direction:
+
+- Use the `TDVision` flow canvas as the near-term visual reference.
+- Prefer a darker, denser, workbench-style canvas over the current bright engineering-grid look.
+- Reuse the `TDVision` routed arrow connection idea instead of continuing with simple direct Bezier links.
+- Keep current `ProcessNew` graph behavior, persistence, undo/redo, copy/paste, zoom, and snap-to-grid working while changing the presentation layer.
+
+### Phase 13.1: Canvas Visual And Connection Baseline
+
+- [x] Change the canvas background to a dark workbench surface.
+- [x] Draw a subtle dark grid with enough contrast for node alignment.
+- [x] Restyle nodes to be cleaner and less bulky while keeping runtime status text visible.
+- [x] Port the `TDVision` routed arrow path approach into `ProcessFlowCanvas`.
+- [x] Update connection hit-testing to match routed paths.
+- [x] Keep branch labels visible on `If` true/false connections.
+- [x] Build-verify after the first visual pass.
+- [x] UI-verify simple connections, branch connections, selected connection highlighting, and temporary connection dragging.
+
+### Phase 13.2: Toolbox Density And Navigation
+
+- [x] Reduce the current left tree's visual weight.
+- [x] Evaluate whether to keep tree categories or switch to a compact icon/category rail similar to the reference.
+- [x] Replace the visible tree with a compact category rail and selected-category module grid.
+- [x] Convert the selected-category module grid to a floating flyout instead of a fixed layout column.
+- [x] Keep existing drag source behavior and `DragData` compatibility.
+- [x] Ensure icons and labels remain readable in Chinese.
+- [x] Add a left-side hide/show interaction for the toolbox.
+- [x] Generate toolbox icons from category/node type names.
+- [x] Build-verify after the first toolbox pass.
+- [ ] UI-verify toolbox drag creation after layout changes.
+- [ ] UI-verify toolbox collapse and expand.
+
+### Phase 13.3: Process Header And Command Bar
+
+- [x] Make process tabs and run/stop/clean/enable commands feel like one editor header.
+- [x] Reduce empty space around the command buttons.
+- [x] Place the add-process `+` beside the process tab strip.
+- [x] Keep existing run status, elapsed time, node count, and enable switch behavior.
+- [x] Embed the active process controls as single run, loop run, and stop in the per-process top-right command bar.
+- [x] Restyle process tabs with reference-style red status dots and dark selected/inactive tab states.
+- [x] Replace low-resolution run/loop/stop images with vector-drawn command glyphs.
+- [ ] UI-verify process switching, add button alignment, single run, loop run, and stop.
+- [ ] UI-verify top header matches the provided reference closely enough.
+
+### Phase 13.4: Image And Result Preview Area
+
+- [x] Decide whether the right-side preview belongs in `ProcessNew` now or should remain a later integration.
+- [x] Add a first-pass floating right-side preview panel inside the canvas.
+- [x] Bind the preview panel to selected-node image/result data.
+- [x] Add a selector for manually choosing available process image outputs.
+- [ ] Keep preview panel optional or collapsible so small screens still prioritize the flow canvas.
+- [ ] UI-verify selected-node result display and fallback empty states.
+
+### Phase 13.5: Minimap And Viewport Polish
+
+- [x] Add a minimap inspired by `TDVision.UI.MinimapPanel`.
+- [ ] Keep minimap optional from the canvas context menu.
+- [x] Ensure minimap works with zoom and scroll viewport navigation in the first pass.
+- [ ] Ensure minimap works with selection and snap-to-grid.
+- [ ] UI-verify large graphs with many nodes and connections.
 
 ## Recommended Implementation Order
 

@@ -50,7 +50,7 @@ namespace TDJS_Vision
                     processConfig.IsPassiveTriggered = process.IsPassiveTriggered;
                     processConfig.OKNumber = process.OKNumber;
                     processConfig.NGNumber = process.NGNumber;
-                    processConfig.HasCanvasGraph = true;
+                    processConfig.HasCanvasGraph = process.HasCanvasGraph;
                     processConfig.NodeInfos.Clear();
                     foreach (var nodeConfig in process.Nodes)
                     {

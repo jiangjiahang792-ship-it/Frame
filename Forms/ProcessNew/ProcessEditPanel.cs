@@ -1,7 +1,9 @@
 ﻿using Logger;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node;
@@ -71,6 +73,16 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// 所有的节点控件
         /// </summary>
         private Stack<NodeBase> _stack = new Stack<NodeBase>();
+        private NodeCopySnapshot _copiedNodeSnapshot;
+        private int _pasteCount;
+        private bool _isLoopRunRequested;
+        private Button _hoveredCommandButton;
+        private enum CommandGlyph
+        {
+            Run,
+            Loop,
+            Stop
+        }
         /// <summary>
         /// 流程编辑面板构造函数
         /// </summary>
@@ -78,9 +90,12 @@ namespace TDJS_Vision.Forms.ProcessNew
         public ProcessEditPanel(string processName, bool showInfo = true, ProcessConfig processConfig = null)
         {
             InitializeComponent();
+            ConfigureCommandButtons();
             BindLanguage();
             _process = new Process(processName);
             processFlowCanvas.BindProcess(_process);
+            processFlowCanvas.NodeCollectionChanged += ProcessFlowCanvas_NodeCollectionChanged;
+            InitializeFlowCanvasOverlays();
             _processLvSet = new FormSetProcessLv(_process);
             formProcessGroupSetting = new FormProcessGroupSetting(_process);
             Process.UpdateRunStatus += RunStatusChange;
@@ -120,7 +135,71 @@ namespace TDJS_Vision.Forms.ProcessNew
                     LogHelper.AddLog(MsgLevel.Debug, LanguageManager.Format("ProcessNew.ProcessLoaded", _process.ProcessName), true);
             }
             LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
-            Disposed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+            Disposed += (s, e) =>
+            {
+                LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+                processFlowCanvas.NodeCollectionChanged -= ProcessFlowCanvas_NodeCollectionChanged;
+                processFlowCanvas.OverlayInvalidated -= ProcessFlowCanvas_OverlayInvalidated;
+                processFlowCanvas.SizeChanged -= ProcessFlowCanvas_SizeChanged;
+                panelCanvasHost.Resize -= PanelCanvasHost_Resize;
+            };
+        }
+
+        private void InitializeFlowCanvasOverlays()
+        {
+            imagePreviewOverlay.BindCanvas(processFlowCanvas);
+            minimapOverlay.BindCanvas(processFlowCanvas);
+            processFlowCanvas.OverlayInvalidated += ProcessFlowCanvas_OverlayInvalidated;
+            processFlowCanvas.SizeChanged += ProcessFlowCanvas_SizeChanged;
+            panelCanvasHost.Resize += PanelCanvasHost_Resize;
+            UpdateFlowCanvasOverlayBounds();
+        }
+
+        private void ProcessFlowCanvas_OverlayInvalidated(object sender, EventArgs e)
+        {
+            imagePreviewOverlay.Invalidate();
+            minimapOverlay.Invalidate();
+        }
+
+        private void ProcessFlowCanvas_SizeChanged(object sender, EventArgs e)
+        {
+            UpdateFlowCanvasOverlayBounds();
+        }
+
+        private void PanelCanvasHost_Resize(object sender, EventArgs e)
+        {
+            UpdateFlowCanvasOverlayBounds();
+        }
+
+        private void UpdateFlowCanvasOverlayBounds()
+        {
+            ApplyFlowCanvasOverlayBounds(
+                imagePreviewOverlay,
+                ProcessFlowCanvas.GetImagePreviewOverlayBounds(processFlowCanvas.ClientSize));
+            ApplyFlowCanvasOverlayBounds(
+                minimapOverlay,
+                ProcessFlowCanvas.GetMinimapOverlayBounds(processFlowCanvas.ClientSize));
+
+            imagePreviewOverlay.BringToFront();
+            minimapOverlay.BringToFront();
+        }
+
+        private static void ApplyFlowCanvasOverlayBounds(Control overlay, Rectangle bounds)
+        {
+            bool visible = !bounds.IsEmpty;
+            if (overlay.Visible != visible)
+                overlay.Visible = visible;
+
+            if (visible && overlay.Bounds != bounds)
+                overlay.Bounds = bounds;
+
+            if (visible)
+                overlay.Invalidate();
+        }
+
+        private void ProcessFlowCanvas_NodeCollectionChanged(object sender, EventArgs e)
+        {
+            UpdateNodeCountText();
         }
 
         private void BindLanguage()
@@ -148,16 +227,163 @@ namespace TDJS_Vision.Forms.ProcessNew
             LanguageManager.ApplyToolStripItem(是否为触发流程ToolStripMenuItem);
             buttonClean.Text = string.Empty;
             buttonRun.Text = string.Empty;
+            buttonLoop.Text = string.Empty;
             buttonStop.Text = string.Empty;
             uiSwitchEnable.ActiveText = LanguageManager.T("Common.Enabled");
             uiSwitchEnable.InActiveText = LanguageManager.T("Common.Disabled");
+            buttonRun.Enabled = true;
+            buttonLoop.Enabled = true;
+            buttonStop.Enabled = false;
             UpdateNodeCountText();
             UpdateRunTimeText();
         }
 
+        private void ConfigureCommandButtons()
+        {
+            ConfigureCommandButton(buttonRun, CommandGlyph.Run);
+            ConfigureCommandButton(buttonLoop, CommandGlyph.Loop);
+            ConfigureCommandButton(buttonStop, CommandGlyph.Stop);
+        }
+
+        private void ConfigureCommandButton(Button button, CommandGlyph glyph)
+        {
+            if (button == null)
+                return;
+
+            button.Tag = glyph;
+            button.Image = null;
+            button.Text = string.Empty;
+            button.Cursor = Cursors.Hand;
+            button.BackColor = Color.FromArgb(44, 48, 52);
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.Paint += CommandButton_Paint;
+            button.MouseEnter += CommandButton_MouseEnter;
+            button.MouseLeave += CommandButton_MouseLeave;
+            button.EnabledChanged += (s, e) => button.Invalidate();
+        }
+
+        private void CommandButton_MouseEnter(object sender, EventArgs e)
+        {
+            _hoveredCommandButton = sender as Button;
+            _hoveredCommandButton?.Invalidate();
+        }
+
+        private void CommandButton_MouseLeave(object sender, EventArgs e)
+        {
+            Button button = sender as Button;
+            if (_hoveredCommandButton == button)
+                _hoveredCommandButton = null;
+
+            button?.Invalidate();
+        }
+
+        private void CommandButton_Paint(object sender, PaintEventArgs e)
+        {
+            Button button = sender as Button;
+            if (button == null || !(button.Tag is CommandGlyph glyph))
+                return;
+
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            e.Graphics.Clear(button.Enabled
+                ? (_hoveredCommandButton == button ? Color.FromArgb(55, 60, 65) : Color.FromArgb(44, 48, 52))
+                : Color.FromArgb(38, 42, 46));
+
+            Rectangle bounds = new Rectangle(0, 0, button.Width - 1, button.Height - 1);
+            using (Pen border = new Pen(Color.FromArgb(28, 31, 34)))
+                e.Graphics.DrawRectangle(border, bounds);
+
+            Color glyphColor = button.Enabled
+                ? Color.FromArgb(118, 124, 130)
+                : Color.FromArgb(74, 79, 84);
+
+            switch (glyph)
+            {
+                case CommandGlyph.Run:
+                    DrawRunGlyph(e.Graphics, button.ClientRectangle, glyphColor);
+                    break;
+                case CommandGlyph.Loop:
+                    DrawLoopGlyph(e.Graphics, button.ClientRectangle, glyphColor);
+                    break;
+                case CommandGlyph.Stop:
+                    DrawStopGlyph(e.Graphics, button.ClientRectangle, glyphColor);
+                    break;
+            }
+        }
+
+        private static void DrawRunGlyph(Graphics graphics, Rectangle bounds, Color color)
+        {
+            Point center = new Point(bounds.Left + bounds.Width / 2, bounds.Top + bounds.Height / 2);
+            Point[] points =
+            {
+                new Point(center.X - 6, center.Y - 9),
+                new Point(center.X - 6, center.Y + 9),
+                new Point(center.X + 9, center.Y)
+            };
+
+            using (SolidBrush brush = new SolidBrush(color))
+                graphics.FillPolygon(brush, points);
+        }
+
+        private static void DrawStopGlyph(Graphics graphics, Rectangle bounds, Color color)
+        {
+            int size = 16;
+            Rectangle rect = new Rectangle(
+                bounds.Left + ((bounds.Width - size) / 2),
+                bounds.Top + ((bounds.Height - size) / 2),
+                size,
+                size);
+
+            using (SolidBrush brush = new SolidBrush(color))
+                graphics.FillRectangle(brush, rect);
+        }
+
+        private static void DrawLoopGlyph(Graphics graphics, Rectangle bounds, Color color)
+        {
+            Rectangle rect = new Rectangle(
+                bounds.Left + ((bounds.Width - 22) / 2),
+                bounds.Top + ((bounds.Height - 22) / 2),
+                22,
+                22);
+
+            using (Pen pen = new Pen(color, 2.6F))
+            using (SolidBrush brush = new SolidBrush(color))
+            {
+                pen.StartCap = LineCap.Round;
+                pen.EndCap = LineCap.Round;
+                graphics.DrawArc(pen, rect, 35, 250);
+                graphics.DrawArc(pen, rect, 215, 250);
+
+                PointF arrowA = PointOnEllipse(rect, 35);
+                graphics.FillPolygon(brush, new[]
+                {
+                    new PointF(arrowA.X + 1, arrowA.Y - 7),
+                    new PointF(arrowA.X + 7, arrowA.Y - 1),
+                    new PointF(arrowA.X - 2, arrowA.Y + 1)
+                });
+
+                PointF arrowB = PointOnEllipse(rect, 215);
+                graphics.FillPolygon(brush, new[]
+                {
+                    new PointF(arrowB.X - 1, arrowB.Y + 7),
+                    new PointF(arrowB.X - 7, arrowB.Y + 1),
+                    new PointF(arrowB.X + 2, arrowB.Y - 1)
+                });
+            }
+        }
+
+        private static PointF PointOnEllipse(Rectangle rect, double degrees)
+        {
+            double radians = degrees * Math.PI / 180D;
+            return new PointF(
+                rect.Left + rect.Width / 2F + (float)Math.Cos(radians) * rect.Width / 2F,
+                rect.Top + rect.Height / 2F + (float)Math.Sin(radians) * rect.Height / 2F);
+        }
+
         private void UpdateNodeCountText()
         {
-            label1.Text = LanguageManager.Format("ProcessNew.NodeCount", _stack.Count);
+            int nodeCount = _process == null ? _stack.Count : _process.Nodes.Count;
+            label1.Text = LanguageManager.Format("ProcessNew.NodeCount", nodeCount);
         }
 
         private void UpdateRunTimeText()
@@ -176,7 +402,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     this.Invoke(new Action(() =>
                     {
                         UpdateRunTimeText();
-                        buttonRun.Enabled = !e.IsRunning;
+                        buttonRun.Enabled = !e.IsRunning && !_isLoopRunRequested;
+                        buttonLoop.Enabled = !e.IsRunning && !_isLoopRunRequested;
+                        buttonStop.Enabled = e.IsRunning || _isLoopRunRequested;
                         uiSwitchEnable.Enabled = !e.IsRunning;
                         uiLedBulb1.Color = e.IsRunning ? Color.DarkGray : e.IsSuccess ? Color.LawnGreen : Color.Red;
                     }));
@@ -184,7 +412,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 else
                 {
                     UpdateRunTimeText();
-                    buttonRun.Enabled = !e.IsRunning;
+                    buttonRun.Enabled = !e.IsRunning && !_isLoopRunRequested;
+                    buttonLoop.Enabled = !e.IsRunning && !_isLoopRunRequested;
+                    buttonStop.Enabled = e.IsRunning || _isLoopRunRequested;
                     uiSwitchEnable.Enabled = !e.IsRunning;
                     uiLedBulb1.Color = e.IsRunning ? Color.DarkGray : e.IsSuccess ? Color.LawnGreen : Color.Red;
                 }
@@ -235,6 +465,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         }
         private void CreateProcess(ProcessConfig processConfig, bool showInfo)
         {
+            _process.HasCanvasGraph = processConfig.HasCanvasGraph;
             int nodeIndex = 0;
             foreach (var nodeInfo in processConfig.NodeInfos)
             {
@@ -246,7 +477,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                         : processFlowCanvas.GetDefaultNodeLocation(nodeIndex);
 
                     // 1.还原节点
-                    nodeBase = CreateNode(nodeInfo.NodeType, nodeInfo.NodeName, nodeInfo.ID, canvasLocation);
+                    nodeBase = CreateNode(nodeInfo.NodeType, nodeInfo.NodeName, nodeInfo.ID, canvasLocation, false, false);
                     nodeBase.Selected = nodeInfo.Selected;
                     nodeBase.Active = nodeInfo.Active;
                     nodeBase.IsStartNode = nodeInfo.IsStartNode ||
@@ -286,7 +517,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// <param name="nodeName"></param>
         /// <param name="id"></param>
         /// <returns></returns>
-        private NodeBase CreateNode(NodeType nodeType, string nodeName, int id = -1, Point? canvasLocation = null)
+        private NodeBase CreateNode(NodeType nodeType, string nodeName, int id = -1, Point? canvasLocation = null, bool trackUndo = true, bool applyCanvasSnap = true)
         {
 
             NodeBase node = null;
@@ -450,6 +681,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 node.IsStartNode = true;
 
             Point location = canvasLocation ?? processFlowCanvas.GetDefaultNodeLocation(_process.Nodes.Count);
+            if (applyCanvasSnap)
+                location = processFlowCanvas.GetInteractiveNodeLocation(location, node.CanvasSize);
+
             node.CanvasLocation = location;
             foreach (NodeBase processNode in _process.Nodes)
                 processNode.Selected = false;
@@ -459,6 +693,8 @@ namespace TDJS_Vision.Forms.ProcessNew
             Solution.Instance.Nodes.Add(node);
             _process.AddNode(node);
             processFlowCanvas.AddNode(node, location);
+            if (trackUndo)
+                processFlowCanvas.RegisterNodeCreated(node);
             UpdateNode();
 
             #endregion
@@ -524,6 +760,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                         ToAnchor = string.IsNullOrEmpty(connectionInfo.ToAnchor) ? "Left" : connectionInfo.ToAnchor,
                         Branch = connectionInfo.Branch
                     };
+                    _process.NormalizeConnectionBranch(connection);
 
                     if (!string.IsNullOrEmpty(connectionInfo.ID))
                         connection.ID = connectionInfo.ID;
@@ -549,7 +786,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 {
                     FromNodeId = _process.Nodes[index].ID,
                     ToNodeId = _process.Nodes[index + 1].ID,
-                    FromAnchor = "Right",
+                    FromAnchor = "Legacy",
                     ToAnchor = "Left"
                 });
             }
@@ -588,12 +825,57 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             try
             {
+                if (_isLoopRunRequested)
+                    return;
+
                 // 重置运行取消令牌
                 Solution.Instance.ResetTokenSource();
                 _process.IsHandRun = true;
                 await _process.Run(false);
             }
             catch (Exception) { }
+        }
+
+        /// <summary>
+        /// 点击循环运行流程
+        /// </summary>
+        private async void buttonLoop_Click(object sender, EventArgs e)
+        {
+            if (_isLoopRunRequested)
+                return;
+
+            _isLoopRunRequested = true;
+            buttonRun.Enabled = false;
+            buttonLoop.Enabled = false;
+            buttonStop.Enabled = true;
+            Solution.Instance.ResetTokenSource();
+
+            try
+            {
+                if (_process.Nodes.Count == 0 || !_process.Enable)
+                    return;
+
+                while (!Solution.Instance.CancellationToken.IsCancellationRequested)
+                {
+                    _process.IsHandRun = true;
+                    await _process.Run(false);
+
+                    int interval = Math.Max(1, Solution.Instance.RunInterval);
+                    await System.Threading.Tasks.Task.Delay(interval, Solution.Instance.CancellationToken);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, ex.Message, true);
+            }
+            finally
+            {
+                _isLoopRunRequested = false;
+                buttonRun.Enabled = true;
+                buttonLoop.Enabled = true;
+                buttonStop.Enabled = false;
+            }
         }
 
         /// <summary>
@@ -604,6 +886,10 @@ namespace TDJS_Vision.Forms.ProcessNew
         private void buttonStop_Click(object sender, EventArgs e)
         {
             Solution.Instance.CancelToken();
+            _isLoopRunRequested = false;
+            buttonRun.Enabled = true;
+            buttonLoop.Enabled = true;
+            buttonStop.Enabled = false;
         }
 
         /// <summary>
@@ -665,18 +951,91 @@ namespace TDJS_Vision.Forms.ProcessNew
         private void contextMenuStripFlowCanvas_Opening(object sender, System.ComponentModel.CancelEventArgs e)
         {
             NodeBase selectedNode = processFlowCanvas.SelectedNode;
-            bool hasNode = selectedNode != null;
+            int selectedNodeCount = processFlowCanvas.SelectedNodeCount;
+            bool hasNode = selectedNodeCount > 0;
+            bool hasSingleNode = selectedNodeCount == 1;
             bool hasConnection = processFlowCanvas.SelectedConnection != null;
+            bool canPaste = _copiedNodeSnapshot != null;
+            bool hasActiveNode = false;
+            bool hasInactiveNode = false;
 
-            打开节点参数ToolStripMenuItem.Enabled = hasNode && selectedNode.Active;
-            设为起始节点ToolStripMenuItem.Enabled = hasNode && !selectedNode.IsStartNode;
-            启用节点ToolStripMenuItem.Enabled = hasNode && !selectedNode.Active;
-            禁用节点ToolStripMenuItem.Enabled = hasNode && selectedNode.Active;
-            重命名节点ToolStripMenuItem.Enabled = hasNode;
-            添加节点备注ToolStripMenuItem.Enabled = hasNode;
+            foreach (NodeBase node in processFlowCanvas.SelectedNodes)
+            {
+                if (node.Active)
+                    hasActiveNode = true;
+                else
+                    hasInactiveNode = true;
+            }
+
+            撤销ToolStripMenuItem.Enabled = processFlowCanvas.CanUndo;
+            重做ToolStripMenuItem.Enabled = processFlowCanvas.CanRedo;
+            复制节点ToolStripMenuItem.Enabled = hasNode;
+            粘贴节点ToolStripMenuItem.Enabled = canPaste;
+            吸附到网格ToolStripMenuItem.Checked = processFlowCanvas.SnapToGridEnabled;
+            打开节点参数ToolStripMenuItem.Enabled = hasSingleNode && selectedNode.Active;
+            设为起始节点ToolStripMenuItem.Enabled = hasSingleNode && !selectedNode.IsStartNode;
+            启用节点ToolStripMenuItem.Enabled = hasNode && hasInactiveNode;
+            禁用节点ToolStripMenuItem.Enabled = hasNode && hasActiveNode;
+            重命名节点ToolStripMenuItem.Enabled = hasSingleNode;
+            添加节点备注ToolStripMenuItem.Enabled = hasSingleNode;
             删除节点ToolStripMenuItem.Enabled = hasNode;
             删除连线ToolStripMenuItem.Enabled = hasConnection;
-            e.Cancel = !hasNode && !hasConnection;
+            e.Cancel = false;
+        }
+
+        private void 撤销ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            processFlowCanvas.Undo();
+        }
+
+        private void 重做ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            processFlowCanvas.Redo();
+        }
+
+        private void 复制节点ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                CopySelectedNode();
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show(ex.Message, LanguageManager.T("Common.Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void 粘贴节点ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                PasteCopiedNode();
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show(ex.Message, LanguageManager.T("Common.Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+                LogHelper.AddLog(MsgLevel.Exception, ex.Message, true);
+            }
+        }
+
+        private void 放大ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            processFlowCanvas.ZoomIn();
+        }
+
+        private void 缩小ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            processFlowCanvas.ZoomOut();
+        }
+
+        private void 还原缩放ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            processFlowCanvas.ResetZoom();
+        }
+
+        private void 吸附到网格ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            processFlowCanvas.SnapToGridEnabled = 吸附到网格ToolStripMenuItem.Checked;
         }
 
         private void 打开节点参数ToolStripMenuItem_Click(object sender, EventArgs e)
@@ -717,6 +1076,322 @@ namespace TDJS_Vision.Forms.ProcessNew
         private void 删除连线ToolStripMenuItem_Click(object sender, EventArgs e)
         {
             processFlowCanvas.DeleteSelectedConnection();
+        }
+
+        private bool CopySelectedNode()
+        {
+            List<NodeBase> selectedNodes = processFlowCanvas.SelectedNodes;
+            if (selectedNodes.Count == 0)
+                return false;
+
+            _copiedNodeSnapshot = new NodeCopySnapshot
+            {
+                Nodes = new List<NodeCopyItem>(),
+                Connections = new List<ConnectionCopySnapshot>()
+            };
+
+            Dictionary<int, NodeBase> selectedNodeMap = new Dictionary<int, NodeBase>();
+            foreach (NodeBase node in selectedNodes)
+            {
+                selectedNodeMap[node.ID] = node;
+                _copiedNodeSnapshot.Nodes.Add(new NodeCopyItem
+                {
+                    SourceNodeId = node.ID,
+                    NodeType = node.NodeType,
+                    NodeName = node.NodeName,
+                    Active = node.Active,
+                    CanvasLocation = node.CanvasLocation,
+                    CanvasSize = node.CanvasSize,
+                    Notes = node.Notes,
+                    NodeParam = CloneNodeParam(node.ParamForm == null ? null : node.ParamForm.Params)
+                });
+            }
+
+            foreach (ProcessConnection connection in _process.Connections)
+            {
+                if (!selectedNodeMap.ContainsKey(connection.FromNodeId) ||
+                    !selectedNodeMap.ContainsKey(connection.ToNodeId))
+                {
+                    continue;
+                }
+
+                _copiedNodeSnapshot.Connections.Add(new ConnectionCopySnapshot
+                {
+                    FromNodeId = connection.FromNodeId,
+                    ToNodeId = connection.ToNodeId,
+                    FromAnchor = connection.FromAnchor,
+                    ToAnchor = connection.ToAnchor,
+                    Branch = connection.Branch
+                });
+            }
+
+            _pasteCount = 0;
+            return true;
+        }
+
+        private bool PasteCopiedNode()
+        {
+            if (_copiedNodeSnapshot == null ||
+                _copiedNodeSnapshot.Nodes == null ||
+                _copiedNodeSnapshot.Nodes.Count == 0)
+                return false;
+
+            List<NodeBase> pastedNodes = new List<NodeBase>();
+            List<ProcessConnection> pastedConnections = new List<ProcessConnection>();
+            try
+            {
+                Point pasteOffset = GetNextPasteOffset(_copiedNodeSnapshot);
+                Dictionary<int, NodeBase> pastedNodeMap = new Dictionary<int, NodeBase>();
+                Dictionary<string, string> nodeTextMap = new Dictionary<string, string>();
+
+                foreach (NodeCopyItem item in _copiedNodeSnapshot.Nodes)
+                {
+                    Point pasteLocation = new Point(
+                        item.CanvasLocation.X + pasteOffset.X,
+                        item.CanvasLocation.Y + pasteOffset.Y);
+                    string nodeName = GetUniquePastedNodeName(item.NodeName);
+                    NodeBase pastedNode = CreateNode(item.NodeType, nodeName, -1, pasteLocation, false, false);
+                    pastedNode.CanvasSize = item.CanvasSize;
+                    pastedNode.Active = item.Active;
+                    pastedNode.SetNotes(item.Notes);
+
+                    if (item.NodeParam != null && pastedNode.ParamForm != null)
+                        pastedNode.ParamForm.Params = CloneNodeParam(item.NodeParam);
+
+                    processFlowCanvas.AddNode(pastedNode, pasteLocation);
+                    pastedNodes.Add(pastedNode);
+                    pastedNodeMap[item.SourceNodeId] = pastedNode;
+                    nodeTextMap[$"{item.SourceNodeId}.{item.NodeName}"] = $"{pastedNode.ID}.{pastedNode.NodeName}";
+                }
+
+                foreach (NodeBase pastedNode in pastedNodes)
+                {
+                    if (pastedNode.ParamForm == null || pastedNode.ParamForm.Params == null)
+                        continue;
+
+                    RemapInternalNodeReferences(pastedNode.ParamForm.Params, nodeTextMap);
+                    pastedNode.ParamForm.SetParam2Form();
+                }
+
+                foreach (ConnectionCopySnapshot connection in _copiedNodeSnapshot.Connections)
+                {
+                    if (!pastedNodeMap.ContainsKey(connection.FromNodeId) ||
+                        !pastedNodeMap.ContainsKey(connection.ToNodeId))
+                    {
+                        continue;
+                    }
+
+                    ProcessConnection pastedConnection = new ProcessConnection
+                    {
+                        FromNodeId = pastedNodeMap[connection.FromNodeId].ID,
+                        ToNodeId = pastedNodeMap[connection.ToNodeId].ID,
+                        FromAnchor = string.IsNullOrEmpty(connection.FromAnchor) ? "Right" : connection.FromAnchor,
+                        ToAnchor = string.IsNullOrEmpty(connection.ToAnchor) ? "Left" : connection.ToAnchor,
+                        Branch = connection.Branch
+                    };
+                    _process.NormalizeConnectionBranch(pastedConnection);
+                    _process.HasCanvasGraph = true;
+                    _process.Connections.Add(pastedConnection);
+                    pastedConnections.Add(pastedConnection);
+                }
+
+                if (pastedConnections.Count > 0)
+                    _process.NotifyConnectionsChanged();
+
+                processFlowCanvas.SelectNodes(pastedNodes);
+                processFlowCanvas.RegisterNodesCreated(pastedNodes, pastedConnections);
+                _pasteCount++;
+                UpdateNode();
+                UpdateNodeCountText();
+                return true;
+            }
+            catch
+            {
+                foreach (ProcessConnection connection in pastedConnections)
+                    _process.Connections.Remove(connection);
+                if (pastedConnections.Count > 0)
+                    _process.NotifyConnectionsChanged();
+
+                if (pastedNodes.Count > 0)
+                {
+                    foreach (NodeBase node in _process.Nodes)
+                        node.Selected = false;
+
+                    foreach (NodeBase pastedNode in pastedNodes)
+                    {
+                        if (pastedNode != null)
+                            pastedNode.Selected = true;
+                    }
+
+                    foreach (NodeBase pastedNode in new List<NodeBase>(pastedNodes))
+                    {
+                        if (pastedNode != null && _process.Nodes.Contains(pastedNode))
+                            pastedNode.DeleteFromProcess(false);
+                    }
+
+                    UpdateNode();
+                    UpdateNodeCountText();
+                }
+
+                throw;
+            }
+        }
+
+        private Point GetNextPasteOffset(NodeCopySnapshot snapshot)
+        {
+            Rectangle copiedBounds = GetCopiedNodeBounds(snapshot);
+            Point targetLocation = processFlowCanvas.LastContextMenuCanvasPoint;
+            int repeatedPasteOffset = 32 * (_pasteCount + 1);
+            if (targetLocation == Point.Empty)
+                targetLocation = copiedBounds.Location;
+
+            Point requestedTopLeft = new Point(
+                targetLocation.X + repeatedPasteOffset,
+                targetLocation.Y + repeatedPasteOffset);
+            if (processFlowCanvas.SnapToGridEnabled)
+                requestedTopLeft = processFlowCanvas.GetInteractiveNodeLocation(requestedTopLeft, copiedBounds.Size);
+
+            return new Point(
+                requestedTopLeft.X - copiedBounds.X,
+                requestedTopLeft.Y - copiedBounds.Y);
+        }
+
+        private static Rectangle GetCopiedNodeBounds(NodeCopySnapshot snapshot)
+        {
+            Rectangle bounds = new Rectangle(snapshot.Nodes[0].CanvasLocation, snapshot.Nodes[0].CanvasSize);
+            for (int index = 1; index < snapshot.Nodes.Count; index++)
+            {
+                NodeCopyItem item = snapshot.Nodes[index];
+                bounds = Rectangle.Union(bounds, new Rectangle(item.CanvasLocation, item.CanvasSize));
+            }
+
+            return bounds;
+        }
+
+        private string GetUniquePastedNodeName(string sourceName)
+        {
+            string baseName = string.IsNullOrWhiteSpace(sourceName)
+                ? "节点_复制"
+                : sourceName + "_复制";
+            string candidate = baseName;
+            int index = 2;
+            while (NodeNameExists(candidate))
+            {
+                candidate = baseName + index;
+                index++;
+            }
+
+            return candidate;
+        }
+
+        private bool NodeNameExists(string nodeName)
+        {
+            if (_process == null)
+                return false;
+
+            foreach (NodeBase node in _process.Nodes)
+            {
+                if (string.Equals(node.NodeName, nodeName, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static INodeParam CloneNodeParam(INodeParam sourceParam)
+        {
+            if (sourceParam == null)
+                return null;
+
+            string json = JsonConvert.SerializeObject(sourceParam);
+            INodeParam clonedParam = JsonConvert.DeserializeObject(json, sourceParam.GetType()) as INodeParam;
+            if (clonedParam == null)
+                throw new InvalidOperationException("节点参数复制失败！");
+
+            return clonedParam;
+        }
+
+        private static void RemapInternalNodeReferences(
+            object target,
+            Dictionary<string, string> nodeTextMap,
+            int depth = 0)
+        {
+            if (target == null || nodeTextMap == null || nodeTextMap.Count == 0 || depth > 5)
+                return;
+
+            Type type = target.GetType();
+            if (type == typeof(string) ||
+                type.IsPrimitive ||
+                type.IsEnum ||
+                type == typeof(decimal))
+            {
+                return;
+            }
+
+            System.Collections.IEnumerable enumerable = target as System.Collections.IEnumerable;
+            if (enumerable != null)
+            {
+                foreach (object item in enumerable)
+                    RemapInternalNodeReferences(item, nodeTextMap, depth + 1);
+
+                return;
+            }
+
+            foreach (System.Reflection.PropertyInfo property in type.GetProperties())
+            {
+                if (!property.CanRead ||
+                    !property.CanWrite ||
+                    property.GetIndexParameters().Length > 0)
+                {
+                    continue;
+                }
+
+                if (property.PropertyType == typeof(string))
+                {
+                    string oldValue = property.GetValue(target, null) as string;
+                    string newValue;
+                    if (!string.IsNullOrEmpty(oldValue) &&
+                        nodeTextMap.TryGetValue(oldValue, out newValue))
+                    {
+                        property.SetValue(target, newValue, null);
+                    }
+
+                    continue;
+                }
+
+                if (property.PropertyType.IsValueType)
+                    continue;
+
+                object value = property.GetValue(target, null);
+                RemapInternalNodeReferences(value, nodeTextMap, depth + 1);
+            }
+        }
+
+        private sealed class NodeCopySnapshot
+        {
+            public List<NodeCopyItem> Nodes = new List<NodeCopyItem>();
+            public List<ConnectionCopySnapshot> Connections = new List<ConnectionCopySnapshot>();
+        }
+
+        private sealed class NodeCopyItem
+        {
+            public int SourceNodeId;
+            public NodeType NodeType;
+            public string NodeName;
+            public bool Active;
+            public Point CanvasLocation;
+            public Size CanvasSize;
+            public string Notes;
+            public INodeParam NodeParam;
+        }
+
+        private sealed class ConnectionCopySnapshot
+        {
+            public int FromNodeId;
+            public int ToNodeId;
+            public string FromAnchor;
+            public string ToAnchor;
+            public ProcessConnectionBranch Branch;
         }
     }
 }

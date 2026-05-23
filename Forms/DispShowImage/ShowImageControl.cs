@@ -1,4 +1,3 @@
-﻿using Sunny.UI;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -7,2372 +6,929 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Linq;
 using System.Windows.Forms;
+using OpenCvSharp;
+using OpenCvSharp.Extensions;
+using Point = System.Drawing.Point;
 
 namespace TDJS_Vision.Forms.DispShowImage
 {
     /// <summary>
-    /// ShowImageControl - 图像显示控件（整理版）
-    /// 说明：保留你原有全部功能（显示图像、缩放、平移、静态图形、ROI（旋转矩形/圆/直线）绘制与交互、文字层、背景缓存等）。
-    /// 改动（非破坏性）：
-    /// - 对外的一些公开修改方法（添加/清除 ROI/静态图）做了线程安全包装（SafeInvoke）。
-    /// - ImageBitmap setter 中安全释放旧 Bitmap（控件接管位图生命周期，见注释）。
-    /// - ResetView 与 OnResize 缩放策略统一，新增 AllowUpscale 属性以控制是否允许放大（默认 false，保持原行为）。
-    /// - 增加直线 ROI（交互/静态）与统一 Label（字符提示）绘制系统。
+    /// ShowImageControl - 图像显示控件（新版渲染引擎 + 兼容性适配）
     /// </summary>
     public partial class ShowImageControl : UserControl
     {
-        // ---------- 图像显示相关 ----------
-        private Bitmap _image;                      // 主图像（图像坐标系）
-        private float _scale = 1f;                  // 缩放比例（图像像素 -> 屏幕像素）
-        private PointF _offset = PointF.Empty;      // 平移偏移（屏幕坐标）
+        private Bitmap _image;
+        private readonly object _imageLock = new object();
+        private readonly object _roiLock = new object();
+        private float _scale = 1f;
+        private PointF _offset = PointF.Empty;
         private bool _isPanning = false;
         private Point _lastMouse;
 
-        // ---------- 背景缓存 ----------
-        private Image _backgroundImage = null;
-        private Color _backgroundColor = Color.Black;
-        private Bitmap _backgroundCache;
-        private Size _backgroundCacheSize;
-        private float _backgroundTransparency = 1f;
+        private bool _isInteracting = false;
+        private readonly Timer _interactionTimer;
 
-        // ---------- ROI 与静态图形（统一为 IRoiShape，可交互） ----------
-        private readonly List<IRoiShape> _staticShapes = new List<IRoiShape>();
-        private readonly List<IRoiShape> _roiShapes = new List<IRoiShape>();
+        private PointF _currentImgPt = new PointF(-1, -1);
+        private Color _currentPixelColor = Color.Black;
+        private int _currentGrayValue = 0;
+        private Mat _grayMatCache = null;
+        private readonly object _grayMatLock = new object();
+        private const float PIXEL_GRID_THRESHOLD = 15f;
 
-        // ---------- ID 分配 ----------
-        private int _nextRoiId = 1;
+        private readonly List<IRoiShape> _dynamicRois = new List<IRoiShape>();
+        private readonly List<IRoiShape> _staticRois = new List<IRoiShape>();
+        private readonly List<ToolStripItem> _builtInMenuItems = new List<ToolStripItem>();
 
-        // ---------- 事件（对外） ----------
-        /// <summary>鼠标在控件移动时，返回图像坐标（图像坐标系）</summary>
-        public event Action<PointF> MouseImageMove;
-
-        /// <summary>当 ROI 被选中时触发（返回被选中的 IRoiShape）</summary>
-        public event Action<IRoiShape> RoiSelected;
-
-        /// <summary>控件专属鼠标单击事件（直接返回图像坐标系坐标）</summary>
-        public event Action<PointF, MouseButtons> MouseImageClick;
-
-        /// <summary>控件专属鼠标双击事件（直接返回图像坐标系坐标）</summary>
-        public event Action<PointF, MouseButtons> MouseImageDoubleClick;
-
-        /// <summary>
-        /// ROI 位置发生变化（拖拽中实时/结束后均触发，参数：id, shape）
-        /// </summary>
-        public event Action<int, IRoiShape> RoiPositionChanged;
-
-        // ---------- 构造 ----------
         public ShowImageControl()
         {
-            DoubleBuffered = true;
-            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.ResizeRedraw | ControlStyles.OptimizedDoubleBuffer, true);
-            UpdateStyles();
+            this.DoubleBuffered = true;
+            this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.ResizeRedraw | ControlStyles.OptimizedDoubleBuffer, true);
+            this.BackColor = Color.FromArgb(20, 20, 20);
 
-            // 默认填充背景图（不留白）
-            BackgroundLayoutMode = BackgroundImageLayoutMode.Fill;
+            this.MouseWheel += (s, e) => {
+                _isInteracting = true; _interactionTimer.Stop(); _interactionTimer.Start();
+                float delta = e.Delta > 0 ? 1.25f : 0.8f;
+                PointF imgPt = ScreenToImage(e.Location);
+                _scale = Math.Max(0.001f, Math.Min(1000f, _scale * delta));
+                _offset.X = e.X - imgPt.X * _scale;
+                _offset.Y = e.Y - imgPt.Y * _scale;
+                Invalidate();
+            };
 
-            // 鼠标滚轮用于缩放
-            this.MouseWheel += ShowImageControl_MouseWheel;
+            _interactionTimer = new Timer { Interval = 250 };
+            _interactionTimer.Tick += (s, e) => { if (_isInteracting && !_isPanning) { _isInteracting = false; _interactionTimer.Stop(); Invalidate(); } };
+
+            InitContextMenu();
         }
 
-        #region 设计器属性：背景相关（可在属性面板设置）
-        [Category("外观")]
-        [Description("控件背景图像（可在设计器选择）。")]
-        public Image BackgroundImageCustom
+        private void InitContextMenu()
         {
-            get => _backgroundImage;
-            set
+            var menu = new ContextMenuStrip();
+            _builtInMenuItems.Add(menu.Items.Add("自适应显示 (Fit)", null, (s, e) => ShowFit()));
+            _builtInMenuItems.Add(menu.Items.Add("清空显示", null, (s, e) => ClearDisplay()));
+            _builtInMenuItems.Add(menu.Items.Add("-"));
+            _builtInMenuItems.Add(menu.Items.Add("保存效果图", null, (s, e) => SaveResultImage()));
+            _builtInMenuItems.Add(menu.Items.Add("保存原图", null, (s, e) => SaveOriginalImage()));
+            this.ContextMenuStrip = menu;
+        }
+
+        /// <summary>开启或禁用内置的右键菜单项</summary>
+        public void SetBuiltInMenuEnabled(bool enabled)
+        {
+            foreach (var item in _builtInMenuItems) item.Enabled = enabled;
+        }
+
+        /// <summary>显示或隐藏内置的右键菜单项</summary>
+        public void SetBuiltInMenuVisible(bool visible)
+        {
+            foreach (var item in _builtInMenuItems) item.Visible = visible;
+        }
+
+        /// <summary>向右键菜单注册自定义菜单项</summary>
+        public ToolStripItem RegisterContextMenuItem(string text, EventHandler onClick, Image icon = null)
+        {
+            if (this.ContextMenuStrip == null) return null;
+            return this.ContextMenuStrip.Items.Add(text, icon, onClick);
+        }
+
+        /// <summary>移除指定的菜单项对象</summary>
+        public void RemoveContextMenuItem(ToolStripItem item)
+        {
+            if (this.ContextMenuStrip == null || item == null) return;
+            this.ContextMenuStrip.Items.Remove(item);
+            item.Dispose();
+        }
+
+        /// <summary>根据文本移除菜单项</summary>
+        public void RemoveContextMenuItem(string text)
+        {
+            if (this.ContextMenuStrip == null) return;
+            for (int i = this.ContextMenuStrip.Items.Count - 1; i >= 0; i--)
             {
-                _backgroundImage = value;
-                UpdateBackgroundCache();
-                Invalidate();
+                if (this.ContextMenuStrip.Items[i].Text == text)
+                {
+                    this.ContextMenuStrip.Items[i].Dispose();
+                    this.ContextMenuStrip.Items.RemoveAt(i);
+                }
             }
         }
 
-        [Category("外观")]
-        [Description("控件背景颜色（在没有图像或作为背景基色时显示）。")]
-        public Color BackgroundColorCustom
+        /// <summary>注册菜单分隔线</summary>
+        public void RegisterContextMenuSeparator()
         {
-            get => _backgroundColor;
-            set
-            {
-                _backgroundColor = value;
-                UpdateBackgroundCache();
-                Invalidate();
-            }
+            if (this.ContextMenuStrip == null) return;
+            this.ContextMenuStrip.Items.Add(new ToolStripSeparator());
         }
 
-        [Category("外观")]
-        [Description("背景图的不透明度（0~1）。")]
-        public float BackgroundTransparency
-        {
-            get => _backgroundTransparency;
-            set
-            {
-                _backgroundTransparency = Math.Max(0f, Math.Min(1f, value));
-                UpdateBackgroundCache();
-                Invalidate();
-            }
-        }
+        [Category("Behavior")]
+        [Description("是否在鼠标移动时采集并显示当前像素的颜色信息（建议循环检测时关闭）")]
+        public bool ShowPixelInfo { get; set; } = false;
 
-        [Category("外观")]
-        [Description("当没有背景图时是否显示棋盘格背景（类似 Photoshop 透明格）。")]
-        public bool ShowCheckerBackground { get; set; } = true;
-
-        public enum BackgroundImageLayoutMode
-        {
-            Center,
-            Stretch,
-            Fill
-        }
-
-        [Category("外观")]
-        [Description("设置背景图布局模式。Fill = 填充（默认，不留白）")]
-        public BackgroundImageLayoutMode BackgroundLayoutMode { get; set; }
+        #region Designer Compatibility Properties
+        [Category("Appearance")]
+        public Color BackgroundColorCustom { get; set; } = Color.Black;
+        [Category("Appearance")]
+        public Image BackgroundImageCustom { get; set; }
+        public enum BackgroundImageLayoutMode { Fill, Center, Stretch }
+        [Category("Appearance")]
+        public BackgroundImageLayoutMode BackgroundLayoutMode { get; set; } = BackgroundImageLayoutMode.Fill;
+        [Category("Appearance")]
+        public float BackgroundTransparency { get; set; } = 1f;
+        [Category("Appearance")]
+        public Color RoiColor { get; set; } = Color.Lime;
+        [Category("Appearance")]
+        public bool ShowCheckerBackground { get; set; } = false;
+        [Category("Appearance")]
+        public Color StaticShapeColor { get; set; } = Color.Red;
         #endregion
 
-        #region 主图像访问
-        [Browsable(false)]
+        #region API - 核心
+        [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public Bitmap ImageBitmap
         {
-            get => _image;
-            set
-            {
-                // 注意：控件默认认为它拥有并管理传入的 Bitmap 的生命周期，
-                // 因此在设置新图像时会释放旧的 Bitmap。如果你不希望控件释放，请改为传入克隆位图或调整实现。
-                if (_image == value) return;
-
-                if (_image != null)
+            get { lock (_imageLock) return _image; }
+            set 
+            { 
+                lock (_imageLock)
                 {
-                    try { _image.Dispose(); }
-                    catch { /* 忽略释放异常 */ }
+                    if (_image != value) 
+                    { 
+                        _image?.Dispose(); 
+                        _image = value; 
+                    } 
+                    
+                    // 用OpenCvSharp预计算灰度图缓存（将其纳入 _imageLock 防止位图被LockBits锁定时UI线程OnPaint调用DrawImage导致冲突）
+                    lock (_grayMatLock)
+                    {
+                        _grayMatCache?.Dispose();
+                        _grayMatCache = null;
+                        if (_image != null)
+                        {
+                            try
+                            {
+                                using (var colorMat = BitmapConverter.ToMat(_image))
+                                {
+                                    _grayMatCache = new Mat();
+                                    Cv2.CvtColor(colorMat, _grayMatCache, ColorConversionCodes.BGR2GRAY);
+                                }
+                            }
+                            catch { _grayMatCache = null; }
+                        }
+                    }
                 }
-
-                _image = value.DeepClone();
-                //ResetView();
-                Invalidate();
+                if (value != null) SafeInvoke(() => ShowFit());
             }
         }
 
-        /// <summary>是否允许在 Reset/Resize 时放大图像（默认 false，与原 ResetView 行为保持一致）</summary>
-        [Category("行为")]
-        [Description("决定 ResetView / OnResize 时是否允许将图像放大（true 表示允许放大，false 表示最大不超过 1x）。")]
-        public bool AllowUpscale { get; set; } = false;
-
-        /// <summary>将视图复位为居中且按最适比例显示（不放大超过 1x，除非 AllowUpscale 为 true）</summary>
-        public void ResetView()
+        public void ShowFit()
         {
-            if (_image == null)
-            {
-                _scale = 1f;
-                _offset = PointF.Empty;
-                return;
-            }
-            float sx = (float)Width / _image.Width;
-            float sy = (float)Height / _image.Height;
-            float target = Math.Min(sx, sy);
-            if (!AllowUpscale) target = Math.Min(1f, target);
-            _scale = target;
-            float imgW = _image.Width * _scale;
-            float imgH = _image.Height * _scale;
-            _offset = new PointF((Width - imgW) / 2f, (Height - imgH) / 2f);
-        }
-        #endregion
-
-        #region 坐标转换（图像 <-> 屏幕） - 暴露给外部
-        /// <summary>图像坐标 -> 屏幕坐标</summary>
-        public PointF ImageToScreen(PointF imgPt) => new PointF(imgPt.X * _scale + _offset.X, imgPt.Y * _scale + _offset.Y);
-
-        /// <summary>屏幕坐标 -> 图像坐标</summary>
-        public PointF ScreenToImage(PointF scrPt) => new PointF((scrPt.X - _offset.X) / _scale, (scrPt.Y - _offset.Y) / _scale);
-        #endregion
-
-        #region 静态图形 API（现在静态图形也可交互，使用图像坐标参数）  线程安全的
-        public void ClearStaticShapes() { SafeInvoke(() => { _staticShapes.Clear(); Invalidate(); }); }
-        public int AddStaticRotatedRect(float row, float column, float phiRad, float length1, float length2, float lineWidth = 1f, Color? color = null, string label = null)
-        {
-            int id = -1;
             SafeInvoke(() =>
             {
-                var s = new StaticRotatedRect(row, column, phiRad, length1, length2)
+                lock (_imageLock)
                 {
-                    Color = color ?? StaticShapeColor,
-                    LineWidth = lineWidth,
-                    Id = _nextRoiId++,
-                    Label = label ?? "Rect",
-                    ShowLabel = false
-                };
-                _staticShapes.Add(s);
-                Invalidate();
-                id = s.Id;
-            });
-            return id;
-        }
-        public int AddStaticCircle(float row, float column, float radius, float lineWidth = 1f, Color? color = null, string label = null)
-        {
-            int id = -1;
-            SafeInvoke(() =>
-            {
-                var s = new StaticCircleShape(row, column, radius)
-                {
-                    Color = color ?? StaticShapeColor,
-                    LineWidth = lineWidth,
-                    Id = _nextRoiId++,
-                    Label = label ?? "Circle",
-                    ShowLabel = false
-                };
-                _staticShapes.Add(s);
-                Invalidate();
-                id = s.Id;
-            });
-
-            return id;
-        }
-        public bool RemoveStaticShapeById(int id)
-        {
-            bool removed = false;
-
-            SafeInvoke(() =>
-            {
-                var s = _staticShapes.FirstOrDefault(x => x.Id == id);
-                if (s != null)
-                {
-                    _staticShapes.Remove(s);
-                    removed = true;
-                    Invalidate();
+                    if (_image == null) return;
+                    _scale = Math.Min((float)Width / _image.Width, (float)Height / _image.Height);
+                    _offset = new PointF((Width - _image.Width * _scale) / 2f, (Height - _image.Height * _scale) / 2f);
                 }
+                Invalidate();
             });
+        }
 
-            return removed;
+        public void ClearAll() { lock (_roiLock) { _dynamicRois.Clear(); _staticRois.Clear(); _textElements.Clear(); } SafeInvalidate(); }
+        public void ClearDisplay() 
+        { 
+            SafeInvoke(() =>
+            {
+                lock (_imageLock)
+                {
+                    _image?.Dispose(); 
+                    _image = null; 
+                }
+                ClearAll(); 
+                _scale = 1f; 
+                _offset = PointF.Empty; 
+                Invalidate();
+            });
+        }
+
+        public PointF ImageToScreen(PointF p) => new PointF(p.X * _scale + _offset.X, p.Y * _scale + _offset.Y);
+        public PointF ScreenToImage(Point p) => new PointF((p.X - _offset.X) / _scale, (p.Y - _offset.Y) / _scale);
+        
+        public event Action<PointF> MouseImageClick;
+        protected override void OnMouseClick(MouseEventArgs e)
+        {
+            base.OnMouseClick(e);
         }
         #endregion
 
-        #region ROI API（添加矩形/圆形 ROI，参数基于图像坐标系） - 线程安全
-        public void ClearRois() { SafeInvoke(() => { _roiShapes.Clear(); Invalidate(); }); }
+        #region API - 兼容性适配 (Compatibility Layer)
 
-        /// <summary>添加旋转矩形 ROI（以图像坐标系给出）</summary>
-        public IRoiShape AddRoiRotatedRect(
-            float row, float column, float phiRad,
-            float length1, float length2,
-            float lineWidth = 1f, Color? color = null, string label = null)
+        /// <summary>兼容旧版名称</summary>
+        public void ResetView() => ShowFit();
+        
+        /// <summary>兼容旧版名称</summary>
+        public void ClearAllRoi() => ClearAll();
+        
+        /// <summary>兼容旧版名称</summary>
+        public void ClearStaticShapes() { lock (_roiLock) _staticRois.Clear(); SafeInvalidate(); }
+
+        /// <summary>兼容旧版名称</summary>
+        public void ClearRois() { lock (_roiLock) _dynamicRois.Clear(); SafeInvalidate(); }
+
+        /// <summary>安全设置图像（线程安全）</summary>
+        public void SetImage(Bitmap bmp) => SafeInvoke(() => { ImageBitmap = bmp; });
+
+        /// <summary>添加旋转矩形 ROI（参数：中心行, 中心列, 弧度, 半长1, 半长2, 线宽, 颜色）</summary>
+        public IRoiShape AddRoiRotatedRect(float row, float column, float phiRad, float length1, float length2, float lineWidth = 1f, Color? color = null)
         {
-            IRoiShape r = null;
-            SafeInvoke(() =>
-            {
-                var tmp = new RoiRotatedRect(row, column, phiRad, length1, length2)
-                {
-                    Color = color ?? RoiColor,
-                    LineWidth = lineWidth,
-                    Id = _nextRoiId++,
-                    Label = label ?? "Rect",
-                    ShowLabel = true
-                };
-                _roiShapes.Add(tmp);
-                Invalidate();
-                r = tmp;
-            });
+            float phiDeg = (float)(phiRad * 180.0 / Math.PI);
+            var r = new RoiRotatedRect(column, row, length1 * 2, length2 * 2, phiDeg) { ShapeColor = color ?? Color.Lime };
+            lock (_roiLock) _dynamicRois.Add(r);
+            SafeInvalidate();
             return r;
         }
 
-
-        /// <summary>添加圆形 ROI（以图像坐标系给出）</summary>
-        public IRoiShape AddRoiCircle(float row, float column, float radius, float lineWidth = 1f, Color? color = null, string label = null)
+        /// <summary>添加静态旋转矩形</summary>
+        public void AddStaticRotatedRect(float row, float column, float phiRad, float length1, float length2, float lineWidth = 1f, Color? color = null)
         {
-            IRoiShape c = null;
-            SafeInvoke(() =>
-            {
-                var tmp = new RoiCircle(row, column, radius)
-                {
-                    Color = color ?? RoiColor,
-                    LineWidth = lineWidth,
-                    Id = _nextRoiId++,
-                    Label = label ?? "Circle",
-                    ShowLabel = true
-                };
-                _roiShapes.Add(tmp);
-                Invalidate();
-                c = tmp;
-            });
-            return c;
+            float phiDeg = (float)(phiRad * 180.0 / Math.PI);
+            lock (_roiLock) _staticRois.Add(new RoiRotatedRect(column, row, length1 * 2, length2 * 2, phiDeg) { ShapeColor = color ?? Color.Red, IsStatic = true });
+            SafeInvalidate();
         }
 
-
-        #region ======= 直线 ROI / 静态线 API =======
-
-        /// <summary>添加交互直线 ROI（以图像坐标系给出）</summary>
-        public IRoiShape AddRoiLine(
-            float startRow, float startCol,
-            float endRow, float endCol,
-            float lineWidth = 1f,
-            Color? color = null,
-            string label = null)
+        /// <summary>添加静态圆形</summary>
+        public void AddStaticCircle(float row, float column, float radius, float lineWidth = 1f, Color? color = null)
         {
-            IRoiShape r = null;
-            SafeInvoke(() =>
-            {
-                var tmp = new RoiLine(
-                    new PointF(startCol, startRow),
-                    new PointF(endCol, endRow))
-                {
-                    Color = color ?? RoiColor,
-                    LineWidth = lineWidth,
-                    Id = _nextRoiId++,
-                    Label = label ?? "Line",
-                    ShowLabel = true
-                };
-                _roiShapes.Add(tmp);
-                Invalidate();
-                r = tmp;
-            });
-            return r;
+            lock (_roiLock) _staticRois.Add(new RoiCircle(column, row, radius) { ShapeColor = color ?? Color.Red, IsStatic = true });
+            SafeInvalidate();
         }
 
-        /// <summary>添加静态直线（不可拖拽）</summary>
-        public IRoiShape AddStaticLine(
-            float startRow, float startCol,
-            float endRow, float endCol,
-            float lineWidth = 1f,
-            Color? color = null,
-            string label = null)
-        {
-            IRoiShape r = null;
-            SafeInvoke(() =>
-            {
-                var tmp = new StaticLineShape(
-                    new PointF(startCol, startRow),
-                    new PointF(endCol, endRow))
-                {
-                    Color = color ?? StaticShapeColor,
-                    LineWidth = lineWidth,
-                    Id = _nextRoiId++,
-                    Label = label ?? "StaticLine",
-                    ShowLabel = false
-                };
-                _staticShapes.Add(tmp);
-                Invalidate();
-                r = tmp;
-            });
-            return r;
-        }
-
-
-        public void ClearAllLines()
-        {
-            SafeInvoke(() =>
-            {
-                _roiShapes.RemoveAll(s => s is RoiLine);
-                _staticShapes.RemoveAll(s => s is StaticLineShape);
-                Invalidate();
-            });
-        }
-
-        #endregion
-
-
-        #region ======= 轴对齐矩形 ROI / 静态矩形 API =======
-
-        /// <summary>
-        /// 添加可交互的轴对齐矩形 ROI（不可旋转）
-        /// 传入左上角 & 右下角（图像坐标）
-        /// </summary>
-        public IRoiShape AddRoiRect(
-            float left,
-            float top,
-            float right,
-            float bottom,
-            float lineWidth = 1f,
-            Color? color = null,
-            string label = null)
-        {
-            IRoiShape r = null;
-            SafeInvoke(() =>
-            {
-                var rect = new RoiRect(
-                    new PointF(left, top),
-                    new PointF(right, bottom))
-                {
-                    Id = _nextRoiId++,
-                    Color = color ?? RoiColor,
-                    LineWidth = lineWidth,
-                    IsEditable = true,
-                    Label = label ?? "Rect",
-                    ShowLabel = true
-                };
-
-                _roiShapes.Add(rect);
-                Invalidate();
-                r = rect;
-            });
-            return r;
-        }
-
-        /// <summary>
-        /// 添加静态轴对齐矩形（不可旋转，不参与交互）
-        /// </summary>
-        public IRoiShape AddStaticRect(
-            float left,
-            float top,
-            float right,
-            float bottom,
-            float lineWidth = 1f,
-            Color? color = null,
-            string label = null)
-        {
-            IRoiShape r = null;
-            SafeInvoke(() =>
-            {
-                var rect = new RoiRect(
-                    new PointF(left, top),
-                    new PointF(right, bottom))
-                {
-                    Id = _nextRoiId++,
-                    Color = color ?? StaticShapeColor,
-                    LineWidth = lineWidth,
-                    IsEditable = false,   // ⭐ 关键：静态
-                    Label = label ?? "StaticRect",
-                    ShowLabel = false
-                };
-
-                _staticShapes.Add(rect);
-                Invalidate();
-                r = rect;
-            });
-            return r;
-        }
-
-        #endregion
-
-
-
-
-        /// <summary>通过 ID 获取 ROI/静态形状（若不存在返回 null）</summary>
-        public IRoiShape GetRoiById(int id)
-        {
-            var r = _roiShapes.FirstOrDefault(x => x.Id == id);
-            if (r != null) return r;
-            return _staticShapes.FirstOrDefault(x => x.Id == id);
-        }
-
-        /// <summary>获取旋转矩形 ROI 信息：Row, Column, Phi(弧度), Length1, Length2；若 id 不存在返回 null</summary>
-        public (float Row, float Column, float Phi, float Length1, float Length2)? GetRotatedRectInfo(int id)
-        {
-            var r = GetRoiById(id) as RoiRotatedRect;
-            if (r == null) return null;
-            // 保持你的内部 Phi 方向；对外返回原值（不取反），如果你需要外部兼容原来逻辑可在此处调整
-            return (r.Row, r.Column, r.Phi, r.Length1, r.Length2);
-        }
-
-        /// <summary>
-        /// 获取控件中所有旋转矩形 ROI 的位置信息
-        /// </summary>
+        /// <summary>获取所有动态旋转矩形的信息（返回：Row, Column, Phi(弧度), Length1, Length2）</summary>
         public List<(float Row, float Column, float Phi, float Length1, float Length2)> GetAllRotatedRectInfos()
         {
-            var result = new List<(float Row, float Column, float Phi, float Length1, float Length2)>();
-            foreach (var roi in _roiShapes)
+            lock (_roiLock)
             {
-                if (roi is RoiRotatedRect r)
-                    result.Add((r.Row, r.Column, r.Phi, r.Length1, r.Length2));
+                return _dynamicRois.OfType<RoiRotatedRect>().Select(r => 
+                    (r.CY, r.CX, (float)(r.Phi * Math.PI / 180.0), r.W / 2, r.H / 2)).ToList();
             }
-            return result;
         }
 
-        /// <summary>获取圆形 ROI/静态圆 信息：Row, Column, Radius；若 id 不存在返回 null</summary>
-        public (float Row, float Column, float Radius)? GetCircleInfo(int id)
-        {
-            var c = GetRoiById(id) as RoiCircle;
-            if (c != null) return (c.Row, c.Column, c.Radius);
-            var sc = GetRoiById(id) as StaticCircleShape;
-            if (sc != null) return (sc.Row, sc.Column, sc.Radius);
-            return null;
-        }
+        public List<RoiRotatedRect> GetAllDynamicRects() { lock (_roiLock) return _dynamicRois.OfType<RoiRotatedRect>().ToList(); }
+        public List<RoiCaliper> GetAllDynamicCalipers() { lock (_roiLock) return _dynamicRois.OfType<RoiCaliper>().ToList(); }
+        public List<RoiCircle> GetAllDynamicCircles() { lock (_roiLock) return _dynamicRois.OfType<RoiCircle>().ToList(); }
+        public List<RoiPolygon> GetAllDynamicPolygons() { lock (_roiLock) return _dynamicRois.OfType<RoiPolygon>().ToList(); }
+        public List<RoiLine> GetAllDynamicLines() { lock (_roiLock) return _dynamicRois.OfType<RoiLine>().ToList(); }
 
-        /// <summary>
-        /// 获取控件中所有直线 ROI 的位置信息
-        /// </summary>
-        /// <returns>返回列表，每个元素包含起点和终点的图像坐标（Row, Column）</returns>
-        public List<(float StartRow, float StartColumn, float EndRow, float EndColumn)> GetAllLineInfos()
+        public string GetSelectedRoiInfo()
         {
-            var result = new List<(float StartRow, float StartColumn, float EndRow, float EndColumn)>();
-            foreach (var roi in _roiShapes)
+            lock (_roiLock)
             {
-                if (roi is RoiLine line)
-                {
-                    result.Add((
-                        line.Start.Y,  // Row
-                        line.Start.X,  // Column
-                        line.End.Y,    // Row
-                        line.End.X     // Column
-                    ));
-                }
+                var r = _dynamicRois.FirstOrDefault(x => x.IsSelected);
+                if (r == null) return "未选中";
+                string info = $"Center:({r.GetCenter().X:F1},{r.GetCenter().Y:F1}) Type:{r.GetType().Name}";
+                if (r is RoiCaliper cp) info += $" W:{cp.CaliperWidth:F1} H:{cp.CaliperHeight:F1} N:{cp.Count}";
+                return info;
             }
-            return result;
         }
 
+        // OpenCV 风格便捷方法
+        public void AddDynamicRect(float cx, float cy, float w, float h, Color? c = null, string l = "") { lock (_roiLock) _dynamicRois.Add(new RoiRotatedRect(cx, cy, w, h, 0) { ShapeColor = c ?? Color.Lime, Label = l }); SafeInvalidate(); }
+        public void AddStaticRect(float cx, float cy, float w, float h, float phi = 0, Color? c = null, string l = "") { lock (_roiLock) _staticRois.Add(new RoiRotatedRect(cx, cy, w, h, phi) { ShapeColor = c ?? Color.Red, Label = l, IsStatic = true }); SafeInvalidate(); }
+        public void AddDynamicCaliper(float sx, float sy, float ex, float ey, float cw, float ch, int count, Color? c = null, string l = "") { lock (_roiLock) _dynamicRois.Add(new RoiCaliper(sx, sy, ex, ey, cw, ch, count) { ShapeColor = c ?? Color.Lime, Label = l }); SafeInvalidate(); }
+        public void AddStaticCaliper(float sx, float sy, float ex, float ey, float cw, float ch, int count, Color? c = null, string l = "") { lock (_roiLock) _staticRois.Add(new RoiCaliper(sx, sy, ex, ey, cw, ch, count) { ShapeColor = c ?? Color.Red, Label = l, IsStatic = true }); SafeInvalidate(); }
+        public void AddDynamicCircle(float cx, float cy, float r, Color? c = null, string l = "") { lock (_roiLock) _dynamicRois.Add(new RoiCircle(cx, cy, r) { ShapeColor = c ?? Color.Lime, Label = l }); SafeInvalidate(); }
+        public void AddDynamicPolygon(List<PointF> pts, Color? c = null, string l = "") { lock (_roiLock) _dynamicRois.Add(new RoiPolygon(pts) { ShapeColor = c ?? Color.Lime, Label = l }); SafeInvalidate(); }
+        public void AddStaticPolygon(List<PointF> pts, Color? c = null, string l = "") { lock (_roiLock) _staticRois.Add(new RoiPolygon(pts) { ShapeColor = c ?? Color.Red, Label = l, IsStatic = true }); SafeInvalidate(); }
+        public void AddContour(List<PointF> pts, Color? c = null) { lock (_roiLock) _staticRois.Add(new RoiContour(pts, c ?? Color.Magenta)); SafeInvalidate(); }
+        public void AddDynamicLine(float x1, float y1, float x2, float y2, Color? c = null, string l = "") { lock (_roiLock) _dynamicRois.Add(new RoiLine(x1, y1, x2, y2) { ShapeColor = c ?? Color.Lime, Label = l }); SafeInvalidate(); }
+        public void AddStaticLine(float x1, float y1, float x2, float y2, Color? c = null, string l = "") { lock (_roiLock) _staticRois.Add(new RoiLine(x1, y1, x2, y2) { ShapeColor = c ?? Color.Red, Label = l, IsStatic = true }); SafeInvalidate(); }
+        public void AddTextBlock(string title, List<(string text, Color color)> lines, float imgX = 0, float imgY = 0, float fontSize = 11f) { lock (_roiLock) _staticRois.Add(new RoiTextBlock(title, lines, imgX, imgY, fontSize)); SafeInvalidate(); }
+        public void AddResultBadge(string text, Color bgColor, float imgX, float imgY, float fontSize = 48f) { lock (_roiLock) _staticRois.Add(new RoiResultBadge(text, bgColor, imgX, imgY, fontSize)); SafeInvalidate(); }
+        public void AddScreenResultBadge(string text, Color color) { lock (_roiLock) _staticRois.Add(new RoiScreenResultBadge(text, color)); SafeInvalidate(); }
 
-        /// <summary>
-        /// 获取控件中所有轴对齐矩形（不旋转矩形）ROI 的位置信息
-        /// 若没有轴对齐矩形 ROI，返回空列表
-        /// </summary>
-        /// <returns>所有轴对齐矩形信息列表，每个元素包含 Left, Top, Right, Bottom</returns>
-        public List<(float Left, float Top, float Right, float Bottom)> GetAllRectInfos()
+        /// <summary>在图像上叠加半透明 mask 区域显示（mask 为灰度 Bitmap，>0 的像素以指定颜色半透明显示）</summary>
+        /// <param name="mask">二值/灰度 mask 位图</param>
+        /// <param name="offsetX">mask 在原图中的左上角 X（列）偏移</param>
+        /// <param name="offsetY">mask 在原图中的左上角 Y（行）偏移</param>
+        /// <param name="color">叠加显示颜色</param>
+        /// <param name="alpha">透明度 0~255，默认100</param>
+        public void AddMaskOverlay(Bitmap mask, int offsetX, int offsetY, Color color, int alpha = 100)
         {
-            // 初始化空列表，用于存储所有轴对齐矩形信息
-            var result = new List<(float Left, float Top, float Right, float Bottom)>();
-
-            // 遍历所有 ROI 形状，筛选出轴对齐矩形（RoiRect 类型）
-            foreach (var roi in _roiShapes)
-            {
-                // 类型转换：判断当前 ROI 是否为轴对齐矩形
-                if (roi is RoiRect rect)
-                {
-                    // 将该矩形的 Left、Top、Right、Bottom 加入结果列表
-                    result.Add((rect.Left, rect.Top, rect.Right, rect.Bottom));
-                }
-            }
-
-            // 返回所有筛选到的轴对齐矩形信息
-            return result;
+            if (mask == null) return;
+            lock (_roiLock) _staticRois.Add(new RoiMaskOverlay(mask, offsetX, offsetY, color, alpha));
+            SafeInvalidate();
         }
 
-        /// <summary>
-        /// 获取轴对齐矩形信息（Left, Top, Right, Bottom）
-        /// </summary>
-        public (float Left, float Top, float Right, float Bottom)? GetRectInfo(int id)
-        {
-            var r = GetRoiById(id) as RoiRect;
-            if (r == null) return null;
-            return (r.Left, r.Top, r.Right, r.Bottom);
-        }
+        public enum TextPosition { TopLeft, TopRight, BottomLeft, BottomRight }
 
-        /// <summary>
-        /// 删除指定 ID 的 ROI 或 静态图形，并触发更新重绘
-        /// </summary>
-        public bool RemoveRoiById(int id)
+        private class TextElement { public string Text; public TextPosition Position; public Color Color; public int FontSize; public int Padding; public float LineSpacing; }
+        private readonly List<TextElement> _textElements = new List<TextElement>();
+
+        /// <summary>绘制文本（保留旧版风格）</summary>
+        public void DrawText(string text, TextPosition position = TextPosition.TopLeft, Color color = default, int fontSize = 12, int padding = 10, float lineSpacing = 0.3f)
         {
-            bool removed = false;
-            SafeInvoke(() =>
-            {
-                var roi = _roiShapes.FirstOrDefault(r => r.Id == id);
-                if (roi != null)
+            if (string.IsNullOrEmpty(text)) return;
+            if (color.IsEmpty) color = Color.White;
+            SafeInvoke(() => {
+                string[] lines = text.Split(new[] { '\n' }, StringSplitOptions.None);
+                lock (_roiLock)
                 {
-                    _roiShapes.Remove(roi);
-                    Invalidate();
-                    removed = true;
-                    return;
+                    foreach (var line in lines)
+                    {
+                        _textElements.Add(new TextElement { Text = line, Position = position, Color = color, FontSize = fontSize, Padding = padding, LineSpacing = lineSpacing });
+                    }
                 }
-                var s = _staticShapes.FirstOrDefault(r => r.Id == id);
-                if (s != null)
-                {
-                    _staticShapes.Remove(s);
-                    Invalidate();
-                    removed = true;
-                }
+                Invalidate();
             });
-            return removed;
+        }
+
+        public void ClearAllText() => SafeInvoke(() => { lock (_roiLock) _textElements.Clear(); Invalidate(); });
+
+        private void SafeInvoke(Action action)
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            if (InvokeRequired) try { BeginInvoke(action); } catch { }
+            else action?.Invoke();
+        }
+
+        /// <summary>线程安全的 Invalidate，确保在 UI 线程上执行</summary>
+        private void SafeInvalidate()
+        {
+            SafeInvoke(() => Invalidate());
         }
 
         #endregion
 
-        #region 外观默认设置
-        [Browsable(true)]
-        public Color StaticShapeColor { get; set; } = Color.Red;
+        #region Rendering
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            try
+            {
+                var g = e.Graphics;
+                g.InterpolationMode = (_isInteracting || _scale > 5 || _scale < 0.5f) ? InterpolationMode.NearestNeighbor : InterpolationMode.HighQualityBicubic;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                DrawCheckerBoard(g);
+                lock (_imageLock)
+                {
+                    if (_image != null)
+                    {
+                        float l = Math.Max(0, -_offset.X / _scale), t = Math.Max(0, -_offset.Y / _scale);
+                        float r = Math.Min(_image.Width, (Width - _offset.X) / _scale), b = Math.Min(_image.Height, (Height - _offset.Y) / _scale);
+                        RectangleF src = new RectangleF(l, t, r - l, b - t);
+                        PointF p1 = ImageToScreen(new PointF(l, t)), p2 = ImageToScreen(new PointF(r, b));
+                        // 加入 try-catch 防止外部线程同时锁定或释放该位图资源时引起 "对象当前正在其他地方使用" 的异常
+                        try
+                        {
+                            g.DrawImage(_image, new RectangleF(p1.X, p1.Y, p2.X - p1.X, p2.Y - p1.Y), src, GraphicsUnit.Pixel);
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            // 忽略多线程争用时的偶尔绘制失败，避免程序直接抛异常产生红叉现象
+                        }
+                        
+                        if (_scale >= PIXEL_GRID_THRESHOLD) DrawPixelGrid(g, src);
+                        g.SmoothingMode = SmoothingMode.AntiAlias;
+                        lock (_roiLock)
+                        {
+                            foreach (var roi in _dynamicRois.Concat(_staticRois)) roi.Draw(g, _scale, _offset);
+                        }
+                    }
+                }
+                DrawAllText(g);
+                DrawStatusBar(g);
+            }
+            catch (Exception ex)
+            {
+                // 统一捕获，防止GDI+致命崩溃导致控件变为大红叉
+                Console.WriteLine($"ShowImageControl OnPaint Error: {ex.Message}");
+            }
+        }
 
-        [Browsable(true)]
-        public Color RoiColor { get; set; } = Color.Lime;
+        private void DrawPixelGrid(Graphics g, RectangleF src)
+        {
+            int sX = (int)Math.Floor(src.X), sY = (int)Math.Floor(src.Y), eX = (int)Math.Ceiling(src.Right), eY = (int)Math.Ceiling(src.Bottom);
+            if ((eX - sX) * (eY - sY) > 5000) return;
+            
+            // 注意：外层 OnPaint 已经持有 _imageLock 锁
+            using (Pen p = new Pen(Color.FromArgb(50, 255, 255, 255), 1f))
+            using (Font f = new Font("Consolas", 8f))
+            {
+                for (int y = sY; y < eY; y++)
+                {
+                    if (y < 0 || y >= _image.Height) continue;
+                    for (int x = sX; x < eX; x++)
+                    {
+                        if (x < 0 || x >= _image.Width) continue;
+
+                        var tl = ImageToScreen(new PointF(x, y));
+                        g.DrawRectangle(p, tl.X, tl.Y, _scale, _scale);
+                        if (_scale > 25)
+                        {
+                            Color v = _image.GetPixel(x, y); 
+                            int gray = (int)(v.R * 0.3 + v.G * 0.59 + v.B * 0.11);
+                            var sz = g.MeasureString(gray.ToString(), f);
+                            g.DrawString(gray.ToString(), f, gray > 128 ? Brushes.Black : Brushes.White, tl.X + (_scale - sz.Width) / 2, tl.Y + (_scale - sz.Height) / 2);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void DrawCheckerBoard(Graphics g)
+        {
+            int sz = 30;
+            for (int y = 0; y < Height; y += sz)
+                for (int x = 0; x < Width; x += sz)
+                    g.FillRectangle(((x / sz) + (y / sz)) % 2 == 0 ? Brushes.Black : new SolidBrush(Color.FromArgb(20, 20, 20)), x, y, sz, sz);
+        }
+
+        private void DrawStatusBar(Graphics g)
+        {
+            string txt;
+            lock (_imageLock)
+            {
+                txt = _image == null ? "No Image" : $"{_image.Width}x{_image.Height} | R:{_currentPixelColor.R:D3} G:{_currentPixelColor.G:D3} B:{_currentPixelColor.B:D3} | Gray:{_currentGrayValue:D3} | X:{(int)_currentImgPt.X} Y:{(int)_currentImgPt.Y} | Zoom:{_scale * 100:F1}%";
+            }
+            g.FillRectangle(new SolidBrush(Color.FromArgb(180, 10, 10, 10)), 0, Height - 22, Width, 22);
+            g.DrawString(txt, SystemFonts.DefaultFont, Brushes.LightGray, 8, Height - 18);
+        }
+
+        private void DrawAllText(Graphics g)
+        {
+            List<IGrouping<TextPosition, TextElement>> groups;
+            lock (_roiLock)
+            {
+                if (_textElements.Count == 0) return;
+                groups = _textElements.GroupBy(e => e.Position).ToList();
+            }
+            foreach (var group in groups)
+            {
+                float usedH = 0;
+                foreach (var elem in group)
+                {
+                    using (Font f = new Font("Microsoft YaHei", elem.FontSize, FontStyle.Bold))
+                    using (Font outlineFont = new Font("Microsoft YaHei", elem.FontSize, FontStyle.Bold))
+                    {
+                        SizeF sz = g.MeasureString(elem.Text, f);
+                        float x = elem.Padding, y = elem.Padding + usedH;
+                        if (elem.Position == TextPosition.TopRight) x = Width - sz.Width - elem.Padding;
+                        else if (elem.Position == TextPosition.BottomLeft) y = Height - 25 - elem.Padding - usedH - sz.Height; // 避开状态栏
+                        else if (elem.Position == TextPosition.BottomRight) { x = Width - sz.Width - elem.Padding; y = Height - 25 - elem.Padding - usedH - sz.Height; }
+                        
+                        // 绘制描边
+                        using (Brush bBlack = new SolidBrush(Color.FromArgb(150, 0, 0, 0)))
+                        {
+                            g.DrawString(elem.Text, f, bBlack, x + 1, y + 1);
+                        }
+                        using (Brush b = new SolidBrush(elem.Color)) g.DrawString(elem.Text, f, b, x, y);
+                        usedH += sz.Height + elem.FontSize * elem.LineSpacing;
+                    }
+                }
+            }
+        }
         #endregion
 
-        #region 鼠标事件处理（平移、ROI 交互）
+        #region Interaction
         private IRoiShape _activeRoi = null;
-        private RoiDragMode _roiDragMode = RoiDragMode.None;
+        private int _handleIdx = -1;
+        private Point _mouseDownLocation;
 
         protected override void OnMouseDown(MouseEventArgs e)
         {
-            base.OnMouseDown(e);
-            Focus();
-            _lastMouse = e.Location;
+            _lastMouse = e.Location; 
+            _mouseDownLocation = e.Location;
             PointF imgPt = ScreenToImage(e.Location);
-
+            
             if (e.Button == MouseButtons.Left)
             {
-                bool anySelected = false;
-
-                // 仅检测 ROI（交互对象）
-                for (int i = _roiShapes.Count - 1; i >= 0; i--)
+                _isPanning = false; // 初始不将其视为拖拽（除非移动超过阈值）
+                lock (_roiLock)
                 {
-                    var roi = _roiShapes[i];
-                    var mode = roi.HitTest(imgPt);
-                    if (mode != RoiDragMode.None)
+                    for (int i = _dynamicRois.Count - 1; i >= 0; i--)
                     {
-                        foreach (var r2 in _roiShapes) r2.IsSelected = false;
-
-                        _activeRoi = roi;
-                        _roiDragMode = mode;
-                        roi.IsSelected = true;
-                        roi.BeginDrag(mode, imgPt);
-                        RoiSelected?.Invoke(roi);
-                        Invalidate();
-                        anySelected = true;
-                        break;
+                        int h = _dynamicRois[i].HitTest(e.Location, _scale, _offset);
+                        if (h != -1) { _activeRoi = _dynamicRois[i]; _handleIdx = h; break; }
                     }
+                    if (_activeRoi != null) { foreach (var r in _dynamicRois) r.IsSelected = (r == _activeRoi); _activeRoi.BeginDrag(imgPt); }
+                    else { foreach (var r in _dynamicRois) r.IsSelected = false; }
                 }
-
-                if (!anySelected)
-                {
-                    // 进入平移模式
-                    _isPanning = true;
-                    Cursor = Cursors.Hand;
-                }
+                Invalidate();
             }
         }
 
         protected override void OnMouseMove(MouseEventArgs e)
         {
-            base.OnMouseMove(e);
-            Point cur = e.Location;
-            PointF imgPt = ScreenToImage(cur);
-
-            // 实时传递鼠标图像坐标
-            MouseImageMove?.Invoke(imgPt);
-
-            // 拖拽 ROI
-            if (_activeRoi != null && _roiDragMode != RoiDragMode.None && e.Button == MouseButtons.Left)
+            PointF imgPt = ScreenToImage(e.Location); _currentImgPt = imgPt;
+            
+            if (ShowPixelInfo)
             {
-                _activeRoi.DragTo(imgPt, _roiDragMode);
-                RoiPositionChanged?.Invoke(_activeRoi.Id, _activeRoi);
-                Invalidate();
-                return;
-            }
-
-            // 平移图像
-            if (_isPanning && e.Button == MouseButtons.Left)
-            {
-                var dx = cur.X - _lastMouse.X;
-                var dy = cur.Y - _lastMouse.Y;
-                _offset = new PointF(_offset.X + dx, _offset.Y + dy);
-                _lastMouse = cur;
-                Invalidate();
-                return;
-            }
-
-            // 悬停检测（仅检测 ROI）
-            bool hover = false;
-            for (int i = _roiShapes.Count - 1; i >= 0; i--)
-            {
-                if (_roiShapes[i].HitTest(imgPt) != RoiDragMode.None)
+                lock (_imageLock)
                 {
-                    hover = true;
-                    break;
+                    if (_image != null && imgPt.X >= 0 && imgPt.X < _image.Width && imgPt.Y >= 0 && imgPt.Y < _image.Height)
+                        try { _currentPixelColor = _image.GetPixel((int)imgPt.X, (int)imgPt.Y); } catch { }
                 }
             }
 
-            Cursor = hover ? Cursors.SizeAll : (_isPanning ? Cursors.Hand : Cursors.Default);
+            // 用OpenCV灰度Mat缓存获取灰度值
+            lock (_grayMatLock)
+            {
+                if (_grayMatCache != null && imgPt.X >= 0 && imgPt.X < _grayMatCache.Cols && imgPt.Y >= 0 && imgPt.Y < _grayMatCache.Rows)
+                {
+                    try { _currentGrayValue = _grayMatCache.At<byte>((int)imgPt.Y, (int)imgPt.X); } catch { _currentGrayValue = 0; }
+                }
+                else { _currentGrayValue = 0; }
+            }
+
+            // 判断是否转为拖拽（平移）图像模式
+            if (e.Button == MouseButtons.Left && _activeRoi == null && !_isPanning)
+            {
+                if (Math.Abs(e.X - _mouseDownLocation.X) > 3 || Math.Abs(e.Y - _mouseDownLocation.Y) > 3)
+                {
+                    _isPanning = true;
+                    Cursor = Cursors.SizeAll;
+                }
+            }
+
+            if (_activeRoi != null && e.Button == MouseButtons.Left) { _activeRoi.DragTo(imgPt, _handleIdx); Invalidate(); }
+            else if (_isPanning && e.Button == MouseButtons.Left) { _offset = new PointF(_offset.X + e.X - _lastMouse.X, _offset.Y + e.Y - _lastMouse.Y); _lastMouse = e.Location; Invalidate(); }
+            else
+            {
+                Cursor c = Cursors.Default;
+                lock (_roiLock)
+                {
+                    foreach (var r in _dynamicRois) if (r.HitTest(e.Location, _scale, _offset) != -1) { c = Cursors.Hand; break; }
+                }
+                if (!_isPanning) Cursor = c;
+            }
+            Invalidate(new Rectangle(0, Height - 25, Width, 25));
         }
 
-        protected override void OnMouseUp(MouseEventArgs e)
-        {
+        protected override void OnMouseUp(MouseEventArgs e) 
+        { 
             base.OnMouseUp(e);
-
-            if (_activeRoi != null)
+            
+            if (e.Button == MouseButtons.Left && !_isPanning && _activeRoi == null && _handleIdx == -1)
             {
-                _activeRoi.EndDrag();
-                RoiPositionChanged?.Invoke(_activeRoi.Id, _activeRoi);
-                _activeRoi = null;
-                _roiDragMode = RoiDragMode.None;
-                Invalidate();
-                return;
+                MouseImageClick?.Invoke(ScreenToImage(e.Location));
             }
-
-            _isPanning = false;
-            Cursor = Cursors.Default;
-
-            // ========== 新增：触发自定义鼠标单击事件 ==========
-            PointF screenPoint = new PointF(e.X, e.Y);
-            PointF imagePoint = ScreenToImage(screenPoint); // 内部自动转换为图像坐标
-            MouseImageClick?.Invoke(imagePoint, e.Button);
-        }
-
-
-        /// <summary>
-        /// 重写鼠标双击事件，触发自定义图像坐标双击事件
-        /// </summary>
-        /// <param name="e">鼠标事件参数</param>
-        protected override void OnMouseDoubleClick(MouseEventArgs e)
-        {
-            base.OnMouseDoubleClick(e);
-
-            // 转换为图像坐标系并触发自定义事件
-            PointF screenPoint = new PointF(e.X, e.Y);
-            PointF imagePoint = ScreenToImage(screenPoint);
-            MouseImageDoubleClick?.Invoke(imagePoint, e.Button);
-        }
-
-        private void ShowImageControl_MouseWheel(object sender, MouseEventArgs e)
-        {
-            // 缩放（以鼠标为中心）
-            float delta = e.Delta > 0 ? 1.1f : 1f / 1.1f;
-            float newScale = _scale * delta;
-            newScale = Math.Max(0.01f, Math.Min(50f, newScale));
-
-            // 鼠标对应的图像坐标（缩放前）
-            PointF before = ScreenToImage(e.Location);
-
-            _scale = newScale;
-
-            // 缩放后调整偏移，使鼠标下图像点固定
-            PointF afterScreen = ImageToScreen(before);
-            _offset = new PointF(_offset.X + (e.Location.X - afterScreen.X), _offset.Y + (e.Location.Y - afterScreen.Y));
-            Invalidate();
+            
+            _activeRoi = null; 
+            _isPanning = false; 
+            _handleIdx = -1; 
+            if (Cursor == Cursors.SizeAll) Cursor = Cursors.Default;
+            Invalidate(); 
         }
         #endregion
 
-        #region 绘制逻辑（背景缓存、主图、静态图、ROI、标签）
-        protected override void OnPaint(PaintEventArgs e)
+        #region Helpers
+        public Bitmap GetResultBitmap()
         {
-            base.OnPaint(e);
-            var g = e.Graphics;
-
-            // 高质量主图插值；背景绘制用缓存（已生成）
-            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-
-            // 背景缓存
-            if (_backgroundCache == null || _backgroundCacheSize != this.Size)
-                UpdateBackgroundCache();
-
-            if (_backgroundCache != null)
-                g.DrawImageUnscaled(_backgroundCache, 0, 0);
-
-            // 主图像绘制（使用变换：平移 + 缩放）
-            if (_image != null)
+            lock (_imageLock)
             {
-                var old = g.Transform;
-                var mt = new Matrix();
-                mt.Translate(_offset.X, _offset.Y);
-                mt.Scale(_scale, _scale);
-                g.Transform = mt;
-
-                g.DrawImage(_image, 0, 0, _image.Width, _image.Height);
-
-                // 静态图形（在图像坐标系下绘制）
-                foreach (var s in _staticShapes)
-                    s.Draw(g);
-
-                // ROI 绘制
-                foreach (var r in _roiShapes)
-                    r.Draw(g);
-
-                // 在图像坐标系内绘制每个 ROI 的 Label（控件统一绘制）
-                foreach (var r in _roiShapes)
+                if (_image == null) return null;
+                var bmp = (Bitmap)_image.Clone();
+                using (var g = Graphics.FromImage(bmp))
                 {
-                    if (r.ShowLabel && !string.IsNullOrEmpty(r.Label))
-                    {
-                        PointF labelPos = GetRoiLabelPosition(r);
-                        // 绘制标签（Image空间 -> 画布在同一变换下，因此直接传 image 坐标）
-                        DrawRoiLabel(g, r.Label, labelPos, r.Color);
-                    }
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    foreach (var roi in _staticRois) roi.Draw(g, 1f, PointF.Empty);
                 }
-                foreach (var s in _staticShapes)
-                {
-                    if (s.ShowLabel && !string.IsNullOrEmpty(s.Label))
-                    {
-                        PointF labelPos = GetRoiLabelPosition(s);
-                        DrawRoiLabel(g, s.Label, labelPos, s.Color);
-                    }
-                }
-
-                g.Transform = old;
+                return bmp;
             }
-
-            // ========== 绘制所有文字（在最上层，不随图像缩放平移） ==========
-            DrawAllText(e.Graphics);
         }
 
-        protected override void OnResize(EventArgs e)
+        private void SaveOriginalImage() 
+        { 
+            lock (_imageLock)
+            {
+                if (_image != null) using (var sfd = new SaveFileDialog { Filter = "JPG|*.jpg" }) if (sfd.ShowDialog() == DialogResult.OK) _image.Save(sfd.FileName); 
+            }
+        }
+        private void SaveResultImage() { using (var b = new Bitmap(Width, Height)) { DrawToBitmap(b, new Rectangle(0, 0, Width, Height)); using (var sfd = new SaveFileDialog { Filter = "JPG|*.jpg" }) if (sfd.ShowDialog() == DialogResult.OK) b.Save(sfd.FileName); } }
+
+        private static void DrawLabel(Graphics g, string label, PointF center)
         {
-            base.OnResize(e);
-
-            if (_image == null) return;
-
-            // 计算让图像自适应控件大小的缩放比（与 ResetView 行为保持一致）
-            float scaleX = (float)ClientSize.Width / _image.Width;
-            float scaleY = (float)ClientSize.Height / _image.Height;
-            float target = Math.Min(scaleX, scaleY);
-            if (!AllowUpscale) target = Math.Min(1f, target);
-            _scale = target;
-
-            // 居中显示
-            float imgDrawWidth = _image.Width * _scale;
-            float imgDrawHeight = _image.Height * _scale;
-            _offset = new PointF(
-                (ClientSize.Width - imgDrawWidth) / 2f,
-                (ClientSize.Height - imgDrawHeight) / 2f
-            );
-
-            Invalidate();
+            if (string.IsNullOrEmpty(label)) return;
+            using (Font f = new Font("SimSun", 10f, FontStyle.Bold))
+            {
+                var sz = g.MeasureString(label, f);
+                var r = new RectangleF(center.X - sz.Width / 2, center.Y - sz.Height / 2, sz.Width, sz.Height);
+                g.FillRectangle(new SolidBrush(Color.FromArgb(150, 0, 0, 0)), r);
+                g.DrawString(label, f, Brushes.Yellow, r.X, r.Y);
+            }
         }
 
-        /// <summary>生成或更新背景缓存（仅在背景/大小更改时调用）</summary>
-        private void UpdateBackgroundCache()
+        private static void DrawCross(Graphics g, PointF sc)
         {
-            _backgroundCache?.Dispose();
-            _backgroundCache = null;
-
-            if (Width <= 0 || Height <= 0) return;
-            _backgroundCacheSize = this.Size;
-            _backgroundCache = new Bitmap(Width, Height);
-            using (Graphics g = Graphics.FromImage(_backgroundCache))
-            {
-                // 先填背景色
-                g.Clear(_backgroundColor);
-
-                // 棋盘格（无背景图时）
-                if (ShowCheckerBackground && _backgroundImage == null)
-                {
-                    int checker = 16;
-                    using (Brush light = new SolidBrush(Color.FromArgb(230, 230, 230)))
-                    using (Brush dark = new SolidBrush(Color.FromArgb(200, 200, 200)))
-                    {
-                        for (int y = 0; y < Height; y += checker)
-                            for (int x = 0; x < Width; x += checker)
-                            {
-                                bool isDark = ((x / checker) + (y / checker)) % 2 == 0;
-                                g.FillRectangle(isDark ? dark : light, x, y, checker, checker);
-                            }
-                    }
-                }
-
-                // 背景图（按布局模式绘制，默认 Fill）
-                if (_backgroundImage != null)
-                {
-                    int drawX = 0, drawY = 0, drawW = Width, drawH = Height;
-                    if (BackgroundLayoutMode == BackgroundImageLayoutMode.Center)
-                    {
-                        float rw = (float)Width / _backgroundImage.Width;
-                        float rh = (float)Height / _backgroundImage.Height;
-                        float r = Math.Min(rw, rh);
-                        drawW = (int)(_backgroundImage.Width * r);
-                        drawH = (int)(_backgroundImage.Height * r);
-                        drawX = (Width - drawW) / 2;
-                        drawY = (Height - drawH) / 2;
-                    }
-                    else if (BackgroundLayoutMode == BackgroundImageLayoutMode.Fill)
-                    {
-                        float rw = (float)Width / _backgroundImage.Width;
-                        float rh = (float)Height / _backgroundImage.Height;
-                        float r = Math.Max(rw, rh);
-                        drawW = (int)(_backgroundImage.Width * r);
-                        drawH = (int)(_backgroundImage.Height * r);
-                        drawX = (Width - drawW) / 2;
-                        drawY = (Height - drawH) / 2;
-                    }
-                    // Stretch 使用 full rect
-
-                    using (ImageAttributes ia = new ImageAttributes())
-                    {
-                        var cm = new ColorMatrix();
-                        cm.Matrix33 = Math.Max(0f, Math.Min(1f, _backgroundTransparency));
-                        ia.SetColorMatrix(cm, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
-                        g.InterpolationMode = InterpolationMode.Low; // 背景性能优先
-                        g.DrawImage(_backgroundImage, new Rectangle(drawX, drawY, drawW, drawH),
-                            0, 0, _backgroundImage.Width, _backgroundImage.Height, GraphicsUnit.Pixel, ia);
-                    }
-                }
-            }
+            using (Pen gp = new Pen(Color.Lime, 1.5f)) { g.DrawLine(gp, sc.X - 10, sc.Y, sc.X + 10, sc.Y); g.DrawLine(gp, sc.X, sc.Y - 10, sc.X, sc.Y + 10); }
         }
         #endregion
 
+        #region ROI Definition
+        public interface IRoiShape { bool IsSelected { get; set; } bool IsStatic { get; set; } string Label { get; set; } Color ShapeColor { get; set; } void Draw(Graphics g, float s, PointF o); int HitTest(Point p, float s, PointF o); void BeginDrag(PointF p); void DragTo(PointF p, int h); PointF GetCenter(); }
 
-        #region ======= 线程安全封装 =======
-
-        /// <summary>
-        /// 安全刷新（线程安全）
-        /// </summary>
-        private void InvalidateSafe()
-        {
-            if (!IsHandleCreated || IsDisposed) return;
-
-            if (InvokeRequired)
-            {
-                try { BeginInvoke((Action)InvalidateSafe); }
-                catch { /* 控件销毁时忽略 */ }
-            }
-            else
-            {
-                Invalidate();
-            }
-        }
-
-        /// <summary>
-        /// 安全刷新（带刷新频率限制，防止高频刷新卡顿）
-        /// </summary>
-        private DateTime _lastInvalidateTime = DateTime.MinValue;
-        private const int _minFrameIntervalMs = 16; // 最快约60fps
-        private void InvalidateThrottled()
-        {
-            if (!IsHandleCreated || IsDisposed) return;
-
-            var now = DateTime.Now;
-            if ((now - _lastInvalidateTime).TotalMilliseconds < _minFrameIntervalMs)
-                return;
-
-            _lastInvalidateTime = now;
-            InvalidateSafe();
-        }
-
-        /// <summary>
-        /// 设置图像（线程安全）
-        /// </summary>
-        public void SetImage(Bitmap bmp)
-        {
-            if (bmp == null) return;
-
-            SafeInvoke(() =>
-            {
-                ImageBitmap?.Dispose();
-                ImageBitmap = bmp;
-                Invalidate();  // 通知重绘
-            });
-        }
-
-        /// <summary>
-        /// 线程安全执行 UI 操作（最推荐方案）
-        /// </summary>
-        private void SafeInvoke(Action action)
-        {
-            if (IsDisposed || !IsHandleCreated)
-                return;
-
-            if (InvokeRequired)
-            {
-                try { BeginInvoke(action); }
-                catch { /* 控件销毁时忽略 */ }
-            }
-            else
-            {
-                action?.Invoke();
-            }
-        }
-
-        #endregion
-
-
-        #region 文字绘制功能（支持自动换行+避免重叠）
-        /// <summary>
-        /// 文字绘制位置（四个角落）
-        /// </summary>
-        public enum TextPosition
-        {
-            TopLeft,    // 左上角
-            TopRight,   // 右上角
-            BottomLeft, // 左下角
-            BottomRight // 右下角
-        }
-
-        /// <summary>
-        /// 绘制文字到图像指定角落（自动换行，避免重叠）
-        /// </summary>
-        public void DrawText(string text, bool useImageCoords = true, TextPosition position = TextPosition.TopLeft, Color color = default, int fontSize = 12, int padding = 10, float lineSpacing = 0.3f)
-        {
-            if (string.IsNullOrEmpty(text)) return;
-            if (color.IsEmpty) color = Color.White;
-            lineSpacing = Math.Max(0f, lineSpacing);
-
-            SafeInvoke(() =>
-            {
-                string[] lines = text.Split(new[] { '\n' }, StringSplitOptions.None);
-                foreach (var line in lines)
-                {
-                    if (string.IsNullOrWhiteSpace(line)) continue;
-                    _textElements.Add(new TextElement
-                    {
-                        Text = line,
-                        Position = position,
-                        Color = color,
-                        FontSize = fontSize,
-                        Padding = padding,
-                        LineSpacing = lineSpacing,
-                        UseImageCoords = useImageCoords
-                    });
-                }
-                Invalidate();
-            });
-        }
-
-        public void ClearAllText()
-        {
-            SafeInvoke(() =>
-            {
-                _textElements.Clear();
-                Invalidate();
-            });
-        }
-
-        public void ClearTextByPosition(TextPosition position)
-        {
-            SafeInvoke(() =>
-            {
-                _textElements.RemoveAll(elem => elem.Position == position);
-                Invalidate();
-            });
-        }
-
-        private class TextElement
-        {
-            public string Text { get; set; }
-            public TextPosition Position { get; set; }
-            public Color Color { get; set; }
-            public int FontSize { get; set; }
-            public int Padding { get; set; }
-            public float LineSpacing { get; set; } // 行间距（相对于字体大小的比例）
-
-            public bool UseImageCoords = true; // true = 图像坐标系, false = 控件坐标系
-        }
-
-        private readonly List<TextElement> _textElements = new List<TextElement>();
-
-        private void DrawAllText(Graphics g)
-        {
-            if (_textElements.Count == 0) return;
-
-            var textGroups = _textElements.GroupBy(elem => elem.Position);
-            foreach (var group in textGroups)
-            {
-                DrawTextGroup(g, group.ToList());
-            }
-        }
-
-        private void DrawTextGroup(Graphics g, List<TextElement> textGroup)
-        {
-            if (textGroup.Count == 0) return;
-
-            var baseElem = textGroup[0];
-            int padding = baseElem.Padding;
-            float globalLineSpacing = baseElem.LineSpacing;
-
-            float usedHeight = 0f;
-
-            foreach (var textElem in textGroup)
-            {
-                using (Font font = new Font("Microsoft YaHei", textElem.FontSize, FontStyle.Bold))
-                using (Brush brush = new SolidBrush(textElem.Color))
-                {
-                    g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
-                    SizeF textSize = g.MeasureString(textElem.Text, font);
-                    float lineSpacingPixel = textElem.FontSize * globalLineSpacing;
-
-                    PointF drawPos;
-
-                    if (textElem.UseImageCoords)
-                    {
-                        // 默认图像坐标系转换为控件坐标
-                        PointF ctrlPt = ImageToScreen(new PointF(0, 0)); // 图像左上角
-                        drawPos = CalculateTextPosition(
-                            textElem.Position,
-                            textSize,
-                            padding,
-                            usedHeight,
-                            textElem.FontSize,
-                            globalLineSpacing,
-                            ctrlPt
-                        );
-                    }
-                    else
-                    {
-                        // 控件坐标系直接使用
-                        drawPos = CalculateTextPosition(
-                            textElem.Position,
-                            textSize,
-                            padding,
-                            usedHeight,
-                            textElem.FontSize,
-                            globalLineSpacing,
-                            PointF.Empty
-                        );
-                    }
-
-                    g.DrawString(textElem.Text, font, brush, drawPos);
-                    usedHeight += textSize.Height + lineSpacingPixel;
-                }
-            }
-        }
-
-        private PointF CalculateTextPosition(TextPosition position, SizeF textSize, int padding, float usedHeight, int fontSize, float lineSpacing, PointF offset)
-        {
-            float x = 0, y = 0;
-            float lineSpacingPixel = fontSize * lineSpacing;
-
-            switch (position)
-            {
-                case TextPosition.TopLeft:
-                    x = offset.X + padding;
-                    y = offset.Y + padding + usedHeight;
-                    break;
-                case TextPosition.TopRight:
-                    x = this.ClientSize.Width - textSize.Width - padding + offset.X;
-                    y = offset.Y + padding + usedHeight;
-                    break;
-                case TextPosition.BottomLeft:
-                    x = offset.X + padding;
-                    y = this.ClientSize.Height - textSize.Height - padding - usedHeight + offset.Y;
-                    break;
-                case TextPosition.BottomRight:
-                    x = this.ClientSize.Width - textSize.Width - padding + offset.X;
-                    y = this.ClientSize.Height - textSize.Height - padding - usedHeight + offset.Y;
-                    break;
-            }
-
-            return new PointF(x, y);
-        }
-
-        #endregion
-
-
-        /// <summary>
-        /// 删除所有Roi（同时清空静态图形和绘制的文本）
-        /// </summary>
-        public void ClearAllRoi()
-        {
-            SafeInvoke(() =>
-            {
-                _roiShapes.Clear();       // 清空 ROI 列表
-                _staticShapes.Clear();    // 清空静态图形列表
-                _textElements.Clear();    // 新增：清空所有绘制的文本
-                _nextRoiId = 1;           // 重置 ID 自增计数器
-
-
-
-                Invalidate();             // 触发一次重绘，清除所有内容
-            });
-        }
-
-        #region ========== Label 绘制相关 ==========
-
-        /// <summary>
-        /// 在当前 Graphics（注意：在绘制图像时 Graphics 已被设置为图像坐标系变换）上绘制 ROI 文本标签。
-        /// 参数 imgPt 是图像坐标（在图像变换下直接使用）。
-        /// </summary>
-        /// <param name="g">当前正在绘制图像的 Graphics（已包含平移+缩放变换）</param>
-        /// <param name="text">文本</param>
-        /// <param name="imgPt">图像坐标位置</param>
-        /// <param name="color">前景色</param>
-        public void DrawRoiLabel(Graphics g, string text, PointF imgPt, Color color)
-        {
-            if (string.IsNullOrEmpty(text)) return;
-
-            // 图像坐标下的 pt（因为这里的 Graphics 尚处于图像变换状态，所以直接使用 imgPt 即可）
-            PointF pt = imgPt;
-
-            // 字体与测量（字体大小与线宽可以根据需要扩展）
-            using (Font font = new Font("Microsoft YaHei", 10, FontStyle.Bold))
-            {
-                SizeF sz = g.MeasureString(text, font);
-                float padding = 4f;
-                RectangleF rect = new RectangleF(pt.X - sz.Width / 2f - padding, pt.Y - sz.Height - padding * 2f, sz.Width + padding * 2f, sz.Height + padding * 2f);
-
-                // 背景（半透明黑）和边框
-                using (Brush bg = new SolidBrush(Color.FromArgb(160, 0, 0, 0)))
-                using (Brush fg = new SolidBrush(color))
-                using (Pen border = new Pen(Color.FromArgb(200, 255, 255, 255), 1f / _scale)) // 在图像变换下保持可见
-                {
-                    g.FillRectangle(bg, rect);
-                    g.DrawRectangle(border, rect.X, rect.Y, rect.Width, rect.Height);
-                    g.DrawString(text, font, fg, rect.X + padding, rect.Y + padding);
-                }
-            }
-        }
-
-        /// <summary>
-        /// 根据不同类型的 ROI 计算标签（图像坐标）锚点位置
-        /// </summary>
-        private PointF GetRoiLabelPosition(IRoiShape roi)
-        {
-            if (roi is RoiCircle c)
-            {
-                // 圆在上方固定距离
-                return new PointF(c.Column, c.Row - c.Radius - 10f);
-            }
-            if (roi is RoiRotatedRect r)
-            {
-                // 取旋转矩形的上边中点（变换后的图像坐标）
-                // 计算矩形顶点在图像坐标系下的上边中点（未旋转的坐标系先定义）
-                float left = r.Column - r.Length1;
-                float top = r.Row - r.Length2;
-                float right = r.Column + r.Length1;
-                float midY = top;
-                float midX = r.Column;
-                // 将上边中点逆旋转回原图像坐标系
-                PointF mid = new PointF(midX, midY);
-                // 旋转中心为 (r.Column, r.Row)，角度 r.Phi
-                return RotatePoint(mid, new PointF(r.Column, r.Row), r.Phi);
-            }
-            if (roi is RoiLine l)
-            {
-                // 取中点并往法线方向偏移一点（向上偏移 10 px）
-                float mx = (l.Start.X + l.End.X) / 2f;
-                float my = (l.Start.Y + l.End.Y) / 2f;
-                // 计算法线向量（单位）
-                float dx = l.End.X - l.Start.X;
-                float dy = l.End.Y - l.Start.Y;
-                float len = (float)Math.Sqrt(dx * dx + dy * dy);
-                if (len < 1e-6) return new PointF(mx, my - 10f);
-                float nx = -dy / len;
-                float ny = dx / len;
-                return new PointF(mx + nx * 10f, my + ny * 10f);
-            }
-            if (roi is StaticCircleShape sc)
-            {
-                return new PointF(sc.Column, sc.Row - sc.Radius - 10f);
-            }
-            if (roi is StaticRotatedRect sr)
-            {
-                float left = sr.Column - sr.Length1;
-                float top = sr.Row - sr.Length2;
-                float midX = sr.Column;
-                PointF mid = new PointF(midX, top);
-                return RotatePoint(mid, new PointF(sr.Column, sr.Row), sr.Phi);
-            }
-            if (roi is StaticLineShape sl)
-            {
-                float mx = (sl.Start.X + sl.End.X) / 2f;
-                float my = (sl.Start.Y + sl.End.Y) / 2f;
-                float dx = sl.End.X - sl.Start.X;
-                float dy = sl.End.Y - sl.Start.Y;
-                float len = (float)Math.Sqrt(dx * dx + dy * dy);
-                if (len < 1e-6) return new PointF(mx, my - 10f);
-                float nx = -dy / len;
-                float ny = dx / len;
-                return new PointF(mx + nx * 10f, my + ny * 10f);
-            }
-
-            // 默认返回中心点（若接口提供）
-            return new PointF(0, 0);
-        }
-
-        #endregion
-
-        #region ROI / Shapes 接口与实现
-
-        /// <summary>
-        /// ROI 拖拽模式（包含具体的缩放点与旋转手柄）
-        /// </summary>
-        public enum RoiDragMode
-        {
-            None,
-            Move,
-            // 矩形八点缩放（部分标识共用）
-            Resize_TopLeft,
-            Resize_Top,
-            Resize_TopRight,
-            Resize_Right,
-            Resize_BottomRight,
-            Resize_Bottom,
-            Resize_BottomLeft,
-            Resize_Left,
-
-            // 旋转手柄
-            Rotate
-        }
-
-        /// <summary>ROI 接口（交互对象）</summary>
-        public interface IRoiShape
-        {
-            int Id { get; set; } // 唯一 ID（自增）
-            Color Color { get; set; }
-            bool IsSelected { get; set; }
-            float LineWidth { get; set; }
-
-            // Label 支持
-            string Label { get; set; }
-            bool ShowLabel { get; set; }
-
-            /// <summary>命中检测（参数为图像坐标）</summary>
-            RoiDragMode HitTest(PointF imgPoint);
-
-            /// <summary>开始拖拽：mode 与 起始图像点</summary>
-            void BeginDrag(RoiDragMode mode, PointF imgStartPoint);
-
-            /// <summary>拖拽进行中</summary>
-            void DragTo(PointF imgCurrentPoint, RoiDragMode mode);
-
-            /// <summary>结束拖拽</summary>
-            void EndDrag();
-
-            /// <summary>绘制（图像坐标系）</summary>
-            void Draw(Graphics g);
-        }
-
-        #region 圆形 ROI 实现
-        public class RoiCircle : IRoiShape
-        {
-            // 对外字段（图像坐标）
-            public float Row;      // center Y
-            public float Column;   // center X
-            public float Radius;
-
-            // IRoiShape
-            public int Id { get; set; }
-            public Color Color { get; set; }
-            public bool IsSelected { get; set; }
-            public float LineWidth { get; set; } = 1f;
-
-            // Label
-            public string Label { get; set; } = "";
-            public bool ShowLabel { get; set; } = false;
-
-            // 内部状态
-            private PointF _dragStart;
-            private float _centerRowStart;
-            private float _centerColStart;
-            private float _radiusStart;
-
-            private const float HIT_TOL = 6f; // 命中容差（图像像素）
-
-            public RoiCircle(float row, float column, float radius)
-            {
-                Row = row; Column = column; Radius = radius;
-            }
-
-            public void Draw(Graphics g)
-            {
-                using (Pen pen = new Pen(Color, LineWidth * (IsSelected ? 1.5f : 1f)))
-                {
-                    g.DrawEllipse(pen, Column - Radius, Row - Radius, Radius * 2, Radius * 2);
-
-                    if (IsSelected)
-                    {
-                        float handleSize = Math.Max(6f, Math.Min(16f, LineWidth * 4f));
-                        using (Brush brush = new SolidBrush(Color))
-                        {
-                            g.FillEllipse(brush, Column - handleSize / 2f, Row - handleSize / 2f, handleSize, handleSize);
-                            PointF rightHandle = new PointF(Column + Radius, Row);
-                            g.FillEllipse(brush, rightHandle.X - handleSize / 2f, rightHandle.Y - handleSize / 2f, handleSize, handleSize);
-                            using (Pen penLine = new Pen(Color, Math.Max(1f, LineWidth)))
-                                g.DrawLine(penLine, new PointF(Column, Row), rightHandle);
-                        }
-                    }
-                }
-            }
-
-            public RoiDragMode HitTest(PointF imgPoint)
-            {
-                float dx = imgPoint.X - Column;
-                float dy = imgPoint.Y - Row;
-                float dist = (float)Math.Sqrt(dx * dx + dy * dy);
-
-                if (Math.Abs(dist - Radius) <= HIT_TOL) return RoiDragMode.Resize_Right; // 用右边 resize 标识
-                if (dist < Radius) return RoiDragMode.Move;
-                return RoiDragMode.None;
-            }
-
-            public void BeginDrag(RoiDragMode mode, PointF imgStartPoint)
-            {
-                _dragStart = imgStartPoint;
-                _centerRowStart = Row;
-                _centerColStart = Column;
-                _radiusStart = Radius;
-            }
-
-            public void DragTo(PointF imgPt, RoiDragMode mode)
-            {
-                if (mode == RoiDragMode.Move)
-                {
-                    float dx = imgPt.X - _dragStart.X;
-                    float dy = imgPt.Y - _dragStart.Y;
-                    Column = _centerColStart + dx;
-                    Row = _centerRowStart + dy;
-                }
-                else
-                {
-                    float d = (float)Math.Sqrt((imgPt.X - _centerColStart) * (imgPt.X - _centerColStart) + (imgPt.Y - _centerRowStart) * (imgPt.Y - _centerRowStart));
-                    Radius = Math.Max(1f, d);
-                }
-            }
-
-            public void EndDrag() { }
-        }
-        #endregion
-
-        #region 旋转矩形 ROI 实现
         public class RoiRotatedRect : IRoiShape
         {
-            public float Row;       // center Y
-            public float Column;    // center X
-            public float Phi;       // radians
-            public float Length1;   // 半长（沿主轴）
-            public float Length2;   // 半宽
-
-            public int Id { get; set; }
-            public Color Color { get; set; }
+            public float CX, CY, W, H, Phi;
             public bool IsSelected { get; set; }
-            public float LineWidth { get; set; } = 1f;
+            public bool IsStatic { get; set; }
+            public string Label { get; set; }
+            public Color ShapeColor { get; set; }
+            private float _oCX, _oCY, _oW, _oH, _oPhi; private PointF _sPt;
+            private float _startAngleOffset;
 
-            // Label
-            public string Label { get; set; } = "";
-            public bool ShowLabel { get; set; } = false;
-
-            private PointF _dragStart;
-            private float _origRow, _origCol, _origPhi, _origL1, _origL2;
-            private RoiDragMode _dragMode;
-            private const float HIT_TOL = 6f;
-
-            public RoiRotatedRect(float row, float column, float phiRad, float length1, float length2)
+            public RoiRotatedRect(float cx, float cy, float w, float h, float p) { CX = cx; CY = cy; W = w; H = h; Phi = p; ShapeColor = Color.Lime; }
+            public PointF GetCenter() => new PointF(CX, CY);
+            public void Draw(Graphics g, float s, PointF o)
             {
-                Row = row; Column = column; Phi = phiRad; Length1 = length1; Length2 = length2;
-            }
-
-            public void Draw(Graphics g)
-            {
-                var state = g.Save();
-                try
+                var st = g.Save(); PointF sc = new PointF(CX * s + o.X, CY * s + o.Y);
+                g.TranslateTransform(sc.X, sc.Y); g.RotateTransform(Phi);
+                float sw = W * s, sh = H * s;
+                Color drawCol = (IsSelected && !IsStatic) ? Color.Cyan : ShapeColor;
+                using (Pen p = new Pen(drawCol, 2f))
                 {
-                    var center = new PointF(Column, Row);
-                    g.TranslateTransform(center.X, center.Y);
-                    g.RotateTransform(Phi * 180f / (float)Math.PI);
-                    g.TranslateTransform(-center.X, -center.Y);
-
-                    float left = Column - Length1;
-                    float top = Row - Length2;
-                    float width = Length1 * 2f;
-                    float height = Length2 * 2f;
-
-                    using (Pen pen = new Pen(Color, LineWidth * (IsSelected ? 1.5f : 1f)))
-                        g.DrawRectangle(pen, left, top, width, height);
-
-                    if (IsSelected)
+                    g.DrawRectangle(p, -sw / 2, -sh / 2, sw, sh);
+                    if (!IsStatic) using (Pen d = new Pen(Color.Black, 1.5f) { DashStyle = DashStyle.Dash }) g.DrawRectangle(d, -sw / 2 + 2, -sh / 2 + 2, sw - 4, sh - 4);
+                }
+                if (!IsStatic && IsSelected)
+                {
+                    using (Brush orb = new SolidBrush(Color.Orange))
                     {
-                        float hs = Math.Max(6f, Math.Min(16f, LineWidth * 4f));
-                        float handleDist = Math.Max(12f + LineWidth * 2f, Math.Min(50f, Math.Min(width, height) * 0.25f));
-
-                        using (Brush b = new SolidBrush(Color))
-                        {
-                            PointF[] corners = new PointF[]
-                            {
-                                new PointF(left, top),
-                                new PointF(left + width, top),
-                                new PointF(left + width, top + height),
-                                new PointF(left, top + height)
-                            };
-                            foreach (PointF c in corners)
-                                g.FillRectangle(b, c.X - hs / 2, c.Y - hs / 2, hs, hs);
-
-                            PointF rightMid = new PointF(left + width, top + height / 2f);
-                            PointF rotateHandle = new PointF(rightMid.X + handleDist, rightMid.Y);
-                            using (Pen whitePen = new Pen(Color.FromArgb(220, 255, 255, 255), LineWidth))
-                                g.DrawLine(whitePen, rightMid, rotateHandle);
-
-                            g.FillEllipse(b, rotateHandle.X - hs / 2, rotateHandle.Y - hs / 2, hs, hs);
-                        }
+                        g.FillRectangle(orb, -sw / 2 - 4, -sh / 2 - 4, 8, 8); g.FillRectangle(orb, sw / 2 - 4, -sh / 2 - 4, 8, 8);
+                        g.FillRectangle(orb, sw / 2 - 4, sh / 2 - 4, 8, 8); g.FillRectangle(orb, -sw / 2 - 4, sh / 2 - 4, 8, 8);
+                        g.DrawArc(new Pen(Color.Orange, 2f), sw / 2 + 5, -sh / 2 - 15, 15, 15, -90, 180);
                     }
                 }
-                finally { g.Restore(state); }
+                g.Restore(st); DrawCross(g, sc); DrawLabel(g, Label, sc);
             }
-
-            public RoiDragMode HitTest(PointF imgPoint)
+            public int HitTest(Point p, float s, PointF o)
             {
-                var center = new PointF(Column, Row);
-                var local = RotatePoint(imgPoint, center, -Phi);
-
-                float left = Column - Length1;
-                float top = Row - Length2;
-                float right = Column + Length1;
-                float bottom = Row + Length2;
-
-                PointF tl = new PointF(left, top);
-                PointF tr = new PointF(right, top);
-                PointF br = new PointF(right, bottom);
-                PointF bl = new PointF(left, bottom);
-
-                if (Distance(local, tl) < HIT_TOL) return RoiDragMode.Resize_TopLeft;
-                if (Distance(local, tr) < HIT_TOL) return RoiDragMode.Resize_TopRight;
-                if (Distance(local, br) < HIT_TOL) return RoiDragMode.Resize_BottomRight;
-                if (Distance(local, bl) < HIT_TOL) return RoiDragMode.Resize_BottomLeft;
-
-                float handleDist = Math.Max(20f, Math.Min(60f, Math.Min(Length1 * 2f, Length2 * 2f) * 0.25f));
-                PointF rightMid = new PointF(right, top + (bottom - top) / 2f);
-                PointF handle = new PointF(rightMid.X + handleDist, rightMid.Y);
-
-                float lineDist = DistanceToSegment(local, rightMid, handle);
-                float handleHitRadius = Math.Max(HIT_TOL * 2f, 12f);
-
-                if (Distance(local, handle) <= handleHitRadius || lineDist <= handleHitRadius / 1.5f)
-                    return RoiDragMode.Rotate;
-
-                float rectInflatedLeft = left - HIT_TOL;
-                float rectInflatedTop = top - HIT_TOL;
-                float rectInflatedRight = right + HIT_TOL;
-                float rectInflatedBottom = bottom + HIT_TOL;
-
-                if (local.X >= rectInflatedLeft && local.X <= rectInflatedRight &&
-                    local.Y >= rectInflatedTop && local.Y <= rectInflatedBottom)
-                    return RoiDragMode.Move;
-
-                return RoiDragMode.None;
+                if (IsStatic) return -1;
+                PointF lp = RotatePoint(p, new PointF(CX * s + o.X, CY * s + o.Y), (float)(-Phi * Math.PI / 180.0));
+                float sw = W * s, sh = H * s; float tx = lp.X - (CX * s + o.X), ty = lp.Y - (CY * s + o.Y);
+                if (Math.Abs(tx - sw / 2 - 10) < 15 && Math.Abs(ty + sh / 2 + 10) < 15) return 5;
+                if (Math.Abs(tx + sw / 2) < 8 && Math.Abs(ty + sh / 2) < 8) return 1;
+                if (Math.Abs(tx - sw / 2) < 8 && Math.Abs(ty + sh / 2) < 8) return 2;
+                if (Math.Abs(tx - sw / 2) < 8 && Math.Abs(ty - sh / 2) < 8) return 3;
+                if (Math.Abs(tx + sw / 2) < 8 && Math.Abs(ty - sh / 2) < 8) return 4;
+                return (Math.Abs(tx) <= sw / 2 && Math.Abs(ty) <= sh / 2) ? 0 : -1;
             }
-
-            public void BeginDrag(RoiDragMode mode, PointF imgPt)
+            public void BeginDrag(PointF p) { _sPt = p; _oCX = CX; _oCY = CY; _oW = W; _oH = H; _oPhi = Phi; _startAngleOffset = Phi - (float)(Math.Atan2(p.Y - CY, p.X - CX) * 180.0 / Math.PI); }
+            public void DragTo(PointF p, int h)
             {
-                _dragStart = imgPt;
-                _dragMode = mode;
-                _origRow = Row;
-                _origCol = Column;
-                _origPhi = Phi;
-                _origL1 = Length1;
-                _origL2 = Length2;
-            }
-
-            public void DragTo(PointF imgPt, RoiDragMode mode)
-            {
-                if (mode == RoiDragMode.None) return;
-
-                if (mode == RoiDragMode.Move)
-                {
-                    float dx = imgPt.X - _dragStart.X;
-                    float dy = imgPt.Y - _dragStart.Y;
-                    Column = _origCol + dx;
-                    Row = _origRow + dy;
-                    return;
-                }
-
-                if (mode == RoiDragMode.Rotate)
-                {
-                    float a0 = (float)Math.Atan2(_dragStart.Y - _origRow, _dragStart.X - _origCol);
-                    float a1 = (float)Math.Atan2(imgPt.Y - _origRow, imgPt.X - _origCol);
-                    Phi = _origPhi + (a1 - a0);
-                    return;
-                }
-
-                PointF center = new PointF(_origCol, _origRow);
-                PointF p0 = RotatePoint(_dragStart, center, -_origPhi);
-                PointF p1 = RotatePoint(imgPt, center, -_origPhi);
-                float deltaX = p1.X - p0.X;
-                float deltaY = p1.Y - p0.Y;
-
-                float left = _origCol - _origL1;
-                float top = _origRow - _origL2;
-                float right = _origCol + _origL1;
-                float bottom = _origRow + _origL2;
-
-                switch (mode)
-                {
-                    case RoiDragMode.Resize_TopLeft:
-                        left += deltaX;
-                        top += deltaY;
-                        break;
-                    case RoiDragMode.Resize_TopRight:
-                        right += deltaX;
-                        top += deltaY;
-                        break;
-                    case RoiDragMode.Resize_BottomRight:
-                        right += deltaX;
-                        bottom += deltaY;
-                        break;
-                    case RoiDragMode.Resize_BottomLeft:
-                        left += deltaX;
-                        bottom += deltaY;
-                        break;
-                }
-
-                float newW = (right - left);
-                float newH = (bottom - top);
-                newW = Math.Max(2f, newW);
-                newH = Math.Max(2f, newH);
-
-                Length1 = newW / 2f;
-                Length2 = newH / 2f;
-            }
-
-            public void EndDrag() { }
-
-            // 工具方法
-            private static float Distance(PointF a, PointF b)
-            {
-                float dx = a.X - b.X, dy = a.Y - b.Y;
-                return (float)Math.Sqrt(dx * dx + dy * dy);
-            }
-
-            private static PointF RotatePoint(PointF p, PointF c, float angleRad)
-            {
-                if (Math.Abs(angleRad) < 1e-6) return p;
-                float s = (float)Math.Sin(angleRad);
-                float co = (float)Math.Cos(angleRad);
-                float x = p.X - c.X;
-                float y = p.Y - c.Y;
-                return new PointF(co * x - s * y + c.X, s * x + co * y + c.Y);
-            }
-
-            private static float DistanceToSegment(PointF p, PointF a, PointF b)
-            {
-                float dx = b.X - a.X;
-                float dy = b.Y - a.Y;
-                if (Math.Abs(dx) < 1e-6 && Math.Abs(dy) < 1e-6)
-                    return Distance(p, a);
-                float t = ((p.X - a.X) * dx + (p.Y - a.Y) * dy) / (dx * dx + dy * dy);
-                t = Math.Max(0, Math.Min(1, t));
-                float projX = a.X + t * dx;
-                float projY = a.Y + t * dy;
-                return Distance(p, new PointF(projX, projY));
-            }
-        }
-        #endregion
-
-        #region 静态图形（现在也支持交互，参数与 ROI 一致）
-        public class StaticRotatedRect : IRoiShape
-        {
-            public int Id { get; set; }
-            public Color Color { get; set; }
-            public bool IsSelected { get; set; }
-            public float LineWidth { get; set; } = 1f;
-
-            public float Row;
-            public float Column;
-            public float Phi;
-            public float Length1;
-            public float Length2;
-
-            // Label
-            public string Label { get; set; } = "";
-            public bool ShowLabel { get; set; } = false;
-
-            private PointF _dragStart;
-            private float _origRow, _origCol, _origPhi, _origL1, _origL2;
-            private const float HIT_TOL = 6f;
-
-            public StaticRotatedRect(float row, float column, float phi, float l1, float l2)
-            {
-                Row = row; Column = column; Phi = phi; Length1 = l1; Length2 = l2;
-            }
-
-            public void Draw(Graphics g)
-            {
-                var state = g.Save();
-                try
-                {
-                    var center = new PointF(Column, Row);
-                    g.TranslateTransform(center.X, center.Y);
-                    g.RotateTransform(Phi * 180f / (float)Math.PI);
-                    g.TranslateTransform(-center.X, -center.Y);
-
-                    float left = Column - Length1;
-                    float top = Row - Length2;
-                    float width = Length1 * 2f;
-                    float height = Length2 * 2f;
-
-                    using (Pen pen = new Pen(Color, LineWidth * (IsSelected ? 1.5f : 1f)))
-                        g.DrawRectangle(pen, left, top, width, height);
-
-                    if (IsSelected)
-                    {
-                        float hs = Math.Max(6f, Math.Min(16f, LineWidth * 4f));
-                        float handleDist = Math.Max(12f + LineWidth * 2f, Math.Min(50f, Math.Min(width, height) * 0.25f));
-                        using (Brush b = new SolidBrush(Color))
-                        {
-                            PointF[] corners = new PointF[]
-                            {
-                                new PointF(left, top),
-                                new PointF(left + width, top),
-                                new PointF(left + width, top + height),
-                                new PointF(left, top + height)
-                            };
-                            foreach (PointF c in corners)
-                                g.FillRectangle(b, c.X - hs / 2, c.Y - hs / 2, hs, hs);
-
-                            PointF rightMid = new PointF(left + width, top + height / 2f);
-                            PointF rotateHandle = new PointF(rightMid.X + handleDist, rightMid.Y);
-                            using (Pen whitePen = new Pen(Color.FromArgb(220, 255, 255, 255), LineWidth))
-                                g.DrawLine(whitePen, rightMid, rotateHandle);
-
-                            g.FillEllipse(b, rotateHandle.X - hs / 2, rotateHandle.Y - hs / 2, hs, hs);
-                        }
-                    }
-                }
-                finally { g.Restore(state); }
-            }
-
-            public RoiDragMode HitTest(PointF imgPoint)
-            {
-                var center = new PointF(Column, Row);
-                var local = RotatePoint(imgPoint, center, -Phi);
-
-                float left = Column - Length1;
-                float top = Row - Length2;
-                float right = Column + Length1;
-                float bottom = Row + Length2;
-
-                PointF tl = new PointF(left, top);
-                PointF tr = new PointF(right, top);
-                PointF br = new PointF(right, bottom);
-                PointF bl = new PointF(left, bottom);
-
-                if (Distance(local, tl) < HIT_TOL) return RoiDragMode.Resize_TopLeft;
-                if (Distance(local, tr) < HIT_TOL) return RoiDragMode.Resize_TopRight;
-                if (Distance(local, br) < HIT_TOL) return RoiDragMode.Resize_BottomRight;
-                if (Distance(local, bl) < HIT_TOL) return RoiDragMode.Resize_BottomLeft;
-
-                float handleDist = Math.Max(20f, Math.Min(60f, Math.Min(Length1 * 2f, Length2 * 2f) * 0.25f));
-                PointF rightMid = new PointF(right, top + (bottom - top) / 2f);
-                PointF handle = new PointF(rightMid.X + handleDist, rightMid.Y);
-
-                float lineDist = DistanceToSegment(local, rightMid, handle);
-                float handleHitRadius = Math.Max(HIT_TOL * 2f, 12f);
-
-                if (Distance(local, handle) <= handleHitRadius || lineDist <= handleHitRadius / 1.5f)
-                    return RoiDragMode.Rotate;
-
-                float rectInflatedLeft = left - HIT_TOL;
-                float rectInflatedTop = top - HIT_TOL;
-                float rectInflatedRight = right + HIT_TOL;
-                float rectInflatedBottom = bottom + HIT_TOL;
-
-                if (local.X >= rectInflatedLeft && local.X <= rectInflatedRight &&
-                    local.Y >= rectInflatedTop && local.Y <= rectInflatedBottom)
-                    return RoiDragMode.Move;
-
-                return RoiDragMode.None;
-            }
-
-            public void BeginDrag(RoiDragMode mode, PointF imgStartPoint)
-            {
-                _dragStart = imgStartPoint;
-                _origRow = Row; _origCol = Column; _origPhi = Phi; _origL1 = Length1; _origL2 = Length2;
-            }
-
-            public void DragTo(PointF imgPt, RoiDragMode mode)
-            {
-                if (mode == RoiDragMode.None) return;
-
-                if (mode == RoiDragMode.Move)
-                {
-                    float dx = imgPt.X - _dragStart.X;
-                    float dy = imgPt.Y - _dragStart.Y;
-                    Column = _origCol + dx;
-                    Row = _origRow + dy;
-                    return;
-                }
-
-                if (mode == RoiDragMode.Rotate)
-                {
-                    float a0 = (float)Math.Atan2(_dragStart.Y - _origRow, _dragStart.X - _origCol);
-                    float a1 = (float)Math.Atan2(imgPt.Y - _origRow, imgPt.X - _origCol);
-                    Phi = _origPhi + (a1 - a0);
-                    return;
-                }
-
-                PointF center = new PointF(_origCol, _origRow);
-                PointF p0 = RotatePoint(_dragStart, center, -_origPhi);
-                PointF p1 = RotatePoint(imgPt, center, -_origPhi);
-                float deltaX = p1.X - p0.X;
-                float deltaY = p1.Y - p0.Y;
-
-                float left = _origCol - _origL1;
-                float top = _origRow - _origL2;
-                float right = _origCol + _origL1;
-                float bottom = _origRow + _origL2;
-
-                switch (mode)
-                {
-                    case RoiDragMode.Resize_TopLeft:
-                        left += deltaX;
-                        top += deltaY;
-                        break;
-                    case RoiDragMode.Resize_TopRight:
-                        right += deltaX;
-                        top += deltaY;
-                        break;
-                    case RoiDragMode.Resize_BottomRight:
-                        right += deltaX;
-                        bottom += deltaY;
-                        break;
-                    case RoiDragMode.Resize_BottomLeft:
-                        left += deltaX;
-                        bottom += deltaY;
-                        break;
-                }
-
-                float newW = (right - left);
-                float newH = (bottom - top);
-                newW = Math.Max(2f, newW);
-                newH = Math.Max(2f, newH);
-
-                Length1 = newW / 2f;
-                Length2 = newH / 2f;
-            }
-
-            public void EndDrag() { }
-
-            private static float Distance(PointF a, PointF b)
-            {
-                float dx = a.X - b.X, dy = a.Y - b.Y;
-                return (float)Math.Sqrt(dx * dx + dy * dy);
-            }
-
-            private static PointF RotatePoint(PointF p, PointF c, float angleRad)
-            {
-                if (Math.Abs(angleRad) < 1e-6) return p;
-                float s = (float)Math.Sin(angleRad);
-                float co = (float)Math.Cos(angleRad);
-                float x = p.X - c.X;
-                float y = p.Y - c.Y;
-                return new PointF(co * x - s * y + c.X, s * x + co * y + c.Y);
-            }
-
-            private static float DistanceToSegment(PointF p, PointF a, PointF b)
-            {
-                float dx = b.X - a.X;
-                float dy = b.Y - a.Y;
-                if (Math.Abs(dx) < 1e-6 && Math.Abs(dy) < 1e-6)
-                    return Distance(p, a);
-                float t = ((p.X - a.X) * dx + (p.Y - a.Y) * dy) / (dx * dx + dy * dy);
-                t = Math.Max(0, Math.Min(1, t));
-                float projX = a.X + t * dx;
-                float projY = a.Y + t * dy;
-                return Distance(p, new PointF(projX, projY));
-            }
-        }
-
-        public class StaticCircleShape : IRoiShape
-        {
-            public int Id { get; set; }
-            public Color Color { get; set; }
-            public bool IsSelected { get; set; }
-            public float LineWidth { get; set; } = 1f;
-
-            public float Row;
-            public float Column;
-            public float Radius;
-
-            // Label
-            public string Label { get; set; } = "";
-            public bool ShowLabel { get; set; } = false;
-
-            private PointF _dragStart;
-            private float _centerRowStart, _centerColStart, _radiusStart;
-            private const float HIT_TOL = 6f;
-
-            public StaticCircleShape(float row, float column, float radius)
-            {
-                Row = row; Column = column; Radius = radius;
-            }
-
-            public void Draw(Graphics g)
-            {
-                using (Pen pen = new Pen(Color, LineWidth * (IsSelected ? 1.5f : 1f)))
-                {
-                    g.DrawEllipse(pen, Column - Radius, Row - Radius, Radius * 2, Radius * 2);
-
-                    if (IsSelected)
-                    {
-                        float handleSize = Math.Max(6f, Math.Min(16f, LineWidth * 4f));
-                        using (Brush brush = new SolidBrush(Color))
-                        {
-                            g.FillEllipse(brush, Column - handleSize / 2f, Row - handleSize / 2f, handleSize, handleSize);
-                            PointF rightHandle = new PointF(Column + Radius, Row);
-                            g.FillEllipse(brush, rightHandle.X - handleSize / 2f, rightHandle.Y - handleSize / 2f, handleSize, handleSize);
-                            using (Pen penLine = new Pen(Color, Math.Max(1f, LineWidth)))
-                                g.DrawLine(penLine, new PointF(Column, Row), rightHandle);
-                        }
-                    }
-                }
-            }
-
-            public RoiDragMode HitTest(PointF imgPoint)
-            {
-                float dx = imgPoint.X - Column;
-                float dy = imgPoint.Y - Row;
-                float dist = (float)Math.Sqrt(dx * dx + dy * dy);
-                if (Math.Abs(dist - Radius) <= HIT_TOL) return RoiDragMode.Resize_Right;
-                if (dist < Radius) return RoiDragMode.Move;
-                return RoiDragMode.None;
-            }
-
-            public void BeginDrag(RoiDragMode mode, PointF imgStartPoint)
-            {
-                _dragStart = imgStartPoint;
-                _centerRowStart = Row; _centerColStart = Column; _radiusStart = Radius;
-            }
-
-            public void DragTo(PointF imgPt, RoiDragMode mode)
-            {
-                if (mode == RoiDragMode.Move)
-                {
-                    float dx = imgPt.X - _dragStart.X;
-                    float dy = imgPt.Y - _dragStart.Y;
-                    Column = _centerColStart + dx;
-                    Row = _centerRowStart + dy;
-                }
+                if (h == 0) { CX = _oCX + (p.X - _sPt.X); CY = _oCY + (p.Y - _sPt.Y); }
+                else if (h == 5) { double currentRad = Math.Atan2(p.Y - CY, p.X - CX); Phi = _startAngleOffset + (float)(currentRad * 180.0 / Math.PI); }
                 else
                 {
-                    float d = (float)Math.Sqrt((imgPt.X - _centerColStart) * (imgPt.X - _centerColStart) + (imgPt.Y - _centerRowStart) * (imgPt.Y - _centerRowStart));
-                    Radius = Math.Max(1f, d);
+                    var lp = RotatePoint(p, new PointF(CX, CY), (float)(-Phi * Math.PI / 180.0));
+                    var slp = RotatePoint(_sPt, new PointF(CX, CY), (float)(-Phi * Math.PI / 180.0));
+                    float dx = (lp.X - slp.X) * 2, dy = (lp.Y - slp.Y) * 2;
+                    if (h == 3) { W = Math.Max(5, _oW + dx); H = Math.Max(5, _oH + dy); }
+                    else if (h == 1) { W = Math.Max(5, _oW - dx); H = Math.Max(5, _oH - dy); }
+                    else if (h == 2) { W = Math.Max(5, _oW + dx); H = Math.Max(5, _oH - dy); }
+                    else if (h == 4) { W = Math.Max(5, _oW - dx); H = Math.Max(5, _oH + dy); }
                 }
             }
-
-            public void EndDrag() { }
+            private static PointF RotatePoint(PointF p, PointF c, float r) { float s = (float)Math.Sin(r), co = (float)Math.Cos(r); return new PointF(co * (p.X - c.X) - s * (p.Y - c.Y) + c.X, s * (p.X - c.X) + co * (p.Y - c.Y) + c.Y); }
         }
-        #endregion
 
-        #region 直线 ROI 与静态直线
-
-        /// <summary>直线拖拽模式（采用 RoiDragMode 的点位标识）</summary>
-        public enum LineDragMode
+        public class RoiCircle : IRoiShape
         {
-            None,
-            Move,
-            Resize_Start,  // 拖动起点
-            Resize_End     // 拖动终点
+            public float CX, CY, R; public bool IsSelected { get; set; }
+            public bool IsStatic { get; set; }
+            string IRoiShape.Label { get => Label; set => Label = value; }
+            public string Label { get; set; }
+            public Color ShapeColor { get; set; }
+            private float _oCX, _oCY, _oR; private PointF _sPt;
+            public RoiCircle(float x, float y, float r) { CX = x; CY = y; R = r; ShapeColor = Color.Lime; }
+            public PointF GetCenter() => new PointF(CX, CY);
+            public void Draw(Graphics g, float s, PointF o)
+            {
+                PointF sc = new PointF(CX * s + o.X, CY * s + o.Y); float sr = R * s;
+                Color drawCol = (IsSelected && !IsStatic) ? Color.Cyan : ShapeColor;
+                using (Pen p = new Pen(drawCol, 2f)) { g.DrawEllipse(p, sc.X - sr, sc.Y - sr, sr * 2, sr * 2); if (!IsStatic) using (Pen d = new Pen(Color.Black, 1.5f) { DashStyle = DashStyle.Dash }) g.DrawEllipse(d, sc.X - sr + 2, sc.Y - sr + 2, (sr - 2) * 2, (sr - 2) * 2); }
+                if (!IsStatic && IsSelected) g.FillRectangle(Brushes.Orange, sc.X + sr - 4, sc.Y - 4, 8, 8);
+                DrawCross(g, sc); DrawLabel(g, Label, sc);
+            }
+            public int HitTest(Point p, float s, PointF o) { if (IsStatic) return -1; float dist = (float)Math.Sqrt(Math.Pow(p.X - (CX * s + o.X), 2) + Math.Pow(p.Y - (CY * s + o.Y), 2)); if (Math.Abs(dist - R * s) < 8) return 1; return dist < R * s ? 0 : -1; }
+            public void BeginDrag(PointF p) { _sPt = p; _oCX = CX; _oCY = CY; _oR = R; }
+            public void DragTo(PointF p, int h) { if (h == 0) { CX = _oCX + p.X - _sPt.X; CY = _oCY + p.Y - _sPt.Y; } else { R = Math.Max(5, (float)Math.Sqrt(Math.Pow(p.X - CX, 2) + Math.Pow(p.Y - CY, 2))); } }
         }
 
-        /// <summary>直线 ROI（可交互）</summary>
+        public class RoiPolygon : IRoiShape
+        {
+            public List<PointF> Points; public bool IsSelected { get; set; }
+            public bool IsStatic { get; set; }
+            string IRoiShape.Label { get => Label; set => Label = value; }
+            public string Label { get; set; }
+            public Color ShapeColor { get; set; }
+            private List<PointF> _oPts; private PointF _sPt;
+            public RoiPolygon(List<PointF> pts) { Points = pts; ShapeColor = Color.Lime; }
+            public PointF GetCenter() => new PointF(Points.Average(p => p.X), Points.Average(p => p.Y));
+            public void Draw(Graphics g, float s, PointF o)
+            {
+                if (Points.Count < 2) return;
+                PointF[] pts = Points.Select(p => new PointF(p.X * s + o.X, p.Y * s + o.Y)).ToArray();
+                Color drawCol = (IsSelected && !IsStatic) ? Color.Cyan : ShapeColor;
+                using (Pen p = new Pen(drawCol, 2f)) { g.DrawPolygon(p, pts); if (!IsStatic) using (Pen d = new Pen(Color.Black, 1.5f) { DashStyle = DashStyle.Dash }) g.DrawPolygon(d, pts); }
+                if (!IsStatic && IsSelected) foreach (var pt in pts) g.FillRectangle(Brushes.Orange, pt.X - 4, pt.Y - 4, 8, 8);
+                PointF c = new PointF(pts.Average(p => p.X), pts.Average(p => p.Y)); DrawCross(g, c); DrawLabel(g, Label, c);
+            }
+            public int HitTest(Point p, float s, PointF o) { if (IsStatic) return -1; for (int i = 0; i < Points.Count; i++) { var sp = new PointF(Points[i].X * s + o.X, Points[i].Y * s + o.Y); if (Math.Abs(p.X - sp.X) < 8 && Math.Abs(p.Y - sp.Y) < 8) return i + 1; } PointF[] pts = Points.Select(pt => new PointF(pt.X * s + o.X, pt.Y * s + o.Y)).ToArray(); using (GraphicsPath gp = new GraphicsPath()) { gp.AddPolygon(pts); if (gp.IsVisible(p)) return 0; } return -1; }
+            public void BeginDrag(PointF p) { _sPt = p; _oPts = new List<PointF>(Points); }
+            public void DragTo(PointF p, int h) { if (h == 0) { float dx = p.X - _sPt.X, dy = p.Y - _sPt.Y; for (int i = 0; i < Points.Count; i++) Points[i] = new PointF(_oPts[i].X + dx, _oPts[i].Y + dy); } else if (h > 0 && h <= Points.Count) Points[h - 1] = p; }
+        }
+
+        public class RoiContour : IRoiShape
+        {
+            public List<PointF> Points; public Color ShapeColor { get; set; }
+            public bool IsSelected { get; set; }
+            public bool IsStatic { get; set; }
+            string IRoiShape.Label { get => Label; set => Label = value; }
+            public string Label { get; set; }
+            public RoiContour(List<PointF> pts, Color c) { Points = pts; ShapeColor = c; IsStatic = true; }
+            public PointF GetCenter() => Points.Count == 0 ? PointF.Empty : new PointF(Points.Average(p => p.X), Points.Average(p => p.Y));
+            public void Draw(Graphics g, float s, PointF o)
+            {
+                if (Points.Count == 0) return;
+                using (Brush b = new SolidBrush(ShapeColor))
+                {
+                    float dotSize = Math.Max(2.0f, s);
+                    foreach (var p in Points) g.FillRectangle(b, p.X * s + o.X, p.Y * s + o.Y, dotSize, dotSize);
+                }
+            }
+            public int HitTest(Point p, float s, PointF o) => -1;
+            public void BeginDrag(PointF p) { }
+            public void DragTo(PointF p, int h) { }
+        }
+
+        public class RoiCaliper : IRoiShape
+        {
+            public float SX, SY, EX, EY, CaliperHeight, CaliperWidth;
+            public int Count;
+            public bool IsSelected { get; set; }
+            public bool IsStatic { get; set; }
+            public string Label { get; set; }
+            public Color ShapeColor { get; set; }
+            private float _oSX, _oSY, _oEX, _oEY, _oCH, _oCW; private PointF _sPt;
+            public float Angle => (float)(Math.Atan2(EY - SY, EX - SX) * 180.0 / Math.PI);
+            public int Direction { get; set; } = 0;
+            public RoiCaliper(float sx, float sy, float ex, float ey, float cw, float ch, int count = 20) { SX = sx; SY = sy; EX = ex; EY = ey; CaliperHeight = ch; CaliperWidth = cw; Count = Math.Max(1, count); ShapeColor = Color.DodgerBlue; }
+            public PointF GetCenter() => new PointF((SX + EX) / 2, (SY + EY) / 2);
+            public void Draw(Graphics g, float s, PointF o)
+            {
+                float dx = EX - SX, dy = EY - SY;
+                float segLen = (float)Math.Sqrt(dx * dx + dy * dy);
+                float phi = (float)(Math.Atan2(dy, dx) * 180.0 / Math.PI);
+                PointF center = GetCenter();
+                float halfSeg = segLen * s / 2;
+                var st = g.Save(); PointF sc = new PointF(center.X * s + o.X, center.Y * s + o.Y);
+                g.TranslateTransform(sc.X, sc.Y); g.RotateTransform(phi);
+                Color mainCol = (IsSelected && !IsStatic) ? Color.DodgerBlue : ShapeColor;
+                float sw = CaliperWidth * s, sh = CaliperHeight * s;
+                using (Pen p = new Pen(mainCol, 2f))
+                {
+                    g.DrawLine(p, -halfSeg, 0, halfSeg, 0);
+                    for (int i = 0; i < Count; i++)
+                    {
+                        float cx = (Count == 1) ? 0 : (-halfSeg + (segLen * s / (Count - 1)) * i);
+                        float rectLeft = Math.Max(-halfSeg, cx - sw / 2);
+                        float rectRight = Math.Min(halfSeg, cx + sw / 2);
+                        if (rectRight > rectLeft) g.DrawRectangle(p, rectLeft, -sh / 2, rectRight - rectLeft, sh);
+                    }
+                }
+                using (Brush b = new SolidBrush(Color.FromArgb(120, mainCol)))
+                using (Pen ap = new Pen(mainCol, 2f))
+                {
+                    float arrowSize = Math.Min(12, sh / 4 + 4);
+                    if (Direction == 0) { ap.DashStyle = DashStyle.Dash; g.DrawLine(ap, 0, -sh / 2, 0, sh / 2); ap.DashStyle = DashStyle.Solid; PointF[] arrowHead = { new PointF(-arrowSize * 0.8f, sh / 2 - arrowSize), new PointF(arrowSize * 0.8f, sh / 2 - arrowSize), new PointF(0, sh / 2) }; g.FillPolygon(new SolidBrush(mainCol), arrowHead); }
+                    else { ap.DashStyle = DashStyle.Dash; g.DrawLine(ap, -halfSeg, 0, halfSeg, 0); ap.DashStyle = DashStyle.Solid; PointF[] arrowHead = { new PointF(halfSeg - arrowSize, -arrowSize * 0.8f), new PointF(halfSeg - arrowSize, arrowSize * 0.8f), new PointF(halfSeg, 0) }; g.FillPolygon(new SolidBrush(mainCol), arrowHead); }
+                }
+                if (!IsStatic && IsSelected) { using (Brush wb = new SolidBrush(Color.White)) using (Pen bp = new Pen(mainCol, 2f)) { g.FillEllipse(wb, -halfSeg - 7, -7, 14, 14); g.DrawEllipse(bp, -halfSeg - 7, -7, 14, 14); g.FillEllipse(wb, halfSeg - 7, -7, 14, 14); g.DrawEllipse(bp, halfSeg - 7, -7, 14, 14); g.FillEllipse(wb, -7, -7, 14, 14); g.DrawEllipse(bp, -7, -7, 14, 14); } using (Brush orb = new SolidBrush(Color.Orange)) { g.FillRectangle(orb, -6, -sh / 2 - 6, 12, 12); } }
+                g.Restore(st); if (IsSelected) DrawLabel(g, Label, sc);
+            }
+            public int HitTest(Point p, float s, PointF o) { if (IsStatic) return -1; float dx = EX - SX, dy = EY - SY; float segLen = (float)Math.Sqrt(dx * dx + dy * dy); float phi = (float)(Math.Atan2(dy, dx) * 180.0 / Math.PI); PointF center = GetCenter(); float sw = CaliperWidth * s, sh = CaliperHeight * s; PointF lp = RotatePoint(p, new PointF(center.X * s + o.X, center.Y * s + o.Y), (float)(-phi * Math.PI / 180.0)); float tx = lp.X - (center.X * s + o.X), ty = lp.Y - (center.Y * s + o.Y); if (Math.Sqrt(Math.Pow(tx + segLen * s / 2, 2) + ty * ty) < 14) return 1; if (Math.Sqrt(Math.Pow(tx - segLen * s / 2, 2) + ty * ty) < 14) return 2; if (Math.Sqrt(tx * tx + ty * ty) < 14) return 0; if (Math.Abs(tx) < 12 && Math.Abs(ty + sh / 2 + 5) < 12) return 3; if (Math.Abs(tx) <= segLen * s / 2 && Math.Abs(ty) <= sh / 2) return 0; return -1; }
+            public void BeginDrag(PointF p) { _sPt = p; _oSX = SX; _oSY = SY; _oEX = EX; _oEY = EY; _oCH = CaliperHeight; _oCW = CaliperWidth; }
+            public void DragTo(PointF p, int h) { float dx = p.X - _sPt.X, dy = p.Y - _sPt.Y; if (h == 0) { SX = _oSX + dx; SY = _oSY + dy; EX = _oEX + dx; EY = _oEY + dy; } else if (h == 1) { SX = _oSX + dx; SY = _oSY + dy; } else if (h == 2) { EX = _oEX + dx; EY = _oEY + dy; } else if (h == 3) { PointF center = GetCenter(); dx = EX - SX; dy = EY - SY; float segLen = (float)Math.Sqrt(dx * dx + dy * dy); float phi = (float)(Math.Atan2(dy, dx) * 180.0 / Math.PI); PointF lp = RotatePoint(p, center, (float)(-phi * Math.PI / 180.0)); CaliperHeight = Math.Max(5, Math.Abs(lp.Y - center.Y) * 2); CaliperWidth = Math.Min(segLen, Math.Max(3, Math.Abs(lp.X - center.X) * 2)); } }
+            private static PointF RotatePoint(PointF p, PointF c, float r) { float s = (float)Math.Sin(r), co = (float)Math.Cos(r); return new PointF(co * (p.X - c.X) - s * (p.Y - c.Y) + c.X, s * (p.X - c.X) + co * (p.Y - c.Y) + c.Y); }
+        }
+
+        public class RoiTextBlock : IRoiShape
+        {
+            public string Title; public List<(string text, Color color)> Lines; public float ImgX, ImgY; public float FontSize; public bool IsSelected { get; set; } public bool IsStatic { get; set; } = true; public string Label { get; set; } public Color ShapeColor { get; set; } = Color.White;
+            public RoiTextBlock(string title, List<(string text, Color color)> lines, float imgX = 0, float imgY = 0, float fontSize = 11f) { Title = title; Lines = lines; ImgX = imgX; ImgY = imgY; FontSize = fontSize; }
+            public PointF GetCenter() => new PointF(ImgX, ImgY);
+            public void Draw(Graphics g, float s, PointF o) { float x = ImgX * s + o.X; float y = ImgY * s + o.Y; float titleSize = FontSize * 1.2f, lineSize = FontSize; using (Font titleFont = new Font("Microsoft YaHei", titleSize, FontStyle.Bold)) using (Font lineFont = new Font("Microsoft YaHei", lineSize)) { float maxW = g.MeasureString(Title, titleFont).Width, totalH = g.MeasureString(Title, titleFont).Height + 4; foreach (var line in Lines) { var sz = g.MeasureString(line.text, lineFont); if (sz.Width > maxW) maxW = sz.Width; totalH += sz.Height + 2; } g.FillRectangle(new SolidBrush(Color.FromArgb(180, 0, 0, 0)), x - 4, y - 4, maxW + 16, totalH + 12); g.DrawString(Title, titleFont, Brushes.White, x, y); y += g.MeasureString(Title, titleFont).Height + 4; foreach (var line in Lines) { using (Brush b = new SolidBrush(line.color)) g.DrawString(line.text, lineFont, b, x + 4, y); y += g.MeasureString(line.text, lineFont).Height + 2; } } }
+            public int HitTest(Point p, float s, PointF o) => -1; public void BeginDrag(PointF p) { } public void DragTo(PointF p, int h) { }
+        }
+
+        public class RoiResultBadge : IRoiShape
+        {
+            public string Text; public Color BgColor; public float ImgX, ImgY, FontSize; public bool IsSelected { get; set; } public bool IsStatic { get; set; } = true; public string Label { get; set; } public Color ShapeColor { get; set; }
+            public RoiResultBadge(string text, Color bgColor, float imgX, float imgY, float fontSize = 48f) { Text = text; BgColor = bgColor; ImgX = imgX; ImgY = imgY; FontSize = fontSize; }
+            public PointF GetCenter() => new PointF(ImgX, ImgY);
+            public void Draw(Graphics g, float s, PointF o) { float scaledSize = FontSize; using (Font f = new Font("Microsoft YaHei", scaledSize, FontStyle.Bold)) { var sz = g.MeasureString(Text, f); float px = ImgX * s + o.X, py = ImgY * s + o.Y, pad = scaledSize * 0.3f; RectangleF rect = new RectangleF(px, py, sz.Width + pad * 2, sz.Height + pad * 2); using (Brush bg = new SolidBrush(BgColor)) g.FillRectangle(bg, rect); g.DrawString(Text, f, Brushes.White, px + pad, py + pad); } }
+            public int HitTest(Point p, float s, PointF o) => -1; public void BeginDrag(PointF p) { } public void DragTo(PointF p, int h) { }
+        }
+
+        public class RoiScreenResultBadge : IRoiShape
+        {
+            public string Text; public Color Color; public bool IsSelected { get; set; } public bool IsStatic { get; set; } = true; public string Label { get; set; } public Color ShapeColor { get; set; }
+            public RoiScreenResultBadge(string text, Color color) { Text = text; Color = color; }
+            public PointF GetCenter() => PointF.Empty;
+            public void Draw(Graphics g, float s, PointF o)
+            {
+                using (Font f = new Font("Microsoft YaHei", 72f, FontStyle.Bold))
+                {
+                    var sz = g.MeasureString(Text, f);
+                    // 强制在控件右下角显示，避开状态栏
+                    float x = g.VisibleClipBounds.Width - sz.Width - 20;
+                    float y = g.VisibleClipBounds.Height - sz.Height - 40;
+                    
+                    // 绘制阴影/描边
+                    g.DrawString(Text, f, Brushes.Black, x + 4, y + 4);
+                    using (Brush b = new SolidBrush(Color)) g.DrawString(Text, f, b, x, y);
+                }
+            }
+            public int HitTest(Point p, float s, PointF o) => -1; public void BeginDrag(PointF p) { } public void DragTo(PointF p, int h) { }
+        }
+
         public class RoiLine : IRoiShape
         {
-            public int Id { get; set; }
-            public Color Color { get; set; }
-            public bool IsSelected { get; set; }
-            public float LineWidth { get; set; } = 1f;
-
-            public PointF Start;
-            public PointF End;
-
-            // Label
-            public string Label { get; set; } = "";
-            public bool ShowLabel { get; set; } = false;
-
-            private PointF _dragStart;
-            private PointF _startOrig, _endOrig;
-            private RoiDragMode _dragMode;
-            private const float HIT_TOL = 6f;
-
-            public RoiLine(PointF start, PointF end)
-            {
-                Start = start; End = end;
-            }
-
-            public void Draw(Graphics g)
-            {
-                using (Pen pen = new Pen(Color, LineWidth * (IsSelected ? 1.5f : 1f)))
-                {
-                    g.DrawLine(pen, Start, End);
-
-                    if (IsSelected)
-                    {
-                        float hs = Math.Max(6f, Math.Min(16f, LineWidth * 4f));
-                        using (Brush b = new SolidBrush(Color))
-                        {
-                            g.FillEllipse(b, Start.X - hs / 2, Start.Y - hs / 2, hs, hs);
-                            g.FillEllipse(b, End.X - hs / 2, End.Y - hs / 2, hs, hs);
-                        }
-                    }
-                }
-            }
-
-            public RoiDragMode HitTest(PointF imgPoint)
-            {
-                float distToStart = Distance(imgPoint, Start);
-                if (distToStart <= HIT_TOL) return RoiDragMode.Resize_TopLeft; // 起点缩放标识
-                float distToEnd = Distance(imgPoint, End);
-                if (distToEnd <= HIT_TOL) return RoiDragMode.Resize_BottomRight; // 终点缩放标识
-
-                float distToLine = DistanceToSegment(imgPoint, Start, End);
-                if (distToLine <= HIT_TOL) return RoiDragMode.Move;
-
-                return RoiDragMode.None;
-            }
-
-            public void BeginDrag(RoiDragMode mode, PointF imgStartPoint)
-            {
-                _dragMode = mode;
-                _dragStart = imgStartPoint;
-                _startOrig = Start;
-                _endOrig = End;
-            }
-
-            public void DragTo(PointF imgPt, RoiDragMode mode)
-            {
-                if (mode == RoiDragMode.Move)
-                {
-                    float dx = imgPt.X - _dragStart.X;
-                    float dy = imgPt.Y - _dragStart.Y;
-                    Start = new PointF(_startOrig.X + dx, _startOrig.Y + dy);
-                    End = new PointF(_endOrig.X + dx, _endOrig.Y + dy);
-                }
-                else if (mode == RoiDragMode.Resize_TopLeft)
-                {
-                    Start = imgPt;
-                }
-                else if (mode == RoiDragMode.Resize_BottomRight)
-                {
-                    End = imgPt;
-                }
-            }
-
-            public void EndDrag() { }
-
-            private static float Distance(PointF a, PointF b)
-            {
-                float dx = a.X - b.X, dy = a.Y - b.Y;
-                return (float)Math.Sqrt(dx * dx + dy * dy);
-            }
-
-            private static float DistanceToSegment(PointF p, PointF a, PointF b)
-            {
-                float dx = b.X - a.X;
-                float dy = b.Y - a.Y;
-                if (Math.Abs(dx) < 1e-6 && Math.Abs(dy) < 1e-6)
-                    return Distance(p, a);
-                float t = ((p.X - a.X) * dx + (p.Y - a.Y) * dy) / (dx * dx + dy * dy);
-                t = Math.Max(0, Math.Min(1, t));
-                float projX = a.X + t * dx;
-                float projY = a.Y + t * dy;
-                return Distance(p, new PointF(projX, projY));
-            }
+            public PointF P1, P2; public bool IsSelected { get; set; } public bool IsStatic { get; set; } public string Label { get; set; } public Color ShapeColor { get; set; } private PointF _oP1, _oP2, _sPt;
+            public RoiLine(float x1, float y1, float x2, float y2) { P1 = new PointF(x1, y1); P2 = new PointF(x2, y2); ShapeColor = Color.Lime; }
+            public PointF GetCenter() => new PointF((P1.X + P2.X) / 2, (P1.Y + P2.Y) / 2);
+            public void Draw(Graphics g, float s, PointF o) { PointF sp1 = new PointF(P1.X * s + o.X, P1.Y * s + o.Y), sp2 = new PointF(P2.X * s + o.X, P2.Y * s + o.Y); Color drawCol = (IsSelected && !IsStatic) ? Color.Cyan : ShapeColor; using (Pen p = new Pen(drawCol, 2f)) { g.DrawLine(p, sp1, sp2); if (!IsStatic) using (Pen d = new Pen(Color.Black, 1.5f) { DashStyle = DashStyle.Dash }) g.DrawLine(d, sp1, sp2); } if (!IsStatic && IsSelected) { using (Brush orb = new SolidBrush(Color.Orange)) { g.FillRectangle(orb, sp1.X - 5, sp1.Y - 5, 10, 10); g.FillRectangle(orb, sp2.X - 5, sp2.Y - 5, 10, 10); } } PointF sc = new PointF((sp1.X + sp2.X) / 2, (sp1.Y + sp2.Y) / 2); DrawCross(g, sc); DrawLabel(g, Label, sc); }
+            public int HitTest(Point p, float s, PointF o) { if (IsStatic) return -1; PointF sp1 = new PointF(P1.X * s + o.X, P1.Y * s + o.Y), sp2 = new PointF(P2.X * s + o.X, P2.Y * s + o.Y); if (Dist(p, sp1) < 8) return 1; if (Dist(p, sp2) < 8) return 2; if (DistToSegment(p, sp1, sp2) < 8) return 0; return -1; }
+            public void BeginDrag(PointF p) { _sPt = p; _oP1 = P1; _oP2 = P2; }
+            public void DragTo(PointF p, int h) { float dx = p.X - _sPt.X, dy = p.Y - _sPt.Y; if (h == 0) { P1 = new PointF(_oP1.X + dx, _oP1.Y + dy); P2 = new PointF(_oP2.X + dx, _oP2.Y + dy); } else if (h == 1) { P1 = p; } else if (h == 2) { P2 = p; } }
+            private static float Dist(PointF a, PointF b) => (float)Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2));
+            private static float DistToSegment(PointF p, PointF v, PointF w) { float l2 = (float)(Math.Pow(v.X - w.X, 2) + Math.Pow(v.Y - w.Y, 2)); if (l2 == 0) return Dist(p, v); float t = Math.Max(0, Math.Min(1, ((p.X - v.X) * (w.X - v.X) + (p.Y - v.Y) * (w.Y - v.Y)) / l2)); return Dist(p, new PointF(v.X + t * (w.X - v.X), v.Y + t * (w.Y - v.Y))); }
         }
 
-        /// <summary>静态直线（可交互）</summary>
-        public class StaticLineShape : IRoiShape
-        {
-            public int Id { get; set; }
-            public Color Color { get; set; }
-            public bool IsSelected { get; set; }
-            public float LineWidth { get; set; } = 1f;
-
-            public PointF Start;
-            public PointF End;
-
-            // Label
-            public string Label { get; set; } = "";
-            public bool ShowLabel { get; set; } = false;
-
-            private PointF _dragStart;
-            private PointF _startOrig, _endOrig;
-            private const float HIT_TOL = 6f;
-
-            public StaticLineShape(PointF start, PointF end)
-            {
-                Start = start; End = end;
-            }
-
-            public void Draw(Graphics g)
-            {
-                using (Pen pen = new Pen(Color, LineWidth * (IsSelected ? 1.5f : 1f)))
-                {
-                    g.DrawLine(pen, Start, End);
-
-                    if (IsSelected)
-                    {
-                        float hs = Math.Max(6f, Math.Min(16f, LineWidth * 4f));
-                        using (Brush b = new SolidBrush(Color))
-                        {
-                            g.FillEllipse(b, Start.X - hs / 2, Start.Y - hs / 2, hs, hs);
-                            g.FillEllipse(b, End.X - hs / 2, End.Y - hs / 2, hs, hs);
-                        }
-                    }
-                }
-            }
-
-            public RoiDragMode HitTest(PointF imgPoint)
-            {
-                float distToStart = Distance(imgPoint, Start);
-                if (distToStart <= HIT_TOL) return RoiDragMode.Resize_TopLeft;
-                float distToEnd = Distance(imgPoint, End);
-                if (distToEnd <= HIT_TOL) return RoiDragMode.Resize_BottomRight;
-
-                float distToLine = DistanceToSegment(imgPoint, Start, End);
-                if (distToLine <= HIT_TOL) return RoiDragMode.Move;
-
-                return RoiDragMode.None;
-            }
-
-            public void BeginDrag(RoiDragMode mode, PointF imgStartPoint)
-            {
-                _dragStart = imgStartPoint;
-                _startOrig = Start;
-                _endOrig = End;
-            }
-
-            public void DragTo(PointF imgPt, RoiDragMode mode)
-            {
-                if (mode == RoiDragMode.Move)
-                {
-                    float dx = imgPt.X - _dragStart.X;
-                    float dy = imgPt.Y - _dragStart.Y;
-                    Start = new PointF(_startOrig.X + dx, _startOrig.Y + dy);
-                    End = new PointF(_endOrig.X + dx, _endOrig.Y + dy);
-                }
-                else if (mode == RoiDragMode.Resize_TopLeft)
-                {
-                    Start = imgPt;
-                }
-                else if (mode == RoiDragMode.Resize_BottomRight)
-                {
-                    End = imgPt;
-                }
-            }
-
-            public void EndDrag() { }
-
-            private static float Distance(PointF a, PointF b)
-            {
-                float dx = a.X - b.X, dy = a.Y - b.Y;
-                return (float)Math.Sqrt(dx * dx + dy * dy);
-            }
-
-            private static float DistanceToSegment(PointF p, PointF a, PointF b)
-            {
-                float dx = b.X - a.X;
-                float dy = b.Y - a.Y;
-                if (Math.Abs(dx) < 1e-6 && Math.Abs(dy) < 1e-6)
-                    return Distance(p, a);
-                float t = ((p.X - a.X) * dx + (p.Y - a.Y) * dy) / (dx * dx + dy * dy);
-                t = Math.Max(0, Math.Min(1, t));
-                float projX = a.X + t * dx;
-                float projY = a.Y + t * dy;
-                return Distance(p, new PointF(projX, projY));
-            }
-        }
-
-
-        #endregion
-
-        #region 不旋转矩形 ROI 实现
         /// <summary>
-        /// 轴对齐矩形 ROI（不可旋转）
-        /// - 通过左上角 + 右下角构造
-        /// - 支持移动 / 四角缩放
-        /// - IsEditable = false 时仅绘制，不响应交互
+        /// Mask 区域半透明叠加层（用于可视化颜色匹配检测区域）
         /// </summary>
-        public class RoiRect : IRoiShape
+        public class RoiMaskOverlay : IRoiShape
         {
-            #region 基本属性
-
-            public int Id { get; set; }
-
-            public Color Color { get; set; } = Color.Lime;
-
+            private readonly Bitmap _overlayBitmap;
+            private readonly int _offsetX, _offsetY;
             public bool IsSelected { get; set; }
+            public bool IsStatic { get; set; } = true;
+            public string Label { get; set; }
+            public Color ShapeColor { get; set; }
 
-            /// <summary>线宽（选中时会自动放大）</summary>
-            public float LineWidth { get; set; } = 1f;
-
-            /// <summary>是否允许编辑（Move / Resize）</summary>
-            public bool IsEditable { get; set; } = true;
-
-            // 矩形边界（轴对齐）
-            public float Left;
-            public float Top;
-            public float Right;
-            public float Bottom;
-
-            // Label
-            public string Label { get; set; } = "";
-            public bool ShowLabel { get; set; } = false;
-
-            #endregion
-
-            #region 私有字段
-
-            private const float HIT_TOL = 6f;
-
-            private PointF _dragStart;
-            private float _l0, _t0, _r0, _b0;
-
-            #endregion
-
-            #region 构造函数
-
-            /// <summary>
-            /// 使用左上角 & 右下角创建矩形
-            /// </summary>
-            public RoiRect(PointF topLeft, PointF bottomRight)
+            public RoiMaskOverlay(Bitmap mask, int offsetX, int offsetY, Color color, int alpha = 100)
             {
-                Left = Math.Min(topLeft.X, bottomRight.X);
-                Top = Math.Min(topLeft.Y, bottomRight.Y);
-                Right = Math.Max(topLeft.X, bottomRight.X);
-                Bottom = Math.Max(topLeft.Y, bottomRight.Y);
-            }
+                _offsetX = offsetX;
+                _offsetY = offsetY;
+                ShapeColor = color;
 
-            #endregion
+                // 将灰度 mask 转为带透明度的彩色叠加位图
+                _overlayBitmap = new Bitmap(mask.Width, mask.Height, PixelFormat.Format32bppArgb);
+                var srcRect = new Rectangle(0, 0, mask.Width, mask.Height);
+                var maskData = mask.LockBits(srcRect, ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
+                var dstData = _overlayBitmap.LockBits(srcRect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
 
-            #region 绘制
-
-            public void Draw(Graphics g)
-            {
-                float width = Right - Left;
-                float height = Bottom - Top;
-
-                using (Pen pen = new Pen(Color, LineWidth * (IsSelected ? 1.5f : 1f)))
+                unsafe
                 {
-                    g.DrawRectangle(pen, Left, Top, width, height);
-                }
-
-                // 未选中不绘制手柄
-                if (!IsSelected) return;
-
-                float handleSize = Math.Max(6f, Math.Min(16f, LineWidth * 4f));
-
-                using (Brush brush = new SolidBrush(Color))
-                {
-                    DrawHandle(g, brush, Left, Top, handleSize);       // TL
-                    DrawHandle(g, brush, Right, Top, handleSize);      // TR
-                    DrawHandle(g, brush, Right, Bottom, handleSize);   // BR
-                    DrawHandle(g, brush, Left, Bottom, handleSize);    // BL
-                }
-
-                // Label（可选）
-                if (ShowLabel && !string.IsNullOrEmpty(Label))
-                {
-                    using (Brush tb = new SolidBrush(Color))
+                    for (int y = 0; y < mask.Height; y++)
                     {
-                        g.DrawString(Label, SystemFonts.DefaultFont, tb, Left + 4, Top + 4);
+                        byte* srcRow = (byte*)maskData.Scan0 + y * maskData.Stride;
+                        byte* dstRow = (byte*)dstData.Scan0 + y * dstData.Stride;
+                        for (int x = 0; x < mask.Width; x++)
+                        {
+                            if (srcRow[x] > 0)
+                            {
+                                dstRow[x * 4 + 0] = color.B;     // B
+                                dstRow[x * 4 + 1] = color.G;     // G
+                                dstRow[x * 4 + 2] = color.R;     // R
+                                dstRow[x * 4 + 3] = (byte)alpha; // A
+                            }
+                            // else: 默认全0（完全透明）
+                        }
                     }
                 }
+
+                mask.UnlockBits(maskData);
+                _overlayBitmap.UnlockBits(dstData);
             }
 
-            private void DrawHandle(Graphics g, Brush b, float x, float y, float size)
+            public PointF GetCenter() => new PointF(_offsetX + _overlayBitmap.Width / 2f, _offsetY + _overlayBitmap.Height / 2f);
+
+            public void Draw(Graphics g, float s, PointF o)
             {
-                g.FillRectangle(b, x - size / 2f, y - size / 2f, size, size);
+                if (_overlayBitmap == null) return;
+                float dx = _offsetX * s + o.X;
+                float dy = _offsetY * s + o.Y;
+                float dw = _overlayBitmap.Width * s;
+                float dh = _overlayBitmap.Height * s;
+                g.DrawImage(_overlayBitmap, dx, dy, dw, dh);
             }
 
-            #endregion
-
-            #region 命中测试
-
-            public RoiDragMode HitTest(PointF imgPoint)
-            {
-                if (!IsEditable)
-                    return RoiDragMode.None;
-
-                PointF tl = new PointF(Left, Top);
-                PointF tr = new PointF(Right, Top);
-                PointF br = new PointF(Right, Bottom);
-                PointF bl = new PointF(Left, Bottom);
-
-                if (Distance(imgPoint, tl) <= HIT_TOL) return RoiDragMode.Resize_TopLeft;
-                if (Distance(imgPoint, tr) <= HIT_TOL) return RoiDragMode.Resize_TopRight;
-                if (Distance(imgPoint, br) <= HIT_TOL) return RoiDragMode.Resize_BottomRight;
-                if (Distance(imgPoint, bl) <= HIT_TOL) return RoiDragMode.Resize_BottomLeft;
-
-                // 内部区域：移动
-                if (imgPoint.X >= Left - HIT_TOL && imgPoint.X <= Right + HIT_TOL &&
-                    imgPoint.Y >= Top - HIT_TOL && imgPoint.Y <= Bottom + HIT_TOL)
-                    return RoiDragMode.Move;
-
-                return RoiDragMode.None;
-            }
-
-            #endregion
-
-            #region 拖拽逻辑
-
-            public void BeginDrag(RoiDragMode mode, PointF imgStartPoint)
-            {
-                _dragStart = imgStartPoint;
-                _l0 = Left;
-                _t0 = Top;
-                _r0 = Right;
-                _b0 = Bottom;
-            }
-
-            public void DragTo(PointF imgPt, RoiDragMode mode)
-            {
-                float dx = imgPt.X - _dragStart.X;
-                float dy = imgPt.Y - _dragStart.Y;
-
-                switch (mode)
-                {
-                    case RoiDragMode.Move:
-                        Left = _l0 + dx;
-                        Right = _r0 + dx;
-                        Top = _t0 + dy;
-                        Bottom = _b0 + dy;
-                        break;
-
-                    case RoiDragMode.Resize_TopLeft:
-                        Left = _l0 + dx;
-                        Top = _t0 + dy;
-                        break;
-
-                    case RoiDragMode.Resize_TopRight:
-                        Right = _r0 + dx;
-                        Top = _t0 + dy;
-                        break;
-
-                    case RoiDragMode.Resize_BottomRight:
-                        Right = _r0 + dx;
-                        Bottom = _b0 + dy;
-                        break;
-
-                    case RoiDragMode.Resize_BottomLeft:
-                        Left = _l0 + dx;
-                        Bottom = _b0 + dy;
-                        break;
-                }
-
-                Normalize();
-            }
-
-            public void EndDrag() { }
-
-            #endregion
-
-            #region 辅助方法
-
-            /// <summary>
-            /// 防止左右 / 上下翻转，并限制最小尺寸
-            /// </summary>
-            private void Normalize()
-            {
-                if (Left > Right) (Left, Right) = (Right, Left);
-                if (Top > Bottom) (Top, Bottom) = (Bottom, Top);
-
-                const float MIN_SIZE = 2f;
-                if (Right - Left < MIN_SIZE) Right = Left + MIN_SIZE;
-                if (Bottom - Top < MIN_SIZE) Bottom = Top + MIN_SIZE;
-            }
-
-            private static float Distance(PointF a, PointF b)
-            {
-                float dx = a.X - b.X;
-                float dy = a.Y - b.Y;
-                return (float)Math.Sqrt(dx * dx + dy * dy);
-            }
-
-            #endregion
+            public int HitTest(Point p, float s, PointF o) => -1;
+            public void BeginDrag(PointF p) { }
+            public void DragTo(PointF p, int h) { }
         }
-
-        #endregion
-
-
-        #endregion
-
-        #region 工具函数（公共或内部复用）
-
-        private static float Distance(PointF a, PointF b)
-        {
-            float dx = a.X - b.X, dy = a.Y - b.Y;
-            return (float)Math.Sqrt(dx * dx + dy * dy);
-        }
-
-        private static PointF RotatePoint(PointF p, PointF c, float angleRad)
-        {
-            if (Math.Abs(angleRad) < 1e-6) return p;
-            float s = (float)Math.Sin(angleRad);
-            float co = (float)Math.Cos(angleRad);
-            float x = p.X - c.X;
-            float y = p.Y - c.Y;
-            return new PointF(co * x - s * y + c.X, s * x + co * y + c.Y);
-        }
-
-        private static float DistanceToSegment(PointF p, PointF a, PointF b)
-        {
-            float dx = b.X - a.X;
-            float dy = b.Y - a.Y;
-            if (Math.Abs(dx) < 1e-6 && Math.Abs(dy) < 1e-6)
-                return Distance(p, a);
-            float t = ((p.X - a.X) * dx + (p.Y - a.Y) * dy) / (dx * dx + dy * dy);
-            t = Math.Max(0, Math.Min(1, t));
-            float projX = a.X + t * dx;
-            float projY = a.Y + t * dy;
-            return Distance(p, new PointF(projX, projY));
-        }
-
         #endregion
     }
 }

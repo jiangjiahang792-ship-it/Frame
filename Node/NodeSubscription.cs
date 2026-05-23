@@ -223,6 +223,14 @@ namespace TDJS_Vision.Node
             if (_selectedNode == null || _text2.IsNullOrEmpty())
                 throw new Exception($"节点无法获取订阅的值!");
 
+            if (_node != null &&
+                _node.Process != null &&
+                _node.Process.IsRuning &&
+                !_selectedNode.HasSuccessfulResultForRun(_node.Process.CurrentRunId))
+            {
+                throw new Exception($"节点({_selectedNode.ID}.{_selectedNode.NodeName})本次流程未成功运行，不能使用上次运行结果!");
+            }
+
             var propertyInfo = _selectedNode.Result.GetType().GetProperties().ToList().Find(item => item.DisplayName() == _text2);
             if (propertyInfo != null && propertyInfo.CanRead)
             {
