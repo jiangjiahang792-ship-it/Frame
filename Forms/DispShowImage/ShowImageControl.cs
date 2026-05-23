@@ -41,6 +41,7 @@ namespace TDJS_Vision.Forms.DispShowImage
 
         public ShowImageControl()
         {
+            InitializeComponent();
             this.DoubleBuffered = true;
             this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.ResizeRedraw | ControlStyles.OptimizedDoubleBuffer, true);
             this.BackColor = Color.FromArgb(20, 20, 20);
@@ -144,6 +145,22 @@ namespace TDJS_Vision.Forms.DispShowImage
 
         #region API - 核心
         [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public Image Image
+        {
+            get { lock (_imageLock) return _image; }
+            set
+            {
+                if (value == null)
+                {
+                    ImageBitmap = null;
+                    return;
+                }
+
+                ImageBitmap = value as Bitmap ?? new Bitmap(value);
+            }
+        }
+
+        [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public Bitmap ImageBitmap
         {
             get { lock (_imageLock) return _image; }
@@ -177,6 +194,16 @@ namespace TDJS_Vision.Forms.DispShowImage
                     }
                 }
                 if (value != null) SafeInvoke(() => ShowFit());
+            }
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            lock (_imageLock)
+            {
+                if (_image != null)
+                    ShowFit();
             }
         }
 
@@ -246,6 +273,13 @@ namespace TDJS_Vision.Forms.DispShowImage
             lock (_roiLock) _dynamicRois.Add(r);
             SafeInvalidate();
             return r;
+        }
+
+        public IRoiShape AddRoiRotatedRect(float row, float column, float phiRad, float length1, float length2, float lineWidth, Color color, string label)
+        {
+            var roi = AddRoiRotatedRect(row, column, phiRad, length1, length2, lineWidth, color);
+            roi.Label = label;
+            return roi;
         }
 
         /// <summary>添加静态旋转矩形</summary>
@@ -889,26 +923,25 @@ namespace TDJS_Vision.Forms.DispShowImage
                 var maskData = mask.LockBits(srcRect, ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
                 var dstData = _overlayBitmap.LockBits(srcRect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
 
-                unsafe
+                for (int y = 0; y < mask.Height; y++)
                 {
-                    for (int y = 0; y < mask.Height; y++)
+                    byte[] srcRow = new byte[Math.Abs(maskData.Stride)];
+                    byte[] dstRow = new byte[Math.Abs(dstData.Stride)];
+                    System.Runtime.InteropServices.Marshal.Copy(IntPtr.Add(maskData.Scan0, y * maskData.Stride), srcRow, 0, srcRow.Length);
+
+                    for (int x = 0; x < mask.Width; x++)
                     {
-                        byte* srcRow = (byte*)maskData.Scan0 + y * maskData.Stride;
-                        byte* dstRow = (byte*)dstData.Scan0 + y * dstData.Stride;
-                        for (int x = 0; x < mask.Width; x++)
+                        if (srcRow[x] > 0)
                         {
-                            if (srcRow[x] > 0)
-                            {
-                                dstRow[x * 4 + 0] = color.B;     // B
-                                dstRow[x * 4 + 1] = color.G;     // G
-                                dstRow[x * 4 + 2] = color.R;     // R
-                                dstRow[x * 4 + 3] = (byte)alpha; // A
-                            }
-                            // else: 默认全0（完全透明）
+                            dstRow[x * 4 + 0] = color.B;
+                            dstRow[x * 4 + 1] = color.G;
+                            dstRow[x * 4 + 2] = color.R;
+                            dstRow[x * 4 + 3] = (byte)alpha;
                         }
                     }
-                }
 
+                    System.Runtime.InteropServices.Marshal.Copy(dstRow, 0, IntPtr.Add(dstData.Scan0, y * dstData.Stride), dstRow.Length);
+                }
                 mask.UnlockBits(maskData);
                 _overlayBitmap.UnlockBits(dstData);
             }

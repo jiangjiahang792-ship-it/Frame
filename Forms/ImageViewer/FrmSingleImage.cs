@@ -130,15 +130,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         }
         public void SetImage(Mat mat)
         {
-            // 确保图像更新在 UI 线程中执行
-            if (this.InvokeRequired)
-            {
-                this./*Begin*/Invoke(new MethodInvoker(() => { ytPictrueBox1.Image = BitmapConverter.ToBitmap(mat); }));
-            }
-            else
-            {
-                ytPictrueBox1.Image = BitmapConverter.ToBitmap(mat);
-            }
+            SetViewerImage(mat == null ? null : BitmapConverter.ToBitmap(mat));
         }
 
         private void NodeImageShow_ImageShowChanged(object sender, ImageShowPamra e)
@@ -147,22 +139,44 @@ namespace TDJS_Vision.Forms.ImageViewer
                 return;
 
 
-            // 封装 UI 更新操作
+            SetViewerImage(e.Bitmap);
+        }
+
+        private void SetViewerImage(Bitmap bitmap)
+        {
+            if (IsDisposed)
+            {
+                bitmap?.Dispose();
+                return;
+            }
+
             Action updateImage = () =>
             {
-                // 释放旧图像
-                if (ytPictrueBox1.Image != null)
+                if (showImageControl1.IsDisposed)
                 {
-                    ytPictrueBox1.Image.Dispose();
+                    bitmap?.Dispose();
+                    return;
                 }
-                // 设置新图像
-                ytPictrueBox1.Image = e.Bitmap;
+
+                showImageControl1.ImageBitmap = bitmap;
             };
 
-            // 跨线程安全调用
-            if (this.InvokeRequired)
+            if (InvokeRequired)
             {
-                this.BeginInvoke(updateImage);
+                if (!IsHandleCreated)
+                {
+                    bitmap?.Dispose();
+                    return;
+                }
+
+                try
+                {
+                    BeginInvoke(updateImage);
+                }
+                catch
+                {
+                    bitmap?.Dispose();
+                }
             }
             else
             {

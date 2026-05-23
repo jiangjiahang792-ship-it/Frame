@@ -224,7 +224,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         LogHelper.AddLog(MsgLevel.Exception, $"AI配置文件解析失败！原因：{ex.Message}", true);
                     }
                 }
-                Task.Run(() => LoadModel(param));
+                Task.Run(() => { LoadModel(param); });
+                
             }
         }
         /// <summary>
