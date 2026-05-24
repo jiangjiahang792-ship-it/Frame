@@ -172,6 +172,12 @@ The current implementation step is **Phase 15.7: Fast Rotated Template Matching 
   - [x] Removed the old standalone `TemplateCreate` form from the project file and added the new designer-visible `TemplateCreateForm`.
   - [x] Added explicit confirm-ROI actions for both the main search region and the template creation ROI. Run/generate now requires confirmation and rejects changed ROI geometry until confirmed again.
   - [x] Reworked template brush erasing to use an accumulated erase mask plus OpenCV inpaint, so erased areas are filtered out of template contours and brush patch borders are not counted as new contours.
+  - [x] Adjusted ROI interaction so dynamic ROIs are not shown by default; template creation uses Draw ROI -> Create Template, search regions use Draw ROI -> Confirm ROI, and confirmed ROIs are cleared from the image control.
+  - [x] Added source-image refresh/fit before opening template creation so the template dialog does not open with an empty source display.
+  - [x] Fixed saved search-region reuse after reopening the template-matching parameter window when whole-image search is disabled.
+  - [x] Applied the same no-default-ROI behavior to caliper line, circle, and ellipse parameter forms, with designer-visible Draw ROI and Confirm ROI buttons.
+  - [x] Hardened embedded-template restore after reopening a solution: PNG byte decode now has an OpenCV fallback, template bitmap replacement is atomic, and contour-preview failures no longer block template restore.
+  - [x] Fixed the specific reopened-template restore failure in `FastTemplateMatcher.To24Bpp(...)` by replacing the fragile 24bpp `Bitmap.Clone()` path with a `LockBits` row-copy path plus OpenCV fallback.
 - TDAI stability fix:
   - [x] Added a model-readiness guard before `NodeTDAI` reads `param.Yolo8.ModelType`, so a failed startup model load now reports a clear model/config error instead of throwing a null reference.
   - [x] Made `ParamFormTDAI.LoadModel(...)` clear `param.Yolo8` on load failure and log failures without dereferencing missing AI config data.
@@ -201,6 +207,9 @@ The current implementation step is **Phase 15.7: Fast Rotated Template Matching 
   - [x] `TDJS-Vision.sln` builds successfully after the integrated template-matching UI, embedded-template persistence, and contour-erasing feedback pass.
   - [x] `TDJS-Vision.sln` builds successfully after removing the Result Display tab, restoring template creation/editing to a dialog, and adding saved search-region matching.
   - [x] `TDJS-Vision.sln` builds successfully after adding ROI confirmation and fixing template brush erasing contour filtering.
+  - [x] `TDJS-Vision.sln` builds successfully after the ROI default-visibility and template/source refresh feedback pass.
+  - [x] `TDJS-Vision.sln` builds successfully after the embedded-template restore hardening pass.
+  - [x] `TDJS-Vision.sln` builds successfully after replacing the reopened-template 24bpp clone path.
 - Verified subscription regression points:
   - [x] A node with `A -> C` and `B -> C` shows both `A` and `B` as subscription candidates.
   - [x] Deleting a connection removes the disconnected node from subscription candidates.
@@ -848,6 +857,8 @@ Reference source:
 - [x] Feedback pass: template contour preview is shown directly in the parameter form, and brush-based detail erasing edits the template image so simplified templates can reduce learned contour/detail cost.
 - [x] Removed the old standalone `TemplateCreate` form from the project after integrating creation into the main template-matching UI.
 - [x] Build-verify after integrated template UI and embedded-template persistence (`MSBuild`, 0 errors; existing warnings remain).
+- [x] Feedback pass: dynamic ROI overlays are now hidden by default, template creation opens with a refreshed fitted source image, template ROI creation no longer requires a separate confirm step, confirmed search ROIs are cleared, and saved search regions run after reopening without needing a visible ROI.
+- [x] Feedback pass: hardened solution reload for embedded templates so GDI+ decode/preview failures do not surface as template restore failure when the template bytes are still recoverable.
 - [ ] Runtime-verify on real product images with rotated targets, confirming match center, angle, score, overlap filtering, and outline display are correct.
 - [ ] Runtime-verify deployed/release output folder contains native dependencies and can load `MatchTool.dll` without `DllNotFoundException` or OpenCV native dependency errors.
 

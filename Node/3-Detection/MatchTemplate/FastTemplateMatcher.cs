@@ -44,10 +44,24 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             if (bitmap == null)
                 return null;
 
-            using (var ms = new MemoryStream())
+            try
             {
-                bitmap.Save(ms, ImageFormat.Png);
-                return ms.ToArray();
+                using (var safeBitmap = To24Bpp(bitmap))
+                using (var ms = new MemoryStream())
+                {
+                    safeBitmap.Save(ms, ImageFormat.Png);
+                    return ms.ToArray();
+                }
+            }
+            catch
+            {
+                using (var mat = BitmapConverter.ToMat(bitmap))
+                {
+                    byte[] bytes;
+                    if (!Cv2.ImEncode(".png", mat, out bytes))
+                        throw new InvalidOperationException("模板图像数据无法编码。");
+                    return bytes;
+                }
             }
         }
 
@@ -57,9 +71,31 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 return null;
 
             using (var ms = new MemoryStream(bytes))
-            using (var raw = new Bitmap(ms))
             {
-                return To24Bpp(raw);
+                try
+                {
+                    using (var raw = new Bitmap(ms))
+                        return To24Bpp(raw);
+                }
+                catch
+                {
+                    return DecodeImageBytesWithOpenCv(bytes);
+                }
+            }
+        }
+
+        private static Bitmap DecodeImageBytesWithOpenCv(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0)
+                return null;
+
+            using (var mat = Cv2.ImDecode(bytes, ImreadModes.Color))
+            {
+                if (mat == null || mat.Empty())
+                    throw new InvalidOperationException("模板图像数据无法解码。");
+
+                using (var bitmap = BitmapConverter.ToBitmap(mat))
+                    return To24Bpp(bitmap);
             }
         }
 
@@ -264,22 +300,91 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         {
             if (source == null)
                 return null;
+            if (source.Width <= 0 || source.Height <= 0)
+                throw new ArgumentException("图像尺寸无效。", nameof(source));
 
             if (source.PixelFormat == PixelFormat.Format24bppRgb)
-            {
-                var clone = (Bitmap)source.Clone();
-                clone.SetResolution(96, 96);
-                return clone;
-            }
+                return Copy24Bpp(source);
 
+            try
+            {
+                var bitmap = new Bitmap(source.Width, source.Height, PixelFormat.Format24bppRgb);
+                bitmap.SetResolution(96, 96);
+                using (var g = Graphics.FromImage(bitmap))
+                {
+                    g.DrawImage(source, new Rectangle(0, 0, bitmap.Width, bitmap.Height), 0, 0, source.Width, source.Height, GraphicsUnit.Pixel);
+                }
+
+                return bitmap;
+            }
+            catch
+            {
+                return To24BppWithOpenCv(source);
+            }
+        }
+
+        private static Bitmap Copy24Bpp(Bitmap source)
+        {
+            var rect = new Rectangle(0, 0, source.Width, source.Height);
             var bitmap = new Bitmap(source.Width, source.Height, PixelFormat.Format24bppRgb);
             bitmap.SetResolution(96, 96);
-            using (var g = Graphics.FromImage(bitmap))
+
+            BitmapData srcData = null;
+            BitmapData dstData = null;
+            bool useFallback = false;
+            try
             {
-                g.DrawImage(source, new Rectangle(0, 0, bitmap.Width, bitmap.Height), 0, 0, source.Width, source.Height, GraphicsUnit.Pixel);
+                srcData = source.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+                dstData = bitmap.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+
+                int rowBytes = Math.Min(Math.Abs(srcData.Stride), Math.Abs(dstData.Stride));
+                byte[] buffer = new byte[rowBytes];
+                for (int y = 0; y < source.Height; y++)
+                {
+                    IntPtr srcRow = IntPtr.Add(srcData.Scan0, y * srcData.Stride);
+                    IntPtr dstRow = IntPtr.Add(dstData.Scan0, y * dstData.Stride);
+                    Marshal.Copy(srcRow, buffer, 0, rowBytes);
+                    Marshal.Copy(buffer, 0, dstRow, rowBytes);
+                }
+
+                return bitmap;
+            }
+            catch
+            {
+                useFallback = true;
+            }
+            finally
+            {
+                if (dstData != null)
+                    bitmap.UnlockBits(dstData);
+                if (srcData != null)
+                    source.UnlockBits(srcData);
+            }
+
+            if (useFallback)
+            {
+                bitmap.Dispose();
+                return To24BppWithOpenCv(source);
             }
 
             return bitmap;
+        }
+
+        private static Bitmap To24BppWithOpenCv(Bitmap source)
+        {
+            using (var mat = BitmapConverter.ToMat(source))
+            using (var bgr = new Mat())
+            {
+                if (mat.Channels() == 1)
+                    Cv2.CvtColor(mat, bgr, ColorConversionCodes.GRAY2BGR);
+                else if (mat.Channels() == 4)
+                    Cv2.CvtColor(mat, bgr, ColorConversionCodes.BGRA2BGR);
+                else
+                    mat.CopyTo(bgr);
+
+                using (var bitmap = BitmapConverter.ToBitmap(bgr))
+                    return Copy24Bpp(bitmap);
+            }
         }
 
         private static double NormalizeScore(double score)

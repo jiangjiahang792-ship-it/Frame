@@ -151,7 +151,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             this.buttonResetRoi.Name = "buttonResetRoi";
             this.buttonResetRoi.Size = new System.Drawing.Size(132, 32);
             this.buttonResetRoi.TabIndex = 0;
-            this.buttonResetRoi.Text = "重置模板区";
+            this.buttonResetRoi.Text = "绘制ROI";
             this.buttonResetRoi.UseVisualStyleBackColor = true;
             this.buttonResetRoi.Click += new System.EventHandler(this.buttonResetRoi_Click);
             // 
@@ -171,7 +171,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             this.buttonGenerateTemplate.Name = "buttonGenerateTemplate";
             this.buttonGenerateTemplate.Size = new System.Drawing.Size(132, 32);
             this.buttonGenerateTemplate.TabIndex = 2;
-            this.buttonGenerateTemplate.Text = "生成模板";
+            this.buttonGenerateTemplate.Text = "创建模板";
             this.buttonGenerateTemplate.UseVisualStyleBackColor = true;
             this.buttonGenerateTemplate.Click += new System.EventHandler(this.buttonGenerateTemplate_Click);
             // 
@@ -184,7 +184,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             this.labelSourceStatus.Name = "labelSourceStatus";
             this.labelSourceStatus.Size = new System.Drawing.Size(280, 24);
             this.labelSourceStatus.TabIndex = 1;
-            this.labelSourceStatus.Text = "在左侧图像中调整模板区域。";
+            this.labelSourceStatus.Text = "点击“绘制ROI”后调整模板区域。";
             // 
             // showImageControlSource
             // 

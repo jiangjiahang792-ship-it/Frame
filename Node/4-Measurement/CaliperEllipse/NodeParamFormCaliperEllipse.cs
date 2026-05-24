@@ -14,6 +14,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
         private readonly Process process;
         private readonly NodeBase node;
         private bool _isSyncingRoi;
+        private bool _roiVisible;
 
         public NodeParamFormCaliperEllipse(Process process, NodeBase node)
         {
@@ -60,7 +61,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 _isSyncingRoi = false;
             }
 
-            RefreshRoiFromFields();
+            ClearEditingRoi();
         }
 
         internal CaliperEllipseMeasureResult ExecuteMeasure(NodeParamCaliperEllipse param, out Mat output)
@@ -128,7 +129,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 return;
 
             SyncCurrentRoiToFieldsExcept(sender);
-            RefreshRoiFromFields();
+            if (_roiVisible)
+                RefreshRoiFromFields();
         }
 
         private void SyncCurrentRoiToFieldsExcept(object source)
@@ -218,7 +220,10 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
         private void buttonSave_Click(object sender, EventArgs e)
         {
             if (SaveParams())
+            {
+                ClearEditingRoi();
                 Hide();
+            }
         }
 
         private void buttonRun_Click(object sender, EventArgs e)
@@ -254,7 +259,6 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 using (Mat input = GetInputMat())
                 {
                     SetPreview(input);
-                    RefreshRoiFromFields();
                     showImageControl1.ShowFit();
                 }
             }
@@ -267,7 +271,6 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
         private void SetPreview(Mat image)
         {
             showImageControl1.SetImage(MeasurementNodeHelper.ToPreviewBitmap(image));
-            RefreshRoiFromFields();
         }
 
         private void RefreshRoiFromFields()
@@ -302,10 +305,29 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 var rois = showImageControl1.GetAllDynamicEllipseCalipers();
                 if (rois.Count > 0)
                     rois[0].Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0;
+
+                _roiVisible = true;
             }
             catch
             {
             }
+        }
+
+        private void buttonDrawRoi_Click(object sender, EventArgs e)
+        {
+            RefreshRoiFromFields();
+        }
+
+        private void buttonConfirmRoi_Click(object sender, EventArgs e)
+        {
+            TryReadRoiToFields();
+            ClearEditingRoi();
+        }
+
+        private void ClearEditingRoi()
+        {
+            showImageControl1.ClearDynamicRoi();
+            _roiVisible = false;
         }
 
         private void TryReadRoiToFields()

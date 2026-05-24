@@ -46,6 +46,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             this.labelDirection = new System.Windows.Forms.Label();
             this.comboBoxDirection = new System.Windows.Forms.ComboBox();
             this.showImageControl1 = new TDJS_Vision.Forms.DispShowImage.ShowImageControl();
+            this.buttonDrawRoi = new System.Windows.Forms.Button();
+            this.buttonConfirmRoi = new System.Windows.Forms.Button();
             this.buttonRefresh = new System.Windows.Forms.Button();
             this.buttonRun = new System.Windows.Forms.Button();
             this.buttonSave = new System.Windows.Forms.Button();
@@ -53,17 +55,17 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             this.groupBoxGeometry.SuspendLayout();
             this.groupBoxCaliper.SuspendLayout();
             this.SuspendLayout();
-            // 
+            //
             // nodeSubscription1
-            // 
+            //
             this.nodeSubscription1.Location = new System.Drawing.Point(16, 26);
             this.nodeSubscription1.Margin = new System.Windows.Forms.Padding(4);
             this.nodeSubscription1.Name = "nodeSubscription1";
             this.nodeSubscription1.Size = new System.Drawing.Size(356, 32);
             this.nodeSubscription1.TabIndex = 0;
-            // 
+            //
             // groupBoxInput
-            // 
+            //
             this.groupBoxInput.Controls.Add(this.nodeSubscription1);
             this.groupBoxInput.Location = new System.Drawing.Point(18, 44);
             this.groupBoxInput.Name = "groupBoxInput";
@@ -356,13 +358,33 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             this.showImageControl1.Size = new System.Drawing.Size(520, 444);
             this.showImageControl1.StaticShapeColor = System.Drawing.Color.Red;
             this.showImageControl1.TabIndex = 4;
-            // 
+            //
+            // buttonDrawRoi
+            //
+            this.buttonDrawRoi.Location = new System.Drawing.Point(424, 506);
+            this.buttonDrawRoi.Name = "buttonDrawRoi";
+            this.buttonDrawRoi.Size = new System.Drawing.Size(92, 34);
+            this.buttonDrawRoi.TabIndex = 5;
+            this.buttonDrawRoi.Text = "绘制ROI";
+            this.buttonDrawRoi.UseVisualStyleBackColor = true;
+            this.buttonDrawRoi.Click += new System.EventHandler(this.buttonDrawRoi_Click);
+            //
+            // buttonConfirmRoi
+            //
+            this.buttonConfirmRoi.Location = new System.Drawing.Point(522, 506);
+            this.buttonConfirmRoi.Name = "buttonConfirmRoi";
+            this.buttonConfirmRoi.Size = new System.Drawing.Size(92, 34);
+            this.buttonConfirmRoi.TabIndex = 6;
+            this.buttonConfirmRoi.Text = "确认ROI";
+            this.buttonConfirmRoi.UseVisualStyleBackColor = true;
+            this.buttonConfirmRoi.Click += new System.EventHandler(this.buttonConfirmRoi_Click);
+            //
             // buttonRefresh
             // 
-            this.buttonRefresh.Location = new System.Drawing.Point(618, 506);
+            this.buttonRefresh.Location = new System.Drawing.Point(620, 506);
             this.buttonRefresh.Name = "buttonRefresh";
-            this.buttonRefresh.Size = new System.Drawing.Size(100, 34);
-            this.buttonRefresh.TabIndex = 5;
+            this.buttonRefresh.Size = new System.Drawing.Size(98, 34);
+            this.buttonRefresh.TabIndex = 7;
             this.buttonRefresh.Text = "刷新图像";
             this.buttonRefresh.UseVisualStyleBackColor = true;
             this.buttonRefresh.Click += new System.EventHandler(this.buttonRefresh_Click);
@@ -372,7 +394,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             this.buttonRun.Location = new System.Drawing.Point(724, 506);
             this.buttonRun.Name = "buttonRun";
             this.buttonRun.Size = new System.Drawing.Size(100, 34);
-            this.buttonRun.TabIndex = 6;
+            this.buttonRun.TabIndex = 8;
             this.buttonRun.Text = "执行";
             this.buttonRun.UseVisualStyleBackColor = true;
             this.buttonRun.Click += new System.EventHandler(this.buttonRun_Click);
@@ -382,7 +404,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             this.buttonSave.Location = new System.Drawing.Point(844, 506);
             this.buttonSave.Name = "buttonSave";
             this.buttonSave.Size = new System.Drawing.Size(100, 34);
-            this.buttonSave.TabIndex = 7;
+            this.buttonSave.TabIndex = 9;
             this.buttonSave.Text = "确定";
             this.buttonSave.UseVisualStyleBackColor = true;
             this.buttonSave.Click += new System.EventHandler(this.buttonSave_Click);
@@ -395,6 +417,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             this.Controls.Add(this.buttonSave);
             this.Controls.Add(this.buttonRun);
             this.Controls.Add(this.buttonRefresh);
+            this.Controls.Add(this.buttonConfirmRoi);
+            this.Controls.Add(this.buttonDrawRoi);
             this.Controls.Add(this.showImageControl1);
             this.Controls.Add(this.groupBoxCaliper);
             this.Controls.Add(this.groupBoxGeometry);
@@ -440,6 +464,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
         private System.Windows.Forms.Label labelDirection;
         private System.Windows.Forms.ComboBox comboBoxDirection;
         private TDJS_Vision.Forms.DispShowImage.ShowImageControl showImageControl1;
+        private System.Windows.Forms.Button buttonDrawRoi;
+        private System.Windows.Forms.Button buttonConfirmRoi;
         private System.Windows.Forms.Button buttonRefresh;
         private System.Windows.Forms.Button buttonRun;
         private System.Windows.Forms.Button buttonSave;

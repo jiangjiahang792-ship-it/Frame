@@ -325,7 +325,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             this.buttonResetRoi.Name = "buttonResetRoi";
             this.buttonResetRoi.Size = new System.Drawing.Size(156, 30);
             this.buttonResetRoi.TabIndex = 7;
-            this.buttonResetRoi.Text = "绘制/重置搜索区";
+            this.buttonResetRoi.Text = "绘制搜索区";
             this.buttonResetRoi.UseVisualStyleBackColor = true;
             this.buttonResetRoi.Click += new System.EventHandler(this.buttonResetRoi_Click);
             // 

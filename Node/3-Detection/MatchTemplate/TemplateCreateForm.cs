@@ -17,12 +17,13 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         private float templateRegionWidth;
         private float templateRegionHeight;
         private float templateRegionAngle;
-        private bool templateRoiConfirmed;
         private bool isPaintingTemplate;
 
         public TemplateCreateForm(Bitmap source, Bitmap initialTemplate, Bitmap initialEraseMask, string sourceName)
         {
             InitializeComponent();
+            Shown += TemplateCreateForm_Shown;
+            buttonConfirmRoi.Visible = false;
             TemplateSourceName = string.IsNullOrWhiteSpace(sourceName) ? "当前ROI模板" : sourceName;
 
             if (source != null)
@@ -30,13 +31,22 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 sourceImage = (Bitmap)source.Clone();
                 showImageControlSource.SetImage((Bitmap)sourceImage.Clone());
                 showImageControlSource.ShowFit();
-                ResetTemplateRoi();
             }
 
             if (initialTemplate != null)
                 SetTemplateImage((Bitmap)initialTemplate.Clone(), true, initialEraseMask);
 
             UpdateSourceControls();
+        }
+
+        private void TemplateCreateForm_Shown(object sender, EventArgs e)
+        {
+            if (sourceImage == null)
+                return;
+
+            showImageControlSource.SetImage((Bitmap)sourceImage.Clone());
+            showImageControlSource.ShowFit();
+            showImageControlSource.Refresh();
         }
 
         public string TemplateSourceName { get; private set; }
@@ -62,13 +72,13 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             bool hasSource = sourceImage != null;
             buttonGenerateTemplate.Enabled = hasSource;
             buttonResetRoi.Enabled = hasSource;
-            buttonConfirmRoi.Enabled = hasSource;
+            buttonConfirmRoi.Enabled = false;
             if (!hasSource)
                 labelSourceStatus.Text = "当前没有源图像，只能编辑已有模板。";
-            else if (templateRoiConfirmed)
-                labelSourceStatus.Text = $"模板ROI已确定：X {templateRegionCenterX:F1}, Y {templateRegionCenterY:F1}, W {templateRegionWidth:F1}, H {templateRegionHeight:F1}";
+            else if (showImageControlSource.GetAllDynamicRects().Count > 0)
+                labelSourceStatus.Text = "模板ROI编辑中，调整完成后点击“创建模板”。";
             else
-                labelSourceStatus.Text = "模板ROI未确定，请调整后点击“确定ROI”。";
+                labelSourceStatus.Text = "点击“绘制ROI”后调整模板区域。";
         }
 
         private void ResetTemplateRoi()
@@ -81,7 +91,6 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             templateRegionWidth = Math.Max(20, sourceImage.Width / 3f);
             templateRegionHeight = Math.Max(20, sourceImage.Height / 3f);
             templateRegionAngle = 0;
-            templateRoiConfirmed = false;
             showImageControlSource.ClearDynamicRoi();
             showImageControlSource.AddDynamicRect(
                 templateRegionCenterX,
@@ -117,7 +126,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 if (sourceImage == null)
                     throw new InvalidOperationException("源图像不能为空。");
 
-                EnsureConfirmedTemplateRoi();
+                CaptureTemplateRoi();
 
                 Bitmap template = FastTemplateMatcher.CreateTemplateImage(
                     sourceImage,
@@ -128,6 +137,8 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                     templateRegionAngle);
                 SetTemplateImage(template, true, null);
                 TemplateSourceName = "当前ROI模板";
+                showImageControlSource.ClearDynamicRoi();
+                UpdateSourceControls();
             }
             catch (Exception ex)
             {
@@ -150,28 +161,22 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             templateRegionWidth = Math.Max(1, roi.W);
             templateRegionHeight = Math.Max(1, roi.H);
             templateRegionAngle = roi.Phi;
-            templateRoiConfirmed = true;
+            showImageControlSource.ClearDynamicRoi();
             UpdateSourceControls();
         }
 
-        private void EnsureConfirmedTemplateRoi()
+        private void CaptureTemplateRoi()
         {
-            if (!templateRoiConfirmed)
-                throw new InvalidOperationException("请先点击“确定ROI”，确认模板区域后再生成模板。");
-
             var rects = showImageControlSource.GetAllDynamicRects();
             var roi = rects.Count > 0 ? rects[0] : null;
             if (roi == null)
-                throw new InvalidOperationException("请先绘制模板区域。");
+                throw new InvalidOperationException("请先点击“绘制ROI”并调整模板区域。");
 
-            const float tolerance = 0.5f;
-            bool changed = Math.Abs(roi.CX - templateRegionCenterX) > tolerance
-                || Math.Abs(roi.CY - templateRegionCenterY) > tolerance
-                || Math.Abs(roi.W - templateRegionWidth) > tolerance
-                || Math.Abs(roi.H - templateRegionHeight) > tolerance
-                || Math.Abs(roi.Phi - templateRegionAngle) > tolerance;
-            if (changed)
-                throw new InvalidOperationException("模板区域已调整，请重新点击“确定ROI”。");
+            templateRegionCenterX = roi.CX;
+            templateRegionCenterY = roi.CY;
+            templateRegionWidth = Math.Max(1, roi.W);
+            templateRegionHeight = Math.Max(1, roi.H);
+            templateRegionAngle = roi.Phi;
         }
 
         private void SetTemplateImage(Bitmap image, bool resetOriginal, Bitmap eraseMask)
@@ -225,16 +230,34 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             oldImage?.Dispose();
 
             int contourCount = 0;
+            string previewError = null;
             if (templateImage != null)
             {
-                var contour = FastTemplateMatcher.BuildTemplateContour(templateImage, templateEraseMask);
-                contourCount = contour.Count;
-                pictureBoxTemplate.Image = FastTemplateMatcher.DrawTemplateContourPreview(templateImage, contour);
+                try
+                {
+                    var contour = FastTemplateMatcher.BuildTemplateContour(templateImage, templateEraseMask);
+                    contourCount = contour.Count;
+                    pictureBoxTemplate.Image = FastTemplateMatcher.DrawTemplateContourPreview(templateImage, contour);
+                }
+                catch (Exception ex)
+                {
+                    previewError = ex.Message;
+                    try
+                    {
+                        pictureBoxTemplate.Image = FastTemplateMatcher.To24Bpp(templateImage);
+                    }
+                    catch
+                    {
+                        pictureBoxTemplate.Image = null;
+                    }
+                }
             }
 
             labelTemplateStatus.Text = templateImage == null
                 ? "未生成模板"
-                : $"模板 {templateImage.Width}x{templateImage.Height}，轮廓点 {contourCount}";
+                : string.IsNullOrWhiteSpace(previewError)
+                    ? $"模板 {templateImage.Width}x{templateImage.Height}，轮廓点 {contourCount}"
+                    : $"模板 {templateImage.Width}x{templateImage.Height}，轮廓预览失败";
             buttonRestoreTemplate.Enabled = originalTemplateImage != null;
             buttonOk.Enabled = templateImage != null;
         }

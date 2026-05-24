@@ -5,6 +5,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
@@ -108,7 +109,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             checkBoxShowOutline.Checked = showOutlineStatus;
             checkBoxShowMatchBox.Checked = showOutRegionStatus;
             checkBoxAllSearch.Checked = allSearch;
-            ApplySearchRegionToView();
+            ClearSearchRegionEditRoi();
         }
 
         /// <summary>
@@ -161,36 +162,15 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
             showImageControlSource.SetImage((Bitmap)src.Clone());
             showImageControlSource.ShowFit();
-            ApplySearchRegionToView();
+            ClearSearchRegionEditRoi();
         }
 
-        private void ApplySearchRegionToView()
+        private void ClearSearchRegionEditRoi()
         {
             if (showImageControlSource == null)
                 return;
 
             showImageControlSource.ClearDynamicRoi();
-            if (src == null)
-            {
-                UpdateSearchRegionControls();
-                return;
-            }
-
-            if (allSearch)
-            {
-                UpdateSearchRegionControls();
-                return;
-            }
-
-            EnsureSearchRegionFields();
-            showImageControlSource.AddDynamicRect(
-                searchRegionCenterX,
-                searchRegionCenterY,
-                searchRegionWidth,
-                searchRegionHeight,
-                Color.FromArgb(255, 132, 0),
-                "搜索区域");
-            searchRegionConfirmed = false;
             UpdateSearchRegionControls();
         }
 
@@ -221,11 +201,8 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             if (src == null)
                 return;
 
-            searchRegionCenterX = src.Width / 2f;
-            searchRegionCenterY = src.Height / 2f;
-            searchRegionWidth = Math.Max(20, src.Width * 0.65f);
-            searchRegionHeight = Math.Max(20, src.Height * 0.65f);
-            searchRegionAngle = 0;
+            EnsureSearchRegionFields();
+            searchRegionConfirmed = false;
             showImageControlSource.ClearDynamicRoi();
             showImageControlSource.AddDynamicRect(
                 searchRegionCenterX,
@@ -247,8 +224,12 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                     showImageControlSource.ClearDynamicRoi();
                     searchRegionConfirmed = true;
                 }
-                else
-                    ResetSearchRegion();
+                else if (!HasSearchRegionValues())
+                {
+                    EnsureSearchRegionFields();
+                    searchRegionConfirmed = false;
+                    showImageControlSource.ClearDynamicRoi();
+                }
             }
 
             UpdateSearchRegionControls();
@@ -256,11 +237,20 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
         private void buttonResetRoi_Click(object sender, EventArgs e)
         {
-            allSearch = false;
-            if (checkBoxAllSearch.Checked)
-                checkBoxAllSearch.Checked = false;
-            else
+            try
+            {
+                if (src == null)
+                    throw new InvalidOperationException("源图像不能为空，请先刷新或订阅图像。");
+
+                allSearch = false;
+                if (checkBoxAllSearch.Checked)
+                    checkBoxAllSearch.Checked = false;
                 ResetSearchRegion();
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show(ex.Message);
+            }
         }
 
         private void buttonConfirmSearchRoi_Click(object sender, EventArgs e)
@@ -278,10 +268,25 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         private void UpdateSearchRegionControls()
         {
             buttonResetRoi.Enabled = src != null;
-            buttonConfirmSearchRoi.Enabled = src != null && !allSearch;
-            labelSearchStatus.Text = allSearch
-                ? "当前：整图搜索"
-                : $"{(searchRegionConfirmed ? "已确定" : "未确定")}：X {searchRegionCenterX:F1}, Y {searchRegionCenterY:F1}, W {searchRegionWidth:F1}, H {searchRegionHeight:F1}";
+            bool hasEditRoi = showImageControlSource != null && showImageControlSource.GetAllDynamicRects().Count > 0;
+            buttonConfirmSearchRoi.Enabled = src != null && !allSearch && hasEditRoi;
+
+            if (allSearch)
+            {
+                labelSearchStatus.Text = "当前：整图搜索";
+            }
+            else if (hasEditRoi)
+            {
+                labelSearchStatus.Text = "搜索区域编辑中，请点击“确定ROI”。";
+            }
+            else if (searchRegionConfirmed && HasSearchRegionValues())
+            {
+                labelSearchStatus.Text = $"已确定：X {searchRegionCenterX:F1}, Y {searchRegionCenterY:F1}, W {searchRegionWidth:F1}, H {searchRegionHeight:F1}";
+            }
+            else
+            {
+                labelSearchStatus.Text = "未绘制搜索区域，请点击“绘制搜索区”。";
+            }
         }
 
         /// <summary>
@@ -571,20 +576,19 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 return;
 
             var rect = showImageControlSource.GetAllDynamicRects().FirstOrDefault();
-            if (rect == null)
+            if (rect != null)
             {
-                ResetSearchRegion();
-                rect = showImageControlSource.GetAllDynamicRects().FirstOrDefault();
+                if (!searchRegionConfirmed)
+                    throw new Exception("请先点击“确定ROI”，确认搜索区域后再运行。");
+
+                if (IsSearchRegionChanged(rect))
+                    throw new Exception("搜索区域已调整，请重新点击“确定ROI”。");
+
+                return;
             }
 
-            if (rect == null)
-                throw new Exception("请先绘制搜索区域。");
-
-            if (!searchRegionConfirmed)
-                throw new Exception("请先点击“确定ROI”，确认搜索区域后再运行。");
-
-            if (IsSearchRegionChanged(rect))
-                throw new Exception("搜索区域已调整，请重新点击“确定ROI”。");
+            if (!searchRegionConfirmed || !HasSearchRegionValues())
+                throw new Exception("请先绘制并确认搜索区域。");
         }
 
         private void ConfirmSearchRegion()
@@ -606,7 +610,13 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             searchRegionHeight = Math.Max(1, rect.H);
             searchRegionAngle = rect.Phi;
             searchRegionConfirmed = true;
+            showImageControlSource.ClearDynamicRoi();
             UpdateSearchRegionControls();
+        }
+
+        private bool HasSearchRegionValues()
+        {
+            return searchRegionWidth > 0 && searchRegionHeight > 0;
         }
 
         private bool IsSearchRegionChanged(TDJS_Vision.Forms.DispShowImage.ShowImageControl.RoiRotatedRect rect)
@@ -630,9 +640,17 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             LoadTemplateImage(openFileDialog1.FileName);
         }
 
-        private void buttonCreateTemplate_Click(object sender, EventArgs e)
+        private async void buttonCreateTemplate_Click(object sender, EventArgs e)
         {
-            OpenTemplateDialog(null, "当前ROI模板");
+            try
+            {
+                await EnsureSourceImageReadyForTemplateAsync();
+                OpenTemplateDialog(null, "当前ROI模板");
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show($"创建模板失败，原因：{ex.Message}");
+            }
         }
 
         private void buttonEditTemplate_Click(object sender, EventArgs e)
@@ -658,9 +676,17 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                     if (form.ShowDialog(this) != DialogResult.OK)
                         return;
 
+                    Bitmap editedTemplate = form.GetTemplateImage();
                     Bitmap eraseMask = form.GetTemplateEraseMask();
-                    SetTemplateImage(form.GetTemplateImage(), form.TemplateSourceName, true, eraseMask);
-                    eraseMask?.Dispose();
+                    try
+                    {
+                        SetTemplateImage(editedTemplate, form.TemplateSourceName, true, eraseMask);
+                    }
+                    finally
+                    {
+                        editedTemplate?.Dispose();
+                        eraseMask?.Dispose();
+                    }
                 }
             }
             catch (Exception ex)
@@ -669,12 +695,31 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             }
         }
 
+        private async Task EnsureSourceImageReadyForTemplateAsync()
+        {
+            UpdataImage();
+            if (src == null)
+            {
+                await process.RunForUpdateImages(node);
+                UpdataImage();
+            }
+
+            if (src == null)
+                throw new InvalidOperationException("源图像不能为空，请先刷新或订阅图像。");
+
+            showImageControlSource.SetImage((Bitmap)src.Clone());
+            showImageControlSource.ShowFit();
+            showImageControlSource.Refresh();
+            ClearSearchRegionEditRoi();
+        }
+
         private void buttonRestoreTemplate_Click(object sender, EventArgs e)
         {
             if (templateOriginalImage == null)
                 return;
 
-            SetTemplateImage((Bitmap)templateOriginalImage.Clone(), templateSourceName, false);
+            using (var restored = (Bitmap)templateOriginalImage.Clone())
+                SetTemplateImage(restored, templateSourceName, false);
         }
 
         private void buttonDeleteTemplate_Click(object sender, EventArgs e)
@@ -692,8 +737,9 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         private void LoadTemplateImage(string fileName)
         {
             using (var raw = new Bitmap(fileName))
+            using (var template = FastTemplateMatcher.To24Bpp(raw))
             {
-                SetTemplateImage(FastTemplateMatcher.To24Bpp(raw), Path.GetFileName(fileName), true);
+                SetTemplateImage(template, Path.GetFileName(fileName), true);
             }
         }
 
@@ -706,11 +752,21 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             {
                 if (param.TemplateImageBytes != null && param.TemplateImageBytes.Length > 0)
                 {
-                    Bitmap eraseMask = param.TemplateEraseMaskBytes == null || param.TemplateEraseMaskBytes.Length == 0
-                        ? null
-                        : FastTemplateMatcher.PngBytesToBitmap(param.TemplateEraseMaskBytes);
-                    SetTemplateImage(FastTemplateMatcher.PngBytesToBitmap(param.TemplateImageBytes), param.TemplateSourceName, true, eraseMask);
-                    eraseMask?.Dispose();
+                    Bitmap loadedTemplate = null;
+                    Bitmap eraseMask = null;
+                    try
+                    {
+                        loadedTemplate = FastTemplateMatcher.PngBytesToBitmap(param.TemplateImageBytes);
+                        eraseMask = param.TemplateEraseMaskBytes == null || param.TemplateEraseMaskBytes.Length == 0
+                            ? null
+                            : FastTemplateMatcher.PngBytesToBitmap(param.TemplateEraseMaskBytes);
+                        SetTemplateImage(loadedTemplate, param.TemplateSourceName, true, eraseMask);
+                    }
+                    finally
+                    {
+                        loadedTemplate?.Dispose();
+                        eraseMask?.Dispose();
+                    }
                     return;
                 }
 
@@ -725,16 +781,38 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
         private void SetTemplateImage(Bitmap image, string sourceName, bool resetOriginal, Bitmap eraseMask = null)
         {
-            templateImage?.Dispose();
-            templateImage = image;
-            templateEraseMask?.Dispose();
-            templateEraseMask = NormalizeTemplateEraseMask(eraseMask, templateImage?.Size ?? Size.Empty);
-            templateSourceName = string.IsNullOrWhiteSpace(sourceName) ? "方案内嵌模板" : sourceName;
+            Bitmap newTemplate = image == null ? null : FastTemplateMatcher.To24Bpp(image);
+            Bitmap newEraseMask = null;
+            Bitmap newOriginal = null;
 
-            if (resetOriginal)
+            try
             {
-                templateOriginalImage?.Dispose();
-                templateOriginalImage = templateImage == null ? null : (Bitmap)templateImage.Clone();
+                newEraseMask = NormalizeTemplateEraseMask(eraseMask, newTemplate?.Size ?? Size.Empty);
+                if (resetOriginal)
+                    newOriginal = newTemplate == null ? null : (Bitmap)newTemplate.Clone();
+
+                templateImage?.Dispose();
+                templateImage = newTemplate;
+                newTemplate = null;
+
+                templateEraseMask?.Dispose();
+                templateEraseMask = newEraseMask;
+                newEraseMask = null;
+
+                templateSourceName = string.IsNullOrWhiteSpace(sourceName) ? "方案内嵌模板" : sourceName;
+
+                if (resetOriginal)
+                {
+                    templateOriginalImage?.Dispose();
+                    templateOriginalImage = newOriginal;
+                    newOriginal = null;
+                }
+            }
+            finally
+            {
+                newTemplate?.Dispose();
+                newEraseMask?.Dispose();
+                newOriginal?.Dispose();
             }
 
             UpdateTemplatePreview();
@@ -765,14 +843,32 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             oldImage?.Dispose();
 
             int contourCount = 0;
+            string previewError = null;
             if (templateImage != null)
             {
-                var contour = FastTemplateMatcher.BuildTemplateContour(templateImage, templateEraseMask);
-                contourCount = contour.Count;
-                pictureBoxTemplate.Image = FastTemplateMatcher.DrawTemplateContourPreview(templateImage, contour);
+                try
+                {
+                    var contour = FastTemplateMatcher.BuildTemplateContour(templateImage, templateEraseMask);
+                    contourCount = contour.Count;
+                    pictureBoxTemplate.Image = FastTemplateMatcher.DrawTemplateContourPreview(templateImage, contour);
+                }
+                catch (Exception ex)
+                {
+                    previewError = ex.Message;
+                    try
+                    {
+                        pictureBoxTemplate.Image = FastTemplateMatcher.To24Bpp(templateImage);
+                    }
+                    catch
+                    {
+                        pictureBoxTemplate.Image = null;
+                    }
+                }
             }
 
             RefreshTemplateStatus(contourCount);
+            if (!string.IsNullOrWhiteSpace(previewError))
+                labelTemplatePreview.Text = "模板已还原，轮廓预览失败";
         }
 
         private void RefreshTemplateStatus(int contourCount)
