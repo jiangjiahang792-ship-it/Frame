@@ -30,6 +30,21 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             double correctedY = CurrentY + localX * sin + localY * cos;
             return new PointF((float)correctedX, (float)correctedY);
         }
+
+        public PointF InverseTransformPoint(float x, float y)
+        {
+            if (!IsValid)
+                throw new InvalidOperationException("Position correction info is invalid.");
+
+            double radians = DeltaAngle * Math.PI / 180.0;
+            double cos = Math.Cos(radians);
+            double sin = Math.Sin(radians);
+            double localX = x - CurrentX;
+            double localY = y - CurrentY;
+            double baseX = BaseX + localX * cos + localY * sin;
+            double baseY = BaseY - localX * sin + localY * cos;
+            return new PointF((float)baseX, (float)baseY);
+        }
     }
 
     public static class PositionCorrectionHelper

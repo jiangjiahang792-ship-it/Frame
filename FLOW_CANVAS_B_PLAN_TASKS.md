@@ -191,6 +191,9 @@ The current implementation step is **Phase 16: Position Correction And Measureme
   - [x] Feedback fix: local template-match Run/Continuous Run now publishes MatchX, MatchY, Angle, Score, and display output to the node result so position-correction baseline creation reads the just-previewed match result.
   - [x] Feedback fix: position-correction Create Baseline and local Run now publish the current correction info to the node result so same-image baseline correction remains an identity transform for downstream calipers.
   - [x] Build-verify after the refresh-image/no-upstream-run and baseline-result publishing fixes.
+  - [x] Feedback fix: when position correction is enabled, line/circle/ellipse caliper parameter forms now display saved baseline ROI through the current correction for editing, and inverse-transform edited/drawn ROI back to baseline coordinates on confirm/save.
+  - [x] This allows adding or editing measurement ROIs on a later corrected image without saving an already-followed ROI and applying the correction a second time.
+  - [x] Build-verify after the corrected-image ROI baseline-normalization fix.
   - [ ] Runtime-verify template match -> position correction -> measurement follow on real images.
 - TDAI stability fix:
   - [x] Added a model-readiness guard before `NodeTDAI` reads `param.Yolo8.ModelType`, so a failed startup model load now reports a clear model/config error instead of throwing a null reference.
@@ -225,6 +228,7 @@ The current implementation step is **Phase 16: Position Correction And Measureme
   - [x] `TDJS-Vision.sln` builds successfully after the embedded-template restore hardening pass.
   - [x] `TDJS-Vision.sln` builds successfully after replacing the reopened-template 24bpp clone path.
   - [x] `TDJS-Vision.sln` builds successfully after the Phase 16 refresh-image/no-upstream-run and position-correction result publishing fixes.
+  - [x] `TDJS-Vision.sln` builds successfully after the corrected-image caliper ROI baseline-normalization fix.
 - Verified subscription regression points:
   - [x] A node with `A -> C` and `B -> C` shows both `A` and `B` as subscription candidates.
   - [x] Deleting a connection removes the disconnected node from subscription candidates.

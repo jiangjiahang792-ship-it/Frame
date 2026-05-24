@@ -143,14 +143,24 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 return;
 
             var roi = rois[0];
+            PointF center = new PointF(roi.CX, roi.CY);
+            float startAngle = roi.StartAngle;
+            float endAngle = roi.EndAngle;
+            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+            if (correctionInfo != null)
+            {
+                center = correctionInfo.InverseTransformPoint(center.X, center.Y);
+                ApplyInverseAngleCorrection(ref startAngle, ref endAngle, correctionInfo);
+            }
+
             _isSyncingRoi = true;
             try
             {
-                if (!ReferenceEquals(source, textBoxCenterX)) textBoxCenterX.Text = roi.CX.ToString("F2");
-                if (!ReferenceEquals(source, textBoxCenterY)) textBoxCenterY.Text = roi.CY.ToString("F2");
+                if (!ReferenceEquals(source, textBoxCenterX)) textBoxCenterX.Text = center.X.ToString("F2");
+                if (!ReferenceEquals(source, textBoxCenterY)) textBoxCenterY.Text = center.Y.ToString("F2");
                 if (!ReferenceEquals(source, textBoxRadius)) textBoxRadius.Text = roi.Radius.ToString("F2");
-                if (!ReferenceEquals(source, textBoxStartAngle)) textBoxStartAngle.Text = roi.StartAngle.ToString("F2");
-                if (!ReferenceEquals(source, textBoxEndAngle)) textBoxEndAngle.Text = roi.EndAngle.ToString("F2");
+                if (!ReferenceEquals(source, textBoxStartAngle)) textBoxStartAngle.Text = startAngle.ToString("F2");
+                if (!ReferenceEquals(source, textBoxEndAngle)) textBoxEndAngle.Text = endAngle.ToString("F2");
                 if (!ReferenceEquals(source, textBoxCaliperWidth)) textBoxCaliperWidth.Text = roi.CaliperWidth.ToString("F2");
                 if (!ReferenceEquals(source, textBoxCaliperHeight)) textBoxCaliperHeight.Text = roi.CaliperHeight.ToString("F2");
                 if (!ReferenceEquals(source, textBoxCount)) textBoxCount.Text = roi.Count.ToString();
@@ -202,6 +212,47 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 FindMode = param.FindMode,
                 Direction = param.Direction
             };
+        }
+
+        private PositionCorrectionInfo GetEditingCorrectionInfo(bool require)
+        {
+            if (!checkBoxUsePositionCorrection.Checked)
+                return null;
+
+            if (string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText1()) ||
+                string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText2()))
+            {
+                if (require)
+                    throw new Exception("Position correction subscription is empty.");
+                return null;
+            }
+
+            try
+            {
+                PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
+                PositionCorrectionHelper.EnsureValid(correctionInfo);
+                return correctionInfo;
+            }
+            catch
+            {
+                if (require)
+                    throw;
+                return null;
+            }
+        }
+
+        private static void ApplyInverseAngleCorrection(ref float startAngle, ref float endAngle, PositionCorrectionInfo correctionInfo)
+        {
+            float span = endAngle - startAngle;
+            if (Math.Abs(Math.Abs(span) - 360.0f) < 0.1f)
+            {
+                startAngle = 0.0f;
+                endAngle = 360.0f;
+                return;
+            }
+
+            startAngle = (float)PositionCorrectionHelper.NormalizeAngle(startAngle - correctionInfo.DeltaAngle);
+            endAngle = startAngle + span;
         }
 
         private bool SaveParams()
@@ -334,14 +385,26 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 float radius = ParseFloat(textBoxRadius, string.Empty);
                 float startAngle = ParseFloat(textBoxStartAngle, string.Empty);
                 float endAngle = ParseFloat(textBoxEndAngle, string.Empty);
+                float originalStartAngle = startAngle;
                 float caliperWidth = ParseFloat(textBoxCaliperWidth, string.Empty);
                 float caliperHeight = ParseFloat(textBoxCaliperHeight, string.Empty);
                 int count = ParseInt(textBoxCount, string.Empty);
 
+                PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+                PointF center = new PointF(centerX, centerY);
+                if (correctionInfo != null)
+                {
+                    center = correctionInfo.TransformPoint(center.X, center.Y);
+                    float deltaAngle = (float)correctionInfo.DeltaAngle;
+                    startAngle += deltaAngle;
+                    bool fullCircle = Math.Abs(Math.Abs(endAngle - originalStartAngle) - 360.0f) < 0.1f;
+                    endAngle = fullCircle ? startAngle + 360.0f : endAngle + deltaAngle;
+                }
+
                 showImageControl1.ClearDynamicRoi();
                 showImageControl1.AddDynamicCircleCaliper(
-                    centerX,
-                    centerY,
+                    center.X,
+                    center.Y,
                     radius,
                     startAngle,
                     endAngle,
@@ -369,8 +432,15 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
 
         private void buttonConfirmRoi_Click(object sender, EventArgs e)
         {
-            TryReadRoiToFields();
-            ClearEditingRoi();
+            try
+            {
+                TryReadRoiToFields();
+                ClearEditingRoi();
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show("Confirm ROI failed: " + ex.Message);
+            }
         }
 
         private void checkBoxUsePositionCorrection_CheckedChanged(object sender, EventArgs e)
@@ -397,14 +467,24 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 return;
 
             var roi = rois[0];
+            PointF center = new PointF(roi.CX, roi.CY);
+            float startAngle = roi.StartAngle;
+            float endAngle = roi.EndAngle;
+            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(true);
+            if (correctionInfo != null)
+            {
+                center = correctionInfo.InverseTransformPoint(center.X, center.Y);
+                ApplyInverseAngleCorrection(ref startAngle, ref endAngle, correctionInfo);
+            }
+
             _isSyncingRoi = true;
             try
             {
-                textBoxCenterX.Text = roi.CX.ToString("F2");
-                textBoxCenterY.Text = roi.CY.ToString("F2");
+                textBoxCenterX.Text = center.X.ToString("F2");
+                textBoxCenterY.Text = center.Y.ToString("F2");
                 textBoxRadius.Text = roi.Radius.ToString("F2");
-                textBoxStartAngle.Text = roi.StartAngle.ToString("F2");
-                textBoxEndAngle.Text = roi.EndAngle.ToString("F2");
+                textBoxStartAngle.Text = startAngle.ToString("F2");
+                textBoxEndAngle.Text = endAngle.ToString("F2");
                 textBoxCaliperWidth.Text = roi.CaliperWidth.ToString("F2");
                 textBoxCaliperHeight.Text = roi.CaliperHeight.ToString("F2");
                 textBoxCount.Text = roi.Count.ToString();

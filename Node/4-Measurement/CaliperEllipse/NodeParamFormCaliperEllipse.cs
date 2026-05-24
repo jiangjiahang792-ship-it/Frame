@@ -143,14 +143,23 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 return;
 
             var roi = rois[0];
+            PointF center = new PointF(roi.CX, roi.CY);
+            float angle = roi.Phi;
+            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+            if (correctionInfo != null)
+            {
+                center = correctionInfo.InverseTransformPoint(center.X, center.Y);
+                angle = (float)PositionCorrectionHelper.NormalizeAngle(angle - correctionInfo.DeltaAngle);
+            }
+
             _isSyncingRoi = true;
             try
             {
-                if (!ReferenceEquals(source, textBoxCenterX)) textBoxCenterX.Text = roi.CX.ToString("F2");
-                if (!ReferenceEquals(source, textBoxCenterY)) textBoxCenterY.Text = roi.CY.ToString("F2");
+                if (!ReferenceEquals(source, textBoxCenterX)) textBoxCenterX.Text = center.X.ToString("F2");
+                if (!ReferenceEquals(source, textBoxCenterY)) textBoxCenterY.Text = center.Y.ToString("F2");
                 if (!ReferenceEquals(source, textBoxWidth)) textBoxWidth.Text = roi.W.ToString("F2");
                 if (!ReferenceEquals(source, textBoxHeight)) textBoxHeight.Text = roi.H.ToString("F2");
-                if (!ReferenceEquals(source, textBoxAngle)) textBoxAngle.Text = roi.Phi.ToString("F2");
+                if (!ReferenceEquals(source, textBoxAngle)) textBoxAngle.Text = angle.ToString("F2");
                 if (!ReferenceEquals(source, textBoxCaliperWidth)) textBoxCaliperWidth.Text = roi.CaliperWidth.ToString("F2");
                 if (!ReferenceEquals(source, textBoxCaliperHeight)) textBoxCaliperHeight.Text = roi.CaliperHeight.ToString("F2");
                 if (!ReferenceEquals(source, textBoxCount)) textBoxCount.Text = roi.Count.ToString();
@@ -198,6 +207,33 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 FindMode = param.FindMode,
                 Direction = param.Direction
             };
+        }
+
+        private PositionCorrectionInfo GetEditingCorrectionInfo(bool require)
+        {
+            if (!checkBoxUsePositionCorrection.Checked)
+                return null;
+
+            if (string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText1()) ||
+                string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText2()))
+            {
+                if (require)
+                    throw new Exception("Position correction subscription is empty.");
+                return null;
+            }
+
+            try
+            {
+                PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
+                PositionCorrectionHelper.EnsureValid(correctionInfo);
+                return correctionInfo;
+            }
+            catch
+            {
+                if (require)
+                    throw;
+                return null;
+            }
         }
 
         private bool SaveParams()
@@ -329,10 +365,18 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 float caliperHeight = ParseFloat(textBoxCaliperHeight, string.Empty);
                 int count = ParseInt(textBoxCount, string.Empty);
 
+                PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+                PointF center = new PointF(centerX, centerY);
+                if (correctionInfo != null)
+                {
+                    center = correctionInfo.TransformPoint(center.X, center.Y);
+                    angle += (float)correctionInfo.DeltaAngle;
+                }
+
                 showImageControl1.ClearDynamicRoi();
                 showImageControl1.AddDynamicEllipseCaliper(
-                    centerX,
-                    centerY,
+                    center.X,
+                    center.Y,
                     width,
                     height,
                     angle,
@@ -360,8 +404,15 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
 
         private void buttonConfirmRoi_Click(object sender, EventArgs e)
         {
-            TryReadRoiToFields();
-            ClearEditingRoi();
+            try
+            {
+                TryReadRoiToFields();
+                ClearEditingRoi();
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show("Confirm ROI failed: " + ex.Message);
+            }
         }
 
         private void checkBoxUsePositionCorrection_CheckedChanged(object sender, EventArgs e)
@@ -388,14 +439,23 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 return;
 
             var roi = rois[0];
+            PointF center = new PointF(roi.CX, roi.CY);
+            float angle = roi.Phi;
+            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(true);
+            if (correctionInfo != null)
+            {
+                center = correctionInfo.InverseTransformPoint(center.X, center.Y);
+                angle = (float)PositionCorrectionHelper.NormalizeAngle(angle - correctionInfo.DeltaAngle);
+            }
+
             _isSyncingRoi = true;
             try
             {
-                textBoxCenterX.Text = roi.CX.ToString("F2");
-                textBoxCenterY.Text = roi.CY.ToString("F2");
+                textBoxCenterX.Text = center.X.ToString("F2");
+                textBoxCenterY.Text = center.Y.ToString("F2");
                 textBoxWidth.Text = roi.W.ToString("F2");
                 textBoxHeight.Text = roi.H.ToString("F2");
-                textBoxAngle.Text = roi.Phi.ToString("F2");
+                textBoxAngle.Text = angle.ToString("F2");
                 textBoxCaliperWidth.Text = roi.CaliperWidth.ToString("F2");
                 textBoxCaliperHeight.Text = roi.CaliperHeight.ToString("F2");
                 textBoxCount.Text = roi.Count.ToString();

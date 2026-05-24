@@ -140,13 +140,22 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 return;
 
             var roi = rois[0];
+            PointF start = new PointF(roi.SX, roi.SY);
+            PointF end = new PointF(roi.EX, roi.EY);
+            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+            if (correctionInfo != null)
+            {
+                start = correctionInfo.InverseTransformPoint(start.X, start.Y);
+                end = correctionInfo.InverseTransformPoint(end.X, end.Y);
+            }
+
             _isSyncingRoi = true;
             try
             {
-                if (!ReferenceEquals(source, textBoxStartX)) textBoxStartX.Text = roi.SX.ToString("F2");
-                if (!ReferenceEquals(source, textBoxStartY)) textBoxStartY.Text = roi.SY.ToString("F2");
-                if (!ReferenceEquals(source, textBoxEndX)) textBoxEndX.Text = roi.EX.ToString("F2");
-                if (!ReferenceEquals(source, textBoxEndY)) textBoxEndY.Text = roi.EY.ToString("F2");
+                if (!ReferenceEquals(source, textBoxStartX)) textBoxStartX.Text = start.X.ToString("F2");
+                if (!ReferenceEquals(source, textBoxStartY)) textBoxStartY.Text = start.Y.ToString("F2");
+                if (!ReferenceEquals(source, textBoxEndX)) textBoxEndX.Text = end.X.ToString("F2");
+                if (!ReferenceEquals(source, textBoxEndY)) textBoxEndY.Text = end.Y.ToString("F2");
                 if (!ReferenceEquals(source, textBoxCaliperWidth)) textBoxCaliperWidth.Text = roi.CaliperWidth.ToString("F2");
                 if (!ReferenceEquals(source, textBoxCaliperHeight)) textBoxCaliperHeight.Text = roi.CaliperHeight.ToString("F2");
                 if (!ReferenceEquals(source, textBoxCount)) textBoxCount.Text = roi.Count.ToString();
@@ -194,6 +203,33 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 FindMode = param.FindMode,
                 Direction = param.Direction
             };
+        }
+
+        private PositionCorrectionInfo GetEditingCorrectionInfo(bool require)
+        {
+            if (!checkBoxUsePositionCorrection.Checked)
+                return null;
+
+            if (string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText1()) ||
+                string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText2()))
+            {
+                if (require)
+                    throw new Exception("Position correction subscription is empty.");
+                return null;
+            }
+
+            try
+            {
+                PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
+                PositionCorrectionHelper.EnsureValid(correctionInfo);
+                return correctionInfo;
+            }
+            catch
+            {
+                if (require)
+                    throw;
+                return null;
+            }
         }
 
         private bool SaveParams()
@@ -328,12 +364,21 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 float caliperHeight = ParseFloat(textBoxCaliperHeight, string.Empty);
                 int count = ParseInt(textBoxCount, string.Empty);
 
+                PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+                PointF start = new PointF(startX, startY);
+                PointF end = new PointF(endX, endY);
+                if (correctionInfo != null)
+                {
+                    start = correctionInfo.TransformPoint(start.X, start.Y);
+                    end = correctionInfo.TransformPoint(end.X, end.Y);
+                }
+
                 showImageControl1.ClearDynamicRoi();
                 showImageControl1.AddDynamicCaliper(
-                    startX,
-                    startY,
-                    endX,
-                    endY,
+                    start.X,
+                    start.Y,
+                    end.X,
+                    end.Y,
                     caliperWidth,
                     caliperHeight,
                     count,
@@ -358,8 +403,15 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
 
         private void buttonConfirmRoi_Click(object sender, EventArgs e)
         {
-            TryReadRoiToFields();
-            ClearEditingRoi();
+            try
+            {
+                TryReadRoiToFields();
+                ClearEditingRoi();
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show("Confirm ROI failed: " + ex.Message);
+            }
         }
 
         private void checkBoxUsePositionCorrection_CheckedChanged(object sender, EventArgs e)
@@ -386,13 +438,22 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 return;
 
             var roi = rois[0];
+            PointF start = new PointF(roi.SX, roi.SY);
+            PointF end = new PointF(roi.EX, roi.EY);
+            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(true);
+            if (correctionInfo != null)
+            {
+                start = correctionInfo.InverseTransformPoint(start.X, start.Y);
+                end = correctionInfo.InverseTransformPoint(end.X, end.Y);
+            }
+
             _isSyncingRoi = true;
             try
             {
-                textBoxStartX.Text = roi.SX.ToString("F2");
-                textBoxStartY.Text = roi.SY.ToString("F2");
-                textBoxEndX.Text = roi.EX.ToString("F2");
-                textBoxEndY.Text = roi.EY.ToString("F2");
+                textBoxStartX.Text = start.X.ToString("F2");
+                textBoxStartY.Text = start.Y.ToString("F2");
+                textBoxEndX.Text = end.X.ToString("F2");
+                textBoxEndY.Text = end.Y.ToString("F2");
                 textBoxCaliperWidth.Text = roi.CaliperWidth.ToString("F2");
                 textBoxCaliperHeight.Text = roi.CaliperHeight.ToString("F2");
                 textBoxCount.Text = roi.Count.ToString();
