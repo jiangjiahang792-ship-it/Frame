@@ -87,13 +87,6 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
 
                 CaliperCircleMeasureResult result = CaliperMeasurementAlgorithm.FindCircle(gray, algorithmParam);
                 output = MeasurementNodeHelper.EnsureBgr(source);
-                MeasurementNodeHelper.DrawEdgePoints(output, result.EdgePoints, new Scalar(0, 255, 255));
-                if (result.Success)
-                {
-                    Cv2.Circle(output, ToPoint(result.Center), (int)Math.Round(result.Radius), new Scalar(0, 255, 0), 2);
-                    Cv2.Circle(output, ToPoint(result.Center), 3, new Scalar(0, 0, 255), -1);
-                    Cv2.PutText(output, $"R {result.Radius:F2}", new OpenCvSharp.Point(20, 35), HersheyFonts.HersheySimplex, 1, new Scalar(0, 255, 0), 2);
-                }
 
                 return result;
             }
@@ -245,6 +238,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 using (output)
                 {
                     SetPreview(output);
+                    showImageControl1.SetDisplayResult(NodeCaliperCircle.BuildDisplayResult(result));
                 }
 
                 if (!result.Success)
@@ -266,6 +260,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 {
                     SetPreview(input);
                     RefreshRoiFromFields();
+                    showImageControl1.ShowFit();
                 }
             }
             catch (Exception ex)

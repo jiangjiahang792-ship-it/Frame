@@ -8,6 +8,7 @@ using System.Linq;
 using System.Windows.Forms;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
+using TDJS_Vision.Node._3_Detection.TDAI;
 using Point = System.Drawing.Point;
 
 namespace TDJS_Vision.Forms.DispShowImage
@@ -278,6 +279,100 @@ namespace TDJS_Vision.Forms.DispShowImage
 
         /// <summary>安全设置图像（线程安全）</summary>
         public void SetImage(Bitmap bmp) => SafeInvoke(() => { ImageBitmap = bmp; });
+
+        public void SetImage(Bitmap bmp, AlgorithmResult displayResult)
+        {
+            SafeInvoke(() =>
+            {
+                ImageBitmap = bmp;
+                ApplyDisplayResultCore(displayResult);
+                Invalidate();
+            });
+        }
+
+        public void SetDisplayResult(AlgorithmResult displayResult)
+        {
+            SafeInvoke(() =>
+            {
+                ApplyDisplayResultCore(displayResult);
+                Invalidate();
+            });
+        }
+
+        private void ApplyDisplayResultCore(AlgorithmResult displayResult)
+        {
+            lock (_roiLock)
+            {
+                _staticRois.Clear();
+                if (displayResult == null)
+                    return;
+
+                foreach (var rect in displayResult.Rects)
+                {
+                    var r = rect.RotatedRect;
+                    _staticRois.Add(new RoiRotatedRect(r.center.x, r.center.y, r.size.width, r.size.height, r.angle)
+                    {
+                        ShapeColor = rect.Color,
+                        IsStatic = true
+                    });
+                }
+
+                foreach (var rectGroup in displayResult.RectsNgMap.Values)
+                {
+                    foreach (var rect in rectGroup)
+                    {
+                        var r = rect.RotatedRect;
+                        _staticRois.Add(new RoiRotatedRect(r.center.x, r.center.y, r.size.width, r.size.height, r.angle)
+                        {
+                            ShapeColor = rect.Color,
+                            IsStatic = true
+                        });
+                    }
+                }
+
+                foreach (var line in displayResult.Lines)
+                {
+                    _staticRois.Add(new RoiLine(line.P1.X, line.P1.Y, line.P2.X, line.P2.Y)
+                    {
+                        ShapeColor = line.Color,
+                        IsStatic = true
+                    });
+                }
+
+                foreach (var circle in displayResult.Circles)
+                {
+                    _staticRois.Add(new RoiCircle(circle.Center.X, circle.Center.Y, circle.Radius)
+                    {
+                        ShapeColor = circle.Color,
+                        IsStatic = true
+                    });
+                }
+
+                foreach (var ellipse in displayResult.Ellipses)
+                {
+                    _staticRois.Add(new RoiEllipse(ellipse.Center.X, ellipse.Center.Y, ellipse.Width, ellipse.Height, ellipse.Angle)
+                    {
+                        ShapeColor = ellipse.Color,
+                        IsStatic = true
+                    });
+                }
+
+                foreach (var contour in displayResult.Contours)
+                {
+                    _staticRois.Add(new RoiContour(contour.Points, contour.Color));
+                }
+
+                if (displayResult.Texts.Count > 0)
+                {
+                    _staticRois.Add(new RoiTextBlock(
+                        "Result",
+                        displayResult.Texts.Select(t => (t.Text, t.Color)).ToList(),
+                        10,
+                        10,
+                        11f));
+                }
+            }
+        }
 
         /// <summary>添加旋转矩形 ROI（参数：中心行, 中心列, 弧度, 半长1, 半长2, 线宽, 颜色）</summary>
         public IRoiShape AddRoiRotatedRect(float row, float column, float phiRad, float length1, float length2, float lineWidth = 1f, Color? color = null)

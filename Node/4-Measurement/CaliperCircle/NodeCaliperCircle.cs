@@ -87,9 +87,28 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             result.Diameter = measureResult.Radius * 2.0;
             result.AlgorithmMs = measureResult.AlgorithmMs;
             result.OutputImage.Bitmaps = new List<Mat> { output };
-            result.Result.Clear();
-            result.Result.Circles.Add(new ColorCircle(measureResult.Center, (int)Math.Round(measureResult.Radius), Color.Lime));
-            result.Result.Texts.Add(new ColorText($"卡尺找圆：点数 {measureResult.PointCount}，圆心({result.CenterX:F2}, {result.CenterY:F2})，半径 {result.Radius:F2}px", Color.Lime));
+            result.Result = BuildDisplayResult(measureResult);
+            result.OutputImage.DisplayResult = result.Result;
+            return result;
+        }
+
+        internal static AlgorithmResult BuildDisplayResult(CaliperCircleMeasureResult measureResult)
+        {
+            var result = new AlgorithmResult();
+            foreach (PointF point in measureResult.EdgePoints)
+                result.Circles.Add(new ColorCircle(point, 2, Color.Yellow));
+
+            if (measureResult.Success)
+            {
+                result.Circles.Add(new ColorCircle(measureResult.Center, (int)Math.Round(measureResult.Radius), Color.Lime));
+                result.Circles.Add(new ColorCircle(measureResult.Center, 3, Color.Red));
+                result.Texts.Add(new ColorText($"卡尺找圆：点数 {measureResult.PointCount}，圆心({measureResult.Center.X:F2}, {measureResult.Center.Y:F2})，半径 {measureResult.Radius:F2}px", Color.Lime));
+            }
+            else
+            {
+                result.Texts.Add(new ColorText($"卡尺找圆失败：点数 {measureResult.PointCount}", Color.Red));
+            }
+
             return result;
         }
     }

@@ -114,7 +114,12 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <returns></returns>
         public Bitmap GetImage()
         {
-            return nodeSubscription1.GetValue<OutputImage>().Bitmaps[0].ToBitmap();
+            return GetOutputImage().Bitmaps[0].ToBitmap();
+        }
+
+        public OutputImage GetOutputImage()
+        {
+            return nodeSubscription1.GetValue<OutputImage>();
         }
 
         private void button1_Click(object sender, EventArgs e)

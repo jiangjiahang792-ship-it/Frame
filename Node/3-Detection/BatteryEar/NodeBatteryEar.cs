@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Device.Modbus;
+using TDJS_Vision.Node._3_Detection.TDAI;
 using Point = OpenCvSharp.Point;
 
 namespace TDJS_Vision.Node._3_Detection.BatteryEar
@@ -96,19 +97,19 @@ namespace TDJS_Vision.Node._3_Detection.BatteryEar
                             device.Write("210", new ushort[] { 1, 2 });
                         }
 
-                        // 绘制图像
-                        for (int i = 0; i < rects.Count; ++i)
-                            Cv2.Rectangle(img, rects[i], Scalar.Green, 8);
+                        AlgorithmResult displayResult = new AlgorithmResult();
+                        foreach (var rect in rects)
+                            displayResult.Rects.Add(new ColorRotatedRect(rect, System.Drawing.Color.Green));
                         foreach (var line in lines)
-                            Cv2.Line(img, line.P1, line.P2, Scalar.Red, 8);
-
-                        DrawTextWithBackground(img, $"D1:{vals[0] + param.DeltaMM1}mm  D3:{vals[2] + param.DeltaMM3}mm", new Point(50, img.Height - 250), 5, Scalar.White, 14, isOk ? Scalar.Green : Scalar.Red);
-                        DrawTextWithBackground(img, $"D2:{vals[1] + param.DeltaMM2}mm  D4:{vals[3] + param.DeltaMM4}mm", new Point(50, img.Height - 50), 5, Scalar.White, 14, isOk ? Scalar.Green : Scalar.Red);
-                        DrawTextWithBackground(img, isOk ? "OK" : "NG", new Point(img.Width - 650, img.Height - 50), 14, Scalar.White, 50, isOk ? Scalar.Green : Scalar.Red);
+                            displayResult.Lines.Add(new ColorLine(line, System.Drawing.Color.Red));
+                        displayResult.Texts.Add(new ColorText($"D1:{vals[0] + param.DeltaMM1}mm  D3:{vals[2] + param.DeltaMM3}mm", isOk ? System.Drawing.Color.Green : System.Drawing.Color.Red));
+                        displayResult.Texts.Add(new ColorText($"D2:{vals[1] + param.DeltaMM2}mm  D4:{vals[3] + param.DeltaMM4}mm", isOk ? System.Drawing.Color.Green : System.Drawing.Color.Red));
+                        displayResult.Texts.Add(new ColorText(isOk ? "OK" : "NG", isOk ? System.Drawing.Color.Green : System.Drawing.Color.Red));
 
                         // 输出结果
                         ((NodeResultBatteryEar)Result).IsOk = isOk;
                         ((NodeResultBatteryEar)Result).OutputImage.Bitmaps = new List<Mat> { img };
+                        ((NodeResultBatteryEar)Result).OutputImage.DisplayResult = displayResult;
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         Result.RunTime = time;
                         if (showLog)

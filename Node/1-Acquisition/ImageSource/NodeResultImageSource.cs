@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using System.Drawing;
 using OpenCvSharp;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 {
@@ -32,6 +33,11 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// 截图一类节点会输出裁剪的图像相对原图的偏移量列表
         /// </summary>
         public List<Rect> Rectangles { get; set; } = new List<Rect>();
+
+        /// <summary>
+        /// 显示叠加层结果。图像数据保持干净，检测框、线、圆、文本等只在显示控件中绘制。
+        /// </summary>
+        public AlgorithmResult DisplayResult { get; set; } = new AlgorithmResult();
     }
 
 }

@@ -221,8 +221,8 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                         // 整体结果判定：有结果且全部通过
                         retPass = (retResults.Count > 0 && ngCount == 0);
 
-                        // 1. 生成纯效果图 (含线框/轮廓，但不含文字) - 用于返回
-                        retBitmap = BitmapConverter.ToBitmap(displayMat);
+                        // 节点运行时输出原图，结果框和文字交给 ShowImageControl 叠加层绘制。
+                        retBitmap = showImage ? BitmapConverter.ToBitmap(displayMat) : (Bitmap)src.Clone();
 
                         // 2. 如果需要显示，生成带文字的图片并更新 UI
                         if (showImage)

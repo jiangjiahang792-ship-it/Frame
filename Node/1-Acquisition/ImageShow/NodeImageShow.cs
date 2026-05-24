@@ -1,4 +1,5 @@
 ﻿using Logger;
+using OpenCvSharp.Extensions;
 using System;
 using System.Diagnostics;
 using System.Drawing;
@@ -60,8 +61,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         SetStatus(NodeStatus.Unexecuted, "*");
                         base.CheckTokenCancel(token);
 
-                        Bitmap image = form.GetImage();
-                        ImageShowChanged?.Invoke(this, new ImageShowPamra(param.WindowName, image));
+                        OutputImage outputImage = form.GetOutputImage();
+                        Bitmap image = outputImage.Bitmaps[0].ToBitmap();
+                        ImageShowChanged?.Invoke(this, new ImageShowPamra(param.WindowName, image, outputImage.DisplayResult));
                         ImageShowWindowNameChanged?.Invoke(Process, param.WindowName);
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         ((NodeResultImageShow)Result).RunTime = time;

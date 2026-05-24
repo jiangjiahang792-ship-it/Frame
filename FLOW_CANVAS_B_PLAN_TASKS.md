@@ -16,7 +16,7 @@ This means the target is not only a visual style change. The work includes:
 
 ## Current Step
 
-The current implementation step is **Phase 15: OpenCV Caliper, Circle, And Ellipse Tool Integration Planning**.
+The current implementation step is **Phase 15.7: Fast Rotated Template Matching Feedback Pass**.
 
 ### Latest Progress
 
@@ -162,6 +162,16 @@ The current implementation step is **Phase 15: OpenCV Caliper, Circle, And Ellip
   - [x] Left-side line/circle/ellipse ROI parameter edits now immediately refresh the right-side caliper ROI overlay, including caliper count, width, height, position, radius/angle, and direction changes.
   - [x] Changing caliper count/width/height now preserves the current dragged ROI position instead of rebuilding from stale left-side coordinate text.
   - [x] `ShowImageControl.ImageBitmap` no longer calls `ShowFit()` on every image assignment, so run-preview updates keep the current zoom and pan.
+- Phase 15.7 fast rotated template matching feedback pass:
+  - [x] Reworked `NodeParamFormMatchTemplate` into a three-tab contour-matching layout: Basic Parameters, Feature Template, and Run Parameters, with bottom Continuous Run / Run / OK commands.
+  - [x] Removed the Result Display tab; compact run status now stays on the Basic Parameters page with the image preview.
+  - [x] Basic Parameters now focuses on image input, search-region setup, display toggles, and run preview. Search-region geometry is saved with the solution and used to crop matching input for faster search.
+  - [x] Template creation/editing now opens a dedicated `TemplateCreateForm` dialog again; the dialog owns template ROI generation, contour preview, and brush-based contour/detail erasing.
+  - [x] Template images now save into the solution through `NodeParamMatchTemplate.TemplateImageBytes`; external paths are only a legacy/import fallback.
+  - [x] The main Feature Template tab now acts as template management and contour preview, while detailed editing happens in the template dialog.
+  - [x] Removed the old standalone `TemplateCreate` form from the project file and added the new designer-visible `TemplateCreateForm`.
+  - [x] Added explicit confirm-ROI actions for both the main search region and the template creation ROI. Run/generate now requires confirmation and rejects changed ROI geometry until confirmed again.
+  - [x] Reworked template brush erasing to use an accumulated erase mask plus OpenCV inpaint, so erased areas are filtered out of template contours and brush patch borders are not counted as new contours.
 - TDAI stability fix:
   - [x] Added a model-readiness guard before `NodeTDAI` reads `param.Yolo8.ModelType`, so a failed startup model load now reports a clear model/config error instead of throwing a null reference.
   - [x] Made `ParamFormTDAI.LoadModel(...)` clear `param.Yolo8` on load failure and log failures without dereferencing missing AI config data.
@@ -188,6 +198,9 @@ The current implementation step is **Phase 15: OpenCV Caliper, Circle, And Ellip
   - [x] `TDJS-Vision.sln` builds successfully after the Phase 15 measurement ROI interaction feedback pass.
   - [x] `TDJS-Vision.sln` builds successfully after the Phase 15 left-parameter-to-ROI realtime sync fix.
   - [x] `TDJS-Vision.sln` builds successfully after preserving dragged ROI position during caliper parameter edits and removing automatic image recentering.
+  - [x] `TDJS-Vision.sln` builds successfully after the integrated template-matching UI, embedded-template persistence, and contour-erasing feedback pass.
+  - [x] `TDJS-Vision.sln` builds successfully after removing the Result Display tab, restoring template creation/editing to a dialog, and adding saved search-region matching.
+  - [x] `TDJS-Vision.sln` builds successfully after adding ROI confirmation and fixing template brush erasing contour filtering.
 - Verified subscription regression points:
   - [x] A node with `A -> C` and `B -> C` shows both `A` and `B` as subscription candidates.
   - [x] Deleting a connection removes the disconnected node from subscription candidates.
@@ -806,6 +819,37 @@ Reference source:
 - [x] Build-verify after adding each node family.
 - [ ] Runtime-verify line, circle, and ellipse tools on synthetic images with known geometry.
 - [ ] UI-verify ROI editing, preview rendering, save/load, and graph execution.
+
+### Phase 15.6: Image/Overlay Layer Separation
+
+- [x] Add `OutputImage.DisplayResult` so node output images can remain clean while result geometry/text is rendered by `ShowImageControl`.
+- [x] Add `ShowImageControl.SetImage(Bitmap, AlgorithmResult)` and `SetDisplayResult(...)` to draw result rectangles, lines, circles, ellipses, and text as static overlay ROI objects.
+- [x] Route `ImageShow` and `FrmSingleImage` through the new image-plus-overlay display path.
+- [x] Change caliper line, caliper circle, and caliper ellipse nodes so runtime output keeps the original image clean and sends edge points/fitted geometry/text through `DisplayResult`.
+- [x] Change template matching, color discern, binary analysis, find line, find circle, and battery-ear runtime outputs toward clean image plus display overlay.
+- [x] Keep parameter-form preview drawing behavior where it is only used for local UI tuning and does not become the node's runtime output image.
+- [x] Build-verify after display-layer migration.
+- [ ] Runtime-verify full-process display on real solution images after zooming/panning, confirming result shapes/text no longer pollute source pixels.
+- [ ] Review explicit result-image tools such as `ImageDraw`; keep them as intentional bitmap writers or split them into display overlay mode if needed.
+
+### Phase 15.7: Fast Rotated Template Matching Tool
+
+- [x] Trace old template creation flow from `WookTwoParamsWindow.button13_Click`: rotated ROI crop, 24bpp template normalization, and template model persistence intent.
+- [x] Trace old runtime matching flow through `OpenCvVisionAdapter.MatchTemplate(...)` and the `Fastest_Image_Pattern_Matching` `MatchTool.dll` P/Invoke API.
+- [x] Add `FastTemplateMatcher` wrapper for `CreateMatchEngine`, `LearnPatternMem`, and `MatchMem`, including 24bpp conversion, rotated template crop, match box conversion, score filtering, and optional outline extraction.
+- [x] Update the current `MatchTemplate` parameter form to expose fast-match parameters: score, max result count, angle tolerance, angle step, max overlap, coarse match, outline display, and match-box display.
+- [x] Update `TemplateCreate` to use `ShowImageControl` dynamic rotated rectangles so template ROI creation is visible in the WinForms designer/control layout path and supports rotation.
+- [x] Route runtime template-match output through clean `OutputImage.Bitmaps` plus `OutputImage.DisplayResult`, including rotated boxes, outline contours, text, score, angle, and elapsed time.
+- [x] Add native runtime dependencies under `Native/`: `MatchTool.dll` and `opencv_world4100.dll`, with project copy-to-output configuration.
+- [x] Build-verify after fast template matching migration (`MSBuild`, 0 errors; existing warnings remain).
+- [x] Feedback pass: merged template creation into `NodeParamFormMatchTemplate` so template import, rotated-ROI creation, matching preview, and template editing live in one designer-visible form.
+- [x] Feedback pass: changed `NodeParamFormMatchTemplate` to a tabbed layout matching the requested contour-match UI structure: Basic Parameters, Feature Template, Run Parameters, and Result Display.
+- [x] Feedback pass: template images are now saved into `NodeParamMatchTemplate.TemplateImageBytes` with the solution file; external template paths remain only as legacy/import fallback.
+- [x] Feedback pass: template contour preview is shown directly in the parameter form, and brush-based detail erasing edits the template image so simplified templates can reduce learned contour/detail cost.
+- [x] Removed the old standalone `TemplateCreate` form from the project after integrating creation into the main template-matching UI.
+- [x] Build-verify after integrated template UI and embedded-template persistence (`MSBuild`, 0 errors; existing warnings remain).
+- [ ] Runtime-verify on real product images with rotated targets, confirming match center, angle, score, overlap filtering, and outline display are correct.
+- [ ] Runtime-verify deployed/release output folder contains native dependencies and can load `MatchTool.dll` without `DllNotFoundException` or OpenCV native dependency errors.
 
 ## Recommended Implementation Order
 

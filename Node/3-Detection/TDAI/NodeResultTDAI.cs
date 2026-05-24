@@ -21,6 +21,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     /// </summary>
     public class AlgorithmResult
     {
+        private bool? _isAllOkOverride;
+
         /// <summary>
         /// 所有检测项的OK/NG
         /// </summary>
@@ -28,7 +30,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <summary>
         /// DetectResults所有检测项都OK
         /// </summary>
-        public bool IsAllOk => DetectResults.Values.SelectMany(list => list).All(result => result.IsOk);
+        public bool IsAllOk
+        {
+            get { return _isAllOkOverride ?? DetectResults.Values.SelectMany(list => list).All(result => result.IsOk); }
+            set { _isAllOkOverride = value; }
+        }
         /// <summary>
         /// 带颜色的当前结果检测框
         /// </summary>
@@ -49,6 +55,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// 带颜色的圆
         /// </summary>
         public List<ColorCircle> Circles { get; set; } = new List<ColorCircle>();
+        /// <summary>
+        /// 带颜色的椭圆
+        /// </summary>
+        public List<ColorEllipse> Ellipses { get; set; } = new List<ColorEllipse>();
+        /// <summary>
+        /// 带颜色的轮廓点集
+        /// </summary>
+        public List<ColorContour> Contours { get; set; } = new List<ColorContour>();
 
         public void Clear()
         {
@@ -58,6 +72,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             Texts.Clear();
             Lines.Clear();
             Circles.Clear();
+            Ellipses.Clear();
+            Contours.Clear();
+            _isAllOkOverride = null;
         }
     }
 
@@ -92,6 +109,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     /// </summary>
     public class ColorRotatedRect
     {
+        private Color? _colorOverride;
+
         public ColorRotatedRect(RotatedRect rotatedRect)
         {
             this.RotatedRect = rotatedRect;
@@ -107,6 +126,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         public ColorRotatedRect(Rect Rect, Color color)
         {
             this.RotatedRect = new RotatedRect(Rect);
+            this.Color = color;
+        }
+        public ColorRotatedRect(float centerX, float centerY, float width, float height, float angle, Color color)
+        {
+            RotatedRect rect = new RotatedRect();
+            rect.center.x = centerX;
+            rect.center.y = centerY;
+            rect.size.width = width;
+            rect.size.height = height;
+            rect.angle = angle;
+            this.RotatedRect = rect;
             this.Color = color;
         }
         public ColorRotatedRect(int x, int y, int width, int height)
@@ -132,9 +162,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         {
             get
             {
+                if (_colorOverride.HasValue)
+                    return _colorOverride.Value;
                 return _flags.TrueForAll(item => item == true) ? Color.Green : Color.Red;
             }
-            set { }
+            set { _colorOverride = value; }
         }
         /// <summary>
         /// 添加的条件决定绘制的颜色
@@ -203,6 +235,42 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         {
             Center = new PointF(circle.Center.X, circle.Center.Y);
             Radius = circle.Radius;
+            Color = color;
+        }
+    }
+
+    /// <summary>
+    /// 带颜色的椭圆
+    /// </summary>
+    public class ColorEllipse
+    {
+        public PointF Center { get; set; }
+        public float Width { get; set; }
+        public float Height { get; set; }
+        public float Angle { get; set; }
+        public Color Color { get; set; }
+
+        public ColorEllipse(PointF center, float width, float height, float angle, Color color)
+        {
+            Center = center;
+            Width = width;
+            Height = height;
+            Angle = angle;
+            Color = color;
+        }
+    }
+
+    /// <summary>
+    /// 带颜色的轮廓点集
+    /// </summary>
+    public class ColorContour
+    {
+        public List<PointF> Points { get; set; }
+        public Color Color { get; set; }
+
+        public ColorContour(List<PointF> points, Color color)
+        {
+            Points = points ?? new List<PointF>();
             Color = color;
         }
     }

@@ -89,9 +89,29 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             result.Angle = Math.Atan2(measureResult.LineEnd.Y - measureResult.LineStart.Y, measureResult.LineEnd.X - measureResult.LineStart.X) * 180.0 / Math.PI;
             result.AlgorithmMs = measureResult.AlgorithmMs;
             result.OutputImage.Bitmaps = new List<Mat> { output };
-            result.Result.Clear();
-            result.Result.Lines.Add(new ColorLine(measureResult.LineStart, measureResult.LineEnd, Color.Lime));
-            result.Result.Texts.Add(new ColorText($"卡尺找线：点数 {measureResult.PointCount}，长度 {result.Length:F2}px，角度 {result.Angle:F2}°", Color.Lime));
+            result.Result = BuildDisplayResult(measureResult);
+            result.OutputImage.DisplayResult = result.Result;
+            return result;
+        }
+
+        internal static AlgorithmResult BuildDisplayResult(CaliperLineMeasureResult measureResult)
+        {
+            var result = new AlgorithmResult();
+            foreach (PointF point in measureResult.EdgePoints)
+                result.Circles.Add(new ColorCircle(point, 2, Color.Yellow));
+
+            if (measureResult.Success)
+            {
+                double length = Distance(measureResult.LineStart, measureResult.LineEnd);
+                double angle = Math.Atan2(measureResult.LineEnd.Y - measureResult.LineStart.Y, measureResult.LineEnd.X - measureResult.LineStart.X) * 180.0 / Math.PI;
+                result.Lines.Add(new ColorLine(measureResult.LineStart, measureResult.LineEnd, Color.Lime));
+                result.Texts.Add(new ColorText($"卡尺找线：点数 {measureResult.PointCount}，长度 {length:F2}px，角度 {angle:F2}°", Color.Lime));
+            }
+            else
+            {
+                result.Texts.Add(new ColorText($"卡尺找线失败：点数 {measureResult.PointCount}", Color.Red));
+            }
+
             return result;
         }
 

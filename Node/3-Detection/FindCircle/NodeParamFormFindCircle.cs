@@ -138,6 +138,11 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
             imageROIEditControl1.SetImage(bitmap);
         }
 
+        public OutputImage GetOutputImage()
+        {
+            return nodeSubscription1.GetValue<OutputImage>();
+        }
+
         /// <summary>
         /// 点击执行
         /// </summary>
@@ -209,6 +214,7 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
         public (CircleSegment, Bitmap) DetectCircle()
         {
             CircleSegment Circle = new CircleSegment();
+            Mat cleanOutput = null;
             try
             {
                 // 更新输入图像和获取ROI图像
@@ -217,6 +223,7 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
                 pictureBoxResult2.Image = null;
                 UpdataImage();
                 Mat bitmap = imageROIEditControl1.GetROIImages()[0];
+                cleanOutput = bitmap.Clone();
 
                 if (bitmap.Channels() != 1)
                     Cv2.CvtColor(bitmap, bitmap, ColorConversionCodes.BGR2GRAY);
@@ -345,9 +352,13 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
             catch (Exception ex)
             {
                 LogHelper.AddLog(MsgLevel.Exception, $"检测圆失败，原因：{ex.Message}", true);
+                cleanOutput?.Dispose();
                 return (Circle, null);
             }
-            return (Circle, (Bitmap)pictureBoxResult2.Image);
+
+            Bitmap outputBitmap = cleanOutput == null ? (Bitmap)pictureBoxResult2.Image : BitmapConverter.ToBitmap(cleanOutput);
+            cleanOutput?.Dispose();
+            return (Circle, outputBitmap);
         }
         private static byte GetDarkColorValue(Random rand)
         {

@@ -1,44 +1,71 @@
-﻿using OpenCvSharp.Extensions;
-using OpenCvSharp;
+using OpenCvSharp.Extensions;
 using System;
 using System.Drawing;
-using System.Windows.Forms;
-using Size = OpenCvSharp.Size;
-using Point = OpenCvSharp.Point;
-using TDJS_Vision.Forms.YTMessageBox;
-using System.Collections.Generic;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Linq;
+using System.Windows.Forms;
+using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 
 namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 {
     public partial class NodeParamFormMatchTemplate : FormBase, INodeParamForm
     {
-        private Process process;//所属流程
-        private NodeBase node;//所属节点
-        private static TemplateCreate templateCreate = null; // 模版创建对象
-        private Bitmap src = null;  // 原图
-        private Bitmap templateImage = null; // 模版图像
-        private float scale = 8; // 默认缩小8倍
-        private float score = 0; // 匹配得分
-        private int resultNum = 1;// 匹配个数，默认一个
-
+        private Process process;
+        private NodeBase node;
+        private Bitmap src;
+        private Bitmap templateImage;
+        private Bitmap templateOriginalImage;
+        private Bitmap templateEraseMask;
+        private string templateSourceName = string.Empty;
+        private double toleranceAngle = 80.0;
+        private double angleStep = 0.0;
+        private double maxOverlap = 40.0;
+        private float score = 0.5f;
+        private int resultNum = 1;
+        private bool coarseMatch = false;
+        private bool showOutlineStatus = true;
+        private bool showOutRegionStatus = true;
+        private bool allSearch = true;
+        private float searchRegionCenterX;
+        private float searchRegionCenterY;
+        private float searchRegionWidth;
+        private float searchRegionHeight;
+        private float searchRegionAngle;
+        private bool searchRegionConfirmed = true;
+        private Timer continuousRunTimer;
+        private bool continuousRunBusy = false;
 
         public NodeParamFormMatchTemplate(Process process, NodeBase nodeBase)
         {
             InitializeComponent();
             this.process = process;
-            this.node = nodeBase;
-            imageROIEditControl1.SetROIType2Draw(Forms.ShapeDraw.ROIType.Rectangle);
+            node = nodeBase;
             Shown += NodeParamFormQRCodeIdentification_Shown;
-            toolTip1.SetToolTip(label2, "值取1-32，注意：值越大模版图像和原图尺寸越小，匹配耗时就越短，但容易匹配不到目标！");
-            toolTip1.SetToolTip(label4, "作为判断匹配到目标的可靠性衡量，高于该设定分数值才认为是正确匹配，用作过滤低于该值的误匹配目标");
+
+            toolTip1.SetToolTip(label2, "模板旋转搜索范围，单位度。");
+            toolTip1.SetToolTip(label4, "匹配可靠性阈值，支持 0~1 或 0~100。");
+            toolTip1.SetToolTip(labelAngleStep, "旋转搜索步长，0 表示由算法自动选择。");
+            toolTip1.SetToolTip(labelMaxOverlap, "多个目标之间允许的最大重叠率，支持 0~100。");
+            toolTip1.SetToolTip(showImageControlSource, "用于绘制搜索区域，也用于查看执行预览。");
+            toolTip1.SetToolTip(pictureBoxTemplate, "青色轮廓为当前模板参与匹配的边缘。");
+
+            comboBoxPolarity.SelectedIndex = 0;
+            comboBoxScaleMode.SelectedIndex = 0;
+            checkBoxAllSearch.Checked = true;
+            continuousRunTimer = new Timer { Interval = 500 };
+            continuousRunTimer.Tick += continuousRunTimer_Tick;
+
+            RefreshTemplateStatus(0);
+            UpdateRunStatus(null);
+            UpdateSearchRegionControls();
         }
+
         /// <summary>
-        /// 窗口显示时更新订阅的图像
+        /// 窗口显示时刷新订阅图像。
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
         private void NodeParamFormQRCodeIdentification_Shown(object sender, EventArgs e)
         {
             UpdataImage();
@@ -47,47 +74,54 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         public INodeParam Params { get; set; }
 
         /// <summary>
-        /// 反序列化还原界面参数设置
+        /// 反序列化后还原界面参数。
         /// </summary>
         public void SetParam2Form()
         {
-            if (Params is NodeParamMatchTemplate param)
-            {
-                try
-                {
-                    textBoxModelPath.Text = param.TemplateFileName;
-                    templateImage = new Bitmap(param.TemplateFileName);
-                    nodeSubscription1.SetText(param.Text1, param.Text2);
-                    textBoxScale.Text = param.Scale.ToString();
-                    scale = param.Scale;
-                    score = param.MinScore;
-                    resultNum = param.ResultNum;
-                    textBoxMinScore.Text = param.MinScore.ToString();
-                    textBoxResultNum.Text = param.ResultNum.ToString();
-                }
-                catch (Exception)
-                {
-                    throw;
-                }
-            }
+            if (!(Params is NodeParamMatchTemplate param))
+                return;
+
+            LoadTemplateFromParam(param);
+            nodeSubscription1.SetText(param.Text1, param.Text2);
+            toleranceAngle = param.ToleranceAngle <= 0 ? 80.0 : param.ToleranceAngle;
+            angleStep = Math.Max(0, param.AngleStep);
+            maxOverlap = param.MaxOverlap <= 0 ? 40.0 : param.MaxOverlap;
+            score = param.MinScore <= 0 ? 0.5f : param.MinScore;
+            resultNum = param.ResultNum <= 0 ? 1 : param.ResultNum;
+            coarseMatch = param.CoarseMatch;
+            showOutlineStatus = param.ShowOutlineStatus;
+            showOutRegionStatus = param.ShowOutRegionStatus;
+            allSearch = param.AllSearch || param.SearchRegionWidth <= 0 || param.SearchRegionHeight <= 0;
+            searchRegionCenterX = param.SearchRegionCenterX;
+            searchRegionCenterY = param.SearchRegionCenterY;
+            searchRegionWidth = param.SearchRegionWidth;
+            searchRegionHeight = param.SearchRegionHeight;
+            searchRegionAngle = param.SearchRegionAngle;
+            searchRegionConfirmed = allSearch || (searchRegionWidth > 0 && searchRegionHeight > 0);
+
+            textBoxScale.Text = toleranceAngle.ToString("G");
+            textBoxAngleStep.Text = angleStep.ToString("G");
+            textBoxMaxOverlap.Text = maxOverlap.ToString("G");
+            textBoxMinScore.Text = score.ToString("G");
+            textBoxResultNum.Text = resultNum.ToString();
+            checkBoxCoarseMatch.Checked = coarseMatch;
+            checkBoxShowOutline.Checked = showOutlineStatus;
+            checkBoxShowMatchBox.Checked = showOutRegionStatus;
+            checkBoxAllSearch.Checked = allSearch;
+            ApplySearchRegionToView();
         }
 
         /// <summary>
-        /// 初始化订阅节点
+        /// 初始化订阅节点。
         /// </summary>
-        /// <param name="node"></param>
         public void SetNodeBelong(NodeBase node)
         {
             nodeSubscription1.Init(node);
-            templateCreate = new TemplateCreate();
-            templateCreate.SetNodeBelong(node);
         }
 
         /// <summary>
-        /// 刷新图像
+        /// 刷新输入图像。
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
         private async void button3_Click(object sender, EventArgs e)
         {
             await process.RunForUpdateImages(node);
@@ -95,347 +129,691 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         }
 
         /// <summary>
-        /// 更新函数
+        /// 更新当前订阅图像。
         /// </summary>
         public void UpdataImage()
         {
+            Bitmap newSource = null;
             try
             {
-                src = nodeSubscription1.GetValue<OutputImage>().Bitmaps[0].ToBitmap();
+                var image = nodeSubscription1.GetValue<OutputImage>();
+                if (image?.Bitmaps != null && image.Bitmaps.Count > 0)
+                    newSource = image.Bitmaps[0].ToBitmap();
             }
             catch (Exception)
             {
-                src = null;
+                newSource = null;
             }
-            imageROIEditControl1.SetImage(src);
+
+            ReplaceSourceImage(newSource);
         }
 
-        /// <summary>
-        /// 点击执行模板匹配
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private async void buttonRun_Click(object sender, EventArgs e)
+        private void ReplaceSourceImage(Bitmap newSource)
+        {
+            src?.Dispose();
+            src = newSource;
+
+            if (src == null)
+            {
+                showImageControlSource.ClearDisplay();
+                return;
+            }
+
+            showImageControlSource.SetImage((Bitmap)src.Clone());
+            showImageControlSource.ShowFit();
+            ApplySearchRegionToView();
+        }
+
+        private void ApplySearchRegionToView()
+        {
+            if (showImageControlSource == null)
+                return;
+
+            showImageControlSource.ClearDynamicRoi();
+            if (src == null)
+            {
+                UpdateSearchRegionControls();
+                return;
+            }
+
+            if (allSearch)
+            {
+                UpdateSearchRegionControls();
+                return;
+            }
+
+            EnsureSearchRegionFields();
+            showImageControlSource.AddDynamicRect(
+                searchRegionCenterX,
+                searchRegionCenterY,
+                searchRegionWidth,
+                searchRegionHeight,
+                Color.FromArgb(255, 132, 0),
+                "搜索区域");
+            searchRegionConfirmed = false;
+            UpdateSearchRegionControls();
+        }
+
+        private void EnsureSearchRegionFields()
+        {
+            if (src == null)
+                return;
+
+            bool invalid = searchRegionWidth <= 0
+                || searchRegionHeight <= 0
+                || searchRegionCenterX < 0
+                || searchRegionCenterY < 0
+                || searchRegionCenterX > src.Width
+                || searchRegionCenterY > src.Height;
+
+            if (!invalid)
+                return;
+
+            searchRegionCenterX = src.Width / 2f;
+            searchRegionCenterY = src.Height / 2f;
+            searchRegionWidth = Math.Max(20, src.Width * 0.65f);
+            searchRegionHeight = Math.Max(20, src.Height * 0.65f);
+            searchRegionAngle = 0;
+        }
+
+        private void ResetSearchRegion()
+        {
+            if (src == null)
+                return;
+
+            searchRegionCenterX = src.Width / 2f;
+            searchRegionCenterY = src.Height / 2f;
+            searchRegionWidth = Math.Max(20, src.Width * 0.65f);
+            searchRegionHeight = Math.Max(20, src.Height * 0.65f);
+            searchRegionAngle = 0;
+            showImageControlSource.ClearDynamicRoi();
+            showImageControlSource.AddDynamicRect(
+                searchRegionCenterX,
+                searchRegionCenterY,
+                searchRegionWidth,
+                searchRegionHeight,
+                Color.FromArgb(255, 132, 0),
+                "搜索区域");
+            UpdateSearchRegionControls();
+        }
+
+        private void checkBoxAllSearch_CheckedChanged(object sender, EventArgs e)
+        {
+            allSearch = checkBoxAllSearch.Checked;
+            if (src != null)
+            {
+                if (allSearch)
+                {
+                    showImageControlSource.ClearDynamicRoi();
+                    searchRegionConfirmed = true;
+                }
+                else
+                    ResetSearchRegion();
+            }
+
+            UpdateSearchRegionControls();
+        }
+
+        private void buttonResetRoi_Click(object sender, EventArgs e)
+        {
+            allSearch = false;
+            if (checkBoxAllSearch.Checked)
+                checkBoxAllSearch.Checked = false;
+            else
+                ResetSearchRegion();
+        }
+
+        private void buttonConfirmSearchRoi_Click(object sender, EventArgs e)
         {
             try
             {
-                scale = float.Parse(textBoxScale.Text);
-                score = float.Parse(textBoxMinScore.Text);
-                resultNum = int.Parse(textBoxResultNum.Text);
-                MatchTemplate();
+                ConfirmSearchRegion();
             }
             catch (Exception ex)
             {
-                MessageBoxTD.Show($"模版匹配异常：原因：{ex.Message}");
+                MessageBoxTD.Show(ex.Message);
+            }
+        }
+
+        private void UpdateSearchRegionControls()
+        {
+            buttonResetRoi.Enabled = src != null;
+            buttonConfirmSearchRoi.Enabled = src != null && !allSearch;
+            labelSearchStatus.Text = allSearch
+                ? "当前：整图搜索"
+                : $"{(searchRegionConfirmed ? "已确定" : "未确定")}：X {searchRegionCenterX:F1}, Y {searchRegionCenterY:F1}, W {searchRegionWidth:F1}, H {searchRegionHeight:F1}";
+        }
+
+        /// <summary>
+        /// 点击执行模板匹配。
+        /// </summary>
+        private void buttonRun_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                var result = MatchTemplate();
+                UpdateRunStatus(result);
+                if (result.Matches.Count == 0)
+                    MessageBoxTD.Show("未找到模板匹配目标。");
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show($"模板匹配异常，原因：{ex.Message}");
             }
         }
 
         /// <summary>
-        /// 模版匹配
+        /// 模板匹配。show=false 时输出干净原图，结果由 DisplayResult 叠加层显示。
         /// </summary>
-        /// <param name="sourceImage"></param>
-        /// <param name="templateImage"></param>
-        /// <param name="scale"></param>
-        /// <param name="show">是否更新显示，节点运行时设为false降低耗时</param>
-        /// <returns></returns>
-        public (Bitmap, List<Rect>, List<double>, bool) MatchTemplate(bool show = true)
+        public FastTemplateMatchResult MatchTemplate(bool show = true)
         {
+            Bitmap sourceImage = null;
+            Bitmap matchImage = null;
             try
             {
-                if (resultNum <= 0)
-                    throw new ArgumentException("resultNum 必须大于0", nameof(resultNum));
+                ReadFormValues();
+                EnsureTemplateLoaded();
+                if (src == null)
+                    throw new ArgumentException("源图像不能为空。");
+                if (templateImage == null)
+                    throw new ArgumentException("模板图像不能为空。");
 
-                Bitmap sourceImage = (Bitmap)src.Clone();
-                Bitmap templateImage = this.templateImage;
-                float scale = this.scale;
-                double threshold = this.score / 100.0; // score 是百分制，转为 0~1
+                sourceImage = (Bitmap)src.Clone();
+                Rectangle searchBounds = GetSearchBounds(sourceImage.Size);
+                matchImage = allSearch
+                    ? (Bitmap)sourceImage.Clone()
+                    : sourceImage.Clone(searchBounds, PixelFormat.Format24bppRgb);
 
-                if (sourceImage == null || templateImage == null)
-                    throw new ArgumentException("源图像或模板图像不能为空");
+                var result = FastTemplateMatcher.Match(BuildRuntimeParam(false), matchImage, templateImage);
+                if (!allSearch)
+                    OffsetResult(result, searchBounds.X, searchBounds.Y);
 
-                using (Mat sourceMat = BitmapToGrayMat(sourceImage))
-                using (Mat templateMat = BitmapToGrayMat(templateImage))
+                if (show)
                 {
-                    if (sourceMat.Empty() || templateMat.Empty())
-                        throw new ArgumentException("无法将图像转换为灰度图像");
-
-                    // 缩放图像
-                    Size scaledSourceSize = new Size((int)(sourceMat.Cols / scale), (int)(sourceMat.Rows / scale));
-                    Size scaledTemplateSize = new Size((int)(templateMat.Cols / scale), (int)(templateMat.Rows / scale));
-
-                    using (Mat scaledSource = new Mat())
-                    using (Mat scaledTemplate = new Mat())
+                    using (var previewSource = (Bitmap)sourceImage.Clone())
                     {
-                        Cv2.Resize(sourceMat, scaledSource, scaledSourceSize);
-                        Cv2.Resize(templateMat, scaledTemplate, scaledTemplateSize);
-
-                        // 执行模板匹配
-                        using (Mat result = new Mat())
-                        {
-                            Cv2.MatchTemplate(scaledSource, scaledTemplate, result, TemplateMatchModes.CCoeffNormed);
-
-                            // 匹配结果只需要输出一个结果，单独处理会快很多
-                            if (resultNum == 1)
-                            {
-                                // 获取最佳匹配位置
-                                Point matchLocation;
-                                double minVal, maxVal;
-                                Cv2.MinMaxLoc(result, out minVal, out maxVal, out _, out matchLocation);
-
-
-                                // 计算未缩放前的矩形区域
-                                int top = (int)(matchLocation.Y * scale);
-                                int left = (int)(matchLocation.X * scale);
-                                int width = (int)(scaledTemplate.Cols * scale);
-                                int height = (int)(scaledTemplate.Rows * scale);
-                                Rect rect = new Rect(left, top, width, height);
-
-                                // 根据得分判断是否真正匹配到目标，而不是误匹配
-                                using (Mat originalSourceMat = BitmapToColorMat(sourceImage))
-                                {
-                                    Scalar color = Scalar.Red;
-                                    bool isOk = false;
-                                    if (maxVal * 100 >= score)
-                                    {
-                                        isOk = true;
-                                        color = Scalar.Green;
-                                    }
-                                    else
-                                    {
-                                        isOk = false;
-                                        color = Scalar.Red;
-                                    }
-                                    // 在原始图像上绘制矩形
-                                    Cv2.Rectangle(originalSourceMat, rect, color, 3);
-                                    var bitmap = BitmapConverter.ToBitmap(originalSourceMat);
-                                    if (show)
-                                    {
-                                        imageROIEditControl1.SetImage(bitmap);
-                                    }
-                                    return (bitmap, new List<Rect>() { rect }, new List<double>() { maxVal * 100 }, isOk);
-                                }
-                            }
-                            // 多个结果输出要去重处理，慢一些
-                            else
-                            {
-                                // 存储所有候选匹配点（位置 + 得分）
-                                var candidates = new List<(Point location, double score)>();
-
-                                // 手动遍历 Mat 的每个像素
-                                for (int y = 0; y < result.Rows; y++)
-                                {
-                                    for (int x = 0; x < result.Cols; x++)
-                                    {
-                                        double scoreVal = result.At<float>(y, x); // 获取 (x,y) 位置的匹配得分
-                                        if (scoreVal >= threshold)
-                                        {
-                                            candidates.Add((new Point(x, y), scoreVal));
-                                        }
-                                    }
-                                }
-
-                                // 替换开始：去重并取最多4个不重合高分点
-                                var uniqueResults = new List<(Point location, double score)>();
-                                int maxResults = Math.Min(resultNum, 4); // 防止越界
-                                int radius = 50;
-
-                                foreach (var (location, score) in candidates.OrderByDescending(c => c.score))
-                                {
-                                    bool isTooClose = uniqueResults.Any(exist =>
-                                    {
-                                        int dx = location.X - exist.location.X;
-                                        int dy = location.Y - exist.location.Y;
-                                        return Math.Sqrt(dx * dx + dy * dy) < radius;
-                                    });
-
-                                    if (!isTooClose)
-                                    {
-                                        uniqueResults.Add((location, score));
-                                        if (uniqueResults.Count >= maxResults) break;
-                                    }
-                                }
-
-                                // 转为 rects 和 scores
-                                var rects = new List<Rect>();
-                                var scores = new List<double>();
-                                bool isOk = false;
-
-                                foreach (var (location, score) in uniqueResults)
-                                {
-                                    int left = (int)(location.X * scale);
-                                    int top = (int)(location.Y * scale);
-                                    int width = (int)(scaledTemplate.Cols * scale);
-                                    int height = (int)(scaledTemplate.Rows * scale);
-
-                                    rects.Add(new Rect(left, top, width, height));
-                                    scores.Add(score * 100);
-                                }
-
-                                isOk = rects.Count == resultNum && scores.All(s => s >= this.score);
-
-
-                                // 在原图上绘制所有匹配框
-                                using (Mat originalSourceMat = BitmapToColorMat(sourceImage))
-                                {
-                                    foreach (var rect in rects)
-                                    {
-                                        Scalar color = isOk ? Scalar.Green : Scalar.Yellow;
-                                        Cv2.Rectangle(originalSourceMat, rect, color, 3);
-                                    }
-
-                                    // 如果一个都没找到
-                                    if (rects.Count == 0)
-                                    {
-                                        Cv2.PutText(originalSourceMat, "No Match", new Point(50, 50),
-                                            HersheyFonts.HersheySimplex, 3, Scalar.Red, 2);
-                                    }
-
-                                    Bitmap resultBitmap = BitmapConverter.ToBitmap(originalSourceMat);
-
-                                    if (show)
-                                    {
-                                        imageROIEditControl1.SetImage(resultBitmap);
-                                    }
-
-                                    return (resultBitmap, rects, scores, isOk);
-                                }
-                            }
-                        }
+                        result.OutputBitmap = FastTemplateMatcher.DrawPreview(previewSource, result, showOutRegionStatus, showOutlineStatus);
                     }
+                    showImageControlSource.SetImage(result.OutputBitmap);
+                }
+                else
+                {
+                    result.OutputBitmap = (Bitmap)sourceImage.Clone();
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("模板匹配失败。", ex);
+            }
+            finally
+            {
+                matchImage?.Dispose();
+                sourceImage?.Dispose();
+            }
+        }
+
+        private Rectangle GetSearchBounds(Size imageSize)
+        {
+            if (allSearch)
+                return new Rectangle(0, 0, imageSize.Width, imageSize.Height);
+
+            CaptureSearchRegion();
+            PointF[] corners = GetRotatedRectCorners(
+                searchRegionCenterX,
+                searchRegionCenterY,
+                searchRegionWidth,
+                searchRegionHeight,
+                searchRegionAngle);
+
+            float minX = corners.Min(p => p.X);
+            float minY = corners.Min(p => p.Y);
+            float maxX = corners.Max(p => p.X);
+            float maxY = corners.Max(p => p.Y);
+
+            int x = Math.Max(0, (int)Math.Floor(minX));
+            int y = Math.Max(0, (int)Math.Floor(minY));
+            int right = Math.Min(imageSize.Width, (int)Math.Ceiling(maxX));
+            int bottom = Math.Min(imageSize.Height, (int)Math.Ceiling(maxY));
+            int width = Math.Max(1, right - x);
+            int height = Math.Max(1, bottom - y);
+            return new Rectangle(x, y, width, height);
+        }
+
+        private static PointF[] GetRotatedRectCorners(float cx, float cy, float width, float height, float angle)
+        {
+            float halfW = width / 2f;
+            float halfH = height / 2f;
+            var points = new[]
+            {
+                new PointF(-halfW, -halfH),
+                new PointF( halfW, -halfH),
+                new PointF( halfW,  halfH),
+                new PointF(-halfW,  halfH)
+            };
+
+            using (var matrix = new Matrix())
+            {
+                matrix.Rotate(angle);
+                matrix.Translate(cx, cy, MatrixOrder.Append);
+                matrix.TransformPoints(points);
+            }
+
+            return points;
+        }
+
+        private static void OffsetResult(FastTemplateMatchResult result, float offsetX, float offsetY)
+        {
+            foreach (var match in result.Matches)
+            {
+                match.Box.CenterX += offsetX;
+                match.Box.CenterY += offsetY;
+            }
+
+            foreach (var outline in result.Outlines)
+            {
+                for (int i = 0; i < outline.Points.Count; i++)
+                {
+                    PointF point = outline.Points[i];
+                    outline.Points[i] = new PointF(point.X + offsetX, point.Y + offsetY);
                 }
             }
-            catch (Exception ex)
+        }
+
+        private void EnsureTemplateLoaded()
+        {
+            if (templateImage != null)
+                return;
+
+            if (Params is NodeParamMatchTemplate param)
+                LoadTemplateFromParam(param);
+        }
+
+        private NodeParamMatchTemplate BuildRuntimeParam(bool includeTemplateImage = true)
+        {
+            return new NodeParamMatchTemplate
             {
-                throw new InvalidOperationException("模板匹配失败", ex);
-            }
-        }
-        private double ComputeIoU(Rect a, Rect b)
-        {
-            Rect intersection = a.Intersect(b);
-            int intersectionArea = intersection.Width * intersection.Height;
-            if (intersectionArea == 0) return 0;
-
-            int unionArea = a.Width * a.Height + b.Width * b.Height - intersectionArea;
-            return (double)intersectionArea / unionArea;
-        }
-
-        /// <summary>
-        /// Bitmap转灰度Mat
-        /// </summary>
-        /// <param name="bitmap"></param>
-        /// <returns></returns>
-        private static Mat BitmapToGrayMat(Bitmap bitmap)
-        {
-            using (Mat mat = BitmapConverter.ToMat(bitmap))
-            {
-                if(mat.Channels() == 1)
-                    return mat.Clone();
-                Mat grayMat = new Mat();
-                Cv2.CvtColor(mat, grayMat, ColorConversionCodes.BGR2GRAY);
-                return grayMat;
-            }
+                TemplateFileName = string.Empty,
+                TemplateImageBytes = includeTemplateImage ? FastTemplateMatcher.BitmapToPngBytes(templateImage) : null,
+                TemplateEraseMaskBytes = FastTemplateMatcher.BitmapToPngBytes(templateEraseMask),
+                TemplateSourceName = templateSourceName,
+                Text1 = nodeSubscription1.GetText1(),
+                Text2 = nodeSubscription1.GetText2(),
+                Scale = 1,
+                MinScore = score,
+                ResultNum = resultNum,
+                AllSearch = allSearch,
+                SearchRegionCenterX = searchRegionCenterX,
+                SearchRegionCenterY = searchRegionCenterY,
+                SearchRegionWidth = searchRegionWidth,
+                SearchRegionHeight = searchRegionHeight,
+                SearchRegionAngle = searchRegionAngle,
+                ToleranceAngle = toleranceAngle,
+                AngleStep = angleStep,
+                MaxOverlap = maxOverlap,
+                CoarseMatch = coarseMatch,
+                ShowOutlineStatus = showOutlineStatus,
+                ShowOutRegionStatus = showOutRegionStatus
+            };
         }
 
         /// <summary>
-        /// Bitmap转彩色Mat
+        /// 点击保存参数。
         /// </summary>
-        /// <param name="bitmap"></param>
-        /// <returns></returns>
-        private static Mat BitmapToColorMat(Bitmap bitmap)
-        {
-            return BitmapConverter.ToMat(bitmap);
-        }
-
-        /// <summary>
-        /// 点击保存参数
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
         private void buttonSave_Click(object sender, EventArgs e)
         {
             if (SaveParams())
                 Hide();
         }
 
+        private void buttonContinuousRun_Click(object sender, EventArgs e)
+        {
+            if (continuousRunTimer.Enabled)
+            {
+                continuousRunTimer.Stop();
+                buttonContinuousRun.Text = "连续执行";
+                return;
+            }
+
+            continuousRunTimer.Start();
+            buttonContinuousRun.Text = "停止连续";
+        }
+
+        private void continuousRunTimer_Tick(object sender, EventArgs e)
+        {
+            if (continuousRunBusy)
+                return;
+
+            try
+            {
+                continuousRunBusy = true;
+                var result = MatchTemplate();
+                UpdateRunStatus(result);
+            }
+            catch (Exception ex)
+            {
+                continuousRunTimer.Stop();
+                buttonContinuousRun.Text = "连续执行";
+                MessageBoxTD.Show($"连续匹配停止：{ex.Message}");
+            }
+            finally
+            {
+                continuousRunBusy = false;
+            }
+        }
+
         /// <summary>
-        /// 设置参数
+        /// 设置参数。
         /// </summary>
-        /// <returns></returns>
         private bool SaveParams()
         {
             try
             {
-                NodeParamMatchTemplate param = new NodeParamMatchTemplate();
-                param.TemplateFileName = textBoxModelPath.Text;
-                param.Text1 = nodeSubscription1.GetText1();
-                param.Text2 = nodeSubscription1.GetText2();
-                param.ResultNum = int.Parse(textBoxResultNum.Text);
-                param.Scale = float.Parse(textBoxScale.Text);
-                if (param.Scale > 32 || param.Scale < 1)
-                    throw new Exception("图像缩小倍数设置区间为[1,32]");
-                param.MinScore = float.Parse(textBoxMinScore.Text);
-                if (param.MinScore > 101 || param.MinScore < 0)
-                    throw new Exception("最小得分阈值区间为[0,100]");
-                scale = param.Scale;
-                score = param.MinScore;
-                resultNum = param.ResultNum;
-                Params = param;
+                ReadFormValues();
+                if (templateImage == null)
+                    throw new Exception("请先创建或载入模板。");
+
+                Params = BuildRuntimeParam(true);
             }
             catch (Exception ex)
             {
                 MessageBoxTD.Show($"参数设置异常，原因：{ex.Message}");
                 return false;
             }
+
             return true;
         }
 
+        private void UpdateRunStatus(FastTemplateMatchResult result)
+        {
+            if (result == null)
+            {
+                labelResultSummary.Text = "暂无运行结果";
+                return;
+            }
+
+            labelResultSummary.Text = $"匹配 {result.Matches.Count}/{result.ExpectedCount} 个，耗时 {result.AlgorithmMs:F2} ms，阈值 {result.ExpectedScore * 100.0:F2}";
+        }
+
+        private void ReadFormValues()
+        {
+            resultNum = int.Parse(textBoxResultNum.Text);
+            if (resultNum <= 0 || resultNum > 1000)
+                throw new Exception("最大匹配个数设置区间为 [1,1000]。");
+
+            score = float.Parse(textBoxMinScore.Text);
+            if (score > 100 || score < 0)
+                throw new Exception("最小匹配分数区间为 [0,1] 或 [0,100]。");
+
+            toleranceAngle = double.Parse(textBoxScale.Text);
+            if (toleranceAngle < 0 || toleranceAngle > 360)
+                throw new Exception("角度范围设置区间为 [0,360]。");
+
+            angleStep = double.Parse(textBoxAngleStep.Text);
+            if (angleStep < 0 || angleStep > 360)
+                throw new Exception("角度步长设置区间为 [0,360]。");
+
+            maxOverlap = double.Parse(textBoxMaxOverlap.Text);
+            if (maxOverlap < 0 || maxOverlap > 100)
+                throw new Exception("最大重叠率设置区间为 [0,100]。");
+
+            coarseMatch = checkBoxCoarseMatch.Checked;
+            showOutlineStatus = checkBoxShowOutline.Checked;
+            showOutRegionStatus = checkBoxShowMatchBox.Checked;
+            allSearch = checkBoxAllSearch.Checked;
+            CaptureSearchRegion();
+        }
+
+        private void CaptureSearchRegion()
+        {
+            if (allSearch || src == null)
+                return;
+
+            var rect = showImageControlSource.GetAllDynamicRects().FirstOrDefault();
+            if (rect == null)
+            {
+                ResetSearchRegion();
+                rect = showImageControlSource.GetAllDynamicRects().FirstOrDefault();
+            }
+
+            if (rect == null)
+                throw new Exception("请先绘制搜索区域。");
+
+            if (!searchRegionConfirmed)
+                throw new Exception("请先点击“确定ROI”，确认搜索区域后再运行。");
+
+            if (IsSearchRegionChanged(rect))
+                throw new Exception("搜索区域已调整，请重新点击“确定ROI”。");
+        }
+
+        private void ConfirmSearchRegion()
+        {
+            if (allSearch || src == null)
+            {
+                searchRegionConfirmed = true;
+                UpdateSearchRegionControls();
+                return;
+            }
+
+            var rect = showImageControlSource.GetAllDynamicRects().FirstOrDefault();
+            if (rect == null)
+                throw new Exception("请先绘制搜索区域。");
+
+            searchRegionCenterX = rect.CX;
+            searchRegionCenterY = rect.CY;
+            searchRegionWidth = Math.Max(1, rect.W);
+            searchRegionHeight = Math.Max(1, rect.H);
+            searchRegionAngle = rect.Phi;
+            searchRegionConfirmed = true;
+            UpdateSearchRegionControls();
+        }
+
+        private bool IsSearchRegionChanged(TDJS_Vision.Forms.DispShowImage.ShowImageControl.RoiRotatedRect rect)
+        {
+            const float tolerance = 0.5f;
+            return Math.Abs(rect.CX - searchRegionCenterX) > tolerance
+                || Math.Abs(rect.CY - searchRegionCenterY) > tolerance
+                || Math.Abs(rect.W - searchRegionWidth) > tolerance
+                || Math.Abs(rect.H - searchRegionHeight) > tolerance
+                || Math.Abs(rect.Phi - searchRegionAngle) > tolerance;
+        }
+
         /// <summary>
-        /// 点击选择模版图像文件
+        /// 点击选择模板图像文件。文件只作为导入源，保存后模板数据跟随方案。
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
         private void button2_Click(object sender, EventArgs e)
         {
-            if(openFileDialog1.ShowDialog() == DialogResult.OK)
+            if (openFileDialog1.ShowDialog() != DialogResult.OK)
+                return;
+
+            LoadTemplateImage(openFileDialog1.FileName);
+        }
+
+        private void buttonCreateTemplate_Click(object sender, EventArgs e)
+        {
+            OpenTemplateDialog(null, "当前ROI模板");
+        }
+
+        private void buttonEditTemplate_Click(object sender, EventArgs e)
+        {
+            if (templateImage == null)
             {
-                textBoxModelPath.Text = openFileDialog1.FileName;
-                templateImage = new Bitmap(openFileDialog1.FileName);
+                MessageBoxTD.Show("请先创建或载入模板。");
+                return;
+            }
+
+            OpenTemplateDialog(templateImage, templateSourceName);
+        }
+
+        private void OpenTemplateDialog(Bitmap initialTemplate, string initialSourceName)
+        {
+            try
+            {
+                if (src == null && initialTemplate == null)
+                    throw new InvalidOperationException("源图像不能为空，请先刷新或订阅图像。");
+
+                using (var form = new TemplateCreateForm(src, initialTemplate, templateEraseMask, initialSourceName))
+                {
+                    if (form.ShowDialog(this) != DialogResult.OK)
+                        return;
+
+                    Bitmap eraseMask = form.GetTemplateEraseMask();
+                    SetTemplateImage(form.GetTemplateImage(), form.TemplateSourceName, true, eraseMask);
+                    eraseMask?.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show($"模板编辑失败，原因：{ex.Message}");
             }
         }
 
-        /// <summary>
-        /// 点击创建模版
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void label1_Click(object sender, EventArgs e)
+        private void buttonRestoreTemplate_Click(object sender, EventArgs e)
         {
-            templateCreate.ShowDialog();
+            if (templateOriginalImage == null)
+                return;
+
+            SetTemplateImage((Bitmap)templateOriginalImage.Clone(), templateSourceName, false);
+        }
+
+        private void buttonDeleteTemplate_Click(object sender, EventArgs e)
+        {
+            templateImage?.Dispose();
+            templateImage = null;
+            templateOriginalImage?.Dispose();
+            templateOriginalImage = null;
+            templateEraseMask?.Dispose();
+            templateEraseMask = null;
+            templateSourceName = string.Empty;
+            UpdateTemplatePreview();
+        }
+
+        private void LoadTemplateImage(string fileName)
+        {
+            using (var raw = new Bitmap(fileName))
+            {
+                SetTemplateImage(FastTemplateMatcher.To24Bpp(raw), Path.GetFileName(fileName), true);
+            }
+        }
+
+        private void LoadTemplateFromParam(NodeParamMatchTemplate param)
+        {
+            if (param == null)
+                return;
+
+            try
+            {
+                if (param.TemplateImageBytes != null && param.TemplateImageBytes.Length > 0)
+                {
+                    Bitmap eraseMask = param.TemplateEraseMaskBytes == null || param.TemplateEraseMaskBytes.Length == 0
+                        ? null
+                        : FastTemplateMatcher.PngBytesToBitmap(param.TemplateEraseMaskBytes);
+                    SetTemplateImage(FastTemplateMatcher.PngBytesToBitmap(param.TemplateImageBytes), param.TemplateSourceName, true, eraseMask);
+                    eraseMask?.Dispose();
+                    return;
+                }
+
+                if (!string.IsNullOrWhiteSpace(param.TemplateFileName) && File.Exists(param.TemplateFileName))
+                    LoadTemplateImage(param.TemplateFileName);
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show($"模板还原失败：{ex.Message}");
+            }
+        }
+
+        private void SetTemplateImage(Bitmap image, string sourceName, bool resetOriginal, Bitmap eraseMask = null)
+        {
+            templateImage?.Dispose();
+            templateImage = image;
+            templateEraseMask?.Dispose();
+            templateEraseMask = NormalizeTemplateEraseMask(eraseMask, templateImage?.Size ?? Size.Empty);
+            templateSourceName = string.IsNullOrWhiteSpace(sourceName) ? "方案内嵌模板" : sourceName;
+
+            if (resetOriginal)
+            {
+                templateOriginalImage?.Dispose();
+                templateOriginalImage = templateImage == null ? null : (Bitmap)templateImage.Clone();
+            }
+
+            UpdateTemplatePreview();
+        }
+
+        private static Bitmap NormalizeTemplateEraseMask(Bitmap eraseMask, Size templateSize)
+        {
+            if (eraseMask == null || templateSize.Width <= 0 || templateSize.Height <= 0)
+                return null;
+
+            if (eraseMask.Width == templateSize.Width && eraseMask.Height == templateSize.Height)
+                return FastTemplateMatcher.To24Bpp(eraseMask);
+
+            var resized = new Bitmap(templateSize.Width, templateSize.Height);
+            resized.SetResolution(96, 96);
+            using (var g = Graphics.FromImage(resized))
+            {
+                g.InterpolationMode = InterpolationMode.NearestNeighbor;
+                g.DrawImage(eraseMask, new Rectangle(0, 0, resized.Width, resized.Height), 0, 0, eraseMask.Width, eraseMask.Height, GraphicsUnit.Pixel);
+            }
+            return resized;
+        }
+
+        private void UpdateTemplatePreview()
+        {
+            Image oldImage = pictureBoxTemplate.Image;
+            pictureBoxTemplate.Image = null;
+            oldImage?.Dispose();
+
+            int contourCount = 0;
+            if (templateImage != null)
+            {
+                var contour = FastTemplateMatcher.BuildTemplateContour(templateImage, templateEraseMask);
+                contourCount = contour.Count;
+                pictureBoxTemplate.Image = FastTemplateMatcher.DrawTemplateContourPreview(templateImage, contour);
+            }
+
+            RefreshTemplateStatus(contourCount);
+        }
+
+        private void RefreshTemplateStatus(int contourCount)
+        {
+            bool hasTemplate = templateImage != null;
+            buttonEditTemplate.Enabled = hasTemplate;
+            buttonDeleteTemplate.Enabled = hasTemplate;
+            buttonRestoreTemplate.Enabled = hasTemplate && templateOriginalImage != null;
+            listBoxTemplate.Items.Clear();
+
+            if (!hasTemplate)
+            {
+                textBoxModelPath.Text = "未创建模板";
+                labelTemplatePreview.Text = "模板轮廓预览";
+                return;
+            }
+
+            textBoxModelPath.Text = $"{templateSourceName} | {templateImage.Width}x{templateImage.Height} | 轮廓点 {contourCount}";
+            labelTemplatePreview.Text = "模板轮廓预览";
+            listBoxTemplate.Items.Add(textBoxModelPath.Text);
         }
 
         /// <summary>
-        /// 缩小倍数输入改变时
+        /// 角度容差输入改变时。
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
         private void textBox2_TextChanged(object sender, EventArgs e)
         {
             try
             {
-                scale = float.Parse(textBoxScale.Text);
+                toleranceAngle = double.Parse(textBoxScale.Text);
             }
             catch (Exception)
             {
                 if (textBoxScale.Text.Length != 0)
-                    MessageBoxTD.Show("参数不合法！");
+                    MessageBoxTD.Show("角度范围参数不合法！");
             }
         }
 
         /// <summary>
-        /// 输入得分改变
+        /// 输入得分改变。
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
         private void textBox3_TextChanged(object sender, EventArgs e)
         {
             try
@@ -445,7 +823,52 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             catch (Exception)
             {
                 if (textBoxMinScore.Text.Length != 0)
-                    MessageBoxTD.Show("参数不合法！");
+                    MessageBoxTD.Show("得分参数不合法！");
+            }
+        }
+
+        private void DisposeImages()
+        {
+            src?.Dispose();
+            src = null;
+            templateImage?.Dispose();
+            templateImage = null;
+            templateOriginalImage?.Dispose();
+            templateOriginalImage = null;
+            templateEraseMask?.Dispose();
+            templateEraseMask = null;
+            if (pictureBoxTemplate != null)
+            {
+                Image oldImage = pictureBoxTemplate.Image;
+                pictureBoxTemplate.Image = null;
+                oldImage?.Dispose();
+            }
+            continuousRunTimer?.Stop();
+            continuousRunTimer?.Dispose();
+            continuousRunTimer = null;
+        }
+
+        private void tabControlParams_DrawItem(object sender, DrawItemEventArgs e)
+        {
+            var tabPage = tabControlParams.TabPages[e.Index];
+            bool selected = e.Index == tabControlParams.SelectedIndex;
+            Rectangle bounds = e.Bounds;
+            using (var backBrush = new SolidBrush(selected ? Color.FromArgb(255, 244, 236) : Color.White))
+            {
+                e.Graphics.FillRectangle(backBrush, bounds);
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    tabPage.Text,
+                    new Font("Microsoft YaHei UI", 10.5F, selected ? FontStyle.Bold : FontStyle.Regular),
+                    bounds,
+                    selected ? Color.FromArgb(30, 30, 30) : Color.FromArgb(90, 90, 90),
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            }
+
+            if (selected)
+            {
+                using (var pen = new Pen(Color.FromArgb(255, 112, 0), 3))
+                    e.Graphics.DrawLine(pen, bounds.Left + 8, bounds.Bottom - 2, bounds.Right - 8, bounds.Bottom - 2);
             }
         }
     }

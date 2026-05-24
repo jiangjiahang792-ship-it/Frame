@@ -7,6 +7,7 @@ using System;
 using Logger;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
+using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Forms.ImageViewer
@@ -139,10 +140,10 @@ namespace TDJS_Vision.Forms.ImageViewer
                 return;
 
 
-            SetViewerImage(e.Bitmap);
+            SetViewerImage(e.Bitmap, e.DisplayResult);
         }
 
-        private void SetViewerImage(Bitmap bitmap)
+        private void SetViewerImage(Bitmap bitmap, AlgorithmResult displayResult = null)
         {
             if (IsDisposed)
             {
@@ -158,7 +159,7 @@ namespace TDJS_Vision.Forms.ImageViewer
                     return;
                 }
 
-                showImageControl1.ImageBitmap = bitmap;
+                showImageControl1.SetImage(bitmap, displayResult);
             };
 
             if (InvokeRequired)
@@ -259,10 +260,12 @@ namespace TDJS_Vision.Forms.ImageViewer
     {
         public string WinName;
         public Bitmap Bitmap;
-        public ImageShowPamra(string winname, Bitmap bitmap)
+        public AlgorithmResult DisplayResult;
+        public ImageShowPamra(string winname, Bitmap bitmap, AlgorithmResult displayResult = null)
         {
             WinName = FrmSingleImage.NormalizeWindowKey(winname);
             Bitmap = bitmap;
+            DisplayResult = displayResult;
         }
     }
 }

@@ -271,14 +271,21 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                     }
                 }
 
+                if (allMatchResults.Count == 0) allOk = false;
+                foreach (var r in allMatchResults)
+                {
+                    if (!r.IsOk) allOk = false;
+                }
+
+                if (!show)
+                    return ((Bitmap)src.Clone(), allMatchResults, allOk);
+
                 // 4. 结果绘制 (仅在这一步创建新的 Bitmap 用于显示)
                 // 使用 srcMat.Clone() 避免修改原始缓存数据
                 using (Mat displayMat = srcMat.Clone())
                 {
-                    if (allMatchResults.Count == 0) allOk = false;
                     foreach (var r in allMatchResults)
                     {
-                        if (!r.IsOk) allOk = false;
                         Scalar rectColor = r.IsOk ? Scalar.Lime : Scalar.Red;
                         Cv2.Rectangle(displayMat, r.Region, rectColor, 3);
                     }

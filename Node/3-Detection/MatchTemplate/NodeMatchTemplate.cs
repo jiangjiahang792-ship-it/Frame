@@ -4,6 +4,7 @@ using OpenCvSharp.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -53,26 +54,51 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         form.UpdataImage();
 
                         // 执行模版匹配
-                        var (bitmap, rectList, scoreList, isOk) = form.MatchTemplate(false);
+                        var matchResult = form.MatchTemplate(false);
+                        var rectList = matchResult.Matches.Select(m => m.Box.ToBoundingRect()).ToList();
 
                         // 输出结果
-                        ((NodeResultMatchTemplate)Result).OutputImage.Bitmaps = new List<Mat>() { bitmap.ToMat() };
+                        ((NodeResultMatchTemplate)Result).OutputImage.Bitmaps = new List<Mat>() { matchResult.OutputBitmap.ToMat() };
                         ((NodeResultMatchTemplate)Result).OutputImage.Rectangles = rectList;
                         ((NodeResultMatchTemplate)Result).Result.Clear();
-                        ((NodeResultMatchTemplate)Result).Result.Texts.Add(new ColorText($"模版匹配结果个数：{rectList.Count}个", Color.Green));
-                        for (int i = 0; i < rectList.Count; i++)
+                        ((NodeResultMatchTemplate)Result).Result.IsAllOk = matchResult.IsOk;
+                        ((NodeResultMatchTemplate)Result).Result.Texts.Add(new ColorText($"模版匹配结果个数：{matchResult.Matches.Count}个，耗时 {matchResult.AlgorithmMs:F2} ms", matchResult.IsOk ? Color.Green : Color.Red));
+                        for (int i = 0; i < matchResult.Matches.Count; i++)
                         {
-                            ((NodeResultMatchTemplate)Result).Result.Rects.Add(new ColorRotatedRect(rectList[i]));
-                            ((NodeResultMatchTemplate)Result).Result.Texts.Add(new ColorText($"模版匹配结果{i+1}：位置（{rectList[i].X}, {rectList[i].Y}） 宽{rectList[i].Width} 高{rectList[i].Height}", Color.Green));
+                            var match = matchResult.Matches[i];
+                            if (param.ShowOutRegionStatus)
+                            {
+                                ((NodeResultMatchTemplate)Result).Result.Rects.Add(new ColorRotatedRect(
+                                    match.Box.CenterX,
+                                    match.Box.CenterY,
+                                    match.Box.Width,
+                                    match.Box.Height,
+                                    match.Box.Angle,
+                                    matchResult.IsOk ? Color.Lime : Color.Red));
+                            }
+
+                            ((NodeResultMatchTemplate)Result).Result.Texts.Add(new ColorText(
+                                $"模版匹配结果{i + 1}：中心（{match.Box.CenterX:F1}, {match.Box.CenterY:F1}） 角度{match.Box.Angle:F2}° 得分{match.Score * 100.0:F2}",
+                                matchResult.IsOk ? Color.Green : Color.Red));
                         }
 
-                        if (!isOk)
+                        if (param.ShowOutlineStatus)
+                        {
+                            foreach (var outline in matchResult.Outlines)
+                                ((NodeResultMatchTemplate)Result).Result.Contours.Add(new ColorContour(outline.Points, Color.Cyan));
+                        }
+                        ((NodeResultMatchTemplate)Result).OutputImage.DisplayResult = ((NodeResultMatchTemplate)Result).Result;
+
+                        if (!matchResult.IsOk)
                             throw new Exception($"当前图像匹配得分或者结果个数不足，请降低设置的得分阈值再次尝试！");
 
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         Result.RunTime = time;
                         if (showLog)
-                            LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，当前结果最低匹配得分：{scoreList[0].ToString("F2")}, 匹配是否成功: {isOk}", true);
+                        {
+                            double minScore = matchResult.Matches.Count == 0 ? 0 : matchResult.Matches.Min(m => m.Score) * 100.0;
+                            LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，当前结果最低匹配得分：{minScore:F2}, 匹配是否成功: {matchResult.IsOk}", true);
+                        }
                         return new NodeReturn(NodeRunFlag.ContinueRun);
                     }
                     catch (OperationCanceledException)

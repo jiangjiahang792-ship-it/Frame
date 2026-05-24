@@ -64,10 +64,12 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
                             res = "NG";
 
                         // 输出节点结果
-                        ((NodeResultFindCircle)Result).OutputImage.Bitmaps = new List<Mat>() { image.ToMat()};
+                        var outputImage = form.GetOutputImage();
+                        ((NodeResultFindCircle)Result).OutputImage.Bitmaps = new List<Mat>() { outputImage.Bitmaps[0].Clone() };
                         ((NodeResultFindCircle)Result).Result.Clear();
                         ((NodeResultFindCircle)Result).Result.Circles.Add(new ColorCircle(Circle, Color.Green));
                         ((NodeResultFindCircle)Result).Result.Texts.Add(new ColorText($"识别到的圆心：（{Circle.Center.X}, {Circle.Center.Y}）\n半径：{Circle.Radius}", Color.Green));
+                        ((NodeResultFindCircle)Result).OutputImage.DisplayResult = ((NodeResultFindCircle)Result).Result;
 
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         Result.RunTime = time;

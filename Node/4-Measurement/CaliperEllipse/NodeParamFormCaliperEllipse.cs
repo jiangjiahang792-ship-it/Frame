@@ -87,14 +87,6 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
 
                 CaliperEllipseMeasureResult result = CaliperMeasurementAlgorithm.FindEllipse(gray, algorithmParam);
                 output = MeasurementNodeHelper.EnsureBgr(source);
-                MeasurementNodeHelper.DrawEdgePoints(output, result.EdgePoints, new Scalar(0, 255, 255));
-                MeasurementNodeHelper.DrawEdgePoints(output, result.FailedPoints, new Scalar(0, 0, 255));
-                if (result.Success)
-                {
-                    Cv2.Ellipse(output, new OpenCvSharp.RotatedRect(result.Center, result.Size, result.Angle), new Scalar(0, 255, 0), 2);
-                    Cv2.Circle(output, new OpenCvSharp.Point((int)Math.Round(result.Center.X), (int)Math.Round(result.Center.Y)), 3, new Scalar(0, 0, 255), -1);
-                    Cv2.PutText(output, $"Ellipse {result.PointCount}", new OpenCvSharp.Point(20, 35), HersheyFonts.HersheySimplex, 1, new Scalar(0, 255, 0), 2);
-                }
 
                 return result;
             }
@@ -241,6 +233,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 using (output)
                 {
                     SetPreview(output);
+                    showImageControl1.SetDisplayResult(NodeCaliperEllipse.BuildDisplayResult(result));
                 }
 
                 if (!result.Success)
@@ -262,6 +255,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 {
                     SetPreview(input);
                     RefreshRoiFromFields();
+                    showImageControl1.ShowFit();
                 }
             }
             catch (Exception ex)

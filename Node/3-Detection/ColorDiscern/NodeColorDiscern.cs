@@ -83,6 +83,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         ((NodeResultColorDiscern)Result).OutputImage.Rectangles = rectList;
 
                         ((NodeResultColorDiscern)Result).Result.Texts.Add(new ColorText($"颜色匹配结果个数：{rectList.Count}个", isOk == false ? Color.Red : Color.Green));
+                        ((NodeResultColorDiscern)Result).OutputImage.DisplayResult = ((NodeResultColorDiscern)Result).Result;
 
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         Result.RunTime = time;

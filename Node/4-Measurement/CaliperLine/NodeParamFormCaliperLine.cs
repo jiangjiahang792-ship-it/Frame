@@ -85,12 +85,6 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
 
                 CaliperLineMeasureResult result = CaliperMeasurementAlgorithm.FindLine(gray, algorithmParam);
                 output = MeasurementNodeHelper.EnsureBgr(source);
-                MeasurementNodeHelper.DrawEdgePoints(output, result.EdgePoints, new Scalar(0, 255, 255));
-                if (result.Success)
-                {
-                    Cv2.Line(output, ToPoint(result.LineStart), ToPoint(result.LineEnd), new Scalar(0, 255, 0), 2);
-                    Cv2.PutText(output, $"Line {result.PointCount}", new OpenCvSharp.Point(20, 35), HersheyFonts.HersheySimplex, 1, new Scalar(0, 255, 0), 2);
-                }
 
                 return result;
             }
@@ -239,6 +233,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 using (output)
                 {
                     SetPreview(output);
+                    showImageControl1.SetDisplayResult(NodeCaliperLine.BuildDisplayResult(result));
                 }
 
                 if (!result.Success)
@@ -260,6 +255,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 {
                     SetPreview(input);
                     RefreshRoiFromFields();
+                    showImageControl1.ShowFit();
                 }
             }
             catch (Exception ex)

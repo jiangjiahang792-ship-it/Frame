@@ -175,6 +175,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSummarize
                     aiResult.Circles.AddRange(result.Circles);
                 }
             }
+
+            foreach (var result in results)
+            {
+                if (result?.Ellipses != null)
+                {
+                    aiResult.Ellipses.AddRange(result.Ellipses);
+                }
+            }
             return aiResult;
         }
     }

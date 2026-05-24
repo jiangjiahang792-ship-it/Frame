@@ -84,6 +84,7 @@ namespace TDJS_Vision.Node._3_Detection.BinaryAnalysis
                         ((NodeResultBinaryAnalysis)Result).OutputImage.Rectangles = rectList;
 
                         ((NodeResultBinaryAnalysis)Result).Result.Texts.Add(new ColorText($"区域匹配结果个数：{rectList.Count}个", isOk == false ? Color.Red : Color.Green));
+                        ((NodeResultBinaryAnalysis)Result).OutputImage.DisplayResult = ((NodeResultBinaryAnalysis)Result).Result;
 
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         Result.RunTime = time;

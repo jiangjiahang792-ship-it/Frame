@@ -893,17 +893,18 @@
     <Compile Include="Node\3-Detection\TDAI\ParamFormTDAI.Designer.cs">
       <DependentUpon>ParamFormTDAI.cs</DependentUpon>
     </Compile>
-    <Compile Include="Node\3-Detection\MatchTemplate\TemplateCreate.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Node\3-Detection\MatchTemplate\TemplateCreate.Designer.cs">
-      <DependentUpon>TemplateCreate.cs</DependentUpon>
-    </Compile>
+    <Compile Include="Node\3-Detection\MatchTemplate\FastTemplateMatcher.cs" />
     <Compile Include="Node\3-Detection\MatchTemplate\NodeParamFormMatchTemplate.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Node\3-Detection\MatchTemplate\NodeParamFormMatchTemplate.Designer.cs">
       <DependentUpon>NodeParamFormMatchTemplate.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\MatchTemplate\TemplateCreateForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\MatchTemplate\TemplateCreateForm.Designer.cs">
+      <DependentUpon>TemplateCreateForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\3-Detection\MatchTemplate\NodeParamMatchTemplate.cs" />
     <Compile Include="Node\3-Detection\MatchTemplate\NodeMatchTemplate.cs">
@@ -1428,9 +1429,6 @@
     <EmbeddedResource Include="Node\3-Detection\TDAI\ParamFormTDAI.resx">
       <DependentUpon>ParamFormTDAI.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="Node\3-Detection\MatchTemplate\TemplateCreate.resx">
-      <DependentUpon>TemplateCreate.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="Node\3-Detection\MatchTemplate\NodeParamFormMatchTemplate.resx">
       <DependentUpon>NodeParamFormMatchTemplate.cs</DependentUpon>
     </EmbeddedResource>
@@ -1643,6 +1641,12 @@
     <Content Include="dll\FastColoredTextBox.dll" />
     <Content Include="dll\HslCommunication.dll" />
     <Content Include="dll\MvCameraControl.Net.dll" />
+    <Content Include="Native\MatchTool.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Native\opencv_world4100.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <None Include="Icon\Logo\桌面图.ico" />
     <None Include="Icon\Modbus.png" />
     <None Include="Icon\tcp.png" />

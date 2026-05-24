@@ -90,8 +90,34 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             result.Angle = measureResult.Angle;
             result.AlgorithmMs = measureResult.AlgorithmMs;
             result.OutputImage.Bitmaps = new List<Mat> { output };
-            result.Result.Clear();
-            result.Result.Texts.Add(new ColorText($"卡尺找椭圆：点数 {measureResult.PointCount}，中心({result.CenterX:F2}, {result.CenterY:F2})，宽高({result.Width:F2}, {result.Height:F2})，角度 {result.Angle:F2}°", Color.Lime));
+            result.Result = BuildDisplayResult(measureResult);
+            result.OutputImage.DisplayResult = result.Result;
+            return result;
+        }
+
+        internal static AlgorithmResult BuildDisplayResult(CaliperEllipseMeasureResult measureResult)
+        {
+            var result = new AlgorithmResult();
+            foreach (PointF point in measureResult.EdgePoints)
+                result.Circles.Add(new ColorCircle(point, 2, Color.Yellow));
+            foreach (PointF point in measureResult.FailedPoints)
+                result.Circles.Add(new ColorCircle(point, 2, Color.Red));
+
+            if (measureResult.Success)
+            {
+                var center = new PointF(measureResult.Center.X, measureResult.Center.Y);
+                result.Ellipses.Add(new ColorEllipse(center, measureResult.Size.Width, measureResult.Size.Height, measureResult.Angle, Color.Lime));
+                result.Circles.Add(new ColorCircle(center, 3, Color.Red));
+                result.Texts.Add(new ColorText($"卡尺找椭圆：点数 {measureResult.PointCount}，中心({measureResult.Center.X:F2}, {measureResult.Center.Y:F2})，宽高({measureResult.Size.Width:F2}, {measureResult.Size.Height:F2})，角度 {measureResult.Angle:F2}°", Color.Lime));
+            }
+            else
+            {
+                string message = string.IsNullOrWhiteSpace(measureResult.ErrorMessage)
+                    ? $"卡尺找椭圆失败：点数 {measureResult.PointCount}"
+                    : measureResult.ErrorMessage;
+                result.Texts.Add(new ColorText(message, Color.Red));
+            }
+
             return result;
         }
     }

@@ -59,7 +59,9 @@ namespace TDJS_Vision.Node._3_Detection.FindLine
                         ((NodeResultFindLine)Result).Result.Clear();
                         ((NodeResultFindLine)Result).Result.Lines.Add(new ColorLine(line, Color.Green));
                         ((NodeResultFindLine)Result).Result.Texts.Add(new ColorText($"识别到的直线P1({line.P1.X}, {line.P1.Y}), P2({line.P2.X}, {line.P2.Y})", Color.Green));
-                        ((NodeResultFindLine)Result).OutputImage.Bitmaps = new List<Mat>() { image.ToMat() };
+                        var outputImage = form.GetOutputImage();
+                        ((NodeResultFindLine)Result).OutputImage.Bitmaps = new List<Mat>() { outputImage.Bitmaps[0].Clone() };
+                        ((NodeResultFindLine)Result).OutputImage.DisplayResult = ((NodeResultFindLine)Result).Result;
 
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         Result.RunTime = time;
