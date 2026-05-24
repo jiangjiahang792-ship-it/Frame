@@ -55,39 +55,9 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
                         // 执行模版匹配
                         var matchResult = form.MatchTemplate(false);
-                        var rectList = matchResult.Matches.Select(m => m.Box.ToBoundingRect()).ToList();
-
                         // 输出结果
-                        ((NodeResultMatchTemplate)Result).OutputImage.Bitmaps = new List<Mat>() { matchResult.OutputBitmap.ToMat() };
-                        ((NodeResultMatchTemplate)Result).OutputImage.Rectangles = rectList;
-                        ((NodeResultMatchTemplate)Result).Result.Clear();
-                        ((NodeResultMatchTemplate)Result).Result.IsAllOk = matchResult.IsOk;
-                        ((NodeResultMatchTemplate)Result).Result.Texts.Add(new ColorText($"模版匹配结果个数：{matchResult.Matches.Count}个，耗时 {matchResult.AlgorithmMs:F2} ms", matchResult.IsOk ? Color.Green : Color.Red));
-                        for (int i = 0; i < matchResult.Matches.Count; i++)
-                        {
-                            var match = matchResult.Matches[i];
-                            if (param.ShowOutRegionStatus)
-                            {
-                                ((NodeResultMatchTemplate)Result).Result.Rects.Add(new ColorRotatedRect(
-                                    match.Box.CenterX,
-                                    match.Box.CenterY,
-                                    match.Box.Width,
-                                    match.Box.Height,
-                                    match.Box.Angle,
-                                    matchResult.IsOk ? Color.Lime : Color.Red));
-                            }
-
-                            ((NodeResultMatchTemplate)Result).Result.Texts.Add(new ColorText(
-                                $"模版匹配结果{i + 1}：中心（{match.Box.CenterX:F1}, {match.Box.CenterY:F1}） 角度{match.Box.Angle:F2}° 得分{match.Score * 100.0:F2}",
-                                matchResult.IsOk ? Color.Green : Color.Red));
-                        }
-
-                        if (param.ShowOutlineStatus)
-                        {
-                            foreach (var outline in matchResult.Outlines)
-                                ((NodeResultMatchTemplate)Result).Result.Contours.Add(new ColorContour(outline.Points, Color.Cyan));
-                        }
-                        ((NodeResultMatchTemplate)Result).OutputImage.DisplayResult = ((NodeResultMatchTemplate)Result).Result;
+                        var nodeResult = BuildResult(matchResult, param);
+                        Result = nodeResult;
 
                         if (!matchResult.IsOk)
                             throw new Exception($"当前图像匹配得分或者结果个数不足，请降低设置的得分阈值再次尝试！");
@@ -117,6 +87,68 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             }
             return new NodeReturn(NodeRunFlag.StopRun);
 
+        }
+
+        internal void PublishPreviewResult(FastTemplateMatchResult matchResult, NodeParamMatchTemplate param)
+        {
+            var nodeResult = BuildResult(matchResult, param);
+            nodeResult.RunTime = matchResult == null ? 0 : (int)Math.Round(matchResult.AlgorithmMs);
+            Result = nodeResult;
+        }
+
+        internal static NodeResultMatchTemplate BuildResult(FastTemplateMatchResult matchResult, NodeParamMatchTemplate param)
+        {
+            var nodeResult = new NodeResultMatchTemplate();
+            if (matchResult == null)
+                return nodeResult;
+
+            if (matchResult.OutputBitmap != null)
+                nodeResult.OutputImage.Bitmaps = new List<Mat>() { matchResult.OutputBitmap.ToMat() };
+            nodeResult.OutputImage.Rectangles = matchResult.Matches.Select(m => m.Box.ToBoundingRect()).ToList();
+            nodeResult.Result.Clear();
+            nodeResult.Result.IsAllOk = matchResult.IsOk;
+            nodeResult.IsOk = matchResult.IsOk;
+            nodeResult.MatchCount = matchResult.Matches.Count;
+            nodeResult.MatchX = 0;
+            nodeResult.MatchY = 0;
+            nodeResult.Angle = 0;
+            nodeResult.Score = 0;
+            if (matchResult.Matches.Count > 0)
+            {
+                var firstMatch = matchResult.Matches[0];
+                nodeResult.MatchX = firstMatch.Box.CenterX;
+                nodeResult.MatchY = firstMatch.Box.CenterY;
+                nodeResult.Angle = firstMatch.Box.Angle;
+                nodeResult.Score = firstMatch.Score * 100.0;
+            }
+
+            nodeResult.Result.Texts.Add(new ColorText($"模版匹配结果个数：{matchResult.Matches.Count}个，耗时 {matchResult.AlgorithmMs:F2} ms", matchResult.IsOk ? Color.Green : Color.Red));
+            for (int i = 0; i < matchResult.Matches.Count; i++)
+            {
+                var match = matchResult.Matches[i];
+                if (param == null || param.ShowOutRegionStatus)
+                {
+                    nodeResult.Result.Rects.Add(new ColorRotatedRect(
+                        match.Box.CenterX,
+                        match.Box.CenterY,
+                        match.Box.Width,
+                        match.Box.Height,
+                        match.Box.Angle,
+                        matchResult.IsOk ? Color.Lime : Color.Red));
+                }
+
+                nodeResult.Result.Texts.Add(new ColorText(
+                    $"模版匹配结果{i + 1}：中心（{match.Box.CenterX:F1}, {match.Box.CenterY:F1}） 角度{match.Box.Angle:F2}° 得分{match.Score * 100.0:F2}",
+                    matchResult.IsOk ? Color.Green : Color.Red));
+            }
+
+            if (param == null || param.ShowOutlineStatus)
+            {
+                foreach (var outline in matchResult.Outlines)
+                    nodeResult.Result.Contours.Add(new ColorContour(outline.Points, Color.Cyan));
+            }
+            nodeResult.OutputImage.DisplayResult = nodeResult.Result;
+            return nodeResult;
         }
     }
 }

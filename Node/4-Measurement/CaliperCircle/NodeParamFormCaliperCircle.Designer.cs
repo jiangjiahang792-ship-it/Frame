@@ -17,6 +17,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
         {
             this.nodeSubscription1 = new TDJS_Vision.Node.NodeSubscription();
             this.groupBoxInput = new System.Windows.Forms.GroupBox();
+            this.groupBoxPositionCorrection = new System.Windows.Forms.GroupBox();
+            this.checkBoxUsePositionCorrection = new System.Windows.Forms.CheckBox();
+            this.nodeSubscriptionPositionCorrection = new TDJS_Vision.Node.NodeSubscription();
             this.groupBoxGeometry = new System.Windows.Forms.GroupBox();
             this.labelCenterX = new System.Windows.Forms.Label();
             this.textBoxCenterX = new System.Windows.Forms.TextBox();
@@ -52,6 +55,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             this.buttonRun = new System.Windows.Forms.Button();
             this.buttonSave = new System.Windows.Forms.Button();
             this.groupBoxInput.SuspendLayout();
+            this.groupBoxPositionCorrection.SuspendLayout();
             this.groupBoxGeometry.SuspendLayout();
             this.groupBoxCaliper.SuspendLayout();
             this.SuspendLayout();
@@ -73,6 +77,37 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             this.groupBoxInput.TabIndex = 1;
             this.groupBoxInput.TabStop = false;
             this.groupBoxInput.Text = "输入图像";
+            //
+            // groupBoxPositionCorrection
+            //
+            this.groupBoxPositionCorrection.Controls.Add(this.checkBoxUsePositionCorrection);
+            this.groupBoxPositionCorrection.Controls.Add(this.nodeSubscriptionPositionCorrection);
+            this.groupBoxPositionCorrection.Location = new System.Drawing.Point(18, 124);
+            this.groupBoxPositionCorrection.Name = "groupBoxPositionCorrection";
+            this.groupBoxPositionCorrection.Size = new System.Drawing.Size(390, 88);
+            this.groupBoxPositionCorrection.TabIndex = 2;
+            this.groupBoxPositionCorrection.TabStop = false;
+            this.groupBoxPositionCorrection.Text = "位置修正";
+            //
+            // checkBoxUsePositionCorrection
+            //
+            this.checkBoxUsePositionCorrection.AutoSize = true;
+            this.checkBoxUsePositionCorrection.Location = new System.Drawing.Point(16, 24);
+            this.checkBoxUsePositionCorrection.Name = "checkBoxUsePositionCorrection";
+            this.checkBoxUsePositionCorrection.Size = new System.Drawing.Size(89, 19);
+            this.checkBoxUsePositionCorrection.TabIndex = 0;
+            this.checkBoxUsePositionCorrection.Text = "启用修正";
+            this.checkBoxUsePositionCorrection.UseVisualStyleBackColor = true;
+            this.checkBoxUsePositionCorrection.CheckedChanged += new System.EventHandler(this.checkBoxUsePositionCorrection_CheckedChanged);
+            //
+            // nodeSubscriptionPositionCorrection
+            //
+            this.nodeSubscriptionPositionCorrection.Enabled = false;
+            this.nodeSubscriptionPositionCorrection.Location = new System.Drawing.Point(16, 48);
+            this.nodeSubscriptionPositionCorrection.Margin = new System.Windows.Forms.Padding(4);
+            this.nodeSubscriptionPositionCorrection.Name = "nodeSubscriptionPositionCorrection";
+            this.nodeSubscriptionPositionCorrection.Size = new System.Drawing.Size(356, 32);
+            this.nodeSubscriptionPositionCorrection.TabIndex = 1;
             // 
             // groupBoxGeometry
             // 
@@ -86,10 +121,10 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             this.groupBoxGeometry.Controls.Add(this.textBoxStartAngle);
             this.groupBoxGeometry.Controls.Add(this.labelEndAngle);
             this.groupBoxGeometry.Controls.Add(this.textBoxEndAngle);
-            this.groupBoxGeometry.Location = new System.Drawing.Point(18, 124);
+            this.groupBoxGeometry.Location = new System.Drawing.Point(18, 218);
             this.groupBoxGeometry.Name = "groupBoxGeometry";
             this.groupBoxGeometry.Size = new System.Drawing.Size(390, 154);
-            this.groupBoxGeometry.TabIndex = 2;
+            this.groupBoxGeometry.TabIndex = 3;
             this.groupBoxGeometry.TabStop = false;
             this.groupBoxGeometry.Text = "基准圆/圆弧";
             // 
@@ -196,10 +231,10 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             this.groupBoxCaliper.Controls.Add(this.comboBoxFindMode);
             this.groupBoxCaliper.Controls.Add(this.labelDirection);
             this.groupBoxCaliper.Controls.Add(this.comboBoxDirection);
-            this.groupBoxCaliper.Location = new System.Drawing.Point(18, 284);
+            this.groupBoxCaliper.Location = new System.Drawing.Point(18, 378);
             this.groupBoxCaliper.Name = "groupBoxCaliper";
             this.groupBoxCaliper.Size = new System.Drawing.Size(390, 204);
-            this.groupBoxCaliper.TabIndex = 3;
+            this.groupBoxCaliper.TabIndex = 4;
             this.groupBoxCaliper.TabStop = false;
             this.groupBoxCaliper.Text = "卡尺参数";
             // 
@@ -355,56 +390,56 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             this.showImageControl1.RoiColor = System.Drawing.Color.Lime;
             this.showImageControl1.ShowCheckerBackground = false;
             this.showImageControl1.ShowPixelInfo = false;
-            this.showImageControl1.Size = new System.Drawing.Size(520, 444);
+            this.showImageControl1.Size = new System.Drawing.Size(520, 532);
             this.showImageControl1.StaticShapeColor = System.Drawing.Color.Red;
-            this.showImageControl1.TabIndex = 4;
+            this.showImageControl1.TabIndex = 5;
             //
             // buttonDrawRoi
             //
-            this.buttonDrawRoi.Location = new System.Drawing.Point(424, 506);
+            this.buttonDrawRoi.Location = new System.Drawing.Point(424, 594);
             this.buttonDrawRoi.Name = "buttonDrawRoi";
             this.buttonDrawRoi.Size = new System.Drawing.Size(92, 34);
-            this.buttonDrawRoi.TabIndex = 5;
+            this.buttonDrawRoi.TabIndex = 6;
             this.buttonDrawRoi.Text = "绘制ROI";
             this.buttonDrawRoi.UseVisualStyleBackColor = true;
             this.buttonDrawRoi.Click += new System.EventHandler(this.buttonDrawRoi_Click);
             //
             // buttonConfirmRoi
             //
-            this.buttonConfirmRoi.Location = new System.Drawing.Point(522, 506);
+            this.buttonConfirmRoi.Location = new System.Drawing.Point(522, 594);
             this.buttonConfirmRoi.Name = "buttonConfirmRoi";
             this.buttonConfirmRoi.Size = new System.Drawing.Size(92, 34);
-            this.buttonConfirmRoi.TabIndex = 6;
+            this.buttonConfirmRoi.TabIndex = 7;
             this.buttonConfirmRoi.Text = "确认ROI";
             this.buttonConfirmRoi.UseVisualStyleBackColor = true;
             this.buttonConfirmRoi.Click += new System.EventHandler(this.buttonConfirmRoi_Click);
             //
             // buttonRefresh
             // 
-            this.buttonRefresh.Location = new System.Drawing.Point(620, 506);
+            this.buttonRefresh.Location = new System.Drawing.Point(620, 594);
             this.buttonRefresh.Name = "buttonRefresh";
             this.buttonRefresh.Size = new System.Drawing.Size(98, 34);
-            this.buttonRefresh.TabIndex = 7;
+            this.buttonRefresh.TabIndex = 8;
             this.buttonRefresh.Text = "刷新图像";
             this.buttonRefresh.UseVisualStyleBackColor = true;
             this.buttonRefresh.Click += new System.EventHandler(this.buttonRefresh_Click);
             // 
             // buttonRun
             // 
-            this.buttonRun.Location = new System.Drawing.Point(724, 506);
+            this.buttonRun.Location = new System.Drawing.Point(724, 594);
             this.buttonRun.Name = "buttonRun";
             this.buttonRun.Size = new System.Drawing.Size(100, 34);
-            this.buttonRun.TabIndex = 8;
+            this.buttonRun.TabIndex = 9;
             this.buttonRun.Text = "执行";
             this.buttonRun.UseVisualStyleBackColor = true;
             this.buttonRun.Click += new System.EventHandler(this.buttonRun_Click);
             // 
             // buttonSave
             // 
-            this.buttonSave.Location = new System.Drawing.Point(844, 506);
+            this.buttonSave.Location = new System.Drawing.Point(844, 594);
             this.buttonSave.Name = "buttonSave";
             this.buttonSave.Size = new System.Drawing.Size(100, 34);
-            this.buttonSave.TabIndex = 9;
+            this.buttonSave.TabIndex = 10;
             this.buttonSave.Text = "确定";
             this.buttonSave.UseVisualStyleBackColor = true;
             this.buttonSave.Click += new System.EventHandler(this.buttonSave_Click);
@@ -413,7 +448,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(962, 558);
+            this.ClientSize = new System.Drawing.Size(962, 646);
             this.Controls.Add(this.buttonSave);
             this.Controls.Add(this.buttonRun);
             this.Controls.Add(this.buttonRefresh);
@@ -422,10 +457,13 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             this.Controls.Add(this.showImageControl1);
             this.Controls.Add(this.groupBoxCaliper);
             this.Controls.Add(this.groupBoxGeometry);
+            this.Controls.Add(this.groupBoxPositionCorrection);
             this.Controls.Add(this.groupBoxInput);
             this.Name = "NodeParamFormCaliperCircle";
             this.Text = "卡尺找圆";
             this.groupBoxInput.ResumeLayout(false);
+            this.groupBoxPositionCorrection.ResumeLayout(false);
+            this.groupBoxPositionCorrection.PerformLayout();
             this.groupBoxGeometry.ResumeLayout(false);
             this.groupBoxGeometry.PerformLayout();
             this.groupBoxCaliper.ResumeLayout(false);
@@ -435,6 +473,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
 
         private TDJS_Vision.Node.NodeSubscription nodeSubscription1;
         private System.Windows.Forms.GroupBox groupBoxInput;
+        private System.Windows.Forms.GroupBox groupBoxPositionCorrection;
+        private System.Windows.Forms.CheckBox checkBoxUsePositionCorrection;
+        private TDJS_Vision.Node.NodeSubscription nodeSubscriptionPositionCorrection;
         private System.Windows.Forms.GroupBox groupBoxGeometry;
         private System.Windows.Forms.Label labelCenterX;
         private System.Windows.Forms.TextBox textBoxCenterX;

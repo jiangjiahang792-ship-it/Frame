@@ -6,6 +6,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
     {
         public string Text1 { get; set; }
         public string Text2 { get; set; }
+        public bool UsePositionCorrection { get; set; }
+        public string CorrectionText1 { get; set; }
+        public string CorrectionText2 { get; set; }
         public float CenterX { get; set; } = 250;
         public float CenterY { get; set; } = 250;
         public float Radius { get; set; } = 100;

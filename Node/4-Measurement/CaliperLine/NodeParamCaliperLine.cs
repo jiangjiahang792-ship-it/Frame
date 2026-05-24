@@ -6,6 +6,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
     {
         public string Text1 { get; set; }
         public string Text2 { get; set; }
+        public bool UsePositionCorrection { get; set; }
+        public string CorrectionText1 { get; set; }
+        public string CorrectionText2 { get; set; }
         public float StartX { get; set; } = 100;
         public float StartY { get; set; } = 100;
         public float EndX { get; set; } = 400;

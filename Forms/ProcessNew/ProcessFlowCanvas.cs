@@ -7,6 +7,7 @@ using System.Windows.Forms;
 using OpenCvSharp.Extensions;
 using TDJS_Vision.Node;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
+using TDJS_Vision.Node._3_Detection.TDAI;
 using Mat = OpenCvSharp.Mat;
 
 namespace TDJS_Vision.Forms.ProcessNew
@@ -1257,7 +1258,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 graphics.FillRectangle(contentBrush, content);
 
             if (previewBitmap != null)
-                DrawPreviewBitmap(graphics, previewBitmap, content);
+                DrawPreviewBitmap(graphics, previewBitmap, GetPreviewDisplayResult(previewInfo), content);
             else
                 DrawPreviewPlaceholder(graphics, content, string.Empty);
         }
@@ -1341,7 +1342,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
         }
 
-        private void DrawPreviewBitmap(Graphics graphics, Bitmap previewBitmap, Rectangle content)
+        private void DrawPreviewBitmap(Graphics graphics, Bitmap previewBitmap, AlgorithmResult displayResult, Rectangle content)
         {
             _previewImageDrawBounds = GetContainedImageBounds(previewBitmap.Size, content);
             _previewImagePixelSize = previewBitmap.Size;
@@ -1351,11 +1352,165 @@ namespace TDJS_Vision.Forms.ProcessNew
             graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
             graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
             graphics.DrawImage(previewBitmap, _previewImageDrawBounds);
+            DrawPreviewDisplayResult(graphics, displayResult, previewBitmap.Size, _previewImageDrawBounds);
             graphics.InterpolationMode = oldInterpolationMode;
             graphics.PixelOffsetMode = oldPixelOffsetMode;
 
             using (Pen border = new Pen(Color.FromArgb(82, 88, 96), 1F))
                 graphics.DrawRectangle(border, _previewImageDrawBounds);
+        }
+
+        private void DrawPreviewDisplayResult(Graphics graphics, AlgorithmResult displayResult, Size imageSize, Rectangle imageBounds)
+        {
+            if (displayResult == null ||
+                imageSize.Width <= 0 ||
+                imageSize.Height <= 0 ||
+                imageBounds.Width <= 0 ||
+                imageBounds.Height <= 0)
+            {
+                return;
+            }
+
+            float scaleX = imageBounds.Width / (float)imageSize.Width;
+            float scaleY = imageBounds.Height / (float)imageSize.Height;
+            float scale = Math.Min(scaleX, scaleY);
+            SmoothingMode oldSmoothingMode = graphics.SmoothingMode;
+            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            foreach (ColorRotatedRect rect in displayResult.Rects)
+                DrawPreviewRotatedRect(graphics, rect, imageBounds, scaleX, scaleY);
+
+            foreach (List<ColorRotatedRect> rects in displayResult.RectsNgMap.Values)
+            {
+                foreach (ColorRotatedRect rect in rects)
+                    DrawPreviewRotatedRect(graphics, rect, imageBounds, scaleX, scaleY);
+            }
+
+            foreach (ColorLine line in displayResult.Lines)
+            {
+                using (Pen pen = CreatePreviewPen(line.Color, scale))
+                    graphics.DrawLine(pen, MapPreviewPoint(line.P1, imageBounds, scaleX, scaleY), MapPreviewPoint(line.P2, imageBounds, scaleX, scaleY));
+            }
+
+            foreach (ColorCircle circle in displayResult.Circles)
+            {
+                PointF center = MapPreviewPoint(circle.Center, imageBounds, scaleX, scaleY);
+                float radius = Math.Max(1.5F, circle.Radius * scale);
+                using (Pen pen = CreatePreviewPen(circle.Color, scale))
+                    graphics.DrawEllipse(pen, center.X - radius, center.Y - radius, radius * 2, radius * 2);
+            }
+
+            foreach (ColorEllipse ellipse in displayResult.Ellipses)
+            {
+                PointF center = MapPreviewPoint(ellipse.Center, imageBounds, scaleX, scaleY);
+                GraphicsState state = graphics.Save();
+                graphics.TranslateTransform(center.X, center.Y);
+                graphics.RotateTransform(ellipse.Angle);
+                using (Pen pen = CreatePreviewPen(ellipse.Color, scale))
+                    graphics.DrawEllipse(pen, -ellipse.Width * scaleX / 2F, -ellipse.Height * scaleY / 2F, ellipse.Width * scaleX, ellipse.Height * scaleY);
+                graphics.Restore(state);
+            }
+
+            foreach (ColorContour contour in displayResult.Contours)
+                DrawPreviewContour(graphics, contour, imageBounds, scaleX, scaleY, scale);
+
+            DrawPreviewResultText(graphics, displayResult, imageBounds);
+            graphics.SmoothingMode = oldSmoothingMode;
+        }
+
+        private static void DrawPreviewRotatedRect(Graphics graphics, ColorRotatedRect rect, Rectangle imageBounds, float scaleX, float scaleY)
+        {
+            if (rect == null)
+                return;
+
+            float centerX = imageBounds.X + rect.RotatedRect.center.x * scaleX;
+            float centerY = imageBounds.Y + rect.RotatedRect.center.y * scaleY;
+            float width = rect.RotatedRect.size.width * scaleX;
+            float height = rect.RotatedRect.size.height * scaleY;
+            if (width <= 0F || height <= 0F)
+                return;
+
+            using (GraphicsPath path = CreateRotatedRectPath(centerX, centerY, width, height, rect.RotatedRect.angle))
+            using (Pen pen = CreatePreviewPen(rect.Color, Math.Min(scaleX, scaleY)))
+            {
+                graphics.DrawPath(pen, path);
+            }
+        }
+
+        private static GraphicsPath CreateRotatedRectPath(float centerX, float centerY, float width, float height, float angle)
+        {
+            float halfWidth = width / 2F;
+            float halfHeight = height / 2F;
+            PointF[] points =
+            {
+                new PointF(-halfWidth, -halfHeight),
+                new PointF(halfWidth, -halfHeight),
+                new PointF(halfWidth, halfHeight),
+                new PointF(-halfWidth, halfHeight)
+            };
+
+            using (Matrix matrix = new Matrix())
+            {
+                matrix.Rotate(angle);
+                matrix.Translate(centerX, centerY, MatrixOrder.Append);
+                matrix.TransformPoints(points);
+            }
+
+            GraphicsPath path = new GraphicsPath();
+            path.AddPolygon(points);
+            return path;
+        }
+
+        private static void DrawPreviewContour(Graphics graphics, ColorContour contour, Rectangle imageBounds, float scaleX, float scaleY, float scale)
+        {
+            if (contour == null || contour.Points == null || contour.Points.Count == 0)
+                return;
+
+            int step = Math.Max(1, contour.Points.Count / 1200);
+            float dotSize = Math.Max(1F, 1.5F * scale);
+            using (SolidBrush brush = new SolidBrush(contour.Color))
+            {
+                for (int i = 0; i < contour.Points.Count; i += step)
+                {
+                    PointF point = MapPreviewPoint(contour.Points[i], imageBounds, scaleX, scaleY);
+                    graphics.FillRectangle(brush, point.X - dotSize / 2F, point.Y - dotSize / 2F, dotSize, dotSize);
+                }
+            }
+        }
+
+        private static void DrawPreviewResultText(Graphics graphics, AlgorithmResult displayResult, Rectangle imageBounds)
+        {
+            if (displayResult.Texts.Count == 0)
+                return;
+
+            int maxLines = Math.Min(2, displayResult.Texts.Count);
+            Rectangle textBounds = new Rectangle(imageBounds.X + 6, imageBounds.Y + 6, Math.Max(20, imageBounds.Width - 12), maxLines * 17 + 6);
+            using (SolidBrush backBrush = new SolidBrush(Color.FromArgb(150, 0, 0, 0)))
+                graphics.FillRectangle(backBrush, textBounds);
+
+            using (Font font = new Font("Microsoft YaHei", 7.5F, FontStyle.Regular))
+            using (StringFormat format = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap })
+            {
+                for (int i = 0; i < maxLines; i++)
+                {
+                    ColorText text = displayResult.Texts[i];
+                    using (SolidBrush textBrush = new SolidBrush(text.Color))
+                    {
+                        Rectangle lineBounds = new Rectangle(textBounds.X + 4, textBounds.Y + 3 + i * 17, textBounds.Width - 8, 16);
+                        graphics.DrawString(text.Text, font, textBrush, lineBounds, format);
+                    }
+                }
+            }
+        }
+
+        private static PointF MapPreviewPoint(PointF point, Rectangle imageBounds, float scaleX, float scaleY)
+        {
+            return new PointF(imageBounds.X + point.X * scaleX, imageBounds.Y + point.Y * scaleY);
+        }
+
+        private static Pen CreatePreviewPen(Color color, float scale)
+        {
+            return new Pen(color, Math.Max(1.4F, 2.0F * Math.Max(0.7F, scale)));
         }
 
         private void DrawPreviewPlaceholder(Graphics graphics, Rectangle content, string text)
@@ -1491,6 +1646,15 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
 
             return _cachedPreviewBitmap;
+        }
+
+        private AlgorithmResult GetPreviewDisplayResult(PreviewImageInfo previewInfo)
+        {
+            if (previewInfo == null)
+                return null;
+
+            OutputImage output = GetOutputImage(previewInfo.Node);
+            return output == null ? null : output.DisplayResult;
         }
 
         private void DisposePreviewCache()

@@ -5,7 +5,6 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
@@ -14,7 +13,6 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 {
     public partial class NodeParamFormMatchTemplate : FormBase, INodeParamForm
     {
-        private Process process;
         private NodeBase node;
         private Bitmap src;
         private Bitmap templateImage;
@@ -42,7 +40,6 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         public NodeParamFormMatchTemplate(Process process, NodeBase nodeBase)
         {
             InitializeComponent();
-            this.process = process;
             node = nodeBase;
             Shown += NodeParamFormQRCodeIdentification_Shown;
 
@@ -123,9 +120,8 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// <summary>
         /// 刷新输入图像。
         /// </summary>
-        private async void button3_Click(object sender, EventArgs e)
+        private void button3_Click(object sender, EventArgs e)
         {
-            await process.RunForUpdateImages(node);
             UpdataImage();
         }
 
@@ -297,6 +293,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             try
             {
                 var result = MatchTemplate();
+                PublishMatchResult(result);
                 UpdateRunStatus(result);
                 if (result.Matches.Count == 0)
                     MessageBoxTD.Show("未找到模板匹配目标。");
@@ -494,6 +491,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             {
                 continuousRunBusy = true;
                 var result = MatchTemplate();
+                PublishMatchResult(result);
                 UpdateRunStatus(result);
             }
             catch (Exception ex)
@@ -695,22 +693,31 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             }
         }
 
-        private async Task EnsureSourceImageReadyForTemplateAsync()
+        private System.Threading.Tasks.Task EnsureSourceImageReadyForTemplateAsync()
         {
             UpdataImage();
-            if (src == null)
-            {
-                await process.RunForUpdateImages(node);
-                UpdataImage();
-            }
 
             if (src == null)
-                throw new InvalidOperationException("源图像不能为空，请先刷新或订阅图像。");
+                throw new InvalidOperationException("源图像不能为空，请先运行流程或主页运行按钮更新订阅图像，再点击刷新图像。");
 
             showImageControlSource.SetImage((Bitmap)src.Clone());
             showImageControlSource.ShowFit();
             showImageControlSource.Refresh();
             ClearSearchRegionEditRoi();
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+
+        private void PublishMatchResult(FastTemplateMatchResult result)
+        {
+            if (node is NodeMatchTemplate matchNode)
+            {
+                var displayParam = new NodeParamMatchTemplate
+                {
+                    ShowOutRegionStatus = showOutRegionStatus,
+                    ShowOutlineStatus = showOutlineStatus
+                };
+                matchNode.PublishPreviewResult(result, displayParam);
+            }
         }
 
         private void buttonRestoreTemplate_Click(object sender, EventArgs e)

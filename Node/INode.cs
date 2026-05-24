@@ -214,6 +214,10 @@ namespace TDJS_Vision.Node
         /// </summary>
         CaliperEllipse,
         /// <summary>
+        /// 位置修正
+        /// </summary>
+        PositionCorrection,
+        /// <summary>
         /// 模板匹配
         /// </summary>
         TemplateMatch,

@@ -11,7 +11,6 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
 {
     public partial class NodeParamFormCaliperEllipse : FormBase, INodeParamForm
     {
-        private readonly Process process;
         private readonly NodeBase node;
         private bool _isSyncingRoi;
         private bool _roiVisible;
@@ -19,7 +18,6 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
         public NodeParamFormCaliperEllipse(Process process, NodeBase node)
         {
             InitializeComponent();
-            this.process = process;
             this.node = node;
             InitializeCombos();
             BindRoiRefreshEvents();
@@ -30,6 +28,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
         public void SetNodeBelong(NodeBase node)
         {
             nodeSubscription1.Init(node);
+            nodeSubscriptionPositionCorrection.Init(node);
         }
 
         public void SetParam2Form()
@@ -42,6 +41,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             try
             {
                 nodeSubscription1.SetText(param.Text1, param.Text2);
+                checkBoxUsePositionCorrection.Checked = param.UsePositionCorrection;
+                nodeSubscriptionPositionCorrection.SetText(param.CorrectionText1, param.CorrectionText2);
                 textBoxCenterX.Text = param.CenterX.ToString();
                 textBoxCenterY.Text = param.CenterY.ToString();
                 textBoxWidth.Text = param.Width.ToString();
@@ -55,6 +56,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 comboBoxPolarity.SelectedItem = param.Polarity;
                 comboBoxFindMode.SelectedItem = param.FindMode;
                 comboBoxDirection.SelectedIndex = param.Direction == 1 ? 1 : 0;
+                UpdatePositionCorrectionEnabled();
             }
             finally
             {
@@ -69,21 +71,22 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             using (Mat source = GetInputMat())
             using (Mat gray = CaliperMeasurementAlgorithm.ToGray(source))
             {
+                NodeParamCaliperEllipse runtimeParam = BuildRuntimeParam(param);
                 var algorithmParam = new CaliperEllipseParams
                 {
-                    CenterX = param.CenterX,
-                    CenterY = param.CenterY,
-                    Width = param.Width,
-                    Height = param.Height,
-                    Angle = param.Angle,
-                    CaliperWidth = param.CaliperWidth,
-                    CaliperHeight = param.CaliperHeight,
-                    Count = param.Count,
-                    EdgeStrength = param.EdgeStrength,
-                    Polarity = param.Polarity,
-                    FindMode = param.FindMode,
-                    Direction = param.Direction,
-                    BlurSize = param.BlurSize
+                    CenterX = runtimeParam.CenterX,
+                    CenterY = runtimeParam.CenterY,
+                    Width = runtimeParam.Width,
+                    Height = runtimeParam.Height,
+                    Angle = runtimeParam.Angle,
+                    CaliperWidth = runtimeParam.CaliperWidth,
+                    CaliperHeight = runtimeParam.CaliperHeight,
+                    Count = runtimeParam.Count,
+                    EdgeStrength = runtimeParam.EdgeStrength,
+                    Polarity = runtimeParam.Polarity,
+                    FindMode = runtimeParam.FindMode,
+                    Direction = runtimeParam.Direction,
+                    BlurSize = runtimeParam.BlurSize
                 };
 
                 CaliperEllipseMeasureResult result = CaliperMeasurementAlgorithm.FindEllipse(gray, algorithmParam);
@@ -165,12 +168,47 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             return MeasurementNodeHelper.GetFirstMat(outputImage);
         }
 
+        private NodeParamCaliperEllipse BuildRuntimeParam(NodeParamCaliperEllipse param)
+        {
+            if (param == null || !param.UsePositionCorrection)
+                return param;
+
+            PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
+            PositionCorrectionHelper.EnsureValid(correctionInfo);
+            PointF center = correctionInfo.TransformPoint(param.CenterX, param.CenterY);
+
+            return new NodeParamCaliperEllipse
+            {
+                Text1 = param.Text1,
+                Text2 = param.Text2,
+                UsePositionCorrection = param.UsePositionCorrection,
+                CorrectionText1 = param.CorrectionText1,
+                CorrectionText2 = param.CorrectionText2,
+                CenterX = center.X,
+                CenterY = center.Y,
+                Width = param.Width,
+                Height = param.Height,
+                Angle = param.Angle + (float)correctionInfo.DeltaAngle,
+                CaliperWidth = param.CaliperWidth,
+                CaliperHeight = param.CaliperHeight,
+                Count = param.Count,
+                EdgeStrength = param.EdgeStrength,
+                BlurSize = param.BlurSize,
+                Polarity = param.Polarity,
+                FindMode = param.FindMode,
+                Direction = param.Direction
+            };
+        }
+
         private bool SaveParams()
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(nodeSubscription1.GetText1()) || string.IsNullOrWhiteSpace(nodeSubscription1.GetText2()))
                     throw new Exception("请选择输入图像！");
+                if (checkBoxUsePositionCorrection.Checked &&
+                    (string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText1()) || string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText2())))
+                    throw new Exception("请选择位置修正信息。");
 
                 TryReadRoiToFields();
 
@@ -178,6 +216,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 {
                     Text1 = nodeSubscription1.GetText1(),
                     Text2 = nodeSubscription1.GetText2(),
+                    UsePositionCorrection = checkBoxUsePositionCorrection.Checked,
+                    CorrectionText1 = nodeSubscriptionPositionCorrection.GetText1(),
+                    CorrectionText2 = nodeSubscriptionPositionCorrection.GetText2(),
                     CenterX = ParseFloat(textBoxCenterX, "中心X"),
                     CenterY = ParseFloat(textBoxCenterY, "中心Y"),
                     Width = ParseFloat(textBoxWidth, "宽度"),
@@ -251,11 +292,10 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             }
         }
 
-        private async void buttonRefresh_Click(object sender, EventArgs e)
+        private void buttonRefresh_Click(object sender, EventArgs e)
         {
             try
             {
-                await process.RunForUpdateImages(node);
                 using (Mat input = GetInputMat())
                 {
                     SetPreview(input);
@@ -322,6 +362,17 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
         {
             TryReadRoiToFields();
             ClearEditingRoi();
+        }
+
+        private void checkBoxUsePositionCorrection_CheckedChanged(object sender, EventArgs e)
+        {
+            UpdatePositionCorrectionEnabled();
+        }
+
+        private void UpdatePositionCorrectionEnabled()
+        {
+            if (nodeSubscriptionPositionCorrection != null)
+                nodeSubscriptionPositionCorrection.Enabled = checkBoxUsePositionCorrection.Checked;
         }
 
         private void ClearEditingRoi()

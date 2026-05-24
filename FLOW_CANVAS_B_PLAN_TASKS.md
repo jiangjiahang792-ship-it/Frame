@@ -16,7 +16,7 @@ This means the target is not only a visual style change. The work includes:
 
 ## Current Step
 
-The current implementation step is **Phase 15.7: Fast Rotated Template Matching Feedback Pass**.
+The current implementation step is **Phase 16: Position Correction And Measurement Following**.
 
 ### Latest Progress
 
@@ -178,6 +178,20 @@ The current implementation step is **Phase 15.7: Fast Rotated Template Matching 
   - [x] Applied the same no-default-ROI behavior to caliper line, circle, and ellipse parameter forms, with designer-visible Draw ROI and Confirm ROI buttons.
   - [x] Hardened embedded-template restore after reopening a solution: PNG byte decode now has an OpenCV fallback, template bitmap replacement is atomic, and contour-preview failures no longer block template restore.
   - [x] Fixed the specific reopened-template restore failure in `FastTemplateMatcher.To24Bpp(...)` by replacing the fragile 24bpp `Bitmap.Clone()` path with a `LockBits` row-copy path plus OpenCV fallback.
+- Phase 16 position correction and measurement-following planning:
+  - [x] New request captured: add a position-correction/following tool so measurement ROIs can follow a matched product location.
+  - [x] First-pass correction data should use X, Y, and angle only.
+  - [x] Position correction should subscribe to upstream template-matching location data, store a user-created baseline, and output current offset/angle correction information.
+  - [x] Measurement tools should expose designer-visible controls for enabling position correction and subscribing to correction information.
+  - [x] When enabled, measurement runtime should transform saved measurement geometry by the subscribed correction before measuring.
+  - [x] Implement a new position-correction node/result/parameter form and toolbox/language/project registration.
+  - [x] Add correction subscription controls and runtime geometry transform to caliper line, circle, and ellipse tools.
+  - [x] Build-verify after first implementation pass.
+  - [x] Feedback fix: template-match and caliper parameter-form Refresh Image actions now only reload the current subscribed image result and no longer run upstream flow nodes.
+  - [x] Feedback fix: local template-match Run/Continuous Run now publishes MatchX, MatchY, Angle, Score, and display output to the node result so position-correction baseline creation reads the just-previewed match result.
+  - [x] Feedback fix: position-correction Create Baseline and local Run now publish the current correction info to the node result so same-image baseline correction remains an identity transform for downstream calipers.
+  - [x] Build-verify after the refresh-image/no-upstream-run and baseline-result publishing fixes.
+  - [ ] Runtime-verify template match -> position correction -> measurement follow on real images.
 - TDAI stability fix:
   - [x] Added a model-readiness guard before `NodeTDAI` reads `param.Yolo8.ModelType`, so a failed startup model load now reports a clear model/config error instead of throwing a null reference.
   - [x] Made `ParamFormTDAI.LoadModel(...)` clear `param.Yolo8` on load failure and log failures without dereferencing missing AI config data.
@@ -210,6 +224,7 @@ The current implementation step is **Phase 15.7: Fast Rotated Template Matching 
   - [x] `TDJS-Vision.sln` builds successfully after the ROI default-visibility and template/source refresh feedback pass.
   - [x] `TDJS-Vision.sln` builds successfully after the embedded-template restore hardening pass.
   - [x] `TDJS-Vision.sln` builds successfully after replacing the reopened-template 24bpp clone path.
+  - [x] `TDJS-Vision.sln` builds successfully after the Phase 16 refresh-image/no-upstream-run and position-correction result publishing fixes.
 - Verified subscription regression points:
   - [x] A node with `A -> C` and `B -> C` shows both `A` and `B` as subscription candidates.
   - [x] Deleting a connection removes the disconnected node from subscription candidates.

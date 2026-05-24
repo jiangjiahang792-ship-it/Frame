@@ -332,6 +332,7 @@
     <Compile Include="JsonProjectSerializer.cs" />
     <Compile Include="Node\4-Measurement\Common\CaliperMeasurementAlgorithm.cs" />
     <Compile Include="Node\4-Measurement\Common\MeasurementNodeHelper.cs" />
+    <Compile Include="Node\4-Measurement\Common\PositionCorrectionInfo.cs" />
     <Compile Include="Node\4-Measurement\CaliperLine\NodeCaliperLine.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -365,6 +366,17 @@
       <DependentUpon>NodeParamFormCaliperEllipse.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\4-Measurement\CaliperEllipse\NodeResultCaliperEllipse.cs" />
+    <Compile Include="Node\4-Measurement\PositionCorrection\NodeParamFormPositionCorrection.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\PositionCorrection\NodeParamFormPositionCorrection.Designer.cs">
+      <DependentUpon>NodeParamFormPositionCorrection.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\4-Measurement\PositionCorrection\NodeParamPositionCorrection.cs" />
+    <Compile Include="Node\4-Measurement\PositionCorrection\NodePositionCorrection.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\PositionCorrection\NodeResultPositionCorrection.cs" />
     <Compile Include="Node\3-Detection\BatteryEar\FormNewTemplate.cs">
       <SubType>Form</SubType>
     </Compile>
