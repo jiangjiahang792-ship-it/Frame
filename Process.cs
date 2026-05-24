@@ -244,6 +244,18 @@ namespace TDJS_Vision
         /// </summary>
         private async Task<bool> RunConnectedNodes(NodeBase nodeToSkip = null, NodeBase stopBeforeNode = null)
         {
+            if (nodeToSkip != null ||
+                stopBeforeNode != null ||
+                !CanUseParallelConnectedRuntime())
+            {
+                return await RunConnectedNodesSequential(nodeToSkip, stopBeforeNode);
+            }
+
+            return await RunConnectedNodesParallel(nodeToSkip, stopBeforeNode);
+        }
+
+        private async Task<bool> RunConnectedNodesSequential(NodeBase nodeToSkip = null, NodeBase stopBeforeNode = null)
+        {
             HashSet<int> visitedNodeIds = new HashSet<int>();
             foreach (NodeBase startNode in GetConnectionStartNodes())
             {
@@ -291,6 +303,425 @@ namespace TDJS_Vision
             }
 
             return false;
+        }
+
+        private async Task<bool> RunConnectedNodesParallel(NodeBase nodeToSkip = null, NodeBase stopBeforeNode = null)
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            long logicalRunTime = 0;
+            try
+            {
+                HashSet<int> completedNodeIds = new HashSet<int>();
+                Dictionary<int, long> completedNodeFinishTimes = new Dictionary<int, long>();
+                foreach (NodeBase startNode in GetConnectionStartNodes())
+                {
+                    if (startNode == null || completedNodeIds.Contains(startNode.ID))
+                        continue;
+
+                    long componentStartTime = logicalRunTime;
+                    HashSet<int> componentNodeIds = GetConnectedComponentNodeIds(startNode);
+                    HashSet<int> inactiveNodeIds = new HashSet<int>();
+                    HashSet<string> skippedEdges = new HashSet<string>();
+
+                    while (true)
+                    {
+                        List<NodeBase> readyNodes = GetReadyComponentNodes(componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges, startNode);
+                        if (readyNodes.Count == 0)
+                            break;
+
+                        if (stopBeforeNode != null && ContainsNode(readyNodes, stopBeforeNode))
+                            return false;
+
+                        List<NodeBase> batch = BuildReadyExecutionBatch(readyNodes);
+                        List<ConnectedNodeRunResult> results = await RunReadyNodeBatch(batch, nodeToSkip);
+                        foreach (ConnectedNodeRunResult runResult in results)
+                        {
+                            NodeBase node = runResult.Node;
+                            completedNodeIds.Add(node.ID);
+
+                            long nodeStartTime = GetNodeDependencyFinishTime(
+                                node,
+                                componentNodeIds,
+                                inactiveNodeIds,
+                                skippedEdges,
+                                completedNodeFinishTimes,
+                                componentStartTime);
+                            long nodeFinishTime = nodeStartTime + GetRunResultLogicalTime(runResult);
+                            completedNodeFinishTimes[node.ID] = nodeFinishTime;
+                            if (nodeFinishTime > logicalRunTime)
+                                logicalRunTime = nodeFinishTime;
+
+                            if (!runResult.SkippedExecution &&
+                                runResult.Return != null &&
+                                runResult.Return.Flag == NodeRunFlag.StopRun)
+                            {
+                                return true;
+                            }
+
+                            if (!runResult.SkippedExecution)
+                                ApplyConditionalBranchSkips(node, runResult.Return, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
+                        }
+                    }
+                }
+
+                return false;
+            }
+            finally
+            {
+                stopwatch.Stop();
+                RunTime = logicalRunTime > 0 ? logicalRunTime : stopwatch.ElapsedMilliseconds;
+            }
+        }
+
+        private List<ConnectedNodeRunResult> GetOrderedResults(List<NodeBase> batch, Dictionary<int, ConnectedNodeRunResult> resultMap)
+        {
+            List<ConnectedNodeRunResult> orderedResults = new List<ConnectedNodeRunResult>();
+            foreach (NodeBase node in batch)
+            {
+                if (node != null && resultMap.ContainsKey(node.ID))
+                    orderedResults.Add(resultMap[node.ID]);
+            }
+
+            return orderedResults;
+        }
+
+        private async Task<List<ConnectedNodeRunResult>> RunReadyNodeBatch(List<NodeBase> batch, NodeBase nodeToSkip)
+        {
+            if (batch.Count <= 1)
+            {
+                List<ConnectedNodeRunResult> singleResult = new List<ConnectedNodeRunResult>();
+                singleResult.Add(await RunConnectedNode(batch[0], nodeToSkip));
+                return singleResult;
+            }
+
+            List<Task<ConnectedNodeRunResult>> tasks = new List<Task<ConnectedNodeRunResult>>();
+            foreach (NodeBase node in batch)
+            {
+                NodeBase nodeToRun = node;
+                tasks.Add(Task.Run(async () => await RunConnectedNode(nodeToRun, nodeToSkip)));
+            }
+
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch
+            {
+            }
+
+            Exception firstException = null;
+            Dictionary<int, ConnectedNodeRunResult> resultMap = new Dictionary<int, ConnectedNodeRunResult>();
+            foreach (Task<ConnectedNodeRunResult> task in tasks)
+            {
+                if (task.IsFaulted)
+                {
+                    if (firstException == null)
+                        firstException = task.Exception == null ? new Exception("Parallel branch node failed.") : task.Exception.GetBaseException();
+                    continue;
+                }
+
+                if (task.IsCanceled)
+                {
+                    if (firstException == null)
+                        firstException = new OperationCanceledException();
+                    continue;
+                }
+
+                ConnectedNodeRunResult result = task.Result;
+                resultMap[result.Node.ID] = result;
+            }
+
+            if (firstException != null)
+                throw firstException;
+
+            return GetOrderedResults(batch, resultMap);
+        }
+
+        private async Task<ConnectedNodeRunResult> RunConnectedNode(NodeBase node, NodeBase nodeToSkip)
+        {
+            if (node == nodeToSkip || !node.Active)
+            {
+                return new ConnectedNodeRunResult
+                {
+                    Node = node,
+                    Return = new NodeReturn(NodeRunFlag.ContinueRun),
+                    SkippedExecution = true
+                };
+            }
+
+            MarkNodeRunning(node);
+            NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
+            return new ConnectedNodeRunResult
+            {
+                Node = node,
+                Return = result,
+                RunTime = node.Result == null ? 0 : node.Result.RunTime
+            };
+        }
+
+        private long GetNodeDependencyFinishTime(
+            NodeBase node,
+            HashSet<int> componentNodeIds,
+            HashSet<int> inactiveNodeIds,
+            HashSet<string> skippedEdges,
+            Dictionary<int, long> completedNodeFinishTimes,
+            long defaultStartTime)
+        {
+            if (node == null)
+                return defaultStartTime;
+
+            long dependencyFinishTime = defaultStartTime;
+            foreach (ProcessConnection connection in _connections)
+            {
+                if (connection.ToNodeId != node.ID ||
+                    !componentNodeIds.Contains(connection.FromNodeId) ||
+                    skippedEdges.Contains(GetConnectionEdgeKey(connection)) ||
+                    inactiveNodeIds.Contains(connection.FromNodeId))
+                {
+                    continue;
+                }
+
+                long upstreamFinishTime;
+                if (completedNodeFinishTimes.TryGetValue(connection.FromNodeId, out upstreamFinishTime) &&
+                    upstreamFinishTime > dependencyFinishTime)
+                {
+                    dependencyFinishTime = upstreamFinishTime;
+                }
+            }
+
+            return dependencyFinishTime;
+        }
+
+        private static long GetRunResultLogicalTime(ConnectedNodeRunResult runResult)
+        {
+            if (runResult == null || runResult.SkippedExecution || runResult.RunTime <= 0)
+                return 0;
+
+            return runResult.RunTime;
+        }
+
+        private List<NodeBase> BuildReadyExecutionBatch(List<NodeBase> readyNodes)
+        {
+            List<NodeBase> batch = new List<NodeBase>();
+            if (readyNodes.Count == 0)
+                return batch;
+
+            foreach (NodeBase node in readyNodes)
+            {
+                if (node == null)
+                    continue;
+
+                batch.Add(node);
+            }
+
+            return batch;
+        }
+
+        private List<NodeBase> GetReadyComponentNodes(
+            HashSet<int> componentNodeIds,
+            HashSet<int> completedNodeIds,
+            HashSet<int> inactiveNodeIds,
+            HashSet<string> skippedEdges,
+            NodeBase startNode)
+        {
+            List<NodeBase> readyNodes = new List<NodeBase>();
+            foreach (NodeBase node in _nodes)
+            {
+                if (node == null ||
+                    !componentNodeIds.Contains(node.ID) ||
+                    completedNodeIds.Contains(node.ID) ||
+                    inactiveNodeIds.Contains(node.ID))
+                {
+                    continue;
+                }
+
+                if (IsNodeReady(node, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges, startNode))
+                    readyNodes.Add(node);
+            }
+
+            return readyNodes;
+        }
+
+        private bool IsNodeReady(
+            NodeBase node,
+            HashSet<int> componentNodeIds,
+            HashSet<int> completedNodeIds,
+            HashSet<int> inactiveNodeIds,
+            HashSet<string> skippedEdges,
+            NodeBase startNode)
+        {
+            if (node == startNode)
+                return true;
+
+            foreach (ProcessConnection connection in _connections)
+            {
+                if (connection.ToNodeId != node.ID ||
+                    !componentNodeIds.Contains(connection.FromNodeId) ||
+                    skippedEdges.Contains(GetConnectionEdgeKey(connection)) ||
+                    inactiveNodeIds.Contains(connection.FromNodeId))
+                {
+                    continue;
+                }
+
+                if (!completedNodeIds.Contains(connection.FromNodeId))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private void ApplyConditionalBranchSkips(
+            NodeBase node,
+            NodeReturn result,
+            HashSet<int> componentNodeIds,
+            HashSet<int> completedNodeIds,
+            HashSet<int> inactiveNodeIds,
+            HashSet<string> skippedEdges)
+        {
+            if (!IsConditionalBranchNode(node) ||
+                result == null ||
+                result.NextBranch == ProcessConnectionBranch.Default)
+            {
+                return;
+            }
+
+            foreach (ProcessConnection connection in _connections)
+            {
+                if (connection.FromNodeId != node.ID ||
+                    !componentNodeIds.Contains(connection.ToNodeId) ||
+                    ConnectionMatchesBranch(connection, result.NextBranch))
+                {
+                    continue;
+                }
+
+                skippedEdges.Add(GetConnectionEdgeKey(connection));
+                TryMarkInactiveNode(connection.ToNodeId, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
+            }
+        }
+
+        private void TryMarkInactiveNode(
+            int nodeId,
+            HashSet<int> componentNodeIds,
+            HashSet<int> completedNodeIds,
+            HashSet<int> inactiveNodeIds,
+            HashSet<string> skippedEdges)
+        {
+            if (!componentNodeIds.Contains(nodeId) ||
+                completedNodeIds.Contains(nodeId) ||
+                inactiveNodeIds.Contains(nodeId) ||
+                HasActiveIncomingConnection(nodeId, componentNodeIds, inactiveNodeIds, skippedEdges))
+            {
+                return;
+            }
+
+            inactiveNodeIds.Add(nodeId);
+            foreach (ProcessConnection connection in _connections)
+            {
+                if (connection.FromNodeId == nodeId &&
+                    componentNodeIds.Contains(connection.ToNodeId))
+                {
+                    TryMarkInactiveNode(connection.ToNodeId, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
+                }
+            }
+        }
+
+        private bool HasActiveIncomingConnection(
+            int nodeId,
+            HashSet<int> componentNodeIds,
+            HashSet<int> inactiveNodeIds,
+            HashSet<string> skippedEdges)
+        {
+            foreach (ProcessConnection connection in _connections)
+            {
+                if (connection.ToNodeId == nodeId &&
+                    componentNodeIds.Contains(connection.FromNodeId) &&
+                    !inactiveNodeIds.Contains(connection.FromNodeId) &&
+                    !skippedEdges.Contains(GetConnectionEdgeKey(connection)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private HashSet<int> GetConnectedComponentNodeIds(NodeBase startNode)
+        {
+            HashSet<int> componentNodeIds = new HashSet<int>();
+            Queue<int> pendingNodeIds = new Queue<int>();
+            if (startNode == null || !componentNodeIds.Add(startNode.ID))
+                return componentNodeIds;
+
+            pendingNodeIds.Enqueue(startNode.ID);
+            while (pendingNodeIds.Count > 0)
+            {
+                int nodeId = pendingNodeIds.Dequeue();
+                foreach (ProcessConnection connection in _connections)
+                {
+                    int connectedNodeId = 0;
+                    if (connection.FromNodeId == nodeId)
+                        connectedNodeId = connection.ToNodeId;
+                    else if (connection.ToNodeId == nodeId)
+                        connectedNodeId = connection.FromNodeId;
+
+                    if (connectedNodeId > 0 &&
+                        ContainsNode(connectedNodeId) &&
+                        componentNodeIds.Add(connectedNodeId))
+                    {
+                        pendingNodeIds.Enqueue(connectedNodeId);
+                    }
+                }
+            }
+
+            return componentNodeIds;
+        }
+
+        private bool CanUseParallelConnectedRuntime()
+        {
+            if (!HasCanvasGraph)
+                return false;
+
+            foreach (NodeBase node in _nodes)
+            {
+                if (node == null)
+                    continue;
+
+                if (node.NodeType == NodeType.Else || node.NodeType == NodeType.EndIf)
+                    return false;
+
+                if (IsConditionalBranchNode(node) && !HasConditionalBranchConnections(node.ID))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static bool ContainsNode(List<NodeBase> nodes, NodeBase target)
+        {
+            foreach (NodeBase node in nodes)
+            {
+                if (node == target)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private string GetConnectionEdgeKey(ProcessConnection connection)
+        {
+            if (connection == null)
+                return string.Empty;
+
+            ProcessConnectionBranch branch = GetEffectiveConnectionBranch(connection);
+            return connection.FromNodeId.ToString() + ">" + connection.ToNodeId.ToString() + ">" + branch.ToString();
+        }
+
+        private sealed class ConnectedNodeRunResult
+        {
+            public NodeBase Node;
+            public NodeReturn Return;
+            public int RunTime;
+            public bool SkippedExecution;
         }
 
         private List<NodeBase> GetConnectionStartNodes()

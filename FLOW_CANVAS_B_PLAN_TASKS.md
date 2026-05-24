@@ -16,7 +16,7 @@ This means the target is not only a visual style change. The work includes:
 
 ## Current Step
 
-The current implementation step is **Phase 16: Position Correction And Measurement Following**.
+The current implementation step is **Phase 17: Parallel Branch Runtime Scheduling Design**.
 
 ### Latest Progress
 
@@ -195,10 +195,22 @@ The current implementation step is **Phase 16: Position Correction And Measureme
   - [x] This allows adding or editing measurement ROIs on a later corrected image without saving an already-followed ROI and applying the correction a second time.
   - [x] Build-verify after the corrected-image ROI baseline-normalization fix.
   - [ ] Runtime-verify template match -> position correction -> measurement follow on real images.
+- Phase 17 parallel branch runtime scheduling design:
+  - [x] New request captured: graph branches such as `A -> B` and `A -> C` should be able to run `B` and `C` in parallel instead of sequentially when dependencies allow it.
+  - [x] Current behavior confirmed: the graph runtime uses a pending queue and awaits each node one by one, so sibling branches both run but do not run concurrently.
+  - [x] Chosen strategy: dependency-aware parallel scheduling, keeping graph order deterministic and batching all nodes whose graph dependencies are ready.
+  - [x] First implementation pass added a parallel graph scheduler while preserving the old sequential graph runtime as fallback for preview/skip runs and legacy control-flow graphs.
+  - [x] Removed the first-pass safe-node allowlist; all node types can run in parallel when their incoming graph dependencies are satisfied.
+  - [x] Conditional branch skips now mark non-selected edges inactive so joins wait only for active upstream paths.
+  - [x] Join nodes wait for all active incoming branches to complete; if any node in a parallel batch fails, downstream nodes are not started and the process fails after the already-started batch finishes.
+  - [x] Parallel graph process runtime now reports dependency-graph critical-path time, so forked branches contribute the slowest branch instead of branch sums or UI/thread scheduling overhead.
+  - [x] Build-verify after the first dependency-aware parallel scheduler implementation pass.
+  - [ ] Runtime-verify with simple fork, join, condition branch, disabled node, failed node, stop/cancel, image subscription, and device-node cases.
 - TDAI stability fix:
   - [x] Added a model-readiness guard before `NodeTDAI` reads `param.Yolo8.ModelType`, so a failed startup model load now reports a clear model/config error instead of throwing a null reference.
   - [x] Made `ParamFormTDAI.LoadModel(...)` clear `param.Yolo8` on load failure and log failures without dereferencing missing AI config data.
 - Build verification:
+  - [x] `TDJS-Vision.sln` builds successfully after the Phase 17 dependency-aware parallel scheduler first implementation pass.
   - [x] `TDJS-Vision.sln` builds successfully after the scheduling, branch, and subscription-stale-result fixes.
   - [x] `TDJS-Vision.sln` builds successfully after the Phase 11 undo/redo first implementation pass.
   - [x] `TDJS-Vision.sln` builds successfully after fixing node-move undo redraw residue and removing undo/redo shortcuts.
