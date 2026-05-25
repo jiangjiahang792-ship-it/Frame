@@ -66,6 +66,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             this.comboBoxFindMode = new System.Windows.Forms.ComboBox();
             this.labelDirection = new System.Windows.Forms.Label();
             this.comboBoxDirection = new System.Windows.Forms.ComboBox();
+            this.labelRunRoiTarget = new System.Windows.Forms.Label();
+            this.comboBoxRunRoiTarget = new System.Windows.Forms.ComboBox();
             this.showImageControl1 = new TDJS_Vision.Forms.DispShowImage.ShowImageControl();
             this.buttonDrawRoi = new System.Windows.Forms.Button();
             this.buttonConfirmRoi = new System.Windows.Forms.Button();
@@ -439,6 +441,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             this.groupBoxRunParams.Controls.Add(this.comboBoxFindMode);
             this.groupBoxRunParams.Controls.Add(this.labelDirection);
             this.groupBoxRunParams.Controls.Add(this.comboBoxDirection);
+            this.groupBoxRunParams.Controls.Add(this.labelRunRoiTarget);
+            this.groupBoxRunParams.Controls.Add(this.comboBoxRunRoiTarget);
             this.groupBoxRunParams.Location = new System.Drawing.Point(11, 12);
             this.groupBoxRunParams.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxRunParams.Name = "groupBoxRunParams";
@@ -613,9 +617,28 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             this.comboBoxDirection.Name = "comboBoxDirection";
             this.comboBoxDirection.Size = new System.Drawing.Size(108, 26);
             this.comboBoxDirection.TabIndex = 17;
-            // 
+            //
+            // labelRunRoiTarget
+            //
+            this.labelRunRoiTarget.AutoSize = true;
+            this.labelRunRoiTarget.Location = new System.Drawing.Point(227, 240);
+            this.labelRunRoiTarget.Name = "labelRunRoiTarget";
+            this.labelRunRoiTarget.Size = new System.Drawing.Size(30, 18);
+            this.labelRunRoiTarget.TabIndex = 18;
+            this.labelRunRoiTarget.Text = "ROI";
+            //
+            // comboBoxRunRoiTarget
+            //
+            this.comboBoxRunRoiTarget.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxRunRoiTarget.FormattingEnabled = true;
+            this.comboBoxRunRoiTarget.Location = new System.Drawing.Point(310, 235);
+            this.comboBoxRunRoiTarget.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.comboBoxRunRoiTarget.Name = "comboBoxRunRoiTarget";
+            this.comboBoxRunRoiTarget.Size = new System.Drawing.Size(78, 26);
+            this.comboBoxRunRoiTarget.TabIndex = 19;
+            //
             // showImageControl1
-            // 
+            //
             this.showImageControl1.BackColor = System.Drawing.Color.Black;
             this.showImageControl1.BackgroundColorCustom = System.Drawing.Color.Black;
             this.showImageControl1.BackgroundImageCustom = null;
@@ -776,6 +799,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
         private System.Windows.Forms.ComboBox comboBoxFindMode;
         private System.Windows.Forms.Label labelDirection;
         private System.Windows.Forms.ComboBox comboBoxDirection;
+        private System.Windows.Forms.Label labelRunRoiTarget;
+        private System.Windows.Forms.ComboBox comboBoxRunRoiTarget;
         private TDJS_Vision.Forms.DispShowImage.ShowImageControl showImageControl1;
         private System.Windows.Forms.Button buttonDrawRoi;
         private System.Windows.Forms.Button buttonConfirmRoi;

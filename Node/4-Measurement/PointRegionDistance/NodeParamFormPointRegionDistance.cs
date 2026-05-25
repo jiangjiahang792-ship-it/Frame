@@ -455,6 +455,11 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
             if (circleRois.Count == 0 && polygonRois.Count == 0)
                 return;
 
+            int edgeStrength = ParseInt(textBoxEdgeStrength, string.Empty);
+            int blurSize = ParseInt(textBoxBlurSize, string.Empty);
+            CaliperEdgePolarity polarity = (CaliperEdgePolarity)comboBoxPolarity.SelectedItem;
+            CaliperEdgeFindMode findMode = (CaliperEdgeFindMode)comboBoxFindMode.SelectedItem;
+            int directionIndex = comboBoxDirection.SelectedIndex;
             PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(true);
             _isSyncingRoi = true;
             try
@@ -470,7 +475,6 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
                     textBoxCaliperWidth.Text = circleRois[0].CaliperWidth.ToString("F2");
                     textBoxCaliperHeight.Text = circleRois[0].CaliperHeight.ToString("F2");
                     textBoxCount.Text = circleRois[0].Count.ToString();
-                    comboBoxDirection.SelectedIndex = circleRois[0].Direction == 1 ? 1 : 0;
                 }
 
                 if (polygonRois.Count > 0)
@@ -480,6 +484,12 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
                         region = GeometryMeasurementAlgorithm.InverseTransformPoints(region, correctionInfo);
                     textBoxRegionPoints.Text = FormatRegionPoints(region);
                 }
+
+                textBoxEdgeStrength.Text = edgeStrength.ToString();
+                textBoxBlurSize.Text = blurSize.ToString();
+                comboBoxPolarity.SelectedItem = polarity;
+                comboBoxFindMode.SelectedItem = findMode;
+                comboBoxDirection.SelectedIndex = directionIndex;
             }
             finally
             {
@@ -511,6 +521,20 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
             }
         }
 
+        private void UpdateRunPageVisibility(bool visible)
+        {
+            bool contains = tabControlMain.TabPages.Contains(tabPageRun);
+            if (visible)
+            {
+                if (!contains)
+                    tabControlMain.TabPages.Add(tabPageRun);
+            }
+            else if (contains)
+            {
+                tabControlMain.TabPages.Remove(tabPageRun);
+            }
+        }
+
         private void UpdateSourceModeEnabled()
         {
             bool subscribe = radioButtonSubscribe.Checked;
@@ -522,6 +546,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
             nodeSubscriptionPositionCorrection.Enabled = !subscribe && checkBoxUsePositionCorrection.Checked;
             if (subscribe)
                 ClearEditingRoi();
+            UpdateRunPageVisibility(!subscribe);
         }
 
         private void ClearEditingRoi()

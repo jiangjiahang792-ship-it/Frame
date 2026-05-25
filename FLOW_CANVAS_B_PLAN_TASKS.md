@@ -946,8 +946,11 @@ Reference source:
 
 - [x] UTF-8 parse-verify language JSON and toolbox XML after adding the new node entries.
 - [x] Static registration sweep confirmed project compile items, toolbox tags, language keys, node icons, and node factory cases.
-- [ ] Build-verify after registration.
-  - Blocked for now: escalated MSBuild was rejected by the Codex usage limit; retry after the limit window resets.
+- [x] Feedback pass: subscribe mode hides Run Parameters for line-line angle, point-point distance, and point-region distance tools.
+- [x] Feedback pass: draw-mode line-line and point-point tools now keep independent per-ROI caliper run parameters, with an ROI selector for tuning the active ROI.
+- [x] Feedback fix: Confirm ROI now preserves edge threshold, blur size, edge polarity, edge pick mode, and search direction instead of reverting non-geometry run parameters to defaults.
+- [x] Build-verify after registration.
+  - Passed on 2026-05-25 with MSBuild, 0 errors; existing warnings remain.
 - [ ] UI-verify parameter forms can refresh images, draw/confirm ROIs, and run local previews.
 - [ ] Runtime-verify subscribed upstream results and draw-mode caliper measurement on real images.
 

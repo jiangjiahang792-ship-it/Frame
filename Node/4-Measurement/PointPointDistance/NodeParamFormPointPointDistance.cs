@@ -15,12 +15,51 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
         private readonly NodeBase node;
         private bool _isSyncingRoi;
         private bool _roiVisible;
+        private int _selectedRunRoiIndex;
+        private readonly RoiRunSettings[] _roiRunSettings =
+        {
+            new RoiRunSettings(10, 60, 30, 20, CaliperEdgePolarity.Both, CaliperEdgeFindMode.Best, 0, 3),
+            new RoiRunSettings(10, 60, 30, 20, CaliperEdgePolarity.Both, CaliperEdgeFindMode.Best, 0, 3)
+        };
+
+        private sealed class RoiRunSettings
+        {
+            public RoiRunSettings(
+                float caliperWidth,
+                float caliperHeight,
+                int count,
+                int edgeStrength,
+                CaliperEdgePolarity polarity,
+                CaliperEdgeFindMode findMode,
+                int direction,
+                int blurSize)
+            {
+                CaliperWidth = caliperWidth;
+                CaliperHeight = caliperHeight;
+                Count = count;
+                EdgeStrength = edgeStrength;
+                Polarity = polarity;
+                FindMode = findMode;
+                Direction = direction;
+                BlurSize = blurSize;
+            }
+
+            public float CaliperWidth { get; set; }
+            public float CaliperHeight { get; set; }
+            public int Count { get; set; }
+            public int EdgeStrength { get; set; }
+            public CaliperEdgePolarity Polarity { get; set; }
+            public CaliperEdgeFindMode FindMode { get; set; }
+            public int Direction { get; set; }
+            public int BlurSize { get; set; }
+        }
 
         public NodeParamFormPointPointDistance(Process process, NodeBase node)
         {
             InitializeComponent();
             this.node = node;
             InitializeCombos();
+            InitializeRunRoiTargets();
             BindRoiRefreshEvents();
             nodeSubscriptionPoint1.HideText2();
             nodeSubscriptionPoint2.HideText2();
@@ -62,14 +101,10 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                 textBoxP2CenterX.Text = param.Point2CenterX.ToString();
                 textBoxP2CenterY.Text = param.Point2CenterY.ToString();
                 textBoxP2Radius.Text = param.Point2Radius.ToString();
-                textBoxCaliperWidth.Text = param.CaliperWidth.ToString();
-                textBoxCaliperHeight.Text = param.CaliperHeight.ToString();
-                textBoxCount.Text = param.Count.ToString();
-                textBoxEdgeStrength.Text = param.EdgeStrength.ToString();
-                textBoxBlurSize.Text = param.BlurSize.ToString();
-                comboBoxPolarity.SelectedItem = param.Polarity;
-                comboBoxFindMode.SelectedItem = param.FindMode;
-                comboBoxDirection.SelectedIndex = param.Direction == 1 ? 1 : 0;
+                LoadRunSettingsFromParam(param);
+                _selectedRunRoiIndex = 0;
+                comboBoxRunRoiTarget.SelectedIndex = 0;
+                LoadRunSettingsToControls(_roiRunSettings[0]);
             }
             finally
             {
@@ -163,6 +198,15 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             comboBoxDirection.SelectedIndex = 0;
         }
 
+        private void InitializeRunRoiTargets()
+        {
+            comboBoxRunRoiTarget.Items.Add("Point1");
+            comboBoxRunRoiTarget.Items.Add("Point2");
+            comboBoxRunRoiTarget.SelectedIndex = 0;
+            comboBoxRunRoiTarget.SelectedIndexChanged += comboBoxRunRoiTarget_SelectedIndexChanged;
+            showImageControl1.MouseUp += showImageControl1_MouseUp;
+        }
+
         private void BindRoiRefreshEvents()
         {
             foreach (Control control in groupBoxGeometry.Controls)
@@ -179,6 +223,66 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             radioButtonDraw.CheckedChanged += SourceMode_CheckedChanged;
         }
 
+        private void LoadRunSettingsFromParam(NodeParamPointPointDistance param)
+        {
+            _roiRunSettings[0].CaliperWidth = param.Point1CaliperWidth ?? param.CaliperWidth;
+            _roiRunSettings[0].CaliperHeight = param.Point1CaliperHeight ?? param.CaliperHeight;
+            _roiRunSettings[0].Count = param.Point1Count ?? param.Count;
+            _roiRunSettings[0].EdgeStrength = param.Point1EdgeStrength ?? param.EdgeStrength;
+            _roiRunSettings[0].Polarity = param.Point1Polarity ?? param.Polarity;
+            _roiRunSettings[0].FindMode = param.Point1FindMode ?? param.FindMode;
+            _roiRunSettings[0].Direction = param.Point1Direction ?? param.Direction;
+            _roiRunSettings[0].BlurSize = param.Point1BlurSize ?? param.BlurSize;
+
+            _roiRunSettings[1].CaliperWidth = param.Point2CaliperWidth ?? param.CaliperWidth;
+            _roiRunSettings[1].CaliperHeight = param.Point2CaliperHeight ?? param.CaliperHeight;
+            _roiRunSettings[1].Count = param.Point2Count ?? param.Count;
+            _roiRunSettings[1].EdgeStrength = param.Point2EdgeStrength ?? param.EdgeStrength;
+            _roiRunSettings[1].Polarity = param.Point2Polarity ?? param.Polarity;
+            _roiRunSettings[1].FindMode = param.Point2FindMode ?? param.FindMode;
+            _roiRunSettings[1].Direction = param.Point2Direction ?? param.Direction;
+            _roiRunSettings[1].BlurSize = param.Point2BlurSize ?? param.BlurSize;
+        }
+
+        private void LoadRunSettingsToControls(RoiRunSettings settings)
+        {
+            if (settings == null)
+                return;
+
+            textBoxCaliperWidth.Text = settings.CaliperWidth.ToString();
+            textBoxCaliperHeight.Text = settings.CaliperHeight.ToString();
+            textBoxCount.Text = settings.Count.ToString();
+            textBoxEdgeStrength.Text = settings.EdgeStrength.ToString();
+            textBoxBlurSize.Text = settings.BlurSize.ToString();
+            comboBoxPolarity.SelectedItem = settings.Polarity;
+            comboBoxFindMode.SelectedItem = settings.FindMode;
+            comboBoxDirection.SelectedIndex = settings.Direction == 1 ? 1 : 0;
+        }
+
+        private void SaveCurrentRunSettingsFromControls()
+        {
+            if (_selectedRunRoiIndex < 0 || _selectedRunRoiIndex >= _roiRunSettings.Length)
+                return;
+
+            RoiRunSettings settings = _roiRunSettings[_selectedRunRoiIndex];
+            settings.CaliperWidth = ParseFloat(textBoxCaliperWidth, string.Empty);
+            settings.CaliperHeight = ParseFloat(textBoxCaliperHeight, string.Empty);
+            settings.Count = ParseInt(textBoxCount, string.Empty);
+            settings.EdgeStrength = ParseInt(textBoxEdgeStrength, string.Empty);
+            settings.BlurSize = ParseInt(textBoxBlurSize, string.Empty);
+            settings.Polarity = (CaliperEdgePolarity)comboBoxPolarity.SelectedItem;
+            settings.FindMode = (CaliperEdgeFindMode)comboBoxFindMode.SelectedItem;
+            settings.Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0;
+        }
+
+        private void SaveRunSettingsFromRoi(RoiRunSettings settings, TDJS_Vision.Forms.DispShowImage.ShowImageControl.RoiCircleCaliper roi)
+        {
+            settings.CaliperWidth = roi.CaliperWidth;
+            settings.CaliperHeight = roi.CaliperHeight;
+            settings.Count = roi.Count;
+            settings.Direction = roi.Direction;
+        }
+
         private void OnRoiParamChanged(object sender, EventArgs e)
         {
             if (_isSyncingRoi)
@@ -192,6 +296,57 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
         private void SourceMode_CheckedChanged(object sender, EventArgs e)
         {
             UpdateSourceModeEnabled();
+        }
+
+        private void comboBoxRunRoiTarget_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (_isSyncingRoi)
+                return;
+
+            try
+            {
+                SaveCurrentRunSettingsFromControls();
+                _selectedRunRoiIndex = Math.Max(0, comboBoxRunRoiTarget.SelectedIndex);
+                _isSyncingRoi = true;
+                LoadRunSettingsToControls(_roiRunSettings[_selectedRunRoiIndex]);
+            }
+            catch
+            {
+            }
+            finally
+            {
+                _isSyncingRoi = false;
+            }
+
+            SelectDynamicRoi(_selectedRunRoiIndex);
+        }
+
+        private void showImageControl1_MouseUp(object sender, MouseEventArgs e)
+        {
+            if (_isSyncingRoi || !_roiVisible || radioButtonSubscribe.Checked)
+                return;
+
+            var rois = showImageControl1.GetAllDynamicCircleCalipers();
+            int selectedIndex = rois.FindIndex(roi => roi.IsSelected);
+            if (selectedIndex < 0 || selectedIndex >= _roiRunSettings.Length)
+                return;
+
+            try
+            {
+                SaveCurrentRunSettingsFromControls();
+                _selectedRunRoiIndex = selectedIndex;
+                _isSyncingRoi = true;
+                comboBoxRunRoiTarget.SelectedIndex = selectedIndex;
+                ReadRoiToFields(false);
+                LoadRunSettingsToControls(_roiRunSettings[_selectedRunRoiIndex]);
+            }
+            catch
+            {
+            }
+            finally
+            {
+                _isSyncingRoi = false;
+            }
         }
 
         private Mat GetInputMat()
@@ -241,7 +396,23 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                 Polarity = param.Polarity,
                 FindMode = param.FindMode,
                 Direction = param.Direction,
-                BlurSize = param.BlurSize
+                BlurSize = param.BlurSize,
+                Point1CaliperWidth = param.Point1CaliperWidth,
+                Point1CaliperHeight = param.Point1CaliperHeight,
+                Point1Count = param.Point1Count,
+                Point1EdgeStrength = param.Point1EdgeStrength,
+                Point1Polarity = param.Point1Polarity,
+                Point1FindMode = param.Point1FindMode,
+                Point1Direction = param.Point1Direction,
+                Point1BlurSize = param.Point1BlurSize,
+                Point2CaliperWidth = param.Point2CaliperWidth,
+                Point2CaliperHeight = param.Point2CaliperHeight,
+                Point2Count = param.Point2Count,
+                Point2EdgeStrength = param.Point2EdgeStrength,
+                Point2Polarity = param.Point2Polarity,
+                Point2FindMode = param.Point2FindMode,
+                Point2Direction = param.Point2Direction,
+                Point2BlurSize = param.Point2BlurSize
             };
         }
 
@@ -254,14 +425,14 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                 Radius = firstPoint ? param.Point1Radius : param.Point2Radius,
                 StartAngle = 0,
                 EndAngle = 360,
-                CaliperWidth = param.CaliperWidth,
-                CaliperHeight = param.CaliperHeight,
-                Count = param.Count,
-                EdgeStrength = param.EdgeStrength,
-                Polarity = param.Polarity,
-                FindMode = param.FindMode,
-                Direction = param.Direction,
-                BlurSize = param.BlurSize
+                CaliperWidth = param.GetCaliperWidth(firstPoint),
+                CaliperHeight = param.GetCaliperHeight(firstPoint),
+                Count = param.GetCount(firstPoint),
+                EdgeStrength = param.GetEdgeStrength(firstPoint),
+                Polarity = param.GetPolarity(firstPoint),
+                FindMode = param.GetFindMode(firstPoint),
+                Direction = param.GetDirection(firstPoint),
+                BlurSize = param.GetBlurSize(firstPoint)
             };
         }
 
@@ -289,6 +460,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                 }
                 else
                 {
+                    SaveCurrentRunSettingsFromControls();
                     TryReadRoiToFields();
                 }
 
@@ -300,6 +472,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                     throw new Exception("请选择位置修正信息。");
                 }
 
+                RoiRunSettings point1Settings = _roiRunSettings[0];
+                RoiRunSettings point2Settings = _roiRunSettings[1];
                 Params = new NodeParamPointPointDistance
                 {
                     ImageText1 = nodeSubscriptionImage.GetText1(),
@@ -328,7 +502,23 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                     BlurSize = ParseInt(textBoxBlurSize, "平滑核"),
                     Polarity = (CaliperEdgePolarity)comboBoxPolarity.SelectedItem,
                     FindMode = (CaliperEdgeFindMode)comboBoxFindMode.SelectedItem,
-                    Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0
+                    Direction = point1Settings.Direction,
+                    Point1CaliperWidth = point1Settings.CaliperWidth,
+                    Point1CaliperHeight = point1Settings.CaliperHeight,
+                    Point1Count = point1Settings.Count,
+                    Point1EdgeStrength = point1Settings.EdgeStrength,
+                    Point1BlurSize = point1Settings.BlurSize,
+                    Point1Polarity = point1Settings.Polarity,
+                    Point1FindMode = point1Settings.FindMode,
+                    Point1Direction = point1Settings.Direction,
+                    Point2CaliperWidth = point2Settings.CaliperWidth,
+                    Point2CaliperHeight = point2Settings.CaliperHeight,
+                    Point2Count = point2Settings.Count,
+                    Point2EdgeStrength = point2Settings.EdgeStrength,
+                    Point2BlurSize = point2Settings.BlurSize,
+                    Point2Polarity = point2Settings.Polarity,
+                    Point2FindMode = point2Settings.FindMode,
+                    Point2Direction = point2Settings.Direction
                 };
 
                 return true;
@@ -393,6 +583,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
 
             try
             {
+                SaveCurrentRunSettingsFromControls();
                 PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
                 PointF p1 = new PointF(ParseFloat(textBoxP1CenterX, string.Empty), ParseFloat(textBoxP1CenterY, string.Empty));
                 PointF p2 = new PointF(ParseFloat(textBoxP2CenterX, string.Empty), ParseFloat(textBoxP2CenterY, string.Empty));
@@ -404,16 +595,16 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
 
                 float p1Radius = ParseFloat(textBoxP1Radius, string.Empty);
                 float p2Radius = ParseFloat(textBoxP2Radius, string.Empty);
-                float caliperWidth = ParseFloat(textBoxCaliperWidth, string.Empty);
-                float caliperHeight = ParseFloat(textBoxCaliperHeight, string.Empty);
-                int count = ParseInt(textBoxCount, string.Empty);
 
                 showImageControl1.ClearDynamicRoi();
-                showImageControl1.AddDynamicCircleCaliper(p1.X, p1.Y, p1Radius, 0, 360, caliperWidth, caliperHeight, count, Color.Lime, "P1");
-                showImageControl1.AddDynamicCircleCaliper(p2.X, p2.Y, p2Radius, 0, 360, caliperWidth, caliperHeight, count, Color.DeepSkyBlue, "P2");
+                showImageControl1.AddDynamicCircleCaliper(p1.X, p1.Y, p1Radius, 0, 360, _roiRunSettings[0].CaliperWidth, _roiRunSettings[0].CaliperHeight, _roiRunSettings[0].Count, Color.Lime, "P1");
+                showImageControl1.AddDynamicCircleCaliper(p2.X, p2.Y, p2Radius, 0, 360, _roiRunSettings[1].CaliperWidth, _roiRunSettings[1].CaliperHeight, _roiRunSettings[1].Count, Color.DeepSkyBlue, "P2");
                 var rois = showImageControl1.GetAllDynamicCircleCalipers();
-                foreach (var roi in rois)
-                    roi.Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0;
+                if (rois.Count > 0)
+                    rois[0].Direction = _roiRunSettings[0].Direction;
+                if (rois.Count > 1)
+                    rois[1].Direction = _roiRunSettings[1].Direction;
+                SelectDynamicRoi(_selectedRunRoiIndex);
                 _roiVisible = true;
             }
             catch
@@ -423,11 +614,17 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
 
         private void TryReadRoiToFields()
         {
+            SaveCurrentRunSettingsFromControls();
+            ReadRoiToFields(true);
+        }
+
+        private void ReadRoiToFields(bool requireCorrection)
+        {
             var rois = showImageControl1.GetAllDynamicCircleCalipers();
             if (rois.Count < 2)
                 return;
 
-            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(true);
+            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(requireCorrection);
             PointF p1 = new PointF(rois[0].CX, rois[0].CY);
             PointF p2 = new PointF(rois[1].CX, rois[1].CY);
             if (correctionInfo != null)
@@ -445,10 +642,9 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                 textBoxP2CenterX.Text = p2.X.ToString("F2");
                 textBoxP2CenterY.Text = p2.Y.ToString("F2");
                 textBoxP2Radius.Text = rois[1].Radius.ToString("F2");
-                textBoxCaliperWidth.Text = rois[0].CaliperWidth.ToString("F2");
-                textBoxCaliperHeight.Text = rois[0].CaliperHeight.ToString("F2");
-                textBoxCount.Text = rois[0].Count.ToString();
-                comboBoxDirection.SelectedIndex = rois[0].Direction == 1 ? 1 : 0;
+                SaveRunSettingsFromRoi(_roiRunSettings[0], rois[0]);
+                SaveRunSettingsFromRoi(_roiRunSettings[1], rois[1]);
+                LoadRunSettingsToControls(_roiRunSettings[_selectedRunRoiIndex]);
             }
             finally
             {
@@ -487,6 +683,36 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             }
         }
 
+        private void SelectDynamicRoi(int index)
+        {
+            for (int i = 0; i < showImageControl1.DynamicRoiCount; i++)
+            {
+                var roi = showImageControl1.GetDynamicRoi(i);
+                if (roi != null)
+                    roi.IsSelected = false;
+            }
+
+            var calipers = showImageControl1.GetAllDynamicCircleCalipers();
+            if (index >= 0 && index < calipers.Count)
+                calipers[index].IsSelected = true;
+
+            showImageControl1.Invalidate();
+        }
+
+        private void UpdateRunPageVisibility(bool visible)
+        {
+            bool contains = tabControlMain.TabPages.Contains(tabPageRun);
+            if (visible)
+            {
+                if (!contains)
+                    tabControlMain.TabPages.Add(tabPageRun);
+            }
+            else if (contains)
+            {
+                tabControlMain.TabPages.Remove(tabPageRun);
+            }
+        }
+
         private void UpdateSourceModeEnabled()
         {
             bool subscribe = radioButtonSubscribe.Checked;
@@ -498,6 +724,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             nodeSubscriptionPositionCorrection.Enabled = !subscribe && checkBoxUsePositionCorrection.Checked;
             if (subscribe)
                 ClearEditingRoi();
+            UpdateRunPageVisibility(!subscribe);
         }
 
         private void ClearEditingRoi()

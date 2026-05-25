@@ -31,5 +31,32 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
         public CaliperEdgeFindMode FindMode { get; set; } = CaliperEdgeFindMode.Best;
         public int Direction { get; set; }
         public int BlurSize { get; set; } = 3;
+
+        public float? Point1CaliperWidth { get; set; }
+        public float? Point1CaliperHeight { get; set; }
+        public int? Point1Count { get; set; }
+        public int? Point1EdgeStrength { get; set; }
+        public CaliperEdgePolarity? Point1Polarity { get; set; }
+        public CaliperEdgeFindMode? Point1FindMode { get; set; }
+        public int? Point1Direction { get; set; }
+        public int? Point1BlurSize { get; set; }
+
+        public float? Point2CaliperWidth { get; set; }
+        public float? Point2CaliperHeight { get; set; }
+        public int? Point2Count { get; set; }
+        public int? Point2EdgeStrength { get; set; }
+        public CaliperEdgePolarity? Point2Polarity { get; set; }
+        public CaliperEdgeFindMode? Point2FindMode { get; set; }
+        public int? Point2Direction { get; set; }
+        public int? Point2BlurSize { get; set; }
+
+        public float GetCaliperWidth(bool firstPoint) => (firstPoint ? Point1CaliperWidth : Point2CaliperWidth) ?? CaliperWidth;
+        public float GetCaliperHeight(bool firstPoint) => (firstPoint ? Point1CaliperHeight : Point2CaliperHeight) ?? CaliperHeight;
+        public int GetCount(bool firstPoint) => (firstPoint ? Point1Count : Point2Count) ?? Count;
+        public int GetEdgeStrength(bool firstPoint) => (firstPoint ? Point1EdgeStrength : Point2EdgeStrength) ?? EdgeStrength;
+        public CaliperEdgePolarity GetPolarity(bool firstPoint) => (firstPoint ? Point1Polarity : Point2Polarity) ?? Polarity;
+        public CaliperEdgeFindMode GetFindMode(bool firstPoint) => (firstPoint ? Point1FindMode : Point2FindMode) ?? FindMode;
+        public int GetDirection(bool firstPoint) => (firstPoint ? Point1Direction : Point2Direction) ?? Direction;
+        public int GetBlurSize(bool firstPoint) => (firstPoint ? Point1BlurSize : Point2BlurSize) ?? BlurSize;
     }
 }
