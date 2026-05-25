@@ -15,6 +15,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
 
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
             this.tabControlMain = new System.Windows.Forms.TabControl();
             this.tabPageBasic = new System.Windows.Forms.TabPage();
             this.groupBoxInput = new System.Windows.Forms.GroupBox();
@@ -86,10 +87,11 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // 
             this.tabControlMain.Controls.Add(this.tabPageBasic);
             this.tabControlMain.Controls.Add(this.tabPageRun);
-            this.tabControlMain.Location = new System.Drawing.Point(16, 16);
+            this.tabControlMain.Location = new System.Drawing.Point(8, 46);
+            this.tabControlMain.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.tabControlMain.Name = "tabControlMain";
             this.tabControlMain.SelectedIndex = 0;
-            this.tabControlMain.Size = new System.Drawing.Size(400, 578);
+            this.tabControlMain.Size = new System.Drawing.Size(480, 827);
             this.tabControlMain.TabIndex = 0;
             // 
             // tabPageBasic
@@ -99,10 +101,11 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             this.tabPageBasic.Controls.Add(this.groupBoxSubscribed);
             this.tabPageBasic.Controls.Add(this.groupBoxPositionCorrection);
             this.tabPageBasic.Controls.Add(this.groupBoxGeometry);
-            this.tabPageBasic.Location = new System.Drawing.Point(4, 25);
+            this.tabPageBasic.Location = new System.Drawing.Point(4, 28);
+            this.tabPageBasic.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.tabPageBasic.Name = "tabPageBasic";
-            this.tabPageBasic.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPageBasic.Size = new System.Drawing.Size(392, 549);
+            this.tabPageBasic.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.tabPageBasic.Size = new System.Drawing.Size(472, 795);
             this.tabPageBasic.TabIndex = 0;
             this.tabPageBasic.Text = "基本参数";
             this.tabPageBasic.UseVisualStyleBackColor = true;
@@ -110,28 +113,33 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // groupBoxInput
             // 
             this.groupBoxInput.Controls.Add(this.nodeSubscriptionImage);
-            this.groupBoxInput.Location = new System.Drawing.Point(10, 10);
+            this.groupBoxInput.Location = new System.Drawing.Point(11, 12);
+            this.groupBoxInput.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxInput.Name = "groupBoxInput";
-            this.groupBoxInput.Size = new System.Drawing.Size(370, 72);
+            this.groupBoxInput.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.groupBoxInput.Size = new System.Drawing.Size(416, 126);
             this.groupBoxInput.TabIndex = 0;
             this.groupBoxInput.TabStop = false;
             this.groupBoxInput.Text = "图像输入";
             // 
             // nodeSubscriptionImage
             // 
-            this.nodeSubscriptionImage.Location = new System.Drawing.Point(12, 26);
-            this.nodeSubscriptionImage.Margin = new System.Windows.Forms.Padding(4);
+            this.nodeSubscriptionImage.Location = new System.Drawing.Point(13, 30);
+            this.nodeSubscriptionImage.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
+            this.nodeSubscriptionImage.MinimumSize = new System.Drawing.Size(292, 72);
             this.nodeSubscriptionImage.Name = "nodeSubscriptionImage";
-            this.nodeSubscriptionImage.Size = new System.Drawing.Size(342, 32);
+            this.nodeSubscriptionImage.Size = new System.Drawing.Size(385, 77);
             this.nodeSubscriptionImage.TabIndex = 0;
             // 
             // groupBoxSourceMode
             // 
             this.groupBoxSourceMode.Controls.Add(this.radioButtonDraw);
             this.groupBoxSourceMode.Controls.Add(this.radioButtonSubscribe);
-            this.groupBoxSourceMode.Location = new System.Drawing.Point(10, 88);
+            this.groupBoxSourceMode.Location = new System.Drawing.Point(11, 149);
+            this.groupBoxSourceMode.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxSourceMode.Name = "groupBoxSourceMode";
-            this.groupBoxSourceMode.Size = new System.Drawing.Size(370, 58);
+            this.groupBoxSourceMode.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.groupBoxSourceMode.Size = new System.Drawing.Size(416, 70);
             this.groupBoxSourceMode.TabIndex = 1;
             this.groupBoxSourceMode.TabStop = false;
             this.groupBoxSourceMode.Text = "数据来源";
@@ -140,9 +148,10 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // 
             this.radioButtonDraw.AutoSize = true;
             this.radioButtonDraw.Checked = true;
-            this.radioButtonDraw.Location = new System.Drawing.Point(126, 26);
+            this.radioButtonDraw.Location = new System.Drawing.Point(142, 31);
+            this.radioButtonDraw.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.radioButtonDraw.Name = "radioButtonDraw";
-            this.radioButtonDraw.Size = new System.Drawing.Size(58, 19);
+            this.radioButtonDraw.Size = new System.Drawing.Size(69, 22);
             this.radioButtonDraw.TabIndex = 1;
             this.radioButtonDraw.TabStop = true;
             this.radioButtonDraw.Text = "绘制";
@@ -151,9 +160,10 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // radioButtonSubscribe
             // 
             this.radioButtonSubscribe.AutoSize = true;
-            this.radioButtonSubscribe.Location = new System.Drawing.Point(24, 26);
+            this.radioButtonSubscribe.Location = new System.Drawing.Point(27, 31);
+            this.radioButtonSubscribe.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.radioButtonSubscribe.Name = "radioButtonSubscribe";
-            this.radioButtonSubscribe.Size = new System.Drawing.Size(58, 19);
+            this.radioButtonSubscribe.Size = new System.Drawing.Size(69, 22);
             this.radioButtonSubscribe.TabIndex = 0;
             this.radioButtonSubscribe.Text = "订阅";
             this.radioButtonSubscribe.UseVisualStyleBackColor = true;
@@ -166,9 +176,11 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             this.groupBoxSubscribed.Controls.Add(this.labelPoint2Source);
             this.groupBoxSubscribed.Controls.Add(this.nodeSubscriptionPoint2);
             this.groupBoxSubscribed.Controls.Add(this.comboBoxPoint2Role);
-            this.groupBoxSubscribed.Location = new System.Drawing.Point(10, 152);
+            this.groupBoxSubscribed.Location = new System.Drawing.Point(11, 227);
+            this.groupBoxSubscribed.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxSubscribed.Name = "groupBoxSubscribed";
-            this.groupBoxSubscribed.Size = new System.Drawing.Size(370, 132);
+            this.groupBoxSubscribed.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.groupBoxSubscribed.Size = new System.Drawing.Size(416, 250);
             this.groupBoxSubscribed.TabIndex = 2;
             this.groupBoxSubscribed.TabStop = false;
             this.groupBoxSubscribed.Text = "订阅点";
@@ -176,62 +188,68 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // labelPoint1Source
             // 
             this.labelPoint1Source.AutoSize = true;
-            this.labelPoint1Source.Location = new System.Drawing.Point(12, 28);
+            this.labelPoint1Source.Location = new System.Drawing.Point(14, 59);
             this.labelPoint1Source.Name = "labelPoint1Source";
-            this.labelPoint1Source.Size = new System.Drawing.Size(37, 15);
+            this.labelPoint1Source.Size = new System.Drawing.Size(35, 18);
             this.labelPoint1Source.TabIndex = 0;
             this.labelPoint1Source.Text = "点1";
             // 
             // nodeSubscriptionPoint1
             // 
-            this.nodeSubscriptionPoint1.Location = new System.Drawing.Point(58, 22);
-            this.nodeSubscriptionPoint1.Margin = new System.Windows.Forms.Padding(4);
+            this.nodeSubscriptionPoint1.Location = new System.Drawing.Point(74, 26);
+            this.nodeSubscriptionPoint1.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
+            this.nodeSubscriptionPoint1.MinimumSize = new System.Drawing.Size(292, 72);
             this.nodeSubscriptionPoint1.Name = "nodeSubscriptionPoint1";
-            this.nodeSubscriptionPoint1.Size = new System.Drawing.Size(208, 32);
+            this.nodeSubscriptionPoint1.Size = new System.Drawing.Size(324, 72);
             this.nodeSubscriptionPoint1.TabIndex = 1;
             // 
             // comboBoxPoint1Role
             // 
             this.comboBoxPoint1Role.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxPoint1Role.FormattingEnabled = true;
-            this.comboBoxPoint1Role.Location = new System.Drawing.Point(274, 26);
+            this.comboBoxPoint1Role.Location = new System.Drawing.Point(74, 100);
+            this.comboBoxPoint1Role.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxPoint1Role.Name = "comboBoxPoint1Role";
-            this.comboBoxPoint1Role.Size = new System.Drawing.Size(82, 23);
+            this.comboBoxPoint1Role.Size = new System.Drawing.Size(136, 26);
             this.comboBoxPoint1Role.TabIndex = 2;
             // 
             // labelPoint2Source
             // 
             this.labelPoint2Source.AutoSize = true;
-            this.labelPoint2Source.Location = new System.Drawing.Point(12, 82);
+            this.labelPoint2Source.Location = new System.Drawing.Point(14, 166);
             this.labelPoint2Source.Name = "labelPoint2Source";
-            this.labelPoint2Source.Size = new System.Drawing.Size(37, 15);
+            this.labelPoint2Source.Size = new System.Drawing.Size(35, 18);
             this.labelPoint2Source.TabIndex = 3;
             this.labelPoint2Source.Text = "点2";
             // 
             // nodeSubscriptionPoint2
             // 
-            this.nodeSubscriptionPoint2.Location = new System.Drawing.Point(58, 76);
-            this.nodeSubscriptionPoint2.Margin = new System.Windows.Forms.Padding(4);
+            this.nodeSubscriptionPoint2.Location = new System.Drawing.Point(74, 133);
+            this.nodeSubscriptionPoint2.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
+            this.nodeSubscriptionPoint2.MinimumSize = new System.Drawing.Size(292, 72);
             this.nodeSubscriptionPoint2.Name = "nodeSubscriptionPoint2";
-            this.nodeSubscriptionPoint2.Size = new System.Drawing.Size(208, 32);
+            this.nodeSubscriptionPoint2.Size = new System.Drawing.Size(324, 72);
             this.nodeSubscriptionPoint2.TabIndex = 4;
             // 
             // comboBoxPoint2Role
             // 
             this.comboBoxPoint2Role.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxPoint2Role.FormattingEnabled = true;
-            this.comboBoxPoint2Role.Location = new System.Drawing.Point(274, 80);
+            this.comboBoxPoint2Role.Location = new System.Drawing.Point(74, 207);
+            this.comboBoxPoint2Role.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxPoint2Role.Name = "comboBoxPoint2Role";
-            this.comboBoxPoint2Role.Size = new System.Drawing.Size(82, 23);
+            this.comboBoxPoint2Role.Size = new System.Drawing.Size(136, 26);
             this.comboBoxPoint2Role.TabIndex = 5;
             // 
             // groupBoxPositionCorrection
             // 
             this.groupBoxPositionCorrection.Controls.Add(this.checkBoxUsePositionCorrection);
             this.groupBoxPositionCorrection.Controls.Add(this.nodeSubscriptionPositionCorrection);
-            this.groupBoxPositionCorrection.Location = new System.Drawing.Point(10, 290);
+            this.groupBoxPositionCorrection.Location = new System.Drawing.Point(11, 489);
+            this.groupBoxPositionCorrection.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxPositionCorrection.Name = "groupBoxPositionCorrection";
-            this.groupBoxPositionCorrection.Size = new System.Drawing.Size(370, 88);
+            this.groupBoxPositionCorrection.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.groupBoxPositionCorrection.Size = new System.Drawing.Size(416, 134);
             this.groupBoxPositionCorrection.TabIndex = 3;
             this.groupBoxPositionCorrection.TabStop = false;
             this.groupBoxPositionCorrection.Text = "位置修正";
@@ -239,9 +257,10 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // checkBoxUsePositionCorrection
             // 
             this.checkBoxUsePositionCorrection.AutoSize = true;
-            this.checkBoxUsePositionCorrection.Location = new System.Drawing.Point(16, 24);
+            this.checkBoxUsePositionCorrection.Location = new System.Drawing.Point(18, 29);
+            this.checkBoxUsePositionCorrection.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.checkBoxUsePositionCorrection.Name = "checkBoxUsePositionCorrection";
-            this.checkBoxUsePositionCorrection.Size = new System.Drawing.Size(89, 19);
+            this.checkBoxUsePositionCorrection.Size = new System.Drawing.Size(106, 22);
             this.checkBoxUsePositionCorrection.TabIndex = 0;
             this.checkBoxUsePositionCorrection.Text = "启用修正";
             this.checkBoxUsePositionCorrection.UseVisualStyleBackColor = true;
@@ -250,10 +269,11 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // nodeSubscriptionPositionCorrection
             // 
             this.nodeSubscriptionPositionCorrection.Enabled = false;
-            this.nodeSubscriptionPositionCorrection.Location = new System.Drawing.Point(16, 48);
-            this.nodeSubscriptionPositionCorrection.Margin = new System.Windows.Forms.Padding(4);
+            this.nodeSubscriptionPositionCorrection.Location = new System.Drawing.Point(13, 53);
+            this.nodeSubscriptionPositionCorrection.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
+            this.nodeSubscriptionPositionCorrection.MinimumSize = new System.Drawing.Size(292, 72);
             this.nodeSubscriptionPositionCorrection.Name = "nodeSubscriptionPositionCorrection";
-            this.nodeSubscriptionPositionCorrection.Size = new System.Drawing.Size(338, 32);
+            this.nodeSubscriptionPositionCorrection.Size = new System.Drawing.Size(380, 72);
             this.nodeSubscriptionPositionCorrection.TabIndex = 1;
             // 
             // groupBoxGeometry
@@ -270,9 +290,11 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             this.groupBoxGeometry.Controls.Add(this.textBoxP2CenterY);
             this.groupBoxGeometry.Controls.Add(this.labelP2Radius);
             this.groupBoxGeometry.Controls.Add(this.textBoxP2Radius);
-            this.groupBoxGeometry.Location = new System.Drawing.Point(10, 384);
+            this.groupBoxGeometry.Location = new System.Drawing.Point(11, 635);
+            this.groupBoxGeometry.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxGeometry.Name = "groupBoxGeometry";
-            this.groupBoxGeometry.Size = new System.Drawing.Size(370, 154);
+            this.groupBoxGeometry.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.groupBoxGeometry.Size = new System.Drawing.Size(416, 136);
             this.groupBoxGeometry.TabIndex = 4;
             this.groupBoxGeometry.TabStop = false;
             this.groupBoxGeometry.Text = "绘制圆卡尺取点";
@@ -280,112 +302,119 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // labelP1CenterX
             // 
             this.labelP1CenterX.AutoSize = true;
-            this.labelP1CenterX.Location = new System.Drawing.Point(12, 32);
+            this.labelP1CenterX.Location = new System.Drawing.Point(14, 38);
             this.labelP1CenterX.Name = "labelP1CenterX";
-            this.labelP1CenterX.Size = new System.Drawing.Size(52, 15);
+            this.labelP1CenterX.Size = new System.Drawing.Size(53, 18);
             this.labelP1CenterX.TabIndex = 0;
             this.labelP1CenterX.Text = "点1 X";
             // 
             // textBoxP1CenterX
             // 
-            this.textBoxP1CenterX.Location = new System.Drawing.Point(70, 28);
+            this.textBoxP1CenterX.Location = new System.Drawing.Point(74, 33);
+            this.textBoxP1CenterX.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxP1CenterX.Name = "textBoxP1CenterX";
-            this.textBoxP1CenterX.Size = new System.Drawing.Size(72, 25);
+            this.textBoxP1CenterX.Size = new System.Drawing.Size(68, 28);
             this.textBoxP1CenterX.TabIndex = 1;
             this.textBoxP1CenterX.Text = "180";
             // 
             // labelP1CenterY
             // 
             this.labelP1CenterY.AutoSize = true;
-            this.labelP1CenterY.Location = new System.Drawing.Point(156, 32);
+            this.labelP1CenterY.Location = new System.Drawing.Point(148, 38);
             this.labelP1CenterY.Name = "labelP1CenterY";
-            this.labelP1CenterY.Size = new System.Drawing.Size(52, 15);
+            this.labelP1CenterY.Size = new System.Drawing.Size(53, 18);
             this.labelP1CenterY.TabIndex = 2;
             this.labelP1CenterY.Text = "点1 Y";
             // 
             // textBoxP1CenterY
             // 
-            this.textBoxP1CenterY.Location = new System.Drawing.Point(214, 28);
+            this.textBoxP1CenterY.Location = new System.Drawing.Point(208, 33);
+            this.textBoxP1CenterY.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxP1CenterY.Name = "textBoxP1CenterY";
-            this.textBoxP1CenterY.Size = new System.Drawing.Size(72, 25);
+            this.textBoxP1CenterY.Size = new System.Drawing.Size(68, 28);
             this.textBoxP1CenterY.TabIndex = 3;
             this.textBoxP1CenterY.Text = "180";
             // 
             // labelP1Radius
             // 
             this.labelP1Radius.AutoSize = true;
-            this.labelP1Radius.Location = new System.Drawing.Point(12, 70);
+            this.labelP1Radius.Location = new System.Drawing.Point(282, 38);
             this.labelP1Radius.Name = "labelP1Radius";
-            this.labelP1Radius.Size = new System.Drawing.Size(52, 15);
+            this.labelP1Radius.Size = new System.Drawing.Size(53, 18);
             this.labelP1Radius.TabIndex = 4;
             this.labelP1Radius.Text = "点1 R";
             // 
             // textBoxP1Radius
             // 
-            this.textBoxP1Radius.Location = new System.Drawing.Point(70, 66);
+            this.textBoxP1Radius.Location = new System.Drawing.Point(342, 33);
+            this.textBoxP1Radius.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxP1Radius.Name = "textBoxP1Radius";
-            this.textBoxP1Radius.Size = new System.Drawing.Size(72, 25);
+            this.textBoxP1Radius.Size = new System.Drawing.Size(52, 28);
             this.textBoxP1Radius.TabIndex = 5;
             this.textBoxP1Radius.Text = "60";
             // 
             // labelP2CenterX
             // 
             this.labelP2CenterX.AutoSize = true;
-            this.labelP2CenterX.Location = new System.Drawing.Point(12, 108);
+            this.labelP2CenterX.Location = new System.Drawing.Point(14, 86);
             this.labelP2CenterX.Name = "labelP2CenterX";
-            this.labelP2CenterX.Size = new System.Drawing.Size(52, 15);
+            this.labelP2CenterX.Size = new System.Drawing.Size(53, 18);
             this.labelP2CenterX.TabIndex = 6;
             this.labelP2CenterX.Text = "点2 X";
             // 
             // textBoxP2CenterX
             // 
-            this.textBoxP2CenterX.Location = new System.Drawing.Point(70, 104);
+            this.textBoxP2CenterX.Location = new System.Drawing.Point(74, 81);
+            this.textBoxP2CenterX.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxP2CenterX.Name = "textBoxP2CenterX";
-            this.textBoxP2CenterX.Size = new System.Drawing.Size(72, 25);
+            this.textBoxP2CenterX.Size = new System.Drawing.Size(68, 28);
             this.textBoxP2CenterX.TabIndex = 7;
             this.textBoxP2CenterX.Text = "420";
             // 
             // labelP2CenterY
             // 
             this.labelP2CenterY.AutoSize = true;
-            this.labelP2CenterY.Location = new System.Drawing.Point(156, 108);
+            this.labelP2CenterY.Location = new System.Drawing.Point(148, 86);
             this.labelP2CenterY.Name = "labelP2CenterY";
-            this.labelP2CenterY.Size = new System.Drawing.Size(52, 15);
+            this.labelP2CenterY.Size = new System.Drawing.Size(53, 18);
             this.labelP2CenterY.TabIndex = 8;
             this.labelP2CenterY.Text = "点2 Y";
             // 
             // textBoxP2CenterY
             // 
-            this.textBoxP2CenterY.Location = new System.Drawing.Point(214, 104);
+            this.textBoxP2CenterY.Location = new System.Drawing.Point(208, 81);
+            this.textBoxP2CenterY.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxP2CenterY.Name = "textBoxP2CenterY";
-            this.textBoxP2CenterY.Size = new System.Drawing.Size(72, 25);
+            this.textBoxP2CenterY.Size = new System.Drawing.Size(68, 28);
             this.textBoxP2CenterY.TabIndex = 9;
             this.textBoxP2CenterY.Text = "180";
             // 
             // labelP2Radius
             // 
             this.labelP2Radius.AutoSize = true;
-            this.labelP2Radius.Location = new System.Drawing.Point(156, 70);
+            this.labelP2Radius.Location = new System.Drawing.Point(282, 86);
             this.labelP2Radius.Name = "labelP2Radius";
-            this.labelP2Radius.Size = new System.Drawing.Size(52, 15);
+            this.labelP2Radius.Size = new System.Drawing.Size(53, 18);
             this.labelP2Radius.TabIndex = 10;
             this.labelP2Radius.Text = "点2 R";
             // 
             // textBoxP2Radius
             // 
-            this.textBoxP2Radius.Location = new System.Drawing.Point(214, 66);
+            this.textBoxP2Radius.Location = new System.Drawing.Point(342, 81);
+            this.textBoxP2Radius.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxP2Radius.Name = "textBoxP2Radius";
-            this.textBoxP2Radius.Size = new System.Drawing.Size(72, 25);
+            this.textBoxP2Radius.Size = new System.Drawing.Size(52, 28);
             this.textBoxP2Radius.TabIndex = 11;
             this.textBoxP2Radius.Text = "60";
             // 
             // tabPageRun
             // 
             this.tabPageRun.Controls.Add(this.groupBoxRunParams);
-            this.tabPageRun.Location = new System.Drawing.Point(4, 25);
+            this.tabPageRun.Location = new System.Drawing.Point(4, 28);
+            this.tabPageRun.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.tabPageRun.Name = "tabPageRun";
-            this.tabPageRun.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPageRun.Size = new System.Drawing.Size(392, 549);
+            this.tabPageRun.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.tabPageRun.Size = new System.Drawing.Size(472, 795);
             this.tabPageRun.TabIndex = 1;
             this.tabPageRun.Text = "运行参数";
             this.tabPageRun.UseVisualStyleBackColor = true;
@@ -410,9 +439,11 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             this.groupBoxRunParams.Controls.Add(this.comboBoxFindMode);
             this.groupBoxRunParams.Controls.Add(this.labelDirection);
             this.groupBoxRunParams.Controls.Add(this.comboBoxDirection);
-            this.groupBoxRunParams.Location = new System.Drawing.Point(10, 10);
+            this.groupBoxRunParams.Location = new System.Drawing.Point(11, 12);
+            this.groupBoxRunParams.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxRunParams.Name = "groupBoxRunParams";
-            this.groupBoxRunParams.Size = new System.Drawing.Size(370, 256);
+            this.groupBoxRunParams.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.groupBoxRunParams.Size = new System.Drawing.Size(416, 307);
             this.groupBoxRunParams.TabIndex = 0;
             this.groupBoxRunParams.TabStop = false;
             this.groupBoxRunParams.Text = "算法参数";
@@ -420,9 +451,9 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // labelMeasureMode
             // 
             this.labelMeasureMode.AutoSize = true;
-            this.labelMeasureMode.Location = new System.Drawing.Point(16, 32);
+            this.labelMeasureMode.Location = new System.Drawing.Point(18, 38);
             this.labelMeasureMode.Name = "labelMeasureMode";
-            this.labelMeasureMode.Size = new System.Drawing.Size(67, 15);
+            this.labelMeasureMode.Size = new System.Drawing.Size(80, 18);
             this.labelMeasureMode.TabIndex = 0;
             this.labelMeasureMode.Text = "测量精度";
             // 
@@ -430,102 +461,108 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // 
             this.comboBoxMeasureMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxMeasureMode.FormattingEnabled = true;
-            this.comboBoxMeasureMode.Location = new System.Drawing.Point(92, 28);
+            this.comboBoxMeasureMode.Location = new System.Drawing.Point(104, 34);
+            this.comboBoxMeasureMode.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxMeasureMode.Name = "comboBoxMeasureMode";
-            this.comboBoxMeasureMode.Size = new System.Drawing.Size(96, 23);
+            this.comboBoxMeasureMode.Size = new System.Drawing.Size(108, 26);
             this.comboBoxMeasureMode.TabIndex = 1;
             // 
             // labelCaliperWidth
             // 
             this.labelCaliperWidth.AutoSize = true;
-            this.labelCaliperWidth.Location = new System.Drawing.Point(202, 32);
+            this.labelCaliperWidth.Location = new System.Drawing.Point(227, 38);
             this.labelCaliperWidth.Name = "labelCaliperWidth";
-            this.labelCaliperWidth.Size = new System.Drawing.Size(67, 15);
+            this.labelCaliperWidth.Size = new System.Drawing.Size(80, 18);
             this.labelCaliperWidth.TabIndex = 2;
             this.labelCaliperWidth.Text = "卡尺宽度";
             // 
             // textBoxCaliperWidth
             // 
-            this.textBoxCaliperWidth.Location = new System.Drawing.Point(276, 28);
+            this.textBoxCaliperWidth.Location = new System.Drawing.Point(310, 34);
+            this.textBoxCaliperWidth.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxCaliperWidth.Name = "textBoxCaliperWidth";
-            this.textBoxCaliperWidth.Size = new System.Drawing.Size(70, 25);
+            this.textBoxCaliperWidth.Size = new System.Drawing.Size(78, 28);
             this.textBoxCaliperWidth.TabIndex = 3;
             this.textBoxCaliperWidth.Text = "10";
             // 
             // labelCaliperHeight
             // 
             this.labelCaliperHeight.AutoSize = true;
-            this.labelCaliperHeight.Location = new System.Drawing.Point(16, 74);
+            this.labelCaliperHeight.Location = new System.Drawing.Point(18, 89);
             this.labelCaliperHeight.Name = "labelCaliperHeight";
-            this.labelCaliperHeight.Size = new System.Drawing.Size(67, 15);
+            this.labelCaliperHeight.Size = new System.Drawing.Size(80, 18);
             this.labelCaliperHeight.TabIndex = 4;
             this.labelCaliperHeight.Text = "卡尺高度";
             // 
             // textBoxCaliperHeight
             // 
-            this.textBoxCaliperHeight.Location = new System.Drawing.Point(92, 70);
+            this.textBoxCaliperHeight.Location = new System.Drawing.Point(104, 84);
+            this.textBoxCaliperHeight.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxCaliperHeight.Name = "textBoxCaliperHeight";
-            this.textBoxCaliperHeight.Size = new System.Drawing.Size(96, 25);
+            this.textBoxCaliperHeight.Size = new System.Drawing.Size(108, 28);
             this.textBoxCaliperHeight.TabIndex = 5;
             this.textBoxCaliperHeight.Text = "60";
             // 
             // labelCount
             // 
             this.labelCount.AutoSize = true;
-            this.labelCount.Location = new System.Drawing.Point(202, 74);
+            this.labelCount.Location = new System.Drawing.Point(227, 89);
             this.labelCount.Name = "labelCount";
-            this.labelCount.Size = new System.Drawing.Size(67, 15);
+            this.labelCount.Size = new System.Drawing.Size(80, 18);
             this.labelCount.TabIndex = 6;
             this.labelCount.Text = "卡尺数量";
             // 
             // textBoxCount
             // 
-            this.textBoxCount.Location = new System.Drawing.Point(276, 70);
+            this.textBoxCount.Location = new System.Drawing.Point(310, 84);
+            this.textBoxCount.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxCount.Name = "textBoxCount";
-            this.textBoxCount.Size = new System.Drawing.Size(70, 25);
+            this.textBoxCount.Size = new System.Drawing.Size(78, 28);
             this.textBoxCount.TabIndex = 7;
             this.textBoxCount.Text = "30";
             // 
             // labelEdgeStrength
             // 
             this.labelEdgeStrength.AutoSize = true;
-            this.labelEdgeStrength.Location = new System.Drawing.Point(16, 116);
+            this.labelEdgeStrength.Location = new System.Drawing.Point(18, 139);
             this.labelEdgeStrength.Name = "labelEdgeStrength";
-            this.labelEdgeStrength.Size = new System.Drawing.Size(67, 15);
+            this.labelEdgeStrength.Size = new System.Drawing.Size(80, 18);
             this.labelEdgeStrength.TabIndex = 8;
             this.labelEdgeStrength.Text = "边缘阈值";
             // 
             // textBoxEdgeStrength
             // 
-            this.textBoxEdgeStrength.Location = new System.Drawing.Point(92, 112);
+            this.textBoxEdgeStrength.Location = new System.Drawing.Point(104, 134);
+            this.textBoxEdgeStrength.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxEdgeStrength.Name = "textBoxEdgeStrength";
-            this.textBoxEdgeStrength.Size = new System.Drawing.Size(96, 25);
+            this.textBoxEdgeStrength.Size = new System.Drawing.Size(108, 28);
             this.textBoxEdgeStrength.TabIndex = 9;
             this.textBoxEdgeStrength.Text = "20";
             // 
             // labelBlurSize
             // 
             this.labelBlurSize.AutoSize = true;
-            this.labelBlurSize.Location = new System.Drawing.Point(202, 116);
+            this.labelBlurSize.Location = new System.Drawing.Point(227, 139);
             this.labelBlurSize.Name = "labelBlurSize";
-            this.labelBlurSize.Size = new System.Drawing.Size(67, 15);
+            this.labelBlurSize.Size = new System.Drawing.Size(62, 18);
             this.labelBlurSize.TabIndex = 10;
             this.labelBlurSize.Text = "平滑核";
             // 
             // textBoxBlurSize
             // 
-            this.textBoxBlurSize.Location = new System.Drawing.Point(276, 112);
+            this.textBoxBlurSize.Location = new System.Drawing.Point(310, 134);
+            this.textBoxBlurSize.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxBlurSize.Name = "textBoxBlurSize";
-            this.textBoxBlurSize.Size = new System.Drawing.Size(70, 25);
+            this.textBoxBlurSize.Size = new System.Drawing.Size(78, 28);
             this.textBoxBlurSize.TabIndex = 11;
             this.textBoxBlurSize.Text = "3";
             // 
             // labelPolarity
             // 
             this.labelPolarity.AutoSize = true;
-            this.labelPolarity.Location = new System.Drawing.Point(16, 158);
+            this.labelPolarity.Location = new System.Drawing.Point(18, 190);
             this.labelPolarity.Name = "labelPolarity";
-            this.labelPolarity.Size = new System.Drawing.Size(67, 15);
+            this.labelPolarity.Size = new System.Drawing.Size(80, 18);
             this.labelPolarity.TabIndex = 12;
             this.labelPolarity.Text = "边缘极性";
             // 
@@ -533,17 +570,18 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // 
             this.comboBoxPolarity.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxPolarity.FormattingEnabled = true;
-            this.comboBoxPolarity.Location = new System.Drawing.Point(92, 154);
+            this.comboBoxPolarity.Location = new System.Drawing.Point(104, 185);
+            this.comboBoxPolarity.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxPolarity.Name = "comboBoxPolarity";
-            this.comboBoxPolarity.Size = new System.Drawing.Size(96, 23);
+            this.comboBoxPolarity.Size = new System.Drawing.Size(108, 26);
             this.comboBoxPolarity.TabIndex = 13;
             // 
             // labelFindMode
             // 
             this.labelFindMode.AutoSize = true;
-            this.labelFindMode.Location = new System.Drawing.Point(202, 158);
+            this.labelFindMode.Location = new System.Drawing.Point(227, 190);
             this.labelFindMode.Name = "labelFindMode";
-            this.labelFindMode.Size = new System.Drawing.Size(67, 15);
+            this.labelFindMode.Size = new System.Drawing.Size(80, 18);
             this.labelFindMode.TabIndex = 14;
             this.labelFindMode.Text = "取边方式";
             // 
@@ -551,17 +589,18 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // 
             this.comboBoxFindMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxFindMode.FormattingEnabled = true;
-            this.comboBoxFindMode.Location = new System.Drawing.Point(276, 154);
+            this.comboBoxFindMode.Location = new System.Drawing.Point(310, 185);
+            this.comboBoxFindMode.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxFindMode.Name = "comboBoxFindMode";
-            this.comboBoxFindMode.Size = new System.Drawing.Size(70, 23);
+            this.comboBoxFindMode.Size = new System.Drawing.Size(78, 26);
             this.comboBoxFindMode.TabIndex = 15;
             // 
             // labelDirection
             // 
             this.labelDirection.AutoSize = true;
-            this.labelDirection.Location = new System.Drawing.Point(16, 200);
+            this.labelDirection.Location = new System.Drawing.Point(18, 240);
             this.labelDirection.Name = "labelDirection";
-            this.labelDirection.Size = new System.Drawing.Size(67, 15);
+            this.labelDirection.Size = new System.Drawing.Size(80, 18);
             this.labelDirection.TabIndex = 16;
             this.labelDirection.Text = "搜索方向";
             // 
@@ -569,9 +608,10 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // 
             this.comboBoxDirection.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxDirection.FormattingEnabled = true;
-            this.comboBoxDirection.Location = new System.Drawing.Point(92, 196);
+            this.comboBoxDirection.Location = new System.Drawing.Point(104, 235);
+            this.comboBoxDirection.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxDirection.Name = "comboBoxDirection";
-            this.comboBoxDirection.Size = new System.Drawing.Size(96, 23);
+            this.comboBoxDirection.Size = new System.Drawing.Size(108, 26);
             this.comboBoxDirection.TabIndex = 17;
             // 
             // showImageControl1
@@ -582,20 +622,22 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             this.showImageControl1.BackgroundLayoutMode = TDJS_Vision.Forms.DispShowImage.ShowImageControl.BackgroundImageLayoutMode.Fill;
             this.showImageControl1.BackgroundTransparency = 1F;
             this.showImageControl1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.showImageControl1.Location = new System.Drawing.Point(430, 16);
+            this.showImageControl1.Location = new System.Drawing.Point(494, 46);
+            this.showImageControl1.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.showImageControl1.Name = "showImageControl1";
             this.showImageControl1.RoiColor = System.Drawing.Color.Lime;
             this.showImageControl1.ShowCheckerBackground = false;
             this.showImageControl1.ShowPixelInfo = false;
-            this.showImageControl1.Size = new System.Drawing.Size(540, 578);
+            this.showImageControl1.Size = new System.Drawing.Size(645, 778);
             this.showImageControl1.StaticShapeColor = System.Drawing.Color.Red;
             this.showImageControl1.TabIndex = 1;
             // 
             // buttonDrawRoi
             // 
-            this.buttonDrawRoi.Location = new System.Drawing.Point(430, 610);
+            this.buttonDrawRoi.Location = new System.Drawing.Point(532, 832);
+            this.buttonDrawRoi.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonDrawRoi.Name = "buttonDrawRoi";
-            this.buttonDrawRoi.Size = new System.Drawing.Size(96, 34);
+            this.buttonDrawRoi.Size = new System.Drawing.Size(108, 41);
             this.buttonDrawRoi.TabIndex = 2;
             this.buttonDrawRoi.Text = "绘制ROI";
             this.buttonDrawRoi.UseVisualStyleBackColor = true;
@@ -603,9 +645,10 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // 
             // buttonConfirmRoi
             // 
-            this.buttonConfirmRoi.Location = new System.Drawing.Point(532, 610);
+            this.buttonConfirmRoi.Location = new System.Drawing.Point(646, 832);
+            this.buttonConfirmRoi.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonConfirmRoi.Name = "buttonConfirmRoi";
-            this.buttonConfirmRoi.Size = new System.Drawing.Size(96, 34);
+            this.buttonConfirmRoi.Size = new System.Drawing.Size(108, 41);
             this.buttonConfirmRoi.TabIndex = 3;
             this.buttonConfirmRoi.Text = "确认ROI";
             this.buttonConfirmRoi.UseVisualStyleBackColor = true;
@@ -613,9 +656,10 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // 
             // buttonRefresh
             // 
-            this.buttonRefresh.Location = new System.Drawing.Point(634, 610);
+            this.buttonRefresh.Location = new System.Drawing.Point(761, 832);
+            this.buttonRefresh.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonRefresh.Name = "buttonRefresh";
-            this.buttonRefresh.Size = new System.Drawing.Size(104, 34);
+            this.buttonRefresh.Size = new System.Drawing.Size(117, 41);
             this.buttonRefresh.TabIndex = 4;
             this.buttonRefresh.Text = "刷新图像";
             this.buttonRefresh.UseVisualStyleBackColor = true;
@@ -623,9 +667,10 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // 
             // buttonRun
             // 
-            this.buttonRun.Location = new System.Drawing.Point(744, 610);
+            this.buttonRun.Location = new System.Drawing.Point(885, 832);
+            this.buttonRun.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonRun.Name = "buttonRun";
-            this.buttonRun.Size = new System.Drawing.Size(104, 34);
+            this.buttonRun.Size = new System.Drawing.Size(117, 41);
             this.buttonRun.TabIndex = 5;
             this.buttonRun.Text = "执行";
             this.buttonRun.UseVisualStyleBackColor = true;
@@ -633,9 +678,10 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // 
             // buttonSave
             // 
-            this.buttonSave.Location = new System.Drawing.Point(866, 610);
+            this.buttonSave.Location = new System.Drawing.Point(1022, 832);
+            this.buttonSave.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonSave.Name = "buttonSave";
-            this.buttonSave.Size = new System.Drawing.Size(104, 34);
+            this.buttonSave.Size = new System.Drawing.Size(117, 41);
             this.buttonSave.TabIndex = 6;
             this.buttonSave.Text = "确定";
             this.buttonSave.UseVisualStyleBackColor = true;
@@ -643,9 +689,9 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             // 
             // NodeParamFormPointPointDistance
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(988, 660);
+            this.ClientSize = new System.Drawing.Size(1151, 886);
             this.Controls.Add(this.buttonSave);
             this.Controls.Add(this.buttonRun);
             this.Controls.Add(this.buttonRefresh);
@@ -653,8 +699,16 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             this.Controls.Add(this.buttonDrawRoi);
             this.Controls.Add(this.showImageControl1);
             this.Controls.Add(this.tabControlMain);
+            this.Margin = new System.Windows.Forms.Padding(3, 5, 3, 5);
             this.Name = "NodeParamFormPointPointDistance";
             this.Text = "点到点距离";
+            this.Controls.SetChildIndex(this.tabControlMain, 0);
+            this.Controls.SetChildIndex(this.showImageControl1, 0);
+            this.Controls.SetChildIndex(this.buttonDrawRoi, 0);
+            this.Controls.SetChildIndex(this.buttonConfirmRoi, 0);
+            this.Controls.SetChildIndex(this.buttonRefresh, 0);
+            this.Controls.SetChildIndex(this.buttonRun, 0);
+            this.Controls.SetChildIndex(this.buttonSave, 0);
             this.tabControlMain.ResumeLayout(false);
             this.tabPageBasic.ResumeLayout(false);
             this.groupBoxInput.ResumeLayout(false);
