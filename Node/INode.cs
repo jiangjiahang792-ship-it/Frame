@@ -286,6 +286,10 @@ namespace TDJS_Vision.Node
         /// </summary>
         DrawAIResult,
         /// <summary>
+        /// ROI结果绘制
+        /// </summary>
+        ResultOverlayDraw,
+        /// <summary>
         /// 条件运行
         /// </summary>
         ConditionRun,

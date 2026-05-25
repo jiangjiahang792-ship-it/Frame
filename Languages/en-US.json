@@ -266,6 +266,7 @@
   "ProcessNew.NodeType.SharedVariable": "Shared Variable",
   "ProcessNew.NodeType.GenerateExcel": "Export Detection Table",
   "ProcessNew.NodeType.DrawAIResult": "Draw AI Result",
+  "ProcessNew.NodeType.ResultOverlayDraw": "Draw ROI Result",
   "ProcessNew.NodeType.ConditionRun": "Conditional Run",
   "ProcessNew.NodeType.ProcessTrigger": "Trigger Same-group Process",
   "ProcessNew.NodeType.ProcessSignal": "Process Signal",

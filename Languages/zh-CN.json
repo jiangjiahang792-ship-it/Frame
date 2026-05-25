@@ -266,6 +266,7 @@
   "ProcessNew.NodeType.SharedVariable": "共享变量",
   "ProcessNew.NodeType.GenerateExcel": "导出检测表格",
   "ProcessNew.NodeType.DrawAIResult": "AI结果绘制",
+  "ProcessNew.NodeType.ResultOverlayDraw": "ROI结果绘制",
   "ProcessNew.NodeType.ConditionRun": "条件运行",
   "ProcessNew.NodeType.ProcessTrigger": "触发同组流程",
   "ProcessNew.NodeType.ProcessSignal": "流程信号",

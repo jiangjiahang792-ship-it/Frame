@@ -1147,6 +1147,17 @@
       <DependentUpon>NodeParamFormImageDraw.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\7-ResultProcessing\ImageDraw\NodeResultImageDraw.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw\NodeResultOverlayDraw.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw\NodeParamResultOverlayDraw.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw\NodeParamFormResultOverlayDraw.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw\NodeParamFormResultOverlayDraw.Designer.cs">
+      <DependentUpon>NodeParamFormResultOverlayDraw.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw\NodeResultResultOverlayDraw.cs" />
     <Compile Include="Node\7-ResultProcessing\GenerateExcelSpreadsheet\NodeGenerateExcel.cs">
       <SubType>UserControl</SubType>
     </Compile>

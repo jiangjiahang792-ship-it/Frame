@@ -57,6 +57,7 @@ using TDJS_Vision.Node._7_ResultProcessing.GenerateExcelSpreadsheet;
 using TDJS_Vision.Node._7_ResultProcessing.ImageDelete;
 using TDJS_Vision.Node._7_ResultProcessing.ImageDraw;
 using TDJS_Vision.Node._7_ResultProcessing.ImageSave;
+using TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw;
 using TDJS_Vision.Node._7_ResultProcessing.ResultSummarize;
 using static OpenCvSharp.ML.DTrees;
 using static TDJS_Vision.Forms.ProcessNew.FormNewProcessWizard;
@@ -647,6 +648,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.DrawAIResult:
                     node = new NodeImageDraw(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.ResultOverlayDraw:
+                    node = new NodeResultOverlayDraw(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.ConditionRun:
                     node = new NodeConditionRun(nodeId, nodeName, _process, nodeType);

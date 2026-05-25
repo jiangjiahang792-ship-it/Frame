@@ -288,6 +288,11 @@ namespace TDJS_Vision.Node
             comboBox2.Visible = false;
         }
 
+        public void ClearText()
+        {
+            ClearSelectedNode();
+        }
+
         //反序列化使用
         public void SetText(string text1, string text2)
         {

@@ -954,6 +954,43 @@ Reference source:
 - [ ] UI-verify parameter forms can refresh images, draw/confirm ROIs, and run local previews.
 - [ ] Runtime-verify subscribed upstream results and draw-mode caliper measurement on real images.
 
+## Phase 19: Configurable ROI And Result Drawing Tool
+
+Reference source:
+
+- `D:\MyCode\PublicWook\TDJS-Vision\Node\7-ResultProcessing\ImageDraw`
+
+### Phase 19.1: Requirement Capture
+
+- [x] New request captured: add a drawing tool that can subscribe to a selected module's image, text, fitted line, or region result and draw it onto/over an output image.
+- [x] The tool should support choosing the source module/result item instead of being limited to AI/color detection results.
+- [x] Text drawing should support font size and placement: top-left, top-right, bottom-left, and bottom-right.
+- [x] Geometry drawing should support at least rectangle line width, and should be extendable to lines and regions/contours.
+- [x] Draw items should support user-selectable colors, reusing the current `ColorText`, `ColorLine`, `ColorContour`, and rectangle color conventions where possible.
+- [x] Use the existing `ImageDraw` module's subscription and bitmap-drawing behavior as the first reference.
+- [x] Preferred first direction: keep the input image pixels clean and emit non-destructive `OutputImage.DisplayResult` overlays for display.
+- [ ] Decide whether a later optional mode should also write drawings into image pixels for image export/archiving.
+
+### Phase 19.2: Framework Fit Discussion
+
+- [x] Review current result data surfaces: `OutputImage`, `AlgorithmResult.Texts`, `AlgorithmResult.Lines`, rectangles, circles, ellipses, contours, and measurement result objects.
+- [x] Decide the source picker design: one image subscription plus per-item result subscriptions stored on each draw item.
+- [x] Decide how to represent manually configured draw items: text item, line item, rectangle item, and region/contour item in the first version.
+- [x] Decide the style model for draw items: color, line width, text font size, text corner placement, and margins.
+- [x] Decide save/restore model for multiple draw items and per-item style settings.
+- [x] Decide the node belongs under `7-ResultProcessing` as a new overlay-only successor beside the old `ImageDraw`.
+
+### Phase 19.3: Planned Implementation Items
+
+- [x] Add a new `ResultOverlayDraw` node family for configurable ROI/result drawing.
+- [x] Add designer-visible WinForms controls in `.Designer.cs` for image source, result source, draw-item list, style settings, and preview.
+- [x] Support text placement in all four corners with safe margins.
+- [x] Support configurable color and line width for rectangles, lines, and regions/contours, and extend the shared display-result style model for other geometry.
+- [x] Support drawing subscribed fitted lines and subscribed regions/contours.
+- [x] Preserve current `ImageDraw` compatibility unless explicitly replacing it.
+- [x] Build-verify after implementation.
+- [ ] UI-verify the new form inside the running application.
+
 1. [x] Add graph layout and connection models with backward-compatible save/load defaults.
 2. [x] Add the `ProcessNew` canvas control and draw nodes from current runtime nodes.
 3. [x] Replace the vertical node list in `ProcessEditPanel` with the canvas.

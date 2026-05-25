@@ -1,0 +1,386 @@
+using Logger;
+using OpenCvSharp;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Drawing;
+using System.Linq;
+using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
+using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Node._4_Measurement.Common;
+
+namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
+{
+    public class NodeResultOverlayDraw : NodeBase
+    {
+        public NodeResultOverlayDraw(int nodeId, string nodeName, Process process, NodeType nodeType)
+            : base(nodeId, nodeName, process, nodeType)
+        {
+            ParamForm = new NodeParamFormResultOverlayDraw();
+            ParamForm.SetNodeBelong(this);
+            Result = new NodeResultResultOverlayDraw();
+        }
+
+        public override Task<NodeReturn> Run(CancellationToken token, bool showLog)
+        {
+            DateTime startTime = DateTime.Now;
+
+            if (!Active)
+            {
+                SetRunResult(startTime, NodeStatus.Unexecuted);
+                return Task.FromResult(new NodeReturn(NodeRunFlag.StopRun));
+            }
+
+            if (ParamForm.Params == null)
+            {
+                LogHelper.AddLog(MsgLevel.Fatal, $"节点({NodeName})运行参数未设置或保存！", true);
+                SetRunResult(startTime, NodeStatus.Failed);
+                throw new Exception($"节点({NodeName})运行参数未设置或保存！");
+            }
+
+            try
+            {
+                SetStatus(NodeStatus.Unexecuted, "*");
+                CheckTokenCancel(token);
+
+                var param = (NodeParamResultOverlayDraw)ParamForm.Params;
+                OutputImage outputImage;
+                AlgorithmResult displayResult;
+                ResultOverlayDrawBuilder.Build(this, param, out outputImage, out displayResult);
+
+                var nodeResult = (NodeResultResultOverlayDraw)Result;
+                nodeResult.OutputImage = outputImage;
+                nodeResult.Result = displayResult;
+
+                int time = SetRunResult(startTime, NodeStatus.Successful);
+                Result.RunTime = time;
+                if (showLog)
+                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+
+                return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
+            }
+            catch (OperationCanceledException)
+            {
+                LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})运行取消！", true);
+                SetRunResult(startTime, NodeStatus.Unexecuted);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
+                SetRunResult(startTime, NodeStatus.Failed);
+                throw new Exception($"节点({ID}.{NodeName})运行失败！原因:{ex.Message}");
+            }
+        }
+    }
+
+    internal static class ResultOverlayDrawBuilder
+    {
+        public static void Build(
+            NodeBase owner,
+            NodeParamResultOverlayDraw param,
+            out OutputImage outputImage,
+            out AlgorithmResult displayResult)
+        {
+            if (owner == null)
+                throw new ArgumentNullException(nameof(owner));
+            if (param == null)
+                throw new Exception("结果绘制参数为空！");
+
+            object imageValue = ReadSubscribedValue(owner, param.ImageText1, param.ImageText2, out NodeBase _);
+            OutputImage inputImage = imageValue as OutputImage;
+            if (inputImage == null)
+                throw new Exception("订阅的图像类型不是 OutputImage！");
+
+            Mat cleanImage = MeasurementNodeHelper.GetFirstMat(inputImage);
+            displayResult = BuildDisplayResult(owner, param);
+            outputImage = new OutputImage
+            {
+                Bitmaps = new List<Mat> { cleanImage },
+                Rectangles = inputImage.Rectangles == null ? new List<Rect>() : inputImage.Rectangles.ToList(),
+                DisplayResult = displayResult
+            };
+        }
+
+        public static object ReadSubscribedValue(NodeBase owner, string nodeText, string resultText, out NodeBase sourceNode)
+        {
+            sourceNode = null;
+            if (owner == null || owner.Process == null)
+                throw new Exception("当前节点没有所属流程，无法读取订阅！");
+            if (string.IsNullOrWhiteSpace(nodeText))
+                throw new Exception("订阅节点为空！");
+
+            foreach (NodeBase node in owner.Process.GetUpstreamNodes(owner))
+            {
+                if (GetNodeText(node) != nodeText)
+                    continue;
+
+                sourceNode = node;
+                if (owner.Process.IsRuning && !node.HasSuccessfulResultForRun(owner.Process.CurrentRunId))
+                    throw new Exception($"节点({node.ID}.{node.NodeName})本次流程未成功运行，不能使用上次运行结果!");
+
+                if (string.IsNullOrWhiteSpace(resultText))
+                    return node.Result;
+
+                PropertyInfo property = node.Result.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                    .FirstOrDefault(item => GetDisplayName(item) == resultText || item.Name == resultText);
+                if (property == null || !property.CanRead)
+                    throw new Exception($"节点({node.ID}.{node.NodeName})获取订阅的{resultText}值失败!");
+
+                return property.GetValue(node.Result, null);
+            }
+
+            throw new Exception($"找不到订阅节点：{nodeText}");
+        }
+
+        private static AlgorithmResult BuildDisplayResult(NodeBase owner, NodeParamResultOverlayDraw param)
+        {
+            var displayResult = new AlgorithmResult();
+            if (param.Items == null)
+                return displayResult;
+
+            foreach (ResultOverlayDrawItem item in param.Items.Where(i => i != null && i.Enabled))
+            {
+                switch (item.ItemType)
+                {
+                    case ResultOverlayDrawItemType.Text:
+                        AppendText(owner, displayResult, item);
+                        break;
+                    case ResultOverlayDrawItemType.Line:
+                        AppendLines(owner, displayResult, item);
+                        break;
+                    case ResultOverlayDrawItemType.Rectangle:
+                        AppendRectangles(owner, displayResult, item);
+                        break;
+                    case ResultOverlayDrawItemType.Region:
+                        AppendRegions(owner, displayResult, item);
+                        break;
+                }
+            }
+
+            return displayResult;
+        }
+
+        private static void AppendText(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
+        {
+            List<string> texts = new List<string>();
+            if (item.UseManualText || string.IsNullOrWhiteSpace(item.SourceText1))
+            {
+                AddManualTextLines(texts, item.ManualText);
+            }
+            else
+            {
+                object value = ReadSubscribedValue(owner, item.SourceText1, item.SourceText2, out NodeBase sourceNode);
+                AddTextFromValue(texts, value);
+                if (texts.Count == 0 && sourceNode != null)
+                    AddTextFromValue(texts, sourceNode.Result);
+            }
+
+            foreach (string text in texts.Where(t => !string.IsNullOrWhiteSpace(t)))
+            {
+                displayResult.Texts.Add(new ColorText(text, item.Color)
+                {
+                    FontSize = Math.Max(1, item.FontSize),
+                    Position = item.TextPosition,
+                    Margin = Math.Max(0, item.TextMargin),
+                    Title = string.Empty
+                });
+            }
+        }
+
+        private static void AppendLines(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
+        {
+            object value = ReadSubscribedValue(owner, item.SourceText1, item.SourceText2, out NodeBase sourceNode);
+            AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
+            if (algorithmResult != null && algorithmResult.Lines.Count > 0)
+            {
+                foreach (ColorLine line in algorithmResult.Lines)
+                {
+                    displayResult.Lines.Add(new ColorLine(line.P1, line.P2, item.Color)
+                    {
+                        LineWidth = Math.Max(1, item.LineWidth)
+                    });
+                }
+                return;
+            }
+
+            INodeResult nodeResult = value as INodeResult;
+            if ((nodeResult != null && MeasurementResultReader.TryReadLine(nodeResult, out MeasuredLine measuredLine)) ||
+                (sourceNode != null && MeasurementResultReader.TryReadLine(sourceNode.Result, out measuredLine)))
+            {
+                displayResult.Lines.Add(new ColorLine(measuredLine.Start, measuredLine.End, item.Color)
+                {
+                    LineWidth = Math.Max(1, item.LineWidth)
+                });
+                return;
+            }
+
+            throw new Exception($"绘制项“{item.Name}”未读取到有效直线！");
+        }
+
+        private static void AppendRegions(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
+        {
+            object value = ReadSubscribedValue(owner, item.SourceText1, item.SourceText2, out NodeBase sourceNode);
+            AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
+            if (algorithmResult != null && algorithmResult.Contours.Count > 0)
+            {
+                foreach (ColorContour contour in algorithmResult.Contours)
+                {
+                    displayResult.Contours.Add(new ColorContour(contour.Points == null ? new List<PointF>() : contour.Points.ToList(), item.Color)
+                    {
+                        LineWidth = Math.Max(1, item.LineWidth)
+                    });
+                }
+                return;
+            }
+
+            INodeResult nodeResult = value as INodeResult;
+            List<PointF> points;
+            if ((nodeResult != null && MeasurementResultReader.TryReadRegion(nodeResult, out points)) ||
+                (sourceNode != null && MeasurementResultReader.TryReadRegion(sourceNode.Result, out points)))
+            {
+                displayResult.Contours.Add(new ColorContour(points, item.Color)
+                {
+                    LineWidth = Math.Max(1, item.LineWidth)
+                });
+                return;
+            }
+
+            throw new Exception($"绘制项“{item.Name}”未读取到有效区域/轮廓！");
+        }
+
+        private static void AppendRectangles(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
+        {
+            object value = ReadSubscribedValue(owner, item.SourceText1, item.SourceText2, out NodeBase sourceNode);
+            AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
+            if (algorithmResult != null)
+            {
+                bool added = false;
+                foreach (ColorRotatedRect rect in algorithmResult.Rects)
+                {
+                    displayResult.Rects.Add(new ColorRotatedRect(rect.RotatedRect)
+                    {
+                        Color = item.Color,
+                        LineWidth = Math.Max(1, item.LineWidth)
+                    });
+                    added = true;
+                }
+
+                foreach (List<ColorRotatedRect> rects in algorithmResult.RectsNgMap.Values)
+                {
+                    foreach (ColorRotatedRect rect in rects)
+                    {
+                        displayResult.Rects.Add(new ColorRotatedRect(rect.RotatedRect)
+                        {
+                            Color = item.Color,
+                            LineWidth = Math.Max(1, item.LineWidth)
+                        });
+                        added = true;
+                    }
+                }
+
+                if (added)
+                    return;
+            }
+
+            throw new Exception($"绘制项“{item.Name}”未读取到有效矩形！");
+        }
+
+        private static void AddTextFromValue(List<string> texts, object value)
+        {
+            if (value == null)
+                return;
+
+            AlgorithmResult algorithmResult = TryGetAlgorithmResult(value);
+            if (algorithmResult != null)
+            {
+                foreach (ColorText text in algorithmResult.Texts)
+                    AddManualTextLines(texts, text.Text);
+
+                if (texts.Count == 0)
+                {
+                    foreach (var pair in algorithmResult.DetectResults)
+                    {
+                        foreach (var result in pair.Value)
+                            texts.Add($"{result.Name}:{result.Value} {(result.IsOk ? "OK" : "NG")}");
+                    }
+                }
+                return;
+            }
+
+            if (value is string)
+            {
+                AddManualTextLines(texts, (string)value);
+                return;
+            }
+
+            IEnumerable enumerable = value as IEnumerable;
+            if (enumerable != null && !(value is byte[]))
+            {
+                foreach (object item in enumerable)
+                    if (item != null)
+                        texts.Add(Convert.ToString(item));
+                return;
+            }
+
+            texts.Add(Convert.ToString(value));
+        }
+
+        private static void AddManualTextLines(List<string> texts, string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return;
+
+            string[] lines = text.Replace("\r\n", "\n").Split('\n');
+            foreach (string line in lines)
+                if (!string.IsNullOrWhiteSpace(line))
+                    texts.Add(line.Trim());
+        }
+
+        private static AlgorithmResult TryGetAlgorithmResult(object source)
+        {
+            if (source == null)
+                return null;
+
+            AlgorithmResult direct = source as AlgorithmResult;
+            if (direct != null)
+                return direct;
+
+            OutputImage outputImage = source as OutputImage;
+            if (outputImage != null && outputImage.DisplayResult != null)
+                return outputImage.DisplayResult;
+
+            PropertyInfo[] properties = source.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public);
+            foreach (PropertyInfo property in properties)
+            {
+                if (!property.CanRead ||
+                    property.GetIndexParameters().Length > 0 ||
+                    !typeof(AlgorithmResult).IsAssignableFrom(property.PropertyType))
+                {
+                    continue;
+                }
+
+                AlgorithmResult value = property.GetValue(source, null) as AlgorithmResult;
+                if (value != null)
+                    return value;
+            }
+
+            return null;
+        }
+
+        private static string GetNodeText(NodeBase node)
+        {
+            return $"{node.ID}.{node.NodeName}";
+        }
+
+        private static string GetDisplayName(PropertyInfo property)
+        {
+            DisplayNameAttribute attribute = property.GetCustomAttribute<DisplayNameAttribute>();
+            return attribute == null ? property.Name : attribute.DisplayName;
+        }
+    }
+}

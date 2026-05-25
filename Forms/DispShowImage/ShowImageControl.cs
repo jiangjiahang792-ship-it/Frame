@@ -313,6 +313,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                     _staticRois.Add(new RoiRotatedRect(r.center.x, r.center.y, r.size.width, r.size.height, r.angle)
                     {
                         ShapeColor = rect.Color,
+                        StrokeWidth = rect.LineWidth,
                         IsStatic = true
                     });
                 }
@@ -325,6 +326,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                         _staticRois.Add(new RoiRotatedRect(r.center.x, r.center.y, r.size.width, r.size.height, r.angle)
                         {
                             ShapeColor = rect.Color,
+                            StrokeWidth = rect.LineWidth,
                             IsStatic = true
                         });
                     }
@@ -335,6 +337,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                     _staticRois.Add(new RoiLine(line.P1.X, line.P1.Y, line.P2.X, line.P2.Y)
                     {
                         ShapeColor = line.Color,
+                        StrokeWidth = line.LineWidth,
                         IsStatic = true
                     });
                 }
@@ -344,6 +347,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                     _staticRois.Add(new RoiCircle(circle.Center.X, circle.Center.Y, circle.Radius)
                     {
                         ShapeColor = circle.Color,
+                        StrokeWidth = circle.LineWidth,
                         IsStatic = true
                     });
                 }
@@ -353,23 +357,38 @@ namespace TDJS_Vision.Forms.DispShowImage
                     _staticRois.Add(new RoiEllipse(ellipse.Center.X, ellipse.Center.Y, ellipse.Width, ellipse.Height, ellipse.Angle)
                     {
                         ShapeColor = ellipse.Color,
+                        StrokeWidth = ellipse.LineWidth,
                         IsStatic = true
                     });
                 }
 
                 foreach (var contour in displayResult.Contours)
                 {
-                    _staticRois.Add(new RoiContour(contour.Points, contour.Color));
+                    _staticRois.Add(new RoiContour(contour.Points, contour.Color)
+                    {
+                        StrokeWidth = contour.LineWidth
+                    });
                 }
 
                 if (displayResult.Texts.Count > 0)
                 {
-                    _staticRois.Add(new RoiTextBlock(
-                        "Result",
-                        displayResult.Texts.Select(t => (t.Text, t.Color)).ToList(),
-                        10,
-                        10,
-                        11f));
+                    int imageWidth = _image == null ? 0 : _image.Width;
+                    int imageHeight = _image == null ? 0 : _image.Height;
+                    foreach (var group in displayResult.Texts.GroupBy(t => new { t.Position, t.FontSize, t.Margin, t.Title }))
+                    {
+                        _staticRois.Add(new RoiTextBlock(
+                            group.Key.Title,
+                            group.Select(t => (t.Text, t.Color)).ToList(),
+                            10,
+                            10,
+                            Math.Max(1, group.Key.FontSize))
+                        {
+                            Position = group.Key.Position,
+                            Margin = Math.Max(0, group.Key.Margin),
+                            ImageWidth = imageWidth,
+                            ImageHeight = imageHeight
+                        });
+                    }
                 }
             }
         }
@@ -785,6 +804,7 @@ namespace TDJS_Vision.Forms.DispShowImage
             public bool IsStatic { get; set; }
             public string Label { get; set; }
             public Color ShapeColor { get; set; }
+            public float StrokeWidth { get; set; } = 2F;
             private float _oCX, _oCY, _oW, _oH, _oPhi; private PointF _sPt;
             private float _startAngleOffset;
 
@@ -796,7 +816,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                 g.TranslateTransform(sc.X, sc.Y); g.RotateTransform(Phi);
                 float sw = W * s, sh = H * s;
                 Color drawCol = (IsSelected && !IsStatic) ? Color.Cyan : ShapeColor;
-                using (Pen p = new Pen(drawCol, 2f))
+                using (Pen p = new Pen(drawCol, Math.Max(1F, StrokeWidth)))
                 {
                     g.DrawRectangle(p, -sw / 2, -sh / 2, sw, sh);
                     if (!IsStatic) using (Pen d = new Pen(Color.Black, 1.5f) { DashStyle = DashStyle.Dash }) g.DrawRectangle(d, -sw / 2 + 2, -sh / 2 + 2, sw - 4, sh - 4);
@@ -850,6 +870,7 @@ namespace TDJS_Vision.Forms.DispShowImage
             string IRoiShape.Label { get => Label; set => Label = value; }
             public string Label { get; set; }
             public Color ShapeColor { get; set; }
+            public float StrokeWidth { get; set; } = 2F;
             private float _oCX, _oCY, _oR; private PointF _sPt;
             public RoiCircle(float x, float y, float r) { CX = x; CY = y; R = r; ShapeColor = Color.Lime; }
             public PointF GetCenter() => new PointF(CX, CY);
@@ -857,7 +878,7 @@ namespace TDJS_Vision.Forms.DispShowImage
             {
                 PointF sc = new PointF(CX * s + o.X, CY * s + o.Y); float sr = R * s;
                 Color drawCol = (IsSelected && !IsStatic) ? Color.Cyan : ShapeColor;
-                using (Pen p = new Pen(drawCol, 2f)) { g.DrawEllipse(p, sc.X - sr, sc.Y - sr, sr * 2, sr * 2); if (!IsStatic) using (Pen d = new Pen(Color.Black, 1.5f) { DashStyle = DashStyle.Dash }) g.DrawEllipse(d, sc.X - sr + 2, sc.Y - sr + 2, (sr - 2) * 2, (sr - 2) * 2); }
+                using (Pen p = new Pen(drawCol, Math.Max(1F, StrokeWidth))) { g.DrawEllipse(p, sc.X - sr, sc.Y - sr, sr * 2, sr * 2); if (!IsStatic) using (Pen d = new Pen(Color.Black, 1.5f) { DashStyle = DashStyle.Dash }) g.DrawEllipse(d, sc.X - sr + 2, sc.Y - sr + 2, (sr - 2) * 2, (sr - 2) * 2); }
                 if (!IsStatic && IsSelected) g.FillRectangle(Brushes.Orange, sc.X + sr - 4, sc.Y - 4, 8, 8);
                 DrawCross(g, sc); DrawLabel(g, Label, sc);
             }
@@ -893,6 +914,7 @@ namespace TDJS_Vision.Forms.DispShowImage
         public class RoiContour : IRoiShape
         {
             public List<PointF> Points; public Color ShapeColor { get; set; }
+            public float StrokeWidth { get; set; } = 2F;
             public bool IsSelected { get; set; }
             public bool IsStatic { get; set; }
             string IRoiShape.Label { get => Label; set => Label = value; }
@@ -904,7 +926,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                 if (Points.Count == 0) return;
                 using (Brush b = new SolidBrush(ShapeColor))
                 {
-                    float dotSize = Math.Max(2.0f, s);
+                    float dotSize = Math.Max(2.0f, StrokeWidth * Math.Max(0.7F, s));
                     foreach (var p in Points) g.FillRectangle(b, p.X * s + o.X, p.Y * s + o.Y, dotSize, dotSize);
                 }
             }
@@ -1360,6 +1382,7 @@ namespace TDJS_Vision.Forms.DispShowImage
             public bool IsStatic { get; set; }
             public string Label { get; set; }
             public Color ShapeColor { get; set; }
+            public float StrokeWidth { get; set; } = 2F;
 
             public RoiEllipse(float cx, float cy, float w, float h, float phi)
             {
@@ -1382,7 +1405,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                 float sw = W * s;
                 float sh = H * s;
                 Color drawCol = (IsSelected && !IsStatic) ? Color.Cyan : ShapeColor;
-                using (Pen p = new Pen(drawCol, 2f))
+                using (Pen p = new Pen(drawCol, Math.Max(1F, StrokeWidth)))
                 {
                     g.DrawEllipse(p, -sw / 2, -sh / 2, sw, sh);
                     if (!IsStatic)
@@ -1401,10 +1424,10 @@ namespace TDJS_Vision.Forms.DispShowImage
 
         public class RoiTextBlock : IRoiShape
         {
-            public string Title; public List<(string text, Color color)> Lines; public float ImgX, ImgY; public float FontSize; public bool IsSelected { get; set; } public bool IsStatic { get; set; } = true; public string Label { get; set; } public Color ShapeColor { get; set; } = Color.White;
+            public string Title; public List<(string text, Color color)> Lines; public float ImgX, ImgY; public float FontSize; public DisplayTextPosition Position { get; set; } = DisplayTextPosition.TopLeft; public int Margin { get; set; } = 10; public int ImageWidth { get; set; } public int ImageHeight { get; set; } public bool IsSelected { get; set; } public bool IsStatic { get; set; } = true; public string Label { get; set; } public Color ShapeColor { get; set; } = Color.White;
             public RoiTextBlock(string title, List<(string text, Color color)> lines, float imgX = 0, float imgY = 0, float fontSize = 11f) { Title = title; Lines = lines; ImgX = imgX; ImgY = imgY; FontSize = fontSize; }
             public PointF GetCenter() => new PointF(ImgX, ImgY);
-            public void Draw(Graphics g, float s, PointF o) { float x = ImgX * s + o.X; float y = ImgY * s + o.Y; float titleSize = FontSize * 1.2f, lineSize = FontSize; using (Font titleFont = new Font("Microsoft YaHei", titleSize, FontStyle.Bold)) using (Font lineFont = new Font("Microsoft YaHei", lineSize)) { float maxW = g.MeasureString(Title, titleFont).Width, totalH = g.MeasureString(Title, titleFont).Height + 4; foreach (var line in Lines) { var sz = g.MeasureString(line.text, lineFont); if (sz.Width > maxW) maxW = sz.Width; totalH += sz.Height + 2; } g.FillRectangle(new SolidBrush(Color.FromArgb(180, 0, 0, 0)), x - 4, y - 4, maxW + 16, totalH + 12); g.DrawString(Title, titleFont, Brushes.White, x, y); y += g.MeasureString(Title, titleFont).Height + 4; foreach (var line in Lines) { using (Brush b = new SolidBrush(line.color)) g.DrawString(line.text, lineFont, b, x + 4, y); y += g.MeasureString(line.text, lineFont).Height + 2; } } }
+            public void Draw(Graphics g, float s, PointF o) { float titleSize = FontSize * 1.2f, lineSize = FontSize; using (Font titleFont = new Font("Microsoft YaHei", titleSize, FontStyle.Bold)) using (Font lineFont = new Font("Microsoft YaHei", lineSize)) { bool showTitle = !string.IsNullOrWhiteSpace(Title); float maxW = showTitle ? g.MeasureString(Title, titleFont).Width : 0F, totalH = showTitle ? g.MeasureString(Title, titleFont).Height + 4 : 0F; foreach (var line in Lines) { var sz = g.MeasureString(line.text, lineFont); if (sz.Width > maxW) maxW = sz.Width; totalH += sz.Height + 2; } float pad = 6F; float x = ImgX * s + o.X; float y = ImgY * s + o.Y; if (ImageWidth > 0 && ImageHeight > 0) { float screenW = ImageWidth * s, screenH = ImageHeight * s, margin = Margin; if (Position == DisplayTextPosition.TopLeft || Position == DisplayTextPosition.BottomLeft) x = o.X + margin; else x = o.X + screenW - maxW - pad * 2 - margin; if (Position == DisplayTextPosition.TopLeft || Position == DisplayTextPosition.TopRight) y = o.Y + margin; else y = o.Y + screenH - totalH - pad * 2 - margin; } using (Brush bg = new SolidBrush(Color.FromArgb(180, 0, 0, 0))) g.FillRectangle(bg, x - pad, y - pad, maxW + pad * 2, totalH + pad * 2); if (showTitle) { g.DrawString(Title, titleFont, Brushes.White, x, y); y += g.MeasureString(Title, titleFont).Height + 4; } foreach (var line in Lines) { using (Brush b = new SolidBrush(line.color)) g.DrawString(line.text, lineFont, b, x, y); y += g.MeasureString(line.text, lineFont).Height + 2; } } }
             public int HitTest(Point p, float s, PointF o) => -1; public void BeginDrag(PointF p) { } public void DragTo(PointF p, int h) { }
         }
 
@@ -1441,10 +1464,10 @@ namespace TDJS_Vision.Forms.DispShowImage
 
         public class RoiLine : IRoiShape
         {
-            public PointF P1, P2; public bool IsSelected { get; set; } public bool IsStatic { get; set; } public string Label { get; set; } public Color ShapeColor { get; set; } private PointF _oP1, _oP2, _sPt;
+            public PointF P1, P2; public bool IsSelected { get; set; } public bool IsStatic { get; set; } public string Label { get; set; } public Color ShapeColor { get; set; } public float StrokeWidth { get; set; } = 2F; private PointF _oP1, _oP2, _sPt;
             public RoiLine(float x1, float y1, float x2, float y2) { P1 = new PointF(x1, y1); P2 = new PointF(x2, y2); ShapeColor = Color.Lime; }
             public PointF GetCenter() => new PointF((P1.X + P2.X) / 2, (P1.Y + P2.Y) / 2);
-            public void Draw(Graphics g, float s, PointF o) { PointF sp1 = new PointF(P1.X * s + o.X, P1.Y * s + o.Y), sp2 = new PointF(P2.X * s + o.X, P2.Y * s + o.Y); Color drawCol = (IsSelected && !IsStatic) ? Color.Cyan : ShapeColor; using (Pen p = new Pen(drawCol, 2f)) { g.DrawLine(p, sp1, sp2); if (!IsStatic) using (Pen d = new Pen(Color.Black, 1.5f) { DashStyle = DashStyle.Dash }) g.DrawLine(d, sp1, sp2); } if (!IsStatic && IsSelected) { using (Brush orb = new SolidBrush(Color.Orange)) { g.FillRectangle(orb, sp1.X - 5, sp1.Y - 5, 10, 10); g.FillRectangle(orb, sp2.X - 5, sp2.Y - 5, 10, 10); } } PointF sc = new PointF((sp1.X + sp2.X) / 2, (sp1.Y + sp2.Y) / 2); DrawCross(g, sc); DrawLabel(g, Label, sc); }
+            public void Draw(Graphics g, float s, PointF o) { PointF sp1 = new PointF(P1.X * s + o.X, P1.Y * s + o.Y), sp2 = new PointF(P2.X * s + o.X, P2.Y * s + o.Y); Color drawCol = (IsSelected && !IsStatic) ? Color.Cyan : ShapeColor; using (Pen p = new Pen(drawCol, Math.Max(1F, StrokeWidth))) { g.DrawLine(p, sp1, sp2); if (!IsStatic) using (Pen d = new Pen(Color.Black, 1.5f) { DashStyle = DashStyle.Dash }) g.DrawLine(d, sp1, sp2); } if (!IsStatic && IsSelected) { using (Brush orb = new SolidBrush(Color.Orange)) { g.FillRectangle(orb, sp1.X - 5, sp1.Y - 5, 10, 10); g.FillRectangle(orb, sp2.X - 5, sp2.Y - 5, 10, 10); } } PointF sc = new PointF((sp1.X + sp2.X) / 2, (sp1.Y + sp2.Y) / 2); DrawCross(g, sc); DrawLabel(g, Label, sc); }
             public int HitTest(Point p, float s, PointF o) { if (IsStatic) return -1; PointF sp1 = new PointF(P1.X * s + o.X, P1.Y * s + o.Y), sp2 = new PointF(P2.X * s + o.X, P2.Y * s + o.Y); if (Dist(p, sp1) < 8) return 1; if (Dist(p, sp2) < 8) return 2; if (DistToSegment(p, sp1, sp2) < 8) return 0; return -1; }
             public void BeginDrag(PointF p) { _sPt = p; _oP1 = P1; _oP2 = P2; }
             public void DragTo(PointF p, int h) { float dx = p.X - _sPt.X, dy = p.Y - _sPt.Y; if (h == 0) { P1 = new PointF(_oP1.X + dx, _oP1.Y + dy); P2 = new PointF(_oP2.X + dx, _oP2.Y + dy); } else if (h == 1) { P1 = p; } else if (h == 2) { P2 = p; } }

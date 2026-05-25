@@ -156,6 +156,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// </summary>
         public RotatedRect RotatedRect {  get; set; }
         /// <summary>
+        /// 显示叠加层线宽。
+        /// </summary>
+        public float LineWidth { get; set; } = 2F;
+        /// <summary>
         /// 绘制的颜色
         /// </summary>
         public Color Color
@@ -181,10 +185,23 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     /// <summary>
     /// 带颜色的文本
     /// </summary>
+    public enum DisplayTextPosition
+    {
+        TopLeft,
+        TopRight,
+        BottomLeft,
+        BottomRight
+    }
+
     public class ColorText
     {
         public string Text { get; set; }
         public Color Color { get; set; }
+        public int FontSize { get; set; } = 11;
+        public DisplayTextPosition Position { get; set; } = DisplayTextPosition.TopLeft;
+        public int Margin { get; set; } = 10;
+        public string Title { get; set; } = "Result";
+
         public ColorText(string text, Color color)
         {
             Text = text;
@@ -200,6 +217,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         public PointF P1 { get; set; }
         public PointF P2 { get; set; }
         public Color Color { get; set; }
+        public float LineWidth { get; set; } = 2F;
 
         public ColorLine(PointF p1, PointF p2, Color color)
         {
@@ -224,6 +242,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         public PointF Center { get; set; }
         public float Radius { get; set; }
         public Color Color { get; set; }
+        public float LineWidth { get; set; } = 2F;
 
         public ColorCircle(PointF center, int radius, Color color)
         {
@@ -249,6 +268,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         public float Height { get; set; }
         public float Angle { get; set; }
         public Color Color { get; set; }
+        public float LineWidth { get; set; } = 2F;
 
         public ColorEllipse(PointF center, float width, float height, float angle, Color color)
         {
@@ -267,6 +287,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     {
         public List<PointF> Points { get; set; }
         public Color Color { get; set; }
+        public float LineWidth { get; set; } = 2F;
 
         public ColorContour(List<PointF> points, Color color)
         {

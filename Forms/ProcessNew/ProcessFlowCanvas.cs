@@ -1388,7 +1388,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
             foreach (ColorLine line in displayResult.Lines)
             {
-                using (Pen pen = CreatePreviewPen(line.Color, scale))
+                using (Pen pen = CreatePreviewPen(line.Color, scale, line.LineWidth))
                     graphics.DrawLine(pen, MapPreviewPoint(line.P1, imageBounds, scaleX, scaleY), MapPreviewPoint(line.P2, imageBounds, scaleX, scaleY));
             }
 
@@ -1396,7 +1396,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             {
                 PointF center = MapPreviewPoint(circle.Center, imageBounds, scaleX, scaleY);
                 float radius = Math.Max(1.5F, circle.Radius * scale);
-                using (Pen pen = CreatePreviewPen(circle.Color, scale))
+                using (Pen pen = CreatePreviewPen(circle.Color, scale, circle.LineWidth))
                     graphics.DrawEllipse(pen, center.X - radius, center.Y - radius, radius * 2, radius * 2);
             }
 
@@ -1406,7 +1406,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 GraphicsState state = graphics.Save();
                 graphics.TranslateTransform(center.X, center.Y);
                 graphics.RotateTransform(ellipse.Angle);
-                using (Pen pen = CreatePreviewPen(ellipse.Color, scale))
+                using (Pen pen = CreatePreviewPen(ellipse.Color, scale, ellipse.LineWidth))
                     graphics.DrawEllipse(pen, -ellipse.Width * scaleX / 2F, -ellipse.Height * scaleY / 2F, ellipse.Width * scaleX, ellipse.Height * scaleY);
                 graphics.Restore(state);
             }
@@ -1431,7 +1431,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 return;
 
             using (GraphicsPath path = CreateRotatedRectPath(centerX, centerY, width, height, rect.RotatedRect.angle))
-            using (Pen pen = CreatePreviewPen(rect.Color, Math.Min(scaleX, scaleY)))
+            using (Pen pen = CreatePreviewPen(rect.Color, Math.Min(scaleX, scaleY), rect.LineWidth))
             {
                 graphics.DrawPath(pen, path);
             }
@@ -1467,7 +1467,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 return;
 
             int step = Math.Max(1, contour.Points.Count / 1200);
-            float dotSize = Math.Max(1F, 1.5F * scale);
+            float dotSize = Math.Max(1F, contour.LineWidth * Math.Max(0.7F, scale));
             using (SolidBrush brush = new SolidBrush(contour.Color))
             {
                 for (int i = 0; i < contour.Points.Count; i += step)
@@ -1483,21 +1483,74 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (displayResult.Texts.Count == 0)
                 return;
 
-            int maxLines = Math.Min(2, displayResult.Texts.Count);
-            Rectangle textBounds = new Rectangle(imageBounds.X + 6, imageBounds.Y + 6, Math.Max(20, imageBounds.Width - 12), maxLines * 17 + 6);
-            using (SolidBrush backBrush = new SolidBrush(Color.FromArgb(150, 0, 0, 0)))
-                graphics.FillRectangle(backBrush, textBounds);
+            foreach (var group in displayResult.Texts.GroupBy(t => new { t.Position, t.FontSize, t.Margin, t.Title }))
+            {
+                DrawPreviewTextGroup(graphics, imageBounds, group.Key.Position, group.Key.FontSize, group.Key.Margin, group.Key.Title, group.ToList());
+            }
+        }
 
-            using (Font font = new Font("Microsoft YaHei", 7.5F, FontStyle.Regular))
+        private static void DrawPreviewTextGroup(
+            Graphics graphics,
+            Rectangle imageBounds,
+            DisplayTextPosition position,
+            int fontSize,
+            int margin,
+            string title,
+            List<ColorText> texts)
+        {
+            if (texts == null || texts.Count == 0)
+                return;
+
+            int maxLines = Math.Min(3, texts.Count);
+            float previewFontSize = Math.Max(7F, Math.Min(13F, fontSize * 0.45F));
+            bool showTitle = !string.IsNullOrWhiteSpace(title);
+            using (Font titleFont = new Font("Microsoft YaHei", previewFontSize + 1F, FontStyle.Bold))
+            using (Font font = new Font("Microsoft YaHei", previewFontSize, FontStyle.Regular))
             using (StringFormat format = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap })
             {
+                float maxWidth = 0F;
+                float totalHeight = 0F;
+                if (showTitle)
+                {
+                    SizeF titleSize = graphics.MeasureString(title, titleFont);
+                    maxWidth = Math.Max(maxWidth, titleSize.Width);
+                    totalHeight += titleSize.Height + 2F;
+                }
+
                 for (int i = 0; i < maxLines; i++)
                 {
-                    ColorText text = displayResult.Texts[i];
+                    SizeF lineSize = graphics.MeasureString(texts[i].Text ?? string.Empty, font);
+                    maxWidth = Math.Max(maxWidth, lineSize.Width);
+                    totalHeight += lineSize.Height + 1F;
+                }
+
+                float pad = 4F;
+                float marginPixels = Math.Max(4, Math.Min(16, margin));
+                float x = (position == DisplayTextPosition.TopLeft || position == DisplayTextPosition.BottomLeft)
+                    ? imageBounds.X + marginPixels
+                    : imageBounds.Right - maxWidth - pad * 2 - marginPixels;
+                float y = (position == DisplayTextPosition.TopLeft || position == DisplayTextPosition.TopRight)
+                    ? imageBounds.Y + marginPixels
+                    : imageBounds.Bottom - totalHeight - pad * 2 - marginPixels;
+
+                RectangleF textBounds = new RectangleF(x - pad, y - pad, maxWidth + pad * 2, totalHeight + pad * 2);
+                using (SolidBrush backBrush = new SolidBrush(Color.FromArgb(150, 0, 0, 0)))
+                    graphics.FillRectangle(backBrush, textBounds);
+
+                if (showTitle)
+                {
+                    graphics.DrawString(title, titleFont, Brushes.White, new RectangleF(x, y, maxWidth, titleFont.Height + 2), format);
+                    y += graphics.MeasureString(title, titleFont).Height + 2F;
+                }
+
+                for (int i = 0; i < maxLines; i++)
+                {
+                    ColorText text = texts[i];
                     using (SolidBrush textBrush = new SolidBrush(text.Color))
                     {
-                        Rectangle lineBounds = new Rectangle(textBounds.X + 4, textBounds.Y + 3 + i * 17, textBounds.Width - 8, 16);
-                        graphics.DrawString(text.Text, font, textBrush, lineBounds, format);
+                        RectangleF lineBounds = new RectangleF(x, y, maxWidth, font.Height + 2);
+                        graphics.DrawString(text.Text ?? string.Empty, font, textBrush, lineBounds, format);
+                        y += graphics.MeasureString(text.Text ?? string.Empty, font).Height + 1F;
                     }
                 }
             }
@@ -1508,9 +1561,9 @@ namespace TDJS_Vision.Forms.ProcessNew
             return new PointF(imageBounds.X + point.X * scaleX, imageBounds.Y + point.Y * scaleY);
         }
 
-        private static Pen CreatePreviewPen(Color color, float scale)
+        private static Pen CreatePreviewPen(Color color, float scale, float lineWidth = 2F)
         {
-            return new Pen(color, Math.Max(1.4F, 2.0F * Math.Max(0.7F, scale)));
+            return new Pen(color, Math.Max(1.2F, lineWidth * Math.Max(0.7F, scale)));
         }
 
         private void DrawPreviewPlaceholder(Graphics graphics, Rectangle content, string text)

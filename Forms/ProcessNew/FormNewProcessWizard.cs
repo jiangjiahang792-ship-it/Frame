@@ -832,6 +832,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.MessageBox:
                     return Color.FromArgb(134, 96, 220);
                 case NodeType.DrawAIResult:
+                case NodeType.ResultOverlayDraw:
                 case NodeType.AIResultSend:
                 case NodeType.ImageSave:
                 case NodeType.ImageFileDelete:
@@ -932,6 +933,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return "MSG";
                 case NodeType.DrawAIResult:
                     return "DR";
+                case NodeType.ResultOverlayDraw:
+                    return "ROI";
                 case NodeType.AIResultSend:
                     return "TX";
                 case NodeType.ImageSave:
