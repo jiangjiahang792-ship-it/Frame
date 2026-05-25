@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -163,7 +164,7 @@ namespace TDJS_Vision.Node
         public string RuntimeTimeText { get { return _runtimeTimeText; } }
 
         /// <summary>
-        /// 当前节点最近一次成功运行所属的流程运行批次。
+        /// 当前节点最近一次产生可订阅结果所属的流程运行批次。
         /// </summary>
         public int LastSuccessfulRunId { get; private set; }
 
@@ -178,8 +179,100 @@ namespace TDJS_Vision.Node
         public bool HasSuccessfulResultForRun(int runId)
         {
             return runId > 0 &&
-                LastSuccessfulRunId == runId &&
-                RuntimeStatus == NodeStatus.Successful;
+                LastSuccessfulRunId == runId;
+        }
+
+        public void ApplyResultOutcomeStatus()
+        {
+            if (_runtimeStatus != NodeStatus.Successful || Result == null)
+                return;
+
+            if (ResultIndicatesFailure(Result))
+                SetStatus(NodeStatus.Failed, _runtimeTimeText);
+        }
+
+        private static bool ResultIndicatesFailure(INodeResult result)
+        {
+            if (result == null)
+                return false;
+
+            bool ok;
+            if (TryReadPublicBoolMember(result, "IsOk", out ok) && !ok)
+                return true;
+
+            if (TryReadPublicBoolMember(result, "IsAllOk", out ok) && !ok)
+                return true;
+
+            Type resultType = result.GetType();
+            PropertyInfo[] properties = resultType.GetProperties(BindingFlags.Instance | BindingFlags.Public);
+            foreach (PropertyInfo property in properties)
+            {
+                if (!property.CanRead ||
+                    property.GetIndexParameters().Length > 0 ||
+                    !IsRunOutcomeProperty(property) ||
+                    !typeof(AlgorithmResult).IsAssignableFrom(property.PropertyType))
+                {
+                    continue;
+                }
+
+                AlgorithmResult algorithmResult = property.GetValue(result, null) as AlgorithmResult;
+                if (AlgorithmResultIndicatesFailure(algorithmResult))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsRunOutcomeProperty(PropertyInfo property)
+        {
+            return property != null &&
+                (string.Equals(property.Name, "Result", StringComparison.Ordinal) ||
+                 string.Equals(property.Name, "AlgorithmResult", StringComparison.Ordinal) ||
+                 string.Equals(property.Name, "SummaryResult", StringComparison.Ordinal));
+        }
+
+        private static bool AlgorithmResultIndicatesFailure(AlgorithmResult result)
+        {
+            if (result == null)
+                return false;
+
+            bool isAllOk;
+            if (TryReadPublicBoolMember(result, "IsAllOk", out isAllOk))
+                return !isAllOk;
+
+            return !result.IsAllOk;
+        }
+
+        private static bool TryReadPublicBoolMember(object source, string memberName, out bool value)
+        {
+            value = true;
+            if (source == null || string.IsNullOrEmpty(memberName))
+                return false;
+
+            Type type = source.GetType();
+            FieldInfo field = type.GetField(memberName, BindingFlags.Instance | BindingFlags.Public);
+            if (field != null && field.FieldType == typeof(bool))
+            {
+                value = (bool)field.GetValue(source);
+                return true;
+            }
+
+            PropertyInfo[] properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public);
+            foreach (PropertyInfo property in properties)
+            {
+                if (!string.Equals(property.Name, memberName, StringComparison.Ordinal) ||
+                    property.PropertyType != typeof(bool) ||
+                    !property.CanRead ||
+                    property.GetIndexParameters().Length > 0)
+                {
+                    continue;
+                }
+
+                value = (bool)property.GetValue(source, null);
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>

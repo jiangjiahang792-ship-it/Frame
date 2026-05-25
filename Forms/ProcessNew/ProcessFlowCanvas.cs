@@ -2020,7 +2020,8 @@ namespace TDJS_Vision.Forms.ProcessNew
             Rectangle bounds = GetNodeBounds(node);
             Color fillColor = GetNodeFillColor(node);
             Color statusColor = GetNodeStatusColor(node);
-            Color borderColor = node.Selected ? CanvasAccentColor : Color.FromArgb(100, 122, 143);
+            Color borderColor = GetNodeBorderColor(node);
+            float borderWidth = GetNodeBorderWidth(node);
 
             Rectangle shadowBounds = bounds;
             shadowBounds.Offset(3, 4);
@@ -2032,21 +2033,20 @@ namespace TDJS_Vision.Forms.ProcessNew
 
             using (GraphicsPath body = CreateRoundRect(bounds, 6))
             using (SolidBrush fill = new SolidBrush(fillColor))
-            using (Pen border = new Pen(borderColor, node.Selected ? 2.6F : 1.15F))
+            using (Pen border = new Pen(borderColor, borderWidth))
             {
                 graphics.FillPath(fill, body);
                 graphics.DrawPath(border, body);
             }
 
             Rectangle titleBand = new Rectangle(bounds.X + 1, bounds.Y + 1, bounds.Width - 2, 9);
-            NodeType nodeType = node.NodeType;
-            using (SolidBrush titleBrush = new SolidBrush(GetNodeBandColor(nodeType)))
+            using (SolidBrush titleBrush = new SolidBrush(GetNodeTitleBandColor(node)))
                 graphics.FillRectangle(titleBrush, titleBand);
 
             using (Font titleFont = new Font("Microsoft YaHei", 9.5F, FontStyle.Bold))
             using (Font metaFont = new Font("Microsoft YaHei", 8F, FontStyle.Regular))
             using (SolidBrush titleBrush = new SolidBrush(NodeTextColor))
-            using (SolidBrush metaBrush = new SolidBrush(NodeMetaTextColor))
+            using (SolidBrush metaBrush = new SolidBrush(node.RuntimeStatus == NodeStatus.Failed ? statusColor : NodeMetaTextColor))
             using (SolidBrush statusBrush = new SolidBrush(statusColor))
             using (StringFormat textFormat = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap })
             {
@@ -2185,8 +2185,11 @@ namespace TDJS_Vision.Forms.ProcessNew
         private void DrawAnchor(Graphics graphics, NodeBase node, string anchorName, string branchLabel = null)
         {
             Rectangle anchor = GetAnchorBounds(node, anchorName);
+            Color borderColor = node.RuntimeStatus == NodeStatus.Failed
+                ? GetNodeStatusColor(node)
+                : node.Selected ? CanvasAccentColor : Color.FromArgb(90, 190, 255);
             using (SolidBrush fill = new SolidBrush(Color.White))
-            using (Pen border = new Pen(node.Selected ? CanvasAccentColor : Color.FromArgb(90, 190, 255), 1.4F))
+            using (Pen border = new Pen(borderColor, node.RuntimeStatus == NodeStatus.Failed ? 2.1F : 1.4F))
             {
                 graphics.FillEllipse(fill, anchor);
                 graphics.DrawEllipse(border, anchor);
@@ -2585,6 +2588,30 @@ namespace TDJS_Vision.Forms.ProcessNew
                 default:
                     return Color.FromArgb(134, 151, 171);
             }
+        }
+
+        private Color GetNodeBorderColor(NodeBase node)
+        {
+            if (node.RuntimeStatus == NodeStatus.Failed)
+                return Color.FromArgb(255, 68, 68);
+
+            return node.Selected ? CanvasAccentColor : Color.FromArgb(100, 122, 143);
+        }
+
+        private float GetNodeBorderWidth(NodeBase node)
+        {
+            if (node.RuntimeStatus == NodeStatus.Failed)
+                return node.Selected ? 3.4F : 3.0F;
+
+            return node.Selected ? 2.6F : 1.15F;
+        }
+
+        private Color GetNodeTitleBandColor(NodeBase node)
+        {
+            if (node.RuntimeStatus == NodeStatus.Failed)
+                return Color.FromArgb(224, 49, 49);
+
+            return GetNodeBandColor(node.NodeType);
         }
 
         private string GetNodeMetaText(NodeBase node)

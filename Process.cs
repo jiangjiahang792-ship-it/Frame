@@ -257,6 +257,7 @@ namespace TDJS_Vision
         private async Task<bool> RunConnectedNodesSequential(NodeBase nodeToSkip = null, NodeBase stopBeforeNode = null)
         {
             HashSet<int> visitedNodeIds = new HashSet<int>();
+            HashSet<int> failedNodeIds = new HashSet<int>();
             foreach (NodeBase startNode in GetConnectionStartNodes())
             {
                 if (startNode == null || visitedNodeIds.Contains(startNode.ID))
@@ -276,6 +277,12 @@ namespace TDJS_Vision
                     if (node == stopBeforeNode)
                         return false;
 
+                    if (HasFailedIncomingConnection(node.ID, failedNodeIds))
+                    {
+                        failedNodeIds.Add(node.ID);
+                        continue;
+                    }
+
                     if (node == nodeToSkip || !node.Active)
                     {
                         AddConnectedNextNodes(node, pendingNodes, ProcessConnectionBranch.Default, true);
@@ -284,8 +291,15 @@ namespace TDJS_Vision
 
                     MarkNodeRunning(node);
                     NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
+                    FinalizeNodeRun(node);
                     if (node.Result != null)
                         RunTime += node.Result.RunTime;
+
+                    if (IsNodeFailedStatus(node))
+                    {
+                        failedNodeIds.Add(node.ID);
+                        continue;
+                    }
 
                     if (result.Flag == NodeRunFlag.StopRun)
                         return true;
@@ -352,9 +366,9 @@ namespace TDJS_Vision
                             if (nodeFinishTime > logicalRunTime)
                                 logicalRunTime = nodeFinishTime;
 
-                            if (runResult.Exception != null)
+                            if (runResult.Exception != null || runResult.FailedStatus)
                             {
-                                if (firstNodeException == null)
+                                if (runResult.Exception != null && firstNodeException == null)
                                     firstNodeException = runResult.Exception;
 
                                 MarkFailedDownstreamInactive(node.ID, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
@@ -482,11 +496,13 @@ namespace TDJS_Vision
             try
             {
                 NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
+                FinalizeNodeRun(node);
                 return new ConnectedNodeRunResult
                 {
                     Node = node,
                     Return = result,
-                    RunTime = node.Result == null ? 0 : node.Result.RunTime
+                    RunTime = node.Result == null ? 0 : node.Result.RunTime,
+                    FailedStatus = IsNodeFailedStatus(node)
                 };
             }
             catch (OperationCanceledException)
@@ -500,7 +516,8 @@ namespace TDJS_Vision
                 {
                     Node = node,
                     Exception = ex,
-                    RunTime = node.Result == null ? 0 : node.Result.RunTime
+                    RunTime = node.Result == null ? 0 : node.Result.RunTime,
+                    FailedStatus = true
                 };
             }
         }
@@ -737,6 +754,20 @@ namespace TDJS_Vision
             return false;
         }
 
+        private bool HasFailedIncomingConnection(int nodeId, HashSet<int> failedNodeIds)
+        {
+            if (failedNodeIds == null || failedNodeIds.Count == 0)
+                return false;
+
+            foreach (ProcessConnection connection in _connections)
+            {
+                if (connection.ToNodeId == nodeId && failedNodeIds.Contains(connection.FromNodeId))
+                    return true;
+            }
+
+            return false;
+        }
+
         private HashSet<int> GetConnectedComponentNodeIds(NodeBase startNode)
         {
             HashSet<int> componentNodeIds = new HashSet<int>();
@@ -815,6 +846,7 @@ namespace TDJS_Vision
             public Exception Exception;
             public int RunTime;
             public bool SkippedExecution;
+            public bool FailedStatus;
         }
 
         private List<NodeBase> GetConnectionStartNodes()
@@ -979,6 +1011,28 @@ namespace TDJS_Vision
                 ? "0"
                 : node.Result.RunTime.ToString();
             node.SetStatus(NodeStatus.Failed, runTime);
+        }
+
+        private static void FinalizeNodeRun(NodeBase node)
+        {
+            if (node != null)
+                node.ApplyResultOutcomeStatus();
+        }
+
+        private static bool IsNodeFailedStatus(NodeBase node)
+        {
+            return node != null && node.RuntimeStatus == NodeStatus.Failed;
+        }
+
+        private bool HasFailedRuntimeNode()
+        {
+            foreach (NodeBase node in _nodes)
+            {
+                if (IsNodeFailedStatus(node))
+                    return true;
+            }
+
+            return false;
         }
 
         private void BeginProcessRun()
@@ -1147,7 +1201,11 @@ namespace TDJS_Vision
 
                             MarkNodeRunning(node);
                             NodeReturn result = await node.Run(Solution.Instance.CancellationToken, process.ShowLog);
+                            FinalizeNodeRun(node);
                             process.RunTime += node.Result.RunTime;
+
+                            if (IsNodeFailedStatus(node))
+                                break;
 
                             // 检查还要不要继续运行
                             if (result.Flag == NodeRunFlag.StopRun)
@@ -1203,13 +1261,14 @@ namespace TDJS_Vision
                     }
                 }
 
-                // 所有节点都执行完毕
-                process.Success = true;
+                // 所有可运行节点都执行完毕，若任一节点最终为失败状态，则流程按失败结束。
+                bool processSucceeded = !process.HasFailedRuntimeNode();
+                process.Success = processSucceeded;
                 process.IsRuning = false;
                 if (process.ShowLog)
-                    LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{process.ProcessName}】（结束） 【耗时】（{process.RunTime}ms） 【状态】（成功）  ---------------------------------", true);
-                UpdateRunStatus?.Invoke(process, new ProcessRunResult(false, true, process.ProcessName));
-                ProcessEvents.OnProcessEnded(process.ID, ProcessEndStatus.Completed);
+                    LogHelper.AddLog(processSucceeded ? MsgLevel.Info : MsgLevel.Exception, $"---------------------------------  【{process.ProcessName}】（结束） 【耗时】（{process.RunTime}ms） 【状态】（{(processSucceeded ? "成功" : "失败")}）  ---------------------------------", true);
+                UpdateRunStatus?.Invoke(process, new ProcessRunResult(false, processSucceeded, process.ProcessName));
+                ProcessEvents.OnProcessEnded(process.ID, processSucceeded ? ProcessEndStatus.Completed : ProcessEndStatus.Failed);
             }
         }
 
@@ -1281,7 +1340,11 @@ namespace TDJS_Vision
 
                         MarkNodeRunning(node);
                         NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
+                        FinalizeNodeRun(node);
                         RunTime += node.Result.RunTime;
+
+                        if (IsNodeFailedStatus(node))
+                            break;
 
                         // 检查还要不要继续运行
                         if (result.Flag == NodeRunFlag.StopRun)
@@ -1337,13 +1400,14 @@ namespace TDJS_Vision
                 }
             }
 
-            // 所有节点都执行完毕
-            Success = true;
+            // 所有可运行节点都执行完毕，若任一节点最终为失败状态，则流程按失败结束。
+            bool runSucceeded = !HasFailedRuntimeNode();
+            Success = runSucceeded;
             IsRuning = false;
             if (ShowLog)
-                LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（成功）  ---------------------------------", true);
-            UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
-            ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Completed);
+                LogHelper.AddLog(runSucceeded ? MsgLevel.Info : MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（{(runSucceeded ? "成功" : "失败")}）  ---------------------------------", true);
+            UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, runSucceeded, ProcessName));
+            ProcessEvents.OnProcessEnded(ID, runSucceeded ? ProcessEndStatus.Completed : ProcessEndStatus.Failed);
         }
 
 
@@ -1417,7 +1481,11 @@ namespace TDJS_Vision
 
                         MarkNodeRunning(node);
                         NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
+                        FinalizeNodeRun(node);
                         RunTime += node.Result.RunTime;
+
+                        if (IsNodeFailedStatus(node))
+                            break;
 
                         // 检查还要不要继续运行
                         if (result.Flag == NodeRunFlag.StopRun)
@@ -1474,13 +1542,14 @@ namespace TDJS_Vision
                 }
             }
 
-            // 所有节点都执行完毕
-            Success = true;
+            // 所有可运行节点都执行完毕，若任一节点最终为失败状态，则流程按失败结束。
+            bool runSucceeded = !HasFailedRuntimeNode();
+            Success = runSucceeded;
             IsRuning = false;
             if (ShowLog)
-                LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（成功）  ---------------------------------", true);
-            UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
-            ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Completed);
+                LogHelper.AddLog(runSucceeded ? MsgLevel.Info : MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（{(runSucceeded ? "成功" : "失败")}）  ---------------------------------", true);
+            UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, runSucceeded, ProcessName));
+            ProcessEvents.OnProcessEnded(ID, runSucceeded ? ProcessEndStatus.Completed : ProcessEndStatus.Failed);
         }
 
 
@@ -1555,7 +1624,11 @@ namespace TDJS_Vision
 
                         MarkNodeRunning(node);
                         NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
+                        FinalizeNodeRun(node);
                         RunTime += node.Result.RunTime;
+
+                        if (IsNodeFailedStatus(node))
+                            break;
 
                         // 检查还要不要继续运行
                         if (result.Flag == NodeRunFlag.StopRun)
@@ -1610,11 +1683,12 @@ namespace TDJS_Vision
                 }
             }
 
-            Success = true;
+            bool updateSucceeded = !HasFailedRuntimeNode();
+            Success = updateSucceeded;
             IsRuning = false;
             if (ShowLog)
-                LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（成功）  ---------------------------------", true);
-            UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
+                LogHelper.AddLog(updateSucceeded ? MsgLevel.Info : MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（{(updateSucceeded ? "成功" : "失败")}）  ---------------------------------", true);
+            UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, updateSucceeded, ProcessName));
         }
     }
 

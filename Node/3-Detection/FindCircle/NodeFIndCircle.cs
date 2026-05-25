@@ -62,13 +62,16 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
                             res = "OK";
                         else
                             res = "NG";
+                        bool isOk = res != "NG";
+                        Color resultColor = isOk ? Color.Green : Color.Red;
 
                         // 输出节点结果
                         var outputImage = form.GetOutputImage();
                         ((NodeResultFindCircle)Result).OutputImage.Bitmaps = new List<Mat>() { outputImage.Bitmaps[0].Clone() };
                         ((NodeResultFindCircle)Result).Result.Clear();
-                        ((NodeResultFindCircle)Result).Result.Circles.Add(new ColorCircle(Circle, Color.Green));
-                        ((NodeResultFindCircle)Result).Result.Texts.Add(new ColorText($"识别到的圆心：（{Circle.Center.X}, {Circle.Center.Y}）\n半径：{Circle.Radius}", Color.Green));
+                        ((NodeResultFindCircle)Result).Result.Circles.Add(new ColorCircle(Circle, resultColor));
+                        ((NodeResultFindCircle)Result).Result.Texts.Add(new ColorText($"识别到的圆心：（{Circle.Center.X}, {Circle.Center.Y}）\n半径：{Circle.Radius}", resultColor));
+                        ((NodeResultFindCircle)Result).Result.IsAllOk = isOk;
                         ((NodeResultFindCircle)Result).OutputImage.DisplayResult = ((NodeResultFindCircle)Result).Result;
 
                         var time = SetRunResult(startTime, NodeStatus.Successful);

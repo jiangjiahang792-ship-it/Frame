@@ -55,6 +55,7 @@ namespace TDJS_Vision.Node._3_Detection.QRScan
                         {
                             codes = new string[] { "null          " }; //识别不到二维码默认赋“null”值
                         }
+                        bool isOk = codes[0] != "null          ";
 
                         //输出结果
                         res.Codes = codes;
@@ -71,10 +72,10 @@ namespace TDJS_Vision.Node._3_Detection.QRScan
                             for (int i = 0; i < codes.Length; i++)
                                 res.Result.Texts.Add(new ColorText($"条形码/二维码识别结果{i + 1}：\n{codes[i]}", Color.Green));
                         }
+                        res.Result.IsAllOk = isOk;
                         time = SetRunResult(startTime, NodeStatus.Successful);
                         res.RunTime = time;
                         Result = res;
-                        SetRunResult(startTime, NodeStatus.Successful);
                         if (showLog)
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，二维码数据为:“{codes[0]}”", true);
                         return new NodeReturn(NodeRunFlag.ContinueRun);
