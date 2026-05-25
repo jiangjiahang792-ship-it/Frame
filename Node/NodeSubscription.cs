@@ -223,13 +223,7 @@ namespace TDJS_Vision.Node
             if (_selectedNode == null || _text2.IsNullOrEmpty())
                 throw new Exception($"节点无法获取订阅的值!");
 
-            if (_node != null &&
-                _node.Process != null &&
-                _node.Process.IsRuning &&
-                !_selectedNode.HasSuccessfulResultForRun(_node.Process.CurrentRunId))
-            {
-                throw new Exception($"节点({_selectedNode.ID}.{_selectedNode.NodeName})本次流程未成功运行，不能使用上次运行结果!");
-            }
+            EnsureSelectedNodeFresh();
 
             var propertyInfo = _selectedNode.Result.GetType().GetProperties().ToList().Find(item => item.DisplayName() == _text2);
             if (propertyInfo != null && propertyInfo.CanRead)
@@ -250,6 +244,25 @@ namespace TDJS_Vision.Node
             {
                 throw new Exception($"节点({_selectedNode.ID}.{_selectedNode.NodeName})获取订阅的{_text2}值失败!");
             }
+        }
+
+        public NodeBase GetSelectedNode()
+        {
+            if (_selectedNode == null)
+                throw new Exception($"节点无法获取订阅的上游节点!");
+
+            EnsureSelectedNodeFresh();
+            return _selectedNode;
+        }
+
+        public T GetSelectedResult<T>() where T : class
+        {
+            NodeBase selectedNode = GetSelectedNode();
+            T result = selectedNode.Result as T;
+            if (result == null)
+                throw new InvalidCastException($"节点({selectedNode.ID}.{selectedNode.NodeName})运行结果类型不匹配，期望类型为{typeof(T).Name}，实际类型为{selectedNode.Result?.GetType().Name ?? "null"}!");
+
+            return result;
         }
 
         public NodeType GetNodeType()
@@ -323,6 +336,20 @@ namespace TDJS_Vision.Node
         private void comboBox2_SelectedIndexChanged(object sender, EventArgs e)
         {
             _text2 = comboBox2.Text;
+        }
+
+        private void EnsureSelectedNodeFresh()
+        {
+            if (_selectedNode == null)
+                return;
+
+            if (_node != null &&
+                _node.Process != null &&
+                _node.Process.IsRuning &&
+                !_selectedNode.HasSuccessfulResultForRun(_node.Process.CurrentRunId))
+            {
+                throw new Exception($"节点({_selectedNode.ID}.{_selectedNode.NodeName})本次流程未成功运行，不能使用上次运行结果!");
+            }
         }
     }
 }

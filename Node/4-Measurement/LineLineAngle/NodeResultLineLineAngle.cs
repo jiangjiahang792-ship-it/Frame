@@ -1,0 +1,56 @@
+using System.ComponentModel;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
+using TDJS_Vision.Node._3_Detection.TDAI;
+
+namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
+{
+    public class NodeResultLineLineAngle : INodeResult
+    {
+        public int RunTime { get; set; }
+
+        [DisplayName("是否OK")]
+        public bool IsOk { get; set; }
+
+        [DisplayName("夹角")]
+        public double? Angle { get; set; }
+
+        [DisplayName("交点X")]
+        public double? IntersectionX { get; set; }
+
+        [DisplayName("交点Y")]
+        public double? IntersectionY { get; set; }
+
+        [DisplayName("直线1起点X")]
+        public double? Line1StartX { get; set; }
+
+        [DisplayName("直线1起点Y")]
+        public double? Line1StartY { get; set; }
+
+        [DisplayName("直线1终点X")]
+        public double? Line1EndX { get; set; }
+
+        [DisplayName("直线1终点Y")]
+        public double? Line1EndY { get; set; }
+
+        [DisplayName("直线2起点X")]
+        public double? Line2StartX { get; set; }
+
+        [DisplayName("直线2起点Y")]
+        public double? Line2StartY { get; set; }
+
+        [DisplayName("直线2终点X")]
+        public double? Line2EndX { get; set; }
+
+        [DisplayName("直线2终点Y")]
+        public double? Line2EndY { get; set; }
+
+        [DisplayName("算法耗时")]
+        public double AlgorithmMs { get; set; }
+
+        [DisplayName("算法结果")]
+        public AlgorithmResult Result { get; set; } = new AlgorithmResult();
+
+        [DisplayName("输出图像")]
+        public OutputImage OutputImage { get; set; } = new OutputImage();
+    }
+}

@@ -331,6 +331,7 @@
     </Compile>
     <Compile Include="JsonProjectSerializer.cs" />
     <Compile Include="Node\4-Measurement\Common\CaliperMeasurementAlgorithm.cs" />
+    <Compile Include="Node\4-Measurement\Common\GeometryMeasurement.cs" />
     <Compile Include="Node\4-Measurement\Common\MeasurementNodeHelper.cs" />
     <Compile Include="Node\4-Measurement\Common\PositionCorrectionInfo.cs" />
     <Compile Include="Node\4-Measurement\CaliperLine\NodeCaliperLine.cs">
@@ -377,6 +378,39 @@
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Node\4-Measurement\PositionCorrection\NodeResultPositionCorrection.cs" />
+    <Compile Include="Node\4-Measurement\LineLineAngle\NodeLineLineAngle.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\LineLineAngle\NodeParamLineLineAngle.cs" />
+    <Compile Include="Node\4-Measurement\LineLineAngle\NodeParamFormLineLineAngle.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\LineLineAngle\NodeParamFormLineLineAngle.Designer.cs">
+      <DependentUpon>NodeParamFormLineLineAngle.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\4-Measurement\LineLineAngle\NodeResultLineLineAngle.cs" />
+    <Compile Include="Node\4-Measurement\PointPointDistance\NodePointPointDistance.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\PointPointDistance\NodeParamPointPointDistance.cs" />
+    <Compile Include="Node\4-Measurement\PointPointDistance\NodeParamFormPointPointDistance.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\PointPointDistance\NodeParamFormPointPointDistance.Designer.cs">
+      <DependentUpon>NodeParamFormPointPointDistance.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\4-Measurement\PointPointDistance\NodeResultPointPointDistance.cs" />
+    <Compile Include="Node\4-Measurement\PointRegionDistance\NodePointRegionDistance.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\PointRegionDistance\NodeParamPointRegionDistance.cs" />
+    <Compile Include="Node\4-Measurement\PointRegionDistance\NodeParamFormPointRegionDistance.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\PointRegionDistance\NodeParamFormPointRegionDistance.Designer.cs">
+      <DependentUpon>NodeParamFormPointRegionDistance.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\4-Measurement\PointRegionDistance\NodeResultPointRegionDistance.cs" />
     <Compile Include="Node\3-Detection\BatteryEar\FormNewTemplate.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -1450,6 +1484,9 @@
     <EmbeddedResource Include="Node\3-Detection\TDAI\TDAICommuntionDetectionConfig.resx">
       <DependentUpon>TDAICommuntionDetectionConfig.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Node\4-Measurement\LineLineAngle\NodeParamFormLineLineAngle.resx">
+      <DependentUpon>NodeParamFormLineLineAngle.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Node\5-EquipmentCommunication\AIResultSend\ParamFormSignalSend.resx">
       <DependentUpon>ParamFormSignalSend.cs</DependentUpon>
     </EmbeddedResource>
@@ -1645,7 +1682,6 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Icon\NodeIcon\" />
-    <Folder Include="Node\4-Measurement\" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="APP.ico" />

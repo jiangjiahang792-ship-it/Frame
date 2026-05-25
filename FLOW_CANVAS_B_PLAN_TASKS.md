@@ -16,7 +16,7 @@ This means the target is not only a visual style change. The work includes:
 
 ## Current Step
 
-The current implementation step is **Phase 17: Parallel Branch Runtime Scheduling Design**.
+The current implementation step is **Phase 18: Composite Geometry Measurement Tools**.
 
 ### Latest Progress
 
@@ -32,6 +32,13 @@ The current implementation step is **Phase 17: Parallel Branch Runtime Schedulin
 - Phase 10 UI regression status:
   - [x] Simple, branch, disabled, failed, stopped, and runtime-state-refresh checks passed in the UI.
   - [ ] Passive-triggered graph-flow verification is intentionally deferred.
+- Phase 18 composite measurement planning:
+  - [x] New request captured: integrate line-to-line angle, point-to-point distance, and point-to-region distance measurement nodes.
+  - [x] Use `D:\MyCode\PrivateMyComputerCoder\Test\_OpenCv颜色2` as the manual-tool algorithm reference.
+  - [x] Each new tool should support subscribing upstream measurement results and drawing local ROI geometry.
+  - [x] Local drawn measurement should use existing caliper algorithms where applicable instead of only manual coordinate clicks.
+  - [x] Each new tool should expose position-correction options for local drawn ROIs.
+  - [x] Parameter UI should include Basic Parameters and Run Parameters only; no Result Display page.
 - Phase 11 undo/redo first implementation pass:
   - [x] `ProcessFlowCanvas` now owns a canvas edit history stack.
   - [x] Undo/redo supports node creation, node deletion, node movement, connection creation, connection deletion, start-node changes, and node enable/disable changes.
@@ -911,6 +918,38 @@ Reference source:
 - [ ] Runtime-verify deployed/release output folder contains native dependencies and can load `MatchTool.dll` without `DllNotFoundException` or OpenCV native dependency errors.
 
 ## Recommended Implementation Order
+
+## Phase 18: Composite Geometry Measurement Tools
+
+Reference source:
+
+- `D:\MyCode\PrivateMyComputerCoder\Test\_OpenCv颜色2\线到线夹角工具`
+- `D:\MyCode\PrivateMyComputerCoder\Test\_OpenCv颜色2\点到点距离工具`
+- `D:\MyCode\PrivateMyComputerCoder\Test\_OpenCv颜色2\点到区域距离工具`
+
+### Phase 18.1: Algorithm And Data Source Design
+
+- [x] Add shared geometry measurement helpers for line-line angle, point-point distance, and point-region min/max distance.
+- [x] Add reflection-based result readers so composite tools can subscribe upstream line, point, and region/contour outputs.
+- [x] Keep pixel/sub-pixel precision modes from the reference tools.
+- [x] Use existing caliper algorithms for local drawn line and point measurement: line calipers for line-line angle, circle calipers for point extraction.
+
+### Phase 18.2: Node And UI Integration
+
+- [x] Add `LineLineAngle`, `PointPointDistance`, and `PointRegionDistance` node families under `Node\4-Measurement`.
+- [x] Add designer-visible WinForms parameter forms with Basic Parameters and Run Parameters tabs only.
+- [x] Add source mode selection between subscribe and draw.
+- [x] Add position-correction controls for draw-mode baseline ROI geometry.
+- [x] Register the new nodes in `NodeType`, process node creation, toolbox XML, language JSON files, and project compile items.
+
+### Phase 18.3: Verification
+
+- [x] UTF-8 parse-verify language JSON and toolbox XML after adding the new node entries.
+- [x] Static registration sweep confirmed project compile items, toolbox tags, language keys, node icons, and node factory cases.
+- [ ] Build-verify after registration.
+  - Blocked for now: escalated MSBuild was rejected by the Codex usage limit; retry after the limit window resets.
+- [ ] UI-verify parameter forms can refresh images, draw/confirm ROIs, and run local previews.
+- [ ] Runtime-verify subscribed upstream results and draw-mode caliper measurement on real images.
 
 1. [x] Add graph layout and connection models with backward-compatible save/load defaults.
 2. [x] Add the `ProcessNew` canvas control and draw nodes from current runtime nodes.

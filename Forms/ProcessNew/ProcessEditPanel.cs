@@ -22,7 +22,10 @@ using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._4_Measurement.CaliperCircle;
 using TDJS_Vision.Node._4_Measurement.CaliperEllipse;
 using TDJS_Vision.Node._4_Measurement.CaliperLine;
+using TDJS_Vision.Node._4_Measurement.LineLineAngle;
 using TDJS_Vision.Node._4_Measurement.PositionCorrection;
+using TDJS_Vision.Node._4_Measurement.PointPointDistance;
+using TDJS_Vision.Node._4_Measurement.PointRegionDistance;
 using TDJS_Vision.Node._5_EquipmentCommunication.AIResultSend;
 using TDJS_Vision.Node._5_EquipmentCommunication.CameraIO;
 using TDJS_Vision.Node._5_EquipmentCommunication.CamerIOImprovement;
@@ -581,6 +584,15 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.PositionCorrection:
                     node = new NodePositionCorrection(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.LineLineAngle:
+                    node = new NodeLineLineAngle(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.PointPointDistance:
+                    node = new NodePointPointDistance(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.PointRegionDistance:
+                    node = new NodePointRegionDistance(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.ImageCrop:
                     node = new NodeImageCrop(nodeId, nodeName, _process, nodeType);

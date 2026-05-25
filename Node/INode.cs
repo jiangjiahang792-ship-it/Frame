@@ -353,5 +353,17 @@ namespace TDJS_Vision.Node
         /// 监听信号读取
         /// </summary>
         ReadFlag,
+        /// <summary>
+        /// 线到线夹角
+        /// </summary>
+        LineLineAngle,
+        /// <summary>
+        /// 点到点距离
+        /// </summary>
+        PointPointDistance,
+        /// <summary>
+        /// 点到区域距离
+        /// </summary>
+        PointRegionDistance,
     }
 }

@@ -1,0 +1,603 @@
+using Logger;
+using OpenCvSharp;
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+using TDJS_Vision.Forms.YTMessageBox;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
+using TDJS_Vision.Node._4_Measurement.Common;
+using Stopwatch = System.Diagnostics.Stopwatch;
+
+namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
+{
+    public partial class NodeParamFormLineLineAngle : FormBase, INodeParamForm
+    {
+        private readonly NodeBase node;
+        private bool _isSyncingRoi;
+        private bool _roiVisible;
+
+        public NodeParamFormLineLineAngle(Process process, NodeBase node)
+        {
+            InitializeComponent();
+            this.node = node;
+            InitializeCombos();
+            BindRoiRefreshEvents();
+            nodeSubscriptionLine1.HideText2();
+            nodeSubscriptionLine2.HideText2();
+            UpdateSourceModeEnabled();
+        }
+
+        public INodeParam Params { get; set; }
+
+        public void SetNodeBelong(NodeBase node)
+        {
+            nodeSubscriptionImage.Init(node);
+            nodeSubscriptionLine1.Init(node);
+            nodeSubscriptionLine2.Init(node);
+            nodeSubscriptionPositionCorrection.Init(node);
+        }
+
+        public void SetParam2Form()
+        {
+            var param = Params as NodeParamLineLineAngle;
+            if (param == null)
+                return;
+
+            _isSyncingRoi = true;
+            try
+            {
+                nodeSubscriptionImage.SetText(param.ImageText1, param.ImageText2);
+                radioButtonSubscribe.Checked = param.SourceMode == MeasurementDataSourceMode.Subscribe;
+                radioButtonDraw.Checked = param.SourceMode != MeasurementDataSourceMode.Subscribe;
+                nodeSubscriptionLine1.SetText(param.Line1Text1, param.Line1Text2);
+                nodeSubscriptionLine2.SetText(param.Line2Text1, param.Line2Text2);
+                checkBoxUsePositionCorrection.Checked = param.UsePositionCorrection;
+                nodeSubscriptionPositionCorrection.SetText(param.CorrectionText1, param.CorrectionText2);
+                comboBoxMeasureMode.SelectedItem = param.MeasureMode;
+                textBoxL1StartX.Text = param.Line1StartX.ToString();
+                textBoxL1StartY.Text = param.Line1StartY.ToString();
+                textBoxL1EndX.Text = param.Line1EndX.ToString();
+                textBoxL1EndY.Text = param.Line1EndY.ToString();
+                textBoxL2StartX.Text = param.Line2StartX.ToString();
+                textBoxL2StartY.Text = param.Line2StartY.ToString();
+                textBoxL2EndX.Text = param.Line2EndX.ToString();
+                textBoxL2EndY.Text = param.Line2EndY.ToString();
+                textBoxCaliperWidth.Text = param.CaliperWidth.ToString();
+                textBoxCaliperHeight.Text = param.CaliperHeight.ToString();
+                textBoxCount.Text = param.Count.ToString();
+                textBoxEdgeStrength.Text = param.EdgeStrength.ToString();
+                textBoxBlurSize.Text = param.BlurSize.ToString();
+                comboBoxPolarity.SelectedItem = param.Polarity;
+                comboBoxFindMode.SelectedItem = param.FindMode;
+                comboBoxDirection.SelectedIndex = param.Direction == 1 ? 1 : 0;
+            }
+            finally
+            {
+                _isSyncingRoi = false;
+            }
+
+            UpdateSourceModeEnabled();
+            ClearEditingRoi();
+        }
+
+        internal LineLineAngleMeasureResult ExecuteMeasure(NodeParamLineLineAngle param, out Mat output)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            using (Mat source = GetInputMat())
+            {
+                output = MeasurementNodeHelper.EnsureBgr(source);
+                var result = new LineLineAngleMeasureResult();
+
+                MeasuredLine line1;
+                MeasuredLine line2;
+                if (param.SourceMode == MeasurementDataSourceMode.Subscribe)
+                {
+                    line1 = ReadSubscribedLine(nodeSubscriptionLine1, "直线1");
+                    line2 = ReadSubscribedLine(nodeSubscriptionLine2, "直线2");
+                }
+                else
+                {
+                    using (Mat gray = CaliperMeasurementAlgorithm.ToGray(source))
+                    {
+                        NodeParamLineLineAngle runtimeParam = BuildRuntimeParam(param);
+                        CaliperLineMeasureResult line1Result = CaliperMeasurementAlgorithm.FindLine(gray, BuildLineParams(runtimeParam, true));
+                        CaliperLineMeasureResult line2Result = CaliperMeasurementAlgorithm.FindLine(gray, BuildLineParams(runtimeParam, false));
+                        result.Line1EdgePoints.AddRange(line1Result.EdgePoints);
+                        result.Line2EdgePoints.AddRange(line2Result.EdgePoints);
+
+                        if (!line1Result.Success)
+                            return FinishFailed(result, stopwatch, "直线1卡尺找线失败");
+                        if (!line2Result.Success)
+                            return FinishFailed(result, stopwatch, "直线2卡尺找线失败");
+
+                        line1 = new MeasuredLine { Start = line1Result.LineStart, End = line1Result.LineEnd, Source = "DrawLine1" };
+                        line2 = new MeasuredLine { Start = line2Result.LineStart, End = line2Result.LineEnd, Source = "DrawLine2" };
+                    }
+                }
+
+                if (line1 == null || !line1.IsValid)
+                    return FinishFailed(result, stopwatch, "直线1无效");
+                if (line2 == null || !line2.IsValid)
+                    return FinishFailed(result, stopwatch, "直线2无效");
+
+                result.Line1 = line1;
+                result.Line2 = line2;
+                result.Angle = GeometryMeasurementAlgorithm.CalculateLineLineAngle(
+                    line1.Start,
+                    line1.End,
+                    line2.Start,
+                    line2.End,
+                    param.MeasureMode,
+                    out PointF usedL1Start,
+                    out PointF usedL1End,
+                    out PointF usedL2Start,
+                    out PointF usedL2End,
+                    out PointF? intersectionPoint);
+
+                result.Line1 = new MeasuredLine { Start = usedL1Start, End = usedL1End, Source = line1.Source };
+                result.Line2 = new MeasuredLine { Start = usedL2Start, End = usedL2End, Source = line2.Source };
+                result.IntersectionPoint = intersectionPoint;
+                result.Success = true;
+                stopwatch.Stop();
+                result.AlgorithmMs = stopwatch.Elapsed.TotalMilliseconds;
+                return result;
+            }
+        }
+
+        private void InitializeCombos()
+        {
+            comboBoxMeasureMode.Items.Add(GeometryMeasureMode.SubPixel);
+            comboBoxMeasureMode.Items.Add(GeometryMeasureMode.Pixel);
+            comboBoxMeasureMode.SelectedItem = GeometryMeasureMode.SubPixel;
+
+            comboBoxPolarity.Items.Add(CaliperEdgePolarity.Both);
+            comboBoxPolarity.Items.Add(CaliperEdgePolarity.DarkToLight);
+            comboBoxPolarity.Items.Add(CaliperEdgePolarity.LightToDark);
+            comboBoxPolarity.SelectedItem = CaliperEdgePolarity.Both;
+
+            comboBoxFindMode.Items.Add(CaliperEdgeFindMode.Best);
+            comboBoxFindMode.Items.Add(CaliperEdgeFindMode.First);
+            comboBoxFindMode.Items.Add(CaliperEdgeFindMode.Last);
+            comboBoxFindMode.SelectedItem = CaliperEdgeFindMode.Best;
+
+            comboBoxDirection.Items.Add("垂直主轴");
+            comboBoxDirection.Items.Add("沿主轴");
+            comboBoxDirection.SelectedIndex = 0;
+        }
+
+        private void BindRoiRefreshEvents()
+        {
+            foreach (Control control in groupBoxGeometry.Controls)
+            {
+                if (control is TextBox)
+                    control.TextChanged += OnRoiParamChanged;
+            }
+
+            textBoxCaliperWidth.TextChanged += OnRoiParamChanged;
+            textBoxCaliperHeight.TextChanged += OnRoiParamChanged;
+            textBoxCount.TextChanged += OnRoiParamChanged;
+            comboBoxDirection.SelectedIndexChanged += OnRoiParamChanged;
+            radioButtonSubscribe.CheckedChanged += SourceMode_CheckedChanged;
+            radioButtonDraw.CheckedChanged += SourceMode_CheckedChanged;
+        }
+
+        private void OnRoiParamChanged(object sender, EventArgs e)
+        {
+            if (_isSyncingRoi)
+                return;
+
+            SyncCurrentRoiToFieldsExcept(sender);
+            if (_roiVisible)
+                RefreshRoiFromFields();
+        }
+
+        private void SourceMode_CheckedChanged(object sender, EventArgs e)
+        {
+            UpdateSourceModeEnabled();
+        }
+
+        private Mat GetInputMat()
+        {
+            OutputImage outputImage = nodeSubscriptionImage.GetValue<OutputImage>();
+            return MeasurementNodeHelper.GetFirstMat(outputImage);
+        }
+
+        private MeasuredLine ReadSubscribedLine(NodeSubscription subscription, string name)
+        {
+            NodeBase sourceNode = subscription.GetSelectedNode();
+            if (!MeasurementResultReader.TryReadLine(sourceNode.Result, out MeasuredLine line))
+                throw new Exception($"{name}订阅节点({sourceNode.ID}.{sourceNode.NodeName})没有可用直线结果。");
+
+            return line;
+        }
+
+        private NodeParamLineLineAngle BuildRuntimeParam(NodeParamLineLineAngle param)
+        {
+            if (param == null || !param.UsePositionCorrection || param.SourceMode != MeasurementDataSourceMode.Draw)
+                return param;
+
+            PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
+            PositionCorrectionHelper.EnsureValid(correctionInfo);
+            PointF l1Start = correctionInfo.TransformPoint(param.Line1StartX, param.Line1StartY);
+            PointF l1End = correctionInfo.TransformPoint(param.Line1EndX, param.Line1EndY);
+            PointF l2Start = correctionInfo.TransformPoint(param.Line2StartX, param.Line2StartY);
+            PointF l2End = correctionInfo.TransformPoint(param.Line2EndX, param.Line2EndY);
+
+            return new NodeParamLineLineAngle
+            {
+                ImageText1 = param.ImageText1,
+                ImageText2 = param.ImageText2,
+                SourceMode = param.SourceMode,
+                UsePositionCorrection = param.UsePositionCorrection,
+                CorrectionText1 = param.CorrectionText1,
+                CorrectionText2 = param.CorrectionText2,
+                MeasureMode = param.MeasureMode,
+                Line1StartX = l1Start.X,
+                Line1StartY = l1Start.Y,
+                Line1EndX = l1End.X,
+                Line1EndY = l1End.Y,
+                Line2StartX = l2Start.X,
+                Line2StartY = l2Start.Y,
+                Line2EndX = l2End.X,
+                Line2EndY = l2End.Y,
+                CaliperWidth = param.CaliperWidth,
+                CaliperHeight = param.CaliperHeight,
+                Count = param.Count,
+                EdgeStrength = param.EdgeStrength,
+                Polarity = param.Polarity,
+                FindMode = param.FindMode,
+                Direction = param.Direction,
+                BlurSize = param.BlurSize
+            };
+        }
+
+        private static CaliperLineParams BuildLineParams(NodeParamLineLineAngle param, bool firstLine)
+        {
+            return new CaliperLineParams
+            {
+                StartX = firstLine ? param.Line1StartX : param.Line2StartX,
+                StartY = firstLine ? param.Line1StartY : param.Line2StartY,
+                EndX = firstLine ? param.Line1EndX : param.Line2EndX,
+                EndY = firstLine ? param.Line1EndY : param.Line2EndY,
+                CaliperWidth = param.CaliperWidth,
+                CaliperHeight = param.CaliperHeight,
+                Count = param.Count,
+                EdgeStrength = param.EdgeStrength,
+                Polarity = param.Polarity,
+                FindMode = param.FindMode,
+                Direction = param.Direction,
+                BlurSize = param.BlurSize
+            };
+        }
+
+        private static LineLineAngleMeasureResult FinishFailed(LineLineAngleMeasureResult result, Stopwatch stopwatch, string message)
+        {
+            stopwatch.Stop();
+            result.Success = false;
+            result.Message = message;
+            result.AlgorithmMs = stopwatch.Elapsed.TotalMilliseconds;
+            return result;
+        }
+
+        private bool SaveParams()
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(nodeSubscriptionImage.GetText1()) || string.IsNullOrWhiteSpace(nodeSubscriptionImage.GetText2()))
+                    throw new Exception("请选择输入图像。");
+
+                MeasurementDataSourceMode sourceMode = radioButtonSubscribe.Checked ? MeasurementDataSourceMode.Subscribe : MeasurementDataSourceMode.Draw;
+                if (sourceMode == MeasurementDataSourceMode.Subscribe)
+                {
+                    if (string.IsNullOrWhiteSpace(nodeSubscriptionLine1.GetText1()) || string.IsNullOrWhiteSpace(nodeSubscriptionLine2.GetText1()))
+                        throw new Exception("请选择两条上游直线结果。");
+                }
+                else
+                {
+                    TryReadRoiToFields();
+                }
+
+                if (checkBoxUsePositionCorrection.Checked &&
+                    sourceMode == MeasurementDataSourceMode.Draw &&
+                    (string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText1()) ||
+                     string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText2())))
+                {
+                    throw new Exception("请选择位置修正信息。");
+                }
+
+                Params = new NodeParamLineLineAngle
+                {
+                    ImageText1 = nodeSubscriptionImage.GetText1(),
+                    ImageText2 = nodeSubscriptionImage.GetText2(),
+                    SourceMode = sourceMode,
+                    Line1Text1 = nodeSubscriptionLine1.GetText1(),
+                    Line1Text2 = nodeSubscriptionLine1.GetText2(),
+                    Line2Text1 = nodeSubscriptionLine2.GetText1(),
+                    Line2Text2 = nodeSubscriptionLine2.GetText2(),
+                    UsePositionCorrection = checkBoxUsePositionCorrection.Checked,
+                    CorrectionText1 = nodeSubscriptionPositionCorrection.GetText1(),
+                    CorrectionText2 = nodeSubscriptionPositionCorrection.GetText2(),
+                    MeasureMode = (GeometryMeasureMode)comboBoxMeasureMode.SelectedItem,
+                    Line1StartX = ParseFloat(textBoxL1StartX, "直线1起点X"),
+                    Line1StartY = ParseFloat(textBoxL1StartY, "直线1起点Y"),
+                    Line1EndX = ParseFloat(textBoxL1EndX, "直线1终点X"),
+                    Line1EndY = ParseFloat(textBoxL1EndY, "直线1终点Y"),
+                    Line2StartX = ParseFloat(textBoxL2StartX, "直线2起点X"),
+                    Line2StartY = ParseFloat(textBoxL2StartY, "直线2起点Y"),
+                    Line2EndX = ParseFloat(textBoxL2EndX, "直线2终点X"),
+                    Line2EndY = ParseFloat(textBoxL2EndY, "直线2终点Y"),
+                    CaliperWidth = ParseFloat(textBoxCaliperWidth, "卡尺宽度"),
+                    CaliperHeight = ParseFloat(textBoxCaliperHeight, "卡尺高度"),
+                    Count = ParseInt(textBoxCount, "卡尺数量"),
+                    EdgeStrength = ParseInt(textBoxEdgeStrength, "边缘阈值"),
+                    BlurSize = ParseInt(textBoxBlurSize, "平滑核"),
+                    Polarity = (CaliperEdgePolarity)comboBoxPolarity.SelectedItem,
+                    FindMode = (CaliperEdgeFindMode)comboBoxFindMode.SelectedItem,
+                    Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0
+                };
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show($"参数设置异常：{ex.Message}");
+                return false;
+            }
+        }
+
+        private static float ParseFloat(TextBox textBox, string name)
+        {
+            if (!float.TryParse(textBox.Text, out float value))
+                throw new Exception($"{name}不是有效数字！");
+            return value;
+        }
+
+        private static int ParseInt(TextBox textBox, string name)
+        {
+            if (!int.TryParse(textBox.Text, out int value))
+                throw new Exception($"{name}不是有效整数！");
+            return value;
+        }
+
+        private PositionCorrectionInfo GetEditingCorrectionInfo(bool require)
+        {
+            if (!checkBoxUsePositionCorrection.Checked || !radioButtonDraw.Checked)
+                return null;
+
+            if (string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText1()) ||
+                string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText2()))
+            {
+                if (require)
+                    throw new Exception("位置修正订阅为空。");
+                return null;
+            }
+
+            try
+            {
+                PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
+                PositionCorrectionHelper.EnsureValid(correctionInfo);
+                return correctionInfo;
+            }
+            catch
+            {
+                if (require)
+                    throw;
+                return null;
+            }
+        }
+
+        private void SetPreview(Mat image)
+        {
+            showImageControl1.SetImage(MeasurementNodeHelper.ToPreviewBitmap(image));
+        }
+
+        private void RefreshRoiFromFields()
+        {
+            if (_isSyncingRoi)
+                return;
+
+            try
+            {
+                PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+                PointF l1Start = new PointF(ParseFloat(textBoxL1StartX, string.Empty), ParseFloat(textBoxL1StartY, string.Empty));
+                PointF l1End = new PointF(ParseFloat(textBoxL1EndX, string.Empty), ParseFloat(textBoxL1EndY, string.Empty));
+                PointF l2Start = new PointF(ParseFloat(textBoxL2StartX, string.Empty), ParseFloat(textBoxL2StartY, string.Empty));
+                PointF l2End = new PointF(ParseFloat(textBoxL2EndX, string.Empty), ParseFloat(textBoxL2EndY, string.Empty));
+                if (correctionInfo != null)
+                {
+                    l1Start = correctionInfo.TransformPoint(l1Start.X, l1Start.Y);
+                    l1End = correctionInfo.TransformPoint(l1End.X, l1End.Y);
+                    l2Start = correctionInfo.TransformPoint(l2Start.X, l2Start.Y);
+                    l2End = correctionInfo.TransformPoint(l2End.X, l2End.Y);
+                }
+
+                float caliperWidth = ParseFloat(textBoxCaliperWidth, string.Empty);
+                float caliperHeight = ParseFloat(textBoxCaliperHeight, string.Empty);
+                int count = ParseInt(textBoxCount, string.Empty);
+
+                showImageControl1.ClearDynamicRoi();
+                showImageControl1.AddDynamicCaliper(l1Start.X, l1Start.Y, l1End.X, l1End.Y, caliperWidth, caliperHeight, count, Color.Lime, "Line1");
+                showImageControl1.AddDynamicCaliper(l2Start.X, l2Start.Y, l2End.X, l2End.Y, caliperWidth, caliperHeight, count, Color.DeepSkyBlue, "Line2");
+                var rois = showImageControl1.GetAllDynamicCalipers();
+                foreach (var roi in rois)
+                    roi.Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0;
+                _roiVisible = true;
+            }
+            catch
+            {
+            }
+        }
+
+        private void TryReadRoiToFields()
+        {
+            var rois = showImageControl1.GetAllDynamicCalipers();
+            if (rois.Count < 2)
+                return;
+
+            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(true);
+            PointF l1Start = new PointF(rois[0].SX, rois[0].SY);
+            PointF l1End = new PointF(rois[0].EX, rois[0].EY);
+            PointF l2Start = new PointF(rois[1].SX, rois[1].SY);
+            PointF l2End = new PointF(rois[1].EX, rois[1].EY);
+            if (correctionInfo != null)
+            {
+                l1Start = correctionInfo.InverseTransformPoint(l1Start.X, l1Start.Y);
+                l1End = correctionInfo.InverseTransformPoint(l1End.X, l1End.Y);
+                l2Start = correctionInfo.InverseTransformPoint(l2Start.X, l2Start.Y);
+                l2End = correctionInfo.InverseTransformPoint(l2End.X, l2End.Y);
+            }
+
+            _isSyncingRoi = true;
+            try
+            {
+                textBoxL1StartX.Text = l1Start.X.ToString("F2");
+                textBoxL1StartY.Text = l1Start.Y.ToString("F2");
+                textBoxL1EndX.Text = l1End.X.ToString("F2");
+                textBoxL1EndY.Text = l1End.Y.ToString("F2");
+                textBoxL2StartX.Text = l2Start.X.ToString("F2");
+                textBoxL2StartY.Text = l2Start.Y.ToString("F2");
+                textBoxL2EndX.Text = l2End.X.ToString("F2");
+                textBoxL2EndY.Text = l2End.Y.ToString("F2");
+                textBoxCaliperWidth.Text = rois[0].CaliperWidth.ToString("F2");
+                textBoxCaliperHeight.Text = rois[0].CaliperHeight.ToString("F2");
+                textBoxCount.Text = rois[0].Count.ToString();
+                comboBoxDirection.SelectedIndex = rois[0].Direction == 1 ? 1 : 0;
+            }
+            finally
+            {
+                _isSyncingRoi = false;
+            }
+        }
+
+        private void SyncCurrentRoiToFieldsExcept(object source)
+        {
+            var rois = showImageControl1.GetAllDynamicCalipers();
+            if (rois.Count < 2)
+                return;
+
+            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+            PointF l1Start = new PointF(rois[0].SX, rois[0].SY);
+            PointF l1End = new PointF(rois[0].EX, rois[0].EY);
+            PointF l2Start = new PointF(rois[1].SX, rois[1].SY);
+            PointF l2End = new PointF(rois[1].EX, rois[1].EY);
+            if (correctionInfo != null)
+            {
+                l1Start = correctionInfo.InverseTransformPoint(l1Start.X, l1Start.Y);
+                l1End = correctionInfo.InverseTransformPoint(l1End.X, l1End.Y);
+                l2Start = correctionInfo.InverseTransformPoint(l2Start.X, l2Start.Y);
+                l2End = correctionInfo.InverseTransformPoint(l2End.X, l2End.Y);
+            }
+
+            _isSyncingRoi = true;
+            try
+            {
+                if (!ReferenceEquals(source, textBoxL1StartX)) textBoxL1StartX.Text = l1Start.X.ToString("F2");
+                if (!ReferenceEquals(source, textBoxL1StartY)) textBoxL1StartY.Text = l1Start.Y.ToString("F2");
+                if (!ReferenceEquals(source, textBoxL1EndX)) textBoxL1EndX.Text = l1End.X.ToString("F2");
+                if (!ReferenceEquals(source, textBoxL1EndY)) textBoxL1EndY.Text = l1End.Y.ToString("F2");
+                if (!ReferenceEquals(source, textBoxL2StartX)) textBoxL2StartX.Text = l2Start.X.ToString("F2");
+                if (!ReferenceEquals(source, textBoxL2StartY)) textBoxL2StartY.Text = l2Start.Y.ToString("F2");
+                if (!ReferenceEquals(source, textBoxL2EndX)) textBoxL2EndX.Text = l2End.X.ToString("F2");
+                if (!ReferenceEquals(source, textBoxL2EndY)) textBoxL2EndY.Text = l2End.Y.ToString("F2");
+            }
+            finally
+            {
+                _isSyncingRoi = false;
+            }
+        }
+
+        private void UpdateSourceModeEnabled()
+        {
+            bool subscribe = radioButtonSubscribe.Checked;
+            groupBoxSubscribed.Enabled = subscribe;
+            groupBoxGeometry.Enabled = !subscribe;
+            buttonDrawRoi.Enabled = !subscribe;
+            buttonConfirmRoi.Enabled = !subscribe;
+            checkBoxUsePositionCorrection.Enabled = !subscribe;
+            nodeSubscriptionPositionCorrection.Enabled = !subscribe && checkBoxUsePositionCorrection.Checked;
+            if (subscribe)
+                ClearEditingRoi();
+        }
+
+        private void ClearEditingRoi()
+        {
+            showImageControl1.ClearDynamicRoi();
+            _roiVisible = false;
+        }
+
+        private void buttonRefresh_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                using (Mat input = GetInputMat())
+                {
+                    SetPreview(input);
+                    showImageControl1.ShowFit();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show($"刷新图像失败：{ex.Message}");
+            }
+        }
+
+        private void buttonDrawRoi_Click(object sender, EventArgs e)
+        {
+            RefreshRoiFromFields();
+        }
+
+        private void buttonConfirmRoi_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                TryReadRoiToFields();
+                ClearEditingRoi();
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show($"确认ROI失败：{ex.Message}");
+            }
+        }
+
+        private void buttonRun_Click(object sender, EventArgs e)
+        {
+            if (!SaveParams())
+                return;
+
+            try
+            {
+                Mat output;
+                LineLineAngleMeasureResult result = ExecuteMeasure((NodeParamLineLineAngle)Params, out output);
+                using (output)
+                {
+                    SetPreview(output);
+                    showImageControl1.SetDisplayResult(NodeLineLineAngle.BuildDisplayResult(result));
+                }
+
+                if (!result.Success)
+                    MessageBoxTD.Show($"线到线夹角失败：{result.Message}");
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show($"执行异常：{ex.Message}");
+                LogHelper.AddLog(MsgLevel.Exception, $"节点({node.ID}.{node.NodeName})线到线夹角异常，原因：{ex.Message}", true);
+            }
+        }
+
+        private void buttonSave_Click(object sender, EventArgs e)
+        {
+            if (SaveParams())
+            {
+                ClearEditingRoi();
+                Hide();
+            }
+        }
+
+        private void checkBoxUsePositionCorrection_CheckedChanged(object sender, EventArgs e)
+        {
+            UpdateSourceModeEnabled();
+            if (_roiVisible)
+                RefreshRoiFromFields();
+        }
+    }
+}
