@@ -59,15 +59,17 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         var nodeResult = BuildResult(matchResult, param);
                         Result = nodeResult;
 
-                        if (!matchResult.IsOk)
-                            throw new Exception($"当前图像匹配得分或者结果个数不足，请降低设置的得分阈值再次尝试！");
-
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         Result.RunTime = time;
-                        if (showLog)
+                        if (showLog && matchResult != null && matchResult.IsOk)
                         {
                             double minScore = matchResult.Matches.Count == 0 ? 0 : matchResult.Matches.Min(m => m.Score) * 100.0;
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，当前结果最低匹配得分：{minScore:F2}, 匹配是否成功: {matchResult.IsOk}", true);
+                        }
+                        else if (showLog)
+                        {
+                            int matchCount = matchResult == null ? 0 : matchResult.Matches.Count;
+                            LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})未匹配到有效模板结果！({time} ms，匹配数量：{matchCount})", true);
                         }
                         return new NodeReturn(NodeRunFlag.ContinueRun);
                     }
@@ -109,10 +111,6 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             nodeResult.Result.IsAllOk = matchResult.IsOk;
             nodeResult.IsOk = matchResult.IsOk;
             nodeResult.MatchCount = matchResult.Matches.Count;
-            nodeResult.MatchX = 0;
-            nodeResult.MatchY = 0;
-            nodeResult.Angle = 0;
-            nodeResult.Score = 0;
             if (matchResult.Matches.Count > 0)
             {
                 var firstMatch = matchResult.Matches[0];

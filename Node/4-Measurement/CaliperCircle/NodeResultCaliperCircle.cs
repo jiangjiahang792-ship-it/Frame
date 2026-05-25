@@ -15,16 +15,16 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
         public int EdgePointCount { get; set; }
 
         [DisplayName("圆心X")]
-        public double CenterX { get; set; }
+        public double? CenterX { get; set; }
 
         [DisplayName("圆心Y")]
-        public double CenterY { get; set; }
+        public double? CenterY { get; set; }
 
         [DisplayName("半径")]
-        public double Radius { get; set; }
+        public double? Radius { get; set; }
 
         [DisplayName("直径")]
-        public double Diameter { get; set; }
+        public double? Diameter { get; set; }
 
         [DisplayName("算法耗时")]
         public double AlgorithmMs { get; set; }

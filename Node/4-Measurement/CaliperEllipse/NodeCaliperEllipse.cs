@@ -47,16 +47,19 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                     throw new Exception("卡尺找椭圆参数异常！");
 
                 CaliperEllipseMeasureResult measureResult = form.ExecuteMeasure(param, out Mat output);
-                if (!measureResult.Success)
-                    throw new Exception(string.IsNullOrWhiteSpace(measureResult.ErrorMessage) ? $"卡尺找椭圆失败，边缘点数量：{measureResult.PointCount}" : measureResult.ErrorMessage);
+                if (measureResult == null)
+                    throw new Exception("Caliper ellipse measurement returned no result.");
 
                 NodeResultCaliperEllipse nodeResult = BuildResult(measureResult, output);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
 
-                if (showLog)
+                if (showLog && measureResult.Success)
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，点数：{measureResult.PointCount})", true);
+
+                if (showLog && !measureResult.Success)
+                    LogHelper.AddLog(MsgLevel.Warn, $"Node({ID}.{NodeName}) caliper ellipse found no valid ellipse. ({time} ms, edge points: {measureResult.PointCount})", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -81,13 +84,16 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             var result = new NodeResultCaliperEllipse();
             result.IsOk = measureResult.Success;
             result.EdgePointCount = measureResult.PointCount;
-            result.CenterX = measureResult.Center.X;
-            result.CenterY = measureResult.Center.Y;
-            result.Width = measureResult.Size.Width;
-            result.Height = measureResult.Size.Height;
-            result.MajorAxis = Math.Max(measureResult.Size.Width, measureResult.Size.Height);
-            result.MinorAxis = Math.Min(measureResult.Size.Width, measureResult.Size.Height);
-            result.Angle = measureResult.Angle;
+            if (measureResult.Success)
+            {
+                result.CenterX = measureResult.Center.X;
+                result.CenterY = measureResult.Center.Y;
+                result.Width = measureResult.Size.Width;
+                result.Height = measureResult.Size.Height;
+                result.MajorAxis = Math.Max(measureResult.Size.Width, measureResult.Size.Height);
+                result.MinorAxis = Math.Min(measureResult.Size.Width, measureResult.Size.Height);
+                result.Angle = measureResult.Angle;
+            }
             result.AlgorithmMs = measureResult.AlgorithmMs;
             result.OutputImage.Bitmaps = new List<Mat> { output };
             result.Result = BuildDisplayResult(measureResult);

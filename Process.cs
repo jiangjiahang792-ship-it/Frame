@@ -309,6 +309,7 @@ namespace TDJS_Vision
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
             long logicalRunTime = 0;
+            Exception firstNodeException = null;
             try
             {
                 HashSet<int> completedNodeIds = new HashSet<int>();
@@ -351,6 +352,15 @@ namespace TDJS_Vision
                             if (nodeFinishTime > logicalRunTime)
                                 logicalRunTime = nodeFinishTime;
 
+                            if (runResult.Exception != null)
+                            {
+                                if (firstNodeException == null)
+                                    firstNodeException = runResult.Exception;
+
+                                MarkFailedDownstreamInactive(node.ID, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
+                                continue;
+                            }
+
                             if (!runResult.SkippedExecution &&
                                 runResult.Return != null &&
                                 runResult.Return.Flag == NodeRunFlag.StopRun)
@@ -363,6 +373,9 @@ namespace TDJS_Vision
                         }
                     }
                 }
+
+                if (firstNodeException != null)
+                    throw firstNodeException;
 
                 return false;
             }
@@ -395,10 +408,13 @@ namespace TDJS_Vision
             }
 
             List<Task<ConnectedNodeRunResult>> tasks = new List<Task<ConnectedNodeRunResult>>();
+            Dictionary<Task<ConnectedNodeRunResult>, NodeBase> taskNodes = new Dictionary<Task<ConnectedNodeRunResult>, NodeBase>();
             foreach (NodeBase node in batch)
             {
                 NodeBase nodeToRun = node;
-                tasks.Add(Task.Run(async () => await RunConnectedNode(nodeToRun, nodeToSkip)));
+                Task<ConnectedNodeRunResult> task = Task.Run(async () => await RunConnectedNode(nodeToRun, nodeToSkip));
+                tasks.Add(task);
+                taskNodes[task] = nodeToRun;
             }
 
             try
@@ -417,6 +433,19 @@ namespace TDJS_Vision
                 {
                     if (firstException == null)
                         firstException = task.Exception == null ? new Exception("Parallel branch node failed.") : task.Exception.GetBaseException();
+
+                    NodeBase faultedNode;
+                    if (taskNodes.TryGetValue(task, out faultedNode) && faultedNode != null)
+                    {
+                        MarkNodeFailed(faultedNode);
+                        resultMap[faultedNode.ID] = new ConnectedNodeRunResult
+                        {
+                            Node = faultedNode,
+                            Exception = firstException,
+                            RunTime = faultedNode.Result == null ? 0 : faultedNode.Result.RunTime
+                        };
+                    }
+
                     continue;
                 }
 
@@ -431,7 +460,7 @@ namespace TDJS_Vision
                 resultMap[result.Node.ID] = result;
             }
 
-            if (firstException != null)
+            if (firstException != null && resultMap.Count == 0)
                 throw firstException;
 
             return GetOrderedResults(batch, resultMap);
@@ -450,13 +479,30 @@ namespace TDJS_Vision
             }
 
             MarkNodeRunning(node);
-            NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
-            return new ConnectedNodeRunResult
+            try
             {
-                Node = node,
-                Return = result,
-                RunTime = node.Result == null ? 0 : node.Result.RunTime
-            };
+                NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
+                return new ConnectedNodeRunResult
+                {
+                    Node = node,
+                    Return = result,
+                    RunTime = node.Result == null ? 0 : node.Result.RunTime
+                };
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                MarkNodeFailed(node);
+                return new ConnectedNodeRunResult
+                {
+                    Node = node,
+                    Exception = ex,
+                    RunTime = node.Result == null ? 0 : node.Result.RunTime
+                };
+            }
         }
 
         private long GetNodeDependencyFinishTime(
@@ -498,6 +544,52 @@ namespace TDJS_Vision
                 return 0;
 
             return runResult.RunTime;
+        }
+
+        private void MarkFailedDownstreamInactive(
+            int nodeId,
+            HashSet<int> componentNodeIds,
+            HashSet<int> completedNodeIds,
+            HashSet<int> inactiveNodeIds,
+            HashSet<string> skippedEdges)
+        {
+            foreach (ProcessConnection connection in _connections)
+            {
+                if (connection.FromNodeId != nodeId ||
+                    !componentNodeIds.Contains(connection.ToNodeId))
+                {
+                    continue;
+                }
+
+                skippedEdges.Add(GetConnectionEdgeKey(connection));
+                MarkFailedNodeInactive(connection.ToNodeId, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
+            }
+        }
+
+        private void MarkFailedNodeInactive(
+            int nodeId,
+            HashSet<int> componentNodeIds,
+            HashSet<int> completedNodeIds,
+            HashSet<int> inactiveNodeIds,
+            HashSet<string> skippedEdges)
+        {
+            if (!componentNodeIds.Contains(nodeId) ||
+                completedNodeIds.Contains(nodeId) ||
+                inactiveNodeIds.Contains(nodeId))
+            {
+                return;
+            }
+
+            inactiveNodeIds.Add(nodeId);
+            foreach (ProcessConnection connection in _connections)
+            {
+                if (connection.FromNodeId == nodeId &&
+                    componentNodeIds.Contains(connection.ToNodeId))
+                {
+                    skippedEdges.Add(GetConnectionEdgeKey(connection));
+                    MarkFailedNodeInactive(connection.ToNodeId, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
+                }
+            }
         }
 
         private List<NodeBase> BuildReadyExecutionBatch(List<NodeBase> readyNodes)
@@ -720,6 +812,7 @@ namespace TDJS_Vision
         {
             public NodeBase Node;
             public NodeReturn Return;
+            public Exception Exception;
             public int RunTime;
             public bool SkippedExecution;
         }
@@ -875,6 +968,17 @@ namespace TDJS_Vision
         {
             if (node != null)
                 node.SetStatus(NodeStatus.Running, "*");
+        }
+
+        private static void MarkNodeFailed(NodeBase node)
+        {
+            if (node == null || node.RuntimeStatus == NodeStatus.Failed)
+                return;
+
+            string runTime = node.Result == null || node.Result.RunTime <= 0
+                ? "0"
+                : node.Result.RunTime.ToString();
+            node.SetStatus(NodeStatus.Failed, runTime);
         }
 
         private void BeginProcessRun()

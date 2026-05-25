@@ -47,16 +47,19 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                     throw new Exception("卡尺找线参数异常！");
 
                 CaliperLineMeasureResult measureResult = form.ExecuteMeasure(param, out Mat output);
-                if (!measureResult.Success)
-                    throw new Exception($"卡尺找线失败，边缘点数量：{measureResult.PointCount}");
+                if (measureResult == null)
+                    throw new Exception("Caliper line measurement returned no result.");
 
                 NodeResultCaliperLine nodeResult = BuildResult(measureResult, output);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
 
-                if (showLog)
+                if (showLog && measureResult.Success)
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，边缘点：{measureResult.PointCount})", true);
+
+                if (showLog && !measureResult.Success)
+                    LogHelper.AddLog(MsgLevel.Warn, $"Node({ID}.{NodeName}) caliper line found no valid line. ({time} ms, edge points: {measureResult.PointCount})", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -81,12 +84,15 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             var result = new NodeResultCaliperLine();
             result.IsOk = measureResult.Success;
             result.EdgePointCount = measureResult.PointCount;
-            result.StartX = measureResult.LineStart.X;
-            result.StartY = measureResult.LineStart.Y;
-            result.EndX = measureResult.LineEnd.X;
-            result.EndY = measureResult.LineEnd.Y;
-            result.Length = Distance(measureResult.LineStart, measureResult.LineEnd);
-            result.Angle = Math.Atan2(measureResult.LineEnd.Y - measureResult.LineStart.Y, measureResult.LineEnd.X - measureResult.LineStart.X) * 180.0 / Math.PI;
+            if (measureResult.Success)
+            {
+                result.StartX = measureResult.LineStart.X;
+                result.StartY = measureResult.LineStart.Y;
+                result.EndX = measureResult.LineEnd.X;
+                result.EndY = measureResult.LineEnd.Y;
+                result.Length = Distance(measureResult.LineStart, measureResult.LineEnd);
+                result.Angle = Math.Atan2(measureResult.LineEnd.Y - measureResult.LineStart.Y, measureResult.LineEnd.X - measureResult.LineStart.X) * 180.0 / Math.PI;
+            }
             result.AlgorithmMs = measureResult.AlgorithmMs;
             result.OutputImage.Bitmaps = new List<Mat> { output };
             result.Result = BuildDisplayResult(measureResult);

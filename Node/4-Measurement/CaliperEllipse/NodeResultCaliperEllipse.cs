@@ -15,25 +15,25 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
         public int EdgePointCount { get; set; }
 
         [DisplayName("中心X")]
-        public double CenterX { get; set; }
+        public double? CenterX { get; set; }
 
         [DisplayName("中心Y")]
-        public double CenterY { get; set; }
+        public double? CenterY { get; set; }
 
         [DisplayName("宽度")]
-        public double Width { get; set; }
+        public double? Width { get; set; }
 
         [DisplayName("高度")]
-        public double Height { get; set; }
+        public double? Height { get; set; }
 
         [DisplayName("长轴")]
-        public double MajorAxis { get; set; }
+        public double? MajorAxis { get; set; }
 
         [DisplayName("短轴")]
-        public double MinorAxis { get; set; }
+        public double? MinorAxis { get; set; }
 
         [DisplayName("角度")]
-        public double Angle { get; set; }
+        public double? Angle { get; set; }
 
         [DisplayName("算法耗时")]
         public double AlgorithmMs { get; set; }

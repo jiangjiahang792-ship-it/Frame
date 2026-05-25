@@ -100,19 +100,30 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 MultiConditionItem condition = param.Conditions[index];
                 string conditionName = GetConditionName(condition, index);
                 NodeBase sourceNode = FindSourceNode(currentNode, condition);
-                if (sourceNode.Result == null)
-                    throw new Exception($"条件“{conditionName}”引用的节点({sourceNode.ID}.{sourceNode.NodeName})没有运行结果对象！");
-
-                if (currentNode.Process.IsRuning &&
-                    !sourceNode.HasSuccessfulResultForRun(currentNode.Process.CurrentRunId))
+                if (!sourceNode.Active)
                 {
-                    throw new Exception($"条件“{conditionName}”引用的节点({sourceNode.ID}.{sourceNode.NodeName})本次流程未成功运行！");
+                    evaluations.Add(new NodeConditionEvaluation
+                    {
+                        Name = conditionName,
+                        SourceNodeText = GetNodeText(sourceNode),
+                        PropertyPath = condition.PropertyPath,
+                        PropertyDisplayName = condition.PropertyDisplayName,
+                        OperatorText = condition.Operator.ToString(),
+                        ExpectedValue = BuildExpectedText(condition),
+                        ActualValue = "源节点已禁用",
+                        IsMatched = true
+                    });
+                    continue;
                 }
 
                 if (string.IsNullOrWhiteSpace(condition.PropertyPath))
                     throw new Exception($"条件“{conditionName}”没有选择结果属性！");
 
-                object actualValue = MultiConditionReflection.GetMemberPathValue(sourceNode.Result, condition.PropertyPath);
+                object actualValue = sourceNode.Result == null ||
+                    (currentNode.Process.IsRuning &&
+                    !sourceNode.HasSuccessfulResultForRun(currentNode.Process.CurrentRunId))
+                    ? null
+                    : MultiConditionReflection.GetMemberPathValue(sourceNode.Result, condition.PropertyPath);
                 bool matched = CompareCondition(actualValue, condition);
                 evaluations.Add(new NodeConditionEvaluation
                 {
@@ -176,6 +187,13 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                     return actualValue == null;
                 case MultiConditionOperator.IsNotNull:
                     return actualValue != null;
+            }
+
+            if (actualValue == null)
+                return false;
+
+            switch (condition.Operator)
+            {
                 case MultiConditionOperator.IsTrue:
                     return ToBoolean(actualValue);
                 case MultiConditionOperator.IsFalse:

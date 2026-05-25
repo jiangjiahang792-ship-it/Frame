@@ -204,13 +204,22 @@ The current implementation step is **Phase 17: Parallel Branch Runtime Schedulin
   - [x] Conditional branch skips now mark non-selected edges inactive so joins wait only for active upstream paths.
   - [x] Join nodes wait for all active incoming branches to complete; if any node in a parallel batch fails, downstream nodes are not started and the process fails after the already-started batch finishes.
   - [x] Parallel graph process runtime now reports dependency-graph critical-path time, so forked branches contribute the slowest branch instead of branch sums or UI/thread scheduling overhead.
+  - [x] Parallel branch failures are isolated: independent ready branches continue running, while descendants of the failed branch are skipped and the first real exception is reported after runnable work finishes.
+  - [x] Template-match no-hit and caliper no-geometry results are normal NG outcomes with nullable scalar outputs instead of hard process failures.
+  - [x] Multi-condition evaluation treats missing/current-run-null source values as null; every normal comparison returns false on null except explicit IsNull/IsNotNull.
+  - [x] Parallel scheduler now forces a failed node runtime status when catching branch exceptions, so the canvas keeps the failed node visibly red while other runnable branches continue.
+  - [x] Multi-condition evaluation treats a disabled source node as a satisfied condition before null/property comparison.
   - [x] Build-verify after the first dependency-aware parallel scheduler implementation pass.
+  - [x] Build-verify after branch failure isolation and nullable visual NG result handling.
+  - [x] Build-verify after failed-node visual status and disabled-source condition handling.
   - [ ] Runtime-verify with simple fork, join, condition branch, disabled node, failed node, stop/cancel, image subscription, and device-node cases.
 - TDAI stability fix:
   - [x] Added a model-readiness guard before `NodeTDAI` reads `param.Yolo8.ModelType`, so a failed startup model load now reports a clear model/config error instead of throwing a null reference.
   - [x] Made `ParamFormTDAI.LoadModel(...)` clear `param.Yolo8` on load failure and log failures without dereferencing missing AI config data.
 - Build verification:
   - [x] `TDJS-Vision.sln` builds successfully after the Phase 17 dependency-aware parallel scheduler first implementation pass.
+  - [x] `TDJS-Vision.sln` builds successfully after branch failure isolation and nullable visual NG result handling.
+  - [x] `TDJS-Vision.sln` builds successfully after failed-node visual status and disabled-source condition handling.
   - [x] `TDJS-Vision.sln` builds successfully after the scheduling, branch, and subscription-stale-result fixes.
   - [x] `TDJS-Vision.sln` builds successfully after the Phase 11 undo/redo first implementation pass.
   - [x] `TDJS-Vision.sln` builds successfully after fixing node-move undo redraw residue and removing undo/redo shortcuts.

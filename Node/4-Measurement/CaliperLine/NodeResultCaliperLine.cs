@@ -15,22 +15,22 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
         public int EdgePointCount { get; set; }
 
         [DisplayName("起点X")]
-        public double StartX { get; set; }
+        public double? StartX { get; set; }
 
         [DisplayName("起点Y")]
-        public double StartY { get; set; }
+        public double? StartY { get; set; }
 
         [DisplayName("终点X")]
-        public double EndX { get; set; }
+        public double? EndX { get; set; }
 
         [DisplayName("终点Y")]
-        public double EndY { get; set; }
+        public double? EndY { get; set; }
 
         [DisplayName("长度")]
-        public double Length { get; set; }
+        public double? Length { get; set; }
 
         [DisplayName("角度")]
-        public double Angle { get; set; }
+        public double? Angle { get; set; }
 
         [DisplayName("算法耗时")]
         public double AlgorithmMs { get; set; }

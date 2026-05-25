@@ -47,16 +47,19 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                     throw new Exception("卡尺找圆参数异常！");
 
                 CaliperCircleMeasureResult measureResult = form.ExecuteMeasure(param, out Mat output);
-                if (!measureResult.Success)
-                    throw new Exception($"卡尺找圆失败，边缘点数量：{measureResult.PointCount}");
+                if (measureResult == null)
+                    throw new Exception("Caliper circle measurement returned no result.");
 
                 NodeResultCaliperCircle nodeResult = BuildResult(measureResult, output);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
 
-                if (showLog)
+                if (showLog && measureResult.Success)
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，半径：{nodeResult.Radius:F2}px)", true);
+
+                if (showLog && !measureResult.Success)
+                    LogHelper.AddLog(MsgLevel.Warn, $"Node({ID}.{NodeName}) caliper circle found no valid circle. ({time} ms, edge points: {measureResult.PointCount})", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -81,10 +84,13 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             var result = new NodeResultCaliperCircle();
             result.IsOk = measureResult.Success;
             result.EdgePointCount = measureResult.PointCount;
-            result.CenterX = measureResult.Center.X;
-            result.CenterY = measureResult.Center.Y;
-            result.Radius = measureResult.Radius;
-            result.Diameter = measureResult.Radius * 2.0;
+            if (measureResult.Success)
+            {
+                result.CenterX = measureResult.Center.X;
+                result.CenterY = measureResult.Center.Y;
+                result.Radius = measureResult.Radius;
+                result.Diameter = measureResult.Radius * 2.0;
+            }
             result.AlgorithmMs = measureResult.AlgorithmMs;
             result.OutputImage.Bitmaps = new List<Mat> { output };
             result.Result = BuildDisplayResult(measureResult);
