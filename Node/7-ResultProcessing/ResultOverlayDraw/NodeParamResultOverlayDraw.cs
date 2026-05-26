@@ -25,6 +25,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         public string SourceText2 { get; set; }
         public bool UseManualText { get; set; } = true;
         public string ManualText { get; set; } = "OK";
+        public string TextPrefix { get; set; }
         public int ColorArgb { get; set; } = Color.Lime.ToArgb();
         public int FontSize { get; set; } = 18;
         public int LineWidth { get; set; } = 2;
@@ -64,6 +65,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 SourceText2 = SourceText2,
                 UseManualText = UseManualText,
                 ManualText = ManualText,
+                TextPrefix = TextPrefix,
                 ColorArgb = ColorArgb,
                 FontSize = FontSize,
                 LineWidth = LineWidth,

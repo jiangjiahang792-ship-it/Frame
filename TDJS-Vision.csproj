@@ -1603,6 +1603,9 @@
     <EmbeddedResource Include="Node\7-ResultProcessing\ImageDelete\NodeParamFormImageDelete.resx">
       <DependentUpon>NodeParamFormImageDelete.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Node\7-ResultProcessing\ResultOverlayDraw\NodeParamFormResultOverlayDraw.resx">
+      <DependentUpon>NodeParamFormResultOverlayDraw.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Node\FormAddNotes.resx">
       <DependentUpon>FormAddNotes.cs</DependentUpon>
     </EmbeddedResource>

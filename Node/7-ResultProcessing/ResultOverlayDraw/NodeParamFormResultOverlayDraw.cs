@@ -98,6 +98,26 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             }
         }
 
+        private void buttonApplyStyleToAll_Click(object sender, EventArgs e)
+        {
+            SaveCurrentItemFromControls();
+            if (_selectedIndex < 0 || _selectedIndex >= _items.Count)
+                return;
+
+            Color color = panelColor.BackColor;
+            int fontSize = (int)numericFontSize.Value;
+            int lineWidth = (int)numericLineWidth.Value;
+            foreach (ResultOverlayDrawItem item in _items)
+            {
+                item.Color = color;
+                item.FontSize = fontSize;
+                item.LineWidth = lineWidth;
+            }
+
+            RefreshGrid();
+            SelectItem(_selectedIndex);
+        }
+
         private void buttonPreview_Click(object sender, EventArgs e)
         {
             if (!SaveParams(false))
@@ -247,6 +267,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             textBoxName.Text = item.Name ?? string.Empty;
             checkBoxManualText.Checked = item.UseManualText;
             textBoxManualText.Text = item.ManualText ?? string.Empty;
+            textBoxTextPrefix.Text = item.TextPrefix ?? string.Empty;
             numericFontSize.Value = ClampNumeric(numericFontSize, item.FontSize);
             numericLineWidth.Value = ClampNumeric(numericLineWidth, item.LineWidth);
             numericMargin.Value = ClampNumeric(numericMargin, item.TextMargin);
@@ -266,6 +287,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             textBoxName.Text = string.Empty;
             checkBoxManualText.Checked = true;
             textBoxManualText.Text = string.Empty;
+            textBoxTextPrefix.Text = string.Empty;
             numericFontSize.Value = 18;
             numericLineWidth.Value = 2;
             numericMargin.Value = 10;
@@ -289,6 +311,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             item.SourceText2 = nodeSubscriptionSource.GetText2();
             item.UseManualText = checkBoxManualText.Checked;
             item.ManualText = textBoxManualText.Text;
+            item.TextPrefix = textBoxTextPrefix.Text;
             item.FontSize = (int)numericFontSize.Value;
             item.LineWidth = (int)numericLineWidth.Value;
             item.TextMargin = (int)numericMargin.Value;
@@ -313,6 +336,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             bool isText = type == ResultOverlayDrawItemType.Text;
             checkBoxManualText.Enabled = isText;
             textBoxManualText.Enabled = isText && checkBoxManualText.Checked;
+            labelTextPrefix.Enabled = isText && !checkBoxManualText.Checked;
+            textBoxTextPrefix.Enabled = isText && !checkBoxManualText.Checked;
             labelFontSize.Enabled = isText;
             numericFontSize.Enabled = isText;
             labelTextPosition.Enabled = isText;
@@ -320,6 +345,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             labelMargin.Enabled = isText;
             numericMargin.Enabled = isText;
             nodeSubscriptionSource.Enabled = !isText || !checkBoxManualText.Checked;
+            buttonApplyStyleToAll.Enabled = _items.Count > 0;
         }
 
         private int GetGridSelectedIndex()

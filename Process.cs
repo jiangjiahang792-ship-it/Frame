@@ -258,6 +258,7 @@ namespace TDJS_Vision
         {
             HashSet<int> visitedNodeIds = new HashSet<int>();
             HashSet<int> failedNodeIds = new HashSet<int>();
+            Exception firstNodeException = null;
             foreach (NodeBase startNode in GetConnectionStartNodes())
             {
                 if (startNode == null || visitedNodeIds.Contains(startNode.ID))
@@ -280,6 +281,7 @@ namespace TDJS_Vision
                     if (HasFailedIncomingConnection(node.ID, failedNodeIds))
                     {
                         failedNodeIds.Add(node.ID);
+                        AddConnectedNextNodes(node, pendingNodes, ProcessConnectionBranch.Default, true);
                         continue;
                     }
 
@@ -289,15 +291,34 @@ namespace TDJS_Vision
                         continue;
                     }
 
-                    MarkNodeRunning(node);
-                    NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
-                    FinalizeNodeRun(node);
-                    if (node.Result != null)
-                        RunTime += node.Result.RunTime;
+                    NodeReturn result;
+                    try
+                    {
+                        MarkNodeRunning(node);
+                        result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
+                        FinalizeNodeRun(node);
+                        if (node.Result != null)
+                            RunTime += node.Result.RunTime;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        MarkNodeFailed(node);
+                        if (firstNodeException == null)
+                            firstNodeException = ex;
+
+                        failedNodeIds.Add(node.ID);
+                        AddConnectedNextNodes(node, pendingNodes, ProcessConnectionBranch.Default, true);
+                        continue;
+                    }
 
                     if (IsNodeFailedStatus(node))
                     {
                         failedNodeIds.Add(node.ID);
+                        AddConnectedNextNodes(node, pendingNodes, ProcessConnectionBranch.Default, true);
                         continue;
                     }
 
@@ -315,6 +336,9 @@ namespace TDJS_Vision
                     AddConnectedNextNodes(node, pendingNodes, result.NextBranch);
                 }
             }
+
+            if (firstNodeException != null)
+                throw firstNodeException;
 
             return false;
         }
@@ -597,6 +621,9 @@ namespace TDJS_Vision
                 return;
             }
 
+            if (IsFailureTolerantNode(nodeId))
+                return;
+
             inactiveNodeIds.Add(nodeId);
             foreach (ProcessConnection connection in _connections)
             {
@@ -757,6 +784,9 @@ namespace TDJS_Vision
         private bool HasFailedIncomingConnection(int nodeId, HashSet<int> failedNodeIds)
         {
             if (failedNodeIds == null || failedNodeIds.Count == 0)
+                return false;
+
+            if (IsFailureTolerantNode(nodeId))
                 return false;
 
             foreach (ProcessConnection connection in _connections)
@@ -959,6 +989,14 @@ namespace TDJS_Vision
         {
             return node != null &&
                 (node.NodeType == NodeType.If || node.NodeType == NodeType.MultiCondition);
+        }
+
+        private bool IsFailureTolerantNode(int nodeId)
+        {
+            NodeBase node = GetNodeById(nodeId);
+            return node != null &&
+                (node.NodeType == NodeType.MultiCondition ||
+                 node.NodeType == NodeType.ResultOverlayDraw);
         }
 
         private bool HasIncomingConnection(int nodeId)

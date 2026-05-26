@@ -17,6 +17,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
 
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(NodeParamFormResultOverlayDraw));
             this.tableLayoutPanelRoot = new System.Windows.Forms.TableLayoutPanel();
             this.tableLayoutPanelLeft = new System.Windows.Forms.TableLayoutPanel();
             this.groupBoxImage = new System.Windows.Forms.GroupBox();
@@ -49,10 +51,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.tableLayoutPanelManual = new System.Windows.Forms.TableLayoutPanel();
             this.checkBoxManualText = new System.Windows.Forms.CheckBox();
             this.textBoxManualText = new System.Windows.Forms.TextBox();
+            this.labelTextPrefix = new System.Windows.Forms.Label();
+            this.textBoxTextPrefix = new System.Windows.Forms.TextBox();
             this.labelColor = new System.Windows.Forms.Label();
             this.tableLayoutPanelColor = new System.Windows.Forms.TableLayoutPanel();
             this.panelColor = new System.Windows.Forms.Panel();
             this.buttonChooseColor = new System.Windows.Forms.Button();
+            this.buttonApplyStyleToAll = new System.Windows.Forms.Button();
             this.labelFontSize = new System.Windows.Forms.Label();
             this.numericFontSize = new System.Windows.Forms.NumericUpDown();
             this.labelLineWidth = new System.Windows.Forms.Label();
@@ -87,17 +92,18 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // tableLayoutPanelRoot
             // 
             this.tableLayoutPanelRoot.ColumnCount = 2;
-            this.tableLayoutPanelRoot.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 465F));
+            this.tableLayoutPanelRoot.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 523F));
             this.tableLayoutPanelRoot.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
             this.tableLayoutPanelRoot.Controls.Add(this.tableLayoutPanelLeft, 0, 0);
             this.tableLayoutPanelRoot.Controls.Add(this.groupBoxPreview, 1, 0);
             this.tableLayoutPanelRoot.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanelRoot.Location = new System.Drawing.Point(2, 38);
+            this.tableLayoutPanelRoot.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.tableLayoutPanelRoot.Name = "tableLayoutPanelRoot";
-            this.tableLayoutPanelRoot.Padding = new System.Windows.Forms.Padding(10);
+            this.tableLayoutPanelRoot.Padding = new System.Windows.Forms.Padding(11, 12, 11, 12);
             this.tableLayoutPanelRoot.RowCount = 1;
             this.tableLayoutPanelRoot.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanelRoot.Size = new System.Drawing.Size(1196, 710);
+            this.tableLayoutPanelRoot.Size = new System.Drawing.Size(1346, 860);
             this.tableLayoutPanelRoot.TabIndex = 0;
             // 
             // tableLayoutPanelLeft
@@ -109,23 +115,26 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.tableLayoutPanelLeft.Controls.Add(this.groupBoxItemSetting, 0, 2);
             this.tableLayoutPanelLeft.Controls.Add(this.flowLayoutPanelBottom, 0, 3);
             this.tableLayoutPanelLeft.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tableLayoutPanelLeft.Location = new System.Drawing.Point(13, 13);
+            this.tableLayoutPanelLeft.Location = new System.Drawing.Point(14, 16);
+            this.tableLayoutPanelLeft.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.tableLayoutPanelLeft.Name = "tableLayoutPanelLeft";
             this.tableLayoutPanelLeft.RowCount = 4;
-            this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 92F));
-            this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 210F));
+            this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 110F));
+            this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 252F));
             this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 52F));
-            this.tableLayoutPanelLeft.Size = new System.Drawing.Size(459, 684);
+            this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 62F));
+            this.tableLayoutPanelLeft.Size = new System.Drawing.Size(517, 828);
             this.tableLayoutPanelLeft.TabIndex = 0;
             // 
             // groupBoxImage
             // 
             this.groupBoxImage.Controls.Add(this.nodeSubscriptionImage);
             this.groupBoxImage.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.groupBoxImage.Location = new System.Drawing.Point(3, 3);
+            this.groupBoxImage.Location = new System.Drawing.Point(3, 4);
+            this.groupBoxImage.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxImage.Name = "groupBoxImage";
-            this.groupBoxImage.Size = new System.Drawing.Size(453, 86);
+            this.groupBoxImage.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.groupBoxImage.Size = new System.Drawing.Size(511, 102);
             this.groupBoxImage.TabIndex = 0;
             this.groupBoxImage.TabStop = false;
             this.groupBoxImage.Text = "输入图像";
@@ -133,19 +142,22 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // nodeSubscriptionImage
             // 
             this.nodeSubscriptionImage.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
-            this.nodeSubscriptionImage.Location = new System.Drawing.Point(14, 23);
-            this.nodeSubscriptionImage.MinimumSize = new System.Drawing.Size(260, 50);
+            this.nodeSubscriptionImage.Location = new System.Drawing.Point(16, 27);
+            this.nodeSubscriptionImage.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.nodeSubscriptionImage.MinimumSize = new System.Drawing.Size(292, 60);
             this.nodeSubscriptionImage.Name = "nodeSubscriptionImage";
-            this.nodeSubscriptionImage.Size = new System.Drawing.Size(423, 56);
+            this.nodeSubscriptionImage.Size = new System.Drawing.Size(477, 67);
             this.nodeSubscriptionImage.TabIndex = 0;
             // 
             // groupBoxItems
             // 
             this.groupBoxItems.Controls.Add(this.tableLayoutPanelItems);
             this.groupBoxItems.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.groupBoxItems.Location = new System.Drawing.Point(3, 95);
+            this.groupBoxItems.Location = new System.Drawing.Point(3, 114);
+            this.groupBoxItems.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxItems.Name = "groupBoxItems";
-            this.groupBoxItems.Size = new System.Drawing.Size(453, 204);
+            this.groupBoxItems.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.groupBoxItems.Size = new System.Drawing.Size(511, 244);
             this.groupBoxItems.TabIndex = 1;
             this.groupBoxItems.TabStop = false;
             this.groupBoxItems.Text = "绘制项";
@@ -157,12 +169,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.tableLayoutPanelItems.Controls.Add(this.flowLayoutPanelAdd, 0, 0);
             this.tableLayoutPanelItems.Controls.Add(this.dataGridViewItems, 0, 1);
             this.tableLayoutPanelItems.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tableLayoutPanelItems.Location = new System.Drawing.Point(3, 21);
+            this.tableLayoutPanelItems.Location = new System.Drawing.Point(3, 25);
+            this.tableLayoutPanelItems.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.tableLayoutPanelItems.Name = "tableLayoutPanelItems";
             this.tableLayoutPanelItems.RowCount = 2;
-            this.tableLayoutPanelItems.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 40F));
+            this.tableLayoutPanelItems.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 48F));
             this.tableLayoutPanelItems.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanelItems.Size = new System.Drawing.Size(447, 180);
+            this.tableLayoutPanelItems.Size = new System.Drawing.Size(505, 215);
             this.tableLayoutPanelItems.TabIndex = 0;
             // 
             // flowLayoutPanelAdd
@@ -173,16 +186,18 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.flowLayoutPanelAdd.Controls.Add(this.buttonAddRegion);
             this.flowLayoutPanelAdd.Controls.Add(this.buttonDelete);
             this.flowLayoutPanelAdd.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.flowLayoutPanelAdd.Location = new System.Drawing.Point(3, 3);
+            this.flowLayoutPanelAdd.Location = new System.Drawing.Point(3, 4);
+            this.flowLayoutPanelAdd.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.flowLayoutPanelAdd.Name = "flowLayoutPanelAdd";
-            this.flowLayoutPanelAdd.Size = new System.Drawing.Size(441, 34);
+            this.flowLayoutPanelAdd.Size = new System.Drawing.Size(499, 40);
             this.flowLayoutPanelAdd.TabIndex = 0;
             // 
             // buttonAddText
             // 
-            this.buttonAddText.Location = new System.Drawing.Point(3, 3);
+            this.buttonAddText.Location = new System.Drawing.Point(3, 4);
+            this.buttonAddText.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonAddText.Name = "buttonAddText";
-            this.buttonAddText.Size = new System.Drawing.Size(76, 28);
+            this.buttonAddText.Size = new System.Drawing.Size(86, 34);
             this.buttonAddText.TabIndex = 0;
             this.buttonAddText.Text = "加文本";
             this.buttonAddText.UseVisualStyleBackColor = true;
@@ -190,9 +205,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             // buttonAddLine
             // 
-            this.buttonAddLine.Location = new System.Drawing.Point(85, 3);
+            this.buttonAddLine.Location = new System.Drawing.Point(95, 4);
+            this.buttonAddLine.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonAddLine.Name = "buttonAddLine";
-            this.buttonAddLine.Size = new System.Drawing.Size(70, 28);
+            this.buttonAddLine.Size = new System.Drawing.Size(79, 34);
             this.buttonAddLine.TabIndex = 1;
             this.buttonAddLine.Text = "加线";
             this.buttonAddLine.UseVisualStyleBackColor = true;
@@ -200,9 +216,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             // buttonAddRectangle
             // 
-            this.buttonAddRectangle.Location = new System.Drawing.Point(161, 3);
+            this.buttonAddRectangle.Location = new System.Drawing.Point(180, 4);
+            this.buttonAddRectangle.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonAddRectangle.Name = "buttonAddRectangle";
-            this.buttonAddRectangle.Size = new System.Drawing.Size(76, 28);
+            this.buttonAddRectangle.Size = new System.Drawing.Size(86, 34);
             this.buttonAddRectangle.TabIndex = 2;
             this.buttonAddRectangle.Text = "加矩形";
             this.buttonAddRectangle.UseVisualStyleBackColor = true;
@@ -210,9 +227,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             // buttonAddRegion
             // 
-            this.buttonAddRegion.Location = new System.Drawing.Point(243, 3);
+            this.buttonAddRegion.Location = new System.Drawing.Point(272, 4);
+            this.buttonAddRegion.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonAddRegion.Name = "buttonAddRegion";
-            this.buttonAddRegion.Size = new System.Drawing.Size(86, 28);
+            this.buttonAddRegion.Size = new System.Drawing.Size(97, 34);
             this.buttonAddRegion.TabIndex = 3;
             this.buttonAddRegion.Text = "加区域";
             this.buttonAddRegion.UseVisualStyleBackColor = true;
@@ -220,9 +238,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             // buttonDelete
             // 
-            this.buttonDelete.Location = new System.Drawing.Point(335, 3);
+            this.buttonDelete.Location = new System.Drawing.Point(375, 4);
+            this.buttonDelete.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonDelete.Name = "buttonDelete";
-            this.buttonDelete.Size = new System.Drawing.Size(70, 28);
+            this.buttonDelete.Size = new System.Drawing.Size(79, 34);
             this.buttonDelete.TabIndex = 4;
             this.buttonDelete.Text = "删除";
             this.buttonDelete.UseVisualStyleBackColor = true;
@@ -242,7 +261,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.ColumnSource,
             this.ColumnColor});
             this.dataGridViewItems.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.dataGridViewItems.Location = new System.Drawing.Point(3, 43);
+            this.dataGridViewItems.Location = new System.Drawing.Point(3, 52);
+            this.dataGridViewItems.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.dataGridViewItems.MultiSelect = false;
             this.dataGridViewItems.Name = "dataGridViewItems";
             this.dataGridViewItems.ReadOnly = true;
@@ -250,7 +270,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.dataGridViewItems.RowHeadersWidth = 51;
             this.dataGridViewItems.RowTemplate.Height = 27;
             this.dataGridViewItems.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
-            this.dataGridViewItems.Size = new System.Drawing.Size(441, 134);
+            this.dataGridViewItems.Size = new System.Drawing.Size(499, 159);
             this.dataGridViewItems.TabIndex = 1;
             this.dataGridViewItems.SelectionChanged += new System.EventHandler(this.dataGridViewItems_SelectionChanged);
             // 
@@ -298,9 +318,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.groupBoxItemSetting.Controls.Add(this.tableLayoutPanelSetting);
             this.groupBoxItemSetting.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.groupBoxItemSetting.Location = new System.Drawing.Point(3, 305);
+            this.groupBoxItemSetting.Location = new System.Drawing.Point(3, 366);
+            this.groupBoxItemSetting.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxItemSetting.Name = "groupBoxItemSetting";
-            this.groupBoxItemSetting.Size = new System.Drawing.Size(453, 324);
+            this.groupBoxItemSetting.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.groupBoxItemSetting.Size = new System.Drawing.Size(511, 396);
             this.groupBoxItemSetting.TabIndex = 2;
             this.groupBoxItemSetting.TabStop = false;
             this.groupBoxItemSetting.Text = "当前项";
@@ -308,7 +330,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // tableLayoutPanelSetting
             // 
             this.tableLayoutPanelSetting.ColumnCount = 2;
-            this.tableLayoutPanelSetting.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 98F));
+            this.tableLayoutPanelSetting.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 110F));
             this.tableLayoutPanelSetting.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
             this.tableLayoutPanelSetting.Controls.Add(this.labelEnabled, 0, 0);
             this.tableLayoutPanelSetting.Controls.Add(this.checkBoxEnabled, 1, 0);
@@ -331,29 +353,30 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.tableLayoutPanelSetting.Controls.Add(this.labelMargin, 0, 9);
             this.tableLayoutPanelSetting.Controls.Add(this.numericMargin, 1, 9);
             this.tableLayoutPanelSetting.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tableLayoutPanelSetting.Location = new System.Drawing.Point(3, 21);
+            this.tableLayoutPanelSetting.Location = new System.Drawing.Point(3, 25);
+            this.tableLayoutPanelSetting.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.tableLayoutPanelSetting.Name = "tableLayoutPanelSetting";
             this.tableLayoutPanelSetting.RowCount = 10;
-            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 24F));
-            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 28F));
-            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 28F));
-            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 54F));
-            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 32F));
-            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 30F));
-            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 26F));
-            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 26F));
-            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 26F));
-            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 26F));
-            this.tableLayoutPanelSetting.Size = new System.Drawing.Size(447, 300);
+            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 29F));
+            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 34F));
+            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 34F));
+            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 65F));
+            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 38F));
+            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 36F));
+            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 31F));
+            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 31F));
+            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 31F));
+            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 31F));
+            this.tableLayoutPanelSetting.Size = new System.Drawing.Size(505, 367);
             this.tableLayoutPanelSetting.TabIndex = 0;
             // 
             // labelEnabled
             // 
             this.labelEnabled.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelEnabled.AutoSize = true;
-            this.labelEnabled.Location = new System.Drawing.Point(59, 6);
+            this.labelEnabled.Location = new System.Drawing.Point(63, 5);
             this.labelEnabled.Name = "labelEnabled";
-            this.labelEnabled.Size = new System.Drawing.Size(36, 15);
+            this.labelEnabled.Size = new System.Drawing.Size(44, 18);
             this.labelEnabled.TabIndex = 0;
             this.labelEnabled.Text = "启用";
             // 
@@ -363,9 +386,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.checkBoxEnabled.AutoSize = true;
             this.checkBoxEnabled.Checked = true;
             this.checkBoxEnabled.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.checkBoxEnabled.Location = new System.Drawing.Point(101, 4);
+            this.checkBoxEnabled.Location = new System.Drawing.Point(113, 4);
+            this.checkBoxEnabled.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.checkBoxEnabled.Name = "checkBoxEnabled";
-            this.checkBoxEnabled.Size = new System.Drawing.Size(18, 17);
+            this.checkBoxEnabled.Size = new System.Drawing.Size(22, 21);
             this.checkBoxEnabled.TabIndex = 1;
             this.checkBoxEnabled.UseVisualStyleBackColor = true;
             this.checkBoxEnabled.CheckedChanged += new System.EventHandler(this.ItemControl_ValueChanged);
@@ -374,9 +398,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.labelItemType.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelItemType.AutoSize = true;
-            this.labelItemType.Location = new System.Drawing.Point(59, 36);
+            this.labelItemType.Location = new System.Drawing.Point(63, 37);
             this.labelItemType.Name = "labelItemType";
-            this.labelItemType.Size = new System.Drawing.Size(36, 15);
+            this.labelItemType.Size = new System.Drawing.Size(44, 18);
             this.labelItemType.TabIndex = 2;
             this.labelItemType.Text = "类型";
             // 
@@ -385,9 +409,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.comboBoxItemType.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
             this.comboBoxItemType.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxItemType.FormattingEnabled = true;
-            this.comboBoxItemType.Location = new System.Drawing.Point(101, 32);
+            this.comboBoxItemType.Location = new System.Drawing.Point(113, 33);
+            this.comboBoxItemType.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxItemType.Name = "comboBoxItemType";
-            this.comboBoxItemType.Size = new System.Drawing.Size(343, 23);
+            this.comboBoxItemType.Size = new System.Drawing.Size(389, 26);
             this.comboBoxItemType.TabIndex = 3;
             this.comboBoxItemType.SelectedIndexChanged += new System.EventHandler(this.ItemControl_ValueChanged);
             // 
@@ -395,18 +420,19 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.labelName.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelName.AutoSize = true;
-            this.labelName.Location = new System.Drawing.Point(59, 68);
+            this.labelName.Location = new System.Drawing.Point(63, 71);
             this.labelName.Name = "labelName";
-            this.labelName.Size = new System.Drawing.Size(36, 15);
+            this.labelName.Size = new System.Drawing.Size(44, 18);
             this.labelName.TabIndex = 4;
             this.labelName.Text = "名称";
             // 
             // textBoxName
             // 
             this.textBoxName.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxName.Location = new System.Drawing.Point(101, 63);
+            this.textBoxName.Location = new System.Drawing.Point(113, 67);
+            this.textBoxName.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxName.Name = "textBoxName";
-            this.textBoxName.Size = new System.Drawing.Size(343, 25);
+            this.textBoxName.Size = new System.Drawing.Size(389, 28);
             this.textBoxName.TabIndex = 5;
             this.textBoxName.TextChanged += new System.EventHandler(this.ItemControl_ValueChanged);
             // 
@@ -414,45 +440,50 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.labelSource.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelSource.AutoSize = true;
-            this.labelSource.Location = new System.Drawing.Point(59, 115);
+            this.labelSource.Location = new System.Drawing.Point(63, 120);
             this.labelSource.Name = "labelSource";
-            this.labelSource.Size = new System.Drawing.Size(36, 15);
+            this.labelSource.Size = new System.Drawing.Size(44, 18);
             this.labelSource.TabIndex = 6;
             this.labelSource.Text = "订阅";
             // 
             // nodeSubscriptionSource
             // 
             this.nodeSubscriptionSource.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
-            this.nodeSubscriptionSource.Location = new System.Drawing.Point(101, 96);
-            this.nodeSubscriptionSource.MinimumSize = new System.Drawing.Size(260, 50);
+            this.nodeSubscriptionSource.Location = new System.Drawing.Point(113, 99);
+            this.nodeSubscriptionSource.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.nodeSubscriptionSource.MinimumSize = new System.Drawing.Size(292, 60);
             this.nodeSubscriptionSource.Name = "nodeSubscriptionSource";
-            this.nodeSubscriptionSource.Size = new System.Drawing.Size(343, 54);
+            this.nodeSubscriptionSource.Size = new System.Drawing.Size(389, 60);
             this.nodeSubscriptionSource.TabIndex = 7;
             // 
             // labelManualText
             // 
             this.labelManualText.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelManualText.AutoSize = true;
-            this.labelManualText.Location = new System.Drawing.Point(59, 166);
+            this.labelManualText.Location = new System.Drawing.Point(63, 172);
             this.labelManualText.Name = "labelManualText";
-            this.labelManualText.Size = new System.Drawing.Size(36, 15);
+            this.labelManualText.Size = new System.Drawing.Size(44, 18);
             this.labelManualText.TabIndex = 8;
             this.labelManualText.Text = "文本";
             // 
             // tableLayoutPanelManual
             // 
-            this.tableLayoutPanelManual.ColumnCount = 2;
-            this.tableLayoutPanelManual.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 76F));
+            this.tableLayoutPanelManual.ColumnCount = 4;
+            this.tableLayoutPanelManual.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 86F));
+            this.tableLayoutPanelManual.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 126F));
+            this.tableLayoutPanelManual.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 52F));
             this.tableLayoutPanelManual.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
             this.tableLayoutPanelManual.Controls.Add(this.checkBoxManualText, 0, 0);
             this.tableLayoutPanelManual.Controls.Add(this.textBoxManualText, 1, 0);
+            this.tableLayoutPanelManual.Controls.Add(this.labelTextPrefix, 2, 0);
+            this.tableLayoutPanelManual.Controls.Add(this.textBoxTextPrefix, 3, 0);
             this.tableLayoutPanelManual.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tableLayoutPanelManual.Location = new System.Drawing.Point(98, 154);
+            this.tableLayoutPanelManual.Location = new System.Drawing.Point(110, 162);
             this.tableLayoutPanelManual.Margin = new System.Windows.Forms.Padding(0);
             this.tableLayoutPanelManual.Name = "tableLayoutPanelManual";
             this.tableLayoutPanelManual.RowCount = 1;
             this.tableLayoutPanelManual.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanelManual.Size = new System.Drawing.Size(349, 40);
+            this.tableLayoutPanelManual.Size = new System.Drawing.Size(395, 38);
             this.tableLayoutPanelManual.TabIndex = 9;
             // 
             // checkBoxManualText
@@ -461,9 +492,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.checkBoxManualText.AutoSize = true;
             this.checkBoxManualText.Checked = true;
             this.checkBoxManualText.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.checkBoxManualText.Location = new System.Drawing.Point(3, 10);
+            this.checkBoxManualText.Location = new System.Drawing.Point(3, 8);
+            this.checkBoxManualText.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.checkBoxManualText.Name = "checkBoxManualText";
-            this.checkBoxManualText.Size = new System.Drawing.Size(59, 19);
+            this.checkBoxManualText.Size = new System.Drawing.Size(70, 22);
             this.checkBoxManualText.TabIndex = 0;
             this.checkBoxManualText.Text = "手填";
             this.checkBoxManualText.UseVisualStyleBackColor = true;
@@ -472,35 +504,58 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // textBoxManualText
             // 
             this.textBoxManualText.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxManualText.Location = new System.Drawing.Point(79, 7);
+            this.textBoxManualText.Location = new System.Drawing.Point(89, 5);
+            this.textBoxManualText.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxManualText.Name = "textBoxManualText";
-            this.textBoxManualText.Size = new System.Drawing.Size(267, 25);
+            this.textBoxManualText.Size = new System.Drawing.Size(120, 28);
             this.textBoxManualText.TabIndex = 1;
             this.textBoxManualText.TextChanged += new System.EventHandler(this.ItemControl_ValueChanged);
+            // 
+            // labelTextPrefix
+            // 
+            this.labelTextPrefix.Anchor = System.Windows.Forms.AnchorStyles.Right;
+            this.labelTextPrefix.AutoSize = true;
+            this.labelTextPrefix.Location = new System.Drawing.Point(217, 10);
+            this.labelTextPrefix.Name = "labelTextPrefix";
+            this.labelTextPrefix.Size = new System.Drawing.Size(44, 18);
+            this.labelTextPrefix.TabIndex = 2;
+            this.labelTextPrefix.Text = "前缀";
+            // 
+            // textBoxTextPrefix
+            // 
+            this.textBoxTextPrefix.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.textBoxTextPrefix.Location = new System.Drawing.Point(267, 5);
+            this.textBoxTextPrefix.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.textBoxTextPrefix.Name = "textBoxTextPrefix";
+            this.textBoxTextPrefix.Size = new System.Drawing.Size(125, 28);
+            this.textBoxTextPrefix.TabIndex = 3;
+            this.textBoxTextPrefix.TextChanged += new System.EventHandler(this.ItemControl_ValueChanged);
             // 
             // labelColor
             // 
             this.labelColor.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelColor.AutoSize = true;
-            this.labelColor.Location = new System.Drawing.Point(59, 203);
+            this.labelColor.Location = new System.Drawing.Point(63, 209);
             this.labelColor.Name = "labelColor";
-            this.labelColor.Size = new System.Drawing.Size(36, 15);
+            this.labelColor.Size = new System.Drawing.Size(44, 18);
             this.labelColor.TabIndex = 10;
             this.labelColor.Text = "颜色";
             // 
             // tableLayoutPanelColor
             // 
-            this.tableLayoutPanelColor.ColumnCount = 2;
-            this.tableLayoutPanelColor.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 56F));
-            this.tableLayoutPanelColor.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 86F));
+            this.tableLayoutPanelColor.ColumnCount = 3;
+            this.tableLayoutPanelColor.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 63F));
+            this.tableLayoutPanelColor.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 117F));
+            this.tableLayoutPanelColor.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 120F));
             this.tableLayoutPanelColor.Controls.Add(this.panelColor, 0, 0);
             this.tableLayoutPanelColor.Controls.Add(this.buttonChooseColor, 1, 0);
-            this.tableLayoutPanelColor.Location = new System.Drawing.Point(98, 194);
+            this.tableLayoutPanelColor.Controls.Add(this.buttonApplyStyleToAll, 2, 0);
+            this.tableLayoutPanelColor.Location = new System.Drawing.Point(110, 200);
             this.tableLayoutPanelColor.Margin = new System.Windows.Forms.Padding(0);
             this.tableLayoutPanelColor.Name = "tableLayoutPanelColor";
             this.tableLayoutPanelColor.RowCount = 1;
             this.tableLayoutPanelColor.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanelColor.Size = new System.Drawing.Size(160, 34);
+            this.tableLayoutPanelColor.Size = new System.Drawing.Size(300, 36);
             this.tableLayoutPanelColor.TabIndex = 11;
             // 
             // panelColor
@@ -508,36 +563,51 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.panelColor.Anchor = System.Windows.Forms.AnchorStyles.Left;
             this.panelColor.BackColor = System.Drawing.Color.Lime;
             this.panelColor.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.panelColor.Location = new System.Drawing.Point(3, 6);
+            this.panelColor.Location = new System.Drawing.Point(3, 5);
+            this.panelColor.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.panelColor.Name = "panelColor";
-            this.panelColor.Size = new System.Drawing.Size(44, 22);
+            this.panelColor.Size = new System.Drawing.Size(49, 26);
             this.panelColor.TabIndex = 0;
             // 
             // buttonChooseColor
             // 
             this.buttonChooseColor.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.buttonChooseColor.Location = new System.Drawing.Point(59, 3);
+            this.buttonChooseColor.Location = new System.Drawing.Point(66, 4);
+            this.buttonChooseColor.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonChooseColor.Name = "buttonChooseColor";
-            this.buttonChooseColor.Size = new System.Drawing.Size(76, 28);
+            this.buttonChooseColor.Size = new System.Drawing.Size(86, 28);
             this.buttonChooseColor.TabIndex = 1;
             this.buttonChooseColor.Text = "选择";
             this.buttonChooseColor.UseVisualStyleBackColor = true;
             this.buttonChooseColor.Click += new System.EventHandler(this.buttonChooseColor_Click);
             // 
+            // buttonApplyStyleToAll
+            // 
+            this.buttonApplyStyleToAll.Anchor = System.Windows.Forms.AnchorStyles.Left;
+            this.buttonApplyStyleToAll.Location = new System.Drawing.Point(183, 4);
+            this.buttonApplyStyleToAll.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.buttonApplyStyleToAll.Name = "buttonApplyStyleToAll";
+            this.buttonApplyStyleToAll.Size = new System.Drawing.Size(108, 28);
+            this.buttonApplyStyleToAll.TabIndex = 2;
+            this.buttonApplyStyleToAll.Text = "应用到全部";
+            this.buttonApplyStyleToAll.UseVisualStyleBackColor = true;
+            this.buttonApplyStyleToAll.Click += new System.EventHandler(this.buttonApplyStyleToAll_Click);
+            // 
             // labelFontSize
             // 
             this.labelFontSize.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelFontSize.AutoSize = true;
-            this.labelFontSize.Location = new System.Drawing.Point(59, 236);
+            this.labelFontSize.Location = new System.Drawing.Point(63, 242);
             this.labelFontSize.Name = "labelFontSize";
-            this.labelFontSize.Size = new System.Drawing.Size(36, 15);
+            this.labelFontSize.Size = new System.Drawing.Size(44, 18);
             this.labelFontSize.TabIndex = 12;
             this.labelFontSize.Text = "字号";
             // 
             // numericFontSize
             // 
             this.numericFontSize.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.numericFontSize.Location = new System.Drawing.Point(101, 231);
+            this.numericFontSize.Location = new System.Drawing.Point(113, 240);
+            this.numericFontSize.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.numericFontSize.Maximum = new decimal(new int[] {
             200,
             0,
@@ -549,7 +619,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             0,
             0});
             this.numericFontSize.Name = "numericFontSize";
-            this.numericFontSize.Size = new System.Drawing.Size(90, 25);
+            this.numericFontSize.Size = new System.Drawing.Size(101, 28);
             this.numericFontSize.TabIndex = 13;
             this.numericFontSize.Value = new decimal(new int[] {
             18,
@@ -562,16 +632,17 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.labelLineWidth.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelLineWidth.AutoSize = true;
-            this.labelLineWidth.Location = new System.Drawing.Point(59, 268);
+            this.labelLineWidth.Location = new System.Drawing.Point(63, 273);
             this.labelLineWidth.Name = "labelLineWidth";
-            this.labelLineWidth.Size = new System.Drawing.Size(36, 15);
+            this.labelLineWidth.Size = new System.Drawing.Size(44, 18);
             this.labelLineWidth.TabIndex = 14;
             this.labelLineWidth.Text = "线宽";
             // 
             // numericLineWidth
             // 
             this.numericLineWidth.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.numericLineWidth.Location = new System.Drawing.Point(101, 263);
+            this.numericLineWidth.Location = new System.Drawing.Point(113, 271);
+            this.numericLineWidth.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.numericLineWidth.Maximum = new decimal(new int[] {
             50,
             0,
@@ -583,7 +654,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             0,
             0});
             this.numericLineWidth.Name = "numericLineWidth";
-            this.numericLineWidth.Size = new System.Drawing.Size(90, 25);
+            this.numericLineWidth.Size = new System.Drawing.Size(101, 28);
             this.numericLineWidth.TabIndex = 15;
             this.numericLineWidth.Value = new decimal(new int[] {
             2,
@@ -596,9 +667,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.labelTextPosition.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelTextPosition.AutoSize = true;
-            this.labelTextPosition.Location = new System.Drawing.Point(59, 300);
+            this.labelTextPosition.Location = new System.Drawing.Point(63, 304);
             this.labelTextPosition.Name = "labelTextPosition";
-            this.labelTextPosition.Size = new System.Drawing.Size(36, 15);
+            this.labelTextPosition.Size = new System.Drawing.Size(44, 18);
             this.labelTextPosition.TabIndex = 16;
             this.labelTextPosition.Text = "位置";
             // 
@@ -607,9 +678,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.comboBoxTextPosition.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
             this.comboBoxTextPosition.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxTextPosition.FormattingEnabled = true;
-            this.comboBoxTextPosition.Location = new System.Drawing.Point(101, 296);
+            this.comboBoxTextPosition.Location = new System.Drawing.Point(113, 302);
+            this.comboBoxTextPosition.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxTextPosition.Name = "comboBoxTextPosition";
-            this.comboBoxTextPosition.Size = new System.Drawing.Size(343, 23);
+            this.comboBoxTextPosition.Size = new System.Drawing.Size(389, 26);
             this.comboBoxTextPosition.TabIndex = 17;
             this.comboBoxTextPosition.SelectedIndexChanged += new System.EventHandler(this.ItemControl_ValueChanged);
             // 
@@ -617,23 +689,24 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.labelMargin.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelMargin.AutoSize = true;
-            this.labelMargin.Location = new System.Drawing.Point(59, 332);
+            this.labelMargin.Location = new System.Drawing.Point(63, 339);
             this.labelMargin.Name = "labelMargin";
-            this.labelMargin.Size = new System.Drawing.Size(36, 15);
+            this.labelMargin.Size = new System.Drawing.Size(44, 18);
             this.labelMargin.TabIndex = 18;
             this.labelMargin.Text = "边距";
             // 
             // numericMargin
             // 
             this.numericMargin.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.numericMargin.Location = new System.Drawing.Point(101, 327);
+            this.numericMargin.Location = new System.Drawing.Point(113, 334);
+            this.numericMargin.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.numericMargin.Maximum = new decimal(new int[] {
             500,
             0,
             0,
             0});
             this.numericMargin.Name = "numericMargin";
-            this.numericMargin.Size = new System.Drawing.Size(90, 25);
+            this.numericMargin.Size = new System.Drawing.Size(101, 28);
             this.numericMargin.TabIndex = 19;
             this.numericMargin.Value = new decimal(new int[] {
             10,
@@ -648,17 +721,19 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.flowLayoutPanelBottom.Controls.Add(this.buttonSave);
             this.flowLayoutPanelBottom.Dock = System.Windows.Forms.DockStyle.Fill;
             this.flowLayoutPanelBottom.FlowDirection = System.Windows.Forms.FlowDirection.RightToLeft;
-            this.flowLayoutPanelBottom.Location = new System.Drawing.Point(3, 634);
+            this.flowLayoutPanelBottom.Location = new System.Drawing.Point(3, 770);
+            this.flowLayoutPanelBottom.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.flowLayoutPanelBottom.Name = "flowLayoutPanelBottom";
-            this.flowLayoutPanelBottom.Padding = new System.Windows.Forms.Padding(0, 8, 0, 0);
-            this.flowLayoutPanelBottom.Size = new System.Drawing.Size(453, 47);
+            this.flowLayoutPanelBottom.Padding = new System.Windows.Forms.Padding(0, 10, 0, 0);
+            this.flowLayoutPanelBottom.Size = new System.Drawing.Size(511, 54);
             this.flowLayoutPanelBottom.TabIndex = 3;
             // 
             // buttonPreview
             // 
-            this.buttonPreview.Location = new System.Drawing.Point(365, 11);
+            this.buttonPreview.Location = new System.Drawing.Point(412, 14);
+            this.buttonPreview.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonPreview.Name = "buttonPreview";
-            this.buttonPreview.Size = new System.Drawing.Size(85, 30);
+            this.buttonPreview.Size = new System.Drawing.Size(96, 36);
             this.buttonPreview.TabIndex = 0;
             this.buttonPreview.Text = "预览";
             this.buttonPreview.UseVisualStyleBackColor = true;
@@ -666,9 +741,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             // buttonSave
             // 
-            this.buttonSave.Location = new System.Drawing.Point(274, 11);
+            this.buttonSave.Location = new System.Drawing.Point(310, 14);
+            this.buttonSave.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonSave.Name = "buttonSave";
-            this.buttonSave.Size = new System.Drawing.Size(85, 30);
+            this.buttonSave.Size = new System.Drawing.Size(96, 36);
             this.buttonSave.TabIndex = 1;
             this.buttonSave.Text = "保存";
             this.buttonSave.UseVisualStyleBackColor = true;
@@ -678,9 +754,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.groupBoxPreview.Controls.Add(this.showImageControl1);
             this.groupBoxPreview.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.groupBoxPreview.Location = new System.Drawing.Point(478, 13);
+            this.groupBoxPreview.Location = new System.Drawing.Point(537, 16);
+            this.groupBoxPreview.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxPreview.Name = "groupBoxPreview";
-            this.groupBoxPreview.Size = new System.Drawing.Size(705, 684);
+            this.groupBoxPreview.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.groupBoxPreview.Size = new System.Drawing.Size(795, 828);
             this.groupBoxPreview.TabIndex = 1;
             this.groupBoxPreview.TabStop = false;
             this.groupBoxPreview.Text = "预览";
@@ -688,19 +766,29 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // showImageControl1
             // 
             this.showImageControl1.BackColor = System.Drawing.Color.Black;
+            this.showImageControl1.BackgroundColorCustom = System.Drawing.Color.Black;
+            this.showImageControl1.BackgroundImageCustom = null;
+            this.showImageControl1.BackgroundLayoutMode = TDJS_Vision.Forms.DispShowImage.ShowImageControl.BackgroundImageLayoutMode.Fill;
+            this.showImageControl1.BackgroundTransparency = 1F;
             this.showImageControl1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.showImageControl1.Location = new System.Drawing.Point(3, 21);
+            this.showImageControl1.Location = new System.Drawing.Point(3, 25);
+            this.showImageControl1.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.showImageControl1.Name = "showImageControl1";
-            this.showImageControl1.Size = new System.Drawing.Size(699, 660);
+            this.showImageControl1.RoiColor = System.Drawing.Color.Lime;
+            this.showImageControl1.ShowCheckerBackground = false;
+            this.showImageControl1.ShowPixelInfo = false;
+            this.showImageControl1.Size = new System.Drawing.Size(789, 799);
+            this.showImageControl1.StaticShapeColor = System.Drawing.Color.Red;
             this.showImageControl1.TabIndex = 0;
             // 
             // NodeParamFormResultOverlayDraw
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1200, 750);
+            this.ClientSize = new System.Drawing.Size(1350, 900);
             this.Controls.Add(this.tableLayoutPanelRoot);
-            this.MaximizeBox = true;
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
+            this.Margin = new System.Windows.Forms.Padding(3, 5, 3, 5);
             this.MinimizeBox = false;
             this.Name = "NodeParamFormResultOverlayDraw";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
@@ -762,10 +850,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanelManual;
         private System.Windows.Forms.CheckBox checkBoxManualText;
         private System.Windows.Forms.TextBox textBoxManualText;
+        private System.Windows.Forms.Label labelTextPrefix;
+        private System.Windows.Forms.TextBox textBoxTextPrefix;
         private System.Windows.Forms.Label labelColor;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanelColor;
         private System.Windows.Forms.Panel panelColor;
         private System.Windows.Forms.Button buttonChooseColor;
+        private System.Windows.Forms.Button buttonApplyStyleToAll;
         private System.Windows.Forms.Label labelFontSize;
         private System.Windows.Forms.NumericUpDown numericFontSize;
         private System.Windows.Forms.Label labelLineWidth;

@@ -137,6 +137,51 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             throw new Exception($"找不到订阅节点：{nodeText}");
         }
 
+        private static bool TryReadDrawItemValue(NodeBase owner, ResultOverlayDrawItem item, out object value, out NodeBase sourceNode)
+        {
+            value = null;
+            sourceNode = null;
+            if (owner == null || owner.Process == null || item == null || string.IsNullOrWhiteSpace(item.SourceText1))
+                return false;
+
+            foreach (NodeBase node in owner.Process.GetUpstreamNodes(owner))
+            {
+                if (GetNodeText(node) != item.SourceText1)
+                    continue;
+
+                sourceNode = node;
+                if (owner.Process.IsRuning && !node.HasSuccessfulResultForRun(owner.Process.CurrentRunId))
+                    return false;
+
+                if (node.Result == null)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(item.SourceText2))
+                {
+                    value = node.Result;
+                    return true;
+                }
+
+                PropertyInfo property = node.Result.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                    .FirstOrDefault(propertyInfo => GetDisplayName(propertyInfo) == item.SourceText2 || propertyInfo.Name == item.SourceText2);
+                if (property == null || !property.CanRead)
+                    return false;
+
+                try
+                {
+                    value = property.GetValue(node.Result, null);
+                }
+                catch
+                {
+                    return false;
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
         private static AlgorithmResult BuildDisplayResult(NodeBase owner, NodeParamResultOverlayDraw param)
         {
             var displayResult = new AlgorithmResult();
@@ -168,21 +213,27 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         private static void AppendText(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
         {
             List<string> texts = new List<string>();
+            bool usePrefix = false;
             if (item.UseManualText || string.IsNullOrWhiteSpace(item.SourceText1))
             {
                 AddManualTextLines(texts, item.ManualText);
             }
             else
             {
-                object value = ReadSubscribedValue(owner, item.SourceText1, item.SourceText2, out NodeBase sourceNode);
+                if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
+                    return;
+
                 AddTextFromValue(texts, value);
                 if (texts.Count == 0 && sourceNode != null)
                     AddTextFromValue(texts, sourceNode.Result);
+
+                usePrefix = !string.IsNullOrEmpty(item.TextPrefix);
             }
 
             foreach (string text in texts.Where(t => !string.IsNullOrWhiteSpace(t)))
             {
-                displayResult.Texts.Add(new ColorText(text, item.Color)
+                string displayText = usePrefix ? item.TextPrefix + text : text;
+                displayResult.Texts.Add(new ColorText(displayText, item.Color)
                 {
                     FontSize = Math.Max(1, item.FontSize),
                     Position = item.TextPosition,
@@ -194,7 +245,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
 
         private static void AppendLines(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
         {
-            object value = ReadSubscribedValue(owner, item.SourceText1, item.SourceText2, out NodeBase sourceNode);
+            if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
+                return;
+
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
             if (algorithmResult != null && algorithmResult.Lines.Count > 0)
             {
@@ -219,12 +272,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 return;
             }
 
-            throw new Exception($"绘制项“{item.Name}”未读取到有效直线！");
+            return;
         }
 
         private static void AppendRegions(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
         {
-            object value = ReadSubscribedValue(owner, item.SourceText1, item.SourceText2, out NodeBase sourceNode);
+            if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
+                return;
+
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
             if (algorithmResult != null && algorithmResult.Contours.Count > 0)
             {
@@ -250,12 +305,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 return;
             }
 
-            throw new Exception($"绘制项“{item.Name}”未读取到有效区域/轮廓！");
+            return;
         }
 
         private static void AppendRectangles(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
         {
-            object value = ReadSubscribedValue(owner, item.SourceText1, item.SourceText2, out NodeBase sourceNode);
+            if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
+                return;
+
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
             if (algorithmResult != null)
             {
@@ -287,7 +344,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     return;
             }
 
-            throw new Exception($"绘制项“{item.Name}”未读取到有效矩形！");
+            return;
         }
 
         private static void AddTextFromValue(List<string> texts, object value)

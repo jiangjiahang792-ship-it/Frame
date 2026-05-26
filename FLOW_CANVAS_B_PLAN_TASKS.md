@@ -220,6 +220,7 @@ The current implementation step is **Phase 18: Composite Geometry Measurement To
   - [x] Feedback fix: failed canvas nodes now keep a red border, red title band, red anchor borders, and red status text even when selected.
   - [x] Feedback fix: QR no-code results and FindCircle radius NG results now publish `AlgorithmResult.IsAllOk = false` so the generic result-status pass can mark those nodes failed on the canvas.
   - [x] Feedback fix: scheduler now treats a node's final `RuntimeStatus = Failed` as a dependency failure, so downstream nodes and joins do not run through failed upstream paths even when another incoming branch is disabled or completed.
+  - [x] Feedback fix: `MultiCondition` is now a failure-tolerant condition node; failed upstream paths do not block the multi-condition node itself, while ordinary downstream nodes still keep the existing failed-dependency blocking behavior.
   - [x] Build-verify after the first dependency-aware parallel scheduler implementation pass.
   - [x] Build-verify after branch failure isolation and nullable visual NG result handling.
   - [x] Build-verify after failed-node visual status and disabled-source condition handling.
@@ -988,7 +989,13 @@ Reference source:
 - [x] Support configurable color and line width for rectangles, lines, and regions/contours, and extend the shared display-result style model for other geometry.
 - [x] Support drawing subscribed fitted lines and subscribed regions/contours.
 - [x] Preserve current `ImageDraw` compatibility unless explicitly replacing it.
+- [x] Feedback fix: `ResultOverlayDraw` is failure-tolerant in graph runtime; failed per-item ROI/text sources are skipped, while the input image subscription remains strict.
+- [x] Feedback fix: sequential graph runtime now records upstream node exceptions and continues scheduling failure-tolerant nodes such as `ResultOverlayDraw` before surfacing the original failure.
+- [x] Feedback fix: `ResultOverlayDraw` draw items now skip missing/invalid subscribed geometry or throwing result-property getters instead of failing the ROI drawing node.
+- [x] Feedback pass: `ResultOverlayDraw` supports applying current color, line width, and text size to all draw items at once.
+- [x] Feedback pass: subscribed text draw items support a text prefix so scalar values such as caliper length can be displayed with a label.
 - [x] Build-verify after implementation.
+- [x] Build-verify after the `ResultOverlayDraw` failure-tolerant runtime fix.
 - [ ] UI-verify the new form inside the running application.
 
 1. [x] Add graph layout and connection models with backward-compatible save/load defaults.
