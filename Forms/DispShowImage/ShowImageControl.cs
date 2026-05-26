@@ -276,15 +276,25 @@ namespace TDJS_Vision.Forms.DispShowImage
                 return index >= 0 && index < _dynamicRois.Count ? _dynamicRois[index] : null;
             }
         }
-
+         
         /// <summary>安全设置图像（线程安全）</summary>
-        public void SetImage(Bitmap bmp) => SafeInvoke(() => { ImageBitmap = bmp; });
+        public void SetImage(Bitmap bmp) => SafeInvoke(() =>
+        {
+            bool needShowFit = ImageBitmap == null && bmp != null;
+            ImageBitmap = bmp;
+            if (needShowFit)
+                ShowFit();
+        });
 
         public void SetImage(Bitmap bmp, AlgorithmResult displayResult)
         {
             SafeInvoke(() =>
             {
+                bool needShowFit = ImageBitmap == null && bmp != null;
                 ImageBitmap = bmp;
+                if (needShowFit)
+                    ShowFit();
+
                 ApplyDisplayResultCore(displayResult);
                 Invalidate();
             });

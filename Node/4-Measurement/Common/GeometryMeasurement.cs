@@ -47,6 +47,37 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         public List<PointF> RegionPoints { get; set; } = new List<PointF>();
     }
 
+    /// <summary>
+    /// 点到线距离计算结果。
+    /// </summary>
+    public class PointLineDistanceResult
+    {
+        /// <summary>
+        /// 点到无限直线的垂直距离。
+        /// </summary>
+        public double Distance { get; set; }
+
+        /// <summary>
+        /// 参与计算的目标点。
+        /// </summary>
+        public PointF TargetPoint { get; set; }
+
+        /// <summary>
+        /// 参与计算的直线起点。
+        /// </summary>
+        public PointF LineStart { get; set; }
+
+        /// <summary>
+        /// 参与计算的直线终点。
+        /// </summary>
+        public PointF LineEnd { get; set; }
+
+        /// <summary>
+        /// 目标点投影到无限直线上的垂足。
+        /// </summary>
+        public PointF FootPoint { get; set; }
+    }
+
     public static class GeometryMeasurementAlgorithm
     {
         public static double CalculateLineLineAngle(
@@ -107,6 +138,36 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             usedPoint1 = ApplyMode(point1, mode);
             usedPoint2 = ApplyMode(point2, mode);
             return Distance(usedPoint1, usedPoint2);
+        }
+
+        /// <summary>
+        /// 计算点到无限直线的垂直距离。
+        /// </summary>
+        public static PointLineDistanceResult CalculatePointLineDistance(
+            PointF targetPoint,
+            PointF lineStart,
+            PointF lineEnd,
+            GeometryMeasureMode mode)
+        {
+            PointF usedPoint = ApplyMode(targetPoint, mode);
+            PointF usedStart = ApplyMode(lineStart, mode);
+            PointF usedEnd = ApplyMode(lineEnd, mode);
+            double dx = usedEnd.X - usedStart.X;
+            double dy = usedEnd.Y - usedStart.Y;
+            double lengthSq = dx * dx + dy * dy;
+            if (lengthSq < 1e-12)
+                throw new ArgumentException("直线起点和终点不能重合。");
+
+            double t = ((usedPoint.X - usedStart.X) * dx + (usedPoint.Y - usedStart.Y) * dy) / lengthSq;
+            PointF foot = new PointF((float)(usedStart.X + t * dx), (float)(usedStart.Y + t * dy));
+            return new PointLineDistanceResult
+            {
+                Distance = Distance(usedPoint, foot),
+                TargetPoint = usedPoint,
+                LineStart = usedStart,
+                LineEnd = usedEnd,
+                FootPoint = foot
+            };
         }
 
         public static PointRegionDistanceResult CalculatePointRegionDistance(
@@ -287,13 +348,21 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 return true;
             }
 
+            // FindPoint 等点集型结果会输出 Points，订阅为点时按角色读取首点、末点或中心。
+            if (TryReadPointListProperty(result, "Points", out List<PointF> resultPoints) &&
+                TryPickPointFromList(resultPoints, role, out point))
+            {
+                return true;
+            }
+
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(result);
             if (algorithmResult != null)
             {
                 if (algorithmResult.Circles.Count > 0)
                 {
-                    point = algorithmResult.Circles[0].Center;
-                    return true;
+                    List<PointF> circlePoints = algorithmResult.Circles.Select(circle => circle.Center).ToList();
+                    if (TryPickPointFromList(circlePoints, role, out point))
+                        return true;
                 }
 
                 if (algorithmResult.Lines.Count > 0)
@@ -311,8 +380,8 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 if (algorithmResult.Contours.Count > 0 && algorithmResult.Contours[0].Points.Count > 0)
                 {
                     List<PointF> points = algorithmResult.Contours[0].Points;
-                    point = new PointF(points.Average(p => p.X), points.Average(p => p.Y));
-                    return true;
+                    if (TryPickPointFromList(points, role, out point))
+                        return true;
                 }
             }
 
@@ -339,6 +408,31 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// 从点集合中按订阅角色选出一个点。
+        /// </summary>
+        private static bool TryPickPointFromList(IList<PointF> points, MeasurementPointRole role, out PointF point)
+        {
+            point = PointF.Empty;
+            if (points == null || points.Count == 0)
+                return false;
+
+            switch (role)
+            {
+                case MeasurementPointRole.Center:
+                    point = new PointF(points.Average(p => p.X), points.Average(p => p.Y));
+                    return true;
+                case MeasurementPointRole.EndPoint:
+                    point = points[points.Count - 1];
+                    return true;
+                case MeasurementPointRole.StartPoint:
+                case MeasurementPointRole.Auto:
+                default:
+                    point = points[0];
+                    return true;
+            }
         }
 
         private static AlgorithmResult TryGetAlgorithmResult(object source)

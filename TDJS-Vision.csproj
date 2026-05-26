@@ -367,6 +367,18 @@
       <DependentUpon>NodeParamFormCaliperEllipse.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\4-Measurement\CaliperEllipse\NodeResultCaliperEllipse.cs" />
+    <Compile Include="Node\4-Measurement\FindPoint\FindPointAlgorithm.cs" />
+    <Compile Include="Node\4-Measurement\FindPoint\NodeFindPoint.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\FindPoint\NodeParamFindPoint.cs" />
+    <Compile Include="Node\4-Measurement\FindPoint\NodeParamFormFindPoint.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\FindPoint\NodeParamFormFindPoint.Designer.cs">
+      <DependentUpon>NodeParamFormFindPoint.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\4-Measurement\FindPoint\NodeResultFindPoint.cs" />
     <Compile Include="Node\4-Measurement\PositionCorrection\NodeParamFormPositionCorrection.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -400,6 +412,17 @@
       <DependentUpon>NodeParamFormPointPointDistance.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\4-Measurement\PointPointDistance\NodeResultPointPointDistance.cs" />
+    <Compile Include="Node\4-Measurement\PointLineDistance\NodePointLineDistance.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\PointLineDistance\NodeParamPointLineDistance.cs" />
+    <Compile Include="Node\4-Measurement\PointLineDistance\NodeParamFormPointLineDistance.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\PointLineDistance\NodeParamFormPointLineDistance.Designer.cs">
+      <DependentUpon>NodeParamFormPointLineDistance.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\4-Measurement\PointLineDistance\NodeResultPointLineDistance.cs" />
     <Compile Include="Node\4-Measurement\PointRegionDistance\NodePointRegionDistance.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -1494,6 +1517,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\3-Detection\TDAI\TDAICommuntionDetectionConfig.resx">
       <DependentUpon>TDAICommuntionDetectionConfig.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\4-Measurement\FindPoint\NodeParamFormFindPoint.resx">
+      <DependentUpon>NodeParamFormFindPoint.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\4-Measurement\LineLineAngle\NodeParamFormLineLineAngle.resx">
       <DependentUpon>NodeParamFormLineLineAngle.cs</DependentUpon>

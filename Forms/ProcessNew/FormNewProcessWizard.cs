@@ -799,8 +799,10 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.CaliperLine:
                 case NodeType.CaliperCircle:
                 case NodeType.CaliperEllipse:
+                case NodeType.FindPoint:
                 case NodeType.LineLineAngle:
                 case NodeType.PointPointDistance:
+                case NodeType.PointLineDistance:
                 case NodeType.PointRegionDistance:
                     return Color.FromArgb(70, 166, 190);
                 case NodeType.LightSourceControl:
@@ -874,10 +876,14 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return "CC";
                 case NodeType.CaliperEllipse:
                     return "CE";
+                case NodeType.FindPoint:
+                    return "FP";
                 case NodeType.LineLineAngle:
                     return "LA";
                 case NodeType.PointPointDistance:
                     return "PP";
+                case NodeType.PointLineDistance:
+                    return "PL";
                 case NodeType.PointRegionDistance:
                     return "PR";
                 case NodeType.QRScan:

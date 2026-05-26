@@ -214,6 +214,10 @@ namespace TDJS_Vision.Node
         /// </summary>
         CaliperEllipse,
         /// <summary>
+        /// 找点
+        /// </summary>
+        FindPoint,
+        /// <summary>
         /// 位置修正
         /// </summary>
         PositionCorrection,
@@ -365,6 +369,10 @@ namespace TDJS_Vision.Node
         /// 点到点距离
         /// </summary>
         PointPointDistance,
+        /// <summary>
+        /// 点到线距离
+        /// </summary>
+        PointLineDistance,
         /// <summary>
         /// 点到区域距离
         /// </summary>

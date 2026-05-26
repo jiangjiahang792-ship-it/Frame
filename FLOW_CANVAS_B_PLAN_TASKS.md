@@ -16,7 +16,7 @@ This means the target is not only a visual style change. The work includes:
 
 ## Current Step
 
-The current implementation step is **Phase 18: Composite Geometry Measurement Tools**.
+The current implementation step is **Phase 20: Edge Point Finding Measurement Tool**.
 
 ### Latest Progress
 
@@ -39,6 +39,12 @@ The current implementation step is **Phase 18: Composite Geometry Measurement To
   - [x] Local drawn measurement should use existing caliper algorithms where applicable instead of only manual coordinate clicks.
   - [x] Each new tool should expose position-correction options for local drawn ROIs.
   - [x] Parameter UI should include Basic Parameters and Run Parameters only; no Result Display page.
+- Phase 20 edge point finding planning:
+  - [x] New request captured: add a `FindPoint` measurement node under the measurement toolbox category.
+  - [x] The tool should subscribe one image input, let the user draw/confirm one or more ROI regions, and find all edge points inside those regions.
+  - [x] Edge point extraction should follow/trace edge contours where possible, so the output is ordered edge point groups instead of only an unordered threshold point cloud.
+  - [x] The first design should reuse the existing clean image plus `OutputImage.DisplayResult` overlay model; runtime output image pixels stay clean.
+  - [x] The result should be reusable by downstream measurement, condition, ROI drawing, and point/region subscription logic.
 - Phase 11 undo/redo first implementation pass:
   - [x] `ProcessFlowCanvas` now owns a canvas edit history stack.
   - [x] Undo/redo supports node creation, node deletion, node movement, connection creation, connection deletion, start-node changes, and node enable/disable changes.
@@ -998,6 +1004,61 @@ Reference source:
 - [x] Build-verify after implementation.
 - [x] Build-verify after the `ResultOverlayDraw` failure-tolerant runtime fix.
 - [ ] UI-verify the new form inside the running application.
+
+## Phase 20: Edge Point Finding Measurement Tool
+
+### Phase 20.1: Requirement And Scope
+
+- [x] Add a new measurement toolbox node named `FindPoint` / `找点`.
+- [x] Keep it as a new node under `Node\4-Measurement` instead of changing existing `LineFind`, `CircleFind`, or caliper tools.
+- [x] The node input is one subscribed image.
+- [x] The user draws and confirms one or more ROI regions on the image.
+- [x] Runtime finds edge points inside the confirmed ROI regions by tracing edge contours along the material edge.
+- [x] Runtime output should keep image pixels clean and publish overlay geometry through `OutputImage.DisplayResult`.
+- [x] The tool should expose point/contour results so downstream `PointPointDistance`, `PointRegionDistance`, `ResultOverlayDraw`, `MultiCondition`, and future tools can subscribe to them.
+
+### Phase 20.2: Algorithm Design
+
+- [ ] Reuse OpenCV primitives already available in the project: grayscale conversion, optional smoothing, gradient/Canny-style edge extraction, ROI masking, and contour tracing.
+- [ ] Treat the ROI as a mask. Edge extraction should ignore pixels outside the confirmed ROI.
+- [ ] Provide first-pass run parameters: smoothing kernel, edge threshold or low/high threshold, minimum contour length, maximum point count or sampling step, and contour selection mode.
+- [ ] Support edge polarity where practical: dark-to-light, light-to-dark, and both. If the contour-tracing path cannot directly encode polarity, use gradient sign filtering before contour extraction.
+- [ ] Return ordered contour point groups from `Cv2.FindContours`/edge-following, plus a flattened point list for simple point consumers.
+- [ ] Add optional point simplification/sampling to avoid producing huge point lists on noisy edges.
+- [ ] Reject empty ROI, missing image, no edge found, or too-few-point cases with clear messages.
+
+### Phase 20.3: Parameter UI
+
+- [ ] Add designer-visible WinForms controls in `.Designer.cs`.
+- [ ] Use the same general structure as recent measurement tools: Basic Parameters and Run Parameters.
+- [ ] Basic Parameters: image subscription, Refresh Image, Draw ROI, Confirm ROI, Clear ROI, Run, and preview image.
+- [ ] Run Parameters: smoothing, threshold, polarity, contour mode, minimum contour length, point sampling/simplification, and display toggles.
+- [ ] If multiple ROIs are supported in the first pass, add an ROI selector so each ROI can keep independent run parameters when needed.
+- [ ] Add position-correction controls only if the first implementation uses saved baseline ROI geometry; otherwise reserve this for a follow-up pass after the core tool is stable.
+
+### Phase 20.4: Result Model
+
+- [ ] Add `NodeResultFindPoint` with `IsOk`, `RunTime`, `PointCount`, `ContourCount`, `Points`, `Contours`, selected/best contour, message, and `OutputImage`.
+- [ ] Add small result value types when useful, for example `MeasuredPointSet` or `MeasuredContour`, under `Node\4-Measurement\Common`.
+- [ ] Extend `MeasurementResultReader` so downstream measurement/overlay tools can read this node as a point set and as a region/contour source.
+- [ ] Display found points/contours in `OutputImage.DisplayResult` using existing `ColorContour`/point overlay conventions where possible.
+
+### Phase 20.5: Registration And Integration
+
+- [ ] Add `NodeType.FindPoint`.
+- [ ] Add the `Node\4-Measurement\FindPoint` node family: node, parameter, parameter form, result, and any helper classes.
+- [ ] Register the node in `ProcessEditPanel.CreateNode`.
+- [ ] Register the node in `ToolTreeView.xml` under `测量工具`.
+- [ ] Add language keys in `Languages\zh-CN.json` and `Languages\en-US.json`.
+- [ ] Add project compile items and icon/color mapping if required by the current toolbox generation path.
+
+### Phase 20.6: Verification
+
+- [ ] Build-verify after first implementation.
+- [ ] UI-verify image refresh, draw ROI, confirm ROI, clear ROI, save/load, and preview run.
+- [ ] Runtime-verify on a simple synthetic image with known straight/curved edges.
+- [ ] Runtime-verify on real product images that edge points are found along the material edge and do not include unrelated texture/noise.
+- [ ] Runtime-verify downstream subscription from `PointRegionDistance`, `ResultOverlayDraw`, and `MultiCondition`.
 
 1. [x] Add graph layout and connection models with backward-compatible save/load defaults.
 2. [x] Add the `ProcessNew` canvas control and draw nodes from current runtime nodes.
