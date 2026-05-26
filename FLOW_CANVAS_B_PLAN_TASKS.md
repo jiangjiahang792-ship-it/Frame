@@ -216,7 +216,7 @@ The current implementation step is **Phase 18: Composite Geometry Measurement To
   - [x] Multi-condition evaluation treats missing/current-run-null source values as null; every normal comparison returns false on null except explicit IsNull/IsNotNull.
   - [x] Parallel scheduler now forces a failed node runtime status when catching branch exceptions, so the canvas keeps the failed node visibly red while other runnable branches continue.
   - [x] Multi-condition evaluation treats a disabled source node as a satisfied condition before null/property comparison.
-  - [x] Feedback fix: node result-level NG now drives the canvas runtime display to Failed when a node result exposes `IsOk = false`, `IsAllOk = false`, or an NG `Result`/`AlgorithmResult`/`SummaryResult`, while still keeping the current-run result available for subscriptions.
+  - [x] Feedback change: node result-level NG is now tracked separately from runtime failure; `IsOk = false`, `IsAllOk = false`, or an NG `Result`/`AlgorithmResult`/`SummaryResult` shows as NG on the canvas but keeps `RuntimeStatus = Successful` so downstream IF, ROI drawing, saving, and communication nodes can still run.
   - [x] Feedback fix: failed canvas nodes now keep a red border, red title band, red anchor borders, and red status text even when selected.
   - [x] Feedback fix: QR no-code results and FindCircle radius NG results now publish `AlgorithmResult.IsAllOk = false` so the generic result-status pass can mark those nodes failed on the canvas.
   - [x] Feedback fix: scheduler now treats a node's final `RuntimeStatus = Failed` as a dependency failure, so downstream nodes and joins do not run through failed upstream paths even when another incoming branch is disabled or completed.
@@ -224,8 +224,9 @@ The current implementation step is **Phase 18: Composite Geometry Measurement To
   - [x] Build-verify after the first dependency-aware parallel scheduler implementation pass.
   - [x] Build-verify after branch failure isolation and nullable visual NG result handling.
   - [x] Build-verify after failed-node visual status and disabled-source condition handling.
-  - [x] Build-verify after node-result NG to failed-canvas-status feedback fixes.
+  - [x] Build-verify after the earlier node-result NG canvas-status feedback pass.
   - [x] Build-verify after failed-runtime-status downstream blocking fixes.
+  - [x] Build-verify after separating result-level NG from runtime failure.
   - [ ] Runtime-verify with simple fork, join, condition branch, disabled node, failed node, stop/cancel, image subscription, and device-node cases.
 - TDAI stability fix:
   - [x] Added a model-readiness guard before `NodeTDAI` reads `param.Yolo8.ModelType`, so a failed startup model load now reports a clear model/config error instead of throwing a null reference.

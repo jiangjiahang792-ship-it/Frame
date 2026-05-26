@@ -42,6 +42,7 @@
             this.imagePreviewOverlay = new TDJS_Vision.Forms.ProcessNew.FlowImagePreviewOverlay();
             this.minimapOverlay = new TDJS_Vision.Forms.ProcessNew.FlowMinimapOverlay();
             this.contextMenuStrip1 = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.是否启用流程ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.设置流程优先级ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.设置流程组别ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.流程重命名ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -255,13 +256,25 @@
             //
             this.contextMenuStrip1.ImageScalingSize = new System.Drawing.Size(24, 24);
             this.contextMenuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.是否启用流程ToolStripMenuItem,
             this.设置流程优先级ToolStripMenuItem,
             this.设置流程组别ToolStripMenuItem,
             this.流程重命名ToolStripMenuItem,
             this.是否输出日志ToolStripMenuItem,
             this.是否为触发流程ToolStripMenuItem});
             this.contextMenuStrip1.Name = "contextMenuStrip1";
-            this.contextMenuStrip1.Size = new System.Drawing.Size(225, 164);
+            this.contextMenuStrip1.Size = new System.Drawing.Size(225, 196);
+            this.contextMenuStrip1.Opening += new System.ComponentModel.CancelEventHandler(this.contextMenuStrip1_Opening);
+            //
+            // 是否启用流程ToolStripMenuItem
+            //
+            this.是否启用流程ToolStripMenuItem.Checked = true;
+            this.是否启用流程ToolStripMenuItem.CheckOnClick = true;
+            this.是否启用流程ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.是否启用流程ToolStripMenuItem.Name = "是否启用流程ToolStripMenuItem";
+            this.是否启用流程ToolStripMenuItem.Size = new System.Drawing.Size(224, 32);
+            this.是否启用流程ToolStripMenuItem.Text = "是否启用流程";
+            this.是否启用流程ToolStripMenuItem.Click += new System.EventHandler(this.是否启用流程ToolStripMenuItem_Click);
             // 
             // 设置流程优先级ToolStripMenuItem
             // 
@@ -503,6 +516,7 @@
         private System.Windows.Forms.Label label2;
         private Sunny.UI.UILedBulb uiLedBulb1;
         private System.Windows.Forms.ContextMenuStrip contextMenuStrip1;
+        private System.Windows.Forms.ToolStripMenuItem 是否启用流程ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 设置流程优先级ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 设置流程组别ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 流程重命名ToolStripMenuItem;

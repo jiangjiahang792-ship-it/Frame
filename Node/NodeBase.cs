@@ -19,6 +19,7 @@ namespace TDJS_Vision.Node
         private string _nodeName;
         private string _notes = "无备注"; // 节点备注
         private NodeStatus _runtimeStatus = NodeStatus.Unexecuted;
+        private bool _runtimeResultNg = false;
         private string _runtimeTimeText = "*";
         private FrmNodeRename _frmNodeRename;
         /// <summary>
@@ -159,6 +160,11 @@ namespace TDJS_Vision.Node
         public NodeStatus RuntimeStatus { get { return _runtimeStatus; } }
 
         /// <summary>
+        /// 当前运行已正常完成，但业务检测/测量结果为 NG。
+        /// </summary>
+        public bool RuntimeResultNg { get { return _runtimeResultNg; } }
+
+        /// <summary>
         /// 当前运行耗时文本，供自由画布绘制节点状态使用。
         /// </summary>
         public string RuntimeTimeText { get { return _runtimeTimeText; } }
@@ -173,13 +179,15 @@ namespace TDJS_Vision.Node
             if (LastSuccessfulRunId == runId)
                 LastSuccessfulRunId = 0;
 
+            _runtimeResultNg = false;
             SetStatus(NodeStatus.Unexecuted, "*");
         }
 
         public bool HasSuccessfulResultForRun(int runId)
         {
             return runId > 0 &&
-                LastSuccessfulRunId == runId;
+                LastSuccessfulRunId == runId &&
+                _runtimeStatus == NodeStatus.Successful;
         }
 
         public void ApplyResultOutcomeStatus()
@@ -187,11 +195,40 @@ namespace TDJS_Vision.Node
             if (_runtimeStatus != NodeStatus.Successful || Result == null)
                 return;
 
-            if (ResultIndicatesFailure(Result))
-                SetStatus(NodeStatus.Failed, _runtimeTimeText);
+            if (ResultIndicatesNg(Result))
+                MarkResultNg();
         }
 
-        private static bool ResultIndicatesFailure(INodeResult result)
+        private void MarkResultNg()
+        {
+            if (InvokeRequired == false)
+            {
+                UpdateResultNgUI();
+            }
+            else
+            {
+                Invoke((MethodInvoker)delegate
+                {
+                    UpdateResultNgUI();
+                });
+            }
+        }
+
+        private void UpdateResultNgUI()
+        {
+            if (_runtimeStatus != NodeStatus.Successful)
+                return;
+
+            _runtimeResultNg = true;
+            uiLight1.OnColor = Color.DarkOrange;
+            uiLight1.OnCenterColor = Color.Orange;
+            uiLight1.State = Sunny.UI.UILightState.On;
+            label2.ForeColor = Color.DarkOrange;
+            label2.Text = $"{_runtimeTimeText} ms NG";
+            NodeStatusChanged?.Invoke(this, this);
+        }
+
+        private static bool ResultIndicatesNg(INodeResult result)
         {
             if (result == null)
                 return false;
@@ -216,7 +253,7 @@ namespace TDJS_Vision.Node
                 }
 
                 AlgorithmResult algorithmResult = property.GetValue(result, null) as AlgorithmResult;
-                if (AlgorithmResultIndicatesFailure(algorithmResult))
+                if (AlgorithmResultIndicatesNg(algorithmResult))
                     return true;
             }
 
@@ -231,7 +268,7 @@ namespace TDJS_Vision.Node
                  string.Equals(property.Name, "SummaryResult", StringComparison.Ordinal));
         }
 
-        private static bool AlgorithmResultIndicatesFailure(AlgorithmResult result)
+        private static bool AlgorithmResultIndicatesNg(AlgorithmResult result)
         {
             if (result == null)
                 return false;
@@ -333,6 +370,7 @@ namespace TDJS_Vision.Node
 
             _runtimeStatus = displayStatus;
             _runtimeTimeText = displayTime;
+            _runtimeResultNg = false;
 
             label2.Text = displayStatus == NodeStatus.Running ? "运行中" : $"{displayTime} ms";
             switch (displayStatus)

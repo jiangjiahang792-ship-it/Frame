@@ -85,6 +85,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         private NodeCopySnapshot _copiedNodeSnapshot;
         private int _pasteCount;
         private bool _isLoopRunRequested;
+        private bool _updatingProcessEnableState;
         private Button _hoveredCommandButton;
         private enum CommandGlyph
         {
@@ -139,7 +140,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     LogHelper.AddLog(MsgLevel.Debug, LanguageManager.Format("ProcessNew.LoadingProcess", _process.ProcessName), true);
                 // 阻塞UI去创建流程
                 CreateProcess(processConfig, showInfo);
-                uiSwitchEnable.Active = processConfig.Enable;
+                SetProcessEnable(processConfig.Enable, true, false);
                 if(showInfo)
                     LogHelper.AddLog(MsgLevel.Debug, LanguageManager.Format("ProcessNew.ProcessLoaded", _process.ProcessName), true);
             }
@@ -213,6 +214,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         private void BindLanguage()
         {
+            LanguageManager.Bind(是否启用流程ToolStripMenuItem, "ProcessNew.EnableProcess");
             LanguageManager.Bind(设置流程优先级ToolStripMenuItem, "ProcessNew.SetPriority");
             LanguageManager.Bind(设置流程组别ToolStripMenuItem, "ProcessNew.SetGroup");
             LanguageManager.Bind(流程重命名ToolStripMenuItem, "ProcessNew.RenameProcess");
@@ -229,6 +231,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         private void ApplyLanguage()
         {
             LanguageManager.Apply(this);
+            LanguageManager.ApplyToolStripItem(是否启用流程ToolStripMenuItem);
             LanguageManager.ApplyToolStripItem(设置流程优先级ToolStripMenuItem);
             LanguageManager.ApplyToolStripItem(设置流程组别ToolStripMenuItem);
             LanguageManager.ApplyToolStripItem(流程重命名ToolStripMenuItem);
@@ -935,11 +938,54 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// <param name="value"></param>
         private void uiSwitch1_ValueChanged(object sender, bool value)
         {
-            _process.Enable = value;
-            if (value)
+            if (_updatingProcessEnableState)
+                return;
+
+            SetProcessEnable(value, false, true);
+        }
+
+        private void SetProcessEnable(bool enabled, bool updateSwitch, bool writeLog)
+        {
+            if (_process == null)
+                return;
+
+            bool changed = _process.Enable != enabled;
+            _process.Enable = enabled;
+
+            if (是否启用流程ToolStripMenuItem.Checked != enabled)
+                是否启用流程ToolStripMenuItem.Checked = enabled;
+
+            if (updateSwitch && uiSwitchEnable.Active != enabled)
+            {
+                _updatingProcessEnableState = true;
+                try
+                {
+                    uiSwitchEnable.Active = enabled;
+                }
+                finally
+                {
+                    _updatingProcessEnableState = false;
+                }
+            }
+
+            if (!writeLog || !changed)
+                return;
+
+            if (enabled)
                 LogHelper.AddLog(MsgLevel.Info, LanguageManager.Format("ProcessNew.ProcessEnabled", _process.ProcessName), true);
             else
                 LogHelper.AddLog(MsgLevel.Info, LanguageManager.Format("ProcessNew.ProcessDisabled", _process.ProcessName), true);
+        }
+
+        private void contextMenuStrip1_Opening(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            是否启用流程ToolStripMenuItem.Checked = _process == null || _process.Enable;
+            是否启用流程ToolStripMenuItem.Enabled = uiSwitchEnable.Enabled;
+        }
+
+        private void 是否启用流程ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            SetProcessEnable(是否启用流程ToolStripMenuItem.Checked, true, true);
         }
 
         private void 设置流程优先级ToolStripMenuItem_Click(object sender, EventArgs e)

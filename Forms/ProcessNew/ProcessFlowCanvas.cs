@@ -2099,7 +2099,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             using (Font titleFont = new Font("Microsoft YaHei", 9.5F, FontStyle.Bold))
             using (Font metaFont = new Font("Microsoft YaHei", 8F, FontStyle.Regular))
             using (SolidBrush titleBrush = new SolidBrush(NodeTextColor))
-            using (SolidBrush metaBrush = new SolidBrush(node.RuntimeStatus == NodeStatus.Failed ? statusColor : NodeMetaTextColor))
+            using (SolidBrush metaBrush = new SolidBrush(IsNodeAlertStatus(node) ? statusColor : NodeMetaTextColor))
             using (SolidBrush statusBrush = new SolidBrush(statusColor))
             using (StringFormat textFormat = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap })
             {
@@ -2238,11 +2238,12 @@ namespace TDJS_Vision.Forms.ProcessNew
         private void DrawAnchor(Graphics graphics, NodeBase node, string anchorName, string branchLabel = null)
         {
             Rectangle anchor = GetAnchorBounds(node, anchorName);
-            Color borderColor = node.RuntimeStatus == NodeStatus.Failed
+            bool alertStatus = IsNodeAlertStatus(node);
+            Color borderColor = alertStatus
                 ? GetNodeStatusColor(node)
                 : node.Selected ? CanvasAccentColor : Color.FromArgb(90, 190, 255);
             using (SolidBrush fill = new SolidBrush(Color.White))
-            using (Pen border = new Pen(borderColor, node.RuntimeStatus == NodeStatus.Failed ? 2.1F : 1.4F))
+            using (Pen border = new Pen(borderColor, alertStatus ? 2.1F : 1.4F))
             {
                 graphics.FillEllipse(fill, anchor);
                 graphics.DrawEllipse(border, anchor);
@@ -2612,6 +2613,9 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (!node.Active)
                 return NodeDisabledFillColor;
 
+            if (IsNodeResultNg(node))
+                return Color.FromArgb(255, 247, 232);
+
             switch (node.RuntimeStatus)
             {
                 case NodeStatus.Running:
@@ -2629,6 +2633,9 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             if (!node.Active)
                 return Color.FromArgb(134, 151, 171);
+
+            if (IsNodeResultNg(node))
+                return Color.FromArgb(245, 124, 0);
 
             switch (node.RuntimeStatus)
             {
@@ -2648,6 +2655,9 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (node.RuntimeStatus == NodeStatus.Failed)
                 return Color.FromArgb(255, 68, 68);
 
+            if (IsNodeResultNg(node))
+                return Color.FromArgb(245, 124, 0);
+
             return node.Selected ? CanvasAccentColor : Color.FromArgb(100, 122, 143);
         }
 
@@ -2655,6 +2665,9 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             if (node.RuntimeStatus == NodeStatus.Failed)
                 return node.Selected ? 3.4F : 3.0F;
+
+            if (IsNodeResultNg(node))
+                return node.Selected ? 3.0F : 2.4F;
 
             return node.Selected ? 2.6F : 1.15F;
         }
@@ -2664,14 +2677,38 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (node.RuntimeStatus == NodeStatus.Failed)
                 return Color.FromArgb(224, 49, 49);
 
+            if (IsNodeResultNg(node))
+                return Color.FromArgb(245, 124, 0);
+
             return GetNodeBandColor(node.NodeType);
         }
 
         private string GetNodeMetaText(NodeBase node)
         {
-            string statusText = node.Active ? GetNodeStatusText(node.RuntimeStatus) : "已禁用";
+            string statusText = node.Active ? GetNodeStatusText(node) : "已禁用";
             string timeText = GetNodeTimeText(node);
             return $"{node.NodeType}  {statusText}  {timeText}";
+        }
+
+        private static bool IsNodeResultNg(NodeBase node)
+        {
+            return node != null &&
+                node.RuntimeStatus == NodeStatus.Successful &&
+                node.RuntimeResultNg;
+        }
+
+        private static bool IsNodeAlertStatus(NodeBase node)
+        {
+            return node != null &&
+                (node.RuntimeStatus == NodeStatus.Failed || IsNodeResultNg(node));
+        }
+
+        private string GetNodeStatusText(NodeBase node)
+        {
+            if (IsNodeResultNg(node))
+                return "NG";
+
+            return GetNodeStatusText(node == null ? NodeStatus.Unexecuted : node.RuntimeStatus);
         }
 
         private string GetNodeStatusText(NodeStatus status)
