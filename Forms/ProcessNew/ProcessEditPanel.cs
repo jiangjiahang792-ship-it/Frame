@@ -59,6 +59,7 @@ using TDJS_Vision.Node._7_ResultProcessing.ImageDraw;
 using TDJS_Vision.Node._7_ResultProcessing.ImageSave;
 using TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw;
 using TDJS_Vision.Node._7_ResultProcessing.ResultSummarize;
+using TDJS_Vision.Forms.GlobalSignalSettings;
 using static OpenCvSharp.ML.DTrees;
 using static TDJS_Vision.Forms.ProcessNew.FormNewProcessWizard;
 
@@ -862,17 +863,25 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// <param name="e"></param>
         private async void button1_Click(object sender, EventArgs e)
         {
+            if (_isLoopRunRequested)
+                return;
+
+            bool listenStarted = false;
             try
             {
-                if (_isLoopRunRequested)
-                    return;
-
                 // 重置运行取消令牌
                 Solution.Instance.ResetTokenSource();
+                FormGlobalSignal.StartListenSignals();
+                listenStarted = true;
                 _process.IsHandRun = true;
                 await _process.Run(false);
             }
             catch (Exception) { }
+            finally
+            {
+                if (listenStarted)
+                    FormGlobalSignal.StopListenSignals();
+            }
         }
 
         /// <summary>
@@ -889,10 +898,14 @@ namespace TDJS_Vision.Forms.ProcessNew
             buttonStop.Enabled = true;
             Solution.Instance.ResetTokenSource();
 
+            bool listenStarted = false;
             try
             {
                 if (_process.Nodes.Count == 0 || !_process.Enable)
                     return;
+
+                FormGlobalSignal.StartListenSignals();
+                listenStarted = true;
 
                 while (!Solution.Instance.CancellationToken.IsCancellationRequested)
                 {
@@ -910,6 +923,9 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
             finally
             {
+                if (listenStarted)
+                    FormGlobalSignal.StopListenSignals();
+
                 _isLoopRunRequested = false;
                 buttonRun.Enabled = true;
                 buttonLoop.Enabled = true;
@@ -925,6 +941,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         private void buttonStop_Click(object sender, EventArgs e)
         {
             Solution.Instance.CancelToken();
+            FormGlobalSignal.StopListenSignals();
             _isLoopRunRequested = false;
             buttonRun.Enabled = true;
             buttonLoop.Enabled = true;

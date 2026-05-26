@@ -663,6 +663,7 @@ namespace TDJS_Vision
         private async void 停止运行ToolStripMenuItem_Click(object value1, object value2)
         {
             Solution.Instance.Stop();
+            FormGlobalSignal.StopListenSignals();
             SetRunStatus(false);
             await FormGlobalSignal.SendGlobalSignals(this, false);
         }
@@ -670,6 +671,7 @@ namespace TDJS_Vision
         private async void 循环运行ToolStripMenuItem_Click(object value1, object value2)
         {
             await FormGlobalSignal.SendGlobalSignals(this, true);
+            FormGlobalSignal.StartListenSignals();
             SetRunStatus(true);
             try
             {
@@ -677,6 +679,7 @@ namespace TDJS_Vision
             }
             finally
             {
+                FormGlobalSignal.StopListenSignals();
                 SetRunStatus(false);
             }
         }
@@ -684,6 +687,7 @@ namespace TDJS_Vision
         private async void 单次运行ToolStripMenuItem_Click(object value1, object value2)
         {
             await FormGlobalSignal.SendGlobalSignals(this, true);
+            FormGlobalSignal.StartListenSignals();
             SetRunStatus(true);
             try
             {
@@ -691,6 +695,7 @@ namespace TDJS_Vision
             }
             finally
             {
+                FormGlobalSignal.StopListenSignals();
                 SetRunStatus(false);
             }
             await FormGlobalSignal.SendGlobalSignals(this, false);
