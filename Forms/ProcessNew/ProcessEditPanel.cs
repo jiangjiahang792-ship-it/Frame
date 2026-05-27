@@ -43,6 +43,7 @@ using TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte;
 using TDJS_Vision.Node._5_EquipmentCommunication.TcpClient;
 using TDJS_Vision.Node._5_EquipmentCommunication.TcpServer;
 using TDJS_Vision.Node._6_LogicTool.ConditionRun;
+using TDJS_Vision.Node._6_LogicTool.ArithmeticOperation;
 using TDJS_Vision.Node._6_LogicTool.CSharpScript;
 using TDJS_Vision.Node._6_LogicTool.Else;
 using TDJS_Vision.Node._6_LogicTool.EndIf;
@@ -682,6 +683,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.MultiCondition:
                     node = new NodeMultiCondition(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.ArithmeticOperation:
+                    node = new NodeArithmeticOperation(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.Else:
                     node = new NodeElse(nodeId, nodeName, _process, nodeType);

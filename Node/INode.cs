@@ -381,5 +381,9 @@ namespace TDJS_Vision.Node
         /// 线组合拟合
         /// </summary>
         LineMergeFit,
+        /// <summary>
+        /// 四则运算
+        /// </summary>
+        ArithmeticOperation,
     }
 }

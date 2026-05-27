@@ -2762,6 +2762,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return Color.FromArgb(18, 132, 219);
                 case NodeType.If:
                 case NodeType.MultiCondition:
+                case NodeType.ArithmeticOperation:
                 case NodeType.Else:
                 case NodeType.EndIf:
                 case NodeType.ConditionRun:

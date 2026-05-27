@@ -16,7 +16,7 @@ This means the target is not only a visual style change. The work includes:
 
 ## Current Step
 
-The current implementation step is **Phase 21: Geometry Creation - Line Merge Fit Tool**.
+The current implementation step is **Phase 22: Logic Tool - Arithmetic Operation Node**.
 
 ### Latest Progress
 
@@ -58,6 +58,21 @@ The current implementation step is **Phase 21: Geometry Creation - Line Merge Fi
   - [x] `LineMergeFit` exposes standard line result properties for downstream subscription and draws clean overlay output through `OutputImage.DisplayResult`.
   - [x] `LineMergeFit` parameter form now includes a preview image panel that displays source lines, fit points, and the merged output line after local Run.
   - [x] `CaliperLine` now publishes `EdgePoints`, so line merge fitting can reuse actual caliper edge points instead of only four endpoints when available.
+  - [x] Build-verified after implementation with MSBuild, 0 errors; existing warnings remain.
+- Phase 22 arithmetic operation planning:
+  - [x] New request captured: add a calculation tool module for addition, subtraction, multiplication, and division.
+  - [x] User-confirmed toolbox direction: place this node under the existing `逻辑工具` category.
+  - [x] First node name: `ArithmeticOperation` / `四则运算`.
+  - [x] The tool should support constants and subscribed upstream numeric result properties.
+  - [x] The tool should freely subscribe numeric values from other modules, such as line center coordinates, template match counts, scores, lengths, angles, and distances.
+  - [x] The tool should support using its own generated intermediate variables/results in later calculation rows without creating graph self-subscription cycles.
+  - [x] The tool should output a reusable numeric result for `MultiCondition`, message/logging tools, result drawing text, PLC/data send, and future calculation nodes.
+- Phase 22 arithmetic operation first implementation pass:
+  - [x] Added `NodeType.ArithmeticOperation` at the end of the enum to preserve existing serialized enum values.
+  - [x] Added the `Node\6-LogicTool\ArithmeticOperation` node family with parameter, result, algorithm, node, and designer-visible parameter form files.
+  - [x] Added row-based constant/subscription/internal-variable operands with add, subtract, multiply, and divide.
+  - [x] Added an upstream numeric property picker and previous-row variable picker in the parameter UI.
+  - [x] Registered `四则运算` under `逻辑工具`, language keys, toolbox icon mapping, canvas color, node factory, and project compile items.
   - [x] Build-verified after implementation with MSBuild, 0 errors; existing warnings remain.
 - Phase 11 undo/redo first implementation pass:
   - [x] `ProcessFlowCanvas` now owns a canvas edit history stack.
@@ -1119,6 +1134,63 @@ Reference source:
   - Passed on 2026-05-26 with MSBuild, 0 errors; existing warnings remain.
 - [x] Static-verify toolbox registration, language keys, node factory switch, project compile items, and standard result property names.
 - [ ] Runtime-verify two `CaliperLine` results merge into one line and downstream tools can subscribe to it.
+
+## Phase 22: Logic Tool And Arithmetic Operation Node
+
+### Phase 22.1: Requirement And Scope
+
+- [x] Add a calculation tool module for addition, subtraction, multiplication, and division.
+- [x] Place the new arithmetic node under the existing `逻辑工具` toolbox category.
+- [x] Add a new node named `ArithmeticOperation` / `四则运算`.
+- [x] Support both constant operands and subscribed upstream numeric result operands.
+- [x] Support free numeric subscription from any upstream module property exposed through `[DisplayName]`, including measurement, template matching, detection, and calculation results.
+- [x] Support internal generated variables so later rows can reuse earlier row results inside the same node.
+- [x] Produce a reusable numeric result that downstream nodes can subscribe to.
+- [x] Keep the first implementation deterministic and lightweight for fast runtime execution.
+
+### Phase 22.2: Data And Operation Design
+
+- [x] Use a row-based calculation model instead of a free-form expression parser in the first pass.
+- [x] Each row should store source mode, constant value, subscribed node text, subscribed result text, internal variable name, operator, display note, and enabled state.
+- [x] Evaluation rule: start from the first enabled operand, then apply each following enabled row operator in order.
+- [x] Supported operators: add, subtract, multiply, divide.
+- [x] Division by zero should fail clearly and not return stale previous results.
+- [x] Numeric conversion should accept common numeric result types and numeric strings where safe.
+- [x] Internal variables should be evaluated in row order and only reference previous rows or published node-level variables, not future rows.
+- [x] Avoid graph self-subscription for the same calculation node; self-generated values should be handled by the node's internal variable table.
+- [x] Add optional result formatting fields such as decimal places and rounding mode if they are low-risk in the first pass.
+
+### Phase 22.3: Parameter UI
+
+- [x] Add designer-visible WinForms controls in `.Designer.cs`.
+- [x] Provide an operand list/grid with add, delete, move up, move down, enable/disable, operator, source type, constant value, internal variable name, and note.
+- [x] Provide a selected-row upstream numeric property picker for free subscription.
+- [x] Provide an internal-variable picker for reusing values generated by earlier rows in the same calculation node.
+- [x] Provide local Run and OK buttons, plus a compact preview/result label showing the expression summary and calculated value.
+- [x] Keep the UI compact and operational, similar to measurement/config tools rather than a marketing-style page.
+
+### Phase 22.4: Result Model
+
+- [x] Add `NodeResultArithmeticOperation` with `IsOk`, `Value`, `ValueText`, `ExpressionText`, `OperandCount`, `Message`, `Variables`, and `RunTime`.
+- [x] Add `[DisplayName]` attributes so `MultiCondition`, message/logging tools, and other subscribers can pick the result fields.
+- [x] Preserve enough expression detail for troubleshooting without storing heavy UI-only state in the result.
+
+### Phase 22.5: Registration And Integration
+
+- [x] Add `NodeType.ArithmeticOperation`.
+- [x] Add the `Node\6-LogicTool\ArithmeticOperation` node family.
+- [x] Register the node in `ProcessEditPanel.CreateNode`.
+- [x] Register `四则运算` under `逻辑工具` in `ToolTreeView.xml`.
+- [x] Add language keys in `Languages\zh-CN.json` and `Languages\en-US.json`.
+- [x] Add project compile items and toolbox icon mapping.
+
+### Phase 22.6: Verification
+
+- [x] Build-verify after first implementation.
+- [x] Static-verify toolbox registration, language keys, node factory switch, project compile items, and result display names.
+- [ ] Runtime-verify constant-only add/subtract/multiply/divide cases.
+- [ ] Runtime-verify subscribed numeric values from measurement nodes and calculation chaining.
+- [ ] Runtime-verify divide-by-zero and missing/stale upstream result failures.
 
 1. [x] Add graph layout and connection models with backward-compatible save/load defaults.
 2. [x] Add the `ProcessNew` canvas control and draw nodes from current runtime nodes.

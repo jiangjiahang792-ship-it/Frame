@@ -604,6 +604,18 @@
     <Compile Include="Node\6-LogicTool\ConditionRun\NodeConditionRun.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="Node\6-LogicTool\ArithmeticOperation\ArithmeticOperationAlgorithm.cs" />
+    <Compile Include="Node\6-LogicTool\ArithmeticOperation\NodeArithmeticOperation.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\ArithmeticOperation\NodeParamArithmeticOperation.cs" />
+    <Compile Include="Node\6-LogicTool\ArithmeticOperation\NodeParamFormArithmeticOperation.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\ArithmeticOperation\NodeParamFormArithmeticOperation.Designer.cs">
+      <DependentUpon>NodeParamFormArithmeticOperation.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\ArithmeticOperation\NodeResultArithmeticOperation.cs" />
     <Compile Include="Node\6-LogicTool\CSharpScript\NodeCSharpScript.cs">
       <SubType>UserControl</SubType>
     </Compile>
