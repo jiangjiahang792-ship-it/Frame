@@ -1,11 +1,8 @@
-﻿using System;
-using System.IO.Ports;
-using HslCommunication.Core.Pipe;
+﻿using HslCommunication.Core.Pipe;
 using HslCommunication.ModBus;
 using Logger;
 using Newtonsoft.Json;
-using OfficeOpenXml.FormulaParsing.Excel.Functions.Text;
-using static OfficeOpenXml.ExcelErrorValue;
+using System;
 
 namespace TDJS_Vision.Device.Modbus
 {
@@ -146,7 +143,6 @@ namespace TDJS_Vision.Device.Modbus
         }
 
         #endregion
-
 
         public bool[] ReadCoils(string address, ushort length)
         {

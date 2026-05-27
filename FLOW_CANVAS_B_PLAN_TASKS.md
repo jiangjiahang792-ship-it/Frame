@@ -16,7 +16,7 @@ This means the target is not only a visual style change. The work includes:
 
 ## Current Step
 
-The current implementation step is **Phase 22: Logic Tool - Arithmetic Operation Node**.
+The current implementation step is **Phase 13.6: Canvas Drag Alignment And Stable Routing Feedback Pass**.
 
 ### Latest Progress
 
@@ -178,6 +178,17 @@ The current implementation step is **Phase 22: Logic Tool - Arithmetic Operation
   - [x] Image preview and minimap now render as designer-visible overlay controls above the canvas instead of being painted into the scrollable node layer.
   - [x] Fixed preview/minimap flicker while scrolling by keeping both overlays out of the `AutoScroll` paint surface.
   - [x] Removed high-frequency overlay invalidation during node dragging and rubber-band selection so canvas interactions stay responsive.
+- Phase 13.6 canvas drag alignment and stable routing feedback pass:
+  - [x] New feedback captured: dragging a node should show dashed alignment guides like the reference images.
+  - [x] Dragged nodes now snap to nearby peer node top/center/bottom and left/center/right alignment coordinates.
+  - [x] Green dashed guide lines now span the dragged node and matching peer nodes so same-level nodes are easier to align visually.
+  - [x] Existing connection routes are cached by their own endpoints, so moving an unrelated node no longer makes other lines jump or reroute.
+  - [x] Connections attached to the moved node still reroute live because their own endpoints change.
+  - [x] Feedback fix: mouse capture and release-time repaint now clear alignment guides immediately after the user releases the mouse.
+  - [x] Feedback fix: equal-distance alignment now prefers node centerlines over edges, so same-size nodes align on anchor/connection centers.
+  - [x] Feedback fix: endpoint-aligned connections use a straight route first when no node blocks the direct segment.
+  - [x] Build-verified after implementation with MSBuild on 2026-05-27, 0 errors; existing warnings remain.
+  - [x] Build-verified after feedback fix with MSBuild on 2026-05-27, 0 errors; existing warnings remain.
 - Phase 14 multi-condition logic node planning:
   - [x] New request captured: create a node and parameter UI based on `Node/6-LogicTool/If` that supports freely adding multiple conditions.
   - [x] Condition source selection should choose a property from an upstream node result; in normal cases this means public `INodeResult` output properties.

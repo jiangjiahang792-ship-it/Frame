@@ -28,8 +28,20 @@ namespace TDJS_Vision.Forms.ProcessNew
         private static readonly Color NodeTextColor = Color.FromArgb(29, 41, 57);
         private static readonly Color NodeMetaTextColor = Color.FromArgb(86, 99, 117);
         private static readonly Color CanvasAccentColor = Color.FromArgb(255, 132, 32);
+        /// <summary>
+        /// 节点拖拽对齐辅助线颜色。
+        /// </summary>
+        private static readonly Color AlignmentGuideColor = Color.FromArgb(190, 92, 232, 132);
         private static readonly Color OverlayBackColor = Color.FromArgb(42, 44, 48);
         private static readonly Color OverlayBorderColor = Color.FromArgb(132, 136, 142);
+        /// <summary>
+        /// 节点拖拽时允许吸附到其它节点边线或中心线的最大距离。
+        /// </summary>
+        private const int AlignmentSnapDistance = 8;
+        /// <summary>
+        /// 对齐辅助线相对节点边界向外延伸的距离。
+        /// </summary>
+        private const int AlignmentGuidePadding = 36;
 
         private Process _process;
         private NodeBase _dragNode;
@@ -54,6 +66,14 @@ namespace TDJS_Vision.Forms.ProcessNew
         private Size _previewImagePixelSize = Size.Empty;
         private Point? _previewHoverImagePoint;
         private readonly ContextMenuStrip _previewImageMenu = new ContextMenuStrip();
+        /// <summary>
+        /// 当前拖拽命中的对齐辅助线集合。
+        /// </summary>
+        private readonly List<AlignmentGuide> _alignmentGuides = new List<AlignmentGuide>();
+        /// <summary>
+        /// 连线最近一次路由结果缓存，避免无关节点移动时牵动已有连线。
+        /// </summary>
+        private readonly Dictionary<string, ConnectionRouteCache> _connectionRouteCache = new Dictionary<string, ConnectionRouteCache>();
         private string _selectedPreviewImageKey;
         private string _cachedPreviewKey;
         private Mat _cachedPreviewMat;
@@ -118,6 +138,8 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             _process = process;
             _selectedConnection = null;
+            _alignmentGuides.Clear();
+            _connectionRouteCache.Clear();
             _selectedPreviewImageKey = null;
             DisposePreviewCache();
             ClearHistory();
@@ -398,6 +420,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 foreach (NodeBase node in _process.Nodes)
                     DrawNode(graphics, node);
 
+                if (_alignmentGuides.Count > 0)
+                    DrawAlignmentGuides(graphics);
+
                 if (_isSelectingNodes)
                     DrawSelectionRectangle(graphics);
             }
@@ -420,6 +445,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             {
                 LastContextMenuCanvasPoint = canvasPoint;
                 SelectAtPoint(canvasPoint, true);
+                _alignmentGuides.Clear();
                 Invalidate();
                 return;
             }
@@ -427,11 +453,13 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (e.Button != MouseButtons.Left)
                 return;
 
+            Capture = true;
             NodeBase anchorNode;
             string anchorName;
             if (TryHitAnchor(canvasPoint, out anchorNode, out anchorName))
             {
                 SelectOnly(anchorNode);
+                _alignmentGuides.Clear();
                 _connectionStartNode = anchorNode;
                 _connectionStartAnchor = anchorName;
                 _connectionEndPoint = canvasPoint;
@@ -440,6 +468,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
 
             NodeBase node = HitNode(canvasPoint);
+            _alignmentGuides.Clear();
             if (node != null)
             {
                 if (!node.Selected)
@@ -451,6 +480,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 _dragOffset = new Point(
                     canvasPoint.X - node.CanvasLocation.X,
                     canvasPoint.Y - node.CanvasLocation.Y);
+                EnsureConnectionRoutesCached();
             }
             else
             {
@@ -507,6 +537,9 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             base.OnMouseUp(e);
 
+            if (e.Button == MouseButtons.Left)
+                Capture = false;
+
             if (_process == null || e.Button != MouseButtons.Left)
                 return;
 
@@ -515,6 +548,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 _selectionEndPoint = ToCanvasPoint(e.Location);
                 SelectNodesInRectangle(GetSelectionRectangle());
                 _isSelectingNodes = false;
+                _alignmentGuides.Clear();
                 Invalidate();
                 RequestOverlayInvalidate();
                 return;
@@ -524,6 +558,8 @@ namespace TDJS_Vision.Forms.ProcessNew
             List<NodeLocationSnapshot> oldLocations = _dragStartSnapshots;
             _dragNode = null;
             _dragStartSnapshots = new List<NodeLocationSnapshot>();
+            _alignmentGuides.Clear();
+            Invalidate();
             if (movedNode != null)
             {
                 PushMoveHistory(oldLocations);
@@ -868,6 +904,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             _process.NormalizeConnectionBranch(connection);
             _process.HasCanvasGraph = true;
             _process.NotifyConnectionsChanged();
+            RemoveConnectionRouteCache(connection);
             SelectOnly(connection);
             Invalidate();
             RequestOverlayInvalidate();
@@ -884,6 +921,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 return false;
 
             _selectedConnection = null;
+            RemoveConnectionRouteCache(connection);
             _process.NotifyConnectionsChanged();
             Invalidate();
             RequestOverlayInvalidate();
@@ -907,6 +945,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
                 int insertIndex = Math.Max(0, Math.Min(snapshot.Index, _process.Connections.Count));
                 _process.Connections.Insert(insertIndex, snapshot.Connection);
+                RemoveConnectionRouteCache(snapshot.Connection);
             }
 
             _process.NotifyConnectionsChanged();
@@ -979,6 +1018,257 @@ namespace TDJS_Vision.Forms.ProcessNew
             return snapshots;
         }
 
+        /// <summary>
+        /// 获取当前拖拽批次中会跟随移动的节点 ID。
+        /// </summary>
+        /// <returns>节点 ID 集合。</returns>
+        private HashSet<int> GetDraggingNodeIds()
+        {
+            HashSet<int> nodeIds = new HashSet<int>();
+            foreach (NodeLocationSnapshot snapshot in _dragStartSnapshots)
+            {
+                if (snapshot.Node != null)
+                    nodeIds.Add(snapshot.Node.ID);
+            }
+
+            return nodeIds;
+        }
+
+        /// <summary>
+        /// 在网格吸附基础上叠加节点对齐吸附，并记录需要绘制的辅助虚线。
+        /// </summary>
+        /// <param name="requestedLocation">鼠标拖拽换算出的节点目标位置。</param>
+        /// <param name="draggingNodeIds">当前拖拽批次中的节点 ID。</param>
+        /// <returns>应用吸附后的拖拽节点位置。</returns>
+        private Point GetAlignedDragNodeLocation(Point requestedLocation, HashSet<int> draggingNodeIds)
+        {
+            _alignmentGuides.Clear();
+            if (_dragNode == null)
+                return requestedLocation;
+
+            Size dragNodeSize = GetNodeSize(_dragNode);
+            Point baseLocation = _snapToGridEnabled
+                ? SnapPointToGrid(requestedLocation)
+                : requestedLocation;
+            baseLocation = ClampLocation(baseLocation, dragNodeSize);
+
+            AlignmentCandidate horizontalCandidate = null;
+            AlignmentCandidate verticalCandidate = null;
+            Rectangle proposedBounds = new Rectangle(baseLocation, dragNodeSize);
+            foreach (NodeBase node in _process.Nodes)
+            {
+                if (node == null || draggingNodeIds.Contains(node.ID))
+                    continue;
+
+                Rectangle targetBounds = GetNodeBounds(node);
+                TryUpdateAlignmentCandidate(
+                    ref horizontalCandidate,
+                    CanvasAlignmentAxis.Horizontal,
+                    targetBounds.Top,
+                    proposedBounds.Top,
+                    targetBounds.Top,
+                    targetBounds,
+                    1);
+                TryUpdateAlignmentCandidate(
+                    ref horizontalCandidate,
+                    CanvasAlignmentAxis.Horizontal,
+                    GetRectangleCenterY(targetBounds),
+                    GetRectangleCenterY(proposedBounds),
+                    GetRectangleCenterY(targetBounds) - (dragNodeSize.Height / 2),
+                    targetBounds,
+                    2);
+                TryUpdateAlignmentCandidate(
+                    ref horizontalCandidate,
+                    CanvasAlignmentAxis.Horizontal,
+                    targetBounds.Bottom,
+                    proposedBounds.Bottom,
+                    targetBounds.Bottom - dragNodeSize.Height,
+                    targetBounds,
+                    1);
+                TryUpdateAlignmentCandidate(
+                    ref verticalCandidate,
+                    CanvasAlignmentAxis.Vertical,
+                    targetBounds.Left,
+                    proposedBounds.Left,
+                    targetBounds.Left,
+                    targetBounds,
+                    1);
+                TryUpdateAlignmentCandidate(
+                    ref verticalCandidate,
+                    CanvasAlignmentAxis.Vertical,
+                    GetRectangleCenterX(targetBounds),
+                    GetRectangleCenterX(proposedBounds),
+                    GetRectangleCenterX(targetBounds) - (dragNodeSize.Width / 2),
+                    targetBounds,
+                    2);
+                TryUpdateAlignmentCandidate(
+                    ref verticalCandidate,
+                    CanvasAlignmentAxis.Vertical,
+                    targetBounds.Right,
+                    proposedBounds.Right,
+                    targetBounds.Right - dragNodeSize.Width,
+                    targetBounds,
+                    1);
+            }
+
+            Point alignedLocation = baseLocation;
+            if (horizontalCandidate != null)
+                alignedLocation.Y = horizontalCandidate.NewLocationCoordinate;
+
+            if (verticalCandidate != null)
+                alignedLocation.X = verticalCandidate.NewLocationCoordinate;
+
+            alignedLocation = ClampLocation(alignedLocation, dragNodeSize);
+            Rectangle alignedBounds = new Rectangle(alignedLocation, dragNodeSize);
+            AddAlignmentGuide(horizontalCandidate, alignedBounds, draggingNodeIds);
+            AddAlignmentGuide(verticalCandidate, alignedBounds, draggingNodeIds);
+            return alignedLocation;
+        }
+
+        /// <summary>
+        /// 按距离选择最贴近的对齐候选。
+        /// </summary>
+        /// <param name="bestCandidate">当前最佳候选。</param>
+        /// <param name="axis">对齐方向。</param>
+        /// <param name="guideCoordinate">辅助线所在坐标。</param>
+        /// <param name="proposedCoordinate">拖拽节点当前用于比较的坐标。</param>
+        /// <param name="newLocationCoordinate">吸附后节点左上角对应坐标。</param>
+        /// <param name="targetBounds">命中的参照节点边界。</param>
+        /// <param name="priority">候选优先级，中心线高于边线。</param>
+        private void TryUpdateAlignmentCandidate(
+            ref AlignmentCandidate bestCandidate,
+            CanvasAlignmentAxis axis,
+            int guideCoordinate,
+            int proposedCoordinate,
+            int newLocationCoordinate,
+            Rectangle targetBounds,
+            int priority)
+        {
+            int distance = Math.Abs(proposedCoordinate - guideCoordinate);
+            if (distance > AlignmentSnapDistance)
+                return;
+
+            if (bestCandidate == null ||
+                distance < bestCandidate.Distance ||
+                (distance == bestCandidate.Distance && priority > bestCandidate.Priority))
+            {
+                bestCandidate = new AlignmentCandidate(
+                    axis,
+                    guideCoordinate,
+                    newLocationCoordinate,
+                    distance,
+                    targetBounds,
+                    priority);
+            }
+        }
+
+        /// <summary>
+        /// 根据吸附候选生成辅助虚线，并扩展到同一坐标上的其它节点。
+        /// </summary>
+        /// <param name="candidate">吸附候选。</param>
+        /// <param name="dragBounds">吸附后的拖拽节点边界。</param>
+        /// <param name="draggingNodeIds">当前拖拽批次中的节点 ID。</param>
+        private void AddAlignmentGuide(
+            AlignmentCandidate candidate,
+            Rectangle dragBounds,
+            HashSet<int> draggingNodeIds)
+        {
+            if (candidate == null)
+                return;
+
+            if (!IsRectangleOnGuide(candidate.Axis, dragBounds, candidate.GuideCoordinate))
+                return;
+
+            int start = int.MaxValue;
+            int end = int.MinValue;
+            IncludeRectangleInGuideSpan(candidate.Axis, dragBounds, ref start, ref end);
+            IncludeRectangleInGuideSpan(candidate.Axis, candidate.TargetBounds, ref start, ref end);
+            foreach (NodeBase node in _process.Nodes)
+            {
+                if (node == null || draggingNodeIds.Contains(node.ID))
+                    continue;
+
+                Rectangle nodeBounds = GetNodeBounds(node);
+                if (IsRectangleOnGuide(candidate.Axis, nodeBounds, candidate.GuideCoordinate))
+                    IncludeRectangleInGuideSpan(candidate.Axis, nodeBounds, ref start, ref end);
+            }
+
+            if (start == int.MaxValue || end == int.MinValue)
+                return;
+
+            int canvasLimit = candidate.Axis == CanvasAlignmentAxis.Horizontal
+                ? LogicalCanvasSize.Width
+                : LogicalCanvasSize.Height;
+            start = Math.Max(0, start - AlignmentGuidePadding);
+            end = Math.Min(canvasLimit, end + AlignmentGuidePadding);
+            _alignmentGuides.Add(new AlignmentGuide(candidate.Axis, candidate.GuideCoordinate, start, end));
+        }
+
+        /// <summary>
+        /// 将节点矩形纳入辅助线显示范围。
+        /// </summary>
+        /// <param name="axis">辅助线方向。</param>
+        /// <param name="bounds">节点边界。</param>
+        /// <param name="start">辅助线起点。</param>
+        /// <param name="end">辅助线终点。</param>
+        private static void IncludeRectangleInGuideSpan(
+            CanvasAlignmentAxis axis,
+            Rectangle bounds,
+            ref int start,
+            ref int end)
+        {
+            if (axis == CanvasAlignmentAxis.Horizontal)
+            {
+                start = Math.Min(start, bounds.Left);
+                end = Math.Max(end, bounds.Right);
+                return;
+            }
+
+            start = Math.Min(start, bounds.Top);
+            end = Math.Max(end, bounds.Bottom);
+        }
+
+        /// <summary>
+        /// 判断节点矩形是否落在同一条对齐辅助线上。
+        /// </summary>
+        /// <param name="axis">辅助线方向。</param>
+        /// <param name="bounds">节点边界。</param>
+        /// <param name="coordinate">辅助线坐标。</param>
+        /// <returns>落在辅助线附近时返回 true。</returns>
+        private static bool IsRectangleOnGuide(CanvasAlignmentAxis axis, Rectangle bounds, int coordinate)
+        {
+            if (axis == CanvasAlignmentAxis.Horizontal)
+            {
+                return Math.Abs(bounds.Top - coordinate) <= AlignmentSnapDistance ||
+                    Math.Abs(GetRectangleCenterY(bounds) - coordinate) <= AlignmentSnapDistance ||
+                    Math.Abs(bounds.Bottom - coordinate) <= AlignmentSnapDistance;
+            }
+
+            return Math.Abs(bounds.Left - coordinate) <= AlignmentSnapDistance ||
+                Math.Abs(GetRectangleCenterX(bounds) - coordinate) <= AlignmentSnapDistance ||
+                Math.Abs(bounds.Right - coordinate) <= AlignmentSnapDistance;
+        }
+
+        /// <summary>
+        /// 获取矩形水平中心坐标。
+        /// </summary>
+        /// <param name="bounds">矩形边界。</param>
+        /// <returns>水平中心坐标。</returns>
+        private static int GetRectangleCenterX(Rectangle bounds)
+        {
+            return bounds.Left + (bounds.Width / 2);
+        }
+
+        /// <summary>
+        /// 获取矩形垂直中心坐标。
+        /// </summary>
+        /// <param name="bounds">矩形边界。</param>
+        /// <returns>垂直中心坐标。</returns>
+        private static int GetRectangleCenterY(Rectangle bounds)
+        {
+            return bounds.Top + (bounds.Height / 2);
+        }
+
         private void MoveDraggedNodes(Point requestedDragNodeLocation)
         {
             if (_dragNode == null)
@@ -994,7 +1284,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                 }
             }
 
-            Point clampedDragNodeLocation = GetInteractiveNodeLocation(requestedDragNodeLocation, GetNodeSize(_dragNode));
+            HashSet<int> draggingNodeIds = GetDraggingNodeIds();
+            Point clampedDragNodeLocation = GetAlignedDragNodeLocation(requestedDragNodeLocation, draggingNodeIds);
             int offsetX = clampedDragNodeLocation.X - dragNodeStartLocation.X;
             int offsetY = clampedDragNodeLocation.Y - dragNodeStartLocation.Y;
 
@@ -1207,6 +1498,40 @@ namespace TDJS_Vision.Forms.ProcessNew
                 border.DashStyle = DashStyle.Dash;
                 graphics.FillRectangle(fill, selection);
                 graphics.DrawRectangle(border, selection);
+            }
+        }
+
+        /// <summary>
+        /// 绘制拖拽吸附时的水平和垂直辅助虚线。
+        /// </summary>
+        /// <param name="graphics">画布绘图对象。</param>
+        private void DrawAlignmentGuides(Graphics graphics)
+        {
+            using (Pen guidePen = new Pen(AlignmentGuideColor, 1.35F / _zoomFactor))
+            {
+                guidePen.DashStyle = DashStyle.Dash;
+                guidePen.StartCap = LineCap.Flat;
+                guidePen.EndCap = LineCap.Flat;
+                foreach (AlignmentGuide guide in _alignmentGuides)
+                {
+                    if (guide.Axis == CanvasAlignmentAxis.Horizontal)
+                    {
+                        graphics.DrawLine(
+                            guidePen,
+                            guide.Start,
+                            guide.Coordinate,
+                            guide.End,
+                            guide.Coordinate);
+                        continue;
+                    }
+
+                    graphics.DrawLine(
+                        guidePen,
+                        guide.Coordinate,
+                        guide.Start,
+                        guide.Coordinate,
+                        guide.End);
+                }
             }
         }
 
@@ -2139,18 +2464,10 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (fromNode == null || toNode == null)
                 return;
 
-            Point start = GetAnchorCenter(fromNode, connection.FromAnchor);
-            Point end = GetAnchorCenter(toNode, connection.ToAnchor);
             Color connectionColor = connection == _selectedConnection
                 ? Color.FromArgb(90, 190, 255)
                 : GetConnectionColor(connection.Branch);
-            Point[] route = CreateRoutedConnectionPoints(
-                start,
-                connection.FromAnchor,
-                end,
-                connection.ToAnchor,
-                fromNode,
-                toNode);
+            Point[] route = CreateRoutedConnectionPoints(connection, fromNode, toNode);
 
             DrawArrowPath(graphics, route, connectionColor, false, connection == _selectedConnection);
             DrawConnectionBranchLabel(graphics, connection, route, connectionColor);
@@ -2187,6 +2504,113 @@ namespace TDJS_Vision.Forms.ProcessNew
                 GetConnectionObstacles(),
                 sourceNode == null ? (Rectangle?)null : GetNodeBounds(sourceNode),
                 targetNode == null ? (Rectangle?)null : GetNodeBounds(targetNode));
+        }
+
+        /// <summary>
+        /// 获取持久连线的路由点。只有连线自身两端节点变化时才重新寻路。
+        /// </summary>
+        /// <param name="connection">流程连接。</param>
+        /// <param name="sourceNode">源节点。</param>
+        /// <param name="targetNode">目标节点。</param>
+        /// <returns>连线折线路由点。</returns>
+        private Point[] CreateRoutedConnectionPoints(
+            ProcessConnection connection,
+            NodeBase sourceNode,
+            NodeBase targetNode)
+        {
+            if (connection == null || sourceNode == null || targetNode == null)
+                return new Point[0];
+
+            Point start = GetAnchorCenter(sourceNode, connection.FromAnchor);
+            Point end = GetAnchorCenter(targetNode, connection.ToAnchor);
+            Rectangle sourceBounds = GetNodeBounds(sourceNode);
+            Rectangle targetBounds = GetNodeBounds(targetNode);
+            string cacheKey = GetConnectionRouteCacheKey(connection);
+            ConnectionRouteCache cache;
+            if (!string.IsNullOrEmpty(cacheKey) &&
+                _connectionRouteCache.TryGetValue(cacheKey, out cache) &&
+                cache.Matches(
+                    start,
+                    connection.FromAnchor,
+                    end,
+                    connection.ToAnchor,
+                    sourceBounds,
+                    targetBounds))
+            {
+                return cache.Points;
+            }
+
+            Point[] route = CreateRoutedConnectionPoints(
+                start,
+                connection.FromAnchor,
+                end,
+                connection.ToAnchor,
+                sourceNode,
+                targetNode);
+
+            if (!string.IsNullOrEmpty(cacheKey))
+            {
+                _connectionRouteCache[cacheKey] = new ConnectionRouteCache(
+                    start,
+                    connection.FromAnchor,
+                    end,
+                    connection.ToAnchor,
+                    sourceBounds,
+                    targetBounds,
+                    route);
+            }
+
+            return route;
+        }
+
+        /// <summary>
+        /// 在节点拖拽开始前预热当前连线路由，确保无关连线拖拽期间保持稳定。
+        /// </summary>
+        private void EnsureConnectionRoutesCached()
+        {
+            if (_process == null)
+                return;
+
+            foreach (ProcessConnection connection in _process.Connections)
+            {
+                NodeBase fromNode = FindNode(connection.FromNodeId);
+                NodeBase toNode = FindNode(connection.ToNodeId);
+                if (fromNode == null || toNode == null)
+                    continue;
+
+                CreateRoutedConnectionPoints(connection, fromNode, toNode);
+            }
+        }
+
+        /// <summary>
+        /// 删除指定连线的路由缓存。
+        /// </summary>
+        /// <param name="connection">流程连接。</param>
+        private void RemoveConnectionRouteCache(ProcessConnection connection)
+        {
+            string cacheKey = GetConnectionRouteCacheKey(connection);
+            if (!string.IsNullOrEmpty(cacheKey))
+                _connectionRouteCache.Remove(cacheKey);
+        }
+
+        /// <summary>
+        /// 生成连线路由缓存键。
+        /// </summary>
+        /// <param name="connection">流程连接。</param>
+        /// <returns>缓存键。</returns>
+        private static string GetConnectionRouteCacheKey(ProcessConnection connection)
+        {
+            if (connection == null)
+                return string.Empty;
+
+            if (!string.IsNullOrEmpty(connection.ID))
+                return connection.ID;
+
+            return connection.FromNodeId + ":" +
+                connection.FromAnchor + ">" +
+                connection.ToNodeId + ":" +
+                connection.ToAnchor + ":" +
+                connection.Branch;
         }
 
         private List<Rectangle> GetConnectionObstacles()
@@ -2367,15 +2791,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     if (fromNode == null || toNode == null)
                         continue;
 
-                    Point start = GetAnchorCenter(fromNode, connection.FromAnchor);
-                    Point end = GetAnchorCenter(toNode, connection.ToAnchor);
-                    Point[] route = CreateRoutedConnectionPoints(
-                        start,
-                        connection.FromAnchor,
-                        end,
-                        connection.ToAnchor,
-                        fromNode,
-                        toNode);
+                    Point[] route = CreateRoutedConnectionPoints(connection, fromNode, toNode);
 
                     using (GraphicsPath path = CreateConnectionGraphicsPath(route))
                     {
@@ -2807,6 +3223,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 Point sourceStep = Step(start, startAnchor, AnchorStep);
                 Point targetStep = Step(end, endAnchor, AnchorStep);
                 List<Rectangle> routeObstacles = BuildRouteObstacles(obstacles, sourceBounds, targetBounds);
+                Point[] straightRoute = TryCreateStraightRoute(start, sourceStep, targetStep, end, routeObstacles);
+                if (straightRoute != null)
+                    return straightRoute;
 
                 SortedSet<int> xSet = new SortedSet<int> { sourceStep.X, targetStep.X };
                 SortedSet<int> ySet = new SortedSet<int> { sourceStep.Y, targetStep.Y };
@@ -2865,6 +3284,31 @@ namespace TDJS_Vision.Forms.ProcessNew
                 }
 
                 return routeObstacles;
+            }
+
+            /// <summary>
+            /// 当两个锚点已经横向或纵向正对齐时，优先使用直线路由。
+            /// </summary>
+            /// <param name="start">真实起点。</param>
+            /// <param name="sourceStep">离开源节点后的起点。</param>
+            /// <param name="targetStep">进入目标节点前的终点。</param>
+            /// <param name="end">真实终点。</param>
+            /// <param name="obstacles">避障节点矩形。</param>
+            /// <returns>可直连时返回路由点，否则返回 null。</returns>
+            private static Point[] TryCreateStraightRoute(
+                Point start,
+                Point sourceStep,
+                Point targetStep,
+                Point end,
+                List<Rectangle> obstacles)
+            {
+                if (sourceStep.X != targetStep.X && sourceStep.Y != targetStep.Y)
+                    return null;
+
+                if (SegmentBlocked(sourceStep, targetStep, obstacles))
+                    return null;
+
+                return Simplify(new List<Point> { start, sourceStep, targetStep, end });
             }
 
             private static RouteNode FindRoute(
@@ -3069,6 +3513,204 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             bool Redo(ProcessFlowCanvas canvas);
             void Undo(ProcessFlowCanvas canvas);
+        }
+
+        /// <summary>
+        /// 节点拖拽辅助线方向。
+        /// </summary>
+        private enum CanvasAlignmentAxis
+        {
+            /// <summary>
+            /// 水平辅助线，用于对齐节点的上边、中线或下边。
+            /// </summary>
+            Horizontal,
+            /// <summary>
+            /// 垂直辅助线，用于对齐节点的左边、中线或右边。
+            /// </summary>
+            Vertical
+        }
+
+        /// <summary>
+        /// 节点拖拽时命中的一个吸附候选。
+        /// </summary>
+        private sealed class AlignmentCandidate
+        {
+            /// <summary>
+            /// 对齐方向。
+            /// </summary>
+            public readonly CanvasAlignmentAxis Axis;
+            /// <summary>
+            /// 辅助线所在的画布坐标。
+            /// </summary>
+            public readonly int GuideCoordinate;
+            /// <summary>
+            /// 吸附后拖拽节点左上角在对应方向上的坐标。
+            /// </summary>
+            public readonly int NewLocationCoordinate;
+            /// <summary>
+            /// 吸附前拖拽节点与辅助线之间的距离。
+            /// </summary>
+            public readonly int Distance;
+            /// <summary>
+            /// 命中的参照节点边界。
+            /// </summary>
+            public readonly Rectangle TargetBounds;
+            /// <summary>
+            /// 候选优先级，中心线优先级高于边线。
+            /// </summary>
+            public readonly int Priority;
+
+            /// <summary>
+            /// 创建拖拽吸附候选。
+            /// </summary>
+            /// <param name="axis">对齐方向。</param>
+            /// <param name="guideCoordinate">辅助线所在的画布坐标。</param>
+            /// <param name="newLocationCoordinate">吸附后节点左上角坐标。</param>
+            /// <param name="distance">吸附距离。</param>
+            /// <param name="targetBounds">参照节点边界。</param>
+            /// <param name="priority">候选优先级。</param>
+            public AlignmentCandidate(
+                CanvasAlignmentAxis axis,
+                int guideCoordinate,
+                int newLocationCoordinate,
+                int distance,
+                Rectangle targetBounds,
+                int priority)
+            {
+                Axis = axis;
+                GuideCoordinate = guideCoordinate;
+                NewLocationCoordinate = newLocationCoordinate;
+                Distance = distance;
+                TargetBounds = targetBounds;
+                Priority = priority;
+            }
+        }
+
+        /// <summary>
+        /// 当前画布需要绘制的一条对齐辅助线。
+        /// </summary>
+        private sealed class AlignmentGuide
+        {
+            /// <summary>
+            /// 辅助线方向。
+            /// </summary>
+            public readonly CanvasAlignmentAxis Axis;
+            /// <summary>
+            /// 辅助线固定坐标，水平线为 Y，垂直线为 X。
+            /// </summary>
+            public readonly int Coordinate;
+            /// <summary>
+            /// 辅助线起点坐标，水平线为 X，垂直线为 Y。
+            /// </summary>
+            public readonly int Start;
+            /// <summary>
+            /// 辅助线终点坐标，水平线为 X，垂直线为 Y。
+            /// </summary>
+            public readonly int End;
+
+            /// <summary>
+            /// 创建一条辅助线。
+            /// </summary>
+            /// <param name="axis">辅助线方向。</param>
+            /// <param name="coordinate">辅助线固定坐标。</param>
+            /// <param name="start">辅助线起点坐标。</param>
+            /// <param name="end">辅助线终点坐标。</param>
+            public AlignmentGuide(CanvasAlignmentAxis axis, int coordinate, int start, int end)
+            {
+                Axis = axis;
+                Coordinate = coordinate;
+                Start = start;
+                End = end;
+            }
+        }
+
+        /// <summary>
+        /// 持久连线最近一次生成的路由缓存。
+        /// </summary>
+        private sealed class ConnectionRouteCache
+        {
+            /// <summary>
+            /// 缓存生成时的起点。
+            /// </summary>
+            private readonly Point _start;
+            /// <summary>
+            /// 缓存生成时的起点锚点。
+            /// </summary>
+            private readonly string _startAnchor;
+            /// <summary>
+            /// 缓存生成时的终点。
+            /// </summary>
+            private readonly Point _end;
+            /// <summary>
+            /// 缓存生成时的终点锚点。
+            /// </summary>
+            private readonly string _endAnchor;
+            /// <summary>
+            /// 缓存生成时的源节点边界。
+            /// </summary>
+            private readonly Rectangle _sourceBounds;
+            /// <summary>
+            /// 缓存生成时的目标节点边界。
+            /// </summary>
+            private readonly Rectangle _targetBounds;
+            /// <summary>
+            /// 缓存的路由点。
+            /// </summary>
+            public readonly Point[] Points;
+
+            /// <summary>
+            /// 创建连线路由缓存。
+            /// </summary>
+            /// <param name="start">连线起点。</param>
+            /// <param name="startAnchor">起点锚点。</param>
+            /// <param name="end">连线终点。</param>
+            /// <param name="endAnchor">终点锚点。</param>
+            /// <param name="sourceBounds">源节点边界。</param>
+            /// <param name="targetBounds">目标节点边界。</param>
+            /// <param name="points">路由点。</param>
+            public ConnectionRouteCache(
+                Point start,
+                string startAnchor,
+                Point end,
+                string endAnchor,
+                Rectangle sourceBounds,
+                Rectangle targetBounds,
+                Point[] points)
+            {
+                _start = start;
+                _startAnchor = startAnchor;
+                _end = end;
+                _endAnchor = endAnchor;
+                _sourceBounds = sourceBounds;
+                _targetBounds = targetBounds;
+                Points = points == null ? new Point[0] : points.ToArray();
+            }
+
+            /// <summary>
+            /// 判断当前连线两端是否仍可复用缓存。
+            /// </summary>
+            /// <param name="start">当前起点。</param>
+            /// <param name="startAnchor">当前起点锚点。</param>
+            /// <param name="end">当前终点。</param>
+            /// <param name="endAnchor">当前终点锚点。</param>
+            /// <param name="sourceBounds">当前源节点边界。</param>
+            /// <param name="targetBounds">当前目标节点边界。</param>
+            /// <returns>两端节点未变化时返回 true。</returns>
+            public bool Matches(
+                Point start,
+                string startAnchor,
+                Point end,
+                string endAnchor,
+                Rectangle sourceBounds,
+                Rectangle targetBounds)
+            {
+                return _start == start &&
+                    _startAnchor == startAnchor &&
+                    _end == end &&
+                    _endAnchor == endAnchor &&
+                    _sourceBounds == sourceBounds &&
+                    _targetBounds == targetBounds;
+            }
         }
 
         private sealed class PreviewImageInfo
