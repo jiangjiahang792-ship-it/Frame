@@ -434,6 +434,18 @@
       <DependentUpon>NodeParamFormPointRegionDistance.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\4-Measurement\PointRegionDistance\NodeResultPointRegionDistance.cs" />
+    <Compile Include="Node\8-GeometryCreation\LineMergeFit\LineMergeFitAlgorithm.cs" />
+    <Compile Include="Node\8-GeometryCreation\LineMergeFit\NodeLineMergeFit.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\8-GeometryCreation\LineMergeFit\NodeParamLineMergeFit.cs" />
+    <Compile Include="Node\8-GeometryCreation\LineMergeFit\NodeParamFormLineMergeFit.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\8-GeometryCreation\LineMergeFit\NodeParamFormLineMergeFit.Designer.cs">
+      <DependentUpon>NodeParamFormLineMergeFit.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\8-GeometryCreation\LineMergeFit\NodeResultLineMergeFit.cs" />
     <Compile Include="Node\3-Detection\BatteryEar\FormNewTemplate.cs">
       <SubType>Form</SubType>
     </Compile>

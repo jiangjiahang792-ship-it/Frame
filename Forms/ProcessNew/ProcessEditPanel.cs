@@ -61,6 +61,7 @@ using TDJS_Vision.Node._7_ResultProcessing.ImageDraw;
 using TDJS_Vision.Node._7_ResultProcessing.ImageSave;
 using TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw;
 using TDJS_Vision.Node._7_ResultProcessing.ResultSummarize;
+using TDJS_Vision.Node._8_GeometryCreation.LineMergeFit;
 using TDJS_Vision.Forms.GlobalSignalSettings;
 using static OpenCvSharp.ML.DTrees;
 using static TDJS_Vision.Forms.ProcessNew.FormNewProcessWizard;
@@ -606,6 +607,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.PointRegionDistance:
                     node = new NodePointRegionDistance(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.LineMergeFit:
+                    node = new NodeLineMergeFit(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.ImageCrop:
                     node = new NodeImageCrop(nodeId, nodeName, _process, nodeType);

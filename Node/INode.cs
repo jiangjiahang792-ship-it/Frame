@@ -377,5 +377,9 @@ namespace TDJS_Vision.Node
         /// 点到区域距离
         /// </summary>
         PointRegionDistance,
+        /// <summary>
+        /// 线组合拟合
+        /// </summary>
+        LineMergeFit,
     }
 }

@@ -170,6 +170,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case "测量工具":
                 case "Measurement Tools":
                     return "ProcessNew.Category.Measurement";
+                case "图形创建":
+                case "Geometry Creation":
+                    return "ProcessNew.Category.GeometryCreation";
                 case "设备通信":
                 case "Device Communication":
                     return "ProcessNew.Category.Communication";
@@ -767,6 +770,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                 return Color.FromArgb(125, 84, 188);
             if (key.Contains("Measurement"))
                 return Color.FromArgb(70, 166, 190);
+            if (key.Contains("GeometryCreation"))
+                return Color.FromArgb(64, 170, 112);
             if (key.Contains("Communication"))
                 return Color.FromArgb(226, 140, 32);
             if (key.Contains("Logic"))
@@ -805,6 +810,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.PointLineDistance:
                 case NodeType.PointRegionDistance:
                     return Color.FromArgb(70, 166, 190);
+                case NodeType.LineMergeFit:
+                    return Color.FromArgb(64, 170, 112);
                 case NodeType.LightSourceControl:
                 case NodeType.CameraIO:
                 case NodeType.CameraIOManual:
@@ -886,6 +893,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return "PL";
                 case NodeType.PointRegionDistance:
                     return "PR";
+                case NodeType.LineMergeFit:
+                    return "LM";
                 case NodeType.QRScan:
                     return "QR";
                 case NodeType.MatchTemplate:
@@ -970,6 +979,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                 return "AI";
             if (key.Contains("Measurement"))
                 return "MS";
+            if (key.Contains("GeometryCreation"))
+                return "GC";
             if (key.Contains("Communication"))
                 return "IO";
             if (key.Contains("Logic"))

@@ -84,6 +84,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             var result = new NodeResultCaliperLine();
             result.IsOk = measureResult.Success;
             result.EdgePointCount = measureResult.PointCount;
+            result.EdgePoints = new List<PointF>(measureResult.EdgePoints);
             if (measureResult.Success)
             {
                 result.StartX = measureResult.LineStart.X;

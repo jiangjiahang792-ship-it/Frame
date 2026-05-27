@@ -39,6 +39,11 @@
         <Node Text="点到区域距离" ImageName="测量工具" Tag="PointRegionDistance" SelectedImageName="测量工具" />
       </Nodes>
     </Node>
+    <Node Text="图形创建" ImageName="测量工具" Tag="UNKNOWN" SelectedImageName="测量工具">
+      <Nodes>
+        <Node Text="线组合拟合" ImageName="测量工具" Tag="LineMergeFit" SelectedImageName="测量工具" />
+      </Nodes>
+    </Node>
 	<Node Text="设备通信" ImageName="通信工具" Tag="UNKNOWN" SelectedImageName="通信工具">
       <Nodes>
         <Node Text="打开光源" ImageName="打开光源" Tag="LightSourceControl" SelectedImageName="打开光源" />

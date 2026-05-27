@@ -2773,6 +2773,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.ModbusRead:
                 case NodeType.ModbusWrite:
                     return Color.FromArgb(226, 140, 32);
+                case NodeType.LineMergeFit:
+                    return Color.FromArgb(64, 170, 112);
                 default:
                     return Color.FromArgb(42, 157, 143);
             }

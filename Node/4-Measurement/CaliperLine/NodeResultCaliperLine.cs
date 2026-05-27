@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Drawing;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
@@ -13,6 +15,12 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
 
         [DisplayName("边缘点数量")]
         public int EdgePointCount { get; set; }
+
+        /// <summary>
+        /// 卡尺实际找到的边缘点集合，供后续线组合拟合等图形创建工具复用。
+        /// </summary>
+        [DisplayName("边缘点集合")]
+        public List<PointF> EdgePoints { get; set; } = new List<PointF>();
 
         [DisplayName("起点X")]
         public double? StartX { get; set; }

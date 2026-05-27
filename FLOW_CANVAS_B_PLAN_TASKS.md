@@ -16,7 +16,7 @@ This means the target is not only a visual style change. The work includes:
 
 ## Current Step
 
-The current implementation step is **Phase 20: Edge Point Finding Measurement Tool**.
+The current implementation step is **Phase 21: Geometry Creation - Line Merge Fit Tool**.
 
 ### Latest Progress
 
@@ -45,6 +45,20 @@ The current implementation step is **Phase 20: Edge Point Finding Measurement To
   - [x] Edge point extraction should follow/trace edge contours where possible, so the output is ordered edge point groups instead of only an unordered threshold point cloud.
   - [x] The first design should reuse the existing clean image plus `OutputImage.DisplayResult` overlay model; runtime output image pixels stay clean.
   - [x] The result should be reusable by downstream measurement, condition, ROI drawing, and point/region subscription logic.
+- Phase 21 geometry creation planning:
+  - [x] New request captured: add a new toolbox category named `图形创建` for tools that create reusable geometry results.
+  - [x] Add a `LineMergeFit` / `线组合拟合` node that subscribes two upstream line results, such as two `CaliperLine` results, and outputs one new line segment.
+  - [x] The new line segment should expose `StartX`, `StartY`, `EndX`, `EndY`, `CenterX`, `CenterY`, `Angle`, `Length`, `FitError`, and display overlay output.
+  - [x] The result should be directly reusable by `PointLineDistance`, `LineLineAngle`, `ResultOverlayDraw`, `MultiCondition`, and future geometry tools.
+  - [x] First implementation should support collinear merge fitting and parallel centerline fitting.
+- Phase 21 geometry creation first implementation pass:
+  - [x] Added `NodeType.LineMergeFit` and the `Node\8-GeometryCreation\LineMergeFit` node family.
+  - [x] Added the new `图形创建` toolbox category and `线组合拟合` module entry.
+  - [x] `LineMergeFit` supports collinear merge fitting and parallel centerline fitting from two upstream line results.
+  - [x] `LineMergeFit` exposes standard line result properties for downstream subscription and draws clean overlay output through `OutputImage.DisplayResult`.
+  - [x] `LineMergeFit` parameter form now includes a preview image panel that displays source lines, fit points, and the merged output line after local Run.
+  - [x] `CaliperLine` now publishes `EdgePoints`, so line merge fitting can reuse actual caliper edge points instead of only four endpoints when available.
+  - [x] Build-verified after implementation with MSBuild, 0 errors; existing warnings remain.
 - Phase 11 undo/redo first implementation pass:
   - [x] `ProcessFlowCanvas` now owns a canvas edit history stack.
   - [x] Undo/redo supports node creation, node deletion, node movement, connection creation, connection deletion, start-node changes, and node enable/disable changes.
@@ -1059,6 +1073,52 @@ Reference source:
 - [ ] Runtime-verify on a simple synthetic image with known straight/curved edges.
 - [ ] Runtime-verify on real product images that edge points are found along the material edge and do not include unrelated texture/noise.
 - [ ] Runtime-verify downstream subscription from `PointRegionDistance`, `ResultOverlayDraw`, and `MultiCondition`.
+
+## Phase 21: Geometry Creation And Line Merge Fit Tool
+
+### Phase 21.1: Requirement And Scope
+
+- [x] Add a new toolbox category named `图形创建`.
+- [x] Add a new geometry creation node named `LineMergeFit` / `线组合拟合`.
+- [x] The node subscribes two upstream line results, especially two `CaliperLine` outputs.
+- [x] The node outputs one reusable line segment instead of only calculating a one-off measurement.
+- [x] The output line should be consumable by `PointLineDistance`, `LineLineAngle`, `ResultOverlayDraw`, `MultiCondition`, and future graph tools.
+
+### Phase 21.2: Algorithm Design
+
+- [x] Support collinear merge fitting from the two source lines and their available edge points.
+- [x] Support parallel centerline fitting for two product edges that should produce one middle reference line.
+- [x] Output fit quality values such as source-line angle difference, line spacing, and fit error.
+- [x] Keep runtime output image pixels clean and publish line overlays through `OutputImage.DisplayResult`.
+
+### Phase 21.3: Parameter UI
+
+- [x] Add designer-visible WinForms controls in `.Designer.cs`.
+- [x] Provide two upstream line subscription selectors.
+- [x] Provide fit mode selection between collinear merge and parallel centerline.
+- [x] Provide run and save actions with a compact runtime status display.
+- [x] Provide a preview image panel for local run verification.
+
+### Phase 21.4: Result Model
+
+- [x] Add `NodeResultLineMergeFit` with standard line properties: `StartX`, `StartY`, `EndX`, `EndY`, `CenterX`, `CenterY`, `Angle`, `Length`, `LineDistance`, `AngleDifference`, `FitError`, `IsOk`, `Result`, and `OutputImage`.
+- [x] Ensure `MeasurementResultReader.TryReadLine(...)` can consume the new result through existing `StartX/StartY/EndX/EndY` property names.
+
+### Phase 21.5: Registration And Integration
+
+- [x] Add `NodeType.LineMergeFit`.
+- [x] Add the `Node\8-GeometryCreation\LineMergeFit` node family.
+- [x] Register the node in `ProcessEditPanel.CreateNode`.
+- [x] Register `图形创建` and `线组合拟合` in `ToolTreeView.xml`.
+- [x] Add language keys in `Languages\zh-CN.json` and `Languages\en-US.json`.
+- [x] Add project compile items and toolbox icon mapping.
+
+### Phase 21.6: Verification
+
+- [x] Build-verify after first implementation.
+  - Passed on 2026-05-26 with MSBuild, 0 errors; existing warnings remain.
+- [x] Static-verify toolbox registration, language keys, node factory switch, project compile items, and standard result property names.
+- [ ] Runtime-verify two `CaliperLine` results merge into one line and downstream tools can subscribe to it.
 
 1. [x] Add graph layout and connection models with backward-compatible save/load defaults.
 2. [x] Add the `ProcessNew` canvas control and draw nodes from current runtime nodes.
