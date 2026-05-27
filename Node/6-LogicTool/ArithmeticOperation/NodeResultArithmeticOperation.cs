@@ -6,7 +6,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
     /// <summary>
     /// 四则运算节点运行结果。
     /// </summary>
-    public class NodeResultArithmeticOperation : INodeResult
+    public class NodeResultArithmeticOperation : INodeResult, IDynamicResultVariables
     {
         /// <summary>
         /// 节点运行耗时。
@@ -44,6 +44,18 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
         public int OperandCount { get; set; }
 
         /// <summary>
+        /// 实际启用的运算行数量。
+        /// </summary>
+        [DisplayName("运算行数量")]
+        public int OperationCount { get; set; }
+
+        /// <summary>
+        /// 默认输出变量名称，等于最后一个启用运算行输出变量。
+        /// </summary>
+        [DisplayName("默认变量名")]
+        public string DefaultVariableName { get; set; }
+
+        /// <summary>
         /// 运行信息或失败原因。
         /// </summary>
         [DisplayName("信息")]
@@ -60,5 +72,33 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
         /// </summary>
         [DisplayName("变量表文本")]
         public string VariablesText { get; set; }
+
+        /// <summary>
+        /// 获取当前结果中已经生成的动态变量名称。
+        /// </summary>
+        public IEnumerable<string> GetDynamicVariableNames()
+        {
+            if (Variables == null)
+                return new List<string>();
+
+            return Variables.Keys;
+        }
+
+        /// <summary>
+        /// 尝试读取指定动态变量的值。
+        /// </summary>
+        public bool TryGetDynamicVariable(string variableName, out object value)
+        {
+            value = null;
+            if (Variables == null || string.IsNullOrWhiteSpace(variableName))
+                return false;
+
+            double doubleValue;
+            if (!Variables.TryGetValue(variableName.Trim(), out doubleValue))
+                return false;
+
+            value = doubleValue;
+            return true;
+        }
     }
 }

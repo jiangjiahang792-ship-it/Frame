@@ -123,7 +123,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                     (currentNode.Process.IsRuning &&
                     !sourceNode.HasSuccessfulResultForRun(currentNode.Process.CurrentRunId))
                     ? null
-                    : MultiConditionReflection.GetMemberPathValue(sourceNode.Result, condition.PropertyPath);
+                    : ReadConditionValue(sourceNode.Result, condition.PropertyPath);
                 bool matched = CompareCondition(actualValue, condition);
                 evaluations.Add(new NodeConditionEvaluation
                 {
@@ -156,6 +156,18 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// 读取条件值，优先支持动态变量路径。
+        /// </summary>
+        private static object ReadConditionValue(object result, string propertyPath)
+        {
+            object dynamicValue;
+            if (DynamicResultVariableResolver.TryGetValue(result, propertyPath, out dynamicValue))
+                return dynamicValue;
+
+            return MultiConditionReflection.GetMemberPathValue(result, propertyPath);
         }
 
         private static NodeBase FindSourceNode(NodeBase currentNode, MultiConditionItem condition)

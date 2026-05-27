@@ -1245,6 +1245,7 @@
     <Compile Include="Forms\ShapeDraw\ImageROIEditControl.Designer.cs">
       <DependentUpon>ImageROIEditControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Node\DynamicResultVariable.cs" />
     <Compile Include="Node\INode.cs" />
     <Compile Include="Forms\ProcessNew\ProcessFlowCanvas.cs">
       <SubType>Component</SubType>

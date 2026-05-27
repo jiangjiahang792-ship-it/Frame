@@ -126,6 +126,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 if (string.IsNullOrWhiteSpace(resultText))
                     return node.Result;
 
+                // 动态输出变量不是真实属性，需要先按变量路径读取。
+                object dynamicValue;
+                if (DynamicResultVariableResolver.TryGetValue(node.Result, resultText, out dynamicValue))
+                    return dynamicValue;
+
                 PropertyInfo property = node.Result.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public)
                     .FirstOrDefault(item => GetDisplayName(item) == resultText || item.Name == resultText);
                 if (property == null || !property.CanRead)
@@ -159,6 +164,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 if (string.IsNullOrWhiteSpace(item.SourceText2))
                 {
                     value = node.Result;
+                    return true;
+                }
+
+                // 支持四则运算这类节点发布的命名输出变量，例如“变量.宽度差”。
+                object dynamicValue;
+                if (DynamicResultVariableResolver.TryGetValue(node.Result, item.SourceText2, out dynamicValue))
+                {
+                    value = dynamicValue;
                     return true;
                 }
 

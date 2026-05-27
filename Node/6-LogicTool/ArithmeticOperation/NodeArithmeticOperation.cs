@@ -10,7 +10,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
     /// <summary>
     /// 四则运算逻辑节点。
     /// </summary>
-    public class NodeArithmeticOperation : NodeBase
+    public class NodeArithmeticOperation : NodeBase, IDynamicResultVariableProvider
     {
         /// <summary>
         /// 创建四则运算节点。
@@ -58,7 +58,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
                 Result = nodeResult;
 
                 if (showLog)
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！结果：{nodeResult.ValueText}，{time} ms", true);
+                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！变量：{nodeResult.VariablesText}，{time} ms", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -96,6 +96,8 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
                 ValueText = measureResult.ValueText,
                 ExpressionText = measureResult.ExpressionText,
                 OperandCount = measureResult.OperandCount,
+                OperationCount = measureResult.OperationCount,
+                DefaultVariableName = measureResult.DefaultVariableName,
                 Message = measureResult.Message,
                 Variables = measureResult.Variables ?? new Dictionary<string, double>(),
                 VariablesText = BuildVariablesText(measureResult.Variables, decimalPlaces)
@@ -114,10 +116,45 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
                 ValueText = string.Empty,
                 ExpressionText = string.Empty,
                 OperandCount = 0,
+                OperationCount = 0,
+                DefaultVariableName = string.Empty,
                 Message = message,
                 Variables = new Dictionary<string, double>(),
                 VariablesText = string.Empty
             };
+        }
+
+        /// <summary>
+        /// 获取参数中声明的动态输出变量名，供下游订阅配置阶段使用。
+        /// </summary>
+        public IEnumerable<string> GetDynamicResultVariableNames()
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            NodeParamArithmeticOperation param = ParamForm == null ? null : ParamForm.Params as NodeParamArithmeticOperation;
+            if (param != null && param.Rows != null)
+            {
+                foreach (ArithmeticOperationRow row in param.Rows)
+                {
+                    if (row == null || !row.Enabled)
+                        continue;
+
+                    string name = (row.OutputVariableName ?? row.ResultVariableName ?? string.Empty).Trim();
+                    if (!string.IsNullOrWhiteSpace(name))
+                        names.Add(name);
+                }
+            }
+
+            NodeResultArithmeticOperation result = Result as NodeResultArithmeticOperation;
+            if (result != null && result.Variables != null)
+            {
+                foreach (string name in result.Variables.Keys)
+                {
+                    if (!string.IsNullOrWhiteSpace(name))
+                        names.Add(name.Trim());
+                }
+            }
+
+            return names.OrderBy(item => item, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         /// <summary>

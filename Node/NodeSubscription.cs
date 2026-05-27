@@ -198,6 +198,13 @@ namespace TDJS_Vision.Node
                 }
             }
 
+            foreach (string variableName in DynamicResultVariableResolver.GetVariableNames(nodeBase))
+            {
+                string displayName = DynamicResultVariableResolver.ToDisplayName(variableName);
+                if (!comboBox2.Items.Contains(displayName))
+                    comboBox2.Items.Add(displayName);
+            }
+
             if (comboBox2.Items.Count > 0)
             {
                 if (needRefresh || text2 == null)
@@ -208,6 +215,8 @@ namespace TDJS_Vision.Node
                 else
                 {
                     int index1 = comboBox2.Items.IndexOf(text2);
+                    if (index1 == -1 && !string.IsNullOrWhiteSpace(text2))
+                        index1 = comboBox2.Items.IndexOf(DynamicResultVariableResolver.ToDisplayName(text2));
                     comboBox2.SelectedIndex = index1 == -1 ? 0 : index1;
                     _text2 = text2;
                 }
@@ -229,16 +238,13 @@ namespace TDJS_Vision.Node
             if (propertyInfo != null && propertyInfo.CanRead)
             {
                 var value = propertyInfo.GetValue(_selectedNode.Result);
-                if (value == null)
-                    return default(T);
-                if (value is T)
-                {
-                    return (T)value;
-                }
-                else
-                {
-                    throw new InvalidCastException($"节点({_selectedNode.ID}.{_selectedNode.NodeName})获取订阅的{_text2}值类型不匹配，期望类型为{typeof(T).Name}，实际类型为{value.GetType().Name}!");
-                }
+                return ConvertSubscriptionValue<T>(value);
+            }
+
+            object dynamicValue;
+            if (DynamicResultVariableResolver.TryGetValue(_selectedNode.Result, _text2, out dynamicValue))
+            {
+                return ConvertSubscriptionValue<T>(dynamicValue);
             }
             else
             {
@@ -341,6 +347,30 @@ namespace TDJS_Vision.Node
         private void comboBox2_SelectedIndexChanged(object sender, EventArgs e)
         {
             _text2 = comboBox2.Text;
+        }
+
+        /// <summary>
+        /// 将订阅值转换为调用方期望类型。
+        /// </summary>
+        private static T ConvertSubscriptionValue<T>(object value)
+        {
+            if (value == null)
+                return default(T);
+            if (value is T)
+                return (T)value;
+
+            Type targetType = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
+            if (targetType == typeof(object))
+                return (T)value;
+
+            try
+            {
+                return (T)Convert.ChangeType(value, targetType);
+            }
+            catch
+            {
+                throw new InvalidCastException($"订阅值类型不匹配，期望类型为{typeof(T).Name}，实际类型为{value.GetType().Name}!");
+            }
         }
 
         private void EnsureSelectedNodeFresh()

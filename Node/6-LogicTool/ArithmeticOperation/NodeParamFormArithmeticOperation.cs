@@ -31,7 +31,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             InitializeComponent();
             _rows = new BindingList<ArithmeticRowViewModel>();
             ConfigureGridColumns();
-            BindComboColumns();
+            BindOperatorColumn();
             numericUpDownDecimalPlaces.Value = 3;
             dataGridViewRows.DataSource = _rows;
             if (_rows.Count == 0)
@@ -79,7 +79,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             if (param.Rows != null)
             {
                 for (int index = 0; index < param.Rows.Count; index++)
-                    _rows.Add(ArithmeticRowViewModel.FromRow(param.Rows[index]));
+                    _rows.Add(ArithmeticRowViewModel.FromRow(param.Rows[index], index));
             }
 
             if (_rows.Count == 0)
@@ -123,27 +123,21 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             dataGridViewRows.ColumnHeadersHeight = 32;
 
             ColumnEnabled.DataPropertyName = "Enabled";
+            ColumnValue1.DataPropertyName = "Value1Summary";
             ColumnOperator.DataPropertyName = "Operator";
-            ColumnSourceMode.DataPropertyName = "SourceMode";
-            ColumnSourceSummary.DataPropertyName = "SourceSummary";
-            ColumnConstantText.DataPropertyName = "ConstantText";
-            ColumnVariableName.DataPropertyName = "VariableName";
-            ColumnResultVariableName.DataPropertyName = "ResultVariableName";
+            ColumnValue2.DataPropertyName = "Value2Summary";
+            ColumnOutputVariableName.DataPropertyName = "OutputVariableName";
             ColumnNote.DataPropertyName = "Note";
         }
 
         /// <summary>
-        /// 绑定枚举列显示值。
+        /// 绑定运算符列显示值。
         /// </summary>
-        private void BindComboColumns()
+        private void BindOperatorColumn()
         {
             ColumnOperator.DataSource = GetOperatorOptions();
             ColumnOperator.DisplayMember = "Text";
             ColumnOperator.ValueMember = "Value";
-
-            ColumnSourceMode.DataSource = GetSourceModeOptions();
-            ColumnSourceMode.DisplayMember = "Text";
-            ColumnSourceMode.ValueMember = "Value";
         }
 
         /// <summary>
@@ -157,19 +151,6 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
                 new ComboOption<ArithmeticOperator>("减", ArithmeticOperator.Subtract),
                 new ComboOption<ArithmeticOperator>("乘", ArithmeticOperator.Multiply),
                 new ComboOption<ArithmeticOperator>("除", ArithmeticOperator.Divide)
-            };
-        }
-
-        /// <summary>
-        /// 获取来源模式下拉选项。
-        /// </summary>
-        private static List<ComboOption<ArithmeticOperandSourceMode>> GetSourceModeOptions()
-        {
-            return new List<ComboOption<ArithmeticOperandSourceMode>>
-            {
-                new ComboOption<ArithmeticOperandSourceMode>("常量", ArithmeticOperandSourceMode.Constant),
-                new ComboOption<ArithmeticOperandSourceMode>("订阅值", ArithmeticOperandSourceMode.Subscription),
-                new ComboOption<ArithmeticOperandSourceMode>("内部变量", ArithmeticOperandSourceMode.Variable)
             };
         }
 
@@ -219,11 +200,27 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
         }
 
         /// <summary>
-        /// 选择上游属性给当前行。
+        /// 应用常量到当前行的值1或值2。
+        /// </summary>
+        private void buttonApplyConstant_Click(object sender, EventArgs e)
+        {
+            int index = EnsureCurrentRow();
+            if (index < 0)
+                return;
+
+            SetCurrentOperand(new ArithmeticOperand
+            {
+                SourceMode = ArithmeticOperandSourceMode.Constant,
+                ConstantText = textBoxConstant.Text
+            });
+        }
+
+        /// <summary>
+        /// 选择上游属性给当前行的值1或值2。
         /// </summary>
         private void buttonSelectProperty_Click(object sender, EventArgs e)
         {
-            ApplySelectedPropertyToCurrentRow();
+            ApplySelectedPropertyToCurrentOperand();
         }
 
         /// <summary>
@@ -231,7 +228,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
         /// </summary>
         private void treeViewSources_NodeMouseDoubleClick(object sender, TreeNodeMouseClickEventArgs e)
         {
-            ApplySelectedPropertyToCurrentRow();
+            ApplySelectedPropertyToCurrentOperand();
         }
 
         /// <summary>
@@ -239,7 +236,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
         /// </summary>
         private void listBoxVariables_DoubleClick(object sender, EventArgs e)
         {
-            ApplySelectedVariableToCurrentRow();
+            ApplySelectedVariableToCurrentOperand();
         }
 
         /// <summary>
@@ -247,7 +244,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
         /// </summary>
         private void buttonUseVariable_Click(object sender, EventArgs e)
         {
-            ApplySelectedVariableToCurrentRow();
+            ApplySelectedVariableToCurrentOperand();
         }
 
         /// <summary>
@@ -340,8 +337,8 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
 
             foreach (ArithmeticRowViewModel row in _rows)
             {
-                if (row.SourceNodeId == e.NodeId)
-                    row.SourceNodeText = e.NodeId + "." + e.NodeNameNew;
+                RenameOperandSource(row.Value1, e);
+                RenameOperandSource(row.Value2, e);
             }
 
             _rows.ResetBindings();
@@ -391,11 +388,10 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
                     continue;
 
                 enabledCount++;
-                ValidateRowSource(row, generatedVariables, index);
-
-                string resultVariableName = (row.ResultVariableName ?? string.Empty).Trim();
-                if (!string.IsNullOrWhiteSpace(resultVariableName))
-                    generatedVariables.Add(resultVariableName);
+                ValidateOutputVariableName(row.OutputVariableName, generatedVariables, index);
+                ValidateOperand(row.Value1, generatedVariables, index, "值1");
+                ValidateOperand(row.Value2, generatedVariables, index, "值2");
+                generatedVariables.Add(row.OutputVariableName.Trim());
             }
 
             if (enabledCount == 0)
@@ -403,40 +399,60 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
         }
 
         /// <summary>
-        /// 校验单行来源设置。
+        /// 校验输出变量名。
         /// </summary>
-        private static void ValidateRowSource(
-            ArithmeticOperationRow row,
+        private static void ValidateOutputVariableName(
+            string variableName,
             HashSet<string> generatedVariables,
             int rowIndex)
         {
-            switch (row.SourceMode)
+            string message;
+            if (!DynamicResultVariableResolver.IsValidVariableName(variableName, out message))
+                throw new Exception($"第{rowIndex + 1}行输出变量名无效：{message}");
+
+            if (generatedVariables.Contains(variableName.Trim()))
+                throw new Exception($"第{rowIndex + 1}行输出变量名“{variableName.Trim()}”重复。");
+        }
+
+        /// <summary>
+        /// 校验操作数来源设置。
+        /// </summary>
+        private static void ValidateOperand(
+            ArithmeticOperand operand,
+            HashSet<string> generatedVariables,
+            int rowIndex,
+            string operandLabel)
+        {
+            if (operand == null)
+                throw new Exception($"第{rowIndex + 1}行{operandLabel}未配置。");
+
+            switch (operand.SourceMode)
             {
                 case ArithmeticOperandSourceMode.Constant:
-                    ArithmeticOperationAlgorithm.ConvertToDouble(row.ConstantText, $"第{rowIndex + 1}行常量");
+                    ArithmeticOperationAlgorithm.ConvertToDouble(operand.ConstantText, $"第{rowIndex + 1}行{operandLabel}常量");
                     break;
                 case ArithmeticOperandSourceMode.Subscription:
-                    if (row.SourceNodeId <= 0 && string.IsNullOrWhiteSpace(row.SourceNodeText))
-                        throw new Exception($"第{rowIndex + 1}行没有选择订阅节点。");
-                    if (string.IsNullOrWhiteSpace(row.PropertyPath))
-                        throw new Exception($"第{rowIndex + 1}行没有选择订阅属性。");
+                    if (operand.SourceNodeId <= 0 && string.IsNullOrWhiteSpace(operand.SourceNodeText))
+                        throw new Exception($"第{rowIndex + 1}行{operandLabel}没有选择订阅节点。");
+                    if (string.IsNullOrWhiteSpace(operand.PropertyPath))
+                        throw new Exception($"第{rowIndex + 1}行{operandLabel}没有选择订阅属性。");
                     break;
                 case ArithmeticOperandSourceMode.Variable:
-                    string variableName = (row.VariableName ?? string.Empty).Trim();
+                    string variableName = (operand.VariableName ?? string.Empty).Trim();
                     if (string.IsNullOrWhiteSpace(variableName))
-                        throw new Exception($"第{rowIndex + 1}行没有选择内部变量。");
+                        throw new Exception($"第{rowIndex + 1}行{operandLabel}没有选择内部变量。");
                     if (!generatedVariables.Contains(variableName))
-                        throw new Exception($"第{rowIndex + 1}行引用的内部变量“{variableName}”尚未由前面行生成。");
+                        throw new Exception($"第{rowIndex + 1}行{operandLabel}引用的内部变量“{variableName}”尚未由前面行生成。");
                     break;
                 default:
-                    throw new Exception($"第{rowIndex + 1}行来源模式无效。");
+                    throw new Exception($"第{rowIndex + 1}行{operandLabel}来源模式无效。");
             }
         }
 
         /// <summary>
-        /// 应用选中的上游属性到当前行。
+        /// 应用选中的上游属性到当前操作数。
         /// </summary>
-        private void ApplySelectedPropertyToCurrentRow()
+        private void ApplySelectedPropertyToCurrentOperand()
         {
             ResultPropertyOption option = treeViewSources.SelectedNode == null
                 ? null
@@ -444,44 +460,50 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             if (option == null)
                 return;
 
-            int index = EnsureCurrentRow();
-            if (index < 0)
-                return;
-
-            ArithmeticRowViewModel row = _rows[index];
-            row.SourceMode = ArithmeticOperandSourceMode.Subscription;
-            row.SourceNodeId = option.SourceNodeId;
-            row.SourceNodeText = option.SourceNodeText;
-            row.PropertyPath = option.PropertyPath;
-            row.PropertyDisplayName = option.PropertyDisplayName;
-            row.ValueTypeName = option.ValueType == null ? string.Empty : option.ValueType.FullName;
-            row.VariableName = string.Empty;
-            _rows.ResetItem(index);
-            RefreshInternalVariableList();
+            SetCurrentOperand(new ArithmeticOperand
+            {
+                SourceMode = ArithmeticOperandSourceMode.Subscription,
+                SourceNodeId = option.SourceNodeId,
+                SourceNodeText = option.SourceNodeText,
+                PropertyPath = option.PropertyPath,
+                PropertyDisplayName = option.PropertyDisplayName,
+                ValueTypeName = option.ValueType == null ? string.Empty : option.ValueType.FullName
+            });
         }
 
         /// <summary>
-        /// 应用选中的内部变量到当前行。
+        /// 应用选中的内部变量到当前操作数。
         /// </summary>
-        private void ApplySelectedVariableToCurrentRow()
+        private void ApplySelectedVariableToCurrentOperand()
         {
             string variableName = listBoxVariables.SelectedItem as string;
             if (string.IsNullOrWhiteSpace(variableName))
                 return;
 
+            SetCurrentOperand(new ArithmeticOperand
+            {
+                SourceMode = ArithmeticOperandSourceMode.Variable,
+                VariableName = variableName
+            });
+        }
+
+        /// <summary>
+        /// 设置当前行值1或值2。
+        /// </summary>
+        private void SetCurrentOperand(ArithmeticOperand operand)
+        {
             int index = EnsureCurrentRow();
             if (index < 0)
                 return;
 
             ArithmeticRowViewModel row = _rows[index];
-            row.SourceMode = ArithmeticOperandSourceMode.Variable;
-            row.VariableName = variableName;
-            row.SourceNodeId = 0;
-            row.SourceNodeText = string.Empty;
-            row.PropertyPath = string.Empty;
-            row.PropertyDisplayName = string.Empty;
-            row.ValueTypeName = string.Empty;
+            if (radioButtonValue2.Checked)
+                row.Value2 = operand;
+            else
+                row.Value1 = operand;
+
             _rows.ResetItem(index);
+            RefreshInternalVariableList();
         }
 
         /// <summary>
@@ -500,6 +522,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
                 {
                     TreeNode sourceTreeNode = new TreeNode(GetNodeText(sourceNode));
                     treeViewSources.Nodes.Add(sourceTreeNode);
+                    AddDynamicVariableNodes(sourceTreeNode, sourceNode);
                     if (sourceNode.Result != null)
                         AddMemberNodes(sourceTreeNode, sourceNode, sourceNode.Result.GetType(), string.Empty, string.Empty, 0);
                 }
@@ -507,6 +530,32 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
 
             treeViewSources.ExpandAll();
             treeViewSources.EndUpdate();
+        }
+
+        /// <summary>
+        /// 添加动态输出变量节点。
+        /// </summary>
+        private void AddDynamicVariableNodes(TreeNode sourceTreeNode, NodeBase sourceNode)
+        {
+            List<string> names = DynamicResultVariableResolver.GetVariableNames(sourceNode);
+            if (names.Count == 0)
+                return;
+
+            TreeNode variableGroup = new TreeNode("输出变量");
+            sourceTreeNode.Nodes.Add(variableGroup);
+            foreach (string name in names)
+            {
+                TreeNode variableNode = new TreeNode(name);
+                variableNode.Tag = new ResultPropertyOption
+                {
+                    SourceNodeId = sourceNode.ID,
+                    SourceNodeText = GetNodeText(sourceNode),
+                    PropertyPath = DynamicResultVariableResolver.ToPropertyPath(name),
+                    PropertyDisplayName = name,
+                    ValueType = typeof(double)
+                };
+                variableGroup.Nodes.Add(variableNode);
+            }
         }
 
         /// <summary>
@@ -570,7 +619,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
                 if (row == null || !row.Enabled)
                     continue;
 
-                string variableName = (row.ResultVariableName ?? string.Empty).Trim();
+                string variableName = (row.OutputVariableName ?? string.Empty).Trim();
                 if (string.IsNullOrWhiteSpace(variableName) || names.Contains(variableName))
                     continue;
 
@@ -590,16 +639,9 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
                 return;
             }
 
-            if (result.IsOk)
-            {
-                labelRuntimeStatus.Text = $"成功：{result.ExpressionText}";
-                if (!string.IsNullOrWhiteSpace(result.VariablesText))
-                    labelRuntimeStatus.Text += $"；变量：{result.VariablesText}";
-            }
-            else
-            {
-                labelRuntimeStatus.Text = $"失败：{result.Message}";
-            }
+            labelRuntimeStatus.Text = result.IsOk
+                ? $"成功：{result.VariablesText}"
+                : $"失败：{result.Message}";
         }
 
         /// <summary>
@@ -678,10 +720,21 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             {
                 Enabled = true,
                 Operator = ArithmeticOperator.Add,
-                SourceMode = ArithmeticOperandSourceMode.Constant,
-                ConstantText = index == 0 ? "0" : "1",
-                ResultVariableName = index == 0 ? "V1" : string.Empty
+                Value1 = new ArithmeticOperand { SourceMode = ArithmeticOperandSourceMode.Constant, ConstantText = "0" },
+                Value2 = new ArithmeticOperand { SourceMode = ArithmeticOperandSourceMode.Constant, ConstantText = "0" },
+                OutputVariableName = "V" + (index + 1)
             };
+        }
+
+        /// <summary>
+        /// 同步重命名后的订阅节点文本。
+        /// </summary>
+        private static void RenameOperandSource(ArithmeticOperand operand, RenameResult e)
+        {
+            if (operand == null || operand.SourceNodeId != e.NodeId)
+                return;
+
+            operand.SourceNodeText = e.NodeId + "." + e.NodeNameNew;
         }
 
         /// <summary>
@@ -759,54 +812,24 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             public bool Enabled { get; set; }
 
             /// <summary>
+            /// 左侧操作数。
+            /// </summary>
+            public ArithmeticOperand Value1 { get; set; }
+
+            /// <summary>
             /// 运算符。
             /// </summary>
             public ArithmeticOperator Operator { get; set; }
 
             /// <summary>
-            /// 来源模式。
+            /// 右侧操作数。
             /// </summary>
-            public ArithmeticOperandSourceMode SourceMode { get; set; }
-
-            /// <summary>
-            /// 常量文本。
-            /// </summary>
-            public string ConstantText { get; set; }
-
-            /// <summary>
-            /// 源节点ID。
-            /// </summary>
-            public int SourceNodeId { get; set; }
-
-            /// <summary>
-            /// 源节点文本。
-            /// </summary>
-            public string SourceNodeText { get; set; }
-
-            /// <summary>
-            /// 属性路径。
-            /// </summary>
-            public string PropertyPath { get; set; }
-
-            /// <summary>
-            /// 属性显示名。
-            /// </summary>
-            public string PropertyDisplayName { get; set; }
-
-            /// <summary>
-            /// 值类型名称。
-            /// </summary>
-            public string ValueTypeName { get; set; }
-
-            /// <summary>
-            /// 引用变量名。
-            /// </summary>
-            public string VariableName { get; set; }
+            public ArithmeticOperand Value2 { get; set; }
 
             /// <summary>
             /// 输出变量名。
             /// </summary>
-            public string ResultVariableName { get; set; }
+            public string OutputVariableName { get; set; }
 
             /// <summary>
             /// 注释。
@@ -814,47 +837,51 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             public string Note { get; set; }
 
             /// <summary>
-            /// 来源摘要。
+            /// 值1摘要。
             /// </summary>
-            public string SourceSummary
-            {
-                get
-                {
-                    switch (SourceMode)
-                    {
-                        case ArithmeticOperandSourceMode.Constant:
-                            return "常量：" + (ConstantText ?? string.Empty);
-                        case ArithmeticOperandSourceMode.Subscription:
-                            return (SourceNodeText ?? string.Empty) + "." + (PropertyDisplayName ?? PropertyPath ?? string.Empty);
-                        case ArithmeticOperandSourceMode.Variable:
-                            return "变量：" + (VariableName ?? string.Empty);
-                        default:
-                            return string.Empty;
-                    }
-                }
-            }
+            public string Value1Summary { get { return ArithmeticOperationAlgorithm.BuildOperandSummary(Value1); } }
+
+            /// <summary>
+            /// 值2摘要。
+            /// </summary>
+            public string Value2Summary { get { return ArithmeticOperationAlgorithm.BuildOperandSummary(Value2); } }
 
             /// <summary>
             /// 从参数行创建界面模型。
             /// </summary>
-            public static ArithmeticRowViewModel FromRow(ArithmeticOperationRow row)
+            public static ArithmeticRowViewModel FromRow(ArithmeticOperationRow row, int index)
             {
                 if (row == null)
                     row = new ArithmeticOperationRow();
+
+                ArithmeticOperand value1 = row.Value1 ?? new ArithmeticOperand();
+                ArithmeticOperand value2 = row.Value2 ?? new ArithmeticOperand();
+
+                if (string.IsNullOrWhiteSpace(row.OutputVariableName) && HasLegacyOperand(row))
+                {
+                    value1 = new ArithmeticOperand { SourceMode = ArithmeticOperandSourceMode.Constant, ConstantText = "0" };
+                    value2 = new ArithmeticOperand
+                    {
+                        SourceMode = row.SourceMode,
+                        ConstantText = string.IsNullOrWhiteSpace(row.ConstantText) ? "0" : row.ConstantText,
+                        SourceNodeId = row.SourceNodeId,
+                        SourceNodeText = row.SourceNodeText,
+                        PropertyPath = row.PropertyPath,
+                        PropertyDisplayName = row.PropertyDisplayName,
+                        ValueTypeName = row.ValueTypeName,
+                        VariableName = row.VariableName
+                    };
+                }
 
                 return new ArithmeticRowViewModel
                 {
                     Enabled = row.Enabled,
                     Operator = row.Operator,
-                    SourceMode = row.SourceMode,
-                    ConstantText = row.ConstantText,
-                    SourceNodeId = row.SourceNodeId,
-                    SourceNodeText = row.SourceNodeText,
-                    PropertyPath = row.PropertyPath,
-                    PropertyDisplayName = row.PropertyDisplayName,
-                    ValueTypeName = row.ValueTypeName,
-                    VariableName = row.VariableName,
-                    ResultVariableName = row.ResultVariableName,
+                    Value1 = value1,
+                    Value2 = value2,
+                    OutputVariableName = string.IsNullOrWhiteSpace(row.OutputVariableName)
+                        ? (string.IsNullOrWhiteSpace(row.ResultVariableName) ? "V" + (index + 1) : row.ResultVariableName)
+                        : row.OutputVariableName,
                     Note = row.Note
                 };
             }
@@ -868,17 +895,24 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
                 {
                     Enabled = Enabled,
                     Operator = Operator,
-                    SourceMode = SourceMode,
-                    ConstantText = ConstantText,
-                    SourceNodeId = SourceNodeId,
-                    SourceNodeText = SourceNodeText,
-                    PropertyPath = PropertyPath,
-                    PropertyDisplayName = PropertyDisplayName,
-                    ValueTypeName = ValueTypeName,
-                    VariableName = VariableName,
-                    ResultVariableName = ResultVariableName,
+                    Value1 = Value1,
+                    Value2 = Value2,
+                    OutputVariableName = OutputVariableName,
                     Note = Note
                 };
+            }
+
+            /// <summary>
+            /// 判断是否带有旧版累计模型字段。
+            /// </summary>
+            private static bool HasLegacyOperand(ArithmeticOperationRow row)
+            {
+                return row.SourceNodeId > 0 ||
+                       !string.IsNullOrWhiteSpace(row.SourceNodeText) ||
+                       !string.IsNullOrWhiteSpace(row.PropertyPath) ||
+                       !string.IsNullOrWhiteSpace(row.VariableName) ||
+                       !string.IsNullOrWhiteSpace(row.ResultVariableName) ||
+                       !string.IsNullOrWhiteSpace(row.ConstantText);
             }
         }
     }

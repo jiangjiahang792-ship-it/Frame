@@ -34,14 +34,18 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.splitContainerMain = new System.Windows.Forms.SplitContainer();
             this.dataGridViewRows = new System.Windows.Forms.DataGridView();
             this.ColumnEnabled = new System.Windows.Forms.DataGridViewCheckBoxColumn();
+            this.ColumnValue1 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.ColumnOperator = new System.Windows.Forms.DataGridViewComboBoxColumn();
-            this.ColumnSourceMode = new System.Windows.Forms.DataGridViewComboBoxColumn();
-            this.ColumnSourceSummary = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.ColumnConstantText = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.ColumnVariableName = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.ColumnResultVariableName = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.ColumnValue2 = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.ColumnOutputVariableName = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.ColumnNote = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.tableLayoutPanelRight = new System.Windows.Forms.TableLayoutPanel();
+            this.groupBoxOperand = new System.Windows.Forms.GroupBox();
+            this.buttonApplyConstant = new System.Windows.Forms.Button();
+            this.textBoxConstant = new System.Windows.Forms.TextBox();
+            this.labelConstant = new System.Windows.Forms.Label();
+            this.radioButtonValue2 = new System.Windows.Forms.RadioButton();
+            this.radioButtonValue1 = new System.Windows.Forms.RadioButton();
             this.groupBoxSources = new System.Windows.Forms.GroupBox();
             this.treeViewSources = new System.Windows.Forms.TreeView();
             this.panelSourceBottom = new System.Windows.Forms.Panel();
@@ -69,6 +73,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.splitContainerMain.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridViewRows)).BeginInit();
             this.tableLayoutPanelRight.SuspendLayout();
+            this.groupBoxOperand.SuspendLayout();
             this.groupBoxSources.SuspendLayout();
             this.panelSourceBottom.SuspendLayout();
             this.groupBoxVariables.SuspendLayout();
@@ -137,9 +142,9 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.labelTip.ForeColor = System.Drawing.Color.DimGray;
             this.labelTip.Location = new System.Drawing.Point(245, 19);
             this.labelTip.Name = "labelTip";
-            this.labelTip.Size = new System.Drawing.Size(584, 18);
+            this.labelTip.Size = new System.Drawing.Size(692, 18);
             this.labelTip.TabIndex = 2;
-            this.labelTip.Text = "第一条启用行作为起始值，后续行按运算符依次作用到累计结果";
+            this.labelTip.Text = "每行独立计算：值1 与 值2 做四则运算，并输出一个可订阅变量名";
             // 
             // splitContainerMain
             // 
@@ -168,12 +173,10 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.dataGridViewRows.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dataGridViewRows.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
             this.ColumnEnabled,
+            this.ColumnValue1,
             this.ColumnOperator,
-            this.ColumnSourceMode,
-            this.ColumnSourceSummary,
-            this.ColumnConstantText,
-            this.ColumnVariableName,
-            this.ColumnResultVariableName,
+            this.ColumnValue2,
+            this.ColumnOutputVariableName,
             this.ColumnNote});
             this.dataGridViewRows.Dock = System.Windows.Forms.DockStyle.Fill;
             this.dataGridViewRows.Location = new System.Drawing.Point(0, 0);
@@ -191,65 +194,47 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // ColumnEnabled
             // 
             this.ColumnEnabled.DataPropertyName = "Enabled";
-            this.ColumnEnabled.FillWeight = 48F;
+            this.ColumnEnabled.FillWeight = 45F;
             this.ColumnEnabled.HeaderText = "启用";
             this.ColumnEnabled.MinimumWidth = 45;
             this.ColumnEnabled.Name = "ColumnEnabled";
+            // 
+            // ColumnValue1
+            // 
+            this.ColumnValue1.DataPropertyName = "Value1Summary";
+            this.ColumnValue1.FillWeight = 155F;
+            this.ColumnValue1.HeaderText = "值1";
+            this.ColumnValue1.MinimumWidth = 150;
+            this.ColumnValue1.Name = "ColumnValue1";
+            this.ColumnValue1.ReadOnly = true;
             // 
             // ColumnOperator
             // 
             this.ColumnOperator.DataPropertyName = "Operator";
             this.ColumnOperator.DisplayStyle = System.Windows.Forms.DataGridViewComboBoxDisplayStyle.ComboBox;
-            this.ColumnOperator.FillWeight = 60F;
+            this.ColumnOperator.FillWeight = 58F;
             this.ColumnOperator.HeaderText = "运算";
-            this.ColumnOperator.MinimumWidth = 60;
+            this.ColumnOperator.MinimumWidth = 58;
             this.ColumnOperator.Name = "ColumnOperator";
             this.ColumnOperator.Resizable = System.Windows.Forms.DataGridViewTriState.True;
             this.ColumnOperator.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.Automatic;
             // 
-            // ColumnSourceMode
+            // ColumnValue2
             // 
-            this.ColumnSourceMode.DataPropertyName = "SourceMode";
-            this.ColumnSourceMode.DisplayStyle = System.Windows.Forms.DataGridViewComboBoxDisplayStyle.ComboBox;
-            this.ColumnSourceMode.FillWeight = 82F;
-            this.ColumnSourceMode.HeaderText = "来源";
-            this.ColumnSourceMode.MinimumWidth = 80;
-            this.ColumnSourceMode.Name = "ColumnSourceMode";
-            this.ColumnSourceMode.Resizable = System.Windows.Forms.DataGridViewTriState.True;
-            this.ColumnSourceMode.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.Automatic;
+            this.ColumnValue2.DataPropertyName = "Value2Summary";
+            this.ColumnValue2.FillWeight = 155F;
+            this.ColumnValue2.HeaderText = "值2";
+            this.ColumnValue2.MinimumWidth = 150;
+            this.ColumnValue2.Name = "ColumnValue2";
+            this.ColumnValue2.ReadOnly = true;
             // 
-            // ColumnSourceSummary
+            // ColumnOutputVariableName
             // 
-            this.ColumnSourceSummary.DataPropertyName = "SourceSummary";
-            this.ColumnSourceSummary.FillWeight = 170F;
-            this.ColumnSourceSummary.HeaderText = "来源摘要";
-            this.ColumnSourceSummary.MinimumWidth = 160;
-            this.ColumnSourceSummary.Name = "ColumnSourceSummary";
-            this.ColumnSourceSummary.ReadOnly = true;
-            // 
-            // ColumnConstantText
-            // 
-            this.ColumnConstantText.DataPropertyName = "ConstantText";
-            this.ColumnConstantText.FillWeight = 75F;
-            this.ColumnConstantText.HeaderText = "常量";
-            this.ColumnConstantText.MinimumWidth = 70;
-            this.ColumnConstantText.Name = "ColumnConstantText";
-            // 
-            // ColumnVariableName
-            // 
-            this.ColumnVariableName.DataPropertyName = "VariableName";
-            this.ColumnVariableName.FillWeight = 85F;
-            this.ColumnVariableName.HeaderText = "引用变量";
-            this.ColumnVariableName.MinimumWidth = 80;
-            this.ColumnVariableName.Name = "ColumnVariableName";
-            // 
-            // ColumnResultVariableName
-            // 
-            this.ColumnResultVariableName.DataPropertyName = "ResultVariableName";
-            this.ColumnResultVariableName.FillWeight = 95F;
-            this.ColumnResultVariableName.HeaderText = "输出变量";
-            this.ColumnResultVariableName.MinimumWidth = 85;
-            this.ColumnResultVariableName.Name = "ColumnResultVariableName";
+            this.ColumnOutputVariableName.DataPropertyName = "OutputVariableName";
+            this.ColumnOutputVariableName.FillWeight = 100F;
+            this.ColumnOutputVariableName.HeaderText = "输出变量名";
+            this.ColumnOutputVariableName.MinimumWidth = 95;
+            this.ColumnOutputVariableName.Name = "ColumnOutputVariableName";
             // 
             // ColumnNote
             // 
@@ -263,16 +248,83 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // 
             this.tableLayoutPanelRight.ColumnCount = 1;
             this.tableLayoutPanelRight.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanelRight.Controls.Add(this.groupBoxSources, 0, 0);
-            this.tableLayoutPanelRight.Controls.Add(this.groupBoxVariables, 0, 1);
+            this.tableLayoutPanelRight.Controls.Add(this.groupBoxOperand, 0, 0);
+            this.tableLayoutPanelRight.Controls.Add(this.groupBoxSources, 0, 1);
+            this.tableLayoutPanelRight.Controls.Add(this.groupBoxVariables, 0, 2);
             this.tableLayoutPanelRight.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanelRight.Location = new System.Drawing.Point(0, 0);
             this.tableLayoutPanelRight.Name = "tableLayoutPanelRight";
-            this.tableLayoutPanelRight.RowCount = 2;
-            this.tableLayoutPanelRight.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 68F));
-            this.tableLayoutPanelRight.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 32F));
+            this.tableLayoutPanelRight.RowCount = 3;
+            this.tableLayoutPanelRight.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 118F));
+            this.tableLayoutPanelRight.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 65F));
+            this.tableLayoutPanelRight.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 35F));
             this.tableLayoutPanelRight.Size = new System.Drawing.Size(372, 506);
             this.tableLayoutPanelRight.TabIndex = 0;
+            // 
+            // groupBoxOperand
+            // 
+            this.groupBoxOperand.Controls.Add(this.buttonApplyConstant);
+            this.groupBoxOperand.Controls.Add(this.textBoxConstant);
+            this.groupBoxOperand.Controls.Add(this.labelConstant);
+            this.groupBoxOperand.Controls.Add(this.radioButtonValue2);
+            this.groupBoxOperand.Controls.Add(this.radioButtonValue1);
+            this.groupBoxOperand.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.groupBoxOperand.Font = new System.Drawing.Font("宋体", 10.5F);
+            this.groupBoxOperand.Location = new System.Drawing.Point(3, 3);
+            this.groupBoxOperand.Name = "groupBoxOperand";
+            this.groupBoxOperand.Size = new System.Drawing.Size(366, 112);
+            this.groupBoxOperand.TabIndex = 0;
+            this.groupBoxOperand.TabStop = false;
+            this.groupBoxOperand.Text = "当前行值设置";
+            // 
+            // buttonApplyConstant
+            // 
+            this.buttonApplyConstant.Location = new System.Drawing.Point(246, 68);
+            this.buttonApplyConstant.Name = "buttonApplyConstant";
+            this.buttonApplyConstant.Size = new System.Drawing.Size(106, 32);
+            this.buttonApplyConstant.TabIndex = 4;
+            this.buttonApplyConstant.Text = "应用常量";
+            this.buttonApplyConstant.UseVisualStyleBackColor = true;
+            this.buttonApplyConstant.Click += new System.EventHandler(this.buttonApplyConstant_Click);
+            // 
+            // textBoxConstant
+            // 
+            this.textBoxConstant.Location = new System.Drawing.Point(68, 70);
+            this.textBoxConstant.Name = "textBoxConstant";
+            this.textBoxConstant.Size = new System.Drawing.Size(166, 27);
+            this.textBoxConstant.TabIndex = 3;
+            this.textBoxConstant.Text = "0";
+            // 
+            // labelConstant
+            // 
+            this.labelConstant.AutoSize = true;
+            this.labelConstant.Location = new System.Drawing.Point(15, 74);
+            this.labelConstant.Name = "labelConstant";
+            this.labelConstant.Size = new System.Drawing.Size(44, 18);
+            this.labelConstant.TabIndex = 2;
+            this.labelConstant.Text = "常量";
+            // 
+            // radioButtonValue2
+            // 
+            this.radioButtonValue2.AutoSize = true;
+            this.radioButtonValue2.Location = new System.Drawing.Point(97, 31);
+            this.radioButtonValue2.Name = "radioButtonValue2";
+            this.radioButtonValue2.Size = new System.Drawing.Size(69, 22);
+            this.radioButtonValue2.TabIndex = 1;
+            this.radioButtonValue2.Text = "值2";
+            this.radioButtonValue2.UseVisualStyleBackColor = true;
+            // 
+            // radioButtonValue1
+            // 
+            this.radioButtonValue1.AutoSize = true;
+            this.radioButtonValue1.Checked = true;
+            this.radioButtonValue1.Location = new System.Drawing.Point(18, 31);
+            this.radioButtonValue1.Name = "radioButtonValue1";
+            this.radioButtonValue1.Size = new System.Drawing.Size(69, 22);
+            this.radioButtonValue1.TabIndex = 0;
+            this.radioButtonValue1.TabStop = true;
+            this.radioButtonValue1.Text = "值1";
+            this.radioButtonValue1.UseVisualStyleBackColor = true;
             // 
             // groupBoxSources
             // 
@@ -280,10 +332,10 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.groupBoxSources.Controls.Add(this.panelSourceBottom);
             this.groupBoxSources.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBoxSources.Font = new System.Drawing.Font("宋体", 10.5F);
-            this.groupBoxSources.Location = new System.Drawing.Point(3, 3);
+            this.groupBoxSources.Location = new System.Drawing.Point(3, 121);
             this.groupBoxSources.Name = "groupBoxSources";
-            this.groupBoxSources.Size = new System.Drawing.Size(366, 338);
-            this.groupBoxSources.TabIndex = 0;
+            this.groupBoxSources.Size = new System.Drawing.Size(366, 246);
+            this.groupBoxSources.TabIndex = 1;
             this.groupBoxSources.TabStop = false;
             this.groupBoxSources.Text = "上游可订阅数值";
             // 
@@ -293,7 +345,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.treeViewSources.HideSelection = false;
             this.treeViewSources.Location = new System.Drawing.Point(3, 23);
             this.treeViewSources.Name = "treeViewSources";
-            this.treeViewSources.Size = new System.Drawing.Size(360, 267);
+            this.treeViewSources.Size = new System.Drawing.Size(360, 175);
             this.treeViewSources.TabIndex = 0;
             this.treeViewSources.NodeMouseDoubleClick += new System.Windows.Forms.TreeNodeMouseClickEventHandler(this.treeViewSources_NodeMouseDoubleClick);
             // 
@@ -301,7 +353,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // 
             this.panelSourceBottom.Controls.Add(this.buttonSelectProperty);
             this.panelSourceBottom.Dock = System.Windows.Forms.DockStyle.Bottom;
-            this.panelSourceBottom.Location = new System.Drawing.Point(3, 290);
+            this.panelSourceBottom.Location = new System.Drawing.Point(3, 198);
             this.panelSourceBottom.Name = "panelSourceBottom";
             this.panelSourceBottom.Size = new System.Drawing.Size(360, 45);
             this.panelSourceBottom.TabIndex = 1;
@@ -323,12 +375,12 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.groupBoxVariables.Controls.Add(this.panelVariableBottom);
             this.groupBoxVariables.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBoxVariables.Font = new System.Drawing.Font("宋体", 10.5F);
-            this.groupBoxVariables.Location = new System.Drawing.Point(3, 347);
+            this.groupBoxVariables.Location = new System.Drawing.Point(3, 373);
             this.groupBoxVariables.Name = "groupBoxVariables";
-            this.groupBoxVariables.Size = new System.Drawing.Size(366, 156);
-            this.groupBoxVariables.TabIndex = 1;
+            this.groupBoxVariables.Size = new System.Drawing.Size(366, 130);
+            this.groupBoxVariables.TabIndex = 2;
             this.groupBoxVariables.TabStop = false;
-            this.groupBoxVariables.Text = "前序内部变量";
+            this.groupBoxVariables.Text = "前序输出变量";
             // 
             // listBoxVariables
             // 
@@ -337,7 +389,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.listBoxVariables.ItemHeight = 17;
             this.listBoxVariables.Location = new System.Drawing.Point(3, 23);
             this.listBoxVariables.Name = "listBoxVariables";
-            this.listBoxVariables.Size = new System.Drawing.Size(360, 85);
+            this.listBoxVariables.Size = new System.Drawing.Size(360, 59);
             this.listBoxVariables.TabIndex = 0;
             this.listBoxVariables.DoubleClick += new System.EventHandler(this.listBoxVariables_DoubleClick);
             // 
@@ -345,7 +397,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // 
             this.panelVariableBottom.Controls.Add(this.buttonUseVariable);
             this.panelVariableBottom.Dock = System.Windows.Forms.DockStyle.Bottom;
-            this.panelVariableBottom.Location = new System.Drawing.Point(3, 108);
+            this.panelVariableBottom.Location = new System.Drawing.Point(3, 82);
             this.panelVariableBottom.Name = "panelVariableBottom";
             this.panelVariableBottom.Size = new System.Drawing.Size(360, 45);
             this.panelVariableBottom.TabIndex = 1;
@@ -493,6 +545,8 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.splitContainerMain.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.dataGridViewRows)).EndInit();
             this.tableLayoutPanelRight.ResumeLayout(false);
+            this.groupBoxOperand.ResumeLayout(false);
+            this.groupBoxOperand.PerformLayout();
             this.groupBoxSources.ResumeLayout(false);
             this.panelSourceBottom.ResumeLayout(false);
             this.groupBoxVariables.ResumeLayout(false);
@@ -514,6 +568,12 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
         private System.Windows.Forms.SplitContainer splitContainerMain;
         private System.Windows.Forms.DataGridView dataGridViewRows;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanelRight;
+        private System.Windows.Forms.GroupBox groupBoxOperand;
+        private System.Windows.Forms.Button buttonApplyConstant;
+        private System.Windows.Forms.TextBox textBoxConstant;
+        private System.Windows.Forms.Label labelConstant;
+        private System.Windows.Forms.RadioButton radioButtonValue2;
+        private System.Windows.Forms.RadioButton radioButtonValue1;
         private System.Windows.Forms.GroupBox groupBoxSources;
         private System.Windows.Forms.TreeView treeViewSources;
         private System.Windows.Forms.Panel panelSourceBottom;
@@ -533,12 +593,10 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
         private System.Windows.Forms.Button buttonCancel;
         private System.Windows.Forms.Button buttonSave;
         private System.Windows.Forms.DataGridViewCheckBoxColumn ColumnEnabled;
+        private System.Windows.Forms.DataGridViewTextBoxColumn ColumnValue1;
         private System.Windows.Forms.DataGridViewComboBoxColumn ColumnOperator;
-        private System.Windows.Forms.DataGridViewComboBoxColumn ColumnSourceMode;
-        private System.Windows.Forms.DataGridViewTextBoxColumn ColumnSourceSummary;
-        private System.Windows.Forms.DataGridViewTextBoxColumn ColumnConstantText;
-        private System.Windows.Forms.DataGridViewTextBoxColumn ColumnVariableName;
-        private System.Windows.Forms.DataGridViewTextBoxColumn ColumnResultVariableName;
+        private System.Windows.Forms.DataGridViewTextBoxColumn ColumnValue2;
+        private System.Windows.Forms.DataGridViewTextBoxColumn ColumnOutputVariableName;
         private System.Windows.Forms.DataGridViewTextBoxColumn ColumnNote;
     }
 }

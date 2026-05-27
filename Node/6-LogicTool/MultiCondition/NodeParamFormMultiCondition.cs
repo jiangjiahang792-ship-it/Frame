@@ -371,6 +371,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                     TreeNode sourceTreeNode = new TreeNode(GetNodeText(sourceNode));
                     treeViewSources.Nodes.Add(sourceTreeNode);
 
+                    AddDynamicVariableNodes(sourceTreeNode, sourceNode);
                     if (sourceNode.Result != null)
                         AddMemberNodes(sourceTreeNode, sourceNode, sourceNode.Result.GetType(), string.Empty, string.Empty, 0);
                 }
@@ -378,6 +379,32 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 
             treeViewSources.ExpandAll();
             treeViewSources.EndUpdate();
+        }
+
+        /// <summary>
+        /// 添加支持动态订阅的输出变量节点。
+        /// </summary>
+        private void AddDynamicVariableNodes(TreeNode sourceTreeNode, NodeBase sourceNode)
+        {
+            List<string> names = DynamicResultVariableResolver.GetVariableNames(sourceNode);
+            if (names.Count == 0)
+                return;
+
+            TreeNode variableGroup = new TreeNode("输出变量");
+            sourceTreeNode.Nodes.Add(variableGroup);
+            foreach (string name in names)
+            {
+                TreeNode propertyNode = new TreeNode(name);
+                propertyNode.Tag = new ResultPropertyOption
+                {
+                    SourceNodeId = sourceNode.ID,
+                    SourceNodeText = GetNodeText(sourceNode),
+                    PropertyPath = DynamicResultVariableResolver.ToPropertyPath(name),
+                    PropertyDisplayName = name,
+                    ValueType = typeof(double)
+                };
+                variableGroup.Nodes.Add(propertyNode);
+            }
         }
 
         private void AddMemberNodes(
