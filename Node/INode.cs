@@ -385,5 +385,9 @@ namespace TDJS_Vision.Node
         /// 四则运算
         /// </summary>
         ArithmeticOperation,
+        /// <summary>
+        /// 组合模块
+        /// </summary>
+        CompositeModule,
     }
 }

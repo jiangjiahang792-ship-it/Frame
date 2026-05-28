@@ -44,6 +44,7 @@ using TDJS_Vision.Node._5_EquipmentCommunication.TcpClient;
 using TDJS_Vision.Node._5_EquipmentCommunication.TcpServer;
 using TDJS_Vision.Node._6_LogicTool.ConditionRun;
 using TDJS_Vision.Node._6_LogicTool.ArithmeticOperation;
+using TDJS_Vision.Node._6_LogicTool.CompositeModule;
 using TDJS_Vision.Node._6_LogicTool.CSharpScript;
 using TDJS_Vision.Node._6_LogicTool.Else;
 using TDJS_Vision.Node._6_LogicTool.EndIf;
@@ -170,10 +171,13 @@ namespace TDJS_Vision.Forms.ProcessNew
             UpdateFlowCanvasOverlayBounds();
         }
 
-        private void ProcessFlowCanvas_OverlayInvalidated(object sender, EventArgs e)
+        private void ProcessFlowCanvas_OverlayInvalidated(object sender, FlowCanvasOverlayInvalidatedEventArgs e)
         {
-            imagePreviewOverlay.Invalidate();
-            minimapOverlay.Invalidate();
+            if (e == null || e.InvalidateImagePreview)
+                imagePreviewOverlay.Invalidate();
+
+            if (e == null || e.InvalidateMinimap)
+                minimapOverlay.Invalidate();
         }
 
         private void ProcessFlowCanvas_SizeChanged(object sender, EventArgs e)
@@ -687,6 +691,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.ArithmeticOperation:
                     node = new NodeArithmeticOperation(nodeId, nodeName, _process, nodeType);
                     break;
+                case NodeType.CompositeModule:
+                    node = new NodeCompositeModule(nodeId, nodeName, _process, nodeType);
+                    break;
                 case NodeType.Else:
                     node = new NodeElse(nodeId, nodeName, _process, nodeType);
                     break;
@@ -890,11 +897,12 @@ namespace TDJS_Vision.Forms.ProcessNew
                 FormGlobalSignal.StartListenSignals();
                 listenStarted = true;
                 _process.IsHandRun = true;
-                await _process.Run(false);
+                await RunCurrentProcessInBackgroundAsync(false);
             }
             catch (Exception) { }
             finally
             {
+                _process.IsHandRun = false;
                 if (listenStarted)
                     FormGlobalSignal.StopListenSignals();
             }
@@ -926,7 +934,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 while (!Solution.Instance.CancellationToken.IsCancellationRequested)
                 {
                     _process.IsHandRun = true;
-                    await _process.Run(false);
+                    await RunCurrentProcessInBackgroundAsync(false);
 
                     int interval = Math.Max(1, Solution.Instance.RunInterval);
                     await System.Threading.Tasks.Task.Delay(interval, Solution.Instance.CancellationToken);
@@ -939,6 +947,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
             finally
             {
+                _process.IsHandRun = false;
                 if (listenStarted)
                     FormGlobalSignal.StopListenSignals();
 
@@ -947,6 +956,34 @@ namespace TDJS_Vision.Forms.ProcessNew
                 buttonLoop.Enabled = true;
                 buttonStop.Enabled = false;
             }
+        }
+
+        /// <summary>
+        /// 在后台线程执行当前流程，避免手动运行时同步节点计算阻塞流程图交互。
+        /// </summary>
+        /// <param name="isCyclical">是否循环运行。</param>
+        /// <returns>流程运行任务。</returns>
+        private System.Threading.Tasks.Task RunCurrentProcessInBackgroundAsync(bool isCyclical)
+        {
+            System.Threading.Tasks.TaskCompletionSource<object> completionSource = new System.Threading.Tasks.TaskCompletionSource<object>();
+            System.Threading.Thread runThread = new System.Threading.Thread(() =>
+            {
+                try
+                {
+                    _process.Run(isCyclical).GetAwaiter().GetResult();
+                    completionSource.TrySetResult(null);
+                }
+                catch (Exception ex)
+                {
+                    completionSource.TrySetException(ex);
+                }
+            });
+
+            runThread.IsBackground = true;
+            runThread.Name = "流程手动运行-" + _process.ProcessName;
+            runThread.Priority = System.Threading.ThreadPriority.BelowNormal;
+            runThread.Start();
+            return completionSource.Task;
         }
 
         /// <summary>

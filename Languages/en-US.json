@@ -278,6 +278,7 @@
   "ProcessNew.NodeType.If": "If",
   "ProcessNew.NodeType.MultiCondition": "Multi Condition",
   "ProcessNew.NodeType.ArithmeticOperation": "Arithmetic Operation",
+  "ProcessNew.NodeType.CompositeModule": "Composite Module",
   "ProcessNew.NodeType.Else": "Else",
   "ProcessNew.NodeType.EndIf": "End If",
   "ProcessNew.NodeType.BatteryEar": "Battery Tab Detection",

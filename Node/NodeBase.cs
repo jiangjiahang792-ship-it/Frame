@@ -23,6 +23,14 @@ namespace TDJS_Vision.Node
         private string _runtimeTimeText = "*";
         private FrmNodeRename _frmNodeRename;
         /// <summary>
+        /// 运行状态字段的同步锁，流程后台运行时状态会从工作线程写入。
+        /// </summary>
+        private readonly object _runtimeStateLock = new object();
+        /// <summary>
+        /// 标记运行状态 UI 刷新是否已投递到 UI 线程，避免大量 BeginInvoke 堆积。
+        /// </summary>
+        private bool _runtimeUiUpdatePosted;
+        /// <summary>
         /// 节点所属流程
         /// </summary>
         public Process Process; 
@@ -190,6 +198,16 @@ namespace TDJS_Vision.Node
                 _runtimeStatus == NodeStatus.Successful;
         }
 
+        /// <summary>
+        /// 控件句柄创建后按照当前运行状态补一次界面，兼容节点控件延迟显示的场景。
+        /// </summary>
+        /// <param name="e">事件参数。</param>
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            RequestRuntimeUiUpdate();
+        }
+
         public void ApplyResultOutcomeStatus()
         {
             if (_runtimeStatus != NodeStatus.Successful || Result == null)
@@ -201,31 +219,30 @@ namespace TDJS_Vision.Node
 
         private void MarkResultNg()
         {
-            if (InvokeRequired == false)
+            bool changed = false;
+            lock (_runtimeStateLock)
             {
-                UpdateResultNgUI();
-            }
-            else
-            {
-                Invoke((MethodInvoker)delegate
+                if (_runtimeStatus == NodeStatus.Successful && !_runtimeResultNg)
                 {
-                    UpdateResultNgUI();
-                });
+                    _runtimeResultNg = true;
+                    changed = true;
+                }
             }
-        }
 
-        private void UpdateResultNgUI()
-        {
-            if (_runtimeStatus != NodeStatus.Successful)
+            if (!changed)
                 return;
 
-            _runtimeResultNg = true;
+            NodeStatusChanged?.Invoke(this, this);
+            RequestRuntimeUiUpdate();
+        }
+
+        private void UpdateResultNgUI(string runtimeTimeText)
+        {
             uiLight1.OnColor = Color.DarkOrange;
             uiLight1.OnCenterColor = Color.Orange;
             uiLight1.State = Sunny.UI.UILightState.On;
             label2.ForeColor = Color.DarkOrange;
-            label2.Text = $"{_runtimeTimeText} ms NG";
-            NodeStatusChanged?.Invoke(this, this);
+            label2.Text = $"{runtimeTimeText} ms NG";
         }
 
         private static bool ResultIndicatesNg(INodeResult result)
@@ -344,33 +361,101 @@ namespace TDJS_Vision.Node
         /// <param name=""></param>
         public void SetStatus(NodeStatus status, string time)
         {
-            if (this.InvokeRequired == false)
+            string displayTime = string.IsNullOrEmpty(time) ? "*" : time;
+            NodeStatus displayStatus = GetDisplayStatus(status, displayTime);
+            bool changed = false;
+
+            lock (_runtimeStateLock)
             {
-                UpdateNodeUI(status, time);
+                if (_runtimeStatus == displayStatus &&
+                    _runtimeTimeText == displayTime &&
+                    !_runtimeResultNg)
+                {
+                    return;
+                }
+
+                _runtimeStatus = displayStatus;
+                _runtimeTimeText = displayTime;
+                _runtimeResultNg = false;
+                changed = true;
             }
-            else
-            {
-                this.Invoke((MethodInvoker)delegate {
-                    UpdateNodeUI(status, time);
-                });
-            }
+
+            if (!changed)
+                return;
+
+            NodeStatusChanged?.Invoke(this, this);
+            RequestRuntimeUiUpdate();
         }
 
-        private void UpdateNodeUI(NodeStatus status, string time)
+        /// <summary>
+        /// 根据流程运行态把业务状态转换成界面显示状态。
+        /// </summary>
+        /// <param name="status">业务状态。</param>
+        /// <param name="displayTime">显示耗时文本。</param>
+        /// <returns>界面显示状态。</returns>
+        private NodeStatus GetDisplayStatus(NodeStatus status, string displayTime)
         {
-            string displayTime = string.IsNullOrEmpty(time) ? "*" : time;
-            NodeStatus displayStatus = status;
             if (status == NodeStatus.Unexecuted &&
                 displayTime == "*" &&
                 Process != null &&
                 Process.IsRuning)
             {
-                displayStatus = NodeStatus.Running;
+                return NodeStatus.Running;
             }
 
-            _runtimeStatus = displayStatus;
-            _runtimeTimeText = displayTime;
-            _runtimeResultNg = false;
+            return status;
+        }
+
+        /// <summary>
+        /// 请求刷新节点控件显示，后台线程只投递一次异步 UI 更新。
+        /// </summary>
+        private void RequestRuntimeUiUpdate()
+        {
+            if (IsDisposed || Disposing || !IsHandleCreated)
+                return;
+
+            if (InvokeRequired)
+            {
+                bool shouldPost = false;
+                lock (_runtimeStateLock)
+                {
+                    if (!_runtimeUiUpdatePosted)
+                    {
+                        _runtimeUiUpdatePosted = true;
+                        shouldPost = true;
+                    }
+                }
+
+                if (!shouldPost)
+                    return;
+
+                try
+                {
+                    BeginInvoke((MethodInvoker)UpdateNodeUI);
+                }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+                return;
+            }
+
+            UpdateNodeUI();
+        }
+
+        private void UpdateNodeUI()
+        {
+            if (IsDisposed || Disposing)
+                return;
+
+            NodeStatus displayStatus;
+            string displayTime;
+            bool runtimeResultNg;
+            lock (_runtimeStateLock)
+            {
+                displayStatus = _runtimeStatus;
+                displayTime = _runtimeTimeText;
+                runtimeResultNg = _runtimeResultNg;
+                _runtimeUiUpdatePosted = false;
+            }
 
             label2.Text = displayStatus == NodeStatus.Running ? "运行中" : $"{displayTime} ms";
             switch (displayStatus)
@@ -402,7 +487,8 @@ namespace TDJS_Vision.Node
                     break;
             }
 
-            NodeStatusChanged?.Invoke(this, this);
+            if (runtimeResultNg && displayStatus == NodeStatus.Successful)
+                UpdateResultNgUI(displayTime);
         }
 
         /// <summary>

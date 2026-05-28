@@ -73,6 +73,7 @@
         <Node Text="如果" ImageName="If" Tag="If" SelectedImageName="If" />
         <Node Text="多条件判断" ImageName="If" Tag="MultiCondition" SelectedImageName="If" />
         <Node Text="四则运算" ImageName="逻辑工具" Tag="ArithmeticOperation" SelectedImageName="逻辑工具" />
+        <Node Text="组合模块" ImageName="逻辑工具" Tag="CompositeModule" SelectedImageName="逻辑工具" />
         <Node Text="C#脚本" ImageName="C#脚本" Tag="CSharpScript" SelectedImageName="C#脚本" />
 		<Node Text="弹窗" ImageName="弹窗" Tag="MessageBox" SelectedImageName="弹窗" />
       </Nodes>

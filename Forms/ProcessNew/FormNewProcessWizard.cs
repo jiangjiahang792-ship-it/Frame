@@ -836,6 +836,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.If:
                 case NodeType.MultiCondition:
                 case NodeType.ArithmeticOperation:
+                case NodeType.CompositeModule:
                 case NodeType.Else:
                 case NodeType.EndIf:
                 case NodeType.CSharpScript:
@@ -945,6 +946,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return "MC";
                 case NodeType.ArithmeticOperation:
                     return "OP";
+                case NodeType.CompositeModule:
+                    return "CM";
                 case NodeType.CSharpScript:
                     return "C#";
                 case NodeType.MessageBox:

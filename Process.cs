@@ -244,7 +244,8 @@ namespace TDJS_Vision
         /// </summary>
         private async Task<bool> RunConnectedNodes(NodeBase nodeToSkip = null, NodeBase stopBeforeNode = null)
         {
-            if (nodeToSkip != null ||
+            if (IsHandRun ||
+                nodeToSkip != null ||
                 stopBeforeNode != null ||
                 !CanUseParallelConnectedRuntime())
             {

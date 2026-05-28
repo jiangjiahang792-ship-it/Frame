@@ -46,6 +46,14 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// 绘制可视区域时额外扩展的像素，避免阴影、锚点和连线端帽在边界处被裁掉。
         /// </summary>
         private const int ViewportDrawPadding = 96;
+        /// <summary>
+        /// 运行状态刷新合并间隔，避免流程运行时大量节点状态变化挤占拖动和缩放交互。
+        /// </summary>
+        private const int RuntimeInvalidationIntervalMs = 80;
+        /// <summary>
+        /// 用户正在拖动、滚动或缩放时延后运行状态重绘的时间，优先保证交互响应。
+        /// </summary>
+        private const int RuntimeInteractionDeferMs = 180;
 
         private Process _process;
         private NodeBase _dragNode;
@@ -112,6 +120,38 @@ namespace TDJS_Vision.Forms.ProcessNew
         private Bitmap _cachedPreviewBitmap;
         private Rectangle _minimapBounds = Rectangle.Empty;
         private Rectangle _minimapCanvasBounds = Rectangle.Empty;
+        /// <summary>
+        /// 缩略图静态图层缓存，滚动和缩放时只重绘视口框，避免反复遍历全部节点和连线。
+        /// </summary>
+        private Bitmap _cachedMinimapBitmap;
+        /// <summary>
+        /// 缩略图缓存对应的控件尺寸。
+        /// </summary>
+        private Size _cachedMinimapBitmapSize = Size.Empty;
+        /// <summary>
+        /// 缩略图静态图层是否需要重新生成。
+        /// </summary>
+        private bool _minimapCacheDirty = true;
+        /// <summary>
+        /// 运行状态待刷新节点集合的同步锁，状态事件可能来自后台运行线程。
+        /// </summary>
+        private readonly object _runtimeInvalidationLock = new object();
+        /// <summary>
+        /// 等待合并刷新的运行状态节点 ID 集合。
+        /// </summary>
+        private readonly HashSet<int> _pendingRuntimeInvalidationNodeIds = new HashSet<int>();
+        /// <summary>
+        /// UI 线程上的运行状态刷新节流定时器。
+        /// </summary>
+        private readonly Timer _runtimeInvalidationTimer = new Timer();
+        /// <summary>
+        /// 标记是否已经投递过启动节流定时器的 UI 消息。
+        /// </summary>
+        private bool _runtimeInvalidationStartPosted;
+        /// <summary>
+        /// 运行状态刷新延后到此时间之后，避免运行过程中拖动和缩放被重绘抢占。
+        /// </summary>
+        private DateTime _runtimeInvalidationDeferredUntilUtc = DateTime.MinValue;
 
         private const float MinZoomFactor = 0.5F;
         private const float MaxZoomFactor = 2F;
@@ -122,7 +162,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         public event EventHandler HistoryChanged;
         public event EventHandler NodeCollectionChanged;
         public event EventHandler ZoomChanged;
-        public event EventHandler OverlayInvalidated;
+        public event EventHandler<FlowCanvasOverlayInvalidatedEventArgs> OverlayInvalidated;
 
         public Point LastContextMenuCanvasPoint { get; private set; }
 
@@ -153,6 +193,8 @@ namespace TDJS_Vision.Forms.ProcessNew
             UpdateScaledCanvasSize();
             BackColor = CanvasBackColor;
             NodeBase.NodeStatusChanged += NodeBase_NodeStatusChanged;
+            _runtimeInvalidationTimer.Interval = RuntimeInvalidationIntervalMs;
+            _runtimeInvalidationTimer.Tick += RuntimeInvalidationTimer_Tick;
             _previewImageMenu.ShowImageMargin = false;
             _previewImageMenu.BackColor = Color.FromArgb(42, 44, 48);
             _previewImageMenu.ForeColor = Color.FromArgb(222, 229, 236);
@@ -173,6 +215,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             _alignmentGuides.Clear();
             _connectionRouteCache.Clear();
             InvalidateCanvasTopologyCaches();
+            ClearPendingRuntimeInvalidations();
             ClearDragInteractionCache();
             _selectedPreviewImageKey = null;
             DisposePreviewCache();
@@ -186,8 +229,12 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (disposing)
             {
                 NodeBase.NodeStatusChanged -= NodeBase_NodeStatusChanged;
+                _runtimeInvalidationTimer.Stop();
+                _runtimeInvalidationTimer.Tick -= RuntimeInvalidationTimer_Tick;
+                _runtimeInvalidationTimer.Dispose();
                 _previewImageMenu.Dispose();
                 DisposePreviewCache();
+                DisposeMinimapCache();
             }
 
             base.Dispose(disposing);
@@ -197,23 +244,205 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             if (_process == null ||
                 node == null ||
-                !_process.Nodes.Contains(node) ||
+                !ReferenceEquals(node.Process, _process) ||
                 IsDisposed ||
                 Disposing)
+                return;
+
+            QueueRuntimeInvalidation(node.ID);
+        }
+
+        /// <summary>
+        /// 将节点运行状态刷新加入待处理队列，由定时器批量刷新画布小区域。
+        /// </summary>
+        /// <param name="nodeId">运行状态变化的节点 ID。</param>
+        private void QueueRuntimeInvalidation(int nodeId)
+        {
+            bool shouldPostStart = false;
+            lock (_runtimeInvalidationLock)
+            {
+                _pendingRuntimeInvalidationNodeIds.Add(nodeId);
+                if (!_runtimeInvalidationStartPosted)
+                {
+                    _runtimeInvalidationStartPosted = true;
+                    shouldPostStart = true;
+                }
+            }
+
+            if (!shouldPostStart)
                 return;
 
             if (InvokeRequired)
             {
                 try
                 {
-                    BeginInvoke((MethodInvoker)(() => InvalidateRuntimeChange(node)));
+                    BeginInvoke((MethodInvoker)StartRuntimeInvalidationTimer);
                 }
                 catch (ObjectDisposedException) { }
                 catch (InvalidOperationException) { }
                 return;
             }
 
-            InvalidateRuntimeChange(node);
+            StartRuntimeInvalidationTimer();
+        }
+
+        /// <summary>
+        /// 在 UI 线程启动运行状态刷新节流定时器。
+        /// </summary>
+        private void StartRuntimeInvalidationTimer()
+        {
+            lock (_runtimeInvalidationLock)
+                _runtimeInvalidationStartPosted = false;
+
+            if (IsDisposed || Disposing)
+                return;
+
+            if (!_runtimeInvalidationTimer.Enabled)
+                _runtimeInvalidationTimer.Start();
+        }
+
+        /// <summary>
+        /// 定时批量刷新运行状态变化。
+        /// </summary>
+        /// <param name="sender">事件发送者。</param>
+        /// <param name="e">事件参数。</param>
+        private void RuntimeInvalidationTimer_Tick(object sender, EventArgs e)
+        {
+            FlushRuntimeInvalidations();
+        }
+
+        /// <summary>
+        /// 合并本批运行状态变化，只重绘受影响的节点区域。
+        /// </summary>
+        private void FlushRuntimeInvalidations()
+        {
+            List<int> nodeIds;
+            lock (_runtimeInvalidationLock)
+            {
+                if (_pendingRuntimeInvalidationNodeIds.Count == 0)
+                {
+                    _runtimeInvalidationTimer.Stop();
+                    return;
+                }
+            }
+
+            if (ShouldDeferRuntimeInvalidations())
+                return;
+
+            lock (_runtimeInvalidationLock)
+            {
+                if (_pendingRuntimeInvalidationNodeIds.Count == 0)
+                {
+                    _runtimeInvalidationTimer.Stop();
+                    return;
+                }
+
+                nodeIds = _pendingRuntimeInvalidationNodeIds.ToList();
+                _pendingRuntimeInvalidationNodeIds.Clear();
+            }
+
+            EnsureNodeLookup();
+            Rectangle invalidationBounds = Rectangle.Empty;
+            bool shouldRefreshPreview = false;
+            bool previewOverlayVisible = !GetImagePreviewOverlayBounds(ClientSize).IsEmpty;
+            NodeBase selectedNode = SelectedNode;
+            foreach (int nodeId in nodeIds)
+            {
+                NodeBase node = FindNode(nodeId);
+                if (node == null)
+                    continue;
+
+                IncludeCanvasBounds(ref invalidationBounds, GetNodeVisualBounds(node));
+                if (!shouldRefreshPreview &&
+                    ShouldRefreshPreviewForRuntimeNode(node, selectedNode, previewOverlayVisible))
+                {
+                    shouldRefreshPreview = true;
+                }
+            }
+
+            InvalidateCanvasBounds(invalidationBounds);
+            if (shouldRefreshPreview)
+            {
+                DisposePreviewCache();
+                RequestOverlayInvalidate(true, false);
+            }
+
+            lock (_runtimeInvalidationLock)
+            {
+                if (_pendingRuntimeInvalidationNodeIds.Count == 0)
+                    _runtimeInvalidationTimer.Stop();
+            }
+        }
+
+        /// <summary>
+        /// 清理尚未处理的运行状态刷新请求。
+        /// </summary>
+        private void ClearPendingRuntimeInvalidations()
+        {
+            lock (_runtimeInvalidationLock)
+            {
+                _pendingRuntimeInvalidationNodeIds.Clear();
+                _runtimeInvalidationStartPosted = false;
+            }
+
+            _runtimeInvalidationTimer.Stop();
+        }
+
+        /// <summary>
+        /// 当前正在编辑视口时延后运行状态重绘，减少运行线程和拖动画布之间的刷新竞争。
+        /// </summary>
+        private void DeferRuntimeInvalidationsForInteraction()
+        {
+            if (_process == null || !_process.IsRuning)
+                return;
+
+            _runtimeInvalidationDeferredUntilUtc = DateTime.UtcNow.AddMilliseconds(RuntimeInteractionDeferMs);
+        }
+
+        /// <summary>
+        /// 判断本次运行状态刷新是否应等待交互空闲后再执行。
+        /// </summary>
+        /// <returns>需要延后刷新时返回 true。</returns>
+        private bool ShouldDeferRuntimeInvalidations()
+        {
+            return _dragNode != null ||
+                _isSelectingNodes ||
+                _connectionStartNode != null ||
+                DateTime.UtcNow < _runtimeInvalidationDeferredUntilUtc;
+        }
+
+        /// <summary>
+        /// 判断指定节点的运行结果变化是否需要刷新图像预览层。
+        /// </summary>
+        /// <param name="node">运行状态变化的节点。</param>
+        /// <param name="selectedNode">当前选中的节点。</param>
+        /// <param name="previewOverlayVisible">图像预览层当前是否可见。</param>
+        /// <returns>需要刷新图像预览层时返回 true。</returns>
+        private bool ShouldRefreshPreviewForRuntimeNode(NodeBase node, NodeBase selectedNode, bool previewOverlayVisible)
+        {
+            if (node == null || !previewOverlayVisible)
+                return false;
+
+            string nodeKeyPrefix = node.ID + ":";
+            if (!string.IsNullOrEmpty(_selectedPreviewImageKey) &&
+                _selectedPreviewImageKey.StartsWith(nodeKeyPrefix, StringComparison.Ordinal))
+            {
+                return HasPreviewImage(node);
+            }
+
+            if (ReferenceEquals(selectedNode, node))
+                return HasPreviewImage(node);
+
+            if (selectedNode != null)
+                return false;
+
+            if (!string.IsNullOrEmpty(_cachedPreviewKey))
+            {
+                return _cachedPreviewKey.StartsWith(nodeKeyPrefix, StringComparison.Ordinal) &&
+                    HasPreviewImage(node);
+            }
+
+            return HasPreviewImage(node);
         }
 
         public NodeBase SelectedNode
@@ -380,6 +609,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             foreach (NodeBase node in _process.Nodes)
                 node.Selected = selectedNodes != null && selectedNodes.Contains(node);
 
+            InvalidateMinimapCache();
             Invalidate();
             RequestOverlayInvalidate();
         }
@@ -568,6 +798,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             Point canvasPoint = ToCanvasPoint(e.Location);
             if (_dragNode != null && e.Button == MouseButtons.Left)
             {
+                DeferRuntimeInvalidationsForInteraction();
                 Point location = new Point(
                     canvasPoint.X - _dragOffset.X,
                     canvasPoint.Y - _dragOffset.Y);
@@ -582,6 +813,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
             if (_isSelectingNodes && e.Button == MouseButtons.Left)
             {
+                DeferRuntimeInvalidationsForInteraction();
                 Rectangle oldBounds = GetSelectionInvalidationBounds();
                 _selectionEndPoint = canvasPoint;
                 Rectangle changedBounds = SelectNodesInRectangle(GetSelectionRectangle());
@@ -592,6 +824,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
             if (_connectionStartNode != null)
             {
+                DeferRuntimeInvalidationsForInteraction();
                 Rectangle oldBounds = GetTemporaryConnectionVisualBounds();
                 _connectionEndPoint = canvasPoint;
                 Rectangle newBounds = GetTemporaryConnectionVisualBounds();
@@ -631,7 +864,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (movedNode != null)
             {
                 PushMoveHistory(oldLocations);
-                RequestOverlayInvalidate();
+                RequestOverlayInvalidate(false, true);
             }
 
             if (_connectionStartNode != null)
@@ -692,7 +925,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
             base.OnMouseWheel(e);
             Invalidate();
-            RequestOverlayInvalidate();
+            RequestOverlayInvalidate(false, true);
         }
 
         protected override void OnMouseLeave(EventArgs e)
@@ -702,9 +935,10 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         protected override void OnScroll(ScrollEventArgs se)
         {
+            DeferRuntimeInvalidationsForInteraction();
             base.OnScroll(se);
             Invalidate();
-            RequestOverlayInvalidate();
+            RequestOverlayInvalidate(false, true);
         }
 
         protected override void OnKeyDown(KeyEventArgs e)
@@ -853,6 +1087,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             _nodeLookupDirty = true;
             _connectionObstacleCacheDirty = true;
             _connectionRouteCache.Clear();
+            InvalidateMinimapCache();
         }
 
         /// <summary>
@@ -861,6 +1096,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         private void InvalidateConnectionObstacleCache()
         {
             _connectionObstacleCacheDirty = true;
+            InvalidateMinimapCache();
         }
 
         private void OnZoomChanged()
@@ -868,9 +1104,50 @@ namespace TDJS_Vision.Forms.ProcessNew
             ZoomChanged?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// 请求两个悬浮层都刷新。
+        /// </summary>
         private void RequestOverlayInvalidate()
         {
-            OverlayInvalidated?.Invoke(this, EventArgs.Empty);
+            RequestOverlayInvalidate(true, true);
+        }
+
+        /// <summary>
+        /// 按需请求刷新图像预览层和缩略图层，减少滚动缩放时的无关重绘。
+        /// </summary>
+        /// <param name="invalidateImagePreview">是否刷新右上角图像预览层。</param>
+        /// <param name="invalidateMinimap">是否刷新右下角缩略图层。</param>
+        private void RequestOverlayInvalidate(bool invalidateImagePreview, bool invalidateMinimap)
+        {
+            if (!invalidateImagePreview && !invalidateMinimap)
+                return;
+
+            OverlayInvalidated?.Invoke(
+                this,
+                new FlowCanvasOverlayInvalidatedEventArgs(invalidateImagePreview, invalidateMinimap));
+        }
+
+        /// <summary>
+        /// 标记缩略图静态图层失效，下次绘制时重新生成。
+        /// </summary>
+        private void InvalidateMinimapCache()
+        {
+            _minimapCacheDirty = true;
+        }
+
+        /// <summary>
+        /// 释放缩略图缓存位图。
+        /// </summary>
+        private void DisposeMinimapCache()
+        {
+            if (_cachedMinimapBitmap != null)
+            {
+                _cachedMinimapBitmap.Dispose();
+                _cachedMinimapBitmap = null;
+            }
+
+            _cachedMinimapBitmapSize = Size.Empty;
+            _minimapCacheDirty = true;
         }
 
         private bool SetZoom(float zoomFactor, Point anchorCanvasPoint, Point anchorControlPoint)
@@ -879,11 +1156,12 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (Math.Abs(nextZoom - _zoomFactor) < 0.001F)
                 return false;
 
+            DeferRuntimeInvalidationsForInteraction();
             _zoomFactor = nextZoom;
             UpdateScaledCanvasSize();
             SetScrollPositionForAnchor(anchorCanvasPoint, anchorControlPoint);
             Invalidate();
-            RequestOverlayInvalidate();
+            RequestOverlayInvalidate(false, true);
             OnZoomChanged();
             return true;
         }
@@ -992,6 +1270,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             _process.HasCanvasGraph = true;
             _process.NotifyConnectionsChanged();
             RemoveConnectionRouteCache(connection);
+            InvalidateMinimapCache();
             SelectOnly(connection);
             Invalidate();
             RequestOverlayInvalidate();
@@ -1010,6 +1289,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             _selectedConnection = null;
             RemoveConnectionRouteCache(connection);
             _process.NotifyConnectionsChanged();
+            InvalidateMinimapCache();
             Invalidate();
             RequestOverlayInvalidate();
             return true;
@@ -1036,6 +1316,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
 
             _process.NotifyConnectionsChanged();
+            InvalidateMinimapCache();
             RequestOverlayInvalidate();
         }
 
@@ -1060,6 +1341,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             else
                 node.DisableNode();
 
+            InvalidateMinimapCache();
             InvalidateNode(node);
             RequestOverlayInvalidate();
         }
@@ -1671,6 +1953,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     node.Selected = selected;
                 }
             }
+
+            if (!changedBounds.IsEmpty)
+                InvalidateMinimapCache();
 
             return changedBounds;
         }
@@ -2483,21 +2768,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 return;
             }
 
-            using (SolidBrush fill = new SolidBrush(Color.FromArgb(220, 42, 44, 48)))
-            using (Pen border = new Pen(Color.FromArgb(110, 116, 124), 1.2F))
-            {
-                graphics.FillRectangle(fill, _minimapBounds);
-                graphics.DrawRectangle(border, _minimapBounds);
-            }
-
-            if (_process != null)
-            {
-                foreach (ProcessConnection connection in _process.Connections)
-                    DrawMinimapConnection(graphics, connection);
-
-                foreach (NodeBase node in _process.Nodes)
-                    DrawMinimapNode(graphics, node);
-            }
+            EnsureMinimapMapCache(overlaySize);
+            if (_cachedMinimapBitmap != null)
+                graphics.DrawImageUnscaled(_cachedMinimapBitmap, Point.Empty);
 
             Rectangle viewport = GetMinimapViewportBounds();
             if (!viewport.IsEmpty)
@@ -2509,6 +2782,51 @@ namespace TDJS_Vision.Forms.ProcessNew
                     graphics.DrawRectangle(border, viewport);
                 }
             }
+        }
+
+        /// <summary>
+        /// 确保缩略图静态图层缓存可用。
+        /// </summary>
+        /// <param name="overlaySize">缩略图控件当前尺寸。</param>
+        private void EnsureMinimapMapCache(Size overlaySize)
+        {
+            if (overlaySize.Width <= 0 || overlaySize.Height <= 0)
+                return;
+
+            if (_cachedMinimapBitmap != null &&
+                !_minimapCacheDirty &&
+                _cachedMinimapBitmapSize == overlaySize)
+            {
+                return;
+            }
+
+            DisposeMinimapCache();
+            _cachedMinimapBitmap = new Bitmap(Math.Max(1, overlaySize.Width), Math.Max(1, overlaySize.Height));
+            _cachedMinimapBitmapSize = overlaySize;
+
+            using (Graphics cacheGraphics = Graphics.FromImage(_cachedMinimapBitmap))
+            {
+                cacheGraphics.SmoothingMode = SmoothingMode.AntiAlias;
+                cacheGraphics.Clear(Color.FromArgb(42, 44, 48));
+
+                using (SolidBrush fill = new SolidBrush(Color.FromArgb(220, 42, 44, 48)))
+                using (Pen border = new Pen(Color.FromArgb(110, 116, 124), 1.2F))
+                {
+                    cacheGraphics.FillRectangle(fill, _minimapBounds);
+                    cacheGraphics.DrawRectangle(border, _minimapBounds);
+                }
+
+                if (_process != null)
+                {
+                    foreach (ProcessConnection connection in _process.Connections)
+                        DrawMinimapConnection(cacheGraphics, connection);
+
+                    foreach (NodeBase node in _process.Nodes)
+                        DrawMinimapNode(cacheGraphics, node);
+                }
+            }
+
+            _minimapCacheDirty = false;
         }
 
         internal void CenterViewportFromMinimap(Point controlPoint, Size overlaySize)
@@ -2611,11 +2929,12 @@ namespace TDJS_Vision.Forms.ProcessNew
             int y = Math.Max(_minimapCanvasBounds.Top, Math.Min(_minimapCanvasBounds.Bottom, controlPoint.Y));
             float canvasX = (float)(x - _minimapCanvasBounds.X) / _minimapCanvasBounds.Width * LogicalCanvasSize.Width;
             float canvasY = (float)(y - _minimapCanvasBounds.Y) / _minimapCanvasBounds.Height * LogicalCanvasSize.Height;
+            DeferRuntimeInvalidationsForInteraction();
             SetScrollPositionForAnchor(
                 new Point((int)Math.Round(canvasX), (int)Math.Round(canvasY)),
                 new Point(ClientSize.Width / 2, ClientSize.Height / 2));
             Invalidate();
-            RequestOverlayInvalidate();
+            RequestOverlayInvalidate(false, true);
         }
 
         private void DrawNode(Graphics graphics, NodeBase node)
@@ -2758,6 +3077,15 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (connection == null || sourceNode == null || targetNode == null)
                 return new Point[0];
 
+            if (ShouldUseInteractiveConnectionRoute(connection))
+            {
+                return CreateInteractiveConnectionPoints(
+                    GetAnchorCenter(sourceNode, connection.FromAnchor),
+                    connection.FromAnchor,
+                    GetAnchorCenter(targetNode, connection.ToAnchor),
+                    connection.ToAnchor);
+            }
+
             ConnectionRouteCache cache;
             if (TryGetReusableConnectionRouteCache(connection, sourceNode, targetNode, out cache))
                 return cache.Points;
@@ -2812,6 +3140,134 @@ namespace TDJS_Vision.Forms.ProcessNew
 
                 CreateRoutedConnectionPoints(connection, fromNode, toNode);
             }
+        }
+
+        /// <summary>
+        /// 尝试获取端点仍然匹配的持久连线路由缓存。
+        /// </summary>
+        /// <param name="connection">流程连线。</param>
+        /// <param name="sourceNode">起点节点。</param>
+        /// <param name="targetNode">终点节点。</param>
+        /// <param name="cache">命中的路由缓存。</param>
+        /// <returns>缓存可复用时返回 true。</returns>
+        /// <summary>
+        /// 判断连线是否属于当前拖拽节点，拖拽时这类连线使用轻量预览路径。
+        /// </summary>
+        /// <param name="connection">流程连线。</param>
+        /// <returns>连线端点包含正在拖拽的节点时返回 true。</returns>
+        private bool ShouldUseInteractiveConnectionRoute(ProcessConnection connection)
+        {
+            return _dragNode != null &&
+                connection != null &&
+                (_draggingNodeIds.Contains(connection.FromNodeId) ||
+                 _draggingNodeIds.Contains(connection.ToNodeId));
+        }
+
+        /// <summary>
+        /// 创建拖拽过程中的轻量折线路径，不做全节点避障以保证鼠标移动流畅。
+        /// </summary>
+        /// <param name="start">连线起点。</param>
+        /// <param name="startAnchor">起点锚点。</param>
+        /// <param name="end">连线终点。</param>
+        /// <param name="endAnchor">终点锚点。</param>
+        /// <returns>用于绘制的折线路径点。</returns>
+        private static Point[] CreateInteractiveConnectionPoints(
+            Point start,
+            string startAnchor,
+            Point end,
+            string endAnchor)
+        {
+            const int previewStep = 18;
+            Point sourceStep = StepPointFromAnchor(start, startAnchor, previewStep);
+            Point targetStep = StepPointFromAnchor(end, endAnchor, previewStep);
+            List<Point> points = new List<Point> { start, sourceStep };
+
+            if (sourceStep.X == targetStep.X || sourceStep.Y == targetStep.Y)
+            {
+                points.Add(targetStep);
+            }
+            else if (IsHorizontalAnchor(startAnchor))
+            {
+                int middleX = sourceStep.X + ((targetStep.X - sourceStep.X) / 2);
+                points.Add(new Point(middleX, sourceStep.Y));
+                points.Add(new Point(middleX, targetStep.Y));
+                points.Add(targetStep);
+            }
+            else
+            {
+                int middleY = sourceStep.Y + ((targetStep.Y - sourceStep.Y) / 2);
+                points.Add(new Point(sourceStep.X, middleY));
+                points.Add(new Point(targetStep.X, middleY));
+                points.Add(targetStep);
+            }
+
+            points.Add(end);
+            return SimplifyInteractiveConnectionPoints(points);
+        }
+
+        /// <summary>
+        /// 根据锚点方向向外推出一个折线路径点。
+        /// </summary>
+        /// <param name="point">锚点中心。</param>
+        /// <param name="anchor">锚点名称。</param>
+        /// <param name="distance">推出距离。</param>
+        /// <returns>推出后的点。</returns>
+        private static Point StepPointFromAnchor(Point point, string anchor, int distance)
+        {
+            switch (anchor)
+            {
+                case "Top":
+                    return new Point(point.X, point.Y - distance);
+                case "Bottom":
+                    return new Point(point.X, point.Y + distance);
+                case "Left":
+                    return new Point(point.X - distance, point.Y);
+                case "Right":
+                    return new Point(point.X + distance, point.Y);
+                default:
+                    return point;
+            }
+        }
+
+        /// <summary>
+        /// 判断锚点方向是否为水平出线。
+        /// </summary>
+        /// <param name="anchor">锚点名称。</param>
+        /// <returns>左/右锚点返回 true。</returns>
+        private static bool IsHorizontalAnchor(string anchor)
+        {
+            return anchor == "Left" || anchor == "Right";
+        }
+
+        /// <summary>
+        /// 移除拖拽预览折线中的重复点和共线中间点。
+        /// </summary>
+        /// <param name="points">原始路径点。</param>
+        /// <returns>简化后的路径点。</returns>
+        private static Point[] SimplifyInteractiveConnectionPoints(List<Point> points)
+        {
+            if (points == null || points.Count <= 2)
+                return points == null ? new Point[0] : points.ToArray();
+
+            List<Point> result = new List<Point> { points[0] };
+            for (int index = 1; index < points.Count - 1; index++)
+            {
+                Point previous = result[result.Count - 1];
+                Point current = points[index];
+                Point next = points[index + 1];
+                if (current == previous)
+                    continue;
+
+                bool sameX = previous.X == current.X && current.X == next.X;
+                bool sameY = previous.Y == current.Y && current.Y == next.Y;
+                if (!sameX && !sameY)
+                    result.Add(current);
+            }
+
+            if (result[result.Count - 1] != points[points.Count - 1])
+                result.Add(points[points.Count - 1]);
+
+            return result.ToArray();
         }
 
         /// <summary>
@@ -3150,6 +3606,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             DisposePreviewCache();
             foreach (NodeBase node in _process.Nodes)
                 node.Selected = node == selectedNode;
+            InvalidateMinimapCache();
             RequestOverlayInvalidate();
         }
 
@@ -3158,6 +3615,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             _selectedConnection = selectedConnection;
             foreach (NodeBase node in _process.Nodes)
                 node.Selected = false;
+            InvalidateMinimapCache();
             RequestOverlayInvalidate();
         }
 
@@ -3169,6 +3627,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             _selectedConnection = null;
             foreach (NodeBase node in _process.Nodes)
                 node.Selected = false;
+            InvalidateMinimapCache();
             RequestOverlayInvalidate();
         }
 
@@ -3756,6 +4215,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.If:
                 case NodeType.MultiCondition:
                 case NodeType.ArithmeticOperation:
+                case NodeType.CompositeModule:
                 case NodeType.Else:
                 case NodeType.EndIf:
                 case NodeType.ConditionRun:
@@ -4685,6 +5145,33 @@ namespace TDJS_Vision.Forms.ProcessNew
                 Node = node;
                 IsStartNode = isStartNode;
             }
+        }
+    }
+
+    /// <summary>
+    /// 流程画布悬浮层刷新请求参数。
+    /// </summary>
+    public sealed class FlowCanvasOverlayInvalidatedEventArgs : EventArgs
+    {
+        /// <summary>
+        /// 是否需要刷新图像预览层。
+        /// </summary>
+        public bool InvalidateImagePreview { get; private set; }
+
+        /// <summary>
+        /// 是否需要刷新缩略图层。
+        /// </summary>
+        public bool InvalidateMinimap { get; private set; }
+
+        /// <summary>
+        /// 创建悬浮层刷新请求参数。
+        /// </summary>
+        /// <param name="invalidateImagePreview">是否刷新图像预览层。</param>
+        /// <param name="invalidateMinimap">是否刷新缩略图层。</param>
+        public FlowCanvasOverlayInvalidatedEventArgs(bool invalidateImagePreview, bool invalidateMinimap)
+        {
+            InvalidateImagePreview = invalidateImagePreview;
+            InvalidateMinimap = invalidateMinimap;
         }
     }
 
