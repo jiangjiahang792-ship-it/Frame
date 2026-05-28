@@ -5,6 +5,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
@@ -36,6 +37,10 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         private bool searchRegionConfirmed = true;
         private Timer continuousRunTimer;
         private bool continuousRunBusy = false;
+        /// <summary>
+        /// native 模板匹配会话缓存，复用模板学习结果以对齐 Fastest_Image_Pattern_Matching Demo 的执行方式。
+        /// </summary>
+        private readonly FastTemplateMatcher.MatchSession templateMatchSession = new FastTemplateMatcher.MatchSession();
 
         public NodeParamFormMatchTemplate(Process process, NodeBase nodeBase)
         {
@@ -288,11 +293,12 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// <summary>
         /// 点击执行模板匹配。
         /// </summary>
-        private void buttonRun_Click(object sender, EventArgs e)
+        private async void buttonRun_Click(object sender, EventArgs e)
         {
             try
             {
-                var result = MatchTemplate();
+                SetSingleRunBusy(true);
+                var result = await MatchTemplateAsync();
                 PublishMatchResult(result);
                 UpdateRunStatus(result);
                 if (result.Matches.Count == 0)
@@ -300,7 +306,11 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             }
             catch (Exception ex)
             {
-                MessageBoxTD.Show($"模板匹配异常，原因：{ex.Message}");
+                MessageBoxTD.Show($"模板匹配异常，原因：{GetDisplayExceptionMessage(ex)}");
+            }
+            finally
+            {
+                SetSingleRunBusy(false);
             }
         }
 
@@ -309,40 +319,12 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// </summary>
         public FastTemplateMatchResult MatchTemplate(bool show = true)
         {
-            Bitmap sourceImage = null;
-            Bitmap matchImage = null;
+            MatchTemplateExecutionContext context = null;
             try
             {
-                ReadFormValues();
-                EnsureTemplateLoaded();
-                if (src == null)
-                    throw new ArgumentException("源图像不能为空。");
-                if (templateImage == null)
-                    throw new ArgumentException("模板图像不能为空。");
-
-                sourceImage = (Bitmap)src.Clone();
-                Rectangle searchBounds = GetSearchBounds(sourceImage.Size);
-                matchImage = allSearch
-                    ? (Bitmap)sourceImage.Clone()
-                    : sourceImage.Clone(searchBounds, PixelFormat.Format24bppRgb);
-
-                var result = FastTemplateMatcher.Match(BuildRuntimeParam(false), matchImage, templateImage);
-                if (!allSearch)
-                    OffsetResult(result, searchBounds.X, searchBounds.Y);
-
-                if (show)
-                {
-                    using (var previewSource = (Bitmap)sourceImage.Clone())
-                    {
-                        result.OutputBitmap = FastTemplateMatcher.DrawPreview(previewSource, result, showOutRegionStatus, showOutlineStatus);
-                    }
-                    showImageControlSource.SetImage(result.OutputBitmap);
-                }
-                else
-                {
-                    result.OutputBitmap = (Bitmap)sourceImage.Clone();
-                }
-
+                context = CreateMatchTemplateContext(show);
+                var result = ExecuteMatchTemplateContext(context);
+                ApplyMatchTemplateResult(result, show);
                 return result;
             }
             catch (Exception ex)
@@ -351,8 +333,198 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             }
             finally
             {
+                context?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// 异步执行模板匹配，避免 WinForms 执行按钮阻塞界面消息循环。
+        /// </summary>
+        private async Task<FastTemplateMatchResult> MatchTemplateAsync(bool show = true)
+        {
+            MatchTemplateExecutionContext context = null;
+            try
+            {
+                context = CreateMatchTemplateContext(show);
+                var result = await Task.Run(() => ExecuteMatchTemplateContext(context));
+                ApplyMatchTemplateResult(result, show);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("模板匹配失败。", ex);
+            }
+            finally
+            {
+                context?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// 创建一次匹配所需的图像和参数快照，保证后台线程不直接访问界面对象。
+        /// </summary>
+        private MatchTemplateExecutionContext CreateMatchTemplateContext(bool show)
+        {
+            ReadFormValues();
+            EnsureTemplateLoaded();
+            if (src == null)
+                throw new ArgumentException("源图像不能为空。");
+            if (templateImage == null)
+                throw new ArgumentException("模板图像不能为空。");
+
+            Bitmap sourceImage = null;
+            Bitmap templateSnapshot = null;
+            Bitmap eraseMaskSnapshot = null;
+            Bitmap matchImage = null;
+            try
+            {
+                sourceImage = (Bitmap)src.Clone();
+                templateSnapshot = (Bitmap)templateImage.Clone();
+                eraseMaskSnapshot = templateEraseMask == null ? null : (Bitmap)templateEraseMask.Clone();
+                Rectangle searchBounds = GetSearchBounds(sourceImage.Size);
+                matchImage = allSearch
+                    ? (Bitmap)sourceImage.Clone()
+                    : sourceImage.Clone(searchBounds, PixelFormat.Format24bppRgb);
+
+                var context = new MatchTemplateExecutionContext
+                {
+                    RuntimeParam = BuildRuntimeParam(false, false),
+                    SourceImage = sourceImage,
+                    MatchImage = matchImage,
+                    TemplateImage = templateSnapshot,
+                    TemplateEraseMask = eraseMaskSnapshot,
+                    SearchBounds = searchBounds,
+                    IsAllSearch = allSearch,
+                    ShowMatchBox = showOutRegionStatus,
+                    ShowOutline = showOutlineStatus,
+                    ShowPreview = show
+                };
+
+                sourceImage = null;
+                templateSnapshot = null;
+                eraseMaskSnapshot = null;
+                matchImage = null;
+                return context;
+            }
+            finally
+            {
                 matchImage?.Dispose();
                 sourceImage?.Dispose();
+                templateSnapshot?.Dispose();
+                eraseMaskSnapshot?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// 执行 native 匹配并生成输出预览图像。
+        /// </summary>
+        private FastTemplateMatchResult ExecuteMatchTemplateContext(MatchTemplateExecutionContext context)
+        {
+            var result = templateMatchSession.Match(context.RuntimeParam, context.MatchImage, context.TemplateImage, context.TemplateEraseMask);
+            if (!context.IsAllSearch)
+                OffsetResult(result, context.SearchBounds.X, context.SearchBounds.Y);
+
+            result.OutputBitmap = context.ShowPreview
+                ? FastTemplateMatcher.DrawPreview(context.SourceImage, result, context.ShowMatchBox, context.ShowOutline)
+                : (Bitmap)context.SourceImage.Clone();
+            return result;
+        }
+
+        /// <summary>
+        /// 将后台匹配生成的预览图显示到界面。
+        /// </summary>
+        private void ApplyMatchTemplateResult(FastTemplateMatchResult result, bool show)
+        {
+            if (show)
+                showImageControlSource.SetImage(result.OutputBitmap);
+        }
+
+        /// <summary>
+        /// 设置单次执行按钮忙碌状态。
+        /// </summary>
+        private void SetSingleRunBusy(bool busy)
+        {
+            buttonRun.Enabled = !busy;
+            buttonRun.Text = busy ? "执行中..." : "执行";
+            labelResultSummary.Text = busy ? "模板匹配执行中..." : labelResultSummary.Text;
+        }
+
+        /// <summary>
+        /// 获取更适合界面显示的异常信息。
+        /// </summary>
+        private static string GetDisplayExceptionMessage(Exception ex)
+        {
+            return ex.InnerException == null ? ex.Message : ex.InnerException.Message;
+        }
+
+        /// <summary>
+        /// 一次模板匹配执行所需的线程安全快照。
+        /// </summary>
+        private sealed class MatchTemplateExecutionContext : IDisposable
+        {
+            /// <summary>
+            /// 本次执行使用的运行参数。
+            /// </summary>
+            public NodeParamMatchTemplate RuntimeParam { get; set; }
+
+            /// <summary>
+            /// 本次执行使用的源图像快照。
+            /// </summary>
+            public Bitmap SourceImage { get; set; }
+
+            /// <summary>
+            /// 本次执行实际送入 native 匹配的图像。
+            /// </summary>
+            public Bitmap MatchImage { get; set; }
+
+            /// <summary>
+            /// 本次执行使用的模板图像快照。
+            /// </summary>
+            public Bitmap TemplateImage { get; set; }
+
+            /// <summary>
+            /// 本次执行使用的模板涂抹蒙版快照。
+            /// </summary>
+            public Bitmap TemplateEraseMask { get; set; }
+
+            /// <summary>
+            /// 非整图搜索时的裁剪区域。
+            /// </summary>
+            public Rectangle SearchBounds { get; set; }
+
+            /// <summary>
+            /// 是否为整图搜索。
+            /// </summary>
+            public bool IsAllSearch { get; set; }
+
+            /// <summary>
+            /// 是否在预览图中绘制匹配外框。
+            /// </summary>
+            public bool ShowMatchBox { get; set; }
+
+            /// <summary>
+            /// 是否在预览图中绘制模板轮廓。
+            /// </summary>
+            public bool ShowOutline { get; set; }
+
+            /// <summary>
+            /// 是否生成并显示预览图。
+            /// </summary>
+            public bool ShowPreview { get; set; }
+
+            /// <summary>
+            /// 释放本次执行的图像快照。
+            /// </summary>
+            public void Dispose()
+            {
+                MatchImage?.Dispose();
+                MatchImage = null;
+                SourceImage?.Dispose();
+                SourceImage = null;
+                TemplateImage?.Dispose();
+                TemplateImage = null;
+                TemplateEraseMask?.Dispose();
+                TemplateEraseMask = null;
             }
         }
 
@@ -432,13 +604,13 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 LoadTemplateFromParam(param);
         }
 
-        private NodeParamMatchTemplate BuildRuntimeParam(bool includeTemplateImage = true)
+        private NodeParamMatchTemplate BuildRuntimeParam(bool includeTemplateImage = true, bool includeTemplateEraseMask = true)
         {
             return new NodeParamMatchTemplate
             {
                 TemplateFileName = string.Empty,
                 TemplateImageBytes = includeTemplateImage ? FastTemplateMatcher.BitmapToPngBytes(templateImage) : null,
-                TemplateEraseMaskBytes = FastTemplateMatcher.BitmapToPngBytes(templateEraseMask),
+                TemplateEraseMaskBytes = includeTemplateEraseMask ? FastTemplateMatcher.BitmapToPngBytes(templateEraseMask) : null,
                 TemplateSourceName = templateSourceName,
                 Text1 = nodeSubscription1.GetText1(),
                 Text2 = nodeSubscription1.GetText2(),
@@ -482,7 +654,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             buttonContinuousRun.Text = "停止连续";
         }
 
-        private void continuousRunTimer_Tick(object sender, EventArgs e)
+        private async void continuousRunTimer_Tick(object sender, EventArgs e)
         {
             if (continuousRunBusy)
                 return;
@@ -490,7 +662,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             try
             {
                 continuousRunBusy = true;
-                var result = MatchTemplate();
+                var result = await MatchTemplateAsync();
                 PublishMatchResult(result);
                 UpdateRunStatus(result);
             }
@@ -498,7 +670,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             {
                 continuousRunTimer.Stop();
                 buttonContinuousRun.Text = "连续执行";
-                MessageBoxTD.Show($"连续匹配停止：{ex.Message}");
+                MessageBoxTD.Show($"连续匹配停止：{GetDisplayExceptionMessage(ex)}");
             }
             finally
             {
@@ -738,6 +910,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             templateEraseMask?.Dispose();
             templateEraseMask = null;
             templateSourceName = string.Empty;
+            templateMatchSession.InvalidateTemplate();
             UpdateTemplatePreview();
         }
 
@@ -822,6 +995,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 newOriginal?.Dispose();
             }
 
+            templateMatchSession.InvalidateTemplate();
             UpdateTemplatePreview();
         }
 
@@ -949,6 +1123,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             continuousRunTimer?.Stop();
             continuousRunTimer?.Dispose();
             continuousRunTimer = null;
+            templateMatchSession.Dispose();
         }
 
         private void tabControlParams_DrawItem(object sender, DrawItemEventArgs e)

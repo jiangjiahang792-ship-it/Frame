@@ -34,6 +34,12 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.labelTip = new System.Windows.Forms.Label();
             this.splitContainerMain = new System.Windows.Forms.SplitContainer();
             this.dataGridViewRows = new System.Windows.Forms.DataGridView();
+            this.ColumnEnabled = new System.Windows.Forms.DataGridViewCheckBoxColumn();
+            this.ColumnValue1 = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.ColumnOperator = new System.Windows.Forms.DataGridViewComboBoxColumn();
+            this.ColumnValue2 = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.ColumnOutputVariableName = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.ColumnNote = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.tableLayoutPanelRight = new System.Windows.Forms.TableLayoutPanel();
             this.groupBoxOperand = new System.Windows.Forms.GroupBox();
             this.buttonApplyConstant = new System.Windows.Forms.Button();
@@ -169,6 +175,13 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.dataGridViewRows.AllowUserToDeleteRows = false;
             this.dataGridViewRows.BackgroundColor = System.Drawing.SystemColors.Window;
             this.dataGridViewRows.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dataGridViewRows.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
+            this.ColumnEnabled,
+            this.ColumnValue1,
+            this.ColumnOperator,
+            this.ColumnValue2,
+            this.ColumnOutputVariableName,
+            this.ColumnNote});
             this.dataGridViewRows.Dock = System.Windows.Forms.DockStyle.Fill;
             this.dataGridViewRows.Location = new System.Drawing.Point(0, 0);
             this.dataGridViewRows.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
@@ -182,7 +195,53 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.dataGridViewRows.CellEndEdit += new System.Windows.Forms.DataGridViewCellEventHandler(this.dataGridViewRows_CellEndEdit);
             this.dataGridViewRows.DataError += new System.Windows.Forms.DataGridViewDataErrorEventHandler(this.dataGridViewRows_DataError);
             this.dataGridViewRows.SelectionChanged += new System.EventHandler(this.dataGridViewRows_SelectionChanged);
-            // 
+            //
+            // ColumnEnabled
+            //
+            this.ColumnEnabled.FillWeight = 42F;
+            this.ColumnEnabled.HeaderText = "启用";
+            this.ColumnEnabled.MinimumWidth = 42;
+            this.ColumnEnabled.Name = "ColumnEnabled";
+            //
+            // ColumnValue1
+            //
+            this.ColumnValue1.FillWeight = 160F;
+            this.ColumnValue1.HeaderText = "值1";
+            this.ColumnValue1.MinimumWidth = 120;
+            this.ColumnValue1.Name = "ColumnValue1";
+            this.ColumnValue1.ReadOnly = true;
+            //
+            // ColumnOperator
+            //
+            this.ColumnOperator.FillWeight = 66F;
+            this.ColumnOperator.HeaderText = "运算符";
+            this.ColumnOperator.MinimumWidth = 70;
+            this.ColumnOperator.Name = "ColumnOperator";
+            this.ColumnOperator.Resizable = System.Windows.Forms.DataGridViewTriState.True;
+            this.ColumnOperator.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.Automatic;
+            //
+            // ColumnValue2
+            //
+            this.ColumnValue2.FillWeight = 160F;
+            this.ColumnValue2.HeaderText = "值2";
+            this.ColumnValue2.MinimumWidth = 120;
+            this.ColumnValue2.Name = "ColumnValue2";
+            this.ColumnValue2.ReadOnly = true;
+            //
+            // ColumnOutputVariableName
+            //
+            this.ColumnOutputVariableName.FillWeight = 110F;
+            this.ColumnOutputVariableName.HeaderText = "输出变量";
+            this.ColumnOutputVariableName.MinimumWidth = 100;
+            this.ColumnOutputVariableName.Name = "ColumnOutputVariableName";
+            //
+            // ColumnNote
+            //
+            this.ColumnNote.FillWeight = 120F;
+            this.ColumnNote.HeaderText = "备注";
+            this.ColumnNote.MinimumWidth = 100;
+            this.ColumnNote.Name = "ColumnNote";
+            //
             // tableLayoutPanelRight
             // 
             this.tableLayoutPanelRight.ColumnCount = 1;

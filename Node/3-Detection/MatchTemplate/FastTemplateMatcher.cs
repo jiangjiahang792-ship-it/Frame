@@ -13,6 +13,9 @@ using CvRect = OpenCvSharp.Rect;
 
 namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 {
+    /// <summary>
+    /// 模板匹配静态工具，负责图像格式转换、模板学习、native 匹配调用和结果绘制。
+    /// </summary>
     internal static class FastTemplateMatcher
     {
         public static Bitmap CreateTemplateImage(Bitmap source, float centerX, float centerY, float width, float height, float angle)
@@ -170,86 +173,8 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
         public static FastTemplateMatchResult Match(NodeParamMatchTemplate param, Bitmap sourceImage, Bitmap templateImage)
         {
-            if (param == null)
-                throw new ArgumentNullException(nameof(param));
-            if (sourceImage == null)
-                throw new ArgumentNullException(nameof(sourceImage));
-            if (templateImage == null)
-                throw new ArgumentNullException(nameof(templateImage));
-
-            var result = new FastTemplateMatchResult();
-            var sw = Stopwatch.StartNew();
-
-            using (var engine = new FastMatchEngineHandle())
-            using (var source = To24Bpp(sourceImage))
-            using (var template = To24Bpp(templateImage))
-            {
-                engine.Learn(template);
-
-                int maxResults = Math.Max(1, Math.Min(1000, param.ResultNum));
-                double[] xs = new double[maxResults];
-                double[] ys = new double[maxResults];
-                double[] angles = new double[maxResults];
-                double[] scores = new double[maxResults];
-
-                double expectedScore = NormalizeScore(param.MinScore);
-                double maxOverlap = NormalizeRatio(param.MaxOverlap);
-                double toleranceAngle = Math.Abs(param.ToleranceAngle);
-                if (toleranceAngle <= 0)
-                    toleranceAngle = 1;
-
-                int count = engine.Match(
-                    source,
-                    expectedScore,
-                    toleranceAngle,
-                    maxOverlap,
-                    Math.Max(0, param.AngleStep),
-                    param.CoarseMatch,
-                    xs,
-                    ys,
-                    angles,
-                    scores,
-                    maxResults);
-
-                List<PointF> contour = null;
-                Bitmap contourMask = null;
-                if (param.ShowOutlineStatus)
-                {
-                    if (param.TemplateEraseMaskBytes != null && param.TemplateEraseMaskBytes.Length > 0)
-                        contourMask = PngBytesToBitmap(param.TemplateEraseMaskBytes);
-                    contour = BuildTemplateContour(template, contourMask);
-                }
-
-                for (int i = 0; i < count; i++)
-                {
-                    var match = new FastTemplateMatchInfo
-                    {
-                        Box = new FastTemplateMatchBox
-                        {
-                            CenterX = (float)xs[i],
-                            CenterY = (float)ys[i],
-                            Width = template.Width,
-                            Height = template.Height,
-                            Angle = (float)-angles[i]
-                        },
-                        Score = scores[i]
-                    };
-                    result.Matches.Add(match);
-
-                    if (contour != null && contour.Count > 0)
-                        result.Outlines.Add(TransformContour(contour, match.Box.CenterX, match.Box.CenterY, match.Box.Angle));
-                }
-
-                contourMask?.Dispose();
-
-                result.ExpectedCount = maxResults;
-                result.ExpectedScore = expectedScore;
-                result.IsOk = result.Matches.Count >= maxResults && result.Matches.All(m => m.Score >= expectedScore);
-            }
-
-            sw.Stop();
-            result.AlgorithmMs = sw.Elapsed.TotalMilliseconds;
-            return result;
+            using (var session = new MatchSession())
+                return session.Match(param, sourceImage, templateImage);
         }
 
         public static Bitmap DrawPreview(Bitmap sourceImage, FastTemplateMatchResult result, bool showMatchBox, bool showOutline)
@@ -490,6 +415,240 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// native 模板匹配会话，缓存 MatchTool 引擎与模板学习结果，避免每次执行都重新 LearnPattern。
+        /// </summary>
+        internal sealed class MatchSession : IDisposable
+        {
+            /// <summary>
+            /// native 引擎访问锁，保证同一模板会话不会被并发调用破坏状态。
+            /// </summary>
+            private readonly object syncRoot = new object();
+
+            /// <summary>
+            /// MatchTool.dll 创建的 native 引擎句柄。
+            /// </summary>
+            private FastMatchEngineHandle engine;
+
+            /// <summary>
+            /// 当前模板是否已经完成 native 学习。
+            /// </summary>
+            private bool templateLearned;
+
+            /// <summary>
+            /// 模板内容版本号，模板或涂抹蒙版变更时递增。
+            /// </summary>
+            private int templateVersion;
+
+            /// <summary>
+            /// native 引擎已学习的模板版本号。
+            /// </summary>
+            private int learnedTemplateVersion = -1;
+
+            /// <summary>
+            /// native 引擎已学习模板的宽度，用于防止未显式失效时尺寸变化。
+            /// </summary>
+            private int learnedTemplateWidth;
+
+            /// <summary>
+            /// native 引擎已学习模板的高度，用于防止未显式失效时尺寸变化。
+            /// </summary>
+            private int learnedTemplateHeight;
+
+            /// <summary>
+            /// 当前模板缓存的轮廓点。
+            /// </summary>
+            private List<PointF> cachedContour;
+
+            /// <summary>
+            /// 当前轮廓缓存对应的模板版本号。
+            /// </summary>
+            private int cachedContourVersion = -1;
+
+            /// <summary>
+            /// 当前轮廓缓存是否使用了涂抹蒙版。
+            /// </summary>
+            private bool cachedContourUsesMask;
+
+            /// <summary>
+            /// 会话是否已经释放。
+            /// </summary>
+            private bool disposed;
+
+            /// <summary>
+            /// 使已学习模板和轮廓缓存失效，下一次匹配会重新学习模板。
+            /// </summary>
+            public void InvalidateTemplate()
+            {
+                lock (syncRoot)
+                {
+                    templateVersion++;
+                    templateLearned = false;
+                    cachedContour = null;
+                    cachedContourVersion = -1;
+                }
+            }
+
+            /// <summary>
+            /// 执行模板匹配并返回匹配中心、角度、得分和轮廓。
+            /// </summary>
+            public FastTemplateMatchResult Match(NodeParamMatchTemplate param, Bitmap sourceImage, Bitmap templateImage)
+            {
+                Bitmap contourMask = null;
+                try
+                {
+                    if (param != null && param.TemplateEraseMaskBytes != null && param.TemplateEraseMaskBytes.Length > 0)
+                        contourMask = PngBytesToBitmap(param.TemplateEraseMaskBytes);
+                    return Match(param, sourceImage, templateImage, contourMask);
+                }
+                finally
+                {
+                    contourMask?.Dispose();
+                }
+            }
+
+            /// <summary>
+            /// 执行模板匹配并使用调用方提供的涂抹蒙版计算显示轮廓。
+            /// </summary>
+            public FastTemplateMatchResult Match(NodeParamMatchTemplate param, Bitmap sourceImage, Bitmap templateImage, Bitmap contourMask)
+            {
+                if (param == null)
+                    throw new ArgumentNullException(nameof(param));
+                if (sourceImage == null)
+                    throw new ArgumentNullException(nameof(sourceImage));
+                if (templateImage == null)
+                    throw new ArgumentNullException(nameof(templateImage));
+
+                lock (syncRoot)
+                {
+                    ThrowIfDisposed();
+
+                    var result = new FastTemplateMatchResult();
+                    var sw = Stopwatch.StartNew();
+
+                    using (var source = To24Bpp(sourceImage))
+                    using (var template = To24Bpp(templateImage))
+                    {
+                        EnsureTemplateLearned(template);
+
+                        int maxResults = Math.Max(1, Math.Min(1000, param.ResultNum));
+                        double[] xs = new double[maxResults];
+                        double[] ys = new double[maxResults];
+                        double[] angles = new double[maxResults];
+                        double[] scores = new double[maxResults];
+
+                        double expectedScore = NormalizeScore(param.MinScore);
+                        double maxOverlap = NormalizeRatio(param.MaxOverlap);
+                        double toleranceAngle = Math.Abs(param.ToleranceAngle);
+
+                        int count = engine.Match(
+                            source,
+                            expectedScore,
+                            toleranceAngle,
+                            maxOverlap,
+                            Math.Max(0, param.AngleStep),
+                            param.CoarseMatch,
+                            xs,
+                            ys,
+                            angles,
+                            scores,
+                            maxResults);
+
+                        List<PointF> contour = null;
+                        if (param.ShowOutlineStatus)
+                            contour = GetTemplateContour(template, contourMask);
+
+                        for (int i = 0; i < count; i++)
+                        {
+                            var match = new FastTemplateMatchInfo
+                            {
+                                Box = new FastTemplateMatchBox
+                                {
+                                    CenterX = (float)xs[i],
+                                    CenterY = (float)ys[i],
+                                    Width = template.Width,
+                                    Height = template.Height,
+                                    Angle = (float)-angles[i]
+                                },
+                                Score = scores[i]
+                            };
+                            result.Matches.Add(match);
+
+                            if (contour != null && contour.Count > 0)
+                                result.Outlines.Add(TransformContour(contour, match.Box.CenterX, match.Box.CenterY, match.Box.Angle));
+                        }
+
+                        result.ExpectedCount = maxResults;
+                        result.ExpectedScore = expectedScore;
+                        result.IsOk = result.Matches.Count > 0 && result.Matches.All(m => m.Score >= expectedScore);
+                    }
+
+                    sw.Stop();
+                    result.AlgorithmMs = sw.Elapsed.TotalMilliseconds;
+                    return result;
+                }
+            }
+
+            /// <summary>
+            /// 释放 native 引擎。
+            /// </summary>
+            public void Dispose()
+            {
+                lock (syncRoot)
+                {
+                    if (disposed)
+                        return;
+
+                    engine?.Dispose();
+                    engine = null;
+                    disposed = true;
+                }
+            }
+
+            /// <summary>
+            /// 确保 native 引擎已经学习当前模板。
+            /// </summary>
+            private void EnsureTemplateLearned(Bitmap template)
+            {
+                if (engine == null)
+                    engine = new FastMatchEngineHandle();
+
+                bool sizeChanged = template.Width != learnedTemplateWidth || template.Height != learnedTemplateHeight;
+                if (templateLearned && learnedTemplateVersion == templateVersion && !sizeChanged)
+                    return;
+
+                engine.Learn(template);
+                templateLearned = true;
+                learnedTemplateVersion = templateVersion;
+                learnedTemplateWidth = template.Width;
+                learnedTemplateHeight = template.Height;
+            }
+
+            /// <summary>
+            /// 获取当前模板轮廓，未改变模板时直接复用缓存。
+            /// </summary>
+            private List<PointF> GetTemplateContour(Bitmap template, Bitmap contourMask)
+            {
+                bool usesMask = contourMask != null;
+                if (cachedContour != null && cachedContourVersion == templateVersion && cachedContourUsesMask == usesMask)
+                    return cachedContour;
+
+                cachedContour = BuildTemplateContour(template, contourMask);
+                cachedContourVersion = templateVersion;
+                cachedContourUsesMask = usesMask;
+                return cachedContour;
+            }
+
+            /// <summary>
+            /// 已释放会话不允许继续执行 native 匹配。
+            /// </summary>
+            private void ThrowIfDisposed()
+            {
+                if (disposed)
+                    throw new ObjectDisposedException(nameof(MatchSession));
+            }
         }
 
         private sealed class FastMatchEngineHandle : IDisposable
