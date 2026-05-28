@@ -175,8 +175,8 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 new OperatorOption("大于等于", MultiConditionOperator.GreaterThanOrEqual),
                 new OperatorOption("小于", MultiConditionOperator.LessThan),
                 new OperatorOption("小于等于", MultiConditionOperator.LessThanOrEqual),
-                new OperatorOption("包含", MultiConditionOperator.Contains),
-                new OperatorOption("不包含", MultiConditionOperator.NotContains),
+                new OperatorOption("文本包含", MultiConditionOperator.Contains),
+                new OperatorOption("文本不包含", MultiConditionOperator.NotContains),
                 new OperatorOption("为True/OK", MultiConditionOperator.IsTrue),
                 new OperatorOption("为False/NG", MultiConditionOperator.IsFalse),
                 new OperatorOption("在范围内", MultiConditionOperator.Between),
@@ -518,7 +518,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                     Name = string.IsNullOrWhiteSpace(condition.Name) ? "条件" + (index + 1) : condition.Name,
                     SourceNodeText = condition.SourceNodeText,
                     PropertyDisplayName = condition.PropertyDisplayName,
-                    Operator = condition.Operator,
+                    Operator = NormalizeLoadedOperator(condition),
                     Value1 = condition.Value1,
                     Value2 = condition.Value2,
                     Note = condition.Note,
@@ -526,6 +526,51 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                     PropertyPath = condition.PropertyPath,
                     ValueTypeName = condition.ValueTypeName
                 };
+            }
+
+            /// <summary>
+            /// 兼容早期枚举值或误选操作，数值条件同时带值2时按范围条件显示。
+            /// </summary>
+            private static MultiConditionOperator NormalizeLoadedOperator(MultiConditionItem condition)
+            {
+                if (condition == null)
+                    return MultiConditionOperator.Equals;
+
+                if ((condition.Operator != MultiConditionOperator.Contains &&
+                     condition.Operator != MultiConditionOperator.NotContains) ||
+                    string.IsNullOrWhiteSpace(condition.Value2) ||
+                    !IsNumericValueTypeName(condition.ValueTypeName))
+                {
+                    return condition.Operator;
+                }
+
+                return condition.Operator == MultiConditionOperator.Contains
+                    ? MultiConditionOperator.Between
+                    : MultiConditionOperator.NotBetween;
+            }
+
+            /// <summary>
+            /// 判断保存的值类型名称是否为常见数值类型。
+            /// </summary>
+            private static bool IsNumericValueTypeName(string valueTypeName)
+            {
+                switch ((valueTypeName ?? string.Empty).Trim())
+                {
+                    case "System.Byte":
+                    case "System.SByte":
+                    case "System.Int16":
+                    case "System.UInt16":
+                    case "System.Int32":
+                    case "System.UInt32":
+                    case "System.Int64":
+                    case "System.UInt64":
+                    case "System.Single":
+                    case "System.Double":
+                    case "System.Decimal":
+                        return true;
+                    default:
+                        return false;
+                }
             }
 
             public MultiConditionItem ToCondition(int index)

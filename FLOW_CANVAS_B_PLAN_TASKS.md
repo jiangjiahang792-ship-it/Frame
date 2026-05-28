@@ -1248,6 +1248,12 @@ Reference source:
 - [ ] Check whether graph branch isolation or failed/NG upstream handling makes the arithmetic or angle node not produce a current-run successful result before the multi-condition node runs.
 - [x] Add targeted runtime diagnostics if needed so each condition can show why the actual value is null: source not run this batch, result object null, dynamic variable missing, or nullable result property empty.
 - [x] Add subscription-dependency scheduling so `MultiCondition` waits for configured source nodes that are active in the same graph component.
+- [x] Apply the same subscription-dependency scheduling contract to `ResultOverlayDraw`, so runtime overlay text/ROI sources are not skipped because the draw node ran before hidden subscribed measurements.
+- [x] Root-cause note: this class of bug is a graph-scheduler design gap, not a display-control issue. Parameter-form preview may read previous successful upstream results, while graph runtime requires current-run successful results; if hidden `NodeSubscription` sources are not declared to the scheduler, runtime views can show fewer text/ROI items than preview.
+- [x] Mechanism note: nodes that read subscribed results during `Run(...)` should implement `INodeSubscriptionDependencyProvider`. `Process` then treats returned source node IDs as hidden upstream dependencies when they are active, in the same graph component, and structurally upstream, so the node waits/requeues until those sources finish in the current run.
+- [x] Harden `NodeResultArithmeticOperation.TryGetDynamicVariable(...)` with a case-insensitive fallback for old/deserialized variable dictionaries.
+- [x] Clarify `MultiCondition` operator semantics: `Contains` is text contains; numeric `Value1`/`Value2` ranges should use `Between`. Add compatibility handling so numeric `Contains`/`NotContains` rows with `Value2` filled are treated as `Between`/`NotBetween`.
+- [ ] Audit remaining runtime subscription readers and connect them to `INodeSubscriptionDependencyProvider` where they depend on current-run upstream results.
 - [x] Build-verified the diagnostics and subscription-dependency scheduling pass with MSBuild on 2026-05-28, 0 errors; existing warnings remain.
 
 1. [x] Add graph layout and connection models with backward-compatible save/load defaults.

@@ -429,7 +429,8 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 
         private static bool CompareCondition(object actualValue, MultiConditionItem condition)
         {
-            switch (condition.Operator)
+            MultiConditionOperator conditionOperator = NormalizeConditionOperator(actualValue, condition);
+            switch (conditionOperator)
             {
                 case MultiConditionOperator.IsNull:
                     return actualValue == null;
@@ -440,7 +441,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             if (actualValue == null)
                 return false;
 
-            switch (condition.Operator)
+            switch (conditionOperator)
             {
                 case MultiConditionOperator.IsTrue:
                     return ToBoolean(actualValue);
@@ -467,8 +468,38 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 case MultiConditionOperator.NotBetween:
                     return Compare(actualValue, condition.Value1) < 0 || Compare(actualValue, condition.Value2) > 0;
                 default:
-                    throw new Exception($"不支持的条件操作符：{condition.Operator}");
+                    throw new Exception($"不支持的条件操作符：{conditionOperator}");
             }
+        }
+
+        /// <summary>
+        /// 兼容早期配置或误选操作：数字条件填了值2时，文本包含按范围条件处理。
+        /// </summary>
+        private static MultiConditionOperator NormalizeConditionOperator(object actualValue, MultiConditionItem condition)
+        {
+            if (condition == null)
+                return MultiConditionOperator.Equals;
+
+            if ((condition.Operator != MultiConditionOperator.Contains &&
+                 condition.Operator != MultiConditionOperator.NotContains) ||
+                string.IsNullOrWhiteSpace(condition.Value2))
+            {
+                return condition.Operator;
+            }
+
+            decimal actualDecimal;
+            decimal minValue;
+            decimal maxValue;
+            if (!TryToDecimal(actualValue, out actualDecimal) ||
+                !TryParseDecimal(condition.Value1, out minValue) ||
+                !TryParseDecimal(condition.Value2, out maxValue))
+            {
+                return condition.Operator;
+            }
+
+            return condition.Operator == MultiConditionOperator.Contains
+                ? MultiConditionOperator.Between
+                : MultiConditionOperator.NotBetween;
         }
 
         private static bool ValuesEqual(object actualValue, string expectedText)

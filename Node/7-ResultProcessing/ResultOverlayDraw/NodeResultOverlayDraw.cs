@@ -15,7 +15,10 @@ using TDJS_Vision.Node._4_Measurement.Common;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
 {
-    public class NodeResultOverlayDraw : NodeBase
+    /// <summary>
+    /// 结果叠加绘制节点，负责把订阅到的测量/检测结果转换为统一的显示结果。
+    /// </summary>
+    public class NodeResultOverlayDraw : NodeBase, INodeSubscriptionDependencyProvider
     {
         public NodeResultOverlayDraw(int nodeId, string nodeName, Process process, NodeType nodeType)
             : base(nodeId, nodeName, process, nodeType)
@@ -23,6 +26,49 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             ParamForm = new NodeParamFormResultOverlayDraw();
             ParamForm.SetNodeBelong(this);
             Result = new NodeResultResultOverlayDraw();
+        }
+
+        /// <summary>
+        /// 获取绘制参数中订阅的源节点 ID，供图运行器等待这些隐藏输入先完成。
+        /// </summary>
+        public IEnumerable<int> GetSubscriptionDependencyNodeIds()
+        {
+            HashSet<int> nodeIds = new HashSet<int>();
+            NodeParamResultOverlayDraw param = ParamForm == null ? null : ParamForm.Params as NodeParamResultOverlayDraw;
+            if (param == null)
+                return nodeIds;
+
+            AddNodeId(nodeIds, param.ImageText1);
+            if (param.Items == null)
+                return nodeIds;
+
+            foreach (ResultOverlayDrawItem item in param.Items)
+            {
+                if (item == null || !item.Enabled)
+                    continue;
+
+                bool needSource = item.ItemType != ResultOverlayDrawItemType.Text || !item.UseManualText;
+                if (needSource)
+                    AddNodeId(nodeIds, item.SourceText1);
+            }
+
+            nodeIds.Remove(ID);
+            return nodeIds;
+        }
+
+        /// <summary>
+        /// 从订阅控件保存的“ID.节点名”文本中提取节点 ID。
+        /// </summary>
+        private static void AddNodeId(HashSet<int> nodeIds, string nodeText)
+        {
+            if (nodeIds == null || string.IsNullOrWhiteSpace(nodeText))
+                return;
+
+            int separatorIndex = nodeText.IndexOf('.');
+            string idText = separatorIndex > 0 ? nodeText.Substring(0, separatorIndex) : nodeText;
+            int nodeId;
+            if (int.TryParse(idText, out nodeId) && nodeId > 0)
+                nodeIds.Add(nodeId);
         }
 
         public override Task<NodeReturn> Run(CancellationToken token, bool showLog)

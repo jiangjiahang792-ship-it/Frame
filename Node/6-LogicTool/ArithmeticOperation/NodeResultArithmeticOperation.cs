@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 
@@ -93,12 +94,25 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             if (Variables == null || string.IsNullOrWhiteSpace(variableName))
                 return false;
 
+            string normalizedName = variableName.Trim();
             double doubleValue;
-            if (!Variables.TryGetValue(variableName.Trim(), out doubleValue))
-                return false;
+            if (Variables.TryGetValue(normalizedName, out doubleValue))
+            {
+                value = doubleValue;
+                return true;
+            }
 
-            value = doubleValue;
-            return true;
+            // 反序列化或旧结果可能丢失忽略大小写的 Dictionary 比较器，这里兜底按名称忽略大小写匹配。
+            foreach (KeyValuePair<string, double> pair in Variables)
+            {
+                if (!string.Equals(pair.Key, normalizedName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                value = pair.Value;
+                return true;
+            }
+
+            return false;
         }
     }
 }
