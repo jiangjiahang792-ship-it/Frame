@@ -42,6 +42,10 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// 对齐辅助线相对节点边界向外延伸的距离。
         /// </summary>
         private const int AlignmentGuidePadding = 36;
+        /// <summary>
+        /// 绘制可视区域时额外扩展的像素，避免阴影、锚点和连线端帽在边界处被裁掉。
+        /// </summary>
+        private const int ViewportDrawPadding = 96;
 
         private Process _process;
         private NodeBase _dragNode;
@@ -74,6 +78,34 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// 连线最近一次路由结果缓存，避免无关节点移动时牵动已有连线。
         /// </summary>
         private readonly Dictionary<string, ConnectionRouteCache> _connectionRouteCache = new Dictionary<string, ConnectionRouteCache>();
+        /// <summary>
+        /// 节点 ID 到节点实例的查找缓存，避免大量连线绘制时反复线性查找节点。
+        /// </summary>
+        private readonly Dictionary<int, NodeBase> _nodeLookup = new Dictionary<int, NodeBase>();
+        /// <summary>
+        /// 节点集合变化后标记节点查找缓存需要重建。
+        /// </summary>
+        private bool _nodeLookupDirty = true;
+        /// <summary>
+        /// 当前节点矩形障碍缓存，连线路由在同一帧内复用，减少重复分配和遍历。
+        /// </summary>
+        private readonly List<Rectangle> _connectionObstacleCache = new List<Rectangle>();
+        /// <summary>
+        /// 节点位置或节点集合变化后标记路由障碍缓存需要重建。
+        /// </summary>
+        private bool _connectionObstacleCacheDirty = true;
+        /// <summary>
+        /// 当前拖动批次中的节点 ID 集合，拖动期间复用以减少鼠标移动时的临时分配。
+        /// </summary>
+        private readonly HashSet<int> _draggingNodeIds = new HashSet<int>();
+        /// <summary>
+        /// 当前拖动批次会受影响的连线集合，用于局部刷新拖动节点相关的连线区域。
+        /// </summary>
+        private readonly List<ProcessConnection> _dragAffectedConnections = new List<ProcessConnection>();
+        /// <summary>
+        /// 当前拖动批次可用于对齐吸附的静态节点矩形，非拖动节点不会在拖动过程中变化。
+        /// </summary>
+        private readonly List<NodeAlignmentTarget> _alignmentTargets = new List<NodeAlignmentTarget>();
         private string _selectedPreviewImageKey;
         private string _cachedPreviewKey;
         private Mat _cachedPreviewMat;
@@ -140,6 +172,8 @@ namespace TDJS_Vision.Forms.ProcessNew
             _selectedConnection = null;
             _alignmentGuides.Clear();
             _connectionRouteCache.Clear();
+            InvalidateCanvasTopologyCaches();
+            ClearDragInteractionCache();
             _selectedPreviewImageKey = null;
             DisposePreviewCache();
             ClearHistory();
@@ -311,6 +345,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             else if (node.CanvasLocation == Point.Empty)
                 node.CanvasLocation = GetDefaultNodeLocation(GetNodeIndex(node));
 
+            InvalidateCanvasTopologyCaches();
             Invalidate();
             RequestOverlayInvalidate();
         }
@@ -402,23 +437,42 @@ namespace TDJS_Vision.Forms.ProcessNew
             base.OnPaint(e);
 
             Graphics graphics = e.Graphics;
-            graphics.Clear(CanvasBackColor);
+            using (SolidBrush backgroundBrush = new SolidBrush(CanvasBackColor))
+                graphics.FillRectangle(backgroundBrush, e.ClipRectangle);
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
             graphics.TranslateTransform(AutoScrollPosition.X, AutoScrollPosition.Y);
             graphics.ScaleTransform(_zoomFactor, _zoomFactor);
 
-            DrawGrid(graphics);
+            EnsureNodeLookup();
+            Rectangle visibleCanvasBounds = GetCanvasBoundsFromControlRectangle(e.ClipRectangle);
+            DrawGrid(graphics, visibleCanvasBounds);
 
             if (_process != null)
             {
                 foreach (ProcessConnection connection in _process.Connections)
-                    DrawConnection(graphics, connection);
+                {
+                    NodeBase fromNode = FindNode(connection.FromNodeId);
+                    NodeBase toNode = FindNode(connection.ToNodeId);
+                    if (fromNode != null &&
+                        toNode != null &&
+                        ShouldDrawConnection(connection, fromNode, toNode, visibleCanvasBounds))
+                    {
+                        DrawConnection(graphics, connection, fromNode, toNode);
+                    }
+                }
 
                 if (_connectionStartNode != null)
-                    DrawTemporaryConnection(graphics);
+                {
+                    Rectangle temporaryBounds = GetTemporaryConnectionVisualBounds();
+                    if (temporaryBounds.IsEmpty || temporaryBounds.IntersectsWith(visibleCanvasBounds))
+                        DrawTemporaryConnection(graphics);
+                }
 
                 foreach (NodeBase node in _process.Nodes)
-                    DrawNode(graphics, node);
+                {
+                    if (ShouldDrawNode(node, visibleCanvasBounds))
+                        DrawNode(graphics, node);
+                }
 
                 if (_alignmentGuides.Count > 0)
                     DrawAlignmentGuides(graphics);
@@ -443,6 +497,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
             if (e.Button == MouseButtons.Right)
             {
+                ClearDragInteractionCache();
                 LastContextMenuCanvasPoint = canvasPoint;
                 SelectAtPoint(canvasPoint, true);
                 _alignmentGuides.Clear();
@@ -458,6 +513,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             string anchorName;
             if (TryHitAnchor(canvasPoint, out anchorNode, out anchorName))
             {
+                ClearDragInteractionCache();
                 SelectOnly(anchorNode);
                 _alignmentGuides.Clear();
                 _connectionStartNode = anchorNode;
@@ -480,10 +536,12 @@ namespace TDJS_Vision.Forms.ProcessNew
                 _dragOffset = new Point(
                     canvasPoint.X - node.CanvasLocation.X,
                     canvasPoint.Y - node.CanvasLocation.Y);
+                PrepareDragInteractionCache();
                 EnsureConnectionRoutesCached();
             }
             else
             {
+                ClearDragInteractionCache();
                 ProcessConnection connection = HitConnection(canvasPoint);
                 if (connection != null)
                     SelectOnly(connection);
@@ -513,23 +571,31 @@ namespace TDJS_Vision.Forms.ProcessNew
                 Point location = new Point(
                     canvasPoint.X - _dragOffset.X,
                     canvasPoint.Y - _dragOffset.Y);
-                MoveDraggedNodes(location);
-                Invalidate();
+                Rectangle oldBounds = GetDragInvalidationBounds();
+                if (MoveDraggedNodes(location))
+                {
+                    Rectangle newBounds = GetDragInvalidationBounds();
+                    InvalidateCanvasBounds(UnionCanvasBounds(oldBounds, newBounds));
+                }
                 return;
             }
 
             if (_isSelectingNodes && e.Button == MouseButtons.Left)
             {
+                Rectangle oldBounds = GetSelectionInvalidationBounds();
                 _selectionEndPoint = canvasPoint;
-                SelectNodesInRectangle(GetSelectionRectangle());
-                Invalidate();
+                Rectangle changedBounds = SelectNodesInRectangle(GetSelectionRectangle());
+                Rectangle newBounds = GetSelectionInvalidationBounds();
+                InvalidateCanvasBounds(UnionCanvasBounds(UnionCanvasBounds(oldBounds, newBounds), changedBounds));
                 return;
             }
 
             if (_connectionStartNode != null)
             {
+                Rectangle oldBounds = GetTemporaryConnectionVisualBounds();
                 _connectionEndPoint = canvasPoint;
-                Invalidate();
+                Rectangle newBounds = GetTemporaryConnectionVisualBounds();
+                InvalidateCanvasBounds(UnionCanvasBounds(oldBounds, newBounds));
             }
         }
 
@@ -549,6 +615,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 SelectNodesInRectangle(GetSelectionRectangle());
                 _isSelectingNodes = false;
                 _alignmentGuides.Clear();
+                ClearDragInteractionCache();
                 Invalidate();
                 RequestOverlayInvalidate();
                 return;
@@ -558,6 +625,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             List<NodeLocationSnapshot> oldLocations = _dragStartSnapshots;
             _dragNode = null;
             _dragStartSnapshots = new List<NodeLocationSnapshot>();
+            ClearDragInteractionCache();
             _alignmentGuides.Clear();
             Invalidate();
             if (movedNode != null)
@@ -772,8 +840,27 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         private void OnNodeCollectionChanged()
         {
+            InvalidateCanvasTopologyCaches();
             NodeCollectionChanged?.Invoke(this, EventArgs.Empty);
             RequestOverlayInvalidate();
+        }
+
+        /// <summary>
+        /// 标记节点集合相关缓存失效，节点增删后需要重新生成查找表、障碍表和连线路由。
+        /// </summary>
+        private void InvalidateCanvasTopologyCaches()
+        {
+            _nodeLookupDirty = true;
+            _connectionObstacleCacheDirty = true;
+            _connectionRouteCache.Clear();
+        }
+
+        /// <summary>
+        /// 标记节点位置相关的路由障碍缓存失效。
+        /// </summary>
+        private void InvalidateConnectionObstacleCache()
+        {
+            _connectionObstacleCacheDirty = true;
         }
 
         private void OnZoomChanged()
@@ -958,6 +1045,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 return;
 
             node.CanvasLocation = ClampLocation(location, GetNodeSize(node));
+            InvalidateConnectionObstacleCache();
             Invalidate();
             RequestOverlayInvalidate();
         }
@@ -1035,6 +1123,47 @@ namespace TDJS_Vision.Forms.ProcessNew
         }
 
         /// <summary>
+        /// 预生成拖动过程需要复用的节点 ID、相关连线和对齐目标缓存。
+        /// </summary>
+        private void PrepareDragInteractionCache()
+        {
+            ClearDragInteractionCache();
+            if (_process == null)
+                return;
+
+            foreach (NodeLocationSnapshot snapshot in _dragStartSnapshots)
+            {
+                if (snapshot.Node != null)
+                    _draggingNodeIds.Add(snapshot.Node.ID);
+            }
+
+            foreach (ProcessConnection connection in _process.Connections)
+            {
+                if (_draggingNodeIds.Contains(connection.FromNodeId) ||
+                    _draggingNodeIds.Contains(connection.ToNodeId))
+                {
+                    _dragAffectedConnections.Add(connection);
+                }
+            }
+
+            foreach (NodeBase node in _process.Nodes)
+            {
+                if (node != null && !_draggingNodeIds.Contains(node.ID))
+                    _alignmentTargets.Add(new NodeAlignmentTarget(GetNodeBounds(node)));
+            }
+        }
+
+        /// <summary>
+        /// 清理拖动交互缓存，结束拖动或切换交互模式时调用。
+        /// </summary>
+        private void ClearDragInteractionCache()
+        {
+            _draggingNodeIds.Clear();
+            _dragAffectedConnections.Clear();
+            _alignmentTargets.Clear();
+        }
+
+        /// <summary>
         /// 在网格吸附基础上叠加节点对齐吸附，并记录需要绘制的辅助虚线。
         /// </summary>
         /// <param name="requestedLocation">鼠标拖拽换算出的节点目标位置。</param>
@@ -1055,60 +1184,32 @@ namespace TDJS_Vision.Forms.ProcessNew
             AlignmentCandidate horizontalCandidate = null;
             AlignmentCandidate verticalCandidate = null;
             Rectangle proposedBounds = new Rectangle(baseLocation, dragNodeSize);
-            foreach (NodeBase node in _process.Nodes)
+            if (_alignmentTargets.Count > 0)
             {
-                if (node == null || draggingNodeIds.Contains(node.ID))
-                    continue;
+                foreach (NodeAlignmentTarget target in _alignmentTargets)
+                {
+                    TryUpdateAlignmentCandidatesForBounds(
+                        target.Bounds,
+                        proposedBounds,
+                        dragNodeSize,
+                        ref horizontalCandidate,
+                        ref verticalCandidate);
+                }
+            }
+            else
+            {
+                foreach (NodeBase node in _process.Nodes)
+                {
+                    if (node == null || draggingNodeIds.Contains(node.ID))
+                        continue;
 
-                Rectangle targetBounds = GetNodeBounds(node);
-                TryUpdateAlignmentCandidate(
-                    ref horizontalCandidate,
-                    CanvasAlignmentAxis.Horizontal,
-                    targetBounds.Top,
-                    proposedBounds.Top,
-                    targetBounds.Top,
-                    targetBounds,
-                    1);
-                TryUpdateAlignmentCandidate(
-                    ref horizontalCandidate,
-                    CanvasAlignmentAxis.Horizontal,
-                    GetRectangleCenterY(targetBounds),
-                    GetRectangleCenterY(proposedBounds),
-                    GetRectangleCenterY(targetBounds) - (dragNodeSize.Height / 2),
-                    targetBounds,
-                    2);
-                TryUpdateAlignmentCandidate(
-                    ref horizontalCandidate,
-                    CanvasAlignmentAxis.Horizontal,
-                    targetBounds.Bottom,
-                    proposedBounds.Bottom,
-                    targetBounds.Bottom - dragNodeSize.Height,
-                    targetBounds,
-                    1);
-                TryUpdateAlignmentCandidate(
-                    ref verticalCandidate,
-                    CanvasAlignmentAxis.Vertical,
-                    targetBounds.Left,
-                    proposedBounds.Left,
-                    targetBounds.Left,
-                    targetBounds,
-                    1);
-                TryUpdateAlignmentCandidate(
-                    ref verticalCandidate,
-                    CanvasAlignmentAxis.Vertical,
-                    GetRectangleCenterX(targetBounds),
-                    GetRectangleCenterX(proposedBounds),
-                    GetRectangleCenterX(targetBounds) - (dragNodeSize.Width / 2),
-                    targetBounds,
-                    2);
-                TryUpdateAlignmentCandidate(
-                    ref verticalCandidate,
-                    CanvasAlignmentAxis.Vertical,
-                    targetBounds.Right,
-                    proposedBounds.Right,
-                    targetBounds.Right - dragNodeSize.Width,
-                    targetBounds,
-                    1);
+                    TryUpdateAlignmentCandidatesForBounds(
+                        GetNodeBounds(node),
+                        proposedBounds,
+                        dragNodeSize,
+                        ref horizontalCandidate,
+                        ref verticalCandidate);
+                }
             }
 
             Point alignedLocation = baseLocation;
@@ -1123,6 +1224,71 @@ namespace TDJS_Vision.Forms.ProcessNew
             AddAlignmentGuide(horizontalCandidate, alignedBounds, draggingNodeIds);
             AddAlignmentGuide(verticalCandidate, alignedBounds, draggingNodeIds);
             return alignedLocation;
+        }
+
+        /// <summary>
+        /// 将单个参考节点矩形转换为水平和垂直方向的对齐候选。
+        /// </summary>
+        /// <param name="targetBounds">参考节点边界。</param>
+        /// <param name="proposedBounds">拖动节点当前候选边界。</param>
+        /// <param name="dragNodeSize">拖动节点尺寸。</param>
+        /// <param name="horizontalCandidate">当前最佳水平候选。</param>
+        /// <param name="verticalCandidate">当前最佳垂直候选。</param>
+        private void TryUpdateAlignmentCandidatesForBounds(
+            Rectangle targetBounds,
+            Rectangle proposedBounds,
+            Size dragNodeSize,
+            ref AlignmentCandidate horizontalCandidate,
+            ref AlignmentCandidate verticalCandidate)
+        {
+            TryUpdateAlignmentCandidate(
+                ref horizontalCandidate,
+                CanvasAlignmentAxis.Horizontal,
+                targetBounds.Top,
+                proposedBounds.Top,
+                targetBounds.Top,
+                targetBounds,
+                1);
+            TryUpdateAlignmentCandidate(
+                ref horizontalCandidate,
+                CanvasAlignmentAxis.Horizontal,
+                GetRectangleCenterY(targetBounds),
+                GetRectangleCenterY(proposedBounds),
+                GetRectangleCenterY(targetBounds) - (dragNodeSize.Height / 2),
+                targetBounds,
+                2);
+            TryUpdateAlignmentCandidate(
+                ref horizontalCandidate,
+                CanvasAlignmentAxis.Horizontal,
+                targetBounds.Bottom,
+                proposedBounds.Bottom,
+                targetBounds.Bottom - dragNodeSize.Height,
+                targetBounds,
+                1);
+            TryUpdateAlignmentCandidate(
+                ref verticalCandidate,
+                CanvasAlignmentAxis.Vertical,
+                targetBounds.Left,
+                proposedBounds.Left,
+                targetBounds.Left,
+                targetBounds,
+                1);
+            TryUpdateAlignmentCandidate(
+                ref verticalCandidate,
+                CanvasAlignmentAxis.Vertical,
+                GetRectangleCenterX(targetBounds),
+                GetRectangleCenterX(proposedBounds),
+                GetRectangleCenterX(targetBounds) - (dragNodeSize.Width / 2),
+                targetBounds,
+                2);
+            TryUpdateAlignmentCandidate(
+                ref verticalCandidate,
+                CanvasAlignmentAxis.Vertical,
+                targetBounds.Right,
+                proposedBounds.Right,
+                targetBounds.Right - dragNodeSize.Width,
+                targetBounds,
+                1);
         }
 
         /// <summary>
@@ -1183,14 +1349,25 @@ namespace TDJS_Vision.Forms.ProcessNew
             int end = int.MinValue;
             IncludeRectangleInGuideSpan(candidate.Axis, dragBounds, ref start, ref end);
             IncludeRectangleInGuideSpan(candidate.Axis, candidate.TargetBounds, ref start, ref end);
-            foreach (NodeBase node in _process.Nodes)
+            if (_alignmentTargets.Count > 0)
             {
-                if (node == null || draggingNodeIds.Contains(node.ID))
-                    continue;
+                foreach (NodeAlignmentTarget target in _alignmentTargets)
+                {
+                    if (IsRectangleOnGuide(candidate.Axis, target.Bounds, candidate.GuideCoordinate))
+                        IncludeRectangleInGuideSpan(candidate.Axis, target.Bounds, ref start, ref end);
+                }
+            }
+            else
+            {
+                foreach (NodeBase node in _process.Nodes)
+                {
+                    if (node == null || draggingNodeIds.Contains(node.ID))
+                        continue;
 
-                Rectangle nodeBounds = GetNodeBounds(node);
-                if (IsRectangleOnGuide(candidate.Axis, nodeBounds, candidate.GuideCoordinate))
-                    IncludeRectangleInGuideSpan(candidate.Axis, nodeBounds, ref start, ref end);
+                    Rectangle nodeBounds = GetNodeBounds(node);
+                    if (IsRectangleOnGuide(candidate.Axis, nodeBounds, candidate.GuideCoordinate))
+                        IncludeRectangleInGuideSpan(candidate.Axis, nodeBounds, ref start, ref end);
+                }
             }
 
             if (start == int.MaxValue || end == int.MinValue)
@@ -1269,10 +1446,15 @@ namespace TDJS_Vision.Forms.ProcessNew
             return bounds.Top + (bounds.Height / 2);
         }
 
-        private void MoveDraggedNodes(Point requestedDragNodeLocation)
+        /// <summary>
+        /// 移动当前拖动批次中的节点，并返回可视位置是否真实发生变化。
+        /// </summary>
+        /// <param name="requestedDragNodeLocation">鼠标换算出的主拖动节点目标位置。</param>
+        /// <returns>任一节点位置变化时返回 true。</returns>
+        private bool MoveDraggedNodes(Point requestedDragNodeLocation)
         {
             if (_dragNode == null)
-                return;
+                return false;
 
             Point dragNodeStartLocation = _dragStartLocation;
             foreach (NodeLocationSnapshot snapshot in _dragStartSnapshots)
@@ -1284,18 +1466,31 @@ namespace TDJS_Vision.Forms.ProcessNew
                 }
             }
 
-            HashSet<int> draggingNodeIds = GetDraggingNodeIds();
+            HashSet<int> draggingNodeIds = _draggingNodeIds.Count == 0
+                ? GetDraggingNodeIds()
+                : _draggingNodeIds;
             Point clampedDragNodeLocation = GetAlignedDragNodeLocation(requestedDragNodeLocation, draggingNodeIds);
             int offsetX = clampedDragNodeLocation.X - dragNodeStartLocation.X;
             int offsetY = clampedDragNodeLocation.Y - dragNodeStartLocation.Y;
+            bool moved = false;
 
             foreach (NodeLocationSnapshot snapshot in _dragStartSnapshots)
             {
                 Point nextLocation = new Point(
                     snapshot.Location.X + offsetX,
                     snapshot.Location.Y + offsetY);
-                snapshot.Node.CanvasLocation = ClampLocation(nextLocation, GetNodeSize(snapshot.Node));
+                Point clampedLocation = ClampLocation(nextLocation, GetNodeSize(snapshot.Node));
+                if (snapshot.Node.CanvasLocation != clampedLocation)
+                {
+                    snapshot.Node.CanvasLocation = clampedLocation;
+                    moved = true;
+                }
             }
+
+            if (moved)
+                InvalidateConnectionObstacleCache();
+
+            return moved;
         }
 
         private void PushMoveHistory(List<NodeLocationSnapshot> oldLocations)
@@ -1331,6 +1526,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     location.Node.CanvasLocation = ClampLocation(location.Location, GetNodeSize(location.Node));
             }
 
+            InvalidateConnectionObstacleCache();
             Invalidate();
             RequestOverlayInvalidate();
         }
@@ -1454,14 +1650,29 @@ namespace TDJS_Vision.Forms.ProcessNew
             Invalidate();
         }
 
-        private void SelectNodesInRectangle(Rectangle selection)
+        /// <summary>
+        /// 按框选区域更新节点选中状态，并返回状态发生变化的节点绘制区域。
+        /// </summary>
+        /// <param name="selection">画布坐标下的框选区域。</param>
+        /// <returns>需要重绘的节点区域。</returns>
+        private Rectangle SelectNodesInRectangle(Rectangle selection)
         {
             if (_process == null)
-                return;
+                return Rectangle.Empty;
 
             _selectedConnection = null;
+            Rectangle changedBounds = Rectangle.Empty;
             foreach (NodeBase node in _process.Nodes)
-                node.Selected = selection.IntersectsWith(GetNodeBounds(node));
+            {
+                bool selected = selection.IntersectsWith(GetNodeBounds(node));
+                if (node.Selected != selected)
+                {
+                    IncludeCanvasBounds(ref changedBounds, GetNodeVisualBounds(node));
+                    node.Selected = selected;
+                }
+            }
+
+            return changedBounds;
         }
 
         private Rectangle GetSelectionRectangle()
@@ -1473,16 +1684,30 @@ namespace TDJS_Vision.Forms.ProcessNew
             return new Rectangle(x, y, width, height);
         }
 
-        private void DrawGrid(Graphics graphics)
+        /// <summary>
+        /// 只绘制当前剪裁区域内的网格，避免大画布在局部刷新时仍然全量画线。
+        /// </summary>
+        /// <param name="graphics">画布绘图对象。</param>
+        /// <param name="visibleCanvasBounds">当前需要绘制的画布坐标区域。</param>
+        private void DrawGrid(Graphics graphics, Rectangle visibleCanvasBounds)
         {
+            Rectangle gridBounds = Rectangle.Intersect(new Rectangle(Point.Empty, LogicalCanvasSize), visibleCanvasBounds);
+            if (gridBounds.IsEmpty)
+                return;
+
+            int startX = Math.Max(0, (gridBounds.Left / GridSize) * GridSize);
+            int startY = Math.Max(0, (gridBounds.Top / GridSize) * GridSize);
+            int endX = Math.Min(LogicalCanvasSize.Width, gridBounds.Right + GridSize);
+            int endY = Math.Min(LogicalCanvasSize.Height, gridBounds.Bottom + GridSize);
+
             using (Pen gridPen = new Pen(GridLineColor, 1F / _zoomFactor))
             using (Pen majorGridPen = new Pen(GridMajorLineColor, 1.15F / _zoomFactor))
             {
-                for (int x = 0; x <= LogicalCanvasSize.Width; x += GridSize)
-                    graphics.DrawLine(x % (GridSize * 4) == 0 ? majorGridPen : gridPen, x, 0, x, LogicalCanvasSize.Height);
+                for (int x = startX; x <= endX; x += GridSize)
+                    graphics.DrawLine(x % (GridSize * 4) == 0 ? majorGridPen : gridPen, x, gridBounds.Top, x, gridBounds.Bottom);
 
-                for (int y = 0; y <= LogicalCanvasSize.Height; y += GridSize)
-                    graphics.DrawLine(y % (GridSize * 4) == 0 ? majorGridPen : gridPen, 0, y, LogicalCanvasSize.Width, y);
+                for (int y = startY; y <= endY; y += GridSize)
+                    graphics.DrawLine(y % (GridSize * 4) == 0 ? majorGridPen : gridPen, gridBounds.Left, y, gridBounds.Right, y);
             }
         }
 
@@ -2464,6 +2689,18 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (fromNode == null || toNode == null)
                 return;
 
+            DrawConnection(graphics, connection, fromNode, toNode);
+        }
+
+        /// <summary>
+        /// 使用已查找到的端点节点绘制连线，避免绘制循环中重复查找节点。
+        /// </summary>
+        /// <param name="graphics">画布绘图对象。</param>
+        /// <param name="connection">流程连线。</param>
+        /// <param name="fromNode">起点节点。</param>
+        /// <param name="toNode">终点节点。</param>
+        private void DrawConnection(Graphics graphics, ProcessConnection connection, NodeBase fromNode, NodeBase toNode)
+        {
             Color connectionColor = connection == _selectedConnection
                 ? Color.FromArgb(90, 190, 255)
                 : GetConnectionColor(connection.Branch);
@@ -2521,24 +2758,15 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (connection == null || sourceNode == null || targetNode == null)
                 return new Point[0];
 
+            ConnectionRouteCache cache;
+            if (TryGetReusableConnectionRouteCache(connection, sourceNode, targetNode, out cache))
+                return cache.Points;
+
             Point start = GetAnchorCenter(sourceNode, connection.FromAnchor);
             Point end = GetAnchorCenter(targetNode, connection.ToAnchor);
             Rectangle sourceBounds = GetNodeBounds(sourceNode);
             Rectangle targetBounds = GetNodeBounds(targetNode);
             string cacheKey = GetConnectionRouteCacheKey(connection);
-            ConnectionRouteCache cache;
-            if (!string.IsNullOrEmpty(cacheKey) &&
-                _connectionRouteCache.TryGetValue(cacheKey, out cache) &&
-                cache.Matches(
-                    start,
-                    connection.FromAnchor,
-                    end,
-                    connection.ToAnchor,
-                    sourceBounds,
-                    targetBounds))
-            {
-                return cache.Points;
-            }
 
             Point[] route = CreateRoutedConnectionPoints(
                 start,
@@ -2571,6 +2799,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (_process == null)
                 return;
 
+            Rectangle visibleCanvasBounds = GetVisibleCanvasBounds();
             foreach (ProcessConnection connection in _process.Connections)
             {
                 NodeBase fromNode = FindNode(connection.FromNodeId);
@@ -2578,8 +2807,56 @@ namespace TDJS_Vision.Forms.ProcessNew
                 if (fromNode == null || toNode == null)
                     continue;
 
+                if (!ShouldDrawConnection(connection, fromNode, toNode, visibleCanvasBounds))
+                    continue;
+
                 CreateRoutedConnectionPoints(connection, fromNode, toNode);
             }
+        }
+
+        /// <summary>
+        /// 尝试获取端点仍然匹配的持久连线路由缓存。
+        /// </summary>
+        /// <param name="connection">流程连线。</param>
+        /// <param name="sourceNode">起点节点。</param>
+        /// <param name="targetNode">终点节点。</param>
+        /// <param name="cache">命中的路由缓存。</param>
+        /// <returns>缓存可复用时返回 true。</returns>
+        private bool TryGetReusableConnectionRouteCache(
+            ProcessConnection connection,
+            NodeBase sourceNode,
+            NodeBase targetNode,
+            out ConnectionRouteCache cache)
+        {
+            cache = null;
+            if (connection == null || sourceNode == null || targetNode == null)
+                return false;
+
+            string cacheKey = GetConnectionRouteCacheKey(connection);
+            if (string.IsNullOrEmpty(cacheKey) ||
+                !_connectionRouteCache.TryGetValue(cacheKey, out cache))
+            {
+                cache = null;
+                return false;
+            }
+
+            Point start = GetAnchorCenter(sourceNode, connection.FromAnchor);
+            Point end = GetAnchorCenter(targetNode, connection.ToAnchor);
+            Rectangle sourceBounds = GetNodeBounds(sourceNode);
+            Rectangle targetBounds = GetNodeBounds(targetNode);
+            if (cache.Matches(
+                start,
+                connection.FromAnchor,
+                end,
+                connection.ToAnchor,
+                sourceBounds,
+                targetBounds))
+            {
+                return true;
+            }
+
+            cache = null;
+            return false;
         }
 
         /// <summary>
@@ -2615,14 +2892,18 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         private List<Rectangle> GetConnectionObstacles()
         {
-            List<Rectangle> obstacles = new List<Rectangle>();
             if (_process == null)
-                return obstacles;
+                return _connectionObstacleCache;
 
+            if (!_connectionObstacleCacheDirty)
+                return _connectionObstacleCache;
+
+            _connectionObstacleCache.Clear();
             foreach (NodeBase node in _process.Nodes)
-                obstacles.Add(GetNodeBounds(node));
+                _connectionObstacleCache.Add(GetNodeBounds(node));
 
-            return obstacles;
+            _connectionObstacleCacheDirty = false;
+            return _connectionObstacleCache;
         }
 
         private void DrawArrowPath(Graphics graphics, Point[] points, Color color, bool dashed, bool selected)
@@ -2791,6 +3072,11 @@ namespace TDJS_Vision.Forms.ProcessNew
                     if (fromNode == null || toNode == null)
                         continue;
 
+                    Rectangle hitBounds = GetConnectionCullBounds(connection, fromNode, toNode);
+                    hitBounds.Inflate(12, 12);
+                    if (!hitBounds.Contains(canvasPoint))
+                        continue;
+
                     Point[] route = CreateRoutedConnectionPoints(connection, fromNode, toNode);
 
                     using (GraphicsPath path = CreateConnectionGraphicsPath(route))
@@ -2809,7 +3095,30 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (_process == null)
                 return null;
 
-            return _process.Nodes.Find(node => node.ID == nodeId);
+            EnsureNodeLookup();
+            NodeBase node;
+            return _nodeLookup.TryGetValue(nodeId, out node) ? node : null;
+        }
+
+        /// <summary>
+        /// 确保节点 ID 查找表已经按当前流程节点集合生成。
+        /// </summary>
+        private void EnsureNodeLookup()
+        {
+            if (!_nodeLookupDirty)
+                return;
+
+            _nodeLookup.Clear();
+            if (_process != null)
+            {
+                foreach (NodeBase node in _process.Nodes)
+                {
+                    if (node != null && !_nodeLookup.ContainsKey(node.ID))
+                        _nodeLookup.Add(node.ID, node);
+                }
+            }
+
+            _nodeLookupDirty = false;
         }
 
         private int GetNodeIndex(NodeBase node)
@@ -2918,6 +3227,274 @@ namespace TDJS_Vision.Forms.ProcessNew
             int width = (int)Math.Ceiling(canvasBounds.Width * _zoomFactor);
             int height = (int)Math.Ceiling(canvasBounds.Height * _zoomFactor);
             return new Rectangle(x, y, width, height);
+        }
+
+        /// <summary>
+        /// 将控件剪裁区域换算为画布坐标区域，并扩展绘制余量。
+        /// </summary>
+        /// <param name="controlBounds">控件坐标下的剪裁区域。</param>
+        /// <returns>画布坐标下需要绘制的区域。</returns>
+        private Rectangle GetCanvasBoundsFromControlRectangle(Rectangle controlBounds)
+        {
+            if (controlBounds.Width <= 0 || controlBounds.Height <= 0)
+                return Rectangle.Empty;
+
+            float zoom = Math.Max(0.01F, _zoomFactor);
+            int left = (int)Math.Floor((controlBounds.Left - AutoScrollPosition.X) / zoom) - ViewportDrawPadding;
+            int top = (int)Math.Floor((controlBounds.Top - AutoScrollPosition.Y) / zoom) - ViewportDrawPadding;
+            int right = (int)Math.Ceiling((controlBounds.Right - AutoScrollPosition.X) / zoom) + ViewportDrawPadding;
+            int bottom = (int)Math.Ceiling((controlBounds.Bottom - AutoScrollPosition.Y) / zoom) + ViewportDrawPadding;
+            Rectangle canvasBounds = Rectangle.FromLTRB(left, top, Math.Max(left, right), Math.Max(top, bottom));
+            return Rectangle.Intersect(new Rectangle(Point.Empty, LogicalCanvasSize), canvasBounds);
+        }
+
+        /// <summary>
+        /// 获取当前客户区对应的画布可视区域。
+        /// </summary>
+        /// <returns>画布坐标下的可视区域。</returns>
+        private Rectangle GetVisibleCanvasBounds()
+        {
+            return GetCanvasBoundsFromControlRectangle(ClientRectangle);
+        }
+
+        /// <summary>
+        /// 判断节点绘制范围是否和当前剪裁区域相交。
+        /// </summary>
+        /// <param name="node">待绘制节点。</param>
+        /// <param name="visibleCanvasBounds">当前剪裁区域。</param>
+        /// <returns>节点需要绘制时返回 true。</returns>
+        private bool ShouldDrawNode(NodeBase node, Rectangle visibleCanvasBounds)
+        {
+            if (node == null || visibleCanvasBounds.IsEmpty)
+                return false;
+
+            return GetNodeVisualBounds(node).IntersectsWith(visibleCanvasBounds);
+        }
+
+        /// <summary>
+        /// 判断连线绘制范围是否和当前剪裁区域相交。
+        /// </summary>
+        /// <param name="connection">流程连线。</param>
+        /// <param name="fromNode">起点节点。</param>
+        /// <param name="toNode">终点节点。</param>
+        /// <param name="visibleCanvasBounds">当前剪裁区域。</param>
+        /// <returns>连线需要绘制时返回 true。</returns>
+        private bool ShouldDrawConnection(
+            ProcessConnection connection,
+            NodeBase fromNode,
+            NodeBase toNode,
+            Rectangle visibleCanvasBounds)
+        {
+            if (connection == null || fromNode == null || toNode == null || visibleCanvasBounds.IsEmpty)
+                return false;
+
+            Rectangle bounds = GetConnectionCullBounds(connection, fromNode, toNode);
+            return !bounds.IsEmpty && bounds.IntersectsWith(visibleCanvasBounds);
+        }
+
+        /// <summary>
+        /// 获取用于连线可视区域裁剪的近似边界，优先复用已有路由缓存。
+        /// </summary>
+        /// <param name="connection">流程连线。</param>
+        /// <param name="fromNode">起点节点。</param>
+        /// <param name="toNode">终点节点。</param>
+        /// <returns>连线在画布坐标下的绘制边界。</returns>
+        private Rectangle GetConnectionCullBounds(ProcessConnection connection, NodeBase fromNode, NodeBase toNode)
+        {
+            ConnectionRouteCache cache;
+            if (TryGetReusableConnectionRouteCache(connection, fromNode, toNode, out cache))
+                return InflateCanvasBounds(cache.Bounds, 56, 56);
+
+            Point start = GetAnchorCenter(fromNode, connection.FromAnchor);
+            Point end = GetAnchorCenter(toNode, connection.ToAnchor);
+            Rectangle bounds = CreatePointBounds(new[] { start, end });
+            return InflateCanvasBounds(bounds, 160, 160);
+        }
+
+        /// <summary>
+        /// 将画布区域转换为控件区域后触发局部刷新。
+        /// </summary>
+        /// <param name="canvasBounds">需要刷新的画布坐标区域。</param>
+        private void InvalidateCanvasBounds(Rectangle canvasBounds)
+        {
+            if (canvasBounds.IsEmpty)
+                return;
+
+            Rectangle controlBounds = ToControlRectangle(canvasBounds);
+            controlBounds.Inflate(6, 6);
+            controlBounds.Intersect(ClientRectangle);
+            if (!controlBounds.IsEmpty)
+                Invalidate(controlBounds);
+        }
+
+        /// <summary>
+        /// 合并两个画布区域，自动跳过空区域。
+        /// </summary>
+        /// <param name="first">第一个区域。</param>
+        /// <param name="second">第二个区域。</param>
+        /// <returns>合并后的区域。</returns>
+        private static Rectangle UnionCanvasBounds(Rectangle first, Rectangle second)
+        {
+            if (first.IsEmpty)
+                return second;
+
+            if (second.IsEmpty)
+                return first;
+
+            return Rectangle.Union(first, second);
+        }
+
+        /// <summary>
+        /// 将区域按指定余量扩展，空区域保持为空。
+        /// </summary>
+        /// <param name="bounds">待扩展区域。</param>
+        /// <param name="horizontalPadding">水平扩展量。</param>
+        /// <param name="verticalPadding">垂直扩展量。</param>
+        /// <returns>扩展后的区域。</returns>
+        private static Rectangle InflateCanvasBounds(Rectangle bounds, int horizontalPadding, int verticalPadding)
+        {
+            if (bounds.IsEmpty)
+                return bounds;
+
+            bounds.Inflate(horizontalPadding, verticalPadding);
+            return bounds;
+        }
+
+        /// <summary>
+        /// 将一段区域合入目标区域，目标为空时直接赋值。
+        /// </summary>
+        /// <param name="target">目标区域。</param>
+        /// <param name="source">待合并区域。</param>
+        private static void IncludeCanvasBounds(ref Rectangle target, Rectangle source)
+        {
+            if (source.IsEmpty)
+                return;
+
+            target = target.IsEmpty ? source : Rectangle.Union(target, source);
+        }
+
+        /// <summary>
+        /// 计算点集的最小外接矩形。
+        /// </summary>
+        /// <param name="points">画布坐标点集。</param>
+        /// <returns>点集边界。</returns>
+        private static Rectangle CreatePointBounds(Point[] points)
+        {
+            if (points == null || points.Length == 0)
+                return Rectangle.Empty;
+
+            int minX = points[0].X;
+            int minY = points[0].Y;
+            int maxX = points[0].X;
+            int maxY = points[0].Y;
+            for (int index = 1; index < points.Length; index++)
+            {
+                minX = Math.Min(minX, points[index].X);
+                minY = Math.Min(minY, points[index].Y);
+                maxX = Math.Max(maxX, points[index].X);
+                maxY = Math.Max(maxY, points[index].Y);
+            }
+
+            return Rectangle.FromLTRB(minX, minY, maxX + 1, maxY + 1);
+        }
+
+        /// <summary>
+        /// 获取节点含阴影和锚点的绘制区域。
+        /// </summary>
+        /// <param name="node">节点。</param>
+        /// <returns>节点绘制区域。</returns>
+        private Rectangle GetNodeVisualBounds(NodeBase node)
+        {
+            Rectangle bounds = GetNodeBounds(node);
+            bounds.Inflate(80, 48);
+            return bounds;
+        }
+
+        /// <summary>
+        /// 获取当前拖动批次需要重绘的画布区域。
+        /// </summary>
+        /// <returns>拖动节点、相关连线和辅助线的合并区域。</returns>
+        private Rectangle GetDragInvalidationBounds()
+        {
+            Rectangle bounds = Rectangle.Empty;
+            foreach (NodeLocationSnapshot snapshot in _dragStartSnapshots)
+            {
+                if (snapshot.Node != null)
+                    IncludeCanvasBounds(ref bounds, GetNodeVisualBounds(snapshot.Node));
+            }
+
+            foreach (ProcessConnection connection in _dragAffectedConnections)
+                IncludeCanvasBounds(ref bounds, GetConnectionVisualBounds(connection));
+
+            IncludeCanvasBounds(ref bounds, GetAlignmentGuidesVisualBounds());
+            return bounds;
+        }
+
+        /// <summary>
+        /// 获取当前框选区域需要重绘的画布区域。
+        /// </summary>
+        /// <returns>框选矩形扩展后的区域。</returns>
+        private Rectangle GetSelectionInvalidationBounds()
+        {
+            Rectangle bounds = GetSelectionRectangle();
+            return InflateCanvasBounds(bounds, 96, 96);
+        }
+
+        /// <summary>
+        /// 获取临时连线当前需要重绘的画布区域。
+        /// </summary>
+        /// <returns>临时连线路由区域。</returns>
+        private Rectangle GetTemporaryConnectionVisualBounds()
+        {
+            if (_connectionStartNode == null)
+                return Rectangle.Empty;
+
+            Point start = GetAnchorCenter(_connectionStartNode, _connectionStartAnchor);
+            ProcessConnectionBranch branch = GetConnectionBranch(_connectionStartNode, _connectionStartAnchor);
+            Point[] route = CreateRoutedConnectionPoints(
+                start,
+                _connectionStartAnchor,
+                _connectionEndPoint,
+                null,
+                _connectionStartNode,
+                null);
+            Rectangle bounds = CreatePointBounds(route);
+            return InflateCanvasBounds(bounds, branch == ProcessConnectionBranch.Default ? 48 : 64, 48);
+        }
+
+        /// <summary>
+        /// 获取指定连线含端帽和标签的绘制区域。
+        /// </summary>
+        /// <param name="connection">流程连线。</param>
+        /// <returns>连线绘制区域。</returns>
+        private Rectangle GetConnectionVisualBounds(ProcessConnection connection)
+        {
+            NodeBase fromNode = FindNode(connection.FromNodeId);
+            NodeBase toNode = FindNode(connection.ToNodeId);
+            if (fromNode == null || toNode == null)
+                return Rectangle.Empty;
+
+            Point[] route = CreateRoutedConnectionPoints(connection, fromNode, toNode);
+            Rectangle bounds = CreatePointBounds(route);
+            return InflateCanvasBounds(bounds, connection.Branch == ProcessConnectionBranch.Default ? 56 : 76, 56);
+        }
+
+        /// <summary>
+        /// 获取当前所有对齐辅助线的绘制区域。
+        /// </summary>
+        /// <returns>辅助线合并区域。</returns>
+        private Rectangle GetAlignmentGuidesVisualBounds()
+        {
+            Rectangle bounds = Rectangle.Empty;
+            foreach (AlignmentGuide guide in _alignmentGuides)
+            {
+                Rectangle guideBounds = guide.Axis == CanvasAlignmentAxis.Horizontal
+                    ? Rectangle.FromLTRB(guide.Start, guide.Coordinate - 3, guide.End + 1, guide.Coordinate + 4)
+                    : Rectangle.FromLTRB(guide.Coordinate - 3, guide.Start, guide.Coordinate + 4, guide.End + 1);
+                IncludeCanvasBounds(ref bounds, guideBounds);
+            }
+
+            return InflateCanvasBounds(bounds, 16, 16);
         }
 
         private bool OpenNodeParameters(NodeBase node)
@@ -3625,6 +4202,26 @@ namespace TDJS_Vision.Forms.ProcessNew
         }
 
         /// <summary>
+        /// 拖动过程中用于对齐吸附的静态节点边界快照。
+        /// </summary>
+        private sealed class NodeAlignmentTarget
+        {
+            /// <summary>
+            /// 参考节点在拖动开始时的画布边界。
+            /// </summary>
+            public readonly Rectangle Bounds;
+
+            /// <summary>
+            /// 创建一个对齐参考节点快照。
+            /// </summary>
+            /// <param name="bounds">参考节点画布边界。</param>
+            public NodeAlignmentTarget(Rectangle bounds)
+            {
+                Bounds = bounds;
+            }
+        }
+
+        /// <summary>
         /// 持久连线最近一次生成的路由缓存。
         /// </summary>
         private sealed class ConnectionRouteCache
@@ -3657,6 +4254,10 @@ namespace TDJS_Vision.Forms.ProcessNew
             /// 缓存的路由点。
             /// </summary>
             public readonly Point[] Points;
+            /// <summary>
+            /// 路由点的最小外接矩形，用于可视区域裁剪和局部刷新。
+            /// </summary>
+            public readonly Rectangle Bounds;
 
             /// <summary>
             /// 创建连线路由缓存。
@@ -3684,6 +4285,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 _sourceBounds = sourceBounds;
                 _targetBounds = targetBounds;
                 Points = points == null ? new Point[0] : points.ToArray();
+                Bounds = CreatePointBounds(Points);
             }
 
             /// <summary>
