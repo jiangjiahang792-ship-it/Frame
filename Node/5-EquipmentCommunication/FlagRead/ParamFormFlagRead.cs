@@ -43,6 +43,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
             int index = comboBoxPlcList.Items.IndexOf(text);
             comboBoxPlcList.SelectedIndex = index == -1 ? 0 : index;
             checkBox1.Checked = false;
+            checkBoxWait.Checked = true;
         }
 
         public static string BuildSignalKey(SingleGlobalSignalSettings signal)
@@ -100,7 +101,8 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                     Signal = signal,
                     SignalKey = BuildSignalKey(signal),
                     SignalName = GetSignalDisplayName(signal),
-                    Reset = checkBox1.Checked
+                    Reset = checkBox1.Checked,
+                    WaitForSignal = checkBoxWait.Checked
                 };
 
                 Params = nodeParamRead;
@@ -132,6 +134,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                 int index = comboBoxPlcList.Items.IndexOf(param.SignalName);
                 comboBoxPlcList.SelectedIndex = index == -1 ? 0 : index;
                 checkBox1.Checked = param.Reset;
+                checkBoxWait.Checked = param.WaitForSignal;
 
                 var signals = Solution.Instance.GlobalSignal?.ListenSignals;
                 if (signals == null)

@@ -45,7 +45,10 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                     if (signal == null)
                         throw new Exception($"未找到监听信号：{param.SignalName}");
 
-                    await WaitSignalAsync(signal, token);
+                    if (param.WaitForSignal)
+                    {
+                        await WaitSignalAsync(signal, token);
+                    }
 
                     bool signalValue = signal.SignalValue;
                     result.ReadResult = new FlagReadResult(signalValue);
@@ -61,6 +64,14 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
 
                     if (showLog)
                         LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms, 监听信号：{param.SignalName}, 读取结果：{signalValue})", true);
+
+                    if (!param.WaitForSignal && !signalValue)
+                    {
+                        if (showLog)
+                            LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})不等待监听信号，当前标志位为 false，流程提前结束。", true);
+
+                        return new NodeReturn(NodeRunFlag.StopRun);
+                    }
 
                     return new NodeReturn(NodeRunFlag.ContinueRun);
                 }

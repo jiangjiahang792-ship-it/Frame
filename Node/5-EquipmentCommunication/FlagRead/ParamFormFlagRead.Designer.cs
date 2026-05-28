@@ -35,6 +35,8 @@
             this.button1 = new System.Windows.Forms.Button();
             this.label2 = new System.Windows.Forms.Label();
             this.checkBox1 = new System.Windows.Forms.CheckBox();
+            this.labelWait = new System.Windows.Forms.Label();
+            this.checkBoxWait = new System.Windows.Forms.CheckBox();
             this.tableLayoutPanel1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -48,6 +50,8 @@
             this.tableLayoutPanel1.Controls.Add(this.button1, 0, 4);
             this.tableLayoutPanel1.Controls.Add(this.label2, 0, 1);
             this.tableLayoutPanel1.Controls.Add(this.checkBox1, 1, 1);
+            this.tableLayoutPanel1.Controls.Add(this.labelWait, 0, 2);
+            this.tableLayoutPanel1.Controls.Add(this.checkBoxWait, 1, 2);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 38);
@@ -119,7 +123,31 @@
             this.checkBox1.Size = new System.Drawing.Size(22, 21);
             this.checkBox1.TabIndex = 3;
             this.checkBox1.UseVisualStyleBackColor = true;
-            // 
+            //
+            // labelWait
+            //
+            this.labelWait.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.labelWait.AutoSize = true;
+            this.labelWait.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.labelWait.Location = new System.Drawing.Point(88, 235);
+            this.labelWait.Name = "labelWait";
+            this.labelWait.Size = new System.Drawing.Size(94, 21);
+            this.labelWait.TabIndex = 4;
+            this.labelWait.Text = "是否等待";
+            //
+            // checkBoxWait
+            //
+            this.checkBoxWait.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.checkBoxWait.AutoSize = true;
+            this.checkBoxWait.Checked = true;
+            this.checkBoxWait.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.checkBoxWait.Location = new System.Drawing.Point(394, 235);
+            this.checkBoxWait.Name = "checkBoxWait";
+            this.checkBoxWait.Size = new System.Drawing.Size(70, 25);
+            this.checkBoxWait.TabIndex = 5;
+            this.checkBoxWait.Text = "等待";
+            this.checkBoxWait.UseVisualStyleBackColor = true;
+            //
             // ParamFormFlagRead
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
@@ -149,5 +177,7 @@
         private System.Windows.Forms.Button button1;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.CheckBox checkBox1;
+        private System.Windows.Forms.Label labelWait;
+        private System.Windows.Forms.CheckBox checkBoxWait;
     }
 }

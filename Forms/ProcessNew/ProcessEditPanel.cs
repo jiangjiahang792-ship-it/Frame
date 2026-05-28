@@ -88,8 +88,22 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// 所有的节点控件
         /// </summary>
         private Stack<NodeBase> _stack = new Stack<NodeBase>();
-        private NodeCopySnapshot _copiedNodeSnapshot;
+        /// <summary>
+        /// 共享节点复制快照，用于让一个流程页复制的节点可以粘贴到另一个流程页。
+        /// </summary>
+        private static NodeCopySnapshot _sharedCopiedNodeSnapshot;
+        /// <summary>
+        /// 复制快照递增编号，用于目标流程识别当前粘贴次数是否需要重置。
+        /// </summary>
+        private static int _copySnapshotSeed;
+        /// <summary>
+        /// 当前流程页对当前复制快照已经执行的粘贴次数。
+        /// </summary>
         private int _pasteCount;
+        /// <summary>
+        /// 当前流程页最近一次使用的复制快照编号。
+        /// </summary>
+        private int _lastPasteCopySequence;
         private bool _isLoopRunRequested;
         private bool _updatingProcessEnableState;
         private Button _hoveredCommandButton;
@@ -1107,7 +1121,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             bool hasNode = selectedNodeCount > 0;
             bool hasSingleNode = selectedNodeCount == 1;
             bool hasConnection = processFlowCanvas.SelectedConnection != null;
-            bool canPaste = _copiedNodeSnapshot != null;
+            bool canPaste = HasCopiedNodeSnapshot();
             bool hasActiveNode = false;
             bool hasInactiveNode = false;
 
@@ -1236,17 +1250,27 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (selectedNodes.Count == 0)
                 return false;
 
-            _copiedNodeSnapshot = new NodeCopySnapshot
+            NodeCopySnapshot snapshot = new NodeCopySnapshot
             {
+                CopySequence = ++_copySnapshotSeed,
+                SourceProcessId = _process == null ? -1 : _process.ID,
+                SourceProcessName = _process == null ? string.Empty : _process.ProcessName,
+                SourceNodeTexts = new Dictionary<int, string>(),
                 Nodes = new List<NodeCopyItem>(),
                 Connections = new List<ConnectionCopySnapshot>()
             };
+
+            if (_process != null)
+            {
+                foreach (NodeBase processNode in _process.Nodes)
+                    snapshot.SourceNodeTexts[processNode.ID] = GetNodeText(processNode.ID, processNode.NodeName);
+            }
 
             Dictionary<int, NodeBase> selectedNodeMap = new Dictionary<int, NodeBase>();
             foreach (NodeBase node in selectedNodes)
             {
                 selectedNodeMap[node.ID] = node;
-                _copiedNodeSnapshot.Nodes.Add(new NodeCopyItem
+                snapshot.Nodes.Add(new NodeCopyItem
                 {
                     SourceNodeId = node.ID,
                     NodeType = node.NodeType,
@@ -1267,7 +1291,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     continue;
                 }
 
-                _copiedNodeSnapshot.Connections.Add(new ConnectionCopySnapshot
+                snapshot.Connections.Add(new ConnectionCopySnapshot
                 {
                     FromNodeId = connection.FromNodeId,
                     ToNodeId = connection.ToNodeId,
@@ -1277,27 +1301,38 @@ namespace TDJS_Vision.Forms.ProcessNew
                 });
             }
 
+            _sharedCopiedNodeSnapshot = snapshot;
             _pasteCount = 0;
+            _lastPasteCopySequence = snapshot.CopySequence;
             return true;
         }
 
         private bool PasteCopiedNode()
         {
-            if (_copiedNodeSnapshot == null ||
-                _copiedNodeSnapshot.Nodes == null ||
-                _copiedNodeSnapshot.Nodes.Count == 0)
+            NodeCopySnapshot snapshot = _sharedCopiedNodeSnapshot;
+            if (snapshot == null ||
+                snapshot.Nodes == null ||
+                snapshot.Nodes.Count == 0)
                 return false;
+
+            if (_lastPasteCopySequence != snapshot.CopySequence)
+            {
+                _pasteCount = 0;
+                _lastPasteCopySequence = snapshot.CopySequence;
+            }
 
             List<NodeBase> pastedNodes = new List<NodeBase>();
             List<ProcessConnection> pastedConnections = new List<ProcessConnection>();
+            List<string> unresolvedReferences = new List<string>();
             try
             {
-                Point pasteOffset = GetNextPasteOffset(_copiedNodeSnapshot);
+                bool isCrossProcessPaste = !snapshot.IsSourceProcess(_process);
+                Point pasteOffset = GetNextPasteOffset(snapshot);
                 Dictionary<int, NodeBase> pastedNodeMap = new Dictionary<int, NodeBase>();
-                Dictionary<string, string> nodeTextMap = new Dictionary<string, string>();
+                Dictionary<string, string> nodeTextMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 Dictionary<int, int> nodeIdMap = new Dictionary<int, int>();
 
-                foreach (NodeCopyItem item in _copiedNodeSnapshot.Nodes)
+                foreach (NodeCopyItem item in snapshot.Nodes)
                 {
                     Point pasteLocation = new Point(
                         item.CanvasLocation.X + pasteOffset.X,
@@ -1315,7 +1350,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     pastedNodes.Add(pastedNode);
                     pastedNodeMap[item.SourceNodeId] = pastedNode;
                     nodeIdMap[item.SourceNodeId] = pastedNode.ID;
-                    nodeTextMap[$"{item.SourceNodeId}.{item.NodeName}"] = $"{pastedNode.ID}.{pastedNode.NodeName}";
+                    nodeTextMap[GetNodeText(item.SourceNodeId, item.NodeName)] = GetNodeText(pastedNode.ID, pastedNode.NodeName);
                 }
 
                 foreach (NodeBase pastedNode in pastedNodes)
@@ -1323,11 +1358,16 @@ namespace TDJS_Vision.Forms.ProcessNew
                     if (pastedNode.ParamForm == null || pastedNode.ParamForm.Params == null)
                         continue;
 
-                    RemapInternalNodeReferences(pastedNode.ParamForm.Params, nodeTextMap, nodeIdMap);
+                    RemapInternalNodeReferences(
+                        pastedNode.ParamForm.Params,
+                        nodeTextMap,
+                        nodeIdMap,
+                        isCrossProcessPaste ? snapshot.SourceNodeTexts : null,
+                        unresolvedReferences);
                     pastedNode.ParamForm.SetParam2Form();
                 }
 
-                foreach (ConnectionCopySnapshot connection in _copiedNodeSnapshot.Connections)
+                foreach (ConnectionCopySnapshot connection in snapshot.Connections)
                 {
                     if (!pastedNodeMap.ContainsKey(connection.FromNodeId) ||
                         !pastedNodeMap.ContainsKey(connection.ToNodeId))
@@ -1357,6 +1397,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 _pasteCount++;
                 UpdateNode();
                 UpdateNodeCountText();
+                ShowUnresolvedReferenceWarning(unresolvedReferences);
                 return true;
             }
             catch
@@ -1389,6 +1430,60 @@ namespace TDJS_Vision.Forms.ProcessNew
 
                 throw;
             }
+        }
+
+        /// <summary>
+        /// 判断当前是否存在可粘贴的共享节点复制快照。
+        /// </summary>
+        /// <returns>存在有效复制快照时返回 true。</returns>
+        private static bool HasCopiedNodeSnapshot()
+        {
+            return _sharedCopiedNodeSnapshot != null &&
+                _sharedCopiedNodeSnapshot.Nodes != null &&
+                _sharedCopiedNodeSnapshot.Nodes.Count > 0;
+        }
+
+        /// <summary>
+        /// 显示跨流程粘贴时被清空的源流程外部引用提示。
+        /// </summary>
+        /// <param name="unresolvedReferences">被检测到的源流程外部引用。</param>
+        private static void ShowUnresolvedReferenceWarning(List<string> unresolvedReferences)
+        {
+            List<string> uniqueReferences = GetUniqueReferences(unresolvedReferences);
+            if (uniqueReferences.Count == 0)
+                return;
+
+            int displayCount = Math.Min(5, uniqueReferences.Count);
+            string detail = string.Join("、", uniqueReferences.GetRange(0, displayCount).ToArray());
+            if (uniqueReferences.Count > displayCount)
+                detail += " 等";
+
+            string message = $"跨流程粘贴时发现 {uniqueReferences.Count} 个源流程外部引用未一起复制，已清空：{detail}。请在目标流程中重新选择订阅节点。";
+            LogHelper.AddLog(MsgLevel.Warn, message, true);
+            MessageBoxTD.Show(message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        /// <summary>
+        /// 获取去重后的引用名称列表。
+        /// </summary>
+        /// <param name="references">原始引用名称列表。</param>
+        /// <returns>保持首次出现顺序的去重列表。</returns>
+        private static List<string> GetUniqueReferences(List<string> references)
+        {
+            List<string> uniqueReferences = new List<string>();
+            if (references == null)
+                return uniqueReferences;
+
+            HashSet<string> visitedReferences = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string reference in references)
+            {
+                if (string.IsNullOrWhiteSpace(reference) || !visitedReferences.Add(reference))
+                    continue;
+
+                uniqueReferences.Add(reference);
+            }
+
+            return uniqueReferences;
         }
 
         private Point GetNextPasteOffset(NodeCopySnapshot snapshot)
@@ -1452,6 +1547,17 @@ namespace TDJS_Vision.Forms.ProcessNew
             return false;
         }
 
+        /// <summary>
+        /// 生成参数订阅中持久化使用的节点文本。
+        /// </summary>
+        /// <param name="nodeId">节点编号。</param>
+        /// <param name="nodeName">节点名称。</param>
+        /// <returns>节点编号和名称组合后的文本。</returns>
+        private static string GetNodeText(int nodeId, string nodeName)
+        {
+            return $"{nodeId}.{nodeName}";
+        }
+
         private static INodeParam CloneNodeParam(INodeParam sourceParam)
         {
             if (sourceParam == null)
@@ -1469,9 +1575,11 @@ namespace TDJS_Vision.Forms.ProcessNew
             object target,
             Dictionary<string, string> nodeTextMap,
             Dictionary<int, int> nodeIdMap = null,
+            Dictionary<int, string> sourceNodeTextMap = null,
+            List<string> unresolvedReferences = null,
             int depth = 0)
         {
-            if (target == null || nodeTextMap == null || nodeTextMap.Count == 0 || depth > 5)
+            if (target == null || depth > 8)
                 return;
 
             Type type = target.GetType();
@@ -1483,16 +1591,38 @@ namespace TDJS_Vision.Forms.ProcessNew
                 return;
             }
 
-            System.Collections.IEnumerable enumerable = target as System.Collections.IEnumerable;
-            if (enumerable != null)
+            System.Collections.IList list = target as System.Collections.IList;
+            if (list != null && !list.IsReadOnly)
             {
-                foreach (object item in enumerable)
-                    RemapInternalNodeReferences(item, nodeTextMap, nodeIdMap, depth + 1);
+                for (int index = 0; index < list.Count; index++)
+                {
+                    string oldItemText = list[index] as string;
+                    if (oldItemText != null)
+                    {
+                        list[index] = RemapNodeReferenceText(
+                            oldItemText,
+                            nodeTextMap,
+                            sourceNodeTextMap,
+                            unresolvedReferences);
+                        continue;
+                    }
+
+                    RemapInternalNodeReferences(list[index], nodeTextMap, nodeIdMap, sourceNodeTextMap, unresolvedReferences, depth + 1);
+                }
 
                 return;
             }
 
-            foreach (System.Reflection.PropertyInfo property in type.GetProperties())
+            System.Collections.IEnumerable enumerable = target as System.Collections.IEnumerable;
+            if (enumerable != null)
+            {
+                foreach (object item in enumerable)
+                    RemapInternalNodeReferences(item, nodeTextMap, nodeIdMap, sourceNodeTextMap, unresolvedReferences, depth + 1);
+
+                return;
+            }
+
+            foreach (System.Reflection.PropertyInfo property in type.GetProperties(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public))
             {
                 if (!property.CanRead ||
                     !property.CanWrite ||
@@ -1508,7 +1638,14 @@ namespace TDJS_Vision.Forms.ProcessNew
                     int oldNodeId = (int)property.GetValue(target, null);
                     int newNodeId;
                     if (nodeIdMap.TryGetValue(oldNodeId, out newNodeId))
+                    {
                         property.SetValue(target, newNodeId, null);
+                    }
+                    else if (sourceNodeTextMap != null && sourceNodeTextMap.ContainsKey(oldNodeId))
+                    {
+                        property.SetValue(target, 0, null);
+                        AddUnresolvedReference(unresolvedReferences, sourceNodeTextMap[oldNodeId]);
+                    }
 
                     continue;
                 }
@@ -1516,13 +1653,10 @@ namespace TDJS_Vision.Forms.ProcessNew
                 if (property.PropertyType == typeof(string))
                 {
                     string oldValue = property.GetValue(target, null) as string;
-                    string newValue;
-                    if (!string.IsNullOrEmpty(oldValue) &&
-                        nodeTextMap.TryGetValue(oldValue, out newValue))
-                    {
-                        property.SetValue(target, newValue, null);
-                    }
-
+                    property.SetValue(
+                        target,
+                        RemapNodeReferenceText(oldValue, nodeTextMap, sourceNodeTextMap, unresolvedReferences),
+                        null);
                     continue;
                 }
 
@@ -1530,34 +1664,208 @@ namespace TDJS_Vision.Forms.ProcessNew
                     continue;
 
                 object value = property.GetValue(target, null);
-                RemapInternalNodeReferences(value, nodeTextMap, nodeIdMap, depth + 1);
+                RemapInternalNodeReferences(value, nodeTextMap, nodeIdMap, sourceNodeTextMap, unresolvedReferences, depth + 1);
             }
+
+            foreach (System.Reflection.FieldInfo field in type.GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public))
+            {
+                if (field.IsInitOnly)
+                    continue;
+
+                if (field.FieldType == typeof(int) &&
+                    nodeIdMap != null &&
+                    string.Equals(field.Name, "SourceNodeId", StringComparison.OrdinalIgnoreCase))
+                {
+                    int oldNodeId = (int)field.GetValue(target);
+                    int newNodeId;
+                    if (nodeIdMap.TryGetValue(oldNodeId, out newNodeId))
+                    {
+                        field.SetValue(target, newNodeId);
+                    }
+                    else if (sourceNodeTextMap != null && sourceNodeTextMap.ContainsKey(oldNodeId))
+                    {
+                        field.SetValue(target, 0);
+                        AddUnresolvedReference(unresolvedReferences, sourceNodeTextMap[oldNodeId]);
+                    }
+
+                    continue;
+                }
+
+                if (field.FieldType == typeof(string))
+                {
+                    string oldValue = field.GetValue(target) as string;
+                    field.SetValue(
+                        target,
+                        RemapNodeReferenceText(oldValue, nodeTextMap, sourceNodeTextMap, unresolvedReferences));
+                    continue;
+                }
+
+                if (field.FieldType.IsValueType)
+                    continue;
+
+                object value = field.GetValue(target);
+                RemapInternalNodeReferences(value, nodeTextMap, nodeIdMap, sourceNodeTextMap, unresolvedReferences, depth + 1);
+            }
+        }
+
+        /// <summary>
+        /// 重映射参数对象中的节点文本引用；跨流程外部引用会被清空并记录。
+        /// </summary>
+        /// <param name="oldValue">原始节点文本。</param>
+        /// <param name="nodeTextMap">复制批次内的节点文本重映射表。</param>
+        /// <param name="sourceNodeTextMap">源流程节点文本表。</param>
+        /// <param name="unresolvedReferences">跨流程外部引用记录列表。</param>
+        /// <returns>重映射后的节点文本。</returns>
+        private static string RemapNodeReferenceText(
+            string oldValue,
+            Dictionary<string, string> nodeTextMap,
+            Dictionary<int, string> sourceNodeTextMap,
+            List<string> unresolvedReferences)
+        {
+            if (string.IsNullOrEmpty(oldValue))
+                return oldValue;
+
+            string newValue;
+            if (nodeTextMap != null && nodeTextMap.TryGetValue(oldValue, out newValue))
+                return newValue;
+
+            if (IsSourceOnlyNodeText(oldValue, sourceNodeTextMap))
+            {
+                AddUnresolvedReference(unresolvedReferences, oldValue);
+                return string.Empty;
+            }
+
+            return oldValue;
+        }
+
+        /// <summary>
+        /// 判断字符串是否是源流程中的节点文本，并且未被复制批次重映射。
+        /// </summary>
+        /// <param name="value">待判断的字符串。</param>
+        /// <param name="sourceNodeTextMap">源流程节点文本表。</param>
+        /// <returns>命中源流程节点文本时返回 true。</returns>
+        private static bool IsSourceOnlyNodeText(string value, Dictionary<int, string> sourceNodeTextMap)
+        {
+            if (string.IsNullOrWhiteSpace(value) || sourceNodeTextMap == null || sourceNodeTextMap.Count == 0)
+                return false;
+
+            foreach (string sourceNodeText in sourceNodeTextMap.Values)
+            {
+                if (string.Equals(value, sourceNodeText, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 记录跨流程粘贴时无法自动迁移的源流程节点引用。
+        /// </summary>
+        /// <param name="unresolvedReferences">待追加的引用列表。</param>
+        /// <param name="reference">无法自动迁移的引用文本。</param>
+        private static void AddUnresolvedReference(List<string> unresolvedReferences, string reference)
+        {
+            if (unresolvedReferences == null || string.IsNullOrWhiteSpace(reference))
+                return;
+
+            unresolvedReferences.Add(reference);
         }
 
         private sealed class NodeCopySnapshot
         {
+            /// <summary>
+            /// 复制快照编号，用于区分不同批次的复制内容。
+            /// </summary>
+            public int CopySequence;
+            /// <summary>
+            /// 源流程编号。
+            /// </summary>
+            public int SourceProcessId;
+            /// <summary>
+            /// 源流程名称。
+            /// </summary>
+            public string SourceProcessName;
+            /// <summary>
+            /// 源流程中所有节点的订阅文本，用于跨流程粘贴时识别外部引用。
+            /// </summary>
+            public Dictionary<int, string> SourceNodeTexts = new Dictionary<int, string>();
+            /// <summary>
+            /// 被复制的节点快照。
+            /// </summary>
             public List<NodeCopyItem> Nodes = new List<NodeCopyItem>();
+            /// <summary>
+            /// 被复制节点之间的内部连线快照。
+            /// </summary>
             public List<ConnectionCopySnapshot> Connections = new List<ConnectionCopySnapshot>();
+
+            /// <summary>
+            /// 判断目标流程是否就是复制来源流程。
+            /// </summary>
+            /// <param name="process">当前准备粘贴的目标流程。</param>
+            /// <returns>目标流程与来源流程一致时返回 true。</returns>
+            public bool IsSourceProcess(Process process)
+            {
+                return process != null && process.ID == SourceProcessId;
+            }
         }
 
         private sealed class NodeCopyItem
         {
+            /// <summary>
+            /// 源节点编号。
+            /// </summary>
             public int SourceNodeId;
+            /// <summary>
+            /// 源节点类型。
+            /// </summary>
             public NodeType NodeType;
+            /// <summary>
+            /// 源节点名称。
+            /// </summary>
             public string NodeName;
+            /// <summary>
+            /// 源节点启用状态。
+            /// </summary>
             public bool Active;
+            /// <summary>
+            /// 源节点画布位置。
+            /// </summary>
             public Point CanvasLocation;
+            /// <summary>
+            /// 源节点画布尺寸。
+            /// </summary>
             public Size CanvasSize;
+            /// <summary>
+            /// 源节点备注。
+            /// </summary>
             public string Notes;
+            /// <summary>
+            /// 源节点参数深拷贝。
+            /// </summary>
             public INodeParam NodeParam;
         }
 
         private sealed class ConnectionCopySnapshot
         {
+            /// <summary>
+            /// 源连线起点节点编号。
+            /// </summary>
             public int FromNodeId;
+            /// <summary>
+            /// 源连线终点节点编号。
+            /// </summary>
             public int ToNodeId;
+            /// <summary>
+            /// 源连线起点锚点。
+            /// </summary>
             public string FromAnchor;
+            /// <summary>
+            /// 源连线终点锚点。
+            /// </summary>
             public string ToAnchor;
+            /// <summary>
+            /// 源连线分支语义。
+            /// </summary>
             public ProcessConnectionBranch Branch;
         }
     }

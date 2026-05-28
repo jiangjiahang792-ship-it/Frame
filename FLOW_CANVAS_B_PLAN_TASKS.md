@@ -16,7 +16,7 @@ This means the target is not only a visual style change. The work includes:
 
 ## Current Step
 
-The current implementation step is **Phase 22.8: MultiCondition Mixed Upstream Subscription Null-Value Investigation**.
+The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass**.
 
 ### Latest Progress
 
@@ -99,6 +99,22 @@ The current implementation step is **Phase 22.8: MultiCondition Mixed Upstream S
   - [x] Runtime feedback confirmed one null case was caused by `102.LineLineAngle` not running in the current batch: source run id was 1, current run id was 2, source status was `Unexecuted`.
   - [x] Added graph scheduling support for subscription dependencies so `MultiCondition` waits for configured source nodes before evaluating when those sources are active in the same graph component.
   - [x] Build-verified after implementation with MSBuild on 2026-05-28, 0 errors; existing warnings remain.
+- Phase 11.1 cross-process node copy/paste planning:
+  - [x] New request captured on 2026-05-28: current node copy/paste is process-local; add support for copying selected nodes from one process tab and pasting them into another process tab.
+  - [x] Copy buffer now survives active process/canvas switching through a shared clone snapshot and does not depend on the source process UI panel.
+  - [x] Cross-process paste creates fresh target-process node instances, assigns new node IDs, makes node names unique with the `_复制` suffix, and restores parameters, notes, active state, size, and layout.
+  - [x] Multi-node cross-process paste keeps copied relative positions and remaps internal graph connections from source node IDs to target node IDs.
+  - [x] Parameter references that point to nodes copied in the same batch are remapped; references to source-process-only nodes outside the copied batch are cleared and reported as unresolved.
+  - [x] Remapping covers both property-based parameters and older public-field/string-array subscription parameters.
+  - [x] Paste into the target process registers as one grouped undo/redo edit and refreshes node count, selection, subscription pickers, and canvas overlays.
+  - [x] Build-verified after implementation with MSBuild on 2026-05-28, 0 errors; existing warnings remain.
+  - [ ] UI-verify single-node and multi-node cross-process copy/paste between two process tabs, including internal connections, parameter form restore, undo/redo, save/load, and unresolved external-reference handling.
+- FlagRead wait/no-wait option feedback pass:
+  - [x] New request captured on 2026-05-28: add a designer-visible `是否等待` checkbox to the `FlagRead` parameter form.
+  - [x] Default checked state preserves the original behavior: wait in a loop until the selected listen signal becomes true, then continue downstream.
+  - [x] When unchecked, `FlagRead` reads the flag once; true continues downstream, false records a normal successful read result and returns `StopRun` to end the current process early.
+  - [x] Build-verified after implementation with MSBuild on 2026-05-28, 0 errors; existing warnings remain.
+  - [ ] UI-verify checked wait mode, unchecked true mode, unchecked false early-end mode, save/load restore, and reset-signal behavior.
 - Phase 11 undo/redo first implementation pass:
   - [x] `ProcessFlowCanvas` now owns a canvas edit history stack.
   - [x] Undo/redo supports node creation, node deletion, node movement, connection creation, connection deletion, start-node changes, and node enable/disable changes.
@@ -361,6 +377,7 @@ The current implementation step is **Phase 22.8: MultiCondition Mixed Upstream S
   - [x] UI-verify the first copy/paste implementation pass.
   - [x] Continue with multi-node copy/paste and internal connection remapping.
   - [x] UI-verify multi-select, group move/delete, and multi-node copy/paste.
+  - [x] Implement cross-process node copy/paste between process tabs.
   - [x] Continue with zoom support.
   - [x] UI-verify zoom interactions.
   - [x] Continue with snap-to-grid support.
@@ -684,6 +701,17 @@ The current implementation step is **Phase 22.8: MultiCondition Mixed Upstream S
   - [x] Multi-node paste remaps copied internal connections to the new node IDs.
   - [x] Multi-node paste remaps copied parameter string references when they point to nodes in the copied batch.
   - [x] UI-verify internal connection and copied subscription remapping.
+- [ ] Add cross-process copy and paste for nodes.
+  - [x] Requirement captured: copy selected nodes in one process and paste them into another process.
+  - [x] Move or mirror the copy buffer to an editor-level service/state that survives switching process tabs.
+  - [x] Store cloneable node payloads, relative placement, copied internal connections, and source-to-target remap metadata without holding target-process runtime objects.
+  - [x] On paste, create nodes through the normal target-process factory path so IDs, names, canvas state, and parameter forms are initialized consistently.
+  - [x] Remap copied internal connections and copied-batch parameter references to the new target-process node IDs.
+  - [x] Include older public-field and string-array subscription parameters in the remapping pass.
+  - [x] Detect external references that still point back to the source process and leave a clear unresolved state or warning for the user.
+  - [x] Register the cross-process paste as one grouped undo/redo edit on the target canvas.
+  - [x] Refresh process node count, canvas selection, subscription controls, and preview/minimap overlays after paste.
+  - [ ] UI-verify cross-process paste with one node, multiple connected nodes, nodes with subscriptions, and pasted undo/redo.
 - [ ] Add zoom if needed.
   - [x] First code pass supports right-click zoom in, zoom out, reset zoom, and `Ctrl + mouse wheel` zoom.
   - [x] Zoom keeps node canvas coordinates unchanged and scales only rendering, hit-testing, and scrollable canvas size.
@@ -726,6 +754,9 @@ The current implementation step is **Phase 22.8: MultiCondition Mixed Upstream S
 - [x] Copy and paste multiple connected nodes.
 - [x] Confirm pasted internal connections use the new node IDs.
 - [x] Confirm pasted internal subscription references use the new node text.
+- [ ] Copy one node from one process tab and paste it into another process tab.
+- [ ] Copy multiple connected nodes from one process tab and paste them into another process tab.
+- [ ] Confirm cross-process paste remaps copied-batch subscriptions and flags source-process-only references.
 - [x] Zoom in and zoom out from the context menu.
 - [x] Zoom in and zoom out with `Ctrl + mouse wheel`.
 - [x] At non-100% zoom, verify node click, drag, rubber-band selection, connection creation, connection selection, and paste location.
