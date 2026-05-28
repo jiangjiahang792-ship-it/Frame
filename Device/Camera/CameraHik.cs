@@ -342,6 +342,7 @@ namespace TDJS_Vision.Device.Camera
         {
             try
             {
+                device.StreamGrabber.ClearImageBuffer();  //清除掉上一帧的图像
                 if (TriggerSource == TriggerSource.SOFT)
                 {
                     GrabOne();

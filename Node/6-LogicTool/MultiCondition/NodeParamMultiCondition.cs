@@ -1,3 +1,4 @@
+using Logger;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -63,20 +64,64 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 
     public class NodeConditionEvaluation
     {
+        /// <summary>
+        /// 条件显示名称。
+        /// </summary>
         public string Name { get; set; }
 
+        /// <summary>
+        /// 条件订阅的源节点文本。
+        /// </summary>
         public string SourceNodeText { get; set; }
 
+        /// <summary>
+        /// 条件读取的结果属性路径。
+        /// </summary>
         public string PropertyPath { get; set; }
 
+        /// <summary>
+        /// 条件读取的结果属性显示名称。
+        /// </summary>
         public string PropertyDisplayName { get; set; }
 
+        /// <summary>
+        /// 条件操作符文本。
+        /// </summary>
         public string OperatorText { get; set; }
 
+        /// <summary>
+        /// 条件期望值文本。
+        /// </summary>
         public string ExpectedValue { get; set; }
 
+        /// <summary>
+        /// 条件本次读取到的实际值文本。
+        /// </summary>
         public string ActualValue { get; set; }
 
+        /// <summary>
+        /// 实际值为空时的原因说明。
+        /// </summary>
+        public string NullReason { get; set; }
+
+        /// <summary>
+        /// 源节点本次运行状态摘要。
+        /// </summary>
+        public string SourceRunState { get; set; }
+
+        /// <summary>
+        /// 源节点是否在当前流程批次成功产生结果。
+        /// </summary>
+        public bool SourceHasCurrentRunResult { get; set; }
+
+        /// <summary>
+        /// 本条件的完整诊断信息。
+        /// </summary>
+        public string DiagnosticText { get; set; }
+
+        /// <summary>
+        /// 条件是否匹配。
+        /// </summary>
         public bool IsMatched { get; set; }
     }
 
@@ -111,6 +156,10 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                         OperatorText = condition.Operator.ToString(),
                         ExpectedValue = BuildExpectedText(condition),
                         ActualValue = "源节点已禁用",
+                        NullReason = string.Empty,
+                        SourceRunState = BuildSourceRunState(currentNode, sourceNode),
+                        SourceHasCurrentRunResult = sourceNode.HasSuccessfulResultForRun(currentNode.Process.CurrentRunId),
+                        DiagnosticText = "源节点已禁用，按当前兼容逻辑视为已满足。",
                         IsMatched = true
                     });
                     continue;
@@ -119,13 +168,9 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 if (string.IsNullOrWhiteSpace(condition.PropertyPath))
                     throw new Exception($"条件“{conditionName}”没有选择结果属性！");
 
-                object actualValue = sourceNode.Result == null ||
-                    (currentNode.Process.IsRuning &&
-                    !sourceNode.HasSuccessfulResultForRun(currentNode.Process.CurrentRunId))
-                    ? null
-                    : ReadConditionValue(sourceNode.Result, condition.PropertyPath);
-                bool matched = CompareCondition(actualValue, condition);
-                evaluations.Add(new NodeConditionEvaluation
+                ConditionValueReadResult valueResult = ReadConditionValue(currentNode, sourceNode, condition);
+                bool matched = CompareCondition(valueResult.Value, condition);
+                NodeConditionEvaluation evaluation = new NodeConditionEvaluation
                 {
                     Name = conditionName,
                     SourceNodeText = GetNodeText(sourceNode),
@@ -133,9 +178,15 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                     PropertyDisplayName = condition.PropertyDisplayName,
                     OperatorText = condition.Operator.ToString(),
                     ExpectedValue = BuildExpectedText(condition),
-                    ActualValue = FormatValue(actualValue),
+                    ActualValue = FormatValue(valueResult.Value),
+                    NullReason = valueResult.NullReason,
+                    SourceRunState = valueResult.SourceRunState,
+                    SourceHasCurrentRunResult = valueResult.SourceHasCurrentRunResult,
+                    DiagnosticText = valueResult.DiagnosticText,
                     IsMatched = matched
-                });
+                };
+                evaluations.Add(evaluation);
+                LogNullConditionIfNeeded(currentNode, evaluation);
             }
 
             if (param.MatchMode == MultiConditionMatchMode.Any)
@@ -159,15 +210,200 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
         }
 
         /// <summary>
-        /// 读取条件值，优先支持动态变量路径。
+        /// 构建条件明细诊断文本，便于运行后直接查看每一行条件的取值来源。
         /// </summary>
-        private static object ReadConditionValue(object result, string propertyPath)
+        public static string BuildDiagnosticsText(List<NodeConditionEvaluation> evaluations)
         {
-            object dynamicValue;
-            if (DynamicResultVariableResolver.TryGetValue(result, propertyPath, out dynamicValue))
-                return dynamicValue;
+            if (evaluations == null || evaluations.Count == 0)
+                return string.Empty;
 
-            return MultiConditionReflection.GetMemberPathValue(result, propertyPath);
+            List<string> lines = new List<string>();
+            foreach (NodeConditionEvaluation evaluation in evaluations)
+            {
+                if (evaluation == null)
+                    continue;
+
+                string stateText = evaluation.IsMatched ? "通过" : "不通过";
+                string valueText = string.IsNullOrEmpty(evaluation.ActualValue) ? "空" : evaluation.ActualValue;
+                string reasonText = string.IsNullOrWhiteSpace(evaluation.NullReason)
+                    ? string.Empty
+                    : "，空值原因：" + evaluation.NullReason;
+                lines.Add(evaluation.Name + "：" + stateText + "，实际值=" + valueText + reasonText);
+            }
+
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        /// <summary>
+        /// 读取条件值并生成诊断信息，优先支持动态变量路径。
+        /// </summary>
+        private static ConditionValueReadResult ReadConditionValue(
+            NodeBase currentNode,
+            NodeBase sourceNode,
+            MultiConditionItem condition)
+        {
+            ConditionValueReadResult readResult = new ConditionValueReadResult();
+            readResult.SourceRunState = BuildSourceRunState(currentNode, sourceNode);
+            readResult.SourceHasCurrentRunResult = sourceNode.HasSuccessfulResultForRun(currentNode.Process.CurrentRunId);
+            readResult.PropertyPath = condition.PropertyPath;
+            readResult.PropertyDisplayName = condition.PropertyDisplayName;
+
+            if (sourceNode.Result == null)
+            {
+                readResult.NullReason = "源节点没有运行结果对象。";
+                readResult.DiagnosticText = BuildDiagnosticText(sourceNode, readResult);
+                return readResult;
+            }
+
+            if (currentNode.Process.IsRuning && !readResult.SourceHasCurrentRunResult)
+            {
+                readResult.NullReason = "源节点本次流程尚未成功产生结果。";
+                readResult.DiagnosticText = BuildDiagnosticText(sourceNode, readResult);
+                return readResult;
+            }
+
+            if (DynamicResultVariableResolver.IsDynamicVariablePath(condition.PropertyPath))
+                return ReadDynamicConditionValue(sourceNode, condition, readResult);
+
+            object dynamicValue;
+            if (DynamicResultVariableResolver.TryGetValue(sourceNode.Result, condition.PropertyPath, out dynamicValue))
+            {
+                readResult.Value = dynamicValue;
+                if (dynamicValue == null)
+                    readResult.NullReason = "动态变量值为空。";
+                readResult.DiagnosticText = BuildDiagnosticText(sourceNode, readResult);
+                return readResult;
+            }
+
+            object value = MultiConditionReflection.GetMemberPathValue(sourceNode.Result, condition.PropertyPath);
+            readResult.Value = value;
+            if (value == null)
+                readResult.NullReason = BuildMemberNullReason(sourceNode.Result, condition);
+            readResult.DiagnosticText = BuildDiagnosticText(sourceNode, readResult);
+            return readResult;
+        }
+
+        /// <summary>
+        /// 读取动态变量条件值，并区分“不支持动态变量”和“变量未生成”。
+        /// </summary>
+        private static ConditionValueReadResult ReadDynamicConditionValue(
+            NodeBase sourceNode,
+            MultiConditionItem condition,
+            ConditionValueReadResult readResult)
+        {
+            string variableName = DynamicResultVariableResolver.ExtractVariableName(condition.PropertyPath);
+            readResult.DynamicVariableName = variableName;
+            IDynamicResultVariables dynamicVariables = sourceNode.Result as IDynamicResultVariables;
+            if (dynamicVariables == null)
+            {
+                readResult.NullReason = "源节点结果不支持动态输出变量。";
+                readResult.DiagnosticText = BuildDiagnosticText(sourceNode, readResult);
+                return readResult;
+            }
+
+            object value;
+            if (!dynamicVariables.TryGetDynamicVariable(variableName, out value))
+            {
+                readResult.NullReason = "动态变量“" + variableName + "”不存在或本次未生成。";
+                readResult.DiagnosticText = BuildDiagnosticText(sourceNode, readResult);
+                return readResult;
+            }
+
+            readResult.Value = value;
+            if (value == null)
+                readResult.NullReason = "动态变量“" + variableName + "”的值为空。";
+            readResult.DiagnosticText = BuildDiagnosticText(sourceNode, readResult);
+            return readResult;
+        }
+
+        /// <summary>
+        /// 构建普通属性为空时的原因文本。
+        /// </summary>
+        private static string BuildMemberNullReason(object result, MultiConditionItem condition)
+        {
+            object isOkValue;
+            string propertyText = string.IsNullOrWhiteSpace(condition.PropertyDisplayName)
+                ? condition.PropertyPath
+                : condition.PropertyDisplayName;
+
+            if (MultiConditionReflection.TryGetMemberValue(result, "IsOk", out isOkValue) &&
+                isOkValue is bool &&
+                !(bool)isOkValue)
+            {
+                return "源结果 IsOk=False，属性“" + propertyText + "”为空属于当前结果模型的正常 NG 输出。";
+            }
+
+            if (MultiConditionReflection.TryGetMemberValue(result, "IsAllOk", out isOkValue) &&
+                isOkValue is bool &&
+                !(bool)isOkValue)
+            {
+                return "源结果 IsAllOk=False，属性“" + propertyText + "”为空属于当前结果模型的正常 NG 输出。";
+            }
+
+            return "属性“" + propertyText + "”读取结果为空。";
+        }
+
+        /// <summary>
+        /// 构建源节点运行状态摘要。
+        /// </summary>
+        private static string BuildSourceRunState(NodeBase currentNode, NodeBase sourceNode)
+        {
+            if (currentNode == null || currentNode.Process == null || sourceNode == null)
+                return string.Empty;
+
+            return "当前批次=" + currentNode.Process.CurrentRunId +
+                "，源结果批次=" + sourceNode.LastSuccessfulRunId +
+                "，源状态=" + sourceNode.RuntimeStatus +
+                "，本次成功=" + sourceNode.HasSuccessfulResultForRun(currentNode.Process.CurrentRunId);
+        }
+
+        /// <summary>
+        /// 构建单条条件的完整诊断文本。
+        /// </summary>
+        private static string BuildDiagnosticText(NodeBase sourceNode, ConditionValueReadResult readResult)
+        {
+            string resultType = sourceNode == null || sourceNode.Result == null
+                ? "null"
+                : sourceNode.Result.GetType().Name;
+            string sourceText = sourceNode == null ? "未知" : GetNodeText(sourceNode);
+            string propertyText = string.IsNullOrWhiteSpace(readResult.PropertyDisplayName)
+                ? readResult.PropertyPath
+                : readResult.PropertyDisplayName;
+            string dynamicText = string.IsNullOrWhiteSpace(readResult.DynamicVariableName)
+                ? string.Empty
+                : "，动态变量=" + readResult.DynamicVariableName;
+            string reasonText = string.IsNullOrWhiteSpace(readResult.NullReason)
+                ? string.Empty
+                : "，空值原因=" + readResult.NullReason;
+
+            return "源节点=" + sourceText +
+                "，结果类型=" + resultType +
+                "，属性=" + propertyText +
+                "，路径=" + readResult.PropertyPath +
+                dynamicText +
+                "，" + readResult.SourceRunState +
+                reasonText;
+        }
+
+        /// <summary>
+        /// 空值条件写入日志，帮助定位多条件运行期订阅问题。
+        /// </summary>
+        private static void LogNullConditionIfNeeded(NodeBase currentNode, NodeConditionEvaluation evaluation)
+        {
+            if (currentNode == null ||
+                evaluation == null ||
+                evaluation.IsMatched ||
+                !string.IsNullOrEmpty(evaluation.ActualValue) ||
+                string.IsNullOrWhiteSpace(evaluation.NullReason))
+            {
+                return;
+            }
+
+            LogHelper.AddLog(
+                MsgLevel.Warn,
+                "节点(" + currentNode.ID + "." + currentNode.NodeName + ")多条件“" +
+                evaluation.Name + "”实际值为空：" + evaluation.DiagnosticText,
+                true);
         }
 
         private static NodeBase FindSourceNode(NodeBase currentNode, MultiConditionItem condition)
@@ -452,6 +688,52 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 
             return Convert.ToString(value, CultureInfo.CurrentCulture);
         }
+    }
+
+    /// <summary>
+    /// 条件值读取结果，集中携带实际值和运行期诊断信息。
+    /// </summary>
+    internal sealed class ConditionValueReadResult
+    {
+        /// <summary>
+        /// 条件读取到的实际对象值。
+        /// </summary>
+        public object Value { get; set; }
+
+        /// <summary>
+        /// 实际值为空时的原因说明。
+        /// </summary>
+        public string NullReason { get; set; }
+
+        /// <summary>
+        /// 源节点本次运行状态摘要。
+        /// </summary>
+        public string SourceRunState { get; set; }
+
+        /// <summary>
+        /// 源节点是否在当前流程批次成功产生结果。
+        /// </summary>
+        public bool SourceHasCurrentRunResult { get; set; }
+
+        /// <summary>
+        /// 当前条件的结果属性路径。
+        /// </summary>
+        public string PropertyPath { get; set; }
+
+        /// <summary>
+        /// 当前条件的结果属性显示名称。
+        /// </summary>
+        public string PropertyDisplayName { get; set; }
+
+        /// <summary>
+        /// 动态变量名称，普通属性路径时为空。
+        /// </summary>
+        public string DynamicVariableName { get; set; }
+
+        /// <summary>
+        /// 完整诊断文本。
+        /// </summary>
+        public string DiagnosticText { get; set; }
     }
 
     internal static class MultiConditionReflection

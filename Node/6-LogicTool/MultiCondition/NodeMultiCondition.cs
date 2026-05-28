@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 {
-    public class NodeMultiCondition : NodeBase
+    public class NodeMultiCondition : NodeBase, INodeSubscriptionDependencyProvider
     {
         public NodeMultiCondition(int nodeId, string nodeName, Process process, NodeType nodeType)
             : base(nodeId, nodeName, process, nodeType)
@@ -14,6 +14,27 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             ParamForm = new NodeParamFormMultiCondition();
             ParamForm.SetNodeBelong(this);
             Result = new NodeResultMultiCondition();
+        }
+
+        /// <summary>
+        /// 获取多条件参数中订阅的源节点 ID，供图运行器建立隐藏等待依赖。
+        /// </summary>
+        public IEnumerable<int> GetSubscriptionDependencyNodeIds()
+        {
+            HashSet<int> nodeIds = new HashSet<int>();
+            NodeParamMultiCondition param = ParamForm == null ? null : ParamForm.Params as NodeParamMultiCondition;
+            if (param == null || param.Conditions == null)
+                return nodeIds;
+
+            foreach (MultiConditionItem condition in param.Conditions)
+            {
+                if (condition == null || condition.SourceNodeId <= 0 || condition.SourceNodeId == ID)
+                    continue;
+
+                nodeIds.Add(condition.SourceNodeId);
+            }
+
+            return nodeIds;
         }
 
         public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
@@ -48,6 +69,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 {
                     result.ConditionResult = conditionResult;
                     result.Details = details;
+                    result.DiagnosticsText = MultiConditionEvaluator.BuildDiagnosticsText(details);
                 }
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);

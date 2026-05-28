@@ -273,7 +273,16 @@ namespace TDJS_Vision
                     NodeBase node = pendingNodes.First.Value;
                     pendingNodes.RemoveFirst();
 
-                    if (node == null || !visitedNodeIds.Add(node.ID))
+                    if (node == null)
+                        continue;
+
+                    if (HasPendingSubscriptionDependency(node, visitedNodeIds, pendingNodes))
+                    {
+                        pendingNodes.AddLast(node);
+                        continue;
+                    }
+
+                    if (!visitedNodeIds.Add(node.ID))
                         continue;
 
                     if (node == stopBeforeNode)
@@ -577,6 +586,19 @@ namespace TDJS_Vision
                 }
             }
 
+            foreach (int dependencyNodeId in GetSubscriptionDependencyNodeIds(node))
+            {
+                if (!IsActiveSubscriptionDependency(node.ID, dependencyNodeId, componentNodeIds, inactiveNodeIds))
+                    continue;
+
+                long upstreamFinishTime;
+                if (completedNodeFinishTimes.TryGetValue(dependencyNodeId, out upstreamFinishTime) &&
+                    upstreamFinishTime > dependencyFinishTime)
+                {
+                    dependencyFinishTime = upstreamFinishTime;
+                }
+            }
+
             return dependencyFinishTime;
         }
 
@@ -687,6 +709,9 @@ namespace TDJS_Vision
             HashSet<string> skippedEdges,
             NodeBase startNode)
         {
+            if (!AreSubscriptionDependenciesReady(node, componentNodeIds, completedNodeIds, inactiveNodeIds))
+                return false;
+
             if (node == startNode)
                 return true;
 
@@ -705,6 +730,116 @@ namespace TDJS_Vision
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// 判断节点参数中引用的订阅源是否已经完成，避免订阅节点先于被订阅节点运行。
+        /// </summary>
+        private bool AreSubscriptionDependenciesReady(
+            NodeBase node,
+            HashSet<int> componentNodeIds,
+            HashSet<int> completedNodeIds,
+            HashSet<int> inactiveNodeIds)
+        {
+            foreach (int dependencyNodeId in GetSubscriptionDependencyNodeIds(node))
+            {
+                if (!IsActiveSubscriptionDependency(node.ID, dependencyNodeId, componentNodeIds, inactiveNodeIds))
+                    continue;
+
+                if (!completedNodeIds.Contains(dependencyNodeId))
+                    return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 判断顺序运行队列中是否仍有订阅源等待运行。
+        /// </summary>
+        private bool HasPendingSubscriptionDependency(
+            NodeBase node,
+            HashSet<int> visitedNodeIds,
+            LinkedList<NodeBase> pendingNodes)
+        {
+            if (node == null || visitedNodeIds == null || pendingNodes == null || pendingNodes.Count == 0)
+                return false;
+
+            foreach (int dependencyNodeId in GetSubscriptionDependencyNodeIds(node))
+            {
+                if (dependencyNodeId <= 0 ||
+                    dependencyNodeId == node.ID ||
+                    visitedNodeIds.Contains(dependencyNodeId))
+                {
+                    continue;
+                }
+
+                if (ContainsPendingNode(pendingNodes, dependencyNodeId))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 判断订阅源是否是当前图组件内仍然有效的等待依赖。
+        /// </summary>
+        private bool IsActiveSubscriptionDependency(
+            int nodeId,
+            int dependencyNodeId,
+            HashSet<int> componentNodeIds,
+            HashSet<int> inactiveNodeIds)
+        {
+            return dependencyNodeId > 0 &&
+                dependencyNodeId != nodeId &&
+                componentNodeIds != null &&
+                componentNodeIds.Contains(dependencyNodeId) &&
+                (inactiveNodeIds == null || !inactiveNodeIds.Contains(dependencyNodeId)) &&
+                IsUpstreamNodeId(nodeId, dependencyNodeId);
+        }
+
+        /// <summary>
+        /// 获取节点声明的订阅源节点 ID。
+        /// </summary>
+        private static IEnumerable<int> GetSubscriptionDependencyNodeIds(NodeBase node)
+        {
+            INodeSubscriptionDependencyProvider provider = node as INodeSubscriptionDependencyProvider;
+            if (provider == null)
+                return new List<int>();
+
+            IEnumerable<int> dependencyNodeIds = provider.GetSubscriptionDependencyNodeIds();
+            return dependencyNodeIds ?? new List<int>();
+        }
+
+        /// <summary>
+        /// 判断指定节点是否在目标节点的结构上游。
+        /// </summary>
+        private bool IsUpstreamNodeId(int nodeId, int upstreamNodeId)
+        {
+            NodeBase node = GetNodeById(nodeId);
+            if (node == null || upstreamNodeId <= 0)
+                return false;
+
+            foreach (NodeBase upstreamNode in GetUpstreamNodes(node))
+            {
+                if (upstreamNode != null && upstreamNode.ID == upstreamNodeId)
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 判断顺序运行待执行队列中是否包含指定节点。
+        /// </summary>
+        private static bool ContainsPendingNode(LinkedList<NodeBase> pendingNodes, int nodeId)
+        {
+            foreach (NodeBase pendingNode in pendingNodes)
+            {
+                if (pendingNode != null && pendingNode.ID == nodeId)
+                    return true;
+            }
+
+            return false;
         }
 
         private void ApplyConditionalBranchSkips(

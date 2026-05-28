@@ -16,7 +16,7 @@ This means the target is not only a visual style change. The work includes:
 
 ## Current Step
 
-The current implementation step is **Phase 22.7: ModbusRead Dynamic Value Subscription Feedback Pass**.
+The current implementation step is **Phase 22.8: MultiCondition Mixed Upstream Subscription Null-Value Investigation**.
 
 ### Latest Progress
 
@@ -89,6 +89,16 @@ The current implementation step is **Phase 22.7: ModbusRead Dynamic Value Subscr
   - [x] `NodeResultModbusRead` now resolves those dynamic outputs to the actual array element produced by the last read.
   - [x] `MultiCondition` now uses dynamic variable type metadata instead of treating all dynamic outputs as `double`.
   - [x] Build-verified after implementation with MSBuild on 2026-05-27, 0 errors; existing warnings remain.
+- Phase 22.8 MultiCondition mixed upstream subscription null-value investigation:
+  - [x] New feedback captured: one `MultiCondition` subscribes point-to-point distance, line-to-line angle, and arithmetic named output; point-to-point distance compares normally, while line angle and arithmetic output hit `actualValue == null` and evaluate false.
+  - [x] Initial code reading captured: `MultiConditionEvaluator` sets `actualValue = null` when the source result is null, the source node has not successfully produced a result for the current run id, or the configured property/dynamic-variable path reads null.
+  - [ ] Suspected line-to-line angle cause: `NodeResultLineLineAngle.Angle` is nullable and is assigned only when the measurement result succeeds; runtime-level success with result-level NG can still leave `Angle = null`.
+  - [ ] Suspected arithmetic cause: named outputs are read through `DynamicResultVariableResolver` using `$variable:变量名`; if the arithmetic node is branch-skipped/not successful in the current run, or the selected variable path/name is wrong, `MultiCondition` will not get a current numeric value.
+  - [x] Added focused diagnostics showing per-condition source node, current-run success state, property path, actual value, and null reason before changing execution logic.
+  - [x] `NodeResultMultiCondition.DiagnosticsText` now exposes a readable per-condition summary, and null failed conditions write a targeted warning log.
+  - [x] Runtime feedback confirmed one null case was caused by `102.LineLineAngle` not running in the current batch: source run id was 1, current run id was 2, source status was `Unexecuted`.
+  - [x] Added graph scheduling support for subscription dependencies so `MultiCondition` waits for configured source nodes before evaluating when those sources are active in the same graph component.
+  - [x] Build-verified after implementation with MSBuild on 2026-05-28, 0 errors; existing warnings remain.
 - Phase 11 undo/redo first implementation pass:
   - [x] `ProcessFlowCanvas` now owns a canvas edit history stack.
   - [x] Undo/redo supports node creation, node deletion, node movement, connection creation, connection deletion, start-node changes, and node enable/disable changes.
@@ -1224,6 +1234,21 @@ Reference source:
 - [ ] Runtime-verify subscribed numeric values from measurement nodes and calculation chaining.
 - [ ] Runtime-verify downstream subscription to arbitrary named row outputs through `变量.xxx` / `输出变量`.
 - [ ] Runtime-verify divide-by-zero and missing/stale upstream result failures.
+
+### Phase 22.8: MultiCondition Mixed Upstream Subscription Null-Value Investigation
+
+- [ ] Reproduce with one `MultiCondition` subscribing:
+  - point-to-point distance `Distance`;
+  - line-to-line angle `Angle`;
+  - arithmetic operation named output variable.
+- [ ] Confirm whether the line-to-line angle source node has `HasSuccessfulResultForRun(CurrentRunId) == true` when `MultiCondition` evaluates.
+- [ ] Confirm whether `NodeResultLineLineAngle.IsOk == true` and `NodeResultLineLineAngle.Angle.HasValue == true`; if `IsOk == false`, `Angle = null` is expected by the current result model.
+- [ ] Confirm whether the arithmetic source node has `HasSuccessfulResultForRun(CurrentRunId) == true` when `MultiCondition` evaluates.
+- [ ] Confirm whether the arithmetic condition `PropertyPath` is a dynamic-variable path such as `$variable:变量名`, and whether the variable exists in `NodeResultArithmeticOperation.Variables`.
+- [ ] Check whether graph branch isolation or failed/NG upstream handling makes the arithmetic or angle node not produce a current-run successful result before the multi-condition node runs.
+- [x] Add targeted runtime diagnostics if needed so each condition can show why the actual value is null: source not run this batch, result object null, dynamic variable missing, or nullable result property empty.
+- [x] Add subscription-dependency scheduling so `MultiCondition` waits for configured source nodes that are active in the same graph component.
+- [x] Build-verified the diagnostics and subscription-dependency scheduling pass with MSBuild on 2026-05-28, 0 errors; existing warnings remain.
 
 1. [x] Add graph layout and connection models with backward-compatible save/load defaults.
 2. [x] Add the `ProcessNew` canvas control and draw nodes from current runtime nodes.

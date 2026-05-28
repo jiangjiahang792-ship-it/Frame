@@ -43,6 +43,17 @@ namespace TDJS_Vision.Node
     }
 
     /// <summary>
+    /// 节点订阅依赖提供接口，用于让图运行器等待参数中引用的上游结果节点。
+    /// </summary>
+    public interface INodeSubscriptionDependencyProvider
+    {
+        /// <summary>
+        /// 获取当前节点参数中订阅的源节点 ID 集合。
+        /// </summary>
+        IEnumerable<int> GetSubscriptionDependencyNodeIds();
+    }
+
+    /// <summary>
     /// 动态结果变量路径解析工具。
     /// </summary>
     public static class DynamicResultVariableResolver
