@@ -32,6 +32,17 @@ namespace TDJS_Vision.Node
     }
 
     /// <summary>
+    /// 动态结果变量类型提供接口，用于让参数界面按真实值类型选择默认条件操作。
+    /// </summary>
+    public interface IDynamicResultVariableTypeProvider
+    {
+        /// <summary>
+        /// 尝试获取指定动态变量的值类型。
+        /// </summary>
+        bool TryGetDynamicResultVariableType(string variableName, out Type valueType);
+    }
+
+    /// <summary>
     /// 动态结果变量路径解析工具。
     /// </summary>
     public static class DynamicResultVariableResolver
@@ -80,6 +91,33 @@ namespace TDJS_Vision.Node
                 AddNames(names, resultVariables.GetDynamicVariableNames());
 
             return names.OrderBy(item => item, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        /// <summary>
+        /// 获取动态变量的值类型；未知时按数字值处理。
+        /// </summary>
+        public static Type GetVariableValueType(NodeBase node, string variableName)
+        {
+            Type valueType;
+            IDynamicResultVariableTypeProvider nodeTypeProvider = node as IDynamicResultVariableTypeProvider;
+            if (nodeTypeProvider != null &&
+                nodeTypeProvider.TryGetDynamicResultVariableType(variableName, out valueType) &&
+                valueType != null)
+            {
+                return valueType;
+            }
+
+            IDynamicResultVariableTypeProvider resultTypeProvider = node == null
+                ? null
+                : node.Result as IDynamicResultVariableTypeProvider;
+            if (resultTypeProvider != null &&
+                resultTypeProvider.TryGetDynamicResultVariableType(variableName, out valueType) &&
+                valueType != null)
+            {
+                return valueType;
+            }
+
+            return typeof(double);
         }
 
         /// <summary>

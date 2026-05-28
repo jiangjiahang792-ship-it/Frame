@@ -401,7 +401,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                     SourceNodeText = GetNodeText(sourceNode),
                     PropertyPath = DynamicResultVariableResolver.ToPropertyPath(name),
                     PropertyDisplayName = name,
-                    ValueType = typeof(double)
+                    ValueType = DynamicResultVariableResolver.GetVariableValueType(sourceNode, name)
                 };
                 variableGroup.Nodes.Add(propertyNode);
             }

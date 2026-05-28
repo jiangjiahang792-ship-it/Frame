@@ -26,6 +26,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(NodeParamFormArithmeticOperation));
             this.tableLayoutPanelMain = new System.Windows.Forms.TableLayoutPanel();
             this.panelTop = new System.Windows.Forms.Panel();
             this.numericUpDownDecimalPlaces = new System.Windows.Forms.NumericUpDown();
@@ -33,12 +34,6 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.labelTip = new System.Windows.Forms.Label();
             this.splitContainerMain = new System.Windows.Forms.SplitContainer();
             this.dataGridViewRows = new System.Windows.Forms.DataGridView();
-            this.ColumnEnabled = new System.Windows.Forms.DataGridViewCheckBoxColumn();
-            this.ColumnValue1 = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.ColumnOperator = new System.Windows.Forms.DataGridViewComboBoxColumn();
-            this.ColumnValue2 = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.ColumnOutputVariableName = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.ColumnNote = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.tableLayoutPanelRight = new System.Windows.Forms.TableLayoutPanel();
             this.groupBoxOperand = new System.Windows.Forms.GroupBox();
             this.buttonApplyConstant = new System.Windows.Forms.Button();
@@ -92,13 +87,14 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.tableLayoutPanelMain.Controls.Add(this.panelBottom, 0, 3);
             this.tableLayoutPanelMain.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanelMain.Location = new System.Drawing.Point(2, 38);
+            this.tableLayoutPanelMain.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.tableLayoutPanelMain.Name = "tableLayoutPanelMain";
             this.tableLayoutPanelMain.RowCount = 4;
-            this.tableLayoutPanelMain.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 62F));
+            this.tableLayoutPanelMain.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 74F));
             this.tableLayoutPanelMain.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanelMain.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 86F));
-            this.tableLayoutPanelMain.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 64F));
-            this.tableLayoutPanelMain.Size = new System.Drawing.Size(1220, 724);
+            this.tableLayoutPanelMain.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 103F));
+            this.tableLayoutPanelMain.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 77F));
+            this.tableLayoutPanelMain.Size = new System.Drawing.Size(1396, 877);
             this.tableLayoutPanelMain.TabIndex = 0;
             // 
             // panelTop
@@ -107,31 +103,33 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.panelTop.Controls.Add(this.labelDecimalPlaces);
             this.panelTop.Controls.Add(this.labelTip);
             this.panelTop.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.panelTop.Location = new System.Drawing.Point(3, 3);
+            this.panelTop.Location = new System.Drawing.Point(3, 4);
+            this.panelTop.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.panelTop.Name = "panelTop";
-            this.panelTop.Size = new System.Drawing.Size(1214, 56);
+            this.panelTop.Size = new System.Drawing.Size(1390, 66);
             this.panelTop.TabIndex = 0;
             // 
             // numericUpDownDecimalPlaces
             // 
             this.numericUpDownDecimalPlaces.Font = new System.Drawing.Font("宋体", 10.5F);
-            this.numericUpDownDecimalPlaces.Location = new System.Drawing.Point(126, 15);
+            this.numericUpDownDecimalPlaces.Location = new System.Drawing.Point(142, 18);
+            this.numericUpDownDecimalPlaces.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.numericUpDownDecimalPlaces.Maximum = new decimal(new int[] {
             12,
             0,
             0,
             0});
             this.numericUpDownDecimalPlaces.Name = "numericUpDownDecimalPlaces";
-            this.numericUpDownDecimalPlaces.Size = new System.Drawing.Size(94, 27);
+            this.numericUpDownDecimalPlaces.Size = new System.Drawing.Size(106, 31);
             this.numericUpDownDecimalPlaces.TabIndex = 1;
             // 
             // labelDecimalPlaces
             // 
             this.labelDecimalPlaces.AutoSize = true;
             this.labelDecimalPlaces.Font = new System.Drawing.Font("宋体", 10.5F);
-            this.labelDecimalPlaces.Location = new System.Drawing.Point(18, 19);
+            this.labelDecimalPlaces.Location = new System.Drawing.Point(20, 23);
             this.labelDecimalPlaces.Name = "labelDecimalPlaces";
-            this.labelDecimalPlaces.Size = new System.Drawing.Size(98, 18);
+            this.labelDecimalPlaces.Size = new System.Drawing.Size(115, 21);
             this.labelDecimalPlaces.TabIndex = 0;
             this.labelDecimalPlaces.Text = "结果小数位";
             // 
@@ -140,9 +138,9 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.labelTip.AutoSize = true;
             this.labelTip.Font = new System.Drawing.Font("宋体", 10.5F);
             this.labelTip.ForeColor = System.Drawing.Color.DimGray;
-            this.labelTip.Location = new System.Drawing.Point(245, 19);
+            this.labelTip.Location = new System.Drawing.Point(276, 23);
             this.labelTip.Name = "labelTip";
-            this.labelTip.Size = new System.Drawing.Size(692, 18);
+            this.labelTip.Size = new System.Drawing.Size(632, 21);
             this.labelTip.TabIndex = 2;
             this.labelTip.Text = "每行独立计算：值1 与 值2 做四则运算，并输出一个可订阅变量名";
             // 
@@ -150,7 +148,8 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // 
             this.splitContainerMain.Dock = System.Windows.Forms.DockStyle.Fill;
             this.splitContainerMain.FixedPanel = System.Windows.Forms.FixedPanel.Panel2;
-            this.splitContainerMain.Location = new System.Drawing.Point(3, 65);
+            this.splitContainerMain.Location = new System.Drawing.Point(3, 78);
+            this.splitContainerMain.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.splitContainerMain.Name = "splitContainerMain";
             // 
             // splitContainerMain.Panel1
@@ -160,89 +159,29 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // splitContainerMain.Panel2
             // 
             this.splitContainerMain.Panel2.Controls.Add(this.tableLayoutPanelRight);
-            this.splitContainerMain.Size = new System.Drawing.Size(1214, 506);
-            this.splitContainerMain.SplitterDistance = 838;
+            this.splitContainerMain.Size = new System.Drawing.Size(1390, 615);
+            this.splitContainerMain.SplitterDistance = 949;
             this.splitContainerMain.TabIndex = 1;
             // 
             // dataGridViewRows
             // 
             this.dataGridViewRows.AllowUserToAddRows = false;
             this.dataGridViewRows.AllowUserToDeleteRows = false;
-            this.dataGridViewRows.AutoGenerateColumns = false;
             this.dataGridViewRows.BackgroundColor = System.Drawing.SystemColors.Window;
             this.dataGridViewRows.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            this.dataGridViewRows.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
-            this.ColumnEnabled,
-            this.ColumnValue1,
-            this.ColumnOperator,
-            this.ColumnValue2,
-            this.ColumnOutputVariableName,
-            this.ColumnNote});
             this.dataGridViewRows.Dock = System.Windows.Forms.DockStyle.Fill;
             this.dataGridViewRows.Location = new System.Drawing.Point(0, 0);
+            this.dataGridViewRows.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.dataGridViewRows.MultiSelect = false;
             this.dataGridViewRows.Name = "dataGridViewRows";
             this.dataGridViewRows.RowHeadersWidth = 30;
             this.dataGridViewRows.RowTemplate.Height = 32;
             this.dataGridViewRows.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
-            this.dataGridViewRows.Size = new System.Drawing.Size(838, 506);
+            this.dataGridViewRows.Size = new System.Drawing.Size(949, 615);
             this.dataGridViewRows.TabIndex = 0;
             this.dataGridViewRows.CellEndEdit += new System.Windows.Forms.DataGridViewCellEventHandler(this.dataGridViewRows_CellEndEdit);
             this.dataGridViewRows.DataError += new System.Windows.Forms.DataGridViewDataErrorEventHandler(this.dataGridViewRows_DataError);
             this.dataGridViewRows.SelectionChanged += new System.EventHandler(this.dataGridViewRows_SelectionChanged);
-            // 
-            // ColumnEnabled
-            // 
-            this.ColumnEnabled.DataPropertyName = "Enabled";
-            this.ColumnEnabled.FillWeight = 45F;
-            this.ColumnEnabled.HeaderText = "启用";
-            this.ColumnEnabled.MinimumWidth = 45;
-            this.ColumnEnabled.Name = "ColumnEnabled";
-            // 
-            // ColumnValue1
-            // 
-            this.ColumnValue1.DataPropertyName = "Value1Summary";
-            this.ColumnValue1.FillWeight = 155F;
-            this.ColumnValue1.HeaderText = "值1";
-            this.ColumnValue1.MinimumWidth = 150;
-            this.ColumnValue1.Name = "ColumnValue1";
-            this.ColumnValue1.ReadOnly = true;
-            // 
-            // ColumnOperator
-            // 
-            this.ColumnOperator.DataPropertyName = "Operator";
-            this.ColumnOperator.DisplayStyle = System.Windows.Forms.DataGridViewComboBoxDisplayStyle.ComboBox;
-            this.ColumnOperator.FillWeight = 58F;
-            this.ColumnOperator.HeaderText = "运算";
-            this.ColumnOperator.MinimumWidth = 58;
-            this.ColumnOperator.Name = "ColumnOperator";
-            this.ColumnOperator.Resizable = System.Windows.Forms.DataGridViewTriState.True;
-            this.ColumnOperator.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.Automatic;
-            // 
-            // ColumnValue2
-            // 
-            this.ColumnValue2.DataPropertyName = "Value2Summary";
-            this.ColumnValue2.FillWeight = 155F;
-            this.ColumnValue2.HeaderText = "值2";
-            this.ColumnValue2.MinimumWidth = 150;
-            this.ColumnValue2.Name = "ColumnValue2";
-            this.ColumnValue2.ReadOnly = true;
-            // 
-            // ColumnOutputVariableName
-            // 
-            this.ColumnOutputVariableName.DataPropertyName = "OutputVariableName";
-            this.ColumnOutputVariableName.FillWeight = 100F;
-            this.ColumnOutputVariableName.HeaderText = "输出变量名";
-            this.ColumnOutputVariableName.MinimumWidth = 95;
-            this.ColumnOutputVariableName.Name = "ColumnOutputVariableName";
-            // 
-            // ColumnNote
-            // 
-            this.ColumnNote.DataPropertyName = "Note";
-            this.ColumnNote.FillWeight = 120F;
-            this.ColumnNote.HeaderText = "注释";
-            this.ColumnNote.MinimumWidth = 100;
-            this.ColumnNote.Name = "ColumnNote";
             // 
             // tableLayoutPanelRight
             // 
@@ -253,12 +192,13 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.tableLayoutPanelRight.Controls.Add(this.groupBoxVariables, 0, 2);
             this.tableLayoutPanelRight.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanelRight.Location = new System.Drawing.Point(0, 0);
+            this.tableLayoutPanelRight.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.tableLayoutPanelRight.Name = "tableLayoutPanelRight";
             this.tableLayoutPanelRight.RowCount = 3;
-            this.tableLayoutPanelRight.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 118F));
+            this.tableLayoutPanelRight.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 142F));
             this.tableLayoutPanelRight.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 65F));
             this.tableLayoutPanelRight.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 35F));
-            this.tableLayoutPanelRight.Size = new System.Drawing.Size(372, 506);
+            this.tableLayoutPanelRight.Size = new System.Drawing.Size(437, 615);
             this.tableLayoutPanelRight.TabIndex = 0;
             // 
             // groupBoxOperand
@@ -270,18 +210,21 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.groupBoxOperand.Controls.Add(this.radioButtonValue1);
             this.groupBoxOperand.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBoxOperand.Font = new System.Drawing.Font("宋体", 10.5F);
-            this.groupBoxOperand.Location = new System.Drawing.Point(3, 3);
+            this.groupBoxOperand.Location = new System.Drawing.Point(3, 4);
+            this.groupBoxOperand.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxOperand.Name = "groupBoxOperand";
-            this.groupBoxOperand.Size = new System.Drawing.Size(366, 112);
+            this.groupBoxOperand.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.groupBoxOperand.Size = new System.Drawing.Size(431, 134);
             this.groupBoxOperand.TabIndex = 0;
             this.groupBoxOperand.TabStop = false;
             this.groupBoxOperand.Text = "当前行值设置";
             // 
             // buttonApplyConstant
             // 
-            this.buttonApplyConstant.Location = new System.Drawing.Point(246, 68);
+            this.buttonApplyConstant.Location = new System.Drawing.Point(277, 82);
+            this.buttonApplyConstant.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonApplyConstant.Name = "buttonApplyConstant";
-            this.buttonApplyConstant.Size = new System.Drawing.Size(106, 32);
+            this.buttonApplyConstant.Size = new System.Drawing.Size(119, 38);
             this.buttonApplyConstant.TabIndex = 4;
             this.buttonApplyConstant.Text = "应用常量";
             this.buttonApplyConstant.UseVisualStyleBackColor = true;
@@ -289,27 +232,29 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // 
             // textBoxConstant
             // 
-            this.textBoxConstant.Location = new System.Drawing.Point(68, 70);
+            this.textBoxConstant.Location = new System.Drawing.Point(76, 84);
+            this.textBoxConstant.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxConstant.Name = "textBoxConstant";
-            this.textBoxConstant.Size = new System.Drawing.Size(166, 27);
+            this.textBoxConstant.Size = new System.Drawing.Size(186, 31);
             this.textBoxConstant.TabIndex = 3;
             this.textBoxConstant.Text = "0";
             // 
             // labelConstant
             // 
             this.labelConstant.AutoSize = true;
-            this.labelConstant.Location = new System.Drawing.Point(15, 74);
+            this.labelConstant.Location = new System.Drawing.Point(17, 89);
             this.labelConstant.Name = "labelConstant";
-            this.labelConstant.Size = new System.Drawing.Size(44, 18);
+            this.labelConstant.Size = new System.Drawing.Size(52, 21);
             this.labelConstant.TabIndex = 2;
             this.labelConstant.Text = "常量";
             // 
             // radioButtonValue2
             // 
             this.radioButtonValue2.AutoSize = true;
-            this.radioButtonValue2.Location = new System.Drawing.Point(97, 31);
+            this.radioButtonValue2.Location = new System.Drawing.Point(109, 37);
+            this.radioButtonValue2.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.radioButtonValue2.Name = "radioButtonValue2";
-            this.radioButtonValue2.Size = new System.Drawing.Size(69, 22);
+            this.radioButtonValue2.Size = new System.Drawing.Size(67, 25);
             this.radioButtonValue2.TabIndex = 1;
             this.radioButtonValue2.Text = "值2";
             this.radioButtonValue2.UseVisualStyleBackColor = true;
@@ -318,9 +263,10 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // 
             this.radioButtonValue1.AutoSize = true;
             this.radioButtonValue1.Checked = true;
-            this.radioButtonValue1.Location = new System.Drawing.Point(18, 31);
+            this.radioButtonValue1.Location = new System.Drawing.Point(20, 37);
+            this.radioButtonValue1.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.radioButtonValue1.Name = "radioButtonValue1";
-            this.radioButtonValue1.Size = new System.Drawing.Size(69, 22);
+            this.radioButtonValue1.Size = new System.Drawing.Size(67, 25);
             this.radioButtonValue1.TabIndex = 0;
             this.radioButtonValue1.TabStop = true;
             this.radioButtonValue1.Text = "值1";
@@ -332,9 +278,11 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.groupBoxSources.Controls.Add(this.panelSourceBottom);
             this.groupBoxSources.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBoxSources.Font = new System.Drawing.Font("宋体", 10.5F);
-            this.groupBoxSources.Location = new System.Drawing.Point(3, 121);
+            this.groupBoxSources.Location = new System.Drawing.Point(3, 146);
+            this.groupBoxSources.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxSources.Name = "groupBoxSources";
-            this.groupBoxSources.Size = new System.Drawing.Size(366, 246);
+            this.groupBoxSources.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.groupBoxSources.Size = new System.Drawing.Size(431, 299);
             this.groupBoxSources.TabIndex = 1;
             this.groupBoxSources.TabStop = false;
             this.groupBoxSources.Text = "上游可订阅数值";
@@ -343,9 +291,10 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // 
             this.treeViewSources.Dock = System.Windows.Forms.DockStyle.Fill;
             this.treeViewSources.HideSelection = false;
-            this.treeViewSources.Location = new System.Drawing.Point(3, 23);
+            this.treeViewSources.Location = new System.Drawing.Point(3, 28);
+            this.treeViewSources.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.treeViewSources.Name = "treeViewSources";
-            this.treeViewSources.Size = new System.Drawing.Size(360, 175);
+            this.treeViewSources.Size = new System.Drawing.Size(425, 213);
             this.treeViewSources.TabIndex = 0;
             this.treeViewSources.NodeMouseDoubleClick += new System.Windows.Forms.TreeNodeMouseClickEventHandler(this.treeViewSources_NodeMouseDoubleClick);
             // 
@@ -353,17 +302,19 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // 
             this.panelSourceBottom.Controls.Add(this.buttonSelectProperty);
             this.panelSourceBottom.Dock = System.Windows.Forms.DockStyle.Bottom;
-            this.panelSourceBottom.Location = new System.Drawing.Point(3, 198);
+            this.panelSourceBottom.Location = new System.Drawing.Point(3, 241);
+            this.panelSourceBottom.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.panelSourceBottom.Name = "panelSourceBottom";
-            this.panelSourceBottom.Size = new System.Drawing.Size(360, 45);
+            this.panelSourceBottom.Size = new System.Drawing.Size(425, 54);
             this.panelSourceBottom.TabIndex = 1;
             // 
             // buttonSelectProperty
             // 
             this.buttonSelectProperty.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.buttonSelectProperty.Location = new System.Drawing.Point(234, 7);
+            this.buttonSelectProperty.Location = new System.Drawing.Point(283, 8);
+            this.buttonSelectProperty.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonSelectProperty.Name = "buttonSelectProperty";
-            this.buttonSelectProperty.Size = new System.Drawing.Size(118, 32);
+            this.buttonSelectProperty.Size = new System.Drawing.Size(133, 38);
             this.buttonSelectProperty.TabIndex = 0;
             this.buttonSelectProperty.Text = "选择属性";
             this.buttonSelectProperty.UseVisualStyleBackColor = true;
@@ -375,9 +326,11 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.groupBoxVariables.Controls.Add(this.panelVariableBottom);
             this.groupBoxVariables.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBoxVariables.Font = new System.Drawing.Font("宋体", 10.5F);
-            this.groupBoxVariables.Location = new System.Drawing.Point(3, 373);
+            this.groupBoxVariables.Location = new System.Drawing.Point(3, 453);
+            this.groupBoxVariables.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxVariables.Name = "groupBoxVariables";
-            this.groupBoxVariables.Size = new System.Drawing.Size(366, 130);
+            this.groupBoxVariables.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.groupBoxVariables.Size = new System.Drawing.Size(431, 158);
             this.groupBoxVariables.TabIndex = 2;
             this.groupBoxVariables.TabStop = false;
             this.groupBoxVariables.Text = "前序输出变量";
@@ -386,10 +339,11 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // 
             this.listBoxVariables.Dock = System.Windows.Forms.DockStyle.Fill;
             this.listBoxVariables.FormattingEnabled = true;
-            this.listBoxVariables.ItemHeight = 17;
-            this.listBoxVariables.Location = new System.Drawing.Point(3, 23);
+            this.listBoxVariables.ItemHeight = 21;
+            this.listBoxVariables.Location = new System.Drawing.Point(3, 28);
+            this.listBoxVariables.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.listBoxVariables.Name = "listBoxVariables";
-            this.listBoxVariables.Size = new System.Drawing.Size(360, 59);
+            this.listBoxVariables.Size = new System.Drawing.Size(425, 72);
             this.listBoxVariables.TabIndex = 0;
             this.listBoxVariables.DoubleClick += new System.EventHandler(this.listBoxVariables_DoubleClick);
             // 
@@ -397,17 +351,19 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // 
             this.panelVariableBottom.Controls.Add(this.buttonUseVariable);
             this.panelVariableBottom.Dock = System.Windows.Forms.DockStyle.Bottom;
-            this.panelVariableBottom.Location = new System.Drawing.Point(3, 82);
+            this.panelVariableBottom.Location = new System.Drawing.Point(3, 100);
+            this.panelVariableBottom.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.panelVariableBottom.Name = "panelVariableBottom";
-            this.panelVariableBottom.Size = new System.Drawing.Size(360, 45);
+            this.panelVariableBottom.Size = new System.Drawing.Size(425, 54);
             this.panelVariableBottom.TabIndex = 1;
             // 
             // buttonUseVariable
             // 
             this.buttonUseVariable.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.buttonUseVariable.Location = new System.Drawing.Point(234, 7);
+            this.buttonUseVariable.Location = new System.Drawing.Point(283, 8);
+            this.buttonUseVariable.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonUseVariable.Name = "buttonUseVariable";
-            this.buttonUseVariable.Size = new System.Drawing.Size(118, 32);
+            this.buttonUseVariable.Size = new System.Drawing.Size(133, 38);
             this.buttonUseVariable.TabIndex = 0;
             this.buttonUseVariable.Text = "使用变量";
             this.buttonUseVariable.UseVisualStyleBackColor = true;
@@ -418,9 +374,11 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.groupBoxResult.Controls.Add(this.labelRuntimeStatus);
             this.groupBoxResult.Dock = System.Windows.Forms.DockStyle.Fill;
             this.groupBoxResult.Font = new System.Drawing.Font("宋体", 10.5F);
-            this.groupBoxResult.Location = new System.Drawing.Point(3, 577);
+            this.groupBoxResult.Location = new System.Drawing.Point(3, 701);
+            this.groupBoxResult.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxResult.Name = "groupBoxResult";
-            this.groupBoxResult.Size = new System.Drawing.Size(1214, 80);
+            this.groupBoxResult.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.groupBoxResult.Size = new System.Drawing.Size(1390, 95);
             this.groupBoxResult.TabIndex = 2;
             this.groupBoxResult.TabStop = false;
             this.groupBoxResult.Text = "运行预览";
@@ -428,10 +386,10 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // labelRuntimeStatus
             // 
             this.labelRuntimeStatus.AutoSize = true;
-            this.labelRuntimeStatus.Location = new System.Drawing.Point(17, 32);
-            this.labelRuntimeStatus.MaximumSize = new System.Drawing.Size(1160, 0);
+            this.labelRuntimeStatus.Location = new System.Drawing.Point(19, 38);
+            this.labelRuntimeStatus.MaximumSize = new System.Drawing.Size(1305, 0);
             this.labelRuntimeStatus.Name = "labelRuntimeStatus";
-            this.labelRuntimeStatus.Size = new System.Drawing.Size(116, 18);
+            this.labelRuntimeStatus.Size = new System.Drawing.Size(136, 21);
             this.labelRuntimeStatus.TabIndex = 0;
             this.labelRuntimeStatus.Text = "暂无运行结果";
             // 
@@ -445,16 +403,18 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             this.panelBottom.Controls.Add(this.buttonCancel);
             this.panelBottom.Controls.Add(this.buttonSave);
             this.panelBottom.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.panelBottom.Location = new System.Drawing.Point(3, 663);
+            this.panelBottom.Location = new System.Drawing.Point(3, 804);
+            this.panelBottom.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.panelBottom.Name = "panelBottom";
-            this.panelBottom.Size = new System.Drawing.Size(1214, 58);
+            this.panelBottom.Size = new System.Drawing.Size(1390, 69);
             this.panelBottom.TabIndex = 3;
             // 
             // buttonAdd
             // 
-            this.buttonAdd.Location = new System.Drawing.Point(9, 12);
+            this.buttonAdd.Location = new System.Drawing.Point(10, 14);
+            this.buttonAdd.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonAdd.Name = "buttonAdd";
-            this.buttonAdd.Size = new System.Drawing.Size(92, 34);
+            this.buttonAdd.Size = new System.Drawing.Size(104, 41);
             this.buttonAdd.TabIndex = 0;
             this.buttonAdd.Text = "添加行";
             this.buttonAdd.UseVisualStyleBackColor = true;
@@ -462,9 +422,10 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // 
             // buttonRemove
             // 
-            this.buttonRemove.Location = new System.Drawing.Point(111, 12);
+            this.buttonRemove.Location = new System.Drawing.Point(125, 14);
+            this.buttonRemove.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonRemove.Name = "buttonRemove";
-            this.buttonRemove.Size = new System.Drawing.Size(92, 34);
+            this.buttonRemove.Size = new System.Drawing.Size(104, 41);
             this.buttonRemove.TabIndex = 1;
             this.buttonRemove.Text = "删除行";
             this.buttonRemove.UseVisualStyleBackColor = true;
@@ -472,9 +433,10 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // 
             // buttonMoveUp
             // 
-            this.buttonMoveUp.Location = new System.Drawing.Point(213, 12);
+            this.buttonMoveUp.Location = new System.Drawing.Point(240, 14);
+            this.buttonMoveUp.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonMoveUp.Name = "buttonMoveUp";
-            this.buttonMoveUp.Size = new System.Drawing.Size(92, 34);
+            this.buttonMoveUp.Size = new System.Drawing.Size(104, 41);
             this.buttonMoveUp.TabIndex = 2;
             this.buttonMoveUp.Text = "上移";
             this.buttonMoveUp.UseVisualStyleBackColor = true;
@@ -482,9 +444,10 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // 
             // buttonMoveDown
             // 
-            this.buttonMoveDown.Location = new System.Drawing.Point(315, 12);
+            this.buttonMoveDown.Location = new System.Drawing.Point(354, 14);
+            this.buttonMoveDown.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonMoveDown.Name = "buttonMoveDown";
-            this.buttonMoveDown.Size = new System.Drawing.Size(92, 34);
+            this.buttonMoveDown.Size = new System.Drawing.Size(104, 41);
             this.buttonMoveDown.TabIndex = 3;
             this.buttonMoveDown.Text = "下移";
             this.buttonMoveDown.UseVisualStyleBackColor = true;
@@ -493,9 +456,10 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // buttonRun
             // 
             this.buttonRun.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.buttonRun.Location = new System.Drawing.Point(894, 12);
+            this.buttonRun.Location = new System.Drawing.Point(1030, 14);
+            this.buttonRun.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonRun.Name = "buttonRun";
-            this.buttonRun.Size = new System.Drawing.Size(92, 34);
+            this.buttonRun.Size = new System.Drawing.Size(104, 41);
             this.buttonRun.TabIndex = 4;
             this.buttonRun.Text = "运行";
             this.buttonRun.UseVisualStyleBackColor = true;
@@ -504,9 +468,10 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // buttonCancel
             // 
             this.buttonCancel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.buttonCancel.Location = new System.Drawing.Point(1098, 12);
+            this.buttonCancel.Location = new System.Drawing.Point(1259, 14);
+            this.buttonCancel.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonCancel.Name = "buttonCancel";
-            this.buttonCancel.Size = new System.Drawing.Size(92, 34);
+            this.buttonCancel.Size = new System.Drawing.Size(104, 41);
             this.buttonCancel.TabIndex = 6;
             this.buttonCancel.Text = "取消";
             this.buttonCancel.UseVisualStyleBackColor = true;
@@ -515,9 +480,10 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // buttonSave
             // 
             this.buttonSave.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.buttonSave.Location = new System.Drawing.Point(996, 12);
+            this.buttonSave.Location = new System.Drawing.Point(1144, 14);
+            this.buttonSave.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonSave.Name = "buttonSave";
-            this.buttonSave.Size = new System.Drawing.Size(92, 34);
+            this.buttonSave.Size = new System.Drawing.Size(104, 41);
             this.buttonSave.TabIndex = 5;
             this.buttonSave.Text = "确定";
             this.buttonSave.UseVisualStyleBackColor = true;
@@ -525,10 +491,11 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // 
             // NodeParamFormArithmeticOperation
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1224, 764);
+            this.ClientSize = new System.Drawing.Size(1400, 917);
             this.Controls.Add(this.tableLayoutPanelMain);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.MinimizeBox = false;
             this.Name = "NodeParamFormArithmeticOperation";

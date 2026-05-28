@@ -16,7 +16,7 @@ This means the target is not only a visual style change. The work includes:
 
 ## Current Step
 
-The current implementation step is **Phase 13.6: Canvas Drag Alignment And Stable Routing Feedback Pass**.
+The current implementation step is **Phase 22.7: ModbusRead Dynamic Value Subscription Feedback Pass**.
 
 ### Latest Progress
 
@@ -81,6 +81,14 @@ The current implementation step is **Phase 13.6: Canvas Drag Alignment And Stabl
   - [x] Downstream standard subscriptions and `MultiCondition` now expose arithmetic outputs under `变量.xxx` / `输出变量`.
   - [x] Feedback fix: `ResultOverlayDraw` text items now read arithmetic named variables through the dynamic-variable resolver instead of only static result properties.
   - [x] Build-verified after the improvement pass with MSBuild, 0 errors; existing warnings remain.
+- Phase 22.7 ModbusRead dynamic value subscription feedback pass:
+  - [x] New feedback captured: `NodeParamFormMultiCondition` could see the `ModbusRead` result object but could not subscribe individual values read from address 1 with count 10.
+  - [x] Root cause confirmed: `ModbusReadResult.Data` stored the values as an array object, while subscription pickers only expose fixed display properties and dynamic variables.
+  - [x] Added dynamic variable type metadata so subscribers can know whether a dynamic value is bool, short, ushort, int, float, double, long, or ulong.
+  - [x] `ModbusRead` now declares per-value dynamic outputs from its saved start address and count, such as `值01(地址1)` through `值10(地址10)`.
+  - [x] `NodeResultModbusRead` now resolves those dynamic outputs to the actual array element produced by the last read.
+  - [x] `MultiCondition` now uses dynamic variable type metadata instead of treating all dynamic outputs as `double`.
+  - [x] Build-verified after implementation with MSBuild on 2026-05-27, 0 errors; existing warnings remain.
 - Phase 11 undo/redo first implementation pass:
   - [x] `ProcessFlowCanvas` now owns a canvas edit history stack.
   - [x] Undo/redo supports node creation, node deletion, node movement, connection creation, connection deletion, start-node changes, and node enable/disable changes.

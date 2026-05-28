@@ -1615,6 +1615,9 @@
     <EmbeddedResource Include="Node\1-Acquisition\ImageShow\ParamFormImageShow.resx">
       <DependentUpon>ParamFormImageShow.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Node\6-LogicTool\ArithmeticOperation\NodeParamFormArithmeticOperation.resx">
+      <DependentUpon>NodeParamFormArithmeticOperation.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Node\6-LogicTool\CSharpScript\NodeParamFormCSharpScript.resx">
       <DependentUpon>NodeParamFormCSharpScript.cs</DependentUpon>
     </EmbeddedResource>

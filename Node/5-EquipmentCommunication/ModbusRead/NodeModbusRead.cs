@@ -1,5 +1,6 @@
 ﻿using Logger;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,7 +8,10 @@ using TDJS_Vision.Device.Modbus;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
 {
-    public class NodeModbusRead : NodeBase
+    /// <summary>
+    /// Modbus 读取节点，负责读取一段寄存器或线圈并发布可订阅的单值结果。
+    /// </summary>
+    public class NodeModbusRead : NodeBase, IDynamicResultVariableProvider, IDynamicResultVariableTypeProvider
     {
         private Process _process;
         public NodeModbusRead(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
@@ -18,6 +22,36 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
             Result = new NodeResultModbusRead();
             _process = process;
         }
+
+        /// <summary>
+        /// 根据当前读取参数预先声明每个可订阅的 Modbus 值。
+        /// </summary>
+        public IEnumerable<string> GetDynamicResultVariableNames()
+        {
+            NodeParamModbusRead param = ParamForm == null ? null : ParamForm.Params as NodeParamModbusRead;
+            if (param == null)
+                return new string[0];
+
+            return ModbusReadDynamicVariable.BuildNames(param.StartAddress, param.Count);
+        }
+
+        /// <summary>
+        /// 获取 Modbus 单值订阅变量的真实类型。
+        /// </summary>
+        public bool TryGetDynamicResultVariableType(string variableName, out Type valueType)
+        {
+            valueType = typeof(object);
+            NodeParamModbusRead param = ParamForm == null ? null : ParamForm.Params as NodeParamModbusRead;
+            if (param == null ||
+                !ModbusReadDynamicVariable.ContainsVariable(param.StartAddress, param.Count, variableName))
+            {
+                return false;
+            }
+
+            valueType = ModbusReadDynamicVariable.GetValueType(param.DataType);
+            return true;
+        }
+
         /// <summary>
         /// 节点界面点击执行Modbus读取
         /// </summary>
@@ -117,45 +151,10 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
 
                 if (Result is NodeResultModbusRead result)
                 {
-
-                    switch (param.DataType)
-                    {
-                        case RegistersType.Bool:
-                            result.ReadData = new ModbusReadResult(data, typeof(bool[]).Name);
-                            break;
-                        case RegistersType.Short:
-                            result.ReadData = new ModbusReadResult(data, typeof(short[]).Name);
-                            break;
-                        case RegistersType.UShort:
-                            result.ReadData = new ModbusReadResult(data, typeof(ushort[]).Name);
-                            break;
-                        case RegistersType.Int:
-                            result.ReadData = new ModbusReadResult(data, typeof(int[]).Name);
-                            break;
-                        case RegistersType.UInt:
-                            result.ReadData = new ModbusReadResult(data, typeof(uint[]).Name);
-                            break;
-                        case RegistersType.Float:
-                            result.ReadData = new ModbusReadResult(data, typeof(float[]).Name);
-                            break;
-                        case RegistersType.Double:
-                            result.ReadData = new ModbusReadResult(data, typeof(double[]).Name);
-                            break;
-                        case RegistersType.Long:
-                            result.ReadData = new ModbusReadResult(data, typeof(long[]).Name);
-                            break;
-                        case RegistersType.ULong:
-                            result.ReadData = new ModbusReadResult(data, typeof(ulong[]).Name);
-                            break;
-                        case RegistersType.线圈:
-                            result.ReadData = new ModbusReadResult(data, typeof(bool[]).Name);
-                            break;
-                        case RegistersType.离散输入:
-                            result.ReadData = new ModbusReadResult(data, typeof(bool[]).Name);
-                            break;
-                        default:
-                            break;
-                    }
+                    result.ReadData = new ModbusReadResult(
+                        data,
+                        ModbusReadDynamicVariable.GetArrayTypeName(param.DataType),
+                        param.StartAddress);
                     Result = result;
                 }
                 var time = SetRunResult(startTime, NodeStatus.Successful);
