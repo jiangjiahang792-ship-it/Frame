@@ -66,6 +66,32 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             base.OnFormClosed(e);
         }
 
+        /// <summary>
+        /// 用户点击标题栏关闭时隐藏参数窗体，保留连线刷新事件订阅，避免再次打开时使用旧的上游列表。
+        /// </summary>
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (e.CloseReason == CloseReason.UserClosing)
+            {
+                e.Cancel = true;
+                Hide();
+                return;
+            }
+
+            base.OnFormClosing(e);
+        }
+
+        /// <summary>
+        /// 每次显示窗体时主动重算上游节点树，兜底处理隐藏期间新增或删除连线的场景。
+        /// </summary>
+        protected override void OnVisibleChanged(EventArgs e)
+        {
+            base.OnVisibleChanged(e);
+
+            if (Visible)
+                RefreshSourceTree();
+        }
+
         private void InitializeOperatorColumn()
         {
             EnsureConditionGridColumns();
@@ -377,7 +403,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 }
             }
 
-            treeViewSources.ExpandAll();
+            treeViewSources.CollapseAll();
             treeViewSources.EndUpdate();
         }
 

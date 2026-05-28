@@ -27,14 +27,18 @@ namespace TDJS_Vision.Forms.DetectItemManager
         private void InitList()
         {
             panelList.Controls.Clear();
-            foreach (var pair in Solution.Instance.DetectItemDic)
+            if (Solution.Instance.DetectItemDic!=null)
             {
-                DetectItemListBox box = new DetectItemListBox();
-                box.LoadConfig(pair.Key, pair.Value);
-                box.Dock = DockStyle.Top;
-                box.Width = panelList.Width;
-                panelList.Controls.Add(box);
+                foreach (var pair in Solution.Instance.DetectItemDic)
+                {
+                    DetectItemListBox box = new DetectItemListBox();
+                    box.LoadConfig(pair.Key, pair.Value);
+                    box.Dock = DockStyle.Top;
+                    box.Width = panelList.Width;
+                    panelList.Controls.Add(box);
+                }
             }
+            
         }
         /// <summary>
         /// 选择文件
