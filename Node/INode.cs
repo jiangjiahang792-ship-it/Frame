@@ -97,7 +97,37 @@ namespace TDJS_Vision.Node
     public enum NodeRunFlag
     {
         ContinueRun,
-        StopRun
+        StopRun,
+        /// <summary>
+        /// 图执行模式下只停止当前节点的下游分支；旧顺序模式按提前结束流程处理。
+        /// </summary>
+        StopBranch
+    }
+
+    /// <summary>
+    /// 并行批次运行前可预登记的信号等待节点接口，用于避免同一信号被并排节点抢先复位。
+    /// </summary>
+    public interface IParallelSignalWaitNode
+    {
+        /// <summary>
+        /// 当前节点是否需要参与并行信号等待预登记。
+        /// </summary>
+        bool CanPrepareParallelSignalWait { get; }
+
+        /// <summary>
+        /// 可比较的等待信号键，同一键的并排节点会作为一组预登记。
+        /// </summary>
+        string ParallelSignalWaitKey { get; }
+
+        /// <summary>
+        /// 并行批次启动前登记一个等待名额。
+        /// </summary>
+        void BeginParallelSignalWait();
+
+        /// <summary>
+        /// 并行批次结束后释放未被节点运行消费的等待名额。
+        /// </summary>
+        void EndParallelSignalWait();
     }
 
     /// <summary>

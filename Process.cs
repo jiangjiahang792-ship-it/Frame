@@ -335,6 +335,9 @@ namespace TDJS_Vision
                     if (result.Flag == NodeRunFlag.StopRun)
                         return true;
 
+                    if (result.Flag == NodeRunFlag.StopBranch)
+                        continue;
+
                     if (result.NextIndex >= 0)
                     {
                         NodeBase nextByLegacyIndex = GetNodeByLegacyIndex(result.NextIndex);
@@ -417,7 +420,16 @@ namespace TDJS_Vision
                             }
 
                             if (!runResult.SkippedExecution)
+                            {
+                                if (runResult.Return != null &&
+                                    runResult.Return.Flag == NodeRunFlag.StopBranch)
+                                {
+                                    MarkStoppedBranchDownstreamInactive(node.ID, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
+                                    continue;
+                                }
+
                                 ApplyConditionalBranchSkips(node, runResult.Return, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
+                            }
                         }
                     }
                 }
@@ -448,70 +460,78 @@ namespace TDJS_Vision
 
         private async Task<List<ConnectedNodeRunResult>> RunReadyNodeBatch(List<NodeBase> batch, NodeBase nodeToSkip)
         {
-            if (batch.Count <= 1)
-            {
-                List<ConnectedNodeRunResult> singleResult = new List<ConnectedNodeRunResult>();
-                singleResult.Add(await RunConnectedNode(batch[0], nodeToSkip));
-                return singleResult;
-            }
-
-            List<Task<ConnectedNodeRunResult>> tasks = new List<Task<ConnectedNodeRunResult>>();
-            Dictionary<Task<ConnectedNodeRunResult>, NodeBase> taskNodes = new Dictionary<Task<ConnectedNodeRunResult>, NodeBase>();
-            foreach (NodeBase node in batch)
-            {
-                NodeBase nodeToRun = node;
-                Task<ConnectedNodeRunResult> task = Task.Run(async () => await RunConnectedNode(nodeToRun, nodeToSkip));
-                tasks.Add(task);
-                taskNodes[task] = nodeToRun;
-            }
-
+            List<IParallelSignalWaitNode> preparedSignalWaitNodes = PrepareParallelSignalWaitNodes(batch);
             try
             {
-                await Task.WhenAll(tasks);
-            }
-            catch
-            {
-            }
-
-            Exception firstException = null;
-            Dictionary<int, ConnectedNodeRunResult> resultMap = new Dictionary<int, ConnectedNodeRunResult>();
-            foreach (Task<ConnectedNodeRunResult> task in tasks)
-            {
-                if (task.IsFaulted)
+                if (batch.Count <= 1)
                 {
-                    if (firstException == null)
-                        firstException = task.Exception == null ? new Exception("Parallel branch node failed.") : task.Exception.GetBaseException();
+                    List<ConnectedNodeRunResult> singleResult = new List<ConnectedNodeRunResult>();
+                    singleResult.Add(await RunConnectedNode(batch[0], nodeToSkip));
+                    return singleResult;
+                }
 
-                    NodeBase faultedNode;
-                    if (taskNodes.TryGetValue(task, out faultedNode) && faultedNode != null)
+                List<Task<ConnectedNodeRunResult>> tasks = new List<Task<ConnectedNodeRunResult>>();
+                Dictionary<Task<ConnectedNodeRunResult>, NodeBase> taskNodes = new Dictionary<Task<ConnectedNodeRunResult>, NodeBase>();
+                foreach (NodeBase node in batch)
+                {
+                    NodeBase nodeToRun = node;
+                    Task<ConnectedNodeRunResult> task = Task.Run(async () => await RunConnectedNode(nodeToRun, nodeToSkip));
+                    tasks.Add(task);
+                    taskNodes[task] = nodeToRun;
+                }
+
+                try
+                {
+                    await Task.WhenAll(tasks);
+                }
+                catch
+                {
+                }
+
+                Exception firstException = null;
+                Dictionary<int, ConnectedNodeRunResult> resultMap = new Dictionary<int, ConnectedNodeRunResult>();
+                foreach (Task<ConnectedNodeRunResult> task in tasks)
+                {
+                    if (task.IsFaulted)
                     {
-                        MarkNodeFailed(faultedNode);
-                        resultMap[faultedNode.ID] = new ConnectedNodeRunResult
+                        if (firstException == null)
+                            firstException = task.Exception == null ? new Exception("Parallel branch node failed.") : task.Exception.GetBaseException();
+
+                        NodeBase faultedNode;
+                        if (taskNodes.TryGetValue(task, out faultedNode) && faultedNode != null)
                         {
-                            Node = faultedNode,
-                            Exception = firstException,
-                            RunTime = faultedNode.Result == null ? 0 : faultedNode.Result.RunTime
-                        };
+                            MarkNodeFailed(faultedNode);
+                            resultMap[faultedNode.ID] = new ConnectedNodeRunResult
+                            {
+                                Node = faultedNode,
+                                Exception = firstException,
+                                RunTime = faultedNode.Result == null ? 0 : faultedNode.Result.RunTime
+                            };
+                        }
+
+                        continue;
                     }
 
-                    continue;
+                    if (task.IsCanceled)
+                    {
+                        if (firstException == null)
+                            firstException = new OperationCanceledException();
+                        continue;
+                    }
+
+                    ConnectedNodeRunResult result = task.Result;
+                    resultMap[result.Node.ID] = result;
                 }
 
-                if (task.IsCanceled)
-                {
-                    if (firstException == null)
-                        firstException = new OperationCanceledException();
-                    continue;
-                }
+                if (firstException != null && resultMap.Count == 0)
+                    throw firstException;
 
-                ConnectedNodeRunResult result = task.Result;
-                resultMap[result.Node.ID] = result;
+                return GetOrderedResults(batch, resultMap);
             }
-
-            if (firstException != null && resultMap.Count == 0)
-                throw firstException;
-
-            return GetOrderedResults(batch, resultMap);
+            finally
+            {
+                ReleaseParallelSignalWaitNodes(preparedSignalWaitNodes);
+            }
         }
 
         private async Task<ConnectedNodeRunResult> RunConnectedNode(NodeBase node, NodeBase nodeToSkip)
@@ -630,6 +650,29 @@ namespace TDJS_Vision
             }
         }
 
+        /// <summary>
+        /// 将 StopBranch 节点的下游连线标记为跳过，只结束当前分支而不影响同批其它分支。
+        /// </summary>
+        private void MarkStoppedBranchDownstreamInactive(
+            int nodeId,
+            HashSet<int> componentNodeIds,
+            HashSet<int> completedNodeIds,
+            HashSet<int> inactiveNodeIds,
+            HashSet<string> skippedEdges)
+        {
+            foreach (ProcessConnection connection in _connections)
+            {
+                if (connection.FromNodeId != nodeId ||
+                    !componentNodeIds.Contains(connection.ToNodeId))
+                {
+                    continue;
+                }
+
+                skippedEdges.Add(GetConnectionEdgeKey(connection));
+                TryMarkInactiveNode(connection.ToNodeId, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
+            }
+        }
+
         private void MarkFailedNodeInactive(
             int nodeId,
             HashSet<int> componentNodeIds,
@@ -674,6 +717,68 @@ namespace TDJS_Vision
             }
 
             return batch;
+        }
+
+        /// <summary>
+        /// 并行批次启动前，预登记同一监听信号上的多个等待节点，避免首个节点复位后其它节点继续卡住。
+        /// </summary>
+        private static List<IParallelSignalWaitNode> PrepareParallelSignalWaitNodes(List<NodeBase> batch)
+        {
+            List<IParallelSignalWaitNode> preparedNodes = new List<IParallelSignalWaitNode>();
+            if (batch == null || batch.Count <= 1)
+                return preparedNodes;
+
+            Dictionary<string, List<IParallelSignalWaitNode>> waitNodeGroups =
+                new Dictionary<string, List<IParallelSignalWaitNode>>();
+
+            foreach (NodeBase node in batch)
+            {
+                IParallelSignalWaitNode waitNode = node as IParallelSignalWaitNode;
+                if (waitNode == null ||
+                    !waitNode.CanPrepareParallelSignalWait ||
+                    string.IsNullOrEmpty(waitNode.ParallelSignalWaitKey))
+                {
+                    continue;
+                }
+
+                List<IParallelSignalWaitNode> group;
+                if (!waitNodeGroups.TryGetValue(waitNode.ParallelSignalWaitKey, out group))
+                {
+                    group = new List<IParallelSignalWaitNode>();
+                    waitNodeGroups[waitNode.ParallelSignalWaitKey] = group;
+                }
+
+                group.Add(waitNode);
+            }
+
+            foreach (KeyValuePair<string, List<IParallelSignalWaitNode>> group in waitNodeGroups)
+            {
+                if (group.Value.Count <= 1)
+                    continue;
+
+                foreach (IParallelSignalWaitNode waitNode in group.Value)
+                {
+                    waitNode.BeginParallelSignalWait();
+                    preparedNodes.Add(waitNode);
+                }
+            }
+
+            return preparedNodes;
+        }
+
+        /// <summary>
+        /// 释放并行批次中未被实际运行消费的信号等待预登记。
+        /// </summary>
+        private static void ReleaseParallelSignalWaitNodes(List<IParallelSignalWaitNode> preparedNodes)
+        {
+            if (preparedNodes == null)
+                return;
+
+            for (int i = preparedNodes.Count - 1; i >= 0; i--)
+            {
+                if (preparedNodes[i] != null)
+                    preparedNodes[i].EndParallelSignalWait();
+            }
         }
 
         private List<NodeBase> GetReadyComponentNodes(
@@ -1382,7 +1487,7 @@ namespace TDJS_Vision
                                 break;
 
                             // 检查还要不要继续运行
-                            if (result.Flag == NodeRunFlag.StopRun)
+                            if (result.Flag == NodeRunFlag.StopRun || result.Flag == NodeRunFlag.StopBranch)
                             {
                                 // 当前节点要求停止后续节点执行
                                 process.Success = true; // 可以设置为成功或其他状态
@@ -1521,7 +1626,7 @@ namespace TDJS_Vision
                             break;
 
                         // 检查还要不要继续运行
-                        if (result.Flag == NodeRunFlag.StopRun)
+                        if (result.Flag == NodeRunFlag.StopRun || result.Flag == NodeRunFlag.StopBranch)
                         {
                             // 当前节点要求停止后续节点执行
                             Success = true; // 可以设置为成功或其他状态
@@ -1662,7 +1767,7 @@ namespace TDJS_Vision
                             break;
 
                         // 检查还要不要继续运行
-                        if (result.Flag == NodeRunFlag.StopRun)
+                        if (result.Flag == NodeRunFlag.StopRun || result.Flag == NodeRunFlag.StopBranch)
                         {
                             // 当前节点要求停止后续节点执行
                             Success = true; // 可以设置为成功或其他状态
@@ -1805,7 +1910,7 @@ namespace TDJS_Vision
                             break;
 
                         // 检查还要不要继续运行
-                        if (result.Flag == NodeRunFlag.StopRun)
+                        if (result.Flag == NodeRunFlag.StopRun || result.Flag == NodeRunFlag.StopBranch)
                         {
                             // 当前节点要求停止后续节点执行
                             Success = true; // 可以设置为成功或其他状态

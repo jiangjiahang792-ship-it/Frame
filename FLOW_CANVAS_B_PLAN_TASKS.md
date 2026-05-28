@@ -112,9 +112,12 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 - FlagRead wait/no-wait option feedback pass:
   - [x] New request captured on 2026-05-28: add a designer-visible `是否等待` checkbox to the `FlagRead` parameter form.
   - [x] Default checked state preserves the original behavior: wait in a loop until the selected listen signal becomes true, then continue downstream.
-  - [x] When unchecked, `FlagRead` reads the flag once; true continues downstream, false records a normal successful read result and returns `StopRun` to end the current process early.
+  - [x] When unchecked, `FlagRead` reads the flag once; true continues downstream, false records a normal successful read result and returns `StopBranch`, so graph execution stops only this node's downstream branch while legacy ordered execution still treats it as an early process end.
+  - [x] Feedback fix: parallel graph execution no longer lets one unchecked `FlagRead=false` stop the whole ready batch/process component.
+  - [x] Feedback fix: parallel waiting `FlagRead` nodes that read the same listen signal no longer race on `Reset`; reset is delayed until the current waiting readers have passed.
   - [x] Build-verified after implementation with MSBuild on 2026-05-28, 0 errors; existing warnings remain.
-  - [ ] UI-verify checked wait mode, unchecked true mode, unchecked false early-end mode, save/load restore, and reset-signal behavior.
+  - [x] Build-verified after the parallel `FlagRead` fix with MSBuild on 2026-05-28, 0 errors; existing warnings remain.
+  - [ ] UI-verify checked wait mode, unchecked true mode, unchecked false branch-end mode, parallel checked-wait reset behavior, save/load restore, and reset-signal behavior.
 - Phase 11 undo/redo first implementation pass:
   - [x] `ProcessFlowCanvas` now owns a canvas edit history stack.
   - [x] Undo/redo supports node creation, node deletion, node movement, connection creation, connection deletion, start-node changes, and node enable/disable changes.
