@@ -232,7 +232,7 @@
             this.comboBoxModelName.Items.AddRange(new object[] {
             "RL_12类线芯模型",
             "RL_线芯截面",
-            "合压模型"});
+            "XM_Fakra模型"});
             this.comboBoxModelName.Location = new System.Drawing.Point(183, 326);
             this.comboBoxModelName.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxModelName.Name = "comboBoxModelName";

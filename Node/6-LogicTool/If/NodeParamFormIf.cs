@@ -29,7 +29,11 @@ namespace TDJS_Vision.Node._6_LogicTool.If
                 switch (nodeSubscription1.GetNodeType())
                 {
                     case NodeType.AITD:
-                        result = nodeSubscription1.GetValue<AlgorithmResult>().IsAllOk;
+                        // IF节点只关心AI总结果，兼容旧方案中误保存为“输出图像”的订阅项。
+                        var aiResult = nodeSubscription1.GetSelectedResult<NodeResultTDAI>().AlgorithmResult;
+                        if (aiResult == null)
+                            throw new Exception("AI输出结果为空，无法进行条件判断！");
+                        result = aiResult.IsAllOk;
                         break;
                     case NodeType.PLCRead:
                         result = (bool)nodeSubscription1.GetValue<PlcReadResult>().Data;

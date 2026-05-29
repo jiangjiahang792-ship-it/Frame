@@ -574,7 +574,11 @@ namespace TDJS_Vision.Node
 
             // 移除AI节点需要释放AI句柄
             if (NodeType == NodeType.AITD && ParamForm.Params is NodeParamTDAI param)
+            {
                 ModelHandleManager.Destroy(param.Yolo8);
+                param.Yolo8 = null;
+                param.LoadedModelPath = null;
+            }
 
             // 移除的节点如果包含了加载的检测项也需要从静态全局检测项中移除
             TDAI.DetectItemMap.Remove($"{this.ID}.{this.NodeName}");

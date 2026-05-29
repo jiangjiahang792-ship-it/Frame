@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Threading;
+using System.Threading.Tasks;
 using Basler.Pylon;
 using Newtonsoft.Json;
 using TDJS_Vision.Device;
@@ -73,8 +75,49 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// </summary>
         public float Scale { get; set; }
 
+        /// <summary>
+        /// 当前已加载的AI模型句柄，不参与方案序列化。
+        /// </summary>
         [JsonIgnore]
         public IYolo8 Yolo8 { get; set; }
+        /// <summary>
+        /// 当前AI模型加载任务，运行前用于等待异步加载完成。
+        /// </summary>
+        [JsonIgnore]
+        public Task ModelLoadTask { get; set; } = Task.CompletedTask;
+        /// <summary>
+        /// 当前句柄对应的模型路径，用于防止配置变更后误用旧模型。
+        /// </summary>
+        [JsonIgnore]
+        public string LoadedModelPath { get; set; }
+        /// <summary>
+        /// 最近一次模型加载失败原因，用于运行时报出明确诊断。
+        /// </summary>
+        [JsonIgnore]
+        public string LastModelLoadError { get; set; }
+        /// <summary>
+        /// 模型加载版本号，用于避免旧的后台加载任务覆盖新配置。
+        /// </summary>
+        private int _modelLoadVersion;
+
+        /// <summary>
+        /// 生成新的模型加载版本号。
+        /// </summary>
+        /// <returns></returns>
+        public int NextModelLoadVersion()
+        {
+            return Interlocked.Increment(ref _modelLoadVersion);
+        }
+
+        /// <summary>
+        /// 判断指定版本是否仍是当前最新模型加载任务。
+        /// </summary>
+        /// <param name="modelLoadVersion"></param>
+        /// <returns></returns>
+        public bool IsCurrentModelLoadVersion(int modelLoadVersion)
+        {
+            return Volatile.Read(ref _modelLoadVersion) == modelLoadVersion;
+        }
 
         /// <summary>
         /// 节点名称
@@ -103,6 +146,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     {
         RL_12类线芯模型,
         RL_线芯截面,
-        合压模型
+        合压模型,
+        XM_Fakra模型,
     }
 }

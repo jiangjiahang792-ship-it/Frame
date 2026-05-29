@@ -65,7 +65,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     case "DetectItem.FrontRivetCoreLength":
                         extractValueFunc = r => r.ClassId == 0 ? r.Box.Width.ToString("F2") : null;
                         break;
-                    
+
                     case "DetectItem.FrontRivetArea":
                         extractValueFunc = r => r.ClassId == 1 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
                         break;
@@ -94,7 +94,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         {
                             if (r.ClassId == 1)
                             {
-                                valuePairs.Add((r.ClassId, r.Box));                           
+                                valuePairs.Add((r.ClassId, r.Box));
                             }
                             else if (r.ClassId == 4)
                             {

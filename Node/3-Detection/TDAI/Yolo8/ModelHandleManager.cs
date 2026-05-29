@@ -8,7 +8,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
     /// </summary>
     internal static class ModelHandleManager
     {
-        private static List<IYolo8> _registry = new List<IYolo8>();
+        /// <summary>
+        /// 模型句柄注册表。
+        /// </summary>
+        private static readonly List<IYolo8> _registry = new List<IYolo8>();
+        /// <summary>
+        /// 注册表并发访问锁。
+        /// </summary>
+        private static readonly object _registryLock = new object();
 
         /// <summary>
         /// 注册模型句柄
@@ -17,7 +24,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <param name="type"></param>
         public static void Add(IYolo8 handle)
         {
-            _registry.Add(handle);
+            if (handle == null)
+                return;
+
+            lock (_registryLock)
+            {
+                if (!_registry.Contains(handle))
+                    _registry.Add(handle);
+            }
         }
 
         /// <summary>
@@ -26,7 +40,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <param name="handle"></param>
         public static void Destroy(IYolo8 handle)
         {
-            _registry.Remove(handle);
+            if (handle == null)
+                return;
+
+            lock (_registryLock)
+                _registry.Remove(handle);
             handle.Destroy();
         }
         /// <summary>
@@ -34,7 +52,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public static void DestroyAllModel()
         {
-            foreach (var handle in _registry)
+            IYolo8[] handles;
+            lock (_registryLock)
+            {
+                handles = _registry.ToArray();
+                _registry.Clear();
+            }
+
+            foreach (var handle in handles)
             {
                 handle.Destroy();
             }

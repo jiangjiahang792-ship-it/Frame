@@ -217,8 +217,9 @@ namespace TDJS_Vision.Node
                     int index1 = comboBox2.Items.IndexOf(text2);
                     if (index1 == -1 && !string.IsNullOrWhiteSpace(text2))
                         index1 = comboBox2.Items.IndexOf(DynamicResultVariableResolver.ToDisplayName(text2));
+                    // 旧方案可能保存了当前节点结果中已经不存在的显示名，回落到界面实际选中的有效结果。
                     comboBox2.SelectedIndex = index1 == -1 ? 0 : index1;
-                    _text2 = text2;
+                    _text2 = comboBox2.Text;
                 }
             }
         }

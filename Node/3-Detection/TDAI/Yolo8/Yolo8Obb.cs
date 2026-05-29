@@ -110,6 +110,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             if (handle != IntPtr.Zero)
             {
                 YOLO_Release(handle);
+                handle = IntPtr.Zero;
             }
         }
     }

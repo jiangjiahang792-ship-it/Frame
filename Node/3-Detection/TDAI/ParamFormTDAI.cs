@@ -41,6 +41,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// 节点参数
         /// </summary>
         public INodeParam Params { get; set; }
+        /// <summary>
+        /// 原生AI模型初始化锁，避免多个节点同时加载同一个加密模型导致底层DLL失败。
+        /// </summary>
+        private static readonly object ModelLoadLock = new object();
+        /// <summary>
+        /// 原生模型初始化失败后的重试次数。
+        /// </summary>
+        private const int ModelLoadRetryCount = 2;
 
         public ParamFormTDAI()
         {
@@ -224,7 +232,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         LogHelper.AddLog(MsgLevel.Exception, $"AI配置文件解析失败！原因：{ex.Message}", true);
                     }
                 }
-                Task.Run(() => { LoadModel(param); });
+                StartLoadModel(param);
                 
             }
         }
@@ -331,12 +339,15 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     case "合压模型":
                         nodeParamTDAI.ModelName = ModelName.合压模型;
                         break;
+                    case "XM_Fakra模型":
+                        nodeParamTDAI.ModelName = ModelName.XM_Fakra模型;
+                        break;
                     default:
                         throw new Exception($"未知的模型名称：{comboBoxModelName.Text}");
                 }
                 Params = nodeParamTDAI;
 
-                Task.Run(() => LoadModel(nodeParamTDAI));
+                StartLoadModel(nodeParamTDAI);
             }
             catch (Exception e)
             {
@@ -346,11 +357,26 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             return true;
         }
         /// <summary>
+        /// 启动AI模型异步加载任务。
+        /// </summary>
+        /// <param name="param"></param>
+        private void StartLoadModel(NodeParamTDAI param)
+        {
+            if (param == null)
+                return;
+
+            int modelLoadVersion = param.NextModelLoadVersion();
+            param.ModelLoadTask = Task.Run(() => LoadModel(param, modelLoadVersion));
+        }
+        /// <summary>
         /// 加载模型
         /// </summary>
-        private void LoadModel(NodeParamTDAI param)
+        /// <param name="param"></param>
+        /// <param name="modelLoadVersion"></param>
+        private void LoadModel(NodeParamTDAI param, int modelLoadVersion)
         {
             string modelPath = "未知模型";
+            IYolo8 newModel = null;
             try
             {
                 if (param == null)
@@ -358,56 +384,130 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 if (param.AIInputInfo == null)
                     throw new Exception("AI配置未加载或解析失败，无法加载模型！");
 
-                param.Yolo8 = null;
                 modelPath = param.AIInputInfo.ModelInfo.ModelPath;
+                if (string.IsNullOrWhiteSpace(modelPath))
+                    throw new Exception("AI模型路径为空，无法加载模型！");
+
                 LogHelper.AddLog(MsgLevel.Info, $"开始加载模型：{modelPath}", true);
                 var modelInfo = param.AIInputInfo;
 
-                // 如果是加密模型
-                if (modelInfo.ModelInfo.IsEncrypted)
+                lock (ModelLoadLock)
+                    newModel = CreateModelHandleWithRetry(modelInfo, modelPath);
+
+                if (!param.IsCurrentModelLoadVersion(modelLoadVersion))
                 {
-                    if (modelInfo.ModelInfo.ModelType == ModelType.DET)
+                    ModelHandleManager.Destroy(newModel);
+                    return;
+                }
+
+                var oldModel = param.Yolo8;
+
+                // 统一注册模型句柄到模型管理，替换成功后释放旧句柄。
+                ModelHandleManager.Add(newModel);
+                param.Yolo8 = newModel;
+                param.LoadedModelPath = modelPath;
+                param.LastModelLoadError = string.Empty;
+                if (oldModel != null && !ReferenceEquals(oldModel, newModel))
+                {
+                    try
                     {
-                        var detModel = new Yolo8Det();
-                        detModel.Init(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
-                        param.Yolo8 = detModel;
+                        ModelHandleManager.Destroy(oldModel);
                     }
-                    else if (modelInfo.ModelInfo.ModelType == ModelType.OBB)
+                    catch (Exception destroyEx)
                     {
-                        var obbModel = new Yolo8Obb();
-                        obbModel.Init(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
-                        param.Yolo8 = obbModel;
-                    }
-                    else if (modelInfo.ModelInfo.ModelType == ModelType.SEG)
-                    {
-                        var segModel = new Yolo8Seg();
-                        segModel.Init(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
-                        param.Yolo8 = segModel;
-                    }
-                    else if (modelInfo.ModelInfo.ModelType == ModelType.POSE)
-                    {
-                        var poseModel = new Yolo8Pose();
-                        poseModel.Init(modelInfo.ModelInfo.ModelPath, modelInfo.ClassNames.ToArray(), modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS, modelInfo.ModelInfo.KeyPointNum);
-                        param.Yolo8 = poseModel;
-                    }
-                    else
-                    {
-                        throw new Exception($"模型类型({modelInfo.ModelInfo.ModelType})不支持！");
+                        LogHelper.AddLog(MsgLevel.Warn, $"释放旧AI模型句柄失败，原因：{destroyEx.Message}", true);
                     }
                 }
-                else
-                    throw new NotImplementedException($"模型({modelInfo.ModelInfo.ModelPath})未加密，当前版本不支持加载未加密模型！");
-                
-                //统一注册模型句柄到模型管理
-                ModelHandleManager.Add(param.Yolo8);
 
                 LogHelper.AddLog(MsgLevel.Info, $"模型：{modelPath} 加载完成！", true);
             }
             catch (Exception e)
             {
-                if (param != null)
-                    param.Yolo8 = null;
+                if (param != null && param.IsCurrentModelLoadVersion(modelLoadVersion))
+                    param.LastModelLoadError = e.Message;
+                if (newModel != null)
+                    ModelHandleManager.Destroy(newModel);
                 LogHelper.AddLog(MsgLevel.Exception, $"加载模型: {modelPath} 失败！原因：{e.Message}", true);
+            }
+        }
+
+        /// <summary>
+        /// 在原生DLL初始化失败时进行短暂重试。
+        /// </summary>
+        /// <param name="modelInfo"></param>
+        /// <param name="modelPath"></param>
+        /// <returns></returns>
+        private static IYolo8 CreateModelHandleWithRetry(AIInputInfo modelInfo, string modelPath)
+        {
+            Exception lastException = null;
+
+            for (int attempt = 1; attempt <= ModelLoadRetryCount; attempt++)
+            {
+                try
+                {
+                    return CreateModelHandle(modelInfo);
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                    if (attempt >= ModelLoadRetryCount)
+                        break;
+
+                    LogHelper.AddLog(MsgLevel.Warn, $"模型：{modelPath} 第{attempt}次加载失败，准备重试。原因：{ex.Message}", true);
+                    Thread.Sleep(200);
+                }
+            }
+
+            throw lastException;
+        }
+
+        /// <summary>
+        /// 根据AI配置创建对应类型的模型句柄。
+        /// </summary>
+        /// <param name="modelInfo"></param>
+        /// <returns></returns>
+        private static IYolo8 CreateModelHandle(AIInputInfo modelInfo)
+        {
+            if (!modelInfo.ModelInfo.IsEncrypted)
+                throw new NotImplementedException($"模型({modelInfo.ModelInfo.ModelPath})未加密，当前版本不支持加载未加密模型！");
+
+            IYolo8 model = null;
+            string[] classNames = modelInfo.ClassNames == null ? new string[0] : modelInfo.ClassNames.ToArray();
+
+            try
+            {
+                if (modelInfo.ModelInfo.ModelType == ModelType.DET)
+                {
+                    model = new Yolo8Det();
+                    model.Init(modelInfo.ModelInfo.ModelPath, classNames, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
+                }
+                else if (modelInfo.ModelInfo.ModelType == ModelType.OBB)
+                {
+                    model = new Yolo8Obb();
+                    model.Init(modelInfo.ModelInfo.ModelPath, classNames, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
+                }
+                else if (modelInfo.ModelInfo.ModelType == ModelType.SEG)
+                {
+                    model = new Yolo8Seg();
+                    model.Init(modelInfo.ModelInfo.ModelPath, classNames, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
+                }
+                else if (modelInfo.ModelInfo.ModelType == ModelType.POSE)
+                {
+                    model = new Yolo8Pose();
+                    model.Init(modelInfo.ModelInfo.ModelPath, classNames, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS, modelInfo.ModelInfo.KeyPointNum);
+                }
+                else
+                {
+                    throw new Exception($"模型类型({modelInfo.ModelInfo.ModelType})不支持！");
+                }
+
+                return model;
+            }
+            catch
+            {
+                if (model != null)
+                    model.Destroy();
+                throw;
             }
         }
 

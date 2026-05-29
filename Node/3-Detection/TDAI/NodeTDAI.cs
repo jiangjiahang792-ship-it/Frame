@@ -56,7 +56,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             SetStatus(NodeStatus.Unexecuted, "*");
                             base.CheckTokenCancel(token);
 
-                            EnsureModelReady(param);
+                            await EnsureModelReadyAsync(param);
 
                             // 清空上次检测结果
                             res.AlgorithmResult.Clear();
@@ -160,6 +160,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                             break;
                                         case ModelName.合压模型:
                                             ClosingTerminals_encrypted_Parse.Parse(det_results, result_count, param, Process,ref res);
+                                            break;
+                                        case ModelName.XM_Fakra模型:
+                                            XMSGParse.Parse(det_results, result_count, param, Process,ref res);
                                             break;
                                         default:
                                             throw new Exception("不存在的模型名称！");
@@ -293,6 +296,27 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             return new NodeReturn(NodeRunFlag.StopRun);
         }
 
+        /// <summary>
+        /// 等待AI模型异步加载结束，并校验当前句柄可用于推理。
+        /// </summary>
+        /// <param name="param"></param>
+        /// <returns></returns>
+        private static async Task EnsureModelReadyAsync(NodeParamTDAI param)
+        {
+            if (param == null)
+                throw new Exception("AI节点参数为空，不能运行推理！");
+
+            Task loadTask = param.ModelLoadTask;
+            if (loadTask != null && !loadTask.IsCompleted)
+                await loadTask.ConfigureAwait(false);
+
+            EnsureModelReady(param);
+        }
+
+        /// <summary>
+        /// 校验AI模型句柄与当前配置是否一致。
+        /// </summary>
+        /// <param name="param"></param>
         private static void EnsureModelReady(NodeParamTDAI param)
         {
             if (param.AIInputInfo == null)
@@ -303,7 +327,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 throw new Exception("AI模型路径为空，请检查AI配置文件！");
 
             if (param.Yolo8 == null)
-                throw new Exception($"AI模型未加载成功，不能运行推理！模型路径：{modelPath}");
+            {
+                string reason = string.IsNullOrWhiteSpace(param.LastModelLoadError) ? "" : $" 最后一次加载失败原因：{param.LastModelLoadError}";
+                throw new Exception($"AI模型未加载成功，不能运行推理！模型路径：{modelPath}{reason}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(param.LoadedModelPath) &&
+                !string.Equals(param.LoadedModelPath, modelPath, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new Exception($"AI模型路径已变更但新模型未加载成功，不能运行推理！配置模型路径：{modelPath}，已加载模型路径：{param.LoadedModelPath}");
+            }
 
             if (param.Yolo8.ModelType != param.AIInputInfo.ModelInfo.ModelType)
             {
