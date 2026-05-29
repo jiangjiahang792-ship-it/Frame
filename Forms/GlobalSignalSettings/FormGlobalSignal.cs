@@ -17,6 +17,10 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
     {
         private const int ListenInterval = 1;
         private static CancellationTokenSource _listenSignalCts;
+        /// <summary>
+        /// 监听信号状态锁，避免多个监听线程同时写入 SignalValue 和 SignalTriggered。
+        /// </summary>
+        private static readonly object _listenSignalStateLock = new object();
         private bool _isLoadingConfig;
 
         public FormGlobalSignal()
@@ -352,21 +356,70 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
 
                 if (isMatched)
                 {
-                    if (!signal.SignalTriggered)
+                    bool shouldLog = false;
+                    lock (_listenSignalStateLock)
                     {
-                        signal.SignalValue = true;
-                        signal.SignalTriggered = true;
-
-                        LogHelper.AddLog(MsgLevel.Exception, $"地址:{signal.Address}监听到了:{signal.Value}", true);
+                        if (!signal.SignalTriggered)
+                        {
+                            ClearSameSourceOtherSignalValues(signal);
+                            signal.SignalValue = true;
+                            signal.SignalTriggered = true;
+                            shouldLog = true;
+                        }
                     }
+
+                    if (shouldLog)
+                        LogHelper.AddLog(MsgLevel.Exception, $"地址:{signal.Address}监听到了:{signal.Value}", true);
                 }
                 else
                 {
-                    signal.SignalTriggered = false;
+                    lock (_listenSignalStateLock)
+                    {
+                        signal.SignalTriggered = false;
+                    }
                 }
 
                 Thread.Sleep(ListenInterval);
             }
+        }
+
+        /// <summary>
+        /// 清除同一信号源下其他监听值的锁存状态，避免同一地址的不同值同时为 true。
+        /// </summary>
+        /// <param name="triggeredSignal">当前触发的监听信号。</param>
+        private static void ClearSameSourceOtherSignalValues(SingleGlobalSignalSettings triggeredSignal)
+        {
+            var signals = Solution.Instance.GlobalSignal?.ListenSignals;
+            if (signals == null)
+                return;
+
+            foreach (var signal in signals)
+            {
+                if (signal == null || ReferenceEquals(signal, triggeredSignal))
+                    continue;
+
+                if (!IsSameSignalSource(signal, triggeredSignal))
+                    continue;
+
+                if (string.Equals(signal.Value, triggeredSignal.Value, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                signal.SignalValue = false;
+                signal.SignalTriggered = false;
+            }
+        }
+
+        /// <summary>
+        /// 判断两条监听信号是否来自同一个通信设备、地址和数据类型。
+        /// </summary>
+        /// <param name="left">第一条监听信号。</param>
+        /// <param name="right">第二条监听信号。</param>
+        /// <returns>同一信号源返回 true，否则返回 false。</returns>
+        private static bool IsSameSignalSource(SingleGlobalSignalSettings left, SingleGlobalSignalSettings right)
+        {
+            return string.Equals(left.DeviceName, right.DeviceName, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(left.Address, right.Address, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(left.Type, right.Type, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool ReadSignalMatched(SingleGlobalSignalSettings signal)
