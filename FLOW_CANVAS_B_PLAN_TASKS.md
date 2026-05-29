@@ -118,6 +118,12 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
   - [x] Build-verified after implementation with MSBuild on 2026-05-28, 0 errors; existing warnings remain.
   - [x] Build-verified after the parallel `FlagRead` fix with MSBuild on 2026-05-28, 0 errors; existing warnings remain.
   - [ ] UI-verify checked wait mode, unchecked true mode, unchecked false branch-end mode, parallel checked-wait reset behavior, save/load restore, and reset-signal behavior.
+- Graph runtime entry alignment feedback pass:
+  - [x] Feedback captured on 2026-05-29: process-editor run buttons should use the same graph-parallel runtime as the main-window run buttons, so debugging reproduces production run behavior.
+  - [x] `IsHandRun` now keeps only manual-run context for hard-trigger camera and process-trigger nodes; it no longer forces `RunConnectedNodes` into sequential graph mode.
+  - [x] Partial graph debug parameters such as skipped node and stop-before node now also use the graph-parallel runtime when the graph is parallel-safe.
+  - [x] Build-verified after entry-alignment change with MSBuild on 2026-05-29, 0 errors; existing warnings remain.
+  - [ ] Runtime-verify process-editor single run and main-window single run produce comparable graph-parallel timing on `中心端子工位`.
 - Phase 11 undo/redo first implementation pass:
   - [x] `ProcessFlowCanvas` now owns a canvas edit history stack.
   - [x] Undo/redo supports node creation, node deletion, node movement, connection creation, connection deletion, start-node changes, and node enable/disable changes.

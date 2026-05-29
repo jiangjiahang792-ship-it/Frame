@@ -167,6 +167,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                     }
 
                     bool signalValue = param.WaitForSignal ? true : signal.SignalValue;
+                    LogHelper.AddLog(MsgLevel.Exception, $"进入到读取节点,地址为:{signal.Address}   当前值为:{signalValue}   监听值为:{signal.Value}", true);
                     result.ReadResult = new FlagReadResult(signalValue);
 
                     if (param.Reset)

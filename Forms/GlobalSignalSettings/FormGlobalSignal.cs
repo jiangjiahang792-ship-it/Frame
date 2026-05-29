@@ -341,7 +341,6 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
             while (!token.IsCancellationRequested)
             {
                 bool isMatched = false;
-
                 try
                 {
                     isMatched = ReadSignalMatched(signal);
@@ -357,6 +356,8 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
                     {
                         signal.SignalValue = true;
                         signal.SignalTriggered = true;
+
+                        LogHelper.AddLog(MsgLevel.Exception, $"地址:{signal.Address}监听到了:{signal.Value}", true);
                     }
                 }
                 else

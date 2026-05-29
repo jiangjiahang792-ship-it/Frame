@@ -244,10 +244,7 @@ namespace TDJS_Vision
         /// </summary>
         private async Task<bool> RunConnectedNodes(NodeBase nodeToSkip = null, NodeBase stopBeforeNode = null)
         {
-            if (IsHandRun ||
-                nodeToSkip != null ||
-                stopBeforeNode != null ||
-                !CanUseParallelConnectedRuntime())
+            if (!CanUseParallelConnectedRuntime())
             {
                 return await RunConnectedNodesSequential(nodeToSkip, stopBeforeNode);
             }
@@ -1325,7 +1322,7 @@ namespace TDJS_Vision
         #region 实现被触发执行的逻辑
 
         /// <summary>
-        /// 是否是在流程编辑界面中手动点击运行
+        /// 是否是在流程编辑界面中手动点击运行。该标记只用于硬触发和流程触发上下文，不再关闭图并行运行。
         /// </summary>
         public bool IsHandRun { get; set; }
 
