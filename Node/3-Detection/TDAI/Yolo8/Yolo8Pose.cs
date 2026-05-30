@@ -22,12 +22,18 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         private IntPtr _handle;
 
         public ModelType ModelType { get; } = ModelType.POSE;
+        public DeviceType DeviceType { get; set; }
+        public float ScoreThreshold { get; set; }
+        public float NMSThreshold { get; set; }
 
         /// <summary>
         /// 初始化模型
         /// </summary>
-        public void Init(string model_path, string[] class_names, int input_size, float score_threshold, float nms_threshold, int key_point_num)
+        public void Init(string model_path, DeviceType deviceType, string[] class_names, int input_size, float score_threshold, float nms_threshold, int key_point_num)
         {
+            DeviceType = deviceType;
+            ScoreThreshold = score_threshold;
+            NMSThreshold = nms_threshold;
             _handle = Initialize(model_path, class_names, class_names.Length, input_size, score_threshold, nms_threshold, key_point_num);
             if (_handle == IntPtr.Zero)
             {

@@ -493,13 +493,9 @@
     </Compile>
     <Compile Include="Node\3-Detection\ColorDiscern\NodeResultColorDiscern.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ClosingTerminals_encrypted_Parse.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Parse\HuaYangUSBClass.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Parse\LineCoreCrossSection.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ParseCommon.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12angondingParse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12Parse.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Parse\USBSegClass6.cs" />
-    <Compile Include="Node\3-Detection\TDAI\Parse\USB_Tail.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_Filling_rubber_Back.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_Filling_rubber_Front.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_More_Terminal_9Class.cs" />

@@ -479,22 +479,22 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 if (modelInfo.ModelInfo.ModelType == ModelType.DET)
                 {
                     model = new Yolo8Det();
-                    model.Init(modelInfo.ModelInfo.ModelPath, classNames, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS, 0, modelInfo.ModelInfo.DeviceType);
+                    model.Init(modelInfo.ModelInfo.ModelPath, modelInfo.ModelInfo.DeviceType, classNames, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
                 }
                 else if (modelInfo.ModelInfo.ModelType == ModelType.OBB)
                 {
                     model = new Yolo8Obb();
-                    model.Init(modelInfo.ModelInfo.ModelPath, classNames, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
+                    model.Init(modelInfo.ModelInfo.ModelPath, modelInfo.ModelInfo.DeviceType, classNames, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
                 }
                 else if (modelInfo.ModelInfo.ModelType == ModelType.SEG)
                 {
                     model = new Yolo8Seg();
-                    model.Init(modelInfo.ModelInfo.ModelPath, classNames, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
+                    model.Init(modelInfo.ModelInfo.ModelPath, modelInfo.ModelInfo.DeviceType, classNames, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
                 }
                 else if (modelInfo.ModelInfo.ModelType == ModelType.POSE)
                 {
                     model = new Yolo8Pose();
-                    model.Init(modelInfo.ModelInfo.ModelPath, classNames, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS, modelInfo.ModelInfo.KeyPointNum);
+                    model.Init(modelInfo.ModelInfo.ModelPath, modelInfo.ModelInfo.DeviceType, classNames, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS, modelInfo.ModelInfo.KeyPointNum);
                 }
                 else
                 {

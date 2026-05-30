@@ -42,6 +42,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// 模型类型
         /// </summary>
         public ModelType ModelType { get; } = ModelType.OBB;
+        public DeviceType DeviceType { get; set; }
+        public float ScoreThreshold { get; set; }
+        public float NMSThreshold { get; set; }
+
         /// <summary>
         /// 初始化 YOLO OBB模型
         /// </summary>
@@ -51,8 +55,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <param name="score_threshold"></param>
         /// <param name="nms_threshold"></param>
         /// <exception cref="Exception"></exception>
-        public void Init(string model_path, string[] class_names, int input_size, float score_threshold, float nms_threshold, int key_point_num = 0)
+        public void Init(string model_path, DeviceType deviceType, string[] class_names, int input_size, float score_threshold, float nms_threshold, int key_point_num = 0)
         {
+            DeviceType = deviceType;
+            ScoreThreshold = score_threshold;
+            NMSThreshold = nms_threshold;
             handle = YOLO_Initialize(model_path, class_names, class_names.Length, input_size, score_threshold, nms_threshold);
             if (handle == IntPtr.Zero)
             {

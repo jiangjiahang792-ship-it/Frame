@@ -7,6 +7,19 @@
     public interface IYolo8
     {
         ModelType ModelType { get; }
+
+        DeviceType DeviceType { get; }
+
+        /// <summary>
+        /// 得分
+        /// </summary>
+        float ScoreThreshold { get; set; }
+
+        /// <summary>
+        /// 抑制分数
+        /// </summary>
+        float NMSThreshold { get; set; }
+
         /// <summary>
         /// 初始化模型
         /// </summary>
@@ -15,7 +28,7 @@
         /// <param name="input_size"></param>
         /// <param name="score_threshold"></param>
         /// <param name="nms_threshold"></param>
-        void Init(string model_path, string[] class_names, int input_size, float score_threshold, float nms_threshold, int key_point_num = 0, DeviceType DeviceType = DeviceType.CPU);
+        void Init(string model_path, DeviceType deviceType,string[] class_names, int input_size, float score_threshold, float nms_threshold, int key_point_num = 0);
 
         /// <summary>
         /// 销毁模型资源

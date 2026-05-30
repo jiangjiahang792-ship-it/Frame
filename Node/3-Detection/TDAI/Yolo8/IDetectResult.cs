@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Drawing;
 using System.Runtime.InteropServices;
 using OpenCvSharp;
 using Point = OpenCvSharp.Point;
@@ -40,7 +41,26 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
     {
         public int ClassId;
         public float Score;
-        public Rect Box;
+        public Rect Rect;
+        public Box Box;
+    }
+    /// <summary>
+    /// SEG模型的不规则框
+    /// </summary>
+    public struct Box
+    {
+        public PointF TopLeft;
+        public PointF TopRight;
+        public PointF BottomLeft;
+        public PointF BottomRight;
+
+        public Box(PointF topLeft, PointF topRight, PointF bottomLeft, PointF bottomRight)
+        {
+            TopLeft = topLeft;
+            TopRight = topRight;
+            BottomLeft = bottomLeft;
+            BottomRight = bottomRight;
+        }
     }
 
     [StructLayout(LayoutKind.Sequential)]
