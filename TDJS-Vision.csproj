@@ -620,14 +620,36 @@
     <Compile Include="Node\6-LogicTool\CompositeModule\NodeCompositeModule.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="Node\6-LogicTool\CompositeModule\NodeCompositeInput.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\CompositeModule\NodeCompositeOutput.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="Node\6-LogicTool\CompositeModule\NodeParamCompositeModule.cs" />
+    <Compile Include="Node\6-LogicTool\CompositeModule\NodeParamCompositeInput.cs" />
+    <Compile Include="Node\6-LogicTool\CompositeModule\NodeParamCompositeOutput.cs" />
     <Compile Include="Node\6-LogicTool\CompositeModule\NodeParamFormCompositeModule.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Node\6-LogicTool\CompositeModule\NodeParamFormCompositeModule.Designer.cs">
       <DependentUpon>NodeParamFormCompositeModule.cs</DependentUpon>
     </Compile>
+    <Compile Include="Node\6-LogicTool\CompositeModule\NodeParamFormCompositeInput.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\CompositeModule\NodeParamFormCompositeInput.Designer.cs">
+      <DependentUpon>NodeParamFormCompositeInput.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\CompositeModule\NodeParamFormCompositeOutput.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\6-LogicTool\CompositeModule\NodeParamFormCompositeOutput.Designer.cs">
+      <DependentUpon>NodeParamFormCompositeOutput.cs</DependentUpon>
+    </Compile>
     <Compile Include="Node\6-LogicTool\CompositeModule\NodeResultCompositeModule.cs" />
+    <Compile Include="Node\6-LogicTool\CompositeModule\NodeResultCompositeInput.cs" />
+    <Compile Include="Node\6-LogicTool\CompositeModule\NodeResultCompositeOutput.cs" />
     <Compile Include="Node\6-LogicTool\CSharpScript\NodeCSharpScript.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -1636,6 +1658,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\6-LogicTool\ArithmeticOperation\NodeParamFormArithmeticOperation.resx">
       <DependentUpon>NodeParamFormArithmeticOperation.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\6-LogicTool\CompositeModule\NodeParamFormCompositeModule.resx">
+      <DependentUpon>NodeParamFormCompositeModule.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\6-LogicTool\CSharpScript\NodeParamFormCSharpScript.resx">
       <DependentUpon>NodeParamFormCSharpScript.cs</DependentUpon>

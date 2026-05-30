@@ -2,6 +2,7 @@ using Logger;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,7 +11,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
     /// <summary>
     /// 组合模块节点，将已导入的流程快照作为当前节点的内部流程执行。
     /// </summary>
-    public class NodeCompositeModule : NodeBase
+    public class NodeCompositeModule : NodeBase, IDynamicResultVariableProvider, IDynamicResultVariableTypeProvider, INodeSubscriptionDependencyProvider
     {
         /// <summary>
         /// 最近一次构建内部流程所使用的参数对象。
@@ -35,6 +36,92 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             ParamForm = new NodeParamFormCompositeModule(process);
             ParamForm.SetNodeBelong(this);
             Result = new NodeResultCompositeModule();
+        }
+
+        /// <summary>
+        /// 获取输入绑定依赖的外部源节点 ID，供图运行器等待上游订阅结果。
+        /// </summary>
+        /// <returns>源节点 ID 集合。</returns>
+        public IEnumerable<int> GetSubscriptionDependencyNodeIds()
+        {
+            HashSet<int> nodeIds = new HashSet<int>();
+            NodeParamCompositeModule param = ParamForm == null ? null : ParamForm.Params as NodeParamCompositeModule;
+            if (param == null || param.InputBindings == null)
+                return nodeIds;
+
+            foreach (CompositeInputBinding binding in param.InputBindings)
+            {
+                if (binding == null ||
+                    binding.SourceMode != CompositePortValueSourceMode.Subscription ||
+                    binding.SourceNodeId <= 0 ||
+                    binding.SourceNodeId == ID)
+                {
+                    continue;
+                }
+
+                nodeIds.Add(binding.SourceNodeId);
+            }
+
+            return nodeIds;
+        }
+
+        /// <summary>
+        /// 获取组合模块对外声明的动态输出变量名。
+        /// </summary>
+        /// <returns>输出变量名集合。</returns>
+        public IEnumerable<string> GetDynamicResultVariableNames()
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            NodeParamCompositeModule param = ParamForm == null ? null : ParamForm.Params as NodeParamCompositeModule;
+            if (param != null && param.OutputPorts != null)
+            {
+                foreach (CompositeOutputPortDefinition port in param.OutputPorts)
+                {
+                    if (port == null || string.IsNullOrWhiteSpace(port.Name))
+                        continue;
+
+                    names.Add(port.Name.Trim());
+                }
+            }
+
+            NodeResultCompositeModule result = Result as NodeResultCompositeModule;
+            if (result != null)
+            {
+                foreach (string name in result.GetDynamicVariableNames())
+                    names.Add(name);
+            }
+
+            return names.OrderBy(item => item, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        /// <summary>
+        /// 获取组合模块输出变量类型。
+        /// </summary>
+        /// <param name="variableName">变量名。</param>
+        /// <param name="valueType">值类型。</param>
+        /// <returns>找到变量定义时返回 true。</returns>
+        public bool TryGetDynamicResultVariableType(string variableName, out Type valueType)
+        {
+            valueType = typeof(object);
+            string name = DynamicResultVariableResolver.ExtractVariableName(variableName);
+            NodeParamCompositeModule param = ParamForm == null ? null : ParamForm.Params as NodeParamCompositeModule;
+            if (param != null && param.OutputPorts != null)
+            {
+                foreach (CompositeOutputPortDefinition port in param.OutputPorts)
+                {
+                    if (port == null ||
+                        !string.Equals(port.Name, name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    valueType = CompositePortValueHelper.GetRuntimeType(port.ValueType);
+                    return true;
+                }
+            }
+
+            NodeResultCompositeModule result = Result as NodeResultCompositeModule;
+            return result != null && result.TryGetDynamicResultVariableType(name, out valueType);
         }
 
         /// <summary>
@@ -70,6 +157,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                 await base.CheckTokenCancel(token);
 
                 Process runtimeProcess = GetOrCreateRuntimeProcess(param, showLog);
+                InjectInputValues(runtimeProcess, param);
                 await runtimeProcess.Run(false);
                 await base.CheckTokenCancel(token);
 
@@ -77,6 +165,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                     throw new Exception("组合模块内部流程运行失败！");
 
                 NodeResultCompositeModule result = BuildResult(param, runtimeProcess, true, string.Empty);
+                CollectOutputValues(result, runtimeProcess, param);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 result.RunTime = time;
                 Result = result;
@@ -85,7 +174,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                 {
                     LogHelper.AddLog(
                         MsgLevel.Info,
-                        $"节点({ID}.{NodeName})运行成功！内部节点：{result.InternalNodeCount}，内部耗时：{result.InternalRunTime} ms，节点耗时：{time} ms",
+                        $"节点({ID}.{NodeName})运行成功！内部节点：{result.InternalNodeCount}，输出：{result.OutputValuesText}，内部耗时：{result.InternalRunTime} ms，节点耗时：{time} ms",
                         true);
                 }
 
@@ -132,6 +221,159 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
 
             if (param.NodeInfos == null || param.NodeInfos.Count == 0)
                 throw new Exception("组合模块未导入任何内部节点！");
+        }
+
+        /// <summary>
+        /// 根据外部绑定解析输入值，并注入到内部组合输入节点。
+        /// </summary>
+        /// <param name="runtimeProcess">内部流程。</param>
+        /// <param name="param">组合模块参数。</param>
+        private void InjectInputValues(Process runtimeProcess, NodeParamCompositeModule param)
+        {
+            Dictionary<string, object> inputValues = ResolveInputValues(param);
+            if (runtimeProcess == null || runtimeProcess.Nodes == null)
+                return;
+
+            foreach (NodeBase node in runtimeProcess.Nodes)
+            {
+                NodeCompositeInput inputNode = node as NodeCompositeInput;
+                if (inputNode != null)
+                    inputNode.SetRuntimeInputValues(inputValues);
+            }
+        }
+
+        /// <summary>
+        /// 解析组合模块每个输入端口的外部绑定值。
+        /// </summary>
+        /// <param name="param">组合模块参数。</param>
+        /// <returns>输入端口值表。</returns>
+        private Dictionary<string, object> ResolveInputValues(NodeParamCompositeModule param)
+        {
+            var values = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            if (param == null || param.InputPorts == null)
+                return values;
+
+            List<CompositeInputBinding> bindings = CompositeModuleSnapshotBuilder.SyncInputBindings(
+                param.InputPorts,
+                param.InputBindings);
+            param.InputBindings = bindings;
+
+            foreach (CompositeInputPortDefinition port in param.InputPorts)
+            {
+                if (port == null || string.IsNullOrWhiteSpace(port.Name))
+                    continue;
+
+                string name = port.Name.Trim();
+                CompositeInputBinding binding = FindInputBinding(bindings, name);
+                object value;
+                if (binding == null || binding.SourceMode == CompositePortValueSourceMode.Constant)
+                {
+                    string constantText = binding == null ? port.DefaultValue : binding.ConstantText;
+                    value = CompositePortValueHelper.ConvertConstant(constantText, port.ValueType, "输入端口“" + name + "”");
+                }
+                else
+                {
+                    object rawValue = CompositePortValueHelper.ReadSourceValue(
+                        this,
+                        binding.SourceNodeId,
+                        binding.SourceNodeText,
+                        binding.PropertyPath,
+                        binding.PropertyDisplayName);
+                    value = CompositePortValueHelper.ConvertValue(rawValue, port.ValueType, "输入端口“" + name + "”");
+                }
+
+                values[name] = value;
+            }
+
+            return values;
+        }
+
+        /// <summary>
+        /// 查找指定输入端口的绑定。
+        /// </summary>
+        /// <param name="bindings">绑定列表。</param>
+        /// <param name="portName">端口名称。</param>
+        /// <returns>匹配的绑定。</returns>
+        private static CompositeInputBinding FindInputBinding(List<CompositeInputBinding> bindings, string portName)
+        {
+            if (bindings == null || string.IsNullOrWhiteSpace(portName))
+                return null;
+
+            foreach (CompositeInputBinding binding in bindings)
+            {
+                if (binding != null &&
+                    string.Equals(binding.PortName, portName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return binding;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 从内部组合输出节点收集外部可订阅输出变量。
+        /// </summary>
+        /// <param name="result">组合模块结果。</param>
+        /// <param name="runtimeProcess">内部流程。</param>
+        /// <param name="param">组合模块参数。</param>
+        private static void CollectOutputValues(
+            NodeResultCompositeModule result,
+            Process runtimeProcess,
+            NodeParamCompositeModule param)
+        {
+            if (result == null)
+                return;
+
+            result.OutputValues = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            result.OutputValueTypes = new Dictionary<string, CompositePortValueType>(StringComparer.OrdinalIgnoreCase);
+
+            if (runtimeProcess == null || runtimeProcess.Nodes == null)
+                return;
+
+            foreach (NodeBase node in runtimeProcess.Nodes)
+            {
+                if (node == null || !node.HasSuccessfulResultForRun(runtimeProcess.CurrentRunId))
+                    continue;
+
+                NodeResultCompositeOutput outputResult = node == null ? null : node.Result as NodeResultCompositeOutput;
+                if (outputResult == null || outputResult.Values == null)
+                    continue;
+
+                foreach (KeyValuePair<string, object> pair in outputResult.Values)
+                {
+                    if (string.IsNullOrWhiteSpace(pair.Key))
+                        continue;
+
+                    result.OutputValues[pair.Key.Trim()] = pair.Value;
+                }
+
+                if (outputResult.ValueTypes == null)
+                    continue;
+
+                foreach (KeyValuePair<string, CompositePortValueType> pair in outputResult.ValueTypes)
+                {
+                    if (string.IsNullOrWhiteSpace(pair.Key))
+                        continue;
+
+                    result.OutputValueTypes[pair.Key.Trim()] = pair.Value;
+                }
+            }
+
+            if (param != null && param.OutputPorts != null)
+            {
+                foreach (CompositeOutputPortDefinition port in param.OutputPorts)
+                {
+                    if (port == null || string.IsNullOrWhiteSpace(port.Name))
+                        continue;
+
+                    string name = port.Name.Trim();
+                    if (!result.OutputValueTypes.ContainsKey(name))
+                        result.OutputValueTypes[name] = port.ValueType;
+                }
+            }
+
+            result.OutputValuesText = NodeResultCompositeModule.BuildValuesText(result.OutputValues);
         }
 
         /// <summary>
@@ -300,7 +542,10 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                 InternalRunTime = runtimeProcess == null ? 0 : runtimeProcess.RunTime,
                 InternalNodeCount = runtimeProcess == null ? 0 : runtimeProcess.Nodes.Count,
                 InternalSuccess = success,
-                Message = message ?? string.Empty
+                Message = message ?? string.Empty,
+                OutputValues = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase),
+                OutputValueTypes = new Dictionary<string, CompositePortValueType>(StringComparer.OrdinalIgnoreCase),
+                OutputValuesText = string.Empty
             };
         }
 

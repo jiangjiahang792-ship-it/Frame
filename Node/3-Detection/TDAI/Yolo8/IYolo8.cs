@@ -15,7 +15,7 @@
         /// <param name="input_size"></param>
         /// <param name="score_threshold"></param>
         /// <param name="nms_threshold"></param>
-        void Init(string model_path, string[] class_names, int input_size, float score_threshold, float nms_threshold, int key_point_num = 0);
+        void Init(string model_path, string[] class_names, int input_size, float score_threshold, float nms_threshold, int key_point_num = 0, DeviceType DeviceType = DeviceType.CPU);
 
         /// <summary>
         /// 销毁模型资源

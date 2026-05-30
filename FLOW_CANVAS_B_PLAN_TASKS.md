@@ -124,6 +124,14 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
   - [x] Partial graph debug parameters such as skipped node and stop-before node now also use the graph-parallel runtime when the graph is parallel-safe.
   - [x] Build-verified after entry-alignment change with MSBuild on 2026-05-29, 0 errors; existing warnings remain.
   - [ ] Runtime-verify process-editor single run and main-window single run produce comparable graph-parallel timing on `中心端子工位`.
+- CompositeModule configurable port feedback pass:
+  - [x] New request captured on 2026-05-30: improve `CompositeModule` so large canvas regions can be wrapped as reusable modules with configurable input and output ports.
+  - [x] Add source-flow input port tooling so internal module nodes can subscribe to named input variables.
+  - [x] Add source-flow output port tooling so internal results can be published as named module outputs.
+  - [x] Let the outer `CompositeModule` bind each input port to a constant or upstream subscription.
+  - [x] Publish configured output ports as dynamic variables so downstream external nodes can subscribe to them.
+  - [x] Build-verify after the first configurable-port implementation pass.
+    - Passed with MSBuild on 2026-05-30, 0 errors; existing warnings remain.
 - Phase 11 undo/redo first implementation pass:
   - [x] `ProcessFlowCanvas` now owns a canvas edit history stack.
   - [x] Undo/redo supports node creation, node deletion, node movement, connection creation, connection deletion, start-node changes, and node enable/disable changes.

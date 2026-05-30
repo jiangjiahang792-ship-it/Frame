@@ -708,6 +708,12 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.CompositeModule:
                     node = new NodeCompositeModule(nodeId, nodeName, _process, nodeType);
                     break;
+                case NodeType.CompositeInput:
+                    node = new NodeCompositeInput(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.CompositeOutput:
+                    node = new NodeCompositeOutput(nodeId, nodeName, _process, nodeType);
+                    break;
                 case NodeType.Else:
                     node = new NodeElse(nodeId, nodeName, _process, nodeType);
                     break;

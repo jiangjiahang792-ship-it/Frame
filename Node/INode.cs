@@ -419,5 +419,13 @@ namespace TDJS_Vision.Node
         /// 组合模块
         /// </summary>
         CompositeModule,
+        /// <summary>
+        /// 组合输入
+        /// </summary>
+        CompositeInput,
+        /// <summary>
+        /// 组合输出
+        /// </summary>
+        CompositeOutput,
     }
 }

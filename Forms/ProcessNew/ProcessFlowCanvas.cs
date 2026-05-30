@@ -4216,6 +4216,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.MultiCondition:
                 case NodeType.ArithmeticOperation:
                 case NodeType.CompositeModule:
+                case NodeType.CompositeInput:
+                case NodeType.CompositeOutput:
                 case NodeType.Else:
                 case NodeType.EndIf:
                 case NodeType.ConditionRun:

@@ -37,6 +37,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         public static extern void DestroyDetector(IntPtr detector);
 
         [DllImport("td_det.dll", CallingConvention = CallingConvention.Cdecl)]
+
         public static extern int Detect(
             IntPtr detector,
             byte[] img_data,
@@ -44,6 +45,27 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             int height,
             int channels,
             [Out] DetectionResult[] results);
+
+
+        //GPU初始化函数
+        [DllImport("td_gpu_detect.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr YoloV8_Init(string model_type,
+                                              string model_path,
+                                              int intput_size_width, int intput_size_height,
+                                              [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPStr)] string[] class_names, int class_count,
+                                              float score_threshold, float nms_threshold,
+                                              int gpu_id);
+
+        [DllImport("td_gpu_detect.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void YoloV8_Release(IntPtr handle);
+
+
+        [DllImport("td_gpu_detect.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr YoloV8_Infer(IntPtr handle, IntPtr img_data, int width, int height, int channels,
+                                                 float score_threshold, float nms_threshold);
+
+        [DllImport("td_gpu_detect.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void YoloV8_FreeResult(IntPtr results);
 
         private IntPtr _handle;
 

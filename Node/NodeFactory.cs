@@ -170,6 +170,10 @@ namespace TDJS_Vision.Node
                     return new NodeArithmeticOperation(nodeId, nodeName, process, nodeType);
                 case NodeType.CompositeModule:
                     return new NodeCompositeModule(nodeId, nodeName, process, nodeType);
+                case NodeType.CompositeInput:
+                    return new NodeCompositeInput(nodeId, nodeName, process, nodeType);
+                case NodeType.CompositeOutput:
+                    return new NodeCompositeOutput(nodeId, nodeName, process, nodeType);
                 case NodeType.Else:
                     return new NodeElse(nodeId, nodeName, process, nodeType);
                 case NodeType.EndIf:
