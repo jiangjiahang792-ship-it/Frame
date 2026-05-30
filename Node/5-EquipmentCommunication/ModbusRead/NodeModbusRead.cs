@@ -136,17 +136,17 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
                 #region 数据显示
 
                 string resultStr = string.Empty;
-                if (showLog)
-                {
-                    if (ParamForm is ParamFormModbusRead form)
-                    {
-                        form.SetReadResult("[开始]");
-                        resultStr = ArrayObjectToString(data);
-                        form.SetReadResult($"{param.StartAddress}: {resultStr}");
-                        form.SetReadResult("[结束]");
-                        form.SetReadResult("-------------------------------");
-                    }
-                }
+                //if (showLog)
+                //{
+                //    if (ParamForm is ParamFormModbusRead form)
+                //    {
+                //        form.SetReadResult("[开始]");
+                //        resultStr = ArrayObjectToString(data);
+                //        form.SetReadResult($"{param.StartAddress}: {resultStr}");
+                //        form.SetReadResult("[结束]");
+                //        form.SetReadResult("-------------------------------");
+                //    }
+                //}
                 #endregion
 
                 if (Result is NodeResultModbusRead result)
