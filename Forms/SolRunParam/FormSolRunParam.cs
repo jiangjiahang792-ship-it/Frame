@@ -5,6 +5,7 @@ using Logger;
 using TDJS_Vision.Device;
 using TDJS_Vision.Device.Modbus;
 using TDJS_Vision.Forms.YTMessageBox;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Forms.SolRunParam
 {
@@ -13,6 +14,12 @@ namespace TDJS_Vision.Forms.SolRunParam
         private IDevice curDevice = null;
         private string selectedProcessName = string.Empty;
         private bool showSingleProcessOnly = false;
+        // 外部指定的AI检测节点，用于多个AI节点时精准打开对应参数。
+        private NodeTDAI targetAiNode = null;
+
+        /// <summary>
+        /// 初始化流程参数窗体。
+        /// </summary>
         public FormSolRunParam()
         {
             InitializeComponent();
@@ -21,10 +28,25 @@ namespace TDJS_Vision.Forms.SolRunParam
             LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
             FormClosed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
         }
+
+        /// <summary>
+        /// 初始化只显示指定流程的参数窗体。
+        /// </summary>
+        /// <param name="processName"></param>
         public FormSolRunParam(string processName) : this()
         {
             selectedProcessName = processName ?? string.Empty;
             showSingleProcessOnly = true;
+        }
+
+        /// <summary>
+        /// 初始化只显示指定流程且指定AI节点的参数窗体。
+        /// </summary>
+        /// <param name="processName"></param>
+        /// <param name="targetAiNode"></param>
+        public FormSolRunParam(string processName, NodeTDAI targetAiNode) : this(processName)
+        {
+            this.targetAiNode = targetAiNode;
         }
         /// <summary>
         /// 窗体显示事件
@@ -52,7 +74,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 tabControl1.Controls.Add(page);
                 try
                 {
-                    solRunParam.Init(process);
+                    solRunParam.Init(process, process == targetAiNode?.Process ? targetAiNode : null);
                 }
                 catch (Exception ex)
                 {

@@ -24,6 +24,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         ICamera _camera = null;
         TriggerSource triggerSrc;
         NodeTDAI _nodeTDAI;//AI节点
+        NodeTDAI _targetAiNode;//外部指定的AI节点
         NodeImageSource _nodeSource;//图像源节点
         NodeImageCrop _nodeCrop;//图像裁剪节点
         string _windowsName; // 图像显示窗口名
@@ -72,9 +73,25 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <param name="process"></param>
         public void Init(Process process)
         {
+            Init(process, null);
+        }
+
+        /// <summary>
+        /// 使用流程和指定AI节点初始化。
+        /// </summary>
+        /// <param name="process"></param>
+        /// <param name="targetAiNode"></param>
+        public void Init(Process process, NodeTDAI targetAiNode)
+        {
             try
             {
                 this.process = process;
+                _targetAiNode = targetAiNode;
+                _camera = null;
+                _nodeSource = null;
+                _nodeCrop = null;
+                _nodeTDAI = null;
+                _windowsName = null;
                 SetEnable(false);
                 foreach (var node in process.Nodes)
                 {
@@ -129,6 +146,9 @@ namespace TDJS_Vision.Forms.SolRunParam
                     if (node is NodeTDAI nodeTDAI &&
                         node.ParamForm.Params is NodeParamTDAI paramTDAI)
                     {
+                        if (_targetAiNode != null && nodeTDAI.ID != _targetAiNode.ID)
+                            continue;
+
                         _nodeTDAI = nodeTDAI;//临时保存AI节点
                         if (paramTDAI != null)
                         {
