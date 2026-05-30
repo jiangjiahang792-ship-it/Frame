@@ -101,6 +101,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
         internal static AlgorithmResult BuildDisplayResult(CaliperCircleMeasureResult measureResult)
         {
             var result = new AlgorithmResult();
+            result.IsAllOk = measureResult.Success;
             foreach (PointF point in measureResult.EdgePoints)
                 result.Circles.Add(new ColorCircle(point, 2, Color.Yellow));
 
@@ -112,7 +113,10 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             }
             else
             {
-                result.Texts.Add(new ColorText($"卡尺找圆失败：点数 {measureResult.PointCount}", Color.Red));
+                string message = string.IsNullOrWhiteSpace(measureResult.ErrorMessage)
+                    ? $"卡尺找圆失败：点数 {measureResult.PointCount}"
+                    : measureResult.ErrorMessage;
+                result.Texts.Add(new ColorText(message, Color.Red));
             }
 
             return result;

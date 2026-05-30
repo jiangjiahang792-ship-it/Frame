@@ -48,6 +48,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             this.comboBoxFindMode = new System.Windows.Forms.ComboBox();
             this.labelDirection = new System.Windows.Forms.Label();
             this.comboBoxDirection = new System.Windows.Forms.ComboBox();
+            this.checkBoxEnableFitValidPointCount = new System.Windows.Forms.CheckBox();
+            this.labelFitValidPointCount = new System.Windows.Forms.Label();
+            this.textBoxFitValidPointCount = new System.Windows.Forms.TextBox();
             this.showImageControl1 = new TDJS_Vision.Forms.DispShowImage.ShowImageControl();
             this.buttonDrawRoi = new System.Windows.Forms.Button();
             this.buttonConfirmRoi = new System.Windows.Forms.Button();
@@ -231,9 +234,12 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             this.groupBoxCaliper.Controls.Add(this.comboBoxFindMode);
             this.groupBoxCaliper.Controls.Add(this.labelDirection);
             this.groupBoxCaliper.Controls.Add(this.comboBoxDirection);
+            this.groupBoxCaliper.Controls.Add(this.checkBoxEnableFitValidPointCount);
+            this.groupBoxCaliper.Controls.Add(this.labelFitValidPointCount);
+            this.groupBoxCaliper.Controls.Add(this.textBoxFitValidPointCount);
             this.groupBoxCaliper.Location = new System.Drawing.Point(18, 378);
             this.groupBoxCaliper.Name = "groupBoxCaliper";
-            this.groupBoxCaliper.Size = new System.Drawing.Size(390, 204);
+            this.groupBoxCaliper.Size = new System.Drawing.Size(390, 246);
             this.groupBoxCaliper.TabIndex = 4;
             this.groupBoxCaliper.TabStop = false;
             this.groupBoxCaliper.Text = "卡尺参数";
@@ -376,6 +382,36 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             this.comboBoxDirection.Name = "comboBoxDirection";
             this.comboBoxDirection.Size = new System.Drawing.Size(100, 23);
             this.comboBoxDirection.TabIndex = 15;
+            //
+            // checkBoxEnableFitValidPointCount
+            //
+            this.checkBoxEnableFitValidPointCount.AutoSize = true;
+            this.checkBoxEnableFitValidPointCount.Location = new System.Drawing.Point(16, 198);
+            this.checkBoxEnableFitValidPointCount.Name = "checkBoxEnableFitValidPointCount";
+            this.checkBoxEnableFitValidPointCount.Size = new System.Drawing.Size(149, 19);
+            this.checkBoxEnableFitValidPointCount.TabIndex = 16;
+            this.checkBoxEnableFitValidPointCount.Text = "启用拟合有效点数";
+            this.checkBoxEnableFitValidPointCount.UseVisualStyleBackColor = true;
+            this.checkBoxEnableFitValidPointCount.CheckedChanged += new System.EventHandler(this.checkBoxEnableFitValidPointCount_CheckedChanged);
+            //
+            // labelFitValidPointCount
+            //
+            this.labelFitValidPointCount.AutoSize = true;
+            this.labelFitValidPointCount.Enabled = false;
+            this.labelFitValidPointCount.Location = new System.Drawing.Point(206, 200);
+            this.labelFitValidPointCount.Name = "labelFitValidPointCount";
+            this.labelFitValidPointCount.Size = new System.Drawing.Size(97, 15);
+            this.labelFitValidPointCount.TabIndex = 17;
+            this.labelFitValidPointCount.Text = "拟合有效点数";
+            //
+            // textBoxFitValidPointCount
+            //
+            this.textBoxFitValidPointCount.Enabled = false;
+            this.textBoxFitValidPointCount.Location = new System.Drawing.Point(306, 196);
+            this.textBoxFitValidPointCount.Name = "textBoxFitValidPointCount";
+            this.textBoxFitValidPointCount.Size = new System.Drawing.Size(56, 25);
+            this.textBoxFitValidPointCount.TabIndex = 18;
+            this.textBoxFitValidPointCount.Text = "10";
             // 
             // showImageControl1
             // 
@@ -504,6 +540,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
         private System.Windows.Forms.ComboBox comboBoxFindMode;
         private System.Windows.Forms.Label labelDirection;
         private System.Windows.Forms.ComboBox comboBoxDirection;
+        private System.Windows.Forms.CheckBox checkBoxEnableFitValidPointCount;
+        private System.Windows.Forms.Label labelFitValidPointCount;
+        private System.Windows.Forms.TextBox textBoxFitValidPointCount;
         private TDJS_Vision.Forms.DispShowImage.ShowImageControl showImageControl1;
         private System.Windows.Forms.Button buttonDrawRoi;
         private System.Windows.Forms.Button buttonConfirmRoi;

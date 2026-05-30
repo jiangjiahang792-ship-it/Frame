@@ -15,6 +15,14 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
         public float Height { get; set; } = 120;
         public float Angle { get; set; }
         public int Count { get; set; } = 30;
+        /// <summary>
+        /// 是否启用拟合有效点数限制。
+        /// </summary>
+        public bool EnableFitValidPointCount { get; set; }
+        /// <summary>
+        /// 拟合有效点数阈值，卡尺找到的有效点数必须大于该值才执行拟合。
+        /// </summary>
+        public int FitValidPointCount { get; set; } = 10;
         public float CaliperWidth { get; set; } = 10;
         public float CaliperHeight { get; set; } = 60;
         public int EdgeStrength { get; set; } = 20;

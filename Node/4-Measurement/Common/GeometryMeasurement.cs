@@ -302,6 +302,8 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             line = null;
             if (result == null)
                 return false;
+            if (IsExplicitNgResult(result))
+                return false;
 
             if (TryReadPointPair(result, "StartX", "StartY", out PointF start) &&
                 TryReadPointPair(result, "EndX", "EndY", out PointF end))
@@ -325,6 +327,8 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         {
             point = PointF.Empty;
             if (result == null)
+                return false;
+            if (IsExplicitNgResult(result))
                 return false;
 
             if ((role == MeasurementPointRole.Center || role == MeasurementPointRole.Auto) &&
@@ -392,6 +396,8 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         {
             regionPoints = null;
             if (result == null)
+                return false;
+            if (IsExplicitNgResult(result))
                 return false;
 
             if (TryReadPointListProperty(result, "RegionPoints", out regionPoints) ||
@@ -463,6 +469,17 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             return null;
         }
 
+        /// <summary>
+        /// 测量节点显式输出 NG 时，下游不再从显示图形里回退读取几何点，避免把边缘点误当作有效测量值。
+        /// </summary>
+        private static bool IsExplicitNgResult(INodeResult result)
+        {
+            if (TryReadBoolean(result, "IsOk", out bool isOk))
+                return !isOk;
+
+            return false;
+        }
+
         private static bool TryReadPointPair(object source, string xName, string yName, out PointF point)
         {
             point = PointF.Empty;
@@ -474,6 +491,32 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             }
 
             return false;
+        }
+
+        private static bool TryReadBoolean(object source, string memberName, out bool value)
+        {
+            value = false;
+            if (source == null)
+                return false;
+
+            Type type = source.GetType();
+            PropertyInfo property = type.GetProperty(memberName, BindingFlags.Instance | BindingFlags.Public);
+            if (property == null || !property.CanRead || property.GetIndexParameters().Length > 0)
+                return false;
+
+            object rawValue = property.GetValue(source, null);
+            if (rawValue == null)
+                return false;
+
+            try
+            {
+                value = Convert.ToBoolean(rawValue);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static bool TryReadDouble(object source, string memberName, out double value)

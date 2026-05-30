@@ -83,7 +83,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         extractValueFunc = r => r.ClassId == 5 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
                         break;
                     case "DetectItem.FlyingWire":
-                        extractValueFunc = r => r.ClassId == 8 ? "1" : null;
+                        extractValueFunc = r => r.ClassId == 6 ? "1" : null;
                         break;
                     case "DetectItem.ReverseWaterproofPlug":
                         extractValueFunc = r => r.ClassId == 10 ? "1" : null;

@@ -51,12 +51,15 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 textBoxCaliperWidth.Text = param.CaliperWidth.ToString();
                 textBoxCaliperHeight.Text = param.CaliperHeight.ToString();
                 textBoxCount.Text = param.Count.ToString();
+                checkBoxEnableFitValidPointCount.Checked = param.EnableFitValidPointCount;
+                textBoxFitValidPointCount.Text = NormalizeFitValidPointCount(param.FitValidPointCount).ToString();
                 textBoxEdgeStrength.Text = param.EdgeStrength.ToString();
                 textBoxBlurSize.Text = param.BlurSize.ToString();
                 comboBoxPolarity.SelectedItem = param.Polarity;
                 comboBoxFindMode.SelectedItem = param.FindMode;
                 comboBoxDirection.SelectedIndex = param.Direction == 1 ? 1 : 0;
                 UpdatePositionCorrectionEnabled();
+                UpdateFitValidPointCountEnabled();
             }
             finally
             {
@@ -82,6 +85,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                     CaliperWidth = runtimeParam.CaliperWidth,
                     CaliperHeight = runtimeParam.CaliperHeight,
                     Count = runtimeParam.Count,
+                    EnableFitValidPointCount = runtimeParam.EnableFitValidPointCount,
+                    FitValidPointCount = NormalizeFitValidPointCount(runtimeParam.FitValidPointCount),
                     EdgeStrength = runtimeParam.EdgeStrength,
                     Polarity = runtimeParam.Polarity,
                     FindMode = runtimeParam.FindMode,
@@ -201,6 +206,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 CaliperWidth = param.CaliperWidth,
                 CaliperHeight = param.CaliperHeight,
                 Count = param.Count,
+                EnableFitValidPointCount = param.EnableFitValidPointCount,
+                FitValidPointCount = NormalizeFitValidPointCount(param.FitValidPointCount),
                 EdgeStrength = param.EdgeStrength,
                 BlurSize = param.BlurSize,
                 Polarity = param.Polarity,
@@ -263,6 +270,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                     CaliperWidth = ParseFloat(textBoxCaliperWidth, "卡尺宽度"),
                     CaliperHeight = ParseFloat(textBoxCaliperHeight, "卡尺高度"),
                     Count = ParseInt(textBoxCount, "卡尺数量"),
+                    EnableFitValidPointCount = checkBoxEnableFitValidPointCount.Checked,
+                    FitValidPointCount = ParseFitValidPointCount(),
                     EdgeStrength = ParseInt(textBoxEdgeStrength, "边缘阈值"),
                     BlurSize = ParseInt(textBoxBlurSize, "平滑核"),
                     Polarity = (CaliperEdgePolarity)comboBoxPolarity.SelectedItem,
@@ -291,6 +300,25 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             int value;
             if (!int.TryParse(textBox.Text, out value))
                 throw new Exception($"{name}不是有效整数！");
+            return value;
+        }
+
+        /// <summary>
+        /// 兼容旧参数，旧流程未保存该值时回退为默认拟合有效点数。
+        /// </summary>
+        private static int NormalizeFitValidPointCount(int value)
+        {
+            return value <= 0 ? 10 : value;
+        }
+
+        /// <summary>
+        /// 读取拟合有效点数阈值，确保启用时阈值为正整数。
+        /// </summary>
+        private int ParseFitValidPointCount()
+        {
+            int value = ParseInt(textBoxFitValidPointCount, "拟合有效点数");
+            if (value <= 0)
+                throw new Exception("拟合有效点数必须大于0！");
             return value;
         }
 
@@ -420,10 +448,29 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             UpdatePositionCorrectionEnabled();
         }
 
+        /// <summary>
+        /// 切换拟合有效点数输入框可编辑状态。
+        /// </summary>
+        private void checkBoxEnableFitValidPointCount_CheckedChanged(object sender, EventArgs e)
+        {
+            UpdateFitValidPointCountEnabled();
+        }
+
         private void UpdatePositionCorrectionEnabled()
         {
             if (nodeSubscriptionPositionCorrection != null)
                 nodeSubscriptionPositionCorrection.Enabled = checkBoxUsePositionCorrection.Checked;
+        }
+
+        /// <summary>
+        /// 根据启用开关控制拟合有效点数配置项是否可编辑。
+        /// </summary>
+        private void UpdateFitValidPointCountEnabled()
+        {
+            if (labelFitValidPointCount != null)
+                labelFitValidPointCount.Enabled = checkBoxEnableFitValidPointCount.Checked;
+            if (textBoxFitValidPointCount != null)
+                textBoxFitValidPointCount.Enabled = checkBoxEnableFitValidPointCount.Checked;
         }
 
         private void ClearEditingRoi()

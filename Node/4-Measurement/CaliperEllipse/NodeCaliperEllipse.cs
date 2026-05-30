@@ -104,6 +104,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
         internal static AlgorithmResult BuildDisplayResult(CaliperEllipseMeasureResult measureResult)
         {
             var result = new AlgorithmResult();
+            result.IsAllOk = measureResult.Success;
             foreach (PointF point in measureResult.EdgePoints)
                 result.Circles.Add(new ColorCircle(point, 2, Color.Yellow));
             foreach (PointF point in measureResult.FailedPoints)

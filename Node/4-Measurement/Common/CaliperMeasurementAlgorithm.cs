@@ -56,6 +56,14 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         public float CaliperWidth { get; set; } = 10;
         public float CaliperHeight { get; set; } = 60;
         public int Count { get; set; } = 30;
+        /// <summary>
+        /// 是否启用拟合有效点数限制。
+        /// </summary>
+        public bool EnableFitValidPointCount { get; set; }
+        /// <summary>
+        /// 拟合有效点数阈值，边缘点数量必须大于该值才执行圆拟合。
+        /// </summary>
+        public int FitValidPointCount { get; set; } = 10;
         public int EdgeStrength { get; set; } = 20;
         public CaliperEdgePolarity Polarity { get; set; } = CaliperEdgePolarity.Both;
         public CaliperEdgeFindMode FindMode { get; set; } = CaliperEdgeFindMode.Best;
@@ -70,6 +78,10 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         public float Radius { get; set; }
         public bool Success { get; set; }
         public double AlgorithmMs { get; set; }
+        /// <summary>
+        /// 圆拟合失败时返回给界面与显示结果的原因。
+        /// </summary>
+        public string ErrorMessage { get; set; }
         public int PointCount => EdgePoints.Count;
     }
 
@@ -81,6 +93,14 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         public float Height { get; set; }
         public float Angle { get; set; }
         public int Count { get; set; } = 30;
+        /// <summary>
+        /// 是否启用拟合有效点数限制。
+        /// </summary>
+        public bool EnableFitValidPointCount { get; set; }
+        /// <summary>
+        /// 拟合有效点数阈值，边缘点数量必须大于该值才执行椭圆拟合。
+        /// </summary>
+        public int FitValidPointCount { get; set; } = 10;
         public float CaliperWidth { get; set; } = 10;
         public float CaliperHeight { get; set; } = 60;
         public int EdgeStrength { get; set; } = 20;
@@ -194,10 +214,21 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                     result.EdgePoints.Add(edgePoint.Value);
             }
 
+            int fitValidPointCount = Math.Max(0, p.FitValidPointCount);
+            if (p.EnableFitValidPointCount && result.EdgePoints.Count <= fitValidPointCount)
+            {
+                result.ErrorMessage = $"有效点数 {result.EdgePoints.Count} 未超过拟合有效点数 {fitValidPointCount}，不执行拟合";
+                return Finish(result, sw);
+            }
+
             if (result.EdgePoints.Count >= 3)
             {
                 FitCircle(result);
                 result.Success = result.Radius > 0;
+            }
+            else
+            {
+                result.ErrorMessage = $"只有 {result.EdgePoints.Count} 个点，拟合需要至少 3 个点";
             }
 
             return Finish(result, sw);
@@ -252,6 +283,13 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                     result.EdgePoints.Add(edgePoint.Value);
                 else
                     result.FailedPoints.Add(new PointF(cx, cy));
+            }
+
+            int fitValidPointCount = Math.Max(0, p.FitValidPointCount);
+            if (p.EnableFitValidPointCount && result.EdgePoints.Count <= fitValidPointCount)
+            {
+                result.ErrorMessage = $"有效点数 {result.EdgePoints.Count} 未超过拟合有效点数 {fitValidPointCount}，不执行拟合";
+                return Finish(result, sw);
             }
 
             if (result.EdgePoints.Count >= 5)
