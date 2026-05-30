@@ -896,7 +896,7 @@ namespace TDJS_Vision
                 componentNodeIds != null &&
                 componentNodeIds.Contains(dependencyNodeId) &&
                 (inactiveNodeIds == null || !inactiveNodeIds.Contains(dependencyNodeId)) &&
-                IsUpstreamNodeId(nodeId, dependencyNodeId);
+                !IsDownstreamNodeId(nodeId, dependencyNodeId);
         }
 
         /// <summary>
@@ -913,17 +913,17 @@ namespace TDJS_Vision
         }
 
         /// <summary>
-        /// 判断指定节点是否在目标节点的结构上游。
+        /// 判断指定节点是否在当前节点的结构下游，用于避免隐藏订阅依赖形成反向等待。
         /// </summary>
-        private bool IsUpstreamNodeId(int nodeId, int upstreamNodeId)
+        private bool IsDownstreamNodeId(int nodeId, int downstreamNodeId)
         {
-            NodeBase node = GetNodeById(nodeId);
-            if (node == null || upstreamNodeId <= 0)
+            NodeBase downstreamNode = GetNodeById(downstreamNodeId);
+            if (downstreamNode == null || nodeId <= 0)
                 return false;
 
-            foreach (NodeBase upstreamNode in GetUpstreamNodes(node))
+            foreach (NodeBase upstreamNode in GetUpstreamNodes(downstreamNode))
             {
-                if (upstreamNode != null && upstreamNode.ID == upstreamNodeId)
+                if (upstreamNode != null && upstreamNode.ID == nodeId)
                     return true;
             }
 

@@ -98,6 +98,8 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
   - [x] `NodeResultMultiCondition.DiagnosticsText` now exposes a readable per-condition summary, and null failed conditions write a targeted warning log.
   - [x] Runtime feedback confirmed one null case was caused by `102.LineLineAngle` not running in the current batch: source run id was 1, current run id was 2, source status was `Unexecuted`.
   - [x] Added graph scheduling support for subscription dependencies so `MultiCondition` waits for configured source nodes before evaluating when those sources are active in the same graph component.
+  - [x] Feedback log check on 2026-05-30: `中心端子工位` node `167.MultiCondition` read `215.ArithmeticOperation.V2` before node 215 had produced a current-run result, while the saved solution declares `167` subscribing `$variable:V2` from node 215.
+  - [x] Widened hidden subscription dependency scheduling: a subscribed source in the same graph component is now treated as a wait dependency unless it is structurally downstream of the subscriber, so sibling branches such as `120/102 -> 215` and `171 -> 167` can still synchronize through the subscription.
   - [x] Build-verified after implementation with MSBuild on 2026-05-28, 0 errors; existing warnings remain.
 - Phase 11.1 cross-process node copy/paste planning:
   - [x] New request captured on 2026-05-28: current node copy/paste is process-local; add support for copying selected nodes from one process tab and pasting them into another process tab.
