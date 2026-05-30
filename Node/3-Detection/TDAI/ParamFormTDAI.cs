@@ -479,7 +479,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 if (modelInfo.ModelInfo.ModelType == ModelType.DET)
                 {
                     model = new Yolo8Det();
-                    model.Init(modelInfo.ModelInfo.ModelPath, classNames, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS);
+                    model.Init(modelInfo.ModelInfo.ModelPath, classNames, modelInfo.ModelSize, modelInfo.ScoreThreshold, modelInfo.ScoreNMS, 0, modelInfo.ModelInfo.DeviceType);
                 }
                 else if (modelInfo.ModelInfo.ModelType == ModelType.OBB)
                 {

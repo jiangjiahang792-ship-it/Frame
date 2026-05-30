@@ -77,9 +77,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <summary>
         /// 构造函数：初始化检测模型
         /// </summary>
-        public void Init(string model_path, string[] class_names, int input_size, float score_threshold, float nms_threshold, int key_point_num = 0)
+        public void Init(string model_path, string[] class_names, int input_size, float score_threshold, float nms_threshold, int key_point_num = 0,DeviceType deviceType=DeviceType.CPU)
         {
-            _handle = CreateDetector(model_path, class_names, class_names.Length, input_size, score_threshold, nms_threshold);
+            switch (deviceType)
+            {
+                case DeviceType.CPU:
+                    _handle = CreateDetector(model_path, class_names, class_names.Length, input_size, score_threshold, nms_threshold);
+                    break;
+                case DeviceType.GPU:
+                    _handle = YoloV8_Init("det", model_path, input_size, input_size, class_names, class_names.Length, score_threshold, nms_threshold, 0);
+                    break;
+                default:
+                    throw new Exception("未找到对应运行设备的指定");
+            }
+
             if (_handle == IntPtr.Zero)
             {
                 throw new Exception("Failed to initialize YOLO detection model.");
