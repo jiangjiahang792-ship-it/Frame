@@ -29,14 +29,25 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         public INodeParam Params { get; set; }
 
         private NodeBase _node;
+        /// <summary>
+        /// 当前已绑定回调的相机，切换相机或删除节点时用于解绑事件。
+        /// </summary>
+        private ICamera _callbackCamera;
+        /// <summary>
+        /// 当前参数窗体所属的图像源节点，相机回调直接注册到该节点方法。
+        /// </summary>
+        private readonly NodeImageSource _imageSourceNode;
         public ParamFormImageSource(NodeBase node)
         {
             InitializeComponent();
             // 获取最初窗口高度
             _formHeight = this.Height;
             _node = node;
+            _imageSourceNode = node as NodeImageSource;
             comboBoxImgSource.SelectedIndex = 0;
             SolRunParamControl.RefreshParamView += SolRunParamControl_RefreshParamView;
+            NodeBase.NodeDeletedEvent += NodeBase_NodeDeletedEvent;
+            Disposed += ParamFormImageSource_Disposed;
         }
 
         private void SolRunParamControl_RefreshParamView(object sender, EventArgs e)
@@ -114,69 +125,67 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         }
                     }
 
-                    //这里注册相机回调触发事件
-                    //param.Camera.OnImageReceived += Camera_OnImageReceived;
+                    // 直接把相机回调绑定到当前图像源节点，回调时不再全局查找节点。
+                    BindCameraCallback(param.Camera);
                 }
 
             }
         }
 
-        private readonly SemaphoreSlim _hardTriggerRunLock = new SemaphoreSlim(1, 1);
-
-        private void Camera_OnImageReceived(Bitmap bitmap)
+        /// <summary>
+        /// 绑定相机回调到当前图像源节点，避免每帧回调时再查找节点。
+        /// </summary>
+        private void BindCameraCallback(ICamera camera)
         {
-            if (bitmap == null)
+            if (_imageSourceNode == null)
                 return;
 
-            if (!Solution.Instance.IsRunning && !_node.Process.IsHandRun)
-                return;
-
-            if (!(_node is NodeImageSource source))
-                return;
-
-            if (!(source.Result is NodeResultImageSource res))
-                return;
-
-            Mat mat;
-            try
+            if (ReferenceEquals(_callbackCamera, camera))
             {
-                using (var bmp = (Bitmap)bitmap.Clone())
+                if (camera != null)
                 {
-                    mat = bmp.ToMat().Clone();
+                    camera.OnImageReceived -= _imageSourceNode.HandleCameraCallbackFrame;
+                    camera.OnImageReceived += _imageSourceNode.HandleCameraCallbackFrame;
                 }
-            }
-            catch (Exception ex)
-            {
-                LogHelper.AddLog(MsgLevel.Exception, $"硬触发图像转换失败：{ex.Message}", true);
                 return;
             }
 
-            // 当前流程还没跑完，本次触发直接丢弃，避免同一个流程重入
-            if (!_hardTriggerRunLock.Wait(0))
+            UnbindCameraCallback();
+            _callbackCamera = camera;
+            if (_callbackCamera != null)
             {
-                mat.Dispose();
-                LogHelper.AddLog(MsgLevel.Warn, $"流程【{_node.Process.ProcessName}】仍在运行，本次硬触发丢弃。", true);
-                return;
+                _callbackCamera.OnImageReceived -= _imageSourceNode.HandleCameraCallbackFrame;
+                _callbackCamera.OnImageReceived += _imageSourceNode.HandleCameraCallbackFrame;
             }
+        }
 
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    res.OutputImage.Bitmaps = new List<Mat>() { mat };
+        /// <summary>
+        /// 解除当前相机回调绑定。
+        /// </summary>
+        private void UnbindCameraCallback()
+        {
+            if (_callbackCamera != null && _imageSourceNode != null)
+                _callbackCamera.OnImageReceived -= _imageSourceNode.HandleCameraCallbackFrame;
+            _callbackCamera = null;
+        }
 
-                    await _node.Process.Run(_node, false);
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.AddLog(MsgLevel.Exception,
-                        $"硬触发流程【{_node.Process.ProcessName}】运行异常：{ex.Message}", true);
-                }
-                finally
-                {
-                    _hardTriggerRunLock.Release();
-                }
-            });
+        /// <summary>
+        /// 节点删除时解绑相机回调，避免旧节点继续响应相机帧。
+        /// </summary>
+        private void NodeBase_NodeDeletedEvent(object sender, NodeBase node)
+        {
+            if (ReferenceEquals(node, _node))
+                UnbindCameraCallback();
+        }
+
+        /// <summary>
+        /// 参数窗体释放时清理事件订阅。
+        /// </summary>
+        private void ParamFormImageSource_Disposed(object sender, EventArgs e)
+        {
+            UnbindCameraCallback();
+            NodeBase.NodeDeletedEvent -= NodeBase_NodeDeletedEvent;
+            SolRunParamControl.RefreshParamView -= SolRunParamControl_RefreshParamView;
         }
 
 
@@ -366,6 +375,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             _nodeParamImageSource.ImageSource = comboBoxImgSource.Text;
             if (comboBoxImgSource.SelectedIndex == 0)
             {
+                UnbindCameraCallback();
                 if (string.IsNullOrEmpty(textBoxImgPath.Text))
                 {
                     MessageBoxTD.Show("未选择图片");
@@ -496,9 +506,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     SetCameraParams(_nodeParamImageSource.Camera, _nodeParamImageSource.TriggerModel, _nodeParamImageSource.TriggerSource, _nodeParamImageSource.TriggerEdge, _nodeParamImageSource.TriggerDelay
                         , _nodeParamImageSource.ExposureTime, _nodeParamImageSource.Gain, _nodeParamImageSource.TimeOut);
 
-                //这里注册相机回调触发事件
-                //_nodeParamImageSource.Camera.OnImageReceived -= Camera_OnImageReceived;
-                //_nodeParamImageSource.Camera.OnImageReceived += Camera_OnImageReceived;
+                // 直接注册到当前图像源节点；未勾选流程级相机回调触发时，节点会忽略回调帧。
+                BindCameraCallback(_nodeParamImageSource.Camera);
 
             }
 

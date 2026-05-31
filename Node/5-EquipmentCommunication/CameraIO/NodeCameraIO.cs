@@ -72,6 +72,8 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
                             param.Camera.SetLineSelector(param.LineSelector);
                             param.Camera.SetLineMode(param.LineMode);
 
+                            LogHelper.AddLog(MsgLevel.Exception, $"流程{Process.ProcessName}发送IO时间为: {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+
                             param.Camera.SetLineInverter(true);
                             await MicrosecondDelayAsync(param.HoldTime);
                             param.Camera.SetLineInverter(false);

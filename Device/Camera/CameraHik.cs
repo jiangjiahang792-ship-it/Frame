@@ -314,8 +314,9 @@ namespace TDJS_Vision.Device.Camera
                         return false;
                     }
                 }
-                // 订阅图像回调函数
-                //device.StreamGrabber.FrameGrabedEvent += GetImageCallBack;
+                // 订阅图像回调函数；先解绑再绑定，避免重复打开相机后同一帧触发多次。
+                device.StreamGrabber.FrameGrabedEvent -= GetImageCallBack;
+                device.StreamGrabber.FrameGrabedEvent += GetImageCallBack;
             }
             return true;
         }
@@ -894,7 +895,7 @@ namespace TDJS_Vision.Device.Camera
             {
                 StopGrabbing();
             }
-            //device.StreamGrabber.FrameGrabedEvent -= GetImageCallBack;
+            device.StreamGrabber.FrameGrabedEvent -= GetImageCallBack;
             ConnectStatusEvent?.Invoke(this, false);
             device.Close();
             IsOpen = false;

@@ -203,6 +203,7 @@
   "ProcessNew.RenameProcess": "流程重命名",
   "ProcessNew.OutputLog": "是否输出日志",
   "ProcessNew.PassiveTriggeredProcess": "是否为被触发流程",
+  "ProcessNew.CameraCallbackTriggeredProcess": "是否为相机回调触发流程",
   "ProcessNew.EnableProcess": "是否启用流程",
   "ProcessNew.NodeCount": "节点数:{0}",
   "ProcessNew.Elapsed": "耗时:{0} ms",

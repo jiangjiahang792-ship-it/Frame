@@ -48,6 +48,7 @@ namespace TDJS_Vision
                     processConfig.Level = process.RunLv;
                     processConfig.Group = process.Group;
                     processConfig.IsPassiveTriggered = process.IsPassiveTriggered;
+                    processConfig.IsCameraCallbackTriggered = process.IsCameraCallbackTriggered;
                     processConfig.OKNumber = process.OKNumber;
                     processConfig.NGNumber = process.NGNumber;
                     processConfig.HasCanvasGraph = process.HasCanvasGraph;
@@ -228,6 +229,10 @@ namespace TDJS_Vision
         /// 是否是被动触发流程
         /// </summary>
         public bool IsPassiveTriggered;
+        /// <summary>
+        /// 是否由相机回调触发流程
+        /// </summary>
+        public bool IsCameraCallbackTriggered;
         /// <summary>
         /// 流程运行优先级
         /// </summary>

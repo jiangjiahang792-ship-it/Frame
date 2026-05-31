@@ -13,7 +13,7 @@ using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 {
-    public class NodeImageSource : NodeBase
+    public class NodeImageSource : NodeBase, ISkippedNodeRunResultProvider
     {
         /// <summary>
         /// 用于保存上次访问的图片索引
@@ -29,6 +29,18 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// 当前图片
         /// </summary>
         private Mat _mat;
+        /// <summary>
+        /// 相机回调帧缓存锁，回调线程和流程运行线程都会访问。
+        /// </summary>
+        private readonly object _callbackFrameLock = new object();
+        /// <summary>
+        /// 相机回调触发运行锁，流程未跑完时新帧直接丢弃，避免同流程重入。
+        /// </summary>
+        private readonly SemaphoreSlim _callbackRunLock = new SemaphoreSlim(1, 1);
+        /// <summary>
+        /// 待写入当前流程批次结果的相机回调图像。
+        /// </summary>
+        private Mat _pendingCallbackMat;
 
         public NodeImageSource(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
         {
@@ -83,6 +95,142 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 throw new IOException($"无法加载图像：{imagePath}", ex);
             }
         }
+
+        /// <summary>
+        /// 处理相机回调图像。回调已经绑定到当前图像源节点，不需要再全局查找节点。
+        /// </summary>
+        /// <param name="bitmap">相机回调帧。</param>
+        public void HandleCameraCallbackFrame(Bitmap bitmap)
+        {
+            if (bitmap == null || Process == null)
+                return;
+
+            if (!Process.IsCameraCallbackTriggered)
+                return;
+
+            if (!Active || !Process.Enable)
+                return;
+
+            if (!Solution.Instance.IsRunning && !Process.IsHandRun)
+                return;
+
+            if (Process.IsRuning)
+                return;
+
+            if (!_callbackRunLock.Wait(0))
+            {
+                LogHelper.AddLog(MsgLevel.Warn, $"流程【{Process.ProcessName}】仍在运行，本次相机回调帧丢弃。", true);
+                return;
+            }
+
+            Mat callbackMat = null;
+            try
+            {
+                using (var bmp = (Bitmap)bitmap.Clone())
+                {
+                    callbackMat = bmp.ToMat().Clone();
+                }
+
+                StorePendingCallbackMat(callbackMat);
+                callbackMat = null;
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await Process.Run(this, false);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.AddLog(MsgLevel.Exception, $"相机回调流程【{Process.ProcessName}】运行异常：{ex.Message}", true);
+                    }
+                    finally
+                    {
+                        ClearPendingCallbackMat();
+                        _callbackRunLock.Release();
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                callbackMat?.Dispose();
+                _callbackRunLock.Release();
+                LogHelper.AddLog(MsgLevel.Exception, $"相机回调图像转换失败：{ex.Message}", true);
+            }
+        }
+
+        /// <summary>
+        /// 为跳过执行的图像源节点准备当前流程批次的回调图像结果。
+        /// </summary>
+        public bool TryPrepareSkippedRunResult(DateTime startTime, out string message)
+        {
+            message = string.Empty;
+            Mat callbackMat = TakePendingCallbackMat();
+            if (callbackMat == null || callbackMat.Empty())
+            {
+                callbackMat?.Dispose();
+                message = "没有可用的相机回调图像。";
+                SetRunResult(startTime, NodeStatus.Failed);
+                return false;
+            }
+
+            NodeResultImageSource result = Result as NodeResultImageSource;
+            if (result == null)
+            {
+                result = new NodeResultImageSource();
+                Result = result;
+            }
+
+            result.OutputImage.Bitmaps = new List<Mat> { callbackMat };
+            int time = SetRunResult(startTime, NodeStatus.Successful);
+            result.RunTime = time;
+            Result = result;
+            return true;
+        }
+
+        /// <summary>
+        /// 保存待处理回调图像，并释放未消费的旧帧。
+        /// </summary>
+        private void StorePendingCallbackMat(Mat mat)
+        {
+            Mat oldMat = null;
+            lock (_callbackFrameLock)
+            {
+                oldMat = _pendingCallbackMat;
+                _pendingCallbackMat = mat;
+            }
+
+            oldMat?.Dispose();
+        }
+
+        /// <summary>
+        /// 取走待处理回调图像，调用方接管 Mat 生命周期。
+        /// </summary>
+        private Mat TakePendingCallbackMat()
+        {
+            lock (_callbackFrameLock)
+            {
+                Mat mat = _pendingCallbackMat;
+                _pendingCallbackMat = null;
+                return mat;
+            }
+        }
+
+        /// <summary>
+        /// 清理未被流程消费的回调图像。
+        /// </summary>
+        private void ClearPendingCallbackMat()
+        {
+            Mat mat = null;
+            lock (_callbackFrameLock)
+            {
+                mat = _pendingCallbackMat;
+                _pendingCallbackMat = null;
+            }
+
+            mat?.Dispose();
+        }
+
         /// <summary>
         /// 节点运行方法
         /// </summary>

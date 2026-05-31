@@ -1330,3 +1330,13 @@ The first usable milestone should include:
 - [x] Old solutions load into an auto-laid-out canvas.
 
 After this milestone, the editor will visibly become a flow-canvas editor while the deeper graph execution migration continues under Plan B.
+
+## 2026-05-30: Camera Callback Triggered Process
+
+- [x] Add a process context-menu switch named `是否为相机回调触发流程` in `ProcessEditPanel` and persist it in `ProcessConfig`.
+- [x] Register camera frame callbacks directly to the owning `NodeImageSource.HandleCameraCallbackFrame` method, so callback frames do not need to search for the image source node.
+- [x] Keep the current run mode unchanged when `是否为相机回调触发流程` is not checked; callback frames return before image conversion or process execution.
+- [x] For checked callback-triggered processes, cache the callback frame as the current `ImageSource` result, skip executing the image source node itself, and run only from that node toward downstream connections.
+- [x] Exclude camera-callback-triggered processes from `FormMain` solution loop active/passive scheduling; the loop only keeps the solution in running state so camera callbacks can trigger those processes.
+- [x] Make Hik camera SDK frame callback registration idempotent by unsubscribing before subscribing on camera open.
+- [x] Build-verified on 2026-05-30 and again on 2026-05-31 with MSBuild, 0 errors; existing warnings remain.

@@ -203,6 +203,7 @@
   "ProcessNew.RenameProcess": "Rename Process",
   "ProcessNew.OutputLog": "Output Log",
   "ProcessNew.PassiveTriggeredProcess": "Passive Triggered Process",
+  "ProcessNew.CameraCallbackTriggeredProcess": "Camera Callback Triggered Process",
   "ProcessNew.EnableProcess": "Enable Process",
   "ProcessNew.NodeCount": "Nodes: {0}",
   "ProcessNew.Elapsed": "Elapsed: {0} ms",

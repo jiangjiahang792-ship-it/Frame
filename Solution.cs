@@ -294,8 +294,14 @@ namespace TDJS_Vision
                             // 创建本轮的 triggerAction
                             Action<Process> triggerAction = (targetProcess) =>
                             {
-                                if (targetProcess == null || !targetProcess.IsPassiveTriggered || targetProcess.Group != groupCopy[0].Group)
+                                if (targetProcess == null ||
+                                    !targetProcess.IsPassiveTriggered ||
+                                    targetProcess.IsCameraCallbackTriggered ||
+                                    targetProcess.Group != groupCopy[0].Group)
+                                {
                                     return;
+                                }
+
                                 var task = targetProcess.RunInternal(
                                     isCyclical: false,
                                     isTriggered: true,
@@ -314,8 +320,11 @@ namespace TDJS_Vision
                             var priorityLevels = groupCopy.Select(p => p.RunLv).Distinct().OrderBy(lv => lv);
                             foreach (var priority in priorityLevels)
                             {
+                                // 相机回调触发流程只由图像源节点回调启动；方案循环只负责保持运行态。
                                 var activeProcesses = groupCopy
-                                    .Where(p => p.RunLv == priority && !p.IsPassiveTriggered)
+                                    .Where(p => p.RunLv == priority &&
+                                                !p.IsPassiveTriggered &&
+                                                !p.IsCameraCallbackTriggered)
                                     .ToList();
 
                                 if (!activeProcesses.Any()) continue;

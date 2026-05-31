@@ -138,6 +138,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 _process.ID = processConfig.ID;
                 _process.ShowLog = processConfig.ShowLog;
                 _process.IsPassiveTriggered = processConfig.IsPassiveTriggered;
+                _process.IsCameraCallbackTriggered = processConfig.IsCameraCallbackTriggered;
                 _process.OKNumber = processConfig.OKNumber;
                 _process.NGNumber = processConfig.NGNumber;
                 
@@ -150,6 +151,10 @@ namespace TDJS_Vision.Forms.ProcessNew
                     if ("是否为触发流程ToolStripMenuItem" == item.Name)
                     {
                         item.Checked = processConfig.IsPassiveTriggered;
+                    }
+                    if ("是否为相机回调触发流程ToolStripMenuItem" == item.Name)
+                    {
+                        item.Checked = processConfig.IsCameraCallbackTriggered;
                     }
                 }
                 _process.RunLv = processConfig.Level;
@@ -243,6 +248,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             LanguageManager.Bind(流程重命名ToolStripMenuItem, "ProcessNew.RenameProcess");
             LanguageManager.Bind(是否输出日志ToolStripMenuItem, "ProcessNew.OutputLog");
             LanguageManager.Bind(是否为触发流程ToolStripMenuItem, "ProcessNew.PassiveTriggeredProcess");
+            LanguageManager.Bind(是否为相机回调触发流程ToolStripMenuItem, "ProcessNew.CameraCallbackTriggeredProcess");
             ApplyLanguage();
         }
 
@@ -260,6 +266,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             LanguageManager.ApplyToolStripItem(流程重命名ToolStripMenuItem);
             LanguageManager.ApplyToolStripItem(是否输出日志ToolStripMenuItem);
             LanguageManager.ApplyToolStripItem(是否为触发流程ToolStripMenuItem);
+            LanguageManager.ApplyToolStripItem(是否为相机回调触发流程ToolStripMenuItem);
             buttonClean.Text = string.Empty;
             buttonRun.Text = string.Empty;
             buttonLoop.Text = string.Empty;
@@ -1071,6 +1078,9 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             是否启用流程ToolStripMenuItem.Checked = _process == null || _process.Enable;
             是否启用流程ToolStripMenuItem.Enabled = uiSwitchEnable.Enabled;
+            是否输出日志ToolStripMenuItem.Checked = _process == null || _process.ShowLog;
+            是否为触发流程ToolStripMenuItem.Checked = _process != null && _process.IsPassiveTriggered;
+            是否为相机回调触发流程ToolStripMenuItem.Checked = _process != null && _process.IsCameraCallbackTriggered;
         }
 
         private void 是否启用流程ToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1109,6 +1119,15 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             是否为触发流程ToolStripMenuItem.Checked = !是否为触发流程ToolStripMenuItem.Checked;
             _process.IsPassiveTriggered = 是否为触发流程ToolStripMenuItem.Checked;
+        }
+
+        /// <summary>
+        /// 设置当前流程是否由相机回调帧触发运行。
+        /// </summary>
+        private void 是否为相机回调触发流程ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            是否为相机回调触发流程ToolStripMenuItem.Checked = !是否为相机回调触发流程ToolStripMenuItem.Checked;
+            _process.IsCameraCallbackTriggered = 是否为相机回调触发流程ToolStripMenuItem.Checked;
         }
 
         /// <summary>

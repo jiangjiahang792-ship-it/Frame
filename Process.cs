@@ -242,22 +242,22 @@ namespace TDJS_Vision
         /// Executes the transitional graph runtime. Legacy logic nodes may still jump
         /// by Process.Nodes index until graph-native branch rules are introduced.
         /// </summary>
-        private async Task<bool> RunConnectedNodes(NodeBase nodeToSkip = null, NodeBase stopBeforeNode = null)
+        private async Task<bool> RunConnectedNodes(NodeBase nodeToSkip = null, NodeBase stopBeforeNode = null, NodeBase startNodeOverride = null)
         {
             if (!CanUseParallelConnectedRuntime())
             {
-                return await RunConnectedNodesSequential(nodeToSkip, stopBeforeNode);
+                return await RunConnectedNodesSequential(nodeToSkip, stopBeforeNode, startNodeOverride);
             }
 
-            return await RunConnectedNodesParallel(nodeToSkip, stopBeforeNode);
+            return await RunConnectedNodesParallel(nodeToSkip, stopBeforeNode, startNodeOverride);
         }
 
-        private async Task<bool> RunConnectedNodesSequential(NodeBase nodeToSkip = null, NodeBase stopBeforeNode = null)
+        private async Task<bool> RunConnectedNodesSequential(NodeBase nodeToSkip = null, NodeBase stopBeforeNode = null, NodeBase startNodeOverride = null)
         {
             HashSet<int> visitedNodeIds = new HashSet<int>();
             HashSet<int> failedNodeIds = new HashSet<int>();
             Exception firstNodeException = null;
-            foreach (NodeBase startNode in GetConnectionStartNodes())
+            foreach (NodeBase startNode in GetConnectionStartNodes(startNodeOverride))
             {
                 if (startNode == null || visitedNodeIds.Contains(startNode.ID))
                     continue;
@@ -353,7 +353,7 @@ namespace TDJS_Vision
             return false;
         }
 
-        private async Task<bool> RunConnectedNodesParallel(NodeBase nodeToSkip = null, NodeBase stopBeforeNode = null)
+        private async Task<bool> RunConnectedNodesParallel(NodeBase nodeToSkip = null, NodeBase stopBeforeNode = null, NodeBase startNodeOverride = null)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
             long logicalRunTime = 0;
@@ -362,13 +362,15 @@ namespace TDJS_Vision
             {
                 HashSet<int> completedNodeIds = new HashSet<int>();
                 Dictionary<int, long> completedNodeFinishTimes = new Dictionary<int, long>();
-                foreach (NodeBase startNode in GetConnectionStartNodes())
+                foreach (NodeBase startNode in GetConnectionStartNodes(startNodeOverride))
                 {
                     if (startNode == null || completedNodeIds.Contains(startNode.ID))
                         continue;
 
                     long componentStartTime = logicalRunTime;
-                    HashSet<int> componentNodeIds = GetConnectedComponentNodeIds(startNode);
+                    HashSet<int> componentNodeIds = startNodeOverride == null
+                        ? GetConnectedComponentNodeIds(startNode)
+                        : GetDownstreamComponentNodeIds(startNode);
                     HashSet<int> inactiveNodeIds = new HashSet<int>();
                     HashSet<string> skippedEdges = new HashSet<string>();
 
@@ -1067,6 +1069,36 @@ namespace TDJS_Vision
             return componentNodeIds;
         }
 
+        /// <summary>
+        /// 获取从指定节点沿输出连线可到达的下游节点集合，用于相机回调从图像源节点向后执行。
+        /// </summary>
+        private HashSet<int> GetDownstreamComponentNodeIds(NodeBase startNode)
+        {
+            HashSet<int> componentNodeIds = new HashSet<int>();
+            Queue<int> pendingNodeIds = new Queue<int>();
+            if (startNode == null || !componentNodeIds.Add(startNode.ID))
+                return componentNodeIds;
+
+            pendingNodeIds.Enqueue(startNode.ID);
+            while (pendingNodeIds.Count > 0)
+            {
+                int nodeId = pendingNodeIds.Dequeue();
+                foreach (ProcessConnection connection in _connections)
+                {
+                    if (connection.FromNodeId != nodeId ||
+                        !ContainsNode(connection.ToNodeId) ||
+                        !componentNodeIds.Add(connection.ToNodeId))
+                    {
+                        continue;
+                    }
+
+                    pendingNodeIds.Enqueue(connection.ToNodeId);
+                }
+            }
+
+            return componentNodeIds;
+        }
+
         private bool CanUseParallelConnectedRuntime()
         {
             if (!HasCanvasGraph)
@@ -1117,9 +1149,15 @@ namespace TDJS_Vision
             public bool FailedStatus;
         }
 
-        private List<NodeBase> GetConnectionStartNodes()
+        private List<NodeBase> GetConnectionStartNodes(NodeBase startNodeOverride = null)
         {
             List<NodeBase> startNodes = new List<NodeBase>();
+            if (startNodeOverride != null && _nodes.Contains(startNodeOverride))
+            {
+                startNodes.Add(startNodeOverride);
+                return startNodes;
+            }
+
             HashSet<int> explicitComponents = new HashSet<int>();
 
             foreach (NodeBase node in _nodes)
@@ -1318,6 +1356,29 @@ namespace TDJS_Vision
                 node.BeginProcessRun(CurrentRunId);
         }
 
+        /// <summary>
+        /// 为被跳过执行的节点准备本次运行结果，避免下游订阅读到旧批次数据。
+        /// </summary>
+        private bool TryPrepareSkippedNodeRunResult(NodeBase nodeToSkip)
+        {
+            ISkippedNodeRunResultProvider provider = nodeToSkip as ISkippedNodeRunResultProvider;
+            if (provider == null)
+                return true;
+
+            string message;
+            if (provider.TryPrepareSkippedRunResult(DateTime.Now, out message))
+            {
+                if (nodeToSkip.Result != null)
+                    RunTime += nodeToSkip.Result.RunTime;
+                return true;
+            }
+
+            if (ShowLog && !string.IsNullOrWhiteSpace(message))
+                LogHelper.AddLog(MsgLevel.Warn, $"节点({nodeToSkip.ID}.{nodeToSkip.NodeName})准备跳过运行结果失败：{message}", true);
+
+            return false;
+        }
+
 
         #region 实现被触发执行的逻辑
 
@@ -1330,6 +1391,11 @@ namespace TDJS_Vision
         /// 是否为被动触发流程
         /// </summary>
         public bool IsPassiveTriggered { get; set; }
+
+        /// <summary>
+        /// 是否由相机回调帧触发运行。启用后从相机图像源节点向下游执行。
+        /// </summary>
+        public bool IsCameraCallbackTriggered { get; set; }
 
 
         /// <summary>
@@ -1705,11 +1771,22 @@ namespace TDJS_Vision
             IsRuning = true;
             Success = false;
 
+            if (!TryPrepareSkippedNodeRunResult(nodeImage))
+            {
+                Success = false;
+                IsRuning = false;
+                if (ShowLog)
+                    LogHelper.AddLog(MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（失败）  ---------------------------------", true);
+                UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
+                ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Failed);
+                return;
+            }
+
             if (ShouldRunByConnections())
             {
                 try
                 {
-                    bool stoppedEarly = await RunConnectedNodes(nodeImage);
+                    bool stoppedEarly = await RunConnectedNodes(nodeImage, null, nodeImage);
                     if (stoppedEarly)
                     {
                         Success = true;
@@ -1745,12 +1822,20 @@ namespace TDJS_Vision
             }
             else
             {
-                for (int i = 0; i < _nodes.Count; i++)
+                int startIndex = 0;
+                if (nodeImage != null)
+                {
+                    int imageIndex = _nodes.IndexOf(nodeImage);
+                    if (imageIndex >= 0)
+                        startIndex = imageIndex + 1;
+                }
+
+                for (int i = startIndex; i < _nodes.Count; i++)
                 {
                     NodeBase node = _nodes[i];
                     try
                     {
-                        if (node==nodeImage)
+                        if (node == nodeImage)
                             continue;
                         if (!node.Active)
                             continue;

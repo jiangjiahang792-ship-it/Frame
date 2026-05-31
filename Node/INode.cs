@@ -1,4 +1,5 @@
 ﻿
+using System;
 using System.IO.Ports;
 
 namespace TDJS_Vision.Node
@@ -128,6 +129,20 @@ namespace TDJS_Vision.Node
         /// 并行批次结束后释放未被节点运行消费的等待名额。
         /// </summary>
         void EndParallelSignalWait();
+    }
+
+    /// <summary>
+    /// 被流程跳过执行的节点可以提前准备本次运行结果，供下游订阅读取当前批次数据。
+    /// </summary>
+    public interface ISkippedNodeRunResultProvider
+    {
+        /// <summary>
+        /// 为当前流程批次准备跳过节点的运行结果。
+        /// </summary>
+        /// <param name="startTime">结果耗时统计起点。</param>
+        /// <param name="message">准备失败或诊断信息。</param>
+        /// <returns>准备成功返回 true。</returns>
+        bool TryPrepareSkippedRunResult(DateTime startTime, out string message);
     }
 
     /// <summary>
