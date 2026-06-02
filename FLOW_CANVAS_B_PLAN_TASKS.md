@@ -32,7 +32,14 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
   - [x] 已给 `FindPoint` 增加分段耗时日志，拆分订阅读取、灰度取图、临时灰度、位置修正/参数准备、算法、结果组装、结果发布和节点总耗时。
   - [x] 修复 `FindPointTimingInfo` 放在 WinForms 参数窗体类前导致 `.resx` manifest 资源名跑偏的问题，确保打开方案时能找到 `NodeParamFormFindPoint.resources`。
   - [x] `FindPoint` 算法从整图 `GaussianBlur/Canny/Mask/FindContours` 改为按 ROI 包围矩形局部处理，并在性能日志中追加 `ROI区域` 和 `ROI像素约`，用于确认算法实际处理面积。
-  - [ ] 后续按同一模式评估非测量目录中的检测、结果处理和图像预处理节点。
+  - [x] 2026-06-02 新反馈已记录：`1-Acquisition`、`2-ImagePreprocessing` 中也存在类似保护性深拷贝和 `Mat/Bitmap` 往返转换。
+  - [x] `OutputImage` 增加统一 `FromSingleImage`、`HasValidImage`、`BuildGrayImage` 工具，单通道图像直接复用为 `GrayImg`，彩色图像只转换一次。
+  - [x] `ImageSource` 相机回调去掉 `Bitmap.Clone -> ToMat -> Mat.Clone` 双重拷贝，单帧相机采集后及时释放临时 `Bitmap`。
+  - [x] `ImageRotate` 运行时同步传播/旋转上游 `GrayImg`，零角度继续透传源图引用，避免后续测量重新整图灰度化。
+  - [x] `ImageCrop` 运行时不再为了 ROI 裁剪把整图转成 `Bitmap` 塞入参数窗体，改为按保存 ROI 坐标直接从 `Mat` 裁剪，并同步裁剪第一张 `GrayImg` 缓存。
+  - [x] `ImageSplit` 运行时从上游 `Mat` 直接分割，去掉 `Mat -> Bitmap -> Mat` 往返，记录分割矩形并同步第一张 `GrayImg` 缓存；成功路径恢复为 `ContinueRun`。
+  - [x] Build-verified after acquisition/preprocessing deep-copy cleanup with MSBuild on 2026-06-02, 0 errors; existing warnings remain.
+  - [ ] 后续按同一模式评估 `3-Detection` 和 `7-ResultProcessing` 节点。
 - Completed through the first **Phase 10: Runtime State On Canvas** code pass.
 - Fixed one graph runtime scheduling regression found during Phase 10 checks:
   - [x] For `A -> B` plus standalone `C`, running `A` now completes the `A -> B` component before moving to independent source node `C`.
@@ -1353,6 +1360,7 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] Add a process context-menu switch named `是否为相机回调触发流程` in `ProcessEditPanel` and persist it in `ProcessConfig`.
 - [x] Register camera frame callbacks directly to the owning `NodeImageSource.HandleCameraCallbackFrame` method, so callback frames do not need to search for the image source node.
 - [x] Keep the current run mode unchanged when `是否为相机回调触发流程` is not checked; callback frames return before image conversion or process execution.
+- [x] 2026-06-02 修正：`是否为相机回调触发流程` 菜单成为启用相机回调订阅的唯一入口；未勾选时图像源保存、反序列化或切换相机都会保持回调注销，避免影响 `GetOneFrameImage()` 顺序取图。
 - [x] For checked callback-triggered processes, cache the callback frame as the current `ImageSource` result, skip executing the image source node itself, and run only from that node toward downstream connections.
 - [x] Exclude camera-callback-triggered processes from `FormMain` solution loop active/passive scheduling; the loop only keeps the solution in running state so camera callbacks can trigger those processes.
 - [x] Make Hik camera SDK frame callback registration idempotent by unsubscribing before subscribing on camera open.

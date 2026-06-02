@@ -1128,6 +1128,22 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             是否为相机回调触发流程ToolStripMenuItem.Checked = !是否为相机回调触发流程ToolStripMenuItem.Checked;
             _process.IsCameraCallbackTriggered = 是否为相机回调触发流程ToolStripMenuItem.Checked;
+            SyncImageSourceCameraCallbackBindings();
+        }
+
+        /// <summary>
+        /// 根据流程菜单开关同步所有图像源节点的相机回调订阅。
+        /// </summary>
+        private void SyncImageSourceCameraCallbackBindings()
+        {
+            if (_process == null)
+                return;
+
+            foreach (NodeBase node in _process.Nodes)
+            {
+                if (node?.ParamForm is ParamFormImageSource form)
+                    form.SyncCameraCallbackBinding();
+            }
         }
 
         /// <summary>

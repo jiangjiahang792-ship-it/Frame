@@ -85,6 +85,17 @@ namespace TDJS_Vision.Forms.ShapeDraw
         }
 
         /// <summary>
+        /// 按指定图像尺寸计算所有 ROI 对应的图像坐标矩形。
+        /// </summary>
+        /// <param name="imageWidth">图像宽度。</param>
+        /// <param name="imageHeight">图像高度。</param>
+        /// <returns>图像坐标系下的 ROI 矩形列表。</returns>
+        public List<Rect> GetImageROIRects(int imageWidth, int imageHeight)
+        {
+            return roiManager.GetImageROIRects(imageWidth, imageHeight);
+        }
+
+        /// <summary>
         /// 设置多个ROI
         /// </summary>
         /// <param name="rois">要设置的ROI集合</param>

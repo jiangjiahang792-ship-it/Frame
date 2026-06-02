@@ -1,15 +1,11 @@
 ﻿using Logger;
-using OfficeOpenXml.FormulaParsing.Excel.Functions.DateTime;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 {
@@ -126,10 +122,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             Mat callbackMat = null;
             try
             {
-                using (var bmp = (Bitmap)bitmap.Clone())
-                {
-                    callbackMat = bmp.ToMat().Clone();
-                }
+                callbackMat = bitmap.ToMat();
 
                 StorePendingCallbackMat(callbackMat);
                 callbackMat = null;
@@ -193,34 +186,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// </summary>
         private static OutputImage BuildOutputImage(Mat source)
         {
-            var outputImage = new OutputImage
-            {
-                SrcImg = source ?? new Mat(),
-                Bitmaps = new List<Mat> { source },
-                GrayImg = BuildGrayImage(source)
-            };
-
-            return outputImage;
-        }
-
-        /// <summary>
-        /// 从原图构建灰度图缓存，后续只读测量节点可直接复用这张灰度图。
-        /// </summary>
-        private static Mat BuildGrayImage(Mat source)
-        {
-            if (source == null || source.Empty())
-                return new Mat();
-
-            Mat gray = new Mat();
-            int channels = source.Channels();
-            if (channels == 1)
-                source.CopyTo(gray);
-            else if (channels == 4)
-                Cv2.CvtColor(source, gray, ColorConversionCodes.BGRA2GRAY);
-            else
-                Cv2.CvtColor(source, gray, ColorConversionCodes.BGR2GRAY);
-
-            return gray;
+            return OutputImage.FromSingleImage(source);
         }
 
         /// <summary>
@@ -320,8 +286,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                             try
                             {
                                 // 获取一帧图像并设置结果
-                                var img = param.Camera.GetOneFrameImage();
-                                res.OutputImage = BuildOutputImage(img.ToMat());
+                                using (var img = param.Camera.GetOneFrameImage())
+                                {
+                                    res.OutputImage = BuildOutputImage(img?.ToMat());
+                                }
                             }
                             catch (Exception ex)
                             {

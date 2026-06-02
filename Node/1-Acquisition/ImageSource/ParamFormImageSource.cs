@@ -125,11 +125,47 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         }
                     }
 
-                    // 直接把相机回调绑定到当前图像源节点，回调时不再全局查找节点。
-                    BindCameraCallback(param.Camera);
+                    // 按流程菜单开关同步回调订阅，未启用相机回调触发流程时保持注销状态。
+                    SyncCameraCallbackBinding();
                 }
 
             }
+        }
+
+        /// <summary>
+        /// 按流程菜单开关同步当前图像源节点的相机回调订阅。
+        /// </summary>
+        public void SyncCameraCallbackBinding()
+        {
+            ICamera camera = GetCallbackCameraFromParams();
+            if (!IsCameraCallbackMenuEnabled() || camera == null)
+            {
+                UnbindCameraCallback();
+                return;
+            }
+
+            BindCameraCallback(camera);
+        }
+
+        /// <summary>
+        /// 从当前节点参数中获取用于回调触发的相机。
+        /// </summary>
+        private ICamera GetCallbackCameraFromParams()
+        {
+            if (Params is NodeParamImageSoucre param && param.ImageSource == "相机")
+                return param.Camera;
+
+            return null;
+        }
+
+        /// <summary>
+        /// 判断流程菜单是否启用了相机回调触发流程。
+        /// </summary>
+        private bool IsCameraCallbackMenuEnabled()
+        {
+            return _imageSourceNode != null &&
+                _imageSourceNode.Process != null &&
+                _imageSourceNode.Process.IsCameraCallbackTriggered;
         }
 
         /// <summary>
@@ -137,7 +173,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// </summary>
         private void BindCameraCallback(ICamera camera)
         {
-            if (_imageSourceNode == null)
+            if (_imageSourceNode == null || camera == null)
                 return;
 
             if (ReferenceEquals(_callbackCamera, camera))
@@ -506,12 +542,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     SetCameraParams(_nodeParamImageSource.Camera, _nodeParamImageSource.TriggerModel, _nodeParamImageSource.TriggerSource, _nodeParamImageSource.TriggerEdge, _nodeParamImageSource.TriggerDelay
                         , _nodeParamImageSource.ExposureTime, _nodeParamImageSource.Gain, _nodeParamImageSource.TimeOut);
 
-                // 直接注册到当前图像源节点；未勾选流程级相机回调触发时，节点会忽略回调帧。
-                BindCameraCallback(_nodeParamImageSource.Camera);
-
             }
 
             Params = _nodeParamImageSource;
+            SyncCameraCallbackBinding();
             return true;
         }
 

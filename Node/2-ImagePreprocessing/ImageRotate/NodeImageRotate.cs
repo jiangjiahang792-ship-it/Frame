@@ -1,9 +1,9 @@
 ﻿using Logger;
 using OpenCvSharp;
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
 
 namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
 {
@@ -55,9 +55,17 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
                         SetStatus(NodeStatus.Unexecuted, "*");
                         base.CheckTokenCancel(token);
 
-                        Mat srcImg = form.GetInputMat();
+                        OutputImage inputImage = form.GetInputOutputImage();
+                        Mat srcImg = form.GetInputMat(inputImage);
+                        Mat rotatedImage = form.ImageRotateForRun(srcImg, param.Angle);
+                        Mat inputGrayImage = form.GetInputGrayMat(inputImage);
+                        Mat rotatedGrayImage = srcImg.Channels() == 1
+                            ? rotatedImage
+                            : OutputImage.HasValidImage(inputGrayImage)
+                                ? form.ImageRotateForRun(inputGrayImage, param.Angle)
+                                : OutputImage.BuildGrayImage(rotatedImage);
                         NodeResultImageRotate nodeResultImageRotate = new NodeResultImageRotate();
-                        nodeResultImageRotate.OutputImage.Bitmaps = new List<Mat>() { form.ImageRotateForRun(srcImg, param.Angle) };
+                        nodeResultImageRotate.OutputImage = OutputImage.FromSingleImage(rotatedImage, rotatedGrayImage);
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         nodeResultImageRotate.RunTime = time;
                         Result = nodeResultImageRotate;

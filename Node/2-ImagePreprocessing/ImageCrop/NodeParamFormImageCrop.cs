@@ -74,21 +74,69 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
         }
 
         /// <summary>
+        /// 按指定源图像尺寸计算 ROI 矩形，运行时不需要先把 Mat 转成 Bitmap。
+        /// </summary>
+        /// <param name="source">源图像。</param>
+        /// <returns>图像坐标系下的 ROI 矩形列表。</returns>
+        public List<Rect> GetImageROIRects(Mat source)
+        {
+            if (source == null || source.Empty())
+                throw new Exception("订阅的图像为null！");
+
+            return imageROIEditControl1.GetImageROIRects(source.Width, source.Height);
+        }
+
+        /// <summary>
+        /// 获取上游订阅的完整图像输出。
+        /// </summary>
+        /// <returns>上游图像输出对象。</returns>
+        public OutputImage GetInputOutputImage()
+        {
+            OutputImage outputImage = nodeSubscription1.GetValue<OutputImage>();
+            if (outputImage == null)
+                throw new Exception("订阅的图像为null！");
+
+            return outputImage;
+        }
+
+        /// <summary>
+        /// 从图像输出中读取第一张有效图像。
+        /// </summary>
+        /// <param name="outputImage">上游图像输出对象。</param>
+        /// <returns>上游输出图像中的第一张 Mat。</returns>
+        public Mat GetInputMat(OutputImage outputImage)
+        {
+            if (outputImage == null ||
+                outputImage.Bitmaps == null ||
+                outputImage.Bitmaps.Count == 0 ||
+                outputImage.Bitmaps[0] == null ||
+                outputImage.Bitmaps[0].Empty())
+            {
+                throw new Exception("订阅的图像为null！");
+            }
+
+            return outputImage.Bitmaps[0];
+        }
+
+        /// <summary>
+        /// 获取上游可复用的灰度图缓存。
+        /// </summary>
+        /// <param name="outputImage">上游图像输出对象。</param>
+        /// <returns>有效灰度图；没有缓存时返回 null。</returns>
+        public Mat GetInputGrayMat(OutputImage outputImage)
+        {
+            return OutputImage.HasValidImage(outputImage?.GrayImg) ? outputImage.GrayImg : null;
+        }
+
+        /// <summary>
         /// 获取订阅的图像设置到显示控件中
         /// </summary>
         public Mat UpdataImage()
         {
-            OutputImage bitmap = new OutputImage();
-            try
-            {
-                bitmap = nodeSubscription1.GetValue<OutputImage>();
-            }
-            catch (Exception) 
-            {
-                bitmap.Bitmaps = new List<Mat>() { null };
-            }
-            imageROIEditControl1.SetImage(bitmap.Bitmaps[0].ToBitmap());
-            return bitmap.Bitmaps[0];
+            OutputImage outputImage = GetInputOutputImage();
+            Mat image = GetInputMat(outputImage);
+            imageROIEditControl1.SetImage(image.ToBitmap());
+            return image;
         }
 
         /// <summary>

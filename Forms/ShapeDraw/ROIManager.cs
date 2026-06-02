@@ -91,6 +91,31 @@ namespace TDJS_Vision.Forms.ShapeDraw
             return roiImages;
         }
 
+        /// <summary>
+        /// 按指定图像尺寸计算所有 ROI 的图像坐标矩形，不依赖 PictureBox 中的 Bitmap。
+        /// </summary>
+        /// <param name="imageWidth">图像宽度。</param>
+        /// <param name="imageHeight">图像高度。</param>
+        /// <returns>图像坐标系下的 ROI 矩形列表。</returns>
+        public List<Rect> GetImageROIRects(int imageWidth, int imageHeight)
+        {
+            if (imageWidth <= 0 || imageHeight <= 0)
+                return new List<Rect>();
+
+            if (ROIs.Count == 0)
+                return new List<Rect> { new Rect(0, 0, imageWidth, imageHeight) };
+
+            var imageSize = new System.Drawing.Size(imageWidth, imageHeight);
+            var clientSize = pictureBox.ClientSize;
+            var rects = new List<Rect>();
+            foreach (var roi in ROIs)
+            {
+                rects.Add(ROI.ConvertClientRectToImageRect(roi.Rectangle, imageSize, clientSize));
+            }
+
+            return rects;
+        }
+
         public void DrawROIs(Graphics g, Pen pen)
         {
             foreach (var roi in ROIs)

@@ -71,24 +71,34 @@ namespace TDJS_Vision.Forms.ShapeDraw
         /// <returns></returns>
         protected Rect ConvertClientRectToImageRect(RectangleF clientRect, PictureBox pictureBox)
         {
-            // 获取当前缩放比例
-            float zoomFactor = (float)pictureBox.Image.Width / pictureBox.ClientSize.Width;
+            return ConvertClientRectToImageRect(clientRect, pictureBox.Image.Size, pictureBox.ClientSize);
+        }
 
-            // 如果图片的高度比宽度更限制，则以高度计算缩放比例
-            if (pictureBox.Image.Height * pictureBox.ClientSize.Width > pictureBox.Image.Width * pictureBox.ClientSize.Height)
+        /// <summary>
+        /// 将控件坐标系下的矩形转换为图像像素坐标系下的矩形。
+        /// </summary>
+        /// <param name="clientRect">控件坐标系下的 ROI 矩形。</param>
+        /// <param name="imageSize">原始图像尺寸。</param>
+        /// <param name="clientSize">显示控件尺寸。</param>
+        /// <returns>图像像素坐标系下的 ROI 矩形。</returns>
+        public static Rect ConvertClientRectToImageRect(RectangleF clientRect, System.Drawing.Size imageSize, System.Drawing.Size clientSize)
+        {
+            if (imageSize.Width <= 0 || imageSize.Height <= 0 || clientSize.Width <= 0 || clientSize.Height <= 0)
+                return new Rect();
+
+            // 获取当前缩放比例。
+            float zoomFactor = (float)imageSize.Width / clientSize.Width;
+
+            // 如果图片的高度比宽度更限制，则以高度计算缩放比例。
+            if (imageSize.Height * clientSize.Width > imageSize.Width * clientSize.Height)
             {
-                zoomFactor = (float)pictureBox.Image.Height / pictureBox.ClientSize.Height;
+                zoomFactor = (float)imageSize.Height / clientSize.Height;
             }
 
-            //// 计算图像上的左上角点位置
-            //Point imageTopLeft = new Point(
-            //    (int)((clientRect.Left - (pictureBox.ClientSize.Width - pictureBox.Image.Width / zoomFactor) / 2) * zoomFactor),
-            //    (int)((clientRect.Top - (pictureBox.ClientSize.Height - pictureBox.Image.Height / zoomFactor) / 2) * zoomFactor)
-            //);
-            // 计算图像上的左上角点位置
+            // 计算图像上的左上角点位置。
             Point imageTopLeft = new Point(
-                (int)((clientRect.Left - (pictureBox.ClientSize.Width - pictureBox.Image.Width / zoomFactor) / 2) * zoomFactor),
-                (int)((clientRect.Top - (pictureBox.ClientSize.Height - pictureBox.Image.Height / zoomFactor) / 2) * zoomFactor)
+                (int)((clientRect.Left - (clientSize.Width - imageSize.Width / zoomFactor) / 2) * zoomFactor),
+                (int)((clientRect.Top - (clientSize.Height - imageSize.Height / zoomFactor) / 2) * zoomFactor)
             );
 
             // 创建并返回图像坐标中的矩形

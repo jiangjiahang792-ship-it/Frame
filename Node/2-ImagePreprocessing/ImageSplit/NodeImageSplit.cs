@@ -1,11 +1,10 @@
 ﻿using Logger;
 using OpenCvSharp;
-using OpenCvSharp.Extensions;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
 
 namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
 {
@@ -47,14 +46,19 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
                         base.CheckTokenCancel(token);
 
                         NodeResultImageSplit res = new NodeResultImageSplit();
-                        var img = paramForm.GetImage();
-                        var imgs = SplitImage(img, param.Rows, param.Cols);
+                        OutputImage inputImage = paramForm.GetInputOutputImage();
+                        Mat img = paramForm.GetInputMat(inputImage);
+                        var imgs = SplitImage(img, param.Rows, param.Cols, out List<Rect> rects);
+                        res.OutputImage.SrcImg = img;
                         res.OutputImage.Bitmaps = new List<Mat>(imgs);
+                        res.OutputImage.Rectangles = rects;
+                        res.OutputImage.GrayImg = BuildFirstSplitGray(inputImage, rects, imgs);
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         res.RunTime = time;
                         Result = res;
                         if (showLog)
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                        return new NodeReturn(NodeRunFlag.ContinueRun);
                     }
                     catch (OperationCanceledException)
                     {
@@ -75,54 +79,76 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
         }
 
         /// <summary>
-        /// 将一个 Bitmap 图像分成 m 行 n 列的小图像，丢弃剩余的行和列像素。
+        /// 将一个 Mat 图像分成 m 行 n 列的小图像，丢弃剩余的行和列像素。
         /// </summary>
         /// <param name="originalImage">原始图像。</param>
         /// <param name="rows">行数。</param>
         /// <param name="cols">列数。</param>
-        /// <returns>包含分割后图像的 List<Bitmap>。</returns>
-        public static List<Mat> SplitImage(Bitmap originalImage, int rows, int cols)
+        /// <param name="rectangles">每张小图相对源图的矩形位置。</param>
+        /// <returns>包含分割后图像的列表。</returns>
+        public static List<Mat> SplitImage(Mat originalImage, int rows, int cols, out List<Rect> rectangles)
         {
-            if (originalImage == null)
+            rectangles = new List<Rect>();
+            if (!OutputImage.HasValidImage(originalImage))
                 throw new ArgumentNullException(nameof(originalImage), "原始图像不能为空。");
 
             if (rows <= 0 || cols <= 0)
                 throw new ArgumentException("行数和列数必须是正整数。");
 
-            // 将 Bitmap 转换为 Mat
-            Mat matImage = BitmapConverter.ToMat(originalImage);
+            // 计算每个子图像的最大整除宽度和高度。
+            int baseHeight = originalImage.Height / rows * rows;
+            int baseWidth = originalImage.Width / cols * cols;
 
-            // 计算每个子图像的最大整除宽度和高度
-            int baseHeight = matImage.Height / rows * rows;
-            int baseWidth = matImage.Width / cols * cols;
-
-            // 每个子图像的实际宽度和高度
+            // 每个子图像的实际宽度和高度。
             int subHeight = baseHeight / rows;
             int subWidth = baseWidth / cols;
+            if (subHeight <= 0 || subWidth <= 0)
+                throw new ArgumentException("分割后的图像尺寸必须大于0。");
 
             List<Mat> subImages = new List<Mat>();
 
-            // 遍历行和列来提取子图像
+            // 遍历行和列来提取子图像。
             for (int row = 0; row < rows; row++)
             {
                 for (int col = 0; col < cols; col++)
                 {
-                    // 计算当前子图像的左上角坐标
                     int y = row * subHeight;
                     int x = col * subWidth;
-
-                    // 定义 ROI（感兴趣区域）
                     Rect roi = new Rect(x, y, subWidth, subHeight);
 
-                    // 提取子图像
-                    Mat subMat = new Mat(matImage, roi);
-
-                    // 将子图像添加到列表中
-                    subImages.Add(subMat);
+                    // 输出独立小图，避免下游写入影响源图。
+                    using (Mat subMat = new Mat(originalImage, roi))
+                    {
+                        subImages.Add(subMat.Clone());
+                    }
+                    rectangles.Add(roi);
                 }
             }
 
             return subImages;
+        }
+
+        /// <summary>
+        /// 为第一张分割图构建灰度缓存，优先从上游 GrayImg 同步裁剪。
+        /// </summary>
+        /// <param name="inputImage">上游图像输出。</param>
+        /// <param name="rectangles">分割区域列表。</param>
+        /// <param name="splitImages">已分割的图像列表。</param>
+        /// <returns>第一张分割图对应的灰度缓存。</returns>
+        private static Mat BuildFirstSplitGray(OutputImage inputImage, List<Rect> rectangles, List<Mat> splitImages)
+        {
+            if (rectangles != null && rectangles.Count > 0 && OutputImage.HasValidImage(inputImage?.GrayImg))
+            {
+                using (Mat grayRoi = new Mat(inputImage.GrayImg, rectangles[0]))
+                {
+                    return grayRoi.Clone();
+                }
+            }
+
+            if (splitImages != null && splitImages.Count > 0)
+                return OutputImage.BuildGrayImage(splitImages[0]);
+
+            return new Mat();
         }
     }
 }
