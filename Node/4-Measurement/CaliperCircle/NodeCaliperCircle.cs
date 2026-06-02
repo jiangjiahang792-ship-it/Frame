@@ -46,11 +46,11 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 if (form == null || param == null)
                     throw new Exception("卡尺找圆参数异常！");
 
-                CaliperCircleMeasureResult measureResult = form.ExecuteMeasure(param, out Mat output);
+                CaliperCircleMeasureResult measureResult = form.ExecuteMeasure(param);
                 if (measureResult == null)
                     throw new Exception("Caliper circle measurement returned no result.");
 
-                NodeResultCaliperCircle nodeResult = BuildResult(measureResult, output);
+                NodeResultCaliperCircle nodeResult = BuildResult(measureResult);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
@@ -79,7 +79,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             }
         }
 
-        internal static NodeResultCaliperCircle BuildResult(CaliperCircleMeasureResult measureResult, Mat output)
+        internal static NodeResultCaliperCircle BuildResult(CaliperCircleMeasureResult measureResult)
         {
             var result = new NodeResultCaliperCircle();
             result.IsOk = measureResult.Success;
@@ -92,7 +92,6 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 result.Diameter = measureResult.Radius * 2.0;
             }
             result.AlgorithmMs = measureResult.AlgorithmMs;
-            result.OutputImage.Bitmaps = new List<Mat> { output };
             result.Result = BuildDisplayResult(measureResult);
             result.OutputImage.DisplayResult = result.Result;
             return result;

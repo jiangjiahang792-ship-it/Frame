@@ -223,62 +223,65 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
         /// <summary>
         /// 执行点到线距离测量。
         /// </summary>
-        internal PointLineDistanceMeasureResult ExecuteMeasure(NodeParamPointLineDistance param, out Mat output)
+        internal PointLineDistanceMeasureResult ExecuteMeasure(NodeParamPointLineDistance param)
         {
             var stopwatch = Stopwatch.StartNew();
-            using (Mat source = GetInputMat())
+            var result = new PointLineDistanceMeasureResult();
+            PointF targetPoint;
+            MeasuredLine line;
+
+            if (param.SourceMode == MeasurementDataSourceMode.Subscribe)
             {
-                output = MeasurementNodeHelper.EnsureBgr(source);
-                var result = new PointLineDistanceMeasureResult();
-                PointF targetPoint;
-                MeasuredLine line;
-
-                if (param.SourceMode == MeasurementDataSourceMode.Subscribe)
-                {
-                    targetPoint = ReadSubscribedPoint(nodeSubscriptionPoint, param.PointRole, "点");
-                    line = ReadSubscribedLine(nodeSubscriptionLine, "直线");
-                }
-                else
-                {
-                    using (Mat gray = CaliperMeasurementAlgorithm.ToGray(source))
-                    {
-                        NodeParamPointLineDistance runtimeParam = BuildRuntimeParam(param);
-                        CaliperCircleMeasureResult pointResult = CaliperMeasurementAlgorithm.FindCircle(gray, BuildCircleParams(runtimeParam));
-                        CaliperLineMeasureResult lineResult = CaliperMeasurementAlgorithm.FindLine(gray, BuildLineParams(runtimeParam));
-                        result.PointEdgePoints.AddRange(pointResult.EdgePoints);
-                        result.LineEdgePoints.AddRange(lineResult.EdgePoints);
-
-                        if (!pointResult.Success)
-                            return FinishFailed(result, stopwatch, "点圆卡尺找点失败");
-                        if (!lineResult.Success)
-                            return FinishFailed(result, stopwatch, "直线卡尺找线失败");
-
-                        targetPoint = pointResult.Center;
-                        line = new MeasuredLine { Start = lineResult.LineStart, End = lineResult.LineEnd, Source = "绘制直线" };
-                    }
-                }
-
-                if (line == null || !line.IsValid)
-                    return FinishFailed(result, stopwatch, "直线结果无效");
-
+                targetPoint = ReadSubscribedPoint(nodeSubscriptionPoint, param.PointRole, "点");
+                line = ReadSubscribedLine(nodeSubscriptionLine, "直线");
+            }
+            else
+            {
+                bool disposeGrayAfterUse;
+                Mat gray = GetInputGrayMat(out disposeGrayAfterUse);
                 try
                 {
-                    result.DistanceResult = GeometryMeasurementAlgorithm.CalculatePointLineDistance(
-                        targetPoint,
-                        line.Start,
-                        line.End,
-                        param.MeasureMode);
-                }
-                catch (Exception ex)
-                {
-                    return FinishFailed(result, stopwatch, ex.Message);
-                }
+                    NodeParamPointLineDistance runtimeParam = BuildRuntimeParam(param);
+                    CaliperCircleMeasureResult pointResult = CaliperMeasurementAlgorithm.FindCircle(gray, BuildCircleParams(runtimeParam));
+                    CaliperLineMeasureResult lineResult = CaliperMeasurementAlgorithm.FindLine(gray, BuildLineParams(runtimeParam));
+                    result.PointEdgePoints.AddRange(pointResult.EdgePoints);
+                    result.LineEdgePoints.AddRange(lineResult.EdgePoints);
 
-                result.Success = true;
-                stopwatch.Stop();
-                result.AlgorithmMs = stopwatch.Elapsed.TotalMilliseconds;
-                return result;
+                    if (!pointResult.Success)
+                        return FinishFailed(result, stopwatch, "点圆卡尺找点失败");
+                    if (!lineResult.Success)
+                        return FinishFailed(result, stopwatch, "直线卡尺找线失败");
+
+                    targetPoint = pointResult.Center;
+                    line = new MeasuredLine { Start = lineResult.LineStart, End = lineResult.LineEnd, Source = "绘制直线" };
+                }
+                finally
+                {
+                    if (disposeGrayAfterUse)
+                        gray?.Dispose();
+                }
             }
+
+            if (line == null || !line.IsValid)
+                return FinishFailed(result, stopwatch, "直线结果无效");
+
+            try
+            {
+                result.DistanceResult = GeometryMeasurementAlgorithm.CalculatePointLineDistance(
+                    targetPoint,
+                    line.Start,
+                    line.End,
+                    param.MeasureMode);
+            }
+            catch (Exception ex)
+            {
+                return FinishFailed(result, stopwatch, ex.Message);
+            }
+
+            result.Success = true;
+            stopwatch.Stop();
+            result.AlgorithmMs = stopwatch.Elapsed.TotalMilliseconds;
+            return result;
         }
 
         /// <summary>
@@ -510,12 +513,21 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
         }
 
         /// <summary>
-        /// 获取输入图像。
+        /// 获取输入灰度图像，算法只读使用，不修改图像数据。
         /// </summary>
-        private Mat GetInputMat()
+        private Mat GetInputGrayMat(out bool disposeAfterUse)
         {
             OutputImage outputImage = nodeSubscriptionImage.GetValue<OutputImage>();
-            return MeasurementNodeHelper.GetFirstMat(outputImage);
+            return MeasurementNodeHelper.GetReadOnlyGrayMat(outputImage, out disposeAfterUse);
+        }
+
+        /// <summary>
+        /// 获取参数界面预览用的只读原图引用，不接管 Mat 生命周期。
+        /// </summary>
+        private Mat GetPreviewMat()
+        {
+            OutputImage outputImage = nodeSubscriptionImage.GetValue<OutputImage>();
+            return MeasurementNodeHelper.GetReadOnlyPreviewMat(outputImage);
         }
 
         /// <summary>
@@ -1024,11 +1036,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
         {
             try
             {
-                using (Mat input = GetInputMat())
-                {
-                    SetPreview(input);
-                    showImageControl1.ShowFit();
-                }
+                SetPreview(GetPreviewMat());
+                showImageControl1.ShowFit();
             }
             catch (Exception ex)
             {
@@ -1070,13 +1079,9 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
 
             try
             {
-                Mat output;
-                PointLineDistanceMeasureResult result = ExecuteMeasure((NodeParamPointLineDistance)Params, out output);
-                using (output)
-                {
-                    SetPreview(output);
-                    showImageControl1.SetDisplayResult(NodePointLineDistance.BuildDisplayResult(result));
-                }
+                PointLineDistanceMeasureResult result = ExecuteMeasure((NodeParamPointLineDistance)Params);
+                SetPreview(GetPreviewMat());
+                showImageControl1.SetDisplayResult(NodePointLineDistance.BuildDisplayResult(result));
 
                 if (!result.Success)
                     MessageBoxTD.Show($"点到线距离失败：{result.Message}");

@@ -2,6 +2,7 @@ using Logger;
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Threading;
@@ -39,6 +40,7 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
 
             try
             {
+                Stopwatch nodeRunWatch = Stopwatch.StartNew();
                 SetStatus(NodeStatus.Unexecuted, "*");
                 base.CheckTokenCancel(token);
 
@@ -47,15 +49,32 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
                 if (form == null || param == null)
                     throw new Exception("找点参数异常。");
 
-                Mat output;
-                FindPointMeasureResult measureResult = form.ExecuteMeasure(param, token, out output);
+                Stopwatch executeMeasureWatch = Stopwatch.StartNew();
+                FindPointMeasureResult measureResult = form.ExecuteMeasure(param, token);
+                executeMeasureWatch.Stop();
                 if (measureResult == null)
                     throw new Exception("找点算法没有返回结果。");
 
-                NodeResultFindPoint nodeResult = BuildResult(measureResult, output);
+                Stopwatch buildResultWatch = Stopwatch.StartNew();
+                NodeResultFindPoint nodeResult = BuildResult(measureResult);
+                buildResultWatch.Stop();
+
+                Stopwatch resultPublishWatch = Stopwatch.StartNew();
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
+                resultPublishWatch.Stop();
+                nodeRunWatch.Stop();
+
+                if (showLog)
+                    WritePerformanceLog(
+                        this,
+                        form.LastTimingInfo,
+                        executeMeasureWatch.Elapsed.TotalMilliseconds,
+                        buildResultWatch.Elapsed.TotalMilliseconds,
+                        resultPublishWatch.Elapsed.TotalMilliseconds,
+                        nodeRunWatch.Elapsed.TotalMilliseconds,
+                        time);
 
                 if (showLog && measureResult.Success)
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！耗时：{time} ms，边缘点：{measureResult.PointCount}", true);
@@ -81,7 +100,39 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
             }
         }
 
-        internal static NodeResultFindPoint BuildResult(FindPointMeasureResult measureResult, Mat output)
+        /// <summary>
+        /// 打印找点工具的分段性能诊断日志，重点观察灰度图复用、算法和算法外耗时。
+        /// </summary>
+        private static void WritePerformanceLog(NodeFindPoint node, FindPointTimingInfo timing, double executeMeasureMs, double buildResultMs, double resultPublishMs, double nodeRunMs, int reportedRunTime)
+        {
+            if (timing == null)
+            {
+                LogHelper.AddLog(MsgLevel.Info, $"【性能诊断-找点】节点({node.ID}.{node.NodeName}) 图像=未知；ExecuteMeasure={executeMeasureMs:F2}ms；结果组装={buildResultMs:F2}ms；结果发布={resultPublishMs:F2}ms；节点总耗时={nodeRunMs:F2}ms；状态耗时={reportedRunTime}ms", true);
+                return;
+            }
+
+            double measuredExecuteMeasureMs = timing.ExecuteMeasureMs > 0 ? timing.ExecuteMeasureMs : executeMeasureMs;
+            double executeOtherMs = measuredExecuteMeasureMs
+                - timing.SubscriptionReadMs
+                - timing.GrayAcquireMs
+                - timing.RuntimeParamMs
+                - timing.AlgorithmMs;
+            if (executeOtherMs < 0)
+                executeOtherMs = 0;
+
+            string inputSource = string.IsNullOrWhiteSpace(timing.InputSource) ? "未知" : timing.InputSource;
+            string imageInfo = timing.InputWidth > 0 && timing.InputHeight > 0
+                ? $"{timing.InputWidth}x{timing.InputHeight}x{timing.InputChannels}，约{timing.InputMegaBytes:F2}MB，来源={inputSource}"
+                : $"未知，来源={inputSource}";
+            string temporaryGray = timing.TemporaryGrayCreated ? "是" : "否";
+
+            LogHelper.AddLog(
+                MsgLevel.Info,
+                $"【性能诊断-找点】节点({node.ID}.{node.NodeName}) 图像={imageInfo}；订阅读取={timing.SubscriptionReadMs:F2}ms；深拷贝图=0.00ms；灰度取图={timing.GrayAcquireMs:F2}ms；临时灰度={temporaryGray}；ROI区域={timing.ProcessedRegionCount}个；ROI像素约={timing.ProcessedMegaPixels:F2}MP；位置修正/参数准备={timing.RuntimeParamMs:F2}ms；算法={timing.AlgorithmMs:F2}ms；输出图准备=0.00ms；执行其它={executeOtherMs:F2}ms；结果组装={buildResultMs:F2}ms；结果发布={resultPublishMs:F2}ms；ExecuteMeasure={measuredExecuteMeasureMs:F2}ms；节点总耗时={nodeRunMs:F2}ms；状态耗时={reportedRunTime}ms",
+                true);
+        }
+
+        internal static NodeResultFindPoint BuildResult(FindPointMeasureResult measureResult)
         {
             var result = new NodeResultFindPoint
             {
@@ -101,7 +152,6 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
                 result.CenterY = result.Points.Average(point => point.Y);
             }
 
-            result.OutputImage.Bitmaps = new List<Mat> { output };
             result.Result = BuildDisplayResult(measureResult);
             result.OutputImage.DisplayResult = result.Result;
             return result;

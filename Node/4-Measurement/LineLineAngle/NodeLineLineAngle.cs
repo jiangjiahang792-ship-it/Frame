@@ -46,8 +46,8 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 if (form == null || param == null)
                     throw new Exception("线到线夹角参数异常！");
 
-                LineLineAngleMeasureResult measureResult = form.ExecuteMeasure(param, out Mat output);
-                NodeResultLineLineAngle nodeResult = BuildResult(measureResult, output);
+                LineLineAngleMeasureResult measureResult = form.ExecuteMeasure(param);
+                NodeResultLineLineAngle nodeResult = BuildResult(measureResult);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
@@ -76,7 +76,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             }
         }
 
-        internal static NodeResultLineLineAngle BuildResult(LineLineAngleMeasureResult measureResult, Mat output)
+        internal static NodeResultLineLineAngle BuildResult(LineLineAngleMeasureResult measureResult)
         {
             var result = new NodeResultLineLineAngle();
             result.IsOk = measureResult.Success;
@@ -99,7 +99,6 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 }
             }
 
-            result.OutputImage.Bitmaps = new List<Mat> { output };
             result.Result = BuildDisplayResult(measureResult);
             result.OutputImage.DisplayResult = result.Result;
             return result;

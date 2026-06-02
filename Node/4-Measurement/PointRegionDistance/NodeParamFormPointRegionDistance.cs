@@ -80,45 +80,48 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
             ClearEditingRoi();
         }
 
-        internal PointRegionDistanceMeasureResult ExecuteMeasure(NodeParamPointRegionDistance param, out Mat output)
+        internal PointRegionDistanceMeasureResult ExecuteMeasure(NodeParamPointRegionDistance param)
         {
             var stopwatch = Stopwatch.StartNew();
-            using (Mat source = GetInputMat())
+            var result = new PointRegionDistanceMeasureResult();
+            PointF targetPoint;
+            List<PointF> regionPoints;
+
+            if (param.SourceMode == MeasurementDataSourceMode.Subscribe)
             {
-                output = MeasurementNodeHelper.EnsureBgr(source);
-                var result = new PointRegionDistanceMeasureResult();
-                PointF targetPoint;
-                List<PointF> regionPoints;
-
-                if (param.SourceMode == MeasurementDataSourceMode.Subscribe)
-                {
-                    targetPoint = ReadSubscribedPoint(nodeSubscriptionPoint, param.PointRole);
-                    regionPoints = ReadSubscribedRegion(nodeSubscriptionRegion);
-                }
-                else
-                {
-                    using (Mat gray = CaliperMeasurementAlgorithm.ToGray(source))
-                    {
-                        NodeParamPointRegionDistance runtimeParam = BuildRuntimeParam(param);
-                        CaliperCircleMeasureResult pointResult = CaliperMeasurementAlgorithm.FindCircle(gray, BuildCircleParams(runtimeParam));
-                        result.PointEdgePoints.AddRange(pointResult.EdgePoints);
-                        if (!pointResult.Success)
-                            return FinishFailed(result, stopwatch, "目标点圆卡尺找圆失败");
-
-                        targetPoint = pointResult.Center;
-                        regionPoints = runtimeParam.RegionPoints == null ? new List<PointF>() : runtimeParam.RegionPoints.ToList();
-                    }
-                }
-
-                if (regionPoints == null || regionPoints.Count < 3)
-                    return FinishFailed(result, stopwatch, "区域点数不足");
-
-                result.DistanceResult = GeometryMeasurementAlgorithm.CalculatePointRegionDistance(regionPoints, targetPoint, param.MeasureMode);
-                result.Success = true;
-                stopwatch.Stop();
-                result.AlgorithmMs = stopwatch.Elapsed.TotalMilliseconds;
-                return result;
+                targetPoint = ReadSubscribedPoint(nodeSubscriptionPoint, param.PointRole);
+                regionPoints = ReadSubscribedRegion(nodeSubscriptionRegion);
             }
+            else
+            {
+                bool disposeGrayAfterUse;
+                Mat gray = GetInputGrayMat(out disposeGrayAfterUse);
+                try
+                {
+                    NodeParamPointRegionDistance runtimeParam = BuildRuntimeParam(param);
+                    CaliperCircleMeasureResult pointResult = CaliperMeasurementAlgorithm.FindCircle(gray, BuildCircleParams(runtimeParam));
+                    result.PointEdgePoints.AddRange(pointResult.EdgePoints);
+                    if (!pointResult.Success)
+                        return FinishFailed(result, stopwatch, "目标点圆卡尺找圆失败");
+
+                    targetPoint = pointResult.Center;
+                    regionPoints = runtimeParam.RegionPoints == null ? new List<PointF>() : runtimeParam.RegionPoints.ToList();
+                }
+                finally
+                {
+                    if (disposeGrayAfterUse)
+                        gray?.Dispose();
+                }
+            }
+
+            if (regionPoints == null || regionPoints.Count < 3)
+                return FinishFailed(result, stopwatch, "区域点数不足");
+
+            result.DistanceResult = GeometryMeasurementAlgorithm.CalculatePointRegionDistance(regionPoints, targetPoint, param.MeasureMode);
+            result.Success = true;
+            stopwatch.Stop();
+            result.AlgorithmMs = stopwatch.Elapsed.TotalMilliseconds;
+            return result;
         }
 
         private void InitializeCombos()
@@ -178,10 +181,19 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
             UpdateSourceModeEnabled();
         }
 
-        private Mat GetInputMat()
+        private Mat GetInputGrayMat(out bool disposeAfterUse)
         {
             OutputImage outputImage = nodeSubscriptionImage.GetValue<OutputImage>();
-            return MeasurementNodeHelper.GetFirstMat(outputImage);
+            return MeasurementNodeHelper.GetReadOnlyGrayMat(outputImage, out disposeAfterUse);
+        }
+
+        /// <summary>
+        /// 获取参数界面预览用的只读原图引用，不接管 Mat 生命周期。
+        /// </summary>
+        private Mat GetPreviewMat()
+        {
+            OutputImage outputImage = nodeSubscriptionImage.GetValue<OutputImage>();
+            return MeasurementNodeHelper.GetReadOnlyPreviewMat(outputImage);
         }
 
         private PointF ReadSubscribedPoint(NodeSubscription subscription, MeasurementPointRole role)
@@ -559,11 +571,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
         {
             try
             {
-                using (Mat input = GetInputMat())
-                {
-                    SetPreview(input);
-                    showImageControl1.ShowFit();
-                }
+                SetPreview(GetPreviewMat());
+                showImageControl1.ShowFit();
             }
             catch (Exception ex)
             {
@@ -596,13 +605,9 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
 
             try
             {
-                Mat output;
-                PointRegionDistanceMeasureResult result = ExecuteMeasure((NodeParamPointRegionDistance)Params, out output);
-                using (output)
-                {
-                    SetPreview(output);
-                    showImageControl1.SetDisplayResult(NodePointRegionDistance.BuildDisplayResult(result));
-                }
+                PointRegionDistanceMeasureResult result = ExecuteMeasure((NodeParamPointRegionDistance)Params);
+                SetPreview(GetPreviewMat());
+                showImageControl1.SetDisplayResult(NodePointRegionDistance.BuildDisplayResult(result));
 
                 if (!result.Success)
                     MessageBoxTD.Show($"点到区域距离失败：{result.Message}");

@@ -55,7 +55,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             SetStatus(NodeStatus.Unexecuted, "*");
                             base.CheckTokenCancel(token);
 
-                            //await EnsureModelReadyAsync(param);
+                            await EnsureModelReadyAsync(param);
 
                             // 清空上次检测结果
                             res.AlgorithmResult.Clear();
@@ -64,6 +64,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             OutputImage inputImage = form.GetOutputImage();
 
                             #region 通信获取对应检测项的配置(不是使用固定检测项时)
+
+                            Console.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
 
                             // terminalType端子型号、wireType电线型号、waterproofType防水栓型号
                             short terminalType = 0, wireType = 0, waterproofType = 0;
@@ -267,14 +269,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             {
                                 res.AlgorithmResult.Texts.Add(new ColorText($"当前模板: {param.CurDetectItemName}", Color.Green));
                             }
-                            
+
+                            Console.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
 
                             // 返回结果
                             Result = res;
                             if (showLog)
-                            Console.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
                                 LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
-                            Console.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+
                             return new NodeReturn(NodeRunFlag.ContinueRun);
                         }
                         catch (OperationCanceledException)

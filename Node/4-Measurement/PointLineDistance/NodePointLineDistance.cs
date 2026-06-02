@@ -55,8 +55,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
                 if (form == null || param == null)
                     throw new Exception("点到线距离参数异常！");
 
-                PointLineDistanceMeasureResult measureResult = form.ExecuteMeasure(param, out Mat output);
-                NodeResultPointLineDistance nodeResult = BuildResult(measureResult, output);
+                PointLineDistanceMeasureResult measureResult = form.ExecuteMeasure(param);
+                NodeResultPointLineDistance nodeResult = BuildResult(measureResult);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
@@ -88,7 +88,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
         /// <summary>
         /// 将算法结果转换为节点结果。
         /// </summary>
-        internal static NodeResultPointLineDistance BuildResult(PointLineDistanceMeasureResult measureResult, Mat output)
+        internal static NodeResultPointLineDistance BuildResult(PointLineDistanceMeasureResult measureResult)
         {
             var result = new NodeResultPointLineDistance
             {
@@ -110,7 +110,6 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
                 result.FootY = distance.FootPoint.Y;
             }
 
-            result.OutputImage.Bitmaps = new List<Mat> { output };
             result.Result = BuildDisplayResult(measureResult);
             result.OutputImage.DisplayResult = result.Result;
             return result;

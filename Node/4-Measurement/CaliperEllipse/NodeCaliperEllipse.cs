@@ -46,11 +46,11 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 if (form == null || param == null)
                     throw new Exception("卡尺找椭圆参数异常！");
 
-                CaliperEllipseMeasureResult measureResult = form.ExecuteMeasure(param, out Mat output);
+                CaliperEllipseMeasureResult measureResult = form.ExecuteMeasure(param);
                 if (measureResult == null)
                     throw new Exception("Caliper ellipse measurement returned no result.");
 
-                NodeResultCaliperEllipse nodeResult = BuildResult(measureResult, output);
+                NodeResultCaliperEllipse nodeResult = BuildResult(measureResult);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
@@ -79,7 +79,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             }
         }
 
-        internal static NodeResultCaliperEllipse BuildResult(CaliperEllipseMeasureResult measureResult, Mat output)
+        internal static NodeResultCaliperEllipse BuildResult(CaliperEllipseMeasureResult measureResult)
         {
             var result = new NodeResultCaliperEllipse();
             result.IsOk = measureResult.Success;
@@ -95,7 +95,6 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 result.Angle = measureResult.Angle;
             }
             result.AlgorithmMs = measureResult.AlgorithmMs;
-            result.OutputImage.Bitmaps = new List<Mat> { output };
             result.Result = BuildDisplayResult(measureResult);
             result.OutputImage.DisplayResult = result.Result;
             return result;

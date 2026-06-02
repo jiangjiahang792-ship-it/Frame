@@ -46,8 +46,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
                 if (form == null || param == null)
                     throw new Exception("点到区域距离参数异常！");
 
-                PointRegionDistanceMeasureResult measureResult = form.ExecuteMeasure(param, out Mat output);
-                NodeResultPointRegionDistance nodeResult = BuildResult(measureResult, output);
+                PointRegionDistanceMeasureResult measureResult = form.ExecuteMeasure(param);
+                NodeResultPointRegionDistance nodeResult = BuildResult(measureResult);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
@@ -76,7 +76,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
             }
         }
 
-        internal static NodeResultPointRegionDistance BuildResult(PointRegionDistanceMeasureResult measureResult, Mat output)
+        internal static NodeResultPointRegionDistance BuildResult(PointRegionDistanceMeasureResult measureResult)
         {
             var result = new NodeResultPointRegionDistance();
             result.IsOk = measureResult.Success;
@@ -96,7 +96,6 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
                 result.RegionPointCount = distanceResult.RegionPoints.Count;
             }
 
-            result.OutputImage.Bitmaps = new List<Mat> { output };
             result.Result = BuildDisplayResult(measureResult);
             result.OutputImage.DisplayResult = result.Result;
             return result;

@@ -1,7 +1,6 @@
 using Logger;
 using OpenCvSharp;
 using System;
-using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
@@ -10,80 +9,6 @@ using TDJS_Vision.Node._4_Measurement.Common;
 
 namespace TDJS_Vision.Node._4_Measurement.CaliperLine
 {
-    /// <summary>
-    /// 卡尺找线单次运行的分段耗时信息，用于定位图像深拷贝与算法耗时占比。
-    /// </summary>
-    internal sealed class CaliperLineTimingInfo
-    {
-        /// <summary>
-        /// 订阅读取上游图像结果耗时，单位毫秒。
-        /// </summary>
-        public double SubscriptionReadMs { get; set; }
-
-        /// <summary>
-        /// 输入图像深拷贝耗时，单位毫秒。
-        /// </summary>
-        public double ImageCloneMs { get; set; }
-
-        /// <summary>
-        /// 输入图像转灰度图耗时，单位毫秒。
-        /// </summary>
-        public double GrayPrepareMs { get; set; }
-
-        /// <summary>
-        /// 位置修正参数计算耗时，单位毫秒。
-        /// </summary>
-        public double PositionCorrectionMs { get; set; }
-
-        /// <summary>
-        /// 卡尺找线算法内部耗时，单位毫秒。
-        /// </summary>
-        public double AlgorithmMs { get; set; }
-
-        /// <summary>
-        /// 输出显示图准备耗时，单位毫秒。
-        /// </summary>
-        public double OutputPrepareMs { get; set; }
-
-        /// <summary>
-        /// ExecuteMeasure 方法整体耗时，单位毫秒。
-        /// </summary>
-        public double ExecuteMeasureMs { get; set; }
-
-        /// <summary>
-        /// 输入图像来源，例如 Bitmaps[0] 或 SrcImg。
-        /// </summary>
-        public string InputSource { get; set; } = string.Empty;
-
-        /// <summary>
-        /// 输入图像宽度，单位像素。
-        /// </summary>
-        public int InputWidth { get; set; }
-
-        /// <summary>
-        /// 输入图像高度，单位像素。
-        /// </summary>
-        public int InputHeight { get; set; }
-
-        /// <summary>
-        /// 输入图像通道数。
-        /// </summary>
-        public int InputChannels { get; set; }
-
-        /// <summary>
-        /// 输入图像估算字节数。
-        /// </summary>
-        public long InputBytes { get; set; }
-
-        /// <summary>
-        /// 输入图像估算容量，单位 MB。
-        /// </summary>
-        public double InputMegaBytes
-        {
-            get { return InputBytes <= 0 ? 0 : InputBytes / 1024.0 / 1024.0; }
-        }
-    }
-
     public partial class NodeParamFormCaliperLine : FormBase, INodeParamForm
     {
         private readonly NodeBase node;
@@ -99,11 +24,6 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
         }
 
         public INodeParam Params { get; set; }
-
-        /// <summary>
-        /// 最近一次卡尺找线运行的分段耗时信息。
-        /// </summary>
-        internal CaliperLineTimingInfo LastTimingInfo { get; private set; }
 
         public void SetNodeBelong(NodeBase node)
         {
@@ -147,17 +67,12 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
 
         internal CaliperLineMeasureResult ExecuteMeasure(NodeParamCaliperLine param)
         {
-            Stopwatch executeMeasureWatch = Stopwatch.StartNew();
-            LastTimingInfo = new CaliperLineTimingInfo();
             bool disposeGrayAfterUse;
             Mat gray = GetInputGrayMat(out disposeGrayAfterUse);
 
             try
             {
-                Stopwatch correctionWatch = Stopwatch.StartNew();
                 NodeParamCaliperLine runtimeParam = BuildRuntimeParam(param);
-                correctionWatch.Stop();
-                LastTimingInfo.PositionCorrectionMs = correctionWatch.Elapsed.TotalMilliseconds;
 
                 var algorithmParam = new CaliperLineParams
                 {
@@ -175,17 +90,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                     BlurSize = runtimeParam.BlurSize
                 };
 
-                Stopwatch algorithmWatch = Stopwatch.StartNew();
-                CaliperLineMeasureResult result = CaliperMeasurementAlgorithm.FindLine(gray, algorithmParam);
-                algorithmWatch.Stop();
-                LastTimingInfo.AlgorithmMs = result == null || result.AlgorithmMs <= 0
-                    ? algorithmWatch.Elapsed.TotalMilliseconds
-                    : result.AlgorithmMs;
-
-                executeMeasureWatch.Stop();
-                LastTimingInfo.ExecuteMeasureMs = executeMeasureWatch.Elapsed.TotalMilliseconds;
-
-                return result;
+                return CaliperMeasurementAlgorithm.FindLine(gray, algorithmParam);
             }
             finally
             {
@@ -269,62 +174,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
 
         private Mat GetInputGrayMat(out bool disposeAfterUse)
         {
-            CaliperLineTimingInfo timing = LastTimingInfo ?? new CaliperLineTimingInfo();
-            LastTimingInfo = timing;
-            disposeAfterUse = false;
-
-            Stopwatch subscriptionWatch = Stopwatch.StartNew();
             OutputImage outputImage = nodeSubscription1.GetValue<OutputImage>();
-            subscriptionWatch.Stop();
-            timing.SubscriptionReadMs = subscriptionWatch.Elapsed.TotalMilliseconds;
-
-            if (outputImage == null)
-                throw new Exception("订阅图像为空！");
-
-            if (outputImage.GrayImg != null && !outputImage.GrayImg.Empty())
-                return CaptureSourceInfo(outputImage.GrayImg, "GrayImg", timing);
-
-            Mat source = GetSourceMat(outputImage, timing);
-            Stopwatch grayWatch = Stopwatch.StartNew();
-            Mat gray = CaliperMeasurementAlgorithm.ToGray(source);
-            grayWatch.Stop();
-
-            disposeAfterUse = true;
-            timing.GrayPrepareMs = grayWatch.Elapsed.TotalMilliseconds;
-            return CaptureSourceInfo(gray, $"运行时灰度转换({timing.InputSource})", timing);
-        }
-
-        /// <summary>
-        /// 选择上游输出中的第一张有效原图，并记录图像基础信息。
-        /// </summary>
-        private static Mat GetSourceMat(OutputImage outputImage, CaliperLineTimingInfo timing)
-        {
-            if (outputImage == null)
-                throw new Exception("订阅图像为空！");
-
-            if (outputImage.Bitmaps != null && outputImage.Bitmaps.Count > 0 && outputImage.Bitmaps[0] != null && !outputImage.Bitmaps[0].Empty())
-                return CaptureSourceInfo(outputImage.Bitmaps[0], "Bitmaps[0]", timing);
-
-            if (outputImage.SrcImg != null && !outputImage.SrcImg.Empty())
-                return CaptureSourceInfo(outputImage.SrcImg, "SrcImg", timing);
-
-            if (outputImage.GrayImg != null && !outputImage.GrayImg.Empty())
-                return CaptureSourceInfo(outputImage.GrayImg, "GrayImg", timing);
-
-            throw new Exception("订阅节点没有输出有效图像！");
-        }
-
-        /// <summary>
-        /// 记录输入图像基础信息后返回原始 Mat 引用，卡尺算法只读使用，不修改图像数据。
-        /// </summary>
-        private static Mat CaptureSourceInfo(Mat source, string inputSource, CaliperLineTimingInfo timing)
-        {
-            timing.InputSource = inputSource;
-            timing.InputWidth = source.Width;
-            timing.InputHeight = source.Height;
-            timing.InputChannels = source.Channels();
-            timing.InputBytes = source.Total() * source.ElemSize();
-            return source;
+            return MeasurementNodeHelper.GetReadOnlyGrayMat(outputImage, out disposeAfterUse);
         }
 
         /// <summary>
@@ -333,7 +184,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
         private Mat GetPreviewSourceMat()
         {
             OutputImage outputImage = nodeSubscription1.GetValue<OutputImage>();
-            return GetSourceMat(outputImage, new CaliperLineTimingInfo());
+            return MeasurementNodeHelper.GetReadOnlyPreviewMat(outputImage);
         }
 
         private NodeParamCaliperLine BuildRuntimeParam(NodeParamCaliperLine param)

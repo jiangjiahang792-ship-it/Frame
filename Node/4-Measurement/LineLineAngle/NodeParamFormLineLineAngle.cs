@@ -115,68 +115,71 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             ClearEditingRoi();
         }
 
-        internal LineLineAngleMeasureResult ExecuteMeasure(NodeParamLineLineAngle param, out Mat output)
+        internal LineLineAngleMeasureResult ExecuteMeasure(NodeParamLineLineAngle param)
         {
             var stopwatch = Stopwatch.StartNew();
-            using (Mat source = GetInputMat())
+            var result = new LineLineAngleMeasureResult();
+
+            MeasuredLine line1;
+            MeasuredLine line2;
+            if (param.SourceMode == MeasurementDataSourceMode.Subscribe)
             {
-                output = MeasurementNodeHelper.EnsureBgr(source);
-                var result = new LineLineAngleMeasureResult();
-
-                MeasuredLine line1;
-                MeasuredLine line2;
-                if (param.SourceMode == MeasurementDataSourceMode.Subscribe)
-                {
-                    line1 = ReadSubscribedLine(nodeSubscriptionLine1, "直线1");
-                    line2 = ReadSubscribedLine(nodeSubscriptionLine2, "直线2");
-                }
-                else
-                {
-                    using (Mat gray = CaliperMeasurementAlgorithm.ToGray(source))
-                    {
-                        NodeParamLineLineAngle runtimeParam = BuildRuntimeParam(param);
-                        CaliperLineMeasureResult line1Result = CaliperMeasurementAlgorithm.FindLine(gray, BuildLineParams(runtimeParam, true));
-                        CaliperLineMeasureResult line2Result = CaliperMeasurementAlgorithm.FindLine(gray, BuildLineParams(runtimeParam, false));
-                        result.Line1EdgePoints.AddRange(line1Result.EdgePoints);
-                        result.Line2EdgePoints.AddRange(line2Result.EdgePoints);
-
-                        if (!line1Result.Success)
-                            return FinishFailed(result, stopwatch, "直线1卡尺找线失败");
-                        if (!line2Result.Success)
-                            return FinishFailed(result, stopwatch, "直线2卡尺找线失败");
-
-                        line1 = new MeasuredLine { Start = line1Result.LineStart, End = line1Result.LineEnd, Source = "DrawLine1" };
-                        line2 = new MeasuredLine { Start = line2Result.LineStart, End = line2Result.LineEnd, Source = "DrawLine2" };
-                    }
-                }
-
-                if (line1 == null || !line1.IsValid)
-                    return FinishFailed(result, stopwatch, "直线1无效");
-                if (line2 == null || !line2.IsValid)
-                    return FinishFailed(result, stopwatch, "直线2无效");
-
-                result.Line1 = line1;
-                result.Line2 = line2;
-                result.Angle = GeometryMeasurementAlgorithm.CalculateLineLineAngle(
-                    line1.Start,
-                    line1.End,
-                    line2.Start,
-                    line2.End,
-                    param.MeasureMode,
-                    out PointF usedL1Start,
-                    out PointF usedL1End,
-                    out PointF usedL2Start,
-                    out PointF usedL2End,
-                    out PointF? intersectionPoint);
-
-                result.Line1 = new MeasuredLine { Start = usedL1Start, End = usedL1End, Source = line1.Source };
-                result.Line2 = new MeasuredLine { Start = usedL2Start, End = usedL2End, Source = line2.Source };
-                result.IntersectionPoint = intersectionPoint;
-                result.Success = true;
-                stopwatch.Stop();
-                result.AlgorithmMs = stopwatch.Elapsed.TotalMilliseconds;
-                return result;
+                line1 = ReadSubscribedLine(nodeSubscriptionLine1, "直线1");
+                line2 = ReadSubscribedLine(nodeSubscriptionLine2, "直线2");
             }
+            else
+            {
+                bool disposeGrayAfterUse;
+                Mat gray = GetInputGrayMat(out disposeGrayAfterUse);
+                try
+                {
+                    NodeParamLineLineAngle runtimeParam = BuildRuntimeParam(param);
+                    CaliperLineMeasureResult line1Result = CaliperMeasurementAlgorithm.FindLine(gray, BuildLineParams(runtimeParam, true));
+                    CaliperLineMeasureResult line2Result = CaliperMeasurementAlgorithm.FindLine(gray, BuildLineParams(runtimeParam, false));
+                    result.Line1EdgePoints.AddRange(line1Result.EdgePoints);
+                    result.Line2EdgePoints.AddRange(line2Result.EdgePoints);
+
+                    if (!line1Result.Success)
+                        return FinishFailed(result, stopwatch, "直线1卡尺找线失败");
+                    if (!line2Result.Success)
+                        return FinishFailed(result, stopwatch, "直线2卡尺找线失败");
+
+                    line1 = new MeasuredLine { Start = line1Result.LineStart, End = line1Result.LineEnd, Source = "DrawLine1" };
+                    line2 = new MeasuredLine { Start = line2Result.LineStart, End = line2Result.LineEnd, Source = "DrawLine2" };
+                }
+                finally
+                {
+                    if (disposeGrayAfterUse)
+                        gray?.Dispose();
+                }
+            }
+
+            if (line1 == null || !line1.IsValid)
+                return FinishFailed(result, stopwatch, "直线1无效");
+            if (line2 == null || !line2.IsValid)
+                return FinishFailed(result, stopwatch, "直线2无效");
+
+            result.Line1 = line1;
+            result.Line2 = line2;
+            result.Angle = GeometryMeasurementAlgorithm.CalculateLineLineAngle(
+                line1.Start,
+                line1.End,
+                line2.Start,
+                line2.End,
+                param.MeasureMode,
+                out PointF usedL1Start,
+                out PointF usedL1End,
+                out PointF usedL2Start,
+                out PointF usedL2End,
+                out PointF? intersectionPoint);
+
+            result.Line1 = new MeasuredLine { Start = usedL1Start, End = usedL1End, Source = line1.Source };
+            result.Line2 = new MeasuredLine { Start = usedL2Start, End = usedL2End, Source = line2.Source };
+            result.IntersectionPoint = intersectionPoint;
+            result.Success = true;
+            stopwatch.Stop();
+            result.AlgorithmMs = stopwatch.Elapsed.TotalMilliseconds;
+            return result;
         }
 
         private void InitializeCombos()
@@ -351,10 +354,19 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             }
         }
 
-        private Mat GetInputMat()
+        private Mat GetInputGrayMat(out bool disposeAfterUse)
         {
             OutputImage outputImage = nodeSubscriptionImage.GetValue<OutputImage>();
-            return MeasurementNodeHelper.GetFirstMat(outputImage);
+            return MeasurementNodeHelper.GetReadOnlyGrayMat(outputImage, out disposeAfterUse);
+        }
+
+        /// <summary>
+        /// 获取参数界面预览用的只读原图引用，不接管 Mat 生命周期。
+        /// </summary>
+        private Mat GetPreviewMat()
+        {
+            OutputImage outputImage = nodeSubscriptionImage.GetValue<OutputImage>();
+            return MeasurementNodeHelper.GetReadOnlyPreviewMat(outputImage);
         }
 
         private MeasuredLine ReadSubscribedLine(NodeSubscription subscription, string name)
@@ -755,11 +767,8 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         {
             try
             {
-                using (Mat input = GetInputMat())
-                {
-                    SetPreview(input);
-                    showImageControl1.ShowFit();
-                }
+                SetPreview(GetPreviewMat());
+                showImageControl1.ShowFit();
             }
             catch (Exception ex)
             {
@@ -792,13 +801,9 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
 
             try
             {
-                Mat output;
-                LineLineAngleMeasureResult result = ExecuteMeasure((NodeParamLineLineAngle)Params, out output);
-                using (output)
-                {
-                    SetPreview(output);
-                    showImageControl1.SetDisplayResult(NodeLineLineAngle.BuildDisplayResult(result));
-                }
+                LineLineAngleMeasureResult result = ExecuteMeasure((NodeParamLineLineAngle)Params);
+                SetPreview(GetPreviewMat());
+                showImageControl1.SetDisplayResult(NodeLineLineAngle.BuildDisplayResult(result));
 
                 if (!result.Success)
                     MessageBoxTD.Show($"线到线夹角失败：{result.Message}");

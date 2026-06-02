@@ -2,6 +2,7 @@ using Logger;
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
@@ -47,6 +48,11 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
         public INodeParam Params { get; set; }
 
         /// <summary>
+        /// 最近一次找点运行的分段耗时信息。
+        /// </summary>
+        internal FindPointTimingInfo LastTimingInfo { get; private set; }
+
+        /// <summary>
         /// Binds subscription controls to the owning node.
         /// </summary>
         /// <param name="node">Node that owns this parameter form.</param>
@@ -89,15 +95,43 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
         /// </summary>
         /// <param name="param">Runtime parameters.</param>
         /// <param name="token">Cancellation token from process runtime.</param>
-        /// <param name="output">Clean preview image, with overlays stored separately in result metadata.</param>
         /// <returns>Measurement result containing ordered contours and flattened points.</returns>
-        internal FindPointMeasureResult ExecuteMeasure(NodeParamFindPoint param, CancellationToken token, out Mat output)
+        internal FindPointMeasureResult ExecuteMeasure(NodeParamFindPoint param, CancellationToken token)
         {
-            using (Mat source = GetInputMat())
+            Stopwatch executeMeasureWatch = Stopwatch.StartNew();
+            LastTimingInfo = new FindPointTimingInfo();
+            bool disposeGrayAfterUse = false;
+            Mat gray = null;
+            try
             {
+                gray = GetInputGrayMat(out disposeGrayAfterUse);
+                Stopwatch runtimeParamWatch = Stopwatch.StartNew();
                 NodeParamFindPoint runtimeParam = BuildRuntimeParam(param);
-                output = MeasurementNodeHelper.EnsureBgr(source);
-                return FindPointAlgorithm.Execute(source, runtimeParam, token);
+                runtimeParamWatch.Stop();
+                LastTimingInfo.RuntimeParamMs = runtimeParamWatch.Elapsed.TotalMilliseconds;
+
+                Stopwatch algorithmWatch = Stopwatch.StartNew();
+                FindPointMeasureResult result = FindPointAlgorithm.Execute(gray, runtimeParam, token);
+                algorithmWatch.Stop();
+                LastTimingInfo.AlgorithmMs = result == null || result.AlgorithmMs <= 0
+                    ? algorithmWatch.Elapsed.TotalMilliseconds
+                    : result.AlgorithmMs;
+                if (result != null)
+                {
+                    LastTimingInfo.ProcessedRegionCount = result.ProcessedRegionCount;
+                    LastTimingInfo.ProcessedPixelCount = result.ProcessedPixelCount;
+                }
+
+                return result;
+            }
+            finally
+            {
+                executeMeasureWatch.Stop();
+                if (LastTimingInfo != null)
+                    LastTimingInfo.ExecuteMeasureMs = executeMeasureWatch.Elapsed.TotalMilliseconds;
+
+                if (disposeGrayAfterUse)
+                    gray?.Dispose();
             }
         }
 
@@ -116,13 +150,87 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
         }
 
         /// <summary>
-        /// Reads the subscribed output image as an OpenCV matrix.
+        /// Reads the subscribed output image as a read-only grayscale OpenCV matrix.
         /// </summary>
-        /// <returns>A cloned input image matrix.</returns>
-        private Mat GetInputMat()
+        private Mat GetInputGrayMat(out bool disposeAfterUse)
+        {
+            FindPointTimingInfo timing = LastTimingInfo ?? new FindPointTimingInfo();
+            LastTimingInfo = timing;
+
+            Stopwatch subscriptionWatch = Stopwatch.StartNew();
+            OutputImage outputImage = nodeSubscriptionImage.GetValue<OutputImage>();
+            subscriptionWatch.Stop();
+            timing.SubscriptionReadMs = subscriptionWatch.Elapsed.TotalMilliseconds;
+
+            Stopwatch grayAcquireWatch = Stopwatch.StartNew();
+            Mat gray = GetReadOnlyGrayMat(outputImage, timing, out disposeAfterUse);
+            grayAcquireWatch.Stop();
+            timing.GrayAcquireMs = grayAcquireWatch.Elapsed.TotalMilliseconds;
+            timing.TemporaryGrayCreated = disposeAfterUse;
+            return gray;
+        }
+
+        /// <summary>
+        /// 获取只读灰度图并记录来源；优先复用图像源的 GrayImg，只有缺失时才临时转换。
+        /// </summary>
+        private static Mat GetReadOnlyGrayMat(OutputImage outputImage, FindPointTimingInfo timing, out bool disposeAfterUse)
+        {
+            disposeAfterUse = false;
+            if (outputImage == null)
+                throw new Exception("订阅图像为空。");
+
+            if (outputImage.GrayImg != null && !outputImage.GrayImg.Empty())
+                return CaptureInputInfo(outputImage.GrayImg, "GrayImg", timing);
+
+            Mat source = GetReadOnlyPreviewMat(outputImage, timing);
+            if (source.Channels() == 1)
+                return CaptureInputInfo(source, timing.InputSource, timing);
+
+            disposeAfterUse = true;
+            Mat gray = CaliperMeasurementAlgorithm.ToGray(source);
+            return CaptureInputInfo(gray, "运行时灰度转换(" + timing.InputSource + ")", timing);
+        }
+
+        /// <summary>
+        /// 选择上游输出中的第一张有效预览图引用，并记录图像来源。
+        /// </summary>
+        private static Mat GetReadOnlyPreviewMat(OutputImage outputImage, FindPointTimingInfo timing)
+        {
+            if (outputImage == null)
+                throw new Exception("订阅图像为空。");
+
+            if (outputImage.Bitmaps != null && outputImage.Bitmaps.Count > 0 && outputImage.Bitmaps[0] != null && !outputImage.Bitmaps[0].Empty())
+                return CaptureInputInfo(outputImage.Bitmaps[0], "Bitmaps[0]", timing);
+
+            if (outputImage.SrcImg != null && !outputImage.SrcImg.Empty())
+                return CaptureInputInfo(outputImage.SrcImg, "SrcImg", timing);
+
+            if (outputImage.GrayImg != null && !outputImage.GrayImg.Empty())
+                return CaptureInputInfo(outputImage.GrayImg, "GrayImg", timing);
+
+            throw new Exception("订阅节点没有输出有效图像。");
+        }
+
+        /// <summary>
+        /// 记录输入算法的图像基础信息后返回原始 Mat 引用，找点算法只读使用。
+        /// </summary>
+        private static Mat CaptureInputInfo(Mat source, string inputSource, FindPointTimingInfo timing)
+        {
+            timing.InputSource = inputSource;
+            timing.InputWidth = source.Width;
+            timing.InputHeight = source.Height;
+            timing.InputChannels = source.Channels();
+            timing.InputBytes = source.Total() * source.ElemSize();
+            return source;
+        }
+
+        /// <summary>
+        /// Reads the subscribed output image as a read-only preview matrix.
+        /// </summary>
+        private Mat GetPreviewMat()
         {
             OutputImage outputImage = nodeSubscriptionImage.GetValue<OutputImage>();
-            return MeasurementNodeHelper.GetFirstMat(outputImage);
+            return MeasurementNodeHelper.GetReadOnlyPreviewMat(outputImage);
         }
 
         /// <summary>
@@ -206,11 +314,8 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
             {
                 if (showImageControlPreview.Image == null)
                 {
-                    using (Mat input = GetInputMat())
-                    {
-                        SetPreview(input);
-                        showImageControlPreview.ShowFit();
-                    }
+                    SetPreview(GetPreviewMat());
+                    showImageControlPreview.ShowFit();
                 }
 
                 RectangleF rect = BuildDefaultRoiRect();
@@ -267,12 +372,9 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
         {
             try
             {
-                using (Mat input = GetInputMat())
-                {
-                    SetPreview(input);
-                    showImageControlPreview.ShowFit();
-                    RedrawConfirmedRegions();
-                }
+                SetPreview(GetPreviewMat());
+                showImageControlPreview.ShowFit();
+                RedrawConfirmedRegions();
             }
             catch (Exception ex)
             {
@@ -290,13 +392,9 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
 
             try
             {
-                Mat output;
-                FindPointMeasureResult result = ExecuteMeasure((NodeParamFindPoint)Params, CancellationToken.None, out output);
-                using (output)
-                {
-                    SetPreview(output);
-                    showImageControlPreview.SetDisplayResult(NodeFindPoint.BuildDisplayResult(result));
-                }
+                FindPointMeasureResult result = ExecuteMeasure((NodeParamFindPoint)Params, CancellationToken.None);
+                SetPreview(GetPreviewMat());
+                showImageControlPreview.SetDisplayResult(NodeFindPoint.BuildDisplayResult(result));
 
                 labelStatus.Text = string.Format(
                     CultureInfo.InvariantCulture,
@@ -530,6 +628,93 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
                 .Where(region => region != null && region.Count >= 3)
                 .Select(region => region.Select(point => new PointF(point.X, point.Y)).ToList())
                 .ToList();
+        }
+    }
+
+    /// <summary>
+    /// 找点工具单次运行的分段耗时信息，用于确认灰度图复用和算法外开销。
+    /// </summary>
+    internal sealed class FindPointTimingInfo
+    {
+        /// <summary>
+        /// 订阅读取上游图像结果耗时，单位毫秒。
+        /// </summary>
+        public double SubscriptionReadMs { get; set; }
+
+        /// <summary>
+        /// 获取只读灰度图引用或临时灰度图的耗时，单位毫秒。
+        /// </summary>
+        public double GrayAcquireMs { get; set; }
+
+        /// <summary>
+        /// 构建运行时参数和位置修正后的 ROI 耗时，单位毫秒。
+        /// </summary>
+        public double RuntimeParamMs { get; set; }
+
+        /// <summary>
+        /// 找点算法内部耗时，单位毫秒。
+        /// </summary>
+        public double AlgorithmMs { get; set; }
+
+        /// <summary>
+        /// ExecuteMeasure 方法整体耗时，单位毫秒。
+        /// </summary>
+        public double ExecuteMeasureMs { get; set; }
+
+        /// <summary>
+        /// 输入图像来源，例如 GrayImg、Bitmaps[0] 或运行时灰度转换来源。
+        /// </summary>
+        public string InputSource { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 输入算法的图像宽度，单位像素。
+        /// </summary>
+        public int InputWidth { get; set; }
+
+        /// <summary>
+        /// 输入算法的图像高度，单位像素。
+        /// </summary>
+        public int InputHeight { get; set; }
+
+        /// <summary>
+        /// 输入算法的图像通道数。
+        /// </summary>
+        public int InputChannels { get; set; }
+
+        /// <summary>
+        /// 输入算法的图像估算字节数。
+        /// </summary>
+        public long InputBytes { get; set; }
+
+        /// <summary>
+        /// 本次运行是否因为上游没有 GrayImg 而临时创建灰度图。
+        /// </summary>
+        public bool TemporaryGrayCreated { get; set; }
+
+        /// <summary>
+        /// 本次算法实际处理的 ROI 区域数量。
+        /// </summary>
+        public int ProcessedRegionCount { get; set; }
+
+        /// <summary>
+        /// 本次算法实际处理的局部图像像素数。
+        /// </summary>
+        public long ProcessedPixelCount { get; set; }
+
+        /// <summary>
+        /// 本次算法实际处理的局部图像容量，单位百万像素。
+        /// </summary>
+        public double ProcessedMegaPixels
+        {
+            get { return ProcessedPixelCount <= 0 ? 0 : ProcessedPixelCount / 1000000.0; }
+        }
+
+        /// <summary>
+        /// 输入算法的图像估算容量，单位 MB。
+        /// </summary>
+        public double InputMegaBytes
+        {
+            get { return InputBytes <= 0 ? 0 : InputBytes / 1024.0 / 1024.0; }
         }
     }
 }

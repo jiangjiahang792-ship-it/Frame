@@ -115,54 +115,57 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             ClearEditingRoi();
         }
 
-        internal PointPointDistanceMeasureResult ExecuteMeasure(NodeParamPointPointDistance param, out Mat output)
+        internal PointPointDistanceMeasureResult ExecuteMeasure(NodeParamPointPointDistance param)
         {
             var stopwatch = Stopwatch.StartNew();
-            using (Mat source = GetInputMat())
+            var result = new PointPointDistanceMeasureResult();
+            PointF point1;
+            PointF point2;
+
+            if (param.SourceMode == MeasurementDataSourceMode.Subscribe)
             {
-                output = MeasurementNodeHelper.EnsureBgr(source);
-                var result = new PointPointDistanceMeasureResult();
-                PointF point1;
-                PointF point2;
-
-                if (param.SourceMode == MeasurementDataSourceMode.Subscribe)
-                {
-                    point1 = ReadSubscribedPoint(nodeSubscriptionPoint1, param.Point1Role, "点1");
-                    point2 = ReadSubscribedPoint(nodeSubscriptionPoint2, param.Point2Role, "点2");
-                }
-                else
-                {
-                    using (Mat gray = CaliperMeasurementAlgorithm.ToGray(source))
-                    {
-                        NodeParamPointPointDistance runtimeParam = BuildRuntimeParam(param);
-                        CaliperCircleMeasureResult point1Result = CaliperMeasurementAlgorithm.FindCircle(gray, BuildCircleParams(runtimeParam, true));
-                        CaliperCircleMeasureResult point2Result = CaliperMeasurementAlgorithm.FindCircle(gray, BuildCircleParams(runtimeParam, false));
-                        result.Point1EdgePoints.AddRange(point1Result.EdgePoints);
-                        result.Point2EdgePoints.AddRange(point2Result.EdgePoints);
-
-                        if (!point1Result.Success)
-                            return FinishFailed(result, stopwatch, "点1圆卡尺找圆失败");
-                        if (!point2Result.Success)
-                            return FinishFailed(result, stopwatch, "点2圆卡尺找圆失败");
-
-                        point1 = point1Result.Center;
-                        point2 = point2Result.Center;
-                    }
-                }
-
-                result.Distance = GeometryMeasurementAlgorithm.CalculatePointDistance(
-                    point1,
-                    point2,
-                    param.MeasureMode,
-                    out PointF usedPoint1,
-                    out PointF usedPoint2);
-                result.Point1 = usedPoint1;
-                result.Point2 = usedPoint2;
-                result.Success = true;
-                stopwatch.Stop();
-                result.AlgorithmMs = stopwatch.Elapsed.TotalMilliseconds;
-                return result;
+                point1 = ReadSubscribedPoint(nodeSubscriptionPoint1, param.Point1Role, "点1");
+                point2 = ReadSubscribedPoint(nodeSubscriptionPoint2, param.Point2Role, "点2");
             }
+            else
+            {
+                bool disposeGrayAfterUse;
+                Mat gray = GetInputGrayMat(out disposeGrayAfterUse);
+                try
+                {
+                    NodeParamPointPointDistance runtimeParam = BuildRuntimeParam(param);
+                    CaliperCircleMeasureResult point1Result = CaliperMeasurementAlgorithm.FindCircle(gray, BuildCircleParams(runtimeParam, true));
+                    CaliperCircleMeasureResult point2Result = CaliperMeasurementAlgorithm.FindCircle(gray, BuildCircleParams(runtimeParam, false));
+                    result.Point1EdgePoints.AddRange(point1Result.EdgePoints);
+                    result.Point2EdgePoints.AddRange(point2Result.EdgePoints);
+
+                    if (!point1Result.Success)
+                        return FinishFailed(result, stopwatch, "点1圆卡尺找圆失败");
+                    if (!point2Result.Success)
+                        return FinishFailed(result, stopwatch, "点2圆卡尺找圆失败");
+
+                    point1 = point1Result.Center;
+                    point2 = point2Result.Center;
+                }
+                finally
+                {
+                    if (disposeGrayAfterUse)
+                        gray?.Dispose();
+                }
+            }
+
+            result.Distance = GeometryMeasurementAlgorithm.CalculatePointDistance(
+                point1,
+                point2,
+                param.MeasureMode,
+                out PointF usedPoint1,
+                out PointF usedPoint2);
+            result.Point1 = usedPoint1;
+            result.Point2 = usedPoint2;
+            result.Success = true;
+            stopwatch.Stop();
+            result.AlgorithmMs = stopwatch.Elapsed.TotalMilliseconds;
+            return result;
         }
 
         private void InitializeCombos()
@@ -349,10 +352,19 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             }
         }
 
-        private Mat GetInputMat()
+        private Mat GetInputGrayMat(out bool disposeAfterUse)
         {
             OutputImage outputImage = nodeSubscriptionImage.GetValue<OutputImage>();
-            return MeasurementNodeHelper.GetFirstMat(outputImage);
+            return MeasurementNodeHelper.GetReadOnlyGrayMat(outputImage, out disposeAfterUse);
+        }
+
+        /// <summary>
+        /// 获取参数界面预览用的只读原图引用，不接管 Mat 生命周期。
+        /// </summary>
+        private Mat GetPreviewMat()
+        {
+            OutputImage outputImage = nodeSubscriptionImage.GetValue<OutputImage>();
+            return MeasurementNodeHelper.GetReadOnlyPreviewMat(outputImage);
         }
 
         private PointF ReadSubscribedPoint(NodeSubscription subscription, MeasurementPointRole role, string name)
@@ -737,11 +749,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
         {
             try
             {
-                using (Mat input = GetInputMat())
-                {
-                    SetPreview(input);
-                    showImageControl1.ShowFit();
-                }
+                SetPreview(GetPreviewMat());
+                showImageControl1.ShowFit();
             }
             catch (Exception ex)
             {
@@ -774,13 +783,9 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
 
             try
             {
-                Mat output;
-                PointPointDistanceMeasureResult result = ExecuteMeasure((NodeParamPointPointDistance)Params, out output);
-                using (output)
-                {
-                    SetPreview(output);
-                    showImageControl1.SetDisplayResult(NodePointPointDistance.BuildDisplayResult(result));
-                }
+                PointPointDistanceMeasureResult result = ExecuteMeasure((NodeParamPointPointDistance)Params);
+                SetPreview(GetPreviewMat());
+                showImageControl1.SetDisplayResult(NodePointPointDistance.BuildDisplayResult(result));
 
                 if (!result.Success)
                     MessageBoxTD.Show($"点到点距离失败：{result.Message}");

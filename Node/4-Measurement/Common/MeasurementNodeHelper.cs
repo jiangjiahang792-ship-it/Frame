@@ -8,6 +8,9 @@ namespace TDJS_Vision.Node._4_Measurement.Common
 {
     internal static class MeasurementNodeHelper
     {
+        /// <summary>
+        /// 获取第一张有效图像的深拷贝，供需要修改像素的旧节点继续使用。
+        /// </summary>
         public static Mat GetFirstMat(OutputImage outputImage)
         {
             if (outputImage == null)
@@ -20,6 +23,46 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 return outputImage.SrcImg.Clone();
 
             throw new Exception("订阅节点没有输出有效图像！");
+        }
+
+        /// <summary>
+        /// 获取只读预览图像引用，优先返回彩色原图，不接管 Mat 生命周期。
+        /// </summary>
+        public static Mat GetReadOnlyPreviewMat(OutputImage outputImage)
+        {
+            if (outputImage == null)
+                throw new Exception("订阅图像为空！");
+
+            if (outputImage.Bitmaps != null && outputImage.Bitmaps.Count > 0 && outputImage.Bitmaps[0] != null && !outputImage.Bitmaps[0].Empty())
+                return outputImage.Bitmaps[0];
+
+            if (outputImage.SrcImg != null && !outputImage.SrcImg.Empty())
+                return outputImage.SrcImg;
+
+            if (outputImage.GrayImg != null && !outputImage.GrayImg.Empty())
+                return outputImage.GrayImg;
+
+            throw new Exception("订阅节点没有输出有效图像！");
+        }
+
+        /// <summary>
+        /// 获取只读灰度图像，优先复用图像源的 GrayImg；无灰度缓存时才临时转换。
+        /// </summary>
+        public static Mat GetReadOnlyGrayMat(OutputImage outputImage, out bool disposeAfterUse)
+        {
+            disposeAfterUse = false;
+            if (outputImage == null)
+                throw new Exception("订阅图像为空！");
+
+            if (outputImage.GrayImg != null && !outputImage.GrayImg.Empty())
+                return outputImage.GrayImg;
+
+            Mat source = GetReadOnlyPreviewMat(outputImage);
+            if (source.Channels() == 1)
+                return source;
+
+            disposeAfterUse = true;
+            return CaliperMeasurementAlgorithm.ToGray(source);
         }
 
         public static Bitmap ToPreviewBitmap(Mat image)

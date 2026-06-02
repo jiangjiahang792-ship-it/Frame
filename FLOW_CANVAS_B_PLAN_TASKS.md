@@ -26,7 +26,13 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
   - [x] 运行日志确认：4024x3036x3 图像下，卡尺算法约 0.21ms，但深拷贝、全图灰度转换和输出图准备合计约 50ms。
   - [x] 已将 `ImageSource` 输出扩展为原图、兼容旧节点的 `Bitmaps[0]` 和灰度图缓存 `GrayImg`，让只读测量节点复用源头灰度图。
   - [x] `CaliperLine` 已切换为默认读取 `OutputImage.GrayImg`，运行时不再深拷贝输入图、不再重复整图转灰度、不再输出完整图像，只输出结果字段和 `OutputImage.DisplayResult` 叠加层。
-  - [ ] 后续按同一模式评估 `CaliperCircle`、`CaliperEllipse`、`FindPoint`、点线/点点/区域距离等只读测量节点。
+  - [x] Measurement folder GrayImg rollout: `CaliperCircle`、`CaliperEllipse`、`FindPoint`、`LineLineAngle`、`PointLineDistance`、`PointPointDistance`、`PointRegionDistance` 已统一改为算法读取 `GrayImg`、预览读取只读原图引用、运行结果只输出字段和 `DisplayResult`。
+  - [x] 订阅型组合测量在运行时不再读取图像，只有绘制 ROI 并需要卡尺算法时才读取灰度图。
+  - [x] 已删除 `CaliperLine` 临时性能诊断日志，保留已验证的 `GrayImg` 只读输入和 `DisplayResult` 输出模式。
+  - [x] 已给 `FindPoint` 增加分段耗时日志，拆分订阅读取、灰度取图、临时灰度、位置修正/参数准备、算法、结果组装、结果发布和节点总耗时。
+  - [x] 修复 `FindPointTimingInfo` 放在 WinForms 参数窗体类前导致 `.resx` manifest 资源名跑偏的问题，确保打开方案时能找到 `NodeParamFormFindPoint.resources`。
+  - [x] `FindPoint` 算法从整图 `GaussianBlur/Canny/Mask/FindContours` 改为按 ROI 包围矩形局部处理，并在性能日志中追加 `ROI区域` 和 `ROI像素约`，用于确认算法实际处理面积。
+  - [ ] 后续按同一模式评估非测量目录中的检测、结果处理和图像预处理节点。
 - Completed through the first **Phase 10: Runtime State On Canvas** code pass.
 - Fixed one graph runtime scheduling regression found during Phase 10 checks:
   - [x] For `A -> B` plus standalone `C`, running `A` now completes the `A -> B` component before moving to independent source node `C`.

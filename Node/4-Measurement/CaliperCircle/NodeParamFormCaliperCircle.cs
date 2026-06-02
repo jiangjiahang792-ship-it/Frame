@@ -69,10 +69,11 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             ClearEditingRoi();
         }
 
-        internal CaliperCircleMeasureResult ExecuteMeasure(NodeParamCaliperCircle param, out Mat output)
+        internal CaliperCircleMeasureResult ExecuteMeasure(NodeParamCaliperCircle param)
         {
-            using (Mat source = GetInputMat())
-            using (Mat gray = CaliperMeasurementAlgorithm.ToGray(source))
+            bool disposeGrayAfterUse;
+            Mat gray = GetInputGrayMat(out disposeGrayAfterUse);
+            try
             {
                 NodeParamCaliperCircle runtimeParam = BuildRuntimeParam(param);
                 var algorithmParam = new CaliperCircleParams
@@ -95,9 +96,12 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 };
 
                 CaliperCircleMeasureResult result = CaliperMeasurementAlgorithm.FindCircle(gray, algorithmParam);
-                output = MeasurementNodeHelper.EnsureBgr(source);
-
                 return result;
+            }
+            finally
+            {
+                if (disposeGrayAfterUse)
+                    gray?.Dispose();
             }
         }
 
@@ -177,10 +181,19 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             }
         }
 
-        private Mat GetInputMat()
+        private Mat GetInputGrayMat(out bool disposeAfterUse)
         {
             OutputImage outputImage = nodeSubscription1.GetValue<OutputImage>();
-            return MeasurementNodeHelper.GetFirstMat(outputImage);
+            return MeasurementNodeHelper.GetReadOnlyGrayMat(outputImage, out disposeAfterUse);
+        }
+
+        /// <summary>
+        /// 获取参数界面预览用的只读原图引用，不接管 Mat 生命周期。
+        /// </summary>
+        private Mat GetPreviewMat()
+        {
+            OutputImage outputImage = nodeSubscription1.GetValue<OutputImage>();
+            return MeasurementNodeHelper.GetReadOnlyPreviewMat(outputImage);
         }
 
         private NodeParamCaliperCircle BuildRuntimeParam(NodeParamCaliperCircle param)
@@ -362,13 +375,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
 
             try
             {
-                Mat output;
-                CaliperCircleMeasureResult result = ExecuteMeasure((NodeParamCaliperCircle)Params, out output);
-                using (output)
-                {
-                    SetPreview(output);
-                    showImageControl1.SetDisplayResult(NodeCaliperCircle.BuildDisplayResult(result));
-                }
+                CaliperCircleMeasureResult result = ExecuteMeasure((NodeParamCaliperCircle)Params);
+                SetPreview(GetPreviewMat());
+                showImageControl1.SetDisplayResult(NodeCaliperCircle.BuildDisplayResult(result));
 
                 if (!result.Success)
                     MessageBoxTD.Show(string.IsNullOrWhiteSpace(result.ErrorMessage) ? $"卡尺找圆失败，边缘点数量：{result.PointCount}" : result.ErrorMessage);
@@ -384,11 +393,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
         {
             try
             {
-                using (Mat input = GetInputMat())
-                {
-                    SetPreview(input);
-                    showImageControl1.ShowFit();
-                }
+                SetPreview(GetPreviewMat());
+                showImageControl1.ShowFit();
             }
             catch (Exception ex)
             {

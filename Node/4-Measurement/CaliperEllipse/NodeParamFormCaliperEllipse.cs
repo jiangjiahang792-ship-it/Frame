@@ -69,10 +69,11 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             ClearEditingRoi();
         }
 
-        internal CaliperEllipseMeasureResult ExecuteMeasure(NodeParamCaliperEllipse param, out Mat output)
+        internal CaliperEllipseMeasureResult ExecuteMeasure(NodeParamCaliperEllipse param)
         {
-            using (Mat source = GetInputMat())
-            using (Mat gray = CaliperMeasurementAlgorithm.ToGray(source))
+            bool disposeGrayAfterUse;
+            Mat gray = GetInputGrayMat(out disposeGrayAfterUse);
+            try
             {
                 NodeParamCaliperEllipse runtimeParam = BuildRuntimeParam(param);
                 var algorithmParam = new CaliperEllipseParams
@@ -95,9 +96,12 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 };
 
                 CaliperEllipseMeasureResult result = CaliperMeasurementAlgorithm.FindEllipse(gray, algorithmParam);
-                output = MeasurementNodeHelper.EnsureBgr(source);
-
                 return result;
+            }
+            finally
+            {
+                if (disposeGrayAfterUse)
+                    gray?.Dispose();
             }
         }
 
@@ -176,10 +180,19 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             }
         }
 
-        private Mat GetInputMat()
+        private Mat GetInputGrayMat(out bool disposeAfterUse)
         {
             OutputImage outputImage = nodeSubscription1.GetValue<OutputImage>();
-            return MeasurementNodeHelper.GetFirstMat(outputImage);
+            return MeasurementNodeHelper.GetReadOnlyGrayMat(outputImage, out disposeAfterUse);
+        }
+
+        /// <summary>
+        /// 获取参数界面预览用的只读原图引用，不接管 Mat 生命周期。
+        /// </summary>
+        private Mat GetPreviewMat()
+        {
+            OutputImage outputImage = nodeSubscription1.GetValue<OutputImage>();
+            return MeasurementNodeHelper.GetReadOnlyPreviewMat(outputImage);
         }
 
         private NodeParamCaliperEllipse BuildRuntimeParam(NodeParamCaliperEllipse param)
@@ -338,13 +351,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
 
             try
             {
-                Mat output;
-                CaliperEllipseMeasureResult result = ExecuteMeasure((NodeParamCaliperEllipse)Params, out output);
-                using (output)
-                {
-                    SetPreview(output);
-                    showImageControl1.SetDisplayResult(NodeCaliperEllipse.BuildDisplayResult(result));
-                }
+                CaliperEllipseMeasureResult result = ExecuteMeasure((NodeParamCaliperEllipse)Params);
+                SetPreview(GetPreviewMat());
+                showImageControl1.SetDisplayResult(NodeCaliperEllipse.BuildDisplayResult(result));
 
                 if (!result.Success)
                     MessageBoxTD.Show(string.IsNullOrWhiteSpace(result.ErrorMessage) ? $"卡尺找椭圆失败，边缘点数量：{result.PointCount}" : result.ErrorMessage);
@@ -360,11 +369,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
         {
             try
             {
-                using (Mat input = GetInputMat())
-                {
-                    SetPreview(input);
-                    showImageControl1.ShowFit();
-                }
+                SetPreview(GetPreviewMat());
+                showImageControl1.ShowFit();
             }
             catch (Exception ex)
             {
