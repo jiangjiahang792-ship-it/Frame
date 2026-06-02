@@ -2,6 +2,7 @@ using Logger;
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,6 +39,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
 
             try
             {
+                Stopwatch nodeRunWatch = Stopwatch.StartNew();
                 SetStatus(NodeStatus.Unexecuted, "*");
                 base.CheckTokenCancel(token);
 
@@ -46,14 +48,32 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 if (form == null || param == null)
                     throw new Exception("卡尺找线参数异常！");
 
-                CaliperLineMeasureResult measureResult = form.ExecuteMeasure(param, out Mat output);
+                Stopwatch executeMeasureWatch = Stopwatch.StartNew();
+                CaliperLineMeasureResult measureResult = form.ExecuteMeasure(param);
+                executeMeasureWatch.Stop();
                 if (measureResult == null)
                     throw new Exception("Caliper line measurement returned no result.");
 
-                NodeResultCaliperLine nodeResult = BuildResult(measureResult, output);
+                Stopwatch buildResultWatch = Stopwatch.StartNew();
+                NodeResultCaliperLine nodeResult = BuildResult(measureResult);
+                buildResultWatch.Stop();
+
+                Stopwatch resultPublishWatch = Stopwatch.StartNew();
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
+                resultPublishWatch.Stop();
+                nodeRunWatch.Stop();
+
+                if (showLog)
+                    WritePerformanceLog(
+                        this,
+                        form.LastTimingInfo,
+                        executeMeasureWatch.Elapsed.TotalMilliseconds,
+                        buildResultWatch.Elapsed.TotalMilliseconds,
+                        resultPublishWatch.Elapsed.TotalMilliseconds,
+                        nodeRunWatch.Elapsed.TotalMilliseconds,
+                        time);
 
                 if (showLog && measureResult.Success)
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，边缘点：{measureResult.PointCount})", true);
@@ -79,7 +99,40 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             }
         }
 
-        internal static NodeResultCaliperLine BuildResult(CaliperLineMeasureResult measureResult, Mat output)
+        /// <summary>
+        /// 打印卡尺找线的分段性能诊断日志，方便定位图像深拷贝、算法和其它开销。
+        /// </summary>
+        private static void WritePerformanceLog(NodeCaliperLine node, CaliperLineTimingInfo timing, double executeMeasureMs, double buildResultMs, double resultPublishMs, double nodeRunMs, int reportedRunTime)
+        {
+            if (timing == null)
+            {
+                LogHelper.AddLog(MsgLevel.Info, $"【性能诊断-卡尺找线】节点({node.ID}.{node.NodeName}) 图像=未知；ExecuteMeasure={executeMeasureMs:F2}ms；结果组装={buildResultMs:F2}ms；结果发布={resultPublishMs:F2}ms；节点总耗时={nodeRunMs:F2}ms；状态耗时={reportedRunTime}ms", true);
+                return;
+            }
+
+            double measuredExecuteMeasureMs = timing.ExecuteMeasureMs > 0 ? timing.ExecuteMeasureMs : executeMeasureMs;
+            double executeOtherMs = measuredExecuteMeasureMs
+                - timing.SubscriptionReadMs
+                - timing.ImageCloneMs
+                - timing.GrayPrepareMs
+                - timing.PositionCorrectionMs
+                - timing.AlgorithmMs
+                - timing.OutputPrepareMs;
+            if (executeOtherMs < 0)
+                executeOtherMs = 0;
+
+            string inputSource = string.IsNullOrWhiteSpace(timing.InputSource) ? "未知" : timing.InputSource;
+            string imageInfo = timing.InputWidth > 0 && timing.InputHeight > 0
+                ? $"{timing.InputWidth}x{timing.InputHeight}x{timing.InputChannels}，约{timing.InputMegaBytes:F2}MB，来源={inputSource}"
+                : $"未知，来源={inputSource}";
+
+            LogHelper.AddLog(
+                MsgLevel.Info,
+                $"【性能诊断-卡尺找线】节点({node.ID}.{node.NodeName}) 图像={imageInfo}；订阅读取={timing.SubscriptionReadMs:F2}ms；深拷贝图={timing.ImageCloneMs:F2}ms；灰度准备={timing.GrayPrepareMs:F2}ms；位置修正={timing.PositionCorrectionMs:F2}ms；算法={timing.AlgorithmMs:F2}ms；输出图准备={timing.OutputPrepareMs:F2}ms；执行其它={executeOtherMs:F2}ms；结果组装={buildResultMs:F2}ms；结果发布={resultPublishMs:F2}ms；ExecuteMeasure={measuredExecuteMeasureMs:F2}ms；节点总耗时={nodeRunMs:F2}ms；状态耗时={reportedRunTime}ms",
+                true);
+        }
+
+        internal static NodeResultCaliperLine BuildResult(CaliperLineMeasureResult measureResult)
         {
             var result = new NodeResultCaliperLine();
             result.IsOk = measureResult.Success;
@@ -95,7 +148,6 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 result.Angle = Math.Atan2(measureResult.LineEnd.Y - measureResult.LineStart.Y, measureResult.LineEnd.X - measureResult.LineStart.X) * 180.0 / Math.PI;
             }
             result.AlgorithmMs = measureResult.AlgorithmMs;
-            result.OutputImage.Bitmaps = new List<Mat> { output };
             result.Result = BuildDisplayResult(measureResult);
             result.OutputImage.DisplayResult = result.Result;
             return result;

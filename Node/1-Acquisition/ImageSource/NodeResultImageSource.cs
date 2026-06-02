@@ -17,7 +17,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
     }
     /// <summary>
-    /// 每个节点输出的图像，只有其中一个属性有效
+    /// 节点输出图像数据，图像源会同时提供原图、常规图像列表和灰度图缓存。
     /// </summary>
     public class OutputImage 
     {
@@ -25,8 +25,14 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// 原图像
         /// </summary>
         public Mat SrcImg { get; set; } = new Mat();
+
         /// <summary>
-        /// 节点输出多张图像就存在图像列表
+        /// 灰度图缓存，供卡尺、测量等只读灰度算法直接订阅，避免每个节点重复整图转灰度。
+        /// </summary>
+        public Mat GrayImg { get; set; } = new Mat();
+
+        /// <summary>
+        /// 节点输出多张图像就存在图像列表；兼容旧节点时第一张通常也是原图。
         /// </summary>
         public List<Mat> Bitmaps { get; set; } = new List<Mat>();
         /// <summary>

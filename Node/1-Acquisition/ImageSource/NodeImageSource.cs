@@ -55,7 +55,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             {
                 // 单图模式
                 _mat = LoadImage(param.ImagePath);
-                res.OutputImage.Bitmaps = new List<Mat> { _mat };
+                res.OutputImage = BuildOutputImage(_mat);
                 return param.ImagePath;
             }
 
@@ -79,7 +79,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             }
 
             _mat = LoadImage(nextImagePath);
-            res.OutputImage.Bitmaps = new List<Mat> { _mat };
+            res.OutputImage = BuildOutputImage(_mat);
             return nextImagePath;
         }
 
@@ -181,11 +181,46 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 Result = result;
             }
 
-            result.OutputImage.Bitmaps = new List<Mat> { callbackMat };
+            result.OutputImage = BuildOutputImage(callbackMat);
             int time = SetRunResult(startTime, NodeStatus.Successful);
             result.RunTime = time;
             Result = result;
             return true;
+        }
+
+        /// <summary>
+        /// 构建图像源输出，统一提供原图、兼容旧节点的图像列表和灰度图缓存。
+        /// </summary>
+        private static OutputImage BuildOutputImage(Mat source)
+        {
+            var outputImage = new OutputImage
+            {
+                SrcImg = source ?? new Mat(),
+                Bitmaps = new List<Mat> { source },
+                GrayImg = BuildGrayImage(source)
+            };
+
+            return outputImage;
+        }
+
+        /// <summary>
+        /// 从原图构建灰度图缓存，后续只读测量节点可直接复用这张灰度图。
+        /// </summary>
+        private static Mat BuildGrayImage(Mat source)
+        {
+            if (source == null || source.Empty())
+                return new Mat();
+
+            Mat gray = new Mat();
+            int channels = source.Channels();
+            if (channels == 1)
+                source.CopyTo(gray);
+            else if (channels == 4)
+                Cv2.CvtColor(source, gray, ColorConversionCodes.BGRA2GRAY);
+            else
+                Cv2.CvtColor(source, gray, ColorConversionCodes.BGR2GRAY);
+
+            return gray;
         }
 
         /// <summary>
@@ -286,12 +321,12 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                             {
                                 // 获取一帧图像并设置结果
                                 var img = param.Camera.GetOneFrameImage();
-                                res.OutputImage.Bitmaps = new List<Mat>() { img.ToMat() };
+                                res.OutputImage = BuildOutputImage(img.ToMat());
                             }
                             catch (Exception ex)
                             {
                                 // 获取一帧图像并设置结果
-                                res.OutputImage.Bitmaps = new List<Mat>() { null };
+                                res.OutputImage = BuildOutputImage(null);
                             }
                         }
                         var time = SetRunResult(startTime, NodeStatus.Successful);

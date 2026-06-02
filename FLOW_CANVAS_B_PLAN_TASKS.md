@@ -20,6 +20,13 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- CaliperLine performance diagnostics pass:
+  - [x] 2026-06-02 新反馈已记录：测量节点为了保护 `ImageSource` 原图而反复深拷贝，可能造成严重性能透支。
+  - [x] 已给 `CaliperLine` 增加分段耗时日志，拆分订阅读取、深拷贝图、灰度准备、位置修正、算法、输出图准备、结果组装、结果发布和节点总耗时。
+  - [x] 运行日志确认：4024x3036x3 图像下，卡尺算法约 0.21ms，但深拷贝、全图灰度转换和输出图准备合计约 50ms。
+  - [x] 已将 `ImageSource` 输出扩展为原图、兼容旧节点的 `Bitmaps[0]` 和灰度图缓存 `GrayImg`，让只读测量节点复用源头灰度图。
+  - [x] `CaliperLine` 已切换为默认读取 `OutputImage.GrayImg`，运行时不再深拷贝输入图、不再重复整图转灰度、不再输出完整图像，只输出结果字段和 `OutputImage.DisplayResult` 叠加层。
+  - [ ] 后续按同一模式评估 `CaliperCircle`、`CaliperEllipse`、`FindPoint`、点线/点点/区域距离等只读测量节点。
 - Completed through the first **Phase 10: Runtime State On Canvas** code pass.
 - Fixed one graph runtime scheduling regression found during Phase 10 checks:
   - [x] For `A -> B` plus standalone `C`, running `A` now completes the `A -> B` component before moving to independent source node `C`.
