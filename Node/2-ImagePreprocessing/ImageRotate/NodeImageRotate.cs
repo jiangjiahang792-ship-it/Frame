@@ -1,6 +1,5 @@
 ﻿using Logger;
 using OpenCvSharp;
-using OpenCvSharp.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -8,8 +7,18 @@ using System.Threading.Tasks;
 
 namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
 {
+    /// <summary>
+    /// 图像旋转节点，负责从上游订阅图像并输出旋转后的图像。
+    /// </summary>
     public class NodeImageRotate : NodeBase
     {
+        /// <summary>
+        /// 初始化图像旋转节点及其参数窗体、运行结果对象。
+        /// </summary>
+        /// <param name="nodeId">节点编号。</param>
+        /// <param name="nodeName">节点名称。</param>
+        /// <param name="process">所属流程。</param>
+        /// <param name="nodeType">节点类型。</param>
         public NodeImageRotate(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
         {
             ParamForm = new NodeParamFormImageRotate(process, this);
@@ -46,8 +55,9 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
                         SetStatus(NodeStatus.Unexecuted, "*");
                         base.CheckTokenCancel(token);
 
+                        Mat srcImg = form.GetInputMat();
                         NodeResultImageRotate nodeResultImageRotate = new NodeResultImageRotate();
-                        nodeResultImageRotate.OutputImage.Bitmaps = new List<Mat>() { form.ImageRotate(BitmapConverter.ToMat(form.GetImage()), param.Angle) };
+                        nodeResultImageRotate.OutputImage.Bitmaps = new List<Mat>() { form.ImageRotateForRun(srcImg, param.Angle) };
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         nodeResultImageRotate.RunTime = time;
                         Result = nodeResultImageRotate;

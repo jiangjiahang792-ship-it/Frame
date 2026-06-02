@@ -78,6 +78,10 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
   - [x] Reworked calculation rows to `值1 - 运算方式 - 值2 - 输出变量名 - 注释`, so each enabled row emits an independent named variable instead of only accumulating one final value.
   - [x] Added shared dynamic result variable interfaces and resolver support so named outputs can be advertised before runtime and read from completed results.
   - [x] Updated the arithmetic parameter UI with designer-visible value1/value2 operand editing, upstream dynamic-variable picking, and previous-row variable picking.
+- ImageRotate runtime performance investigation and fix:
+  - [x] Checked the provided 5-camera solution and found five ImageRotate nodes: four use `Angle = -270.0`, one uses `Angle = 0.0`.
+  - [x] Removed runtime `Mat -> Bitmap -> Mat` conversion and PictureBox preview refresh from `NodeImageRotate.Run`.
+  - [x] Added direct `Mat` input access, 0-degree pass-through, 90/180/270-degree `Cv2.Rotate` fast paths, and GDI preview image cleanup.
   - [x] Downstream standard subscriptions and `MultiCondition` now expose arithmetic outputs under `变量.xxx` / `输出变量`.
   - [x] Feedback fix: `ResultOverlayDraw` text items now read arithmetic named variables through the dynamic-variable resolver instead of only static result properties.
   - [x] Build-verified after the improvement pass with MSBuild, 0 errors; existing warnings remain.

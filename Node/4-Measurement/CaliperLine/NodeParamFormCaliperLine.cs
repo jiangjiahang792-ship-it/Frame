@@ -68,6 +68,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
         internal CaliperLineMeasureResult ExecuteMeasure(NodeParamCaliperLine param, out Mat output)
         {
             using (Mat source = GetInputMat())
+
             using (Mat gray = CaliperMeasurementAlgorithm.ToGray(source))
             {
                 NodeParamCaliperLine runtimeParam = BuildRuntimeParam(param);
@@ -86,8 +87,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                     Direction = runtimeParam.Direction,
                     BlurSize = runtimeParam.BlurSize
                 };
-
+                
                 CaliperLineMeasureResult result = CaliperMeasurementAlgorithm.FindLine(gray, algorithmParam);
+                
                 output = MeasurementNodeHelper.EnsureBgr(source);
 
                 return result;
@@ -170,6 +172,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
         private Mat GetInputMat()
         {
             OutputImage outputImage = nodeSubscription1.GetValue<OutputImage>();
+            Console.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
             return MeasurementNodeHelper.GetFirstMat(outputImage);
         }
 

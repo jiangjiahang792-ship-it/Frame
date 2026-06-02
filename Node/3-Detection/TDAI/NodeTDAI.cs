@@ -1,7 +1,6 @@
 ﻿using Logger;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Text;
@@ -56,7 +55,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             SetStatus(NodeStatus.Unexecuted, "*");
                             base.CheckTokenCancel(token);
 
-                            await EnsureModelReadyAsync(param);
+                            //await EnsureModelReadyAsync(param);
 
                             // 清空上次检测结果
                             res.AlgorithmResult.Clear();
@@ -273,7 +272,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             // 返回结果
                             Result = res;
                             if (showLog)
+                            Console.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
                                 LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                            Console.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
                             return new NodeReturn(NodeRunFlag.ContinueRun);
                         }
                         catch (OperationCanceledException)
