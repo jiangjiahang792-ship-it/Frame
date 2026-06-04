@@ -69,7 +69,7 @@
             // buttonRun
             // 
             this.buttonRun.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.buttonRun.Location = new System.Drawing.Point(925, 262);
+            this.buttonRun.Location = new System.Drawing.Point(925, 320);
             this.buttonRun.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.buttonRun.Name = "buttonRun";
             this.buttonRun.Size = new System.Drawing.Size(182, 50);
@@ -93,28 +93,28 @@
             // tableLayoutPanel1
             // 
             this.tableLayoutPanel1.ColumnCount = 6;
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 19.13043F));
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 16.52174F));
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 16.52174F));
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 17.84038F));
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 12.25403F));
-            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 18.06798F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 19.06631F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 16.46636F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 16.46636F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 17.78058F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 12.21296F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 18.00742F));
             this.tableLayoutPanel1.Controls.Add(this.label3, 0, 0);
             this.tableLayoutPanel1.Controls.Add(this.nodeSubscription1, 1, 0);
             this.tableLayoutPanel1.Controls.Add(this.textBoxModelPath, 1, 1);
             this.tableLayoutPanel1.Controls.Add(this.button2, 4, 1);
             this.tableLayoutPanel1.Controls.Add(this.label1, 5, 1);
-            this.tableLayoutPanel1.Controls.Add(this.showImageControl1, 0, 5);
+            this.tableLayoutPanel1.Controls.Add(this.showImageControl1, 0, 6);
             this.tableLayoutPanel1.Controls.Add(this.button3, 3, 0);
             this.tableLayoutPanel1.Controls.Add(this.buttonSave, 4, 0);
             this.tableLayoutPanel1.Controls.Add(this.label8, 0, 1);
-            this.tableLayoutPanel1.Controls.Add(this.buttonRun, 5, 4);
+            this.tableLayoutPanel1.Controls.Add(this.buttonRun, 5, 5);
             this.tableLayoutPanel1.Controls.Add(this.radioButton1, 0, 2);
-            this.tableLayoutPanel1.Controls.Add(this.radioButton2, 0, 4);
-            this.tableLayoutPanel1.Controls.Add(this.comboBoxDevice, 1, 4);
-            this.tableLayoutPanel1.Controls.Add(this.ListeningAddressTextbox, 2, 4);
-            this.tableLayoutPanel1.Controls.Add(this.label9, 1, 3);
-            this.tableLayoutPanel1.Controls.Add(this.label7, 2, 3);
+            this.tableLayoutPanel1.Controls.Add(this.radioButton2, 0, 5);
+            this.tableLayoutPanel1.Controls.Add(this.comboBoxDevice, 1, 5);
+            this.tableLayoutPanel1.Controls.Add(this.ListeningAddressTextbox, 2, 5);
+            this.tableLayoutPanel1.Controls.Add(this.label9, 1, 4);
+            this.tableLayoutPanel1.Controls.Add(this.label7, 2, 4);
             this.tableLayoutPanel1.Controls.Add(this.checkBox1, 1, 2);
             this.tableLayoutPanel1.Controls.Add(this.comboBox1, 2, 2);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -122,10 +122,11 @@
             this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 38);
             this.tableLayoutPanel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
-            this.tableLayoutPanel1.RowCount = 6;
+            this.tableLayoutPanel1.RowCount = 7;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 67F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 67F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 67F));
+            this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 58F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 58F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 56F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
@@ -191,18 +192,18 @@
             // 
             // showImageControl1
             // 
+            this.showImageControl1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
             this.showImageControl1.BackgroundColorCustom = System.Drawing.Color.Black;
             this.showImageControl1.BackgroundImageCustom = null;
             this.showImageControl1.BackgroundLayoutMode = TDJS_Vision.Forms.DispShowImage.ShowImageControl.BackgroundImageLayoutMode.Fill;
             this.showImageControl1.BackgroundTransparency = 1F;
             this.tableLayoutPanel1.SetColumnSpan(this.showImageControl1, 6);
             this.showImageControl1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.showImageControl1.ImageBitmap = null;
-            this.showImageControl1.Location = new System.Drawing.Point(3, 318);
+            this.showImageControl1.Location = new System.Drawing.Point(3, 376);
             this.showImageControl1.Name = "showImageControl1";
             this.showImageControl1.RoiColor = System.Drawing.Color.Lime;
             this.showImageControl1.ShowCheckerBackground = false;
-            this.showImageControl1.Size = new System.Drawing.Size(1112, 431);
+            this.showImageControl1.Size = new System.Drawing.Size(1112, 373);
             this.showImageControl1.StaticShapeColor = System.Drawing.Color.Red;
             this.showImageControl1.TabIndex = 9;
             // 
@@ -219,13 +220,14 @@
             // radioButton1
             // 
             this.radioButton1.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.radioButton1.AutoSize = true;
+            this.radioButton1.Checked = true;
             this.radioButton1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.radioButton1.Location = new System.Drawing.Point(45, 154);
             this.radioButton1.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.radioButton1.Name = "radioButton1";
             this.radioButton1.Size = new System.Drawing.Size(123, 26);
             this.radioButton1.TabIndex = 18;
+            this.radioButton1.TabStop = true;
             this.radioButton1.Text = "固定模板";
             this.radioButton1.UseVisualStyleBackColor = true;
             this.radioButton1.CheckedChanged += new System.EventHandler(this.radioButton2_CheckedChanged);
@@ -235,7 +237,7 @@
             this.radioButton2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.radioButton2.AutoSize = true;
             this.radioButton2.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.radioButton2.Location = new System.Drawing.Point(23, 274);
+            this.radioButton2.Location = new System.Drawing.Point(23, 332);
             this.radioButton2.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.radioButton2.Name = "radioButton2";
             this.radioButton2.Size = new System.Drawing.Size(167, 26);
@@ -250,7 +252,7 @@
             this.comboBoxDevice.Enabled = false;
             this.comboBoxDevice.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.comboBoxDevice.FormattingEnabled = true;
-            this.comboBoxDevice.Location = new System.Drawing.Point(216, 272);
+            this.comboBoxDevice.Location = new System.Drawing.Point(216, 330);
             this.comboBoxDevice.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxDevice.Name = "comboBoxDevice";
             this.comboBoxDevice.Size = new System.Drawing.Size(178, 30);
@@ -260,7 +262,7 @@
             // ListeningAddressTextbox
             // 
             this.ListeningAddressTextbox.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.ListeningAddressTextbox.Location = new System.Drawing.Point(425, 271);
+            this.ListeningAddressTextbox.Location = new System.Drawing.Point(425, 329);
             this.ListeningAddressTextbox.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.ListeningAddressTextbox.Name = "ListeningAddressTextbox";
             this.ListeningAddressTextbox.Size = new System.Drawing.Size(127, 31);
@@ -273,7 +275,7 @@
             // 
             this.label9.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label9.AutoSize = true;
-            this.label9.Location = new System.Drawing.Point(258, 219);
+            this.label9.Location = new System.Drawing.Point(258, 277);
             this.label9.Name = "label9";
             this.label9.Size = new System.Drawing.Size(94, 21);
             this.label9.TabIndex = 7;
@@ -283,7 +285,7 @@
             // 
             this.label7.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label7.AutoSize = true;
-            this.label7.Location = new System.Drawing.Point(442, 219);
+            this.label7.Location = new System.Drawing.Point(442, 277);
             this.label7.Name = "label7";
             this.label7.Size = new System.Drawing.Size(94, 21);
             this.label7.TabIndex = 7;
@@ -293,6 +295,8 @@
             // 
             this.checkBox1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.checkBox1.AutoSize = true;
+            this.checkBox1.Checked = true;
+            this.checkBox1.CheckState = System.Windows.Forms.CheckState.Checked;
             this.checkBox1.Location = new System.Drawing.Point(245, 155);
             this.checkBox1.Name = "checkBox1";
             this.checkBox1.Size = new System.Drawing.Size(120, 25);
@@ -304,7 +308,6 @@
             // comboBox1
             // 
             this.comboBox1.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.comboBox1.Enabled = false;
             this.comboBox1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.comboBox1.FormattingEnabled = true;
             this.comboBox1.Items.AddRange(new object[] {

@@ -96,14 +96,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     ushort readValue = await GetModbusCode(mod, param.Adress);
                                     string strVal = readValue.ToString();
 
+                                    string codeVal = "";
                                     try
                                     {
+                                        //通信值获取检测项目
                                         var matchModel = param.TDAICommuntionParams.First(m => m.TriggerVal == strVal);
-                                        param.CurDetectItemName = matchModel.DetectionName;
+                                        codeVal = matchModel.DetectionName;
                                     }
                                     catch (Exception ex){
                                         // 不存在对应的检测项配置，需要复制一个选定的配置赋值
-                                        Solution.Instance.DetectItemDic[configName] = Solution.Instance.DetectItemDic[param.DetectItemName2].ToList();
+
                                     }
                                 }
                                 else

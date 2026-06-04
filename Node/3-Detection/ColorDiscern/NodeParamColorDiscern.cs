@@ -48,7 +48,7 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         // <summary>
         /// 是否开启结果排序
         /// </summary>
-        public bool IsOpenSort{ get; set; }
+        public bool IsOpenSort { get; set; } = true;
 
 
         /// <summary>
@@ -79,10 +79,26 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         public double ToleranceL { get; set; } = 30;
 
         /// <summary>
-        /// 色差容限 (AB平面的欧氏距离)。
-        /// 值越大，允许的颜色偏差越大 (例如深红和浅红会被视为同一种颜色)。
+        /// A通道容差 (红绿轴)。
+        /// 独立控制 A 通道偏差，有助于区分绿色（A值低）和黑色（A值中等）。
         /// </summary>
-        public double ToleranceC { get; set; } = 20;
+        public double ToleranceA { get; set; } = 20;
+
+        /// <summary>
+        /// B通道容差 (蓝黄轴)。
+        /// </summary>
+        public double ToleranceB { get; set; } = 20;
+
+        /// <summary>
+        /// 兼容旧属性：色差容限。
+        /// 设置此值将同步设置 ToleranceA 和 ToleranceB。
+        /// 读取时返回 ToleranceA。
+        /// </summary>
+        public double ToleranceC
+        {
+            get { return ToleranceA; }
+            set { ToleranceA = value; ToleranceB = value; }
+        }
 
         /// <summary>
         /// Gamma 校正系数 (预处理)。
@@ -128,6 +144,7 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         /// Close (闭运算): 先膨胀后腐蚀，用于填补物体内部空洞，连接断开的区域。
         /// Open (开运算): 先腐蚀后膨胀，用于去除背景噪点，分离粘连物体。
         /// Dilate (膨胀): 扩大物体区域。
+        /// Erode (腐蚀): 收缩物体区域。
         /// </summary>
         public MorphTypes MorphOp { get; set; } = MorphTypes.Close;
 
@@ -152,7 +169,7 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         /// <summary>
         /// 筛选模式  All:得到所有识别到的颜色,MinArea:只要最小面积,MaxArea:只要最大面积
         /// </summary>
-        public string ScreeningModel { get; set; } = "All";   
+        public string ScreeningModel { get; set; } = "MaxArea";
 
 
         /// <summary>
@@ -198,10 +215,11 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
 
         public string TriggerVal { get; set; } = "1";
 
-        
+
     }
 
-    public class ColorParam {
+    public class ColorParam
+    {
 
         /// <summary>
         /// 搜索区域

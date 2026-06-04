@@ -428,7 +428,6 @@
             this.label7.Size = new System.Drawing.Size(186, 22);
             this.label7.TabIndex = 4;
             this.label7.Text = "当型号不存在时从";
-            this.label7.Visible = false;
             // 
             // comboBoxDetectConfig2
             // 
@@ -442,7 +441,6 @@
             this.comboBoxDetectConfig2.Name = "comboBoxDetectConfig2";
             this.comboBoxDetectConfig2.Size = new System.Drawing.Size(231, 30);
             this.comboBoxDetectConfig2.TabIndex = 10;
-            this.comboBoxDetectConfig2.Visible = false;
             // 
             // label8
             // 
@@ -455,7 +453,6 @@
             this.label8.Size = new System.Drawing.Size(120, 22);
             this.label8.TabIndex = 4;
             this.label8.Text = "创建新配置";
-            this.label8.Visible = false;
             // 
             // linkLabel1
             // 
