@@ -1360,7 +1360,7 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] Add a process context-menu switch named `是否为相机回调触发流程` in `ProcessEditPanel` and persist it in `ProcessConfig`.
 - [x] Register camera frame callbacks directly to the owning `NodeImageSource.HandleCameraCallbackFrame` method, so callback frames do not need to search for the image source node.
 - [x] Keep the current run mode unchanged when `是否为相机回调触发流程` is not checked; callback frames return before image conversion or process execution.
-- [x] 2026-06-02 修正：`是否为相机回调触发流程` 菜单成为启用相机回调订阅的唯一入口；未勾选时图像源保存、反序列化或切换相机都会保持回调注销，避免影响 `GetOneFrameImage()` 顺序取图。
+- [x] 2026-06-02 修正：`是否为相机回调触发流程` 菜单成为启用相机回调订阅的唯一入口；未勾选时图像源保存、反序列化或切换相机都会保持节点回调和海康 `GetImageCallBack` 注销，避免影响 `GetOneFrameImage()` 顺序取图。
 - [x] For checked callback-triggered processes, cache the callback frame as the current `ImageSource` result, skip executing the image source node itself, and run only from that node toward downstream connections.
 - [x] Exclude camera-callback-triggered processes from `FormMain` solution loop active/passive scheduling; the loop only keeps the solution in running state so camera callbacks can trigger those processes.
 - [x] Make Hik camera SDK frame callback registration idempotent by unsubscribing before subscribing on camera open.

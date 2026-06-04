@@ -41,6 +41,16 @@ namespace TDJS_Vision.Device.Camera
         private bool _isGrabbing = false;
 
         /// <summary>
+        /// 相机帧回调订阅锁，保护回调拥有者集合和 SDK 事件订阅状态。
+        /// </summary>
+        private readonly object _imageCallbackLock = new object();
+
+        /// <summary>
+        /// 需要相机帧回调的拥有者集合，集合为空时注销 SDK 帧回调。
+        /// </summary>
+        private readonly HashSet<object> _imageCallbackOwners = new HashSet<object>();
+
+        /// <summary>
         /// 设备是否启用
         /// </summary>
         public bool IsOpen { get; set; }
@@ -314,14 +324,66 @@ namespace TDJS_Vision.Device.Camera
                         return false;
                     }
                 }
-                // 订阅图像回调函数；先解绑再绑定，避免重复打开相机后同一帧触发多次。
-                device.StreamGrabber.FrameGrabedEvent -= GetImageCallBack;
-                device.StreamGrabber.FrameGrabedEvent += GetImageCallBack;
+                SyncImageCallbackSubscription();
             }
             return true;
         }
 
         int count = 0;
+
+        /// <summary>
+        /// 注册需要相机帧回调的拥有者。
+        /// </summary>
+        /// <param name="owner">回调拥有者。</param>
+        public void RegisterImageCallbackOwner(object owner)
+        {
+            if (owner == null)
+                return;
+
+            lock (_imageCallbackLock)
+            {
+                _imageCallbackOwners.Add(owner);
+                SyncImageCallbackSubscriptionCore();
+            }
+        }
+
+        /// <summary>
+        /// 注销需要相机帧回调的拥有者。
+        /// </summary>
+        /// <param name="owner">回调拥有者。</param>
+        public void UnregisterImageCallbackOwner(object owner)
+        {
+            if (owner == null)
+                return;
+
+            lock (_imageCallbackLock)
+            {
+                _imageCallbackOwners.Remove(owner);
+                SyncImageCallbackSubscriptionCore();
+            }
+        }
+
+        /// <summary>
+        /// 根据拥有者集合同步 SDK 帧回调订阅状态。
+        /// </summary>
+        private void SyncImageCallbackSubscription()
+        {
+            lock (_imageCallbackLock)
+                SyncImageCallbackSubscriptionCore();
+        }
+
+        /// <summary>
+        /// 根据拥有者集合同步 SDK 帧回调订阅状态，调用方需持有锁。
+        /// </summary>
+        private void SyncImageCallbackSubscriptionCore()
+        {
+            if (device == null)
+                return;
+
+            device.StreamGrabber.FrameGrabedEvent -= GetImageCallBack;
+            if (_imageCallbackOwners.Count > 0)
+                device.StreamGrabber.FrameGrabedEvent += GetImageCallBack;
+        }
 
         /// <summary>
         /// 取流回调
@@ -352,6 +414,10 @@ namespace TDJS_Vision.Device.Camera
                 int ret = device.StreamGrabber.GetImageBuffer(GetImageTimeOut, out frame);
                 if (ret != MvError.MV_OK)
                     return null;
+
+                int width = (int)frame.Image.Width;
+                int height = (int)frame.Image.Height;
+
                 var image = ConvertImageFormat(frame.Image, device.PixelTypeConverter);
                 device.StreamGrabber.FreeImageBuffer(frame);
                 return image;
@@ -895,7 +961,8 @@ namespace TDJS_Vision.Device.Camera
             {
                 StopGrabbing();
             }
-            device.StreamGrabber.FrameGrabedEvent -= GetImageCallBack;
+            lock (_imageCallbackLock)
+                device.StreamGrabber.FrameGrabedEvent -= GetImageCallBack;
             ConnectStatusEvent?.Invoke(this, false);
             device.Close();
             IsOpen = false;
@@ -909,6 +976,8 @@ namespace TDJS_Vision.Device.Camera
         {
             if (device != null)
             {
+                lock (_imageCallbackLock)
+                    device.StreamGrabber.FrameGrabedEvent -= GetImageCallBack;
                 if (device.IsConnected) { device.Close(); }
                 device?.Dispose();
             }

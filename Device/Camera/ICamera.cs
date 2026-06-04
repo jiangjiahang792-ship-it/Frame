@@ -23,6 +23,16 @@ namespace TDJS_Vision.Device.Camera
         /// </summary>
         event Action<Bitmap> OnImageReceived;
         /// <summary>
+        /// 注册需要相机帧回调的拥有者，首个拥有者会启用底层取流回调。
+        /// </summary>
+        /// <param name="owner">回调拥有者。</param>
+        void RegisterImageCallbackOwner(object owner);
+        /// <summary>
+        /// 注销需要相机帧回调的拥有者，全部注销后会关闭底层取流回调。
+        /// </summary>
+        /// <param name="owner">回调拥有者。</param>
+        void UnregisterImageCallbackOwner(object owner);
+        /// <summary>
         /// 硬件硬件名称
         /// </summary>
         string DevName { get; set; }

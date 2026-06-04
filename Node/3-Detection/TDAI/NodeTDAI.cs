@@ -64,9 +64,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             OutputImage inputImage = form.GetOutputImage();
 
                             #region 通信获取对应检测项的配置(不是使用固定检测项时)
-
-                            Console.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
-
                             // terminalType端子型号、wireType电线型号、waterproofType防水栓型号
                             short terminalType = 0, wireType = 0, waterproofType = 0;
                             if (!param.IsFixed)
@@ -104,8 +101,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                         var matchModel = param.TDAICommuntionParams.First(m => m.TriggerVal == strVal);
                                         param.CurDetectItemName = matchModel.DetectionName;
                                     }
-                                    catch (Exception ex){ 
-                                        
+                                    catch (Exception ex){
+                                        // 不存在对应的检测项配置，需要复制一个选定的配置赋值
+                                        Solution.Instance.DetectItemDic[configName] = Solution.Instance.DetectItemDic[param.DetectItemName2].ToList();
                                     }
                                 }
                                 else
