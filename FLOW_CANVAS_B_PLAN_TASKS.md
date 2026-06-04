@@ -20,6 +20,9 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-04 TDAI 动态检测项默认模板兜底：
+  - [x] 新反馈已记录：动态通信解析出的检测项配置不存在时，需要从默认模板复制一份。
+  - [x] `NodeTDAI` 已改为先解析通信值对应的检测项名称，再校验或复制 `DetectItemDic` 配置，并在默认模板缺失时给出明确异常。
 - CaliperLine performance diagnostics pass:
   - [x] 2026-06-02 新反馈已记录：测量节点为了保护 `ImageSource` 原图而反复深拷贝，可能造成严重性能透支。
   - [x] 已给 `CaliperLine` 增加分段耗时日志，拆分订阅读取、深拷贝图、灰度准备、位置修正、算法、输出图准备、结果组装、结果发布和节点总耗时。

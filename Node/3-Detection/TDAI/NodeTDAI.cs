@@ -96,29 +96,18 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     ushort readValue = await GetModbusCode(mod, param.Adress);
                                     string strVal = readValue.ToString();
 
-                                    string codeVal = "";
-                                    try
-                                    {
-                                        //通信值获取检测项目
-                                        var matchModel = param.TDAICommuntionParams.First(m => m.TriggerVal == strVal);
-                                        codeVal = matchModel.DetectionName;
+                                    var matchModel = param.TDAICommuntionParams.FirstOrDefault(m => m.TriggerVal == strVal);
+                                    if (matchModel == null || string.IsNullOrWhiteSpace(matchModel.DetectionName)) {
+                                        configName = $"模板{strVal}";
                                     }
-                                    catch (Exception ex){
-                                        // 不存在对应的检测项配置，需要复制一个选定的配置赋值
-
-                                    }
+                                    else configName = matchModel.DetectionName;
+                                    EnsureDetectItemConfig(configName, param.DetectItemName2);
+                                    param.CurDetectItemName = configName;
                                 }
                                 else
                                 {
                                     throw new Exception("暂时不支持的通信设备来获取检测项配置！");
                                 }
-
-                                //if (!Solution.Instance.DetectItemDic.ContainsKey(configName))
-                                //{
-                                //    // 不存在对应的检测项配置，需要复制一个选定的配置赋值
-                                //    Solution.Instance.DetectItemDic[configName] = Solution.Instance.DetectItemDic[param.DetectItemName2].ToList();
-                                //}
-                                //param.CurDetectItemName = configName;
 
                             }
 
@@ -314,6 +303,50 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 await loadTask.ConfigureAwait(false);
 
             EnsureModelReady(param);
+        }
+
+        /// <summary>
+        /// 确保当前检测项配置存在，不存在时从默认模板复制一份。
+        /// </summary>
+        /// <param name="detectItemName">当前通信解析出来的检测项名称。</param>
+        /// <param name="defaultTemplateName">用于复制的默认模板检测项名称。</param>
+        private static void EnsureDetectItemConfig(string detectItemName, string defaultTemplateName)
+        {
+            if (Solution.Instance.DetectItemDic == null)
+                Solution.Instance.DetectItemDic = new Dictionary<string, List<DetectItemInfo>>();
+
+            if (string.IsNullOrWhiteSpace(detectItemName))
+                throw new Exception("当前检测项名称为空，无法创建检测项配置！");
+
+            if (Solution.Instance.DetectItemDic.ContainsKey(detectItemName))
+                return;
+
+            if (string.IsNullOrWhiteSpace(defaultTemplateName))
+                throw new Exception($"检测项({detectItemName})不存在，且默认模板未设置！");
+
+            if (!Solution.Instance.DetectItemDic.TryGetValue(defaultTemplateName, out List<DetectItemInfo> defaultTemplate) || defaultTemplate == null)
+                throw new Exception($"检测项({detectItemName})不存在，且默认模板({defaultTemplateName})不存在！");
+
+            Solution.Instance.DetectItemDic[detectItemName] = CloneDetectItems(defaultTemplate);
+            LogHelper.AddLog(MsgLevel.Info, $"检测项({detectItemName})不存在，已从默认模板({defaultTemplateName})复制。", true);
+        }
+
+        /// <summary>
+        /// 复制检测项模板，避免新检测项和默认模板共用同一批检测项对象。
+        /// </summary>
+        /// <param name="sourceItems">默认模板中的检测项集合。</param>
+        /// <returns>新的检测项配置集合。</returns>
+        private static List<DetectItemInfo> CloneDetectItems(List<DetectItemInfo> sourceItems)
+        {
+            return sourceItems.Select(item => new DetectItemInfo
+            {
+                Name = item.Name,
+                MinValue = item.MinValue,
+                MaxValue = item.MaxValue,
+                Enable = item.Enable,
+                IsCountItem = item.IsCountItem,
+                CurValue = item.CurValue
+            }).ToList();
         }
 
         /// <summary>
