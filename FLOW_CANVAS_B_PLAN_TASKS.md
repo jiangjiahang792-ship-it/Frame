@@ -20,6 +20,12 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-05 ResultOverlayDraw2 独立节点新增：
+  - [x] 新反馈已记录：保留原 `ResultOverlayDraw` 模块不变，新增 `ResultOverlayDraw2` 作为独立ROI结果绘制节点。
+  - [x] `ResultOverlayDraw2` 已支持多个上游布尔结果订阅规则，并按“全部为真=OK”或“任一为真=OK”聚合后选择OK/NG绘制颜色。
+  - [x] 颜色规则已支持选择多条件判定节点的整体结果或某一项条件明细。
+  - [x] 参数界面已简化为输入图像、颜色判定规则、绘制项和预览四块，并将新增控件放入 `.Designer.cs`。
+  - [x] Build-verified with MSBuild on 2026-06-05, 0 errors; existing warnings remain.
 - 2026-06-05 ImageSource 共享变量图像源补齐：
   - [x] 新反馈已记录：`ImageSource` 的 `comboBoxImgSource` 已有“共享变量”选项，但缺少对应界面保存和运行逻辑。
   - [x] `ParamFormImageSource` 已新增设计器可见的共享变量选择控件，保存参数时记录共享变量名。

@@ -364,7 +364,7 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                             }
                             catch (Exception ex)
                             {
-                                throw ex;
+                                return (null, allMatchResults, false); ;
                             }
                         }
 

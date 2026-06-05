@@ -1239,6 +1239,17 @@
       <DependentUpon>NodeParamFormResultOverlayDraw.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw\NodeResultResultOverlayDraw.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw2\NodeResultOverlayDraw2.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw2\NodeParamResultOverlayDraw2.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw2\NodeParamFormResultOverlayDraw2.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw2\NodeParamFormResultOverlayDraw2.Designer.cs">
+      <DependentUpon>NodeParamFormResultOverlayDraw2.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw2\NodeResultResultOverlayDraw2.cs" />
     <Compile Include="Node\7-ResultProcessing\GenerateExcelSpreadsheet\NodeGenerateExcel.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -1694,6 +1705,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Node\7-ResultProcessing\ImageDelete\NodeParamFormImageDelete.resx">
       <DependentUpon>NodeParamFormImageDelete.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Node\7-ResultProcessing\ResultOverlayDraw2\NodeParamFormResultOverlayDraw2.resx">
+      <DependentUpon>NodeParamFormResultOverlayDraw2.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Node\7-ResultProcessing\ResultOverlayDraw\NodeParamFormResultOverlayDraw.resx">
       <DependentUpon>NodeParamFormResultOverlayDraw.cs</DependentUpon>

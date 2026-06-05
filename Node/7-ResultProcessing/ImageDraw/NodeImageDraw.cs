@@ -58,8 +58,17 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
 
                     //执行绘制
                     Mat image = form.GetImage();
-                    var aiResult = form.GetAIResults();
-                    var colorResult = form.GetColorResults();
+                    AlgorithmResult aiResult = null;
+                    AlgorithmResult colorResult=null;
+                    try
+                    {
+                        aiResult = form.GetAIResults();
+                        colorResult = form.GetColorResults();
+                    }
+                    catch { 
+                        
+                    }
+                    
 
                     using (Bitmap imageBitmap = BitmapConverter.ToBitmap(image))
                     {
@@ -154,8 +163,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                     result.Rects.AddRange(colorResults.Rects);
                     result.Texts.AddRange(colorResults.Texts);
                 }
-                result.Rects.AddRange(detectResults.Rects);
-                result.Texts.AddRange(detectResults.Texts);
+                if (detectResults != null && detectResults is AlgorithmResult)
+                {
+                    result.Rects.AddRange(detectResults.Rects);
+                    result.Texts.AddRange(detectResults.Texts);
+                }
+                
                 // 绘制在不同位置
                 switch (parm.TextLoc)
                 {

@@ -442,5 +442,9 @@ namespace TDJS_Vision.Node
         /// 组合输出
         /// </summary>
         CompositeOutput,
+        /// <summary>
+        /// ROI结果绘制2
+        /// </summary>
+        ResultOverlayDraw2,
     }
 }

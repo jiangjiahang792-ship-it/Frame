@@ -62,6 +62,7 @@ using TDJS_Vision.Node._7_ResultProcessing.ImageDelete;
 using TDJS_Vision.Node._7_ResultProcessing.ImageDraw;
 using TDJS_Vision.Node._7_ResultProcessing.ImageSave;
 using TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw;
+using TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2;
 using TDJS_Vision.Node._7_ResultProcessing.ResultSummarize;
 using TDJS_Vision.Node._8_GeometryCreation.LineMergeFit;
 using TDJS_Vision.Forms.GlobalSignalSettings;
@@ -693,6 +694,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.ResultOverlayDraw:
                     node = new NodeResultOverlayDraw(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.ResultOverlayDraw2:
+                    node = new NodeResultOverlayDraw2(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.ConditionRun:
                     node = new NodeConditionRun(nodeId, nodeName, _process, nodeType);

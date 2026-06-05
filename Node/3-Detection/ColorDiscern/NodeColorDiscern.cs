@@ -57,7 +57,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
                         // 执行匹配
                         var (bitmap, resultList, isOk) = await form.MatchTemplateAsync(false);
-
+                        if (bitmap == null) return new NodeReturn(NodeRunFlag.ContinueRun);
                         List<Rect> rectList = new List<Rect>();
 
                         // 输出结果

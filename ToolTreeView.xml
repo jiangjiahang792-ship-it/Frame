@@ -84,6 +84,7 @@
       <Nodes>
         <Node Text="AI结果绘制" ImageName="AI结果绘制" Tag="DrawAIResult" SelectedImageName="AI结果绘制" />
         <Node Text="ROI结果绘制" ImageName="AI结果绘制" Tag="ResultOverlayDraw" SelectedImageName="AI结果绘制" />
+        <Node Text="ROI结果绘制2" ImageName="AI结果绘制" Tag="ResultOverlayDraw2" SelectedImageName="AI结果绘制" />
         <Node Text="发送AI结果" ImageName="发送AI结果" Tag="AIResultSend" SelectedImageName="发送AI结果" />
         <Node Text="保存图片" ImageName="保存图片" Tag="ImageSave" SelectedImageName="保存图片" />
         <Node Text="定期删除图片" ImageName="图片删除" Tag="ImageFileDelete" SelectedImageName="图片删除" />

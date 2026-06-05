@@ -56,7 +56,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
             }
             catch (Exception)
             {
-                throw new Exception("订阅的结果为null！");
+                //throw new Exception("订阅的结果为null！");
             }
             return res;
         }
