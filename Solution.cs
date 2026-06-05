@@ -23,6 +23,7 @@ using TDJS_Vision.Forms.GlobalSignalSettings;
 using System.Collections.Concurrent;
 using TDJS_Vision.Device.COM;
 using TDJS_Vision.Forms.COMAdd;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using System.Windows.Forms;
 using ServiceStack;
@@ -273,6 +274,9 @@ namespace TDJS_Vision
             IsRunning = true;
             Solution.Instance.ResetTokenSource();
             var _cts = CancellationTokenSource.CreateLinkedTokenSource(Solution.Instance.CancellationToken);
+            List<ICamera> startedCallbackCameras = isCyclical
+                ? StartCameraCallbackGrabbingForProcesses(AllProcesses)
+                : new List<ICamera>();
 
             try
             {
@@ -315,6 +319,9 @@ namespace TDJS_Vision
                             {
                                 proc.SetTriggerAction(triggerAction);
                             }
+
+                            if (isCyclical)
+                                TriggerSoftCameraCallbacksForProcesses(groupCopy);
 
                             // 按优先级执行主动流程
                             var priorityLevels = groupCopy.Select(p => p.RunLv).Distinct().OrderBy(lv => lv);
@@ -386,8 +393,242 @@ namespace TDJS_Vision
             }
             finally
             {
+                StopStartedCameraCallbackGrabbing(startedCallbackCameras);
                 IsRunning = false;
             }
+        }
+
+        /// <summary>
+        /// 启动指定流程集合中相机回调触发流程的取流，并返回本方法实际启动的相机。
+        /// </summary>
+        /// <param name="processes">待检查的流程集合。</param>
+        /// <returns>本次启动的相机集合，调用方退出运行态时需要停止。</returns>
+        public List<ICamera> StartCameraCallbackGrabbingForProcesses(IEnumerable<Process> processes)
+        {
+            List<ICamera> startedCameras = new List<ICamera>();
+            if (processes == null)
+                return startedCameras;
+
+            HashSet<ICamera> visitedCameras = new HashSet<ICamera>();
+            foreach (Process process in processes)
+            {
+                if (process == null ||
+                    !process.Enable ||
+                    !process.IsCameraCallbackTriggered ||
+                    process.Nodes == null)
+                {
+                    continue;
+                }
+
+                foreach (NodeBase node in process.Nodes)
+                {
+                    NodeImageSource imageSource = node as NodeImageSource;
+                    if (imageSource == null || !imageSource.Active)
+                        continue;
+
+                    ParamFormImageSource form = imageSource.ParamForm as ParamFormImageSource;
+                    if (form != null)
+                        form.SyncCameraCallbackBinding();
+
+                    NodeParamImageSoucre param = imageSource.ParamForm == null
+                        ? null
+                        : imageSource.ParamForm.Params as NodeParamImageSoucre;
+                    ICamera camera = GetCameraCallbackCamera(param);
+                    if (camera == null)
+                    {
+                        LogHelper.AddLog(MsgLevel.Warn, $"流程【{process.ProcessName}】的图像源节点【{imageSource.NodeName}】没有可用相机，无法启动相机回调。", true);
+                        continue;
+                    }
+
+                    if (!camera.IsOpen)
+                    {
+                        LogHelper.AddLog(MsgLevel.Warn, $"相机【{camera.UserDefinedName}】尚未连接，无法启动相机回调流程【{process.ProcessName}】。", true);
+                        continue;
+                    }
+
+                    if (!visitedCameras.Add(camera))
+                        continue;
+
+                    bool wasGrabbing = false;
+                    try
+                    {
+                        wasGrabbing = camera.GetGrabStatus();
+                        if (wasGrabbing)
+                        {
+                            // 相机可能已由设备面板提前取流，重启一次可保证 SDK 帧事件在 StartGrabbing 前完成订阅。
+                            camera.StopGrabbing();
+                        }
+
+                        ApplyCameraCallbackParameters(camera, param);
+                        camera.StartGrabbing();
+                        if (!wasGrabbing)
+                            startedCameras.Add(camera);
+
+                        string actionText = wasGrabbing ? "已重启取流" : "已启动取流";
+                        LogHelper.AddLog(MsgLevel.Info, $"相机【{camera.UserDefinedName}】{actionText}，用于相机回调触发流程【{process.ProcessName}】。", true);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.AddLog(MsgLevel.Exception, $"启动相机【{camera.UserDefinedName}】回调取流失败：{ex.Message}", true);
+                        if (wasGrabbing)
+                            TryResumeCameraGrabbing(camera);
+                    }
+                }
+            }
+
+            return startedCameras;
+        }
+
+        /// <summary>
+        /// 启动单个流程中相机回调触发流程的取流。
+        /// </summary>
+        /// <param name="process">待检查的流程。</param>
+        /// <returns>本次启动的相机集合。</returns>
+        public List<ICamera> StartCameraCallbackGrabbingForProcess(Process process)
+        {
+            return StartCameraCallbackGrabbingForProcesses(new[] { process });
+        }
+
+        /// <summary>
+        /// 回调启动失败时尽量恢复相机取流，避免已在取流的相机被异常中断。
+        /// </summary>
+        /// <param name="camera">需要恢复的相机对象。</param>
+        private static void TryResumeCameraGrabbing(ICamera camera)
+        {
+            if (camera == null || !camera.IsOpen)
+                return;
+
+            try
+            {
+                if (!camera.GetGrabStatus())
+                    camera.StartGrabbing();
+            }
+            catch (Exception resumeEx)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, $"恢复相机【{camera.UserDefinedName}】取流失败：{resumeEx.Message}", true);
+            }
+        }
+
+        /// <summary>
+        /// 停止本次运行态中由系统主动启动的相机取流。
+        /// </summary>
+        /// <param name="startedCameras">本次启动的相机集合。</param>
+        public void StopStartedCameraCallbackGrabbing(IEnumerable<ICamera> startedCameras)
+        {
+            if (startedCameras == null)
+                return;
+
+            HashSet<ICamera> visitedCameras = new HashSet<ICamera>();
+            foreach (ICamera camera in startedCameras)
+            {
+                if (camera == null || !visitedCameras.Add(camera))
+                    continue;
+
+                try
+                {
+                    if (camera.IsOpen && camera.GetGrabStatus())
+                    {
+                        camera.StopGrabbing();
+                        LogHelper.AddLog(MsgLevel.Info, $"相机【{camera.UserDefinedName}】已停止相机回调取流。", true);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.AddLog(MsgLevel.Exception, $"停止相机【{camera.UserDefinedName}】回调取流失败：{ex.Message}", true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 对软触发相机回调流程发出一次软触发命令，硬触发和连续取流相机不处理。
+        /// </summary>
+        /// <param name="processes">待检查的流程集合。</param>
+        public void TriggerSoftCameraCallbacksForProcesses(IEnumerable<Process> processes)
+        {
+            if (processes == null)
+                return;
+
+            HashSet<ICamera> triggeredCameras = new HashSet<ICamera>();
+            foreach (Process process in processes)
+            {
+                if (process == null ||
+                    !process.Enable ||
+                    !process.IsCameraCallbackTriggered ||
+                    process.Nodes == null)
+                {
+                    continue;
+                }
+
+                foreach (NodeBase node in process.Nodes)
+                {
+                    NodeImageSource imageSource = node as NodeImageSource;
+                    if (imageSource == null || !imageSource.Active)
+                        continue;
+
+                    NodeParamImageSoucre param = imageSource.ParamForm == null
+                        ? null
+                        : imageSource.ParamForm.Params as NodeParamImageSoucre;
+                    ICamera camera = GetCameraCallbackCamera(param);
+                    if (camera == null ||
+                        param.TriggerModel != TriggerModel.On ||
+                        param.TriggerSource != TriggerSource.SOFT ||
+                        !triggeredCameras.Add(camera))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        if (camera.IsOpen && camera.GetGrabStatus())
+                            camera.GrabOne();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.AddLog(MsgLevel.Exception, $"相机【{camera.UserDefinedName}】软触发回调失败：{ex.Message}", true);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 对单个流程中的软触发相机回调发出一次软触发命令。
+        /// </summary>
+        /// <param name="process">待检查的流程。</param>
+        public void TriggerSoftCameraCallbacksForProcess(Process process)
+        {
+            TriggerSoftCameraCallbacksForProcesses(new[] { process });
+        }
+
+        /// <summary>
+        /// 从图像源参数中获取用于相机回调的相机。
+        /// </summary>
+        /// <param name="param">图像源参数。</param>
+        /// <returns>可用相机对象。</returns>
+        private static ICamera GetCameraCallbackCamera(NodeParamImageSoucre param)
+        {
+            if (param == null || param.ImageSource != "相机")
+                return null;
+
+            return param.Camera;
+        }
+
+        /// <summary>
+        /// 启动取流前应用图像源中保存的相机参数，保证频闪配置和回调模式一致。
+        /// </summary>
+        /// <param name="camera">相机对象。</param>
+        /// <param name="param">图像源参数。</param>
+        private static void ApplyCameraCallbackParameters(ICamera camera, NodeParamImageSoucre param)
+        {
+            if (camera == null || param == null)
+                return;
+
+            camera.SetTriggerSource(param.TriggerSource);
+            camera.SetTriggerEdge(param.TriggerEdge);
+            camera.SetTriggerMode(param.TriggerModel);
+            camera.SetTriggerDelay(param.TriggerDelay);
+            camera.SetExposureTime(param.ExposureTime);
+            camera.SetGain(param.Gain);
+            camera.GetImageTimeOut = param.TimeOut;
         }
 
         public async Task Run(bool isCyclical = false,bool is1=false)

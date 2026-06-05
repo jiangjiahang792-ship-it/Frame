@@ -20,6 +20,16 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-05 相机回调触发流程循环运行修复：
+  - [x] 新反馈已记录：勾选“相机回调触发流程”后，主窗体循环运行没有看到相机进入回调。
+  - [x] 已确认原逻辑只绑定相机帧事件，主窗体循环会跳过相机回调流程，但没有主动启动相机取流。
+  - [x] `Solution.Run(true)` 已在运行态启动相机回调流程中的相机取流，并在退出时只停止本次启动的相机。
+  - [x] 软触发相机回调流程已按循环间隔发出软触发，硬触发和连续取流保持由相机帧事件触发。
+  - [x] 单流程面板循环运行在相机回调模式下不再普通采图，而是保持回调运行态并同步相机取流。
+  - [x] Build-verified with MSBuild on 2026-06-05, 0 errors; existing warnings remain.
+  - [x] 反馈修正：相机已由设备面板提前取流时，进入相机回调流程会先重启取流，保证 SDK 帧事件订阅发生在 `StartGrabbing()` 前。
+  - [x] 反馈修正：图像源相机触发源反显兼容 `SOFT/LINE0` 等枚举名，避免旧方案重新保存后软触发源丢失。
+  - [x] Build-verified after callback restart fix with MSBuild on 2026-06-05, 0 errors; existing warnings remain.
 - 2026-06-05 ResultOverlayDraw2 独立节点新增：
   - [x] 新反馈已记录：保留原 `ResultOverlayDraw` 模块不变，新增 `ResultOverlayDraw2` 作为独立ROI结果绘制节点。
   - [x] `ResultOverlayDraw2` 已支持多个上游布尔结果订阅规则，并按“全部为真=OK”或“任一为真=OK”聚合后选择OK/NG绘制颜色。

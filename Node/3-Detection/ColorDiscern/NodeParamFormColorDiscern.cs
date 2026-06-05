@@ -325,7 +325,7 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         {
             try
             {
-                Mat sourceImage = srcMat?.Clone();
+                Mat sourceImage = srcMat;
 
                 if (sourceImage == null || sourceImage.Empty())
                     throw new ArgumentException("源图像或模板图像不能为空");

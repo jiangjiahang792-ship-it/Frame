@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using TDJS_Vision.Device.Camera;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
@@ -954,6 +955,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             Solution.Instance.ResetTokenSource();
 
             bool listenStarted = false;
+            List<ICamera> startedCallbackCameras = null;
             try
             {
                 if (_process.Nodes.Count == 0 || !_process.Enable)
@@ -961,6 +963,22 @@ namespace TDJS_Vision.Forms.ProcessNew
 
                 FormGlobalSignal.StartListenSignals();
                 listenStarted = true;
+
+                // 相机回调触发流程由图像源节点的相机帧事件启动，这里只保持运行态和相机取流。
+                if (_process.IsCameraCallbackTriggered)
+                {
+                    _process.IsHandRun = true;
+                    startedCallbackCameras = Solution.Instance.StartCameraCallbackGrabbingForProcess(_process);
+                    while (!Solution.Instance.CancellationToken.IsCancellationRequested)
+                    {
+                        // 软触发相机没有外部触发信号时，需要按循环间隔主动发出一次采图命令。
+                        Solution.Instance.TriggerSoftCameraCallbacksForProcess(_process);
+                        int interval = Math.Max(1, Solution.Instance.RunInterval);
+                        await System.Threading.Tasks.Task.Delay(interval, Solution.Instance.CancellationToken);
+                    }
+
+                    return;
+                }
 
                 while (!Solution.Instance.CancellationToken.IsCancellationRequested)
                 {
@@ -978,6 +996,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
             finally
             {
+                Solution.Instance.StopStartedCameraCallbackGrabbing(startedCallbackCameras);
                 _process.IsHandRun = false;
                 if (listenStarted)
                     FormGlobalSignal.StopListenSignals();

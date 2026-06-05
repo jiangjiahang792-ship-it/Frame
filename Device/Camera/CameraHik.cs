@@ -919,8 +919,13 @@ namespace TDJS_Vision.Device.Camera
             if (device == null) throw new Exception("相机对象为空！");
             if (!_isGrabbing)
             {
+                // 开始取流前同步一次帧事件订阅，保证相机回调流程能在 SDK 取流线程启动时收到帧事件。
+                SyncImageCallbackSubscription();
                 device.StreamGrabber.SetImageNodeNum(1);
-                device.StreamGrabber.StartGrabbing();
+                int result = device.StreamGrabber.StartGrabbing();
+                if (result != MvError.MV_OK)
+                    throw new Exception($"相机开始取流失败，错误码：{result}");
+
                 _isGrabbing = true;
             }
         }

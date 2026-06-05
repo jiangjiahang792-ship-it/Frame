@@ -15,33 +15,6 @@ using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
     /// <summary>
-    /// AI检测项配置切换事件参数。
-    /// </summary>
-    public class TDAIDetectItemChangedEventArgs : EventArgs
-    {
-        /// <summary>
-        /// 触发检测项切换的AI节点。
-        /// </summary>
-        public NodeTDAI Node { get; }
-
-        /// <summary>
-        /// 当前通信或固定模式选中的检测项名称。
-        /// </summary>
-        public string DetectItemName { get; }
-
-        /// <summary>
-        /// 初始化AI检测项配置切换事件参数。
-        /// </summary>
-        /// <param name="node">触发检测项切换的AI节点。</param>
-        /// <param name="detectItemName">当前检测项名称。</param>
-        public TDAIDetectItemChangedEventArgs(NodeTDAI node, string detectItemName)
-        {
-            Node = node;
-            DetectItemName = detectItemName;
-        }
-    }
-
-    /// <summary>
     /// TDAI AI检测节点。
     /// </summary>
     public class NodeTDAI : NodeBase
@@ -66,7 +39,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
-
+            
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
@@ -168,16 +141,26 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     var handleDet = param.Yolo8 as Yolo8Det;
                                     if (handleDet == null)
                                         throw new Exception("AI模型句柄类型与DET模型不匹配，请重新加载模型！");
-                                    for (int i = 0; i < inputImage.Bitmaps.Count; i++)
+                                    //for (int i = 0; i < inputImage.Bitmaps.Count; i++)
+                                    //{
+                                    //    List<DetResult> tmp = new List<DetResult>();
+                                    //    var img = inputImage.Bitmaps[i].Clone();
+                                    //    if (inputImage.Rectangles.Count != 0)
+                                    //        tmp = handleDet.Detect(img, inputImage.Rectangles[i].Location.X, inputImage.Rectangles[i].Location.Y);
+                                    //    else
+                                    //        tmp = handleDet.Detect(img);
+                                    //    det_results.AddRange(tmp);
+                                    //}
                                     {
                                         List<DetResult> tmp = new List<DetResult>();
-                                        var img = inputImage.Bitmaps[i].Clone();
+                                        var img = inputImage.Bitmaps[0];
                                         if (inputImage.Rectangles.Count != 0)
-                                            tmp = handleDet.Detect(img, inputImage.Rectangles[i].Location.X, inputImage.Rectangles[i].Location.Y);
+                                            tmp = handleDet.Detect(img);
                                         else
                                             tmp = handleDet.Detect(img);
                                         det_results.AddRange(tmp);
                                     }
+                                    
 
                                     #endregion
 
@@ -186,7 +169,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     switch (param.ModelName)
                                     {
                                         case ModelName.RL_12类线芯模型:
+                                            //Console.WriteLine("开始时间:" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
                                             RL12Parse.Parse(det_results, result_count, param, Process,ref res);
+                                            //Console.WriteLine("结束时间:" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
                                             break;
                                         case ModelName.合压模型:
                                             ClosingTerminals_encrypted_Parse.Parse(det_results, result_count, param, Process,ref res);
@@ -299,7 +284,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                 res.AlgorithmResult.Texts.Add(new ColorText($"当前模板: {param.CurDetectItemName}", Color.Green));
                             }
 
-                            Console.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+                            //Console.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
 
                             // 返回结果
                             Result = res;
@@ -521,6 +506,33 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         private async Task<ushort> GetModbusCode(IModbus modbus,string address) {
             ushort[] value = modbus.ReadUInt16(address, 1);
             return value[0];
+        }
+    }
+
+    /// <summary>
+    /// AI检测项配置切换事件参数。
+    /// </summary>
+    public class TDAIDetectItemChangedEventArgs : EventArgs
+    {
+        /// <summary>
+        /// 触发检测项切换的AI节点。
+        /// </summary>
+        public NodeTDAI Node { get; }
+
+        /// <summary>
+        /// 当前通信或固定模式选中的检测项名称。
+        /// </summary>
+        public string DetectItemName { get; }
+
+        /// <summary>
+        /// 初始化AI检测项配置切换事件参数。
+        /// </summary>
+        /// <param name="node">触发检测项切换的AI节点。</param>
+        /// <param name="detectItemName">当前检测项名称。</param>
+        public TDAIDetectItemChangedEventArgs(NodeTDAI node, string detectItemName)
+        {
+            Node = node;
+            DetectItemName = detectItemName;
         }
     }
 }

@@ -111,7 +111,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     // 还原选中的模式
                     CamerModelComboBox.Text = param.TriggerModel.ToString();
                     // 还原选中的触发源
-                    comboBoxTriggerMode.Text = param.TriggerSource.ToString();
+                    comboBoxTriggerMode.Text = GetTriggerSourceDisplayText(param.TriggerSource);
                     // 硬触发沿
                     comboBoxTriggerEdge.SelectedIndex = (int)param.TriggerEdge;
                     //// 设置延迟、曝光、增益
@@ -543,27 +543,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         break;
                 }
 
-                switch (comboBoxTriggerMode.Text)
-                {
-                    case "软触发":
-                        _nodeParamImageSource.TriggerSource = TriggerSource.SOFT;
-                        break;
-                    case "Line0":
-                        _nodeParamImageSource.TriggerSource = TriggerSource.LINE0;
-                        break;
-                    case "Line1":
-                        _nodeParamImageSource.TriggerSource = TriggerSource.LINE1;
-                        break;
-                    case "Line2":
-                        _nodeParamImageSource.TriggerSource = TriggerSource.LINE2;
-                        break;
-                    case "Line3":
-                        _nodeParamImageSource.TriggerSource = TriggerSource.LINE3;
-                        break;
-                    case "Line4":
-                        _nodeParamImageSource.TriggerSource = TriggerSource.LINE4;
-                        break;
-                }
+                _nodeParamImageSource.TriggerSource = ParseTriggerSourceText(comboBoxTriggerMode.Text);
 
                 //硬触发设置触发沿
                 switch (comboBoxTriggerEdge.Text)
@@ -618,6 +598,64 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             Params = _nodeParamImageSource;
             SyncCameraCallbackBinding();
             return true;
+        }
+
+        /// <summary>
+        /// 获取触发源在参数界面中的显示文本。
+        /// </summary>
+        /// <param name="triggerSource">触发源枚举。</param>
+        /// <returns>参数界面下拉框文本。</returns>
+        private static string GetTriggerSourceDisplayText(TriggerSource triggerSource)
+        {
+            switch (triggerSource)
+            {
+                case TriggerSource.SOFT:
+                    return "软触发";
+                case TriggerSource.LINE0:
+                    return "Line0";
+                case TriggerSource.LINE1:
+                    return "Line1";
+                case TriggerSource.LINE2:
+                    return "Line2";
+                case TriggerSource.LINE3:
+                    return "Line3";
+                case TriggerSource.LINE4:
+                    return "Line4";
+                default:
+                    return "软触发";
+            }
+        }
+
+        /// <summary>
+        /// 将参数界面文本解析为触发源枚举，兼容旧方案反显出的枚举名。
+        /// </summary>
+        /// <param name="text">参数界面下拉框文本。</param>
+        /// <returns>触发源枚举。</returns>
+        private static TriggerSource ParseTriggerSourceText(string text)
+        {
+            switch (text)
+            {
+                case "软触发":
+                case "SOFT":
+                    return TriggerSource.SOFT;
+                case "Line0":
+                case "LINE0":
+                    return TriggerSource.LINE0;
+                case "Line1":
+                case "LINE1":
+                    return TriggerSource.LINE1;
+                case "Line2":
+                case "LINE2":
+                    return TriggerSource.LINE2;
+                case "Line3":
+                case "LINE3":
+                    return TriggerSource.LINE3;
+                case "Line4":
+                case "LINE4":
+                    return TriggerSource.LINE4;
+                default:
+                    return TriggerSource.SOFT;
+            }
         }
 
         /// <summary>

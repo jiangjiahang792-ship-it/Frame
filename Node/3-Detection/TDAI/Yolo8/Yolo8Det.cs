@@ -133,7 +133,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <summary>
         /// 执行检测
         /// </summary>
-        public List<DetResult> Detect(Mat image, int deltaX = 0, int deltaY = 0)
+        public List<DetResult> Detect(Mat image)
         {
             //初始化返回对象
             List<DetResult> results = new List<DetResult>();
@@ -157,7 +157,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                         {
                             ClassId = dr.class_id,
                             Score = dr.score,
-                            Box = new Rect(dr.left + deltaX, dr.top + deltaY, dr.width, dr.height)
+                            Box = new Rect(dr.left, dr.top, dr.width, dr.height)
                         });
                     }
                     break;
@@ -195,8 +195,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                                 ClassId = res.class_id,
                                 Score = res.conf,
                                 Box = new Rect(
-                                    (int)res.bbox_0 + deltaX,
-                                    (int)res.bbox_1 + deltaY,
+                                    (int)res.bbox_0,
+                                    (int)res.bbox_1,
                                     (int)res.bbox_2,
                                     (int)res.bbox_3
                                 )
