@@ -57,6 +57,9 @@
             this.comboBoxTriggerMode = new System.Windows.Forms.ComboBox();
             this.label2 = new System.Windows.Forms.Label();
             this.CamerModelComboBox = new System.Windows.Forms.ComboBox();
+            this.tableLayoutPanelSharedVariable = new System.Windows.Forms.TableLayoutPanel();
+            this.labelSharedVariable = new System.Windows.Forms.Label();
+            this.comboBoxSharedVariable = new System.Windows.Forms.ComboBox();
             this.tableLayoutPanelSave = new System.Windows.Forms.TableLayoutPanel();
             this.button1 = new System.Windows.Forms.Button();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
@@ -69,6 +72,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownGain)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownExposureTime)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownTriggerDelay)).BeginInit();
+            this.tableLayoutPanelSharedVariable.SuspendLayout();
             this.tableLayoutPanelSave.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -78,6 +82,7 @@
             this.flowLayoutPanel1.Controls.Add(this.tableLayoutPanel1);
             this.flowLayoutPanel1.Controls.Add(this.tableLayoutPanelChoiceImage);
             this.flowLayoutPanel1.Controls.Add(this.tableLayoutPanelCamera);
+            this.flowLayoutPanel1.Controls.Add(this.tableLayoutPanelSharedVariable);
             this.flowLayoutPanel1.Controls.Add(this.tableLayoutPanelSave);
             this.flowLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.flowLayoutPanel1.Location = new System.Drawing.Point(2, 38);
@@ -120,7 +125,8 @@
             this.comboBoxImgSource.FormattingEnabled = true;
             this.comboBoxImgSource.Items.AddRange(new object[] {
             "本地图像",
-            "相机"});
+            "相机",
+            "共享变量"});
             this.comboBoxImgSource.Location = new System.Drawing.Point(399, 16);
             this.comboBoxImgSource.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxImgSource.Name = "comboBoxImgSource";
@@ -473,20 +479,59 @@
             this.CamerModelComboBox.TabIndex = 1;
             this.CamerModelComboBox.SelectedIndexChanged += new System.EventHandler(this.CamerModelComboBox_SelectedIndexChanged);
             // 
+            // tableLayoutPanelSharedVariable
+            // 
+            this.tableLayoutPanelSharedVariable.ColumnCount = 2;
+            this.tableLayoutPanelSharedVariable.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 49.99999F));
+            this.tableLayoutPanelSharedVariable.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50.00001F));
+            this.tableLayoutPanelSharedVariable.Controls.Add(this.labelSharedVariable, 0, 0);
+            this.tableLayoutPanelSharedVariable.Controls.Add(this.comboBoxSharedVariable, 1, 0);
+            this.tableLayoutPanelSharedVariable.Font = new System.Drawing.Font("宋体", 10.5F);
+            this.tableLayoutPanelSharedVariable.Location = new System.Drawing.Point(3, 732);
+            this.tableLayoutPanelSharedVariable.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.tableLayoutPanelSharedVariable.Name = "tableLayoutPanelSharedVariable";
+            this.tableLayoutPanelSharedVariable.RowCount = 1;
+            this.tableLayoutPanelSharedVariable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
+            this.tableLayoutPanelSharedVariable.Size = new System.Drawing.Size(674, 82);
+            this.tableLayoutPanelSharedVariable.TabIndex = 3;
+            // 
+            // labelSharedVariable
+            // 
+            this.labelSharedVariable.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.labelSharedVariable.AutoSize = true;
+            this.labelSharedVariable.Font = new System.Drawing.Font("宋体", 10.5F);
+            this.labelSharedVariable.Location = new System.Drawing.Point(100, 30);
+            this.labelSharedVariable.Name = "labelSharedVariable";
+            this.labelSharedVariable.Size = new System.Drawing.Size(136, 21);
+            this.labelSharedVariable.TabIndex = 0;
+            this.labelSharedVariable.Text = "选择共享变量";
+            // 
+            // comboBoxSharedVariable
+            // 
+            this.comboBoxSharedVariable.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.comboBoxSharedVariable.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxSharedVariable.Font = new System.Drawing.Font("宋体", 10.5F);
+            this.comboBoxSharedVariable.FormattingEnabled = true;
+            this.comboBoxSharedVariable.Location = new System.Drawing.Point(399, 26);
+            this.comboBoxSharedVariable.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.comboBoxSharedVariable.Name = "comboBoxSharedVariable";
+            this.comboBoxSharedVariable.Size = new System.Drawing.Size(211, 29);
+            this.comboBoxSharedVariable.TabIndex = 1;
+            // 
             // tableLayoutPanelSave
             // 
             this.tableLayoutPanelSave.ColumnCount = 2;
             this.tableLayoutPanelSave.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanelSave.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanelSave.Controls.Add(this.button1, 0, 0);
-            this.tableLayoutPanelSave.Location = new System.Drawing.Point(3, 732);
+            this.tableLayoutPanelSave.Location = new System.Drawing.Point(3, 822);
             this.tableLayoutPanelSave.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.tableLayoutPanelSave.Name = "tableLayoutPanelSave";
             this.tableLayoutPanelSave.RowCount = 1;
             this.tableLayoutPanelSave.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanelSave.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 24F));
             this.tableLayoutPanelSave.Size = new System.Drawing.Size(674, 82);
-            this.tableLayoutPanelSave.TabIndex = 3;
+            this.tableLayoutPanelSave.TabIndex = 4;
             // 
             // button1
             // 
@@ -532,6 +577,8 @@
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownGain)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownExposureTime)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownTriggerDelay)).EndInit();
+            this.tableLayoutPanelSharedVariable.ResumeLayout(false);
+            this.tableLayoutPanelSharedVariable.PerformLayout();
             this.tableLayoutPanelSave.ResumeLayout(false);
             this.ResumeLayout(false);
 
@@ -571,5 +618,8 @@
         private System.Windows.Forms.NumericUpDown numericUpDownTimeOut;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.ComboBox CamerModelComboBox;
+        private System.Windows.Forms.TableLayoutPanel tableLayoutPanelSharedVariable;
+        private System.Windows.Forms.Label labelSharedVariable;
+        private System.Windows.Forms.ComboBox comboBoxSharedVariable;
     }
 }

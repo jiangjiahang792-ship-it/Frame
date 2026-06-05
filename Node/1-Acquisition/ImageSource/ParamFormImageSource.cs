@@ -45,9 +45,19 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             _node = node;
             _imageSourceNode = node as NodeImageSource;
             comboBoxImgSource.SelectedIndex = 0;
+            Shown += ParamFormImageSource_Shown;
             SolRunParamControl.RefreshParamView += SolRunParamControl_RefreshParamView;
             NodeBase.NodeDeletedEvent += NodeBase_NodeDeletedEvent;
             Disposed += ParamFormImageSource_Disposed;
+        }
+
+        /// <summary>
+        /// 窗体显示时刷新共享变量列表，保证新建或反序列化后的变量能被选择。
+        /// </summary>
+        private void ParamFormImageSource_Shown(object sender, EventArgs e)
+        {
+            if (comboBoxImgSource.Text == "共享变量")
+                RefreshSharedVariableList(comboBoxSharedVariable.Text);
         }
 
         private void SolRunParamControl_RefreshParamView(object sender, EventArgs e)
@@ -127,6 +137,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
                     // 按流程菜单开关同步回调订阅，未启用相机回调触发流程时保持注销状态。
                     SyncCameraCallbackBinding();
+                }
+                else if (param.ImageSource == "共享变量")
+                {
+                    RefreshSharedVariableList(param.SharedVariableName);
                 }
 
             }
@@ -249,22 +263,63 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 // 调整控件可视状态
                 tableLayoutPanelChoiceImage.Visible = true;
                 tableLayoutPanelCamera.Visible = false;
+                tableLayoutPanelSharedVariable.Visible = false;
                 // 设置窗口高度
-                this.Height = _formHeight - tableLayoutPanelCamera.Height;
+                this.Height = _formHeight - tableLayoutPanelCamera.Height - tableLayoutPanelSharedVariable.Height;
             }
             // 相机
             else if (comboBoxImgSource.SelectedIndex == 1)
             {
                 tableLayoutPanelChoiceImage.Visible = false;
                 tableLayoutPanelCamera.Visible = true;
-                this.Height = _formHeight - tableLayoutPanelChoiceImage.Height;
+                tableLayoutPanelSharedVariable.Visible = false;
+                this.Height = _formHeight - tableLayoutPanelChoiceImage.Height - tableLayoutPanelSharedVariable.Height;
                 comboBoxTriggerMode.SelectedIndex = 0;
                 comboBoxTriggerEdge.SelectedIndex = 0;
                 comboBoxStrobe.SelectedIndex = 0;
                 InitCameraList();
             }
+            // 共享变量
+            else if (comboBoxImgSource.SelectedIndex == 2)
+            {
+                tableLayoutPanelChoiceImage.Visible = false;
+                tableLayoutPanelCamera.Visible = false;
+                tableLayoutPanelSharedVariable.Visible = true;
+                this.Height = _formHeight - tableLayoutPanelChoiceImage.Height - tableLayoutPanelCamera.Height;
+                RefreshSharedVariableList(comboBoxSharedVariable.Text);
+            }
 
         }
+
+        #region 共享变量
+
+        /// <summary>
+        /// 刷新共享变量下拉框，并尽量保留指定变量名。
+        /// </summary>
+        /// <param name="selectedName">希望保留的共享变量名称。</param>
+        private void RefreshSharedVariableList(string selectedName = null)
+        {
+            string variableName = string.IsNullOrWhiteSpace(selectedName) ? comboBoxSharedVariable.Text : selectedName;
+            comboBoxSharedVariable.Items.Clear();
+            comboBoxSharedVariable.Items.Add("[未选择]");
+            foreach (var name in Solution.Instance.SharedVariable.GetNames())
+            {
+                comboBoxSharedVariable.Items.Add(name);
+            }
+
+            // 旧方案反序列化时，共享变量写入节点可能尚未完成还原，先保留已保存的变量名。
+            if (!string.IsNullOrWhiteSpace(variableName) &&
+                variableName != "[未选择]" &&
+                !comboBoxSharedVariable.Items.Contains(variableName))
+            {
+                comboBoxSharedVariable.Items.Add(variableName);
+            }
+
+            int index = comboBoxSharedVariable.Items.IndexOf(variableName);
+            comboBoxSharedVariable.SelectedIndex = index == -1 ? 0 : index;
+        }
+
+        #endregion
 
         #region 本地图像
         // 选择图像
@@ -547,6 +602,17 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     SetCameraParams(_nodeParamImageSource.Camera, _nodeParamImageSource.TriggerModel, _nodeParamImageSource.TriggerSource, _nodeParamImageSource.TriggerEdge, _nodeParamImageSource.TriggerDelay
                         , _nodeParamImageSource.ExposureTime, _nodeParamImageSource.Gain, _nodeParamImageSource.TimeOut);
 
+            }
+            else if (comboBoxImgSource.SelectedIndex == 2)
+            {
+                UnbindCameraCallback();
+                if (comboBoxSharedVariable.Text.IsNullOrEmpty() || comboBoxSharedVariable.Text == "[未选择]")
+                {
+                    MessageBoxTD.Show("共享变量为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return false;
+                }
+
+                _nodeParamImageSource.SharedVariableName = comboBoxSharedVariable.Text;
             }
 
             Params = _nodeParamImageSource;

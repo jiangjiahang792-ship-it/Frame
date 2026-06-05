@@ -2,10 +2,12 @@
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Node._6_LogicTool.SharedVariable;
 
 namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 {
@@ -190,6 +192,164 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         }
 
         /// <summary>
+        /// 从方案共享变量读取图像，并转换为图像源节点统一输出。
+        /// </summary>
+        /// <param name="variableName">共享变量名称。</param>
+        /// <returns>图像源输出对象。</returns>
+        private static OutputImage LoadSharedVariableImage(string variableName)
+        {
+            if (string.IsNullOrWhiteSpace(variableName) || variableName == "[未选择]")
+                throw new Exception("共享变量名称未设置！");
+
+            SharedVarValue sharedValue = Solution.Instance.SharedVariable.GetValue(variableName);
+            object data = UnwrapSharedVariableData(sharedValue);
+            OutputImage outputImage = ConvertSharedVariableToOutputImage(variableName, data);
+            if (!HasRunnableOutputImage(outputImage))
+                throw new Exception($"共享变量“{variableName}”中没有有效图像！");
+
+            return outputImage;
+        }
+
+        /// <summary>
+        /// 解除嵌套的共享变量值包装，兼容共享变量再次写入共享变量结果的场景。
+        /// </summary>
+        /// <param name="sharedValue">共享变量值包装对象。</param>
+        /// <returns>实际数据对象。</returns>
+        private static object UnwrapSharedVariableData(SharedVarValue sharedValue)
+        {
+            object data = sharedValue?.Data;
+            while (data is SharedVarValue nestedValue)
+            {
+                data = nestedValue.Data;
+            }
+
+            return data;
+        }
+
+        /// <summary>
+        /// 将共享变量中的常见图像类型转换为图像源输出。
+        /// </summary>
+        /// <param name="variableName">共享变量名称，用于异常提示。</param>
+        /// <param name="data">共享变量数据。</param>
+        /// <returns>图像源输出对象。</returns>
+        private static OutputImage ConvertSharedVariableToOutputImage(string variableName, object data)
+        {
+            if (data is OutputImage outputImage)
+                return NormalizeOutputImage(outputImage);
+
+            if (data is Mat mat)
+                return BuildOutputImage(mat);
+
+            if (data is Bitmap bitmap)
+                return BuildOutputImage(bitmap.ToMat());
+
+            if (data is IEnumerable<Mat> matList)
+                return BuildOutputImageList(matList);
+
+            if (data is IEnumerable<Bitmap> bitmapList)
+                return BuildOutputImageList(bitmapList);
+
+            string typeName = data == null ? "空值" : data.GetType().Name;
+            throw new Exception($"共享变量“{variableName}”的类型为{typeName}，不是可用图像类型！");
+        }
+
+        /// <summary>
+        /// 修正共享变量中已有的图像源输出，保证原图、图像列表和灰度缓存可用。
+        /// </summary>
+        /// <param name="outputImage">共享变量中的图像源输出。</param>
+        /// <returns>归一化后的图像源输出。</returns>
+        private static OutputImage NormalizeOutputImage(OutputImage outputImage)
+        {
+            if (outputImage == null)
+                return new OutputImage();
+
+            if (outputImage.Bitmaps == null)
+                outputImage.Bitmaps = new List<Mat>();
+
+            if (outputImage.Bitmaps.Count == 0)
+            {
+                if (OutputImage.HasValidImage(outputImage.SrcImg))
+                    outputImage.Bitmaps.Add(outputImage.SrcImg);
+            }
+            else if (!OutputImage.HasValidImage(outputImage.Bitmaps[0]) && OutputImage.HasValidImage(outputImage.SrcImg))
+            {
+                outputImage.Bitmaps[0] = outputImage.SrcImg;
+            }
+
+            if (!OutputImage.HasValidImage(outputImage.SrcImg) && outputImage.Bitmaps.Count > 0)
+                outputImage.SrcImg = outputImage.Bitmaps[0];
+
+            if (!OutputImage.HasValidImage(outputImage.GrayImg))
+                outputImage.GrayImg = OutputImage.BuildGrayImage(outputImage.SrcImg);
+
+            if (outputImage.Rectangles == null)
+                outputImage.Rectangles = new List<Rect>();
+
+            return outputImage;
+        }
+
+        /// <summary>
+        /// 用 Mat 列表构建图像源输出。
+        /// </summary>
+        /// <param name="images">Mat 图像列表。</param>
+        /// <returns>图像源输出对象。</returns>
+        private static OutputImage BuildOutputImageList(IEnumerable<Mat> images)
+        {
+            List<Mat> mats = new List<Mat>();
+            if (images != null)
+            {
+                foreach (Mat image in images)
+                {
+                    if (OutputImage.HasValidImage(image))
+                        mats.Add(image);
+                }
+            }
+
+            if (mats.Count == 0)
+                return new OutputImage();
+
+            return new OutputImage
+            {
+                SrcImg = mats[0],
+                Bitmaps = mats,
+                GrayImg = OutputImage.BuildGrayImage(mats[0])
+            };
+        }
+
+        /// <summary>
+        /// 用 Bitmap 列表构建图像源输出。
+        /// </summary>
+        /// <param name="images">Bitmap 图像列表。</param>
+        /// <returns>图像源输出对象。</returns>
+        private static OutputImage BuildOutputImageList(IEnumerable<Bitmap> images)
+        {
+            List<Mat> mats = new List<Mat>();
+            if (images != null)
+            {
+                foreach (Bitmap image in images)
+                {
+                    if (image != null)
+                        mats.Add(image.ToMat());
+                }
+            }
+
+            return BuildOutputImageList(mats);
+        }
+
+        /// <summary>
+        /// 判断图像源输出是否有可继续流转的主图。
+        /// </summary>
+        /// <param name="outputImage">图像源输出对象。</param>
+        /// <returns>主图有效时返回 true。</returns>
+        private static bool HasRunnableOutputImage(OutputImage outputImage)
+        {
+            return outputImage != null &&
+                outputImage.Bitmaps != null &&
+                outputImage.Bitmaps.Count > 0 &&
+                OutputImage.HasValidImage(outputImage.Bitmaps[0]);
+        }
+
+        /// <summary>
         /// 保存待处理回调图像，并释放未消费的旧帧。
         /// </summary>
         private void StorePendingCallbackMat(Mat mat)
@@ -297,13 +457,20 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                                 res.OutputImage = BuildOutputImage(null);
                             }
                         }
+                        else if (param.ImageSource == "共享变量")
+                        {
+                            res.OutputImage = LoadSharedVariableImage(param.SharedVariableName);
+#if DEBUG
+                            fileName += param.SharedVariableName;
+#endif
+                        }
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         Result.RunTime = time;
                         //Console.WriteLine("时间: "+ DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
                         if (showLog)
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
 
-                        if (res.OutputImage.Bitmaps.Count == 0 || res.OutputImage.Bitmaps[0] == null)
+                        if (!HasRunnableOutputImage(res.OutputImage))
                             return new NodeReturn(NodeRunFlag.StopRun);
                         return new NodeReturn(NodeRunFlag.ContinueRun);
                     }

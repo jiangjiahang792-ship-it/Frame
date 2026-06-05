@@ -81,5 +81,14 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         
 
         #endregion
+
+        #region 共享变量参数
+
+        /// <summary>
+        /// 读取图像时使用的共享变量名称。
+        /// </summary>
+        public string SharedVariableName { get; set; }
+
+        #endregion
     }
 }

@@ -20,6 +20,11 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-05 ImageSource 共享变量图像源补齐：
+  - [x] 新反馈已记录：`ImageSource` 的 `comboBoxImgSource` 已有“共享变量”选项，但缺少对应界面保存和运行逻辑。
+  - [x] `ParamFormImageSource` 已新增设计器可见的共享变量选择控件，保存参数时记录共享变量名。
+  - [x] `NodeImageSource` 已支持从共享变量读取 `OutputImage`、`Mat`、`Bitmap` 以及常见图像列表，并归一化为图像源输出。
+  - [x] Build-verified with MSBuild on 2026-06-05, 0 errors; existing warnings remain.
 - 2026-06-04 TDAI 动态检测项默认模板兜底：
   - [x] 新反馈已记录：动态通信解析出的检测项配置不存在时，需要从默认模板复制一份。
   - [x] `NodeTDAI` 已改为先解析通信值对应的检测项名称，再校验或复制 `DetectItemDic` 配置，并在默认模板缺失时给出明确异常。

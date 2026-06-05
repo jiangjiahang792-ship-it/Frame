@@ -415,9 +415,6 @@ namespace TDJS_Vision.Device.Camera
                 if (ret != MvError.MV_OK)
                     return null;
 
-                int width = (int)frame.Image.Width;
-                int height = (int)frame.Image.Height;
-
                 var image = ConvertImageFormat(frame.Image, device.PixelTypeConverter);
                 device.StreamGrabber.FreeImageBuffer(frame);
                 return image;
