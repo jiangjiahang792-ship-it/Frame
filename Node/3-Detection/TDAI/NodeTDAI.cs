@@ -14,8 +14,43 @@ using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
+    /// <summary>
+    /// AI检测项配置切换事件参数。
+    /// </summary>
+    public class TDAIDetectItemChangedEventArgs : EventArgs
+    {
+        /// <summary>
+        /// 触发检测项切换的AI节点。
+        /// </summary>
+        public NodeTDAI Node { get; }
+
+        /// <summary>
+        /// 当前通信或固定模式选中的检测项名称。
+        /// </summary>
+        public string DetectItemName { get; }
+
+        /// <summary>
+        /// 初始化AI检测项配置切换事件参数。
+        /// </summary>
+        /// <param name="node">触发检测项切换的AI节点。</param>
+        /// <param name="detectItemName">当前检测项名称。</param>
+        public TDAIDetectItemChangedEventArgs(NodeTDAI node, string detectItemName)
+        {
+            Node = node;
+            DetectItemName = detectItemName;
+        }
+    }
+
+    /// <summary>
+    /// TDAI AI检测节点。
+    /// </summary>
     public class NodeTDAI : NodeBase
     {
+        /// <summary>
+        /// 当前检测项配置切换或检测项上下限被运行过程更新时触发。
+        /// </summary>
+        public event EventHandler<TDAIDetectItemChangedEventArgs> DetectItemConfigChanged;
+
         public NodeTDAI(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
         {
             ParamForm = new ParamFormTDAI();
@@ -97,12 +132,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     string strVal = readValue.ToString();
 
                                     var matchModel = param.TDAICommuntionParams.FirstOrDefault(m => m.TriggerVal == strVal);
-                                    if (matchModel == null || string.IsNullOrWhiteSpace(matchModel.DetectionName)) {
-                                        configName = $"模板{strVal}";
+                                    if (matchModel == null || string.IsNullOrWhiteSpace(matchModel.DetectionName))
+                                    {
+                                        configName = $"{Process.ProcessName}模板{strVal}";
                                     }
-                                    else configName = matchModel.DetectionName;
+                                    else
+                                    {
+                                        configName = matchModel.DetectionName.Trim();
+                                    }
                                     EnsureDetectItemConfig(configName, param.DetectItemName2);
                                     param.CurDetectItemName = configName;
+                                    OnDetectItemConfigChanged(configName);
                                 }
                                 else
                                 {
@@ -263,6 +303,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
                             // 返回结果
                             Result = res;
+                            OnDetectItemConfigChanged(param.CurDetectItemName);
                             if (showLog)
                                 LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
 
@@ -306,11 +347,23 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         }
 
         /// <summary>
+        /// 通知外部界面刷新当前检测项配置。
+        /// </summary>
+        /// <param name="detectItemName">当前检测项名称。</param>
+        private void OnDetectItemConfigChanged(string detectItemName)
+        {
+            if (string.IsNullOrWhiteSpace(detectItemName))
+                return;
+
+            DetectItemConfigChanged?.Invoke(this, new TDAIDetectItemChangedEventArgs(this, detectItemName));
+        }
+
+        /// <summary>
         /// 确保当前检测项配置存在，不存在时从默认模板复制一份。
         /// </summary>
         /// <param name="detectItemName">当前通信解析出来的检测项名称。</param>
         /// <param name="defaultTemplateName">用于复制的默认模板检测项名称。</param>
-        private static void EnsureDetectItemConfig(string detectItemName, string defaultTemplateName)
+        public static void EnsureDetectItemConfig(string detectItemName, string defaultTemplateName)
         {
             if (Solution.Instance.DetectItemDic == null)
                 Solution.Instance.DetectItemDic = new Dictionary<string, List<DetectItemInfo>>();
@@ -318,17 +371,55 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             if (string.IsNullOrWhiteSpace(detectItemName))
                 throw new Exception("当前检测项名称为空，无法创建检测项配置！");
 
+            detectItemName = detectItemName.Trim();
+
             if (Solution.Instance.DetectItemDic.ContainsKey(detectItemName))
                 return;
 
             if (string.IsNullOrWhiteSpace(defaultTemplateName))
                 throw new Exception($"检测项({detectItemName})不存在，且默认模板未设置！");
 
+            defaultTemplateName = defaultTemplateName.Trim();
+
             if (!Solution.Instance.DetectItemDic.TryGetValue(defaultTemplateName, out List<DetectItemInfo> defaultTemplate) || defaultTemplate == null)
                 throw new Exception($"检测项({detectItemName})不存在，且默认模板({defaultTemplateName})不存在！");
 
             Solution.Instance.DetectItemDic[detectItemName] = CloneDetectItems(defaultTemplate);
             LogHelper.AddLog(MsgLevel.Info, $"检测项({detectItemName})不存在，已从默认模板({defaultTemplateName})复制。", true);
+        }
+
+        /// <summary>
+        /// 根据通信配置批量补齐检测项配置，空检测项名称按“模板+触发值”生成。
+        /// </summary>
+        /// <param name="communicationParams">通信触发值和检测项名称映射集合。</param>
+        /// <param name="defaultTemplateName">用于复制的默认模板检测项名称。</param>
+        public static void EnsureCommunicationDetectItemConfigs(IEnumerable<TDAICommuntionParam> communicationParams, string defaultTemplateName)
+        {
+            if (communicationParams == null)
+                return;
+
+            foreach (var communicationParam in communicationParams)
+            {
+                if (communicationParam == null)
+                    continue;
+
+                string detectItemName = communicationParam.DetectionName;
+                if (string.IsNullOrWhiteSpace(detectItemName))
+                {
+                    if (string.IsNullOrWhiteSpace(communicationParam.TriggerVal))
+                        continue;
+
+                    detectItemName = $"模板{communicationParam.TriggerVal.Trim()}";
+                    communicationParam.DetectionName = detectItemName;
+                }
+                else
+                {
+                    detectItemName = detectItemName.Trim();
+                    communicationParam.DetectionName = detectItemName;
+                }
+
+                EnsureDetectItemConfig(detectItemName, defaultTemplateName);
+            }
         }
 
         /// <summary>

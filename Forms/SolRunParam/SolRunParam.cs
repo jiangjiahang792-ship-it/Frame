@@ -28,6 +28,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         NodeImageSource _nodeSource;//图像源节点
         NodeImageCrop _nodeCrop;//图像裁剪节点
         string _windowsName; // 图像显示窗口名
+        string _currentDetectItemName;//当前运行参数表显示的检测项名称
         EventHandler<Bitmap> preEventHandler = null;//前一个活动的相机图像发布事件处理器
         public static event EventHandler<ImageShowPamra> ImageShowChanged; // 发布图像到窗口显示
         public static event EventHandler RefreshParamView; // 通知节点参数界面刷新事件
@@ -38,6 +39,7 @@ namespace TDJS_Vision.Forms.SolRunParam
             BindLanguage();
             LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
             Disposed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+            Disposed += SolRunParamControl_Disposed;
         }
 
         private void BindLanguage()
@@ -90,7 +92,8 @@ namespace TDJS_Vision.Forms.SolRunParam
                 _camera = null;
                 _nodeSource = null;
                 _nodeCrop = null;
-                _nodeTDAI = null;
+                SetCurrentAiNode(null);
+                _currentDetectItemName = null;
                 _windowsName = null;
                 SetEnable(false);
                 foreach (var node in process.Nodes)
@@ -149,7 +152,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                         if (_targetAiNode != null && nodeTDAI.ID != _targetAiNode.ID)
                             continue;
 
-                        _nodeTDAI = nodeTDAI;//临时保存AI节点
+                        SetCurrentAiNode(nodeTDAI);//临时保存AI节点
                         if (paramTDAI != null)
                         {
                             //设置参数
@@ -160,11 +163,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                             textBoxScoreThreshold.Enabled = true;
                             textBoxScoreNMS.Enabled = true;
                             uiSwitch_Learning.Enabled = true;
-                            try
-                            {
-                                LoadDetectItems(Solution.Instance.DetectItemDic[paramTDAI.CurDetectItemName]);
-                            }
-                            catch (Exception) { }
+                            LoadDetectItemsByName(paramTDAI.CurDetectItemName);
                         }
                     }
                     if (node is NodeImageShow nodeShow)
@@ -190,6 +189,101 @@ namespace TDJS_Vision.Forms.SolRunParam
         private void LoadDetectItems(List<DetectItemInfo> infos)
         {
             myDataGridViewForm1.LoadConfig(infos);
+        }
+
+        /// <summary>
+        /// 根据检测项名称加载运行参数表中的公差上下限。
+        /// </summary>
+        /// <param name="detectItemName">检测项配置名称。</param>
+        /// <returns>是否成功加载检测项配置。</returns>
+        private bool LoadDetectItemsByName(string detectItemName)
+        {
+            if (string.IsNullOrWhiteSpace(detectItemName))
+                return false;
+
+            detectItemName = detectItemName.Trim();
+            if (Solution.Instance.DetectItemDic == null ||
+                !Solution.Instance.DetectItemDic.TryGetValue(detectItemName, out List<DetectItemInfo> detectItems))
+            {
+                return false;
+            }
+
+            _currentDetectItemName = detectItemName;
+            LoadDetectItems(detectItems);
+            return true;
+        }
+
+        /// <summary>
+        /// 设置当前AI节点并维护检测项切换事件订阅。
+        /// </summary>
+        /// <param name="nodeTDAI">当前运行参数界面对应的AI节点。</param>
+        private void SetCurrentAiNode(NodeTDAI nodeTDAI)
+        {
+            if (ReferenceEquals(_nodeTDAI, nodeTDAI))
+                return;
+
+            if (_nodeTDAI != null)
+                _nodeTDAI.DetectItemConfigChanged -= NodeTDAI_DetectItemConfigChanged;
+
+            _nodeTDAI = nodeTDAI;
+
+            if (_nodeTDAI != null)
+                _nodeTDAI.DetectItemConfigChanged += NodeTDAI_DetectItemConfigChanged;
+        }
+
+        /// <summary>
+        /// 释放运行参数界面时解除AI节点事件订阅。
+        /// </summary>
+        /// <param name="sender">事件发送者。</param>
+        /// <param name="e">事件参数。</param>
+        private void SolRunParamControl_Disposed(object sender, EventArgs e)
+        {
+            SetCurrentAiNode(null);
+        }
+
+        /// <summary>
+        /// AI节点通信切换检测项或运行后更新上下限时，同步刷新运行参数表。
+        /// </summary>
+        /// <param name="sender">触发事件的AI节点。</param>
+        /// <param name="e">检测项切换事件参数。</param>
+        private void NodeTDAI_DetectItemConfigChanged(object sender, TDAIDetectItemChangedEventArgs e)
+        {
+            if (!ReferenceEquals(sender, _nodeTDAI) || e == null)
+                return;
+
+            if (IsDisposed)
+                return;
+
+            if (InvokeRequired)
+            {
+                if (!IsHandleCreated)
+                    return;
+
+                try
+                {
+                    BeginInvoke(new Action(() => RefreshDetectItemsFromNode(e.DetectItemName)));
+                }
+                catch (ObjectDisposedException)
+                {
+                    // 窗体正在关闭时忽略最后一次刷新通知。
+                }
+                return;
+            }
+
+            RefreshDetectItemsFromNode(e.DetectItemName);
+        }
+
+        /// <summary>
+        /// 从AI节点通知中刷新当前通信检测项的上下限表格。
+        /// </summary>
+        /// <param name="detectItemName">当前检测项配置名称。</param>
+        private void RefreshDetectItemsFromNode(string detectItemName)
+        {
+            if (!LoadDetectItemsByName(detectItemName))
+                return;
+
+            if (_nodeTDAI?.ParamForm.Params is NodeParamTDAI aiParams)
+                aiParams.CurDetectItemName = detectItemName;
         }
 
         /// <summary>
@@ -351,7 +445,9 @@ namespace TDJS_Vision.Forms.SolRunParam
                         aiParams.AIInputInfo.ScoreNMS = float.Parse(textBoxScoreNMS.Text);
                         aiParams.IsAutoStudy = uiSwitch_Learning.Active;
                         // 也要更新AI节点的检测项配置
-                        Solution.Instance.DetectItemDic[aiParams.CurDetectItemName] = myDataGridViewForm1.GetConfig();
+                        string detectItemName = string.IsNullOrWhiteSpace(aiParams.CurDetectItemName) ? _currentDetectItemName : aiParams.CurDetectItemName.Trim();
+                        if (!string.IsNullOrWhiteSpace(detectItemName))
+                            Solution.Instance.DetectItemDic[detectItemName] = myDataGridViewForm1.GetConfig();
                         var jsonStr = JsonConvert.SerializeObject(aiParams.AIInputInfo, Formatting.Indented);
                         jsonStr = StringCipher.Encrypt(jsonStr); // 加密AI配置内容
                         File.WriteAllText(aiParams.ConfigPath, jsonStr);

@@ -16,7 +16,19 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         public BindingList<TDAICommuntionParam> TDAICommuntionParamsDb { get; set; }
         public string Adress { get; set; }
 
-        public TDAICommuntionDetectionConfig(IDevice device, BindingList<TDAICommuntionParam> tDAICommuntionParams, string adress)
+        /// <summary>
+        /// 用于自动补齐检测项配置的默认模板名称。
+        /// </summary>
+        private readonly string _defaultTemplateName;
+
+        /// <summary>
+        /// 初始化AI通信检测项配置窗口。
+        /// </summary>
+        /// <param name="device">当前用于读取触发值的通信设备。</param>
+        /// <param name="tDAICommuntionParams">通信触发值和检测项名称映射集合。</param>
+        /// <param name="adress">通信读取地址。</param>
+        /// <param name="defaultTemplateName">自动创建检测项时复制的默认模板名称。</param>
+        public TDAICommuntionDetectionConfig(IDevice device, BindingList<TDAICommuntionParam> tDAICommuntionParams, string adress, string defaultTemplateName)
         {
             InitializeComponent();
             // 初始化界面文本
@@ -25,6 +37,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             // 接收主窗体传入的数据
             this.TDAICommuntionParamsDb = tDAICommuntionParams ?? new BindingList<TDAICommuntionParam>();
             this.Adress = adress;
+            _defaultTemplateName = defaultTemplateName;
             // 地址文本框变更事件
             textBox1.TextChanged += TextBox1_TextChanged;
             // ✅ 必加：拦截DataGridView数据异常弹窗（彻底屏蔽报错）
@@ -53,6 +66,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             dgvAIParam.AllowUserToAddRows = false;
             dgvAIParam.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             dgvAIParam.Rows.Clear(); // 清空默认行
+
+            NodeTDAI.EnsureCommunicationDetectItemConfigs(TDAICommuntionParamsDb, _defaultTemplateName);
 
             // 1. 手动创建【触发值】文本列
             DataGridViewTextBoxColumn colTriggerVal = new DataGridViewTextBoxColumn()
@@ -221,6 +236,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 {
                     TDAICommuntionParamsDb = JsonProjectSerializer.LoadProject<BindingList<TDAICommuntionParam>>(openFileDialog2.FileName);
 
+                    NodeTDAI.EnsureCommunicationDetectItemConfigs(TDAICommuntionParamsDb, _defaultTemplateName);
+                    LoadComboBoxDataSource(dgvAIParam.Columns["colDetection"] as DataGridViewComboBoxColumn);
+                    dgvAIParam.Rows.Clear();
                     LoadDataToDgvManually();
 
                     Close();

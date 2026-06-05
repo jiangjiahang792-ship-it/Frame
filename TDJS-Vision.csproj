@@ -1011,9 +1011,7 @@
     </Compile>
     <Compile Include="Node\3-Detection\FindLine\LineUtils.cs" />
     <Compile Include="Node\3-Detection\TDAI\AIInputInfo.cs" />
-    <Compile Include="Node\3-Detection\TDAI\NodeTDAI.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
+    <Compile Include="Node\3-Detection\TDAI\NodeTDAI.cs" />
     <Compile Include="Node\3-Detection\TDAI\NodeParamTDAI.cs" />
     <Compile Include="Node\3-Detection\TDAI\NodeResultTDAI.cs" />
     <Compile Include="Node\3-Detection\TDAI\ParamFormTDAI.cs">

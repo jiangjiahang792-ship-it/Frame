@@ -576,11 +576,21 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 IDevice commountionDevice = Solution.Instance.AllDevices.Find(dev => dev.UserDefinedName == comboBoxDevice.Text);
                 if (commountionDevice != null)
                 {
-                    TDAICommuntionDetectionConfig tDAICommuntionDetectionConfig = new TDAICommuntionDetectionConfig(commountionDevice, TDAICommuntionParams,Adress);
+                    if (TDAICommuntionParams == null)
+                        TDAICommuntionParams = new BindingList<TDAICommuntionParam>();
+
+                    NodeTDAI.EnsureCommunicationDetectItemConfigs(TDAICommuntionParams, comboBoxDetectConfig2.Text);
+                    InitDetectItemList(comboBoxDetectConfig1);
+                    InitDetectItemList(comboBoxDetectConfig2);
+
+                    TDAICommuntionDetectionConfig tDAICommuntionDetectionConfig = new TDAICommuntionDetectionConfig(commountionDevice, TDAICommuntionParams, Adress, comboBoxDetectConfig2.Text);
                     tDAICommuntionDetectionConfig.ShowDialog();
 
                     TDAICommuntionParams = tDAICommuntionDetectionConfig.TDAICommuntionParamsDb;
                     Adress = tDAICommuntionDetectionConfig.Adress;
+                    NodeTDAI.EnsureCommunicationDetectItemConfigs(TDAICommuntionParams, comboBoxDetectConfig2.Text);
+                    InitDetectItemList(comboBoxDetectConfig1);
+                    InitDetectItemList(comboBoxDetectConfig2);
                 }
                 else throw new Exception();
             }
