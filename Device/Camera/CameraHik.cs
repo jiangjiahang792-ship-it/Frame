@@ -393,8 +393,10 @@ namespace TDJS_Vision.Device.Camera
             LogHelper.AddLog(MsgLevel.Exception, $"进入到回调函数{DevName} , 触发次数:{count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
             // 处理每一帧图像
             var image = ConvertImageFormat(e.FrameOut.Image, device.PixelTypeConverter);
+            LogHelper.AddLog(MsgLevel.Exception, $"回调函数{DevName} 转换图像成功, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
             count++;
             OnImageReceived?.Invoke(image);
+            LogHelper.AddLog(MsgLevel.Exception, $"回调函数{DevName} 执行完毕, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
         }
 
         /// <summary>

@@ -28,13 +28,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// </summary>
         private Mat _mat;
         /// <summary>
-        /// 相机回调帧缓存锁，回调线程和流程运行线程都会访问。
+        /// 相机回调触发运行状态，0 表示空闲，1 表示已有一帧正在转换或驱动流程运行。
         /// </summary>
-        private readonly object _callbackFrameLock = new object();
-        /// <summary>
-        /// 相机回调触发运行锁，流程未跑完时新帧直接丢弃，避免同流程重入。
-        /// </summary>
-        private readonly SemaphoreSlim _callbackRunLock = new SemaphoreSlim(1, 1);
+        private int _callbackRunState;
         /// <summary>
         /// 待写入当前流程批次结果的相机回调图像。
         /// </summary>
@@ -115,7 +111,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             if (Process.IsRuning)
                 return;
 
-            if (!_callbackRunLock.Wait(0))
+            if (!TryEnterCallbackRunState())
             {
                 LogHelper.AddLog(MsgLevel.Warn, $"流程【{Process.ProcessName}】仍在运行，本次相机回调帧丢弃。", true);
                 return;
@@ -124,7 +120,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             Mat callbackMat = null;
             try
             {
+                LogHelper.AddLog(MsgLevel.Exception, $"流程【{Process.ProcessName}】准备执行流程, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
                 callbackMat = bitmap.ToMat();
+                LogHelper.AddLog(MsgLevel.Exception, $"流程【{Process.ProcessName}】开始转换图像完毕, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
 
                 StorePendingCallbackMat(callbackMat);
                 callbackMat = null;
@@ -133,6 +131,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 {
                     try
                     {
+                        LogHelper.AddLog(MsgLevel.Exception, $"流程【{Process.ProcessName}】执行Run方法, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
                         await Process.Run(this, false);
                     }
                     catch (Exception ex)
@@ -142,14 +141,15 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     finally
                     {
                         ClearPendingCallbackMat();
-                        _callbackRunLock.Release();
+                        ReleaseCallbackRunState();
                     }
                 });
             }
             catch (Exception ex)
             {
                 callbackMat?.Dispose();
-                _callbackRunLock.Release();
+                ClearPendingCallbackMat();
+                ReleaseCallbackRunState();
                 LogHelper.AddLog(MsgLevel.Exception, $"相机回调图像转换失败：{ex.Message}", true);
             }
         }
@@ -354,13 +354,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// </summary>
         private void StorePendingCallbackMat(Mat mat)
         {
-            Mat oldMat = null;
-            lock (_callbackFrameLock)
-            {
-                oldMat = _pendingCallbackMat;
-                _pendingCallbackMat = mat;
-            }
-
+            Mat oldMat = Interlocked.Exchange(ref _pendingCallbackMat, mat);
             oldMat?.Dispose();
         }
 
@@ -369,12 +363,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// </summary>
         private Mat TakePendingCallbackMat()
         {
-            lock (_callbackFrameLock)
-            {
-                Mat mat = _pendingCallbackMat;
-                _pendingCallbackMat = null;
-                return mat;
-            }
+            return Interlocked.Exchange(ref _pendingCallbackMat, null);
         }
 
         /// <summary>
@@ -382,14 +371,25 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// </summary>
         private void ClearPendingCallbackMat()
         {
-            Mat mat = null;
-            lock (_callbackFrameLock)
-            {
-                mat = _pendingCallbackMat;
-                _pendingCallbackMat = null;
-            }
-
+            Mat mat = Interlocked.Exchange(ref _pendingCallbackMat, null);
             mat?.Dispose();
+        }
+
+        /// <summary>
+        /// 尝试进入相机回调运行态，不等待上一帧，失败时调用方直接丢弃当前帧。
+        /// </summary>
+        /// <returns>成功进入运行态返回 true。</returns>
+        private bool TryEnterCallbackRunState()
+        {
+            return Interlocked.CompareExchange(ref _callbackRunState, 1, 0) == 0;
+        }
+
+        /// <summary>
+        /// 释放相机回调运行态。
+        /// </summary>
+        private void ReleaseCallbackRunState()
+        {
+            Volatile.Write(ref _callbackRunState, 0);
         }
 
         /// <summary>

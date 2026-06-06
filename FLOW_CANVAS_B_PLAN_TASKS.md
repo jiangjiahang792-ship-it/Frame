@@ -1392,6 +1392,8 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] Exclude camera-callback-triggered processes from `FormMain` solution loop active/passive scheduling; the loop only keeps the solution in running state so camera callbacks can trigger those processes.
 - [x] Make Hik camera SDK frame callback registration idempotent by unsubscribing before subscribing on camera open.
 - [x] Build-verified on 2026-05-30 and again on 2026-05-31 with MSBuild, 0 errors; existing warnings remain.
+- [x] 2026-06-06 修正：`NodeImageSource.HandleCameraCallbackFrame` 移除 `SemaphoreSlim` 和回调帧缓存 `lock`，改用 `Interlocked` 原子状态位和原子引用交换，避免相机回调线程等待锁。
+- [x] Build-verified the callback no-lock change on 2026-06-06 with MSBuild, 0 errors; existing warnings remain.
 
 ## 2026-06-06: ColorDiscern DisplayResult Output Mode
 
