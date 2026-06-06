@@ -63,13 +63,15 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             SetStatus(NodeStatus.Unexecuted, "*");
                             base.CheckTokenCancel(token);
 
-                            await EnsureModelReadyAsync(param);
-
+                            //await EnsureModelReadyAsync(param);
+                            LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测开始{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                             // 清空上次检测结果
                             res.AlgorithmResult.Clear();
 
                             // 获取图像
                             OutputImage inputImage = form.GetOutputImage();
+
+                            LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测,图像获取完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
 
                             #region 通信获取对应检测项的配置(不是使用固定检测项时)
                             // terminalType端子型号、wireType电线型号、waterproofType防水栓型号
@@ -126,6 +128,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
                             #endregion
 
+                            LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测,Modbus地址获取完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+
                             // 4种模型检出结果解析
                             int result_count = 0;
                             int keypoint_count = 0;
@@ -160,7 +164,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                             tmp = handleDet.Detect(img);
                                         det_results.AddRange(tmp);
                                     }
-                                    
+
+                                    LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测推理完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
 
                                     #endregion
 
@@ -172,6 +177,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                             //Console.WriteLine("开始时间:" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
                                             RL12Parse.Parse(det_results, result_count, param, Process,ref res);
                                             //Console.WriteLine("结束时间:" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+                                            LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测结果运算完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                                             break;
                                         case ModelName.合压模型:
                                             ClosingTerminals_encrypted_Parse.Parse(det_results, result_count, param, Process,ref res);
@@ -285,6 +291,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             }
 
                             //Console.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+                            LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
 
                             // 返回结果
                             Result = res;

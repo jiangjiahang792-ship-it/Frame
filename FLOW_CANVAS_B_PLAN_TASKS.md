@@ -1392,3 +1392,12 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] Exclude camera-callback-triggered processes from `FormMain` solution loop active/passive scheduling; the loop only keeps the solution in running state so camera callbacks can trigger those processes.
 - [x] Make Hik camera SDK frame callback registration idempotent by unsubscribing before subscribing on camera open.
 - [x] Build-verified on 2026-05-30 and again on 2026-05-31 with MSBuild, 0 errors; existing warnings remain.
+
+## 2026-06-06: ColorDiscern DisplayResult Output Mode
+
+- [x] Change `ColorDiscern` runtime output to the measurement-node style: keep output image pixels clean, publish ROI/text through `OutputImage.DisplayResult`, and keep `OutputImage.Rectangles` only for legacy rectangle consumers.
+- [x] Split color matching from preview drawing with `MatchColorResultsAsync(...)`; the node runtime no longer calls the Bitmap/GDI+ preview branch.
+- [x] Build `NodetColorResult` as a standard `AlgorithmResult`, remove the shadowing `IsAllOk` field, and merge same-name color detections into one `DetectResults` list.
+- [x] Align ColorDiscern input image subscription with measurement nodes by letting `GetInputOutputImage()` surface subscription errors directly.
+- [x] Await the ColorDiscern cancellation check in the touched runtime path to avoid leaving a compiler warning in the modified node.
+- [x] Build-verified on 2026-06-06 with MSBuild, 0 errors; existing warnings remain.

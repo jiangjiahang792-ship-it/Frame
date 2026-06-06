@@ -139,6 +139,15 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
             if (isShow) showImageControl1.ImageBitmap = (srcMat != null && !srcMat.Empty()) ? BitmapConverter.ToBitmap(srcMat) : null;
         }
 
+        /// <summary>
+        /// 获取订阅的输入图像对象，运行节点使用原图和叠加结果分离的输出模式。
+        /// </summary>
+        /// <returns>上游输出图像。</returns>
+        public OutputImage GetInputOutputImage()
+        {
+            return nodeSubscription1.GetValue<OutputImage>();
+        }
+
 
         /// <summary>
         /// 点击执行模板匹配
@@ -330,65 +339,17 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                 if (sourceImage == null || sourceImage.Empty())
                     throw new ArgumentException("源图像或模板图像不能为空");
 
-                if (colorParam.Profiles.Count == 0) throw new ArgumentException("请先添加色彩文件再次执行匹配!");
+                var (allMatchResults, allOk) = await MatchColorResultsAsync(sourceImage);
+                if (!show)
+                    return (null, allMatchResults, allOk);
 
-                bool allOk = true;
-                using (Mat sourceMat = sourceImage)
+                using (Mat sourceMat = sourceImage.Clone())
                 {
-                    //搜索区域    计算安全的搜索矩形 (RotatedRect -> Rect)
-                    Rect searchRect = (colorParam.DetectedRoi.Size.Width > 0)
-                       ? colorParam.DetectedRoi.BoundingRect().Intersect(new Rect(0, 0, sourceMat.Width, sourceMat.Height))
-                       : new Rect(0, 0, sourceMat.Width, sourceMat.Height);
-
-                    List<DetectionResult> allMatchResults = null;
-
-                    if (isOpenGeiGround)
-                    {
-                        ColorProfile currentColor = null;
-                        if (device is IPlc plc2)
-                        {
-                            throw new Exception("未实现该通信方式<IPlc>");
-                        }
-                        else if (device is IModbus mod)
-                        {
-                            ushort value = await GetModbusCode(mod, address);
-                            string strVal = value.ToString();
-                            try
-                            {
-                                currentColor = colorParam.Profiles.FirstOrDefault(m =>
-                                    !string.IsNullOrEmpty(m.TriggerVal) &&
-                                    m.TriggerVal.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                                                .Select(val => val.Trim())
-                                                .Contains(strVal)
-                                );
-                            }
-                            catch (Exception ex)
-                            {
-                                return (null, allMatchResults, false); ;
-                            }
-                        }
-
-                        //开始识别
-                        allMatchResults = RunCurrentDetection(sourceMat, currentColor, searchRect);
-                    }
-                    else
-                    {
-                        allMatchResults = RunDetection(sourceMat, searchRect);
-
-                        //对识别结果进行排序
-                        if (isOpenSort)
-                        {
-                            allOk = SortAndCheckByProfile(allMatchResults, colorParam.Profiles, sortModel);
-                        }
-                    }
-
                     // 显示识别结果
-                    if (allMatchResults.Count == 0) allOk = false;
                     foreach (var r in allMatchResults)
                     {
-                        if (r.IsOk == false) allOk = false;
                         Scalar rectColor = r.IsOk ? Scalar.Lime : Scalar.Red;
-                        // 在原始图像上绘制矩形
+                        // 参数界面预览保留烧图显示，运行节点不走此分支。
                         Cv2.Rectangle(sourceMat, r.Region, rectColor, 3);
                     }
 
@@ -436,6 +397,77 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
             catch (Exception ex)
             {
                 throw new InvalidOperationException("模板匹配失败", ex);
+            }
+        }
+
+        /// <summary>
+        /// 只执行颜色识别并返回结构化结果，不生成预览图像。
+        /// </summary>
+        /// <param name="sourceImage">待识别的图像。</param>
+        /// <returns>识别结果列表和整体 OK/NG。</returns>
+        public async Task<(List<DetectionResult> Results, bool IsOk)> MatchColorResultsAsync(Mat sourceImage)
+        {
+            try
+            {
+                if (sourceImage == null || sourceImage.Empty())
+                    throw new ArgumentException("源图像或模板图像不能为空");
+
+                if (colorParam.Profiles.Count == 0)
+                    throw new ArgumentException("请先添加色彩文件再次执行匹配!");
+
+                bool allOk = true;
+                Rect searchRect = (colorParam.DetectedRoi.Size.Width > 0)
+                    ? colorParam.DetectedRoi.BoundingRect().Intersect(new Rect(0, 0, sourceImage.Width, sourceImage.Height))
+                    : new Rect(0, 0, sourceImage.Width, sourceImage.Height);
+
+                List<DetectionResult> allMatchResults = null;
+                if (isOpenGeiGround)
+                {
+                    ColorProfile currentColor = null;
+                    if (device is IPlc)
+                    {
+                        throw new Exception("未实现该通信方式<IPlc>");
+                    }
+                    else if (device is IModbus mod)
+                    {
+                        ushort value = await GetModbusCode(mod, address);
+                        string strVal = value.ToString();
+                        currentColor = colorParam.Profiles.FirstOrDefault(m =>
+                            !string.IsNullOrEmpty(m.TriggerVal) &&
+                            m.TriggerVal.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                                .Select(val => val.Trim())
+                                .Contains(strVal));
+                        if (currentColor == null) currentColor = colorParam.Profiles[0];
+                    }
+
+                    allMatchResults = RunCurrentDetection(sourceImage, currentColor, searchRect);
+                }
+                else
+                {
+                    allMatchResults = RunDetection(sourceImage, searchRect);
+
+                    if (isOpenSort)
+                        allOk = SortAndCheckByProfile(allMatchResults, colorParam.Profiles, sortModel);
+                }
+
+                allMatchResults = allMatchResults ?? new List<DetectionResult>();
+                if (allMatchResults.Count == 0)
+                    allOk = false;
+
+                foreach (DetectionResult result in allMatchResults)
+                {
+                    if (!result.IsOk)
+                    {
+                        allOk = false;
+                        break;
+                    }
+                }
+
+                return (allMatchResults, allOk);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("颜色识别失败", ex);
             }
         }
 

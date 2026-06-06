@@ -46,6 +46,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
                 throw new Exception($"节点({NodeName})运行参数未设置或保存！");
             }
 
+            LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}Modbus发送信号开始{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
             var param = (NodeParamModbusWrite)ParamForm.Params;
 
             try
@@ -147,6 +148,8 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
                     default:
                         throw new NotSupportedException($"不支持的数据类型: {param.DataType}");
                 }
+
+                LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}Modbus发送信号完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
 
                 var time = SetRunResult(startTime, NodeStatus.Successful);
                 Result.RunTime = time;

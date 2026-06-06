@@ -1,16 +1,14 @@
 ﻿using Logger;
 using OpenCvSharp;
-using OpenCvSharp.Extensions;
-using Sunny.UI;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
-using TDJS_Vision.Forms.DispShowImage;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.ColorDiscern;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Node._4_Measurement.Common;
 
 namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 {
@@ -51,44 +49,21 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                     {
                         // 初始化状态
                         SetStatus(NodeStatus.Unexecuted, "*");
-                        base.CheckTokenCancel(token);
-                        // 获取图像
-                        form.UpdataImage(false);
+                        await base.CheckTokenCancel(token);
+                        // 获取干净原图并执行颜色识别，运行链路不再生成烧录标注图。
+                        OutputImage inputImage = form.GetInputOutputImage();
+                        Mat sourceImage = MeasurementNodeHelper.GetReadOnlyPreviewMat(inputImage);
+                        var (resultList, isOk) = await form.MatchColorResultsAsync(sourceImage);
 
-                        // 执行匹配
-                        var (bitmap, resultList, isOk) = await form.MatchTemplateAsync(false);
-                        if (bitmap == null) return new NodeReturn(NodeRunFlag.ContinueRun);
-                        List<Rect> rectList = new List<Rect>();
-
-                        // 输出结果
-                        ((NodeResultColorDiscern)Result).OutputImage.Bitmaps = new List<Mat>() { bitmap.ToMat() };
-                        int count = 0;
-
-                        ((NodeResultColorDiscern)Result).Result.Clear();
-
-                        if (resultList.Count==0)
-                        {
-                            ((NodeResultColorDiscern)Result).Result.Texts.Add(new ColorText($"未识别到任何颜色", Color.Red));
-                        }
-
-                        foreach (var sr in resultList)
-                        {
-                            rectList.Add(sr.Region);
-
-                            ColorRotatedRect roiRect = new ColorRotatedRect(sr.Region);
-                            roiRect.AddFlag(sr.IsOk);
-                            ((NodeResultColorDiscern)Result).Result.Rects.Add(roiRect);
-                            ((NodeResultColorDiscern)Result).Result.Texts.Add(new ColorText($"颜色:{sr.Name} 面积:{sr.Area} 面积占比:{sr.AreaB}%", sr.IsOk == false ? Color.Red : Color.Green));
-
-                            ((NodeResultColorDiscern)Result).Result.DetectResults.Add(sr.Name, new List<SingleDetectResult>() { new SingleDetectResult(sr.Name, sr.Area + "", sr.IsOk) });
-                        }
-                        ((NodeResultColorDiscern)Result).OutputImage.Rectangles = rectList;
-
-                        ((NodeResultColorDiscern)Result).Result.Texts.Add(new ColorText($"颜色匹配结果个数：{rectList.Count}个", isOk == false ? Color.Red : Color.Green));
+                        NodeResultColorDiscern nodeResult = new NodeResultColorDiscern();
+                        nodeResult.OutputImage = OutputImage.FromSingleImage(sourceImage, inputImage?.GrayImg);
+                        nodeResult.OutputImage.Rectangles = BuildRectangleList(resultList);
+                        nodeResult.Result = BuildDisplayResult(resultList, isOk);
+                        nodeResult.OutputImage.DisplayResult = nodeResult.Result;
 
                         var time = SetRunResult(startTime, NodeStatus.Successful);
-                        Result.RunTime = time;
-                       ((NodeResultColorDiscern)Result).Result.IsAllOk = isOk;
+                        nodeResult.RunTime = time;
+                        Result = nodeResult;
                         if (showLog)
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms, 匹配是否成功: {isOk}", true);
 
@@ -110,6 +85,67 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             }
             return new NodeReturn(NodeRunFlag.StopRun);
 
+        }
+
+        /// <summary>
+        /// 根据颜色识别结果构建标准显示叠加层，供显示控件和下游模块读取。
+        /// </summary>
+        /// <param name="resultList">颜色识别结果集合。</param>
+        /// <param name="isOk">整体颜色识别 OK/NG。</param>
+        /// <returns>标准算法显示结果。</returns>
+        internal static NodetColorResult BuildDisplayResult(List<DetectionResult> resultList, bool isOk)
+        {
+            var displayResult = new NodetColorResult();
+            displayResult.IsAllOk = isOk;
+            List<DetectionResult> detections = resultList ?? new List<DetectionResult>();
+
+            if (detections.Count == 0)
+                displayResult.Texts.Add(new ColorText("未识别到任何颜色", Color.Red));
+
+            foreach (DetectionResult detection in detections)
+            {
+                ColorRotatedRect roiRect = new ColorRotatedRect(detection.Region);
+                roiRect.AddFlag(detection.IsOk);
+                displayResult.Rects.Add(roiRect);
+                displayResult.Texts.Add(new ColorText($"颜色:{detection.Name} 面积:{detection.Area} 面积占比:{detection.AreaB}%", detection.IsOk ? Color.Green : Color.Red));
+                AddDetectResult(displayResult, detection);
+            }
+
+            displayResult.Texts.Add(new ColorText($"颜色匹配结果个数：{detections.Count}个", isOk ? Color.Green : Color.Red));
+            return displayResult;
+        }
+
+        /// <summary>
+        /// 构建兼容旧模块使用的矩形列表。
+        /// </summary>
+        /// <param name="resultList">颜色识别结果集合。</param>
+        /// <returns>识别矩形集合。</returns>
+        private static List<Rect> BuildRectangleList(List<DetectionResult> resultList)
+        {
+            var rectangles = new List<Rect>();
+            if (resultList == null)
+                return rectangles;
+
+            foreach (DetectionResult detection in resultList)
+                rectangles.Add(detection.Region);
+
+            return rectangles;
+        }
+
+        /// <summary>
+        /// 追加检测项结果，同名颜色归并到同一个结果列表，避免多目标同名时重复键异常。
+        /// </summary>
+        /// <param name="displayResult">标准算法显示结果。</param>
+        /// <param name="detection">单个颜色识别结果。</param>
+        private static void AddDetectResult(AlgorithmResult displayResult, DetectionResult detection)
+        {
+            if (!displayResult.DetectResults.TryGetValue(detection.Name, out List<SingleDetectResult> detectResults))
+            {
+                detectResults = new List<SingleDetectResult>();
+                displayResult.DetectResults[detection.Name] = detectResults;
+            }
+
+            detectResults.Add(new SingleDetectResult(detection.Name, detection.Area + "", detection.IsOk));
         }
     }
 }

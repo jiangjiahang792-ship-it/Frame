@@ -1,3 +1,4 @@
+using OfficeOpenXml.FormulaParsing.Excel.Functions.Text;
 using OpenCvSharp;
 using OpenCvSharp.Dnn;
 using Sunny.UI;
@@ -235,6 +236,33 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     bool allOk = true;
                     var valueStr = "";
 
+                    //数量如果少于2直接报缺失
+                    if (matchedResults.Count<2)
+                    {
+                        var singleResult = new SingleDetectResult
+                        {
+                            Name = itemName,
+                            Value = "0",
+                            IsOk = false // 如果是自动学习模式，则结果默认标记为OK
+                        };
+                        singleResults.Add(singleResult);
+
+                        if (matchedResults.Count > 0)
+                        {
+                            // -------- 添加文本显示 --------0
+                            texts.Add(new ColorText(
+                                $"{ParseCommon.GetDisplayName(itemName)}: 缺失 " +
+                                $"设定值: [{item.MinValue}, {item.MaxValue}]",
+                                Color.Red
+                            ));
+
+                            // 设置当前检测项的值到结果中
+                            ParseCommon.SetDetectItemCurValue(ref param, itemName, (matchedResults.Count > 0 ? valueStr.TrimEnd(',') : "0"));
+                        }
+
+                        continue;
+                    }
+
                     foreach (var result in matchedResults)
                     {
                         string rawValue = extractValueFunc(result);
@@ -263,12 +291,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                             rawValue = value.ToString("F2"); // 保留两位小数
                         }
 
-
-
                         bool minOk = float.TryParse(item.MinValue, out float min) && value >= min;
                         bool maxOk = float.TryParse(item.MaxValue, out float max) && value <= max;
                         bool isOk = minOk && maxOk;
-
                         // 一旦有一个 false，则整体不是 OK
                         if (!isOk|| matchedResults.Count<2)
                             allOk = false;
