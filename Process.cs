@@ -701,11 +701,22 @@ namespace TDJS_Vision
             }
         }
 
+        /// <summary>
+        /// 根据当前可运行节点构建本轮执行批次。
+        /// 分支控制节点会先单独执行，避免它和下游旁路节点同批并发时，True/False 分支尚未裁剪就放行后续节点。
+        /// </summary>
         private List<NodeBase> BuildReadyExecutionBatch(List<NodeBase> readyNodes)
         {
             List<NodeBase> batch = new List<NodeBase>();
             if (readyNodes.Count == 0)
                 return batch;
+
+            NodeBase conditionalBranchNode = GetFirstReadyConditionalBranchNode(readyNodes);
+            if (conditionalBranchNode != null)
+            {
+                batch.Add(conditionalBranchNode);
+                return batch;
+            }
 
             foreach (NodeBase node in readyNodes)
             {
@@ -716,6 +727,20 @@ namespace TDJS_Vision
             }
 
             return batch;
+        }
+
+        /// <summary>
+        /// 获取本轮第一个可运行的分支控制节点，用作并发批次的轻量栅栏。
+        /// </summary>
+        private static NodeBase GetFirstReadyConditionalBranchNode(List<NodeBase> readyNodes)
+        {
+            foreach (NodeBase node in readyNodes)
+            {
+                if (IsConditionalBranchNode(node))
+                    return node;
+            }
+
+            return null;
         }
 
         /// <summary>

@@ -1403,3 +1403,9 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] Align ColorDiscern input image subscription with measurement nodes by letting `GetInputOutputImage()` surface subscription errors directly.
 - [x] Await the ColorDiscern cancellation check in the touched runtime path to avoid leaving a compiler warning in the modified node.
 - [x] Build-verified on 2026-06-06 with MSBuild, 0 errors; existing warnings remain.
+
+## 2026-06-06: Parallel Branch Scheduling Stabilization
+
+- [x] Investigated right-peel callback log around `流程4` and confirmed `79.如果` and `85.AI结果绘制` were ready in the same parallel batch after `75.颜色识别` and `76.AI检测`.
+- [x] Changed graph parallel scheduling so ready `If` / `MultiCondition` branch-control nodes run as a single-node batch before ordinary ready nodes, allowing branch skips to be applied before display/draw/communication nodes continue.
+- [x] Build-verified the branch-control batch scheduling change with MSBuild on 2026-06-06, 0 errors; existing warnings remain.

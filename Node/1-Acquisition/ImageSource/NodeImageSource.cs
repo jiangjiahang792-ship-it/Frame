@@ -127,6 +127,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 StorePendingCallbackMat(callbackMat);
                 callbackMat = null;
 
+                LogHelper.AddLog(MsgLevel.Exception, $"流程【{Process.ProcessName}】执行StorePendingCallbackMat方法完毕, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+
                 _ = Task.Run(async () =>
                 {
                     try
