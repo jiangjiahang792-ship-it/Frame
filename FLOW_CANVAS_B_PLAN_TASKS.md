@@ -1415,3 +1415,9 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] Add temporary segmented runtime logs around `NodeColorDiscern.Run(...)` to distinguish scheduler start delay from input acquisition, Mat access, matching, and result construction.
 - [x] Add temporary segmented runtime logs inside `MatchColorResultsAsync(...)` to distinguish Modbus color-code reading, current-color detection, all-color detection, and sort checking.
 - [x] Build-verified the ColorDiscern diagnostic logging change with MSBuild on 2026-06-06, 0 errors; existing warnings remain.
+
+## 2026-06-06: Parallel Branch Batch Refinement
+
+- [x] Investigated `流程4` logs and solution connections, confirming `85.AI结果绘制` is a sibling branch from `75/76` rather than downstream of `79/101.如果`.
+- [x] Refined ready-batch construction so `If` / `MultiCondition` only hold their structural downstream nodes; independent sibling branches remain in the same parallel batch.
+- [x] Build-verified the refined branch batching change with MSBuild on 2026-06-06, 0 errors; existing warnings remain.

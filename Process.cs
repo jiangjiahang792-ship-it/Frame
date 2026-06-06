@@ -703,7 +703,7 @@ namespace TDJS_Vision
 
         /// <summary>
         /// 根据当前可运行节点构建本轮执行批次。
-        /// 分支控制节点会先单独执行，避免它和下游旁路节点同批并发时，True/False 分支尚未裁剪就放行后续节点。
+        /// 分支控制节点只隔离自己的结构下游，并列分支仍保留在同一批次并发执行。
         /// </summary>
         private List<NodeBase> BuildReadyExecutionBatch(List<NodeBase> readyNodes)
         {
@@ -711,10 +711,21 @@ namespace TDJS_Vision
             if (readyNodes.Count == 0)
                 return batch;
 
-            NodeBase conditionalBranchNode = GetFirstReadyConditionalBranchNode(readyNodes);
-            if (conditionalBranchNode != null)
+            List<NodeBase> conditionalBranchNodes = GetReadyConditionalBranchNodes(readyNodes);
+            if (conditionalBranchNodes.Count > 0)
             {
-                batch.Add(conditionalBranchNode);
+                foreach (NodeBase node in readyNodes)
+                {
+                    if (node == null)
+                        continue;
+
+                    if (IsConditionalBranchNode(node) ||
+                        !IsDownstreamOfAnyConditionalBranchNode(node.ID, conditionalBranchNodes))
+                    {
+                        batch.Add(node);
+                    }
+                }
+
                 return batch;
             }
 
@@ -730,17 +741,67 @@ namespace TDJS_Vision
         }
 
         /// <summary>
-        /// 获取本轮第一个可运行的分支控制节点，用作并发批次的轻量栅栏。
+        /// 获取本轮全部可运行的分支控制节点。
         /// </summary>
-        private static NodeBase GetFirstReadyConditionalBranchNode(List<NodeBase> readyNodes)
+        private static List<NodeBase> GetReadyConditionalBranchNodes(List<NodeBase> readyNodes)
         {
+            List<NodeBase> conditionalBranchNodes = new List<NodeBase>();
             foreach (NodeBase node in readyNodes)
             {
                 if (IsConditionalBranchNode(node))
-                    return node;
+                    conditionalBranchNodes.Add(node);
             }
 
-            return null;
+            return conditionalBranchNodes;
+        }
+
+        /// <summary>
+        /// 判断候选节点是否属于任一当前待运行分支控制节点的结构下游。
+        /// </summary>
+        private bool IsDownstreamOfAnyConditionalBranchNode(int candidateNodeId, List<NodeBase> conditionalBranchNodes)
+        {
+            foreach (NodeBase conditionalBranchNode in conditionalBranchNodes)
+            {
+                if (conditionalBranchNode != null &&
+                    IsReachableThroughConnections(conditionalBranchNode.ID, candidateNodeId))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 沿流程图连线判断目标节点是否可从起点节点到达。
+        /// </summary>
+        private bool IsReachableThroughConnections(int startNodeId, int targetNodeId)
+        {
+            if (startNodeId <= 0 || targetNodeId <= 0 || startNodeId == targetNodeId)
+                return false;
+
+            HashSet<int> visitedNodeIds = new HashSet<int>();
+            Queue<int> pendingNodeIds = new Queue<int>();
+            visitedNodeIds.Add(startNodeId);
+            pendingNodeIds.Enqueue(startNodeId);
+
+            while (pendingNodeIds.Count > 0)
+            {
+                int nodeId = pendingNodeIds.Dequeue();
+                foreach (ProcessConnection connection in _connections)
+                {
+                    if (connection.FromNodeId != nodeId)
+                        continue;
+
+                    if (connection.ToNodeId == targetNodeId)
+                        return true;
+
+                    if (visitedNodeIds.Add(connection.ToNodeId))
+                        pendingNodeIds.Enqueue(connection.ToNodeId);
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
