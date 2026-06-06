@@ -1067,7 +1067,8 @@ Reference source:
 - [x] Keep parameter-form preview drawing behavior where it is only used for local UI tuning and does not become the node's runtime output image.
 - [x] Build-verify after display-layer migration.
 - [ ] Runtime-verify full-process display on real solution images after zooming/panning, confirming result shapes/text no longer pollute source pixels.
-- [ ] Review explicit result-image tools such as `ImageDraw`; keep them as intentional bitmap writers or split them into display overlay mode if needed.
+- [x] Review explicit result-image tools such as `ImageDraw`; keep them as intentional bitmap writers or split them into display overlay mode if needed.
+  - [x] 2026-06-06 反馈变更：`ImageDraw` 保留写入结果图像像素的定位，但运行时改为复用 `ShowImageControl` 的 ROI 绘制方法，并且不在该运行绘制入口新增锁。
 
 ### Phase 15.7: Fast Rotated Template Matching Tool
 

@@ -4,15 +4,10 @@ using OpenCvSharp.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Shapes;
-using TDJS_Vision.Node._3_Detection.ColorDiscern;
+using TDJS_Vision.Forms.DispShowImage;
 using TDJS_Vision.Node._3_Detection.TDAI;
-using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
-using RotatedRect = TDJS_Vision.Node._3_Detection.TDAI.Yolo8.RotatedRect;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
 {
@@ -106,253 +101,183 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
     internal static class ImageDrawer
     {
         /// <summary>
-        /// 获取旋转矩形的4个顶点
+        /// 文字距离图像边缘的默认边距。
         /// </summary>
-        /// <param name="rrect"></param>
-        /// <returns></returns>
-        private static PointF[] GetVertices(RotatedRect rrect)
-        {
-            // 将角度从度转换为弧度
-            double angleRad = rrect.angle * Math.PI / 180.0;
+        private const int TextMargin = 30;
 
-            // 计算旋转矩阵所需的基本三角函数值
-            float cosA = (float)Math.Cos(angleRad);
-            float sinA = (float)Math.Sin(angleRad);
-
-            // 获取中心点坐标和半宽高
-            float cx = rrect.center.x;
-            float cy = rrect.center.y;
-            float halfWidth = rrect.size.width / 2;
-            float halfHeight = rrect.size.height / 2;
-
-            // 初始化四个顶点的位置（未旋转前）
-            PointF[] points = new PointF[4]
-            {
-                new PointF(-halfWidth, -halfHeight),
-                new PointF(halfWidth, -halfHeight),
-                new PointF(halfWidth, halfHeight),
-                new PointF(-halfWidth, halfHeight)
-            };
-
-            // 应用旋转和平移到每个点上
-            for (int i = 0; i < points.Length; i++)
-            {
-                float tempX = points[i].X * cosA - points[i].Y * sinA + cx;
-                float tempY = points[i].X * sinA + points[i].Y * cosA + cy;
-                points[i] = new PointF(tempX, tempY);
-            }
-
-            return points;
-        }
         /// <summary>
-        /// 在图像上根据检测结果绘制矩形框（使用 GDI+）
+        /// 在图像上根据检测结果绘制 ROI 和文字，实际渲染复用 ShowImageControl 的 ROI 绘制方法。
         /// </summary>
-        /// <param name="sourceBitmap"></param>
-        /// <param name="detectResults"></param>
-        /// <returns></returns>
+        /// <param name="sourceBitmap">需要写入标注的源位图。</param>
+        /// <param name="detectResults">AI 检测结果。</param>
+        /// <param name="parm">绘制参数。</param>
+        /// <param name="colorResults">颜色识别结果。</param>
         public static void DrawDetectionRectangles(Bitmap sourceBitmap, AlgorithmResult detectResults, NodeParamImageDraw parm, AlgorithmResult colorResults=null)
         {
+            if (sourceBitmap == null)
+                throw new ArgumentNullException(nameof(sourceBitmap));
+            if (parm == null)
+                throw new ArgumentNullException(nameof(parm));
+
+            AlgorithmResult displayResult = BuildDisplayResult(detectResults, colorResults, parm);
+            ShowImageControl.DrawDisplayResultToBitmap(sourceBitmap, displayResult);
+        }
+
+        /// <summary>
+        /// 合并 AI 与颜色识别结果，统一套用当前节点的文字位置、字号和线宽设置。
+        /// </summary>
+        /// <param name="detectResults">AI 检测结果。</param>
+        /// <param name="colorResults">颜色识别结果。</param>
+        /// <param name="parm">绘制参数。</param>
+        /// <returns>供 ShowImageControl 渲染的显示结果。</returns>
+        private static AlgorithmResult BuildDisplayResult(AlgorithmResult detectResults, AlgorithmResult colorResults, NodeParamImageDraw parm)
+        {
             AlgorithmResult result = new AlgorithmResult();
-
-            // 创建一个 Graphics 对象用于绘制
-            using (Graphics g = Graphics.FromImage(sourceBitmap))
-            {
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                if (colorResults != null && colorResults is AlgorithmResult)
-                {
-                    result.Rects.AddRange(colorResults.Rects);
-                    result.Texts.AddRange(colorResults.Texts);
-                }
-                if (detectResults != null && detectResults is AlgorithmResult)
-                {
-                    result.Rects.AddRange(detectResults.Rects);
-                    result.Texts.AddRange(detectResults.Texts);
-                }
-                
-                // 绘制在不同位置
-                switch (parm.TextLoc)
-                {
-                    case TextLoc.LeftUp:
-                        DrawOnLeftUp(g, result, parm);
-                        break;
-                    case TextLoc.RightDown:
-                        DrawBottomRightBox(g, result, parm, sourceBitmap.Size);
-                        break;
-                    default:
-                        break;
-                }
-            }
-        }
-        public static RectangleF RotatedRectToRectangleF(RotatedRect rotatedRect)
-        {
-            // 获取旋转矩形的四个顶点
-            PointF[] points = GetRotatedRectVertices(rotatedRect);
-
-            // 计算包围这四个点的最小矩形
-            float minX = points.Min(p => p.X);
-            float maxX = points.Max(p => p.X);
-            float minY = points.Min(p => p.Y);
-            float maxY = points.Max(p => p.Y);
-
-            return new RectangleF(minX, minY, maxX - minX, maxY - minY);
+            AppendAlgorithmResult(result, colorResults, parm);
+            AppendAlgorithmResult(result, detectResults, parm);
+            return result;
         }
 
-        private static PointF[] GetRotatedRectVertices(RotatedRect rect)
-        {
-            // 从旋转矩形中获取宽高的一半
-            float halfWidth = rect.size.width / 2;
-            float halfHeight = rect.size.height / 2;
-
-            // 定义旋转矩阵
-            Matrix matrix = new Matrix();
-            matrix.RotateAt(rect.angle, new PointF(rect.center.x, rect.center.y));
-
-            // 四个角点相对于中心点的坐标（未旋转时）
-            PointF[] points =
-            {
-            new PointF(-halfWidth, -halfHeight),
-            new PointF(halfWidth, -halfHeight),
-            new PointF(halfWidth, halfHeight),
-            new PointF(-halfWidth, halfHeight)
-        };
-
-            // 将每个点都加上中心点坐标，并应用旋转
-            for (int i = 0; i < points.Length; i++)
-            {
-                points[i].X += rect.center.x;
-                points[i].Y += rect.center.y;
-                matrix.TransformPoints(points);
-            }
-
-            return points;
-        }
         /// <summary>
-        /// 绘制到左上角
+        /// 追加单个上游算法结果中的可绘制元素。
         /// </summary>
-        /// <param name="g"></param>
-        /// <param name="detectResults"></param>
-        /// <param name="parm"></param>
-        private static void DrawOnLeftUp(Graphics g, AlgorithmResult aiResult, NodeParamImageDraw parm)
+        /// <param name="target">合并后的目标结果。</param>
+        /// <param name="source">上游算法结果。</param>
+        /// <param name="parm">绘制参数。</param>
+        private static void AppendAlgorithmResult(AlgorithmResult target, AlgorithmResult source, NodeParamImageDraw parm)
         {
-            float initialY = 30;
-            int lineSpacing = 10;
+            if (target == null || source == null)
+                return;
 
-            // 2. 再绘制当前旋转矩形框（保持原逻辑不变）
-            foreach (var colorRect in aiResult.Rects)
+            float lineWidth = Math.Max(1, parm.LineWidth);
+            DisplayTextPosition textPosition = ToDisplayTextPosition(parm.TextLoc);
+
+            if (source.Rects != null)
             {
-                PointF[] vertices = GetVertices(colorRect.RotatedRect);
-
-                using (Pen pen = new Pen(colorRect.Color, parm.LineWidth))
-                {
-                    g.DrawPolygon(pen, vertices);
-                }
+                foreach (ColorRotatedRect rect in source.Rects)
+                    AppendRotatedRect(target.Rects, rect, lineWidth);
             }
 
-            // 3. 再绘制线条
-            foreach (var line in aiResult.Lines)
+            if (source.RectsNgMap != null)
             {
-                using (Pen pen = new Pen(line.Color, parm.LineWidth))
+                foreach (KeyValuePair<string, List<ColorRotatedRect>> pair in source.RectsNgMap)
                 {
-                    g.DrawLine(pen, line.P1, line.P2);
-                }
-            }
+                    if (pair.Value == null)
+                        continue;
 
-            // 4. 再绘制文本信息（来自 Texts 成员）
-            using (Font font = new Font("Microsoft YaHei", parm.FontSize))
-            {
-                foreach (var textInfo in aiResult.Texts)
-                {
-                    using (Brush brush = new SolidBrush(textInfo.Color))
+                    if (!target.RectsNgMap.TryGetValue(pair.Key, out List<ColorRotatedRect> rects))
                     {
-                        string text = textInfo.Text;
-                        SizeF textSize = g.MeasureString(text, font);
-                        PointF textPosition = new PointF(30, initialY);
-
-                        g.DrawString(text, font, brush, textPosition);
-
-                        initialY += textSize.Height + lineSpacing;
+                        rects = new List<ColorRotatedRect>();
+                        target.RectsNgMap[pair.Key] = rects;
                     }
+
+                    foreach (ColorRotatedRect rect in pair.Value)
+                        AppendRotatedRect(rects, rect, lineWidth);
                 }
             }
 
-            // 4. 最后绘制圆信息（来自 Circles 成员）
-            foreach (var circleInfo in aiResult.Circles)
+            if (source.Lines != null)
             {
-                using (Pen pen = new Pen(circleInfo.Color, parm.LineWidth))
+                foreach (ColorLine line in source.Lines)
                 {
-                    g.DrawArc(pen, circleInfo.Center.X - circleInfo.Radius, circleInfo.Center.Y - circleInfo.Radius,
-                        circleInfo.Radius * 2, circleInfo.Radius * 2, 0, 360);
+                    if (line == null)
+                        continue;
+
+                    target.Lines.Add(new ColorLine(line.P1, line.P2, line.Color)
+                    {
+                        LineWidth = lineWidth
+                    });
+                }
+            }
+
+            if (source.Texts != null)
+            {
+                foreach (ColorText textInfo in source.Texts)
+                {
+                    if (textInfo == null)
+                        continue;
+
+                    target.Texts.Add(new ColorText(textInfo.Text, textInfo.Color)
+                    {
+                        FontSize = Math.Max(1, parm.FontSize),
+                        Margin = TextMargin,
+                        Position = textPosition,
+                        Title = string.Empty
+                    });
+                }
+            }
+
+            if (source.Circles != null)
+            {
+                foreach (ColorCircle circleInfo in source.Circles)
+                {
+                    if (circleInfo == null)
+                        continue;
+
+                    target.Circles.Add(new ColorCircle(circleInfo.Center, (int)Math.Round(circleInfo.Radius), circleInfo.Color)
+                    {
+                        Radius = circleInfo.Radius,
+                        LineWidth = lineWidth
+                    });
+                }
+            }
+
+            if (source.Ellipses != null)
+            {
+                foreach (ColorEllipse ellipseInfo in source.Ellipses)
+                {
+                    if (ellipseInfo == null)
+                        continue;
+
+                    target.Ellipses.Add(new ColorEllipse(ellipseInfo.Center, ellipseInfo.Width, ellipseInfo.Height, ellipseInfo.Angle, ellipseInfo.Color)
+                    {
+                        LineWidth = lineWidth
+                    });
+                }
+            }
+
+            if (source.Contours != null)
+            {
+                foreach (ColorContour contourInfo in source.Contours)
+                {
+                    if (contourInfo == null)
+                        continue;
+
+                    List<PointF> points = contourInfo.Points == null ? new List<PointF>() : new List<PointF>(contourInfo.Points);
+                    target.Contours.Add(new ColorContour(points, contourInfo.Color)
+                    {
+                        LineWidth = lineWidth
+                    });
                 }
             }
         }
+
         /// <summary>
-        /// 绘制到右下角
+        /// 追加旋转矩形并套用当前节点线宽。
         /// </summary>
-        /// <param name="g"></param>
-        /// <param name="detectResults"></param>
-        /// <param name="parm"></param>
-
-        private static void DrawBottomRightBox(Graphics g, AlgorithmResult aiResult, NodeParamImageDraw parm, System.Drawing.Size imageSize)
+        /// <param name="target">目标矩形列表。</param>
+        /// <param name="source">源矩形。</param>
+        /// <param name="lineWidth">绘制线宽。</param>
+        private static void AppendRotatedRect(List<ColorRotatedRect> target, ColorRotatedRect source, float lineWidth)
         {
-            // 定义初始Y坐标（从底部开始）和行高
-            float initialY = imageSize.Height - 30; // 起始Y坐标为图片高度减去一个小偏移量
-            int lineSpacing = 10; // 行间距
+            if (target == null || source == null)
+                return;
 
-            // 2. 再绘制当前旋转矩形框（保持原逻辑不变）
-            foreach (var colorRect in aiResult.Rects)
+            target.Add(new ColorRotatedRect(source.RotatedRect)
             {
-                PointF[] vertices = GetVertices(colorRect.RotatedRect);
+                Color = source.Color,
+                LineWidth = lineWidth
+            });
+        }
 
-                using (Pen pen = new Pen(colorRect.Color, parm.LineWidth))
-                {
-                    g.DrawPolygon(pen, vertices);
-                }
-            }
-
-            //// 首先绘制所有旋转矩形框
-            //foreach (var colorRect in aiResult.Rects)
-            //{
-            //    PointF[] vertices = GetVertices(colorRect.RotatedRect); // 获取旋转矩形的4个顶点
-
-            //    using (Pen pen = new Pen(colorRect.Color, parm.LineWidth)) // 使用 ColorRotatedRect 内部的颜色属性
-            //    {
-            //        g.DrawPolygon(pen, vertices); // 绘制旋转矩形
-            //    }
-            //}
-
-            // 绘制所有颜色线条
-            foreach (var line in aiResult.Lines)
-            {
-                using (Pen pen = new Pen(line.Color, parm.LineWidth))
-                {
-                    g.DrawLine(pen, line.P1, line.P2);
-                }
-            }
-
-            // 然后绘制文本
-            using (Font font = new Font("Microsoft YaHei", parm.FontSize))
-            {
-                for (int index = aiResult.Texts.Count - 1; index >= 0; index--)
-                {
-                    var textInfo = aiResult.Texts[index];
-                    using (Brush brush = new SolidBrush(textInfo.Color))
-                    {
-                        SizeF textSize = g.MeasureString(textInfo.Text, font);
-
-                        // 检查是否会在画布顶部越界
-                        if (initialY - textSize.Height < 0)
-                            break; // 如果下一行文本将超出上边界，则停止绘制
-
-                        // 设置文本位置在右下角区域
-                        PointF textPosition = new PointF(imageSize.Width - textSize.Width - 30, initialY - textSize.Height);
-
-                        g.DrawString(textInfo.Text, font, brush, textPosition);
-
-                        // 更新 Y 坐标，向上移动一行
-                        initialY -= textSize.Height + lineSpacing;
-                    }
-                }
-            }
+        /// <summary>
+        /// 将旧绘制节点的文字位置转换为显示控件的四角位置。
+        /// </summary>
+        /// <param name="textLoc">旧绘制节点文字位置。</param>
+        /// <returns>显示控件文字位置。</returns>
+        private static DisplayTextPosition ToDisplayTextPosition(TextLoc textLoc)
+        {
+            return textLoc == TextLoc.RightDown ? DisplayTextPosition.BottomRight : DisplayTextPosition.TopLeft;
         }
     }
 }

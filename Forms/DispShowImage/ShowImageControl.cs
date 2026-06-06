@@ -314,93 +314,166 @@ namespace TDJS_Vision.Forms.DispShowImage
             lock (_roiLock)
             {
                 _staticRois.Clear();
-                if (displayResult == null)
-                    return;
+                int imageWidth = _image == null ? 0 : _image.Width;
+                int imageHeight = _image == null ? 0 : _image.Height;
+                _staticRois.AddRange(BuildStaticRois(displayResult, imageWidth, imageHeight));
+            }
+        }
 
+        /// <summary>
+        /// 将显示结果直接绘制到位图上，供需要生成带标注结果图的运行节点复用现有 ROI 渲染逻辑。
+        /// </summary>
+        /// <param name="bitmap">需要写入标注的位图。</param>
+        /// <param name="displayResult">待绘制的显示结果。</param>
+        public static void DrawDisplayResultToBitmap(Bitmap bitmap, AlgorithmResult displayResult)
+        {
+            if (bitmap == null)
+                throw new ArgumentNullException(nameof(bitmap));
+
+            List<IRoiShape> rois = BuildStaticRois(displayResult, bitmap.Width, bitmap.Height);
+            if (rois.Count == 0)
+                return;
+
+            using (Graphics graphics = Graphics.FromImage(bitmap))
+            {
+                graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                foreach (IRoiShape roi in rois)
+                    roi.Draw(graphics, 1F, PointF.Empty);
+            }
+        }
+
+        /// <summary>
+        /// 按 ShowImageControl 的静态 ROI 风格构建显示对象，界面叠加和结果图写入共用同一套绘制对象。
+        /// </summary>
+        /// <param name="displayResult">显示结果。</param>
+        /// <param name="imageWidth">图像宽度，用于文本角落定位。</param>
+        /// <param name="imageHeight">图像高度，用于文本角落定位。</param>
+        /// <returns>可直接绘制的静态 ROI 列表。</returns>
+        private static List<IRoiShape> BuildStaticRois(AlgorithmResult displayResult, int imageWidth, int imageHeight)
+        {
+            List<IRoiShape> rois = new List<IRoiShape>();
+            if (displayResult == null)
+                return rois;
+
+            if (displayResult.Rects != null)
+            {
                 foreach (var rect in displayResult.Rects)
-                {
-                    var r = rect.RotatedRect;
-                    _staticRois.Add(new RoiRotatedRect(r.center.x, r.center.y, r.size.width, r.size.height, r.angle)
-                    {
-                        ShapeColor = rect.Color,
-                        StrokeWidth = rect.LineWidth,
-                        IsStatic = true
-                    });
-                }
+                    AddRotatedRectRoi(rois, rect);
+            }
 
+            if (displayResult.RectsNgMap != null)
+            {
                 foreach (var rectGroup in displayResult.RectsNgMap.Values)
                 {
-                    foreach (var rect in rectGroup)
-                    {
-                        var r = rect.RotatedRect;
-                        _staticRois.Add(new RoiRotatedRect(r.center.x, r.center.y, r.size.width, r.size.height, r.angle)
-                        {
-                            ShapeColor = rect.Color,
-                            StrokeWidth = rect.LineWidth,
-                            IsStatic = true
-                        });
-                    }
-                }
+                    if (rectGroup == null)
+                        continue;
 
+                    foreach (var rect in rectGroup)
+                        AddRotatedRectRoi(rois, rect);
+                }
+            }
+
+            if (displayResult.Lines != null)
+            {
                 foreach (var line in displayResult.Lines)
                 {
-                    _staticRois.Add(new RoiLine(line.P1.X, line.P1.Y, line.P2.X, line.P2.Y)
+                    if (line == null)
+                        continue;
+
+                    rois.Add(new RoiLine(line.P1.X, line.P1.Y, line.P2.X, line.P2.Y)
                     {
                         ShapeColor = line.Color,
                         StrokeWidth = line.LineWidth,
                         IsStatic = true
                     });
                 }
+            }
 
+            if (displayResult.Circles != null)
+            {
                 foreach (var circle in displayResult.Circles)
                 {
-                    _staticRois.Add(new RoiCircle(circle.Center.X, circle.Center.Y, circle.Radius)
+                    if (circle == null)
+                        continue;
+
+                    rois.Add(new RoiCircle(circle.Center.X, circle.Center.Y, circle.Radius)
                     {
                         ShapeColor = circle.Color,
                         StrokeWidth = circle.LineWidth,
                         IsStatic = true
                     });
                 }
+            }
 
+            if (displayResult.Ellipses != null)
+            {
                 foreach (var ellipse in displayResult.Ellipses)
                 {
-                    _staticRois.Add(new RoiEllipse(ellipse.Center.X, ellipse.Center.Y, ellipse.Width, ellipse.Height, ellipse.Angle)
+                    if (ellipse == null)
+                        continue;
+
+                    rois.Add(new RoiEllipse(ellipse.Center.X, ellipse.Center.Y, ellipse.Width, ellipse.Height, ellipse.Angle)
                     {
                         ShapeColor = ellipse.Color,
                         StrokeWidth = ellipse.LineWidth,
                         IsStatic = true
                     });
                 }
+            }
 
+            if (displayResult.Contours != null)
+            {
                 foreach (var contour in displayResult.Contours)
                 {
-                    _staticRois.Add(new RoiContour(contour.Points, contour.Color)
+                    if (contour == null)
+                        continue;
+
+                    rois.Add(new RoiContour(contour.Points, contour.Color)
                     {
                         StrokeWidth = contour.LineWidth
                     });
                 }
+            }
 
-                if (displayResult.Texts.Count > 0)
+            if (displayResult.Texts != null && displayResult.Texts.Count > 0)
+            {
+                foreach (var group in displayResult.Texts.Where(t => t != null).GroupBy(t => new { t.Position, t.FontSize, t.Margin, t.Title }))
                 {
-                    int imageWidth = _image == null ? 0 : _image.Width;
-                    int imageHeight = _image == null ? 0 : _image.Height;
-                    foreach (var group in displayResult.Texts.GroupBy(t => new { t.Position, t.FontSize, t.Margin, t.Title }))
+                    rois.Add(new RoiTextBlock(
+                        group.Key.Title,
+                        group.Select(t => (t.Text, t.Color)).ToList(),
+                        10,
+                        10,
+                        Math.Max(1, group.Key.FontSize))
                     {
-                        _staticRois.Add(new RoiTextBlock(
-                            group.Key.Title,
-                            group.Select(t => (t.Text, t.Color)).ToList(),
-                            10,
-                            10,
-                            Math.Max(1, group.Key.FontSize))
-                        {
-                            Position = group.Key.Position,
-                            Margin = Math.Max(0, group.Key.Margin),
-                            ImageWidth = imageWidth,
-                            ImageHeight = imageHeight
-                        });
-                    }
+                        Position = group.Key.Position,
+                        Margin = Math.Max(0, group.Key.Margin),
+                        ImageWidth = imageWidth,
+                        ImageHeight = imageHeight
+                    });
                 }
             }
+
+            return rois;
+        }
+
+        /// <summary>
+        /// 添加旋转矩形 ROI。
+        /// </summary>
+        /// <param name="rois">待追加的 ROI 列表。</param>
+        /// <param name="rect">旋转矩形结果。</param>
+        private static void AddRotatedRectRoi(List<IRoiShape> rois, ColorRotatedRect rect)
+        {
+            if (rect == null)
+                return;
+
+            var rotatedRect = rect.RotatedRect;
+            rois.Add(new RoiRotatedRect(rotatedRect.center.x, rotatedRect.center.y, rotatedRect.size.width, rotatedRect.size.height, rotatedRect.angle)
+            {
+                ShapeColor = rect.Color,
+                StrokeWidth = rect.LineWidth,
+                IsStatic = true
+            });
         }
 
         /// <summary>添加旋转矩形 ROI（参数：中心行, 中心列, 弧度, 半长1, 半长2, 线宽, 颜色）</summary>
