@@ -28,6 +28,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+            LogRuntimeStep(showLog, "开始运行");
             // 参数合法性校验
             if (!Active)
             {
@@ -51,15 +52,20 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         SetStatus(NodeStatus.Unexecuted, "*");
                         await base.CheckTokenCancel(token);
                         // 获取干净原图并执行颜色识别，运行链路不再生成烧录标注图。
+                        LogRuntimeStep(showLog, "开始获取输入图像");
                         OutputImage inputImage = form.GetInputOutputImage();
+                        LogRuntimeStep(showLog, "获取输入图像完毕");
                         Mat sourceImage = MeasurementNodeHelper.GetReadOnlyPreviewMat(inputImage);
+                        LogRuntimeStep(showLog, "获取只读Mat完毕，开始颜色匹配");
                         var (resultList, isOk) = await form.MatchColorResultsAsync(sourceImage);
+                        LogRuntimeStep(showLog, $"颜色匹配完毕，结果数量:{(resultList == null ? 0 : resultList.Count)}");
 
                         NodeResultColorDiscern nodeResult = new NodeResultColorDiscern();
                         nodeResult.OutputImage = OutputImage.FromSingleImage(sourceImage, inputImage?.GrayImg);
                         nodeResult.OutputImage.Rectangles = BuildRectangleList(resultList);
                         nodeResult.Result = BuildDisplayResult(resultList, isOk);
                         nodeResult.OutputImage.DisplayResult = nodeResult.Result;
+                        LogRuntimeStep(showLog, "输出结果构建完毕");
 
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         nodeResult.RunTime = time;
@@ -85,6 +91,19 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             }
             return new NodeReturn(NodeRunFlag.StopRun);
 
+        }
+
+        /// <summary>
+        /// 输出颜色识别运行分段诊断日志，用于定位线程池排队或内部检测耗时。
+        /// </summary>
+        /// <param name="showLog">当前流程是否允许输出日志。</param>
+        /// <param name="step">诊断步骤名称。</param>
+        private void LogRuntimeStep(bool showLog, string step)
+        {
+            if (!showLog)
+                return;
+
+            LogHelper.AddLog(MsgLevel.Exception, $"节点({ID}.{NodeName}){step}，{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
         }
 
         /// <summary>

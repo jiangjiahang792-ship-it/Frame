@@ -1,3 +1,4 @@
+using Logger;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using Sunny.UI;
@@ -409,6 +410,7 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         {
             try
             {
+                LogRuntimeStep("颜色匹配入口");
                 if (sourceImage == null || sourceImage.Empty())
                     throw new ArgumentException("源图像或模板图像不能为空");
 
@@ -430,7 +432,9 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                     }
                     else if (device is IModbus mod)
                     {
+                        LogRuntimeStep("开始读取Modbus颜色触发值");
                         ushort value = await GetModbusCode(mod, address);
+                        LogRuntimeStep($"读取Modbus颜色触发值完毕，值:{value}");
                         string strVal = value.ToString();
                         currentColor = colorParam.Profiles.FirstOrDefault(m =>
                             !string.IsNullOrEmpty(m.TriggerVal) &&
@@ -440,14 +444,22 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                         if (currentColor == null) currentColor = colorParam.Profiles[0];
                     }
 
+                    LogRuntimeStep("开始执行当前颜色检测");
                     allMatchResults = RunCurrentDetection(sourceImage, currentColor, searchRect);
+                    LogRuntimeStep($"当前颜色检测完毕，结果数量:{(allMatchResults == null ? 0 : allMatchResults.Count)}");
                 }
                 else
                 {
+                    LogRuntimeStep($"开始执行全部颜色检测，模板数量:{colorParam.Profiles.Count}");
                     allMatchResults = RunDetection(sourceImage, searchRect);
+                    LogRuntimeStep($"全部颜色检测完毕，结果数量:{(allMatchResults == null ? 0 : allMatchResults.Count)}");
 
                     if (isOpenSort)
+                    {
+                        LogRuntimeStep("开始执行颜色排序校验");
                         allOk = SortAndCheckByProfile(allMatchResults, colorParam.Profiles, sortModel);
+                        LogRuntimeStep($"颜色排序校验完毕，结果:{allOk}");
+                    }
                 }
 
                 allMatchResults = allMatchResults ?? new List<DetectionResult>();
@@ -469,6 +481,19 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
             {
                 throw new InvalidOperationException("颜色识别失败", ex);
             }
+        }
+
+        /// <summary>
+        /// 输出颜色识别参数窗体运行阶段诊断日志，辅助定位通信读取或OpenCV检测耗时。
+        /// </summary>
+        /// <param name="step">诊断步骤名称。</param>
+        private void LogRuntimeStep(string step)
+        {
+            if (process != null && !process.ShowLog)
+                return;
+
+            string nodeName = node == null ? "颜色识别" : $"{node.ID}.{node.NodeName}";
+            LogHelper.AddLog(MsgLevel.Exception, $"节点({nodeName}){step}，{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
         }
 
         // 内部结构，用于暂存扫描的结果
