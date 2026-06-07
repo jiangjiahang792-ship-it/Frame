@@ -333,6 +333,7 @@
     <Compile Include="Node\3-Detection\TDAI\Parse\XMSGParse.cs" />
     <Compile Include="Node\4-Measurement\Common\CaliperMeasurementAlgorithm.cs" />
     <Compile Include="Node\4-Measurement\Common\GeometryMeasurement.cs" />
+    <Compile Include="Node\4-Measurement\Common\MeasurementResultRounder.cs" />
     <Compile Include="Node\4-Measurement\Common\MeasurementNodeHelper.cs" />
     <Compile Include="Node\4-Measurement\Common\PositionCorrectionInfo.cs" />
     <Compile Include="Node\4-Measurement\CaliperLine\NodeCaliperLine.cs">

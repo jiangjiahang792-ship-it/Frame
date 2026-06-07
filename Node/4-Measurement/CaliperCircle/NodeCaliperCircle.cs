@@ -56,7 +56,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 Result = nodeResult;
 
                 if (showLog && measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，半径：{nodeResult.Radius:F2}px)", true);
+                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，半径：{nodeResult.Radius:F3}px)", true);
 
                 if (showLog && !measureResult.Success)
                     LogHelper.AddLog(MsgLevel.Warn, $"Node({ID}.{NodeName}) caliper circle found no valid circle. ({time} ms, edge points: {measureResult.PointCount})", true);
@@ -86,12 +86,12 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             result.EdgePointCount = measureResult.PointCount;
             if (measureResult.Success)
             {
-                result.CenterX = measureResult.Center.X;
-                result.CenterY = measureResult.Center.Y;
-                result.Radius = measureResult.Radius;
-                result.Diameter = measureResult.Radius * 2.0;
+                result.CenterX = MeasurementResultRounder.Round(measureResult.Center.X);
+                result.CenterY = MeasurementResultRounder.Round(measureResult.Center.Y);
+                result.Radius = MeasurementResultRounder.Round(measureResult.Radius);
+                result.Diameter = MeasurementResultRounder.Round(measureResult.Radius * 2.0);
             }
-            result.AlgorithmMs = measureResult.AlgorithmMs;
+            result.AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs);
             result.Result = BuildDisplayResult(measureResult);
             result.OutputImage.DisplayResult = result.Result;
             return result;
@@ -108,7 +108,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             {
                 result.Circles.Add(new ColorCircle(measureResult.Center, (int)Math.Round(measureResult.Radius), Color.Lime));
                 result.Circles.Add(new ColorCircle(measureResult.Center, 3, Color.Red));
-                result.Texts.Add(new ColorText($"卡尺找圆：点数 {measureResult.PointCount}，圆心({measureResult.Center.X:F2}, {measureResult.Center.Y:F2})，半径 {measureResult.Radius:F2}px", Color.Lime));
+                result.Texts.Add(new ColorText($"卡尺找圆：点数 {measureResult.PointCount}，圆心({measureResult.Center.X:F3}, {measureResult.Center.Y:F3})，半径 {measureResult.Radius:F3}px", Color.Lime));
             }
             else
             {

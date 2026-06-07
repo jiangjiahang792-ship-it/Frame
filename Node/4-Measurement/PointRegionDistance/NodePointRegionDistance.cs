@@ -80,19 +80,19 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
         {
             var result = new NodeResultPointRegionDistance();
             result.IsOk = measureResult.Success;
-            result.AlgorithmMs = measureResult.AlgorithmMs;
+            result.AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs);
             if (measureResult.Success && measureResult.DistanceResult != null)
             {
                 PointRegionDistanceResult distanceResult = measureResult.DistanceResult;
-                result.MinDistance = distanceResult.MinDistance;
-                result.MaxDistance = distanceResult.MaxDistance;
+                result.MinDistance = MeasurementResultRounder.Round(distanceResult.MinDistance);
+                result.MaxDistance = MeasurementResultRounder.Round(distanceResult.MaxDistance);
                 result.IsInsideRegion = distanceResult.IsInsideRegion;
-                result.TargetX = distanceResult.TargetPoint.X;
-                result.TargetY = distanceResult.TargetPoint.Y;
-                result.NearestX = distanceResult.NearestPoint.X;
-                result.NearestY = distanceResult.NearestPoint.Y;
-                result.FarthestX = distanceResult.FarthestPoint.X;
-                result.FarthestY = distanceResult.FarthestPoint.Y;
+                result.TargetX = MeasurementResultRounder.Round(distanceResult.TargetPoint.X);
+                result.TargetY = MeasurementResultRounder.Round(distanceResult.TargetPoint.Y);
+                result.NearestX = MeasurementResultRounder.Round(distanceResult.NearestPoint.X);
+                result.NearestY = MeasurementResultRounder.Round(distanceResult.NearestPoint.Y);
+                result.FarthestX = MeasurementResultRounder.Round(distanceResult.FarthestPoint.X);
+                result.FarthestY = MeasurementResultRounder.Round(distanceResult.FarthestPoint.Y);
                 result.RegionPointCount = distanceResult.RegionPoints.Count;
             }
 

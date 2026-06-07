@@ -20,6 +20,17 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-07 测量与四则运算结果三位小数输出：
+  - [x] 新反馈已记录：测量工具模块与四则运算输出结果统一只保留小数点后三位。
+  - [x] 新增测量结果统一舍入工具，测量节点对外发布的坐标、距离、角度、半径、耗时和点集合统一三位小数。
+  - [x] 四则运算运行和预览固定使用三位小数输出，旧配置中的其它小数位会被运行时规则覆盖。
+  - [x] 四则运算动态变量表和默认结果值均按三位小数发布，内部运算过程仍保持原始精度。
+  - [x] Build-verified with MSBuild on 2026-06-07, 0 errors; existing warnings remain.
+- 2026-06-07 四则运算判定颜色链路补齐：
+  - [x] 新反馈已记录：多条件模块会判定四则运算结果数值，后续 `ResultOverlayDraw` 需要按该判定显示OK/NG颜色。
+  - [x] `NodeResultArithmeticOperation` 已实现 `IJudgmentResult`，新增默认 `JudgeOk=true` 的“判定OK”属性。
+  - [x] 四则运算成功结果默认 `JudgeOk=true`，失败结果默认 `JudgeOk=false`，多条件模块后续可继续按条件回写该值。
+  - [x] Build-verified with MSBuild on 2026-06-07, 0 errors; existing warnings remain.
 - 2026-06-07 测量判定回写与结果绘制按判定颜色改造：
   - [x] 新反馈已记录：测量结果默认带OK/NG布尔判定，多条件模块负责改写判定值，绘制工具按判定值自动选择OK/NG颜色。
   - [x] 已新增通用 `IJudgmentResult` 接口，并给 `Node\4-Measurement` 下现有测量结果补充默认 `JudgeOk=true` 的判定属性。

@@ -32,7 +32,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             _rows = new BindingList<ArithmeticRowViewModel>();
             ConfigureGridColumns();
             BindOperatorColumn();
-            numericUpDownDecimalPlaces.Value = 3;
+            numericUpDownDecimalPlaces.Value = NodeParamArithmeticOperation.OutputDecimalPlaces;
             dataGridViewRows.DataSource = _rows;
             if (_rows.Count == 0)
                 _rows.Add(CreateDefaultRow(0));
@@ -71,9 +71,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             if (param == null)
                 param = new NodeParamArithmeticOperation();
 
-            numericUpDownDecimalPlaces.Value = Math.Max(
-                numericUpDownDecimalPlaces.Minimum,
-                Math.Min(numericUpDownDecimalPlaces.Maximum, param.DecimalPlaces));
+            numericUpDownDecimalPlaces.Value = NodeParamArithmeticOperation.OutputDecimalPlaces;
 
             _rows = new BindingList<ArithmeticRowViewModel>();
             if (param.Rows != null)
@@ -362,7 +360,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
 
             var param = new NodeParamArithmeticOperation
             {
-                DecimalPlaces = (int)numericUpDownDecimalPlaces.Value,
+                DecimalPlaces = NodeParamArithmeticOperation.OutputDecimalPlaces,
                 Rows = new List<ArithmeticOperationRow>()
             };
 

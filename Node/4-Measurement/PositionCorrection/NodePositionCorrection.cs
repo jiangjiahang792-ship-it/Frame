@@ -52,7 +52,7 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
                 {
                     LogHelper.AddLog(
                         MsgLevel.Info,
-                        $"节点({ID}.{NodeName})运行成功！({time} ms，X偏移:{nodeResult.DeltaX:F2}，Y偏移:{nodeResult.DeltaY:F2}，角度偏移:{nodeResult.DeltaAngle:F2})",
+                        $"节点({ID}.{NodeName})运行成功！({time} ms，X偏移:{nodeResult.DeltaX:F3}，Y偏移:{nodeResult.DeltaY:F3}，角度偏移:{nodeResult.DeltaAngle:F3})",
                         true);
                 }
 
@@ -86,12 +86,12 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
             {
                 CorrectionInfo = correctionInfo,
                 IsOk = true,
-                CurrentX = correctionInfo.CurrentX,
-                CurrentY = correctionInfo.CurrentY,
-                CurrentAngle = correctionInfo.CurrentAngle,
-                DeltaX = correctionInfo.DeltaX,
-                DeltaY = correctionInfo.DeltaY,
-                DeltaAngle = correctionInfo.DeltaAngle
+                CurrentX = MeasurementResultRounder.Round(correctionInfo.CurrentX),
+                CurrentY = MeasurementResultRounder.Round(correctionInfo.CurrentY),
+                CurrentAngle = MeasurementResultRounder.Round(correctionInfo.CurrentAngle),
+                DeltaX = MeasurementResultRounder.Round(correctionInfo.DeltaX),
+                DeltaY = MeasurementResultRounder.Round(correctionInfo.DeltaY),
+                DeltaAngle = MeasurementResultRounder.Round(correctionInfo.DeltaAngle)
             };
         }
     }

@@ -117,17 +117,28 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             // 
             // numericUpDownDecimalPlaces
             // 
+            this.numericUpDownDecimalPlaces.Enabled = false;
             this.numericUpDownDecimalPlaces.Font = new System.Drawing.Font("宋体", 10.5F);
             this.numericUpDownDecimalPlaces.Location = new System.Drawing.Point(142, 18);
             this.numericUpDownDecimalPlaces.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.numericUpDownDecimalPlaces.Maximum = new decimal(new int[] {
-            12,
+            3,
+            0,
+            0,
+            0});
+            this.numericUpDownDecimalPlaces.Minimum = new decimal(new int[] {
+            3,
             0,
             0,
             0});
             this.numericUpDownDecimalPlaces.Name = "numericUpDownDecimalPlaces";
             this.numericUpDownDecimalPlaces.Size = new System.Drawing.Size(106, 31);
             this.numericUpDownDecimalPlaces.TabIndex = 1;
+            this.numericUpDownDecimalPlaces.Value = new decimal(new int[] {
+            3,
+            0,
+            0,
+            0});
             // 
             // labelDecimalPlaces
             // 

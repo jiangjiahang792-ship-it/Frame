@@ -89,18 +89,24 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             if (measureResult == null)
                 return BuildFailureResult("计算结果为空。");
 
+            double? value = measureResult.Success
+                ? (double?)RoundOutputNumber(measureResult.Value)
+                : null;
+            Dictionary<string, double> variables = RoundOutputVariables(measureResult.Variables);
+
             return new NodeResultArithmeticOperation
             {
                 IsOk = measureResult.Success,
-                Value = measureResult.Success ? (double?)measureResult.Value : null,
+                JudgeOk = measureResult.Success,
+                Value = value,
                 ValueText = measureResult.ValueText,
                 ExpressionText = measureResult.ExpressionText,
                 OperandCount = measureResult.OperandCount,
                 OperationCount = measureResult.OperationCount,
                 DefaultVariableName = measureResult.DefaultVariableName,
                 Message = measureResult.Message,
-                Variables = measureResult.Variables ?? new Dictionary<string, double>(),
-                VariablesText = BuildVariablesText(measureResult.Variables, decimalPlaces)
+                Variables = variables,
+                VariablesText = BuildVariablesText(variables, decimalPlaces)
             };
         }
 
@@ -112,6 +118,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             return new NodeResultArithmeticOperation
             {
                 IsOk = false,
+                JudgeOk = false,
                 Value = null,
                 ValueText = string.Empty,
                 ExpressionText = string.Empty,
@@ -167,7 +174,30 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
 
             return string.Join("; ", variables
                 .OrderBy(pair => pair.Key)
-                .Select(pair => pair.Key + "=" + ArithmeticOperationAlgorithm.FormatNumber(pair.Value, decimalPlaces)));
+                .Select(pair => pair.Key + "=" + ArithmeticOperationAlgorithm.FormatNumber(pair.Value, NodeParamArithmeticOperation.OutputDecimalPlaces)));
+        }
+
+        /// <summary>
+        /// 将四则运算对外发布的数值统一舍入到三位小数，内部计算仍保留原始精度。
+        /// </summary>
+        private static double RoundOutputNumber(double value)
+        {
+            return Math.Round(value, NodeParamArithmeticOperation.OutputDecimalPlaces, MidpointRounding.AwayFromZero);
+        }
+
+        /// <summary>
+        /// 将四则运算动态变量表统一舍入到三位小数，保证下游订阅值和显示文本一致。
+        /// </summary>
+        private static Dictionary<string, double> RoundOutputVariables(Dictionary<string, double> variables)
+        {
+            var roundedVariables = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            if (variables == null)
+                return roundedVariables;
+
+            foreach (KeyValuePair<string, double> pair in variables)
+                roundedVariables[pair.Key] = RoundOutputNumber(pair.Value);
+
+            return roundedVariables;
         }
     }
 }

@@ -80,22 +80,22 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         {
             var result = new NodeResultLineLineAngle();
             result.IsOk = measureResult.Success;
-            result.AlgorithmMs = measureResult.AlgorithmMs;
+            result.AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs);
             if (measureResult.Success)
             {
-                result.Angle = measureResult.Angle;
-                result.Line1StartX = measureResult.Line1.Start.X;
-                result.Line1StartY = measureResult.Line1.Start.Y;
-                result.Line1EndX = measureResult.Line1.End.X;
-                result.Line1EndY = measureResult.Line1.End.Y;
-                result.Line2StartX = measureResult.Line2.Start.X;
-                result.Line2StartY = measureResult.Line2.Start.Y;
-                result.Line2EndX = measureResult.Line2.End.X;
-                result.Line2EndY = measureResult.Line2.End.Y;
+                result.Angle = MeasurementResultRounder.Round(measureResult.Angle);
+                result.Line1StartX = MeasurementResultRounder.Round(measureResult.Line1.Start.X);
+                result.Line1StartY = MeasurementResultRounder.Round(measureResult.Line1.Start.Y);
+                result.Line1EndX = MeasurementResultRounder.Round(measureResult.Line1.End.X);
+                result.Line1EndY = MeasurementResultRounder.Round(measureResult.Line1.End.Y);
+                result.Line2StartX = MeasurementResultRounder.Round(measureResult.Line2.Start.X);
+                result.Line2StartY = MeasurementResultRounder.Round(measureResult.Line2.Start.Y);
+                result.Line2EndX = MeasurementResultRounder.Round(measureResult.Line2.End.X);
+                result.Line2EndY = MeasurementResultRounder.Round(measureResult.Line2.End.Y);
                 if (measureResult.IntersectionPoint.HasValue)
                 {
-                    result.IntersectionX = measureResult.IntersectionPoint.Value.X;
-                    result.IntersectionY = measureResult.IntersectionPoint.Value.Y;
+                    result.IntersectionX = MeasurementResultRounder.Round(measureResult.IntersectionPoint.Value.X);
+                    result.IntersectionY = MeasurementResultRounder.Round(measureResult.IntersectionPoint.Value.Y);
                 }
             }
 
@@ -125,7 +125,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             {
                 result.Texts.Add(new ColorText($"线到线夹角：{measureResult.Angle:F3}°", Color.Lime));
                 if (measureResult.IntersectionPoint.HasValue)
-                    result.Texts.Add(new ColorText($"交点：X={measureResult.IntersectionPoint.Value.X:F2}, Y={measureResult.IntersectionPoint.Value.Y:F2}", Color.Orange));
+                    result.Texts.Add(new ColorText($"交点：X={measureResult.IntersectionPoint.Value.X:F3}, Y={measureResult.IntersectionPoint.Value.Y:F3}", Color.Orange));
             }
             else
             {

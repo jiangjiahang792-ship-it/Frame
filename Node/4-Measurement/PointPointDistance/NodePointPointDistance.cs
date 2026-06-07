@@ -80,14 +80,14 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
         {
             var result = new NodeResultPointPointDistance();
             result.IsOk = measureResult.Success;
-            result.AlgorithmMs = measureResult.AlgorithmMs;
+            result.AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs);
             if (measureResult.Success)
             {
-                result.Distance = measureResult.Distance;
-                result.Point1X = measureResult.Point1.X;
-                result.Point1Y = measureResult.Point1.Y;
-                result.Point2X = measureResult.Point2.X;
-                result.Point2Y = measureResult.Point2.Y;
+                result.Distance = MeasurementResultRounder.Round(measureResult.Distance);
+                result.Point1X = MeasurementResultRounder.Round(measureResult.Point1.X);
+                result.Point1Y = MeasurementResultRounder.Round(measureResult.Point1.Y);
+                result.Point2X = MeasurementResultRounder.Round(measureResult.Point2.X);
+                result.Point2Y = MeasurementResultRounder.Round(measureResult.Point2.Y);
             }
 
             result.Result = BuildDisplayResult(measureResult);
@@ -111,7 +111,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                 result.Circles.Add(new ColorCircle(measureResult.Point2, 4, Color.DeepSkyBlue));
                 result.Lines.Add(new ColorLine(measureResult.Point1, measureResult.Point2, Color.Orange));
                 result.Texts.Add(new ColorText($"点到点距离：{measureResult.Distance:F3}px", Color.Lime));
-                result.Texts.Add(new ColorText($"P1=({measureResult.Point1.X:F2},{measureResult.Point1.Y:F2}) P2=({measureResult.Point2.X:F2},{measureResult.Point2.Y:F2})", Color.White));
+                result.Texts.Add(new ColorText($"P1=({measureResult.Point1.X:F3},{measureResult.Point1.Y:F3}) P2=({measureResult.Point2.X:F3},{measureResult.Point2.Y:F3})", Color.White));
             }
             else
             {

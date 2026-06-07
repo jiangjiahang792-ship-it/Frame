@@ -8,14 +8,19 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
     public class NodeParamArithmeticOperation : INodeParam
     {
         /// <summary>
+        /// 四则运算结果统一对外输出的小数位数。
+        /// </summary>
+        public const int OutputDecimalPlaces = 3;
+
+        /// <summary>
         /// 运算行集合，每一行独立输出一个命名变量。
         /// </summary>
         public List<ArithmeticOperationRow> Rows { get; set; } = new List<ArithmeticOperationRow>();
 
         /// <summary>
-        /// 输出文本保留的小数位数。
+        /// 输出文本保留的小数位数，保留字段用于旧配置兼容，运行时固定使用三位。
         /// </summary>
-        public int DecimalPlaces { get; set; } = 3;
+        public int DecimalPlaces { get; set; } = OutputDecimalPlaces;
     }
 
     /// <summary>

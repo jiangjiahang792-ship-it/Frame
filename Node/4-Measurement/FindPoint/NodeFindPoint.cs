@@ -139,17 +139,17 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
                 IsOk = measureResult.Success,
                 PointCount = measureResult.PointCount,
                 ContourCount = measureResult.ContourCount,
-                Points = measureResult.Points.ToList(),
-                RegionPoints = measureResult.PrimaryContour.ToList(),
-                Contours = measureResult.Contours.Select(contour => contour.ToList()).ToList(),
+                Points = MeasurementResultRounder.RoundPoints(measureResult.Points),
+                RegionPoints = MeasurementResultRounder.RoundPoints(measureResult.PrimaryContour),
+                Contours = MeasurementResultRounder.RoundPointGroups(measureResult.Contours),
                 Message = measureResult.Message,
-                AlgorithmMs = measureResult.AlgorithmMs
+                AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs)
             };
 
             if (result.Points.Count > 0)
             {
-                result.CenterX = result.Points.Average(point => point.X);
-                result.CenterY = result.Points.Average(point => point.Y);
+                result.CenterX = MeasurementResultRounder.Round(result.Points.Average(point => point.X));
+                result.CenterY = MeasurementResultRounder.Round(result.Points.Average(point => point.Y));
             }
 
             result.Result = BuildDisplayResult(measureResult);

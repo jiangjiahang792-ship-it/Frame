@@ -93,21 +93,21 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
             var result = new NodeResultPointLineDistance
             {
                 IsOk = measureResult.Success,
-                AlgorithmMs = measureResult.AlgorithmMs
+                AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs)
             };
 
             if (measureResult.Success && measureResult.DistanceResult != null)
             {
                 PointLineDistanceResult distance = measureResult.DistanceResult;
-                result.Distance = distance.Distance;
-                result.PointX = distance.TargetPoint.X;
-                result.PointY = distance.TargetPoint.Y;
-                result.StartX = distance.LineStart.X;
-                result.StartY = distance.LineStart.Y;
-                result.EndX = distance.LineEnd.X;
-                result.EndY = distance.LineEnd.Y;
-                result.FootX = distance.FootPoint.X;
-                result.FootY = distance.FootPoint.Y;
+                result.Distance = MeasurementResultRounder.Round(distance.Distance);
+                result.PointX = MeasurementResultRounder.Round(distance.TargetPoint.X);
+                result.PointY = MeasurementResultRounder.Round(distance.TargetPoint.Y);
+                result.StartX = MeasurementResultRounder.Round(distance.LineStart.X);
+                result.StartY = MeasurementResultRounder.Round(distance.LineStart.Y);
+                result.EndX = MeasurementResultRounder.Round(distance.LineEnd.X);
+                result.EndY = MeasurementResultRounder.Round(distance.LineEnd.Y);
+                result.FootX = MeasurementResultRounder.Round(distance.FootPoint.X);
+                result.FootY = MeasurementResultRounder.Round(distance.FootPoint.Y);
             }
 
             result.Result = BuildDisplayResult(measureResult);
@@ -136,7 +136,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
                 result.Lines.Add(new ColorLine(distance.LineStart, distance.LineEnd, Color.DeepSkyBlue));
                 result.Lines.Add(new ColorLine(distance.TargetPoint, distance.FootPoint, Color.Orange));
                 result.Texts.Add(new ColorText($"点到线距离：{distance.Distance:F3}px", Color.Lime));
-                result.Texts.Add(new ColorText($"垂足=({distance.FootPoint.X:F2},{distance.FootPoint.Y:F2})", Color.Orange));
+                result.Texts.Add(new ColorText($"垂足=({distance.FootPoint.X:F3},{distance.FootPoint.Y:F3})", Color.Orange));
             }
             else
             {

@@ -85,17 +85,17 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             var result = new NodeResultCaliperLine();
             result.IsOk = measureResult.Success;
             result.EdgePointCount = measureResult.PointCount;
-            result.EdgePoints = new List<PointF>(measureResult.EdgePoints);
+            result.EdgePoints = MeasurementResultRounder.RoundPoints(measureResult.EdgePoints);
             if (measureResult.Success)
             {
-                result.StartX = measureResult.LineStart.X;
-                result.StartY = measureResult.LineStart.Y;
-                result.EndX = measureResult.LineEnd.X;
-                result.EndY = measureResult.LineEnd.Y;
-                result.Length = Distance(measureResult.LineStart, measureResult.LineEnd);
-                result.Angle = Math.Atan2(measureResult.LineEnd.Y - measureResult.LineStart.Y, measureResult.LineEnd.X - measureResult.LineStart.X) * 180.0 / Math.PI;
+                result.StartX = MeasurementResultRounder.Round(measureResult.LineStart.X);
+                result.StartY = MeasurementResultRounder.Round(measureResult.LineStart.Y);
+                result.EndX = MeasurementResultRounder.Round(measureResult.LineEnd.X);
+                result.EndY = MeasurementResultRounder.Round(measureResult.LineEnd.Y);
+                result.Length = MeasurementResultRounder.Round(Distance(measureResult.LineStart, measureResult.LineEnd));
+                result.Angle = MeasurementResultRounder.Round(Math.Atan2(measureResult.LineEnd.Y - measureResult.LineStart.Y, measureResult.LineEnd.X - measureResult.LineStart.X) * 180.0 / Math.PI);
             }
-            result.AlgorithmMs = measureResult.AlgorithmMs;
+            result.AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs);
             result.Result = BuildDisplayResult(measureResult);
             result.OutputImage.DisplayResult = result.Result;
             return result;
@@ -112,7 +112,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 double length = Distance(measureResult.LineStart, measureResult.LineEnd);
                 double angle = Math.Atan2(measureResult.LineEnd.Y - measureResult.LineStart.Y, measureResult.LineEnd.X - measureResult.LineStart.X) * 180.0 / Math.PI;
                 result.Lines.Add(new ColorLine(measureResult.LineStart, measureResult.LineEnd, Color.Lime));
-                result.Texts.Add(new ColorText($"卡尺找线：点数 {measureResult.PointCount}，长度 {length:F2}px，角度 {angle:F2}°", Color.Lime));
+                result.Texts.Add(new ColorText($"卡尺找线：点数 {measureResult.PointCount}，长度 {length:F3}px，角度 {angle:F3}°", Color.Lime));
             }
             else
             {

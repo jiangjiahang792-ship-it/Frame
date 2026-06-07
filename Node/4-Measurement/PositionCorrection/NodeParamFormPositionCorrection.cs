@@ -142,7 +142,7 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
             var param = Params as NodeParamPositionCorrection;
             if (param != null && param.HasBaseline)
             {
-                labelBaselineStatus.Text = $"基准：X {param.BaseX:F2}, Y {param.BaseY:F2}, 角度 {param.BaseAngle:F2}°";
+                labelBaselineStatus.Text = $"基准：X {param.BaseX:F3}, Y {param.BaseY:F3}, 角度 {param.BaseAngle:F3}°";
             }
             else
             {
@@ -186,7 +186,7 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
             {
                 var info = BuildCorrectionInfo((NodeParamPositionCorrection)Params);
                 PublishCorrectionInfo(info);
-                labelRuntimeStatus.Text = $"当前：X {info.CurrentX:F2}, Y {info.CurrentY:F2}, 角度 {info.CurrentAngle:F2}°；偏移：X {info.DeltaX:F2}, Y {info.DeltaY:F2}, 角度 {info.DeltaAngle:F2}°";
+                labelRuntimeStatus.Text = $"当前：X {info.CurrentX:F3}, Y {info.CurrentY:F3}, 角度 {info.CurrentAngle:F3}°；偏移：X {info.DeltaX:F3}, Y {info.DeltaY:F3}, 角度 {info.DeltaAngle:F3}°";
             }
             catch (Exception ex)
             {

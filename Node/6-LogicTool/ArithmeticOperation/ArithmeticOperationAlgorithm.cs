@@ -29,6 +29,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
             double lastValue = 0;
             string lastVariableName = string.Empty;
             int operationCount = 0;
+            int outputDecimalPlaces = NodeParamArithmeticOperation.OutputDecimalPlaces;
 
             for (int index = 0; index < param.Rows.Count; index++)
             {
@@ -47,13 +48,13 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
                 lastVariableName = variableName;
                 operationCount++;
 
-                expressionParts.Add(BuildExpressionText(variableName, row, value1, value2, result, param.DecimalPlaces));
+                expressionParts.Add(BuildExpressionText(variableName, row, value1, value2, result, outputDecimalPlaces));
             }
 
             if (operationCount == 0)
                 throw new Exception("没有启用的运算行。");
 
-            string valueText = lastVariableName + "=" + FormatNumber(lastValue, param.DecimalPlaces);
+            string valueText = lastVariableName + "=" + FormatNumber(lastValue, outputDecimalPlaces);
             string expressionText = string.Join("; ", expressionParts);
 
             return new ArithmeticOperationMeasureResult

@@ -86,15 +86,15 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             result.EdgePointCount = measureResult.PointCount;
             if (measureResult.Success)
             {
-                result.CenterX = measureResult.Center.X;
-                result.CenterY = measureResult.Center.Y;
-                result.Width = measureResult.Size.Width;
-                result.Height = measureResult.Size.Height;
-                result.MajorAxis = Math.Max(measureResult.Size.Width, measureResult.Size.Height);
-                result.MinorAxis = Math.Min(measureResult.Size.Width, measureResult.Size.Height);
-                result.Angle = measureResult.Angle;
+                result.CenterX = MeasurementResultRounder.Round(measureResult.Center.X);
+                result.CenterY = MeasurementResultRounder.Round(measureResult.Center.Y);
+                result.Width = MeasurementResultRounder.Round(measureResult.Size.Width);
+                result.Height = MeasurementResultRounder.Round(measureResult.Size.Height);
+                result.MajorAxis = MeasurementResultRounder.Round(Math.Max(measureResult.Size.Width, measureResult.Size.Height));
+                result.MinorAxis = MeasurementResultRounder.Round(Math.Min(measureResult.Size.Width, measureResult.Size.Height));
+                result.Angle = MeasurementResultRounder.Round(measureResult.Angle);
             }
-            result.AlgorithmMs = measureResult.AlgorithmMs;
+            result.AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs);
             result.Result = BuildDisplayResult(measureResult);
             result.OutputImage.DisplayResult = result.Result;
             return result;
@@ -114,7 +114,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 var center = new PointF(measureResult.Center.X, measureResult.Center.Y);
                 result.Ellipses.Add(new ColorEllipse(center, measureResult.Size.Width, measureResult.Size.Height, measureResult.Angle, Color.Lime));
                 result.Circles.Add(new ColorCircle(center, 3, Color.Red));
-                result.Texts.Add(new ColorText($"卡尺找椭圆：点数 {measureResult.PointCount}，中心({measureResult.Center.X:F2}, {measureResult.Center.Y:F2})，宽高({measureResult.Size.Width:F2}, {measureResult.Size.Height:F2})，角度 {measureResult.Angle:F2}°", Color.Lime));
+                result.Texts.Add(new ColorText($"卡尺找椭圆：点数 {measureResult.PointCount}，中心({measureResult.Center.X:F3}, {measureResult.Center.Y:F3})，宽高({measureResult.Size.Width:F3}, {measureResult.Size.Height:F3})，角度 {measureResult.Angle:F3}°", Color.Lime));
             }
             else
             {
