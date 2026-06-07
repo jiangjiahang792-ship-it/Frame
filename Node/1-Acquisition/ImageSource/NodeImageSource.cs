@@ -111,11 +111,11 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             if (Process.IsRuning)
                 return;
 
-            //if (!TryEnterCallbackRunState())
-            //{
-            //    LogHelper.AddLog(MsgLevel.Warn, $"流程【{Process.ProcessName}】仍在运行，本次相机回调帧丢弃。", true);
-            //    return;
-            //}
+            if (!TryEnterCallbackRunState())
+            {
+                LogHelper.AddLog(MsgLevel.Warn, $"流程【{Process.ProcessName}】仍在运行，本次相机回调帧丢弃。", true);
+                return;
+            }
 
             Mat callbackMat = null;
             try

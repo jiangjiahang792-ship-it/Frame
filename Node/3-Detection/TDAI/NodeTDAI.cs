@@ -174,9 +174,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     switch (param.ModelName)
                                     {
                                         case ModelName.RL_12类线芯模型:
-                                            //Console.WriteLine("开始时间:" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
                                             RL12Parse.Parse(det_results, result_count, param, Process,ref res);
-                                            //Console.WriteLine("结束时间:" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
                                             LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测结果运算完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                                             break;
                                         case ModelName.合压模型:

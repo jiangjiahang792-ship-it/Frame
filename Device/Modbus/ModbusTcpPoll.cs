@@ -1,15 +1,7 @@
-﻿using HslCommunication;
-using HslCommunication.ModBus;
+﻿using HslCommunication.ModBus;
 using Logger;
-using Modbus.Device;
 using Newtonsoft.Json;
-using OfficeOpenXml.FormulaParsing.Excel.Functions.Text;
 using System;
-using System.Net.Mail;
-using System.Net.Sockets;
-using System.Threading.Tasks;
-using static OfficeOpenXml.ExcelErrorValue;
-using static OpenCvSharp.FileStorage;
 
 namespace TDJS_Vision.Device.Modbus
 {
