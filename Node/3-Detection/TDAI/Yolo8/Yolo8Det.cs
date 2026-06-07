@@ -92,6 +92,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         [DllImport("td_gpu_detect.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void YoloV8_Release(IntPtr handle);
 
+        /// <summary>
+        /// DET GPU 原生推理全局锁，避免多个流程同时进入 GPU 推理导致偶发识别数量为 0。
+        /// </summary>
+        private static readonly object GpuDetInferenceLock = new object();
+
+        /// <summary>
+        /// 当前 DET 模型的原生句柄。
+        /// </summary>
         private IntPtr _handle;
 
         /// <summary>
@@ -135,6 +143,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public List<DetResult> Detect(Mat image)
         {
+            return DetectCore(image);
+        }
+
+        /// <summary>
+        /// 执行 DET 检测核心逻辑，只有 GPU 推理分支会进入全局锁。
+        /// </summary>
+        /// <param name="image">待检测图像。</param>
+        /// <returns>检测结果集合。</returns>
+        private List<DetResult> DetectCore(Mat image)
+        {
             //初始化返回对象
             List<DetResult> results = new List<DetResult>();
 
@@ -162,95 +180,64 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                     }
                     break;
                 case DeviceType.GPU:
-                    // 空值校验
-                    if (image == null || image.Empty() || image.Data == IntPtr.Zero || _handle == IntPtr.Zero)
+                    lock (GpuDetInferenceLock)
                     {
-                        return new List<DetResult>();
-                    }
-
-                    // 调用底层检测接口
-                    IntPtr resPtr = YoloV8_Infer(_handle, image.Data, image.Width, image.Height, image.Channels(), ScoreThreshold, NMSThreshold);
-                    if (resPtr == IntPtr.Zero)
-                        return new List<DetResult>();
-
-                    try
-                    {
-                        // 解析结果结构体
-                        YoloResultArray resArray = Marshal.PtrToStructure<YoloResultArray>(resPtr);
-                        if (resArray.count <= 0)
-                            return new List<DetResult>();
-
-                        int structSize = Marshal.SizeOf(typeof(YoloResult));
-
-                        // 遍历所有检测结果
-                        for (int i = 0; i < resArray.count; i++)
+                        // 空值校验
+                        if (image == null || image.Empty() || image.Data == IntPtr.Zero || _handle == IntPtr.Zero)
                         {
-                            // 计算当前结果指针
-                            IntPtr currentObjPtr = new IntPtr(resArray.results.ToInt64() + i * structSize);
-                            YoloResult res = Marshal.PtrToStructure<YoloResult>(currentObjPtr);
-
-                            // 封装为DetResult，应用偏移量
-                            DetResult detResult = new DetResult
-                            {
-                                ClassId = res.class_id,
-                                Score = res.conf,
-                                Box = new Rect(
-                                    (int)res.bbox_0,
-                                    (int)res.bbox_1,
-                                    (int)res.bbox_2,
-                                    (int)res.bbox_3
-                                )
-                            };
-
-                            // 添加到集合
-                            results.Add(detResult);
+                            return new List<DetResult>();
                         }
 
-                        // 返回最终集合
-                        return results;
-                    }
-                    finally
-                    {
-                        YoloV8_FreeResult(resPtr);
+                        // 调用底层检测接口
+                        IntPtr resPtr = YoloV8_Infer(_handle, image.Data, image.Width, image.Height, image.Channels(), ScoreThreshold, NMSThreshold);
+                        if (resPtr == IntPtr.Zero)
+                            return new List<DetResult>();
+
+                        try
+                        {
+                            // 解析结果结构体
+                            YoloResultArray resArray = Marshal.PtrToStructure<YoloResultArray>(resPtr);
+                            if (resArray.count <= 0)
+                                return new List<DetResult>();
+
+                            int structSize = Marshal.SizeOf(typeof(YoloResult));
+
+                            // 遍历所有检测结果
+                            for (int i = 0; i < resArray.count; i++)
+                            {
+                                // 计算当前结果指针
+                                IntPtr currentObjPtr = new IntPtr(resArray.results.ToInt64() + i * structSize);
+                                YoloResult res = Marshal.PtrToStructure<YoloResult>(currentObjPtr);
+
+                                // 封装为DetResult，应用偏移量
+                                DetResult detResult = new DetResult
+                                {
+                                    ClassId = res.class_id,
+                                    Score = res.conf,
+                                    Box = new Rect(
+                                        (int)res.bbox_0,
+                                        (int)res.bbox_1,
+                                        (int)res.bbox_2,
+                                        (int)res.bbox_3
+                                    )
+                                };
+
+                                // 添加到集合
+                                results.Add(detResult);
+                            }
+
+                            // 返回最终集合
+                            return results;
+                        }
+                        finally
+                        {
+                            YoloV8_FreeResult(resPtr);
+                        }
                     }
                 default:
                     throw new Exception("未找到对应运行设备的指定");
             }
             
-
-            return results;
-        }
-
-        /// <summary>
-        /// 执行检测(刺破机颜色线序检测专用，带屏蔽区)
-        /// </summary>
-        public List<DetResult> Detect(Mat image, List<Rect> invalidRects)
-        {
-            byte[] imageData = new byte[image.Total() * image.ElemSize()];
-            Marshal.Copy(image.Data, imageData, 0, imageData.Length);
-
-            DetectionResult[] nativeResults = new DetectionResult[1024];
-
-            int count = 0;
-            count = Detect(_handle, imageData, image.Width, image.Height, image.Channels(), nativeResults);
-
-            List<DetResult> results = new List<DetResult>();
-            for (int i = 0; i < count; i++)
-            {
-                var dr = nativeResults[i];
-                // 计算检测框的中点
-                int centerX = dr.left + dr.width / 2;
-                int centerY = dr.top + dr.height / 2;
-                // 判断结果框是否处于其中一个无效区域内，若是，跳过
-                if (invalidRects.Exists(r => r.Contains(centerX, centerY)))
-                    continue;
-                results.Add(new DetResult
-                {
-                    ClassId = dr.class_id,
-                    Score = dr.score,
-                    Box = new Rect(dr.left, dr.top, dr.width, dr.height)
-                });
-            }
 
             return results;
         }
@@ -266,14 +253,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                 {
                     case DeviceType.CPU:
                         DestroyDetector(_handle);
+                        _handle = IntPtr.Zero;
                         break;
                     case DeviceType.GPU:
-                        YoloV8_Release(_handle);
+                        lock (GpuDetInferenceLock)
+                        {
+                            if (_handle == IntPtr.Zero)
+                                break;
+                            YoloV8_Release(_handle);
+                            _handle = IntPtr.Zero;
+                        }
                         break;
                     default:
                         throw new Exception("未找到对应运行设备的指定");
                 }
-                _handle = IntPtr.Zero;
             }
         }
     }

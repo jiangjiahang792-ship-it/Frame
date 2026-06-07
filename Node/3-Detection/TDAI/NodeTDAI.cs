@@ -157,7 +157,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     //}
                                     {
                                         List<DetResult> tmp = new List<DetResult>();
-                                        var img = inputImage.Bitmaps[0].Clone();
+                                        var img = inputImage.Bitmaps[0];
                                         if (inputImage.Rectangles.Count != 0)
                                             tmp = handleDet.Detect(img);
                                         else

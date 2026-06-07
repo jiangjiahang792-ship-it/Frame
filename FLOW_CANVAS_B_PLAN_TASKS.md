@@ -1429,3 +1429,8 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] Investigated `流程4` logs and solution connections, confirming `85.AI结果绘制` is a sibling branch from `75/76` rather than downstream of `79/101.如果`.
 - [x] Refined ready-batch construction so `If` / `MultiCondition` only hold their structural downstream nodes; independent sibling branches remain in the same parallel batch.
 - [x] Build-verified the refined branch batching change with MSBuild on 2026-06-06, 0 errors; existing warnings remain.
+
+## 2026-06-07: TDAI DET GPU Inference Serialization
+
+- [x] Add a static DET GPU inference lock in `Yolo8Det` so multiple process flows cannot enter the native GPU DET inference DLL at the same time.
+- [x] Keep CPU DET inference unlocked, and apply the GPU lock to GPU model handle destruction to avoid inference/release collisions.
