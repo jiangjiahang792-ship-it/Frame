@@ -55,9 +55,17 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.textBoxTextPrefix = new System.Windows.Forms.TextBox();
             this.labelColor = new System.Windows.Forms.Label();
             this.tableLayoutPanelColor = new System.Windows.Forms.TableLayoutPanel();
+            this.labelFixedColor = new System.Windows.Forms.Label();
             this.panelColor = new System.Windows.Forms.Panel();
             this.buttonChooseColor = new System.Windows.Forms.Button();
+            this.checkBoxUseJudgeColor = new System.Windows.Forms.CheckBox();
             this.buttonApplyStyleToAll = new System.Windows.Forms.Button();
+            this.labelOkColor = new System.Windows.Forms.Label();
+            this.panelOkColor = new System.Windows.Forms.Panel();
+            this.buttonChooseOkColor = new System.Windows.Forms.Button();
+            this.labelNgColor = new System.Windows.Forms.Label();
+            this.panelNgColor = new System.Windows.Forms.Panel();
+            this.buttonChooseNgColor = new System.Windows.Forms.Button();
             this.labelFontSize = new System.Windows.Forms.Label();
             this.numericFontSize = new System.Windows.Forms.NumericUpDown();
             this.labelLineWidth = new System.Windows.Forms.Label();
@@ -120,7 +128,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.tableLayoutPanelLeft.Name = "tableLayoutPanelLeft";
             this.tableLayoutPanelLeft.RowCount = 4;
             this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 110F));
-            this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 252F));
+            this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 220F));
             this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
             this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 62F));
             this.tableLayoutPanelLeft.Size = new System.Drawing.Size(517, 828);
@@ -308,21 +316,21 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             // ColumnColor
             // 
-            this.ColumnColor.HeaderText = "颜色";
+            this.ColumnColor.HeaderText = "颜色模式";
             this.ColumnColor.MinimumWidth = 6;
             this.ColumnColor.Name = "ColumnColor";
             this.ColumnColor.ReadOnly = true;
-            this.ColumnColor.Width = 70;
+            this.ColumnColor.Width = 90;
             // 
             // groupBoxItemSetting
             // 
             this.groupBoxItemSetting.Controls.Add(this.tableLayoutPanelSetting);
             this.groupBoxItemSetting.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.groupBoxItemSetting.Location = new System.Drawing.Point(3, 366);
+            this.groupBoxItemSetting.Location = new System.Drawing.Point(3, 334);
             this.groupBoxItemSetting.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxItemSetting.Name = "groupBoxItemSetting";
             this.groupBoxItemSetting.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
-            this.groupBoxItemSetting.Size = new System.Drawing.Size(511, 396);
+            this.groupBoxItemSetting.Size = new System.Drawing.Size(511, 428);
             this.groupBoxItemSetting.TabIndex = 2;
             this.groupBoxItemSetting.TabStop = false;
             this.groupBoxItemSetting.Text = "当前项";
@@ -362,12 +370,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 34F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 65F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 38F));
-            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 36F));
+            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 72F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 31F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 31F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 31F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 31F));
-            this.tableLayoutPanelSetting.Size = new System.Drawing.Size(505, 367);
+            this.tableLayoutPanelSetting.Size = new System.Drawing.Size(505, 399);
             this.tableLayoutPanelSetting.TabIndex = 0;
             // 
             // labelEnabled
@@ -543,61 +551,163 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             // tableLayoutPanelColor
             // 
-            this.tableLayoutPanelColor.ColumnCount = 3;
-            this.tableLayoutPanelColor.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 63F));
-            this.tableLayoutPanelColor.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 117F));
-            this.tableLayoutPanelColor.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 120F));
-            this.tableLayoutPanelColor.Controls.Add(this.panelColor, 0, 0);
-            this.tableLayoutPanelColor.Controls.Add(this.buttonChooseColor, 1, 0);
-            this.tableLayoutPanelColor.Controls.Add(this.buttonApplyStyleToAll, 2, 0);
+            this.tableLayoutPanelColor.ColumnCount = 6;
+            this.tableLayoutPanelColor.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 58F));
+            this.tableLayoutPanelColor.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 44F));
+            this.tableLayoutPanelColor.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 70F));
+            this.tableLayoutPanelColor.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 88F));
+            this.tableLayoutPanelColor.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 44F));
+            this.tableLayoutPanelColor.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 91F));
+            this.tableLayoutPanelColor.Controls.Add(this.labelFixedColor, 0, 0);
+            this.tableLayoutPanelColor.Controls.Add(this.panelColor, 1, 0);
+            this.tableLayoutPanelColor.Controls.Add(this.buttonChooseColor, 2, 0);
+            this.tableLayoutPanelColor.Controls.Add(this.checkBoxUseJudgeColor, 3, 0);
+            this.tableLayoutPanelColor.Controls.Add(this.buttonApplyStyleToAll, 5, 0);
+            this.tableLayoutPanelColor.Controls.Add(this.labelOkColor, 0, 1);
+            this.tableLayoutPanelColor.Controls.Add(this.panelOkColor, 1, 1);
+            this.tableLayoutPanelColor.Controls.Add(this.buttonChooseOkColor, 2, 1);
+            this.tableLayoutPanelColor.Controls.Add(this.labelNgColor, 3, 1);
+            this.tableLayoutPanelColor.Controls.Add(this.panelNgColor, 4, 1);
+            this.tableLayoutPanelColor.Controls.Add(this.buttonChooseNgColor, 5, 1);
             this.tableLayoutPanelColor.Location = new System.Drawing.Point(110, 200);
             this.tableLayoutPanelColor.Margin = new System.Windows.Forms.Padding(0);
             this.tableLayoutPanelColor.Name = "tableLayoutPanelColor";
-            this.tableLayoutPanelColor.RowCount = 1;
-            this.tableLayoutPanelColor.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanelColor.Size = new System.Drawing.Size(300, 36);
+            this.tableLayoutPanelColor.RowCount = 2;
+            this.tableLayoutPanelColor.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 36F));
+            this.tableLayoutPanelColor.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 36F));
+            this.tableLayoutPanelColor.Size = new System.Drawing.Size(395, 72);
             this.tableLayoutPanelColor.TabIndex = 11;
+            // 
+            // labelFixedColor
+            // 
+            this.labelFixedColor.Anchor = System.Windows.Forms.AnchorStyles.Right;
+            this.labelFixedColor.AutoSize = true;
+            this.labelFixedColor.Location = new System.Drawing.Point(11, 9);
+            this.labelFixedColor.Name = "labelFixedColor";
+            this.labelFixedColor.Size = new System.Drawing.Size(44, 18);
+            this.labelFixedColor.TabIndex = 0;
+            this.labelFixedColor.Text = "固定";
             // 
             // panelColor
             // 
             this.panelColor.Anchor = System.Windows.Forms.AnchorStyles.Left;
             this.panelColor.BackColor = System.Drawing.Color.Lime;
             this.panelColor.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.panelColor.Location = new System.Drawing.Point(3, 5);
+            this.panelColor.Location = new System.Drawing.Point(61, 5);
             this.panelColor.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.panelColor.Name = "panelColor";
-            this.panelColor.Size = new System.Drawing.Size(49, 26);
-            this.panelColor.TabIndex = 0;
+            this.panelColor.Size = new System.Drawing.Size(32, 26);
+            this.panelColor.TabIndex = 1;
             // 
             // buttonChooseColor
             // 
             this.buttonChooseColor.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.buttonChooseColor.Location = new System.Drawing.Point(66, 4);
+            this.buttonChooseColor.Location = new System.Drawing.Point(105, 4);
             this.buttonChooseColor.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonChooseColor.Name = "buttonChooseColor";
-            this.buttonChooseColor.Size = new System.Drawing.Size(86, 28);
-            this.buttonChooseColor.TabIndex = 1;
+            this.buttonChooseColor.Size = new System.Drawing.Size(64, 28);
+            this.buttonChooseColor.TabIndex = 2;
             this.buttonChooseColor.Text = "选择";
             this.buttonChooseColor.UseVisualStyleBackColor = true;
             this.buttonChooseColor.Click += new System.EventHandler(this.buttonChooseColor_Click);
             // 
+            // checkBoxUseJudgeColor
+            // 
+            this.checkBoxUseJudgeColor.Anchor = System.Windows.Forms.AnchorStyles.Left;
+            this.checkBoxUseJudgeColor.AutoSize = true;
+            this.tableLayoutPanelColor.SetColumnSpan(this.checkBoxUseJudgeColor, 2);
+            this.checkBoxUseJudgeColor.Location = new System.Drawing.Point(175, 7);
+            this.checkBoxUseJudgeColor.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.checkBoxUseJudgeColor.Name = "checkBoxUseJudgeColor";
+            this.checkBoxUseJudgeColor.Size = new System.Drawing.Size(88, 22);
+            this.checkBoxUseJudgeColor.TabIndex = 3;
+            this.checkBoxUseJudgeColor.Text = "按判定";
+            this.checkBoxUseJudgeColor.UseVisualStyleBackColor = true;
+            this.checkBoxUseJudgeColor.CheckedChanged += new System.EventHandler(this.ItemControl_ValueChanged);
+            // 
             // buttonApplyStyleToAll
             // 
             this.buttonApplyStyleToAll.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.buttonApplyStyleToAll.Location = new System.Drawing.Point(183, 4);
+            this.buttonApplyStyleToAll.Location = new System.Drawing.Point(307, 4);
             this.buttonApplyStyleToAll.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonApplyStyleToAll.Name = "buttonApplyStyleToAll";
-            this.buttonApplyStyleToAll.Size = new System.Drawing.Size(108, 28);
-            this.buttonApplyStyleToAll.TabIndex = 2;
-            this.buttonApplyStyleToAll.Text = "应用到全部";
+            this.buttonApplyStyleToAll.Size = new System.Drawing.Size(84, 28);
+            this.buttonApplyStyleToAll.TabIndex = 4;
+            this.buttonApplyStyleToAll.Text = "应用全部";
             this.buttonApplyStyleToAll.UseVisualStyleBackColor = true;
             this.buttonApplyStyleToAll.Click += new System.EventHandler(this.buttonApplyStyleToAll_Click);
+            // 
+            // labelOkColor
+            // 
+            this.labelOkColor.Anchor = System.Windows.Forms.AnchorStyles.Right;
+            this.labelOkColor.AutoSize = true;
+            this.labelOkColor.Location = new System.Drawing.Point(11, 45);
+            this.labelOkColor.Name = "labelOkColor";
+            this.labelOkColor.Size = new System.Drawing.Size(44, 18);
+            this.labelOkColor.TabIndex = 5;
+            this.labelOkColor.Text = "OK色";
+            // 
+            // panelOkColor
+            // 
+            this.panelOkColor.Anchor = System.Windows.Forms.AnchorStyles.Left;
+            this.panelOkColor.BackColor = System.Drawing.Color.Lime;
+            this.panelOkColor.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.panelOkColor.Location = new System.Drawing.Point(61, 41);
+            this.panelOkColor.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.panelOkColor.Name = "panelOkColor";
+            this.panelOkColor.Size = new System.Drawing.Size(32, 26);
+            this.panelOkColor.TabIndex = 6;
+            // 
+            // buttonChooseOkColor
+            // 
+            this.buttonChooseOkColor.Anchor = System.Windows.Forms.AnchorStyles.Left;
+            this.buttonChooseOkColor.Location = new System.Drawing.Point(105, 40);
+            this.buttonChooseOkColor.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.buttonChooseOkColor.Name = "buttonChooseOkColor";
+            this.buttonChooseOkColor.Size = new System.Drawing.Size(64, 28);
+            this.buttonChooseOkColor.TabIndex = 7;
+            this.buttonChooseOkColor.Text = "选择";
+            this.buttonChooseOkColor.UseVisualStyleBackColor = true;
+            this.buttonChooseOkColor.Click += new System.EventHandler(this.buttonChooseOkColor_Click);
+            // 
+            // labelNgColor
+            // 
+            this.labelNgColor.Anchor = System.Windows.Forms.AnchorStyles.Right;
+            this.labelNgColor.AutoSize = true;
+            this.labelNgColor.Location = new System.Drawing.Point(211, 45);
+            this.labelNgColor.Name = "labelNgColor";
+            this.labelNgColor.Size = new System.Drawing.Size(44, 18);
+            this.labelNgColor.TabIndex = 8;
+            this.labelNgColor.Text = "NG色";
+            // 
+            // panelNgColor
+            // 
+            this.panelNgColor.Anchor = System.Windows.Forms.AnchorStyles.Left;
+            this.panelNgColor.BackColor = System.Drawing.Color.Red;
+            this.panelNgColor.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.panelNgColor.Location = new System.Drawing.Point(263, 41);
+            this.panelNgColor.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.panelNgColor.Name = "panelNgColor";
+            this.panelNgColor.Size = new System.Drawing.Size(32, 26);
+            this.panelNgColor.TabIndex = 9;
+            // 
+            // buttonChooseNgColor
+            // 
+            this.buttonChooseNgColor.Anchor = System.Windows.Forms.AnchorStyles.Left;
+            this.buttonChooseNgColor.Location = new System.Drawing.Point(307, 40);
+            this.buttonChooseNgColor.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.buttonChooseNgColor.Name = "buttonChooseNgColor";
+            this.buttonChooseNgColor.Size = new System.Drawing.Size(64, 28);
+            this.buttonChooseNgColor.TabIndex = 10;
+            this.buttonChooseNgColor.Text = "选择";
+            this.buttonChooseNgColor.UseVisualStyleBackColor = true;
+            this.buttonChooseNgColor.Click += new System.EventHandler(this.buttonChooseNgColor_Click);
             // 
             // labelFontSize
             // 
             this.labelFontSize.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelFontSize.AutoSize = true;
-            this.labelFontSize.Location = new System.Drawing.Point(63, 242);
+            this.labelFontSize.Location = new System.Drawing.Point(63, 278);
             this.labelFontSize.Name = "labelFontSize";
             this.labelFontSize.Size = new System.Drawing.Size(44, 18);
             this.labelFontSize.TabIndex = 12;
@@ -606,7 +716,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // numericFontSize
             // 
             this.numericFontSize.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.numericFontSize.Location = new System.Drawing.Point(113, 240);
+            this.numericFontSize.Location = new System.Drawing.Point(113, 276);
             this.numericFontSize.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.numericFontSize.Maximum = new decimal(new int[] {
             200,
@@ -632,7 +742,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.labelLineWidth.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelLineWidth.AutoSize = true;
-            this.labelLineWidth.Location = new System.Drawing.Point(63, 273);
+            this.labelLineWidth.Location = new System.Drawing.Point(63, 309);
             this.labelLineWidth.Name = "labelLineWidth";
             this.labelLineWidth.Size = new System.Drawing.Size(44, 18);
             this.labelLineWidth.TabIndex = 14;
@@ -641,7 +751,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // numericLineWidth
             // 
             this.numericLineWidth.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.numericLineWidth.Location = new System.Drawing.Point(113, 271);
+            this.numericLineWidth.Location = new System.Drawing.Point(113, 307);
             this.numericLineWidth.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.numericLineWidth.Maximum = new decimal(new int[] {
             50,
@@ -667,7 +777,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.labelTextPosition.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelTextPosition.AutoSize = true;
-            this.labelTextPosition.Location = new System.Drawing.Point(63, 304);
+            this.labelTextPosition.Location = new System.Drawing.Point(63, 340);
             this.labelTextPosition.Name = "labelTextPosition";
             this.labelTextPosition.Size = new System.Drawing.Size(44, 18);
             this.labelTextPosition.TabIndex = 16;
@@ -678,7 +788,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.comboBoxTextPosition.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
             this.comboBoxTextPosition.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxTextPosition.FormattingEnabled = true;
-            this.comboBoxTextPosition.Location = new System.Drawing.Point(113, 302);
+            this.comboBoxTextPosition.Location = new System.Drawing.Point(113, 338);
             this.comboBoxTextPosition.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxTextPosition.Name = "comboBoxTextPosition";
             this.comboBoxTextPosition.Size = new System.Drawing.Size(389, 26);
@@ -689,7 +799,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.labelMargin.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelMargin.AutoSize = true;
-            this.labelMargin.Location = new System.Drawing.Point(63, 339);
+            this.labelMargin.Location = new System.Drawing.Point(63, 375);
             this.labelMargin.Name = "labelMargin";
             this.labelMargin.Size = new System.Drawing.Size(44, 18);
             this.labelMargin.TabIndex = 18;
@@ -698,7 +808,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // numericMargin
             // 
             this.numericMargin.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.numericMargin.Location = new System.Drawing.Point(113, 334);
+            this.numericMargin.Location = new System.Drawing.Point(113, 370);
             this.numericMargin.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.numericMargin.Maximum = new decimal(new int[] {
             500,
@@ -807,6 +917,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.tableLayoutPanelManual.ResumeLayout(false);
             this.tableLayoutPanelManual.PerformLayout();
             this.tableLayoutPanelColor.ResumeLayout(false);
+            this.tableLayoutPanelColor.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numericFontSize)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericLineWidth)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericMargin)).EndInit();
@@ -854,9 +965,17 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         private System.Windows.Forms.TextBox textBoxTextPrefix;
         private System.Windows.Forms.Label labelColor;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanelColor;
+        private System.Windows.Forms.Label labelFixedColor;
         private System.Windows.Forms.Panel panelColor;
         private System.Windows.Forms.Button buttonChooseColor;
+        private System.Windows.Forms.CheckBox checkBoxUseJudgeColor;
         private System.Windows.Forms.Button buttonApplyStyleToAll;
+        private System.Windows.Forms.Label labelOkColor;
+        private System.Windows.Forms.Panel panelOkColor;
+        private System.Windows.Forms.Button buttonChooseOkColor;
+        private System.Windows.Forms.Label labelNgColor;
+        private System.Windows.Forms.Panel panelNgColor;
+        private System.Windows.Forms.Button buttonChooseNgColor;
         private System.Windows.Forms.Label labelFontSize;
         private System.Windows.Forms.NumericUpDown numericFontSize;
         private System.Windows.Forms.Label labelLineWidth;

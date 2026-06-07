@@ -114,9 +114,9 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             this.labelMatchModeTip.ForeColor = System.Drawing.Color.DimGray;
             this.labelMatchModeTip.Location = new System.Drawing.Point(344, 20);
             this.labelMatchModeTip.Name = "labelMatchModeTip";
-            this.labelMatchModeTip.Size = new System.Drawing.Size(244, 21);
+            this.labelMatchModeTip.Size = new System.Drawing.Size(566, 21);
             this.labelMatchModeTip.TabIndex = 2;
-            this.labelMatchModeTip.Text = "条件符合时走 True 分支";
+            this.labelMatchModeTip.Text = "True/False 分支按判定执行，默认分支始终执行";
             // 
             // splitContainerMain
             // 

@@ -123,6 +123,16 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
         /// 条件是否匹配。
         /// </summary>
         public bool IsMatched { get; set; }
+
+        /// <summary>
+        /// 本条件是否已把匹配结果回写到源结果的判定状态。
+        /// </summary>
+        public bool JudgeWriteBackApplied { get; set; }
+
+        /// <summary>
+        /// 判定状态回写说明，用于运行诊断和后续排查。
+        /// </summary>
+        public string JudgeWriteBackText { get; set; }
     }
 
     internal static class MultiConditionEvaluator
@@ -170,6 +180,9 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 
                 ConditionValueReadResult valueResult = ReadConditionValue(currentNode, sourceNode, condition);
                 bool matched = CompareCondition(valueResult.Value, condition);
+                bool judgeWriteBackApplied;
+                string judgeWriteBackText;
+                ApplyJudgeWriteBack(sourceNode, matched, out judgeWriteBackApplied, out judgeWriteBackText);
                 NodeConditionEvaluation evaluation = new NodeConditionEvaluation
                 {
                     Name = conditionName,
@@ -183,7 +196,9 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                     SourceRunState = valueResult.SourceRunState,
                     SourceHasCurrentRunResult = valueResult.SourceHasCurrentRunResult,
                     DiagnosticText = valueResult.DiagnosticText,
-                    IsMatched = matched
+                    IsMatched = matched,
+                    JudgeWriteBackApplied = judgeWriteBackApplied,
+                    JudgeWriteBackText = judgeWriteBackText
                 };
                 evaluations.Add(evaluation);
                 LogNullConditionIfNeeded(currentNode, evaluation);
@@ -228,10 +243,79 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 string reasonText = string.IsNullOrWhiteSpace(evaluation.NullReason)
                     ? string.Empty
                     : "，空值原因：" + evaluation.NullReason;
-                lines.Add(evaluation.Name + "：" + stateText + "，实际值=" + valueText + reasonText);
+                string writeBackText = string.IsNullOrWhiteSpace(evaluation.JudgeWriteBackText)
+                    ? string.Empty
+                    : "，" + evaluation.JudgeWriteBackText;
+                lines.Add(evaluation.Name + "：" + stateText + "，实际值=" + valueText + reasonText + writeBackText);
             }
 
             return string.Join(Environment.NewLine, lines);
+        }
+
+        /// <summary>
+        /// 将当前条件的匹配结果回写到源结果的判定状态；多个条件命中同一结果时按与逻辑累积。
+        /// </summary>
+        private static void ApplyJudgeWriteBack(
+            NodeBase sourceNode,
+            bool matched,
+            out bool applied,
+            out string writeBackText)
+        {
+            applied = false;
+            writeBackText = string.Empty;
+            object result = sourceNode == null ? null : sourceNode.Result;
+            if (result == null)
+                return;
+
+            IJudgmentResult judgmentResult = result as IJudgmentResult;
+            if (judgmentResult != null)
+            {
+                judgmentResult.JudgeOk = judgmentResult.JudgeOk && matched;
+                applied = true;
+                writeBackText = "判定回写=" + (judgmentResult.JudgeOk ? "OK" : "NG");
+                return;
+            }
+
+            bool currentValue;
+            if (TryReadWritableBooleanProperty(result, "JudgeOk", out PropertyInfo property, out currentValue))
+            {
+                bool nextValue = currentValue && matched;
+                property.SetValue(result, nextValue, null);
+                applied = true;
+                writeBackText = "判定回写=" + (nextValue ? "OK" : "NG");
+            }
+        }
+
+        /// <summary>
+        /// 查找可写布尔属性，便于兼容未来没有显式实现接口但暴露同名判定属性的结果。
+        /// </summary>
+        private static bool TryReadWritableBooleanProperty(
+            object result,
+            string propertyName,
+            out PropertyInfo property,
+            out bool value)
+        {
+            property = null;
+            value = false;
+            if (result == null || string.IsNullOrWhiteSpace(propertyName))
+                return false;
+
+            property = result.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
+            if (property == null ||
+                !property.CanRead ||
+                !property.CanWrite ||
+                property.GetIndexParameters().Length > 0)
+            {
+                return false;
+            }
+
+            Type valueType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+            if (valueType != typeof(bool))
+                return false;
+
+            object rawValue = property.GetValue(result, null);
+            value = rawValue == null || Convert.ToBoolean(rawValue);
+            return true;
         }
 
         /// <summary>

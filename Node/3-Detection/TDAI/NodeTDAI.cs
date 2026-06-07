@@ -157,15 +157,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     //}
                                     {
                                         List<DetResult> tmp = new List<DetResult>();
-                                        var img = inputImage.Bitmaps[0];
+                                        var img = inputImage.Bitmaps[0].Clone();
                                         if (inputImage.Rectangles.Count != 0)
                                             tmp = handleDet.Detect(img);
                                         else
                                             tmp = handleDet.Detect(img);
-                                        det_results.AddRange(tmp);
-                                    }
 
-                                    LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测推理完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                                        det_results.AddRange(tmp);
+
+                                        LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测推理完毕,结果数量:{tmp.Count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                                    }
 
                                     #endregion
 
@@ -460,52 +461,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 throw new Exception(
                     $"AI模型句柄类型({param.Yolo8.ModelType})与配置类型({param.AIInputInfo.ModelInfo.ModelType})不一致，请重新加载模型！");
             }
-        }
-
-        /// <summary>
-        /// 获取型号代码
-        /// </summary>
-        /// <param name="plc"></param>
-        /// <param name="address"></param>
-        /// <returns></returns>
-        private async Task<(short, short, short)> GetTypeCode(IPlc plc, string address)
-        {
-            short[] data = (await plc.ReadInt16Async(address, 15)).Content;
-            short[] type1 = new short[5];
-            short[] type2 = new short[5];
-            short[] type3 = new short[5];
-            Array.Copy(data, 0, type1, 0, 5); // 线芯工位端子型号，从索引0开始复制5个
-            Array.Copy(data, 5, type2, 0, 5); // 线芯工位电线型号，从索引5开始复制5个
-            Array.Copy(data, 10, type3, 0, 5); // 线芯工位防水栓型号，从索引10开始复制5个
-
-            short terminalType = 0, wireType = 0, waterproofType = 0;
-            // 判断5个型号是否都有数据，正常为1个型号，
-            // 有多个型号时取第一个非0的型号，一个型号没有PLC会防呆
-            foreach (var t in type1)
-            {
-                if (t > 0)
-                {
-                    terminalType = t;// 端子型号
-                    break;
-                }
-            }
-            foreach (var t in type2)
-            {
-                if (t > 0)
-                {
-                    wireType = t;// 电线型号
-                    break;
-                }
-            }
-            foreach (var t in type3)
-            {
-                if (t > 0)
-                {
-                    waterproofType = t;// 防水栓型号
-                    break;
-                }
-            }
-            return (terminalType, wireType, waterproofType);
         }
 
         private async Task<ushort> GetModbusCode(IModbus modbus,string address) {

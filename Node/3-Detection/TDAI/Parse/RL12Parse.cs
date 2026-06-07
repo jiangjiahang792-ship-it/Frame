@@ -1,3 +1,4 @@
+using Logger;
 using OpenCvSharp;
 using OpenCvSharp.Dnn;
 using Sunny.UI;
@@ -44,6 +45,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             var detectResults = new Dictionary<string, List<SingleDetectResult>>();
             var texts = new List<ColorText>();
             HashSet<string> addedRectKeys = new HashSet<string>(); // 非数量型仍需去重
+
+            string str = "";
+            for (int i = 0; i < results.Count; i++)
+            {
+                str += $"下标:{results[i].ClassId}  Box:{results[i].Box.X},{results[i].Box.Y},{results[i].Box.Width},{results[i].Box.Height} ---";
+            }
+            LogHelper.AddLog(MsgLevel.Fatal, $"流程{process.ProcessName}AI检测结果值:{str} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
 
 
             foreach (var item in deteItems)

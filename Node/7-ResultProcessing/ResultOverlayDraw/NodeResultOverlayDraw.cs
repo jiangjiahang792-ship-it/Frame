@@ -273,26 +273,29 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         {
             List<string> texts = new List<string>();
             bool usePrefix = false;
+            object sourceValue = null;
+            NodeBase sourceNode = null;
             if (item.UseManualText || string.IsNullOrWhiteSpace(item.SourceText1))
             {
                 AddManualTextLines(texts, item.ManualText);
             }
             else
             {
-                if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
+                if (!TryReadDrawItemValue(owner, item, out sourceValue, out sourceNode))
                     return;
 
-                AddTextFromValue(texts, value);
+                AddTextFromValue(texts, sourceValue);
                 if (texts.Count == 0 && sourceNode != null)
                     AddTextFromValue(texts, sourceNode.Result);
 
                 usePrefix = !string.IsNullOrEmpty(item.TextPrefix);
             }
 
+            Color drawColor = ResolveItemColor(item, sourceValue, sourceNode);
             foreach (string text in texts.Where(t => !string.IsNullOrWhiteSpace(t)))
             {
                 string displayText = usePrefix ? item.TextPrefix + text : text;
-                displayResult.Texts.Add(new ColorText(displayText, item.Color)
+                displayResult.Texts.Add(new ColorText(displayText, drawColor)
                 {
                     FontSize = Math.Max(1, item.FontSize),
                     Position = item.TextPosition,
@@ -307,12 +310,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
                 return;
 
+            Color drawColor = ResolveItemColor(item, value, sourceNode);
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
             if (algorithmResult != null && algorithmResult.Lines.Count > 0)
             {
                 foreach (ColorLine line in algorithmResult.Lines)
                 {
-                    displayResult.Lines.Add(new ColorLine(line.P1, line.P2, item.Color)
+                    displayResult.Lines.Add(new ColorLine(line.P1, line.P2, drawColor)
                     {
                         LineWidth = Math.Max(1, item.LineWidth)
                     });
@@ -324,7 +328,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             if ((nodeResult != null && MeasurementResultReader.TryReadLine(nodeResult, out MeasuredLine measuredLine)) ||
                 (sourceNode != null && MeasurementResultReader.TryReadLine(sourceNode.Result, out measuredLine)))
             {
-                displayResult.Lines.Add(new ColorLine(measuredLine.Start, measuredLine.End, item.Color)
+                displayResult.Lines.Add(new ColorLine(measuredLine.Start, measuredLine.End, drawColor)
                 {
                     LineWidth = Math.Max(1, item.LineWidth)
                 });
@@ -339,12 +343,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
                 return;
 
+            Color drawColor = ResolveItemColor(item, value, sourceNode);
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
             if (algorithmResult != null && algorithmResult.Contours.Count > 0)
             {
                 foreach (ColorContour contour in algorithmResult.Contours)
                 {
-                    displayResult.Contours.Add(new ColorContour(contour.Points == null ? new List<PointF>() : contour.Points.ToList(), item.Color)
+                    displayResult.Contours.Add(new ColorContour(contour.Points == null ? new List<PointF>() : contour.Points.ToList(), drawColor)
                     {
                         LineWidth = Math.Max(1, item.LineWidth)
                     });
@@ -357,7 +362,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             if ((nodeResult != null && MeasurementResultReader.TryReadRegion(nodeResult, out points)) ||
                 (sourceNode != null && MeasurementResultReader.TryReadRegion(sourceNode.Result, out points)))
             {
-                displayResult.Contours.Add(new ColorContour(points, item.Color)
+                displayResult.Contours.Add(new ColorContour(points, drawColor)
                 {
                     LineWidth = Math.Max(1, item.LineWidth)
                 });
@@ -372,6 +377,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
                 return;
 
+            Color drawColor = ResolveItemColor(item, value, sourceNode);
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
             if (algorithmResult != null)
             {
@@ -380,7 +386,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 {
                     displayResult.Rects.Add(new ColorRotatedRect(rect.RotatedRect)
                     {
-                        Color = item.Color,
+                        Color = drawColor,
                         LineWidth = Math.Max(1, item.LineWidth)
                     });
                     added = true;
@@ -392,7 +398,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     {
                         displayResult.Rects.Add(new ColorRotatedRect(rect.RotatedRect)
                         {
-                            Color = item.Color,
+                            Color = drawColor,
                             LineWidth = Math.Max(1, item.LineWidth)
                         });
                         added = true;
@@ -404,6 +410,121 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             }
 
             return;
+        }
+
+        /// <summary>
+        /// 根据绘制项颜色模式和源结果判定状态解析最终绘制颜色。
+        /// </summary>
+        private static Color ResolveItemColor(ResultOverlayDrawItem item, object value, NodeBase sourceNode)
+        {
+            if (item == null || !item.UseJudgeColor)
+                return item == null ? Color.Lime : item.Color;
+
+            bool judgeOk;
+            if ((sourceNode != null && TryReadJudgeOk(sourceNode.Result, out judgeOk)) ||
+                TryReadJudgeOk(value, out judgeOk))
+            {
+                return judgeOk ? item.OkColor : item.NgColor;
+            }
+
+            return item.Color;
+        }
+
+        /// <summary>
+        /// 从结果对象或常见布尔属性中读取判定OK状态。
+        /// </summary>
+        private static bool TryReadJudgeOk(object source, out bool judgeOk)
+        {
+            judgeOk = true;
+            if (source == null)
+                return false;
+
+            IJudgmentResult judgmentResult = source as IJudgmentResult;
+            if (judgmentResult != null)
+            {
+                judgeOk = judgmentResult.JudgeOk;
+                return true;
+            }
+
+            if (TryConvertToBoolean(source, out judgeOk))
+                return true;
+
+            string[] propertyNames = { "JudgeOk", "JudgmentOk", "DisplayOk", "ConditionResult", "IsAllOk", "IsOk" };
+            PropertyInfo[] properties = source.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public);
+            foreach (PropertyInfo property in properties)
+            {
+                if (!property.CanRead || property.GetIndexParameters().Length > 0)
+                    continue;
+
+                string displayName = GetDisplayName(property);
+                bool isJudgeProperty = propertyNames.Contains(property.Name) ||
+                    string.Equals(displayName, "判定OK", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(displayName, "条件结果", StringComparison.OrdinalIgnoreCase);
+                if (!isJudgeProperty)
+                    continue;
+
+                object value = property.GetValue(source, null);
+                if (TryConvertToBoolean(value, out judgeOk))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 将布尔、数字和常见OK/NG文本转换为布尔值。
+        /// </summary>
+        private static bool TryConvertToBoolean(object value, out bool result)
+        {
+            result = false;
+            if (value == null)
+                return false;
+
+            if (value is bool)
+            {
+                result = (bool)value;
+                return true;
+            }
+
+            string text = value as string;
+            if (text != null)
+            {
+                string normalized = text.Trim();
+                if (string.Equals(normalized, "OK", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(normalized, "True", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(normalized, "1", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(normalized, "是", StringComparison.OrdinalIgnoreCase))
+                {
+                    result = true;
+                    return true;
+                }
+
+                if (string.Equals(normalized, "NG", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(normalized, "False", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(normalized, "0", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(normalized, "否", StringComparison.OrdinalIgnoreCase))
+                {
+                    result = false;
+                    return true;
+                }
+
+                return false;
+            }
+
+            if (value is IConvertible && !(value is char))
+            {
+                try
+                {
+                    result = Convert.ToDouble(value) != 0D;
+                    return true;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
+            return false;
         }
 
         private static void AddTextFromValue(List<string> texts, object value)

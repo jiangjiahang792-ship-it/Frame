@@ -4,12 +4,18 @@ using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
 {
-    public class NodeResultPointRegionDistance : INodeResult
+    public class NodeResultPointRegionDistance : INodeResult, IJudgmentResult
     {
         public int RunTime { get; set; }
 
         [DisplayName("是否OK")]
         public bool IsOk { get; set; }
+
+        /// <summary>
+        /// 后续多条件判定后的OK/NG状态，默认OK，绘制工具按该值选择颜色。
+        /// </summary>
+        [DisplayName("判定OK")]
+        public bool JudgeOk { get; set; } = true;
 
         [DisplayName("最小距离")]
         public double? MinDistance { get; set; }

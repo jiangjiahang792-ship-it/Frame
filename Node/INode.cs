@@ -38,6 +38,17 @@ namespace TDJS_Vision.Node
     }
 
     /// <summary>
+    /// 可被后续条件节点回写判定状态的结果接口。
+    /// </summary>
+    public interface IJudgmentResult
+    {
+        /// <summary>
+        /// 产品或几何结果的判定状态，默认 true，由多条件模块按条件结果改写。
+        /// </summary>
+        bool JudgeOk { get; set; }
+    }
+
+    /// <summary>
     /// 节点运行结果类
     /// </summary>
     public class NodeReturn

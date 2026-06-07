@@ -20,6 +20,14 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-07 测量判定回写与结果绘制按判定颜色改造：
+  - [x] 新反馈已记录：测量结果默认带OK/NG布尔判定，多条件模块负责改写判定值，绘制工具按判定值自动选择OK/NG颜色。
+  - [x] 已新增通用 `IJudgmentResult` 接口，并给 `Node\4-Measurement` 下现有测量结果补充默认 `JudgeOk=true` 的判定属性。
+  - [x] 多条件模块已在每条条件评估后把匹配结果回写到订阅源结果，多个条件命中同一结果时按与逻辑累积。
+  - [x] 多条件节点已支持默认分支作为公共路径，True/False 分支判定后默认分支也会继续执行。
+  - [x] `ResultOverlayDraw` 参数和界面已新增“按判定”颜色模式，支持固定色、OK色、NG色，并将新增控件放入 `.Designer.cs`。
+  - [x] `ResultOverlayDraw` 运行绘制已按源结果判定值选择OK/NG颜色，未找到判定值时回退固定颜色兼容旧配置。
+  - [x] Build-verified with MSBuild on 2026-06-07, 0 errors; existing warnings remain.
 - 2026-06-05 相机回调触发流程循环运行修复：
   - [x] 新反馈已记录：勾选“相机回调触发流程”后，主窗体循环运行没有看到相机进入回调。
   - [x] 已确认原逻辑只绑定相机帧事件，主窗体循环会跳过相机回调流程，但没有主动启动相机取流。

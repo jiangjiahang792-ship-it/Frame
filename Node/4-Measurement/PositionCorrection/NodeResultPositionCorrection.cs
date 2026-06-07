@@ -3,7 +3,7 @@ using TDJS_Vision.Node._4_Measurement.Common;
 
 namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
 {
-    public class NodeResultPositionCorrection : INodeResult
+    public class NodeResultPositionCorrection : INodeResult, IJudgmentResult
     {
         public int RunTime { get; set; }
 
@@ -12,6 +12,12 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
 
         [DisplayName("是否OK")]
         public bool IsOk { get; set; }
+
+        /// <summary>
+        /// 后续多条件判定后的OK/NG状态，默认OK，绘制工具按该值选择颜色。
+        /// </summary>
+        [DisplayName("判定OK")]
+        public bool JudgeOk { get; set; } = true;
 
         [DisplayName("当前X")]
         public double CurrentX { get; set; }

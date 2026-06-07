@@ -85,13 +85,31 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
 
         private void buttonChooseColor_Click(object sender, EventArgs e)
         {
+            ChoosePanelColor(panelColor);
+        }
+
+        private void buttonChooseOkColor_Click(object sender, EventArgs e)
+        {
+            ChoosePanelColor(panelOkColor);
+        }
+
+        private void buttonChooseNgColor_Click(object sender, EventArgs e)
+        {
+            ChoosePanelColor(panelNgColor);
+        }
+
+        private void ChoosePanelColor(Panel panel)
+        {
+            if (panel == null)
+                return;
+
             using (ColorDialog dialog = new ColorDialog())
             {
-                dialog.Color = panelColor.BackColor;
+                dialog.Color = panel.BackColor;
                 dialog.FullOpen = true;
                 if (dialog.ShowDialog(this) == DialogResult.OK)
                 {
-                    panelColor.BackColor = dialog.Color;
+                    panel.BackColor = dialog.Color;
                     SaveCurrentItemFromControls();
                     RefreshGrid();
                 }
@@ -105,11 +123,17 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 return;
 
             Color color = panelColor.BackColor;
+            bool useJudgeColor = checkBoxUseJudgeColor.Checked;
+            Color okColor = panelOkColor.BackColor;
+            Color ngColor = panelNgColor.BackColor;
             int fontSize = (int)numericFontSize.Value;
             int lineWidth = (int)numericLineWidth.Value;
             foreach (ResultOverlayDrawItem item in _items)
             {
                 item.Color = color;
+                item.UseJudgeColor = CanUseJudgeColor(item.ItemType, item.UseManualText) && useJudgeColor;
+                item.OkColor = okColor;
+                item.NgColor = ngColor;
                 item.FontSize = fontSize;
                 item.LineWidth = lineWidth;
             }
@@ -173,7 +197,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 Name = GetTypeText(type),
                 UseManualText = type == ResultOverlayDrawItemType.Text,
                 ManualText = type == ResultOverlayDrawItemType.Text ? "OK" : string.Empty,
-                Color = type == ResultOverlayDrawItemType.Text ? Color.Lime : Color.OrangeRed
+                Color = type == ResultOverlayDrawItemType.Text ? Color.Lime : Color.OrangeRed,
+                UseJudgeColor = type != ResultOverlayDrawItemType.Text,
+                OkColor = Color.Lime,
+                NgColor = Color.Red
             };
 
             _items.Add(item);
@@ -226,8 +253,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     GetTypeText(item.ItemType),
                     item.Name,
                     item.SourceDisplay,
-                    ColorTranslator.ToHtml(item.Color));
-                dataGridViewItems.Rows[rowIndex].Cells[4].Style.ForeColor = item.Color;
+                    GetColorDisplay(item));
+                dataGridViewItems.Rows[rowIndex].Cells[4].Style.ForeColor = IsJudgeColorEnabled(item) ? item.OkColor : item.Color;
             }
 
             if (selected >= 0 && selected < dataGridViewItems.Rows.Count)
@@ -273,6 +300,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             numericMargin.Value = ClampNumeric(numericMargin, item.TextMargin);
             comboBoxTextPosition.SelectedItem = item.TextPosition;
             panelColor.BackColor = item.Color;
+            checkBoxUseJudgeColor.Checked = IsJudgeColorEnabled(item);
+            panelOkColor.BackColor = item.OkColor;
+            panelNgColor.BackColor = item.NgColor;
 
             if (string.IsNullOrWhiteSpace(item.SourceText1))
                 nodeSubscriptionSource.ClearText();
@@ -293,6 +323,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             numericMargin.Value = 10;
             comboBoxTextPosition.SelectedItem = DisplayTextPosition.TopLeft;
             panelColor.BackColor = Color.Lime;
+            checkBoxUseJudgeColor.Checked = false;
+            panelOkColor.BackColor = Color.Lime;
+            panelNgColor.BackColor = Color.Red;
             nodeSubscriptionSource.ClearText();
         }
 
@@ -319,6 +352,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 ? (DisplayTextPosition)comboBoxTextPosition.SelectedItem
                 : item.TextPosition;
             item.Color = panelColor.BackColor;
+            item.UseJudgeColor = CanUseJudgeColor(item.ItemType, item.UseManualText) && checkBoxUseJudgeColor.Checked;
+            item.OkColor = panelOkColor.BackColor;
+            item.NgColor = panelNgColor.BackColor;
         }
 
         private void UpdateControlState()
@@ -334,6 +370,15 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 : ResultOverlayDrawItemType.Text;
 
             bool isText = type == ResultOverlayDrawItemType.Text;
+            bool canUseJudgeColor = CanUseJudgeColor(type, checkBoxManualText.Checked);
+            if (!canUseJudgeColor && checkBoxUseJudgeColor.Checked)
+            {
+                _syncing = true;
+                checkBoxUseJudgeColor.Checked = false;
+                _syncing = false;
+            }
+
+            bool useJudgeColor = canUseJudgeColor && checkBoxUseJudgeColor.Checked;
             checkBoxManualText.Enabled = isText;
             textBoxManualText.Enabled = isText && checkBoxManualText.Checked;
             labelTextPrefix.Enabled = isText && !checkBoxManualText.Checked;
@@ -345,6 +390,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             labelMargin.Enabled = isText;
             numericMargin.Enabled = isText;
             nodeSubscriptionSource.Enabled = !isText || !checkBoxManualText.Checked;
+            checkBoxUseJudgeColor.Enabled = canUseJudgeColor;
+            panelColor.Enabled = !useJudgeColor;
+            buttonChooseColor.Enabled = !useJudgeColor;
+            panelOkColor.Enabled = useJudgeColor;
+            buttonChooseOkColor.Enabled = useJudgeColor;
+            panelNgColor.Enabled = useJudgeColor;
+            buttonChooseNgColor.Enabled = useJudgeColor;
             buttonApplyStyleToAll.Enabled = _items.Count > 0;
         }
 
@@ -358,6 +410,22 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         private static decimal ClampNumeric(NumericUpDown control, int value)
         {
             return Math.Min(control.Maximum, Math.Max(control.Minimum, value));
+        }
+
+        /// <summary>
+        /// 判断当前绘制项类型是否允许从订阅源读取判定颜色；手填文本没有源结果，因此固定使用普通颜色。
+        /// </summary>
+        private static bool CanUseJudgeColor(ResultOverlayDrawItemType type, bool useManualText)
+        {
+            return type != ResultOverlayDrawItemType.Text || !useManualText;
+        }
+
+        /// <summary>
+        /// 判断绘制项当前是否真正启用判定颜色模式，兼容旧配置中残留的非法组合。
+        /// </summary>
+        private static bool IsJudgeColorEnabled(ResultOverlayDrawItem item)
+        {
+            return item != null && item.UseJudgeColor && CanUseJudgeColor(item.ItemType, item.UseManualText);
         }
 
         private static string GetTypeText(ResultOverlayDrawItemType type)
@@ -375,6 +443,17 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 default:
                     return type.ToString();
             }
+        }
+
+        private static string GetColorDisplay(ResultOverlayDrawItem item)
+        {
+            if (item == null)
+                return string.Empty;
+
+            if (IsJudgeColorEnabled(item))
+                return "判定 " + ColorTranslator.ToHtml(item.OkColor) + "/" + ColorTranslator.ToHtml(item.NgColor);
+
+            return ColorTranslator.ToHtml(item.Color);
         }
     }
 }

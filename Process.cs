@@ -1051,7 +1051,7 @@ namespace TDJS_Vision
             {
                 if (connection.FromNodeId != node.ID ||
                     !componentNodeIds.Contains(connection.ToNodeId) ||
-                    ConnectionMatchesBranch(connection, result.NextBranch))
+                    ConnectionMatchesNodeOutput(node, connection, result.NextBranch))
                 {
                     continue;
                 }
@@ -1307,13 +1307,39 @@ namespace TDJS_Vision
             foreach (ProcessConnection connection in _connections)
             {
                 if (connection.FromNodeId != node.ID ||
-                    (!includeAllBranches && !ConnectionMatchesBranch(connection, branch)))
+                    (!includeAllBranches && !ConnectionMatchesNodeOutput(node, connection, branch)))
                     continue;
 
                 NodeBase nextNode = GetNodeById(connection.ToNodeId);
                 if (nextNode != null)
                     pendingNodes.AddLast(nextNode);
             }
+        }
+
+        /// <summary>
+        /// 判断连线是否应该跟随节点本次输出分支；多条件的默认分支作为公共路径始终放行。
+        /// </summary>
+        private bool ConnectionMatchesNodeOutput(NodeBase node, ProcessConnection connection, ProcessConnectionBranch branch)
+        {
+            if (ConnectionMatchesBranch(connection, branch))
+                return true;
+
+            return IsMultiConditionDefaultOutput(node, connection, branch);
+        }
+
+        /// <summary>
+        /// 多条件节点支持默认执行路径，True/False 判定完成后默认分支也继续执行。
+        /// </summary>
+        private bool IsMultiConditionDefaultOutput(NodeBase node, ProcessConnection connection, ProcessConnectionBranch branch)
+        {
+            if (node == null ||
+                node.NodeType != NodeType.MultiCondition ||
+                branch == ProcessConnectionBranch.Default)
+            {
+                return false;
+            }
+
+            return GetEffectiveConnectionBranch(connection) == ProcessConnectionBranch.Default;
         }
 
         private bool ConnectionMatchesBranch(ProcessConnection connection, ProcessConnectionBranch branch)
