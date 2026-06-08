@@ -20,6 +20,12 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-08 图像窗口手动调参按ROI绘制来源过滤：
+  - [x] 新反馈已记录：图像窗口1打开手动调参时不应显示全流程AI检测项，只显示当前图像显示订阅的ROI绘制项相关上下限。
+  - [x] `FrmSingleImage.button2_Click` 已按当前图像显示节点解析 `ResultOverlayDraw/ResultOverlayDraw2` 的绘制项来源节点。
+  - [x] `FormSolRunParam` 与 `SolRunParamControl` 已支持接收运行参数显示范围。
+  - [x] 多条件运行参数表已按条件 `SourceNodeId` 过滤，只显示当前ROI绘制来源节点对应的开启项。
+  - [x] Build-verified with MSBuild on 2026-06-08, 0 errors; existing warnings remain.
 - 2026-06-08 手动调参卡死诊断：
   - [x] 新反馈已记录：现场方案“中心端子正面检测”运行一次后点击图像窗口“手动调参”可能卡死。
   - [x] 已检查现场方案，多条件运行参数开启项集中在多条件节点29，当前运行参数表不会产生大量行。

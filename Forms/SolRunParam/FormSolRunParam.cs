@@ -17,6 +17,10 @@ namespace TDJS_Vision.Forms.SolRunParam
         private bool showSingleProcessOnly = false;
         // 外部指定的AI检测节点，用于多个AI节点时精准打开对应参数。
         private NodeTDAI targetAiNode = null;
+        /// <summary>
+        /// 外部指定的运行参数显示范围，用于图像窗口手动调参时按ROI绘制来源过滤。
+        /// </summary>
+        private RunParamDisplayFilter runParamDisplayFilter = null;
 
         /// <summary>
         /// 初始化流程参数窗体。
@@ -48,6 +52,17 @@ namespace TDJS_Vision.Forms.SolRunParam
         public FormSolRunParam(string processName, NodeTDAI targetAiNode) : this(processName)
         {
             this.targetAiNode = targetAiNode;
+        }
+
+        /// <summary>
+        /// 初始化只显示指定流程、指定AI节点，并按ROI绘制来源过滤运行参数的窗体。
+        /// </summary>
+        /// <param name="processName">流程名称。</param>
+        /// <param name="targetAiNode">目标AI检测节点。</param>
+        /// <param name="runParamDisplayFilter">运行参数显示过滤范围。</param>
+        public FormSolRunParam(string processName, NodeTDAI targetAiNode, RunParamDisplayFilter runParamDisplayFilter) : this(processName, targetAiNode)
+        {
+            this.runParamDisplayFilter = runParamDisplayFilter;
         }
         /// <summary>
         /// 窗体显示事件
@@ -82,11 +97,14 @@ namespace TDJS_Vision.Forms.SolRunParam
                 Stopwatch processStopwatch = Stopwatch.StartNew();
                 LogHelper.AddLog(
                     MsgLevel.Info,
-                    $"【手动调参诊断】开始初始化流程运行参数，流程={process.ProcessName}，节点数={process.Nodes.Count}。",
+                    $"【手动调参诊断】开始初始化流程运行参数，流程={process.ProcessName}，节点数={process.Nodes.Count}，过滤范围={(runParamDisplayFilter == null ? "空" : runParamDisplayFilter.ToLogText())}。",
                     true);
                 try
                 {
-                    solRunParam.Init(process, process == targetAiNode?.Process ? targetAiNode : null);
+                    RunParamDisplayFilter processFilter = showSingleProcessOnly && process.ProcessName == selectedProcessName
+                        ? runParamDisplayFilter
+                        : null;
+                    solRunParam.Init(process, process == targetAiNode?.Process ? targetAiNode : null, processFilter);
                     LogHelper.AddLog(
                         MsgLevel.Info,
                         $"【手动调参诊断】流程运行参数初始化完成，流程={process.ProcessName}，耗时={processStopwatch.ElapsedMilliseconds}ms。",

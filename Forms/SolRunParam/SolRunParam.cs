@@ -33,6 +33,10 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// 当前流程中可写入运行参数表的多条件节点。
         /// </summary>
         List<NodeMultiCondition> _nodeMultiConditions = new List<NodeMultiCondition>();
+        /// <summary>
+        /// 当前运行参数表的显示过滤范围，图像窗口手动调参时用于跟随ROI绘制来源。
+        /// </summary>
+        RunParamDisplayFilter _runParamDisplayFilter;
         string _windowsName; // 图像显示窗口名
         string _currentDetectItemName;//当前运行参数表显示的检测项名称
         /// <summary>
@@ -85,7 +89,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <param name="process"></param>
         public void Init(Process process)
         {
-            Init(process, null);
+            Init(process, null, null);
         }
 
         /// <summary>
@@ -95,15 +99,27 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <param name="targetAiNode"></param>
         public void Init(Process process, NodeTDAI targetAiNode)
         {
+            Init(process, targetAiNode, null);
+        }
+
+        /// <summary>
+        /// 使用流程、指定AI节点和运行参数显示范围初始化。
+        /// </summary>
+        /// <param name="process">当前流程。</param>
+        /// <param name="targetAiNode">外部指定的AI检测节点。</param>
+        /// <param name="runParamDisplayFilter">运行参数显示过滤范围。</param>
+        public void Init(Process process, NodeTDAI targetAiNode, RunParamDisplayFilter runParamDisplayFilter)
+        {
             try
             {
                 Stopwatch initStopwatch = Stopwatch.StartNew();
                 LogHelper.AddLog(
                     MsgLevel.Info,
-                    $"【手动调参诊断】SolRunParamControl.Init开始，流程={(process == null ? "空" : process.ProcessName)}，节点数={(process == null || process.Nodes == null ? 0 : process.Nodes.Count)}，目标AI={(targetAiNode == null ? "空" : targetAiNode.ID + "." + targetAiNode.NodeName)}。",
+                    $"【手动调参诊断】SolRunParamControl.Init开始，流程={(process == null ? "空" : process.ProcessName)}，节点数={(process == null || process.Nodes == null ? 0 : process.Nodes.Count)}，目标AI={(targetAiNode == null ? "空" : targetAiNode.ID + "." + targetAiNode.NodeName)}，过滤范围={(runParamDisplayFilter == null ? "空" : runParamDisplayFilter.ToLogText())}。",
                     true);
                 this.process = process;
                 _targetAiNode = targetAiNode;
+                _runParamDisplayFilter = runParamDisplayFilter;
                 _camera = null;
                 _nodeSource = null;
                 _nodeCrop = null;
@@ -186,6 +202,9 @@ namespace TDJS_Vision.Forms.SolRunParam
                     if (node is NodeTDAI nodeTDAI &&
                         node.ParamForm.Params is NodeParamTDAI paramTDAI)
                     {
+                        if (!IsSourceNodeAllowedByRunParamFilter(nodeTDAI.ID))
+                            continue;
+
                         if (_targetAiNode != null && nodeTDAI.ID != _targetAiNode.ID)
                             continue;
 
@@ -437,11 +456,46 @@ namespace TDJS_Vision.Forms.SolRunParam
         }
 
         /// <summary>
+        /// 判断指定来源节点是否允许进入当前运行参数表。
+        /// </summary>
+        /// <param name="sourceNodeId">来源节点ID。</param>
+        /// <returns>允许显示返回true。</returns>
+        private bool IsSourceNodeAllowedByRunParamFilter(int sourceNodeId)
+        {
+            if (_runParamDisplayFilter == null || !_runParamDisplayFilter.IsSourceNodeLimited)
+                return true;
+
+            return _runParamDisplayFilter.ContainsSourceNode(sourceNodeId);
+        }
+
+        /// <summary>
+        /// 判断多条件项是否属于当前ROI绘制订阅的来源节点。
+        /// </summary>
+        /// <param name="node">多条件节点。</param>
+        /// <param name="condition">多条件项。</param>
+        /// <returns>允许显示返回true。</returns>
+        private bool IsConditionAllowedByRunParamFilter(NodeMultiCondition node, MultiConditionItem condition)
+        {
+            if (_runParamDisplayFilter == null || !_runParamDisplayFilter.IsSourceNodeLimited)
+                return true;
+            if (condition == null)
+                return false;
+            if (node != null && _runParamDisplayFilter.ContainsSourceNode(node.ID))
+                return true;
+
+            int sourceNodeId = condition.SourceNodeId;
+            if (sourceNodeId <= 0)
+                RunParamDisplayFilter.TryGetNodeId(condition.SourceNodeText, out sourceNodeId);
+
+            return sourceNodeId > 0 && _runParamDisplayFilter.ContainsSourceNode(sourceNodeId);
+        }
+
+        /// <summary>
         /// 将一个多条件节点中开启运行参数调整的条件加入表格行集合。
         /// </summary>
         /// <param name="items">运行参数表格行集合。</param>
         /// <param name="node">多条件节点。</param>
-        private static void AddMultiConditionRunParamItems(List<RunParamGridItem> items, NodeMultiCondition node)
+        private void AddMultiConditionRunParamItems(List<RunParamGridItem> items, NodeMultiCondition node)
         {
             if (items == null || node == null || node.ParamForm == null)
                 return;
@@ -457,6 +511,9 @@ namespace TDJS_Vision.Forms.SolRunParam
             {
                 MultiConditionItem condition = param.Conditions[index];
                 if (condition == null || !condition.EnableRunParamAdjust)
+                    continue;
+
+                if (!IsConditionAllowedByRunParamFilter(node, condition))
                     continue;
 
                 items.Add(new RunParamGridItem

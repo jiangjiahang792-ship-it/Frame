@@ -14,6 +14,8 @@ using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node;
 using TDJS_Vision.Node._7_ResultProcessing.ImageDraw;
+using TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw;
+using TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2;
 
 namespace TDJS_Vision.Forms.ImageViewer
 {
@@ -245,6 +247,20 @@ namespace TDJS_Vision.Forms.ImageViewer
             if (candidates.Count == 0)
                 candidates = GetAllAiNodes(process);
 
+            return ResolveTargetAiNode(process, candidates, out selectionCanceled);
+        }
+
+        /// <summary>
+        /// 在指定候选集合中解析按钮应该操作的AI检测节点。
+        /// </summary>
+        /// <param name="process">当前图像窗口所属流程。</param>
+        /// <param name="candidates">允许选择的AI节点候选集合。</param>
+        /// <param name="selectionCanceled">用户是否取消了多AI节点选择。</param>
+        /// <returns>最终选择的AI检测节点。</returns>
+        private NodeTDAI ResolveTargetAiNode(Process process, List<NodeTDAI> candidates, out bool selectionCanceled)
+        {
+            selectionCanceled = false;
+            candidates = DistinctAiNodes(candidates);
             if (candidates.Count == 0)
                 return null;
 
@@ -342,6 +358,193 @@ namespace TDJS_Vision.Forms.ImageViewer
         {
             if (TryGetNodeByText(process, nodeText, out NodeBase node) && node is NodeTDAI aiNode)
                 result.Add(aiNode);
+        }
+
+        /// <summary>
+        /// 解析当前图像窗口的运行参数显示范围，优先跟随图像显示订阅的ROI绘制节点。
+        /// </summary>
+        /// <param name="process">当前图像窗口所属流程。</param>
+        /// <returns>ROI绘制链路过滤范围；没有ROI绘制链路时返回空。</returns>
+        private RunParamDisplayFilter ResolveRunParamDisplayFilter(Process process)
+        {
+            if (process == null)
+                return null;
+
+            var filter = new RunParamDisplayFilter { WindowName = FormName };
+
+            if (_lastImageShowNodeId.HasValue)
+            {
+                NodeImageShow lastShowNode = process.Nodes
+                    .OfType<NodeImageShow>()
+                    .FirstOrDefault(node => node.ID == _lastImageShowNodeId.Value);
+
+                if (lastShowNode?.ParamForm.Params is NodeParamImageShow lastShowParam &&
+                    NormalizeWindowKey(lastShowParam.WindowName) == FormName)
+                {
+                    TryAddRunParamFilterFromImageShow(process, lastShowNode, lastShowParam, filter);
+                    return filter.IsSourceNodeLimited ? filter : null;
+                }
+            }
+
+            foreach (var node in process.Nodes)
+            {
+                if (!(node is NodeImageShow nodeShow) ||
+                    !(nodeShow.ParamForm.Params is NodeParamImageShow showParam) ||
+                    NormalizeWindowKey(showParam.WindowName) != FormName)
+                {
+                    continue;
+                }
+
+                TryAddRunParamFilterFromImageShow(process, nodeShow, showParam, filter);
+            }
+
+            return filter.IsSourceNodeLimited ? filter : null;
+        }
+
+        /// <summary>
+        /// 根据单个图像显示节点补充运行参数过滤范围。
+        /// </summary>
+        /// <param name="process">当前流程。</param>
+        /// <param name="nodeShow">图像显示节点。</param>
+        /// <param name="showParam">图像显示参数。</param>
+        /// <param name="filter">待补充的过滤范围。</param>
+        private void TryAddRunParamFilterFromImageShow(
+            Process process,
+            NodeImageShow nodeShow,
+            NodeParamImageShow showParam,
+            RunParamDisplayFilter filter)
+        {
+            if (process == null || nodeShow == null || showParam == null || filter == null)
+                return;
+
+            filter.AddImageShowNodeId(nodeShow.ID);
+            TryAddRunParamFilterFromSubscription(process, showParam.Text1, filter);
+        }
+
+        /// <summary>
+        /// 根据图像显示订阅节点解析ROI绘制来源。
+        /// </summary>
+        /// <param name="process">当前流程。</param>
+        /// <param name="nodeText">图像显示订阅节点文本。</param>
+        /// <param name="filter">待补充的过滤范围。</param>
+        private void TryAddRunParamFilterFromSubscription(Process process, string nodeText, RunParamDisplayFilter filter)
+        {
+            if (process == null || filter == null || !TryGetNodeByText(process, nodeText, out NodeBase sourceNode))
+                return;
+
+            if (sourceNode is NodeResultOverlayDraw &&
+                sourceNode.ParamForm.Params is NodeParamResultOverlayDraw overlayParam)
+            {
+                AddResultOverlayDrawSources(filter, sourceNode.ID, overlayParam);
+                return;
+            }
+
+            if (sourceNode is NodeResultOverlayDraw2 &&
+                sourceNode.ParamForm.Params is NodeParamResultOverlayDraw2 overlayParam2)
+            {
+                AddResultOverlayDraw2Sources(filter, sourceNode.ID, overlayParam2);
+            }
+        }
+
+        /// <summary>
+        /// 收集旧ROI结果绘制节点中实际绘制项订阅的来源节点。
+        /// </summary>
+        /// <param name="filter">待补充的过滤范围。</param>
+        /// <param name="overlayNodeId">ROI绘制节点ID。</param>
+        /// <param name="param">ROI绘制节点参数。</param>
+        private static void AddResultOverlayDrawSources(
+            RunParamDisplayFilter filter,
+            int overlayNodeId,
+            NodeParamResultOverlayDraw param)
+        {
+            if (filter == null)
+                return;
+
+            filter.AddOverlayDrawNodeId(overlayNodeId);
+            if (param == null || param.Items == null)
+                return;
+
+            foreach (ResultOverlayDrawItem item in param.Items)
+            {
+                if (item == null || !item.Enabled)
+                    continue;
+
+                bool needSource = item.ItemType != ResultOverlayDrawItemType.Text || !item.UseManualText;
+                if (needSource)
+                    AddSourceNodeTextToFilter(filter, item.SourceText1);
+            }
+        }
+
+        /// <summary>
+        /// 收集新版ROI结果绘制节点中绘制项和颜色规则订阅的来源节点。
+        /// </summary>
+        /// <param name="filter">待补充的过滤范围。</param>
+        /// <param name="overlayNodeId">ROI绘制节点ID。</param>
+        /// <param name="param">ROI绘制2节点参数。</param>
+        private static void AddResultOverlayDraw2Sources(
+            RunParamDisplayFilter filter,
+            int overlayNodeId,
+            NodeParamResultOverlayDraw2 param)
+        {
+            if (filter == null)
+                return;
+
+            filter.AddOverlayDrawNodeId(overlayNodeId);
+            if (param == null)
+                return;
+
+            if (param.Items != null)
+            {
+                foreach (ResultOverlayDraw2Item item in param.Items)
+                {
+                    if (item == null || !item.Enabled)
+                        continue;
+
+                    bool needSource = item.ItemType != ResultOverlayDraw2ItemType.Text || !item.UseManualText;
+                    if (needSource)
+                        AddSourceNodeTextToFilter(filter, item.SourceText1);
+                }
+            }
+
+            if (param.ColorRules == null)
+                return;
+
+            foreach (ResultOverlayDraw2ColorRule rule in param.ColorRules)
+            {
+                if (rule != null && rule.Enabled)
+                    AddSourceNodeTextToFilter(filter, rule.SourceText1);
+            }
+        }
+
+        /// <summary>
+        /// 从订阅文本中解析节点ID并加入过滤范围。
+        /// </summary>
+        /// <param name="filter">待补充的过滤范围。</param>
+        /// <param name="nodeText">订阅节点文本。</param>
+        private static void AddSourceNodeTextToFilter(RunParamDisplayFilter filter, string nodeText)
+        {
+            if (filter == null)
+                return;
+
+            if (RunParamDisplayFilter.TryGetNodeId(nodeText, out int nodeId))
+                filter.AddSourceNodeId(nodeId);
+        }
+
+        /// <summary>
+        /// 获取当前过滤范围内直接被ROI绘制订阅的AI节点。
+        /// </summary>
+        /// <param name="process">当前流程。</param>
+        /// <param name="filter">ROI绘制运行参数过滤范围。</param>
+        /// <returns>过滤范围内的AI节点集合。</returns>
+        private static List<NodeTDAI> GetAiNodesByRunParamFilter(Process process, RunParamDisplayFilter filter)
+        {
+            if (process == null || filter == null || !filter.IsSourceNodeLimited)
+                return new List<NodeTDAI>();
+
+            return process.Nodes
+                .OfType<NodeTDAI>()
+                .Where(node => filter.ContainsSourceNode(node.ID))
+                .ToList();
         }
 
         /// <summary>
@@ -496,8 +699,35 @@ namespace TDJS_Vision.Forms.ImageViewer
                     return;
                 }
 
+                RunParamDisplayFilter runParamDisplayFilter = ResolveRunParamDisplayFilter(process);
+                if (runParamDisplayFilter != null && runParamDisplayFilter.IsSourceNodeLimited)
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Info,
+                        $"【手动调参诊断】已启用ROI绘制运行参数过滤，{runParamDisplayFilter.ToLogText()}。",
+                        true);
+                }
+                else
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Info,
+                        $"【手动调参诊断】当前窗口未解析到ROI绘制过滤范围，继续使用原AI参数解析逻辑，窗口={FormName}。",
+                        true);
+                }
+
                 LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】开始解析AI节点，流程={process.ProcessName}。", true);
-                NodeTDAI targetAiNode = ResolveTargetAiNode(process, out bool selectionCanceled);
+                NodeTDAI targetAiNode;
+                bool selectionCanceled;
+                if (runParamDisplayFilter != null && runParamDisplayFilter.IsSourceNodeLimited)
+                {
+                    List<NodeTDAI> filteredAiNodes = GetAiNodesByRunParamFilter(process, runParamDisplayFilter);
+                    targetAiNode = ResolveTargetAiNode(process, filteredAiNodes, out selectionCanceled);
+                }
+                else
+                {
+                    targetAiNode = ResolveTargetAiNode(process, out selectionCanceled);
+                }
+
                 if (selectionCanceled)
                 {
                     LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】用户取消AI节点选择，流程={process.ProcessName}。", true);
@@ -509,7 +739,7 @@ namespace TDJS_Vision.Forms.ImageViewer
                     $"【手动调参诊断】AI节点解析完成，节点={(targetAiNode == null ? "空" : targetAiNode.ID + "." + targetAiNode.NodeName)}，耗时={stopwatch.ElapsedMilliseconds}ms。",
                     true);
 
-                using (var form = new FormSolRunParam(process.ProcessName, targetAiNode))
+                using (var form = new FormSolRunParam(process.ProcessName, targetAiNode, runParamDisplayFilter))
                 {
                     LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】开始打开运行参数窗体，流程={process.ProcessName}。", true);
                     form.ShowDialog(this);
