@@ -616,6 +616,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         public void RefreshNodes()
         {
+            InvalidateCanvasTopologyCaches();
             Invalidate();
             RequestOverlayInvalidate();
         }

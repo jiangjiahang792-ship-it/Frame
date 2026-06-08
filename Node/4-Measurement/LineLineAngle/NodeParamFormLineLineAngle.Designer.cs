@@ -437,7 +437,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             this.tabPageRun.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.tabPageRun.Name = "tabPageRun";
             this.tabPageRun.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
-            this.tabPageRun.Size = new System.Drawing.Size(442, 727);
+            this.tabPageRun.Size = new System.Drawing.Size(472, 795);
             this.tabPageRun.TabIndex = 1;
             this.tabPageRun.Text = "运行参数";
             this.tabPageRun.UseVisualStyleBackColor = true;
@@ -638,18 +638,18 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             this.comboBoxDirection.Name = "comboBoxDirection";
             this.comboBoxDirection.Size = new System.Drawing.Size(108, 26);
             this.comboBoxDirection.TabIndex = 17;
-            //
+            // 
             // labelRunRoiTarget
-            //
+            // 
             this.labelRunRoiTarget.AutoSize = true;
             this.labelRunRoiTarget.Location = new System.Drawing.Point(227, 240);
             this.labelRunRoiTarget.Name = "labelRunRoiTarget";
-            this.labelRunRoiTarget.Size = new System.Drawing.Size(30, 18);
+            this.labelRunRoiTarget.Size = new System.Drawing.Size(35, 18);
             this.labelRunRoiTarget.TabIndex = 18;
             this.labelRunRoiTarget.Text = "ROI";
-            //
+            // 
             // comboBoxRunRoiTarget
-            //
+            // 
             this.comboBoxRunRoiTarget.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxRunRoiTarget.FormattingEnabled = true;
             this.comboBoxRunRoiTarget.Location = new System.Drawing.Point(310, 235);
@@ -657,9 +657,9 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             this.comboBoxRunRoiTarget.Name = "comboBoxRunRoiTarget";
             this.comboBoxRunRoiTarget.Size = new System.Drawing.Size(78, 26);
             this.comboBoxRunRoiTarget.TabIndex = 19;
-            //
+            // 
             // showImageControl1
-            //
+            // 
             this.showImageControl1.BackColor = System.Drawing.Color.Black;
             this.showImageControl1.BackgroundColorCustom = System.Drawing.Color.Black;
             this.showImageControl1.BackgroundImageCustom = null;
@@ -735,6 +735,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.AutoSize = true;
             this.ClientSize = new System.Drawing.Size(1151, 886);
             this.Controls.Add(this.buttonSave);
             this.Controls.Add(this.buttonRun);

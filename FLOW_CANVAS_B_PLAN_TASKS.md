@@ -20,6 +20,13 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-08 临时断线订阅保留与自动恢复：
+  - [x] 新反馈已记录：流程中间断线、删除中间连接或插入新节点后重新连接时，下游节点应自动恢复到原来的订阅对象。
+  - [x] 已撤回误方向的“拖拽落点替换节点”实现，避免流程编辑时出现额外替换弹窗。
+  - [x] `NodeSubscription` 断线刷新时不再清空原订阅文本，只临时置空运行态订阅对象。
+  - [x] 重新连线后 `ConnectionsChanged` 会按保留的 `ID.节点名 + 结果属性` 自动恢复订阅。
+  - [x] 真正删除订阅源节点时仍会清空订阅，避免引用不存在节点。
+  - [x] Build-verified with MSBuild on 2026-06-08, 0 errors; existing warnings remain.
 - 2026-06-08 ROI绘制AI结果颜色与图像显示耗时诊断：
   - [x] 新反馈已记录：ROI结果绘制订阅AI输出时，整节点NG会导致所有检测项文本和矩形框都变红，无法区分单项OK/NG。
   - [x] `ResultOverlayDraw` 已改为AI/检测类 `AlgorithmResult` 保留每个检测项文本和矩形框自身颜色，不再被整节点 `IsAllOk` 颜色覆盖。

@@ -34,6 +34,10 @@ namespace TDJS_Vision.Node
 
         string _text1;
         string _text2;
+        /// <summary>
+        /// 正在由代码刷新节点下拉框，避免 SelectedIndexChanged 反复触发订阅恢复逻辑。
+        /// </summary>
+        private bool _isUpdatingNodeCombo;
 
         public NodeSubscription()
         {
@@ -49,19 +53,32 @@ namespace TDJS_Vision.Node
             if (_node == null || _node.Process == null)
                 return;
 
-            // 只有重命名节点仍是图上游节点时，才需要更新订阅候选名称。
-            if (_node.Process.GetUpstreamNodes(_node).Exists(node => node.ID == e.NodeId))
-            {
-                string oldText = $"{e.NodeId}.{e.NodeNameOld}";
-                string newText = $"{e.NodeId}.{e.NodeNameNew}";
-                if (_text1 == oldText)
-                    _text1 = newText;
+            string oldText = $"{e.NodeId}.{e.NodeNameOld}";
+            string newText = $"{e.NodeId}.{e.NodeNameNew}";
+            if (IsNodeTextForNode(_text1, e.NodeId))
+                _text1 = newText;
 
-                UpdateComboBoxItem(oldText, newText);
+            // 临时断线时也要同步旧订阅文本，避免节点改名后无法自动恢复。
+            bool isUpstream = _node.Process.GetUpstreamNodes(_node).Exists(node => node.ID == e.NodeId);
+            UpdateComboBoxItem(oldText, newText, isUpstream);
+            if (isUpstream)
+            {
+                SetSelectedNode(_text1, _text2);
             }
         }
 
         public void UpdateComboBoxItem(string oldText, string newText)
+        {
+            UpdateComboBoxItem(oldText, newText, true);
+        }
+
+        /// <summary>
+        /// 更新订阅节点下拉框中的显示文本，支持临时断线状态不输出误报日志。
+        /// </summary>
+        /// <param name="oldText">旧节点文本。</param>
+        /// <param name="newText">新节点文本。</param>
+        /// <param name="logWhenMissing">找不到旧文本时是否写日志。</param>
+        private void UpdateComboBoxItem(string oldText, string newText, bool logWhenMissing)
         {
             // 检查 comboBox1.Items 是否存在 oldText
             int index = comboBox1.Items.IndexOf(oldText);
@@ -78,7 +95,7 @@ namespace TDJS_Vision.Node
                     comboBox1.SelectedItem = newText;
                 }
             }
-            else
+            else if (logWhenMissing)
             {
                 // 不存在 oldText，输出提示信息
                 LogHelper.AddLog(MsgLevel.Warn, $"重命名节点名称时，节点“{_node.NodeName}”的订阅控件找不到该节点原名称“{oldText}”！", true);
@@ -111,13 +128,19 @@ namespace TDJS_Vision.Node
         /// <param name="e"></param>
         private void NodeBase_NodeDeletedEvent(object sender, NodeBase e)
         {
-            // 移除的节点是当前实例的订阅节点，要置空
-            if (_selectedNode != null && e.ID == _selectedNode.ID)
+            if (e == null)
+                return;
+
+            // 真正删除订阅源时才清空；普通断线由 RefreshNodeIdList 保留待恢复订阅。
+            if ((_selectedNode != null && e.ID == _selectedNode.ID) || IsNodeTextForNode(_text1, e.ID))
+            {
                 ClearSelectedNode();
+                return;
+            }
 
             // 更新节点列表
             comboBox1.Items.Remove($"{e.ID}.{e.NodeName}");
-            if (comboBox1.Items.Count == 0)
+            if (comboBox1.Items.Count == 0 && string.IsNullOrEmpty(_text1))
                 ClearSelectedNode();
         }
 
@@ -143,28 +166,28 @@ namespace TDJS_Vision.Node
             foreach (NodeBase node in upstreamNodes)
                 comboBox1.Items.Add(GetNodeText(node));
 
+            if (!selectedNodeText.IsNullOrEmpty())
+            {
+                int selectedIndex = comboBox1.Items.IndexOf(selectedNodeText);
+                if (selectedIndex >= 0)
+                {
+                    SetNodeComboSelectedIndex(selectedIndex);
+                    SetSelectedNode(selectedNodeText, selectedResultText);
+                    return;
+                }
+
+                // 原订阅节点只是暂时不在图上游时，保留订阅文本，重新连线后自动恢复。
+                PreserveDisconnectedSelection(selectedNodeText, selectedResultText, true);
+                return;
+            }
+
             if (comboBox1.Items.Count == 0)
             {
                 ClearSelectedNode();
                 return;
             }
 
-            if (!selectedNodeText.IsNullOrEmpty())
-            {
-                int selectedIndex = comboBox1.Items.IndexOf(selectedNodeText);
-                if (selectedIndex >= 0)
-                {
-                    comboBox1.SelectedIndex = selectedIndex;
-                    SetSelectedNode(selectedNodeText, selectedResultText);
-                    return;
-                }
-
-                // 原订阅节点断开了上游关系，保留候选列表但清空当前订阅。
-                ClearSelectedNode();
-                return;
-            }
-
-            comboBox1.SelectedIndex = 0;
+            SetNodeComboSelectedIndex(0);
             _text1 = (string)comboBox1.Items[0];
             SetSelectedNode(_text1, string.Empty, true);
         }
@@ -176,6 +199,9 @@ namespace TDJS_Vision.Node
         /// <param name="e"></param>
         private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
         {
+            if (_isUpdatingNodeCombo)
+                return;
+
             SetSelectedNode(comboBox1.Text, _text2);
         }
 
@@ -308,9 +334,12 @@ namespace TDJS_Vision.Node
             int index = comboBox1.Items.IndexOf(text1);
             if (index >= 0)
             {
-                comboBox1.SelectedIndex = index;
+                SetNodeComboSelectedIndex(index);
                 SetSelectedNode(text1, text2);
+                return;
             }
+
+            PreserveDisconnectedSelection(text1, text2, true);
         }
 
         private void SetSelectedNode(string nodeText, string resultText, bool needRefresh = false)
@@ -328,6 +357,8 @@ namespace TDJS_Vision.Node
                 InitProperties(node, resultText, needRefresh);
                 return;
             }
+
+            PreserveDisconnectedSelection(nodeText, resultText, true);
         }
 
         private void ClearSelectedNode()
@@ -335,9 +366,84 @@ namespace TDJS_Vision.Node
             _selectedNode = null;
             _text1 = string.Empty;
             _text2 = string.Empty;
-            comboBox1.SelectedIndex = -1;
+            SetNodeComboSelectedIndex(-1);
             comboBox2.Items.Clear();
             comboBox2.Text = string.Empty;
+        }
+
+        /// <summary>
+        /// 保留临时断线的订阅文本，使后续重新连线后可以自动恢复。
+        /// </summary>
+        /// <param name="nodeText">原订阅节点文本。</param>
+        /// <param name="resultText">原订阅结果文本。</param>
+        /// <param name="showPendingText">是否在下拉框中显示待恢复文本。</param>
+        private void PreserveDisconnectedSelection(string nodeText, string resultText, bool showPendingText)
+        {
+            _selectedNode = null;
+            _text1 = nodeText ?? string.Empty;
+            _text2 = resultText ?? string.Empty;
+
+            if (showPendingText && !string.IsNullOrWhiteSpace(_text1) && !comboBox1.Items.Contains(_text1))
+                comboBox1.Items.Add(_text1);
+
+            int pendingIndex = comboBox1.Items.IndexOf(_text1);
+            SetNodeComboSelectedIndex(pendingIndex);
+
+            comboBox2.Items.Clear();
+            comboBox2.Text = string.Empty;
+            if (!string.IsNullOrWhiteSpace(_text2))
+            {
+                comboBox2.Items.Add(_text2);
+                comboBox2.SelectedIndex = 0;
+            }
+        }
+
+        /// <summary>
+        /// 由代码设置节点下拉框选择项，避免触发重复订阅刷新。
+        /// </summary>
+        /// <param name="selectedIndex">待选中的索引。</param>
+        private void SetNodeComboSelectedIndex(int selectedIndex)
+        {
+            _isUpdatingNodeCombo = true;
+            try
+            {
+                comboBox1.SelectedIndex = selectedIndex;
+            }
+            finally
+            {
+                _isUpdatingNodeCombo = false;
+            }
+        }
+
+        /// <summary>
+        /// 判断订阅文本是否指向指定节点编号。
+        /// </summary>
+        /// <param name="nodeText">订阅节点文本，格式为“编号.名称”。</param>
+        /// <param name="nodeId">节点编号。</param>
+        /// <returns>订阅文本指向指定节点时返回 true。</returns>
+        private static bool IsNodeTextForNode(string nodeText, int nodeId)
+        {
+            int parsedNodeId;
+            return TryGetNodeIdFromText(nodeText, out parsedNodeId) && parsedNodeId == nodeId;
+        }
+
+        /// <summary>
+        /// 从订阅节点文本中解析节点编号。
+        /// </summary>
+        /// <param name="nodeText">订阅节点文本，格式为“编号.名称”。</param>
+        /// <param name="nodeId">解析出的节点编号。</param>
+        /// <returns>解析成功时返回 true。</returns>
+        private static bool TryGetNodeIdFromText(string nodeText, out int nodeId)
+        {
+            nodeId = 0;
+            if (string.IsNullOrWhiteSpace(nodeText))
+                return false;
+
+            int dotIndex = nodeText.IndexOf('.');
+            if (dotIndex <= 0)
+                return false;
+
+            return int.TryParse(nodeText.Substring(0, dotIndex), out nodeId);
         }
 
         private static string GetNodeText(NodeBase node)

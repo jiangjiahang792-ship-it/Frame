@@ -78,6 +78,7 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
             // 
             // tabPageBasic
             // 
+            this.tabPageBasic.AutoScroll = true;
             this.tabPageBasic.Controls.Add(this.groupBoxPositionCorrection);
             this.tabPageBasic.Controls.Add(this.labelStatus);
             this.tabPageBasic.Controls.Add(this.labelRoiCount);
@@ -396,6 +397,8 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.AutoScroll = true;
+            this.AutoSize = true;
             this.ClientSize = new System.Drawing.Size(1249, 917);
             this.Controls.Add(this.tabControlMain);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
