@@ -31,6 +31,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             this.ColumnOperator = new System.Windows.Forms.DataGridViewComboBoxColumn();
             this.ColumnValue1 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.ColumnValue2 = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.ColumnRunParam = new System.Windows.Forms.DataGridViewCheckBoxColumn();
             this.ColumnNote = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.groupBoxSource = new System.Windows.Forms.GroupBox();
             this.treeViewSources = new System.Windows.Forms.TreeView();
@@ -152,6 +153,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             this.ColumnOperator,
             this.ColumnValue1,
             this.ColumnValue2,
+            this.ColumnRunParam,
             this.ColumnNote});
             this.dataGridViewConditions.Dock = System.Windows.Forms.DockStyle.Fill;
             this.dataGridViewConditions.Location = new System.Drawing.Point(0, 0);
@@ -216,6 +218,14 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             this.ColumnValue2.HeaderText = "值2";
             this.ColumnValue2.MinimumWidth = 80;
             this.ColumnValue2.Name = "ColumnValue2";
+            // 
+            // ColumnRunParam
+            // 
+            this.ColumnRunParam.DataPropertyName = "EnableRunParamAdjust";
+            this.ColumnRunParam.FillWeight = 85F;
+            this.ColumnRunParam.HeaderText = "运行参数";
+            this.ColumnRunParam.MinimumWidth = 75;
+            this.ColumnRunParam.Name = "ColumnRunParam";
             // 
             // ColumnNote
             // 
@@ -384,6 +394,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
         private System.Windows.Forms.DataGridViewComboBoxColumn ColumnOperator;
         private System.Windows.Forms.DataGridViewTextBoxColumn ColumnValue1;
         private System.Windows.Forms.DataGridViewTextBoxColumn ColumnValue2;
+        private System.Windows.Forms.DataGridViewCheckBoxColumn ColumnRunParam;
         private System.Windows.Forms.DataGridViewTextBoxColumn ColumnNote;
     }
 }

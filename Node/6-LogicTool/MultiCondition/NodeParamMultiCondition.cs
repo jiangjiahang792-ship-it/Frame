@@ -36,6 +36,11 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
         public string Value1 { get; set; }
 
         public string Value2 { get; set; }
+
+        /// <summary>
+        /// 是否把当前条件加入运行参数表，便于在单图调试时快速修改上下限。
+        /// </summary>
+        public bool EnableRunParamAdjust { get; set; }
     }
 
     public enum MultiConditionMatchMode

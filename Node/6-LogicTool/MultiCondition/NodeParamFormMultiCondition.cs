@@ -116,6 +116,8 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 ColumnValue1 = new DataGridViewTextBoxColumn();
             if (ColumnValue2 == null)
                 ColumnValue2 = new DataGridViewTextBoxColumn();
+            if (ColumnRunParam == null)
+                ColumnRunParam = new DataGridViewCheckBoxColumn();
             if (ColumnNote == null)
                 ColumnNote = new DataGridViewTextBoxColumn();
 
@@ -131,6 +133,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                     ColumnOperator,
                     ColumnValue1,
                     ColumnValue2,
+                    ColumnRunParam,
                     ColumnNote
                 });
             }
@@ -183,6 +186,12 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             ColumnValue2.MinimumWidth = 80;
             ColumnValue2.Name = "ColumnValue2";
             ColumnValue2.FillWeight = 95F;
+
+            ColumnRunParam.DataPropertyName = "EnableRunParamAdjust";
+            ColumnRunParam.HeaderText = "运行参数";
+            ColumnRunParam.MinimumWidth = 75;
+            ColumnRunParam.Name = "ColumnRunParam";
+            ColumnRunParam.FillWeight = 85F;
 
             ColumnNote.DataPropertyName = "Note";
             ColumnNote.HeaderText = "注释";
@@ -526,6 +535,11 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 
             public string Value2 { get; set; }
 
+            /// <summary>
+            /// 是否把当前条件加入单图运行参数表。
+            /// </summary>
+            public bool EnableRunParamAdjust { get; set; }
+
             public string Note { get; set; }
 
             public int SourceNodeId { get; set; }
@@ -547,6 +561,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                     Operator = NormalizeLoadedOperator(condition),
                     Value1 = condition.Value1,
                     Value2 = condition.Value2,
+                    EnableRunParamAdjust = condition.EnableRunParamAdjust,
                     Note = condition.Note,
                     SourceNodeId = condition.SourceNodeId,
                     PropertyPath = condition.PropertyPath,
@@ -612,7 +627,8 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                     ValueTypeName = ValueTypeName,
                     Operator = Operator,
                     Value1 = Value1,
-                    Value2 = Value2
+                    Value2 = Value2,
+                    EnableRunParamAdjust = EnableRunParamAdjust
                 };
             }
         }

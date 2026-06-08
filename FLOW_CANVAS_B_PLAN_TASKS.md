@@ -20,6 +20,12 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-08 多条件运行参数表接入：
+  - [x] 新反馈已记录：多条件项按 `DetectItemDic` 一样的“下限、当前值、上限、检测项”方式显示，检测项名称显示多条件模块注释。
+  - [x] 多条件参数表新增“运行参数”勾选列，默认关闭；勾选后该条件会进入 `SolRunParam` 运行参数表。
+  - [x] `SolRunParam` 已支持AI检测项和多条件项混合显示，流程运行后多条件当前值会同步刷新。
+  - [x] 保存运行参数时，AI行继续写回 `DetectItemDic`，多条件行按操作符写回对应条件的值1/值2和运行参数开关。
+  - [x] Build-verified with MSBuild on 2026-06-08, 0 errors; existing warnings remain.
 - 2026-06-07 测量与四则运算结果三位小数输出：
   - [x] 新反馈已记录：测量工具模块与四则运算输出结果统一只保留小数点后三位。
   - [x] 新增测量结果统一舍入工具，测量节点对外发布的坐标、距离、角度、半径、耗时和点集合统一三位小数。

@@ -14,6 +14,7 @@ using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Node._6_LogicTool.MultiCondition;
 using static OpenCvSharp.ML.DTrees;
 
 namespace TDJS_Vision.Forms.SolRunParam
@@ -27,8 +28,16 @@ namespace TDJS_Vision.Forms.SolRunParam
         NodeTDAI _targetAiNode;//外部指定的AI节点
         NodeImageSource _nodeSource;//图像源节点
         NodeImageCrop _nodeCrop;//图像裁剪节点
+        /// <summary>
+        /// 当前流程中可写入运行参数表的多条件节点。
+        /// </summary>
+        List<NodeMultiCondition> _nodeMultiConditions = new List<NodeMultiCondition>();
         string _windowsName; // 图像显示窗口名
         string _currentDetectItemName;//当前运行参数表显示的检测项名称
+        /// <summary>
+        /// 当前运行参数表显示的AI检测项上下限。
+        /// </summary>
+        List<DetectItemInfo> _currentDetectItems = new List<DetectItemInfo>();
         EventHandler<Bitmap> preEventHandler = null;//前一个活动的相机图像发布事件处理器
         public static event EventHandler<ImageShowPamra> ImageShowChanged; // 发布图像到窗口显示
         public static event EventHandler RefreshParamView; // 通知节点参数界面刷新事件
@@ -93,11 +102,17 @@ namespace TDJS_Vision.Forms.SolRunParam
                 _nodeSource = null;
                 _nodeCrop = null;
                 SetCurrentAiNode(null);
+                SetMultiConditionNodes(null);
                 _currentDetectItemName = null;
+                _currentDetectItems = new List<DetectItemInfo>();
                 _windowsName = null;
                 SetEnable(false);
+                List<NodeMultiCondition> multiConditionNodes = new List<NodeMultiCondition>();
                 foreach (var node in process.Nodes)
                 {
+                    if (node is NodeMultiCondition nodeMultiCondition)
+                        multiConditionNodes.Add(nodeMultiCondition);
+
                     //获取相机触发模式和曝光
                     if (node is NodeImageSource nodeSource && node.ParamForm.Params
                         is NodeParamImageSoucre nodeParam)
@@ -175,6 +190,9 @@ namespace TDJS_Vision.Forms.SolRunParam
                         }
                     }
                 }
+
+                SetMultiConditionNodes(multiConditionNodes);
+                RefreshRunParamGrid();
             }
             catch (Exception e)
             {
@@ -188,7 +206,8 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <param name="info"></param>
         private void LoadDetectItems(List<DetectItemInfo> infos)
         {
-            myDataGridViewForm1.LoadConfig(infos);
+            _currentDetectItems = CloneDetectItems(infos);
+            RefreshRunParamGrid();
         }
 
         /// <summary>
@@ -239,6 +258,63 @@ namespace TDJS_Vision.Forms.SolRunParam
         private void SolRunParamControl_Disposed(object sender, EventArgs e)
         {
             SetCurrentAiNode(null);
+            SetMultiConditionNodes(null);
+        }
+
+        /// <summary>
+        /// 设置当前流程中的多条件节点并维护运行参数刷新事件订阅。
+        /// </summary>
+        /// <param name="nodes">当前流程中的多条件节点集合。</param>
+        private void SetMultiConditionNodes(IEnumerable<NodeMultiCondition> nodes)
+        {
+            if (_nodeMultiConditions != null)
+            {
+                foreach (NodeMultiCondition node in _nodeMultiConditions)
+                {
+                    if (node != null)
+                        node.RunParamChanged -= NodeMultiCondition_RunParamChanged;
+                }
+            }
+
+            _nodeMultiConditions = nodes == null
+                ? new List<NodeMultiCondition>()
+                : nodes.Where(node => node != null).ToList();
+
+            foreach (NodeMultiCondition node in _nodeMultiConditions)
+                node.RunParamChanged += NodeMultiCondition_RunParamChanged;
+        }
+
+        /// <summary>
+        /// 多条件节点运行后刷新运行参数表里的当前值。
+        /// </summary>
+        /// <param name="sender">触发事件的多条件节点。</param>
+        /// <param name="e">多条件运行明细事件参数。</param>
+        private void NodeMultiCondition_RunParamChanged(object sender, MultiConditionRunParamChangedEventArgs e)
+        {
+            NodeMultiCondition node = sender as NodeMultiCondition;
+            if (node == null || _nodeMultiConditions == null || !_nodeMultiConditions.Contains(node))
+                return;
+
+            if (IsDisposed)
+                return;
+
+            if (InvokeRequired)
+            {
+                if (!IsHandleCreated)
+                    return;
+
+                try
+                {
+                    BeginInvoke(new Action(RefreshRunParamGrid));
+                }
+                catch (ObjectDisposedException)
+                {
+                    // 窗体正在关闭时忽略最后一次刷新通知。
+                }
+                return;
+            }
+
+            RefreshRunParamGrid();
         }
 
         /// <summary>
@@ -284,6 +360,211 @@ namespace TDJS_Vision.Forms.SolRunParam
 
             if (_nodeTDAI?.ParamForm.Params is NodeParamTDAI aiParams)
                 aiParams.CurDetectItemName = detectItemName;
+        }
+
+        /// <summary>
+        /// 重建运行参数表，AI检测项和多条件项共用同一套上下限列。
+        /// </summary>
+        private void RefreshRunParamGrid()
+        {
+            if (myDataGridViewForm1 == null || myDataGridViewForm1.IsDisposed)
+                return;
+
+            myDataGridViewForm1.LoadRunParamItems(BuildRunParamGridItems());
+        }
+
+        /// <summary>
+        /// 构建运行参数表格行集合。
+        /// </summary>
+        /// <returns>运行参数表格行集合。</returns>
+        private List<RunParamGridItem> BuildRunParamGridItems()
+        {
+            List<RunParamGridItem> items = new List<RunParamGridItem>();
+
+            if (_currentDetectItems != null)
+            {
+                foreach (DetectItemInfo info in _currentDetectItems)
+                    items.Add(RunParamGridItem.FromDetectItem(info));
+            }
+
+            if (_nodeMultiConditions != null)
+            {
+                foreach (NodeMultiCondition node in _nodeMultiConditions)
+                    AddMultiConditionRunParamItems(items, node);
+            }
+
+            return items;
+        }
+
+        /// <summary>
+        /// 将一个多条件节点中开启运行参数调整的条件加入表格行集合。
+        /// </summary>
+        /// <param name="items">运行参数表格行集合。</param>
+        /// <param name="node">多条件节点。</param>
+        private static void AddMultiConditionRunParamItems(List<RunParamGridItem> items, NodeMultiCondition node)
+        {
+            if (items == null || node == null || node.ParamForm == null)
+                return;
+
+            NodeParamMultiCondition param = node.ParamForm.Params as NodeParamMultiCondition;
+            if (param == null || param.Conditions == null || param.Conditions.Count == 0)
+                return;
+
+            NodeResultMultiCondition result = node.Result as NodeResultMultiCondition;
+            List<NodeConditionEvaluation> details = result == null ? null : result.Details;
+
+            for (int index = 0; index < param.Conditions.Count; index++)
+            {
+                MultiConditionItem condition = param.Conditions[index];
+                if (condition == null || !condition.EnableRunParamAdjust)
+                    continue;
+
+                items.Add(new RunParamGridItem
+                {
+                    SourceType = RunParamGridSourceType.MultiCondition,
+                    SourceNodeId = node.ID,
+                    SourceIndex = index,
+                    DisplayName = GetMultiConditionDisplayName(node, condition, index),
+                    Info = new DetectItemInfo
+                    {
+                        Enable = condition.EnableRunParamAdjust,
+                        Name = BuildMultiConditionGridName(node, index),
+                        MinValue = GetRunParamMinValue(condition),
+                        CurValue = GetRunParamCurrentValue(details, index),
+                        MaxValue = GetRunParamMaxValue(condition),
+                        IsCountItem = false
+                    }
+                });
+            }
+        }
+
+        /// <summary>
+        /// 获取多条件表格显示名称，优先使用用户填写的注释。
+        /// </summary>
+        /// <param name="node">多条件节点。</param>
+        /// <param name="condition">多条件项。</param>
+        /// <param name="index">条件索引。</param>
+        /// <returns>表格显示名称。</returns>
+        private static string GetMultiConditionDisplayName(NodeMultiCondition node, MultiConditionItem condition, int index)
+        {
+            if (condition != null && !string.IsNullOrWhiteSpace(condition.Note))
+                return condition.Note.Trim();
+
+            if (condition != null && !string.IsNullOrWhiteSpace(condition.Name))
+                return condition.Name.Trim();
+
+            string nodeName = node == null ? "多条件" : node.NodeName;
+            return nodeName + "-条件" + (index + 1);
+        }
+
+        /// <summary>
+        /// 构建多条件隐藏行键，避免显示名称变化影响保存定位。
+        /// </summary>
+        /// <param name="node">多条件节点。</param>
+        /// <param name="index">条件索引。</param>
+        /// <returns>隐藏行键。</returns>
+        private static string BuildMultiConditionGridName(NodeMultiCondition node, int index)
+        {
+            int nodeId = node == null ? 0 : node.ID;
+            return "MultiCondition:" + nodeId + ":" + index;
+        }
+
+        /// <summary>
+        /// 获取多条件表格当前值。
+        /// </summary>
+        /// <param name="details">多条件运行明细。</param>
+        /// <param name="index">条件索引。</param>
+        /// <returns>当前值文本。</returns>
+        private static string GetRunParamCurrentValue(List<NodeConditionEvaluation> details, int index)
+        {
+            if (details == null || index < 0 || index >= details.Count || details[index] == null)
+                return string.Empty;
+
+            return details[index].ActualValue ?? string.Empty;
+        }
+
+        /// <summary>
+        /// 根据操作符把多条件值映射到运行参数表下限列。
+        /// </summary>
+        /// <param name="condition">多条件项。</param>
+        /// <returns>下限文本。</returns>
+        private static string GetRunParamMinValue(MultiConditionItem condition)
+        {
+            if (condition == null)
+                return string.Empty;
+
+            switch (condition.Operator)
+            {
+                case MultiConditionOperator.LessThan:
+                case MultiConditionOperator.LessThanOrEqual:
+                case MultiConditionOperator.IsTrue:
+                case MultiConditionOperator.IsFalse:
+                case MultiConditionOperator.IsNull:
+                case MultiConditionOperator.IsNotNull:
+                    return string.Empty;
+                default:
+                    return condition.Value1 ?? string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// 根据操作符把多条件值映射到运行参数表上限列。
+        /// </summary>
+        /// <param name="condition">多条件项。</param>
+        /// <returns>上限文本。</returns>
+        private static string GetRunParamMaxValue(MultiConditionItem condition)
+        {
+            if (condition == null)
+                return string.Empty;
+
+            switch (condition.Operator)
+            {
+                case MultiConditionOperator.GreaterThan:
+                case MultiConditionOperator.GreaterThanOrEqual:
+                case MultiConditionOperator.IsTrue:
+                case MultiConditionOperator.IsFalse:
+                case MultiConditionOperator.IsNull:
+                case MultiConditionOperator.IsNotNull:
+                    return string.Empty;
+                case MultiConditionOperator.LessThan:
+                case MultiConditionOperator.LessThanOrEqual:
+                    return condition.Value1 ?? string.Empty;
+                case MultiConditionOperator.Between:
+                case MultiConditionOperator.NotBetween:
+                    return condition.Value2 ?? string.Empty;
+                default:
+                    return condition.Value2 ?? string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// 复制检测项集合，避免运行参数表刷新时直接持有方案字典对象。
+        /// </summary>
+        /// <param name="infos">检测项集合。</param>
+        /// <returns>复制后的检测项集合。</returns>
+        private static List<DetectItemInfo> CloneDetectItems(List<DetectItemInfo> infos)
+        {
+            List<DetectItemInfo> result = new List<DetectItemInfo>();
+            if (infos == null)
+                return result;
+
+            foreach (DetectItemInfo info in infos)
+            {
+                if (info == null)
+                    continue;
+
+                result.Add(new DetectItemInfo
+                {
+                    Name = info.Name,
+                    MinValue = info.MinValue,
+                    MaxValue = info.MaxValue,
+                    Enable = info.Enable,
+                    IsCountItem = info.IsCountItem,
+                    CurValue = info.CurValue
+                });
+            }
+
+            return result;
         }
 
         /// <summary>
@@ -422,6 +703,10 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             try
             {
+                List<RunParamGridItem> runParamItems = myDataGridViewForm1.GetRunParamItems();
+                if (runParamItems == null)
+                    throw new Exception("运行参数表格读取失败！");
+
                 if(_nodeSource != null)
                 {
                     if (_nodeSource.ParamForm.Params is NodeParamImageSoucre imageSrcParams && textBoxExposureTime.Enabled)
@@ -447,14 +732,30 @@ namespace TDJS_Vision.Forms.SolRunParam
                         // 也要更新AI节点的检测项配置
                         string detectItemName = string.IsNullOrWhiteSpace(aiParams.CurDetectItemName) ? _currentDetectItemName : aiParams.CurDetectItemName.Trim();
                         if (!string.IsNullOrWhiteSpace(detectItemName))
-                            Solution.Instance.DetectItemDic[detectItemName] = myDataGridViewForm1.GetConfig();
+                        {
+                            if (Solution.Instance.DetectItemDic == null)
+                                Solution.Instance.DetectItemDic = new Dictionary<string, List<DetectItemInfo>>();
+
+                            List<DetectItemInfo> detectItems = runParamItems
+                                .Where(item => item.SourceType == RunParamGridSourceType.DetectItem && item.Info != null)
+                                .Select(item => item.Info)
+                                .ToList();
+                            Solution.Instance.DetectItemDic[detectItemName] = CloneDetectItems(detectItems);
+                            _currentDetectItems = CloneDetectItems(detectItems);
+                        }
                         var jsonStr = JsonConvert.SerializeObject(aiParams.AIInputInfo, Formatting.Indented);
                         jsonStr = StringCipher.Encrypt(jsonStr); // 加密AI配置内容
                         File.WriteAllText(aiParams.ConfigPath, jsonStr);
                     }
                 }
-                if (_nodeSource == null && _nodeTDAI == null)
+                ApplyMultiConditionRunParamItems(runParamItems);
+                if (_nodeSource == null && _nodeTDAI == null && _nodeCrop == null &&
+                    (_nodeMultiConditions == null || _nodeMultiConditions.Count == 0))
+                {
                     return;
+                }
+
+                RefreshRunParamGrid();
                 //2025年5月27日 节点参数有更新，应该触发节点参数界面刷新当前设置的值
                 RefreshParamView?.Invoke(this, EventArgs.Empty);
                 Solution.Instance.Save(Solution.Instance.SolFileName);
@@ -465,6 +766,98 @@ namespace TDJS_Vision.Forms.SolRunParam
                 throw;
             }
         }
+
+        /// <summary>
+        /// 将运行参数表中的多条件上下限写回对应多条件节点。
+        /// </summary>
+        /// <param name="items">运行参数表格行集合。</param>
+        private void ApplyMultiConditionRunParamItems(List<RunParamGridItem> items)
+        {
+            if (items == null || _nodeMultiConditions == null || _nodeMultiConditions.Count == 0)
+                return;
+
+            foreach (RunParamGridItem item in items)
+            {
+                if (item == null || item.SourceType != RunParamGridSourceType.MultiCondition || item.Info == null)
+                    continue;
+
+                NodeMultiCondition node = FindMultiConditionNode(item.SourceNodeId);
+                if (node == null || node.ParamForm == null)
+                    continue;
+
+                NodeParamMultiCondition param = node.ParamForm.Params as NodeParamMultiCondition;
+                if (param == null || param.Conditions == null ||
+                    item.SourceIndex < 0 || item.SourceIndex >= param.Conditions.Count)
+                {
+                    continue;
+                }
+
+                MultiConditionItem condition = param.Conditions[item.SourceIndex];
+                if (condition == null)
+                    continue;
+
+                condition.EnableRunParamAdjust = item.Info.Enable;
+                ApplyRunParamValueToCondition(condition, item.Info);
+                node.ParamForm.Params = param;
+            }
+        }
+
+        /// <summary>
+        /// 查找指定ID的多条件节点。
+        /// </summary>
+        /// <param name="nodeId">多条件节点ID。</param>
+        /// <returns>匹配的多条件节点。</returns>
+        private NodeMultiCondition FindMultiConditionNode(int nodeId)
+        {
+            if (_nodeMultiConditions == null)
+                return null;
+
+            foreach (NodeMultiCondition node in _nodeMultiConditions)
+            {
+                if (node != null && node.ID == nodeId)
+                    return node;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 根据操作符把表格上下限写回多条件值1和值2。
+        /// </summary>
+        /// <param name="condition">多条件项。</param>
+        /// <param name="info">运行参数表格值。</param>
+        private static void ApplyRunParamValueToCondition(MultiConditionItem condition, DetectItemInfo info)
+        {
+            if (condition == null || info == null)
+                return;
+
+            switch (condition.Operator)
+            {
+                case MultiConditionOperator.GreaterThan:
+                case MultiConditionOperator.GreaterThanOrEqual:
+                    condition.Value1 = info.MinValue;
+                    break;
+                case MultiConditionOperator.LessThan:
+                case MultiConditionOperator.LessThanOrEqual:
+                    condition.Value1 = info.MaxValue;
+                    break;
+                case MultiConditionOperator.Between:
+                case MultiConditionOperator.NotBetween:
+                    condition.Value1 = info.MinValue;
+                    condition.Value2 = info.MaxValue;
+                    break;
+                case MultiConditionOperator.IsTrue:
+                case MultiConditionOperator.IsFalse:
+                case MultiConditionOperator.IsNull:
+                case MultiConditionOperator.IsNotNull:
+                    break;
+                default:
+                    condition.Value1 = info.MinValue;
+                    condition.Value2 = info.MaxValue;
+                    break;
+            }
+        }
+
         public bool StartAutoLearning()
         {
             if (_nodeTDAI == null || !uiSwitch_Learning.Enabled)

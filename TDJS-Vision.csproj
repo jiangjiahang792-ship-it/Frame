@@ -890,9 +890,7 @@
     <Compile Include="Forms\SolRunParam\FormSolRunParam.Designer.cs">
       <DependentUpon>FormSolRunParam.cs</DependentUpon>
     </Compile>
-    <Compile Include="Forms\SolRunParam\MyDataGridViewForm.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
+    <Compile Include="Forms\SolRunParam\MyDataGridViewForm.cs" />
     <Compile Include="Forms\SolRunParam\MyDataGridViewForm.Designer.cs">
       <DependentUpon>MyDataGridViewForm.cs</DependentUpon>
     </Compile>
