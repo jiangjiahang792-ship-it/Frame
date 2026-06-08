@@ -6,10 +6,9 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Logger;
-using OpenCvSharp;
-using OpenCvSharp.Extensions;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using Point = System.Drawing.Point;
 
@@ -34,8 +33,6 @@ namespace TDJS_Vision.Forms.DispShowImage
         private PointF _currentImgPt = new PointF(-1, -1);
         private Color _currentPixelColor = Color.Black;
         private int _currentGrayValue = 0;
-        private Mat _grayMatCache = null;
-        private readonly object _grayMatLock = new object();
         private const float PIXEL_GRID_THRESHOLD = 15f;
 
         private readonly List<IRoiShape> _dynamicRois = new List<IRoiShape>();
@@ -168,36 +165,35 @@ namespace TDJS_Vision.Forms.DispShowImage
         {
             get { lock (_imageLock) return _image; }
             set 
-            { 
+            {
+                Bitmap oldImage = null;
                 lock (_imageLock)
                 {
                     if (_image != value) 
-                    { 
-                        _image?.Dispose(); 
-                        _image = value; 
-                    } 
-                    
-                    // 用OpenCvSharp预计算灰度图缓存（将其纳入 _imageLock 防止位图被LockBits锁定时UI线程OnPaint调用DrawImage导致冲突）
-                    lock (_grayMatLock)
                     {
-                        _grayMatCache?.Dispose();
-                        _grayMatCache = null;
-                        if (_image != null)
-                        {
-                            try
-                            {
-                                using (var colorMat = BitmapConverter.ToMat(_image))
-                                {
-                                    _grayMatCache = new Mat();
-                                    Cv2.CvtColor(colorMat, _grayMatCache, ColorConversionCodes.BGR2GRAY);
-                                }
-                            }
-                            catch { _grayMatCache = null; }
-                        }
+                        oldImage = _image;
+                        _image = value;
                     }
                 }
+
+                DisposeOldImageAsync(oldImage);
                 SafeInvalidate();
             }
+        }
+
+        /// <summary>
+        /// 后台释放上一帧大图资源，避免UI线程在高频刷新时同步释放35MB位图造成卡顿。
+        /// </summary>
+        /// <param name="oldImage">上一帧位图。</param>
+        private static void DisposeOldImageAsync(Bitmap oldImage)
+        {
+            if (oldImage == null)
+                return;
+
+            Task.Run(() =>
+            {
+                try { oldImage?.Dispose(); } catch { }
+            });
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -806,18 +802,18 @@ namespace TDJS_Vision.Forms.DispShowImage
                 lock (_imageLock)
                 {
                     if (_image != null && imgPt.X >= 0 && imgPt.X < _image.Width && imgPt.Y >= 0 && imgPt.Y < _image.Height)
-                        try { _currentPixelColor = _image.GetPixel((int)imgPt.X, (int)imgPt.Y); } catch { }
+                    {
+                        try
+                        {
+                            _currentPixelColor = _image.GetPixel((int)imgPt.X, (int)imgPt.Y);
+                            _currentGrayValue = (int)(_currentPixelColor.R * 0.3 + _currentPixelColor.G * 0.59 + _currentPixelColor.B * 0.11);
+                        }
+                        catch
+                        {
+                            _currentGrayValue = 0;
+                        }
+                    }
                 }
-            }
-
-            // 用OpenCV灰度Mat缓存获取灰度值
-            lock (_grayMatLock)
-            {
-                if (_grayMatCache != null && imgPt.X >= 0 && imgPt.X < _grayMatCache.Cols && imgPt.Y >= 0 && imgPt.Y < _grayMatCache.Rows)
-                {
-                    try { _currentGrayValue = _grayMatCache.At<byte>((int)imgPt.Y, (int)imgPt.X); } catch { _currentGrayValue = 0; }
-                }
-                else { _currentGrayValue = 0; }
             }
 
             // 判断是否转为拖拽（平移）图像模式

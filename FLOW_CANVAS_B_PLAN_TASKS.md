@@ -27,6 +27,9 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
   - [x] 新反馈已记录：图像显示从约0ms升到约14ms，需要先分段日志定位。
   - [x] `NodeImageShow` 已增加订阅读取、图像尺寸、`ToBitmap`、事件发布和状态写入分段耗时日志。
   - [x] `FrmSingleImage` 与 `ShowImageControl` 已增加UI投递、排队、`SetImage`、静态ROI构建和刷新耗时日志。
+  - [x] 现场日志确认：ROI构建约0ms，主要耗时来自4024x3036大图 `Mat.ToBitmap` 约19-20ms，以及图像窗口替换35MB位图时的 `SetImage` 约14-16ms。
+  - [x] `ShowImageControl.ImageBitmap` 已移除换图时整图OpenCV灰度缓存，鼠标像素灰度改为按当前点从RGB计算，避免每帧UI线程处理整张大图。
+  - [x] `ShowImageControl.ImageBitmap` 已将上一帧大位图释放移到后台任务，降低UI线程连续刷新两个图像窗口时的排队等待。
   - [x] Build-verified with MSBuild on 2026-06-08, 0 errors; existing warnings remain.
 - 2026-06-08 图像窗口手动调参按ROI绘制来源过滤：
   - [x] 新反馈已记录：图像窗口1打开手动调参时不应显示全流程AI检测项，只显示当前图像显示订阅的ROI绘制项相关上下限。
