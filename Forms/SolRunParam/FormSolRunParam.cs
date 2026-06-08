@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO.Ports;
 using System.Windows.Forms;
 using Logger;
@@ -55,6 +56,12 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <param name="e"></param>
         private void FormSolRunParam_Shown(object sender, System.EventArgs e)
         {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            LogHelper.AddLog(
+                MsgLevel.Info,
+                $"【手动调参诊断】运行参数窗体Shown开始，单流程={showSingleProcessOnly}，目标流程={selectedProcessName}。",
+                true);
+
             #region 创建选项卡
 
             RemoveAllExceptSpecifiedPage(tabControl1, tabPage1);//保留“Modbus通信”选项卡,删除所有
@@ -72,12 +79,25 @@ namespace TDJS_Vision.Forms.SolRunParam
                 page.Text = process.ProcessName;
                 page.Controls.Add(solRunParam);
                 tabControl1.Controls.Add(page);
+                Stopwatch processStopwatch = Stopwatch.StartNew();
+                LogHelper.AddLog(
+                    MsgLevel.Info,
+                    $"【手动调参诊断】开始初始化流程运行参数，流程={process.ProcessName}，节点数={process.Nodes.Count}。",
+                    true);
                 try
                 {
                     solRunParam.Init(process, process == targetAiNode?.Process ? targetAiNode : null);
+                    LogHelper.AddLog(
+                        MsgLevel.Info,
+                        $"【手动调参诊断】流程运行参数初始化完成，流程={process.ProcessName}，耗时={processStopwatch.ElapsedMilliseconds}ms。",
+                        true);
                 }
                 catch (Exception ex)
                 {
+                    LogHelper.AddLog(
+                        MsgLevel.Exception,
+                        $"【手动调参诊断】流程运行参数初始化异常，流程={process.ProcessName}，耗时={processStopwatch.ElapsedMilliseconds}ms，原因={ex.Message}",
+                        true);
                     LogHelper.AddLog(MsgLevel.Fatal, LanguageManager.Format("SolRunParam.LoadProcessParamFailed", process.ProcessName, ex.Message), true);
                 }
             }
@@ -89,7 +109,13 @@ namespace TDJS_Vision.Forms.SolRunParam
             #region 显示Modbus通信参数
 
             if (showSingleProcessOnly)
+            {
+                LogHelper.AddLog(
+                    MsgLevel.Info,
+                    $"【手动调参诊断】运行参数窗体Shown完成，单流程模式，耗时={stopwatch.ElapsedMilliseconds}ms。",
+                    true);
                 return;
+            }
 
             if(Solution.Instance.ModbusDevices.Count > 0)
             {
@@ -117,6 +143,10 @@ namespace TDJS_Vision.Forms.SolRunParam
             }
 
             #endregion
+            LogHelper.AddLog(
+                MsgLevel.Info,
+                $"【手动调参诊断】运行参数窗体Shown完成，耗时={stopwatch.ElapsedMilliseconds}ms。",
+                true);
         }
 
         private void BindLanguage()

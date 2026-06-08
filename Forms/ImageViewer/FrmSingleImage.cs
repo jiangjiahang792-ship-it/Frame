@@ -5,6 +5,7 @@ using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Forms.SolRunParam;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using Logger;
 using OpenCvSharp;
@@ -468,20 +469,57 @@ namespace TDJS_Vision.Forms.ImageViewer
 
         private void button2_Click(object sender, EventArgs e)
         {
-            var process = GetCurrentProcess();
-            if (process == null)
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】点击手动调参按钮，窗口={FormName}。", true);
+            try
             {
-                MessageBoxTD.Show(LanguageManager.T("ImageViewer.ProcessNotFound"));
-                return;
+                var process = GetCurrentProcess();
+                if (process == null)
+                {
+                    LogHelper.AddLog(MsgLevel.Warn, $"【手动调参诊断】未找到窗口对应流程，窗口={FormName}。", true);
+                    MessageBoxTD.Show(LanguageManager.T("ImageViewer.ProcessNotFound"));
+                    return;
+                }
+
+                LogHelper.AddLog(
+                    MsgLevel.Info,
+                    $"【手动调参诊断】已解析流程，流程={process.ProcessName}，节点数={process.Nodes.Count}，运行中={process.IsRuning}。",
+                    true);
+
+                if (process.IsRuning)
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Warn,
+                        $"【手动调参诊断】流程仍在运行，已阻止打开手动调参，流程={process.ProcessName}。",
+                        true);
+                    MessageBoxTD.Show("当前流程仍在运行，请等待运行结束后再打开手动调参！");
+                    return;
+                }
+
+                LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】开始解析AI节点，流程={process.ProcessName}。", true);
+                NodeTDAI targetAiNode = ResolveTargetAiNode(process, out bool selectionCanceled);
+                if (selectionCanceled)
+                {
+                    LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】用户取消AI节点选择，流程={process.ProcessName}。", true);
+                    return;
+                }
+
+                LogHelper.AddLog(
+                    MsgLevel.Info,
+                    $"【手动调参诊断】AI节点解析完成，节点={(targetAiNode == null ? "空" : targetAiNode.ID + "." + targetAiNode.NodeName)}，耗时={stopwatch.ElapsedMilliseconds}ms。",
+                    true);
+
+                using (var form = new FormSolRunParam(process.ProcessName, targetAiNode))
+                {
+                    LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】开始打开运行参数窗体，流程={process.ProcessName}。", true);
+                    form.ShowDialog(this);
+                    LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】运行参数窗体已关闭，流程={process.ProcessName}，总耗时={stopwatch.ElapsedMilliseconds}ms。", true);
+                }
             }
-
-            NodeTDAI targetAiNode = ResolveTargetAiNode(process, out bool selectionCanceled);
-            if (selectionCanceled)
-                return;
-
-            using (var form = new FormSolRunParam(process.ProcessName, targetAiNode))
+            catch (Exception ex)
             {
-                form.ShowDialog(this);
+                LogHelper.AddLog(MsgLevel.Exception, $"【手动调参诊断】打开手动调参异常：{ex.Message}", true);
+                MessageBoxTD.Show("打开手动调参失败：" + ex.Message);
             }
         }
     }

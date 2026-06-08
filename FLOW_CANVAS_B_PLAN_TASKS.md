@@ -20,6 +20,12 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-08 手动调参卡死诊断：
+  - [x] 新反馈已记录：现场方案“中心端子正面检测”运行一次后点击图像窗口“手动调参”可能卡死。
+  - [x] 已检查现场方案，多条件运行参数开启项集中在多条件节点29，当前运行参数表不会产生大量行。
+  - [x] `FrmSingleImage.button2_Click` 已增加手动调参诊断日志，并在流程仍在运行时阻止打开参数窗体。
+  - [x] `FormSolRunParam.Shown` 与 `SolRunParamControl.Init/运行参数表刷新` 已增加阶段耗时日志，用于定位卡在建窗体、读取相机参数、加载AI检测项或刷新多条件运行参数。
+  - [x] Build-verified with MSBuild on 2026-06-08, 0 errors; existing warnings remain.
 - 2026-06-08 多条件运行参数表接入：
   - [x] 新反馈已记录：多条件项按 `DetectItemDic` 一样的“下限、当前值、上限、检测项”方式显示，检测项名称显示多条件模块注释。
   - [x] 多条件参数表新增“运行参数”勾选列，默认关闭；勾选后该条件会进入 `SolRunParam` 运行参数表。

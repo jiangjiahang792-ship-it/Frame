@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -96,6 +97,11 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             try
             {
+                Stopwatch initStopwatch = Stopwatch.StartNew();
+                LogHelper.AddLog(
+                    MsgLevel.Info,
+                    $"【手动调参诊断】SolRunParamControl.Init开始，流程={(process == null ? "空" : process.ProcessName)}，节点数={(process == null || process.Nodes == null ? 0 : process.Nodes.Count)}，目标AI={(targetAiNode == null ? "空" : targetAiNode.ID + "." + targetAiNode.NodeName)}。",
+                    true);
                 this.process = process;
                 _targetAiNode = targetAiNode;
                 _camera = null;
@@ -120,6 +126,11 @@ namespace TDJS_Vision.Forms.SolRunParam
                         _nodeSource = nodeSource;
                         if (nodeParam != null && nodeParam.Camera != null)
                         {
+                            Stopwatch cameraStopwatch = Stopwatch.StartNew();
+                            LogHelper.AddLog(
+                                MsgLevel.Info,
+                                $"【手动调参诊断】开始读取图像源相机参数，节点={nodeSource.ID}.{nodeSource.NodeName}。",
+                                true);
                             // 订阅相机图像发布事件
                             _camera = nodeParam.Camera;
 
@@ -140,7 +151,18 @@ namespace TDJS_Vision.Forms.SolRunParam
                                 uiSwitchContinue.Enabled = true;
                                 buttonOnce.Enabled = true;
                             }
-                            catch (Exception) { }
+                            catch (Exception ex)
+                            {
+                                LogHelper.AddLog(
+                                    MsgLevel.Warn,
+                                    $"【手动调参诊断】读取图像源相机参数异常，节点={nodeSource.ID}.{nodeSource.NodeName}，原因={ex.Message}",
+                                    true);
+                            }
+
+                            LogHelper.AddLog(
+                                MsgLevel.Info,
+                                $"【手动调参诊断】读取图像源相机参数完成，节点={nodeSource.ID}.{nodeSource.NodeName}，耗时={cameraStopwatch.ElapsedMilliseconds}ms。",
+                                true);
                         }
                     }
                     //获取图像裁剪节点
@@ -178,6 +200,10 @@ namespace TDJS_Vision.Forms.SolRunParam
                             textBoxScoreThreshold.Enabled = true;
                             textBoxScoreNMS.Enabled = true;
                             uiSwitch_Learning.Enabled = true;
+                            LogHelper.AddLog(
+                                MsgLevel.Info,
+                                $"【手动调参诊断】开始加载AI检测项运行参数，AI节点={nodeTDAI.ID}.{nodeTDAI.NodeName}，检测项={paramTDAI.CurDetectItemName}。",
+                                true);
                             LoadDetectItemsByName(paramTDAI.CurDetectItemName);
                         }
                     }
@@ -193,9 +219,17 @@ namespace TDJS_Vision.Forms.SolRunParam
 
                 SetMultiConditionNodes(multiConditionNodes);
                 RefreshRunParamGrid();
+                LogHelper.AddLog(
+                    MsgLevel.Info,
+                    $"【手动调参诊断】SolRunParamControl.Init完成，流程={process.ProcessName}，多条件节点数={multiConditionNodes.Count}，耗时={initStopwatch.ElapsedMilliseconds}ms。",
+                    true);
             }
             catch (Exception e)
             {
+                LogHelper.AddLog(
+                    MsgLevel.Exception,
+                    $"【手动调参诊断】SolRunParamControl.Init异常，流程={(process == null ? "空" : process.ProcessName)}，原因={e.Message}",
+                    true);
                 throw new Exception(e.Message);
             }
         }
@@ -370,7 +404,13 @@ namespace TDJS_Vision.Forms.SolRunParam
             if (myDataGridViewForm1 == null || myDataGridViewForm1.IsDisposed)
                 return;
 
-            myDataGridViewForm1.LoadRunParamItems(BuildRunParamGridItems());
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            List<RunParamGridItem> items = BuildRunParamGridItems();
+            myDataGridViewForm1.LoadRunParamItems(items);
+            LogHelper.AddLog(
+                MsgLevel.Info,
+                $"【手动调参诊断】运行参数表刷新完成，总行数={items.Count}，多条件行数={items.Count(item => item.SourceType == RunParamGridSourceType.MultiCondition)}，耗时={stopwatch.ElapsedMilliseconds}ms。",
+                true);
         }
 
         /// <summary>
