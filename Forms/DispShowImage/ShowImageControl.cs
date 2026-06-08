@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Linq;
 using System.Windows.Forms;
+using Logger;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -290,13 +292,22 @@ namespace TDJS_Vision.Forms.DispShowImage
         {
             SafeInvoke(() =>
             {
+                Stopwatch stopwatch = Stopwatch.StartNew();
                 bool needShowFit = ImageBitmap == null && bmp != null;
                 ImageBitmap = bmp;
+                long afterSetBitmap = stopwatch.ElapsedMilliseconds;
                 if (needShowFit)
                     ShowFit();
+                long afterShowFit = stopwatch.ElapsedMilliseconds;
 
-                ApplyDisplayResultCore(displayResult);
+                int roiCount = ApplyDisplayResultCore(displayResult);
+                long afterApplyDisplayResult = stopwatch.ElapsedMilliseconds;
                 Invalidate();
+                long afterInvalidate = stopwatch.ElapsedMilliseconds;
+                LogHelper.AddLog(
+                    MsgLevel.Info,
+                    $"【性能诊断-图像显示】ShowImageControl.SetImage 图像={GetBitmapDiagnosticText(bmp)}；需要自适应={needShowFit}；静态ROI={roiCount}；设置Bitmap={afterSetBitmap}ms；ShowFit={afterShowFit - afterSetBitmap}ms；构建ROI={afterApplyDisplayResult - afterShowFit}ms；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms。",
+                    true);
             });
         }
 
@@ -309,15 +320,31 @@ namespace TDJS_Vision.Forms.DispShowImage
             });
         }
 
-        private void ApplyDisplayResultCore(AlgorithmResult displayResult)
+        private int ApplyDisplayResultCore(AlgorithmResult displayResult)
         {
             lock (_roiLock)
             {
                 _staticRois.Clear();
                 int imageWidth = _image == null ? 0 : _image.Width;
                 int imageHeight = _image == null ? 0 : _image.Height;
-                _staticRois.AddRange(BuildStaticRois(displayResult, imageWidth, imageHeight));
+                List<IRoiShape> rois = BuildStaticRois(displayResult, imageWidth, imageHeight);
+                _staticRois.AddRange(rois);
+                return rois.Count;
             }
+        }
+
+        /// <summary>
+        /// 生成图像显示控件性能诊断所需的Bitmap尺寸文本。
+        /// </summary>
+        /// <param name="bitmap">待显示位图。</param>
+        /// <returns>位图诊断文本。</returns>
+        private static string GetBitmapDiagnosticText(Bitmap bitmap)
+        {
+            if (bitmap == null)
+                return "空";
+
+            double megaBytes = bitmap.Width * bitmap.Height * Math.Max(1, Image.GetPixelFormatSize(bitmap.PixelFormat) / 8D) / 1024D / 1024D;
+            return $"{bitmap.Width}x{bitmap.Height}，{bitmap.PixelFormat}，约{megaBytes:F2}MB";
         }
 
         /// <summary>

@@ -20,6 +20,14 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-08 ROI绘制AI结果颜色与图像显示耗时诊断：
+  - [x] 新反馈已记录：ROI结果绘制订阅AI输出时，整节点NG会导致所有检测项文本和矩形框都变红，无法区分单项OK/NG。
+  - [x] `ResultOverlayDraw` 已改为AI/检测类 `AlgorithmResult` 保留每个检测项文本和矩形框自身颜色，不再被整节点 `IsAllOk` 颜色覆盖。
+  - [x] `ResultOverlayDraw2` 已同步兼容AI/检测类 `AlgorithmResult` 的元素级颜色保留。
+  - [x] 新反馈已记录：图像显示从约0ms升到约14ms，需要先分段日志定位。
+  - [x] `NodeImageShow` 已增加订阅读取、图像尺寸、`ToBitmap`、事件发布和状态写入分段耗时日志。
+  - [x] `FrmSingleImage` 与 `ShowImageControl` 已增加UI投递、排队、`SetImage`、静态ROI构建和刷新耗时日志。
+  - [x] Build-verified with MSBuild on 2026-06-08, 0 errors; existing warnings remain.
 - 2026-06-08 图像窗口手动调参按ROI绘制来源过滤：
   - [x] 新反馈已记录：图像窗口1打开手动调参时不应显示全流程AI检测项，只显示当前图像显示订阅的ROI绘制项相关上下限。
   - [x] `FrmSingleImage.button2_Click` 已按当前图像显示节点解析 `ResultOverlayDraw/ResultOverlayDraw2` 的绘制项来源节点。

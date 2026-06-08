@@ -168,15 +168,24 @@ namespace TDJS_Vision.Forms.ImageViewer
                 return;
             }
 
+            string bitmapInfo = GetBitmapDiagnosticText(bitmap);
+            string displayInfo = GetDisplayResultDiagnosticText(displayResult);
+            Stopwatch scheduleStopwatch = Stopwatch.StartNew();
             Action updateImage = () =>
             {
+                long queueDelay = scheduleStopwatch.ElapsedMilliseconds;
                 if (showImageControl1.IsDisposed)
                 {
                     bitmap?.Dispose();
                     return;
                 }
 
+                Stopwatch uiStopwatch = Stopwatch.StartNew();
                 showImageControl1.SetImage(bitmap, displayResult);
+                LogHelper.AddLog(
+                    MsgLevel.Info,
+                    $"【性能诊断-图像显示】窗口({FormName}) UI刷新完成，图像={bitmapInfo}；显示结果={displayInfo}；排队等待={queueDelay}ms；SetImage={uiStopwatch.ElapsedMilliseconds}ms。",
+                    true);
             };
 
             if (InvokeRequired)
@@ -190,6 +199,10 @@ namespace TDJS_Vision.Forms.ImageViewer
                 try
                 {
                     BeginInvoke(updateImage);
+                    LogHelper.AddLog(
+                        MsgLevel.Info,
+                        $"【性能诊断-图像显示】窗口({FormName}) 已投递UI刷新，图像={bitmapInfo}；显示结果={displayInfo}；投递耗时={scheduleStopwatch.ElapsedMilliseconds}ms。",
+                        true);
                 }
                 catch
                 {
@@ -200,6 +213,38 @@ namespace TDJS_Vision.Forms.ImageViewer
             {
                 updateImage();
             }
+        }
+
+        /// <summary>
+        /// 生成图像显示性能诊断所需的Bitmap尺寸文本。
+        /// </summary>
+        /// <param name="bitmap">待显示位图。</param>
+        /// <returns>位图诊断文本。</returns>
+        private static string GetBitmapDiagnosticText(Bitmap bitmap)
+        {
+            if (bitmap == null)
+                return "空";
+
+            double megaBytes = bitmap.Width * bitmap.Height * Math.Max(1, Image.GetPixelFormatSize(bitmap.PixelFormat) / 8D) / 1024D / 1024D;
+            return $"{bitmap.Width}x{bitmap.Height}，{bitmap.PixelFormat}，约{megaBytes:F2}MB";
+        }
+
+        /// <summary>
+        /// 生成显示结果的数量摘要，用于判断静态ROI构建是否过重。
+        /// </summary>
+        /// <param name="displayResult">显示结果。</param>
+        /// <returns>显示结果诊断文本。</returns>
+        private static string GetDisplayResultDiagnosticText(AlgorithmResult displayResult)
+        {
+            if (displayResult == null)
+                return "空";
+
+            int rectCount = displayResult.Rects == null ? 0 : displayResult.Rects.Count;
+            int ngRectCount = displayResult.RectsNgMap == null ? 0 : displayResult.RectsNgMap.Values.Where(list => list != null).Sum(list => list.Count);
+            int lineCount = displayResult.Lines == null ? 0 : displayResult.Lines.Count;
+            int contourCount = displayResult.Contours == null ? 0 : displayResult.Contours.Count;
+            int textCount = displayResult.Texts == null ? 0 : displayResult.Texts.Count;
+            return $"矩形={rectCount}，NG缓存矩形={ngRectCount}，线={lineCount}，轮廓={contourCount}，文本={textCount}";
         }
 
         private void FrmSingleImage_FormClosing(object sender, FormClosingEventArgs e)

@@ -284,6 +284,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 if (!TryReadDrawItemValue(owner, item, out sourceValue, out sourceNode))
                     return;
 
+                AlgorithmResult sourceAlgorithmResult = TryGetAlgorithmResult(sourceValue) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
+                if (ShouldPreserveAlgorithmResultElementColor(item, sourceAlgorithmResult))
+                {
+                    AppendAlgorithmResultTexts(displayResult, sourceAlgorithmResult, item);
+                    return;
+                }
+
                 AddTextFromValue(texts, sourceValue);
                 if (texts.Count == 0 && sourceNode != null)
                     AddTextFromValue(texts, sourceNode.Result);
@@ -382,11 +389,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             if (algorithmResult != null)
             {
                 bool added = false;
+                bool preserveElementColor = ShouldPreserveAlgorithmResultElementColor(item, algorithmResult);
                 foreach (ColorRotatedRect rect in algorithmResult.Rects)
                 {
                     displayResult.Rects.Add(new ColorRotatedRect(rect.RotatedRect)
                     {
-                        Color = drawColor,
+                        Color = preserveElementColor ? rect.Color : drawColor,
                         LineWidth = Math.Max(1, item.LineWidth)
                     });
                     added = true;
@@ -398,7 +406,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     {
                         displayResult.Rects.Add(new ColorRotatedRect(rect.RotatedRect)
                         {
-                            Color = drawColor,
+                            Color = preserveElementColor ? rect.Color : drawColor,
                             LineWidth = Math.Max(1, item.LineWidth)
                         });
                         added = true;
@@ -410,6 +418,84 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             }
 
             return;
+        }
+
+        /// <summary>
+        /// 判断算法结果是否应该保留检测项内部颜色，避免AI多检测项被整体IsAllOk颜色覆盖。
+        /// </summary>
+        /// <param name="item">当前绘制项。</param>
+        /// <param name="algorithmResult">源算法结果。</param>
+        /// <returns>需要保留源元素颜色返回true。</returns>
+        private static bool ShouldPreserveAlgorithmResultElementColor(ResultOverlayDrawItem item, AlgorithmResult algorithmResult)
+        {
+            return item != null &&
+                item.UseJudgeColor &&
+                algorithmResult != null &&
+                algorithmResult.DetectResults != null &&
+                algorithmResult.DetectResults.Count > 0;
+        }
+
+        /// <summary>
+        /// 按AI检测项自身颜色追加文本结果，避免整节点NG时所有文本都变红。
+        /// </summary>
+        /// <param name="displayResult">目标显示结果。</param>
+        /// <param name="algorithmResult">源算法结果。</param>
+        /// <param name="item">当前绘制项。</param>
+        private static void AppendAlgorithmResultTexts(AlgorithmResult displayResult, AlgorithmResult algorithmResult, ResultOverlayDrawItem item)
+        {
+            if (displayResult == null || algorithmResult == null || item == null)
+                return;
+
+            bool usePrefix = !string.IsNullOrEmpty(item.TextPrefix);
+            int addedCount = 0;
+            if (algorithmResult.Texts != null)
+            {
+                foreach (ColorText textInfo in algorithmResult.Texts)
+                {
+                    if (textInfo == null || string.IsNullOrWhiteSpace(textInfo.Text))
+                        continue;
+
+                    string[] lines = textInfo.Text.Replace("\r\n", "\n").Split('\n');
+                    foreach (string line in lines)
+                    {
+                        if (string.IsNullOrWhiteSpace(line))
+                            continue;
+
+                        displayResult.Texts.Add(new ColorText(usePrefix ? item.TextPrefix + line : line, textInfo.Color)
+                        {
+                            FontSize = Math.Max(1, item.FontSize),
+                            Position = item.TextPosition,
+                            Margin = Math.Max(0, item.TextMargin),
+                            Title = string.Empty
+                        });
+                        addedCount++;
+                    }
+                }
+            }
+
+            if (addedCount > 0 || algorithmResult.DetectResults == null)
+                return;
+
+            foreach (var pair in algorithmResult.DetectResults)
+            {
+                if (pair.Value == null)
+                    continue;
+
+                foreach (SingleDetectResult result in pair.Value)
+                {
+                    if (result == null)
+                        continue;
+
+                    string text = $"{result.Name}:{result.Value} {(result.IsOk ? "OK" : "NG")}";
+                    displayResult.Texts.Add(new ColorText(usePrefix ? item.TextPrefix + text : text, result.IsOk ? item.OkColor : item.NgColor)
+                    {
+                        FontSize = Math.Max(1, item.FontSize),
+                        Position = item.TextPosition,
+                        Margin = Math.Max(0, item.TextMargin),
+                        Title = string.Empty
+                    });
+                }
+            }
         }
 
         /// <summary>
