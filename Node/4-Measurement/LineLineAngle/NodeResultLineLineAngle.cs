@@ -26,6 +26,30 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         [DisplayName("交点Y")]
         public double? IntersectionY { get; set; }
 
+        /// <summary>
+        /// 两条线点集到对向直线的平均绝对垂直距离。
+        /// </summary>
+        [DisplayName("平均线距")]
+        public double? AverageDistance { get; set; }
+
+        /// <summary>
+        /// 两条线点集到对向直线的最小绝对垂直距离。
+        /// </summary>
+        [DisplayName("最小线距")]
+        public double? MinDistance { get; set; }
+
+        /// <summary>
+        /// 两条线点集到对向直线的最大绝对垂直距离。
+        /// </summary>
+        [DisplayName("最大线距")]
+        public double? MaxDistance { get; set; }
+
+        /// <summary>
+        /// 参与线距统计的点数量。
+        /// </summary>
+        [DisplayName("距离点数")]
+        public int DistancePointCount { get; set; }
+
         [DisplayName("直线1起点X")]
         public double? Line1StartX { get; set; }
 

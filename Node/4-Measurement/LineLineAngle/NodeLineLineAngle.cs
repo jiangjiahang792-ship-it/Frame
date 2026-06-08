@@ -97,6 +97,11 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                     result.IntersectionX = MeasurementResultRounder.Round(measureResult.IntersectionPoint.Value.X);
                     result.IntersectionY = MeasurementResultRounder.Round(measureResult.IntersectionPoint.Value.Y);
                 }
+
+                result.AverageDistance = MeasurementResultRounder.Round(measureResult.AverageDistance);
+                result.MinDistance = MeasurementResultRounder.Round(measureResult.MinDistance);
+                result.MaxDistance = MeasurementResultRounder.Round(measureResult.MaxDistance);
+                result.DistancePointCount = measureResult.DistancePointCount;
             }
 
             result.Result = BuildDisplayResult(measureResult);
@@ -124,6 +129,8 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             if (measureResult.Success)
             {
                 result.Texts.Add(new ColorText($"线到线夹角：{measureResult.Angle:F3}°", Color.Lime));
+                if (measureResult.DistancePointCount > 0)
+                    result.Texts.Add(new ColorText($"平均线距：{measureResult.AverageDistance:F3}px，点数：{measureResult.DistancePointCount}", Color.Cyan));
                 if (measureResult.IntersectionPoint.HasValue)
                     result.Texts.Add(new ColorText($"交点：X={measureResult.IntersectionPoint.Value.X:F3}, Y={measureResult.IntersectionPoint.Value.Y:F3}", Color.Orange));
             }
@@ -141,6 +148,10 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         public bool Success { get; set; }
         public string Message { get; set; }
         public double Angle { get; set; }
+        public double AverageDistance { get; set; }
+        public double MinDistance { get; set; }
+        public double MaxDistance { get; set; }
+        public int DistancePointCount { get; set; }
         public double AlgorithmMs { get; set; }
         public MeasuredLine Line1 { get; set; }
         public MeasuredLine Line2 { get; set; }

@@ -1481,3 +1481,11 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 
 - [x] Add a static DET GPU inference lock in `Yolo8Det` so multiple process flows cannot enter the native GPU DET inference DLL at the same time.
 - [x] Keep CPU DET inference unlocked, and apply the GPU lock to GPU model handle destruction to avoid inference/release collisions.
+
+## 2026-06-08: LineLineAngle Point-Set Stability Trial
+
+- [x] Let `LineMergeFit` publish the source point set used for fitting, so downstream line-line measurement can reuse upstream measured points.
+- [x] Let `LineLineAngle` read subscribed line point sets when available, fit each line from those points before calculating the included angle, and fall back to the original endpoint line when no point set exists.
+- [x] Add average/min/max line distance and distance point count to the `LineLineAngle` result for checking whether the measured point set itself is stable.
+- [x] Correct the point-set reader so geometry-generation helper points such as `LineMergeFit` parallel-center source points are not treated as output-line points by downstream line-line measurement.
+- [x] Build-verified the point-set stability trial with MSBuild on 2026-06-08, 0 errors; existing warnings remain.

@@ -99,7 +99,8 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
                 AlgorithmMs = measureResult.AlgorithmMs,
                 AngleDifference = measureResult.AngleDifference,
                 LineDistance = measureResult.LineDistance,
-                FitError = measureResult.FitError
+                FitError = measureResult.FitError,
+                SourcePoints = MeasurementResultRounder.RoundPoints(measureResult.SourcePoints)
             };
 
             if (measureResult.Success && measureResult.OutputLine != null)

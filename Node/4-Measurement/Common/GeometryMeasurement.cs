@@ -323,6 +323,26 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             return false;
         }
 
+        /// <summary>
+        /// 读取测量结果中的线点集，只读取确实落在输出线上的点，避免把几何生成节点的辅助显示点误当成线点。
+        /// </summary>
+        public static bool TryReadLinePoints(INodeResult result, out List<PointF> points)
+        {
+            points = null;
+            if (result == null)
+                return false;
+            if (IsExplicitNgResult(result))
+                return false;
+
+            if (TryReadPointListProperty(result, "EdgePoints", 2, out points) ||
+                TryReadPointListProperty(result, "Points", 2, out points))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
         public static bool TryReadPoint(INodeResult result, MeasurementPointRole role, out PointF point)
         {
             point = PointF.Empty;
@@ -547,6 +567,11 @@ namespace TDJS_Vision.Node._4_Measurement.Common
 
         private static bool TryReadPointListProperty(object source, string propertyName, out List<PointF> points)
         {
+            return TryReadPointListProperty(source, propertyName, 3, out points);
+        }
+
+        private static bool TryReadPointListProperty(object source, string propertyName, int minCount, out List<PointF> points)
+        {
             points = null;
             PropertyInfo property = source.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
             if (property == null || !property.CanRead || property.GetIndexParameters().Length > 0)
@@ -570,7 +595,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                     points.Add(point);
             }
 
-            return points.Count >= 3;
+            return points.Count >= minCount;
         }
     }
 }

@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Drawing;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
@@ -85,6 +87,12 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
         /// </summary>
         [DisplayName("拟合误差")]
         public double? FitError { get; set; }
+
+        /// <summary>
+        /// 参与线组合拟合或显示的源点集合；平行中线模式下这些点来自两条源线，不代表输出中线自身的点集。
+        /// </summary>
+        [DisplayName("源点集合")]
+        public List<PointF> SourcePoints { get; set; } = new List<PointF>();
 
         /// <summary>
         /// 状态信息。

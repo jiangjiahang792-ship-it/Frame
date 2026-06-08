@@ -1,7 +1,9 @@
 using Logger;
 using OpenCvSharp;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
@@ -52,6 +54,53 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             public CaliperEdgeFindMode FindMode { get; set; }
             public int Direction { get; set; }
             public int BlurSize { get; set; }
+        }
+
+        /// <summary>
+        /// 线线测量的输入数据，包含订阅线段和可用于统计的边缘点集。
+        /// </summary>
+        private sealed class LineMeasurementInput
+        {
+            /// <summary>
+            /// 上游输出的基础线段。
+            /// </summary>
+            public MeasuredLine Line { get; set; }
+
+            /// <summary>
+            /// 上游输出且确实落在该直线上的边缘点。
+            /// </summary>
+            public List<PointF> Points { get; set; } = new List<PointF>();
+
+            /// <summary>
+            /// 上游节点显示名称，用于诊断和后续扩展。
+            /// </summary>
+            public string SourceName { get; set; }
+        }
+
+        /// <summary>
+        /// 两条线之间的点到线垂距统计结果。
+        /// </summary>
+        private sealed class LineDistanceStatistics
+        {
+            /// <summary>
+            /// 平均绝对垂直距离。
+            /// </summary>
+            public double AverageDistance { get; set; }
+
+            /// <summary>
+            /// 最小绝对垂直距离。
+            /// </summary>
+            public double MinDistance { get; set; }
+
+            /// <summary>
+            /// 最大绝对垂直距离。
+            /// </summary>
+            public double MaxDistance { get; set; }
+
+            /// <summary>
+            /// 参与距离统计的点数量。
+            /// </summary>
+            public int PointCount { get; set; }
         }
 
         public NodeParamFormLineLineAngle(Process process, NodeBase node)
@@ -120,12 +169,12 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             var stopwatch = Stopwatch.StartNew();
             var result = new LineLineAngleMeasureResult();
 
-            MeasuredLine line1;
-            MeasuredLine line2;
+            LineMeasurementInput input1;
+            LineMeasurementInput input2;
             if (param.SourceMode == MeasurementDataSourceMode.Subscribe)
             {
-                line1 = ReadSubscribedLine(nodeSubscriptionLine1, "直线1");
-                line2 = ReadSubscribedLine(nodeSubscriptionLine2, "直线2");
+                input1 = ReadSubscribedLineInput(nodeSubscriptionLine1, "直线1");
+                input2 = ReadSubscribedLineInput(nodeSubscriptionLine2, "直线2");
             }
             else
             {
@@ -136,16 +185,22 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                     NodeParamLineLineAngle runtimeParam = BuildRuntimeParam(param);
                     CaliperLineMeasureResult line1Result = CaliperMeasurementAlgorithm.FindLine(gray, BuildLineParams(runtimeParam, true));
                     CaliperLineMeasureResult line2Result = CaliperMeasurementAlgorithm.FindLine(gray, BuildLineParams(runtimeParam, false));
-                    result.Line1EdgePoints.AddRange(line1Result.EdgePoints);
-                    result.Line2EdgePoints.AddRange(line2Result.EdgePoints);
 
                     if (!line1Result.Success)
                         return FinishFailed(result, stopwatch, "直线1卡尺找线失败");
                     if (!line2Result.Success)
                         return FinishFailed(result, stopwatch, "直线2卡尺找线失败");
 
-                    line1 = new MeasuredLine { Start = line1Result.LineStart, End = line1Result.LineEnd, Source = "DrawLine1" };
-                    line2 = new MeasuredLine { Start = line2Result.LineStart, End = line2Result.LineEnd, Source = "DrawLine2" };
+                    input1 = new LineMeasurementInput
+                    {
+                        Line = new MeasuredLine { Start = line1Result.LineStart, End = line1Result.LineEnd, Source = "DrawLine1" },
+                        Points = line1Result.EdgePoints.ToList()
+                    };
+                    input2 = new LineMeasurementInput
+                    {
+                        Line = new MeasuredLine { Start = line2Result.LineStart, End = line2Result.LineEnd, Source = "DrawLine2" },
+                        Points = line2Result.EdgePoints.ToList()
+                    };
                 }
                 finally
                 {
@@ -154,11 +209,15 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 }
             }
 
-            if (line1 == null || !line1.IsValid)
+            if (input1 == null || input1.Line == null || !input1.Line.IsValid)
                 return FinishFailed(result, stopwatch, "直线1无效");
-            if (line2 == null || !line2.IsValid)
+            if (input2 == null || input2.Line == null || !input2.Line.IsValid)
                 return FinishFailed(result, stopwatch, "直线2无效");
 
+            MeasuredLine line1 = BuildStableLine(input1, param.MeasureMode);
+            MeasuredLine line2 = BuildStableLine(input2, param.MeasureMode);
+            result.Line1EdgePoints.AddRange(input1.Points);
+            result.Line2EdgePoints.AddRange(input2.Points);
             result.Line1 = line1;
             result.Line2 = line2;
             result.Angle = GeometryMeasurementAlgorithm.CalculateLineLineAngle(
@@ -176,6 +235,11 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             result.Line1 = new MeasuredLine { Start = usedL1Start, End = usedL1End, Source = line1.Source };
             result.Line2 = new MeasuredLine { Start = usedL2Start, End = usedL2End, Source = line2.Source };
             result.IntersectionPoint = intersectionPoint;
+            LineDistanceStatistics distanceStatistics = CalculateDistanceStatistics(input1, input2, result.Line1, result.Line2, param.MeasureMode);
+            result.AverageDistance = distanceStatistics.AverageDistance;
+            result.MinDistance = distanceStatistics.MinDistance;
+            result.MaxDistance = distanceStatistics.MaxDistance;
+            result.DistancePointCount = distanceStatistics.PointCount;
             result.Success = true;
             stopwatch.Stop();
             result.AlgorithmMs = stopwatch.Elapsed.TotalMilliseconds;
@@ -369,13 +433,194 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             return MeasurementNodeHelper.GetReadOnlyPreviewMat(outputImage);
         }
 
-        private MeasuredLine ReadSubscribedLine(NodeSubscription subscription, string name)
+        private LineMeasurementInput ReadSubscribedLineInput(NodeSubscription subscription, string name)
         {
             NodeBase sourceNode = subscription.GetSelectedNode();
             if (!MeasurementResultReader.TryReadLine(sourceNode.Result, out MeasuredLine line))
                 throw new Exception($"{name}订阅节点({sourceNode.ID}.{sourceNode.NodeName})没有可用直线结果。");
 
-            return line;
+            List<PointF> points;
+            if (!MeasurementResultReader.TryReadLinePoints(sourceNode.Result, out points))
+                points = new List<PointF>();
+
+            return new LineMeasurementInput
+            {
+                Line = line,
+                Points = points,
+                SourceName = $"{sourceNode.ID}.{sourceNode.NodeName}"
+            };
+        }
+
+        /// <summary>
+        /// 使用订阅线点集重新拟合测量线，点集不可用时回退到订阅线端点。
+        /// </summary>
+        private static MeasuredLine BuildStableLine(LineMeasurementInput input, GeometryMeasureMode mode)
+        {
+            if (input == null || input.Line == null)
+                return null;
+
+            List<PointF> points = GetValidModePoints(input.Points, mode);
+            if (points.Count < 2)
+                return ApplyMode(input.Line, mode);
+
+            double centerX = points.Average(point => point.X);
+            double centerY = points.Average(point => point.Y);
+            double xx = 0;
+            double xy = 0;
+            double yy = 0;
+            foreach (PointF point in points)
+            {
+                double dx = point.X - centerX;
+                double dy = point.Y - centerY;
+                xx += dx * dx;
+                xy += dx * dy;
+                yy += dy * dy;
+            }
+
+            double angle = 0.5 * Math.Atan2(2.0 * xy, xx - yy);
+            PointF direction = new PointF((float)Math.Cos(angle), (float)Math.Sin(angle));
+            PointF center = new PointF((float)centerX, (float)centerY);
+            double minProjection = double.MaxValue;
+            double maxProjection = double.MinValue;
+            foreach (PointF point in points)
+            {
+                double projection = Dot(Subtract(point, center), direction);
+                minProjection = Math.Min(minProjection, projection);
+                maxProjection = Math.Max(maxProjection, projection);
+            }
+
+            return new MeasuredLine
+            {
+                Start = Add(center, Scale(direction, minProjection)),
+                End = Add(center, Scale(direction, maxProjection)),
+                Source = input.Line.Source
+            };
+        }
+
+        /// <summary>
+        /// 计算两条线点集到对向直线的绝对垂距统计，没有点集时使用线段端点兜底。
+        /// </summary>
+        private static LineDistanceStatistics CalculateDistanceStatistics(
+            LineMeasurementInput input1,
+            LineMeasurementInput input2,
+            MeasuredLine line1,
+            MeasuredLine line2,
+            GeometryMeasureMode mode)
+        {
+            var distances = new List<double>();
+            AddPointDistances(distances, input1?.Points, line2, mode);
+            AddPointDistances(distances, input2?.Points, line1, mode);
+
+            if (distances.Count == 0)
+            {
+                AddPointDistances(distances, BuildEndpointPoints(line1), line2, mode);
+                AddPointDistances(distances, BuildEndpointPoints(line2), line1, mode);
+            }
+
+            if (distances.Count == 0)
+                return new LineDistanceStatistics();
+
+            return new LineDistanceStatistics
+            {
+                AverageDistance = distances.Average(),
+                MinDistance = distances.Min(),
+                MaxDistance = distances.Max(),
+                PointCount = distances.Count
+            };
+        }
+
+        /// <summary>
+        /// 将有效点转换到当前测量精度模式。
+        /// </summary>
+        private static List<PointF> GetValidModePoints(IEnumerable<PointF> points, GeometryMeasureMode mode)
+        {
+            if (points == null)
+                return new List<PointF>();
+
+            var result = new List<PointF>();
+            foreach (PointF point in points)
+            {
+                if (float.IsNaN(point.X) || float.IsNaN(point.Y) ||
+                    float.IsInfinity(point.X) || float.IsInfinity(point.Y))
+                {
+                    continue;
+                }
+
+                result.Add(GeometryMeasurementAlgorithm.ApplyMode(point, mode));
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// 将点集到目标线的垂距加入统计集合。
+        /// </summary>
+        private static void AddPointDistances(List<double> distances, IEnumerable<PointF> points, MeasuredLine targetLine, GeometryMeasureMode mode)
+        {
+            if (distances == null || targetLine == null || !targetLine.IsValid)
+                return;
+
+            foreach (PointF point in GetValidModePoints(points, mode))
+                distances.Add(PointToLineDistance(point, targetLine));
+        }
+
+        /// <summary>
+        /// 构建线段端点集合，用于没有边缘点时兜底统计。
+        /// </summary>
+        private static IEnumerable<PointF> BuildEndpointPoints(MeasuredLine line)
+        {
+            if (line == null || !line.IsValid)
+                yield break;
+
+            yield return line.Start;
+            yield return line.End;
+        }
+
+        /// <summary>
+        /// 计算点到无限直线的绝对垂直距离。
+        /// </summary>
+        private static double PointToLineDistance(PointF point, MeasuredLine line)
+        {
+            double dx = line.End.X - line.Start.X;
+            double dy = line.End.Y - line.Start.Y;
+            double length = Math.Sqrt(dx * dx + dy * dy);
+            if (length < 1e-8)
+                return 0;
+
+            return Math.Abs((point.X - line.Start.X) * dy - (point.Y - line.Start.Y) * dx) / length;
+        }
+
+        /// <summary>
+        /// 将订阅线段转换到当前测量精度模式。
+        /// </summary>
+        private static MeasuredLine ApplyMode(MeasuredLine line, GeometryMeasureMode mode)
+        {
+            return new MeasuredLine
+            {
+                Start = GeometryMeasurementAlgorithm.ApplyMode(line.Start, mode),
+                End = GeometryMeasurementAlgorithm.ApplyMode(line.End, mode),
+                Source = line.Source
+            };
+        }
+
+        private static PointF Add(PointF a, PointF b)
+        {
+            return new PointF(a.X + b.X, a.Y + b.Y);
+        }
+
+        private static PointF Subtract(PointF a, PointF b)
+        {
+            return new PointF(a.X - b.X, a.Y - b.Y);
+        }
+
+        private static PointF Scale(PointF point, double scale)
+        {
+            return new PointF((float)(point.X * scale), (float)(point.Y * scale));
+        }
+
+        private static double Dot(PointF a, PointF b)
+        {
+            return a.X * b.X + a.Y * b.Y;
         }
 
         private NodeParamLineLineAngle BuildRuntimeParam(NodeParamLineLineAngle param)
