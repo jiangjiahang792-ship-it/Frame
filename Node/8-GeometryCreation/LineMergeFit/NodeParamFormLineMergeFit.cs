@@ -80,10 +80,19 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
         /// </summary>
         internal LineMergeFitMeasureResult ExecuteMeasure(NodeParamLineMergeFit param, CancellationToken token, out Mat output)
         {
+            return ExecuteMeasure(param, token, true, out output);
+        }
+
+        /// <summary>
+        /// 执行线组合拟合，并按调用场景决定是否准备预览底图。
+        /// </summary>
+        internal LineMergeFitMeasureResult ExecuteMeasure(NodeParamLineMergeFit param, CancellationToken token, bool needPreviewImage, out Mat output)
+        {
             var stopwatch = Stopwatch.StartNew();
             token.ThrowIfCancellationRequested();
 
-            output = CloneFirstAvailableOutputImage();
+            output = needPreviewImage ? CloneFirstAvailableOutputImage() : new Mat();
+            stopwatch.Restart();
             MeasuredLine line1 = ReadSubscribedLine(nodeSubscriptionLine1, "直线1");
             MeasuredLine line2 = ReadSubscribedLine(nodeSubscriptionLine2, "直线2");
             List<PointF> line1Points = ReadSubscribedEdgePoints(nodeSubscriptionLine1);

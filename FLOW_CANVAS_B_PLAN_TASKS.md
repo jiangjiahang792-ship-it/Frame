@@ -1514,3 +1514,4 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] Add generic arc ROI support to `AlgorithmResult` and `ShowImageControl`, so angle-style overlays can render in both preview and output display paths.
 - [x] Let `LineLineAngle` draw a red included-angle arc and `α=角度°` label near the intersection point when the measurement succeeds.
 - [x] Fix `LineMergeFit` preview image lookup by falling back from subscribed line-node output images to their nearest upstream image source or preprocessing output.
+- [x] Performance correction: keep `LineMergeFit` runtime geometry-only and skip preview image cloning during flow execution; only the parameter-form run preview prepares a preview base image.

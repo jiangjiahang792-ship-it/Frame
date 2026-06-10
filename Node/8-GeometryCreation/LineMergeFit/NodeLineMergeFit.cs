@@ -57,7 +57,7 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
                 if (form == null || param == null)
                     throw new Exception("线组合拟合参数异常！");
 
-                LineMergeFitMeasureResult measureResult = form.ExecuteMeasure(param, token, out Mat output);
+                LineMergeFitMeasureResult measureResult = form.ExecuteMeasure(param, token, false, out Mat output);
                 NodeResultLineMergeFit nodeResult = BuildResult(measureResult, output);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
