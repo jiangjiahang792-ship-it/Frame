@@ -725,6 +725,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                     NodeName = node.NodeName,
                     ID = node.ID,
                     Active = node.Active,
+                    OutputLog = node.OutputLog,
                     Selected = false,
                     HasCanvasLayout = true,
                     CanvasX = node.CanvasLocation.X,

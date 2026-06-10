@@ -60,6 +60,7 @@ namespace TDJS_Vision
                         node.NodeName = nodeConfig.NodeName;
                         node.ID = nodeConfig.ID;
                         node.Active = nodeConfig.Active;
+                        node.OutputLog = nodeConfig.OutputLog;
                         node.Selected = nodeConfig.Selected;
                         node.HasCanvasLayout = true;
                         node.CanvasX = nodeConfig.CanvasLocation.X;
@@ -276,6 +277,10 @@ namespace TDJS_Vision
         public string NodeName;
         public int ID;
         public bool Active;
+        /// <summary>
+        /// 节点是否允许输出运行日志；为空时表示旧配置，按默认开启处理。
+        /// </summary>
+        public bool? OutputLog;
         public bool Selected;
         public bool HasCanvasLayout;
         public int CanvasX;

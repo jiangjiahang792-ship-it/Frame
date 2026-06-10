@@ -65,6 +65,7 @@
             this.设为起始节点ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.启用节点ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.禁用节点ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.节点是否输出日志ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.重命名节点ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.添加节点备注ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.删除节点ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -343,12 +344,13 @@
             this.设为起始节点ToolStripMenuItem,
             this.启用节点ToolStripMenuItem,
             this.禁用节点ToolStripMenuItem,
+            this.节点是否输出日志ToolStripMenuItem,
             this.重命名节点ToolStripMenuItem,
             this.添加节点备注ToolStripMenuItem,
             this.删除节点ToolStripMenuItem,
             this.删除连线ToolStripMenuItem});
             this.contextMenuStripFlowCanvas.Name = "contextMenuStripFlowCanvas";
-            this.contextMenuStripFlowCanvas.Size = new System.Drawing.Size(189, 538);
+            this.contextMenuStripFlowCanvas.Size = new System.Drawing.Size(189, 570);
             this.contextMenuStripFlowCanvas.Opening += new System.ComponentModel.CancelEventHandler(this.contextMenuStripFlowCanvas_Opening);
             //
             // 撤销ToolStripMenuItem
@@ -451,6 +453,16 @@
             this.禁用节点ToolStripMenuItem.Text = "禁用节点";
             this.禁用节点ToolStripMenuItem.Click += new System.EventHandler(this.禁用节点ToolStripMenuItem_Click);
             //
+            // 节点是否输出日志ToolStripMenuItem
+            //
+            this.节点是否输出日志ToolStripMenuItem.Checked = true;
+            this.节点是否输出日志ToolStripMenuItem.CheckOnClick = true;
+            this.节点是否输出日志ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.节点是否输出日志ToolStripMenuItem.Name = "节点是否输出日志ToolStripMenuItem";
+            this.节点是否输出日志ToolStripMenuItem.Size = new System.Drawing.Size(188, 32);
+            this.节点是否输出日志ToolStripMenuItem.Text = "是否输出日志";
+            this.节点是否输出日志ToolStripMenuItem.Click += new System.EventHandler(this.节点是否输出日志ToolStripMenuItem_Click);
+            //
             // 重命名节点ToolStripMenuItem
             //
             this.重命名节点ToolStripMenuItem.Name = "重命名节点ToolStripMenuItem";
@@ -551,6 +563,7 @@
         private System.Windows.Forms.ToolStripMenuItem 设为起始节点ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 启用节点ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 禁用节点ToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem 节点是否输出日志ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 重命名节点ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 添加节点备注ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 删除节点ToolStripMenuItem;

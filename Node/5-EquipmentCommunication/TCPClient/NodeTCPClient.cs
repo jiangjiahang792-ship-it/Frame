@@ -26,7 +26,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.TcpClient
         /// <returns></returns>
         private async Task RunHandler(object sender, EventArgs e)
         {
-            await Run(CancellationToken.None, _process.ShowLog);
+            await Run(CancellationToken.None, _process != null && _process.ShowLog && OutputLog);
         }
 
         /// <summary>

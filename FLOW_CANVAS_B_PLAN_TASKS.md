@@ -1515,3 +1515,9 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] Let `LineLineAngle` draw a red included-angle arc and `α=角度°` label near the intersection point when the measurement succeeds.
 - [x] Fix `LineMergeFit` preview image lookup by falling back from subscribed line-node output images to their nearest upstream image source or preprocessing output.
 - [x] Performance correction: keep `LineMergeFit` runtime geometry-only and skip preview image cloning during flow execution; only the parameter-form run preview prepares a preview base image.
+
+## 2026-06-10: Node-Level Runtime Log Switch
+
+- [x] Add per-node `OutputLog` switch, default enabled and compatible with old solution files.
+- [x] Add node right-click menu item `是否输出日志` for batch toggling selected nodes.
+- [x] Route node execution through `Process.ShowLog && node.OutputLog`, while keeping process start/end logs controlled by the process-level switch.

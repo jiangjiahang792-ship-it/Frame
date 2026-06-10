@@ -42,6 +42,7 @@
             this.删除ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.启用ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.禁用ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.是否输出日志ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.重命名ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.添加备注ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
@@ -75,43 +76,55 @@
             this.删除ToolStripMenuItem,
             this.启用ToolStripMenuItem,
             this.禁用ToolStripMenuItem,
+            this.是否输出日志ToolStripMenuItem,
             this.重命名ToolStripMenuItem,
             this.添加备注ToolStripMenuItem});
             this.contextMenuStrip1.Name = "contextMenuStrip1";
-            this.contextMenuStrip1.Size = new System.Drawing.Size(139, 124);
-            // 
+            this.contextMenuStrip1.Size = new System.Drawing.Size(161, 148);
+            this.contextMenuStrip1.Opening += new System.ComponentModel.CancelEventHandler(this.contextMenuStrip1_Opening);
+            //
             // 删除ToolStripMenuItem
-            // 
+            //
             this.删除ToolStripMenuItem.Name = "删除ToolStripMenuItem";
-            this.删除ToolStripMenuItem.Size = new System.Drawing.Size(138, 24);
+            this.删除ToolStripMenuItem.Size = new System.Drawing.Size(160, 24);
             this.删除ToolStripMenuItem.Text = "删除";
             this.删除ToolStripMenuItem.Click += new System.EventHandler(this.删除ToolStripMenuItem_Click);
             // 
             // 启用ToolStripMenuItem
             // 
             this.启用ToolStripMenuItem.Name = "启用ToolStripMenuItem";
-            this.启用ToolStripMenuItem.Size = new System.Drawing.Size(138, 24);
+            this.启用ToolStripMenuItem.Size = new System.Drawing.Size(160, 24);
             this.启用ToolStripMenuItem.Text = "启用";
             this.启用ToolStripMenuItem.Click += new System.EventHandler(this.启用ToolStripMenuItem_Click);
             // 
             // 禁用ToolStripMenuItem
             // 
             this.禁用ToolStripMenuItem.Name = "禁用ToolStripMenuItem";
-            this.禁用ToolStripMenuItem.Size = new System.Drawing.Size(138, 24);
+            this.禁用ToolStripMenuItem.Size = new System.Drawing.Size(160, 24);
             this.禁用ToolStripMenuItem.Text = "禁用";
             this.禁用ToolStripMenuItem.Click += new System.EventHandler(this.禁用ToolStripMenuItem_Click);
             // 
+            // 是否输出日志ToolStripMenuItem
+            //
+            this.是否输出日志ToolStripMenuItem.Checked = true;
+            this.是否输出日志ToolStripMenuItem.CheckOnClick = true;
+            this.是否输出日志ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.是否输出日志ToolStripMenuItem.Name = "是否输出日志ToolStripMenuItem";
+            this.是否输出日志ToolStripMenuItem.Size = new System.Drawing.Size(160, 24);
+            this.是否输出日志ToolStripMenuItem.Text = "是否输出日志";
+            this.是否输出日志ToolStripMenuItem.Click += new System.EventHandler(this.是否输出日志ToolStripMenuItem_Click);
+            //
             // 重命名ToolStripMenuItem
             // 
             this.重命名ToolStripMenuItem.Name = "重命名ToolStripMenuItem";
-            this.重命名ToolStripMenuItem.Size = new System.Drawing.Size(138, 24);
+            this.重命名ToolStripMenuItem.Size = new System.Drawing.Size(160, 24);
             this.重命名ToolStripMenuItem.Text = "重命名";
             this.重命名ToolStripMenuItem.Click += new System.EventHandler(this.重命名ToolStripMenuItem_Click);
             // 
             // 添加备注ToolStripMenuItem
             // 
             this.添加备注ToolStripMenuItem.Name = "添加备注ToolStripMenuItem";
-            this.添加备注ToolStripMenuItem.Size = new System.Drawing.Size(138, 24);
+            this.添加备注ToolStripMenuItem.Size = new System.Drawing.Size(160, 24);
             this.添加备注ToolStripMenuItem.Text = "添加备注";
             this.添加备注ToolStripMenuItem.Click += new System.EventHandler(this.添加备注ToolStripMenuItem_Click);
             // 
@@ -220,6 +233,7 @@
         private System.Windows.Forms.ToolStripMenuItem 删除ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 启用ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 禁用ToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem 是否输出日志ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 重命名ToolStripMenuItem;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
         private Sunny.UI.UILight uiLight1;

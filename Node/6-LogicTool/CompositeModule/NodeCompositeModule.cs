@@ -421,6 +421,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
 
                 NodeBase node = NodeFactory.CreateNode(nodeConfig.ID, nodeConfig.NodeName, runtimeProcess, nodeConfig.NodeType);
                 node.Active = nodeConfig.Active;
+                node.OutputLog = nodeConfig.OutputLog ?? true;
                 node.Selected = false;
                 node.CanvasLocation = new Point(nodeConfig.CanvasX, nodeConfig.CanvasY);
                 if (nodeConfig.CanvasWidth > 0 && nodeConfig.CanvasHeight > 0)

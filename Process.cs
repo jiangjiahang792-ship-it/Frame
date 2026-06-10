@@ -129,6 +129,14 @@ namespace TDJS_Vision
             ID = Solution.Instance.ProcessCount;
         }
 
+        /// <summary>
+        /// 判断指定节点本次运行是否允许输出日志，流程级日志关闭时节点不能单独打开日志。
+        /// </summary>
+        private static bool ShouldShowNodeLog(Process process, NodeBase node)
+        {
+            return process != null && process.ShowLog && node != null && node.OutputLog;
+        }
+
         public void AddNode(NodeBase node)
         {
             _nodes.Add(node);
@@ -302,7 +310,7 @@ namespace TDJS_Vision
                     try
                     {
                         MarkNodeRunning(node);
-                        result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
+                        result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(this, node));
                         FinalizeNodeRun(node);
                         if (node.Result != null)
                             RunTime += node.Result.RunTime;
@@ -548,7 +556,7 @@ namespace TDJS_Vision
             MarkNodeRunning(node);
             try
             {
-                NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
+                NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(this, node));
                 FinalizeNodeRun(node);
                 return new ConnectedNodeRunResult
                 {
@@ -1485,7 +1493,7 @@ namespace TDJS_Vision
                 return true;
             }
 
-            if (ShowLog && !string.IsNullOrWhiteSpace(message))
+            if (ShouldShowNodeLog(this, nodeToSkip) && !string.IsNullOrWhiteSpace(message))
                 LogHelper.AddLog(MsgLevel.Warn, $"节点({nodeToSkip.ID}.{nodeToSkip.NodeName})准备跳过运行结果失败：{message}", true);
 
             return false;
@@ -1654,7 +1662,7 @@ namespace TDJS_Vision
                                 continue;
 
                             MarkNodeRunning(node);
-                            NodeReturn result = await node.Run(Solution.Instance.CancellationToken, process.ShowLog);
+                            NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(process, node));
                             FinalizeNodeRun(node);
                             process.RunTime += node.Result.RunTime;
 
@@ -1793,7 +1801,7 @@ namespace TDJS_Vision
                             continue;
 
                         MarkNodeRunning(node);
-                        NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
+                        NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(this, node));
                         FinalizeNodeRun(node);
                         RunTime += node.Result.RunTime;
 
@@ -1953,7 +1961,7 @@ namespace TDJS_Vision
                             continue;
 
                         MarkNodeRunning(node);
-                        NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
+                        NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(this, node));
                         FinalizeNodeRun(node);
                         RunTime += node.Result.RunTime;
 
@@ -2096,7 +2104,7 @@ namespace TDJS_Vision
                         }
 
                         MarkNodeRunning(node);
-                        NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShowLog);
+                        NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(this, node));
                         FinalizeNodeRun(node);
                         RunTime += node.Result.RunTime;
 

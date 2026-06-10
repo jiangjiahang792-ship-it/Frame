@@ -15,6 +15,10 @@ namespace TDJS_Vision.Node
 
         private int _id = 0;
         private bool _active = true;
+        /// <summary>
+        /// 当前节点是否允许输出运行日志，默认开启以兼容旧方案。
+        /// </summary>
+        private bool _outputLog = true;
         private bool _selected = false;
         private string _nodeName;
         private string _notes = "无备注"; // 节点备注
@@ -136,6 +140,11 @@ namespace TDJS_Vision.Node
         /// 节点是否启用
         /// </summary>
         public bool Active { get { return _active; } set => SetActive(value); }
+
+        /// <summary>
+        /// 当前节点是否允许输出运行日志；流程日志关闭时不会强制打开日志。
+        /// </summary>
+        public bool OutputLog { get { return _outputLog; } set { _outputLog = value; } }
 
         /// <summary>
         /// 是否选中
@@ -603,6 +612,22 @@ namespace TDJS_Vision.Node
         private void 禁用ToolStripMenuItem_Click(object sender, EventArgs e)
         {
             DisableNode();
+        }
+
+        /// <summary>
+        /// 节点右键菜单打开时同步当前节点日志输出状态。
+        /// </summary>
+        private void contextMenuStrip1_Opening(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            是否输出日志ToolStripMenuItem.Checked = OutputLog;
+        }
+
+        /// <summary>
+        /// 切换当前节点是否允许输出运行日志。
+        /// </summary>
+        private void 是否输出日志ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            OutputLog = 是否输出日志ToolStripMenuItem.Checked;
         }
 
         public void EnableNode()

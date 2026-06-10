@@ -535,6 +535,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     nodeBase = CreateNode(nodeInfo.NodeType, nodeInfo.NodeName, nodeInfo.ID, canvasLocation, false, false);
                     nodeBase.Selected = nodeInfo.Selected;
                     nodeBase.Active = nodeInfo.Active;
+                    nodeBase.OutputLog = nodeInfo.OutputLog ?? true;
                     nodeBase.IsStartNode = nodeInfo.IsStartNode ||
                         (!processConfig.HasCanvasGraph && nodeIndex == 0);
                     if (nodeInfo.CanvasWidth > 0 && nodeInfo.CanvasHeight > 0)
@@ -1202,13 +1203,23 @@ namespace TDJS_Vision.Forms.ProcessNew
             bool canPaste = HasCopiedNodeSnapshot();
             bool hasActiveNode = false;
             bool hasInactiveNode = false;
+            bool allSelectedNodesOutputLog = hasNode;
 
             foreach (NodeBase node in processFlowCanvas.SelectedNodes)
             {
+                if (node == null)
+                {
+                    allSelectedNodesOutputLog = false;
+                    continue;
+                }
+
                 if (node.Active)
                     hasActiveNode = true;
                 else
                     hasInactiveNode = true;
+
+                if (!node.OutputLog)
+                    allSelectedNodesOutputLog = false;
             }
 
             撤销ToolStripMenuItem.Enabled = processFlowCanvas.CanUndo;
@@ -1220,6 +1231,8 @@ namespace TDJS_Vision.Forms.ProcessNew
             设为起始节点ToolStripMenuItem.Enabled = hasSingleNode && !selectedNode.IsStartNode;
             启用节点ToolStripMenuItem.Enabled = hasNode && hasInactiveNode;
             禁用节点ToolStripMenuItem.Enabled = hasNode && hasActiveNode;
+            节点是否输出日志ToolStripMenuItem.Enabled = hasNode;
+            节点是否输出日志ToolStripMenuItem.Checked = allSelectedNodesOutputLog;
             重命名节点ToolStripMenuItem.Enabled = hasSingleNode;
             添加节点备注ToolStripMenuItem.Enabled = hasSingleNode;
             删除节点ToolStripMenuItem.Enabled = hasNode;
@@ -1307,6 +1320,20 @@ namespace TDJS_Vision.Forms.ProcessNew
             processFlowCanvas.DisableSelectedNode();
         }
 
+        /// <summary>
+        /// 批量切换选中节点是否允许输出运行日志。
+        /// </summary>
+        private void 节点是否输出日志ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            bool outputLog = 节点是否输出日志ToolStripMenuItem.Checked;
+            foreach (NodeBase node in processFlowCanvas.SelectedNodes)
+            {
+                if (node != null)
+                    node.OutputLog = outputLog;
+            }
+            processFlowCanvas.RefreshNodes();
+        }
+
         private void 重命名节点ToolStripMenuItem_Click(object sender, EventArgs e)
         {
             processFlowCanvas.RenameSelectedNode();
@@ -1354,6 +1381,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     NodeType = node.NodeType,
                     NodeName = node.NodeName,
                     Active = node.Active,
+                    OutputLog = node.OutputLog,
                     CanvasLocation = node.CanvasLocation,
                     CanvasSize = node.CanvasSize,
                     Notes = node.Notes,
@@ -1419,6 +1447,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     NodeBase pastedNode = CreateNode(item.NodeType, nodeName, -1, pasteLocation, false, false);
                     pastedNode.CanvasSize = item.CanvasSize;
                     pastedNode.Active = item.Active;
+                    pastedNode.OutputLog = item.OutputLog;
                     pastedNode.SetNotes(item.Notes);
 
                     if (item.NodeParam != null && pastedNode.ParamForm != null)
@@ -1905,6 +1934,10 @@ namespace TDJS_Vision.Forms.ProcessNew
             /// 源节点启用状态。
             /// </summary>
             public bool Active;
+            /// <summary>
+            /// 源节点是否允许输出运行日志。
+            /// </summary>
+            public bool OutputLog = true;
             /// <summary>
             /// 源节点画布位置。
             /// </summary>
