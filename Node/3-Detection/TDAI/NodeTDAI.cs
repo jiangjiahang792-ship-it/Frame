@@ -58,20 +58,25 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 {
                     if (Result is NodeResultTDAI res)
                     {
+                        OutputImage inputImage = null;
                         try
                         {
                             SetStatus(NodeStatus.Unexecuted, "*");
                             base.CheckTokenCancel(token);
 
-                            //await EnsureModelReadyAsync(param);
                             LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测开始{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                             // 清空上次检测结果
                             res.AlgorithmResult.Clear();
 
                             // 获取图像
-                            OutputImage inputImage = form.GetOutputImage();
+                            inputImage = form.GetOutputImage();
 
                             LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测,图像获取完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                            LogHelper.AddLog(MsgLevel.Info, $"流程{Process.ProcessName}AI检测输入图像摘要：订阅({param.Text1}-{param.Text2})，{BuildOutputImageSummary(inputImage)}", true);
+                            EnsureInputImageReady(inputImage, param);
+                            LogHelper.AddLog(MsgLevel.Info, $"流程{Process.ProcessName}AI检测模型检查开始：{BuildModelSummary(param)}", true);
+                            await EnsureModelReadyAsync(param);
+                            LogHelper.AddLog(MsgLevel.Info, $"流程{Process.ProcessName}AI检测模型检查通过：{BuildModelSummary(param)}", true);
 
                             #region 通信获取对应检测项的配置(不是使用固定检测项时)
                             // terminalType端子型号、wireType电线型号、waterproofType防水栓型号
@@ -309,15 +314,152 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         }
                         catch (Exception ex)
                         {
-                            LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
+                            LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}；模型状态：{BuildModelSummary(param)}；输入图像：{BuildOutputImageSummary(inputImage)}", true);
+                            LogHelper.AddLog(MsgLevel.Debug, $"节点({ID}.{NodeName})运行失败堆栈：{ex}", true);
                             int time = SetRunResult(startTime, NodeStatus.Failed);
                             Result.RunTime = time;
-                            throw new Exception($"节点({ID}.{NodeName})运行失败！原因:{ex.Message}");
+                            throw new Exception($"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", ex);
                         }
                     }
                 }
             }
             return new NodeReturn(NodeRunFlag.StopRun);
+        }
+
+        /// <summary>
+        /// 校验AI输入图像是否包含至少一张可读图像，并修正旧输出中可能为空的矩形列表。
+        /// </summary>
+        /// <param name="inputImage">上游订阅得到的图像输出。</param>
+        /// <param name="param">当前AI节点参数。</param>
+        private static void EnsureInputImageReady(OutputImage inputImage, NodeParamTDAI param)
+        {
+            string subscriptionText = BuildSubscriptionText(param);
+            if (inputImage == null)
+                throw new Exception($"AI输入图像为空，订阅：{subscriptionText}，请检查上游节点是否运行成功！");
+
+            if (inputImage.Bitmaps == null)
+                throw new Exception($"AI输入图像列表为空，订阅：{subscriptionText}，请检查上游图像输出！");
+
+            if (inputImage.Bitmaps.Count == 0)
+                throw new Exception($"AI输入图像数量为0，订阅：{subscriptionText}，请检查上游图像输出！");
+
+            if (!OutputImage.HasValidImage(inputImage.Bitmaps[0]))
+                throw new Exception($"AI输入图像无有效像素，订阅：{subscriptionText}，图像摘要：{BuildOutputImageSummary(inputImage)}");
+
+            if (inputImage.Rectangles == null)
+            {
+                inputImage.Rectangles = new List<OpenCvSharp.Rect>();
+                LogHelper.AddLog(MsgLevel.Warn, $"AI输入图像矩形列表为空，订阅：{subscriptionText}，已按无ROI偏移处理。", true);
+            }
+
+            if (inputImage.Rectangles.Count > 0 && inputImage.Rectangles.Count < inputImage.Bitmaps.Count)
+            {
+                throw new Exception(
+                    $"AI输入图像数量({inputImage.Bitmaps.Count})大于ROI数量({inputImage.Rectangles.Count})，订阅：{subscriptionText}，请检查上游裁剪或分割节点！");
+            }
+        }
+
+        /// <summary>
+        /// 构建AI输入图像摘要，避免只看到空引用而无法判断是哪一路图像为空。
+        /// </summary>
+        /// <param name="inputImage">上游订阅得到的图像输出。</param>
+        /// <returns>图像尺寸、列表数量和ROI数量摘要。</returns>
+        private static string BuildOutputImageSummary(OutputImage inputImage)
+        {
+            if (inputImage == null)
+                return "OutputImage=null";
+
+            int bitmapCount = inputImage.Bitmaps == null ? -1 : inputImage.Bitmaps.Count;
+            int rectangleCount = inputImage.Rectangles == null ? -1 : inputImage.Rectangles.Count;
+            string firstBitmap = bitmapCount > 0 ? FormatMat(inputImage.Bitmaps[0]) : "无";
+            string firstRectangle = rectangleCount > 0 ? FormatRect(inputImage.Rectangles[0]) : "无";
+
+            return $"SrcImg={FormatMat(inputImage.SrcImg)}，GrayImg={FormatMat(inputImage.GrayImg)}，Bitmaps数量={FormatCount(bitmapCount)}，Bitmaps[0]={firstBitmap}，Rectangles数量={FormatCount(rectangleCount)}，Rectangles[0]={firstRectangle}";
+        }
+
+        /// <summary>
+        /// 构建AI模型加载状态摘要，用于区分模型未加载、加载失败和模型类型不匹配。
+        /// </summary>
+        /// <param name="param">当前AI节点参数。</param>
+        /// <returns>模型路径、句柄、加载任务和最后错误摘要。</returns>
+        private static string BuildModelSummary(NodeParamTDAI param)
+        {
+            if (param == null)
+                return "参数=null";
+
+            string configModelType = param.AIInputInfo == null ? "配置未加载" : param.AIInputInfo.ModelInfo.ModelType.ToString();
+            string configModelPath = param.AIInputInfo == null ? "配置未加载" : param.AIInputInfo.ModelInfo.ModelPath;
+            string handleModelType = param.Yolo8 == null ? "句柄=null" : param.Yolo8.ModelType.ToString();
+            string loadedPath = string.IsNullOrWhiteSpace(param.LoadedModelPath) ? "空" : param.LoadedModelPath;
+            string loadError = string.IsNullOrWhiteSpace(param.LastModelLoadError) ? "无" : param.LastModelLoadError;
+
+            return $"配置路径={param.ConfigPath ?? "空"}，模型路径={configModelPath ?? "空"}，配置类型={configModelType}，句柄类型={handleModelType}，加载任务={FormatTaskStatus(param.ModelLoadTask)}，已加载路径={loadedPath}，最后加载错误={loadError}";
+        }
+
+        /// <summary>
+        /// 格式化图像尺寸和通道数。
+        /// </summary>
+        /// <param name="image">待格式化的图像。</param>
+        /// <returns>图像可读状态摘要。</returns>
+        private static string FormatMat(OpenCvSharp.Mat image)
+        {
+            if (image == null)
+                return "null";
+
+            try
+            {
+                if (image.Empty())
+                    return "空Mat";
+
+                return $"{image.Width}x{image.Height}x{image.Channels()}";
+            }
+            catch (Exception ex)
+            {
+                return $"不可读({ex.Message})";
+            }
+        }
+
+        /// <summary>
+        /// 格式化ROI矩形范围。
+        /// </summary>
+        /// <param name="rect">待格式化的ROI矩形。</param>
+        /// <returns>矩形坐标和尺寸。</returns>
+        private static string FormatRect(OpenCvSharp.Rect rect)
+        {
+            return $"X={rect.X},Y={rect.Y},W={rect.Width},H={rect.Height}";
+        }
+
+        /// <summary>
+        /// 格式化列表数量，-1表示列表对象本身为空。
+        /// </summary>
+        /// <param name="count">列表数量。</param>
+        /// <returns>数量文本。</returns>
+        private static string FormatCount(int count)
+        {
+            return count < 0 ? "null" : count.ToString();
+        }
+
+        /// <summary>
+        /// 格式化模型加载任务状态。
+        /// </summary>
+        /// <param name="task">模型加载任务。</param>
+        /// <returns>任务状态文本。</returns>
+        private static string FormatTaskStatus(Task task)
+        {
+            return task == null ? "null" : task.Status.ToString();
+        }
+
+        /// <summary>
+        /// 获取当前AI节点订阅来源文本。
+        /// </summary>
+        /// <param name="param">当前AI节点参数。</param>
+        /// <returns>订阅来源文本。</returns>
+        private static string BuildSubscriptionText(NodeParamTDAI param)
+        {
+            if (param == null)
+                return "参数=null";
+
+            return $"{param.Text1 ?? "空"}-{param.Text2 ?? "空"}";
         }
 
         /// <summary>

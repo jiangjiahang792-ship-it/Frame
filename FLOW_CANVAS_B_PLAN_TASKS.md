@@ -20,6 +20,11 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-09 中心端子侧面AI节点空引用诊断：
+  - [x] 新反馈已记录：中心端子侧面流程运行时，133与142的AI检测节点会在图像获取和模型推理之间直接空引用失败，需要判断是否为141/134裁剪输出空图或AI模型未加载。
+  - [x] `NodeTDAI` 已恢复运行前AI模型就绪等待与校验，避免 `Yolo8` 句柄为空时直接触发空引用。
+  - [x] `NodeTDAI` 已增加输入图像摘要日志，记录订阅来源、原图、灰度图、`Bitmaps[0]`、ROI数量和首个ROI范围。
+  - [x] `NodeTDAI` 失败日志已追加模型状态与输入图像摘要，下一次现场日志可直接区分图像为空、模型未加载、模型类型不匹配等原因。
 - 2026-06-08 临时断线订阅保留与自动恢复：
   - [x] 新反馈已记录：流程中间断线、删除中间连接或插入新节点后重新连接时，下游节点应自动恢复到原来的订阅对象。
   - [x] 已撤回误方向的“拖拽落点替换节点”实现，避免流程编辑时出现额外替换弹窗。
@@ -1489,3 +1494,23 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] Add average/min/max line distance and distance point count to the `LineLineAngle` result for checking whether the measured point set itself is stable.
 - [x] Correct the point-set reader so geometry-generation helper points such as `LineMergeFit` parallel-center source points are not treated as output-line points by downstream line-line measurement.
 - [x] Build-verified the point-set stability trial with MSBuild on 2026-06-08, 0 errors; existing warnings remain.
+
+## 2026-06-08: Image Preprocess Node
+
+- [x] Add `ImagePreprocess` under `Node/2-ImagePreprocessing` with `emphasize` edge enhancement, `texture_laws` texture filtering, and median filtering modes.
+- [x] Add a WinForms parameter form with image subscription, preview, mode selection, and per-mode parameters; the preview uses the same image display control family as measurement tools.
+- [x] Register the node in `NodeType`, node factories/editors, toolbox XML, language files, canvas coloring, and project compile items.
+- [x] Build-verified the image preprocess node with MSBuild on 2026-06-08, 0 errors; existing warnings remain.
+- [x] 2026-06-09 修正：流程编辑画布增加 `DragOver` 接收状态保持，并放宽工具箱拖拽启动判断，避免新预处理工具卡片拖不到流程编辑区。
+- [x] Build-verified the preprocess toolbox drag fix with MSBuild on 2026-06-09, 0 errors; existing warnings remain.
+
+## 2026-06-09: LineLineAngle ROI Display Extension
+
+- [x] Extend `LineLineAngle` display ROI lines to the input image boundary, so the two measured lines visibly meet at the intersection point instead of only showing short fitted segments.
+- [x] Add a larger orange intersection marker with crosshair overlay for execution preview and downstream display results.
+
+## 2026-06-10: LineLineAngle Angle Annotation and LineMergeFit Preview
+
+- [x] Add generic arc ROI support to `AlgorithmResult` and `ShowImageControl`, so angle-style overlays can render in both preview and output display paths.
+- [x] Let `LineLineAngle` draw a red included-angle arc and `α=角度°` label near the intersection point when the measurement succeeds.
+- [x] Fix `LineMergeFit` preview image lookup by falling back from subscribed line-node output images to their nearest upstream image source or preprocessing output.

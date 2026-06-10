@@ -10,6 +10,7 @@ using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop;
+using TDJS_Vision.Node._2_ImagePreprocessing.ImagePreprocess;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit;
 using TDJS_Vision.Node._3_Detection.BatteryEar;
@@ -483,6 +484,16 @@ namespace TDJS_Vision.Forms.ProcessNew
         }
 
         /// <summary>
+        /// 拖拽经过流程画布时持续声明可接收状态，避免部分控件切换焦点后丢失 Drop 效果。
+        /// </summary>
+        /// <param name="sender">事件发送方。</param>
+        /// <param name="e">拖拽事件参数。</param>
+        private void NodeEditPanel_DragOver(object sender, DragEventArgs e)
+        {
+            NodeEditPanel_DragEnter(sender, e);
+        }
+
+        /// <summary>
         /// 拖拽放下
         /// </summary>
         /// <param name="sender"></param>
@@ -674,6 +685,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.ImageSplit:
                     node = new NodeImageSplit(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.ImagePreprocess:
+                    node = new NodeImagePreprocess(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.QRScan:
                     node = new NodeQRScan(nodeId, nodeName, _process, nodeType);

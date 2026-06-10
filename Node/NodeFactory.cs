@@ -1,6 +1,7 @@
 using System;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop;
+using TDJS_Vision.Node._2_ImagePreprocessing.ImagePreprocess;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit;
 using TDJS_Vision.Node._3_Detection.BatteryEar;
@@ -143,6 +144,8 @@ namespace TDJS_Vision.Node
                     return new NodeImageSource(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageSplit:
                     return new NodeImageSplit(nodeId, nodeName, process, nodeType);
+                case NodeType.ImagePreprocess:
+                    return new NodeImagePreprocess(nodeId, nodeName, process, nodeType);
                 case NodeType.QRScan:
                     return new NodeQRScan(nodeId, nodeName, process, nodeType);
                 case NodeType.MatchTemplate:

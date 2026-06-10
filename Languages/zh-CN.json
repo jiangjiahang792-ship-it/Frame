@@ -266,6 +266,7 @@
   "ProcessNew.NodeType.CameraIO": "相机IO",
   "ProcessNew.NodeType.ImageSource": "图像源",
   "ProcessNew.NodeType.ImageSplit": "图像分割",
+  "ProcessNew.NodeType.ImagePreprocess": "图像预处理",
   "ProcessNew.NodeType.QRScan": "二维码识别",
   "ProcessNew.NodeType.MatchTemplate": "模版匹配",
   "ProcessNew.NodeType.ImageFileDelete": "定期删除图片",

@@ -168,6 +168,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         {
             var stopwatch = Stopwatch.StartNew();
             var result = new LineLineAngleMeasureResult();
+            CaptureDisplayImageSize(result);
 
             LineMeasurementInput input1;
             LineMeasurementInput input2;
@@ -431,6 +432,19 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         {
             OutputImage outputImage = nodeSubscriptionImage.GetValue<OutputImage>();
             return MeasurementNodeHelper.GetReadOnlyPreviewMat(outputImage);
+        }
+
+        /// <summary>
+        /// 记录当前输入图像尺寸，供结果 ROI 将测量线延长并裁剪到图像边界。
+        /// </summary>
+        private void CaptureDisplayImageSize(LineLineAngleMeasureResult result)
+        {
+            if (result == null)
+                return;
+
+            Mat preview = GetPreviewMat();
+            result.DisplayImageWidth = preview.Width;
+            result.DisplayImageHeight = preview.Height;
         }
 
         private LineMeasurementInput ReadSubscribedLineInput(NodeSubscription subscription, string name)

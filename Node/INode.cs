@@ -457,5 +457,9 @@ namespace TDJS_Vision.Node
         /// ROI结果绘制2
         /// </summary>
         ResultOverlayDraw2,
+        /// <summary>
+        /// 图像预处理
+        /// </summary>
+        ImagePreprocess,
     }
 }

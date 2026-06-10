@@ -266,6 +266,7 @@
   "ProcessNew.NodeType.CameraIO": "Camera IO",
   "ProcessNew.NodeType.ImageSource": "Image Source",
   "ProcessNew.NodeType.ImageSplit": "Image Split",
+  "ProcessNew.NodeType.ImagePreprocess": "Image Preprocess",
   "ProcessNew.NodeType.QRScan": "QR Recognition",
   "ProcessNew.NodeType.MatchTemplate": "Template Match",
   "ProcessNew.NodeType.ImageFileDelete": "Scheduled Image Deletion",

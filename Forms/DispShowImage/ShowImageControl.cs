@@ -428,6 +428,22 @@ namespace TDJS_Vision.Forms.DispShowImage
                 }
             }
 
+            if (displayResult.Arcs != null)
+            {
+                foreach (var arc in displayResult.Arcs)
+                {
+                    if (arc == null)
+                        continue;
+
+                    rois.Add(new RoiArc(arc.Center.X, arc.Center.Y, arc.Radius, arc.StartAngle, arc.SweepAngle)
+                    {
+                        ShapeColor = arc.Color,
+                        StrokeWidth = arc.LineWidth,
+                        IsStatic = true
+                    });
+                }
+            }
+
             if (displayResult.Ellipses != null)
             {
                 foreach (var ellipse in displayResult.Ellipses)
@@ -460,7 +476,17 @@ namespace TDJS_Vision.Forms.DispShowImage
 
             if (displayResult.Texts != null && displayResult.Texts.Count > 0)
             {
-                foreach (var group in displayResult.Texts.Where(t => t != null).GroupBy(t => new { t.Position, t.FontSize, t.Margin, t.Title }))
+                foreach (ColorText text in displayResult.Texts.Where(t => t != null && t.UseImagePosition))
+                {
+                    rois.Add(new RoiTextBlock(
+                        text.Title,
+                        new List<(string text, Color color)> { (text.Text, text.Color) },
+                        text.ImagePosition.X,
+                        text.ImagePosition.Y,
+                        Math.Max(1, text.FontSize)));
+                }
+
+                foreach (var group in displayResult.Texts.Where(t => t != null && !t.UseImagePosition).GroupBy(t => new { t.Position, t.FontSize, t.Margin, t.Title }))
                 {
                     rois.Add(new RoiTextBlock(
                         group.Key.Title,
@@ -991,6 +1017,65 @@ namespace TDJS_Vision.Forms.DispShowImage
             public int HitTest(Point p, float s, PointF o) { if (IsStatic) return -1; float dist = (float)Math.Sqrt(Math.Pow(p.X - (CX * s + o.X), 2) + Math.Pow(p.Y - (CY * s + o.Y), 2)); if (Math.Abs(dist - R * s) < 8) return 1; return dist < R * s ? 0 : -1; }
             public void BeginDrag(PointF p) { _sPt = p; _oCX = CX; _oCY = CY; _oR = R; }
             public void DragTo(PointF p, int h) { if (h == 0) { CX = _oCX + p.X - _sPt.X; CY = _oCY + p.Y - _sPt.Y; } else { R = Math.Max(5, (float)Math.Sqrt(Math.Pow(p.X - CX, 2) + Math.Pow(p.Y - CY, 2))); } }
+        }
+
+        /// <summary>
+        /// 静态圆弧 ROI，用于夹角、方向等结果标注。
+        /// </summary>
+        public class RoiArc : IRoiShape
+        {
+            /// <summary>
+            /// 圆心、半径、起始角和扫描角，均使用图像坐标系。
+            /// </summary>
+            public float CX, CY, Radius, StartAngle, SweepAngle;
+            public bool IsSelected { get; set; }
+            public bool IsStatic { get; set; } = true;
+            public string Label { get; set; }
+            public Color ShapeColor { get; set; } = Color.Red;
+            public float StrokeWidth { get; set; } = 2F;
+
+            /// <summary>
+            /// 创建静态圆弧 ROI。
+            /// </summary>
+            public RoiArc(float cx, float cy, float radius, float startAngle, float sweepAngle)
+            {
+                CX = cx;
+                CY = cy;
+                Radius = radius;
+                StartAngle = startAngle;
+                SweepAngle = sweepAngle;
+            }
+
+            public PointF GetCenter() => new PointF(CX, CY);
+
+            /// <summary>
+            /// 按当前图像缩放和偏移绘制圆弧。
+            /// </summary>
+            public void Draw(Graphics g, float s, PointF o)
+            {
+                float scaledRadius = Radius * s;
+                if (scaledRadius <= 0.5F || Math.Abs(SweepAngle) <= 0.1F)
+                    return;
+
+                PointF screenCenter = new PointF(CX * s + o.X, CY * s + o.Y);
+                using (Pen pen = new Pen(ShapeColor, Math.Max(1F, StrokeWidth)))
+                {
+                    pen.StartCap = LineCap.Round;
+                    pen.EndCap = LineCap.Round;
+                    g.DrawArc(
+                        pen,
+                        screenCenter.X - scaledRadius,
+                        screenCenter.Y - scaledRadius,
+                        scaledRadius * 2F,
+                        scaledRadius * 2F,
+                        StartAngle,
+                        SweepAngle);
+                }
+            }
+
+            public int HitTest(Point p, float s, PointF o) => -1;
+            public void BeginDrag(PointF p) { }
+            public void DragTo(PointF p, int h) { }
         }
 
         public class RoiPolygon : IRoiShape

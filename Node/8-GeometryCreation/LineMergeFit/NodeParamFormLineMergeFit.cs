@@ -204,6 +204,18 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
             if (image != null && !image.Empty())
                 return image;
 
+            image = TryCloneNearestUpstreamOutputImage(nodeSubscriptionLine1);
+            if (image != null && !image.Empty())
+                return image;
+
+            image = TryCloneNearestUpstreamOutputImage(nodeSubscriptionLine2);
+            if (image != null && !image.Empty())
+                return image;
+
+            image = TryCloneNearestCurrentUpstreamOutputImage();
+            if (image != null && !image.Empty())
+                return image;
+
             return new Mat();
         }
 
@@ -215,19 +227,75 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
             try
             {
                 NodeBase sourceNode = subscription.GetSelectedNode();
-                OutputImage outputImage = TryGetOutputImage(sourceNode.Result);
-                if (outputImage != null &&
-                    outputImage.Bitmaps != null &&
-                    outputImage.Bitmaps.Count > 0 &&
-                    outputImage.Bitmaps[0] != null &&
-                    !outputImage.Bitmaps[0].Empty())
-                {
-                    return outputImage.Bitmaps[0].Clone();
-                }
+                return TryCloneOutputImage(sourceNode);
             }
             catch
             {
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// 从指定节点结果克隆第一张可预览图像。
+        /// </summary>
+        private static Mat TryCloneOutputImage(NodeBase sourceNode)
+        {
+            try
+            {
+                if (sourceNode == null)
+                    return null;
+
+                OutputImage outputImage = TryGetOutputImage(sourceNode.Result);
+                if (outputImage == null)
+                    return null;
+
+                Mat preview = MeasurementNodeHelper.GetReadOnlyPreviewMat(outputImage);
+                return preview == null || preview.Empty() ? null : preview.Clone();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 从订阅线节点的最近上游节点中查找可预览图像。
+        /// </summary>
+        private static Mat TryCloneNearestUpstreamOutputImage(NodeSubscription subscription)
+        {
+            try
+            {
+                NodeBase sourceNode = subscription.GetSelectedNode();
+                return TryCloneNearestUpstreamOutputImage(sourceNode);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 从当前线组合拟合节点的最近上游节点中查找可预览图像。
+        /// </summary>
+        private Mat TryCloneNearestCurrentUpstreamOutputImage()
+        {
+            return TryCloneNearestUpstreamOutputImage(node);
+        }
+
+        /// <summary>
+        /// 按流程显示顺序反向扫描上游节点，优先取得离目标节点更近的图像。
+        /// </summary>
+        private static Mat TryCloneNearestUpstreamOutputImage(NodeBase targetNode)
+        {
+            if (targetNode == null || targetNode.Process == null)
+                return null;
+
+            List<NodeBase> upstreamNodes = targetNode.Process.GetUpstreamNodes(targetNode);
+            for (int index = upstreamNodes.Count - 1; index >= 0; index--)
+            {
+                Mat image = TryCloneOutputImage(upstreamNodes[index]);
+                if (image != null && !image.Empty())
+                    return image;
             }
 
             return null;

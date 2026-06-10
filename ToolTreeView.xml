@@ -12,6 +12,7 @@
         <Node Text="图像裁剪" ImageName="图像裁剪" Tag="ImageCrop" SelectedImageName="图像裁剪" />
         <Node Text="图像旋转" ImageName="图像旋转" Tag="ImageRotate" SelectedImageName="图像旋转" />
         <Node Text="图像分割" ImageName="图像分割" Tag="ImageSplit" SelectedImageName="图像分割" />
+        <Node Text="图像预处理" ImageName="图像处理" Tag="ImagePreprocess" SelectedImageName="图像处理" />
       </Nodes>
     </Node>
     <Node Text="检测识别" ImageName="检测识别" Tag="UNKNOWN" SelectedImageName="检测识别">

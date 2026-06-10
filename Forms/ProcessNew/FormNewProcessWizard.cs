@@ -549,6 +549,8 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             if (!m_MouseDown || nodeToDrag == null || !(nodeToDrag.Tag is NodeType nodeType))
                 return;
+            if (nodeType == NodeType.UNKNOWN)
+                return;
 
             DataObject dragData = new DataObject(DragDataFormat, new DragData(nodeToDrag.Text, nodeType));
             DoDragDrop(dragData, DragDropEffects.Move);
@@ -791,6 +793,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.ImageCrop:
                 case NodeType.ImageRotate:
                 case NodeType.ImageSplit:
+                case NodeType.ImagePreprocess:
                     return Color.FromArgb(18, 132, 219);
                 case NodeType.AITD:
                 case NodeType.LineFind:
@@ -876,6 +879,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return "RT";
                 case NodeType.ImageSplit:
                     return "SP";
+                case NodeType.ImagePreprocess:
+                    return "PR";
                 case NodeType.AITD:
                     return "AI";
                 case NodeType.LineFind:
@@ -1043,7 +1048,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 nodeToDrag = treeView1.GetNodeAt(e.X, e.Y);
                 treeView1.SelectedNode = nodeToDrag;
 
-                if (nodeToDrag != null && nodeToDrag.Level == 1)
+                if (nodeToDrag != null &&
+                    nodeToDrag.Tag is NodeType nodeType &&
+                    nodeType != NodeType.UNKNOWN)
                 {
                     m_MouseDown = true;
                 }

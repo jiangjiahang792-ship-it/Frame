@@ -1118,6 +1118,18 @@
     </Compile>
     <Compile Include="Node\2-ImagePreprocessing\ImageCrop\NodeParamImageCrop.cs" />
     <Compile Include="Node\2-ImagePreprocessing\ImageCrop\NodeResultImageCrop.cs" />
+    <Compile Include="Node\2-ImagePreprocessing\ImagePreprocess\ImagePreprocessAlgorithm.cs" />
+    <Compile Include="Node\2-ImagePreprocessing\ImagePreprocess\NodeImagePreprocess.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\2-ImagePreprocessing\ImagePreprocess\NodeParamFormImagePreprocess.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\2-ImagePreprocessing\ImagePreprocess\NodeParamFormImagePreprocess.Designer.cs">
+      <DependentUpon>NodeParamFormImagePreprocess.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\2-ImagePreprocessing\ImagePreprocess\NodeParamImagePreprocess.cs" />
+    <Compile Include="Node\2-ImagePreprocessing\ImagePreprocess\NodeResultImagePreprocess.cs" />
     <Compile Include="Node\2-ImagePreprocessing\ImageRotate\NodeImageRotate.cs">
       <SubType>UserControl</SubType>
     </Compile>

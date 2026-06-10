@@ -56,6 +56,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// </summary>
         public List<ColorCircle> Circles { get; set; } = new List<ColorCircle>();
         /// <summary>
+        /// 带颜色的圆弧，供角度、方向等局部标注复用。
+        /// </summary>
+        public List<ColorArc> Arcs { get; set; } = new List<ColorArc>();
+        /// <summary>
         /// 带颜色的椭圆
         /// </summary>
         public List<ColorEllipse> Ellipses { get; set; } = new List<ColorEllipse>();
@@ -72,6 +76,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             Texts.Clear();
             Lines.Clear();
             Circles.Clear();
+            Arcs.Clear();
             Ellipses.Clear();
             Contours.Clear();
             _isAllOkOverride = null;
@@ -201,6 +206,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         public DisplayTextPosition Position { get; set; } = DisplayTextPosition.TopLeft;
         public int Margin { get; set; } = 10;
         public string Title { get; set; } = "Result";
+        /// <summary>
+        /// 是否按图像坐标显示文本；为 false 时按四角信息栏显示。
+        /// </summary>
+        public bool UseImagePosition { get; set; }
+        /// <summary>
+        /// 文本左上角图像坐标，UseImagePosition 为 true 时生效。
+        /// </summary>
+        public PointF ImagePosition { get; set; }
 
         public ColorText(string text, Color color)
         {
@@ -254,6 +267,49 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         {
             Center = new PointF(circle.Center.X, circle.Center.Y);
             Radius = circle.Radius;
+            Color = color;
+        }
+    }
+
+    /// <summary>
+    /// 带颜色的圆弧。
+    /// </summary>
+    public class ColorArc
+    {
+        /// <summary>
+        /// 圆弧圆心。
+        /// </summary>
+        public PointF Center { get; set; }
+        /// <summary>
+        /// 圆弧半径。
+        /// </summary>
+        public float Radius { get; set; }
+        /// <summary>
+        /// 起始角度，单位为度，遵循图像坐标系。
+        /// </summary>
+        public float StartAngle { get; set; }
+        /// <summary>
+        /// 扫描角度，单位为度，正值沿图像坐标顺时针方向。
+        /// </summary>
+        public float SweepAngle { get; set; }
+        /// <summary>
+        /// 绘制颜色。
+        /// </summary>
+        public Color Color { get; set; }
+        /// <summary>
+        /// 显示叠加层线宽。
+        /// </summary>
+        public float LineWidth { get; set; } = 2F;
+
+        /// <summary>
+        /// 创建带颜色的圆弧结果。
+        /// </summary>
+        public ColorArc(PointF center, float radius, float startAngle, float sweepAngle, Color color)
+        {
+            Center = center;
+            Radius = radius;
+            StartAngle = startAngle;
+            SweepAngle = sweepAngle;
             Color = color;
         }
     }

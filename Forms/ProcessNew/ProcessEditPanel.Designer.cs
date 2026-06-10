@@ -220,6 +220,7 @@
             this.panelCanvasHost.TabIndex = 1;
             this.panelCanvasHost.DragDrop += new System.Windows.Forms.DragEventHandler(this.NodeEditPanel_DragDrop);
             this.panelCanvasHost.DragEnter += new System.Windows.Forms.DragEventHandler(this.NodeEditPanel_DragEnter);
+            this.panelCanvasHost.DragOver += new System.Windows.Forms.DragEventHandler(this.NodeEditPanel_DragOver);
             //
             // processFlowCanvas
             //
@@ -234,6 +235,7 @@
             this.processFlowCanvas.TabIndex = 1;
             this.processFlowCanvas.DragDrop += new System.Windows.Forms.DragEventHandler(this.NodeEditPanel_DragDrop);
             this.processFlowCanvas.DragEnter += new System.Windows.Forms.DragEventHandler(this.NodeEditPanel_DragEnter);
+            this.processFlowCanvas.DragOver += new System.Windows.Forms.DragEventHandler(this.NodeEditPanel_DragOver);
             //
             // imagePreviewOverlay
             //
@@ -504,6 +506,7 @@
             this.Size = new System.Drawing.Size(616, 770);
             this.DragDrop += new System.Windows.Forms.DragEventHandler(this.NodeEditPanel_DragDrop);
             this.DragEnter += new System.Windows.Forms.DragEventHandler(this.NodeEditPanel_DragEnter);
+            this.DragOver += new System.Windows.Forms.DragEventHandler(this.NodeEditPanel_DragOver);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();
             this.panelCanvasHost.ResumeLayout(false);

@@ -42,9 +42,6 @@ namespace TDJS_Vision.Device.Modbus
 
                 ModbusRTUParam modbusRTUParam = (ModbusRTUParam)ModbusParam;
 
-
-
-
                 _pipe.SerialPortInni(
                     portName: modbusRTUParam.PortName,
                     baudRate: modbusRTUParam.BaudRate,
