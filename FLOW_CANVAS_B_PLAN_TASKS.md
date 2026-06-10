@@ -1521,3 +1521,9 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] Add per-node `OutputLog` switch, default enabled and compatible with old solution files.
 - [x] Add node right-click menu item `是否输出日志` for batch toggling selected nodes.
 - [x] Route node execution through `Process.ShowLog && node.OutputLog`, while keeping process start/end logs controlled by the process-level switch.
+
+## 2026-06-10: ROI Missing Result NG Prompt
+
+- [x] Let `ResultOverlayDraw` and `ResultOverlayDraw2` add red `未查到` text when an enabled item cannot read its subscription or has no drawable geometry.
+- [x] Keep failure-tolerant ROI drawing visible so downstream image display can still show partial overlays plus explicit NG missing-result prompts.
+- [x] Set `CaliperLine` `JudgeOk` from the actual measure success state, so failed line searches feed NG color decisions correctly.

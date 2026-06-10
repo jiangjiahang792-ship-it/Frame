@@ -100,7 +100,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // tableLayoutPanelRoot
             // 
             this.tableLayoutPanelRoot.ColumnCount = 2;
-            this.tableLayoutPanelRoot.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 523F));
+            this.tableLayoutPanelRoot.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 638F));
             this.tableLayoutPanelRoot.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
             this.tableLayoutPanelRoot.Controls.Add(this.tableLayoutPanelLeft, 0, 0);
             this.tableLayoutPanelRoot.Controls.Add(this.groupBoxPreview, 1, 0);
@@ -111,7 +111,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.tableLayoutPanelRoot.Padding = new System.Windows.Forms.Padding(11, 12, 11, 12);
             this.tableLayoutPanelRoot.RowCount = 1;
             this.tableLayoutPanelRoot.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanelRoot.Size = new System.Drawing.Size(1346, 860);
+            this.tableLayoutPanelRoot.Size = new System.Drawing.Size(1548, 965);
             this.tableLayoutPanelRoot.TabIndex = 0;
             // 
             // tableLayoutPanelLeft
@@ -128,10 +128,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.tableLayoutPanelLeft.Name = "tableLayoutPanelLeft";
             this.tableLayoutPanelLeft.RowCount = 4;
             this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 110F));
-            this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 220F));
+            this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 300F));
             this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
             this.tableLayoutPanelLeft.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 62F));
-            this.tableLayoutPanelLeft.Size = new System.Drawing.Size(517, 828);
+            this.tableLayoutPanelLeft.Size = new System.Drawing.Size(632, 933);
             this.tableLayoutPanelLeft.TabIndex = 0;
             // 
             // groupBoxImage
@@ -142,7 +142,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.groupBoxImage.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxImage.Name = "groupBoxImage";
             this.groupBoxImage.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
-            this.groupBoxImage.Size = new System.Drawing.Size(511, 102);
+            this.groupBoxImage.Size = new System.Drawing.Size(626, 102);
             this.groupBoxImage.TabIndex = 0;
             this.groupBoxImage.TabStop = false;
             this.groupBoxImage.Text = "输入图像";
@@ -154,7 +154,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.nodeSubscriptionImage.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.nodeSubscriptionImage.MinimumSize = new System.Drawing.Size(292, 60);
             this.nodeSubscriptionImage.Name = "nodeSubscriptionImage";
-            this.nodeSubscriptionImage.Size = new System.Drawing.Size(477, 67);
+            this.nodeSubscriptionImage.Size = new System.Drawing.Size(592, 67);
             this.nodeSubscriptionImage.TabIndex = 0;
             // 
             // groupBoxItems
@@ -165,7 +165,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.groupBoxItems.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxItems.Name = "groupBoxItems";
             this.groupBoxItems.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
-            this.groupBoxItems.Size = new System.Drawing.Size(511, 244);
+            this.groupBoxItems.Size = new System.Drawing.Size(626, 292);
             this.groupBoxItems.TabIndex = 1;
             this.groupBoxItems.TabStop = false;
             this.groupBoxItems.Text = "绘制项";
@@ -183,7 +183,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.tableLayoutPanelItems.RowCount = 2;
             this.tableLayoutPanelItems.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 48F));
             this.tableLayoutPanelItems.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanelItems.Size = new System.Drawing.Size(505, 215);
+            this.tableLayoutPanelItems.Size = new System.Drawing.Size(620, 263);
             this.tableLayoutPanelItems.TabIndex = 0;
             // 
             // flowLayoutPanelAdd
@@ -197,7 +197,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.flowLayoutPanelAdd.Location = new System.Drawing.Point(3, 4);
             this.flowLayoutPanelAdd.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.flowLayoutPanelAdd.Name = "flowLayoutPanelAdd";
-            this.flowLayoutPanelAdd.Size = new System.Drawing.Size(499, 40);
+            this.flowLayoutPanelAdd.Size = new System.Drawing.Size(614, 40);
             this.flowLayoutPanelAdd.TabIndex = 0;
             // 
             // buttonAddText
@@ -278,7 +278,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.dataGridViewItems.RowHeadersWidth = 51;
             this.dataGridViewItems.RowTemplate.Height = 27;
             this.dataGridViewItems.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
-            this.dataGridViewItems.Size = new System.Drawing.Size(499, 159);
+            this.dataGridViewItems.Size = new System.Drawing.Size(614, 207);
             this.dataGridViewItems.TabIndex = 1;
             this.dataGridViewItems.SelectionChanged += new System.EventHandler(this.dataGridViewItems_SelectionChanged);
             // 
@@ -326,11 +326,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.groupBoxItemSetting.Controls.Add(this.tableLayoutPanelSetting);
             this.groupBoxItemSetting.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.groupBoxItemSetting.Location = new System.Drawing.Point(3, 334);
+            this.groupBoxItemSetting.Location = new System.Drawing.Point(3, 414);
             this.groupBoxItemSetting.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxItemSetting.Name = "groupBoxItemSetting";
             this.groupBoxItemSetting.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
-            this.groupBoxItemSetting.Size = new System.Drawing.Size(511, 428);
+            this.groupBoxItemSetting.Size = new System.Drawing.Size(626, 453);
             this.groupBoxItemSetting.TabIndex = 2;
             this.groupBoxItemSetting.TabStop = false;
             this.groupBoxItemSetting.Text = "当前项";
@@ -375,7 +375,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 31F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 31F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 31F));
-            this.tableLayoutPanelSetting.Size = new System.Drawing.Size(505, 399);
+            this.tableLayoutPanelSetting.Size = new System.Drawing.Size(620, 424);
             this.tableLayoutPanelSetting.TabIndex = 0;
             // 
             // labelEnabled
@@ -420,7 +420,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.comboBoxItemType.Location = new System.Drawing.Point(113, 33);
             this.comboBoxItemType.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxItemType.Name = "comboBoxItemType";
-            this.comboBoxItemType.Size = new System.Drawing.Size(389, 26);
+            this.comboBoxItemType.Size = new System.Drawing.Size(504, 26);
             this.comboBoxItemType.TabIndex = 3;
             this.comboBoxItemType.SelectedIndexChanged += new System.EventHandler(this.ItemControl_ValueChanged);
             // 
@@ -440,7 +440,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.textBoxName.Location = new System.Drawing.Point(113, 67);
             this.textBoxName.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxName.Name = "textBoxName";
-            this.textBoxName.Size = new System.Drawing.Size(389, 28);
+            this.textBoxName.Size = new System.Drawing.Size(504, 28);
             this.textBoxName.TabIndex = 5;
             this.textBoxName.TextChanged += new System.EventHandler(this.ItemControl_ValueChanged);
             // 
@@ -461,7 +461,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.nodeSubscriptionSource.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.nodeSubscriptionSource.MinimumSize = new System.Drawing.Size(292, 60);
             this.nodeSubscriptionSource.Name = "nodeSubscriptionSource";
-            this.nodeSubscriptionSource.Size = new System.Drawing.Size(389, 60);
+            this.nodeSubscriptionSource.Size = new System.Drawing.Size(504, 60);
             this.nodeSubscriptionSource.TabIndex = 7;
             // 
             // labelManualText
@@ -491,7 +491,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.tableLayoutPanelManual.Name = "tableLayoutPanelManual";
             this.tableLayoutPanelManual.RowCount = 1;
             this.tableLayoutPanelManual.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanelManual.Size = new System.Drawing.Size(395, 38);
+            this.tableLayoutPanelManual.Size = new System.Drawing.Size(510, 38);
             this.tableLayoutPanelManual.TabIndex = 9;
             // 
             // checkBoxManualText
@@ -535,7 +535,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.textBoxTextPrefix.Location = new System.Drawing.Point(267, 5);
             this.textBoxTextPrefix.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBoxTextPrefix.Name = "textBoxTextPrefix";
-            this.textBoxTextPrefix.Size = new System.Drawing.Size(125, 28);
+            this.textBoxTextPrefix.Size = new System.Drawing.Size(240, 28);
             this.textBoxTextPrefix.TabIndex = 3;
             this.textBoxTextPrefix.TextChanged += new System.EventHandler(this.ItemControl_ValueChanged);
             // 
@@ -543,7 +543,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.labelColor.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelColor.AutoSize = true;
-            this.labelColor.Location = new System.Drawing.Point(63, 209);
+            this.labelColor.Location = new System.Drawing.Point(63, 227);
             this.labelColor.Name = "labelColor";
             this.labelColor.Size = new System.Drawing.Size(44, 18);
             this.labelColor.TabIndex = 10;
@@ -674,7 +674,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.labelNgColor.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelNgColor.AutoSize = true;
-            this.labelNgColor.Location = new System.Drawing.Point(211, 45);
+            this.labelNgColor.Location = new System.Drawing.Point(213, 45);
             this.labelNgColor.Name = "labelNgColor";
             this.labelNgColor.Size = new System.Drawing.Size(44, 18);
             this.labelNgColor.TabIndex = 8;
@@ -791,7 +791,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.comboBoxTextPosition.Location = new System.Drawing.Point(113, 338);
             this.comboBoxTextPosition.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxTextPosition.Name = "comboBoxTextPosition";
-            this.comboBoxTextPosition.Size = new System.Drawing.Size(389, 26);
+            this.comboBoxTextPosition.Size = new System.Drawing.Size(504, 26);
             this.comboBoxTextPosition.TabIndex = 17;
             this.comboBoxTextPosition.SelectedIndexChanged += new System.EventHandler(this.ItemControl_ValueChanged);
             // 
@@ -799,7 +799,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.labelMargin.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelMargin.AutoSize = true;
-            this.labelMargin.Location = new System.Drawing.Point(63, 375);
+            this.labelMargin.Location = new System.Drawing.Point(63, 385);
             this.labelMargin.Name = "labelMargin";
             this.labelMargin.Size = new System.Drawing.Size(44, 18);
             this.labelMargin.TabIndex = 18;
@@ -808,7 +808,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // numericMargin
             // 
             this.numericMargin.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.numericMargin.Location = new System.Drawing.Point(113, 370);
+            this.numericMargin.Location = new System.Drawing.Point(113, 380);
             this.numericMargin.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.numericMargin.Maximum = new decimal(new int[] {
             500,
@@ -831,16 +831,16 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.flowLayoutPanelBottom.Controls.Add(this.buttonSave);
             this.flowLayoutPanelBottom.Dock = System.Windows.Forms.DockStyle.Fill;
             this.flowLayoutPanelBottom.FlowDirection = System.Windows.Forms.FlowDirection.RightToLeft;
-            this.flowLayoutPanelBottom.Location = new System.Drawing.Point(3, 770);
+            this.flowLayoutPanelBottom.Location = new System.Drawing.Point(3, 875);
             this.flowLayoutPanelBottom.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.flowLayoutPanelBottom.Name = "flowLayoutPanelBottom";
             this.flowLayoutPanelBottom.Padding = new System.Windows.Forms.Padding(0, 10, 0, 0);
-            this.flowLayoutPanelBottom.Size = new System.Drawing.Size(511, 54);
+            this.flowLayoutPanelBottom.Size = new System.Drawing.Size(626, 54);
             this.flowLayoutPanelBottom.TabIndex = 3;
             // 
             // buttonPreview
             // 
-            this.buttonPreview.Location = new System.Drawing.Point(412, 14);
+            this.buttonPreview.Location = new System.Drawing.Point(527, 14);
             this.buttonPreview.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonPreview.Name = "buttonPreview";
             this.buttonPreview.Size = new System.Drawing.Size(96, 36);
@@ -851,7 +851,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             // buttonSave
             // 
-            this.buttonSave.Location = new System.Drawing.Point(310, 14);
+            this.buttonSave.Location = new System.Drawing.Point(425, 14);
             this.buttonSave.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.buttonSave.Name = "buttonSave";
             this.buttonSave.Size = new System.Drawing.Size(96, 36);
@@ -864,11 +864,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.groupBoxPreview.Controls.Add(this.showImageControl1);
             this.groupBoxPreview.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.groupBoxPreview.Location = new System.Drawing.Point(537, 16);
+            this.groupBoxPreview.Location = new System.Drawing.Point(652, 16);
             this.groupBoxPreview.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxPreview.Name = "groupBoxPreview";
             this.groupBoxPreview.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
-            this.groupBoxPreview.Size = new System.Drawing.Size(795, 828);
+            this.groupBoxPreview.Size = new System.Drawing.Size(882, 933);
             this.groupBoxPreview.TabIndex = 1;
             this.groupBoxPreview.TabStop = false;
             this.groupBoxPreview.Text = "预览";
@@ -887,7 +887,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.showImageControl1.RoiColor = System.Drawing.Color.Lime;
             this.showImageControl1.ShowCheckerBackground = false;
             this.showImageControl1.ShowPixelInfo = false;
-            this.showImageControl1.Size = new System.Drawing.Size(789, 799);
+            this.showImageControl1.Size = new System.Drawing.Size(876, 904);
             this.showImageControl1.StaticShapeColor = System.Drawing.Color.Red;
             this.showImageControl1.TabIndex = 0;
             // 
@@ -895,7 +895,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1350, 900);
+            this.AutoSize = true;
+            this.ClientSize = new System.Drawing.Size(1552, 1005);
             this.Controls.Add(this.tableLayoutPanelRoot);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Margin = new System.Windows.Forms.Padding(3, 5, 3, 5);

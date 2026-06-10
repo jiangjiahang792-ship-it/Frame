@@ -694,7 +694,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             else
             {
                 if (!TryReadDrawItemValue(owner, item, out sourceValue, out sourceNode))
+                {
+                    AppendMissingResultText(displayResult, item, sourceNode);
                     return;
+                }
 
                 AlgorithmResult sourceAlgorithmResult = TryGetAlgorithmResult(sourceValue) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
                 if (ShouldPreserveAlgorithmResultElementColor(sourceAlgorithmResult))
@@ -706,6 +709,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 AddTextFromValue(texts, sourceValue);
                 if (texts.Count == 0 && sourceNode != null)
                     AddTextFromValue(texts, sourceNode.Result);
+
+                if (texts.Count == 0)
+                {
+                    AppendMissingResultText(displayResult, item, sourceNode);
+                    return;
+                }
 
                 usePrefix = !string.IsNullOrEmpty(item.TextPrefix);
             }
@@ -733,7 +742,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         private static void AppendLines(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDraw2Item item, Color drawColor)
         {
             if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
+            {
+                AppendMissingResultText(displayResult, item, sourceNode);
                 return;
+            }
 
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
             if (algorithmResult != null && algorithmResult.Lines.Count > 0)
@@ -756,7 +768,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 {
                     LineWidth = Math.Max(1, item.LineWidth)
                 });
+                return;
             }
+
+            AppendMissingResultText(displayResult, item, sourceNode);
         }
 
         /// <summary>
@@ -769,7 +784,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         private static void AppendRegions(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDraw2Item item, Color drawColor)
         {
             if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
+            {
+                AppendMissingResultText(displayResult, item, sourceNode);
                 return;
+            }
 
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
             if (algorithmResult != null && algorithmResult.Contours.Count > 0)
@@ -793,7 +811,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 {
                     LineWidth = Math.Max(1, item.LineWidth)
                 });
+                return;
             }
+
+            AppendMissingResultText(displayResult, item, sourceNode);
         }
 
         /// <summary>
@@ -806,13 +827,20 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         private static void AppendRectangles(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDraw2Item item, Color drawColor)
         {
             if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
+            {
+                AppendMissingResultText(displayResult, item, sourceNode);
                 return;
+            }
 
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
             if (algorithmResult == null)
+            {
+                AppendMissingResultText(displayResult, item, sourceNode);
                 return;
+            }
 
             bool preserveElementColor = ShouldPreserveAlgorithmResultElementColor(algorithmResult);
+            bool added = false;
             foreach (ColorRotatedRect rect in algorithmResult.Rects)
             {
                 displayResult.Rects.Add(new ColorRotatedRect(rect.RotatedRect)
@@ -820,6 +848,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                     Color = preserveElementColor ? rect.Color : drawColor,
                     LineWidth = Math.Max(1, item.LineWidth)
                 });
+                added = true;
             }
 
             foreach (List<ColorRotatedRect> rects in algorithmResult.RectsNgMap.Values)
@@ -831,8 +860,49 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                         Color = preserveElementColor ? rect.Color : drawColor,
                         LineWidth = Math.Max(1, item.LineWidth)
                     });
+                    added = true;
                 }
             }
+
+            if (!added)
+                AppendMissingResultText(displayResult, item, sourceNode);
+        }
+
+        /// <summary>
+        /// 订阅结果不存在或没有可绘制几何时追加红色提示，避免失败项在客户画面上静默消失。
+        /// </summary>
+        private static void AppendMissingResultText(AlgorithmResult displayResult, ResultOverlayDraw2Item item, NodeBase sourceNode)
+        {
+            if (displayResult == null || item == null)
+                return;
+
+            string text = BuildMissingResultText(item, sourceNode);
+            displayResult.IsAllOk = false;
+            displayResult.Texts.Add(new ColorText(text, Color.Red)
+            {
+                FontSize = Math.Max(1, item.FontSize),
+                Position = item.TextPosition,
+                Margin = Math.Max(0, item.TextMargin),
+                Title = string.Empty
+            });
+        }
+
+        /// <summary>
+        /// 生成缺失结果提示文本，文本绘制项优先沿用配置前缀，图形绘制项优先显示订阅源名称。
+        /// </summary>
+        private static string BuildMissingResultText(ResultOverlayDraw2Item item, NodeBase sourceNode)
+        {
+            if (item.ItemType == ResultOverlayDraw2ItemType.Text && !string.IsNullOrEmpty(item.TextPrefix))
+                return item.TextPrefix + "未查到";
+
+            string sourceText = sourceNode == null ? item.SourceText1 : GetNodeText(sourceNode);
+            if (!string.IsNullOrWhiteSpace(sourceText))
+                return sourceText + "：未查到";
+
+            if (!string.IsNullOrWhiteSpace(item.Name))
+                return item.Name + "：未查到";
+
+            return "未查到";
         }
 
         /// <summary>

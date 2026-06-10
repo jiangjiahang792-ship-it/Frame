@@ -282,7 +282,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             else
             {
                 if (!TryReadDrawItemValue(owner, item, out sourceValue, out sourceNode))
+                {
+                    AppendMissingResultText(displayResult, item, sourceNode);
                     return;
+                }
 
                 AlgorithmResult sourceAlgorithmResult = TryGetAlgorithmResult(sourceValue) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
                 if (ShouldPreserveAlgorithmResultElementColor(item, sourceAlgorithmResult))
@@ -294,6 +297,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 AddTextFromValue(texts, sourceValue);
                 if (texts.Count == 0 && sourceNode != null)
                     AddTextFromValue(texts, sourceNode.Result);
+
+                if (texts.Count == 0)
+                {
+                    AppendMissingResultText(displayResult, item, sourceNode);
+                    return;
+                }
 
                 usePrefix = !string.IsNullOrEmpty(item.TextPrefix);
             }
@@ -315,7 +324,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         private static void AppendLines(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
         {
             if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
+            {
+                AppendMissingResultText(displayResult, item, sourceNode);
                 return;
+            }
 
             Color drawColor = ResolveItemColor(item, value, sourceNode);
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
@@ -342,13 +354,17 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 return;
             }
 
+            AppendMissingResultText(displayResult, item, sourceNode);
             return;
         }
 
         private static void AppendRegions(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
         {
             if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
+            {
+                AppendMissingResultText(displayResult, item, sourceNode);
                 return;
+            }
 
             Color drawColor = ResolveItemColor(item, value, sourceNode);
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
@@ -376,13 +392,17 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 return;
             }
 
+            AppendMissingResultText(displayResult, item, sourceNode);
             return;
         }
 
         private static void AppendRectangles(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
         {
             if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
+            {
+                AppendMissingResultText(displayResult, item, sourceNode);
                 return;
+            }
 
             Color drawColor = ResolveItemColor(item, value, sourceNode);
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
@@ -417,7 +437,45 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     return;
             }
 
+            AppendMissingResultText(displayResult, item, sourceNode);
             return;
+        }
+
+        /// <summary>
+        /// 订阅结果不存在或没有可绘制几何时追加红色提示，避免失败项在客户画面上静默消失。
+        /// </summary>
+        private static void AppendMissingResultText(AlgorithmResult displayResult, ResultOverlayDrawItem item, NodeBase sourceNode)
+        {
+            if (displayResult == null || item == null)
+                return;
+
+            string text = BuildMissingResultText(item, sourceNode);
+            displayResult.IsAllOk = false;
+            displayResult.Texts.Add(new ColorText(text, Color.Red)
+            {
+                FontSize = Math.Max(1, item.FontSize),
+                Position = item.TextPosition,
+                Margin = Math.Max(0, item.TextMargin),
+                Title = string.Empty
+            });
+        }
+
+        /// <summary>
+        /// 生成缺失结果提示文本，文本绘制项优先沿用配置前缀，图形绘制项优先显示订阅源名称。
+        /// </summary>
+        private static string BuildMissingResultText(ResultOverlayDrawItem item, NodeBase sourceNode)
+        {
+            if (item.ItemType == ResultOverlayDrawItemType.Text && !string.IsNullOrEmpty(item.TextPrefix))
+                return item.TextPrefix + "未查到";
+
+            string sourceText = sourceNode == null ? item.SourceText1 : GetNodeText(sourceNode);
+            if (!string.IsNullOrWhiteSpace(sourceText))
+                return sourceText + "：未查到";
+
+            if (!string.IsNullOrWhiteSpace(item.Name))
+                return item.Name + "：未查到";
+
+            return "未查到";
         }
 
         /// <summary>

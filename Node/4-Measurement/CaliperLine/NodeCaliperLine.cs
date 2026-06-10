@@ -84,6 +84,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
         {
             var result = new NodeResultCaliperLine();
             result.IsOk = measureResult.Success;
+            result.JudgeOk = measureResult.Success;
             result.EdgePointCount = measureResult.PointCount;
             result.EdgePoints = MeasurementResultRounder.RoundPoints(measureResult.EdgePoints);
             if (measureResult.Success)
