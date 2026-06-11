@@ -50,6 +50,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         {
             comboBoxItemType.DataSource = Enum.GetValues(typeof(ResultOverlayDrawItemType));
             comboBoxTextPosition.DataSource = Enum.GetValues(typeof(DisplayTextPosition));
+            comboBoxTextCoordinateMode.DisplayMember = "Text";
+            comboBoxTextCoordinateMode.ValueMember = "Value";
+            comboBoxTextCoordinateMode.DataSource = new List<TextCoordinateModeOption>
+            {
+                new TextCoordinateModeOption("图像坐标系", DisplayTextCoordinateMode.Image),
+                new TextCoordinateModeOption("控件坐标系", DisplayTextCoordinateMode.Control)
+            };
         }
 
         private void buttonAddText_Click(object sender, EventArgs e)
@@ -128,6 +135,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             Color ngColor = panelNgColor.BackColor;
             int fontSize = (int)numericFontSize.Value;
             int lineWidth = (int)numericLineWidth.Value;
+            int textMargin = (int)numericMargin.Value;
+            DisplayTextPosition textPosition = comboBoxTextPosition.SelectedItem is DisplayTextPosition
+                ? (DisplayTextPosition)comboBoxTextPosition.SelectedItem
+                : DisplayTextPosition.TopLeft;
+            DisplayTextCoordinateMode textCoordinateMode = GetSelectedTextCoordinateMode();
             foreach (ResultOverlayDrawItem item in _items)
             {
                 item.Color = color;
@@ -136,6 +148,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 item.NgColor = ngColor;
                 item.FontSize = fontSize;
                 item.LineWidth = lineWidth;
+                item.TextMargin = textMargin;
+                item.TextPosition = textPosition;
+                item.TextCoordinateMode = textCoordinateMode;
             }
 
             RefreshGrid();
@@ -299,6 +314,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             numericLineWidth.Value = ClampNumeric(numericLineWidth, item.LineWidth);
             numericMargin.Value = ClampNumeric(numericMargin, item.TextMargin);
             comboBoxTextPosition.SelectedItem = item.TextPosition;
+            SetTextCoordinateMode(item.TextCoordinateMode);
             panelColor.BackColor = item.Color;
             checkBoxUseJudgeColor.Checked = IsJudgeColorEnabled(item);
             panelOkColor.BackColor = item.OkColor;
@@ -322,6 +338,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             numericLineWidth.Value = 2;
             numericMargin.Value = 10;
             comboBoxTextPosition.SelectedItem = DisplayTextPosition.TopLeft;
+            SetTextCoordinateMode(DisplayTextCoordinateMode.Image);
             panelColor.BackColor = Color.Lime;
             checkBoxUseJudgeColor.Checked = false;
             panelOkColor.BackColor = Color.Lime;
@@ -351,6 +368,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             item.TextPosition = comboBoxTextPosition.SelectedItem is DisplayTextPosition
                 ? (DisplayTextPosition)comboBoxTextPosition.SelectedItem
                 : item.TextPosition;
+            item.TextCoordinateMode = GetSelectedTextCoordinateMode();
             item.Color = panelColor.BackColor;
             item.UseJudgeColor = CanUseJudgeColor(item.ItemType, item.UseManualText) && checkBoxUseJudgeColor.Checked;
             item.OkColor = panelOkColor.BackColor;
@@ -383,12 +401,15 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             textBoxManualText.Enabled = isText && checkBoxManualText.Checked;
             labelTextPrefix.Enabled = isText && !checkBoxManualText.Checked;
             textBoxTextPrefix.Enabled = isText && !checkBoxManualText.Checked;
-            labelFontSize.Enabled = isText;
-            numericFontSize.Enabled = isText;
-            labelTextPosition.Enabled = isText;
-            comboBoxTextPosition.Enabled = isText;
-            labelMargin.Enabled = isText;
-            numericMargin.Enabled = isText;
+            // 几何项查找失败时也会绘制红色“未查到”文本，所以提示样式对全部绘制项开放。
+            labelFontSize.Enabled = true;
+            numericFontSize.Enabled = true;
+            labelTextPosition.Enabled = true;
+            comboBoxTextPosition.Enabled = true;
+            labelTextCoordinateMode.Enabled = true;
+            comboBoxTextCoordinateMode.Enabled = true;
+            labelMargin.Enabled = true;
+            numericMargin.Enabled = true;
             nodeSubscriptionSource.Enabled = !isText || !checkBoxManualText.Checked;
             checkBoxUseJudgeColor.Enabled = canUseJudgeColor;
             panelColor.Enabled = !useJudgeColor;
@@ -410,6 +431,34 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         private static decimal ClampNumeric(NumericUpDown control, int value)
         {
             return Math.Min(control.Maximum, Math.Max(control.Minimum, value));
+        }
+
+        /// <summary>
+        /// 获取当前选中的文本坐标系。
+        /// </summary>
+        private DisplayTextCoordinateMode GetSelectedTextCoordinateMode()
+        {
+            TextCoordinateModeOption option = comboBoxTextCoordinateMode.SelectedItem as TextCoordinateModeOption;
+            return option == null ? DisplayTextCoordinateMode.Image : option.Value;
+        }
+
+        /// <summary>
+        /// 设置文本坐标系下拉框选中项。
+        /// </summary>
+        private void SetTextCoordinateMode(DisplayTextCoordinateMode mode)
+        {
+            foreach (object item in comboBoxTextCoordinateMode.Items)
+            {
+                TextCoordinateModeOption option = item as TextCoordinateModeOption;
+                if (option != null && option.Value == mode)
+                {
+                    comboBoxTextCoordinateMode.SelectedItem = option;
+                    return;
+                }
+            }
+
+            if (comboBoxTextCoordinateMode.Items.Count > 0)
+                comboBoxTextCoordinateMode.SelectedIndex = 0;
         }
 
         /// <summary>
@@ -454,6 +503,33 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 return "判定 " + ColorTranslator.ToHtml(item.OkColor) + "/" + ColorTranslator.ToHtml(item.NgColor);
 
             return ColorTranslator.ToHtml(item.Color);
+        }
+
+        /// <summary>
+        /// 文本坐标系下拉框显示项。
+        /// </summary>
+        private sealed class TextCoordinateModeOption
+        {
+            /// <summary>
+            /// 初始化文本坐标系显示项。
+            /// </summary>
+            /// <param name="text">界面显示文本。</param>
+            /// <param name="value">对应坐标系枚举值。</param>
+            public TextCoordinateModeOption(string text, DisplayTextCoordinateMode value)
+            {
+                Text = text;
+                Value = value;
+            }
+
+            /// <summary>
+            /// 界面显示文本。
+            /// </summary>
+            public string Text { get; private set; }
+
+            /// <summary>
+            /// 对应坐标系枚举值。
+            /// </summary>
+            public DisplayTextCoordinateMode Value { get; private set; }
         }
     }
 }

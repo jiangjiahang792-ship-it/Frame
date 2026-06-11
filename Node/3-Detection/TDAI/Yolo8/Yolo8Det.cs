@@ -1,5 +1,4 @@
 ﻿using OpenCvSharp;
-using Sunny.UI.Win32;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -38,28 +37,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             public int count;
         }
 
-        // 检测结果结构体（对应 DLL 中的 DetectionResult）
-        [StructLayout(LayoutKind.Sequential)]
-        public struct DetectionResult
-        {
-            public int class_id;
-            public float score;
-            public int left;
-            public int top;
-            public int width;
-            public int height;
-        }
-
-        // 导入DLL函数
-        [DllImport("td_det.dll", CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr CreateDetector(
-            string model_path,
-            string[] class_names,
-            int class_count,
-            int input_size,
-            float score_threshold,
-            float nms_threshold);
-
         //GPU初始化函数
         [DllImport("td_gpu_detect.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr YoloV8_Init(string model_type,
@@ -74,18 +51,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                                                  float score_threshold, float nms_threshold);
 
 
-        [DllImport("td_det.dll", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void DestroyDetector(IntPtr detector);
-
-        [DllImport("td_det.dll", CallingConvention = CallingConvention.Cdecl)]
-        public static extern int Detect(
-            IntPtr detector,
-            byte[] img_data,
-            int width,
-            int height,
-            int channels,
-            [Out] DetectionResult[] results);
-
         [DllImport("td_gpu_detect.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void YoloV8_FreeResult(IntPtr results);
 
@@ -98,16 +63,30 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         private static readonly object GpuDetInferenceLock = new object();
 
         /// <summary>
-        /// 当前 DET 模型的原生句柄。
+        /// 当前 DET CPU模型会话。
         /// </summary>
-        private IntPtr _handle;
+        private YoloOpenVinoCpuSession _cpuSession;
+
+        /// <summary>
+        /// 当前 DET GPU模型的原生句柄。
+        /// </summary>
+        private IntPtr _gpuHandle;
 
         /// <summary>
         /// 模型类型：普通目标检测（DET）
         /// </summary>
         public ModelType ModelType { get; } = ModelType.DET;
+        /// <summary>
+        /// 推理设备类型。
+        /// </summary>
         public DeviceType DeviceType { get; set; }
+        /// <summary>
+        /// 置信度阈值。
+        /// </summary>
         public float ScoreThreshold { get; set; }
+        /// <summary>
+        /// NMS阈值。
+        /// </summary>
         public float NMSThreshold { get; set; }
 
         /// <summary>
@@ -122,18 +101,22 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             switch (DeviceType)
             {
                 case DeviceType.CPU:
-                    _handle = CreateDetector(model_path, class_names, class_names.Length, input_size, score_threshold, nms_threshold);
+                    _cpuSession = YoloOpenVinoCpuSession.Open(model_path);
                     break;
                 case DeviceType.GPU:
-                    _handle = YoloV8_Init("det", model_path, input_size, input_size, class_names, class_names.Length, score_threshold, nms_threshold, 0);
+                    _gpuHandle = YoloV8_Init("det", model_path, input_size, input_size, class_names, class_names.Length, score_threshold, nms_threshold, 0);
                     break;
                 default:
                     throw new Exception("未找到对应运行设备的指定");
             }
             
-            if (_handle == IntPtr.Zero)
+            if (DeviceType == DeviceType.CPU && _cpuSession == null)
             {
-                throw new Exception("Failed to initialize YOLO detection model.");
+                throw new Exception("Init初始化CPU模型发生错误,请检查模型路径是否正确或者dll是否有异常!!!");
+            }
+            if (DeviceType == DeviceType.GPU && _gpuHandle == IntPtr.Zero)
+            {
+                throw new Exception("Init初始化GPU模型发生错误,请检查模型路径是否正确或者dll是否有异常!!!");
             }
         }
 
@@ -141,17 +124,19 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <summary>
         /// 执行检测
         /// </summary>
-        public List<DetResult> Detect(Mat image)
+        public List<DetResult> Detect(Mat image, int deltaX = 0, int deltaY = 0)
         {
-            return DetectCore(image);
+            return DetectCore(image, deltaX, deltaY);
         }
 
         /// <summary>
         /// 执行 DET 检测核心逻辑，只有 GPU 推理分支会进入全局锁。
         /// </summary>
         /// <param name="image">待检测图像。</param>
+        /// <param name="deltaX">检测结果X方向偏移。</param>
+        /// <param name="deltaY">检测结果Y方向偏移。</param>
         /// <returns>检测结果集合。</returns>
-        private List<DetResult> DetectCore(Mat image)
+        private List<DetResult> DetectCore(Mat image, int deltaX, int deltaY)
         {
             //初始化返回对象
             List<DetResult> results = new List<DetResult>();
@@ -159,37 +144,18 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             switch (DeviceType)
             {
                 case DeviceType.CPU:
-                    byte[] imageData = new byte[image.Total() * image.ElemSize()];
-                    Marshal.Copy(image.Data, imageData, 0, imageData.Length);
-
-                    DetectionResult[] nativeResults = new DetectionResult[1024];
-
-                    int count = 0;
-                    count = Detect(_handle, imageData, image.Width, image.Height, image.Channels(), nativeResults);
-
-                   
-                    for (int i = 0; i < count; i++)
-                    {
-                        var dr = nativeResults[i];
-                        results.Add(new DetResult
-                        {
-                            ClassId = dr.class_id,
-                            Score = dr.score,
-                            Box = new Rect(dr.left, dr.top, dr.width, dr.height)
-                        });
-                    }
-                    break;
+                    return _cpuSession.DetectDet(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
                 case DeviceType.GPU:
                     lock (GpuDetInferenceLock)
                     {
                         // 空值校验
-                        if (image == null || image.Empty() || image.Data == IntPtr.Zero || _handle == IntPtr.Zero)
+                        if (image == null || image.Empty() || image.Data == IntPtr.Zero || _gpuHandle == IntPtr.Zero)
                         {
                             return new List<DetResult>();
                         }
 
                         // 调用底层检测接口
-                        IntPtr resPtr = YoloV8_Infer(_handle, image.Data, image.Width, image.Height, image.Channels(), ScoreThreshold, NMSThreshold);
+                        IntPtr resPtr = YoloV8_Infer(_gpuHandle, image.Data, image.Width, image.Height, image.Channels(), ScoreThreshold, NMSThreshold);
                         if (resPtr == IntPtr.Zero)
                             return new List<DetResult>();
 
@@ -237,9 +203,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                 default:
                     throw new Exception("未找到对应运行设备的指定");
             }
-            
-
-            return results;
         }
 
         /// <summary>
@@ -247,26 +210,27 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public void Destroy()
         {
-            if (_handle != IntPtr.Zero)
+            switch (DeviceType)
             {
-                switch (DeviceType)
-                {
-                    case DeviceType.CPU:
-                        DestroyDetector(_handle);
-                        _handle = IntPtr.Zero;
-                        break;
-                    case DeviceType.GPU:
-                        lock (GpuDetInferenceLock)
+                case DeviceType.CPU:
+                    if (_cpuSession != null)
+                    {
+                        _cpuSession.Dispose();
+                        _cpuSession = null;
+                    }
+                    break;
+                case DeviceType.GPU:
+                    lock (GpuDetInferenceLock)
+                    {
+                        if (_gpuHandle != IntPtr.Zero)
                         {
-                            if (_handle == IntPtr.Zero)
-                                break;
-                            YoloV8_Release(_handle);
-                            _handle = IntPtr.Zero;
+                            YoloV8_Release(_gpuHandle);
+                            _gpuHandle = IntPtr.Zero;
                         }
-                        break;
-                    default:
-                        throw new Exception("未找到对应运行设备的指定");
-                }
+                    }
+                    break;
+                default:
+                    throw new Exception("未找到对应运行设备的指定");
             }
         }
     }

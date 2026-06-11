@@ -19,11 +19,31 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         [DllImport("td_pose.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern void Cleanup(IntPtr context);
 
-        private IntPtr _handle;
+        /// <summary>
+        /// 当前 POSE CPU模型会话。
+        /// </summary>
+        private YoloOpenVinoCpuSession _cpuSession;
 
+        /// <summary>
+        /// 旧版POSE原生句柄，保留给非CPU分支兼容使用。
+        /// </summary>
+        private IntPtr _legacyHandle;
+
+        /// <summary>
+        /// 模型类型。
+        /// </summary>
         public ModelType ModelType { get; } = ModelType.POSE;
+        /// <summary>
+        /// 推理设备类型。
+        /// </summary>
         public DeviceType DeviceType { get; set; }
+        /// <summary>
+        /// 置信度阈值。
+        /// </summary>
         public float ScoreThreshold { get; set; }
+        /// <summary>
+        /// NMS阈值。
+        /// </summary>
         public float NMSThreshold { get; set; }
 
         /// <summary>
@@ -34,8 +54,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             DeviceType = deviceType;
             ScoreThreshold = score_threshold;
             NMSThreshold = nms_threshold;
-            _handle = Initialize(model_path, class_names, class_names.Length, input_size, score_threshold, nms_threshold, key_point_num);
-            if (_handle == IntPtr.Zero)
+            if (DeviceType == DeviceType.CPU)
+            {
+                _cpuSession = YoloOpenVinoCpuSession.Open(model_path);
+                if (_cpuSession == null)
+                    throw new Exception("Failed to initialize YOLO pose model.");
+                return;
+            }
+
+            _legacyHandle = Initialize(model_path, class_names, class_names.Length, input_size, score_threshold, nms_threshold, key_point_num);
+            if (_legacyHandle == IntPtr.Zero)
             {
                 throw new Exception("Failed to initialize YOLO pose model.");
             }
@@ -46,6 +74,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public PoseResult Detect(Mat image, int deltaX = 0, int deltaY = 0)
         {
+            if (DeviceType == DeviceType.CPU)
+                return _cpuSession.DetectPose(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
+
             byte[] imageData = new byte[image.Total() * image.ElemSize()];
             Marshal.Copy(image.Data, imageData, 0, imageData.Length);
 
@@ -55,7 +86,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             int keypointsCount;
             int keypointsPerObject;
 
-            Inference(_handle, imageData, image.Width, image.Height, image.Channels(), out boxesDataPtr, out boxesCount, out keypointsDataPtr, out keypointsCount, out keypointsPerObject);
+            Inference(_legacyHandle, imageData, image.Width, image.Height, image.Channels(), out boxesDataPtr, out boxesCount, out keypointsDataPtr, out keypointsCount, out keypointsPerObject);
 
             var result = new PoseResult();
 
@@ -99,10 +130,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public void Destroy()
         {
-            if (_handle != IntPtr.Zero)
+            if (DeviceType == DeviceType.CPU)
             {
-                Cleanup(_handle);
-                _handle = IntPtr.Zero;
+                if (_cpuSession != null)
+                {
+                    _cpuSession.Dispose();
+                    _cpuSession = null;
+                }
+                return;
+            }
+
+            if (_legacyHandle != IntPtr.Zero)
+            {
+                Cleanup(_legacyHandle);
+                _legacyHandle = IntPtr.Zero;
             }
         }
     }

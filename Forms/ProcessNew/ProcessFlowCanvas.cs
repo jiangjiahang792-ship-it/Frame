@@ -621,6 +621,31 @@ namespace TDJS_Vision.Forms.ProcessNew
             RequestOverlayInvalidate();
         }
 
+        /// <summary>
+        /// 立即刷新流程运行状态显示，用于手动运行开始或结束后兜底刷新节点颜色和耗时。
+        /// </summary>
+        public void RefreshRuntimeStateNow()
+        {
+            if (IsDisposed || Disposing)
+                return;
+
+            if (InvokeRequired)
+            {
+                try
+                {
+                    BeginInvoke((MethodInvoker)RefreshRuntimeStateNow);
+                }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+                return;
+            }
+
+            _runtimeInvalidationDeferredUntilUtc = DateTime.MinValue;
+            FlushRuntimeInvalidations();
+            Invalidate();
+            RequestOverlayInvalidate();
+        }
+
         public bool Undo()
         {
             if (!CanUndo)

@@ -72,6 +72,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.numericLineWidth = new System.Windows.Forms.NumericUpDown();
             this.labelTextPosition = new System.Windows.Forms.Label();
             this.comboBoxTextPosition = new System.Windows.Forms.ComboBox();
+            this.labelTextCoordinateMode = new System.Windows.Forms.Label();
+            this.comboBoxTextCoordinateMode = new System.Windows.Forms.ComboBox();
             this.labelMargin = new System.Windows.Forms.Label();
             this.numericMargin = new System.Windows.Forms.NumericUpDown();
             this.flowLayoutPanelBottom = new System.Windows.Forms.FlowLayoutPanel();
@@ -337,6 +339,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             // tableLayoutPanelSetting
             // 
+            this.tableLayoutPanelSetting.AutoScroll = true;
             this.tableLayoutPanelSetting.ColumnCount = 2;
             this.tableLayoutPanelSetting.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 110F));
             this.tableLayoutPanelSetting.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
@@ -358,19 +361,22 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.tableLayoutPanelSetting.Controls.Add(this.numericLineWidth, 1, 7);
             this.tableLayoutPanelSetting.Controls.Add(this.labelTextPosition, 0, 8);
             this.tableLayoutPanelSetting.Controls.Add(this.comboBoxTextPosition, 1, 8);
-            this.tableLayoutPanelSetting.Controls.Add(this.labelMargin, 0, 9);
-            this.tableLayoutPanelSetting.Controls.Add(this.numericMargin, 1, 9);
+            this.tableLayoutPanelSetting.Controls.Add(this.labelTextCoordinateMode, 0, 9);
+            this.tableLayoutPanelSetting.Controls.Add(this.comboBoxTextCoordinateMode, 1, 9);
+            this.tableLayoutPanelSetting.Controls.Add(this.labelMargin, 0, 10);
+            this.tableLayoutPanelSetting.Controls.Add(this.numericMargin, 1, 10);
             this.tableLayoutPanelSetting.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanelSetting.Location = new System.Drawing.Point(3, 25);
             this.tableLayoutPanelSetting.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.tableLayoutPanelSetting.Name = "tableLayoutPanelSetting";
-            this.tableLayoutPanelSetting.RowCount = 10;
+            this.tableLayoutPanelSetting.RowCount = 11;
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 29F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 34F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 34F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 65F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 38F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 72F));
+            this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 31F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 31F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 31F));
             this.tableLayoutPanelSetting.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 31F));
@@ -794,21 +800,43 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.comboBoxTextPosition.Size = new System.Drawing.Size(504, 26);
             this.comboBoxTextPosition.TabIndex = 17;
             this.comboBoxTextPosition.SelectedIndexChanged += new System.EventHandler(this.ItemControl_ValueChanged);
+            //
+            // labelTextCoordinateMode
+            //
+            this.labelTextCoordinateMode.Anchor = System.Windows.Forms.AnchorStyles.Right;
+            this.labelTextCoordinateMode.AutoSize = true;
+            this.labelTextCoordinateMode.Location = new System.Drawing.Point(45, 371);
+            this.labelTextCoordinateMode.Name = "labelTextCoordinateMode";
+            this.labelTextCoordinateMode.Size = new System.Drawing.Size(62, 18);
+            this.labelTextCoordinateMode.TabIndex = 18;
+            this.labelTextCoordinateMode.Text = "坐标系";
+            //
+            // comboBoxTextCoordinateMode
+            //
+            this.comboBoxTextCoordinateMode.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.comboBoxTextCoordinateMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxTextCoordinateMode.FormattingEnabled = true;
+            this.comboBoxTextCoordinateMode.Location = new System.Drawing.Point(113, 369);
+            this.comboBoxTextCoordinateMode.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.comboBoxTextCoordinateMode.Name = "comboBoxTextCoordinateMode";
+            this.comboBoxTextCoordinateMode.Size = new System.Drawing.Size(504, 26);
+            this.comboBoxTextCoordinateMode.TabIndex = 19;
+            this.comboBoxTextCoordinateMode.SelectedIndexChanged += new System.EventHandler(this.ItemControl_ValueChanged);
             // 
             // labelMargin
             // 
             this.labelMargin.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelMargin.AutoSize = true;
-            this.labelMargin.Location = new System.Drawing.Point(63, 385);
+            this.labelMargin.Location = new System.Drawing.Point(63, 416);
             this.labelMargin.Name = "labelMargin";
             this.labelMargin.Size = new System.Drawing.Size(44, 18);
-            this.labelMargin.TabIndex = 18;
+            this.labelMargin.TabIndex = 20;
             this.labelMargin.Text = "边距";
             // 
             // numericMargin
             // 
             this.numericMargin.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.numericMargin.Location = new System.Drawing.Point(113, 380);
+            this.numericMargin.Location = new System.Drawing.Point(113, 411);
             this.numericMargin.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.numericMargin.Maximum = new decimal(new int[] {
             500,
@@ -817,7 +845,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             0});
             this.numericMargin.Name = "numericMargin";
             this.numericMargin.Size = new System.Drawing.Size(101, 28);
-            this.numericMargin.TabIndex = 19;
+            this.numericMargin.TabIndex = 21;
             this.numericMargin.Value = new decimal(new int[] {
             10,
             0,
@@ -983,6 +1011,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         private System.Windows.Forms.NumericUpDown numericLineWidth;
         private System.Windows.Forms.Label labelTextPosition;
         private System.Windows.Forms.ComboBox comboBoxTextPosition;
+        private System.Windows.Forms.Label labelTextCoordinateMode;
+        private System.Windows.Forms.ComboBox comboBoxTextCoordinateMode;
         private System.Windows.Forms.Label labelMargin;
         private System.Windows.Forms.NumericUpDown numericMargin;
         private System.Windows.Forms.FlowLayoutPanel flowLayoutPanelBottom;

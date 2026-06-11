@@ -198,18 +198,67 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         BottomRight
     }
 
+    /// <summary>
+    /// 四角文本定位使用的坐标系。
+    /// </summary>
+    public enum DisplayTextCoordinateMode
+    {
+        /// <summary>
+        /// 按当前图像显示区域的四角定位，缩放或平移图像时跟随图像移动。
+        /// </summary>
+        Image,
+
+        /// <summary>
+        /// 按显示控件客户区的四角定位，缩放或平移图像时保持在控件固定位置。
+        /// </summary>
+        Control
+    }
+
+    /// <summary>
+    /// 带颜色的文本显示项。
+    /// </summary>
     public class ColorText
     {
+        /// <summary>
+        /// 显示文本。
+        /// </summary>
         public string Text { get; set; }
+
+        /// <summary>
+        /// 文本颜色。
+        /// </summary>
         public Color Color { get; set; }
+
+        /// <summary>
+        /// 文本字号。
+        /// </summary>
         public int FontSize { get; set; } = 11;
+
+        /// <summary>
+        /// 四角定位位置，UseImagePosition 为 false 时生效。
+        /// </summary>
         public DisplayTextPosition Position { get; set; } = DisplayTextPosition.TopLeft;
+
+        /// <summary>
+        /// 四角定位边距。
+        /// </summary>
         public int Margin { get; set; } = 10;
+
+        /// <summary>
+        /// 文本块标题。
+        /// </summary>
         public string Title { get; set; } = "Result";
+
+        /// <summary>
+        /// 四角定位使用的坐标系；绝对图像坐标模式仍由 UseImagePosition 控制。
+        /// </summary>
+        public DisplayTextCoordinateMode CoordinateMode { get; set; } = DisplayTextCoordinateMode.Image;
+
         /// <summary>
         /// 是否按图像坐标显示文本；为 false 时按四角信息栏显示。
         /// </summary>
         public bool UseImagePosition { get; set; }
+
         /// <summary>
         /// 文本左上角图像坐标，UseImagePosition 为 true 时生效。
         /// </summary>

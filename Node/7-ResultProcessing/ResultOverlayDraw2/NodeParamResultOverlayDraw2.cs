@@ -136,6 +136,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         public DisplayTextPosition TextPosition { get; set; } = DisplayTextPosition.TopLeft;
 
         /// <summary>
+        /// 文本四角定位使用的坐标系，默认按图像显示区域定位。
+        /// </summary>
+        [JsonConverter(typeof(StringEnumConverter))]
+        public DisplayTextCoordinateMode TextCoordinateMode { get; set; } = DisplayTextCoordinateMode.Image;
+
+        /// <summary>
         /// 订阅显示文本，界面列表使用。
         /// </summary>
         [JsonIgnore]
@@ -170,7 +176,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 FontSize = FontSize,
                 LineWidth = LineWidth,
                 TextMargin = TextMargin,
-                TextPosition = TextPosition
+                TextPosition = TextPosition,
+                TextCoordinateMode = TextCoordinateMode
             };
         }
     }

@@ -452,6 +452,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                         buttonStop.Enabled = e.IsRunning || _isLoopRunRequested;
                         uiSwitchEnable.Enabled = !e.IsRunning;
                         uiLedBulb1.Color = e.IsRunning ? Color.DarkGray : e.IsSuccess ? Color.LawnGreen : Color.Red;
+                        RefreshRuntimeCanvasState();
                     }));
                 }
                 else
@@ -462,6 +463,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     buttonStop.Enabled = e.IsRunning || _isLoopRunRequested;
                     uiSwitchEnable.Enabled = !e.IsRunning;
                     uiLedBulb1.Color = e.IsRunning ? Color.DarkGray : e.IsSuccess ? Color.LawnGreen : Color.Red;
+                    RefreshRuntimeCanvasState();
                 }
             }
         }
@@ -952,6 +954,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                 _process.IsHandRun = false;
                 if (listenStarted)
                     FormGlobalSignal.StopListenSignals();
+
+                RefreshRuntimeCanvasState();
             }
         }
 
@@ -1020,7 +1024,19 @@ namespace TDJS_Vision.Forms.ProcessNew
                 buttonRun.Enabled = true;
                 buttonLoop.Enabled = true;
                 buttonStop.Enabled = false;
+                RefreshRuntimeCanvasState();
             }
+        }
+
+        /// <summary>
+        /// 刷新流程画布运行状态，避免手动运行后台线程结束后节点状态等到鼠标交互才重绘。
+        /// </summary>
+        private void RefreshRuntimeCanvasState()
+        {
+            if (processFlowCanvas == null || processFlowCanvas.IsDisposed)
+                return;
+
+            processFlowCanvas.RefreshRuntimeStateNow();
         }
 
         /// <summary>

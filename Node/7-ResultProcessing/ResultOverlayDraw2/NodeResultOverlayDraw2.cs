@@ -722,13 +722,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             foreach (string text in texts.Where(t => !string.IsNullOrWhiteSpace(t)))
             {
                 string displayText = usePrefix ? item.TextPrefix + text : text;
-                displayResult.Texts.Add(new ColorText(displayText, drawColor)
+                AddDisplayText(displayResult, new ColorText(displayText, drawColor)
                 {
                     FontSize = Math.Max(1, item.FontSize),
                     Position = item.TextPosition,
+                    CoordinateMode = item.TextCoordinateMode,
                     Margin = Math.Max(0, item.TextMargin),
                     Title = string.Empty
-                });
+                }, IsMissingPromptText(displayText));
             }
         }
 
@@ -878,13 +879,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
 
             string text = BuildMissingResultText(item, sourceNode);
             displayResult.IsAllOk = false;
-            displayResult.Texts.Add(new ColorText(text, Color.Red)
+            AddDisplayText(displayResult, new ColorText(text, Color.Red)
             {
                 FontSize = Math.Max(1, item.FontSize),
                 Position = item.TextPosition,
+                CoordinateMode = item.TextCoordinateMode,
                 Margin = Math.Max(0, item.TextMargin),
                 Title = string.Empty
-            });
+            }, true);
         }
 
         /// <summary>
@@ -946,13 +948,15 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                         if (string.IsNullOrWhiteSpace(line))
                             continue;
 
-                        displayResult.Texts.Add(new ColorText(usePrefix ? item.TextPrefix + line : line, textInfo.Color)
+                        string displayText = usePrefix ? item.TextPrefix + line : line;
+                        AddDisplayText(displayResult, new ColorText(displayText, textInfo.Color)
                         {
                             FontSize = Math.Max(1, item.FontSize),
                             Position = item.TextPosition,
+                            CoordinateMode = item.TextCoordinateMode,
                             Margin = Math.Max(0, item.TextMargin),
                             Title = string.Empty
-                        });
+                        }, IsMissingPromptText(displayText));
                         addedCount++;
                     }
                 }
@@ -972,15 +976,89 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                         continue;
 
                     string text = $"{result.Name}:{result.Value} {(result.IsOk ? "OK" : "NG")}";
-                    displayResult.Texts.Add(new ColorText(usePrefix ? item.TextPrefix + text : text, result.IsOk ? Color.Lime : Color.Red)
+                    string displayText = usePrefix ? item.TextPrefix + text : text;
+                    AddDisplayText(displayResult, new ColorText(displayText, result.IsOk ? Color.Lime : Color.Red)
                     {
                         FontSize = Math.Max(1, item.FontSize),
                         Position = item.TextPosition,
+                        CoordinateMode = item.TextCoordinateMode,
                         Margin = Math.Max(0, item.TextMargin),
                         Title = string.Empty
-                    });
+                    }, IsMissingPromptText(displayText));
                 }
             }
+        }
+
+        /// <summary>
+        /// 添加显示文本；失败提示相同且来自不同坐标系时只保留一份，优先保留控件坐标系。
+        /// </summary>
+        /// <param name="displayResult">目标显示结果。</param>
+        /// <param name="text">待添加文本。</param>
+        /// <param name="suppressDuplicate">是否按文本内容去重。</param>
+        private static void AddDisplayText(AlgorithmResult displayResult, ColorText text, bool suppressDuplicate)
+        {
+            if (displayResult == null || text == null || string.IsNullOrWhiteSpace(text.Text))
+                return;
+
+            if (displayResult.Texts == null)
+                displayResult.Texts = new List<ColorText>();
+
+            if (suppressDuplicate)
+            {
+                ColorText existing = displayResult.Texts.FirstOrDefault(item => IsSameDisplayText(item == null ? null : item.Text, text.Text));
+                if (existing != null)
+                {
+                    if (existing.CoordinateMode != DisplayTextCoordinateMode.Control &&
+                        text.CoordinateMode == DisplayTextCoordinateMode.Control)
+                    {
+                        existing.Color = text.Color;
+                        existing.FontSize = text.FontSize;
+                        existing.Position = text.Position;
+                        existing.CoordinateMode = text.CoordinateMode;
+                        existing.Margin = text.Margin;
+                        existing.Title = text.Title;
+                    }
+
+                    return;
+                }
+            }
+
+            displayResult.Texts.Add(text);
+        }
+
+        /// <summary>
+        /// 判断文本是否是失败提示，避免同一个未查到结果在图像坐标和控件坐标各显示一次。
+        /// </summary>
+        /// <param name="text">显示文本。</param>
+        /// <returns>属于失败提示返回 true。</returns>
+        private static bool IsMissingPromptText(string text)
+        {
+            return !string.IsNullOrWhiteSpace(text) &&
+                (text.IndexOf("未查到", StringComparison.Ordinal) >= 0 ||
+                 text.IndexOf("未找到", StringComparison.Ordinal) >= 0);
+        }
+
+        /// <summary>
+        /// 比较显示文本内容，忽略首尾空白和换行差异。
+        /// </summary>
+        /// <param name="left">左侧文本。</param>
+        /// <param name="right">右侧文本。</param>
+        /// <returns>文本一致返回 true。</returns>
+        private static bool IsSameDisplayText(string left, string right)
+        {
+            return string.Equals(NormalizeDisplayText(left), NormalizeDisplayText(right), StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// 归一化显示文本，避免同一提示因为换行格式不同无法去重。
+        /// </summary>
+        /// <param name="text">原始文本。</param>
+        /// <returns>归一化后的文本。</returns>
+        private static string NormalizeDisplayText(string text)
+        {
+            return string.IsNullOrWhiteSpace(text)
+                ? string.Empty
+                : text.Replace("\r\n", "\n").Trim();
         }
 
         /// <summary>

@@ -1527,3 +1527,34 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] Let `ResultOverlayDraw` and `ResultOverlayDraw2` add red `未查到` text when an enabled item cannot read its subscription or has no drawable geometry.
 - [x] Keep failure-tolerant ROI drawing visible so downstream image display can still show partial overlays plus explicit NG missing-result prompts.
 - [x] Set `CaliperLine` `JudgeOk` from the actual measure success state, so failed line searches feed NG color decisions correctly.
+
+## 2026-06-10: ROI Text Coordinate Mode
+
+- [x] Add a text coordinate mode to `ColorText` and `RoiTextBlock`, supporting image-area corner positioning and display-control corner positioning.
+- [x] Add `坐标系` selectors to `ROI结果绘制` and `ROI结果绘制2` text item settings, defaulting old and new items to `图像坐标系`.
+- [x] Route normal text, upstream algorithm text, and red `未查到` prompts through the selected coordinate mode.
+- [x] Allow line, rectangle, and region items to edit the same prompt position/coordinate/margin settings, so geometry lookup failures can also draw `未查到` in control coordinates.
+- [x] Deduplicate identical `未查到/未找到` prompts when upstream AI text and ROI fallback text both report the same missing result, preferring the control-coordinate prompt.
+
+## 2026-06-11: Process Edit Panel Manual Run Canvas Refresh
+
+- [x] Add an immediate runtime-state refresh method to `ProcessFlowCanvas`, flushing pending node status invalidations and repainting overlays.
+- [x] Call the canvas runtime refresh from `ProcessEditPanel` manual run status changes and run completion, so `buttonRun` updates node colors without waiting for a click or drag.
+
+## 2026-06-11: TDAI CPU YOLO新版接口替换
+
+- [x] 新增 `YoloOpenVinoCpuSession`，统一封装新版 `td_det.dll` 的 `yolo_init`、`yolo_infer`、`yolo_release` 三函数接口。
+- [x] 将 `Yolo8Det`、`Yolo8Seg`、`Yolo8Obb`、`Yolo8Pose` 的 `DeviceType.CPU` 分支切换到新版CPU YOLO接口，GPU分支暂时保持旧实现。
+- [x] 保持外层 `IYolo8.Init(...)`、`DetResult`、`SegResult`、`ObbResult`、`PoseResult` 形状不变，减少对 `NodeTDAI` 和业务解析的影响。
+- [x] 同步现有输出目录中的 `td_det.dll`、OpenVINO/TBB运行库和许可证文件，确保 `bin\Debug`、`bin\x64\Debug`、`bin\x64\Release` 均可加载新版CPU YOLO运行时。
+- [x] 编译验证：MSBuild `Debug|Any CPU` 和 `Debug|x64` 均为0错误，项目既有188个警告仍存在。
+
+## 2026-06-11: 流程图连线逻辑与执行架构说明
+
+- [x] 新增 `流程图连线逻辑与执行架构说明.md`，整理 `ProcessEditPanel`、`ProcessFlowCanvas`、`Process`、`NodeReturn` 之间的连线创建、保存加载、顺序执行、并行执行和 True/False 分支调度关系。
+- [x] 在说明文件中加入红色高亮 Mermaid 架构图，方便后续查看流程图连线逻辑与执行架构。
+
+## 2026-06-11: 流程图连线功能详细说明
+
+- [x] 新增 `流程图连线功能详细说明.txt`，单独说明流程中连线功能的设计思路、鼠标触发事件、创建实现、绘制实现、删除撤销、保存加载和执行调度关联。
+- [x] 按“只讲连线功能，不牵扯项目其它内容”的要求，重写 `流程图连线功能详细说明.txt` 为独立连线控件说明，去掉具体项目执行层和业务节点内容。

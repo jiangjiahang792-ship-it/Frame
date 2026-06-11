@@ -130,6 +130,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             };
 
             comboBoxTextPosition.DataSource = Enum.GetValues(typeof(DisplayTextPosition));
+            comboBoxTextCoordinateMode.DisplayMember = "Text";
+            comboBoxTextCoordinateMode.ValueMember = "Value";
+            comboBoxTextCoordinateMode.DataSource = new List<EnumOption<DisplayTextCoordinateMode>>
+            {
+                new EnumOption<DisplayTextCoordinateMode>("图像坐标系", DisplayTextCoordinateMode.Image),
+                new EnumOption<DisplayTextCoordinateMode>("控件坐标系", DisplayTextCoordinateMode.Control)
+            };
             comboBoxRuleCondition.Items.Clear();
             comboBoxRuleCondition.Items.Add("整体结果");
             comboBoxRuleCondition.SelectedIndex = 0;
@@ -488,6 +495,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             numericLineWidth.Value = ClampNumeric(numericLineWidth, item.LineWidth);
             numericMargin.Value = ClampNumeric(numericMargin, item.TextMargin);
             comboBoxTextPosition.SelectedItem = item.TextPosition;
+            SetTextCoordinateMode(item.TextCoordinateMode);
 
             if (string.IsNullOrWhiteSpace(item.SourceText1))
                 nodeSubscriptionSource.ClearText();
@@ -510,6 +518,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             numericLineWidth.Value = 2;
             numericMargin.Value = 10;
             comboBoxTextPosition.SelectedItem = DisplayTextPosition.TopLeft;
+            SetTextCoordinateMode(DisplayTextCoordinateMode.Image);
             nodeSubscriptionSource.ClearText();
         }
 
@@ -536,6 +545,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             item.TextPosition = comboBoxTextPosition.SelectedItem is DisplayTextPosition
                 ? (DisplayTextPosition)comboBoxTextPosition.SelectedItem
                 : item.TextPosition;
+            item.TextCoordinateMode = GetTextCoordinateMode();
         }
 
         /// <summary>
@@ -555,12 +565,15 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             textBoxManualText.Enabled = isText && checkBoxManualText.Checked;
             labelTextPrefix.Enabled = isText && !checkBoxManualText.Checked;
             textBoxTextPrefix.Enabled = isText && !checkBoxManualText.Checked;
-            labelFontSize.Enabled = isText;
-            numericFontSize.Enabled = isText;
-            labelTextPosition.Enabled = isText;
-            comboBoxTextPosition.Enabled = isText;
-            labelMargin.Enabled = isText;
-            numericMargin.Enabled = isText;
+            // 几何项查找失败时也会绘制红色“未查到”文本，所以提示样式对全部绘制项开放。
+            labelFontSize.Enabled = true;
+            numericFontSize.Enabled = true;
+            labelTextPosition.Enabled = true;
+            comboBoxTextPosition.Enabled = true;
+            labelTextCoordinateMode.Enabled = true;
+            comboBoxTextCoordinateMode.Enabled = true;
+            labelMargin.Enabled = true;
+            numericMargin.Enabled = true;
             nodeSubscriptionSource.Enabled = !isText || !checkBoxManualText.Checked;
         }
 
@@ -763,6 +776,36 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                     return;
                 }
             }
+        }
+
+        /// <summary>
+        /// 获取当前文本坐标系。
+        /// </summary>
+        /// <returns>文本四角定位坐标系。</returns>
+        private DisplayTextCoordinateMode GetTextCoordinateMode()
+        {
+            EnumOption<DisplayTextCoordinateMode> option = comboBoxTextCoordinateMode.SelectedItem as EnumOption<DisplayTextCoordinateMode>;
+            return option == null ? DisplayTextCoordinateMode.Image : option.Value;
+        }
+
+        /// <summary>
+        /// 设置当前文本坐标系。
+        /// </summary>
+        /// <param name="mode">文本四角定位坐标系。</param>
+        private void SetTextCoordinateMode(DisplayTextCoordinateMode mode)
+        {
+            foreach (object item in comboBoxTextCoordinateMode.Items)
+            {
+                EnumOption<DisplayTextCoordinateMode> option = item as EnumOption<DisplayTextCoordinateMode>;
+                if (option != null && option.Value == mode)
+                {
+                    comboBoxTextCoordinateMode.SelectedItem = option;
+                    return;
+                }
+            }
+
+            if (comboBoxTextCoordinateMode.Items.Count > 0)
+                comboBoxTextCoordinateMode.SelectedIndex = 0;
         }
 
         /// <summary>

@@ -486,7 +486,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                         Math.Max(1, text.FontSize)));
                 }
 
-                foreach (var group in displayResult.Texts.Where(t => t != null && !t.UseImagePosition).GroupBy(t => new { t.Position, t.FontSize, t.Margin, t.Title }))
+                foreach (var group in displayResult.Texts.Where(t => t != null && !t.UseImagePosition).GroupBy(t => new { t.Position, t.FontSize, t.Margin, t.Title, t.CoordinateMode }))
                 {
                     rois.Add(new RoiTextBlock(
                         group.Key.Title,
@@ -498,7 +498,8 @@ namespace TDJS_Vision.Forms.DispShowImage
                         Position = group.Key.Position,
                         Margin = Math.Max(0, group.Key.Margin),
                         ImageWidth = imageWidth,
-                        ImageHeight = imageHeight
+                        ImageHeight = imageHeight,
+                        UseControlCoordinate = group.Key.CoordinateMode == DisplayTextCoordinateMode.Control
                     });
                 }
             }
@@ -693,7 +694,14 @@ namespace TDJS_Vision.Forms.DispShowImage
                         g.SmoothingMode = SmoothingMode.AntiAlias;
                         lock (_roiLock)
                         {
-                            foreach (var roi in _dynamicRois.Concat(_staticRois)) roi.Draw(g, _scale, _offset);
+                            foreach (var roi in _dynamicRois.Concat(_staticRois))
+                            {
+                                RoiTextBlock textBlock = roi as RoiTextBlock;
+                                if (textBlock != null)
+                                    textBlock.SetControlBounds(Width, Height);
+
+                                roi.Draw(g, _scale, _offset);
+                            }
                         }
                     }
                 }
@@ -1615,11 +1623,151 @@ namespace TDJS_Vision.Forms.DispShowImage
 
         public class RoiTextBlock : IRoiShape
         {
-            public string Title; public List<(string text, Color color)> Lines; public float ImgX, ImgY; public float FontSize; public DisplayTextPosition Position { get; set; } = DisplayTextPosition.TopLeft; public int Margin { get; set; } = 10; public int ImageWidth { get; set; } public int ImageHeight { get; set; } public bool IsSelected { get; set; } public bool IsStatic { get; set; } = true; public string Label { get; set; } public Color ShapeColor { get; set; } = Color.White;
-            public RoiTextBlock(string title, List<(string text, Color color)> lines, float imgX = 0, float imgY = 0, float fontSize = 11f) { Title = title; Lines = lines; ImgX = imgX; ImgY = imgY; FontSize = fontSize; }
+            private const float TextPadding = 6F;
+            private const float StatusBarReservedHeight = 25F;
+
+            public string Title;
+            public List<(string text, Color color)> Lines;
+            public float ImgX;
+            public float ImgY;
+            public float FontSize;
+
+            /// <summary>
+            /// 四角文本定位位置。
+            /// </summary>
+            public DisplayTextPosition Position { get; set; } = DisplayTextPosition.TopLeft;
+
+            /// <summary>
+            /// 四角文本距离边缘的边距。
+            /// </summary>
+            public int Margin { get; set; } = 10;
+
+            /// <summary>
+            /// 原始图像宽度，用于按图像显示区域定位。
+            /// </summary>
+            public int ImageWidth { get; set; }
+
+            /// <summary>
+            /// 原始图像高度，用于按图像显示区域定位。
+            /// </summary>
+            public int ImageHeight { get; set; }
+
+            /// <summary>
+            /// 是否按显示控件坐标定位；否则按图像显示区域或绝对图像坐标定位。
+            /// </summary>
+            public bool UseControlCoordinate { get; set; }
+
+            /// <summary>
+            /// 当前显示控件宽度，由控件绘制前写入。
+            /// </summary>
+            public int ControlWidth { get; private set; }
+
+            /// <summary>
+            /// 当前显示控件高度，由控件绘制前写入。
+            /// </summary>
+            public int ControlHeight { get; private set; }
+
+            public bool IsSelected { get; set; }
+            public bool IsStatic { get; set; } = true;
+            public string Label { get; set; }
+            public Color ShapeColor { get; set; } = Color.White;
+
+            public RoiTextBlock(string title, List<(string text, Color color)> lines, float imgX = 0, float imgY = 0, float fontSize = 11f)
+            {
+                Title = title;
+                Lines = lines ?? new List<(string text, Color color)>();
+                ImgX = imgX;
+                ImgY = imgY;
+                FontSize = fontSize;
+            }
+
+            /// <summary>
+            /// 写入当前控件尺寸，让控件坐标文本不依赖局部重绘裁剪区域。
+            /// </summary>
+            public void SetControlBounds(int width, int height)
+            {
+                ControlWidth = Math.Max(0, width);
+                ControlHeight = Math.Max(0, height);
+            }
+
             public PointF GetCenter() => new PointF(ImgX, ImgY);
-            public void Draw(Graphics g, float s, PointF o) { float titleSize = FontSize * 1.2f, lineSize = FontSize; using (Font titleFont = new Font("Microsoft YaHei", titleSize, FontStyle.Bold)) using (Font lineFont = new Font("Microsoft YaHei", lineSize)) { bool showTitle = !string.IsNullOrWhiteSpace(Title); float maxW = showTitle ? g.MeasureString(Title, titleFont).Width : 0F, totalH = showTitle ? g.MeasureString(Title, titleFont).Height + 4 : 0F; foreach (var line in Lines) { var sz = g.MeasureString(line.text, lineFont); if (sz.Width > maxW) maxW = sz.Width; totalH += sz.Height + 2; } float pad = 6F; float x = ImgX * s + o.X; float y = ImgY * s + o.Y; if (ImageWidth > 0 && ImageHeight > 0) { float screenW = ImageWidth * s, screenH = ImageHeight * s, margin = Margin; if (Position == DisplayTextPosition.TopLeft || Position == DisplayTextPosition.BottomLeft) x = o.X + margin; else x = o.X + screenW - maxW - pad * 2 - margin; if (Position == DisplayTextPosition.TopLeft || Position == DisplayTextPosition.TopRight) y = o.Y + margin; else y = o.Y + screenH - totalH - pad * 2 - margin; } if (showTitle) { g.DrawString(Title, titleFont, Brushes.White, x, y); y += g.MeasureString(Title, titleFont).Height + 4; } foreach (var line in Lines) { using (Brush b = new SolidBrush(line.color)) g.DrawString(line.text, lineFont, b, x, y); y += g.MeasureString(line.text, lineFont).Height + 2; } } }
-            public int HitTest(Point p, float s, PointF o) => -1; public void BeginDrag(PointF p) { } public void DragTo(PointF p, int h) { }
+
+            public void Draw(Graphics g, float s, PointF o)
+            {
+                float titleSize = FontSize * 1.2f;
+                float lineSize = FontSize;
+                using (Font titleFont = new Font("Microsoft YaHei", titleSize, FontStyle.Bold))
+                using (Font lineFont = new Font("Microsoft YaHei", lineSize))
+                {
+                    bool showTitle = !string.IsNullOrWhiteSpace(Title);
+                    SizeF titleSizeInfo = showTitle ? g.MeasureString(Title, titleFont) : SizeF.Empty;
+                    float maxWidth = showTitle ? titleSizeInfo.Width : 0F;
+                    float totalHeight = showTitle ? titleSizeInfo.Height + 4F : 0F;
+
+                    foreach (var line in Lines)
+                    {
+                        SizeF lineSizeInfo = g.MeasureString(line.text ?? string.Empty, lineFont);
+                        if (lineSizeInfo.Width > maxWidth)
+                            maxWidth = lineSizeInfo.Width;
+                        totalHeight += lineSizeInfo.Height + 2F;
+                    }
+
+                    PointF topLeft = ResolveTopLeft(s, o, maxWidth, totalHeight);
+                    float x = topLeft.X;
+                    float y = topLeft.Y;
+
+                    if (showTitle)
+                    {
+                        g.DrawString(Title, titleFont, Brushes.White, x, y);
+                        y += titleSizeInfo.Height + 4F;
+                    }
+
+                    foreach (var line in Lines)
+                    {
+                        string text = line.text ?? string.Empty;
+                        using (Brush brush = new SolidBrush(line.color))
+                            g.DrawString(text, lineFont, brush, x, y);
+
+                        y += g.MeasureString(text, lineFont).Height + 2F;
+                    }
+                }
+            }
+
+            /// <summary>
+            /// 根据当前坐标系解析文本块左上角屏幕坐标。
+            /// </summary>
+            private PointF ResolveTopLeft(float scale, PointF offset, float blockWidth, float blockHeight)
+            {
+                if (UseControlCoordinate && ControlWidth > 0 && ControlHeight > 0)
+                    return ResolveCornerTopLeft(0F, 0F, ControlWidth, Math.Max(0F, ControlHeight - StatusBarReservedHeight), blockWidth, blockHeight);
+
+                if (ImageWidth > 0 && ImageHeight > 0)
+                    return ResolveCornerTopLeft(offset.X, offset.Y, ImageWidth * scale, ImageHeight * scale, blockWidth, blockHeight);
+
+                return new PointF(ImgX * scale + offset.X, ImgY * scale + offset.Y);
+            }
+
+            /// <summary>
+            /// 按指定矩形的四角计算文本左上角，右下角保留文本测量误差余量。
+            /// </summary>
+            private PointF ResolveCornerTopLeft(float left, float top, float width, float height, float blockWidth, float blockHeight)
+            {
+                float margin = Math.Max(0, Margin);
+                float x = left + margin;
+                float y = top + margin;
+
+                if (Position == DisplayTextPosition.TopRight || Position == DisplayTextPosition.BottomRight)
+                    x = left + width - blockWidth - TextPadding * 2F - margin;
+
+                if (Position == DisplayTextPosition.BottomLeft || Position == DisplayTextPosition.BottomRight)
+                    y = top + height - blockHeight - TextPadding * 2F - margin;
+
+                return new PointF(Math.Max(left, x), Math.Max(top, y));
+            }
+
+            public int HitTest(Point p, float s, PointF o) => -1;
+            public void BeginDrag(PointF p) { }
+            public void DragTo(PointF p, int h) { }
         }
 
         public class RoiResultBadge : IRoiShape

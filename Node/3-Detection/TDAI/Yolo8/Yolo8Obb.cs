@@ -36,14 +36,31 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         [DllImport("td_obb.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern void YOLO_Release(IntPtr handle);
 
-        private IntPtr handle;
+        /// <summary>
+        /// 当前 OBB CPU模型会话。
+        /// </summary>
+        private YoloOpenVinoCpuSession _cpuSession;
+
+        /// <summary>
+        /// 旧版OBB原生句柄，保留给非CPU分支兼容使用。
+        /// </summary>
+        private IntPtr _legacyHandle;
 
         /// <summary>
         /// 模型类型
         /// </summary>
         public ModelType ModelType { get; } = ModelType.OBB;
+        /// <summary>
+        /// 推理设备类型。
+        /// </summary>
         public DeviceType DeviceType { get; set; }
+        /// <summary>
+        /// 置信度阈值。
+        /// </summary>
         public float ScoreThreshold { get; set; }
+        /// <summary>
+        /// NMS阈值。
+        /// </summary>
         public float NMSThreshold { get; set; }
 
         /// <summary>
@@ -60,8 +77,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             DeviceType = deviceType;
             ScoreThreshold = score_threshold;
             NMSThreshold = nms_threshold;
-            handle = YOLO_Initialize(model_path, class_names, class_names.Length, input_size, score_threshold, nms_threshold);
-            if (handle == IntPtr.Zero)
+            if (DeviceType == DeviceType.CPU)
+            {
+                _cpuSession = YoloOpenVinoCpuSession.Open(model_path);
+                if (_cpuSession == null)
+                    throw new Exception("Failed to initialize YOLO model.");
+                return;
+            }
+
+            _legacyHandle = YOLO_Initialize(model_path, class_names, class_names.Length, input_size, score_threshold, nms_threshold);
+            if (_legacyHandle == IntPtr.Zero)
             {
                 throw new Exception("Failed to initialize YOLO model.");
             }
@@ -75,12 +100,15 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <returns></returns>
         public List<ObbResult> Detect(Mat image, int deltaX = 0, int deltaY = 0)
         {
+            if (DeviceType == DeviceType.CPU)
+                return _cpuSession.DetectObb(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
+
             byte[] imageData = new byte[image.Total() * image.ElemSize()];
             Marshal.Copy(image.Data, imageData, 0, imageData.Length);
 
             IntPtr resultsPtr;
             int resultCount;
-            YOLO_Inference(handle, imageData, image.Width, image.Height, image.Channels(), out resultsPtr, out resultCount);
+            YOLO_Inference(_legacyHandle, imageData, image.Width, image.Height, image.Channels(), out resultsPtr, out resultCount);
 
             List<ObbResult> results = new List<ObbResult>();
             if (resultCount > 0)
@@ -114,10 +142,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <param name="handle"></param>
         public void Destroy()
         {
-            if (handle != IntPtr.Zero)
+            if (DeviceType == DeviceType.CPU)
             {
-                YOLO_Release(handle);
-                handle = IntPtr.Zero;
+                if (_cpuSession != null)
+                {
+                    _cpuSession.Dispose();
+                    _cpuSession = null;
+                }
+                return;
+            }
+
+            if (_legacyHandle != IntPtr.Zero)
+            {
+                YOLO_Release(_legacyHandle);
+                _legacyHandle = IntPtr.Zero;
             }
         }
     }

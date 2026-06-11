@@ -41,36 +41,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             public int count;
         }
 
-        // 导入DLL函数
-        [DllImport("td_seg.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern IntPtr Initialize(
-            string modelPath,
-            string[] classNames,
-            int classCount,
-            int modelSize,
-            float scoreThreshold,
-            float nmsThreshold);
-
-        [DllImport("td_seg.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern void Infer(
-            IntPtr context,
-            byte[] imageData,
-            int width,
-            int height,
-            int channels,
-            out int boxCount,
-            out IntPtr boxData,
-            out IntPtr scoreData,
-            out IntPtr classIdData,
-            out int maskCount,
-            out IntPtr maskWidth,
-            out IntPtr maskHeight,
-            out IntPtr maskData);
-
-        [DllImport("td_seg.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern void Release(IntPtr context);
-
-
         //GPU初始化函数
         [DllImport("td_gpu_detect.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr YoloV8_Init(string model_type,
@@ -92,13 +62,31 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         private static extern void YoloV8_FreeResult(IntPtr results);
 
 
-        private IntPtr _handle;
+        /// <summary>
+        /// 当前 SEG CPU模型会话。
+        /// </summary>
+        private YoloOpenVinoCpuSession _cpuSession;
+
+        /// <summary>
+        /// 当前 SEG GPU模型的原生句柄。
+        /// </summary>
+        private IntPtr _gpuHandle;
+
         /// <summary>
         /// 模型类型
         /// </summary>
         public ModelType ModelType { get; } = ModelType.SEG;
+        /// <summary>
+        /// 推理设备类型。
+        /// </summary>
         public DeviceType DeviceType { get; set; }
+        /// <summary>
+        /// 置信度阈值。
+        /// </summary>
         public float ScoreThreshold { get; set; }
+        /// <summary>
+        /// NMS阈值。
+        /// </summary>
         public float NMSThreshold { get; set; }
 
         /// <summary>
@@ -113,16 +101,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             switch (DeviceType)
             {
                 case DeviceType.CPU:
-                    _handle = Initialize(model_path, class_names, class_names.Length, input_size, score_threshold, nms_threshold);
+                    _cpuSession = YoloOpenVinoCpuSession.Open(model_path);
                     break;
                 case DeviceType.GPU:
-                    _handle = YoloV8_Init("seg", model_path, input_size, input_size, class_names, class_names.Length, score_threshold, nms_threshold, 0);
+                    _gpuHandle = YoloV8_Init("seg", model_path, input_size, input_size, class_names, class_names.Length, score_threshold, nms_threshold, 0);
                     break;
                 default:
                     throw new Exception("未找到对应运行设备的指定");
             }
 
-            if (_handle == IntPtr.Zero)
+            if (DeviceType == DeviceType.CPU && _cpuSession == null)
+            {
+                throw new Exception("Failed to initialize YOLO segmentation model.");
+            }
+            if (DeviceType == DeviceType.GPU && _gpuHandle == IntPtr.Zero)
             {
                 throw new Exception("Failed to initialize YOLO segmentation model.");
             }
@@ -139,106 +131,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             switch (DeviceType)
             {
                 case DeviceType.CPU:
-                    byte[] imageData = new byte[image.Total() * image.ElemSize()];
-                    Marshal.Copy(image.Data, imageData, 0, imageData.Length);
-                    // Perform inference
-                    int boxCount;
-                    IntPtr boxData;
-                    IntPtr scoreData;
-                    IntPtr classIdData;
-                    int maskCount;
-                    IntPtr maskWidth;
-                    IntPtr maskHeight;
-                    IntPtr maskData;
-
-                    Infer(_handle, imageData, image.Width, image.Height, image.Channels(),
-                          out boxCount, out boxData, out scoreData, out classIdData,
-                          out maskCount, out maskWidth, out maskHeight, out maskData);
-
-                    // Visualize the results
-                    for (int i = 0; i < boxCount; i++)
-                    {
-                        // Get box data
-                        int x = Marshal.ReadInt32(boxData, i * 4 * sizeof(int)) + deltaX;
-                        int y = Marshal.ReadInt32(boxData, (i * 4 + 1) * sizeof(int)) + deltaY;
-                        int w = Marshal.ReadInt32(boxData, (i * 4 + 2) * sizeof(int));
-                        int h = Marshal.ReadInt32(boxData, (i * 4 + 3) * sizeof(int));
-
-                        // Get score data
-                        int intValue = Marshal.ReadInt32(scoreData, i * sizeof(float));
-
-                        // 将整数按原字节位解释为浮点数（不改变字节内容）
-                        float score = BitConverter.ToSingle(BitConverter.GetBytes(intValue), 0);
-
-                        // Get class ID data
-                        int classId = Marshal.ReadInt32(classIdData, i * sizeof(int));
-
-                        // Draw bounding box
-                        Cv2.Rectangle(image, new Rect(x, y, w, h), Scalar.Green, 2);
-
-                        // Get mask data
-                        int maskW = Marshal.ReadInt32(maskWidth, i * sizeof(int));
-                        int maskH = Marshal.ReadInt32(maskHeight, i * sizeof(int));
-                        IntPtr maskPtr = Marshal.ReadIntPtr(maskData, i * IntPtr.Size);
-
-                        byte[] maskBytes = new byte[maskW * maskH];
-                        Marshal.Copy(maskPtr, maskBytes, 0, maskBytes.Length);
-
-                        // Create a Mat object for the mask
-                        Mat mask = new Mat(maskH, maskW, MatType.CV_8UC1);
-                        // Copy the mask data to the Mat object
-                        for (int yMask = 0; yMask < maskH; yMask++)
-                        {
-                            for (int xMask = 0; xMask < maskW; xMask++)
-                            {
-                                mask.Set(yMask, xMask, maskBytes[yMask * maskW + xMask]);
-                            }
-
-                        }
-
-                        // 查找轮廓
-                        Point[][] contours;
-                        HierarchyIndex[] hierarchy;
-                        Cv2.FindContours(mask, out contours, out hierarchy, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
-
-                        // 计算该轮廓的四个极点：左上、右上、右下、左下
-                        Point topLeft = new Point(), topRight = new Point(), bottomRight = new Point(), bottomLeft = new Point();
-
-                        // 在原图上绘制轮廓
-                        foreach (var contour in contours)
-                        {
-                            // 将轮廓点坐标转换到原图坐标系
-                            var scaledContour = contour.Select(p => new Point(p.X + x, p.Y + y)).ToArray();
-                            //Cv2.DrawContours(image, new Point[][] { scaledContour }, -1, Scalar.Red, 2);
-
-                            GetExtremeCorners(scaledContour, out topLeft, out topRight, out bottomRight, out bottomLeft);
-
-                        }
-                        results.Add(new SegResult
-                        {
-                            ClassId = classId,
-                            Score = score,
-                            Rect = new Rect(x, y, w, h),
-                            Box = new Box(
-                                new PointF(topLeft.X, topLeft.Y),
-                                new PointF(topRight.X, topRight.Y),
-                                new PointF(bottomLeft.X, bottomLeft.Y),
-                                new PointF(bottomRight.X, bottomRight.Y))
-                        });
-
-                        mask.Dispose();
-                    }
-                    break;
+                    return _cpuSession.DetectSeg(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
 
                 case DeviceType.GPU:
                     // 空值校验
-                    if (image == null || image.Empty() || image.Data == IntPtr.Zero || _handle == IntPtr.Zero)
+                    if (image == null || image.Empty() || image.Data == IntPtr.Zero || _gpuHandle == IntPtr.Zero)
                     {
                         return new List<SegResult>();
                     }
 
                     // 调用底层检测接口
-                    IntPtr resPtr = YoloV8_Infer(_handle, image.Data, image.Width, image.Height, image.Channels(), ScoreThreshold, NMSThreshold);
+                    IntPtr resPtr = YoloV8_Infer(_gpuHandle, image.Data, image.Width, image.Height, image.Channels(), ScoreThreshold, NMSThreshold);
                     if (resPtr == IntPtr.Zero)
                         return new List<SegResult>();
 
@@ -355,20 +258,24 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public void Destroy()
         {
-            if (_handle != IntPtr.Zero)
+            switch (DeviceType)
             {
-                switch (DeviceType)
-                {
-                    case DeviceType.CPU:
-                        Release(_handle);
-                        break;
-                    case DeviceType.GPU:
-                        YoloV8_Release(_handle);
-                        break;
-                    default:
-                        throw new Exception("未找到对应运行设备的指定");
-                }
-                _handle = IntPtr.Zero;
+                case DeviceType.CPU:
+                    if (_cpuSession != null)
+                    {
+                        _cpuSession.Dispose();
+                        _cpuSession = null;
+                    }
+                    break;
+                case DeviceType.GPU:
+                    if (_gpuHandle != IntPtr.Zero)
+                    {
+                        YoloV8_Release(_gpuHandle);
+                        _gpuHandle = IntPtr.Zero;
+                    }
+                    break;
+                default:
+                    throw new Exception("未找到对应运行设备的指定");
             }
         }
     }
