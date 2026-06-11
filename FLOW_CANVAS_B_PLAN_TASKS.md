@@ -1558,3 +1558,8 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 
 - [x] 新增 `流程图连线功能详细说明.txt`，单独说明流程中连线功能的设计思路、鼠标触发事件、创建实现、绘制实现、删除撤销、保存加载和执行调度关联。
 - [x] 按“只讲连线功能，不牵扯项目其它内容”的要求，重写 `流程图连线功能详细说明.txt` 为独立连线控件说明，去掉具体项目执行层和业务节点内容。
+
+## 2026-06-11: 保存图像节点写入ROI叠加结果
+
+- [x] 修正 `ImageSave` 节点订阅带 `DisplayResult` 的 `OutputImage` 时只保存底图的问题，保存前把线框、轮廓和文本叠加层绘制到后台保存图。
+- [x] 复用 `ShowImageControl.DrawDisplayResultToBitmap` 的绘制逻辑，并兼容索引色灰度图转普通 RGB 图后再绘制，保证后台保存和界面显示一致。

@@ -2,12 +2,15 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
+using TDJS_Vision.Forms.DispShowImage;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
+using System.Linq;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 {
@@ -98,12 +101,76 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         {
             try
             {
-                return nodeSubscriptionImg2Save.GetValue<OutputImage>().Bitmaps[0].ToBitmap();
+                OutputImage outputImage = nodeSubscriptionImg2Save.GetValue<OutputImage>();
+                if (outputImage == null || outputImage.Bitmaps == null || outputImage.Bitmaps.Count == 0 || !OutputImage.HasValidImage(outputImage.Bitmaps[0]))
+                    throw new Exception("订阅的图片对象为空！");
+
+                Bitmap bitmap = outputImage.Bitmaps[0].ToBitmap();
+                if (HasDrawableDisplayResult(outputImage.DisplayResult))
+                {
+                    bitmap = EnsureDrawableBitmap(bitmap);
+                    ShowImageControl.DrawDisplayResultToBitmap(bitmap, outputImage.DisplayResult);
+                }
+
+                return bitmap;
             }
             catch (Exception)
             {
                 throw;
             }
+        }
+
+        /// <summary>
+        /// 确保位图支持 GDI+ 写入绘制，索引色灰度图需要先转为普通 RGB 图。
+        /// </summary>
+        /// <param name="source">待检查的位图。</param>
+        /// <returns>可安全写入线框和文本的位图。</returns>
+        private static Bitmap EnsureDrawableBitmap(Bitmap source)
+        {
+            if (source == null)
+                return null;
+
+            bool isIndexed = (source.PixelFormat & PixelFormat.Indexed) == PixelFormat.Indexed;
+            if (!isIndexed)
+                return source;
+
+            Bitmap drawable = new Bitmap(source.Width, source.Height, PixelFormat.Format24bppRgb);
+            using (Graphics graphics = Graphics.FromImage(drawable))
+                graphics.DrawImage(source, 0, 0, source.Width, source.Height);
+
+            source.Dispose();
+            return drawable;
+        }
+
+        /// <summary>
+        /// 判断图像输出中是否带有需要写入保存图的显示叠加层。
+        /// </summary>
+        /// <param name="displayResult">显示叠加结果。</param>
+        /// <returns>存在可绘制的线框、轮廓或文本时返回 true。</returns>
+        private static bool HasDrawableDisplayResult(AlgorithmResult displayResult)
+        {
+            if (displayResult == null)
+                return false;
+
+            return HasAny(displayResult.Rects)
+                || (displayResult.RectsNgMap != null && displayResult.RectsNgMap.Values.Any(HasAny))
+                || HasAny(displayResult.Texts)
+                || HasAny(displayResult.Lines)
+                || HasAny(displayResult.Circles)
+                || HasAny(displayResult.Arcs)
+                || HasAny(displayResult.Ellipses)
+                || HasAny(displayResult.Contours);
+        }
+
+        /// <summary>
+        /// 判断集合中是否至少有一个非空显示元素。
+        /// </summary>
+        /// <typeparam name="T">显示元素类型。</typeparam>
+        /// <param name="items">显示元素集合。</param>
+        /// <returns>存在非空元素时返回 true。</returns>
+        private static bool HasAny<T>(IEnumerable<T> items) where T : class
+        {
+            return items != null && items.Any(item => item != null);
         }
 
         /// <summary>
