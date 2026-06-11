@@ -1563,3 +1563,10 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 
 - [x] 修正 `ImageSave` 节点订阅带 `DisplayResult` 的 `OutputImage` 时只保存底图的问题，保存前把线框、轮廓和文本叠加层绘制到后台保存图。
 - [x] 复用 `ShowImageControl.DrawDisplayResultToBitmap` 的绘制逻辑，并兼容索引色灰度图转普通 RGB 图后再绘制，保证后台保存和界面显示一致。
+
+## 2026-06-11: 卡尺找线与线组合拟合稳定性增强
+
+- [x] 让卡尺算法在采样剖面时沿卡尺宽度方向做灰度平均，并使用双线性采样，减少金属反光、毛刺和整数取点对边缘位置的影响。
+- [x] 给卡尺找线加入基于中位数残差的离群点剔除，避免少量错误边缘点拉偏拟合角度。
+- [x] 给线组合拟合加入鲁棒点过滤，共线合并和平行中线模式都会过滤异常边缘点，降低流程17中 `213/214` 对坏点的敏感度。
+- [x] 编译验证：MSBuild `TDJS-Vision.sln` 通过，项目既有 warning 仍存在。

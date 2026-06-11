@@ -159,6 +159,9 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             float scanDirX = p.Direction == 0 ? uPerpX : uAx;
             float scanDirY = p.Direction == 0 ? uPerpY : uAy;
             float scanRange = p.Direction == 0 ? p.CaliperHeight : p.CaliperWidth;
+            float averageDirX = p.Direction == 0 ? uAx : uPerpX;
+            float averageDirY = p.Direction == 0 ? uAy : uPerpY;
+            float averageWidth = p.Direction == 0 ? p.CaliperWidth : p.CaliperHeight;
 
             int count = Math.Max(1, p.Count);
             for (int i = 0; i < count; i++)
@@ -166,16 +169,13 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 float t = count == 1 ? 0.5f : (float)i / (count - 1);
                 float cx = p.StartX + axisX * t;
                 float cy = p.StartY + axisY * t;
-                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, scanRange, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
+                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, scanRange, averageDirX, averageDirY, averageWidth, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
                 if (edgePoint.HasValue)
                     result.EdgePoints.Add(edgePoint.Value);
             }
 
             if (result.EdgePoints.Count >= 2)
-            {
-                FitLine(result);
-                result.Success = true;
-            }
+                result.Success = FitLine(result);
 
             return Finish(result, sw);
         }
@@ -208,8 +208,10 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                     scanDirX = -scanDirX;
                     scanDirY = -scanDirY;
                 }
+                float averageDirX = -scanDirY;
+                float averageDirY = scanDirX;
 
-                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
+                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, averageDirX, averageDirY, p.CaliperWidth, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
                 if (edgePoint.HasValue)
                     result.EdgePoints.Add(edgePoint.Value);
             }
@@ -277,8 +279,10 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                     scanDirX = -scanDirX;
                     scanDirY = -scanDirY;
                 }
+                float averageDirX = -scanDirY;
+                float averageDirY = scanDirX;
 
-                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
+                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, averageDirX, averageDirY, p.CaliperWidth, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
                 if (edgePoint.HasValue)
                     result.EdgePoints.Add(edgePoint.Value);
                 else
@@ -315,6 +319,9 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             float scanDirX,
             float scanDirY,
             float scanRange,
+            float averageDirX,
+            float averageDirY,
+            float averageWidth,
             int blurSize,
             int edgeStrength,
             CaliperEdgePolarity polarity,
@@ -334,9 +341,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 posX[j] = px;
                 posY[j] = py;
 
-                int ix = (int)(px + 0.5f);
-                int iy = (int)(py + 0.5f);
-                profile[j] = IsInside(gray, ix, iy) ? gray.At<byte>(iy, ix) : 0;
+                profile[j] = SampleAveragedPixel(gray, px, py, averageDirX, averageDirY, averageWidth);
             }
 
             if (blurSize > 1)
@@ -347,6 +352,56 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 gradient[j] = (profile[j + 1] - profile[j - 1]) / 2f;
 
             return FindEdgeInProfile(gradient, posX, posY, edgeStrength, polarity, findMode);
+        }
+
+        /// <summary>
+        /// 沿卡尺宽度方向做灰度平均，减少金属反光和单像素毛刺对一维边缘剖面的影响。
+        /// </summary>
+        private static float SampleAveragedPixel(Mat gray, float centerX, float centerY, float averageDirX, float averageDirY, float averageWidth)
+        {
+            int halfWidth = Math.Min(15, Math.Max(0, (int)Math.Round(Math.Max(0, averageWidth) / 2.0)));
+            if (halfWidth == 0)
+            {
+                float value = SamplePixelBilinear(gray, centerX, centerY);
+                return value < 0 ? 0 : value;
+            }
+
+            float sum = 0;
+            int count = 0;
+            for (int offset = -halfWidth; offset <= halfWidth; offset++)
+            {
+                float value = SamplePixelBilinear(gray, centerX + averageDirX * offset, centerY + averageDirY * offset);
+                if (value < 0)
+                    continue;
+
+                sum += value;
+                count++;
+            }
+
+            return count == 0 ? 0 : sum / count;
+        }
+
+        /// <summary>
+        /// 双线性读取灰度，避免卡尺方向不是水平/垂直时被整数取整抖动放大。
+        /// </summary>
+        private static float SamplePixelBilinear(Mat gray, float x, float y)
+        {
+            int x0 = (int)Math.Floor(x);
+            int y0 = (int)Math.Floor(y);
+            int x1 = x0 + 1;
+            int y1 = y0 + 1;
+            if (!IsInside(gray, x0, y0) || !IsInside(gray, x1, y1))
+                return -1;
+
+            float fx = x - x0;
+            float fy = y - y0;
+            float v00 = gray.At<byte>(y0, x0);
+            float v10 = gray.At<byte>(y0, x1);
+            float v01 = gray.At<byte>(y1, x0);
+            float v11 = gray.At<byte>(y1, x1);
+            float top = v00 * (1 - fx) + v10 * fx;
+            float bottom = v01 * (1 - fx) + v11 * fx;
+            return top * (1 - fy) + bottom * fy;
         }
 
         private static bool IsInside(Mat gray, int x, int y)
@@ -387,6 +442,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             CaliperEdgeFindMode mode)
         {
             var candidates = new List<EdgeCandidate>();
+            var fallbackCandidates = new List<EdgeCandidate>();
             for (int i = 1; i < gradient.Length - 1; i++)
             {
                 float g = gradient[i];
@@ -398,9 +454,13 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 if (polarity == CaliperEdgePolarity.LightToDark && g >= 0)
                     continue;
 
-                candidates.Add(new EdgeCandidate(i, absG));
+                fallbackCandidates.Add(new EdgeCandidate(i, absG));
+                if (absG >= Math.Abs(gradient[i - 1]) && absG >= Math.Abs(gradient[i + 1]))
+                    candidates.Add(new EdgeCandidate(i, absG));
             }
 
+            if (candidates.Count == 0)
+                candidates = fallbackCandidates;
             if (candidates.Count == 0)
                 return null;
 
@@ -442,9 +502,73 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             return new PointF(px[bestIdx], py[bestIdx]);
         }
 
-        private static void FitLine(CaliperLineMeasureResult result)
+        /// <summary>
+        /// 对卡尺边缘点做鲁棒直线拟合，先剔除偏离当前线过大的点，再输出最终线段。
+        /// </summary>
+        private static bool FitLine(CaliperLineMeasureResult result)
         {
-            Point2f[] cvPts = result.EdgePoints.Select(p => new Point2f(p.X, p.Y)).ToArray();
+            List<PointF> points = BuildRobustLinePoints(result.EdgePoints);
+            if (points.Count < 2)
+                return false;
+
+            RobustLineFit fit = FitLineCore(points);
+            if (!fit.IsValid)
+                return false;
+
+            result.EdgePoints = points;
+            result.LineStart = fit.Start;
+            result.LineEnd = fit.End;
+            return true;
+        }
+
+        /// <summary>
+        /// 迭代剔除直线拟合离群点，避免少量反光边缘点拉偏角度。
+        /// </summary>
+        private static List<PointF> BuildRobustLinePoints(List<PointF> sourcePoints)
+        {
+            List<PointF> points = sourcePoints == null ? new List<PointF>() : sourcePoints.ToList();
+            int minimumCount = Math.Max(2, (int)Math.Ceiling(points.Count * 0.6));
+            for (int iteration = 0; iteration < 2 && points.Count >= 3; iteration++)
+            {
+                RobustLineFit fit = FitLineCore(points);
+                if (!fit.IsValid)
+                    break;
+
+                List<double> distances = points.Select(point => DistanceToLine(point, fit.Start, fit.End)).ToList();
+                double threshold = BuildRobustDistanceThreshold(distances);
+                List<PointF> filtered = points.Where((point, index) => distances[index] <= threshold).ToList();
+                if (filtered.Count < minimumCount || filtered.Count == points.Count)
+                    break;
+
+                points = filtered;
+            }
+
+            return points;
+        }
+
+        /// <summary>
+        /// 按中位数绝对偏差生成鲁棒距离阈值。
+        /// </summary>
+        private static double BuildRobustDistanceThreshold(List<double> distances)
+        {
+            if (distances == null || distances.Count == 0)
+                return 0;
+
+            double median = Median(distances);
+            List<double> deviations = distances.Select(distance => Math.Abs(distance - median)).ToList();
+            double sigma = 1.4826 * Median(deviations);
+            return Math.Max(1.5, median + 3.0 * sigma);
+        }
+
+        /// <summary>
+        /// 使用 OpenCV 拟合直线，并把无限线截取到输入点投影范围。
+        /// </summary>
+        private static RobustLineFit FitLineCore(IList<PointF> points)
+        {
+            if (points == null || points.Count < 2)
+                return new RobustLineFit();
+
+            Point2f[] cvPts = points.Select(p => new Point2f(p.X, p.Y)).ToArray();
             using (InputArray pts = InputArray.Create(cvPts))
             using (Mat line = new Mat())
             {
@@ -456,16 +580,62 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 float minT = float.MaxValue;
                 float maxT = float.MinValue;
 
-                foreach (PointF point in result.EdgePoints)
+                foreach (PointF point in points)
                 {
                     float t = (point.X - x0) * vx + (point.Y - y0) * vy;
                     minT = Math.Min(minT, t);
                     maxT = Math.Max(maxT, t);
                 }
 
-                result.LineStart = new PointF(x0 + vx * minT, y0 + vy * minT);
-                result.LineEnd = new PointF(x0 + vx * maxT, y0 + vy * maxT);
+                PointF start = new PointF(x0 + vx * minT, y0 + vy * minT);
+                PointF end = new PointF(x0 + vx * maxT, y0 + vy * maxT);
+                return new RobustLineFit
+                {
+                    IsValid = DistanceBetween(start, end) > 0.0001,
+                    Start = start,
+                    End = end
+                };
             }
+        }
+
+        /// <summary>
+        /// 计算两点间距离。
+        /// </summary>
+        private static double DistanceBetween(PointF p1, PointF p2)
+        {
+            double dx = p2.X - p1.X;
+            double dy = p2.Y - p1.Y;
+            return Math.Sqrt(dx * dx + dy * dy);
+        }
+
+        /// <summary>
+        /// 计算点到直线的垂直距离。
+        /// </summary>
+        private static double DistanceToLine(PointF point, PointF lineStart, PointF lineEnd)
+        {
+            double dx = lineEnd.X - lineStart.X;
+            double dy = lineEnd.Y - lineStart.Y;
+            double length = Math.Sqrt(dx * dx + dy * dy);
+            if (length < 1e-8)
+                return double.MaxValue;
+
+            return Math.Abs((point.X - lineStart.X) * dy - (point.Y - lineStart.Y) * dx) / length;
+        }
+
+        /// <summary>
+        /// 计算中位数。
+        /// </summary>
+        private static double Median(List<double> values)
+        {
+            if (values == null || values.Count == 0)
+                return 0;
+
+            List<double> sorted = values.OrderBy(value => value).ToList();
+            int middle = sorted.Count / 2;
+            if (sorted.Count % 2 == 1)
+                return sorted[middle];
+
+            return (sorted[middle - 1] + sorted[middle]) / 2.0;
         }
 
         private static void FitCircle(CaliperCircleMeasureResult result)
@@ -527,6 +697,27 @@ namespace TDJS_Vision.Node._4_Measurement.Common
 
             public int Index { get; }
             public float AbsGradient { get; }
+        }
+
+        /// <summary>
+        /// 直线拟合中间结果。
+        /// </summary>
+        private struct RobustLineFit
+        {
+            /// <summary>
+            /// 拟合结果是否有效。
+            /// </summary>
+            public bool IsValid { get; set; }
+
+            /// <summary>
+            /// 拟合线段起点。
+            /// </summary>
+            public PointF Start { get; set; }
+
+            /// <summary>
+            /// 拟合线段终点。
+            /// </summary>
+            public PointF End { get; set; }
         }
     }
 }

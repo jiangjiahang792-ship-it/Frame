@@ -115,14 +115,21 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
                 return;
             }
 
-            FittedLine fitted = FitLineByPca(points);
+            List<PointF> stablePoints = BuildRobustLinePoints(points);
+            if (stablePoints.Count < 2)
+            {
+                MarkFail(result, "有效拟合点数不足。");
+                return;
+            }
+
+            FittedLine fitted = FitLineByPca(stablePoints);
             if (!fitted.IsValid)
             {
                 MarkFail(result, "线拟合失败。");
                 return;
             }
 
-            result.SourcePoints = points;
+            result.SourcePoints = stablePoints;
             result.OutputLine = new MeasuredLine
             {
                 Start = fitted.Start,
@@ -163,6 +170,13 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
             if (extentPoints.Count < 2)
             {
                 MarkFail(result, "参与拟合的点数不足。");
+                return;
+            }
+
+            extentPoints = FilterPointsNearEitherLine(extentPoints, result.Line1, result.Line2);
+            if (extentPoints.Count < 2)
+            {
+                MarkFail(result, "有效投影点数不足。");
                 return;
             }
 
@@ -272,6 +286,9 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
         /// </summary>
         private static FittedLine FitLineByPca(IList<PointF> points)
         {
+            if (points == null || points.Count < 2)
+                return new FittedLine();
+
             double centerX = points.Average(point => point.X);
             double centerY = points.Average(point => point.Y);
             double xx = 0;
@@ -313,6 +330,63 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
         }
 
         /// <summary>
+        /// 对共线拟合点做残差剔除，避免少量误检边缘点拉偏输出线角度。
+        /// </summary>
+        private static List<PointF> BuildRobustLinePoints(List<PointF> sourcePoints)
+        {
+            List<PointF> points = sourcePoints == null ? new List<PointF>() : sourcePoints.ToList();
+            int minimumCount = Math.Max(2, (int)Math.Ceiling(points.Count * 0.6));
+            for (int iteration = 0; iteration < 2 && points.Count >= 3; iteration++)
+            {
+                FittedLine fit = FitLineByPca(points);
+                if (!fit.IsValid)
+                    break;
+
+                var line = new MeasuredLine { Start = fit.Start, End = fit.End };
+                List<double> distances = points.Select(point => DistanceToLine(point, line)).ToList();
+                double threshold = BuildRobustDistanceThreshold(distances);
+                List<PointF> filtered = points.Where((point, index) => distances[index] <= threshold).ToList();
+                if (filtered.Count < minimumCount || filtered.Count == points.Count)
+                    break;
+
+                points = filtered;
+            }
+
+            return points;
+        }
+
+        /// <summary>
+        /// 平行中线模式下保留靠近任意一条源线的点，过滤反光造成的离群边缘点。
+        /// </summary>
+        private static List<PointF> FilterPointsNearEitherLine(List<PointF> sourcePoints, MeasuredLine line1, MeasuredLine line2)
+        {
+            if (sourcePoints == null || sourcePoints.Count < 4)
+                return sourcePoints ?? new List<PointF>();
+
+            List<double> distances = sourcePoints
+                .Select(point => Math.Min(DistanceToLine(point, line1), DistanceToLine(point, line2)))
+                .ToList();
+            double threshold = BuildRobustDistanceThreshold(distances);
+            int minimumCount = Math.Max(2, (int)Math.Ceiling(sourcePoints.Count * 0.6));
+            List<PointF> filtered = sourcePoints.Where((point, index) => distances[index] <= threshold).ToList();
+            return filtered.Count >= minimumCount ? filtered : sourcePoints;
+        }
+
+        /// <summary>
+        /// 按中位数绝对偏差生成鲁棒距离阈值。
+        /// </summary>
+        private static double BuildRobustDistanceThreshold(List<double> distances)
+        {
+            if (distances == null || distances.Count == 0)
+                return 0;
+
+            double median = Median(distances);
+            List<double> deviations = distances.Select(distance => Math.Abs(distance - median)).ToList();
+            double sigma = 1.4826 * Median(deviations);
+            return Math.Max(1.5, median + 3.0 * sigma);
+        }
+
+        /// <summary>
         /// 计算点到线的均方根距离。
         /// </summary>
         private static double CalculateRmsDistance(IList<PointF> points, MeasuredLine line)
@@ -330,6 +404,38 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
             }
 
             return Math.Sqrt(sum / points.Count);
+        }
+
+        /// <summary>
+        /// 计算点到直线的垂直距离。
+        /// </summary>
+        private static double DistanceToLine(PointF point, MeasuredLine line)
+        {
+            if (line == null || !line.IsValid)
+                return double.MaxValue;
+
+            PointF direction = Subtract(line.End, line.Start);
+            double length = Length(direction);
+            if (length < 1e-8)
+                return double.MaxValue;
+
+            return Math.Abs((point.X - line.Start.X) * direction.Y - (point.Y - line.Start.Y) * direction.X) / length;
+        }
+
+        /// <summary>
+        /// 计算中位数。
+        /// </summary>
+        private static double Median(List<double> values)
+        {
+            if (values == null || values.Count == 0)
+                return 0;
+
+            List<double> sorted = values.OrderBy(value => value).ToList();
+            int middle = sorted.Count / 2;
+            if (sorted.Count % 2 == 1)
+                return sorted[middle];
+
+            return (sorted[middle - 1] + sorted[middle]) / 2.0;
         }
 
         /// <summary>
