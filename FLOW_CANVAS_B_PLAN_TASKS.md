@@ -20,6 +20,13 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-12 流程画布细节体验优化：
+  - [x] 新反馈已记录：复制粘贴后的节点显示文本不要追加“复制”字样；点击节点后需要清楚高亮输入、输出连线及关联节点；画布、节点、连线右键菜单内容需要区分；画布空间或节点与连线字体需要更紧凑。
+  - [x] 粘贴节点命名已改为优先保留原节点名称，重名时仅追加 `_2/_3` 数字编号，不再追加“复制”文本。
+  - [x] `ProcessFlowCanvas` 已增加单选节点关系高亮缓存，输入连线与输入节点使用蓝色、输出连线与输出节点使用橙色并加粗显示。
+  - [x] 流程画布右键菜单已按空白画布、节点、连线三类目标动态显示不同命令，避免三类对象菜单内容混在一起。
+  - [x] 画布逻辑空间已扩大到 `3200x2200`，节点标题、状态文本和分支标签字体已适当调小，便于大流程查看。
+  - [x] Build-verified with MSBuild on 2026-06-12, 0 errors; existing warnings remain.
 - 2026-06-09 中心端子侧面AI节点空引用诊断：
   - [x] 新反馈已记录：中心端子侧面流程运行时，133与142的AI检测节点会在图像获取和模型推理之间直接空引用失败，需要判断是否为141/134裁剪输出空图或AI模型未加载。
   - [x] `NodeTDAI` 已恢复运行前AI模型就绪等待与校验，避免 `Yolo8` 句柄为空时直接触发空引用。
@@ -1570,3 +1577,9 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 给卡尺找线加入基于中位数残差的离群点剔除，避免少量错误边缘点拉偏拟合角度。
 - [x] 给线组合拟合加入鲁棒点过滤，共线合并和平行中线模式都会过滤异常边缘点，降低流程17中 `213/214` 对坏点的敏感度。
 - [x] 编译验证：MSBuild `TDJS-Vision.sln` 通过，项目既有 warning 仍存在。
+
+## 2026-06-12: AI运行参数阈值同步与ROI空结果提示修正
+
+- [x] 修正 `SolRunParam` 修改 AI 置信度和 NMS 阈值后只写入 `AIInputInfo`，未同步当前 `Yolo8` 模型句柄的问题。
+- [x] 让 `textBoxScoreThreshold` 与 `textBoxScoreNMS` 离开焦点时即时回写当前 AI 节点运行阈值，保存时同步写入配置文件和方案。
+- [x] 修正 `ROI结果绘制` 与 `ROI结果绘制2` 对 TDAI 节点成功运行但空检出的特殊处理，不再显示 `AI检测：未查到`；TDAI 节点运行失败时仍保留红色缺失提示。

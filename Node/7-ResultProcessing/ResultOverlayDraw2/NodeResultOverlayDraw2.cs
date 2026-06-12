@@ -876,6 +876,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         {
             if (displayResult == null || item == null)
                 return;
+            if (ShouldSuppressMissingPromptForSource(sourceNode))
+                return;
 
             string text = BuildMissingResultText(item, sourceNode);
             displayResult.IsAllOk = false;
@@ -905,6 +907,17 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 return item.Name + "：未查到";
 
             return "未查到";
+        }
+
+        /// <summary>
+        /// TDAI节点运行成功但未检出目标时属于正常空结果，不把它当成ROI订阅缺失来显示“未查到”。
+        /// </summary>
+        /// <param name="sourceNode">订阅来源节点。</param>
+        /// <returns>需要隐藏缺失提示时返回 true。</returns>
+        private static bool ShouldSuppressMissingPromptForSource(NodeBase sourceNode)
+        {
+            return sourceNode is NodeTDAI &&
+                sourceNode.RuntimeStatus == NodeStatus.Successful;
         }
 
         /// <summary>

@@ -1217,6 +1217,10 @@ namespace TDJS_Vision.Forms.ProcessNew
             bool hasSingleNode = selectedNodeCount == 1;
             bool hasConnection = processFlowCanvas.SelectedConnection != null;
             bool canPaste = HasCopiedNodeSnapshot();
+            FlowCanvasContextMenuTarget menuTarget = GetValidFlowCanvasMenuTarget(hasNode, hasConnection);
+            bool isCanvasMenu = menuTarget == FlowCanvasContextMenuTarget.Canvas;
+            bool isNodeMenu = menuTarget == FlowCanvasContextMenuTarget.Node;
+            bool isConnectionMenu = menuTarget == FlowCanvasContextMenuTarget.Connection;
             bool hasActiveNode = false;
             bool hasInactiveNode = false;
             bool allSelectedNodesOutputLog = hasNode;
@@ -1253,7 +1257,45 @@ namespace TDJS_Vision.Forms.ProcessNew
             添加节点备注ToolStripMenuItem.Enabled = hasSingleNode;
             删除节点ToolStripMenuItem.Enabled = hasNode;
             删除连线ToolStripMenuItem.Enabled = hasConnection;
+            撤销ToolStripMenuItem.Visible = isCanvasMenu;
+            重做ToolStripMenuItem.Visible = isCanvasMenu;
+            toolStripSeparatorCanvasHistory.Visible = isCanvasMenu;
+            复制节点ToolStripMenuItem.Visible = isNodeMenu;
+            粘贴节点ToolStripMenuItem.Visible = isCanvasMenu;
+            toolStripSeparatorCanvasClipboard.Visible = isCanvasMenu || isNodeMenu;
+            放大ToolStripMenuItem.Visible = isCanvasMenu;
+            缩小ToolStripMenuItem.Visible = isCanvasMenu;
+            还原缩放ToolStripMenuItem.Visible = isCanvasMenu;
+            吸附到网格ToolStripMenuItem.Visible = isCanvasMenu;
+            toolStripSeparatorCanvasZoom.Visible = false;
+            打开节点参数ToolStripMenuItem.Visible = isNodeMenu;
+            设为起始节点ToolStripMenuItem.Visible = isNodeMenu;
+            启用节点ToolStripMenuItem.Visible = isNodeMenu;
+            禁用节点ToolStripMenuItem.Visible = isNodeMenu;
+            节点是否输出日志ToolStripMenuItem.Visible = isNodeMenu;
+            重命名节点ToolStripMenuItem.Visible = isNodeMenu;
+            添加节点备注ToolStripMenuItem.Visible = isNodeMenu;
+            删除节点ToolStripMenuItem.Visible = isNodeMenu;
+            删除连线ToolStripMenuItem.Visible = isConnectionMenu;
             e.Cancel = false;
+        }
+
+        /// <summary>
+        /// 获取可用的流程画布右键菜单目标，避免选择状态被外部改变后显示空菜单。
+        /// </summary>
+        /// <param name="hasNode">当前是否选中了节点。</param>
+        /// <param name="hasConnection">当前是否选中了连线。</param>
+        /// <returns>最终用于显示菜单项的目标类型。</returns>
+        private FlowCanvasContextMenuTarget GetValidFlowCanvasMenuTarget(bool hasNode, bool hasConnection)
+        {
+            FlowCanvasContextMenuTarget target = processFlowCanvas.LastContextMenuTarget;
+            if (target == FlowCanvasContextMenuTarget.Node && !hasNode)
+                return FlowCanvasContextMenuTarget.Canvas;
+
+            if (target == FlowCanvasContextMenuTarget.Connection && !hasConnection)
+                return FlowCanvasContextMenuTarget.Canvas;
+
+            return target;
         }
 
         private void 撤销ToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1640,16 +1682,21 @@ namespace TDJS_Vision.Forms.ProcessNew
             return bounds;
         }
 
+        /// <summary>
+        /// 生成粘贴节点名称，优先保留原始显示文本，重名时仅追加数字编号。
+        /// </summary>
+        /// <param name="sourceName">复制来源节点名称。</param>
+        /// <returns>可用于目标流程的节点名称。</returns>
         private string GetUniquePastedNodeName(string sourceName)
         {
             string baseName = string.IsNullOrWhiteSpace(sourceName)
-                ? "节点_复制"
-                : sourceName + "_复制";
+                ? "节点"
+                : sourceName.Trim();
             string candidate = baseName;
             int index = 2;
             while (NodeNameExists(candidate))
             {
-                candidate = baseName + index;
+                candidate = baseName + "_" + index;
                 index++;
             }
 

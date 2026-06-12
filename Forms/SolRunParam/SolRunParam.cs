@@ -823,8 +823,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 {
                     if (_nodeTDAI.ParamForm.Params is NodeParamTDAI aiParams && textBoxScoreThreshold.Enabled)
                     {
-                        aiParams.AIInputInfo.ScoreThreshold = float.Parse(textBoxScoreThreshold.Text);
-                        aiParams.AIInputInfo.ScoreNMS = float.Parse(textBoxScoreNMS.Text);
+                        ApplyAiScoreThresholdsFromTextBoxes(aiParams);
                         aiParams.IsAutoStudy = uiSwitch_Learning.Active;
                         // 也要更新AI节点的检测项配置
                         string detectItemName = string.IsNullOrWhiteSpace(aiParams.CurDetectItemName) ? _currentDetectItemName : aiParams.CurDetectItemName.Trim();
@@ -862,6 +861,62 @@ namespace TDJS_Vision.Forms.SolRunParam
             {
                 throw;
             }
+        }
+
+        /// <summary>
+        /// 从运行参数界面读取AI置信度和NMS阈值，并同步到配置对象与当前已加载模型句柄。
+        /// </summary>
+        /// <param name="aiParams">AI节点参数。</param>
+        private void ApplyAiScoreThresholdsFromTextBoxes(NodeParamTDAI aiParams)
+        {
+            if (aiParams == null || aiParams.AIInputInfo == null)
+                throw new Exception("AI节点配置为空，无法写入阈值！");
+
+            if (!float.TryParse(textBoxScoreThreshold.Text, out float scoreThreshold))
+                throw new Exception("AI置信度阈值格式不正确！");
+            if (!float.TryParse(textBoxScoreNMS.Text, out float scoreNms))
+                throw new Exception("AI NMS阈值格式不正确！");
+
+            ApplyAiScoreThresholds(aiParams, scoreThreshold, scoreNms);
+        }
+
+        /// <summary>
+        /// 同步AI阈值到持久化配置和当前Yolo模型对象，避免只保存配置但运行仍使用旧阈值。
+        /// </summary>
+        /// <param name="aiParams">AI节点参数。</param>
+        /// <param name="scoreThreshold">置信度阈值。</param>
+        /// <param name="scoreNms">NMS阈值。</param>
+        private static void ApplyAiScoreThresholds(NodeParamTDAI aiParams, float scoreThreshold, float scoreNms)
+        {
+            if (aiParams == null || aiParams.AIInputInfo == null)
+                return;
+
+            aiParams.AIInputInfo.ScoreThreshold = scoreThreshold;
+            aiParams.AIInputInfo.ScoreNMS = scoreNms;
+
+            if (aiParams.Yolo8 != null)
+            {
+                aiParams.Yolo8.ScoreThreshold = scoreThreshold;
+                aiParams.Yolo8.NMSThreshold = scoreNms;
+            }
+        }
+
+        /// <summary>
+        /// 文本框离开焦点时即时回写当前AI模型阈值，使下一次运行立即使用新阈值。
+        /// </summary>
+        private void TryApplyAiScoreThresholdsFromTextBoxes()
+        {
+            if (_nodeTDAI == null || !textBoxScoreThreshold.Enabled)
+                return;
+
+            if (!float.TryParse(textBoxScoreThreshold.Text, out float scoreThreshold) ||
+                !float.TryParse(textBoxScoreNMS.Text, out float scoreNms))
+            {
+                return;
+            }
+
+            if (_nodeTDAI.ParamForm.Params is NodeParamTDAI aiParams)
+                ApplyAiScoreThresholds(aiParams, scoreThreshold, scoreNms);
         }
 
         /// <summary>
@@ -1071,13 +1126,13 @@ namespace TDJS_Vision.Forms.SolRunParam
                     case "textBoxScoreThreshold":
                         if (double.TryParse(textBoxScoreThreshold.Text, out double scoreThreshold))
                         {
-                            //solRunDataNew.ScoreThreshold = textBoxScoreThreshold.Text;
+                            TryApplyAiScoreThresholdsFromTextBoxes();
                         }
                         break;
                     case "textBoxScoreNMS":
                         if (double.TryParse(textBoxScoreNMS.Text, out double scoreNMS))
                         {
-                            //solRunDataNew.ScoreNMS = textBoxScoreNMS.Text;
+                            TryApplyAiScoreThresholdsFromTextBoxes();
                         }
                         break;
                     default:

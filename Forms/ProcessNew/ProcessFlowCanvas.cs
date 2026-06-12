@@ -13,13 +13,55 @@ using Mat = OpenCvSharp.Mat;
 namespace TDJS_Vision.Forms.ProcessNew
 {
     /// <summary>
+    /// 流程画布右键菜单命中的对象类型。
+    /// </summary>
+    public enum FlowCanvasContextMenuTarget
+    {
+        /// <summary>
+        /// 空白画布区域。
+        /// </summary>
+        Canvas,
+
+        /// <summary>
+        /// 流程节点。
+        /// </summary>
+        Node,
+
+        /// <summary>
+        /// 节点之间的连线。
+        /// </summary>
+        Connection
+    }
+
+    /// <summary>
+    /// 选中节点与其它节点之间的关系类型。
+    /// </summary>
+    internal enum FlowNodeRelationRole
+    {
+        /// <summary>
+        /// 与当前选中节点无直接输入输出关系。
+        /// </summary>
+        None,
+
+        /// <summary>
+        /// 当前节点是选中节点的输入来源。
+        /// </summary>
+        Input,
+
+        /// <summary>
+        /// 当前节点是选中节点的输出目标。
+        /// </summary>
+        Output
+    }
+
+    /// <summary>
     /// Free flow-canvas surface for the ProcessNew editor.
     /// </summary>
     public class ProcessFlowCanvas : Panel
     {
         private const int GridSize = 24;
         private const int AnchorSize = 12;
-        private static readonly Size LogicalCanvasSize = new Size(2400, 1600);
+        private static readonly Size LogicalCanvasSize = new Size(3200, 2200);
         private static readonly Color CanvasBackColor = Color.FromArgb(48, 52, 56);
         private static readonly Color GridLineColor = Color.FromArgb(61, 67, 72);
         private static readonly Color GridMajorLineColor = Color.FromArgb(72, 79, 85);
@@ -28,6 +70,14 @@ namespace TDJS_Vision.Forms.ProcessNew
         private static readonly Color NodeTextColor = Color.FromArgb(29, 41, 57);
         private static readonly Color NodeMetaTextColor = Color.FromArgb(86, 99, 117);
         private static readonly Color CanvasAccentColor = Color.FromArgb(255, 132, 32);
+        /// <summary>
+        /// 选中节点输入连线和输入节点边框颜色。
+        /// </summary>
+        private static readonly Color RelationInputColor = Color.FromArgb(74, 163, 255);
+        /// <summary>
+        /// 选中节点输出连线和输出节点边框颜色。
+        /// </summary>
+        private static readonly Color RelationOutputColor = Color.FromArgb(255, 132, 32);
         /// <summary>
         /// 节点拖拽对齐辅助线颜色。
         /// </summary>
@@ -62,6 +112,10 @@ namespace TDJS_Vision.Forms.ProcessNew
         private string _connectionStartAnchor;
         private Point _connectionEndPoint;
         private ProcessConnection _selectedConnection;
+        /// <summary>
+        /// 最近一次右键菜单命中的画布对象类型。
+        /// </summary>
+        private FlowCanvasContextMenuTarget _lastContextMenuTarget = FlowCanvasContextMenuTarget.Canvas;
         private Point _dragStartLocation;
         private List<NodeLocationSnapshot> _dragStartSnapshots = new List<NodeLocationSnapshot>();
         private bool _isSelectingNodes;
@@ -114,6 +168,22 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// 当前拖动批次可用于对齐吸附的静态节点矩形，非拖动节点不会在拖动过程中变化。
         /// </summary>
         private readonly List<NodeAlignmentTarget> _alignmentTargets = new List<NodeAlignmentTarget>();
+        /// <summary>
+        /// 单选节点的直接输入节点编号集合，用于绘制输入关系高亮。
+        /// </summary>
+        private readonly HashSet<int> _selectedInputNodeIds = new HashSet<int>();
+        /// <summary>
+        /// 单选节点的直接输出节点编号集合，用于绘制输出关系高亮。
+        /// </summary>
+        private readonly HashSet<int> _selectedOutputNodeIds = new HashSet<int>();
+        /// <summary>
+        /// 指向单选节点的连线集合。
+        /// </summary>
+        private readonly HashSet<ProcessConnection> _selectedInputConnections = new HashSet<ProcessConnection>();
+        /// <summary>
+        /// 单选节点指向下游节点的连线集合。
+        /// </summary>
+        private readonly HashSet<ProcessConnection> _selectedOutputConnections = new HashSet<ProcessConnection>();
         private string _selectedPreviewImageKey;
         private string _cachedPreviewKey;
         private Mat _cachedPreviewMat;
@@ -166,6 +236,14 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         public Point LastContextMenuCanvasPoint { get; private set; }
 
+        /// <summary>
+        /// 获取最近一次右键菜单命中的画布对象类型。
+        /// </summary>
+        public FlowCanvasContextMenuTarget LastContextMenuTarget
+        {
+            get { return _lastContextMenuTarget; }
+        }
+
         public float ZoomFactor
         {
             get { return _zoomFactor; }
@@ -212,6 +290,8 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             _process = process;
             _selectedConnection = null;
+            _lastContextMenuTarget = FlowCanvasContextMenuTarget.Canvas;
+            ClearSelectedRelationHighlights();
             _alignmentGuides.Clear();
             _connectionRouteCache.Clear();
             InvalidateCanvasTopologyCaches();
@@ -609,6 +689,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             foreach (NodeBase node in _process.Nodes)
                 node.Selected = selectedNodes != null && selectedNodes.Contains(node);
 
+            RefreshSelectedRelationHighlights();
             InvalidateMinimapCache();
             Invalidate();
             RequestOverlayInvalidate();
@@ -755,7 +836,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             {
                 ClearDragInteractionCache();
                 LastContextMenuCanvasPoint = canvasPoint;
-                SelectAtPoint(canvasPoint, true);
+                _lastContextMenuTarget = SelectAtPoint(canvasPoint, true);
                 _alignmentGuides.Clear();
                 Invalidate();
                 return;
@@ -1113,7 +1194,63 @@ namespace TDJS_Vision.Forms.ProcessNew
             _nodeLookupDirty = true;
             _connectionObstacleCacheDirty = true;
             _connectionRouteCache.Clear();
+            RefreshSelectedRelationHighlights();
             InvalidateMinimapCache();
+        }
+
+        /// <summary>
+        /// 清空当前选中节点的输入输出关系高亮缓存。
+        /// </summary>
+        private void ClearSelectedRelationHighlights()
+        {
+            _selectedInputNodeIds.Clear();
+            _selectedOutputNodeIds.Clear();
+            _selectedInputConnections.Clear();
+            _selectedOutputConnections.Clear();
+        }
+
+        /// <summary>
+        /// 根据当前单选节点刷新直接输入、直接输出关系缓存。
+        /// </summary>
+        private void RefreshSelectedRelationHighlights()
+        {
+            ClearSelectedRelationHighlights();
+            if (_process == null)
+                return;
+
+            NodeBase selectedNode = null;
+            int selectedCount = 0;
+            foreach (NodeBase node in _process.Nodes)
+            {
+                if (node == null || !node.Selected)
+                    continue;
+
+                selectedNode = node;
+                selectedCount++;
+                if (selectedCount > 1)
+                    return;
+            }
+
+            if (selectedNode == null || selectedCount != 1)
+                return;
+
+            foreach (ProcessConnection connection in _process.Connections)
+            {
+                if (connection == null)
+                    continue;
+
+                if (connection.ToNodeId == selectedNode.ID)
+                {
+                    _selectedInputNodeIds.Add(connection.FromNodeId);
+                    _selectedInputConnections.Add(connection);
+                }
+
+                if (connection.FromNodeId == selectedNode.ID)
+                {
+                    _selectedOutputNodeIds.Add(connection.ToNodeId);
+                    _selectedOutputConnections.Add(connection);
+                }
+            }
         }
 
         /// <summary>
@@ -1313,6 +1450,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 return false;
 
             _selectedConnection = null;
+            RefreshSelectedRelationHighlights();
             RemoveConnectionRouteCache(connection);
             _process.NotifyConnectionsChanged();
             InvalidateMinimapCache();
@@ -1342,6 +1480,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
 
             _process.NotifyConnectionsChanged();
+            RefreshSelectedRelationHighlights();
             InvalidateMinimapCache();
             RequestOverlayInvalidate();
         }
@@ -1981,7 +2120,10 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
 
             if (!changedBounds.IsEmpty)
+            {
+                RefreshSelectedRelationHighlights();
                 InvalidateMinimapCache();
+            }
 
             return changedBounds;
         }
@@ -2991,8 +3133,8 @@ namespace TDJS_Vision.Forms.ProcessNew
             using (SolidBrush titleBrush = new SolidBrush(GetNodeTitleBandColor(node)))
                 graphics.FillRectangle(titleBrush, titleBand);
 
-            using (Font titleFont = new Font("Microsoft YaHei", 9.5F, FontStyle.Bold))
-            using (Font metaFont = new Font("Microsoft YaHei", 8F, FontStyle.Regular))
+            using (Font titleFont = new Font("Microsoft YaHei", 8.5F, FontStyle.Bold))
+            using (Font metaFont = new Font("Microsoft YaHei", 7.2F, FontStyle.Regular))
             using (SolidBrush titleBrush = new SolidBrush(NodeTextColor))
             using (SolidBrush metaBrush = new SolidBrush(IsNodeAlertStatus(node) ? statusColor : NodeMetaTextColor))
             using (SolidBrush statusBrush = new SolidBrush(statusColor))
@@ -3013,7 +3155,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             {
                 Rectangle badge = new Rectangle(bounds.Right - 47, bounds.Y + 18, 34, 16);
                 using (SolidBrush badgeBrush = new SolidBrush(Color.FromArgb(47, 158, 68)))
-                using (Font badgeFont = new Font("Segoe UI", 7F, FontStyle.Bold))
+                using (Font badgeFont = new Font("Segoe UI", 6.5F, FontStyle.Bold))
                 {
                     graphics.FillRectangle(badgeBrush, badge);
                     graphics.DrawString("Start", badgeFont, Brushes.White, badge.X + 3, badge.Y + 1);
@@ -3046,12 +3188,15 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// <param name="toNode">终点节点。</param>
         private void DrawConnection(Graphics graphics, ProcessConnection connection, NodeBase fromNode, NodeBase toNode)
         {
-            Color connectionColor = connection == _selectedConnection
+            FlowNodeRelationRole relationRole = GetConnectionRelationRole(connection);
+            bool selectedConnection = connection == _selectedConnection;
+            bool relationConnection = relationRole != FlowNodeRelationRole.None;
+            Color connectionColor = selectedConnection
                 ? Color.FromArgb(90, 190, 255)
-                : GetConnectionColor(connection.Branch);
+                : GetConnectionHighlightColor(connection.Branch, relationRole);
             Point[] route = CreateRoutedConnectionPoints(connection, fromNode, toNode);
 
-            DrawArrowPath(graphics, route, connectionColor, false, connection == _selectedConnection);
+            DrawArrowPath(graphics, route, connectionColor, false, selectedConnection, relationConnection);
             DrawConnectionBranchLabel(graphics, connection, route, connectionColor);
         }
 
@@ -3388,13 +3533,13 @@ namespace TDJS_Vision.Forms.ProcessNew
             return _connectionObstacleCache;
         }
 
-        private void DrawArrowPath(Graphics graphics, Point[] points, Color color, bool dashed, bool selected)
+        private void DrawArrowPath(Graphics graphics, Point[] points, Color color, bool dashed, bool selected, bool highlighted = false)
         {
             if (points == null || points.Length < 2)
                 return;
 
             using (AdjustableArrowCap arrow = new AdjustableArrowCap(5, 5))
-            using (Pen pen = new Pen(color, selected ? 3.2F : 2.4F))
+            using (Pen pen = new Pen(color, selected ? 3.2F : highlighted ? 3.0F : 2.4F))
             using (GraphicsPath path = CreateConnectionGraphicsPath(points))
             {
                 pen.CustomEndCap = arrow;
@@ -3438,7 +3583,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
             if (!string.IsNullOrEmpty(branchLabel))
             {
-                using (Font branchFont = new Font("Segoe UI", 7F, FontStyle.Bold))
+                using (Font branchFont = new Font("Segoe UI", 6.5F, FontStyle.Bold))
                 using (SolidBrush branchBrush = new SolidBrush(Color.FromArgb(220, 229, 239)))
                 {
                     Point labelLocation = anchorName == "Bottom"
@@ -3632,6 +3777,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             DisposePreviewCache();
             foreach (NodeBase node in _process.Nodes)
                 node.Selected = node == selectedNode;
+            RefreshSelectedRelationHighlights();
             InvalidateMinimapCache();
             RequestOverlayInvalidate();
         }
@@ -3641,6 +3787,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             _selectedConnection = selectedConnection;
             foreach (NodeBase node in _process.Nodes)
                 node.Selected = false;
+            ClearSelectedRelationHighlights();
             InvalidateMinimapCache();
             RequestOverlayInvalidate();
         }
@@ -3653,28 +3800,33 @@ namespace TDJS_Vision.Forms.ProcessNew
             _selectedConnection = null;
             foreach (NodeBase node in _process.Nodes)
                 node.Selected = false;
+            ClearSelectedRelationHighlights();
             InvalidateMinimapCache();
             RequestOverlayInvalidate();
         }
 
-        private void SelectAtPoint(Point canvasPoint, bool preserveSelectedNodeGroup = false)
+        private FlowCanvasContextMenuTarget SelectAtPoint(Point canvasPoint, bool preserveSelectedNodeGroup = false)
         {
             NodeBase node = HitNode(canvasPoint);
             if (node != null)
             {
                 if (!preserveSelectedNodeGroup || !node.Selected)
                     SelectOnly(node);
-                return;
+                else
+                    RefreshSelectedRelationHighlights();
+
+                return FlowCanvasContextMenuTarget.Node;
             }
 
             ProcessConnection connection = HitConnection(canvasPoint);
             if (connection != null)
             {
                 SelectOnly(connection);
-                return;
+                return FlowCanvasContextMenuTarget.Connection;
             }
 
             ClearSelection();
+            return FlowCanvasContextMenuTarget.Canvas;
         }
 
         private Point ClampLocation(Point location, Size size)
@@ -4006,7 +4158,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             Rectangle badge = new Rectangle(center.X - 9, center.Y - 9, 18, 18);
             using (SolidBrush fill = new SolidBrush(Color.FromArgb(245, 248, 252)))
             using (Pen border = new Pen(color, 1.2F))
-            using (Font font = new Font("Segoe UI", 7F, FontStyle.Bold))
+            using (Font font = new Font("Segoe UI", 6.5F, FontStyle.Bold))
             using (SolidBrush textBrush = new SolidBrush(color))
             {
                 graphics.FillEllipse(fill, badge);
@@ -4086,6 +4238,61 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
         }
 
+        /// <summary>
+        /// 获取连线在当前选中节点视角下的输入输出关系。
+        /// </summary>
+        /// <param name="connection">流程连线。</param>
+        /// <returns>连线关系类型。</returns>
+        private FlowNodeRelationRole GetConnectionRelationRole(ProcessConnection connection)
+        {
+            if (connection == null)
+                return FlowNodeRelationRole.None;
+
+            if (_selectedInputConnections.Contains(connection))
+                return FlowNodeRelationRole.Input;
+
+            if (_selectedOutputConnections.Contains(connection))
+                return FlowNodeRelationRole.Output;
+
+            return FlowNodeRelationRole.None;
+        }
+
+        /// <summary>
+        /// 获取连线颜色，优先显示当前选中节点的输入输出关系。
+        /// </summary>
+        /// <param name="branch">连线分支类型。</param>
+        /// <param name="relationRole">连线关系类型。</param>
+        /// <returns>用于绘制连线的颜色。</returns>
+        private Color GetConnectionHighlightColor(ProcessConnectionBranch branch, FlowNodeRelationRole relationRole)
+        {
+            if (relationRole == FlowNodeRelationRole.Input)
+                return RelationInputColor;
+
+            if (relationRole == FlowNodeRelationRole.Output)
+                return RelationOutputColor;
+
+            return GetConnectionColor(branch);
+        }
+
+        /// <summary>
+        /// 获取节点在当前单选节点视角下的输入输出关系。
+        /// </summary>
+        /// <param name="node">需要判断的节点。</param>
+        /// <returns>节点关系类型。</returns>
+        private FlowNodeRelationRole GetNodeRelationRole(NodeBase node)
+        {
+            if (node == null || node.Selected)
+                return FlowNodeRelationRole.None;
+
+            if (_selectedInputNodeIds.Contains(node.ID))
+                return FlowNodeRelationRole.Input;
+
+            if (_selectedOutputNodeIds.Contains(node.ID))
+                return FlowNodeRelationRole.Output;
+
+            return FlowNodeRelationRole.None;
+        }
+
         private Color GetNodeFillColor(NodeBase node)
         {
             if (!node.Active)
@@ -4130,6 +4337,13 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         private Color GetNodeBorderColor(NodeBase node)
         {
+            FlowNodeRelationRole relationRole = GetNodeRelationRole(node);
+            if (relationRole == FlowNodeRelationRole.Input)
+                return RelationInputColor;
+
+            if (relationRole == FlowNodeRelationRole.Output)
+                return RelationOutputColor;
+
             if (node.RuntimeStatus == NodeStatus.Failed)
                 return Color.FromArgb(255, 68, 68);
 
@@ -4141,6 +4355,10 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         private float GetNodeBorderWidth(NodeBase node)
         {
+            FlowNodeRelationRole relationRole = GetNodeRelationRole(node);
+            if (relationRole != FlowNodeRelationRole.None)
+                return 2.4F;
+
             if (node.RuntimeStatus == NodeStatus.Failed)
                 return node.Selected ? 3.4F : 3.0F;
 
