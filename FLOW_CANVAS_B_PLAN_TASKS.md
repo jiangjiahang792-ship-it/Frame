@@ -1583,3 +1583,9 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 修正 `SolRunParam` 修改 AI 置信度和 NMS 阈值后只写入 `AIInputInfo`，未同步当前 `Yolo8` 模型句柄的问题。
 - [x] 让 `textBoxScoreThreshold` 与 `textBoxScoreNMS` 离开焦点时即时回写当前 AI 节点运行阈值，保存时同步写入配置文件和方案。
 - [x] 修正 `ROI结果绘制` 与 `ROI结果绘制2` 对 TDAI 节点成功运行但空检出的特殊处理，不再显示 `AI检测：未查到`；TDAI 节点运行失败时仍保留红色缺失提示。
+
+## 2026-06-12: 线组合拟合平行中线端点中点法
+
+- [x] 将 `LineMergeFit` 的平行中线模式改为两条线对应端点取中点，再连接两个中点生成输出线。
+- [x] 在取中点前对齐第二条线的方向，避免上游线段起终点反向导致中线交叉。
+- [x] 保留平行中线模式的线间距、拟合误差和显示点输出，用于继续对比运行效果。

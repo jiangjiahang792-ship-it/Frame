@@ -142,7 +142,7 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
         }
 
         /// <summary>
-        /// 平行中线拟合，输出位于两条源线中间的基准线段。
+        /// 平行中线拟合，按两条线的对应端点取中点生成中线。
         /// </summary>
         private static void FitParallelCenterLine(
             LineMergeFitMeasureResult result,
@@ -150,52 +150,25 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
             IEnumerable<PointF> line2Points,
             NodeParamLineMergeFit param)
         {
-            PointF u1 = Normalize(Subtract(result.Line1.End, result.Line1.Start));
-            PointF u2 = Normalize(Subtract(result.Line2.End, result.Line2.Start));
-            if (Length(u1) < 1e-8 || Length(u2) < 1e-8)
+            MeasuredLine line1 = result.Line1;
+            MeasuredLine line2 = AlignLineDirection(line1, result.Line2);
+            if (line1 == null || line2 == null || !line1.IsValid || !line2.IsValid)
             {
                 MarkFail(result, "源线方向无效。");
                 return;
             }
 
-            if (Dot(u1, u2) < 0)
-                u2 = Scale(u2, -1);
-
-            PointF direction = Normalize(Add(u1, u2));
-            if (Length(direction) < 1e-8)
-                direction = u1;
-
-            PointF normal = new PointF(-direction.Y, direction.X);
-            List<PointF> extentPoints = BuildExtentPoints(result.Line1, result.Line2, line1Points, line2Points, param);
-            if (extentPoints.Count < 2)
-            {
-                MarkFail(result, "参与拟合的点数不足。");
-                return;
-            }
-
-            extentPoints = FilterPointsNearEitherLine(extentPoints, result.Line1, result.Line2);
-            if (extentPoints.Count < 2)
-            {
-                MarkFail(result, "有效投影点数不足。");
-                return;
-            }
-
-            double line1Offset = AverageOffset(result.Line1, normal);
-            double line2Offset = AverageOffset(result.Line2, normal);
-            double centerOffset = (line1Offset + line2Offset) / 2.0;
-            double minProjection = extentPoints.Min(point => Dot(point, direction));
-            double maxProjection = extentPoints.Max(point => Dot(point, direction));
-            PointF start = Add(Scale(direction, minProjection), Scale(normal, centerOffset));
-            PointF end = Add(Scale(direction, maxProjection), Scale(normal, centerOffset));
-
-            result.SourcePoints = extentPoints.Select(point => GeometryMeasurementAlgorithm.ApplyMode(point, param.MeasureMode)).ToList();
+            PointF start = Midpoint(line1.Start, line2.Start);
+            PointF end = Midpoint(line1.End, line2.End);
+            List<PointF> sourcePoints = BuildEndpointPoints(line1, line2);
             result.OutputLine = new MeasuredLine
             {
                 Start = GeometryMeasurementAlgorithm.ApplyMode(start, param.MeasureMode),
                 End = GeometryMeasurementAlgorithm.ApplyMode(end, param.MeasureMode),
                 Source = "LineMergeFit"
             };
-            result.LineDistance = Math.Abs(line2Offset - line1Offset);
+            result.SourcePoints = sourcePoints.Select(point => GeometryMeasurementAlgorithm.ApplyMode(point, param.MeasureMode)).ToList();
+            result.LineDistance = CalculateAverageEndpointDistance(line1, line2);
             result.FitError = CalculateRmsDistance(result.SourcePoints, result.OutputLine);
             result.Success = result.OutputLine.IsValid;
             result.Message = result.Success ? "OK" : "输出线段长度无效。";
@@ -463,11 +436,44 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
         }
 
         /// <summary>
-        /// 计算线段在指定法向量上的平均偏移。
+        /// 将第二条线的方向调整为与参考线同向，保证起点配起点、终点配终点。
         /// </summary>
-        private static double AverageOffset(MeasuredLine line, PointF normal)
+        private static MeasuredLine AlignLineDirection(MeasuredLine referenceLine, MeasuredLine targetLine)
         {
-            return (Dot(line.Start, normal) + Dot(line.End, normal)) / 2.0;
+            if (referenceLine == null || targetLine == null || !referenceLine.IsValid || !targetLine.IsValid)
+                return targetLine;
+
+            PointF referenceDirection = Normalize(Subtract(referenceLine.End, referenceLine.Start));
+            PointF targetDirection = Normalize(Subtract(targetLine.End, targetLine.Start));
+            if (Length(referenceDirection) < 1e-8 || Length(targetDirection) < 1e-8 || Dot(referenceDirection, targetDirection) >= 0)
+                return targetLine;
+
+            return new MeasuredLine
+            {
+                Start = targetLine.End,
+                End = targetLine.Start,
+                Source = targetLine.Source
+            };
+        }
+
+        /// <summary>
+        /// 计算两个对应端点的中点。
+        /// </summary>
+        private static PointF Midpoint(PointF point1, PointF point2)
+        {
+            return new PointF((point1.X + point2.X) / 2F, (point1.Y + point2.Y) / 2F);
+        }
+
+        /// <summary>
+        /// 计算两条对应端点连线的平均距离，用作平行中线模式的线间距。
+        /// </summary>
+        private static double CalculateAverageEndpointDistance(MeasuredLine line1, MeasuredLine line2)
+        {
+            if (line1 == null || line2 == null || !line1.IsValid || !line2.IsValid)
+                return 0;
+
+            return (GeometryMeasurementAlgorithm.Distance(line1.Start, line2.Start) +
+                    GeometryMeasurementAlgorithm.Distance(line1.End, line2.End)) / 2.0;
         }
 
         /// <summary>
