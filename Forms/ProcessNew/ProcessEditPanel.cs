@@ -1002,7 +1002,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 while (!Solution.Instance.CancellationToken.IsCancellationRequested)
                 {
                     _process.IsHandRun = true;
-                    await RunCurrentProcessInBackgroundAsync(false);
+                    await RunCurrentProcessInBackgroundAsync(true);
 
                     int interval = Math.Max(1, Solution.Instance.RunInterval);
                     await System.Threading.Tasks.Task.Delay(interval, Solution.Instance.CancellationToken);

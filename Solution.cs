@@ -307,7 +307,7 @@ namespace TDJS_Vision
                                 }
 
                                 var task = targetProcess.RunInternal(
-                                    isCyclical: false,
+                                    isCyclical: isCyclical,
                                     isTriggered: true,
                                     ct: groupCts.Token
                                 );
@@ -341,7 +341,7 @@ namespace TDJS_Vision
                                     try
                                     {
                                         await p.RunInternal(
-                                            isCyclical: false,
+                                            isCyclical: isCyclical,
                                             isTriggered: false, // 注意：主动运行的流程不是被触发的
                                             ct: groupCts.Token
                                         );

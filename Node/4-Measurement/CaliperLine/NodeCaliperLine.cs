@@ -94,7 +94,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 result.EndX = MeasurementResultRounder.Round(measureResult.LineEnd.X);
                 result.EndY = MeasurementResultRounder.Round(measureResult.LineEnd.Y);
                 result.Length = MeasurementResultRounder.Round(Distance(measureResult.LineStart, measureResult.LineEnd));
-                result.Angle = MeasurementResultRounder.Round(Math.Atan2(measureResult.LineEnd.Y - measureResult.LineStart.Y, measureResult.LineEnd.X - measureResult.LineStart.X) * 180.0 / Math.PI);
+                result.Angle = MeasurementResultRounder.Round(CalculateAbsoluteAngle(measureResult.LineStart, measureResult.LineEnd));
             }
             result.AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs);
             result.Result = BuildDisplayResult(measureResult);
@@ -111,7 +111,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             if (measureResult.Success)
             {
                 double length = Distance(measureResult.LineStart, measureResult.LineEnd);
-                double angle = Math.Atan2(measureResult.LineEnd.Y - measureResult.LineStart.Y, measureResult.LineEnd.X - measureResult.LineStart.X) * 180.0 / Math.PI;
+                double angle = CalculateAbsoluteAngle(measureResult.LineStart, measureResult.LineEnd);
                 result.Lines.Add(new ColorLine(measureResult.LineStart, measureResult.LineEnd, Color.Lime));
                 result.Texts.Add(new ColorText($"卡尺找线：点数 {measureResult.PointCount}，长度 {length:F3}px，角度 {angle:F3}°", Color.Lime));
             }
@@ -121,6 +121,15 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// 计算卡尺找线的绝对角度，避免订阅输出出现正负号跳变。
+        /// </summary>
+        private static double CalculateAbsoluteAngle(PointF start, PointF end)
+        {
+            double angle = Math.Atan2(end.Y - start.Y, end.X - start.X) * 180.0 / Math.PI;
+            return Math.Abs(angle);
         }
 
         private static double Distance(PointF p1, PointF p2)

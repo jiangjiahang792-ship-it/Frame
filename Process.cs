@@ -77,6 +77,14 @@ namespace TDJS_Vision
         /// NG数量
         /// </summary>
         public int NGNumber;
+        /// <summary>
+        /// 本轮流程开始前的OK数量，用于判断循环空跑时是否发生业务输出变化。
+        /// </summary>
+        private int _runStartOKNumber;
+        /// <summary>
+        /// 本轮流程开始前的NG数量，用于判断循环空跑时是否发生业务输出变化。
+        /// </summary>
+        private int _runStartNGNumber;
 
         /// <summary>
         /// 流程是否正在运行
@@ -135,6 +143,77 @@ namespace TDJS_Vision
         private static bool ShouldShowNodeLog(Process process, NodeBase node)
         {
             return process != null && process.ShowLog && node != null && node.OutputLog;
+        }
+
+        /// <summary>
+        /// 写入流程开始日志；循环运行时先延迟写入，等结束时确认本轮不是无效空跑再补写。
+        /// </summary>
+        private static bool WriteProcessStartLog(Process process, bool isCyclical)
+        {
+            if (process == null || !process.ShowLog || isCyclical)
+                return false;
+
+            LogHelper.AddLog(MsgLevel.Info, $"-----------------------------------------------------  【{process.ProcessName}】（开始）  -----------------------------------------------------", true);
+            return true;
+        }
+
+        /// <summary>
+        /// 确保流程开始日志已写入；失败、异常、取消等关键结果不能只写结束。
+        /// </summary>
+        private static void EnsureProcessStartLog(Process process, ref bool startLogWritten)
+        {
+            if (process == null || !process.ShowLog || startLogWritten)
+                return;
+
+            LogHelper.AddLog(MsgLevel.Info, $"-----------------------------------------------------  【{process.ProcessName}】（开始）  -----------------------------------------------------", true);
+            startLogWritten = true;
+        }
+
+        /// <summary>
+        /// 写入流程结束日志，必要时先补写延迟的开始日志。
+        /// </summary>
+        private static void WriteProcessEndLog(Process process, ref bool startLogWritten, MsgLevel level, string statusText)
+        {
+            if (process == null || !process.ShowLog)
+                return;
+
+            EnsureProcessStartLog(process, ref startLogWritten);
+            LogHelper.AddLog(level, $"---------------------------------  【{process.ProcessName}】（结束） 【耗时】（{process.RunTime}ms） 【状态】（{statusText}）  ---------------------------------", true);
+        }
+
+        /// <summary>
+        /// 写入最终结束日志；循环运行成功但未跑完整个启用节点集合时跳过，避免刷爆日志文件。
+        /// </summary>
+        private static void WriteFinalProcessEndLog(Process process, bool isCyclical, bool succeeded, ref bool startLogWritten)
+        {
+            if (process == null || !process.ShowLog)
+                return;
+
+            if (!ShouldWriteFinalProcessLog(process, isCyclical, succeeded))
+                return;
+
+            WriteProcessEndLog(process, ref startLogWritten, succeeded ? MsgLevel.Info : MsgLevel.Exception, succeeded ? "成功" : "失败");
+        }
+
+        /// <summary>
+        /// 判断最终流程是否需要写日志；失败结果始终保留，只有循环成功的非完整运行才允许过滤。
+        /// </summary>
+        private static bool ShouldWriteFinalProcessLog(Process process, bool isCyclical, bool succeeded)
+        {
+            if (process == null || !process.ShowLog)
+                return false;
+            if (!isCyclical || !succeeded)
+                return true;
+            if (!process.HasExecutedAllEnabledNodesInCurrentRun())
+                return false;
+            if (process.RunTime != 0)
+                return true;
+            if (process.HasOutputLogNodeExecutedInCurrentRun())
+                return true;
+            if (process.HasKeyBusinessOutputChangedInCurrentRun())
+                return true;
+
+            return false;
         }
 
         public void AddNode(NodeBase node)
@@ -1469,8 +1548,77 @@ namespace TDJS_Vision
             return false;
         }
 
+        /// <summary>
+        /// 判断本轮是否已成功跑完当前流程的全部启用节点；禁用节点不参与数量比较。
+        /// </summary>
+        private bool HasExecutedAllEnabledNodesInCurrentRun()
+        {
+            int enabledNodeCount = 0;
+            int executedNodeCount = 0;
+
+            foreach (NodeBase node in _nodes)
+            {
+                if (node == null || !node.Active)
+                    continue;
+
+                enabledNodeCount++;
+                if (node.HasSuccessfulResultForRun(CurrentRunId))
+                    executedNodeCount++;
+            }
+
+            return enabledNodeCount > 0 && executedNodeCount >= enabledNodeCount;
+        }
+
+        /// <summary>
+        /// 判断当前运行批次中是否有允许输出日志的节点成功执行过。
+        /// </summary>
+        private bool HasOutputLogNodeExecutedInCurrentRun()
+        {
+            foreach (NodeBase node in _nodes)
+            {
+                if (node != null &&
+                    node.OutputLog &&
+                    node.HasSuccessfulResultForRun(CurrentRunId))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 判断当前运行批次中是否有关键业务输出变化；计数变化和业务NG都不能按空跑过滤。
+        /// </summary>
+        private bool HasKeyBusinessOutputChangedInCurrentRun()
+        {
+            return OKNumber != _runStartOKNumber ||
+                NGNumber != _runStartNGNumber ||
+                HasBusinessNgNodeInCurrentRun();
+        }
+
+        /// <summary>
+        /// 判断当前运行批次中是否有业务结果 NG 的节点，NG 属于关键业务状态，不能按空跑过滤。
+        /// </summary>
+        private bool HasBusinessNgNodeInCurrentRun()
+        {
+            foreach (NodeBase node in _nodes)
+            {
+                if (node != null &&
+                    node.RuntimeResultNg &&
+                    node.HasSuccessfulResultForRun(CurrentRunId))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private void BeginProcessRun()
         {
+            _runStartOKNumber = OKNumber;
+            _runStartNGNumber = NGNumber;
             CurrentRunId = CurrentRunId == int.MaxValue ? 1 : CurrentRunId + 1;
             foreach (var node in Nodes)
                 node.BeginProcessRun(CurrentRunId);
@@ -1608,8 +1756,7 @@ namespace TDJS_Vision
                 process.RunTime = 0;
                 UpdateRunStatus?.Invoke(process, new ProcessRunResult(true, false, process.ProcessName));
 
-                if (process.ShowLog)
-                    LogHelper.AddLog(MsgLevel.Info, $"-----------------------------------------------------  【{process.ProcessName}】（开始）  -----------------------------------------------------", true);
+                bool processStartLogWritten = WriteProcessStartLog(process, isCyclical);
                 process.IsRuning = true;
                 process.Success = false;
 
@@ -1623,8 +1770,7 @@ namespace TDJS_Vision
                             process.Success = true;
                             process.IsRuning = false;
 
-                            if (process.ShowLog)
-                                LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{process.ProcessName}】（结束） 【耗时】（{process.RunTime}ms） 【状态】（提前完成）  ---------------------------------", true);
+                            WriteProcessEndLog(process, ref processStartLogWritten, MsgLevel.Info, "提前完成");
                             UpdateRunStatus?.Invoke(process, new ProcessRunResult(false, true, process.ProcessName));
                             ProcessEvents.OnProcessEnded(process.ID, ProcessEndStatus.Completed);
                             return;
@@ -1634,8 +1780,7 @@ namespace TDJS_Vision
                     {
                         process.Success = false;
                         process.IsRuning = false;
-                        if (process.ShowLog)
-                            LogHelper.AddLog(MsgLevel.Warn, $"---------------------------------  【{process.ProcessName}】（结束） 【耗时】（{process.RunTime}ms） 【状态】（运行中断）  ---------------------------------", true);
+                        WriteProcessEndLog(process, ref processStartLogWritten, MsgLevel.Warn, "运行中断");
                         UpdateRunStatus?.Invoke(process, new ProcessRunResult(false, false, process.ProcessName));
                         ProcessEvents.OnProcessEnded(process.ID, ProcessEndStatus.Cancelled);
                         throw ex;
@@ -1644,8 +1789,7 @@ namespace TDJS_Vision
                     {
                         process.Success = false;
                         process.IsRuning = false;
-                        if (process.ShowLog)
-                            LogHelper.AddLog(MsgLevel.Exception, $"---------------------------------  【{process.ProcessName}】（结束） 【耗时】（{process.RunTime}ms） 【状态】（失败）  ---------------------------------", true);
+                        WriteProcessEndLog(process, ref processStartLogWritten, MsgLevel.Exception, "失败");
                         UpdateRunStatus?.Invoke(process, new ProcessRunResult(false, false, process.ProcessName));
                         ProcessEvents.OnProcessEnded(process.ID, ProcessEndStatus.Failed, ex);
                         throw ex;
@@ -1676,8 +1820,7 @@ namespace TDJS_Vision
                                 process.Success = true; // 可以设置为成功或其他状态
                                 process.IsRuning = false;
 
-                                if (process.ShowLog)
-                                    LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{process.ProcessName}】（结束） 【耗时】（{process.RunTime}ms） 【状态】（提前完成）  ---------------------------------", true);
+                                WriteProcessEndLog(process, ref processStartLogWritten, MsgLevel.Info, "提前完成");
                                 UpdateRunStatus?.Invoke(process, new ProcessRunResult(false, true, process.ProcessName));
                                 ProcessEvents.OnProcessEnded(process.ID, ProcessEndStatus.Completed);
                                 return; // 提前退出整个流程
@@ -1704,8 +1847,7 @@ namespace TDJS_Vision
                         {
                             process.Success = false;
                             process.IsRuning = false;
-                            if (process.ShowLog)
-                                LogHelper.AddLog(MsgLevel.Warn, $"---------------------------------  【{process.ProcessName}】（结束） 【耗时】（{process.RunTime}ms） 【状态】（运行中断）  ---------------------------------", true);
+                            WriteProcessEndLog(process, ref processStartLogWritten, MsgLevel.Warn, "运行中断");
                             UpdateRunStatus?.Invoke(process, new ProcessRunResult(false, false, process.ProcessName));
                             ProcessEvents.OnProcessEnded(process.ID, ProcessEndStatus.Cancelled);
                             throw ex;
@@ -1714,8 +1856,7 @@ namespace TDJS_Vision
                         {
                             process.Success = false;
                             process.IsRuning = false;
-                            if (process.ShowLog)
-                                LogHelper.AddLog(MsgLevel.Exception, $"---------------------------------  【{process.ProcessName}】（结束） 【耗时】（{process.RunTime}ms） 【状态】（失败）  ---------------------------------", true);
+                            WriteProcessEndLog(process, ref processStartLogWritten, MsgLevel.Exception, "失败");
                             UpdateRunStatus?.Invoke(process, new ProcessRunResult(false, false, process.ProcessName));
                             ProcessEvents.OnProcessEnded(process.ID, ProcessEndStatus.Failed, ex);
                             throw ex;
@@ -1727,8 +1868,7 @@ namespace TDJS_Vision
                 bool processSucceeded = !process.HasFailedRuntimeNode();
                 process.Success = processSucceeded;
                 process.IsRuning = false;
-                if (process.ShowLog)
-                    LogHelper.AddLog(processSucceeded ? MsgLevel.Info : MsgLevel.Exception, $"---------------------------------  【{process.ProcessName}】（结束） 【耗时】（{process.RunTime}ms） 【状态】（{(processSucceeded ? "成功" : "失败")}）  ---------------------------------", true);
+                WriteFinalProcessEndLog(process, isCyclical, processSucceeded, ref processStartLogWritten);
                 UpdateRunStatus?.Invoke(process, new ProcessRunResult(false, processSucceeded, process.ProcessName));
                 ProcessEvents.OnProcessEnded(process.ID, processSucceeded ? ProcessEndStatus.Completed : ProcessEndStatus.Failed);
             }
@@ -1747,8 +1887,7 @@ namespace TDJS_Vision
             RunTime = 0;
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(true, false, ProcessName));
 
-            if (ShowLog)
-                LogHelper.AddLog(MsgLevel.Info, $"-----------------------------------------------------  【{ProcessName}】（开始）  -----------------------------------------------------", true);
+            bool processStartLogWritten = WriteProcessStartLog(this, isCyclical);
             IsRuning = true;
             Success = false;
 
@@ -1762,8 +1901,7 @@ namespace TDJS_Vision
                         Success = true;
                         IsRuning = false;
 
-                        if (ShowLog)
-                            LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（提前完成）  ---------------------------------", true);
+                        WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Info, "提前完成");
                         UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
                         ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
                         return;
@@ -1773,8 +1911,7 @@ namespace TDJS_Vision
                 {
                     Success = false;
                     IsRuning = false;
-                    if (ShowLog)
-                        LogHelper.AddLog(MsgLevel.Warn, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（运行中断）  ---------------------------------", true);
+                    WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Warn, "运行中断");
                     UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                     ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
                     throw ex;
@@ -1783,8 +1920,7 @@ namespace TDJS_Vision
                 {
                     Success = false;
                     IsRuning = false;
-                    if (ShowLog)
-                        LogHelper.AddLog(MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（失败）  ---------------------------------", true);
+                    WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Exception, "失败");
                     UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                     ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Failed, ex);
                     throw ex;
@@ -1815,8 +1951,7 @@ namespace TDJS_Vision
                             Success = true; // 可以设置为成功或其他状态
                             IsRuning = false;
 
-                            if (ShowLog)
-                                LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（提前完成）  ---------------------------------", true);
+                            WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Info, "提前完成");
                             UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
                             ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
                             return; // 提前退出整个流程
@@ -1843,8 +1978,7 @@ namespace TDJS_Vision
                     {
                         Success = false;
                         IsRuning = false;
-                        if (ShowLog)
-                            LogHelper.AddLog(MsgLevel.Warn, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（运行中断）  ---------------------------------", true);
+                        WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Warn, "运行中断");
                         UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                         ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
                         throw ex;
@@ -1853,8 +1987,7 @@ namespace TDJS_Vision
                     {
                         Success = false;
                         IsRuning = false;
-                        if (ShowLog)
-                            LogHelper.AddLog(MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（失败）  ---------------------------------", true);
+                        WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Exception, "失败");
                         UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                         ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Failed, ex);
                         throw ex;
@@ -1866,8 +1999,7 @@ namespace TDJS_Vision
             bool runSucceeded = !HasFailedRuntimeNode();
             Success = runSucceeded;
             IsRuning = false;
-            if (ShowLog)
-                LogHelper.AddLog(runSucceeded ? MsgLevel.Info : MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（{(runSucceeded ? "成功" : "失败")}）  ---------------------------------", true);
+            WriteFinalProcessEndLog(this, isCyclical, runSucceeded, ref processStartLogWritten);
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, runSucceeded, ProcessName));
             ProcessEvents.OnProcessEnded(ID, runSucceeded ? ProcessEndStatus.Completed : ProcessEndStatus.Failed);
         }
@@ -1886,8 +2018,7 @@ namespace TDJS_Vision
             RunTime = 0;
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(true, false, ProcessName));
 
-            if (ShowLog)
-                LogHelper.AddLog(MsgLevel.Info, $"-----------------------------------------------------  【{ProcessName}】（开始）  -----------------------------------------------------", true);
+            bool processStartLogWritten = WriteProcessStartLog(this, isCyclical);
             IsRuning = true;
             Success = false;
 
@@ -1895,8 +2026,7 @@ namespace TDJS_Vision
             {
                 Success = false;
                 IsRuning = false;
-                if (ShowLog)
-                    LogHelper.AddLog(MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（失败）  ---------------------------------", true);
+                WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Exception, "失败");
                 UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                 ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Failed);
                 return;
@@ -1912,8 +2042,7 @@ namespace TDJS_Vision
                         Success = true;
                         IsRuning = false;
 
-                        if (ShowLog)
-                            LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（提前完成）  ---------------------------------", true);
+                        WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Info, "提前完成");
                         UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
                         ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
                         return;
@@ -1923,8 +2052,7 @@ namespace TDJS_Vision
                 {
                     Success = false;
                     IsRuning = false;
-                    if (ShowLog)
-                        LogHelper.AddLog(MsgLevel.Warn, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（运行中断）  ---------------------------------", true);
+                    WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Warn, "运行中断");
                     UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                     ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
                     throw ex;
@@ -1933,8 +2061,7 @@ namespace TDJS_Vision
                 {
                     Success = false;
                     IsRuning = false;
-                    if (ShowLog)
-                        LogHelper.AddLog(MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（失败）  ---------------------------------", true);
+                    WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Exception, "失败");
                     UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                     ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Failed, ex);
                     throw ex;
@@ -1975,8 +2102,7 @@ namespace TDJS_Vision
                             Success = true; // 可以设置为成功或其他状态
                             IsRuning = false;
 
-                            if (ShowLog)
-                                LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（提前完成）  ---------------------------------", true);
+                            WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Info, "提前完成");
                             UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
                             ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
                             return; // 提前退出整个流程
@@ -2004,8 +2130,7 @@ namespace TDJS_Vision
                     {
                         Success = false;
                         IsRuning = false;
-                        if (ShowLog)
-                            LogHelper.AddLog(MsgLevel.Warn, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（运行中断）  ---------------------------------", true);
+                        WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Warn, "运行中断");
                         UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                         ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
                         throw ex;
@@ -2014,8 +2139,7 @@ namespace TDJS_Vision
                     {
                         Success = false;
                         IsRuning = false;
-                        if (ShowLog)
-                            LogHelper.AddLog(MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（失败）  ---------------------------------", true);
+                        WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Exception, "失败");
                         UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                         ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Failed, ex);
                         throw ex;
@@ -2027,8 +2151,7 @@ namespace TDJS_Vision
             bool runSucceeded = !HasFailedRuntimeNode();
             Success = runSucceeded;
             IsRuning = false;
-            if (ShowLog)
-                LogHelper.AddLog(runSucceeded ? MsgLevel.Info : MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（{(runSucceeded ? "成功" : "失败")}）  ---------------------------------", true);
+            WriteFinalProcessEndLog(this, isCyclical, runSucceeded, ref processStartLogWritten);
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, runSucceeded, ProcessName));
             ProcessEvents.OnProcessEnded(ID, runSucceeded ? ProcessEndStatus.Completed : ProcessEndStatus.Failed);
         }
