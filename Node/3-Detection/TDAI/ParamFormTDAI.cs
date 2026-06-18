@@ -476,6 +476,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
             try
             {
+                EnsureGpuRuntimeIfNeeded(modelInfo);
+
                 if (modelInfo.ModelInfo.ModelType == ModelType.DET)
                 {
                     model = new Yolo8Det();
@@ -509,6 +511,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     model.Destroy();
                 throw;
             }
+        }
+
+        /// <summary>
+        /// 在GPU模型创建前初始化对应显卡的YOLO GPU DLL运行环境。
+        /// </summary>
+        /// <param name="modelInfo">AI模型配置信息。</param>
+        private static void EnsureGpuRuntimeIfNeeded(AIInputInfo modelInfo)
+        {
+            if (modelInfo == null || modelInfo.ModelInfo.DeviceType != DeviceType.GPU)
+                return;
+
+            YoloGpuRuntimeBootstrapper.Initialize();
+            string gpuTypeText = YoloGpuRuntimeBootstrapper.IsGtx750 ? "GTX 750" : "1050Ti及其它显卡";
+            LogHelper.AddLog(MsgLevel.Info, $"GPU模型运行环境已初始化，显卡信息：{YoloGpuRuntimeBootstrapper.GpuSummary}，匹配环境：{gpuTypeText}，DLL目录：{YoloGpuRuntimeBootstrapper.RuntimeDirectory}", true);
         }
 
         private void button1_Click(object sender, EventArgs e)

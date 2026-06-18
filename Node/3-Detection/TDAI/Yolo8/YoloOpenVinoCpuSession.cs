@@ -17,7 +17,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <summary>
         /// 新版CPU推理DLL名称。
         /// </summary>
-        private const string DllName = "td_det.dll";
+        private const string CpuDllName = "td_det.dll";
+
+        /// <summary>
+        /// 新版TensorRT GPU推理DLL名称。
+        /// </summary>
+        private const string GpuDllName = "yolo_openvino_tensorrt.dll";
 
         /// <summary>
         /// 原生错误信息缓冲区大小。
@@ -28,6 +33,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// 当前模型的原生句柄。
         /// </summary>
         private IntPtr _handle;
+
+        /// <summary>
+        /// 当前会话使用的原生调用适配器，用于隔离CPU DLL与GPU DLL。
+        /// </summary>
+        private readonly IYoloOpenVinoNativeMethods _nativeMethods;
+
+        /// <summary>
+        /// 当前会话名称，用于异常信息定位。
+        /// </summary>
+        private readonly string _sessionName;
 
         /// <summary>
         /// 当前会话是否已经释放。
@@ -50,11 +65,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <param name="handle">原生模型句柄。</param>
         /// <param name="labels">模型标签。</param>
         /// <param name="modelInfo">模型初始化信息。</param>
-        private YoloOpenVinoCpuSession(IntPtr handle, List<string> labels, YoloOpenVinoModelInfo modelInfo)
+        private YoloOpenVinoCpuSession(IntPtr handle, List<string> labels, YoloOpenVinoModelInfo modelInfo, IYoloOpenVinoNativeMethods nativeMethods)
         {
             _handle = handle;
             Labels = labels ?? new List<string>();
             ModelInfo = modelInfo;
+            _nativeMethods = nativeMethods;
+            _sessionName = nativeMethods == null ? "YoloOpenVinoCpuSession" : nativeMethods.SessionName;
         }
 
         /// <summary>
@@ -64,8 +81,29 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <returns>已初始化的CPU会话。</returns>
         public static YoloOpenVinoCpuSession Open(string modelPath)
         {
+            return OpenCore(modelPath, CpuNativeMethods.Instance);
+        }
+
+        /// <summary>
+        /// 打开TensorRT GPU模型会话。
+        /// </summary>
+        /// <param name="modelPath">模型文件路径。</param>
+        /// <returns>已初始化的GPU会话。</returns>
+        public static YoloOpenVinoCpuSession OpenGpu(string modelPath)
+        {
+            return OpenCore(modelPath, GpuTensorRtNativeMethods.Instance);
+        }
+
+        /// <summary>
+        /// 使用指定native适配器打开模型会话。
+        /// </summary>
+        /// <param name="modelPath">模型文件路径。</param>
+        /// <param name="nativeMethods">native调用适配器。</param>
+        /// <returns>已初始化的模型会话。</returns>
+        private static YoloOpenVinoCpuSession OpenCore(string modelPath, IYoloOpenVinoNativeMethods nativeMethods)
+        {
             if (string.IsNullOrWhiteSpace(modelPath))
-                throw new Exception("AI模型路径为空，无法初始化CPU推理会话！");
+                throw new Exception("AI模型路径为空，无法初始化" + nativeMethods.DeviceText + "推理会话！");
 
             using (Utf8NativeString path = new Utf8NativeString(modelPath))
             {
@@ -75,7 +113,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 
                 try
                 {
-                    int ret = YoloInit(path.Pointer, (int)YoloOpenVinoDeviceMode.Cpu, out handle, out initInfoPtr, error, error.Length);
+                    int ret = nativeMethods.YoloInit(path.Pointer, (int)nativeMethods.DeviceMode, out handle, out initInfoPtr, error, error.Length);
                     if (ret != 1 || handle == IntPtr.Zero)
                         throw new Exception(DecodeError(error));
 
@@ -98,23 +136,22 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                         InfoJson = PtrToUtf8(initInfo.InfoJson)
                     };
 
-                    return new YoloOpenVinoCpuSession(handle, labels, modelInfo);
+                    return new YoloOpenVinoCpuSession(handle, labels, modelInfo, nativeMethods);
                 }
                 catch(Exception ex)
                 {
                     if (handle != IntPtr.Zero)
-                        YoloRelease(handle);
-                    Exception ex1 = new Exception();
+                        nativeMethods.YoloRelease(handle);
                     if (ex.Message.Contains("-2"))
                     {
-                        ex1 = new Exception("初始化CPU模型发生错误,请检查License文件是否过期,过期请联系厂家重新授权!!!");
+                        throw new Exception("初始化" + nativeMethods.DeviceText + "模型发生错误,请检查License文件是否过期,过期请联系厂家重新授权!!!");
                     }
-                    throw ex1;
+                    throw;
                 }
                 finally
                 {
                     if (initInfoPtr != IntPtr.Zero)
-                        YoloRelease(initInfoPtr);
+                        nativeMethods.YoloRelease(initInfoPtr);
                 }
             }
         }
@@ -259,7 +296,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             _disposed = true;
             if (_handle != IntPtr.Zero)
             {
-                YoloRelease(_handle);
+                _nativeMethods.YoloRelease(_handle);
                 _handle = IntPtr.Zero;
             }
         }
@@ -290,7 +327,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 
             try
             {
-                int ret = YoloInfer(_handle, ref nativeImage, scoreThreshold, nmsThreshold, out resultPtr, error, error.Length);
+                int ret = _nativeMethods.YoloInfer(_handle, ref nativeImage, scoreThreshold, nmsThreshold, out resultPtr, error, error.Length);
                 if (ret != 1 || resultPtr == IntPtr.Zero)
                     throw new Exception("yolo_infer失败：" + DecodeError(error));
 
@@ -300,7 +337,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             finally
             {
                 if (resultPtr != IntPtr.Zero)
-                    YoloRelease(resultPtr);
+                    _nativeMethods.YoloRelease(resultPtr);
             }
         }
 
@@ -310,7 +347,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         private void ThrowIfDisposed()
         {
             if (_disposed || _handle == IntPtr.Zero)
-                throw new ObjectDisposedException("YoloOpenVinoCpuSession");
+                throw new ObjectDisposedException(_sessionName);
         }
 
         /// <summary>
@@ -666,39 +703,207 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         }
 
         /// <summary>
-        /// 初始化新版YOLO模型。
+        /// YOLO native调用适配器，用于在同一套托管结果解析逻辑下切换不同DLL。
         /// </summary>
-        /// <param name="onnxPath">UTF-8模型路径。</param>
-        /// <param name="mode">设备模式。</param>
-        /// <param name="handle">模型句柄。</param>
-        /// <param name="initInfo">初始化信息。</param>
-        /// <param name="errorMsg">错误信息缓冲区。</param>
-        /// <param name="errorCapacity">错误信息缓冲区大小。</param>
-        /// <returns>1表示成功，0表示失败。</returns>
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "yolo_init")]
-        private static extern int YoloInit(IntPtr onnxPath, int mode, out IntPtr handle, out IntPtr initInfo, [Out] byte[] errorMsg, int errorCapacity);
+        private interface IYoloOpenVinoNativeMethods
+        {
+            /// <summary>
+            /// 会话名称。
+            /// </summary>
+            string SessionName { get; }
+
+            /// <summary>
+            /// 设备显示名称。
+            /// </summary>
+            string DeviceText { get; }
+
+            /// <summary>
+            /// native设备模式。
+            /// </summary>
+            YoloOpenVinoDeviceMode DeviceMode { get; }
+
+            /// <summary>
+            /// 初始化新版YOLO模型。
+            /// </summary>
+            /// <param name="onnxPath">UTF-8模型路径。</param>
+            /// <param name="mode">设备模式。</param>
+            /// <param name="handle">模型句柄。</param>
+            /// <param name="initInfo">初始化信息。</param>
+            /// <param name="errorMsg">错误信息缓冲区。</param>
+            /// <param name="errorCapacity">错误信息缓冲区大小。</param>
+            /// <returns>1表示成功，0表示失败。</returns>
+            int YoloInit(IntPtr onnxPath, int mode, out IntPtr handle, out IntPtr initInfo, byte[] errorMsg, int errorCapacity);
+
+            /// <summary>
+            /// 执行新版YOLO推理。
+            /// </summary>
+            /// <param name="handle">模型句柄。</param>
+            /// <param name="image">图像结构。</param>
+            /// <param name="confThreshold">置信度阈值。</param>
+            /// <param name="nmsThreshold">NMS阈值。</param>
+            /// <param name="result">推理结果。</param>
+            /// <param name="errorMsg">错误信息缓冲区。</param>
+            /// <param name="errorCapacity">错误信息缓冲区大小。</param>
+            /// <returns>1表示成功，0表示失败。</returns>
+            int YoloInfer(IntPtr handle, ref YoloImage image, float confThreshold, float nmsThreshold, out IntPtr result, byte[] errorMsg, int errorCapacity);
+
+            /// <summary>
+            /// 释放新版YOLO资源。
+            /// </summary>
+            /// <param name="resource">资源指针。</param>
+            /// <returns>1表示成功，0表示失败。</returns>
+            int YoloRelease(IntPtr resource);
+        }
 
         /// <summary>
-        /// 执行新版YOLO推理。
+        /// td_det.dll CPU调用适配器。
         /// </summary>
-        /// <param name="handle">模型句柄。</param>
-        /// <param name="image">图像结构。</param>
-        /// <param name="confThreshold">置信度阈值。</param>
-        /// <param name="nmsThreshold">NMS阈值。</param>
-        /// <param name="result">推理结果。</param>
-        /// <param name="errorMsg">错误信息缓冲区。</param>
-        /// <param name="errorCapacity">错误信息缓冲区大小。</param>
-        /// <returns>1表示成功，0表示失败。</returns>
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "yolo_infer")]
-        private static extern int YoloInfer(IntPtr handle, ref YoloImage image, float confThreshold, float nmsThreshold, out IntPtr result, [Out] byte[] errorMsg, int errorCapacity);
+        private sealed class CpuNativeMethods : IYoloOpenVinoNativeMethods
+        {
+            /// <summary>
+            /// CPU调用适配器单例。
+            /// </summary>
+            public static readonly CpuNativeMethods Instance = new CpuNativeMethods();
+
+            /// <summary>
+            /// 会话名称。
+            /// </summary>
+            public string SessionName { get { return "YoloOpenVinoCpuSession"; } }
+
+            /// <summary>
+            /// 设备显示名称。
+            /// </summary>
+            public string DeviceText { get { return "CPU"; } }
+
+            /// <summary>
+            /// native设备模式。
+            /// </summary>
+            public YoloOpenVinoDeviceMode DeviceMode { get { return YoloOpenVinoDeviceMode.Cpu; } }
+
+            /// <summary>
+            /// 私有构造函数，确保调用适配器复用同一个实例。
+            /// </summary>
+            private CpuNativeMethods()
+            {
+            }
+
+            /// <summary>
+            /// 调用CPU DLL初始化模型。
+            /// </summary>
+            public int YoloInit(IntPtr onnxPath, int mode, out IntPtr handle, out IntPtr initInfo, byte[] errorMsg, int errorCapacity)
+            {
+                return NativeYoloInit(onnxPath, mode, out handle, out initInfo, errorMsg, errorCapacity);
+            }
+
+            /// <summary>
+            /// 调用CPU DLL执行推理。
+            /// </summary>
+            public int YoloInfer(IntPtr handle, ref YoloImage image, float confThreshold, float nmsThreshold, out IntPtr result, byte[] errorMsg, int errorCapacity)
+            {
+                return NativeYoloInfer(handle, ref image, confThreshold, nmsThreshold, out result, errorMsg, errorCapacity);
+            }
+
+            /// <summary>
+            /// 调用CPU DLL释放资源。
+            /// </summary>
+            public int YoloRelease(IntPtr resource)
+            {
+                return NativeYoloRelease(resource);
+            }
+
+            /// <summary>
+            /// 初始化CPU模型。
+            /// </summary>
+            [DllImport(CpuDllName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "yolo_init")]
+            private static extern int NativeYoloInit(IntPtr onnxPath, int mode, out IntPtr handle, out IntPtr initInfo, [Out] byte[] errorMsg, int errorCapacity);
+
+            /// <summary>
+            /// 执行CPU推理。
+            /// </summary>
+            [DllImport(CpuDllName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "yolo_infer")]
+            private static extern int NativeYoloInfer(IntPtr handle, ref YoloImage image, float confThreshold, float nmsThreshold, out IntPtr result, [Out] byte[] errorMsg, int errorCapacity);
+
+            /// <summary>
+            /// 释放CPU资源。
+            /// </summary>
+            [DllImport(CpuDllName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "yolo_release")]
+            private static extern int NativeYoloRelease(IntPtr resource);
+        }
 
         /// <summary>
-        /// 释放新版YOLO资源。
+        /// yolo_openvino_tensorrt.dll GPU调用适配器。
         /// </summary>
-        /// <param name="resource">资源指针。</param>
-        /// <returns>1表示成功，0表示失败。</returns>
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "yolo_release")]
-        private static extern int YoloRelease(IntPtr resource);
+        private sealed class GpuTensorRtNativeMethods : IYoloOpenVinoNativeMethods
+        {
+            /// <summary>
+            /// GPU调用适配器单例。
+            /// </summary>
+            public static readonly GpuTensorRtNativeMethods Instance = new GpuTensorRtNativeMethods();
+
+            /// <summary>
+            /// 会话名称。
+            /// </summary>
+            public string SessionName { get { return "YoloOpenVinoTensorRtGpuSession"; } }
+
+            /// <summary>
+            /// 设备显示名称。
+            /// </summary>
+            public string DeviceText { get { return "GPU"; } }
+
+            /// <summary>
+            /// native设备模式。
+            /// </summary>
+            public YoloOpenVinoDeviceMode DeviceMode { get { return YoloOpenVinoDeviceMode.Gpu; } }
+
+            /// <summary>
+            /// 私有构造函数，确保调用适配器复用同一个实例。
+            /// </summary>
+            private GpuTensorRtNativeMethods()
+            {
+            }
+
+            /// <summary>
+            /// 调用TensorRT GPU DLL初始化模型。
+            /// </summary>
+            public int YoloInit(IntPtr onnxPath, int mode, out IntPtr handle, out IntPtr initInfo, byte[] errorMsg, int errorCapacity)
+            {
+                return NativeYoloInit(onnxPath, mode, out handle, out initInfo, errorMsg, errorCapacity);
+            }
+
+            /// <summary>
+            /// 调用TensorRT GPU DLL执行推理。
+            /// </summary>
+            public int YoloInfer(IntPtr handle, ref YoloImage image, float confThreshold, float nmsThreshold, out IntPtr result, byte[] errorMsg, int errorCapacity)
+            {
+                return NativeYoloInfer(handle, ref image, confThreshold, nmsThreshold, out result, errorMsg, errorCapacity);
+            }
+
+            /// <summary>
+            /// 调用TensorRT GPU DLL释放资源。
+            /// </summary>
+            public int YoloRelease(IntPtr resource)
+            {
+                return NativeYoloRelease(resource);
+            }
+
+            /// <summary>
+            /// 初始化TensorRT GPU模型。
+            /// </summary>
+            [DllImport(GpuDllName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "yolo_init")]
+            private static extern int NativeYoloInit(IntPtr onnxPath, int mode, out IntPtr handle, out IntPtr initInfo, [Out] byte[] errorMsg, int errorCapacity);
+
+            /// <summary>
+            /// 执行TensorRT GPU推理。
+            /// </summary>
+            [DllImport(GpuDllName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "yolo_infer")]
+            private static extern int NativeYoloInfer(IntPtr handle, ref YoloImage image, float confThreshold, float nmsThreshold, out IntPtr result, [Out] byte[] errorMsg, int errorCapacity);
+
+            /// <summary>
+            /// 释放TensorRT GPU资源。
+            /// </summary>
+            [DllImport(GpuDllName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "yolo_release")]
+            private static extern int NativeYoloRelease(IntPtr resource);
+        }
 
         /// <summary>
         /// 新版YOLO设备模式。
@@ -708,7 +913,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             /// <summary>
             /// CPU模式。
             /// </summary>
-            Cpu = 0
+            Cpu = 0,
+
+            /// <summary>
+            /// GPU模式。
+            /// </summary>
+            Gpu = 1
         }
 
         /// <summary>

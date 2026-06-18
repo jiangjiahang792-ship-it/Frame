@@ -150,16 +150,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     var handleDet = param.Yolo8 as Yolo8Det;
                                     if (handleDet == null)
                                         throw new Exception("AI模型句柄类型与DET模型不匹配，请重新加载模型！");
-                                    //for (int i = 0; i < inputImage.Bitmaps.Count; i++)
-                                    //{
-                                    //    List<DetResult> tmp = new List<DetResult>();
-                                    //    var img = inputImage.Bitmaps[i].Clone();
-                                    //    if (inputImage.Rectangles.Count != 0)
-                                    //        tmp = handleDet.Detect(img, inputImage.Rectangles[i].Location.X, inputImage.Rectangles[i].Location.Y);
-                                    //    else
-                                    //        tmp = handleDet.Detect(img);
-                                    //    det_results.AddRange(tmp);
-                                    //}
                                     {
                                         List<DetResult> tmp = new List<DetResult>();
                                         var img = inputImage.Bitmaps[0];

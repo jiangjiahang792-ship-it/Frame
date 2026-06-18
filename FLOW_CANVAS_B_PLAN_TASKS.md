@@ -1602,3 +1602,43 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 
 - [x] 将 `CaliperLine` 的 `Angle` 结果字段改为输出 `Atan2` 角度的绝对值，避免订阅结果出现正负号。
 - [x] 同步修改卡尺找线图像叠加文本中的角度显示，保证界面显示和节点输出一致。
+
+## 2026-06-16: CUDA 12.2 YOLO Demo运行验证
+
+- [x] 识别 `csharp_mini_demo` Debug 输出为依赖本机 .NET 8 的框架依赖运行方式，直接点击会提示安装 `.NET 8.0.0`。
+- [x] 将 Release 自包含运行包复制到纯英文目录 `D:\MyCode\PublicWook\YoloCuda122Run`，避开 native DLL 在中文路径下的编码转换失败。
+- [x] 验证 `Terminal.engine.encrypted` 与 `Terminal.engine` 当前不可用，改用 `Terminal.onnx` 完成 GPU 初始化和一次推理，推理结果为 `objects=5`。
+- [x] 新增 `D:\MyCode\PublicWook\YoloCuda122Run\RunYoloCuda122.cmd`，双击后默认设置 ONNX 模型路径并启动 CUDA 12.2 demo。
+
+## 2026-06-16: CUDA 12.2 YOLO .NET Framework 4.8演示程序
+
+- [x] 在 `D:\MyCode\PublicWook\Yolo算法\GPU版本-cuda12.2（1050TI以上的显卡）\csharp_net48_demo` 新建 `YoloOpenVinoTensorRtNet48Demo` WinForms 工程，目标框架为 .NET Framework 4.8，平台固定 x64。
+- [x] 新增 `IYoloInferenceSession` 与 `YoloOpenVinoTensorRtGpuSession`，用 .NET Framework 4.8 兼容写法封装 `yolo_init`、`yolo_infer`、`yolo_release`。
+- [x] 将输出目录固定到纯英文路径 `D:\MyCode\PublicWook\YoloCuda122Net48Run`，并在构建后复制 CUDA 12.2 native 运行库、`Terminal.onnx`、`Terminal.jpg` 和许可证文件。
+- [x] 新增 WinForms 可视化界面，控件写入 `MainForm.Designer.cs`，支持选择模型、选择图片、设置置信度/NMS、运行一次和连续运行。
+- [x] 编译验证：MSBuild `Debug|x64` 通过，0 个警告、0 个错误；冒烟验证使用 `Terminal.onnx` 成功推理，目标数量 5，native 总耗时约 10.44ms。
+- [x] 按 `D:\MyCode\PublicWook\Yolo\GPU-1050ti\text\csharp_mini_demo\csharp_mini_demo\Program.cs` 的 `Infer(Mat image)` 逻辑修正 .NET Framework 4.8 版封装，去掉 `Bitmap.LockBits` 与 `EnsureBgr24Bitmap` 路径，改为直接传 `image.Data`、`image.Width`、`image.Height`、`checked((int)image.Step())`。
+- [x] 将托管 `OpenCvSharp.dll` 引用切换为 net48 版本，保留原 demo 输出目录中的 native OpenCV/CUDA/TensorRT 运行库；重新编译 `Debug|x64` 通过，Mat 版冒烟验证目标数量 5。
+- [x] 清理 `D:\MyCode\PublicWook\Yolo\GPU-1050ti\csharp_net48_demo` 项目显式托管引用，删除未被源码直接使用的 `System.Core` 引用；重新编译 `Debug|x64` 通过，冒烟验证目标数量 5。
+- [x] 将 CUDA 12.2 YOLO .NET Framework 4.8 demo 的运行依赖统一复制到 `D:\MyCode\PublicWook\Yolo\GPU-1050ti\csharp_net48_demo\obj\x64\Debug`，并将 `YoloNativeSource` 与 `OpenCvSharpNet48Dll` 改为从该本地目录取文件，不再引用原 `net8.0-windows` 输出目录或 NuGet 目录；重新编译与冒烟推理均通过，目标数量 5。
+- [x] 精简 CUDA 12.2 YOLO .NET Framework 4.8 demo 的本地运行 DLL，移出 `api-ms-*.dll`、FFmpeg 视频输入、非 ONNX OpenVINO 前端、NPU 插件、TensorRT lean/dispatch、legacy parser 与 `vccorlib140.dll`；`obj\x64\Debug` 与实际运行目录均保留 37 个 DLL，重新编译和 `Start-Process -Wait --smoke` 验证通过，目标数量 5。
+- [x] 在 `obj\x64\Debug` 下建立 `1050tidll` 隔离目录保存 1050Ti/CUDA 12.2 的 37 个 DLL，删除 `obj\x64\Debug` 根目录 DLL，并新增启动器读取显卡信息；非 `NVIDIA GeForce GTX 750` 时自动把托管程序集解析、DLL 搜索路径和 `yolo_openvino_tensorrt.dll` 预加载指向 `1050tidll`。重新编译通过，`obj\x64\Debug` 与实际输出目录均验证根目录 DLL 数量为 0、`1050tidll` 数量为 37，冒烟推理目标数量 5。
+- [x] 按 `1050tidll` 模板从 CUDA 11.8/GTX 750 demo 输出目录复制对应 native DLL 到 `obj\x64\Debug\750dll`，CUDA 主库映射为 `cublas64_11.dll`、`cublasLt64_11.dll`、`cudart64_110.dll`，并补入 750 运行链特有的 `nvparsers.dll`、`zlibwapi.dll`；`OpenCvSharp.dll` 保持使用 net48 版本。更新项目构建复制 `750dll` 到实际输出目录，验证输出根目录 DLL 数量为 0、`1050tidll` 为 37、`750dll` 为 31，当前非 GTX 750 机器仍自动选择 `1050tidll` 并推理成功。
+- [x] 将 1050Ti 与 750 两套环境完全相同的公共 DLL 移到 `obj\x64\Debug` 和实际输出根目录，公共 DLL 包含 `OpenCvSharp.dll`、`OpenCvSharpExtern.dll`、OpenVINO ONNX 相关 DLL 与 `tbb12.dll`，并从 `1050tidll`、`750dll` 子目录移除重复副本；启动器改为“根目录公共 DLL + 显卡专用子目录”搜索逻辑。重新编译通过，根目录公共 DLL 数量 12，`1050tidll` 数量 25，`750dll` 数量 19，冒烟推理目标数量 5。
+- [x] 继续按哈希核对 1050Ti 与 750 两套隔离目录的同名 DLL，将完全一致的 `onnxruntime.dll`、`opencv_world4100.dll` 也提升到 `obj\x64\Debug` 公共根目录；CUDA、cuDNN、TensorRT、VC 运行库与 `yolo_openvino_tensorrt.dll` 因版本不同继续保留在 `1050tidll`、`750dll` 中隔离。
+- [x] 为公共根目录 native DLL 增加完整路径预加载逻辑，优先固定加载 `tbb12.dll`、`opencv_world4100.dll`、`onnxruntime.dll`、`openvino.dll`、`openvino_c.dll`，避免外部 PATH 或子目录加载顺序影响公共依赖；重新编译通过，等待式 `--smoke` 验证成功，当前非 GTX 750 机器自动选择 `1050tidll`，目标数量 5。
+- [x] 按实验将 `TDJS-Vision\bin\x64\Debug` 中与 `YoloCuda122Net48Run` 根目录同名的 13 个 DLL 覆盖到 YOLO 运行目录并备份原文件；全量替换后 `--smoke` 失败，`yolo_openvino_tensorrt.dll` 加载返回 Win32 错误码 127。随后恢复 YOLO 原版 OpenVINO/tbb 组，保留 TDJS 的 `OpenCvSharp.dll`、`OpenCvSharpExtern.dll` 继续验证，`--smoke` 成功，目标数量 5。
+- [x] 对 `TDJS-Vision\bin\x64\Debug` 做第一轮运行目录瘦身：删除旧程序输出 `机器视觉检测软件V2.0.*`、调试符号与文档 XML、Roslyn 多语言资源目录、日志目录、`protected` 临时保护输出、x86 OpenCvSharp native 副本、OpenCV 视频插件、OpenVINO 非 ONNX 前端/NPU 插件，以及未被当前源码引用的 `TensorRtSharp.dll`、`OpenCvSharp.WpfExtensions.dll`、`td_seg.dll`；保留模型、方案、语言 JSON、DockPanel 配置、核心 OpenVINO/ONNX/CPU/GPU 运行库、相机/PLC/脚本依赖和模板匹配 `Native` 目录。目录体积约从 602.18 MB 降到 423.85 MB，节省约 178.32 MB。
+- [x] 修复瘦身后 CPU YOLO 加载 `td_det.dll` 出现 `DllNotFoundException`/`0x8007007F` 的运行时问题：确认 `bin\x64\Debug` 中新版 `td_det.dll` 被旧版 OpenVINO/tbb 依赖组混用，已从 `bin\Debug` 同步新版 `td_det.dll`、`onnxruntime.dll`、OpenVINO ONNX/CPU/GPU 运行组、`tbb12.dll`、`vcruntime140.dll`、`vcruntime140_1.dll` 到 `bin\x64\Debug`；使用 `LoadLibrary` 验证 `td_det.dll` 可正常加载。
+- [x] 对 `TDJS-Vision\bin\x64\Release` 做同规则运行目录瘦身：删除旧程序输出 `机器视觉检测软件V2.0.*`、调试符号与文档 XML、Roslyn 多语言资源目录、日志目录、`protected` 临时保护输出、`temp_model_*.temp` 临时模型、x86 OpenCvSharp native 副本、OpenCV 视频插件、OpenVINO 非 ONNX 前端/NPU 插件，以及未被当前源码引用的 `TensorRtSharp.dll`、`OpenCvSharp.WpfExtensions.dll`、`td_seg.dll`；随后从 `bin\Debug` 同步新版 CPU YOLO 依赖组到 `bin\x64\Release`，包含 `td_det.dll`、`onnxruntime.dll`、OpenVINO ONNX/CPU/GPU 运行组、`tbb12.dll`、`vcruntime140.dll`、`vcruntime140_1.dll`。Release 目录体积约从 708.61 MB 降到 464.30 MB，节省约 244.31 MB，并用 `LoadLibrary` 验证 `td_det.dll` 可正常加载。
+- [x] 将 `D:\MyCode\PublicWook\Yolo\GPU-1050ti\csharp_net48_demo\obj\x64\Debug` 中的 YOLO GPU .NET Framework 4.8 运行 DLL 环境复制到 `TDJS-Vision\bin\x64\Debug\YoloGPUDll`：公共根目录 14 个 DLL，`1050tidll` 子目录 23 个 CUDA 12.2/1050Ti 运行 DLL，`750dll` 子目录 17 个 CUDA 11.8/GTX750 运行 DLL；仅做文件环境准备，未改业务代码，并逐个 SHA256 校验源文件与目标文件一致。
+
+## 2026-06-17: TDJS-Vision YOLO GPU环境切换集成
+
+- [x] 新增 `YoloGpuRuntimeBootstrapper`，在GPU模型初始化前读取 `Win32_VideoController` 显卡名称；精确匹配 `NVIDIA GeForce GTX 750` 时选择 `YoloGPUDll\750dll`，其它显卡默认选择 `YoloGPUDll\1050tidll`。
+- [x] 在 `ParamFormTDAI.CreateModelHandle` 创建GPU模型前初始化GPU运行环境，并输出显卡信息、匹配环境和最终DLL目录日志。
+- [x] 将新版 `YoloOpenVinoCpuSession` 抽成CPU/GPU双native适配逻辑，CPU继续使用 `td_det.dll`，GPU使用 `yolo_openvino_tensorrt.dll`，推理仍直接传 `Mat.Data`、`Width`、`Height`、`Step()`。
+- [x] 将 `Yolo8Det`、`Yolo8Seg`、`Yolo8Obb`、`Yolo8Pose` 的GPU分支从旧 `td_gpu_detect.dll`、`td_obb.dll`、`td_pose.dll` 切换为新版TensorRT GPU session，并保留CPU分支现有逻辑。
+- [x] 更新 `TDJS-Vision.csproj`，加入 `System.Management` 引用和 `YoloGpuRuntimeBootstrapper.cs` 编译项；MSBuild `Debug|x64` 编译通过，结果为 187 个既有警告、0 个错误。
+- [x] 将 `bin\x64\Debug\YoloGPUDll` 同步到 `bin\x64\Release\YoloGPUDll`，Release 下公共根目录 14 个 DLL，`1050tidll` 23 个 DLL，`750dll` 17 个 DLL。
+- [x] MSBuild `Release|x64` 编译通过，结果为 188 个既有警告、0 个错误。

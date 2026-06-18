@@ -1,161 +1,153 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using OpenCvSharp;
-using Logger;
-using System.Security.Cryptography;
-using System.IO;
+using System;
+using System.Collections.Generic;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 {
     /// <summary>
-    /// YoloOBB 类用于加载并调用 td_obb.dll 中的函数（支持旋转框检测）
+    /// Yolo8Obb类用于加载并执行旋转框检测模型。
     /// </summary>
     public class Yolo8Obb : IYolo8
     {
-        // 导入DLL函数
-        [DllImport("td_obb.dll", CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr YOLO_Initialize(
-            string encrypted_model_path,
-            string[] class_names,
-            int num_classes,
-            int input_size,
-            float score_threshold,
-            float nms_threshold);
-
-        [DllImport("td_obb.dll", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void YOLO_Inference(
-            IntPtr handle,
-            byte[] image_data,
-            int width,
-            int height,
-            int channels,
-            out IntPtr out_results,
-            out int out_result_count);
-
-        [DllImport("td_obb.dll", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void YOLO_Release(IntPtr handle);
+        /// <summary>
+        /// OBB GPU推理锁，避免同一个GPU会话被多个流程同时进入。
+        /// </summary>
+        private static readonly object GpuObbInferenceLock = new object();
 
         /// <summary>
-        /// 当前 OBB CPU模型会话。
+        /// 当前OBB CPU模型会话。
         /// </summary>
         private YoloOpenVinoCpuSession _cpuSession;
 
         /// <summary>
-        /// 旧版OBB原生句柄，保留给非CPU分支兼容使用。
+        /// 当前OBB GPU TensorRT模型会话。
         /// </summary>
-        private IntPtr _legacyHandle;
+        private YoloOpenVinoCpuSession _gpuSession;
 
         /// <summary>
-        /// 模型类型
+        /// 模型类型。
         /// </summary>
         public ModelType ModelType { get; } = ModelType.OBB;
+
         /// <summary>
         /// 推理设备类型。
         /// </summary>
         public DeviceType DeviceType { get; set; }
+
         /// <summary>
         /// 置信度阈值。
         /// </summary>
         public float ScoreThreshold { get; set; }
+
         /// <summary>
         /// NMS阈值。
         /// </summary>
         public float NMSThreshold { get; set; }
 
         /// <summary>
-        /// 初始化 YOLO OBB模型
+        /// 初始化YOLO OBB模型。
         /// </summary>
-        /// <param name="encrypted_model_path"></param>
-        /// <param name="class_names"></param>
-        /// <param name="input_size"></param>
-        /// <param name="score_threshold"></param>
-        /// <param name="nms_threshold"></param>
-        /// <exception cref="Exception"></exception>
+        /// <param name="model_path">模型路径。</param>
+        /// <param name="deviceType">推理设备类型。</param>
+        /// <param name="class_names">类别名称。</param>
+        /// <param name="input_size">模型输入尺寸。</param>
+        /// <param name="score_threshold">置信度阈值。</param>
+        /// <param name="nms_threshold">NMS阈值。</param>
+        /// <param name="key_point_num">关键点数量，OBB模型不使用。</param>
         public void Init(string model_path, DeviceType deviceType, string[] class_names, int input_size, float score_threshold, float nms_threshold, int key_point_num = 0)
         {
             DeviceType = deviceType;
             ScoreThreshold = score_threshold;
             NMSThreshold = nms_threshold;
-            if (DeviceType == DeviceType.CPU)
+
+            switch (DeviceType)
             {
-                _cpuSession = YoloOpenVinoCpuSession.Open(model_path);
-                if (_cpuSession == null)
-                    throw new Exception("Failed to initialize YOLO model.");
-                return;
+                case DeviceType.CPU:
+                    _cpuSession = YoloOpenVinoCpuSession.Open(model_path);
+                    break;
+                case DeviceType.GPU:
+                    _gpuSession = YoloOpenVinoCpuSession.OpenGpu(model_path);
+                    break;
+                default:
+                    throw new Exception("未找到对应运行设备的指定");
             }
 
-            _legacyHandle = YOLO_Initialize(model_path, class_names, class_names.Length, input_size, score_threshold, nms_threshold);
-            if (_legacyHandle == IntPtr.Zero)
-            {
-                throw new Exception("Failed to initialize YOLO model.");
-            }
+            if (DeviceType == DeviceType.CPU && _cpuSession == null)
+                throw new Exception("初始化OBB CPU模型发生错误,请检查模型路径是否正确或者dll是否有异常!!!");
+
+            if (DeviceType == DeviceType.GPU && _gpuSession == null)
+                throw new Exception("初始化OBB GPU模型发生错误,请检查模型路径是否正确或者dll是否有异常!!!");
         }
+
         /// <summary>
-        /// 执行检测
+        /// 执行旋转框检测。
         /// </summary>
-        /// <param name="image"></param>
-        /// <param name="deltaX"></param>
-        /// <param name="deltaY"></param>
-        /// <returns></returns>
+        /// <param name="image">待检测图像。</param>
+        /// <param name="deltaX">结果X方向偏移。</param>
+        /// <param name="deltaY">结果Y方向偏移。</param>
+        /// <returns>旋转框结果集合。</returns>
         public List<ObbResult> Detect(Mat image, int deltaX = 0, int deltaY = 0)
         {
-            if (DeviceType == DeviceType.CPU)
-                return _cpuSession.DetectObb(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
-
-            byte[] imageData = new byte[image.Total() * image.ElemSize()];
-            Marshal.Copy(image.Data, imageData, 0, imageData.Length);
-
-            IntPtr resultsPtr;
-            int resultCount;
-            YOLO_Inference(_legacyHandle, imageData, image.Width, image.Height, image.Channels(), out resultsPtr, out resultCount);
-
-            List<ObbResult> results = new List<ObbResult>();
-            if (resultCount > 0)
+            switch (DeviceType)
             {
-                int size = Marshal.SizeOf(typeof(ObbResult));
-                for (int i = 0; i < resultCount; i++)
-                {
-                    IntPtr currentPtr = new IntPtr(resultsPtr.ToInt64() + i * size);
-                    results.Add((ObbResult)Marshal.PtrToStructure(currentPtr, typeof(ObbResult)));
-                }
-                Marshal.FreeHGlobal(resultsPtr);
+                case DeviceType.CPU:
+                    return _cpuSession.DetectObb(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
+                case DeviceType.GPU:
+                    lock (GpuObbInferenceLock)
+                    {
+                        return _gpuSession.DetectObb(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
+                    }
+                default:
+                    throw new Exception("未找到对应运行设备的指定");
             }
-            OffsetAllCenters(results, deltaX, deltaY);
-            return results;
         }
+
+        /// <summary>
+        /// 对旋转框中心点统一应用偏移量。
+        /// </summary>
+        /// <param name="obbResults">旋转框集合。</param>
+        /// <param name="deltaX">X方向偏移。</param>
+        /// <param name="deltaY">Y方向偏移。</param>
         public static void OffsetAllCenters(List<ObbResult> obbResults, int deltaX, int deltaY)
         {
-            if (obbResults == null) return;
+            if (obbResults == null)
+                return;
 
             for (int i = 0; i < obbResults.Count; i++)
             {
-                var item = obbResults[i]; // 获取副本
+                ObbResult item = obbResults[i];
                 item.center_x += deltaX;
                 item.center_y += deltaY;
-                obbResults[i] = item; // 重新赋值回列表（关键！）
+                obbResults[i] = item;
             }
         }
+
         /// <summary>
-        /// 销毁检测器句柄
+        /// 销毁检测器句柄。
         /// </summary>
-        /// <param name="handle"></param>
         public void Destroy()
         {
-            if (DeviceType == DeviceType.CPU)
+            switch (DeviceType)
             {
-                if (_cpuSession != null)
-                {
-                    _cpuSession.Dispose();
-                    _cpuSession = null;
-                }
-                return;
-            }
-
-            if (_legacyHandle != IntPtr.Zero)
-            {
-                YOLO_Release(_legacyHandle);
-                _legacyHandle = IntPtr.Zero;
+                case DeviceType.CPU:
+                    if (_cpuSession != null)
+                    {
+                        _cpuSession.Dispose();
+                        _cpuSession = null;
+                    }
+                    break;
+                case DeviceType.GPU:
+                    lock (GpuObbInferenceLock)
+                    {
+                        if (_gpuSession != null)
+                        {
+                            _gpuSession.Dispose();
+                            _gpuSession = null;
+                        }
+                    }
+                    break;
+                default:
+                    throw new Exception("未找到对应运行设备的指定");
             }
         }
     }
