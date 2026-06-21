@@ -1642,3 +1642,8 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 更新 `TDJS-Vision.csproj`，加入 `System.Management` 引用和 `YoloGpuRuntimeBootstrapper.cs` 编译项；MSBuild `Debug|x64` 编译通过，结果为 187 个既有警告、0 个错误。
 - [x] 将 `bin\x64\Debug\YoloGPUDll` 同步到 `bin\x64\Release\YoloGPUDll`，Release 下公共根目录 14 个 DLL，`1050tidll` 23 个 DLL，`750dll` 17 个 DLL。
 - [x] MSBuild `Release|x64` 编译通过，结果为 188 个既有警告、0 个错误。
+
+## 2026-06-18: 取消YOLO GPU推理锁
+
+- [x] 按当前GPU DLL推理需求，移除 `Yolo8Det`、`Yolo8Seg`、`Yolo8Obb`、`Yolo8Pose` 中GPU推理和GPU会话释放处的 `lock`，GPU推理不再被模型类型静态锁串行化。
+- [x] MSBuild `Debug|x64` 编译通过，结果为 187 个既有警告、0 个错误。

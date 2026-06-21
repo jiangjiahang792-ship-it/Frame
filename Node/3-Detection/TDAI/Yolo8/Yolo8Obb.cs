@@ -10,11 +10,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
     public class Yolo8Obb : IYolo8
     {
         /// <summary>
-        /// OBB GPU推理锁，避免同一个GPU会话被多个流程同时进入。
-        /// </summary>
-        private static readonly object GpuObbInferenceLock = new object();
-
-        /// <summary>
         /// 当前OBB CPU模型会话。
         /// </summary>
         private YoloOpenVinoCpuSession _cpuSession;
@@ -93,10 +88,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                 case DeviceType.CPU:
                     return _cpuSession.DetectObb(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
                 case DeviceType.GPU:
-                    lock (GpuObbInferenceLock)
-                    {
-                        return _gpuSession.DetectObb(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
-                    }
+                    return _gpuSession.DetectObb(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
                 default:
                     throw new Exception("未找到对应运行设备的指定");
             }
@@ -137,13 +129,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                     }
                     break;
                 case DeviceType.GPU:
-                    lock (GpuObbInferenceLock)
+                    if (_gpuSession != null)
                     {
-                        if (_gpuSession != null)
-                        {
-                            _gpuSession.Dispose();
-                            _gpuSession = null;
-                        }
+                        _gpuSession.Dispose();
+                        _gpuSession = null;
                     }
                     break;
                 default:

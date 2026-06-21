@@ -10,11 +10,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
     public class Yolo8Det : IYolo8
     {
         /// <summary>
-        /// DET GPU 原生推理全局锁，避免多个流程同时进入 GPU 推理导致偶发识别数量为 0。
-        /// </summary>
-        private static readonly object GpuDetInferenceLock = new object();
-
-        /// <summary>
         /// 当前 DET CPU模型会话。
         /// </summary>
         private YoloOpenVinoCpuSession _cpuSession;
@@ -82,7 +77,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         }
 
         /// <summary>
-        /// 执行 DET 检测核心逻辑，只有 GPU 推理分支会进入全局锁。
+        /// 执行 DET 检测核心逻辑。
         /// </summary>
         /// <param name="image">待检测图像。</param>
         /// <param name="deltaX">检测结果X方向偏移。</param>
@@ -95,10 +90,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                 case DeviceType.CPU:
                     return _cpuSession.DetectDet(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
                 case DeviceType.GPU:
-                    lock (GpuDetInferenceLock)
-                    {
-                        return _gpuSession.DetectDet(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
-                    }
+                    return _gpuSession.DetectDet(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
                 default:
                     throw new Exception("未找到对应运行设备的指定");
             }
@@ -119,13 +111,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                     }
                     break;
                 case DeviceType.GPU:
-                    lock (GpuDetInferenceLock)
+                    if (_gpuSession != null)
                     {
-                        if (_gpuSession != null)
-                        {
-                            _gpuSession.Dispose();
-                            _gpuSession = null;
-                        }
+                        _gpuSession.Dispose();
+                        _gpuSession = null;
                     }
                     break;
                 default:

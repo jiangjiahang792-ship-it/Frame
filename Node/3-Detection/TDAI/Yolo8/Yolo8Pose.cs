@@ -9,11 +9,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
     public class Yolo8Pose : IYolo8
     {
         /// <summary>
-        /// POSE GPU推理锁，避免同一个GPU会话被多个流程同时进入。
-        /// </summary>
-        private static readonly object GpuPoseInferenceLock = new object();
-
-        /// <summary>
         /// 当前POSE CPU模型会话。
         /// </summary>
         private YoloOpenVinoCpuSession _cpuSession;
@@ -92,10 +87,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                 case DeviceType.CPU:
                     return _cpuSession.DetectPose(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
                 case DeviceType.GPU:
-                    lock (GpuPoseInferenceLock)
-                    {
-                        return _gpuSession.DetectPose(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
-                    }
+                    return _gpuSession.DetectPose(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
                 default:
                     throw new Exception("未找到对应运行设备的指定");
             }
@@ -116,13 +108,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                     }
                     break;
                 case DeviceType.GPU:
-                    lock (GpuPoseInferenceLock)
+                    if (_gpuSession != null)
                     {
-                        if (_gpuSession != null)
-                        {
-                            _gpuSession.Dispose();
-                            _gpuSession = null;
-                        }
+                        _gpuSession.Dispose();
+                        _gpuSession = null;
                     }
                     break;
                 default:

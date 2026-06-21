@@ -11,11 +11,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
     public class Yolo8Seg : IYolo8
     {
         /// <summary>
-        /// SEG GPU推理锁，避免同一个GPU会话被多个流程同时进入。
-        /// </summary>
-        private static readonly object GpuSegInferenceLock = new object();
-
-        /// <summary>
         /// 当前 SEG CPU模型会话。
         /// </summary>
         private YoloOpenVinoCpuSession _cpuSession;
@@ -85,10 +80,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                     return _cpuSession.DetectSeg(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
 
                 case DeviceType.GPU:
-                    lock (GpuSegInferenceLock)
-                    {
-                        return _gpuSession.DetectSeg(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
-                    }
+                    return _gpuSession.DetectSeg(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
                 default:
                     throw new Exception("未找到对应运行设备的指定");
             }
@@ -109,13 +101,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                     }
                     break;
                 case DeviceType.GPU:
-                    lock (GpuSegInferenceLock)
+                    if (_gpuSession != null)
                     {
-                        if (_gpuSession != null)
-                        {
-                            _gpuSession.Dispose();
-                            _gpuSession = null;
-                        }
+                        _gpuSession.Dispose();
+                        _gpuSession = null;
                     }
                     break;
                 default:

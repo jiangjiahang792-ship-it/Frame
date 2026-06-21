@@ -414,9 +414,10 @@ namespace TDJS_Vision.Device.Camera
                 }
                 IFrameOut frame;
                 int ret = device.StreamGrabber.GetImageBuffer(GetImageTimeOut, out frame);
-                if (ret != MvError.MV_OK)
+                if (ret != MvError.MV_OK) {
+                    LogHelper.AddLog(MsgLevel.Exception, $"{DevName} 相机主动取图出现错误码:{ret}, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
                     return null;
-
+                }
                 var image = ConvertImageFormat(frame.Image, device.PixelTypeConverter);
                 device.StreamGrabber.FreeImageBuffer(frame);
                 return image;
