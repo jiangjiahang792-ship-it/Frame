@@ -14,19 +14,19 @@ namespace TDJS_Vision.Forms.ImageViewer
         private static List<FrmSingleImage> _frmSingleImages = new List<FrmSingleImage>();
 
         /// <summary>
-        /// 所有的 3D 图像窗口。
+        /// 旧版 3D 图像窗口列表，保留用于反序列化兼容。
         /// </summary>
         private static readonly List<FrmSingle3DImage> _frmSingle3DImages = new List<FrmSingle3DImage>();
 
         /// <summary>
-        /// 当前图像窗口管理器实例，用于 3D 显示节点按需打开窗口。
+        /// 当前图像窗口管理器实例，保留给旧版独立窗口接口兼容使用。
         /// </summary>
         private static FrmImageViewer _activeViewer;
 
         public static List<FrmSingleImage> FrmSingleImages { get => _frmSingleImages; }
 
         /// <summary>
-        /// 3D 图像窗口列表。
+        /// 旧版 3D 图像窗口列表。
         /// </summary>
         public static List<FrmSingle3DImage> FrmSingle3DImages { get => _frmSingle3DImages; }
 
@@ -46,7 +46,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         public static int CurWindowsNum = 0;
 
         /// <summary>
-        /// 当前布局中反序列化到的 3D 图像窗口数量。
+        /// 当前布局中反序列化到的旧版 3D 图像窗口数量。
         /// </summary>
         public static int Cur3DWindowsNum = 0;
 
@@ -141,15 +141,11 @@ namespace TDJS_Vision.Forms.ImageViewer
                 _frmSingleImages.Add(imageWin);
             }
 
-            for (int i = 0; i < 4; i++)
-            {
-                FrmSingle3DImage image3DWin = new FrmSingle3DImage(FrmSingle3DImage.GetWindowKey(i + 1));
-                _frmSingle3DImages.Add(image3DWin);
-            }
+            // 3D 图像显示节点已改为复用普通图像窗口显示深度预览图，这里不再预创建独立 3D 窗口。
         }
 
         /// <summary>
-        /// 按窗口名称显示 3D 图像窗口。
+        /// 按窗口名称显示旧版 3D 图像窗口，当前仅作为历史接口保留。
         /// </summary>
         /// <param name="windowName">3D 图像窗口名称。</param>
         public static void Show3DWindow(string windowName)
@@ -186,7 +182,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         }
 
         /// <summary>
-        /// 根据窗口名称查找 3D 图像窗口。
+        /// 根据窗口名称查找旧版 3D 图像窗口。
         /// </summary>
         /// <param name="windowName">3D 图像窗口名称。</param>
         /// <returns>3D 图像窗口。</returns>

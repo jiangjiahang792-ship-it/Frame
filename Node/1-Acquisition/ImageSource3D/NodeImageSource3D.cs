@@ -194,11 +194,11 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource3D
         }
 
         /// <summary>
-        /// 根据深度值构建 8 位灰度预览图。
+        /// 根据深度值构建伪彩色预览图，并保留 8 位灰度缓存供测量和 2D 算子复用。
         /// </summary>
         /// <param name="frameData">3D 帧数据。</param>
         /// <returns>深度预览输出图像。</returns>
-        private static OutputImage BuildDepthPreviewImage(Camera3DFrameData frameData)
+        public static OutputImage BuildDepthPreviewImage(Camera3DFrameData frameData)
         {
             if (frameData == null ||
                 frameData.Width <= 0 ||
@@ -209,19 +209,42 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource3D
                 return new OutputImage();
             }
 
-            int pixelCount = Math.Min(frameData.Width * frameData.Height, frameData.DepthValues.Length);
-            if (pixelCount <= 0)
+            int totalPixelCount = frameData.Width * frameData.Height;
+            int availablePixelCount = Math.Min(totalPixelCount, frameData.DepthValues.Length);
+            if (availablePixelCount <= 0)
                 return new OutputImage();
 
             int minValue;
             int maxValue;
-            if (!TryGetDepthRange(frameData.DepthValues, pixelCount, frameData.DepthInvalidValue, out minValue, out maxValue))
+            if (!TryGetDepthRange(frameData.DepthValues, availablePixelCount, frameData.DepthInvalidValue, out minValue, out maxValue))
                 return new OutputImage();
 
-            byte[] pixels = BuildDepthPreviewPixels(frameData.DepthValues, pixelCount, frameData.DepthInvalidValue, minValue, maxValue);
-            Mat preview = new Mat(frameData.Height, frameData.Width, MatType.CV_8UC1);
-            Marshal.Copy(pixels, 0, preview.Data, pixels.Length);
-            return OutputImage.FromSingleImage(preview, preview);
+            byte[] pixels = BuildDepthPreviewPixels(
+                frameData.DepthValues,
+                totalPixelCount,
+                availablePixelCount,
+                frameData.DepthInvalidValue,
+                minValue,
+                maxValue,
+                out byte[] invalidMaskPixels,
+                out bool hasInvalidPixel);
+
+            Mat grayPreview = new Mat(frameData.Height, frameData.Width, MatType.CV_8UC1);
+            Marshal.Copy(pixels, 0, grayPreview.Data, pixels.Length);
+
+            Mat colorPreview = new Mat();
+            Cv2.ApplyColorMap(grayPreview, colorPreview, ColormapTypes.Jet);
+
+            if (hasInvalidPixel)
+            {
+                using (Mat invalidMask = new Mat(frameData.Height, frameData.Width, MatType.CV_8UC1))
+                {
+                    Marshal.Copy(invalidMaskPixels, 0, invalidMask.Data, invalidMaskPixels.Length);
+                    colorPreview.SetTo(new Scalar(0, 0, 0), invalidMask);
+                }
+            }
+
+            return OutputImage.FromSingleImage(colorPreview, grayPreview);
         }
 
         /// <summary>
@@ -258,31 +281,50 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource3D
         }
 
         /// <summary>
-        /// 将深度值按有效范围归一化为 8 位灰度像素。
+        /// 将深度值按有效范围归一化为 8 位灰度像素，并同步生成无效深度遮罩。
         /// </summary>
         /// <param name="depthValues">深度值数组。</param>
-        /// <param name="pixelCount">参与计算的像素数量。</param>
+        /// <param name="totalPixelCount">目标图像总像素数量。</param>
+        /// <param name="availablePixelCount">深度数组中可用的像素数量。</param>
         /// <param name="invalidValue">无效深度值。</param>
         /// <param name="minValue">最小深度。</param>
         /// <param name="maxValue">最大深度。</param>
+        /// <param name="invalidMaskPixels">无效深度遮罩像素，255 表示无效。</param>
+        /// <param name="hasInvalidPixel">是否存在无效深度像素。</param>
         /// <returns>8 位灰度像素。</returns>
-        private static byte[] BuildDepthPreviewPixels(int[] depthValues, int pixelCount, int invalidValue, int minValue, int maxValue)
+        private static byte[] BuildDepthPreviewPixels(
+            int[] depthValues,
+            int totalPixelCount,
+            int availablePixelCount,
+            int invalidValue,
+            int minValue,
+            int maxValue,
+            out byte[] invalidMaskPixels,
+            out bool hasInvalidPixel)
         {
-            byte[] pixels = new byte[pixelCount];
+            byte[] pixels = new byte[totalPixelCount];
+            invalidMaskPixels = new byte[totalPixelCount];
+            hasInvalidPixel = false;
             int range = maxValue - minValue;
-            if (range <= 0)
-                return pixels;
 
-            for (int i = 0; i < pixelCount; i++)
+            for (int i = 0; i < availablePixelCount; i++)
             {
                 int value = depthValues[i];
                 if (value == invalidValue)
                 {
                     pixels[i] = 0;
+                    invalidMaskPixels[i] = 255;
+                    hasInvalidPixel = true;
                     continue;
                 }
 
-                pixels[i] = (byte)Math.Max(0, Math.Min(255, (value - minValue) * 255 / range));
+                pixels[i] = range <= 0 ? (byte)0 : (byte)Math.Max(0, Math.Min(255, (value - minValue) * 255 / range));
+            }
+
+            for (int i = availablePixelCount; i < totalPixelCount; i++)
+            {
+                invalidMaskPixels[i] = 255;
+                hasInvalidPixel = true;
             }
 
             return pixels;

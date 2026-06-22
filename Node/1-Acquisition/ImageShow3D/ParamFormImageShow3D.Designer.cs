@@ -62,7 +62,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
             this.labelSubscription.Name = "labelSubscription";
             this.labelSubscription.Size = new System.Drawing.Size(139, 79);
             this.labelSubscription.TabIndex = 0;
-            this.labelSubscription.Text = "订阅3D帧";
+            this.labelSubscription.Text = "订阅深度图";
             this.labelSubscription.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // nodeSubscription1
@@ -81,7 +81,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
             this.labelWindowName.Name = "labelWindowName";
             this.labelWindowName.Size = new System.Drawing.Size(139, 60);
             this.labelWindowName.TabIndex = 2;
-            this.labelWindowName.Text = "3D图像窗口";
+            this.labelWindowName.Text = "图像窗口";
             this.labelWindowName.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // comboBoxWindowName

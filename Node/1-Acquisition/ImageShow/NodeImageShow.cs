@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Forms.ImageViewer;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 {
@@ -14,6 +15,28 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
     {
         public static event EventHandler<ImageShowPamra> ImageShowChanged;
         public static event Action<Process, string> ImageShowWindowNameChanged;
+
+        /// <summary>
+        /// 发布图像刷新事件，供普通图像显示节点和 3D 深度图显示节点复用同一套图像窗口。
+        /// </summary>
+        /// <param name="sender">事件来源节点。</param>
+        /// <param name="windowName">图像窗口名称。</param>
+        /// <param name="bitmap">待显示图像。</param>
+        /// <param name="displayResult">可选的显示叠加结果。</param>
+        public static void PublishImageShowChanged(object sender, string windowName, Bitmap bitmap, AlgorithmResult displayResult = null)
+        {
+            ImageShowChanged?.Invoke(sender, new ImageShowPamra(windowName, bitmap, displayResult));
+        }
+
+        /// <summary>
+        /// 发布图像窗口绑定流程事件，用于同步窗口标题和后续手动调参上下文。
+        /// </summary>
+        /// <param name="process">当前流程。</param>
+        /// <param name="windowName">图像窗口名称。</param>
+        public static void PublishImageShowWindowNameChanged(Process process, string windowName)
+        {
+            ImageShowWindowNameChanged?.Invoke(process, FrmSingleImage.NormalizeWindowKey(windowName));
+        }
 
         public NodeImageShow(int id, string nodeName, Process process, NodeType nodeType) : base(id, nodeName, process, nodeType)
         {
@@ -68,9 +91,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         string imageInfo = GetMatDiagnosticText(firstMat);
                         Bitmap image = firstMat.ToBitmap();
                         long afterToBitmap = performanceStopwatch.ElapsedMilliseconds;
-                        ImageShowChanged?.Invoke(this, new ImageShowPamra(param.WindowName, image, outputImage.DisplayResult));
+                        PublishImageShowChanged(this, param.WindowName, image, outputImage.DisplayResult);
                         long afterImageEvent = performanceStopwatch.ElapsedMilliseconds;
-                        ImageShowWindowNameChanged?.Invoke(Process, param.WindowName);
+                        PublishImageShowWindowNameChanged(Process, param.WindowName);
                         long afterWindowEvent = performanceStopwatch.ElapsedMilliseconds;
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         long afterSetResult = performanceStopwatch.ElapsedMilliseconds;

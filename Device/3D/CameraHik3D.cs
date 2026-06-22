@@ -360,6 +360,7 @@ namespace TDJS_Vision.Device._3D
 
                 ApplyImageMode(GetConfiguredImageMode());
                 Mv3dLpSDK.MV3D_LP_ClearDataBuffer(_deviceHandle);
+                ClearFrameCaches();
                 int ret = Mv3dLpSDK.MV3D_LP_StartMeasure(_deviceHandle);
                 ThrowIfSdkFailed("开始采集海康3D数据失败", ret);
 
@@ -406,6 +407,7 @@ namespace TDJS_Vision.Device._3D
                 }
 
                 _frameRateStopwatch.Reset();
+                ClearFrameCaches();
                 RaiseStatus(IsOpen ? "3D 相机采集已停止" : "3D 相机未打开");
             }
         }
@@ -439,7 +441,7 @@ namespace TDJS_Vision.Device._3D
         /// <returns>3D 帧数据。</returns>
         public Camera3DFrameData GetOneFrameData()
         {
-            Camera3DFrameData latestFrame = GetLatestFrameData();
+            Camera3DFrameData latestFrame = TakeLatestFrameData();
             if (_isGrabbing && latestFrame != null)
                 return latestFrame;
 
@@ -469,7 +471,7 @@ namespace TDJS_Vision.Device._3D
                 ThrowIfSdkFailed("主动获取海康3D图像失败", ret);
 
                 Camera3DFrameData frameData = ConvertFrame(imageData);
-                StoreLatestFrameData(frameData);
+                ClearNativePointCloudCache();
                 return frameData;
             }
             finally
@@ -924,14 +926,18 @@ namespace TDJS_Vision.Device._3D
         }
 
         /// <summary>
-        /// 获取最近一次转换后的 3D 帧数据。
+        /// 取出最近一次转换后的 3D 帧数据并清空缓存，避免流程重复消费同一帧。
         /// </summary>
         /// <returns>最近一帧数据。</returns>
-        private Camera3DFrameData GetLatestFrameData()
+        private Camera3DFrameData TakeLatestFrameData()
         {
             lock (_latestFrameLock)
             {
-                return _latestFrameData;
+                Camera3DFrameData frameData = _latestFrameData;
+                _latestFrameData = null;
+                if (frameData != null)
+                    ClearNativePointCloudCache();
+                return frameData;
             }
         }
 
@@ -957,6 +963,14 @@ namespace TDJS_Vision.Device._3D
                 _latestFrameData = null;
             }
 
+            ClearNativePointCloudCache();
+        }
+
+        /// <summary>
+        /// 清空最近一次 SDK 原生点云缓存，避免旧点云被误当作当前帧显示。
+        /// </summary>
+        private void ClearNativePointCloudCache()
+        {
             lock (_nativePointCloudLock)
             {
                 _latestNativePointCloudImage = new MV3D_LP_IMAGE_DATA();

@@ -1691,3 +1691,23 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] `FrmImageViewer` 增加 4 个可复用的 3D 图像窗口，节点运行时按窗口名自动打开到同一个 DockPanel。
 - [x] 工具树、节点类型、节点工厂、流程画布拖拽创建入口、工具箱图标和画布颜色映射已注册 `3D图像显示`。
 - [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，结果为 189 个既有警告、0 个错误。
+
+## 2026-06-22: 3D图像显示节点复用普通图像窗口
+
+- [x] 按新反馈调整 `ImageShow3D`：3D 显示只展示深度预览图，不再自动打开独立 `FrmSingle3DImage` 点云窗口。
+- [x] `ParamFormImageShow3D` 的窗口选择改为复用现有 `FrmSingleImage` 图像窗口，设计器文本改为“订阅深度图”和“图像窗口”。
+- [x] `NodeImageShow` 增加图像刷新事件发布方法，`ImageShow3D` 复用同一套图像窗口刷新逻辑显示 `DepthImage`。
+- [x] `FrmImageViewer` 不再预创建旧版 3D 图像窗口实例，旧接口和旧窗口键名仅保留兼容。
+- [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，结果为 189 个既有警告、0 个错误。
+
+## 2026-06-22: 3D相机最新帧消费后清空
+
+- [x] `CameraHik3D.GetOneFrameData()` 读取后台缓存帧时改为取出即清空，避免流程重复消费同一帧。
+- [x] 主动取帧返回后同步清理相机对象内部原生点云缓存，开始和停止取流时也清空最近帧缓存，避免跨采集周期误用旧帧。
+- [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，结果为 189 个既有警告、0 个错误。
+
+## 2026-06-22: 3D深度图伪彩色显示与灰度缓存分离
+
+- [x] `NodeImageSource3D.BuildDepthPreviewImage()` 输出伪彩色深度预览图作为 `SrcImg` 和 `Bitmaps[0]`，保持 3D 图像显示效果接近海康 demo。
+- [x] 同时保留归一化后的 8 位灰度深度图作为 `GrayImg`，后续测量模块和 2D 算子可按普通 `ImageSource` 的灰度缓存逻辑直接复用。
+- [x] 无效深度像素在伪彩色显示中置黑，避免伪彩色映射把无效深度误显示成有效颜色。

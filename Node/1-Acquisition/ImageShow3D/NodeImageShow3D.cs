@@ -1,26 +1,31 @@
 using Logger;
+using OpenCvSharp.Extensions;
 using System;
+using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Device._3D;
 using TDJS_Vision.Forms.ImageViewer;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
 
 namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
 {
     /// <summary>
-    /// 3D 图像显示节点，负责将上游 3D 帧推送到 3D 图像窗口。
+    /// 3D 图像显示节点，负责将上游 3D 深度预览图推送到普通图像窗口。
     /// </summary>
     public class NodeImageShow3D : NodeBase
     {
         /// <summary>
-        /// 3D 图像显示事件。
+        /// 旧版 3D 图像显示事件，保留给历史独立 3D 窗口代码编译兼容。
         /// </summary>
+#pragma warning disable CS0067
         public static event EventHandler<Image3DShowParam> Image3DShowChanged;
 
         /// <summary>
-        /// 3D 图像显示窗口名称变化事件。
+        /// 旧版 3D 图像显示窗口名称变化事件，保留给历史独立 3D 窗口代码编译兼容。
         /// </summary>
         public static event Action<Process, string> Image3DShowWindowNameChanged;
+#pragma warning restore CS0067
 
         /// <summary>
         /// 创建 3D 图像显示节点。
@@ -68,19 +73,20 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
                 if (form == null)
                     throw new InvalidOperationException("3D图像显示参数窗体类型错误。");
 
-                param.WindowName = FrmSingle3DImage.NormalizeWindowKey(param.WindowName);
-                Camera3DFrameData frameData = form.GetFrameData();
-                if (frameData == null)
-                    throw new Exception("未获取到3D帧数据！");
+                param.WindowName = ParamFormImageShow3D.NormalizeImageWindowKey(param.WindowName);
+                OutputImage outputImage = form.GetDepthOutputImage();
+                OpenCvSharp.Mat firstMat = outputImage?.Bitmaps != null && outputImage.Bitmaps.Count > 0 ? outputImage.Bitmaps[0] : null;
+                if (firstMat == null || firstMat.Empty())
+                    throw new Exception("未获取到可显示的深度预览图！");
 
-                FrmImageViewer.Show3DWindow(param.WindowName);
-                Image3DShowChanged?.Invoke(this, new Image3DShowParam(param.WindowName, frameData));
-                Image3DShowWindowNameChanged?.Invoke(Process, param.WindowName);
+                Bitmap image = firstMat.ToBitmap();
+                NodeImageShow.PublishImageShowChanged(this, param.WindowName, image, outputImage.DisplayResult);
+                NodeImageShow.PublishImageShowWindowNameChanged(Process, param.WindowName);
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 ((NodeResultImageShow3D)Result).RunTime = time;
                 if (showLog)
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！3D窗口={FrmSingle3DImage.GetWindowDisplayName(param.WindowName)}，帧号={frameData.FrameNumber}，耗时={time} ms", true);
+                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！图像窗口={FrmSingleImage.GetWindowDisplayName(param.WindowName)}，深度图={GetMatDiagnosticText(firstMat)}，耗时={time} ms", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -96,6 +102,22 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
                 SetRunResult(startTime, NodeStatus.Failed);
                 throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// 生成深度预览图诊断文本。
+        /// </summary>
+        /// <param name="mat">深度预览图。</param>
+        /// <returns>尺寸和通道摘要。</returns>
+        private static string GetMatDiagnosticText(OpenCvSharp.Mat mat)
+        {
+            if (mat == null)
+                return "空";
+
+            if (mat.Empty())
+                return "空Mat";
+
+            return $"{mat.Width}x{mat.Height}x{Math.Max(1, mat.Channels())}";
         }
     }
 
