@@ -11,6 +11,7 @@ using TDJS_Vision.Forms.ModbusAdd;
 using TDJS_Vision.Forms.PLCAdd;
 using TDJS_Vision.Device;
 using TDJS_Vision.Device.Camera;
+using TDJS_Vision.Device._3D;
 using TDJS_Vision.Device.Light;
 using TDJS_Vision.Device.Modbus;
 using TDJS_Vision.Device.PLC;
@@ -100,6 +101,11 @@ namespace TDJS_Vision
         /// 相机设备
         /// </summary>
         public List<ICamera> CameraDevices => AllDevices.OfType<ICamera>().ToList();
+
+        /// <summary>
+        /// 3D 相机设备
+        /// </summary>
+        public List<I3DCamera> Camera3DDevices => AllDevices.OfType<I3DCamera>().ToList();
 
         /// <summary>
         /// Plc设备
@@ -771,6 +777,8 @@ namespace TDJS_Vision
                 {
                     if (dev is ILight light)
                         light.Disconnect();
+                    if (dev is I3DCamera camera3D)
+                        camera3D.Dispose();
                     if (dev is ICamera camera)
                         camera.Dispose();
                     if (dev is IPlc plc)
@@ -791,6 +799,7 @@ namespace TDJS_Vision
             // 清空设备
             SingleLight.SingleLights.Clear();
             SingleCamera.SingleCameraList.Clear();
+            SingleCamera3D.SingleCamera3DList.Clear();
             SinglePLC.SinglePLCs.Clear();
             SingleModbus.SingleModbuss.Clear();
             SingleTcp.SingleTCPs.Clear();

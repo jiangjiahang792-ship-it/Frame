@@ -1,5 +1,7 @@
 using System;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
+using TDJS_Vision.Node._1_Acquisition.ImageSource3D;
+using TDJS_Vision.Node._1_Acquisition.ImageShow3D;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImagePreprocess;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate;
@@ -124,6 +126,8 @@ namespace TDJS_Vision.Node
                     return new NodeImageCrop(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageShow:
                     return new NodeImageShow(nodeId, nodeName, process, nodeType);
+                case NodeType.ImageShow3D:
+                    return new NodeImageShow3D(nodeId, nodeName, process, nodeType);
                 case NodeType.ModbusRead:
                     return new NodeModbusRead(nodeId, nodeName, process, nodeType);
                 case NodeType.ModbusWrite:
@@ -142,6 +146,8 @@ namespace TDJS_Vision.Node
                     return new NodeCameraIO(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageSource:
                     return new NodeImageSource(nodeId, nodeName, process, nodeType);
+                case NodeType.ImageSource3D:
+                    return new NodeImageSource3D(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageSplit:
                     return new NodeImageSplit(nodeId, nodeName, process, nodeType);
                 case NodeType.ImagePreprocess:

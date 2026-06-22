@@ -226,6 +226,10 @@ namespace TDJS_Vision.Node
         /// </summary>
         ImageShow,
         /// <summary>
+        /// 3D图像显示
+        /// </summary>
+        ImageShow3D,
+        /// <summary>
         /// 延迟工具
         /// </summary>
         SleepTool,
@@ -317,6 +321,10 @@ namespace TDJS_Vision.Node
         /// 图像源
         /// </summary>
         ImageSource,
+        /// <summary>
+        /// 3D图像源
+        /// </summary>
+        ImageSource3D,
         /// <summary>
         /// 图像分割
         /// </summary>

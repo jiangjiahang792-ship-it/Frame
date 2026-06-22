@@ -130,6 +130,10 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>dll\MvCameraControl.Net.dll</HintPath>
     </Reference>
+    <Reference Include="Mv3dLpNet">
+      <HintPath>dll\Mv3dLpNet.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <HintPath>packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
@@ -230,6 +234,9 @@
     <Compile Include="ConfigHelper.cs" />
     <Compile Include="DetectItemLanguage.cs" />
     <Compile Include="LanguageManager.cs" />
+    <Compile Include="Device\3D\Camera3DModels.cs" />
+    <Compile Include="Device\3D\CameraHik3D.cs" />
+    <Compile Include="Device\3D\I3DCamera.cs" />
     <Compile Include="Device\COM\ComDevice.cs" />
     <Compile Include="Device\Light\LightTDJS.cs" />
     <Compile Include="Device\Modbus\ModbusRTUParam.cs" />
@@ -771,6 +778,12 @@
     <Compile Include="Forms\CameraAdd\CameraParamsShowControl.Designer.cs">
       <DependentUpon>CameraParamsShowControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Forms\CameraAdd\Camera3DParamsShowControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Forms\CameraAdd\Camera3DParamsShowControl.Designer.cs">
+      <DependentUpon>Camera3DParamsShowControl.cs</DependentUpon>
+    </Compile>
     <Compile Include="Forms\CameraAdd\FrmCameraInfo.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -788,6 +801,12 @@
     </Compile>
     <Compile Include="Forms\CameraAdd\SingleCamera.Designer.cs">
       <DependentUpon>SingleCamera.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\CameraAdd\SingleCamera3D.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Forms\CameraAdd\SingleCamera3D.Designer.cs">
+      <DependentUpon>SingleCamera3D.cs</DependentUpon>
     </Compile>
     <Compile Include="Forms\Helper\ContactUsFormForm.cs">
       <SubType>Form</SubType>
@@ -818,6 +837,15 @@
     </Compile>
     <Compile Include="Forms\ImageViewer\FrmSingleImage.Designer.cs">
       <DependentUpon>FrmSingleImage.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\ImageViewer\FrmSingle3DImage.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\ImageViewer\FrmSingle3DImage.Designer.cs">
+      <DependentUpon>FrmSingle3DImage.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\ImageViewer\PointCloudPreviewControl.cs">
+      <SubType>Component</SubType>
     </Compile>
     <Compile Include="Forms\ImageViewer\FrmSelectAiNode.cs">
       <SubType>Form</SubType>
@@ -1109,6 +1137,28 @@
     </Compile>
     <Compile Include="Node\1-Acquisition\ImageSource\ParamFormImageSource.Designer.cs">
       <DependentUpon>ParamFormImageSource.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\1-Acquisition\ImageSource3D\NodeImageSource3D.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\1-Acquisition\ImageSource3D\NodeParamImageSource3D.cs" />
+    <Compile Include="Node\1-Acquisition\ImageSource3D\NodeResultImageSource3D.cs" />
+    <Compile Include="Node\1-Acquisition\ImageSource3D\ParamFormImageSource3D.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\1-Acquisition\ImageSource3D\ParamFormImageSource3D.Designer.cs">
+      <DependentUpon>ParamFormImageSource3D.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\1-Acquisition\ImageShow3D\NodeImageShow3D.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\1-Acquisition\ImageShow3D\NodeParamImageShow3D.cs" />
+    <Compile Include="Node\1-Acquisition\ImageShow3D\NodeResultImageShow3D.cs" />
+    <Compile Include="Node\1-Acquisition\ImageShow3D\ParamFormImageShow3D.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\1-Acquisition\ImageShow3D\ParamFormImageShow3D.Designer.cs">
+      <DependentUpon>ParamFormImageShow3D.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\2-ImagePreprocessing\ImageCrop\NodeImageCrop.cs">
       <SubType>UserControl</SubType>
@@ -1826,6 +1876,7 @@
     <Content Include="dll\FastColoredTextBox.dll" />
     <Content Include="dll\HslCommunication.dll" />
     <Content Include="dll\MvCameraControl.Net.dll" />
+    <Content Include="dll\Mv3dLpNet.dll" />
     <Content Include="Native\MatchTool.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

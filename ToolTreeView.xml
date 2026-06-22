@@ -4,7 +4,9 @@
     <Node Text="图像采集" ImageName="图像采集" Tag="UNKNOWN" SelectedImageName="图像采集">
       <Nodes>
         <Node Text="图像源" ImageName="图像源" Tag="ImageSource" SelectedImageName="图像源" />
+        <Node Text="3D图像源" ImageName="图像源" Tag="ImageSource3D" SelectedImageName="图像源" />
         <Node Text="图像显示" ImageName="图像显示" Tag="ImageShow" SelectedImageName="图像显示" />
+        <Node Text="3D图像显示" ImageName="图像显示" Tag="ImageShow3D" SelectedImageName="图像显示" />
       </Nodes>
     </Node>
 	<Node Text="图像处理" ImageName="图像处理" Tag="UNKNOWN" SelectedImageName="图像处理">

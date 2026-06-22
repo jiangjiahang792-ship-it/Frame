@@ -20,6 +20,20 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-21 海康 3D 相机设备结构搭建：
+  - [x] 新反馈已记录：在 `Device` 下创建 3D 相机目录，用于放置海康 3D 相机对象、接口和数据结构，设备对象先继承 `IDevice` 体系。
+  - [x] 已新增 `Device/3D/I3DCamera.cs`，定义 3D 相机设备抽象、帧事件、状态事件、打开关闭、采集、软触发、主动取帧和原生点云显示接口。
+  - [x] 已新增 `Device/3D/Camera3DModels.cs`，定义 3D 设备信息、连接配置、采集配置、深度帧、点云点、原生点云缓存和事件参数。
+  - [x] 已新增 `Device/3D/CameraHik3D.cs`，提供可序列化的海康 3D 相机设备骨架，SDK 连接与取图逻辑后续接入。
+  - [x] `Solution` 已增加 `Camera3DDevices` 过滤属性，项目文件已加入 3D 相机新增源码编译项。
+  - [x] Build-verified with MSBuild on 2026-06-21, 0 errors; existing warnings remain.
+- 2026-06-21 3D 相机接入相机管理界面：
+  - [x] 新反馈已记录：3D 相机可以放入 `Forms/CameraAdd` 相机管理界面中，完成后再做 3D 图像源节点。
+  - [x] 已新增 `SingleCamera3D` 及设计器文件，用于在相机列表中显示、选择、连接和移除 3D 相机。
+  - [x] 已新增 `Camera3DParamsShowControl` 及设计器文件，用于显示 3D 相机设备名、SN、IP、图像模式、触发方式、原生点云缓存和连接状态。
+  - [x] `FrmCameraListView` 已支持反序列化、添加、选择和移除 `I3DCamera` 设备。
+  - [x] `FrmCameraInfo` 已预留“海康3D”品牌入口和 3D 相机添加事件，SDK 枚举接入后可直接显示在线设备。
+  - [x] Build-verified with MSBuild on 2026-06-21, 0 errors; existing warnings remain.
 - 2026-06-12 流程画布细节体验优化：
   - [x] 新反馈已记录：复制粘贴后的节点显示文本不要追加“复制”字样；点击节点后需要清楚高亮输入、输出连线及关联节点；画布、节点、连线右键菜单内容需要区分；画布空间或节点与连线字体需要更紧凑。
   - [x] 粘贴节点命名已改为优先保留原节点名称，重名时仅追加 `_2/_3` 数字编号，不再追加“复制”文本。
@@ -1647,3 +1661,33 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 
 - [x] 按当前GPU DLL推理需求，移除 `Yolo8Det`、`Yolo8Seg`、`Yolo8Obb`、`Yolo8Pose` 中GPU推理和GPU会话释放处的 `lock`，GPU推理不再被模型类型静态锁串行化。
 - [x] MSBuild `Debug|x64` 编译通过，结果为 187 个既有警告、0 个错误。
+
+## 2026-06-21: 海康3D相机真实取帧接入
+
+- [x] 将 `Mv3dLpNet.dll` 纳入项目 `dll` 目录并新增工程引用，避免海康3D相机接入依赖开发机绝对安装路径。
+- [x] 补实 `CameraHik3D` 的 SDK 初始化、设备枚举、按序列号/IP打开、开始/停止采集、软触发、主动取帧、深度图解析、深度转点云和 SDK 原生点云缓存。
+- [x] 保留 `I3DCamera` 对外抽象和 3D 添加窗体既有调用方式，后台采集线程通过 `FrameArrived` 输出 `Camera3DFrameData`，主动取帧优先复用最近有效帧。
+- [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，结果为 187 个既有警告、0 个错误；`bin\Debug` 已生成 `Mv3dLpNet.dll`。
+- [x] 运行时验证：`Mv3dLpNet` 初始化、设备数量枚举和 `CameraHik3D.FindCamera()` 均通过，当前发现设备 `MV-DP3060-01P / 00DA8028164 / 192.168.123.88`；打开设备与启动测量成功，但当前设备未输出完整帧，封装层与原始 SDK 轮询均返回 `MV3D_LP_E_NODATA`。
+
+## 2026-06-21: 3D图像源节点接入
+
+- [x] 新增 `ImageSource3D` 节点类型、节点工厂注册和工具树入口，工具箱“图像采集”下可添加“3D图像源”节点。
+- [x] 新增 `NodeImageSource3D`、`NodeParamImageSource3D`、`NodeResultImageSource3D` 和 `ParamFormImageSource3D`，参数窗体控件全部写入 `.Designer.cs`。
+- [x] 3D 图像源节点支持选择方案内 `I3DCamera`、设置图像模式、超时时间、点云缓存、托管点云抽样和自动打开/取流；运行结果输出完整 `Camera3DFrameData` 与深度预览 `OutputImage`。
+- [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，0 个错误；当前警告为项目既有异步、未使用变量和接口隐藏类警告，未发现 `ImageSource3D` 相关新增警告。
+- [x] 修复拖入“3D图像源”时报“拖入节点失败”的问题：补齐流程画布 `ProcessEditPanel.CreateNode` 中 `ImageSource3D` 的实例化分支，并同步工具箱图标和画布颜色映射。
+- [x] 修复后编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，结果为 189 个既有警告、0 个错误。
+- [x] 修复 `ParamFormImageSource3D` 内容区被 `FormBase` 自定义标题栏遮挡的问题：移除窗体级内边距，将间距放入主布局面板，并恢复第一行“选择3D相机”控件可见。
+- [x] 布局修复后编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，结果为 189 个既有警告、0 个错误。
+- [x] 增加 3D 相机随方案加载自动重连配置，加载相机列表时按配置自动打开并开始采集；手动关闭连接后会保存为不自动重连。
+- [x] 方案重置时同步释放 3D 相机资源并清理 3D 相机列表控件缓存，避免重复加载方案后残留旧 3D 设备状态。
+- [x] 自动重连修复后编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，结果为 189 个既有警告、0 个错误。
+
+## 2026-06-22: 3D图像显示节点接入
+
+- [x] 保留现有 `FrmSingleImage` 作为 2D 图像显示窗口，新增 `FrmSingle3DImage` 和 `PointCloudPreviewControl` 用于显示 3D 帧、点云和深度投影。
+- [x] 新增 `ImageShow3D` 节点、参数窗体和运行结果，参数窗体控件全部写入 `.Designer.cs`，节点订阅上游“3D帧数据”并推送到 3D 图像窗口。
+- [x] `FrmImageViewer` 增加 4 个可复用的 3D 图像窗口，节点运行时按窗口名自动打开到同一个 DockPanel。
+- [x] 工具树、节点类型、节点工厂、流程画布拖拽创建入口、工具箱图标和画布颜色映射已注册 `3D图像显示`。
+- [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，结果为 189 个既有警告、0 个错误。

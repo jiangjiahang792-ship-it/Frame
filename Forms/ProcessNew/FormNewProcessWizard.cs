@@ -789,7 +789,9 @@ namespace TDJS_Vision.Forms.ProcessNew
             switch (nodeType)
             {
                 case NodeType.ImageSource:
+                case NodeType.ImageSource3D:
                 case NodeType.ImageShow:
+                case NodeType.ImageShow3D:
                 case NodeType.ImageCrop:
                 case NodeType.ImageRotate:
                 case NodeType.ImageSplit:
@@ -871,8 +873,12 @@ namespace TDJS_Vision.Forms.ProcessNew
             {
                 case NodeType.ImageSource:
                     return "IN";
+                case NodeType.ImageSource3D:
+                    return "3D";
                 case NodeType.ImageShow:
                     return "VW";
+                case NodeType.ImageShow3D:
+                    return "3V";
                 case NodeType.ImageCrop:
                     return "CP";
                 case NodeType.ImageRotate:

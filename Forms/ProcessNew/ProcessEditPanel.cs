@@ -9,6 +9,8 @@ using TDJS_Vision.Device.Camera;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
+using TDJS_Vision.Node._1_Acquisition.ImageSource3D;
+using TDJS_Vision.Node._1_Acquisition.ImageShow3D;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImagePreprocess;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate;
@@ -659,6 +661,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.ImageShow:
                     node = new NodeImageShow(nodeId, nodeName, _process, nodeType);
                     break;
+                case NodeType.ImageShow3D:
+                    node = new NodeImageShow3D(nodeId, nodeName, _process, nodeType);
+                    break;
                 case NodeType.ModbusRead:
                     node = new NodeModbusRead(nodeId, nodeName, _process, nodeType);
                     break;
@@ -685,6 +690,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.ImageSource:
                     node = new NodeImageSource(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.ImageSource3D:
+                    node = new NodeImageSource3D(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.ImageSplit:
                     node = new NodeImageSplit(nodeId, nodeName, _process, nodeType);

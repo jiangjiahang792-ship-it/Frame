@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Device.Camera;
+using TDJS_Vision.Device._3D;
 using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision.Forms.CameraAdd
@@ -17,6 +18,11 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// 添加相机设备事件
         /// </summary>
         public static event EventHandler<CameraParam> AddCameraDevEvent;
+
+        /// <summary>
+        /// 添加 3D 相机设备事件。
+        /// </summary>
+        public static event EventHandler<Camera3DParam> AddCamera3DDevEvent;
 
         /// <summary>
         /// 海康名称计数
@@ -39,14 +45,29 @@ namespace TDJS_Vision.Forms.CameraAdd
         private static int _DaHuacount = 1;
 
         /// <summary>
+        /// 海康 3D 名称计数。
+        /// </summary>
+        private static int _Hik3DCount = 1;
+
+        /// <summary>
         /// 相机信息列表
         /// </summary>
         private List<IDeviceInfo> infoList = CameraHik.FindCamera();
 
         /// <summary>
+        /// 3D 相机信息列表。
+        /// </summary>
+        private List<Camera3DDeviceInfo> _camera3DInfoList = CameraHik3D.FindCamera();
+
+        /// <summary>
         /// 用来保存设备名对应的设备信息
         /// </summary>
         private Dictionary<string, IDeviceInfo> _mapCamera = new Dictionary<string, IDeviceInfo>();
+
+        /// <summary>
+        /// 用来保存 3D 设备名对应的设备信息。
+        /// </summary>
+        private Dictionary<string, Camera3DDeviceInfo> _mapCamera3D = new Dictionary<string, Camera3DDeviceInfo>();
 
         public FrmCameraInfo()
         {
@@ -55,6 +76,7 @@ namespace TDJS_Vision.Forms.CameraAdd
             _mapCamera.Clear();
             foreach (var info in infoList)
                 _mapCamera[CameraHik.GetDevNameByDevInfo(info)] = info;
+            RefreshCamera3DMap();
         }
         private void FrmCameraInfo_Load(object sender, EventArgs e)
         {
@@ -122,6 +144,9 @@ namespace TDJS_Vision.Forms.CameraAdd
                 }
             }
 
+            if (addedBrands.Add("海康3D"))
+                comboBoxCameraBrand.Items.Add("海康3D");
+
             if (comboBoxCameraBrand.Items.Count > 0)
                 comboBoxCameraBrand.SelectedIndex = 0;
         }
@@ -134,6 +159,12 @@ namespace TDJS_Vision.Forms.CameraAdd
             comboBoxCameraList.Items.Clear();
             switch (brand)
             {
+                case "海康3D":
+                    foreach (var info in _camera3DInfoList)
+                    {
+                        comboBoxCameraList.Items.Add(CameraHik3D.GetDevNameByDevInfo(info));
+                    }
+                    break;
                 case "海康":
                     foreach (var info in infoList)
                     {
@@ -201,6 +232,8 @@ namespace TDJS_Vision.Forms.CameraAdd
             _mapCamera.Clear();
             foreach (var info in infoList)
                 _mapCamera[CameraHik.GetDevNameByDevInfo(info)] = info;
+            _camera3DInfoList = CameraHik3D.FindCamera();
+            RefreshCamera3DMap();
             // 初始化相机品牌和相机设备下拉列表
             InitCameraBrandList();
             InitCameraList(comboBoxCameraBrand.Text);
@@ -214,7 +247,23 @@ namespace TDJS_Vision.Forms.CameraAdd
         private void comboBoxCameraBrand_SelectedIndexChanged(object sender, EventArgs e)
         {
             InitCameraList(comboBoxCameraBrand.Text);
-            textBoxUserName.Text = $"{comboBoxCameraBrand.Text}相机{_HikCount}";
+            textBoxUserName.Text = comboBoxCameraBrand.Text == "海康3D"
+                ? $"{comboBoxCameraBrand.Text}相机{_Hik3DCount}"
+                : $"{comboBoxCameraBrand.Text}相机{_HikCount}";
+        }
+
+        /// <summary>
+        /// 刷新 3D 相机设备名称映射。
+        /// </summary>
+        private void RefreshCamera3DMap()
+        {
+            _mapCamera3D.Clear();
+            foreach (Camera3DDeviceInfo info in _camera3DInfoList)
+            {
+                string devName = CameraHik3D.GetDevNameByDevInfo(info);
+                if (!string.IsNullOrWhiteSpace(devName))
+                    _mapCamera3D[devName] = info;
+            }
         }
 
         /// <summary>
@@ -232,9 +281,9 @@ namespace TDJS_Vision.Forms.CameraAdd
                 return;
             }
             //设备重复性判断
-            foreach (var camera in Solution.Instance.CameraDevices)
+            foreach (var device in Solution.Instance.AllDevices)
             {
-                if (camera.DevName == comboBoxCameraList.Text || camera.UserDefinedName == textBoxUserName.Text)
+                if (device.DevName == comboBoxCameraList.Text || device.UserDefinedName == textBoxUserName.Text)
                 {
                     LogHelper.AddLog(MsgLevel.Warn, "当前相机设备已存在或用户自定义名称已存在！", true);
                     MessageBoxTD.Show("当前相机设备已存在或用户自定义名称已存在！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -245,6 +294,19 @@ namespace TDJS_Vision.Forms.CameraAdd
             CameraParam info = new CameraParam();
             try
             {
+                if (comboBoxCameraBrand.Text == "海康3D")
+                {
+                    Camera3DParam camera3DParam = new Camera3DParam
+                    {
+                        DevInfo = _mapCamera3D[comboBoxCameraList.Text],
+                        UserDefinedName = textBoxUserName.Text
+                    };
+                    _Hik3DCount++;
+                    AddCamera3DDevEvent?.Invoke(this, camera3DParam);
+                    this.Hide();
+                    return;
+                }
+
                 //通过事件传递相机参数
                 switch (comboBoxCameraBrand.Text)
                 {
@@ -292,8 +354,35 @@ namespace TDJS_Vision.Forms.CameraAdd
     /// </summary>
     public struct CameraParam
     {
+        /// <summary>
+        /// 相机品牌。
+        /// </summary>
         public CameraBrand Brand;
+
+        /// <summary>
+        /// 相机设备信息。
+        /// </summary>
         public CameraDevInfo DevInfo;
+
+        /// <summary>
+        /// 用户自定义设备名。
+        /// </summary>
+        public string UserDefinedName;
+    }
+
+    /// <summary>
+    /// 3D 相机添加参数结构体。
+    /// </summary>
+    public struct Camera3DParam
+    {
+        /// <summary>
+        /// 3D 相机设备信息。
+        /// </summary>
+        public Camera3DDeviceInfo DevInfo;
+
+        /// <summary>
+        /// 用户自定义设备名。
+        /// </summary>
         public string UserDefinedName;
     }
 }

@@ -13,7 +13,22 @@ namespace TDJS_Vision.Forms.ImageViewer
         /// </summary>
         private static List<FrmSingleImage> _frmSingleImages = new List<FrmSingleImage>();
 
+        /// <summary>
+        /// 所有的 3D 图像窗口。
+        /// </summary>
+        private static readonly List<FrmSingle3DImage> _frmSingle3DImages = new List<FrmSingle3DImage>();
+
+        /// <summary>
+        /// 当前图像窗口管理器实例，用于 3D 显示节点按需打开窗口。
+        /// </summary>
+        private static FrmImageViewer _activeViewer;
+
         public static List<FrmSingleImage> FrmSingleImages { get => _frmSingleImages; }
+
+        /// <summary>
+        /// 3D 图像窗口列表。
+        /// </summary>
+        public static List<FrmSingle3DImage> FrmSingle3DImages { get => _frmSingle3DImages; }
 
         /// <summary>
         /// 窗口布局配置
@@ -31,6 +46,11 @@ namespace TDJS_Vision.Forms.ImageViewer
         public static int CurWindowsNum = 0;
 
         /// <summary>
+        /// 当前布局中反序列化到的 3D 图像窗口数量。
+        /// </summary>
+        public static int Cur3DWindowsNum = 0;
+
+        /// <summary>
         /// 图像窗口隐藏事件
         /// </summary>
         public event EventHandler HideChangedEvent;
@@ -38,6 +58,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         public FrmImageViewer()
         {
             InitializeComponent();
+            _activeViewer = this;
             this.dockPanel1.Theme = new GreenTheme();
             InitWindows();
             InitDockPanel();
@@ -101,6 +122,11 @@ namespace TDJS_Vision.Forms.ImageViewer
             {
                 return _frmSingleImages[CurWindowsNum++];
             }
+            if (persistString == typeof(FrmSingle3DImage).ToString())
+            {
+                int index = Math.Min(Cur3DWindowsNum++, _frmSingle3DImages.Count - 1);
+                return index >= 0 ? _frmSingle3DImages[index] : null;
+            }
             return null;
         }
 
@@ -114,6 +140,66 @@ namespace TDJS_Vision.Forms.ImageViewer
                 FrmSingleImage imageWin = new FrmSingleImage(FrmSingleImage.GetWindowKey(i + 1));
                 _frmSingleImages.Add(imageWin);
             }
+
+            for (int i = 0; i < 4; i++)
+            {
+                FrmSingle3DImage image3DWin = new FrmSingle3DImage(FrmSingle3DImage.GetWindowKey(i + 1));
+                _frmSingle3DImages.Add(image3DWin);
+            }
+        }
+
+        /// <summary>
+        /// 按窗口名称显示 3D 图像窗口。
+        /// </summary>
+        /// <param name="windowName">3D 图像窗口名称。</param>
+        public static void Show3DWindow(string windowName)
+        {
+            FrmSingle3DImage win = Find3DWindow(windowName);
+            if (win == null)
+                return;
+
+            FrmImageViewer viewer = _activeViewer;
+            if (viewer == null || viewer.IsDisposed || viewer.dockPanel1 == null)
+            {
+                if (!win.Visible)
+                    win.Show();
+                return;
+            }
+
+            Action showAction = () =>
+            {
+                if (win.IsDisposed)
+                    return;
+
+                if (win.DockPanel != viewer.dockPanel1 || win.IsHidden)
+                    win.Show(viewer.dockPanel1, DockState.Document);
+                else if (!win.Visible)
+                    win.Show();
+
+                win.Activate();
+            };
+
+            if (viewer.InvokeRequired)
+                viewer.BeginInvoke(showAction);
+            else
+                showAction();
+        }
+
+        /// <summary>
+        /// 根据窗口名称查找 3D 图像窗口。
+        /// </summary>
+        /// <param name="windowName">3D 图像窗口名称。</param>
+        /// <returns>3D 图像窗口。</returns>
+        private static FrmSingle3DImage Find3DWindow(string windowName)
+        {
+            string key = FrmSingle3DImage.NormalizeWindowKey(windowName);
+            foreach (FrmSingle3DImage win in _frmSingle3DImages)
+            {
+                if (win.FormName == key)
+                    return win;
+            }
+
+            return null;
         }
 
         /// <summary>
