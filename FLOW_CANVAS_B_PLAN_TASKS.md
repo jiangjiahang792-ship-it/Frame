@@ -1711,3 +1711,8 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] `NodeImageSource3D.BuildDepthPreviewImage()` 输出伪彩色深度预览图作为 `SrcImg` 和 `Bitmaps[0]`，保持 3D 图像显示效果接近海康 demo。
 - [x] 同时保留归一化后的 8 位灰度深度图作为 `GrayImg`，后续测量模块和 2D 算子可按普通 `ImageSource` 的灰度缓存逻辑直接复用。
 - [x] 无效深度像素在伪彩色显示中置黑，避免伪彩色映射把无效深度误显示成有效颜色。
+
+## 2026-06-22: 隐藏3D图像显示节点入口
+
+- [x] 从工具树中隐藏 `3D图像显示` 新建入口，新流程统一使用普通 `图像显示` 订阅 `3D图像源` 的 `深度预览图`。
+- [x] 保留 `ImageShow3D` 节点类型、工厂创建和运行逻辑，兼容已经保存了旧 3D 图像显示节点的历史方案。
