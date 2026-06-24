@@ -1722,3 +1722,15 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] `NodeBase` 新增 `Stopwatch` 版 `SetRunResult` 入口，短耗时节点可用高精度计时器写入运行耗时并保持流程批次状态更新。
 - [x] `NodeSleepTool` 从 `Task.Delay` 改为 `Stopwatch` 目标时间等待，长等待分段 `Thread.Sleep`，末段短自旋，减少50ms延迟被线程池恢复放大到59ms左右的抖动。
 - [x] 验证记录：旧 `Task.Delay(50)` 本机80次测量平均约61.55ms、最大68ms；编译产物中 `NodeSleepTool.ExecutePreciseSleep(50)` 80次测量79次为50ms、最大54ms；MSBuild `TDJS-Vision.sln` 通过，187个既有警告、0个错误。
+
+## 2026-06-24: 多相机回调线程池最小线程数止血
+
+- [x] `Program.Main` 启动早期调用线程池配置，将默认线程池工作线程和IO线程最小值提升到不低于64，缓解4相机回调、流程并行节点和后台存图同时运行时的线程池排队。
+- [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，184个既有警告、0个错误。
+
+## 2026-06-24: 线程池排队诊断日志
+
+- [x] 新增 `ThreadPoolDiagnostics` 线程池诊断工具，统一输出任务排队耗时、活动线程、最小线程、可用线程和最大线程快照。
+- [x] `NodeImageSource.HandleCameraCallbackFrame` 在相机回调提交和进入 `Process.Run` 时输出 `【线程池诊断】` 日志，用于判断回调流程启动是否被线程池排队拖住。
+- [x] `Process.RunReadyNodeBatch` 在并行批次提交、单个并行节点开始和批次完成时输出 `【线程池诊断】` 日志，用于判断 AI/颜色识别/ROI/Modbus 等并行节点是否被线程池排队拖住。
+- [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，184个既有警告、0个错误。

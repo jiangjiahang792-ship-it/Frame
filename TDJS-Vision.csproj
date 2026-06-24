@@ -233,6 +233,7 @@
   <ItemGroup>
     <Compile Include="ConfigHelper.cs" />
     <Compile Include="DetectItemLanguage.cs" />
+    <Compile Include="Diagnostics\ThreadPoolDiagnostics.cs" />
     <Compile Include="LanguageManager.cs" />
     <Compile Include="Device\3D\Camera3DModels.cs" />
     <Compile Include="Device\3D\CameraHik3D.cs" />

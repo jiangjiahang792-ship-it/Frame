@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node;
 
 namespace TDJS_Vision
@@ -544,6 +545,28 @@ namespace TDJS_Vision
             return orderedResults;
         }
 
+        /// <summary>
+        /// 构建线程池诊断日志中的并行节点列表摘要。
+        /// </summary>
+        /// <param name="batch">本轮准备并行运行的节点集合。</param>
+        /// <returns>节点ID和节点名称组成的摘要文本。</returns>
+        private static string BuildThreadPoolDiagnosticBatchSummary(List<NodeBase> batch)
+        {
+            if (batch == null || batch.Count == 0)
+                return "空";
+
+            List<string> nodeTexts = new List<string>();
+            foreach (NodeBase node in batch)
+            {
+                if (node == null)
+                    continue;
+
+                nodeTexts.Add($"{node.ID}.{node.NodeName}");
+            }
+
+            return nodeTexts.Count == 0 ? "空" : string.Join("、", nodeTexts);
+        }
+
         private async Task<List<ConnectedNodeRunResult>> RunReadyNodeBatch(List<NodeBase> batch, NodeBase nodeToSkip)
         {
             List<IParallelSignalWaitNode> preparedSignalWaitNodes = PrepareParallelSignalWaitNodes(batch);
@@ -558,10 +581,20 @@ namespace TDJS_Vision
 
                 List<Task<ConnectedNodeRunResult>> tasks = new List<Task<ConnectedNodeRunResult>>();
                 Dictionary<Task<ConnectedNodeRunResult>, NodeBase> taskNodes = new Dictionary<Task<ConnectedNodeRunResult>, NodeBase>();
+                string processName = ProcessName;
+                string batchSummary = BuildThreadPoolDiagnosticBatchSummary(batch);
+                long batchQueuedTimestamp = ThreadPoolDiagnostics.GetTimestamp();
+                ThreadPoolDiagnostics.LogSnapshot($"流程【{processName}】并行批次提交，节点数:{batch.Count}，节点:{batchSummary}");
                 foreach (NodeBase node in batch)
                 {
                     NodeBase nodeToRun = node;
-                    Task<ConnectedNodeRunResult> task = Task.Run(async () => await RunConnectedNode(nodeToRun, nodeToSkip));
+                    string nodeText = nodeToRun == null ? "空节点" : $"{nodeToRun.ID}.{nodeToRun.NodeName}";
+                    long nodeQueuedTimestamp = ThreadPoolDiagnostics.GetTimestamp();
+                    Task<ConnectedNodeRunResult> task = Task.Run(async () =>
+                    {
+                        ThreadPoolDiagnostics.LogQueuedTaskStarted($"流程【{processName}】并行节点【{nodeText}】开始", nodeQueuedTimestamp);
+                        return await RunConnectedNode(nodeToRun, nodeToSkip);
+                    });
                     tasks.Add(task);
                     taskNodes[task] = nodeToRun;
                 }
@@ -573,6 +606,9 @@ namespace TDJS_Vision
                 catch
                 {
                 }
+
+                double batchElapsedMilliseconds = ThreadPoolDiagnostics.GetElapsedMilliseconds(batchQueuedTimestamp);
+                ThreadPoolDiagnostics.LogSnapshot($"流程【{processName}】并行批次完成，节点数:{batch.Count}，等待耗时:{batchElapsedMilliseconds:F1}ms，节点:{batchSummary}");
 
                 Exception firstException = null;
                 Dictionary<int, ConnectedNodeRunResult> resultMap = new Dictionary<int, ConnectedNodeRunResult>();
