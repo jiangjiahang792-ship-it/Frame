@@ -1716,3 +1716,9 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 
 - [x] 从工具树中隐藏 `3D图像显示` 新建入口，新流程统一使用普通 `图像显示` 订阅 `3D图像源` 的 `深度预览图`。
 - [x] 保留 `ImageShow3D` 节点类型、工厂创建和运行逻辑，兼容已经保存了旧 3D 图像显示节点的历史方案。
+
+## 2026-06-24: 延迟执行节点50ms稳定性优化
+
+- [x] `NodeBase` 新增 `Stopwatch` 版 `SetRunResult` 入口，短耗时节点可用高精度计时器写入运行耗时并保持流程批次状态更新。
+- [x] `NodeSleepTool` 从 `Task.Delay` 改为 `Stopwatch` 目标时间等待，长等待分段 `Thread.Sleep`，末段短自旋，减少50ms延迟被线程池恢复放大到59ms左右的抖动。
+- [x] 验证记录：旧 `Task.Delay(50)` 本机80次测量平均约61.55ms、最大68ms；编译产物中 `NodeSleepTool.ExecutePreciseSleep(50)` 80次测量79次为50ms、最大54ms；MSBuild `TDJS-Vision.sln` 通过，187个既有警告、0个错误。

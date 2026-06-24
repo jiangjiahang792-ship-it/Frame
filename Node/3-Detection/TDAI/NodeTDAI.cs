@@ -80,7 +80,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
                             #region 通信获取对应检测项的配置(不是使用固定检测项时)
                             // terminalType端子型号、wireType电线型号、waterproofType防水栓型号
-                            short terminalType = 0, wireType = 0, waterproofType = 0;
+                            ushort readValue = 1212;
                             if (!param.IsFixed)
                             {
                                 // 使用 ASCII 解码
@@ -108,7 +108,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                 }
                                 else if (param.Device is IModbus mod)
                                 {
-                                    ushort readValue = await GetModbusCode(mod, param.Adress);
+                                    readValue = await GetModbusCode(mod, param.Adress);
                                     string strVal = readValue.ToString();
 
                                     var matchModel = param.TDAICommuntionParams.FirstOrDefault(m => m.TriggerVal == strVal);
@@ -133,7 +133,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
                             #endregion
 
-                            LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测,Modbus地址获取完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                            LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测,Modbus地址{param.Adress} 获取完毕:{readValue}, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
 
                             // 4种模型检出结果解析
                             int result_count = 0;

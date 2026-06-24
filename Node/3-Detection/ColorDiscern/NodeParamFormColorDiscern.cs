@@ -432,7 +432,7 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                     }
                     else if (device is IModbus mod)
                     {
-                        LogRuntimeStep("开始读取Modbus颜色触发值");
+                        LogRuntimeStep($"开始读取Modbus颜色地址:{address} 触发值");
                         ushort value = await GetModbusCode(mod, address);
                         LogRuntimeStep($"读取Modbus颜色触发值完毕，值:{value}");
                         string strVal = value.ToString();

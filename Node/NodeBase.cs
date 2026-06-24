@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
 using System.Threading;
@@ -503,11 +504,35 @@ namespace TDJS_Vision.Node
         /// <summary>
         /// 节点运行结果基本状态设置
         /// </summary>
-        /// <param name="stopwatch"></param>
-        /// <param name="status"></param>
+        /// <param name="startTime">节点运行开始时间。</param>
+        /// <param name="status">节点运行状态。</param>
+        /// <returns>节点运行耗时，单位毫秒。</returns>
         public int SetRunResult(DateTime startTime, NodeStatus status)
         {
             int elapsedMi11iseconds = (int)(DateTime.Now - startTime).TotalMilliseconds;
+            return SetRunResult(elapsedMi11iseconds, status);
+        }
+
+        /// <summary>
+        /// 使用高精度计时器设置节点运行结果，避免短耗时节点受系统时间精度影响。
+        /// </summary>
+        /// <param name="stopwatch">节点运行计时器。</param>
+        /// <param name="status">节点运行状态。</param>
+        /// <returns>节点运行耗时，单位毫秒。</returns>
+        public int SetRunResult(Stopwatch stopwatch, NodeStatus status)
+        {
+            int elapsedMilliseconds = stopwatch == null ? 0 : (int)stopwatch.ElapsedMilliseconds;
+            return SetRunResult(elapsedMilliseconds, status);
+        }
+
+        /// <summary>
+        /// 按指定耗时写入节点运行状态并维护当前流程批次结果标记。
+        /// </summary>
+        /// <param name="elapsedMilliseconds">节点运行耗时，单位毫秒。</param>
+        /// <param name="status">节点运行状态。</param>
+        /// <returns>节点运行耗时，单位毫秒。</returns>
+        private int SetRunResult(int elapsedMilliseconds, NodeStatus status)
+        {
             if (Process != null && Process.CurrentRunId > 0)
             {
                 if (status == NodeStatus.Successful)
@@ -516,8 +541,8 @@ namespace TDJS_Vision.Node
                     LastSuccessfulRunId = 0;
             }
 
-            SetStatus(status, elapsedMi11iseconds.ToString());
-            return elapsedMi11iseconds;
+            SetStatus(status, elapsedMilliseconds.ToString());
+            return elapsedMilliseconds;
         }
 
         /// <summary>
