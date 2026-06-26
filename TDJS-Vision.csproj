@@ -1427,6 +1427,7 @@
       <DependentUpon>NodeParamFormDataShow.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\7-ResultProcessing\DataShow\NodeResultDataShow.cs" />
+    <Compile Include="Node\7-ResultProcessing\ImageSave\ImageSaveService.cs" />
     <Compile Include="Node\7-ResultProcessing\ImageSave\NodeParamSaveImage.cs" />
     <Compile Include="Node\7-ResultProcessing\ImageSave\NodeResultSaveImage.cs" />
     <Compile Include="Node\7-ResultProcessing\ImageSave\NodeSaveImage.cs">

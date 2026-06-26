@@ -1734,3 +1734,11 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] `NodeImageSource.HandleCameraCallbackFrame` 在相机回调提交和进入 `Process.Run` 时输出 `【线程池诊断】` 日志，用于判断回调流程启动是否被线程池排队拖住。
 - [x] `Process.RunReadyNodeBatch` 在并行批次提交、单个并行节点开始和批次完成时输出 `【线程池诊断】` 日志，用于判断 AI/颜色识别/ROI/Modbus 等并行节点是否被线程池排队拖住。
 - [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，184个既有警告、0个错误。
+
+## 2026-06-24: 保存图片节点专用后台队列
+
+- [x] 新增全局 `ImageSaveService`，保存图片节点只投递保存请求，实际建目录、重名处理、JPEG压缩和写盘由专用后台线程执行，不再占用默认线程池。
+- [x] 保存队列改为有界队列和优先级策略：NG图按高优先级入队，队列满时可淘汰普通优先级请求；OK图或普通图在队列满时按策略A丢弃并记录日志。
+- [x] `NodeImageSave` 移除每个节点独立启动4个 `Task.Run` 消费线程的旧架构，保留原有日期、早晚班、OK/NG、条码、压缩和多NG目录保存规则。
+- [x] 本版先隔离磁盘写入、压缩和目录处理；保存前的图像快照生成和叠加绘制仍在保存节点内完成，用于保证后台线程不引用上游图像缓存。
+- [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，183个既有警告、0个错误。
