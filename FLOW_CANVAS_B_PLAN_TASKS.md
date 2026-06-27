@@ -1742,3 +1742,9 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] `NodeImageSave` 移除每个节点独立启动4个 `Task.Run` 消费线程的旧架构，保留原有日期、早晚班、OK/NG、条码、压缩和多NG目录保存规则。
 - [x] 本版先隔离磁盘写入、压缩和目录处理；保存前的图像快照生成和叠加绘制仍在保存节点内完成，用于保证后台线程不引用上游图像缓存。
 - [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，183个既有警告、0个错误。
+
+## 2026-06-26: 线芯截面SEG解析器编译修复
+
+- [x] 修复 `LineCoreFront_C1_Seg` 中旧版 `ParseCommon` 接口调用，统一使用检测项语言键、当前值写回和自动学习上下限新接口。
+- [x] 补齐线芯聚拢度最小包围圆计算逻辑，移除缺失的 `MinimumEnclosingCircle` 外部依赖，并对缺失或单个线芯结果按NG输出。
+- [x] 将 `LineCoreFront_C1_Seg.cs` 加入项目编译项，并在 `NodeTDAI` 的 `RL_线芯截面` SEG分支中接入该解析器。

@@ -256,7 +256,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     switch (param.ModelName)
                                     {
                                         case ModelName.RL_线芯截面:
-                                            //LineCoreCrossSection.Parse(seg_results, result_count, param, Process, ref res);
+                                            LineCoreFront_C1_Seg.Parse(seg_results, result_count, param, inputImage.Bitmaps[0], ref res);
                                             break;
                                         default:
                                             break;
