@@ -7,7 +7,6 @@ using System.Drawing;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node._6_LogicTool.SharedVariable;
 
 namespace TDJS_Vision.Node._1_Acquisition.ImageSource
@@ -130,13 +129,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
                 LogHelper.AddLog(MsgLevel.Exception, $"流程【{Process.ProcessName}】执行StorePendingCallbackMat方法完毕, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
 
-                long processRunQueuedTimestamp = ThreadPoolDiagnostics.GetTimestamp();
-                ThreadPoolDiagnostics.LogSnapshot($"流程【{Process.ProcessName}】相机回调提交Process.Run任务");
                 _ = Task.Run(async () =>
                 {
                     try
                     {
-                        ThreadPoolDiagnostics.LogQueuedTaskStarted($"流程【{Process.ProcessName}】Process.Run任务开始", processRunQueuedTimestamp);
                         LogHelper.AddLog(MsgLevel.Exception, $"流程【{Process.ProcessName}】执行Run方法, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
                         await Process.Run(this, false);
                     }

@@ -232,22 +232,19 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     # region 执行推理
                                     List<SegResult> seg_results = new List<SegResult>();
 
-                                    for (int i = 0; i < inputImage.Bitmaps.Count; i++)
                                     {
                                         List<SegResult> tmp = new List<SegResult>();
                                         var handle = param.Yolo8 as Yolo8Seg;
                                         if (handle == null)
                                             throw new Exception("AI模型句柄类型与SEG模型不匹配，请重新加载模型！");
-                                        var img = inputImage.Bitmaps[i].Clone();
+                                        var img = inputImage.Bitmaps[0];
                                         if (inputImage.Rectangles.Count != 0)
-                                        {
-                                            tmp = handle.Detect(img, inputImage.Rectangles[i].Location.X, inputImage.Rectangles[i].Location.Y);
-                                        }
-                                        else
-                                        {
                                             tmp = handle.Detect(img);
-                                        }
+                                        else
+                                            tmp = handle.Detect(img);
                                         seg_results.AddRange(tmp);
+
+                                        LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测推理完毕,结果数量:{tmp.Count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                                     }
                                     #endregion
 
@@ -257,6 +254,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     {
                                         case ModelName.RL_线芯截面:
                                             LineCoreFront_C1_Seg.Parse(seg_results, result_count, param, inputImage.Bitmaps[0], ref res);
+                                            LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测结果运算完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                                             break;
                                         default:
                                             break;

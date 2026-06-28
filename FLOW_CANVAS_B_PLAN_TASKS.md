@@ -1723,28 +1723,9 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] `NodeSleepTool` 从 `Task.Delay` 改为 `Stopwatch` 目标时间等待，长等待分段 `Thread.Sleep`，末段短自旋，减少50ms延迟被线程池恢复放大到59ms左右的抖动。
 - [x] 验证记录：旧 `Task.Delay(50)` 本机80次测量平均约61.55ms、最大68ms；编译产物中 `NodeSleepTool.ExecutePreciseSleep(50)` 80次测量79次为50ms、最大54ms；MSBuild `TDJS-Vision.sln` 通过，187个既有警告、0个错误。
 
-## 2026-06-24: 多相机回调线程池最小线程数止血
+## 2026-06-27: 回退线程池诊断和保存图片队列改造
 
-- [x] `Program.Main` 启动早期调用线程池配置，将默认线程池工作线程和IO线程最小值提升到不低于64，缓解4相机回调、流程并行节点和后台存图同时运行时的线程池排队。
+- [x] 按指定基线 `f41ad347d9e7aadbc68a2ee11007de53b1ad894a` 恢复流程回调、并行节点调度和保存图片节点相关代码。
+- [x] 保留 `Program.cs` 中线程池最小线程数提升到64的启动配置。
+- [x] 保留 `LineCoreFront_C1_Seg.cs` 线芯SEG解析文件、项目编译引用以及 `NodeTDAI` 中对应解析调用。
 - [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，184个既有警告、0个错误。
-
-## 2026-06-24: 线程池排队诊断日志
-
-- [x] 新增 `ThreadPoolDiagnostics` 线程池诊断工具，统一输出任务排队耗时、活动线程、最小线程、可用线程和最大线程快照。
-- [x] `NodeImageSource.HandleCameraCallbackFrame` 在相机回调提交和进入 `Process.Run` 时输出 `【线程池诊断】` 日志，用于判断回调流程启动是否被线程池排队拖住。
-- [x] `Process.RunReadyNodeBatch` 在并行批次提交、单个并行节点开始和批次完成时输出 `【线程池诊断】` 日志，用于判断 AI/颜色识别/ROI/Modbus 等并行节点是否被线程池排队拖住。
-- [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，184个既有警告、0个错误。
-
-## 2026-06-24: 保存图片节点专用后台队列
-
-- [x] 新增全局 `ImageSaveService`，保存图片节点只投递保存请求，实际建目录、重名处理、JPEG压缩和写盘由专用后台线程执行，不再占用默认线程池。
-- [x] 保存队列改为有界队列和优先级策略：NG图按高优先级入队，队列满时可淘汰普通优先级请求；OK图或普通图在队列满时按策略A丢弃并记录日志。
-- [x] `NodeImageSave` 移除每个节点独立启动4个 `Task.Run` 消费线程的旧架构，保留原有日期、早晚班、OK/NG、条码、压缩和多NG目录保存规则。
-- [x] 本版先隔离磁盘写入、压缩和目录处理；保存前的图像快照生成和叠加绘制仍在保存节点内完成，用于保证后台线程不引用上游图像缓存。
-- [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，183个既有警告、0个错误。
-
-## 2026-06-26: 线芯截面SEG解析器编译修复
-
-- [x] 修复 `LineCoreFront_C1_Seg` 中旧版 `ParseCommon` 接口调用，统一使用检测项语言键、当前值写回和自动学习上下限新接口。
-- [x] 补齐线芯聚拢度最小包围圆计算逻辑，移除缺失的 `MinimumEnclosingCircle` 外部依赖，并对缺失或单个线芯结果按NG输出。
-- [x] 将 `LineCoreFront_C1_Seg.cs` 加入项目编译项，并在 `NodeTDAI` 的 `RL_线芯截面` SEG分支中接入该解析器。

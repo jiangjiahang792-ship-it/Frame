@@ -233,7 +233,6 @@
   <ItemGroup>
     <Compile Include="ConfigHelper.cs" />
     <Compile Include="DetectItemLanguage.cs" />
-    <Compile Include="Diagnostics\ThreadPoolDiagnostics.cs" />
     <Compile Include="LanguageManager.cs" />
     <Compile Include="Device\3D\Camera3DModels.cs" />
     <Compile Include="Device\3D\CameraHik3D.cs" />
@@ -1428,7 +1427,6 @@
       <DependentUpon>NodeParamFormDataShow.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\7-ResultProcessing\DataShow\NodeResultDataShow.cs" />
-    <Compile Include="Node\7-ResultProcessing\ImageSave\ImageSaveService.cs" />
     <Compile Include="Node\7-ResultProcessing\ImageSave\NodeParamSaveImage.cs" />
     <Compile Include="Node\7-ResultProcessing\ImageSave\NodeResultSaveImage.cs" />
     <Compile Include="Node\7-ResultProcessing\ImageSave\NodeSaveImage.cs">

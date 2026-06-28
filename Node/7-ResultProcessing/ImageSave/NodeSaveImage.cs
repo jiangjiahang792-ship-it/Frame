@@ -1,35 +1,44 @@
-using Logger;
+﻿using Logger;
+using Sunny.UI;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using static TDJS_Vision.Node._7_ResultProcessing.ImageSave.ImageQueueProcessor;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 {
-    /// <summary>
-    /// 保存图片节点，只负责生成保存请求并投递到全局图像保存服务。
-    /// </summary>
     public class NodeImageSave : NodeBase
     {
+        ImageQueueProcessor processor = new ImageQueueProcessor(4);
+
+        public NodeImageSave(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType) 
+        {
+            ParamForm = new ParamFormImageSave();
+            ParamForm.SetNodeBelong(this);
+            Result = new NodeResultImageSave();;
+            // 开始处理队列
+            processor.StartProcessing();
+        }
+
         /// <summary>
-        /// 节点运行。
+        /// 节点运行
         /// </summary>
-        /// <param name="token">流程取消令牌。</param>
-        /// <param name="showLog">是否显示节点运行日志。</param>
-        /// <returns>节点运行返回值。</returns>
-        public override Task<NodeReturn> Run(CancellationToken token, bool showLog)
+        public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
 
+            // 参数合法性校验
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return Task.FromResult(new NodeReturn(NodeRunFlag.StopRun));
+                return new NodeReturn(NodeRunFlag.StopRun);
             }
-
             if (ParamForm.Params == null)
             {
                 LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行参数未设置或保存！", true);
@@ -37,286 +46,311 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                 throw new Exception($"节点({ID}.{NodeName})运行参数未设置或保存！");
             }
 
-            if (ParamForm is ParamFormImageSave form && form.Params is NodeParamSaveImage param)
+            if (ParamForm is ParamFormImageSave form)
             {
-                try
+                if(form.Params is NodeParamSaveImage param)
                 {
-                    SetStatus(NodeStatus.Unexecuted, "*");
-                    base.CheckTokenCancel(token);
+                    try
+                    {
+                        SetStatus(NodeStatus.Unexecuted, "*");
+                        base.CheckTokenCancel(token);
 
-                    PrepareRuntimeParameters(form, param);
-                    ImageSaveEnqueueResult enqueueResult = EnqueueSaveRequest(param);
+                        // 参数获取订阅控件的值
+                        if (param.IsBarCode)
+                        {
+                            param.Barcode = form.GetBarCode();
+                            if (param.Barcode.IsNullOrEmpty())
+                                throw new Exception($"获取条码结果失败！");
+                        }
+                        if (param.NeedOkNg)
+                            param.AlgorithmResult = form.GetAiResult();
+                        param.Image = form.GetImage();
 
-                    int time = SetRunResult(startTime, NodeStatus.Successful);
-                    Result.RunTime = time;
-                    LogEnqueueResult(enqueueResult, showLog, time);
-                    return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
-                }
-                catch (OperationCanceledException)
-                {
-                    LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})运行取消！", true);
-                    SetRunResult(startTime, NodeStatus.Unexecuted);
-                    throw new OperationCanceledException($"节点({ID}.{NodeName})运行取消！");
-                }
-                catch (Exception ex)
-                {
-                    DisposeRuntimeImage(param);
-                    LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
-                    SetRunResult(startTime, NodeStatus.Failed);
-                    throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
+                        // 参数合法性判断
+                        if (param.SavePath.IsNullOrEmpty())
+                            throw new Exception($"存图路径未设置！");
+                        if (param.Image == null)
+                            throw new Exception($"订阅的图片对象为空！");
+
+                        // 异步队列存图
+                        await SaveImage(param);
+                        var time = SetRunResult(startTime, NodeStatus.Successful);
+                        Result.RunTime = time;
+                        if (showLog)
+                            LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                        return new NodeReturn(NodeRunFlag.ContinueRun);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})运行取消！", true);
+                        SetRunResult(startTime, NodeStatus.Unexecuted);
+                        throw new OperationCanceledException($"节点({ID}.{NodeName})运行取消！");
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
+                        SetRunResult(startTime, NodeStatus.Failed);
+                        throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
+                    }
+
                 }
             }
-
-            return Task.FromResult(new NodeReturn(NodeRunFlag.StopRun));
+            return new NodeReturn(NodeRunFlag.StopRun);
         }
 
-        /// <summary>
-        /// 初始化保存图片节点。
-        /// </summary>
-        /// <param name="nodeId">节点编号。</param>
-        /// <param name="nodeName">节点名称。</param>
-        /// <param name="process">所属流程。</param>
-        /// <param name="nodeType">节点类型。</param>
-        public NodeImageSave(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
-        {
-            ParamForm = new ParamFormImageSave();
-            ParamForm.SetNodeBelong(this);
-            Result = new NodeResultImageSave();
-        }
-
-        /// <summary>
-        /// 从参数窗体读取运行期订阅值。
-        /// </summary>
-        /// <param name="form">保存图片参数窗体。</param>
-        /// <param name="param">保存图片参数。</param>
-        private static void PrepareRuntimeParameters(ParamFormImageSave form, NodeParamSaveImage param)
-        {
-            if (param.IsBarCode)
-            {
-                param.Barcode = form.GetBarCode();
-                if (string.IsNullOrEmpty(param.Barcode))
-                    throw new Exception("获取条码结果失败！");
-            }
-
-            if (param.NeedOkNg)
-                param.AlgorithmResult = form.GetAiResult();
-
-            param.Image = form.GetImage();
-
-            if (string.IsNullOrEmpty(param.SavePath))
-                throw new Exception("存图路径未设置！");
-
-            if (param.Image == null)
-                throw new Exception("订阅的图片对象为空！");
-        }
-
-        /// <summary>
-        /// 生成保存请求并投递到全局图像保存服务。
-        /// </summary>
-        /// <param name="param">保存图片参数。</param>
-        /// <returns>入队结果。</returns>
-        private ImageSaveEnqueueResult EnqueueSaveRequest(NodeParamSaveImage param)
+        private async Task SaveImage(NodeParamSaveImage param)
         {
             DateTime time = DateTime.Now;
-            string imageSavePath = BuildBaseSavePath(param, time);
-            string imageName = BuildImageName(param, time);
-            bool isNg = false;
-            List<string> saveDirectories = BuildSaveDirectories(param, imageSavePath, out isNg);
+            // 1.存图路径（不包含图片名称）
+            string imageSavePath;
 
-            if (saveDirectories.Count == 0)
-            {
-                DisposeRuntimeImage(param);
-                return new ImageSaveEnqueueResult(ImageSaveEnqueueStatus.SkippedByCondition, 0, "当前OK/NG条件不需要保存图片。");
-            }
+            // 2.拼接日期路径
+            string nowDataTime = time.ToString("yyyyMMdd");
+            imageSavePath = Path.Combine(param.SavePath, nowDataTime);
 
-            ImageSaveRequest request = new ImageSaveRequest
-            {
-                Image = param.Image,
-                SaveDirectories = saveDirectories,
-                ImageName = imageName,
-                NeedCompress = param.NeedCompress,
-                CompressValue = param.CompressValue,
-                Priority = isNg ? ImageSavePriority.High : ImageSavePriority.Normal,
-                IsNg = isNg,
-                ProcessId = Process == null ? 0 : Process.ID,
-                ProcessName = Process == null ? string.Empty : Process.ProcessName,
-                NodeId = ID,
-                NodeName = NodeName,
-                CreateTime = time
-            };
+            // 3.图片名称
+            string imageName = param.IsBarCode ? param.Barcode : time.ToString("yyyy-MM-dd_HH-mm-ss-fff");
+            if (param.NeedCompress)
+                imageName += "-CAN"; // 压缩图
 
-            param.Image = null;
-            return ImageSaveService.Instance.Enqueue(request);
-        }
 
-        /// <summary>
-        /// 构建基础保存路径，包含日期和早晚班目录。
-        /// </summary>
-        /// <param name="param">保存图片参数。</param>
-        /// <param name="time">当前时间。</param>
-        /// <returns>基础保存路径。</returns>
-        private static string BuildBaseSavePath(NodeParamSaveImage param, DateTime time)
-        {
-            string imageSavePath = Path.Combine(param.SavePath, time.ToString("yyyyMMdd"));
+            // 4.是否区分早晚班
             if (param.IsDayNight)
             {
                 string dayNight = IsDayWorking(time.TimeOfDay, param.DayDataTime, param.NightDataTime) ? "早班" : "晚班";
                 imageSavePath = Path.Combine(imageSavePath, dayNight);
             }
 
-            return imageSavePath;
-        }
-
-        /// <summary>
-        /// 构建图片基础名称。
-        /// </summary>
-        /// <param name="param">保存图片参数。</param>
-        /// <param name="time">当前时间。</param>
-        /// <returns>不含扩展名的图片基础名称。</returns>
-        private static string BuildImageName(NodeParamSaveImage param, DateTime time)
-        {
-            string imageName = param.IsBarCode ? param.Barcode : time.ToString("yyyy-MM-dd_HH-mm-ss-fff");
-            if (param.NeedCompress)
-                imageName += "-CAN";
-
-            return imageName;
-        }
-
-        /// <summary>
-        /// 根据 OK/NG 设置构建保存目录集合。
-        /// </summary>
-        /// <param name="param">保存图片参数。</param>
-        /// <param name="baseSavePath">基础保存路径。</param>
-        /// <param name="isNg">输出是否为 NG 保存请求。</param>
-        /// <returns>保存目录集合。</returns>
-        private static List<string> BuildSaveDirectories(NodeParamSaveImage param, string baseSavePath, out bool isNg)
-        {
-            isNg = false;
             List<string> paths = new List<string>();
-            if (!param.NeedOkNg)
+
+            // 5.是否区分OK/NG
+            if (param.NeedOkNg)
             {
-                paths.Add(baseSavePath);
-                return paths;
+                if (param.AlgorithmResult == null)
+                    throw new Exception($"无法获取/解析AI检测结果！");
+
+                // 根据AI检测总结果判断创建OK/NG文件夹
+                bool allAreOk = param.AlgorithmResult.DetectResults.Count > 0 && param.AlgorithmResult.DetectResults.All(pair => pair.Value.All(v => v.IsOk));
+                string okNg = allAreOk ? "OK" : "NG";
+                imageSavePath = Path.Combine(imageSavePath, okNg);
+
+                //要保存什么图片
+                switch (param.ImageTypeToSave)
+                {
+                    case ImageTypeToSave.OkAndNg:
+                        if (allAreOk)
+                        {
+                            paths.Add(imageSavePath);
+                        }
+                        else
+                        {
+                            foreach (var pair in param.AlgorithmResult.DetectResults)
+                            {
+                                if (!pair.Value.TrueForAll(item => item.IsOk))
+                                    paths.Add(Path.Combine(imageSavePath, pair.Key));
+                            }
+                        }
+                        break;
+                    case ImageTypeToSave.OnlyOk:
+                        if (allAreOk)
+                        {
+                            paths.Add(imageSavePath);
+                        }
+                        break;
+                    case ImageTypeToSave.OnlyNg:
+                        if (!allAreOk)
+                        {
+                            foreach (var pair in param.AlgorithmResult.DetectResults)
+                            {
+                                if (!pair.Value.TrueForAll(item => item.IsOk))
+                                    paths.Add(Path.Combine(imageSavePath, pair.Key));
+                            }
+                        }
+                        break;
+                    default:
+                        break;
+                }
+
+                foreach (var path in paths)
+                {
+                    SaveImageTask saveImageTask = await Task.Run(() =>
+                    {
+                        return QueueImageForSave(param.Image, path, imageName, param.NeedCompress, param.CompressValue);
+                    });
+                    processor.EnqueueImage(saveImageTask);
+                }
             }
-
-            if (param.AlgorithmResult == null)
-                throw new Exception("无法获取/解析AI检测结果！");
-
-            bool allAreOk = param.AlgorithmResult.DetectResults != null &&
-                param.AlgorithmResult.DetectResults.Count > 0 &&
-                param.AlgorithmResult.DetectResults.All(pair => pair.Value != null && pair.Value.All(item => item.IsOk));
-
-            isNg = !allAreOk;
-            string okNgPath = Path.Combine(baseSavePath, allAreOk ? "OK" : "NG");
-            switch (param.ImageTypeToSave)
-            {
-                case ImageTypeToSave.OkAndNg:
-                    AddOkOrNgDirectories(paths, param, okNgPath, allAreOk);
-                    break;
-                case ImageTypeToSave.OnlyOk:
-                    if (allAreOk)
-                        paths.Add(okNgPath);
-                    break;
-                case ImageTypeToSave.OnlyNg:
-                    if (!allAreOk)
-                        AddNgDirectories(paths, param, okNgPath);
-                    break;
-                default:
-                    break;
-            }
-
-            return paths;
-        }
-
-        /// <summary>
-        /// 根据 OK/NG 结果添加保存目录。
-        /// </summary>
-        /// <param name="paths">保存目录集合。</param>
-        /// <param name="param">保存图片参数。</param>
-        /// <param name="okNgPath">OK/NG 根目录。</param>
-        /// <param name="allAreOk">是否全部 OK。</param>
-        private static void AddOkOrNgDirectories(List<string> paths, NodeParamSaveImage param, string okNgPath, bool allAreOk)
-        {
-            if (allAreOk)
-                paths.Add(okNgPath);
             else
-                AddNgDirectories(paths, param, okNgPath);
-        }
-
-        /// <summary>
-        /// 为所有 NG 检测项添加保存目录。
-        /// </summary>
-        /// <param name="paths">保存目录集合。</param>
-        /// <param name="param">保存图片参数。</param>
-        /// <param name="ngRootPath">NG 根目录。</param>
-        private static void AddNgDirectories(List<string> paths, NodeParamSaveImage param, string ngRootPath)
-        {
-            if (param.AlgorithmResult == null || param.AlgorithmResult.DetectResults == null)
-                return;
-
-            foreach (var pair in param.AlgorithmResult.DetectResults)
             {
-                if (pair.Value == null || !pair.Value.TrueForAll(item => item.IsOk))
-                    paths.Add(Path.Combine(ngRootPath, pair.Key));
+                SaveImageTask saveImageTask = await Task.Run(() =>
+                {
+                    return QueueImageForSave(param.Image, imageSavePath, imageName, param.NeedCompress, param.CompressValue);
+                });
+                processor.EnqueueImage(saveImageTask);
             }
         }
 
         /// <summary>
-        /// 判断当前时间是否属于早班。
+        /// 生成任务
         /// </summary>
-        /// <param name="time">当前时间。</param>
-        /// <param name="daydateTime">早班开始时间。</param>
-        /// <param name="nightdataTime">晚班开始时间。</param>
-        /// <returns>属于早班时返回 true。</returns>
-        private static bool IsDayWorking(TimeSpan time, DateTime daydateTime, DateTime nightdataTime)
+        /// <param name="image"></param>
+        /// <param name="savePath"></param>
+        /// <param name="imageName"></param>
+        /// <param name="needCompress"></param>
+        /// <param name="compressValue"></param>
+        /// <returns></returns>
+        private SaveImageTask QueueImageForSave(Bitmap image, string savePath, string imageName, bool needCompress, long compressValue = 100)
+        {
+            Directory.CreateDirectory(savePath);
+
+            // 生成保存图片的绝对路径
+            string fileName = GetFileName(savePath, imageName);
+
+            // 创建保存任务
+            SaveImageTask saveTask = new SaveImageTask
+            {
+                Image = image,
+                Path = fileName,
+                NeedCompress = needCompress,
+                CompressValue = compressValue
+            };
+
+            return saveTask;
+        }
+
+        /// <summary>
+        /// 判断是否早班
+        /// </summary>
+        /// <param name="time"></param>
+        /// <param name="daydateTime"></param>
+        /// <param name="nightdataTime"></param>
+        /// <returns></returns>
+        private bool IsDayWorking(TimeSpan time, DateTime daydateTime, DateTime nightdataTime)
         {
             TimeSpan dayStartTime = daydateTime.TimeOfDay;
             TimeSpan nightStartTime = nightdataTime.TimeOfDay;
             return time >= dayStartTime && time < nightStartTime;
         }
 
-        /// <summary>
-        /// 记录保存请求入队结果。
-        /// </summary>
-        /// <param name="enqueueResult">入队结果。</param>
-        /// <param name="showLog">是否显示节点运行日志。</param>
-        /// <param name="runTime">节点运行耗时。</param>
-        private void LogEnqueueResult(ImageSaveEnqueueResult enqueueResult, bool showLog, int runTime)
+        private string GetFileName(string filePath, string fileName)
         {
-            if (enqueueResult != null && enqueueResult.Status == ImageSaveEnqueueStatus.SkippedByCondition)
+            string newFileName = fileName;
+            string fullPath = Path.Combine(filePath, newFileName + ".jpg");
+            if (File.Exists(fullPath))
             {
-                if (showLog)
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})无需保存图片：{enqueueResult.Message}({runTime} ms)", true);
-                return;
+                int suffix = 1;
+                do
+                {
+                    newFileName = $"{fileName}_{suffix}";
+                    fullPath = Path.Combine(filePath, newFileName + ".jpg");
+                    suffix++;
+                }
+                while (File.Exists(fullPath));
             }
+            return fullPath;
+        }
+       
+    }
 
-            if (enqueueResult != null && !enqueueResult.IsAccepted)
-                LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})保存请求未入队：{enqueueResult.Message} 队列长度:{enqueueResult.QueueLength}", true);
+    public class ImageQueueProcessor
+    {
+        private readonly BlockingCollection<SaveImageTask> _imageQueue = new BlockingCollection<SaveImageTask>();
+        private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+        private readonly int _workerCount; // 工作线程的数量
 
-            if (showLog)
-                LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({runTime} ms)", true);
+        public struct SaveImageTask
+        {
+            public Bitmap Image { get; set; }
+            public string Path { get; set; }
+            public bool NeedCompress { get; set; } //是否需要压缩
+            public long CompressValue { get; set; } //压缩阈值
+        }
+
+        public ImageQueueProcessor(int workerCount)
+        {
+            if (workerCount <= 0) throw new ArgumentOutOfRangeException(nameof(workerCount), "Worker count must be greater than zero.");
+            _workerCount = workerCount;
+        }
+
+        //开始存图
+        public void StartProcessing()
+        {
+            for (int i = 0; i < _workerCount; i++)
+            {
+                Task.Run(() => ProcessImages(_cancellationTokenSource.Token));
+            }
+        }
+
+        //添加任务
+        public void EnqueueImage(SaveImageTask saveImagedata)
+        {
+            if (saveImagedata.Image == null) throw new ArgumentNullException(nameof(saveImagedata), "Cannot enqueue a null image.");
+            //添加任务(生产者生产数据)
+            _imageQueue.Add(saveImagedata);
         }
 
         /// <summary>
-        /// 释放参数中尚未交给后台服务接管的运行期图像。
+        /// 线程处理图片
         /// </summary>
-        /// <param name="param">保存图片参数。</param>
-        private static void DisposeRuntimeImage(NodeParamSaveImage param)
+        /// <param name="cancellationToken">令牌，标记线程是否取消执行</param>
+        private void ProcessImages(CancellationToken cancellationToken)
         {
-            if (param == null || param.Image == null)
-                return;
+            //_imageQueue.GetConsumingEnumerable(cancellationToken):按顺序消费数据，并且可以在取消请求时停止消费。(消费者消费数据)
+            foreach (var saveImagedata in _imageQueue.GetConsumingEnumerable(cancellationToken))
+            {
+                try
+                {
+                    //处理图片(压缩图片)
+                    SaveWithCompress(saveImagedata.Image, saveImagedata.Path, saveImagedata.NeedCompress, saveImagedata.CompressValue);
+                }
+                catch (OperationCanceledException)
+                {
+                    // 如果取消了任务，则忽略这个异常
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.AddLog(MsgLevel.Exception, $"压缩图像失败: {ex.Message}");
+                }
+                finally
+                {
+                    saveImagedata.Image.Dispose();
+                }
+            }
+        }
 
-            try
+        // 保存图片并压缩
+        private void SaveWithCompress(Bitmap bitmap, string imagePath, bool isCompress, long compressValue = 100)
+        {
+            if (isCompress)
             {
-                param.Image.Dispose();
+                EncoderParameters encoderParams = new EncoderParameters(1);
+                encoderParams.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, compressValue);
+                ImageCodecInfo jpegCodec = GetEncoderInfo("image/jpeg");
+                bitmap.Save(imagePath, jpegCodec, encoderParams);
             }
-            catch
+            else
             {
+                bitmap.Save(imagePath);
             }
-            finally
+        }
+
+        private ImageCodecInfo GetEncoderInfo(string mimeType)
+        {
+            int j;
+            ImageCodecInfo[] encoders;
+            encoders = ImageCodecInfo.GetImageEncoders();
+            for (j = 0; j < encoders.Length; ++j)
             {
-                param.Image = null;
+                if (encoders[j].MimeType == mimeType)
+                    return encoders[j];
             }
+            return null;
+        }
+
+        public void StopProcessing()
+        {
+            _imageQueue.CompleteAdding(); // 标记不再添加新的元素
+            _cancellationTokenSource.Cancel(); // 取消所有任务
         }
     }
 }
