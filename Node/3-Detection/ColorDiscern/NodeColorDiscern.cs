@@ -103,7 +103,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             if (!showLog)
                 return;
 
-            LogHelper.AddLog(MsgLevel.Exception, $"节点({ID}.{NodeName}){step}，{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+            LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName}){step}，{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
         }
 
         /// <summary>

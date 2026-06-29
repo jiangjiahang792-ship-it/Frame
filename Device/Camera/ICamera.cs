@@ -1,5 +1,6 @@
 ﻿using Basler.Pylon;
 using MvCameraControl;
+using OpenCvSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -22,6 +23,10 @@ namespace TDJS_Vision.Device.Camera
         /// 供外部硬触发流程
         /// </summary>
         event Action<Bitmap> OnImageReceived;
+        /// <summary>
+        /// 供外部硬触发流程使用的 OpenCV 图像帧，避免相机回调阶段执行 SDK ToBitmap。
+        /// </summary>
+        event Action<Mat> OnMatReceived;
         /// <summary>
         /// 注册需要相机帧回调的拥有者，首个拥有者会启用底层取流回调。
         /// </summary>

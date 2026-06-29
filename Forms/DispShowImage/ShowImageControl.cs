@@ -286,8 +286,10 @@ namespace TDJS_Vision.Forms.DispShowImage
 
         public void SetImage(Bitmap bmp, AlgorithmResult displayResult)
         {
+            Stopwatch queueStopwatch = Stopwatch.StartNew();
             SafeInvoke(() =>
             {
+                long uiQueueWait = queueStopwatch.ElapsedMilliseconds;
                 Stopwatch stopwatch = Stopwatch.StartNew();
                 bool needShowFit = ImageBitmap == null && bmp != null;
                 ImageBitmap = bmp;
@@ -296,34 +298,51 @@ namespace TDJS_Vision.Forms.DispShowImage
                     ShowFit();
                 long afterShowFit = stopwatch.ElapsedMilliseconds;
 
-                int roiCount = ApplyDisplayResultCore(displayResult);
+                StaticRoiBuildDiagnostics roiDiagnostics;
+                int roiCount = ApplyDisplayResultCore(displayResult, out roiDiagnostics);
                 long afterApplyDisplayResult = stopwatch.ElapsedMilliseconds;
                 Invalidate();
                 long afterInvalidate = stopwatch.ElapsedMilliseconds;
                 LogHelper.AddLog(
                     MsgLevel.Info,
-                    $"【性能诊断-图像显示】ShowImageControl.SetImage 图像={GetBitmapDiagnosticText(bmp)}；需要自适应={needShowFit}；静态ROI={roiCount}；设置Bitmap={afterSetBitmap}ms；ShowFit={afterShowFit - afterSetBitmap}ms；构建ROI={afterApplyDisplayResult - afterShowFit}ms；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms。",
+                    $"【性能诊断-图像显示】ShowImageControl.SetImage 图像={GetBitmapDiagnosticText(bmp)}；需要自适应={needShowFit}；UI排队等待={uiQueueWait}ms；静态ROI={roiCount}；设置Bitmap={afterSetBitmap}ms；ShowFit={afterShowFit - afterSetBitmap}ms；构建ROI={afterApplyDisplayResult - afterShowFit}ms；{roiDiagnostics.ToLogText()}；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms。",
                     true);
             });
         }
 
         public void SetDisplayResult(AlgorithmResult displayResult)
         {
+            Stopwatch queueStopwatch = Stopwatch.StartNew();
             SafeInvoke(() =>
             {
-                ApplyDisplayResultCore(displayResult);
+                long uiQueueWait = queueStopwatch.ElapsedMilliseconds;
+                Stopwatch stopwatch = Stopwatch.StartNew();
+                StaticRoiBuildDiagnostics roiDiagnostics;
+                int roiCount = ApplyDisplayResultCore(displayResult, out roiDiagnostics);
+                long afterApplyDisplayResult = stopwatch.ElapsedMilliseconds;
                 Invalidate();
+                long afterInvalidate = stopwatch.ElapsedMilliseconds;
+                LogHelper.AddLog(
+                    MsgLevel.Info,
+                    $"【性能诊断-图像显示】ShowImageControl.SetDisplayResult UI排队等待={uiQueueWait}ms；静态ROI={roiCount}；构建ROI={afterApplyDisplayResult}ms；{roiDiagnostics.ToLogText()}；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms。",
+                    true);
             });
         }
 
-        private int ApplyDisplayResultCore(AlgorithmResult displayResult)
+        /// <summary>
+        /// 应用显示结果并返回静态 ROI 构建诊断信息。
+        /// </summary>
+        /// <param name="displayResult">待显示的算法结果。</param>
+        /// <param name="diagnostics">静态 ROI 构建诊断信息。</param>
+        /// <returns>构建出的静态 ROI 数量。</returns>
+        private int ApplyDisplayResultCore(AlgorithmResult displayResult, out StaticRoiBuildDiagnostics diagnostics)
         {
             lock (_roiLock)
             {
                 _staticRois.Clear();
                 int imageWidth = _image == null ? 0 : _image.Width;
                 int imageHeight = _image == null ? 0 : _image.Height;
-                List<IRoiShape> rois = BuildStaticRois(displayResult, imageWidth, imageHeight);
+                List<IRoiShape> rois = BuildStaticRois(displayResult, imageWidth, imageHeight, out diagnostics);
                 _staticRois.AddRange(rois);
                 return rois.Count;
             }
@@ -353,9 +372,18 @@ namespace TDJS_Vision.Forms.DispShowImage
             if (bitmap == null)
                 throw new ArgumentNullException(nameof(bitmap));
 
-            List<IRoiShape> rois = BuildStaticRois(displayResult, bitmap.Width, bitmap.Height);
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            StaticRoiBuildDiagnostics diagnostics;
+            List<IRoiShape> rois = BuildStaticRois(displayResult, bitmap.Width, bitmap.Height, out diagnostics);
+            long afterBuildRois = stopwatch.ElapsedMilliseconds;
             if (rois.Count == 0)
+            {
+                LogHelper.AddLog(
+                    MsgLevel.Info,
+                    $"【性能诊断-ROI绘制】DrawDisplayResultToBitmap 图像={GetBitmapDiagnosticText(bitmap)}；静态ROI=0；构建ROI={afterBuildRois}ms；{diagnostics.ToLogText()}；绘制Bitmap=0ms；总耗时={afterBuildRois}ms。",
+                    true);
                 return;
+            }
 
             using (Graphics graphics = Graphics.FromImage(bitmap))
             {
@@ -363,6 +391,11 @@ namespace TDJS_Vision.Forms.DispShowImage
                 foreach (IRoiShape roi in rois)
                     roi.Draw(graphics, 1F, PointF.Empty);
             }
+            long afterDraw = stopwatch.ElapsedMilliseconds;
+            LogHelper.AddLog(
+                MsgLevel.Info,
+                $"【性能诊断-ROI绘制】DrawDisplayResultToBitmap 图像={GetBitmapDiagnosticText(bitmap)}；静态ROI={rois.Count}；构建ROI={afterBuildRois}ms；{diagnostics.ToLogText()}；绘制Bitmap={afterDraw - afterBuildRois}ms；总耗时={afterDraw}ms。",
+                true);
         }
 
         /// <summary>
@@ -374,15 +407,37 @@ namespace TDJS_Vision.Forms.DispShowImage
         /// <returns>可直接绘制的静态 ROI 列表。</returns>
         private static List<IRoiShape> BuildStaticRois(AlgorithmResult displayResult, int imageWidth, int imageHeight)
         {
+            StaticRoiBuildDiagnostics diagnostics;
+            return BuildStaticRois(displayResult, imageWidth, imageHeight, out diagnostics);
+        }
+
+        /// <summary>
+        /// 按 ShowImageControl 的静态 ROI 风格构建显示对象，并输出分阶段耗时。
+        /// </summary>
+        /// <param name="displayResult">显示结果。</param>
+        /// <param name="imageWidth">图像宽度，用于文本角落定位。</param>
+        /// <param name="imageHeight">图像高度，用于文本角落定位。</param>
+        /// <param name="diagnostics">构建过程诊断信息。</param>
+        /// <returns>可直接绘制的静态 ROI 列表。</returns>
+        private static List<IRoiShape> BuildStaticRois(AlgorithmResult displayResult, int imageWidth, int imageHeight, out StaticRoiBuildDiagnostics diagnostics)
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            diagnostics = new StaticRoiBuildDiagnostics();
             List<IRoiShape> rois = new List<IRoiShape>();
             if (displayResult == null)
+            {
+                diagnostics.TotalMs = stopwatch.ElapsedMilliseconds;
                 return rois;
+            }
 
             if (displayResult.Rects != null)
             {
+                diagnostics.RectCount = displayResult.Rects.Count;
                 foreach (var rect in displayResult.Rects)
                     AddRotatedRectRoi(rois, rect);
             }
+            long afterRects = stopwatch.ElapsedMilliseconds;
+            diagnostics.RectsMs = afterRects;
 
             if (displayResult.RectsNgMap != null)
             {
@@ -391,13 +446,17 @@ namespace TDJS_Vision.Forms.DispShowImage
                     if (rectGroup == null)
                         continue;
 
+                    diagnostics.NgRectCount += rectGroup.Count;
                     foreach (var rect in rectGroup)
                         AddRotatedRectRoi(rois, rect);
                 }
             }
+            long afterNgRects = stopwatch.ElapsedMilliseconds;
+            diagnostics.NgRectsMs = afterNgRects - afterRects;
 
             if (displayResult.Lines != null)
             {
+                diagnostics.LineCount = displayResult.Lines.Count;
                 foreach (var line in displayResult.Lines)
                 {
                     if (line == null)
@@ -411,9 +470,12 @@ namespace TDJS_Vision.Forms.DispShowImage
                     });
                 }
             }
+            long afterLines = stopwatch.ElapsedMilliseconds;
+            diagnostics.LinesMs = afterLines - afterNgRects;
 
             if (displayResult.Circles != null)
             {
+                diagnostics.CircleCount = displayResult.Circles.Count;
                 foreach (var circle in displayResult.Circles)
                 {
                     if (circle == null)
@@ -430,6 +492,7 @@ namespace TDJS_Vision.Forms.DispShowImage
 
             if (displayResult.Arcs != null)
             {
+                diagnostics.ArcCount = displayResult.Arcs.Count;
                 foreach (var arc in displayResult.Arcs)
                 {
                     if (arc == null)
@@ -446,6 +509,7 @@ namespace TDJS_Vision.Forms.DispShowImage
 
             if (displayResult.Ellipses != null)
             {
+                diagnostics.EllipseCount = displayResult.Ellipses.Count;
                 foreach (var ellipse in displayResult.Ellipses)
                 {
                     if (ellipse == null)
@@ -459,9 +523,12 @@ namespace TDJS_Vision.Forms.DispShowImage
                     });
                 }
             }
+            long afterMeasureShapes = stopwatch.ElapsedMilliseconds;
+            diagnostics.MeasureShapesMs = afterMeasureShapes - afterLines;
 
             if (displayResult.Contours != null)
             {
+                diagnostics.ContourCount = displayResult.Contours.Count;
                 foreach (var contour in displayResult.Contours)
                 {
                     if (contour == null)
@@ -473,9 +540,12 @@ namespace TDJS_Vision.Forms.DispShowImage
                     });
                 }
             }
+            long afterContours = stopwatch.ElapsedMilliseconds;
+            diagnostics.ContoursMs = afterContours - afterMeasureShapes;
 
             if (displayResult.Texts != null && displayResult.Texts.Count > 0)
             {
+                diagnostics.TextCount = displayResult.Texts.Count;
                 foreach (ColorText text in displayResult.Texts.Where(t => t != null && t.UseImagePosition))
                 {
                     rois.Add(new RoiTextBlock(
@@ -504,7 +574,58 @@ namespace TDJS_Vision.Forms.DispShowImage
                 }
             }
 
+            long afterTexts = stopwatch.ElapsedMilliseconds;
+            diagnostics.TextsMs = afterTexts - afterContours;
+            diagnostics.RoiCount = rois.Count;
+            diagnostics.TotalMs = afterTexts;
             return rois;
+        }
+
+        /// <summary>
+        /// 静态 ROI 构建过程的数量和耗时诊断。
+        /// </summary>
+        private sealed class StaticRoiBuildDiagnostics
+        {
+            /// <summary>普通旋转矩形数量。</summary>
+            public int RectCount { get; set; }
+            /// <summary>NG分组旋转矩形数量。</summary>
+            public int NgRectCount { get; set; }
+            /// <summary>线段数量。</summary>
+            public int LineCount { get; set; }
+            /// <summary>圆数量。</summary>
+            public int CircleCount { get; set; }
+            /// <summary>圆弧数量。</summary>
+            public int ArcCount { get; set; }
+            /// <summary>椭圆数量。</summary>
+            public int EllipseCount { get; set; }
+            /// <summary>轮廓数量。</summary>
+            public int ContourCount { get; set; }
+            /// <summary>文本数量。</summary>
+            public int TextCount { get; set; }
+            /// <summary>最终生成的 ROI 数量。</summary>
+            public int RoiCount { get; set; }
+            /// <summary>普通矩形构建耗时。</summary>
+            public long RectsMs { get; set; }
+            /// <summary>NG矩形构建耗时。</summary>
+            public long NgRectsMs { get; set; }
+            /// <summary>线段构建耗时。</summary>
+            public long LinesMs { get; set; }
+            /// <summary>圆、圆弧、椭圆构建耗时。</summary>
+            public long MeasureShapesMs { get; set; }
+            /// <summary>轮廓构建耗时。</summary>
+            public long ContoursMs { get; set; }
+            /// <summary>文本构建耗时。</summary>
+            public long TextsMs { get; set; }
+            /// <summary>总构建耗时。</summary>
+            public long TotalMs { get; set; }
+
+            /// <summary>
+            /// 生成便于日志输出的诊断文本。
+            /// </summary>
+            public string ToLogText()
+            {
+                return $"ROI明细=矩形{RectCount}/NG矩形{NgRectCount}/线{LineCount}/圆{CircleCount}/圆弧{ArcCount}/椭圆{EllipseCount}/轮廓{ContourCount}/文本{TextCount}/生成{RoiCount}；ROI分段=矩形{RectsMs}ms，NG矩形{NgRectsMs}ms，线{LinesMs}ms，圆弧椭圆{MeasureShapesMs}ms，轮廓{ContoursMs}ms，文本{TextsMs}ms，总构建{TotalMs}ms";
+            }
         }
 
         /// <summary>

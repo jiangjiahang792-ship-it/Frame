@@ -194,8 +194,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             {
                 if (camera != null)
                 {
-                    camera.OnImageReceived -= _imageSourceNode.HandleCameraCallbackFrame;
-                    camera.OnImageReceived += _imageSourceNode.HandleCameraCallbackFrame;
+                    camera.OnMatReceived -= _imageSourceNode.HandleCameraCallbackFrame;
+                    camera.OnMatReceived += _imageSourceNode.HandleCameraCallbackFrame;
                     camera.RegisterImageCallbackOwner(_imageSourceNode);
                 }
                 return;
@@ -205,8 +205,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             _callbackCamera = camera;
             if (_callbackCamera != null)
             {
-                _callbackCamera.OnImageReceived -= _imageSourceNode.HandleCameraCallbackFrame;
-                _callbackCamera.OnImageReceived += _imageSourceNode.HandleCameraCallbackFrame;
+                _callbackCamera.OnMatReceived -= _imageSourceNode.HandleCameraCallbackFrame;
+                _callbackCamera.OnMatReceived += _imageSourceNode.HandleCameraCallbackFrame;
                 _callbackCamera.RegisterImageCallbackOwner(_imageSourceNode);
             }
         }
@@ -218,7 +218,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         {
             if (_callbackCamera != null && _imageSourceNode != null)
             {
-                _callbackCamera.OnImageReceived -= _imageSourceNode.HandleCameraCallbackFrame;
+                _callbackCamera.OnMatReceived -= _imageSourceNode.HandleCameraCallbackFrame;
                 _callbackCamera.UnregisterImageCallbackOwner(_imageSourceNode);
             }
             _callbackCamera = null;

@@ -3,6 +3,7 @@ using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Threading;
@@ -35,12 +36,50 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// 待写入当前流程批次结果的相机回调图像。
         /// </summary>
         private Mat _pendingCallbackMat;
+        /// <summary>
+        /// 相机回调流程专用工作线程唤醒信号，避免每帧通过线程池调度。
+        /// </summary>
+        private readonly AutoResetEvent _callbackWorkerSignal = new AutoResetEvent(false);
+        /// <summary>
+        /// 相机回调流程专用工作线程创建锁。
+        /// </summary>
+        private readonly object _callbackWorkerLock = new object();
+        /// <summary>
+        /// 相机回调流程专用工作线程。
+        /// </summary>
+        private Thread _callbackWorkerThread;
+        /// <summary>
+        /// 相机回调流程专用工作线程是否正在停止。
+        /// </summary>
+        private volatile bool _callbackWorkerStopping;
+        /// <summary>
+        /// 当前已入队帧的高精度计时器时间戳，用于统计等待专用线程耗时。
+        /// </summary>
+        private long _callbackQueuedTimestamp;
+        /// <summary>
+        /// 相机回调收到的有效帧数量。
+        /// </summary>
+        private long _callbackReceivedCount;
+        /// <summary>
+        /// 相机回调接受并准备处理的帧数量。
+        /// </summary>
+        private long _callbackAcceptedCount;
+        /// <summary>
+        /// 相机回调因流程忙碌而拒绝的帧数量。
+        /// </summary>
+        private long _callbackBusyRejectedCount;
+        /// <summary>
+        /// 相机回调专用线程实际启动流程运行的次数。
+        /// </summary>
+        private long _callbackRunCount;
 
         public NodeImageSource(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
         {
             ParamForm = new ParamFormImageSource(this);
             ParamForm.SetNodeBelong(this);
             Result = new NodeResultImageSource();
+            NodeBase.NodeDeletedEvent += NodeImageSource_NodeDeletedEvent;
+            Disposed += NodeImageSource_Disposed;
         }
 
         public string LoadTestImage(NodeParamImageSoucre param, NodeResultImageSource res)
@@ -96,64 +135,227 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <param name="bitmap">相机回调帧。</param>
         public void HandleCameraCallbackFrame(Bitmap bitmap)
         {
-            if (bitmap == null || Process == null)
+            if (bitmap == null)
                 return;
-
-            if (!Process.IsCameraCallbackTriggered)
-                return;
-
-            if (!Active || !Process.Enable)
-                return;
-
-            if (!Solution.Instance.IsRunning && !Process.IsHandRun)
-                return;
-
-            if (Process.IsRuning)
-                return;
-
-            if (!TryEnterCallbackRunState())
-            {
-                LogHelper.AddLog(MsgLevel.Warn, $"流程【{Process.ProcessName}】仍在运行，本次相机回调帧丢弃。", true);
-                return;
-            }
 
             Mat callbackMat = null;
             try
             {
-                LogHelper.AddLog(MsgLevel.Exception, $"流程【{Process.ProcessName}】准备执行流程, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
                 callbackMat = bitmap.ToMat();
-                LogHelper.AddLog(MsgLevel.Exception, $"流程【{Process.ProcessName}】开始转换图像完毕, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
-
-                StorePendingCallbackMat(callbackMat);
+                LogHelper.AddLog(MsgLevel.Info, $"流程【{Process?.ProcessName}】Bitmap转Mat完毕, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+                HandleCameraCallbackFrame(callbackMat);
                 callbackMat = null;
-
-                LogHelper.AddLog(MsgLevel.Exception, $"流程【{Process.ProcessName}】执行StorePendingCallbackMat方法完毕, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
-
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        LogHelper.AddLog(MsgLevel.Exception, $"流程【{Process.ProcessName}】执行Run方法, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
-                        await Process.Run(this, false);
-                    }
-                    catch (Exception ex)
-                    {
-                        LogHelper.AddLog(MsgLevel.Exception, $"相机回调流程【{Process.ProcessName}】运行异常：{ex.Message}", true);
-                    }
-                    finally
-                    {
-                        ClearPendingCallbackMat();
-                        ReleaseCallbackRunState();
-                    }
-                });
             }
             catch (Exception ex)
             {
-                callbackMat?.Dispose();
-                ClearPendingCallbackMat();
-                ReleaseCallbackRunState();
                 LogHelper.AddLog(MsgLevel.Exception, $"相机回调图像转换失败：{ex.Message}", true);
             }
+            finally
+            {
+                callbackMat?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// 处理相机回调 Mat 图像，Mat 由当前方法接管生命周期，忙碌或异常时会立即释放。
+        /// </summary>
+        /// <param name="mat">相机回调 Mat 帧。</param>
+        public void HandleCameraCallbackFrame(Mat mat)
+        {
+            Stopwatch enqueueWatch = Stopwatch.StartNew();
+            if (mat == null || mat.Empty() || Process == null)
+            {
+                mat?.Dispose();
+                return;
+            }
+
+            if (!Process.IsCameraCallbackTriggered)
+            {
+                mat.Dispose();
+                return;
+            }
+
+            if (!Active || !Process.Enable)
+            {
+                mat.Dispose();
+                return;
+            }
+
+            if (!Solution.Instance.IsRunning && !Process.IsHandRun)
+            {
+                mat.Dispose();
+                return;
+            }
+
+            long receivedCount = Interlocked.Increment(ref _callbackReceivedCount);
+            if (Process.IsRuning)
+            {
+                mat.Dispose();
+                LogBusyRejectedFrame(receivedCount, "流程正在运行");
+                return;
+            }
+
+            if (!TryEnterCallbackRunState())
+            {
+                mat.Dispose();
+                LogBusyRejectedFrame(receivedCount, "专用线程正在处理上一帧");
+                return;
+            }
+
+            try
+            {
+                EnsureCallbackWorkerStarted();
+                long acceptedCount = Interlocked.Increment(ref _callbackAcceptedCount);
+                LogHelper.AddLog(MsgLevel.Info, $"流程【{Process.ProcessName}】接收Mat图像成功, 尺寸={mat.Width}x{mat.Height}, 通道={mat.Channels()}, 接收帧={receivedCount}, 处理帧={acceptedCount}, 忙碌丢帧={Volatile.Read(ref _callbackBusyRejectedCount)}, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+                StorePendingCallbackMat(mat);
+                mat = null;
+                Interlocked.Exchange(ref _callbackQueuedTimestamp, Stopwatch.GetTimestamp());
+                _callbackWorkerSignal.Set();
+
+                LogHelper.AddLog(MsgLevel.Info, $"流程【{Process.ProcessName}】相机回调帧已交给专用线程, 入队耗时={enqueueWatch.ElapsedMilliseconds}ms, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+            }
+            catch (Exception ex)
+            {
+                mat?.Dispose();
+                ClearPendingCallbackMat();
+                ReleaseCallbackRunState();
+                LogHelper.AddLog(MsgLevel.Exception, $"相机回调Mat图像处理失败：{ex.Message}", true);
+            }
+        }
+
+        /// <summary>
+        /// 确保相机回调流程专用工作线程已启动。
+        /// </summary>
+        private void EnsureCallbackWorkerStarted()
+        {
+            if (_callbackWorkerThread != null && _callbackWorkerThread.IsAlive)
+                return;
+
+            lock (_callbackWorkerLock)
+            {
+                if (_callbackWorkerThread != null && _callbackWorkerThread.IsAlive)
+                    return;
+
+                _callbackWorkerStopping = false;
+                _callbackWorkerThread = new Thread(CallbackWorkerLoop)
+                {
+                    IsBackground = true,
+                    Name = $"图像源回调流程-{Process?.ProcessName}-{ID}"
+                };
+                _callbackWorkerThread.Start();
+            }
+        }
+
+        /// <summary>
+        /// 相机回调流程专用工作线程循环，收到信号后同步执行当前流程。
+        /// </summary>
+        private void CallbackWorkerLoop()
+        {
+            while (!_callbackWorkerStopping)
+            {
+                _callbackWorkerSignal.WaitOne();
+                if (_callbackWorkerStopping)
+                    break;
+
+                RunPendingCallbackFrame();
+            }
+        }
+
+        /// <summary>
+        /// 执行已入队的相机回调帧，并在结束后释放忙碌状态。
+        /// </summary>
+        private void RunPendingCallbackFrame()
+        {
+            Stopwatch runWatch = Stopwatch.StartNew();
+            try
+            {
+                long queuedTimestamp = Interlocked.Exchange(ref _callbackQueuedTimestamp, 0);
+                long waitMs = CalculateElapsedMilliseconds(queuedTimestamp, Stopwatch.GetTimestamp());
+                long runCount = Interlocked.Increment(ref _callbackRunCount);
+                LogHelper.AddLog(MsgLevel.Info, $"流程【{Process.ProcessName}】专用线程执行Run方法, 排队等待={waitMs}ms, 执行次数={runCount}, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+                Process.Run(this, false).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, $"相机回调流程【{Process?.ProcessName}】运行异常：{ex.Message}", true);
+            }
+            finally
+            {
+                ClearPendingCallbackMat();
+                ReleaseCallbackRunState();
+                runWatch.Stop();
+                LogHelper.AddLog(MsgLevel.Info, $"流程【{Process?.ProcessName}】专用线程Run结束, 耗时={runWatch.ElapsedMilliseconds}ms, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+            }
+        }
+
+        /// <summary>
+        /// 记录忙碌拒绝帧日志，当前帧由调用方在记录前释放。
+        /// </summary>
+        /// <param name="receivedCount">当前累计收到帧数。</param>
+        /// <param name="reason">拒绝原因。</param>
+        private void LogBusyRejectedFrame(long receivedCount, string reason)
+        {
+            long rejectedCount = Interlocked.Increment(ref _callbackBusyRejectedCount);
+            LogHelper.AddLog(MsgLevel.Warn, $"流程【{Process.ProcessName}】忙碌拒绝相机回调帧，原因：{reason}；接收帧={receivedCount}，处理帧={Volatile.Read(ref _callbackAcceptedCount)}，忙碌丢帧={rejectedCount}，Process.IsRuning={Process.IsRuning}，RunState={Volatile.Read(ref _callbackRunState)}。", true);
+        }
+
+        /// <summary>
+        /// 计算两个高精度时间戳之间的毫秒差。
+        /// </summary>
+        /// <param name="startTimestamp">开始时间戳。</param>
+        /// <param name="endTimestamp">结束时间戳。</param>
+        /// <returns>毫秒差，开始时间戳为空时返回 0。</returns>
+        private static long CalculateElapsedMilliseconds(long startTimestamp, long endTimestamp)
+        {
+            if (startTimestamp <= 0 || endTimestamp <= startTimestamp)
+                return 0;
+
+            return (endTimestamp - startTimestamp) * 1000 / Stopwatch.Frequency;
+        }
+
+        /// <summary>
+        /// 节点删除时停止相机回调专用线程并释放未消费帧。
+        /// </summary>
+        private void NodeImageSource_NodeDeletedEvent(object sender, NodeBase node)
+        {
+            if (!ReferenceEquals(node, this))
+                return;
+
+            StopCallbackWorker();
+        }
+
+        /// <summary>
+        /// 节点释放时清理相机回调专用线程和静态事件订阅。
+        /// </summary>
+        private void NodeImageSource_Disposed(object sender, EventArgs e)
+        {
+            NodeBase.NodeDeletedEvent -= NodeImageSource_NodeDeletedEvent;
+            Disposed -= NodeImageSource_Disposed;
+            StopCallbackWorker();
+        }
+
+        /// <summary>
+        /// 停止相机回调流程专用工作线程。
+        /// </summary>
+        private void StopCallbackWorker()
+        {
+            Thread workerThread;
+            lock (_callbackWorkerLock)
+            {
+                _callbackWorkerStopping = true;
+                workerThread = _callbackWorkerThread;
+                _callbackWorkerSignal.Set();
+                _callbackWorkerThread = null;
+            }
+
+            if (workerThread != null && workerThread.IsAlive && !ReferenceEquals(Thread.CurrentThread, workerThread))
+            {
+                if (!workerThread.Join(500))
+                    LogHelper.AddLog(MsgLevel.Warn, $"流程【{Process?.ProcessName}】相机回调专用线程停止等待超时。", true);
+            }
+
+            ClearPendingCallbackMat();
+            ReleaseCallbackRunState();
         }
 
         /// <summary>

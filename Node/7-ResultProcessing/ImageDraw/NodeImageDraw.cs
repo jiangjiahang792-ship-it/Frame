@@ -3,7 +3,9 @@ using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Forms.DispShowImage;
@@ -51,8 +53,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                     SetStatus(NodeStatus.Unexecuted, "*");
                     base.CheckTokenCancel(token);
 
+                    Stopwatch performanceStopwatch = Stopwatch.StartNew();
                     //执行绘制
                     Mat image = form.GetImage();
+                    long afterGetImage = performanceStopwatch.ElapsedMilliseconds;
                     AlgorithmResult aiResult = null;
                     AlgorithmResult colorResult=null;
                     try
@@ -63,14 +67,24 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                     catch { 
                         
                     }
-                    
+                    long afterGetResults = performanceStopwatch.ElapsedMilliseconds;
 
                     using (Bitmap imageBitmap = BitmapConverter.ToBitmap(image))
                     {
+                        long afterToBitmap = performanceStopwatch.ElapsedMilliseconds;
                         ImageDrawer.DrawDetectionRectangles(imageBitmap, aiResult, param, colorResult);
+                        long afterDraw = performanceStopwatch.ElapsedMilliseconds;
 
                         // 输出绘制后的图像
                         ((NodeResultImageDraw)Result).OutputImage.Bitmaps = new List<Mat>() { BitmapConverter.ToMat(imageBitmap) };
+                        long afterToMat = performanceStopwatch.ElapsedMilliseconds;
+                        if (showLog)
+                        {
+                            LogHelper.AddLog(
+                                MsgLevel.Info,
+                                $"【性能诊断-AI结果绘制】节点({ID}.{NodeName}) 图像={GetMatDiagnosticText(image)}；AI结果={GetAlgorithmResultDiagnosticText(aiResult)}；颜色结果={GetAlgorithmResultDiagnosticText(colorResult)}；取图={afterGetImage}ms；取结果={afterGetResults - afterGetImage}ms；ToBitmap={afterToBitmap - afterGetResults}ms；绘制={afterDraw - afterToBitmap}ms；ToMat={afterToMat - afterDraw}ms；绘制总耗时={afterToMat}ms",
+                                true);
+                        }
                     }
 
                     var time = SetRunResult(startTime, NodeStatus.Successful);
@@ -93,6 +107,36 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                 }
             }
             return new NodeReturn(NodeRunFlag.StopRun);
+        }
+
+        /// <summary>
+        /// 生成 Mat 图像尺寸诊断文本。
+        /// </summary>
+        /// <param name="mat">待诊断图像。</param>
+        /// <returns>图像尺寸和通道信息。</returns>
+        private static string GetMatDiagnosticText(Mat mat)
+        {
+            if (mat == null)
+                return "空";
+            if (mat.Empty())
+                return "空Mat";
+
+            double megaBytes = mat.Width * mat.Height * Math.Max(1, mat.Channels()) / 1024D / 1024D;
+            return $"{mat.Width}x{mat.Height}x{mat.Channels()}，约{megaBytes:F2}MB";
+        }
+
+        /// <summary>
+        /// 生成算法显示结果数量诊断文本。
+        /// </summary>
+        /// <param name="result">算法显示结果。</param>
+        /// <returns>各类绘制元素数量。</returns>
+        private static string GetAlgorithmResultDiagnosticText(AlgorithmResult result)
+        {
+            if (result == null)
+                return "空";
+
+            int ngRectCount = result.RectsNgMap == null ? 0 : result.RectsNgMap.Values.Where(v => v != null).Sum(v => v.Count);
+            return $"矩形={result.Rects?.Count ?? 0},NG矩形={ngRectCount},线={result.Lines?.Count ?? 0},轮廓={result.Contours?.Count ?? 0},文本={result.Texts?.Count ?? 0}";
         }
     }
     /// <summary>

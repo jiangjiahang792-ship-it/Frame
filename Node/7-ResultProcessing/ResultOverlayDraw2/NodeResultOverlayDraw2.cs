@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
@@ -110,7 +111,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 AlgorithmResult displayResult;
                 bool isOk;
                 string diagnostics;
-                ResultOverlayDraw2Builder.Build(this, param, out outputImage, out displayResult, out isOk, out diagnostics);
+                ResultOverlayDraw2PerformanceDiagnostics performanceDiagnostics;
+                ResultOverlayDraw2Builder.Build(this, param, out outputImage, out displayResult, out isOk, out diagnostics, out performanceDiagnostics);
 
                 NodeResultResultOverlayDraw2 nodeResult = (NodeResultResultOverlayDraw2)Result;
                 nodeResult.OutputImage = outputImage;
@@ -121,7 +123,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 Result.RunTime = time;
                 if (showLog)
+                {
+                    LogHelper.AddLog(MsgLevel.Info, $"【性能诊断-ROI结果绘制2】节点({ID}.{NodeName}) {performanceDiagnostics.ToLogText()}；颜色判定={(isOk ? "OK" : "NG")}；状态耗时={time}ms", true);
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                }
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -179,26 +184,63 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             out bool isOk,
             out string diagnostics)
         {
+            ResultOverlayDraw2PerformanceDiagnostics performanceDiagnostics;
+            Build(owner, param, out outputImage, out displayResult, out isOk, out diagnostics, out performanceDiagnostics);
+        }
+
+        /// <summary>
+        /// 根据参数构建输出图像、显示结果和颜色判定，并返回分阶段性能诊断。
+        /// </summary>
+        /// <param name="owner">当前节点。</param>
+        /// <param name="param">节点参数。</param>
+        /// <param name="outputImage">输出图像。</param>
+        /// <param name="displayResult">绘制显示结果。</param>
+        /// <param name="isOk">颜色判定结果。</param>
+        /// <param name="diagnostics">颜色规则诊断文本。</param>
+        /// <param name="performanceDiagnostics">构建过程性能诊断。</param>
+        public static void Build(
+            NodeBase owner,
+            NodeParamResultOverlayDraw2 param,
+            out OutputImage outputImage,
+            out AlgorithmResult displayResult,
+            out bool isOk,
+            out string diagnostics,
+            out ResultOverlayDraw2PerformanceDiagnostics performanceDiagnostics)
+        {
             if (owner == null)
                 throw new ArgumentNullException(nameof(owner));
             if (param == null)
                 throw new Exception("ROI结果绘制2参数为空！");
 
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            performanceDiagnostics = new ResultOverlayDraw2PerformanceDiagnostics();
+
             object imageValue = ReadSubscribedValue(owner, param.ImageText1, param.ImageText2, out NodeBase _);
+            performanceDiagnostics.ImageSubscriptionMs = stopwatch.ElapsedMilliseconds;
             OutputImage inputImage = imageValue as OutputImage;
             if (inputImage == null)
                 throw new Exception("订阅的图像类型不是 OutputImage！");
 
             isOk = ResolveColorState(owner, param, out diagnostics);
+            long afterResolveColor = stopwatch.ElapsedMilliseconds;
+            performanceDiagnostics.ColorRuleMs = afterResolveColor - performanceDiagnostics.ImageSubscriptionMs;
             Color drawColor = isOk ? param.OkColor : param.NgColor;
             Mat cleanImage = MeasurementNodeHelper.GetFirstMat(inputImage);
-            displayResult = BuildDisplayResult(owner, param, drawColor);
+            long afterGetCleanImage = stopwatch.ElapsedMilliseconds;
+            performanceDiagnostics.GetCleanImageMs = afterGetCleanImage - afterResolveColor;
+            displayResult = BuildDisplayResult(owner, param, drawColor, performanceDiagnostics);
+            long afterBuildDisplay = stopwatch.ElapsedMilliseconds;
+            performanceDiagnostics.BuildDisplayResultMs = afterBuildDisplay - afterGetCleanImage;
             outputImage = new OutputImage
             {
                 Bitmaps = new List<Mat> { cleanImage },
                 Rectangles = inputImage.Rectangles == null ? new List<Rect>() : inputImage.Rectangles.ToList(),
                 DisplayResult = displayResult
             };
+            long afterBuildOutput = stopwatch.ElapsedMilliseconds;
+            performanceDiagnostics.BuildOutputImageMs = afterBuildOutput - afterBuildDisplay;
+            performanceDiagnostics.TotalMs = afterBuildOutput;
+            performanceDiagnostics.CaptureDisplayResultCounts(displayResult);
         }
 
         /// <summary>
@@ -648,25 +690,63 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         /// <returns>显示结果。</returns>
         private static AlgorithmResult BuildDisplayResult(NodeBase owner, NodeParamResultOverlayDraw2 param, Color drawColor)
         {
+            return BuildDisplayResult(owner, param, drawColor, null);
+        }
+
+        /// <summary>
+        /// 生成所有绘制项的显示结果，并按绘制项类型统计耗时。
+        /// </summary>
+        /// <param name="owner">当前节点。</param>
+        /// <param name="param">节点参数。</param>
+        /// <param name="drawColor">最终绘制颜色。</param>
+        /// <param name="performanceDiagnostics">可选的性能诊断对象。</param>
+        /// <returns>显示结果。</returns>
+        private static AlgorithmResult BuildDisplayResult(NodeBase owner, NodeParamResultOverlayDraw2 param, Color drawColor, ResultOverlayDraw2PerformanceDiagnostics performanceDiagnostics)
+        {
             AlgorithmResult displayResult = new AlgorithmResult();
             if (param.Items == null)
                 return displayResult;
 
-            foreach (ResultOverlayDraw2Item item in param.Items.Where(i => i != null && i.Enabled))
+            List<ResultOverlayDraw2Item> enabledItems = param.Items.Where(i => i != null && i.Enabled).ToList();
+            if (performanceDiagnostics != null)
+                performanceDiagnostics.EnabledItemCount = enabledItems.Count;
+
+            foreach (ResultOverlayDraw2Item item in enabledItems)
             {
+                Stopwatch itemWatch = Stopwatch.StartNew();
                 switch (item.ItemType)
                 {
                     case ResultOverlayDraw2ItemType.Text:
                         AppendText(owner, displayResult, item, drawColor);
+                        if (performanceDiagnostics != null)
+                        {
+                            performanceDiagnostics.TextItemCount++;
+                            performanceDiagnostics.TextItemsMs += itemWatch.ElapsedMilliseconds;
+                        }
                         break;
                     case ResultOverlayDraw2ItemType.Line:
                         AppendLines(owner, displayResult, item, drawColor);
+                        if (performanceDiagnostics != null)
+                        {
+                            performanceDiagnostics.LineItemCount++;
+                            performanceDiagnostics.LineItemsMs += itemWatch.ElapsedMilliseconds;
+                        }
                         break;
                     case ResultOverlayDraw2ItemType.Rectangle:
                         AppendRectangles(owner, displayResult, item, drawColor);
+                        if (performanceDiagnostics != null)
+                        {
+                            performanceDiagnostics.RectangleItemCount++;
+                            performanceDiagnostics.RectangleItemsMs += itemWatch.ElapsedMilliseconds;
+                        }
                         break;
                     case ResultOverlayDraw2ItemType.Region:
                         AppendRegions(owner, displayResult, item, drawColor);
+                        if (performanceDiagnostics != null)
+                        {
+                            performanceDiagnostics.RegionItemCount++;
+                            performanceDiagnostics.RegionItemsMs += itemWatch.ElapsedMilliseconds;
+                        }
                         break;
                 }
             }
@@ -1190,6 +1270,77 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         {
             DisplayNameAttribute attribute = property.GetCustomAttribute<DisplayNameAttribute>();
             return attribute == null ? property.Name : attribute.DisplayName;
+        }
+    }
+
+    /// <summary>
+    /// ROI结果绘制2节点构建显示层时的性能诊断数据。
+    /// </summary>
+    internal sealed class ResultOverlayDraw2PerformanceDiagnostics
+    {
+        /// <summary>读取上游图像订阅耗时。</summary>
+        public long ImageSubscriptionMs { get; set; }
+        /// <summary>颜色规则判定耗时。</summary>
+        public long ColorRuleMs { get; set; }
+        /// <summary>获取干净图像引用耗时。</summary>
+        public long GetCleanImageMs { get; set; }
+        /// <summary>构建显示结果耗时。</summary>
+        public long BuildDisplayResultMs { get; set; }
+        /// <summary>构建输出图像对象耗时。</summary>
+        public long BuildOutputImageMs { get; set; }
+        /// <summary>总耗时。</summary>
+        public long TotalMs { get; set; }
+        /// <summary>启用的绘制项数量。</summary>
+        public int EnabledItemCount { get; set; }
+        /// <summary>文本绘制项数量。</summary>
+        public int TextItemCount { get; set; }
+        /// <summary>线段绘制项数量。</summary>
+        public int LineItemCount { get; set; }
+        /// <summary>矩形绘制项数量。</summary>
+        public int RectangleItemCount { get; set; }
+        /// <summary>区域绘制项数量。</summary>
+        public int RegionItemCount { get; set; }
+        /// <summary>文本绘制项构建耗时。</summary>
+        public long TextItemsMs { get; set; }
+        /// <summary>线段绘制项构建耗时。</summary>
+        public long LineItemsMs { get; set; }
+        /// <summary>矩形绘制项构建耗时。</summary>
+        public long RectangleItemsMs { get; set; }
+        /// <summary>区域绘制项构建耗时。</summary>
+        public long RegionItemsMs { get; set; }
+        /// <summary>输出矩形数量。</summary>
+        public int OutputRectCount { get; private set; }
+        /// <summary>输出NG矩形数量。</summary>
+        public int OutputNgRectCount { get; private set; }
+        /// <summary>输出线段数量。</summary>
+        public int OutputLineCount { get; private set; }
+        /// <summary>输出轮廓数量。</summary>
+        public int OutputContourCount { get; private set; }
+        /// <summary>输出文本数量。</summary>
+        public int OutputTextCount { get; private set; }
+
+        /// <summary>
+        /// 捕获最终显示结果中的各类元素数量。
+        /// </summary>
+        /// <param name="displayResult">显示结果。</param>
+        public void CaptureDisplayResultCounts(AlgorithmResult displayResult)
+        {
+            if (displayResult == null)
+                return;
+
+            OutputRectCount = displayResult.Rects == null ? 0 : displayResult.Rects.Count;
+            OutputNgRectCount = displayResult.RectsNgMap == null ? 0 : displayResult.RectsNgMap.Values.Where(v => v != null).Sum(v => v.Count);
+            OutputLineCount = displayResult.Lines == null ? 0 : displayResult.Lines.Count;
+            OutputContourCount = displayResult.Contours == null ? 0 : displayResult.Contours.Count;
+            OutputTextCount = displayResult.Texts == null ? 0 : displayResult.Texts.Count;
+        }
+
+        /// <summary>
+        /// 生成便于现场日志查看的诊断文本。
+        /// </summary>
+        public string ToLogText()
+        {
+            return $"订阅图像={ImageSubscriptionMs}ms；颜色规则={ColorRuleMs}ms；取图引用={GetCleanImageMs}ms；绘制项构建={BuildDisplayResultMs}ms；输出对象={BuildOutputImageMs}ms；总构建={TotalMs}ms；绘制项=启用{EnabledItemCount}/文本{TextItemCount}({TextItemsMs}ms)/线{LineItemCount}({LineItemsMs}ms)/矩形{RectangleItemCount}({RectangleItemsMs}ms)/区域{RegionItemCount}({RegionItemsMs}ms)；输出=矩形{OutputRectCount}/NG矩形{OutputNgRectCount}/线{OutputLineCount}/轮廓{OutputContourCount}/文本{OutputTextCount}";
         }
     }
 }

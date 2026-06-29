@@ -56,7 +56,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
                         base.CheckTokenCancel(token);
 
                         OutputImage inputImage = form.GetInputOutputImage();
-                        Mat srcImg = form.GetInputMat(inputImage);
+                        Mat srcImg = form.GetInputMat(inputImage); 
                         Mat rotatedImage = form.ImageRotateForRun(srcImg, param.Angle);
                         Mat inputGrayImage = form.GetInputGrayMat(inputImage);
                         Mat rotatedGrayImage = srcImg.Channels() == 1

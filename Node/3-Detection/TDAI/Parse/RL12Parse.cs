@@ -51,7 +51,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             {
                 str += $"下标:{results[i].ClassId}  Box:{results[i].Box.X},{results[i].Box.Y},{results[i].Box.Width},{results[i].Box.Height} ---";
             }
-            LogHelper.AddLog(MsgLevel.Fatal, $"流程{process.ProcessName}AI检测结果值:{str} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+            LogHelper.AddLog(MsgLevel.Info, $"流程{process.ProcessName}AI检测结果值:{str} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
 
 
             foreach (var item in deteItems)

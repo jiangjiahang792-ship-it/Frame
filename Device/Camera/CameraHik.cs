@@ -3,10 +3,12 @@ using MvCameraControl;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using OfficeOpenXml.FormulaParsing.Excel.Functions.Math;
+using OpenCvSharp;
 using OpenCvSharp.Dnn;
 using Sunny.UI;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Net;
@@ -28,7 +30,14 @@ namespace TDJS_Vision.Device.Camera
         /// 连接状态改变事件
         /// </summary>
         public event EventHandler<bool> ConnectStatusEvent;
+        /// <summary>
+        /// 兼容旧的 Bitmap 图像事件，主动取图仍沿用 Bitmap 返回。
+        /// </summary>
         public event Action<Bitmap> OnImageReceived;
+        /// <summary>
+        /// 硬触发流程使用的 Mat 图像事件，避免 SDK 回调线程卡在 ToBitmap。
+        /// </summary>
+        public event Action<Mat> OnMatReceived;
 
         /// <summary>
         /// 单个海康相机信息
@@ -390,13 +399,30 @@ namespace TDJS_Vision.Device.Camera
         /// </summary>
         private void GetImageCallBack(object sender, FrameGrabbedEventArgs e)
         {
-            LogHelper.AddLog(MsgLevel.Exception, $"进入到回调函数{DevName} , 触发次数:{count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
-            // 处理每一帧图像
-            var image = ConvertImageFormat(e.FrameOut.Image, device.PixelTypeConverter);
-            LogHelper.AddLog(MsgLevel.Exception, $"回调函数{DevName} 转换图像成功, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
-            count++;
-            OnImageReceived?.Invoke(image);
-            LogHelper.AddLog(MsgLevel.Exception, $"回调函数{DevName} 执行完毕, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+            Stopwatch callbackWatch = Stopwatch.StartNew();
+            Mat image = null;
+            LogHelper.AddLog(MsgLevel.Info, $"进入到回调函数{DevName} , 触发次数:{count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+            if (OnImageReceived != null)
+                LogHelper.AddLog(MsgLevel.Warn, $"相机{DevName} 仍存在旧Bitmap回调订阅，硬触发主链路已切换为Mat事件。", true);
+            try
+            {
+                // 硬触发流程直接进入 Mat 链路，避开 SDK ToBitmap 在现场偶发阻塞 9 秒的问题。
+                image = ConvertImageFormatToMat(e.FrameOut.Image, device.PixelTypeConverter, DevName);
+                LogHelper.AddLog(MsgLevel.Info, $"回调函数{DevName} 转换Mat成功, 总转换耗时:{callbackWatch.ElapsedMilliseconds}ms, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+                count++;
+                RaiseMatImageReceived(image);
+                image = null;
+            }
+            catch (Exception ex)
+            {
+                image?.Dispose();
+                LogHelper.AddLog(MsgLevel.Exception, $"回调函数{DevName} 转换Mat失败：{ex.Message}, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+            }
+            finally
+            {
+                callbackWatch.Stop();
+                LogHelper.AddLog(MsgLevel.Info, $"回调函数{DevName} 执行完毕, 总耗时:{callbackWatch.ElapsedMilliseconds}ms, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+            }
         }
 
         /// <summary>
@@ -466,6 +492,151 @@ namespace TDJS_Vision.Device.Camera
             }
 
             return inputImage.ToBitmap();
+        }
+
+        /// <summary>
+        /// 将相机 SDK 图像转换为 OpenCV Mat，硬触发流程使用该路径绕开 Bitmap 转换。
+        /// </summary>
+        /// <param name="image">相机 SDK 输出图像。</param>
+        /// <param name="pixelType">相机 SDK 像素格式转换器。</param>
+        /// <param name="devName">设备名称，用于诊断日志。</param>
+        /// <returns>调用方接管生命周期的 Mat 图像。</returns>
+        private static Mat ConvertImageFormatToMat(IImage image, IPixelTypeConverter pixelType, string devName)
+        {
+            if (image == null)
+                return null;
+            if (pixelType == null)
+                throw new ArgumentNullException(nameof(pixelType), "相机像素格式转换器为空！");
+
+            MvGvspPixelType dstPixelType;
+            int channelCount;
+            bool needRgbToBgr = false;
+            if (IsColorPixelFormat(image.PixelType))
+            {
+                dstPixelType = MvGvspPixelType.PixelType_Gvsp_BGR8_Packed;
+                channelCount = 3;
+            }
+            else if (IsMonoPixelFormat(image.PixelType))
+            {
+                dstPixelType = MvGvspPixelType.PixelType_Gvsp_Mono8;
+                channelCount = 1;
+            }
+            else
+            {
+                throw new NotSupportedException($"不支持的相机像素格式：{image.PixelType}");
+            }
+
+            Stopwatch convertWatch = Stopwatch.StartNew();
+            IImage convertedImage;
+            int ret = pixelType.ConvertPixelType(image, out convertedImage, dstPixelType);
+            if (ret != MvError.MV_OK && dstPixelType == MvGvspPixelType.PixelType_Gvsp_BGR8_Packed)
+            {
+                // 个别 SDK/相机固件不支持直接转 BGR 时，退回 RGB 再由 OpenCV 做通道交换。
+                dstPixelType = MvGvspPixelType.PixelType_Gvsp_RGB8_Packed;
+                needRgbToBgr = true;
+                ret = pixelType.ConvertPixelType(image, out convertedImage, dstPixelType);
+            }
+            convertWatch.Stop();
+
+            if (ret != MvError.MV_OK || convertedImage == null)
+                throw new InvalidOperationException($"ConvertPixelType失败，错误码：{ret}");
+
+            Stopwatch copyWatch = Stopwatch.StartNew();
+            Mat mat = CopyConvertedImageToMat(convertedImage, channelCount);
+            copyWatch.Stop();
+
+            long rgbToBgrMs = 0;
+            if (needRgbToBgr)
+            {
+                Stopwatch rgbWatch = Stopwatch.StartNew();
+                Mat bgrMat = new Mat();
+                Cv2.CvtColor(mat, bgrMat, ColorConversionCodes.RGB2BGR);
+                mat.Dispose();
+                mat = bgrMat;
+                rgbWatch.Stop();
+                rgbToBgrMs = rgbWatch.ElapsedMilliseconds;
+            }
+
+            LogHelper.AddLog(MsgLevel.Info,
+                $"相机{devName} 回调Mat转换分段：ConvertPixelType={convertWatch.ElapsedMilliseconds}ms, CopyToMat={copyWatch.ElapsedMilliseconds}ms, RGB转BGR={rgbToBgrMs}ms, PixelType={image.PixelType}->{dstPixelType}, 尺寸={image.Width}x{image.Height}",
+                true);
+            return mat;
+        }
+
+        /// <summary>
+        /// 将 SDK 转换后的连续像素内存复制为独立 Mat，避免回调返回后引用 SDK 缓冲区。
+        /// </summary>
+        /// <param name="image">已转换为 Mono8、BGR8 或 RGB8 的 SDK 图像。</param>
+        /// <param name="channelCount">图像通道数。</param>
+        /// <returns>拥有独立内存的 Mat。</returns>
+        private static Mat CopyConvertedImageToMat(IImage image, int channelCount)
+        {
+            int width = checked((int)image.Width);
+            int height = checked((int)image.Height);
+            if (width <= 0 || height <= 0)
+                throw new ArgumentException($"相机图像尺寸无效：{width}x{height}");
+            if (channelCount != 1 && channelCount != 3)
+                throw new ArgumentOutOfRangeException(nameof(channelCount), "只支持单通道或三通道图像。");
+
+            long expectedBytes = (long)width * height * channelCount;
+            if (image.ImageSize > 0 && image.ImageSize < (ulong)expectedBytes)
+                throw new InvalidOperationException($"相机图像数据长度不足：{image.ImageSize}/{expectedBytes}");
+            if (expectedBytes > uint.MaxValue || expectedBytes > int.MaxValue)
+                throw new InvalidOperationException($"相机图像过大，无法安全复制：{expectedBytes}字节");
+
+            MatType matType = channelCount == 1 ? MatType.CV_8UC1 : MatType.CV_8UC3;
+            Mat mat = new Mat(height, width, matType);
+            try
+            {
+                if (image.PixelDataPtr != IntPtr.Zero)
+                {
+                    CopyMemory(mat.Data, image.PixelDataPtr, (uint)expectedBytes);
+                }
+                else
+                {
+                    byte[] pixelData = image.PixelData;
+                    if (pixelData == null || pixelData.Length < expectedBytes)
+                        throw new InvalidOperationException($"相机托管图像数据长度不足：{pixelData?.Length ?? 0}/{expectedBytes}");
+
+                    Marshal.Copy(pixelData, 0, mat.Data, (int)expectedBytes);
+                }
+                return mat;
+            }
+            catch
+            {
+                mat.Dispose();
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 触发 Mat 图像事件；多订阅者时克隆图像，保证每个订阅者独立接管生命周期。
+        /// </summary>
+        /// <param name="image">待分发的 Mat 图像。</param>
+        private void RaiseMatImageReceived(Mat image)
+        {
+            Action<Mat> handlers = OnMatReceived;
+            if (handlers == null)
+            {
+                image?.Dispose();
+                return;
+            }
+
+            Delegate[] invocationList = handlers.GetInvocationList();
+            for (int i = 0; i < invocationList.Length; i++)
+            {
+                Mat subscriberImage = i == invocationList.Length - 1 ? image : image?.Clone();
+                try
+                {
+                    ((Action<Mat>)invocationList[i]).Invoke(subscriberImage);
+                    subscriberImage = null;
+                }
+                catch (Exception ex)
+                {
+                    subscriberImage?.Dispose();
+                    LogHelper.AddLog(MsgLevel.Exception, $"相机{DevName} Mat回调处理异常：{ex.Message}", true);
+                }
+            }
         }
 
         public TriggerModel GetTriggerMode()

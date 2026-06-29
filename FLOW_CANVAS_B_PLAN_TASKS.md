@@ -20,6 +20,27 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-29 海康相机硬触发 Mat 回调链路：
+  - [x] 新反馈已记录：现场日志确认硬触发回调卡在 SDK `inputImage.ToBitmap()`，需要彻底绕开回调阶段的 Bitmap 转换。
+  - [x] `ICamera` 与 `CameraHik` 已增加 `OnMatReceived` 事件，硬触发流程改用 `IImage -> Mat` 分发，旧 `OnImageReceived` 保留给 Bitmap 兼容路径。
+  - [x] `CameraHik.GetImageCallBack` 已改为直接复制 SDK 转换后的像素内存到独立 `Mat`，并记录 `ConvertPixelType`、`CopyToMat`、`RGB转BGR` 和回调总耗时。
+  - [x] `CameraHik.GetImageCallBack` 已增加旧 `OnImageReceived` 订阅告警，现场若仍有 Bitmap 回调订阅会直接暴露出来。
+  - [x] `NodeImageSource` 已增加 `Mat` 回调入口，忙碌、未运行或未启用时立即释放帧，避免拒收帧前再做 Bitmap 转换。
+  - [x] `ParamFormImageSource` 的相机硬触发绑定已切换到 `OnMatReceived`，方案运行会走新的 Mat 链路。
+  - [x] Build-verified with MSBuild on 2026-06-29, 0 errors; existing warnings remain.
+- 2026-06-29 相机回调忙碌拒绝与日志等级整理：
+  - [x] 新反馈已记录：硬触发流程若当前帧正在处理，新帧直接丢弃并打印日志；普通阶段日志不要使用 `Fatal/Exception` 等错误等级。
+  - [x] `NodeImageSource` 已将回调流程执行从 `Task.Run` 切换为节点专用后台线程，回调只负责入队并唤醒专用线程。
+  - [x] `NodeImageSource` 已按忙碌拒绝策略统计接收帧、处理帧、忙碌丢帧，并在 `Process.IsRuning` 或专用线程忙碌时释放当前帧后输出 Warn 日志。
+  - [x] `CameraHik`、`NodeImageSource`、`NodeTDAI`、`ColorDiscern` 的正常阶段/性能诊断日志已降为 `Info`，真正失败日志继续保留高等级。
+  - [x] Build-verified with MSBuild on 2026-06-29, 0 errors; existing warnings remain.
+- 2026-06-29 ROI结果绘制阶段日志增强：
+  - [x] 新反馈已记录：需要在 ROI 结果绘制链路加入阶段性日志，判断耗时来自等待订阅、结果构建还是实际绘制。
+  - [x] `ResultOverlayDraw` 已增加图像订阅读取、取图引用、绘制项构建、输出对象构建、文本/线/矩形/区域绘制项耗时和输出元素数量日志。
+  - [x] `ResultOverlayDraw2` 已增加图像订阅读取、颜色规则判断、取图引用、绘制项构建、输出对象构建、分类型绘制项耗时和输出元素数量日志。
+  - [x] `ShowImageControl` 已增加静态 ROI 构建明细日志，拆分 UI 排队等待、矩形、NG矩形、线、圆/圆弧/椭圆、轮廓、文本和实际 Bitmap 绘制耗时。
+  - [x] `NodeImageDraw` 已增加取图、取AI/颜色结果、`ToBitmap`、实际绘制、`ToMat` 阶段耗时日志。
+  - [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，184 个既有警告、0 个错误。
 - 2026-06-28 线芯截面SEG矩形模式优化：
   - [x] 新反馈已记录：线芯截面SEG只需要矩形结果，不需要分割掩膜和不规则四角框后处理。
   - [x] `YoloOpenVinoCpuSession.DetectSeg` 已增加按需复制/解析掩膜参数，矩形模式下跳过 `CopyMasks` 与 `ExtractMaskBox`。
