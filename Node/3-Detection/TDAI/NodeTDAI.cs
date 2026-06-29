@@ -238,10 +238,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                         if (handle == null)
                                             throw new Exception("AI模型句柄类型与SEG模型不匹配，请重新加载模型！");
                                         var img = inputImage.Bitmaps[0];
+                                        // 线芯截面只使用矩形统计，跳过SEG掩膜四角提取以降低推理后处理耗时。
+                                        bool needMaskBox = param.ModelName != ModelName.RL_线芯截面;
                                         if (inputImage.Rectangles.Count != 0)
-                                            tmp = handle.Detect(img);
+                                            tmp = handle.Detect(img, 0, 0, needMaskBox);
                                         else
-                                            tmp = handle.Detect(img);
+                                            tmp = handle.Detect(img, 0, 0, needMaskBox);
                                         seg_results.AddRange(tmp);
 
                                         LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测推理完毕,结果数量:{tmp.Count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
@@ -253,7 +255,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     switch (param.ModelName)
                                     {
                                         case ModelName.RL_线芯截面:
-                                            LineCoreFront_C1_Seg.Parse(seg_results, result_count, param, inputImage.Bitmaps[0], ref res);
+                                            LineCoreFront_C1_Seg.Parse(seg_results, result_count, param, Process, ref res);
                                             LogHelper.AddLog(MsgLevel.Fatal, $"流程{Process.ProcessName}AI检测结果运算完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                                             break;
                                         default:

@@ -70,17 +70,22 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 
 
         /// <summary>
-        /// 执行推理并返回检测结果列表
+        /// 执行推理并返回分割结果列表。
         /// </summary>
-        public List<SegResult> Detect(Mat image, int deltaX = 0, int deltaY = 0)
+        /// <param name="image">输入图像。</param>
+        /// <param name="deltaX">结果X方向偏移。</param>
+        /// <param name="deltaY">结果Y方向偏移。</param>
+        /// <param name="needMaskBox">是否需要从掩膜提取不规则框。</param>
+        /// <returns>分割结果列表。</returns>
+        public List<SegResult> Detect(Mat image, int deltaX = 0, int deltaY = 0, bool needMaskBox = true)
         {
             switch (DeviceType)
             {
                 case DeviceType.CPU:
-                    return _cpuSession.DetectSeg(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
+                    return _cpuSession.DetectSeg(image, ScoreThreshold, NMSThreshold, deltaX, deltaY, needMaskBox);
 
                 case DeviceType.GPU:
-                    return _gpuSession.DetectSeg(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
+                    return _gpuSession.DetectSeg(image, ScoreThreshold, NMSThreshold, deltaX, deltaY, needMaskBox);
                 default:
                     throw new Exception("未找到对应运行设备的指定");
             }

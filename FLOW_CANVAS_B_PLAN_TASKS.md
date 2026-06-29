@@ -20,6 +20,16 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-28 线芯截面SEG矩形模式优化：
+  - [x] 新反馈已记录：线芯截面SEG只需要矩形结果，不需要分割掩膜和不规则四角框后处理。
+  - [x] `YoloOpenVinoCpuSession.DetectSeg` 已增加按需复制/解析掩膜参数，矩形模式下跳过 `CopyMasks` 与 `ExtractMaskBox`。
+  - [x] `Yolo8Seg.Detect` 已透传是否需要掩膜四角框的参数，默认保留原完整SEG行为。
+  - [x] `NodeTDAI` 在线芯截面模型下走矩形模式，其它SEG模型继续保留完整掩膜后处理。
+- 2026-06-28 线芯截面解析恢复桌面版聚拢度算法：
+  - [x] 新反馈已记录：线芯截面解析改回桌面版质心距离法，不再在解析文件中绘制图像。
+  - [x] `LineCoreFront_C1_Seg.Parse` 已移除图像参数，解析过程不再调用 `Cv2.Circle` 修改输入图。
+  - [x] `LineCoreFront_C1_Seg` 已用 `SeparateOutlierRects` 计算每个线芯中心到质心的距离，并按检测项上限区分OK/NG矩形。
+  - [x] `NodeTDAI` 调用线芯截面解析时不再传入 `inputImage.Bitmaps[0]`，改为传入 `Process` 以累计OK/NG总数。
 - 2026-06-21 海康 3D 相机设备结构搭建：
   - [x] 新反馈已记录：在 `Device` 下创建 3D 相机目录，用于放置海康 3D 相机对象、接口和数据结构，设备对象先继承 `IDevice` 体系。
   - [x] 已新增 `Device/3D/I3DCamera.cs`，定义 3D 相机设备抽象、帧事件、状态事件、打开关闭、采集、软触发、主动取帧和原生点云显示接口。

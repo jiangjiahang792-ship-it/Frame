@@ -226,16 +226,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <param name="nmsThreshold">NMS阈值。</param>
         /// <param name="deltaX">结果X方向偏移。</param>
         /// <param name="deltaY">结果Y方向偏移。</param>
+        /// <param name="needMaskBox">是否需要从掩膜提取不规则框。</param>
         /// <returns>分割结果集合。</returns>
-        public List<SegResult> DetectSeg(Mat image, float scoreThreshold, float nmsThreshold, int deltaX = 0, int deltaY = 0)
+        public List<SegResult> DetectSeg(Mat image, float scoreThreshold, float nmsThreshold, int deltaX = 0, int deltaY = 0, bool needMaskBox = true)
         {
-            YoloOpenVinoInferenceResult inferenceResult = Infer(image, scoreThreshold, nmsThreshold);
+            YoloOpenVinoInferenceResult inferenceResult = Infer(image, scoreThreshold, nmsThreshold, needMaskBox);
             List<SegResult> results = new List<SegResult>(inferenceResult.Objects.Count);
 
             foreach (YoloObject obj in inferenceResult.Objects)
             {
                 Rect rect = ToRect(obj.X1, obj.Y1, obj.X2, obj.Y2, deltaX, deltaY);
-                Box box = ExtractMaskBox(inferenceResult, obj, rect, deltaX, deltaY);
+                Box box = needMaskBox ? ExtractMaskBox(inferenceResult, obj, rect, deltaX, deltaY) : CreateBoxFromRect(rect);
 
                 results.Add(new SegResult
                 {
@@ -302,13 +303,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         }
 
         /// <summary>
-        /// 执行一次原生推理并复制结果到托管内存。
+        /// 执行原生推理并按需复制托管结果。
         /// </summary>
         /// <param name="image">输入图像。</param>
         /// <param name="scoreThreshold">置信度阈值。</param>
         /// <param name="nmsThreshold">NMS阈值。</param>
+        /// <param name="copyMasks">是否复制分割掩膜。</param>
         /// <returns>托管推理结果。</returns>
-        private YoloOpenVinoInferenceResult Infer(Mat image, float scoreThreshold, float nmsThreshold)
+        private YoloOpenVinoInferenceResult Infer(Mat image, float scoreThreshold, float nmsThreshold, bool copyMasks = true)
         {
             ThrowIfDisposed();
             EnsureImageReady(image);
@@ -332,7 +334,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                     throw new Exception("yolo_infer失败：" + DecodeError(error));
 
                 YoloResult nativeResult = Marshal.PtrToStructure<YoloResult>(resultPtr);
-                return CopyInferenceResult(nativeResult);
+                return CopyInferenceResult(nativeResult, copyMasks);
             }
             finally
             {
@@ -364,8 +366,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// 将原生结果复制成托管结果，避免释放原生结果后访问悬空指针。
         /// </summary>
         /// <param name="nativeResult">原生推理结果。</param>
+        /// <param name="copyMasks">是否复制分割掩膜。</param>
         /// <returns>托管推理结果。</returns>
-        private static YoloOpenVinoInferenceResult CopyInferenceResult(YoloResult nativeResult)
+        private static YoloOpenVinoInferenceResult CopyInferenceResult(YoloResult nativeResult, bool copyMasks = true)
         {
             YoloOpenVinoInferenceResult result = new YoloOpenVinoInferenceResult
             {
@@ -381,7 +384,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 
             CopyObjects(nativeResult, result);
             CopyKeypoints(nativeResult, result);
-            CopyMasks(nativeResult, result);
+            if (copyMasks)
+                CopyMasks(nativeResult, result);
             return result;
         }
 
