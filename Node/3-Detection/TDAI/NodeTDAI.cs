@@ -257,9 +257,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                         case ModelName.RL_线芯截面:
                                             LineCoreFront_C1_Seg.Parse(seg_results, result_count, param, Process, ref res);
                                             LogHelper.AddLog(MsgLevel.Info, $"流程{Process.ProcessName}AI检测结果运算完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                                            LogAlgorithmResultSummary(Process.ProcessName, param, res);
                                             break;
                                         default:
-                                            break;
+                                            throw new Exception($"SEG模型名称({param.ModelName})没有对应解析逻辑，请检查AI节点模型名称是否选择为RL_线芯截面！");
                                     }
                                     break;
 
@@ -365,6 +366,34 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             string firstRectangle = rectangleCount > 0 ? FormatRect(inputImage.Rectangles[0]) : "无";
 
             return $"SrcImg={FormatMat(inputImage.SrcImg)}，GrayImg={FormatMat(inputImage.GrayImg)}，Bitmaps数量={FormatCount(bitmapCount)}，Bitmaps[0]={firstBitmap}，Rectangles数量={FormatCount(rectangleCount)}，Rectangles[0]={firstRectangle}";
+        }
+
+        /// <summary>
+        /// 输出AI解析后的可订阅结果摘要，便于远程排查推理有结果但ROI没有可绘制元素的情况。
+        /// </summary>
+        /// <param name="processName">当前流程名称。</param>
+        /// <param name="param">当前AI节点参数。</param>
+        /// <param name="result">当前AI节点运行结果。</param>
+        private static void LogAlgorithmResultSummary(string processName, NodeParamTDAI param, NodeResultTDAI result)
+        {
+            AlgorithmResult algorithmResult = result == null ? null : result.AlgorithmResult;
+            int detectResultCount = algorithmResult == null || algorithmResult.DetectResults == null
+                ? 0
+                : algorithmResult.DetectResults.Values.Sum(items => items == null ? 0 : items.Count);
+            int rectCount = algorithmResult == null || algorithmResult.Rects == null ? 0 : algorithmResult.Rects.Count;
+            int ngRectCount = algorithmResult == null || algorithmResult.RectsNgMap == null
+                ? 0
+                : algorithmResult.RectsNgMap.Values.Sum(items => items == null ? 0 : items.Count);
+            int textCount = algorithmResult == null || algorithmResult.Texts == null ? 0 : algorithmResult.Texts.Count;
+            string modelName = param == null ? "参数为空" : param.ModelName.ToString();
+            string detectItemName = param == null || string.IsNullOrWhiteSpace(param.CurDetectItemName)
+                ? "空"
+                : param.CurDetectItemName;
+
+            LogHelper.AddLog(
+                MsgLevel.Info,
+                $"流程{processName}AI检测解析结果：模型名称={modelName}，检测项={detectItemName}，检测结果={detectResultCount}，矩形={rectCount}，NG缓存矩形={ngRectCount}，文本={textCount}。",
+                true);
         }
 
         /// <summary>

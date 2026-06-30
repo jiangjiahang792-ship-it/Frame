@@ -20,6 +20,10 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-29 数线芯远程ROI不绘制诊断：
+  - [x] 新反馈已记录：本地测试可以绘制，远程日志显示线芯SEG推理有结果但 `ROI结果绘制` 输出矩形与文本均为0。
+  - [x] `NodeTDAI` 在线芯截面SEG解析成功后新增解析结果摘要日志，记录检测结果、矩形、NG缓存矩形和文本数量。
+  - [x] `NodeTDAI` 对SEG模型名称没有匹配解析器的情况改为明确异常，避免远程因模型名称选错而出现AI节点成功但ROI无数据的静默假成功。
 - 2026-06-29 海康相机硬触发 Mat 回调链路：
   - [x] 新反馈已记录：现场日志确认硬触发回调卡在 SDK `inputImage.ToBitmap()`，需要彻底绕开回调阶段的 Bitmap 转换。
   - [x] `ICamera` 与 `CameraHik` 已增加 `OnMatReceived` 事件，硬触发流程改用 `IImage -> Mat` 分发，旧 `OnImageReceived` 保留给 Bitmap 兼容路径。
