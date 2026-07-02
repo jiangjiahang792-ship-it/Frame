@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Forms.ImageViewer;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
@@ -104,6 +105,21 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                                 MsgLevel.Info,
                                 $"【性能诊断-图像显示】节点({ID}.{NodeName}) 图像={imageInfo}；订阅读取={afterGetOutput}ms；ToBitmap={afterToBitmap - afterGetOutput}ms；图像事件={afterImageEvent - afterToBitmap}ms；窗口事件={afterWindowEvent - afterImageEvent}ms；状态={afterSetResult - afterWindowEvent}ms；节点总耗时={afterSetResult}ms；状态耗时={time}ms",
                                 true);
+                            if (PerformanceSpikeDiagnostics.ShouldLog(
+                                PerformanceSpikeDiagnostics.CommonSlowMs,
+                                afterSetResult,
+                                afterGetOutput,
+                                afterToBitmap - afterGetOutput,
+                                afterImageEvent - afterToBitmap,
+                                afterWindowEvent - afterImageEvent,
+                                afterSetResult - afterWindowEvent))
+                            {
+                                LogHelper.AddLog(
+                                    MsgLevel.Info,
+                                    $"【慢诊断-图像显示】节点({ID}.{NodeName}) 窗口={param.WindowName}；输出图像={PerformanceSpikeDiagnostics.GetOutputImageText(outputImage)}；ToBitmap图像={PerformanceSpikeDiagnostics.GetMatText(firstMat)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(outputImage.DisplayResult)}；订阅读取={afterGetOutput}ms；ToBitmap={afterToBitmap - afterGetOutput}ms；图像事件={afterImageEvent - afterToBitmap}ms；窗口事件={afterWindowEvent - afterImageEvent}ms；状态={afterSetResult - afterWindowEvent}ms；节点总耗时={afterSetResult}ms；状态耗时={time}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                                    true);
+                            }
+
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
                         }
                         return new NodeReturn(NodeRunFlag.ContinueRun);

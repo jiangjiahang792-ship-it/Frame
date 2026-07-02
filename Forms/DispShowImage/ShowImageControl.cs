@@ -9,6 +9,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Logger;
+using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using Point = System.Drawing.Point;
 
@@ -190,9 +191,19 @@ namespace TDJS_Vision.Forms.DispShowImage
             if (oldImage == null)
                 return;
 
+            string oldImageInfo = PerformanceSpikeDiagnostics.GetBitmapText(oldImage);
             Task.Run(() =>
             {
+                Stopwatch disposeStopwatch = Stopwatch.StartNew();
                 try { oldImage?.Dispose(); } catch { }
+                long disposeMs = disposeStopwatch.ElapsedMilliseconds;
+                if (PerformanceSpikeDiagnostics.ShouldLog(PerformanceSpikeDiagnostics.CommonSlowMs, disposeMs))
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Info,
+                        $"【慢诊断-旧图释放】图像={oldImageInfo}；释放耗时={disposeMs}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                        true);
+                }
             });
         }
 
@@ -307,6 +318,20 @@ namespace TDJS_Vision.Forms.DispShowImage
                     MsgLevel.Info,
                     $"【性能诊断-图像显示】ShowImageControl.SetImage 图像={GetBitmapDiagnosticText(bmp)}；需要自适应={needShowFit}；UI排队等待={uiQueueWait}ms；静态ROI={roiCount}；设置Bitmap={afterSetBitmap}ms；ShowFit={afterShowFit - afterSetBitmap}ms；构建ROI={afterApplyDisplayResult - afterShowFit}ms；{roiDiagnostics.ToLogText()}；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms。",
                     true);
+                if (PerformanceSpikeDiagnostics.ShouldLog(
+                    PerformanceSpikeDiagnostics.CommonSlowMs,
+                    uiQueueWait,
+                    afterInvalidate,
+                    afterSetBitmap,
+                    afterShowFit - afterSetBitmap,
+                    afterApplyDisplayResult - afterShowFit,
+                    afterInvalidate - afterApplyDisplayResult))
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Info,
+                        $"【慢诊断-显示控件SetImage】图像={PerformanceSpikeDiagnostics.GetBitmapText(bmp)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；需要自适应={needShowFit}；UI排队等待={uiQueueWait}ms；静态ROI={roiCount}；设置Bitmap={afterSetBitmap}ms；ShowFit={afterShowFit - afterSetBitmap}ms；构建ROI={afterApplyDisplayResult - afterShowFit}ms；{roiDiagnostics.ToLogText()}；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms；控件尺寸={Width}x{Height}；可见={Visible}；句柄已创建={IsHandleCreated}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                        true);
+                }
             });
         }
 
@@ -326,6 +351,18 @@ namespace TDJS_Vision.Forms.DispShowImage
                     MsgLevel.Info,
                     $"【性能诊断-图像显示】ShowImageControl.SetDisplayResult UI排队等待={uiQueueWait}ms；静态ROI={roiCount}；构建ROI={afterApplyDisplayResult}ms；{roiDiagnostics.ToLogText()}；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms。",
                     true);
+                if (PerformanceSpikeDiagnostics.ShouldLog(
+                    PerformanceSpikeDiagnostics.CommonSlowMs,
+                    uiQueueWait,
+                    afterInvalidate,
+                    afterApplyDisplayResult,
+                    afterInvalidate - afterApplyDisplayResult))
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Info,
+                        $"【慢诊断-显示控件SetDisplayResult】显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；UI排队等待={uiQueueWait}ms；静态ROI={roiCount}；构建ROI={afterApplyDisplayResult}ms；{roiDiagnostics.ToLogText()}；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms；控件尺寸={Width}x{Height}；可见={Visible}；句柄已创建={IsHandleCreated}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                        true);
+                }
             });
         }
 

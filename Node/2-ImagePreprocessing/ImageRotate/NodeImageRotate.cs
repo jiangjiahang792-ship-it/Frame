@@ -1,8 +1,10 @@
 ﻿using Logger;
 using OpenCvSharp;
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 
 namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
@@ -55,22 +57,47 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
                         SetStatus(NodeStatus.Unexecuted, "*");
                         base.CheckTokenCancel(token);
 
+                        Stopwatch performanceStopwatch = Stopwatch.StartNew();
                         OutputImage inputImage = form.GetInputOutputImage();
+                        long afterGetOutputImage = performanceStopwatch.ElapsedMilliseconds;
                         Mat srcImg = form.GetInputMat(inputImage); 
+                        long afterGetSource = performanceStopwatch.ElapsedMilliseconds;
                         Mat rotatedImage = form.ImageRotateForRun(srcImg, param.Angle);
+                        long afterRotateColor = performanceStopwatch.ElapsedMilliseconds;
                         Mat inputGrayImage = form.GetInputGrayMat(inputImage);
+                        long afterGetGray = performanceStopwatch.ElapsedMilliseconds;
                         Mat rotatedGrayImage = srcImg.Channels() == 1
                             ? rotatedImage
                             : OutputImage.HasValidImage(inputGrayImage)
                                 ? form.ImageRotateForRun(inputGrayImage, param.Angle)
                                 : OutputImage.BuildGrayImage(rotatedImage);
+                        long afterRotateGray = performanceStopwatch.ElapsedMilliseconds;
                         NodeResultImageRotate nodeResultImageRotate = new NodeResultImageRotate();
                         nodeResultImageRotate.OutputImage = OutputImage.FromSingleImage(rotatedImage, rotatedGrayImage);
+                        long afterBuildOutput = performanceStopwatch.ElapsedMilliseconds;
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         nodeResultImageRotate.RunTime = time;
                         Result = nodeResultImageRotate;
                         if (showLog)
+                        {
+                            if (PerformanceSpikeDiagnostics.ShouldLog(
+                                PerformanceSpikeDiagnostics.CommonSlowMs,
+                                afterBuildOutput,
+                                afterGetOutputImage,
+                                afterGetSource - afterGetOutputImage,
+                                afterRotateColor - afterGetSource,
+                                afterGetGray - afterRotateColor,
+                                afterRotateGray - afterGetGray,
+                                afterBuildOutput - afterRotateGray))
+                            {
+                                LogHelper.AddLog(
+                                    MsgLevel.Info,
+                                    $"【慢诊断-图像旋转】节点({ID}.{NodeName}) 角度={param.Angle}；输入={PerformanceSpikeDiagnostics.GetOutputImageText(inputImage)}；源图={PerformanceSpikeDiagnostics.GetMatText(srcImg)}；灰度图={PerformanceSpikeDiagnostics.GetMatText(inputGrayImage)}；取订阅={afterGetOutputImage}ms；取源图={afterGetSource - afterGetOutputImage}ms；旋转彩图={afterRotateColor - afterGetSource}ms；取灰度={afterGetGray - afterRotateColor}ms；灰度处理={afterRotateGray - afterGetGray}ms；构建输出={afterBuildOutput - afterRotateGray}ms；节点总耗时={afterBuildOutput}ms；状态耗时={time}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                                    true);
+                            }
+
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                        }
                         return new NodeReturn(NodeRunFlag.ContinueRun);
                     }
                     catch (OperationCanceledException)

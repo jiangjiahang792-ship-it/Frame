@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
@@ -542,7 +543,30 @@ namespace TDJS_Vision.Node
             }
 
             SetStatus(status, elapsedMilliseconds.ToString());
+            PerformanceSpikeDiagnostics.LogNodeMemoryIfNeeded(Process == null ? "未知" : Process.ProcessName, ID, NodeName, GetNodeStatusText(status), elapsedMilliseconds);
             return elapsedMilliseconds;
+        }
+
+        /// <summary>
+        /// 将节点运行状态转换为内存诊断日志使用的中文文本。
+        /// </summary>
+        /// <param name="status">节点运行状态。</param>
+        /// <returns>中文状态文本。</returns>
+        private static string GetNodeStatusText(NodeStatus status)
+        {
+            switch (status)
+            {
+                case NodeStatus.Successful:
+                    return "成功";
+                case NodeStatus.Failed:
+                    return "失败";
+                case NodeStatus.Running:
+                    return "运行中";
+                case NodeStatus.Unexecuted:
+                    return "未执行";
+                default:
+                    return status.ToString();
+            }
         }
 
         /// <summary>

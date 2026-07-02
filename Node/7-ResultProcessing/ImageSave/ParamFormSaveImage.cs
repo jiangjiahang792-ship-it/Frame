@@ -1,6 +1,7 @@
 ﻿using Logger;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
@@ -11,6 +12,7 @@ using TDJS_Vision.Node._3_Detection.TDAI;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using System.Linq;
+using TDJS_Vision.Diagnostics;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 {
@@ -99,25 +101,65 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <returns></returns>
         public Bitmap GetImage()
         {
+            Bitmap bitmap = null;
+            bool ownershipReturned = false;
             try
             {
+                Stopwatch stopwatch = Stopwatch.StartNew();
+                MemorySnapshot beforeSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
                 OutputImage outputImage = nodeSubscriptionImg2Save.GetValue<OutputImage>();
+                long afterSubscription = stopwatch.ElapsedMilliseconds;
                 if (outputImage == null || outputImage.Bitmaps == null || outputImage.Bitmaps.Count == 0 || !OutputImage.HasValidImage(outputImage.Bitmaps[0]))
                     throw new Exception("订阅的图片对象为空！");
 
-                Bitmap bitmap = outputImage.Bitmaps[0].ToBitmap();
-                if (HasDrawableDisplayResult(outputImage.DisplayResult))
+                Mat sourceImage = outputImage.Bitmaps[0];
+                bitmap = sourceImage.ToBitmap();
+                long afterToBitmap = stopwatch.ElapsedMilliseconds;
+                bool hasDrawableDisplayResult = HasDrawableDisplayResult(outputImage.DisplayResult);
+                if (hasDrawableDisplayResult)
                 {
                     bitmap = EnsureDrawableBitmap(bitmap);
+                    long afterEnsureDrawable = stopwatch.ElapsedMilliseconds;
                     ShowImageControl.DrawDisplayResultToBitmap(bitmap, outputImage.DisplayResult);
+                    long afterDrawDisplayResult = stopwatch.ElapsedMilliseconds;
+                    LogImageSnapshot(outputImage, bitmap, beforeSnapshot, afterSubscription, afterToBitmap, afterEnsureDrawable, afterDrawDisplayResult, true);
+                }
+                else
+                {
+                    long afterNoDraw = stopwatch.ElapsedMilliseconds;
+                    LogImageSnapshot(outputImage, bitmap, beforeSnapshot, afterSubscription, afterToBitmap, afterNoDraw, afterNoDraw, false);
                 }
 
+                ownershipReturned = true;
                 return bitmap;
             }
-            catch (Exception)
+            catch
             {
+                if (!ownershipReturned)
+                    bitmap?.Dispose();
+
                 throw;
             }
+        }
+
+        /// <summary>
+        /// 输出保存图像取图阶段的内存诊断，定位Mat转Bitmap或标注写入是否造成资源上涨。
+        /// </summary>
+        /// <param name="outputImage">订阅到的输出图像。</param>
+        /// <param name="bitmap">生成的待保存位图。</param>
+        /// <param name="beforeSnapshot">取图前内存快照。</param>
+        /// <param name="afterSubscription">订阅读取后的耗时。</param>
+        /// <param name="afterToBitmap">Mat转Bitmap后的耗时。</param>
+        /// <param name="afterEnsureDrawable">确保可绘制位图后的耗时。</param>
+        /// <param name="afterDrawDisplayResult">写入显示结果后的耗时。</param>
+        /// <param name="hasDrawableDisplayResult">是否存在需要写入保存图的显示结果。</param>
+        private static void LogImageSnapshot(OutputImage outputImage, Bitmap bitmap, MemorySnapshot beforeSnapshot, long afterSubscription, long afterToBitmap, long afterEnsureDrawable, long afterDrawDisplayResult, bool hasDrawableDisplayResult)
+        {
+            MemorySnapshot afterSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
+            LogHelper.AddLog(
+                MsgLevel.Info,
+                $"【内存诊断-保存图像取图】输出图像={PerformanceSpikeDiagnostics.GetOutputImageText(outputImage)}；待保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；有标注={hasDrawableDisplayResult}；订阅读取={afterSubscription}ms；ToBitmap={afterToBitmap - afterSubscription}ms；确保可绘制={afterEnsureDrawable - afterToBitmap}ms；写入标注={afterDrawDisplayResult - afterEnsureDrawable}ms；总耗时={afterDrawDisplayResult}ms；私有内存变化={afterSnapshot.PrivateMemoryMb - beforeSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterSnapshot.GdiObjectCount - beforeSnapshot.GdiObjectCount}；前={beforeSnapshot.ToLogText()}；后={afterSnapshot.ToLogText()}",
+                true);
         }
 
         /// <summary>

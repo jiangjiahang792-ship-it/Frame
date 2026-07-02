@@ -20,6 +20,20 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-06-30 内存泄漏与保存图像诊断：
+  - [x] 新反馈已记录：软件内存从约600MB上涨到约5000MB，需要在本方案节点链路增加内存泄漏诊断，重点怀疑保存图像。
+  - [x] `PerformanceSpikeDiagnostics` 已新增进程内存快照，记录工作集、私有内存、托管堆、线程数、句柄数、GDI对象、USER对象和GC次数。
+  - [x] `NodeBase.SetRunResult` 已增加低频节点水位日志，内存/GDI/句柄跨步增长或高水位时记录刚完成的流程和节点。
+  - [x] `ParamFormImageSave.GetImage` 已增加保存图像取图内存诊断，拆分订阅读取、`ToBitmap`、可绘制位图转换和写入标注。
+  - [x] `NodeImageSave` 已增加保存入队、跳过保存、原始临时Bitmap释放、队列启动/停止、队列消费和保存任务Bitmap释放诊断。
+  - [x] `NodeImageSave` 已补充保存Bitmap所有权保护：未入队时释放临时Bitmap，多路径保存时避免同一Bitmap被多个保存线程同时保存和重复释放。
+- 2026-06-30 ROI/图像显示/旋转耗时毛刺诊断：
+  - [x] 新反馈已记录：排除首次软件打开后的冷启动后，现场仍希望把图像旋转、图像显示/ToBitmap、窗口UI排队和ROI结果绘制稳定压回5ms以内。
+  - [x] 已新增慢耗时诊断工具，慢日志包含线程池、进程线程、内存、GC计数、图像尺寸和显示结果数量。
+  - [x] `NodeImageRotate` 已增加旋转节点慢诊断，拆分订阅读取、取源图、旋转彩图、取灰度、灰度处理和输出构建。
+  - [x] `NodeImageShow` 已增加图像显示慢诊断，补充 `ToBitmap` 毛刺时的输出图像、显示结果和运行时状态。
+  - [x] `FrmSingleImage` 与 `ShowImageControl` 已增加窗口投递、UI排队、SetImage、旧图释放和静态ROI构建慢诊断。
+  - [x] `ResultOverlayDraw` 已增加ROI结果绘制慢诊断，记录图像订阅源、输入输出图像摘要和运行时状态。
 - 2026-06-29 数线芯远程ROI不绘制诊断：
   - [x] 新反馈已记录：本地测试可以绘制，远程日志显示线芯SEG推理有结果但 `ROI结果绘制` 输出矩形与文本均为0。
   - [x] `NodeTDAI` 在线芯截面SEG解析成功后新增解析结果摘要日志，记录检测结果、矩形、NG缓存矩形和文本数量。

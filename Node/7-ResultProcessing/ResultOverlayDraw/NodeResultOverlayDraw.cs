@@ -10,6 +10,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._4_Measurement.Common;
@@ -109,6 +110,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 if (showLog)
                 {
                     LogHelper.AddLog(MsgLevel.Info, $"【性能诊断-ROI结果绘制】节点({ID}.{NodeName}) {performanceDiagnostics.ToLogText()}；状态耗时={time}ms", true);
+                    if (performanceDiagnostics.ShouldLogSlow())
+                    {
+                        LogHelper.AddLog(
+                            MsgLevel.Info,
+                            $"【慢诊断-ROI结果绘制】节点({ID}.{NodeName}) {performanceDiagnostics.ToLogText()}；图像源={performanceDiagnostics.ImageSourceNodeText}；输入图像={performanceDiagnostics.InputImageText}；输出图像={performanceDiagnostics.OutputImageText}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；状态耗时={time}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                            true);
+                    }
+
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
                 }
 
@@ -164,11 +173,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             Stopwatch stopwatch = Stopwatch.StartNew();
             performanceDiagnostics = new ResultOverlayDrawPerformanceDiagnostics();
 
-            object imageValue = ReadSubscribedValue(owner, param.ImageText1, param.ImageText2, out NodeBase _);
+            object imageValue = ReadSubscribedValue(owner, param.ImageText1, param.ImageText2, out NodeBase imageSourceNode);
             performanceDiagnostics.ImageSubscriptionMs = stopwatch.ElapsedMilliseconds;
+            performanceDiagnostics.ImageSourceNodeText = imageSourceNode == null ? "空" : GetNodeText(imageSourceNode);
             OutputImage inputImage = imageValue as OutputImage;
             if (inputImage == null)
                 throw new Exception("订阅的图像类型不是 OutputImage！");
+            performanceDiagnostics.InputImageText = PerformanceSpikeDiagnostics.GetOutputImageText(inputImage);
 
             Mat cleanImage = MeasurementNodeHelper.GetFirstMat(inputImage);
             long afterGetCleanImage = stopwatch.ElapsedMilliseconds;
@@ -187,6 +198,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             performanceDiagnostics.BuildOutputImageMs = afterBuildOutput - afterBuildDisplay;
             performanceDiagnostics.TotalMs = afterBuildOutput;
             performanceDiagnostics.CaptureDisplayResultCounts(displayResult);
+            performanceDiagnostics.OutputImageText = PerformanceSpikeDiagnostics.GetOutputImageText(outputImage);
         }
 
         public static object ReadSubscribedValue(NodeBase owner, string nodeText, string resultText, out NodeBase sourceNode)
@@ -963,6 +975,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         public int OutputContourCount { get; private set; }
         /// <summary>输出文本数量。</summary>
         public int OutputTextCount { get; private set; }
+        /// <summary>图像订阅源节点文本。</summary>
+        public string ImageSourceNodeText { get; set; }
+        /// <summary>输入图像摘要。</summary>
+        public string InputImageText { get; set; }
+        /// <summary>输出图像摘要。</summary>
+        public string OutputImageText { get; set; }
 
         /// <summary>
         /// 捕获最终显示结果中的各类元素数量。
@@ -978,6 +996,25 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             OutputLineCount = displayResult.Lines == null ? 0 : displayResult.Lines.Count;
             OutputContourCount = displayResult.Contours == null ? 0 : displayResult.Contours.Count;
             OutputTextCount = displayResult.Texts == null ? 0 : displayResult.Texts.Count;
+        }
+
+        /// <summary>
+        /// 判断ROI结果绘制是否需要输出慢诊断日志。
+        /// </summary>
+        /// <returns>存在慢耗时阶段时返回 true。</returns>
+        public bool ShouldLogSlow()
+        {
+            return PerformanceSpikeDiagnostics.ShouldLog(
+                PerformanceSpikeDiagnostics.CommonSlowMs,
+                ImageSubscriptionMs,
+                GetCleanImageMs,
+                BuildDisplayResultMs,
+                BuildOutputImageMs,
+                TotalMs,
+                TextItemsMs,
+                LineItemsMs,
+                RectangleItemsMs,
+                RegionItemsMs);
         }
 
         /// <summary>

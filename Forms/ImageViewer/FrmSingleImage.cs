@@ -10,6 +10,7 @@ using System.Linq;
 using Logger;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
+using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node;
@@ -182,10 +183,18 @@ namespace TDJS_Vision.Forms.ImageViewer
 
                 Stopwatch uiStopwatch = Stopwatch.StartNew();
                 showImageControl1.SetImage(bitmap, displayResult);
+                long setImageMs = uiStopwatch.ElapsedMilliseconds;
                 LogHelper.AddLog(
                     MsgLevel.Info,
-                    $"【性能诊断-图像显示】窗口({FormName}) UI刷新完成，图像={bitmapInfo}；显示结果={displayInfo}；排队等待={queueDelay}ms；SetImage={uiStopwatch.ElapsedMilliseconds}ms。",
+                    $"【性能诊断-图像显示】窗口({FormName}) UI刷新完成，图像={bitmapInfo}；显示结果={displayInfo}；排队等待={queueDelay}ms；SetImage={setImageMs}ms。",
                     true);
+                if (PerformanceSpikeDiagnostics.ShouldLog(PerformanceSpikeDiagnostics.UiQueueSlowMs, queueDelay, setImageMs))
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Info,
+                        $"【慢诊断-窗口图像显示】窗口({FormName}) 图像={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；排队等待={queueDelay}ms；SetImage={setImageMs}ms；窗体可见={Visible}；句柄已创建={IsHandleCreated}；InvokeRequired={InvokeRequired}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                        true);
+                }
             };
 
             if (InvokeRequired)
@@ -199,10 +208,18 @@ namespace TDJS_Vision.Forms.ImageViewer
                 try
                 {
                     BeginInvoke(updateImage);
+                    long postMs = scheduleStopwatch.ElapsedMilliseconds;
                     LogHelper.AddLog(
                         MsgLevel.Info,
-                        $"【性能诊断-图像显示】窗口({FormName}) 已投递UI刷新，图像={bitmapInfo}；显示结果={displayInfo}；投递耗时={scheduleStopwatch.ElapsedMilliseconds}ms。",
+                        $"【性能诊断-图像显示】窗口({FormName}) 已投递UI刷新，图像={bitmapInfo}；显示结果={displayInfo}；投递耗时={postMs}ms。",
                         true);
+                    if (PerformanceSpikeDiagnostics.ShouldLog(PerformanceSpikeDiagnostics.CommonSlowMs, postMs))
+                    {
+                        LogHelper.AddLog(
+                            MsgLevel.Info,
+                            $"【慢诊断-窗口投递】窗口({FormName}) 图像={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；投递耗时={postMs}ms；句柄已创建={IsHandleCreated}；InvokeRequired={InvokeRequired}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                            true);
+                    }
                 }
                 catch
                 {
