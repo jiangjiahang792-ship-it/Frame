@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Threading;
 using System.Windows.Forms;
 using Logger;
+using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Forms.YTMessageBox;
 
 namespace TDJS_Vision
@@ -23,6 +24,7 @@ namespace TDJS_Vision
         static void Main(string[] args)
         {
             ConfigureThreadPoolMinimums();
+            LogHelper.AddLog(MsgLevel.Warn, $"【启动诊断-程序身份】{PerformanceSpikeDiagnostics.GetExecutableIdentityText()}；命令行={Environment.CommandLine}", true);
 
             // HslCommunication通信库授权
             if (!HslCommunication.Authorization.SetAuthorizationCode("d8868ab9-4494-4056-98c6-b669e2434e25"))

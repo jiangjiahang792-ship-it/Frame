@@ -4,6 +4,7 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
@@ -16,6 +17,9 @@ namespace TDJS_Vision.Diagnostics
     /// </summary>
     public static class PerformanceSpikeDiagnostics
     {
+        /// <summary>链路诊断编译标记，用于从现场日志确认当前运行程序是否包含本轮诊断代码。</summary>
+        public const string DiagnosticBuildMark = "2026-07-02-链路诊断V2";
+
         /// <summary>通用慢耗时阈值，超过该值时输出额外慢诊断日志。</summary>
         public const long CommonSlowMs = 20;
 
@@ -108,6 +112,74 @@ namespace TDJS_Vision.Diagnostics
         public static string GetMemoryText()
         {
             return CaptureMemorySnapshot().ToLogText();
+        }
+
+        /// <summary>
+        /// 获取当前进程主程序路径，用于确认现场运行的到底是哪一个编译产物。
+        /// </summary>
+        /// <returns>当前进程主模块文件路径。</returns>
+        public static string GetCurrentProcessPathText()
+        {
+            try
+            {
+                using (System.Diagnostics.Process process = System.Diagnostics.Process.GetCurrentProcess())
+                {
+                    return process.MainModule?.FileName ?? "未知";
+                }
+            }
+            catch (Exception ex)
+            {
+                return $"获取失败:{ex.GetType().Name}";
+            }
+        }
+
+        /// <summary>
+        /// 生成当前程序身份文本，定位现场运行路径、当前目录和诊断编译标记。
+        /// </summary>
+        /// <returns>当前程序身份诊断文本。</returns>
+        public static string GetExecutableIdentityText()
+        {
+            return $"诊断版本={DiagnosticBuildMark}；主程序={GetCurrentProcessPathText()}；入口程序集={GetEntryAssemblyPathText()}；当前目录={Environment.CurrentDirectory}";
+        }
+
+        /// <summary>
+        /// 获取入口程序集路径，用于和主程序路径互相校验。
+        /// </summary>
+        /// <returns>入口程序集路径。</returns>
+        private static string GetEntryAssemblyPathText()
+        {
+            try
+            {
+                return Assembly.GetEntryAssembly()?.Location ?? "未知";
+            }
+            catch (Exception ex)
+            {
+                return $"获取失败:{ex.GetType().Name}";
+            }
+        }
+
+        /// <summary>
+        /// 获取对象类型和程序集路径，用于确认运行时加载的节点实现版本。
+        /// </summary>
+        /// <param name="instance">需要诊断的对象实例。</param>
+        /// <returns>类型全名和程序集路径。</returns>
+        public static string GetAssemblyText(object instance)
+        {
+            if (instance == null)
+            {
+                return "空";
+            }
+
+            try
+            {
+                Type type = instance.GetType();
+                string assemblyLocation = string.IsNullOrWhiteSpace(type.Assembly.Location) ? "未知" : type.Assembly.Location;
+                return $"{type.FullName}；程序集={assemblyLocation}";
+            }
+            catch (Exception ex)
+            {
+                return $"获取失败:{ex.GetType().Name}";
+            }
         }
 
         /// <summary>

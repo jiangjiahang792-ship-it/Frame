@@ -96,6 +96,19 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         }
 
         /// <summary>
+        /// 获取保存图片订阅控件的原始输出图像引用，供保存节点快速入队使用。
+        /// </summary>
+        /// <returns>订阅到的输出图像。</returns>
+        public OutputImage GetOutputImageForSave()
+        {
+            OutputImage outputImage = nodeSubscriptionImg2Save.GetValue<OutputImage>();
+            if (outputImage == null || outputImage.Bitmaps == null || outputImage.Bitmaps.Count == 0 || !OutputImage.HasValidImage(outputImage.Bitmaps[0]))
+                throw new Exception("订阅的图片对象为空！");
+
+            return outputImage;
+        }
+
+        /// <summary>
         /// 获取图片订阅控件的图像
         /// </summary>
         /// <returns></returns>
@@ -167,7 +180,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// </summary>
         /// <param name="source">待检查的位图。</param>
         /// <returns>可安全写入线框和文本的位图。</returns>
-        private static Bitmap EnsureDrawableBitmap(Bitmap source)
+        internal static Bitmap EnsureDrawableBitmap(Bitmap source)
         {
             if (source == null)
                 return null;
@@ -189,7 +202,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// </summary>
         /// <param name="displayResult">显示叠加结果。</param>
         /// <returns>存在可绘制的线框、轮廓或文本时返回 true。</returns>
-        private static bool HasDrawableDisplayResult(AlgorithmResult displayResult)
+        internal static bool HasDrawableDisplayResult(AlgorithmResult displayResult)
         {
             if (displayResult == null)
                 return false;

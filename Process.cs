@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
 
 namespace TDJS_Vision
 {
@@ -461,62 +463,90 @@ namespace TDJS_Vision
                     HashSet<int> inactiveNodeIds = new HashSet<int>();
                     HashSet<string> skippedEdges = new HashSet<string>();
 
+                    HashSet<int> runningNodeIds = new HashSet<int>();
+                    List<Task<ConnectedNodeRunResult>> runningTasks = new List<Task<ConnectedNodeRunResult>>();
+                    Dictionary<Task<ConnectedNodeRunResult>, NodeBase> runningTaskNodes =
+                        new Dictionary<Task<ConnectedNodeRunResult>, NodeBase>();
+                    Dictionary<Task<ConnectedNodeRunResult>, ParallelNodeTaskGroup> runningTaskGroups =
+                        new Dictionary<Task<ConnectedNodeRunResult>, ParallelNodeTaskGroup>();
+                    bool stopRunRequested = false;
+                    bool stopBeforeReached = false;
+
                     while (true)
                     {
-                        List<NodeBase> readyNodes = GetReadyComponentNodes(componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges, startNode);
-                        if (readyNodes.Count == 0)
-                            break;
-
-                        if (stopBeforeNode != null && ContainsNode(readyNodes, stopBeforeNode))
-                            return false;
-
-                        List<NodeBase> batch = BuildReadyExecutionBatch(readyNodes);
-                        List<ConnectedNodeRunResult> results = await RunReadyNodeBatch(batch, nodeToSkip);
-                        foreach (ConnectedNodeRunResult runResult in results)
+                        if (!stopRunRequested && !stopBeforeReached)
                         {
-                            NodeBase node = runResult.Node;
-                            completedNodeIds.Add(node.ID);
+                            List<NodeBase> readyNodes = GetReadyComponentNodes(componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges, startNode);
+                            RemoveRunningNodes(readyNodes, runningNodeIds);
 
-                            long nodeStartTime = GetNodeDependencyFinishTime(
-                                node,
-                                componentNodeIds,
-                                inactiveNodeIds,
-                                skippedEdges,
-                                completedNodeFinishTimes,
-                                componentStartTime);
-                            long nodeFinishTime = nodeStartTime + GetRunResultLogicalTime(runResult);
-                            completedNodeFinishTimes[node.ID] = nodeFinishTime;
-                            if (nodeFinishTime > logicalRunTime)
-                                logicalRunTime = nodeFinishTime;
-
-                            if (runResult.Exception != null || runResult.FailedStatus)
+                            if (stopBeforeNode != null && ContainsNode(readyNodes, stopBeforeNode))
                             {
-                                if (runResult.Exception != null && firstNodeException == null)
-                                    firstNodeException = runResult.Exception;
-
-                                MarkFailedDownstreamInactive(node.ID, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
-                                continue;
+                                stopBeforeReached = true;
                             }
-
-                            if (!runResult.SkippedExecution &&
-                                runResult.Return != null &&
-                                runResult.Return.Flag == NodeRunFlag.StopRun)
+                            else
                             {
-                                return true;
-                            }
-
-                            if (!runResult.SkippedExecution)
-                            {
-                                if (runResult.Return != null &&
-                                    runResult.Return.Flag == NodeRunFlag.StopBranch)
+                                List<NodeBase> batch = BuildReadyExecutionBatch(readyNodes);
+                                if (batch.Count == 1 && runningTasks.Count == 0)
                                 {
-                                    MarkStoppedBranchDownstreamInactive(node.ID, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
+                                    ConnectedNodeRunResult directResult = await RunConnectedNode(batch[0], nodeToSkip);
+                                    stopRunRequested = ProcessCompletedConnectedNodeResult(
+                                        directResult,
+                                        componentNodeIds,
+                                        completedNodeIds,
+                                        inactiveNodeIds,
+                                        skippedEdges,
+                                        completedNodeFinishTimes,
+                                        componentStartTime,
+                                        ref logicalRunTime,
+                                        ref firstNodeException);
                                     continue;
                                 }
 
-                                ApplyConditionalBranchSkips(node, runResult.Return, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
+                                StartReadyNodeBatch(
+                                    batch,
+                                    nodeToSkip,
+                                    runningNodeIds,
+                                    runningTasks,
+                                    runningTaskNodes,
+                                    runningTaskGroups);
                             }
                         }
+
+                        if (runningTasks.Count == 0)
+                        {
+                            if (stopBeforeReached)
+                                return false;
+
+                            if (stopRunRequested)
+                                return true;
+
+                            break;
+                        }
+
+                        Task<ConnectedNodeRunResult> finishedTask = await Task.WhenAny(runningTasks);
+                        runningTasks.Remove(finishedTask);
+
+                        NodeBase finishedNode;
+                        runningTaskNodes.TryGetValue(finishedTask, out finishedNode);
+                        runningTaskNodes.Remove(finishedTask);
+                        if (finishedNode != null)
+                            runningNodeIds.Remove(finishedNode.ID);
+
+                        ReleaseCompletedTaskGroup(finishedTask, runningTaskGroups);
+
+                        ConnectedNodeRunResult finishedResult = GetCompletedConnectedNodeResult(finishedTask, finishedNode);
+                        bool nodeRequestedStopRun = ProcessCompletedConnectedNodeResult(
+                            finishedResult,
+                            componentNodeIds,
+                            completedNodeIds,
+                            inactiveNodeIds,
+                            skippedEdges,
+                            completedNodeFinishTimes,
+                            componentStartTime,
+                            ref logicalRunTime,
+                            ref firstNodeException);
+                        if (nodeRequestedStopRun)
+                            stopRunRequested = true;
                     }
                 }
 
@@ -532,92 +562,180 @@ namespace TDJS_Vision
             }
         }
 
-        private List<ConnectedNodeRunResult> GetOrderedResults(List<NodeBase> batch, Dictionary<int, ConnectedNodeRunResult> resultMap)
+        /// <summary>
+        /// 从候选节点中移除已经在执行中的节点，避免完成驱动调度重复启动同一节点。
+        /// </summary>
+        private static void RemoveRunningNodes(List<NodeBase> nodes, HashSet<int> runningNodeIds)
         {
-            List<ConnectedNodeRunResult> orderedResults = new List<ConnectedNodeRunResult>();
-            foreach (NodeBase node in batch)
-            {
-                if (node != null && resultMap.ContainsKey(node.ID))
-                    orderedResults.Add(resultMap[node.ID]);
-            }
+            if (nodes == null || runningNodeIds == null || runningNodeIds.Count == 0)
+                return;
 
-            return orderedResults;
+            for (int i = nodes.Count - 1; i >= 0; i--)
+            {
+                NodeBase node = nodes[i];
+                if (node == null || runningNodeIds.Contains(node.ID))
+                    nodes.RemoveAt(i);
+            }
         }
 
-        private async Task<List<ConnectedNodeRunResult>> RunReadyNodeBatch(List<NodeBase> batch, NodeBase nodeToSkip)
+        /// <summary>
+        /// 启动当前已经满足依赖的节点批次，后续由 Task.WhenAny 按完成顺序继续放行下游节点。
+        /// </summary>
+        private void StartReadyNodeBatch(
+            List<NodeBase> batch,
+            NodeBase nodeToSkip,
+            HashSet<int> runningNodeIds,
+            List<Task<ConnectedNodeRunResult>> runningTasks,
+            Dictionary<Task<ConnectedNodeRunResult>, NodeBase> runningTaskNodes,
+            Dictionary<Task<ConnectedNodeRunResult>, ParallelNodeTaskGroup> runningTaskGroups)
         {
+            if (batch == null || batch.Count == 0)
+                return;
+
             List<IParallelSignalWaitNode> preparedSignalWaitNodes = PrepareParallelSignalWaitNodes(batch);
-            try
+            ParallelNodeTaskGroup taskGroup = new ParallelNodeTaskGroup(preparedSignalWaitNodes);
+
+            foreach (NodeBase node in batch)
             {
-                if (batch.Count <= 1)
-                {
-                    List<ConnectedNodeRunResult> singleResult = new List<ConnectedNodeRunResult>();
-                    singleResult.Add(await RunConnectedNode(batch[0], nodeToSkip));
-                    return singleResult;
-                }
+                if (node == null || runningNodeIds.Contains(node.ID))
+                    continue;
 
-                List<Task<ConnectedNodeRunResult>> tasks = new List<Task<ConnectedNodeRunResult>>();
-                Dictionary<Task<ConnectedNodeRunResult>, NodeBase> taskNodes = new Dictionary<Task<ConnectedNodeRunResult>, NodeBase>();
-                foreach (NodeBase node in batch)
-                {
-                    NodeBase nodeToRun = node;
-                    Task<ConnectedNodeRunResult> task = Task.Run(async () => await RunConnectedNode(nodeToRun, nodeToSkip));
-                    tasks.Add(task);
-                    taskNodes[task] = nodeToRun;
-                }
-
-                try
-                {
-                    await Task.WhenAll(tasks);
-                }
-                catch
-                {
-                }
-
-                Exception firstException = null;
-                Dictionary<int, ConnectedNodeRunResult> resultMap = new Dictionary<int, ConnectedNodeRunResult>();
-                foreach (Task<ConnectedNodeRunResult> task in tasks)
-                {
-                    if (task.IsFaulted)
-                    {
-                        if (firstException == null)
-                            firstException = task.Exception == null ? new Exception("Parallel branch node failed.") : task.Exception.GetBaseException();
-
-                        NodeBase faultedNode;
-                        if (taskNodes.TryGetValue(task, out faultedNode) && faultedNode != null)
-                        {
-                            MarkNodeFailed(faultedNode);
-                            resultMap[faultedNode.ID] = new ConnectedNodeRunResult
-                            {
-                                Node = faultedNode,
-                                Exception = firstException,
-                                RunTime = faultedNode.Result == null ? 0 : faultedNode.Result.RunTime
-                            };
-                        }
-
-                        continue;
-                    }
-
-                    if (task.IsCanceled)
-                    {
-                        if (firstException == null)
-                            firstException = new OperationCanceledException();
-                        continue;
-                    }
-
-                    ConnectedNodeRunResult result = task.Result;
-                    resultMap[result.Node.ID] = result;
-                }
-
-                if (firstException != null && resultMap.Count == 0)
-                    throw firstException;
-
-                return GetOrderedResults(batch, resultMap);
+                NodeBase nodeToRun = node;
+                Task<ConnectedNodeRunResult> task = Task.Run(async () => await RunConnectedNode(nodeToRun, nodeToSkip));
+                runningNodeIds.Add(nodeToRun.ID);
+                runningTasks.Add(task);
+                runningTaskNodes[task] = nodeToRun;
+                runningTaskGroups[task] = taskGroup;
+                taskGroup.Tasks.Add(task);
             }
-            finally
-            {
+
+            if (taskGroup.Tasks.Count == 0)
                 ReleaseParallelSignalWaitNodes(preparedSignalWaitNodes);
+        }
+
+        /// <summary>
+        /// 释放已完成任务所属批次的并行信号等待预登记。
+        /// </summary>
+        private static void ReleaseCompletedTaskGroup(
+            Task<ConnectedNodeRunResult> task,
+            Dictionary<Task<ConnectedNodeRunResult>, ParallelNodeTaskGroup> runningTaskGroups)
+        {
+            if (task == null || runningTaskGroups == null)
+                return;
+
+            ParallelNodeTaskGroup taskGroup;
+            if (!runningTaskGroups.TryGetValue(task, out taskGroup))
+                return;
+
+            runningTaskGroups.Remove(task);
+            if (taskGroup == null)
+                return;
+
+            taskGroup.Tasks.Remove(task);
+            if (taskGroup.Tasks.Count == 0)
+                ReleaseParallelSignalWaitNodes(taskGroup.PreparedSignalWaitNodes);
+        }
+
+        /// <summary>
+        /// 将已结束任务转换为统一的节点运行结果，保证异常分支也能走下游禁用逻辑。
+        /// </summary>
+        private ConnectedNodeRunResult GetCompletedConnectedNodeResult(Task<ConnectedNodeRunResult> task, NodeBase node)
+        {
+            if (task == null)
+                return null;
+
+            if (task.IsFaulted)
+            {
+                Exception exception = task.Exception == null
+                    ? new Exception("并行分支节点运行失败。")
+                    : task.Exception.GetBaseException();
+                if (node != null)
+                    MarkNodeFailed(node);
+
+                return new ConnectedNodeRunResult
+                {
+                    Node = node,
+                    Exception = exception,
+                    RunTime = node == null || node.Result == null ? 0 : node.Result.RunTime,
+                    FailedStatus = true
+                };
             }
+
+            if (task.IsCanceled)
+            {
+                return new ConnectedNodeRunResult
+                {
+                    Node = node,
+                    Exception = new OperationCanceledException(),
+                    RunTime = node == null || node.Result == null ? 0 : node.Result.RunTime,
+                    FailedStatus = true
+                };
+            }
+
+            return task.Result;
+        }
+
+        /// <summary>
+        /// 处理单个完成节点的结果，并立即更新完成集合、逻辑耗时和分支跳过状态。
+        /// </summary>
+        private bool ProcessCompletedConnectedNodeResult(
+            ConnectedNodeRunResult runResult,
+            HashSet<int> componentNodeIds,
+            HashSet<int> completedNodeIds,
+            HashSet<int> inactiveNodeIds,
+            HashSet<string> skippedEdges,
+            Dictionary<int, long> completedNodeFinishTimes,
+            long componentStartTime,
+            ref long logicalRunTime,
+            ref Exception firstNodeException)
+        {
+            if (runResult == null || runResult.Node == null)
+                return false;
+
+            NodeBase node = runResult.Node;
+            completedNodeIds.Add(node.ID);
+
+            long nodeStartTime = GetNodeDependencyFinishTime(
+                node,
+                componentNodeIds,
+                inactiveNodeIds,
+                skippedEdges,
+                completedNodeFinishTimes,
+                componentStartTime);
+            long nodeFinishTime = nodeStartTime + GetRunResultLogicalTime(runResult);
+            completedNodeFinishTimes[node.ID] = nodeFinishTime;
+            if (nodeFinishTime > logicalRunTime)
+                logicalRunTime = nodeFinishTime;
+
+            if (runResult.Exception != null || runResult.FailedStatus)
+            {
+                if (runResult.Exception != null && firstNodeException == null)
+                    firstNodeException = runResult.Exception;
+
+                MarkFailedDownstreamInactive(node.ID, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
+                return false;
+            }
+
+            if (!runResult.SkippedExecution &&
+                runResult.Return != null &&
+                runResult.Return.Flag == NodeRunFlag.StopRun)
+            {
+                return true;
+            }
+
+            if (!runResult.SkippedExecution)
+            {
+                if (runResult.Return != null &&
+                    runResult.Return.Flag == NodeRunFlag.StopBranch)
+                {
+                    MarkStoppedBranchDownstreamInactive(node.ID, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
+                    return false;
+                }
+
+                ApplyConditionalBranchSkips(node, runResult.Return, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
+            }
+
+            return false;
         }
 
         private async Task<ConnectedNodeRunResult> RunConnectedNode(NodeBase node, NodeBase nodeToSkip)
@@ -1312,14 +1430,64 @@ namespace TDJS_Vision
             return connection.FromNodeId.ToString() + ">" + connection.ToNodeId.ToString() + ">" + branch.ToString();
         }
 
+        /// <summary>
+        /// 流程图节点执行后的统一结果，用于调度器继续推进下游节点。
+        /// </summary>
         private sealed class ConnectedNodeRunResult
         {
+            /// <summary>
+            /// 本次执行对应的节点。
+            /// </summary>
             public NodeBase Node;
+
+            /// <summary>
+            /// 节点返回的流程控制标记。
+            /// </summary>
             public NodeReturn Return;
+
+            /// <summary>
+            /// 节点执行过程中捕获到的异常。
+            /// </summary>
             public Exception Exception;
+
+            /// <summary>
+            /// 节点结果中记录的运行耗时。
+            /// </summary>
             public int RunTime;
+
+            /// <summary>
+            /// 是否因为跳过节点或节点禁用而未实际执行。
+            /// </summary>
             public bool SkippedExecution;
+
+            /// <summary>
+            /// 节点是否已经进入失败状态。
+            /// </summary>
             public bool FailedStatus;
+        }
+
+        /// <summary>
+        /// 同一轮启动的并行节点任务组，用于最后一个节点完成时释放等待信号预登记。
+        /// </summary>
+        private sealed class ParallelNodeTaskGroup
+        {
+            /// <summary>
+            /// 本组仍未完成的节点任务。
+            /// </summary>
+            public readonly HashSet<Task<ConnectedNodeRunResult>> Tasks = new HashSet<Task<ConnectedNodeRunResult>>();
+
+            /// <summary>
+            /// 本组启动前预登记的信号等待节点。
+            /// </summary>
+            public readonly List<IParallelSignalWaitNode> PreparedSignalWaitNodes;
+
+            /// <summary>
+            /// 创建并行任务组。
+            /// </summary>
+            public ParallelNodeTaskGroup(List<IParallelSignalWaitNode> preparedSignalWaitNodes)
+            {
+                PreparedSignalWaitNodes = preparedSignalWaitNodes;
+            }
         }
 
         private List<NodeBase> GetConnectionStartNodes(NodeBase startNodeOverride = null)
@@ -1629,12 +1797,42 @@ namespace TDJS_Vision
         /// </summary>
         private bool TryPrepareSkippedNodeRunResult(NodeBase nodeToSkip)
         {
+            Stopwatch prepareWatch = Stopwatch.StartNew();
             ISkippedNodeRunResultProvider provider = nodeToSkip as ISkippedNodeRunResultProvider;
             if (provider == null)
+            {
+                LogHelper.AddLog(MsgLevel.Info,
+                    $"【链路诊断-跳过节点准备跳过】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider=无；主程序={PerformanceSpikeDiagnostics.GetCurrentProcessPathText()}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                    true);
                 return true;
+            }
+
+            LogHelper.AddLog(MsgLevel.Info,
+                $"【链路诊断-跳过节点准备开始】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider={PerformanceSpikeDiagnostics.GetAssemblyText(provider)}；结果前={GetNodeResultText(nodeToSkip.Result)}；主程序={PerformanceSpikeDiagnostics.GetCurrentProcessPathText()}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                true);
 
             string message;
-            if (provider.TryPrepareSkippedRunResult(DateTime.Now, out message))
+            bool prepared;
+            try
+            {
+                prepared = provider.TryPrepareSkippedRunResult(DateTime.Now, out message);
+            }
+            catch (Exception ex)
+            {
+                prepareWatch.Stop();
+                LogHelper.AddLog(MsgLevel.Exception,
+                    $"【链路诊断-跳过节点准备异常】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider耗时={prepareWatch.ElapsedMilliseconds}ms；异常={ex.GetType().Name}:{ex.Message}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                    true);
+                throw;
+            }
+
+            prepareWatch.Stop();
+            int appendedRunTime = nodeToSkip.Result == null ? 0 : nodeToSkip.Result.RunTime;
+            LogHelper.AddLog(MsgLevel.Info,
+                $"【链路诊断-跳过节点准备结束】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；成功={prepared}；Provider耗时={prepareWatch.ElapsedMilliseconds}ms；消息={FormatDiagnosticMessage(message)}；结果后={GetNodeResultText(nodeToSkip.Result)}；RunTime追加={appendedRunTime}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                true);
+
+            if (prepared)
             {
                 if (nodeToSkip.Result != null)
                     RunTime += nodeToSkip.Result.RunTime;
@@ -1645,6 +1843,51 @@ namespace TDJS_Vision
                 LogHelper.AddLog(MsgLevel.Warn, $"节点({nodeToSkip.ID}.{nodeToSkip.NodeName})准备跳过运行结果失败：{message}", true);
 
             return false;
+        }
+
+        /// <summary>
+        /// 生成被跳过节点的关键身份信息，便于从日志中确认调度目标。
+        /// </summary>
+        /// <param name="node">被跳过执行的节点。</param>
+        /// <returns>节点编号、名称、类型和程序集文本。</returns>
+        private static string GetSkippedNodeText(NodeBase node)
+        {
+            if (node == null)
+                return "空";
+
+            return $"({node.ID}.{node.NodeName})；节点类型={PerformanceSpikeDiagnostics.GetAssemblyText(node)}";
+        }
+
+        /// <summary>
+        /// 生成节点结果摘要，图像源节点会额外输出图像对象结构，便于判断结果是否真的写入。
+        /// </summary>
+        /// <param name="result">节点运行结果。</param>
+        /// <returns>节点结果摘要文本。</returns>
+        private static string GetNodeResultText(INodeResult result)
+        {
+            if (result == null)
+                return "空";
+
+            NodeResultImageSource imageSourceResult = result as NodeResultImageSource;
+            if (imageSourceResult != null)
+            {
+                return $"{result.GetType().FullName}；RunTime={result.RunTime}ms；OutputImage={PerformanceSpikeDiagnostics.GetOutputImageText(imageSourceResult.OutputImage)}";
+            }
+
+            return $"{result.GetType().FullName}；RunTime={result.RunTime}ms";
+        }
+
+        /// <summary>
+        /// 将诊断消息统一压缩成单行，避免日志表格换行后难以检索。
+        /// </summary>
+        /// <param name="message">原始诊断消息。</param>
+        /// <returns>单行诊断消息。</returns>
+        private static string FormatDiagnosticMessage(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+                return "无";
+
+            return message.Replace("\r", " ").Replace("\n", " ").Trim();
         }
 
 

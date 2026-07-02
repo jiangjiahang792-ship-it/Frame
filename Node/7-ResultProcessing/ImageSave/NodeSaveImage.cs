@@ -10,7 +10,12 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using OpenCvSharp;
+using OpenCvSharp.Extensions;
 using TDJS_Vision.Diagnostics;
+using TDJS_Vision.Forms.DispShowImage;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
+using TDJS_Vision.Node._3_Detection.TDAI;
 using static TDJS_Vision.Node._7_ResultProcessing.ImageSave.ImageQueueProcessor;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
@@ -69,29 +74,37 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                     try
                     {
                         SetStatus(NodeStatus.Unexecuted, "*");
-                        base.CheckTokenCancel(token);
+                        await base.CheckTokenCancel(token);
+
+                        Stopwatch enqueueStopwatch = Stopwatch.StartNew();
+                        string barcode = string.Empty;
+                        AlgorithmResult algorithmResult = null;
+                        OutputImage outputImage;
 
                         // 参数获取订阅控件的值
                         if (param.IsBarCode)
                         {
-                            param.Barcode = form.GetBarCode();
-                            if (param.Barcode.IsNullOrEmpty())
+                            barcode = form.GetBarCode();
+                            if (barcode.IsNullOrEmpty())
                                 throw new Exception($"获取条码结果失败！");
                         }
                         if (param.NeedOkNg)
-                            param.AlgorithmResult = form.GetAiResult();
-                        param.Image = form.GetImage();
+                            algorithmResult = form.GetAiResult();
+                        outputImage = form.GetOutputImageForSave();
 
                         // 参数合法性判断
                         if (param.SavePath.IsNullOrEmpty())
                             throw new Exception($"存图路径未设置！");
-                        if (param.Image == null)
-                            throw new Exception($"订阅的图片对象为空！");
 
-                        // 异步队列存图
-                        await SaveImage(param);
+                        // 保存图像节点只做轻量任务投递，耗时的 ToBitmap、标注绘制、压缩和写盘都由后台队列处理。
+                        SaveImageEnqueueResult enqueueResult = EnqueueSaveImage(param, outputImage, algorithmResult, barcode);
+                        long enqueueElapsed = enqueueStopwatch.ElapsedMilliseconds;
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         Result.RunTime = time;
+                        LogHelper.AddLog(
+                            MsgLevel.Info,
+                            $"【性能诊断-保存图像快速入队】节点({ID}.{NodeName}) 节点计时={time}ms；快速入队={enqueueElapsed}ms；路径决策={enqueueResult.PathDecisionMs}ms；队列投递={enqueueResult.EnqueueMs}ms；目标路径={enqueueResult.TargetPathCount}；入队任务={enqueueResult.EnqueuedTaskCount}；已跳过={enqueueResult.Skipped}；当前队列={processor.QueuedCount}；图像={PerformanceSpikeDiagnostics.GetOutputImageText(outputImage)}",
+                            true);
                         if (showLog)
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
                         return new NodeReturn(NodeRunFlag.ContinueRun);
@@ -114,200 +127,170 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             return new NodeReturn(NodeRunFlag.StopRun);
         }
 
-        private async Task SaveImage(NodeParamSaveImage param)
+        /// <summary>
+        /// 保存图像主流程入队结果，用于诊断主流程是否只做轻量投递。
+        /// </summary>
+        private struct SaveImageEnqueueResult
+        {
+            /// <summary>实际投递到后台队列的任务数量。</summary>
+            public int EnqueuedTaskCount;
+            /// <summary>当前保存规则命中的目标目录数量。</summary>
+            public int TargetPathCount;
+            /// <summary>保存路径规则判断耗时。</summary>
+            public long PathDecisionMs;
+            /// <summary>队列投递耗时。</summary>
+            public long EnqueueMs;
+            /// <summary>当前图片是否因保存规则未命中而跳过。</summary>
+            public bool Skipped;
+        }
+
+        /// <summary>
+        /// 将保存图像任务快速投递到后台队列；当前方法不做 ToBitmap、不绘制标注、不写磁盘。
+        /// </summary>
+        /// <param name="param">保存图像节点参数。</param>
+        /// <param name="outputImage">订阅得到的输出图像。</param>
+        /// <param name="algorithmResult">用于 OK/NG 目录判断的算法结果。</param>
+        /// <param name="barcode">条码命名值。</param>
+        /// <returns>主流程入队诊断结果。</returns>
+        private SaveImageEnqueueResult EnqueueSaveImage(NodeParamSaveImage param, OutputImage outputImage, AlgorithmResult algorithmResult, string barcode)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            MemorySnapshot beforeSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
             DateTime time = DateTime.Now;
-            bool originalImageTransferred = false;
-            int enqueuedCount = 0;
-            int clonedImageCount = 0;
             // 1.存图路径（不包含图片名称）
             string imageSavePath;
 
-            try
+            // 2.拼接日期路径
+            string nowDataTime = time.ToString("yyyyMMdd");
+            imageSavePath = Path.Combine(param.SavePath, nowDataTime);
+
+            // 3.图片名称
+            string imageName = param.IsBarCode ? barcode : time.ToString("yyyy-MM-dd_HH-mm-ss-fff");
+            if (param.NeedCompress)
+                imageName += "-CAN"; // 压缩图
+
+
+            // 4.是否区分早晚班
+            if (param.IsDayNight)
             {
-                // 2.拼接日期路径
-                string nowDataTime = time.ToString("yyyyMMdd");
-                imageSavePath = Path.Combine(param.SavePath, nowDataTime);
-
-                // 3.图片名称
-                string imageName = param.IsBarCode ? param.Barcode : time.ToString("yyyy-MM-dd_HH-mm-ss-fff");
-                if (param.NeedCompress)
-                    imageName += "-CAN"; // 压缩图
-
-
-                // 4.是否区分早晚班
-                if (param.IsDayNight)
-                {
-                    string dayNight = IsDayWorking(time.TimeOfDay, param.DayDataTime, param.NightDataTime) ? "早班" : "晚班";
-                    imageSavePath = Path.Combine(imageSavePath, dayNight);
-                }
-
-                List<string> paths = new List<string>();
-
-                // 5.是否区分OK/NG
-                if (param.NeedOkNg)
-                {
-                    if (param.AlgorithmResult == null)
-                        throw new Exception($"无法获取/解析AI检测结果！");
-
-                    // 根据AI检测总结果判断创建OK/NG文件夹
-                    bool allAreOk = param.AlgorithmResult.DetectResults.Count > 0 && param.AlgorithmResult.DetectResults.All(pair => pair.Value.All(v => v.IsOk));
-                    string okNg = allAreOk ? "OK" : "NG";
-                    imageSavePath = Path.Combine(imageSavePath, okNg);
-
-                    //要保存什么图片
-                    switch (param.ImageTypeToSave)
-                    {
-                        case ImageTypeToSave.OkAndNg:
-                            if (allAreOk)
-                            {
-                                paths.Add(imageSavePath);
-                            }
-                            else
-                            {
-                                foreach (var pair in param.AlgorithmResult.DetectResults)
-                                {
-                                    if (!pair.Value.TrueForAll(item => item.IsOk))
-                                        paths.Add(Path.Combine(imageSavePath, pair.Key));
-                                }
-                            }
-                            break;
-                        case ImageTypeToSave.OnlyOk:
-                            if (allAreOk)
-                            {
-                                paths.Add(imageSavePath);
-                            }
-                            break;
-                        case ImageTypeToSave.OnlyNg:
-                            if (!allAreOk)
-                            {
-                                foreach (var pair in param.AlgorithmResult.DetectResults)
-                                {
-                                    if (!pair.Value.TrueForAll(item => item.IsOk))
-                                        paths.Add(Path.Combine(imageSavePath, pair.Key));
-                                }
-                            }
-                            break;
-                        default:
-                            break;
-                    }
-                }
-                else
-                {
-                    paths.Add(imageSavePath);
-                }
-
-                long afterPathDecision = stopwatch.ElapsedMilliseconds;
-                LogHelper.AddLog(
-                    MsgLevel.Info,
-                    $"【内存诊断-保存图像入队准备】节点({ID}.{NodeName}) 图片={PerformanceSpikeDiagnostics.GetBitmapText(param.Image)}；保存类型={GetImageTypeText(param.ImageTypeToSave)}；区分OKNG={param.NeedOkNg}；压缩={param.NeedCompress}；目标路径数={paths.Count}；当前队列={processor.QueuedCount}；路径决策耗时={afterPathDecision}ms；内存={PerformanceSpikeDiagnostics.GetMemoryText()}",
-                    true);
-
-                if (paths.Count == 0)
-                {
-                    LogHelper.AddLog(
-                        MsgLevel.Info,
-                        $"【内存诊断-保存图像跳过】节点({ID}.{NodeName}) 当前图片按保存规则不需要入队，将释放临时Bitmap；保存类型={GetImageTypeText(param.ImageTypeToSave)}；区分OKNG={param.NeedOkNg}；图片={PerformanceSpikeDiagnostics.GetBitmapText(param.Image)}；内存={PerformanceSpikeDiagnostics.GetMemoryText()}",
-                        true);
-                    return;
-                }
-
-                for (int i = 0; i < paths.Count; i++)
-                {
-                    string targetPath = paths[i];
-                    Bitmap taskBitmap = CreateBitmapForSaveTask(param.Image, i, paths.Count, out bool cloned);
-                    if (cloned)
-                        clonedImageCount++;
-
-                    bool queued = false;
-                    bool usesOriginalImage = ReferenceEquals(taskBitmap, param.Image);
-                    SaveImageTask saveImageTask = await Task.Run(() =>
-                    {
-                        return QueueImageForSave(taskBitmap, targetPath, imageName, param.NeedCompress, param.CompressValue);
-                    });
-
-                    try
-                    {
-                        processor.EnqueueImage(saveImageTask);
-                        queued = true;
-                        enqueuedCount++;
-                        if (usesOriginalImage)
-                        {
-                            originalImageTransferred = true;
-                            param.Image = null;
-                        }
-                    }
-                    finally
-                    {
-                        if (!queued && !usesOriginalImage)
-                            taskBitmap?.Dispose();
-                    }
-                }
-
-                MemorySnapshot afterEnqueueSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
-                LogHelper.AddLog(
-                    MsgLevel.Info,
-                    $"【内存诊断-保存图像入队完成】节点({ID}.{NodeName}) 入队={enqueuedCount}；克隆Bitmap={clonedImageCount}；原图已转移={originalImageTransferred}；当前队列={processor.QueuedCount}；总耗时={stopwatch.ElapsedMilliseconds}ms；私有内存变化={afterEnqueueSnapshot.PrivateMemoryMb - beforeSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterEnqueueSnapshot.GdiObjectCount - beforeSnapshot.GdiObjectCount}；前={beforeSnapshot.ToLogText()}；后={afterEnqueueSnapshot.ToLogText()}",
-                    true);
+                string dayNight = IsDayWorking(time.TimeOfDay, param.DayDataTime, param.NightDataTime) ? "早班" : "晚班";
+                imageSavePath = Path.Combine(imageSavePath, dayNight);
             }
-            finally
+
+            List<string> paths = new List<string>();
+
+            // 5.是否区分OK/NG
+            if (param.NeedOkNg)
             {
-                if (!originalImageTransferred && param.Image != null)
+                if (algorithmResult == null)
+                    throw new Exception($"无法获取/解析AI检测结果！");
+
+                // 根据AI检测总结果判断创建OK/NG文件夹
+                bool allAreOk = IsAllDetectResultOk(algorithmResult);
+                string okNg = allAreOk ? "OK" : "NG";
+                imageSavePath = Path.Combine(imageSavePath, okNg);
+
+                //要保存什么图片
+                switch (param.ImageTypeToSave)
                 {
-                    string imageInfo = PerformanceSpikeDiagnostics.GetBitmapText(param.Image);
-                    MemorySnapshot beforeDisposeSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
-                    param.Image.Dispose();
-                    param.Image = null;
-                    MemorySnapshot afterDisposeSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
-                    LogHelper.AddLog(
-                        MsgLevel.Info,
-                        $"【内存诊断-保存图像释放】节点({ID}.{NodeName}) 原始临时Bitmap未转移给队列，已释放；图片={imageInfo}；私有内存变化={afterDisposeSnapshot.PrivateMemoryMb - beforeDisposeSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterDisposeSnapshot.GdiObjectCount - beforeDisposeSnapshot.GdiObjectCount}；前={beforeDisposeSnapshot.ToLogText()}；后={afterDisposeSnapshot.ToLogText()}",
-                        true);
+                    case ImageTypeToSave.OkAndNg:
+                        if (allAreOk)
+                            paths.Add(imageSavePath);
+                        else
+                            AddNgImagePaths(paths, imageSavePath, algorithmResult);
+                        break;
+                    case ImageTypeToSave.OnlyOk:
+                        if (allAreOk)
+                            paths.Add(imageSavePath);
+                        break;
+                    case ImageTypeToSave.OnlyNg:
+                        if (!allAreOk)
+                            AddNgImagePaths(paths, imageSavePath, algorithmResult);
+                        break;
+                    default:
+                        break;
                 }
+            }
+            else
+            {
+                paths.Add(imageSavePath);
+            }
+
+            long afterPathDecision = stopwatch.ElapsedMilliseconds;
+            if (paths.Count == 0)
+            {
+                return new SaveImageEnqueueResult
+                {
+                    EnqueuedTaskCount = 0,
+                    TargetPathCount = 0,
+                    PathDecisionMs = afterPathDecision,
+                    EnqueueMs = stopwatch.ElapsedMilliseconds - afterPathDecision,
+                    Skipped = true
+                };
+            }
+
+            Mat sourceImage = outputImage.Bitmaps[0];
+            SaveImageTask saveImageTask = QueueImageForSave(sourceImage, outputImage.DisplayResult, paths, imageName, param.NeedCompress, param.CompressValue);
+            processor.EnqueueImage(saveImageTask);
+
+            return new SaveImageEnqueueResult
+            {
+                EnqueuedTaskCount = 1,
+                TargetPathCount = paths.Count,
+                PathDecisionMs = afterPathDecision,
+                EnqueueMs = stopwatch.ElapsedMilliseconds - afterPathDecision,
+                Skipped = false
+            };
+        }
+
+        /// <summary>
+        /// 判断检测项结果是否全部 OK。
+        /// </summary>
+        /// <param name="algorithmResult">算法结果。</param>
+        /// <returns>所有检测项都存在且全部 OK 时返回 true。</returns>
+        private static bool IsAllDetectResultOk(AlgorithmResult algorithmResult)
+        {
+            return algorithmResult?.DetectResults != null &&
+                algorithmResult.DetectResults.Count > 0 &&
+                algorithmResult.DetectResults.All(pair => pair.Value != null && pair.Value.All(item => item != null && item.IsOk));
+        }
+
+        /// <summary>
+        /// 将 NG 检测项对应的子目录追加到目标路径集合。
+        /// </summary>
+        /// <param name="paths">目标路径集合。</param>
+        /// <param name="imageSavePath">OK/NG 根路径。</param>
+        /// <param name="algorithmResult">算法结果。</param>
+        private static void AddNgImagePaths(List<string> paths, string imageSavePath, AlgorithmResult algorithmResult)
+        {
+            if (paths == null || algorithmResult?.DetectResults == null)
+                return;
+
+            foreach (KeyValuePair<string, List<SingleDetectResult>> pair in algorithmResult.DetectResults)
+            {
+                if (pair.Value == null || !pair.Value.TrueForAll(item => item != null && item.IsOk))
+                    paths.Add(Path.Combine(imageSavePath, pair.Key));
             }
         }
 
         /// <summary>
-        /// 为保存任务创建独立的Bitmap所有权，多目标保存时避免同一个Bitmap被多个线程同时保存和释放。
+        /// 生成后台保存任务，任务只持有图像引用和保存元数据，不在主流程转 Bitmap。
         /// </summary>
-        /// <param name="source">原始待保存位图。</param>
-        /// <param name="pathIndex">当前保存路径索引。</param>
-        /// <param name="pathCount">总保存路径数量。</param>
-        /// <param name="cloned">返回是否创建了克隆图。</param>
-        /// <returns>当前保存任务独占的位图。</returns>
-        private static Bitmap CreateBitmapForSaveTask(Bitmap source, int pathIndex, int pathCount, out bool cloned)
+        /// <param name="sourceImage">待保存的源 Mat 引用。</param>
+        /// <param name="displayResult">需要写入保存图的显示结果。</param>
+        /// <param name="targetDirectories">保存目标目录集合。</param>
+        /// <param name="imageName">图片名称，不含扩展名。</param>
+        /// <param name="needCompress">是否压缩。</param>
+        /// <param name="compressValue">压缩质量。</param>
+        /// <returns>后台保存任务。</returns>
+        private SaveImageTask QueueImageForSave(Mat sourceImage, AlgorithmResult displayResult, List<string> targetDirectories, string imageName, bool needCompress, long compressValue = 100)
         {
-            if (source == null)
-                throw new ArgumentNullException(nameof(source), "待保存图片为空。");
-
-            bool useOriginalImage = pathCount <= 1 || pathIndex == pathCount - 1;
-            cloned = !useOriginalImage;
-            return useOriginalImage ? source : new Bitmap(source);
-        }
-
-        /// <summary>
-        /// 生成任务
-        /// </summary>
-        /// <param name="image"></param>
-        /// <param name="savePath"></param>
-        /// <param name="imageName"></param>
-        /// <param name="needCompress"></param>
-        /// <param name="compressValue"></param>
-        /// <returns></returns>
-        private SaveImageTask QueueImageForSave(Bitmap image, string savePath, string imageName, bool needCompress, long compressValue = 100)
-        {
-            Directory.CreateDirectory(savePath);
-
-            // 生成保存图片的绝对路径
-            string fileName = GetFileName(savePath, imageName);
-
             // 创建保存任务
             SaveImageTask saveTask = new SaveImageTask
             {
-                Image = image,
-                Path = fileName,
+                SourceImage = sourceImage,
+                DisplayResult = displayResult,
+                TargetDirectories = targetDirectories == null ? new List<string>() : new List<string>(targetDirectories),
+                ImageName = imageName,
                 NeedCompress = needCompress,
                 CompressValue = compressValue
             };
@@ -349,24 +332,6 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             }
         }
 
-        private string GetFileName(string filePath, string fileName)
-        {
-            string newFileName = fileName;
-            string fullPath = Path.Combine(filePath, newFileName + ".jpg");
-            if (File.Exists(fullPath))
-            {
-                int suffix = 1;
-                do
-                {
-                    newFileName = $"{fileName}_{suffix}";
-                    fullPath = Path.Combine(filePath, newFileName + ".jpg");
-                    suffix++;
-                }
-                while (File.Exists(fullPath));
-            }
-            return fullPath;
-        }
-       
     }
 
     public class ImageQueueProcessor
@@ -384,12 +349,23 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <summary>后台保存工作线程数量。</summary>
         public int WorkerCount => _workerCount;
 
-        public struct SaveImageTask
+        /// <summary>
+        /// 后台保存任务；只借用流程输出 Mat 引用，后台线程自行转换 Bitmap 并负责释放生成的 Bitmap。
+        /// </summary>
+        public sealed class SaveImageTask
         {
-            public Bitmap Image { get; set; }
-            public string Path { get; set; }
-            public bool NeedCompress { get; set; } //是否需要压缩
-            public long CompressValue { get; set; } //压缩阈值
+            /// <summary>待保存的源图像引用，保存队列不接管该 Mat 的释放权。</summary>
+            public Mat SourceImage { get; set; }
+            /// <summary>需要写入保存图的显示叠加结果。</summary>
+            public AlgorithmResult DisplayResult { get; set; }
+            /// <summary>保存目标目录集合。</summary>
+            public List<string> TargetDirectories { get; set; } = new List<string>();
+            /// <summary>图片名称，不包含扩展名。</summary>
+            public string ImageName { get; set; }
+            /// <summary>是否需要压缩。</summary>
+            public bool NeedCompress { get; set; }
+            /// <summary>压缩质量。</summary>
+            public long CompressValue { get; set; }
         }
 
         public ImageQueueProcessor(int workerCount, string ownerText)
@@ -419,16 +395,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         //添加任务
         public void EnqueueImage(SaveImageTask saveImagedata)
         {
-            if (saveImagedata.Image == null) throw new ArgumentNullException(nameof(saveImagedata), "Cannot enqueue a null image.");
+            if (saveImagedata == null) throw new ArgumentNullException(nameof(saveImagedata), "保存任务不能为空。");
+            if (!OutputImage.HasValidImage(saveImagedata.SourceImage)) throw new ArgumentException("保存任务的源图像为空。", nameof(saveImagedata));
+            if (saveImagedata.TargetDirectories == null || saveImagedata.TargetDirectories.Count == 0) throw new ArgumentException("保存任务的目标目录为空。", nameof(saveImagedata));
             if (_imageQueue.IsAddingCompleted || _stopped == 1)
                 throw new InvalidOperationException("保存队列已停止，不能继续入队。");
 
             //添加任务(生产者生产数据)
             _imageQueue.Add(saveImagedata);
-            LogHelper.AddLog(
-                MsgLevel.Info,
-                $"【内存诊断-保存队列入队】节点({_ownerText}) 队列长度={QueuedCount}；路径={saveImagedata.Path}；图片={PerformanceSpikeDiagnostics.GetBitmapText(saveImagedata.Image)}；压缩={saveImagedata.NeedCompress}；内存={PerformanceSpikeDiagnostics.GetMemoryText()}",
-                true);
         }
 
         /// <summary>
@@ -440,18 +414,35 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             //_imageQueue.GetConsumingEnumerable(cancellationToken):按顺序消费数据，并且可以在取消请求时停止消费。(消费者消费数据)
             foreach (var saveImagedata in _imageQueue.GetConsumingEnumerable(cancellationToken))
             {
-                string imageInfo = PerformanceSpikeDiagnostics.GetBitmapText(saveImagedata.Image);
+                string imageInfo = PerformanceSpikeDiagnostics.GetMatText(saveImagedata.SourceImage);
+                Bitmap bitmap = null;
                 MemorySnapshot beforeSaveSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
                 Stopwatch stopwatch = Stopwatch.StartNew();
                 try
                 {
-                    //处理图片(压缩图片)
-                    SaveWithCompress(saveImagedata.Image, saveImagedata.Path, saveImagedata.NeedCompress, saveImagedata.CompressValue);
-                    MemorySnapshot afterSaveSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
+                    bitmap = CreateBitmapForSave(saveImagedata, stopwatch, out SaveImageRenderTiming renderTiming);
+                    MemorySnapshot afterRenderSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
                     LogHelper.AddLog(
                         MsgLevel.Info,
-                        $"【内存诊断-保存队列消费】节点({_ownerText}) 保存完成；路径={saveImagedata.Path}；图片={imageInfo}；压缩={saveImagedata.NeedCompress}；保存耗时={stopwatch.ElapsedMilliseconds}ms；队列剩余={QueuedCount}；私有内存变化={afterSaveSnapshot.PrivateMemoryMb - beforeSaveSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterSaveSnapshot.GdiObjectCount - beforeSaveSnapshot.GdiObjectCount}；前={beforeSaveSnapshot.ToLogText()}；后={afterSaveSnapshot.ToLogText()}",
+                        $"【内存诊断-保存图像后台取图】节点({_ownerText}) 源图={imageInfo}；待保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；有标注={renderTiming.HasDrawableDisplayResult}；ToBitmap={renderTiming.ToBitmapMs}ms；确保可绘制={renderTiming.EnsureDrawableMs}ms；写入标注={renderTiming.DrawDisplayResultMs}ms；后台取图总耗时={renderTiming.TotalMs}ms；目标路径={saveImagedata.TargetDirectories.Count}；私有内存变化={afterRenderSnapshot.PrivateMemoryMb - beforeSaveSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterRenderSnapshot.GdiObjectCount - beforeSaveSnapshot.GdiObjectCount}；前={beforeSaveSnapshot.ToLogText()}；后={afterRenderSnapshot.ToLogText()}",
                         true);
+
+                    foreach (string targetDirectory in saveImagedata.TargetDirectories)
+                    {
+                        long beforePath = stopwatch.ElapsedMilliseconds;
+                        Directory.CreateDirectory(targetDirectory);
+                        string fileName = GetFileName(targetDirectory, saveImagedata.ImageName);
+                        long afterPath = stopwatch.ElapsedMilliseconds;
+
+                        //处理图片(压缩图片)
+                        SaveWithCompress(bitmap, fileName, saveImagedata.NeedCompress, saveImagedata.CompressValue);
+                        long afterSave = stopwatch.ElapsedMilliseconds;
+                        MemorySnapshot afterSaveSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
+                        LogHelper.AddLog(
+                            MsgLevel.Info,
+                            $"【内存诊断-保存队列消费】节点({_ownerText}) 保存完成；路径={fileName}；源图={imageInfo}；保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；压缩={saveImagedata.NeedCompress}；路径准备={afterPath - beforePath}ms；保存耗时={afterSave - afterPath}ms；后台总耗时={afterSave}ms；队列剩余={QueuedCount}；私有内存变化={afterSaveSnapshot.PrivateMemoryMb - beforeSaveSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterSaveSnapshot.GdiObjectCount - beforeSaveSnapshot.GdiObjectCount}；前={beforeSaveSnapshot.ToLogText()}；后={afterSaveSnapshot.ToLogText()}",
+                            true);
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -464,14 +455,65 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                 finally
                 {
                     MemorySnapshot beforeDisposeSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
-                    saveImagedata.Image.Dispose();
+                    bitmap?.Dispose();
                     MemorySnapshot afterDisposeSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
                     LogHelper.AddLog(
                         MsgLevel.Info,
-                        $"【内存诊断-保存队列释放】节点({_ownerText}) 已释放保存任务Bitmap；路径={saveImagedata.Path}；图片={imageInfo}；释放后队列={QueuedCount}；私有内存变化={afterDisposeSnapshot.PrivateMemoryMb - beforeDisposeSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterDisposeSnapshot.GdiObjectCount - beforeDisposeSnapshot.GdiObjectCount}；前={beforeDisposeSnapshot.ToLogText()}；后={afterDisposeSnapshot.ToLogText()}",
+                        $"【内存诊断-保存队列释放】节点({_ownerText}) 已释放后台生成Bitmap；源图={imageInfo}；释放后队列={QueuedCount}；私有内存变化={afterDisposeSnapshot.PrivateMemoryMb - beforeDisposeSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterDisposeSnapshot.GdiObjectCount - beforeDisposeSnapshot.GdiObjectCount}；前={beforeDisposeSnapshot.ToLogText()}；后={afterDisposeSnapshot.ToLogText()}",
                         true);
                 }
             }
+        }
+
+        /// <summary>
+        /// 后台生成保存 Bitmap 的分段耗时。
+        /// </summary>
+        private struct SaveImageRenderTiming
+        {
+            /// <summary>Mat 转 Bitmap 耗时。</summary>
+            public long ToBitmapMs;
+            /// <summary>确保 Bitmap 可绘制耗时。</summary>
+            public long EnsureDrawableMs;
+            /// <summary>写入显示叠加层耗时。</summary>
+            public long DrawDisplayResultMs;
+            /// <summary>后台取图总耗时。</summary>
+            public long TotalMs;
+            /// <summary>是否存在可绘制显示结果。</summary>
+            public bool HasDrawableDisplayResult;
+        }
+
+        /// <summary>
+        /// 在保存后台线程中将 Mat 转成待保存 Bitmap，并按需写入显示标注。
+        /// </summary>
+        /// <param name="task">后台保存任务。</param>
+        /// <param name="stopwatch">当前任务计时器。</param>
+        /// <param name="timing">输出分段耗时。</param>
+        /// <returns>后台线程独占并负责释放的 Bitmap。</returns>
+        private static Bitmap CreateBitmapForSave(SaveImageTask task, Stopwatch stopwatch, out SaveImageRenderTiming timing)
+        {
+            timing = new SaveImageRenderTiming();
+            long beforeToBitmap = stopwatch.ElapsedMilliseconds;
+            Bitmap bitmap = task.SourceImage.ToBitmap();
+            long afterToBitmap = stopwatch.ElapsedMilliseconds;
+            timing.ToBitmapMs = afterToBitmap - beforeToBitmap;
+
+            timing.HasDrawableDisplayResult = ParamFormImageSave.HasDrawableDisplayResult(task.DisplayResult);
+            if (timing.HasDrawableDisplayResult)
+            {
+                bitmap = ParamFormImageSave.EnsureDrawableBitmap(bitmap);
+                long afterEnsureDrawable = stopwatch.ElapsedMilliseconds;
+                timing.EnsureDrawableMs = afterEnsureDrawable - afterToBitmap;
+                ShowImageControl.DrawDisplayResultToBitmap(bitmap, task.DisplayResult);
+                long afterDrawDisplayResult = stopwatch.ElapsedMilliseconds;
+                timing.DrawDisplayResultMs = afterDrawDisplayResult - afterEnsureDrawable;
+                timing.TotalMs = afterDrawDisplayResult;
+            }
+            else
+            {
+                timing.TotalMs = afterToBitmap;
+            }
+
+            return bitmap;
         }
 
         // 保存图片并压缩
@@ -491,6 +533,30 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             {
                 bitmap.Save(imagePath);
             }
+        }
+
+        /// <summary>
+        /// 生成不覆盖已有文件的保存路径。
+        /// </summary>
+        /// <param name="filePath">保存目录。</param>
+        /// <param name="fileName">图片名称，不含扩展名。</param>
+        /// <returns>最终保存文件路径。</returns>
+        private static string GetFileName(string filePath, string fileName)
+        {
+            string newFileName = fileName;
+            string fullPath = Path.Combine(filePath, newFileName + ".jpg");
+            if (File.Exists(fullPath))
+            {
+                int suffix = 1;
+                do
+                {
+                    newFileName = $"{fileName}_{suffix}";
+                    fullPath = Path.Combine(filePath, newFileName + ".jpg");
+                    suffix++;
+                }
+                while (File.Exists(fullPath));
+            }
+            return fullPath;
         }
 
         private ImageCodecInfo GetEncoderInfo(string mimeType)
@@ -529,14 +595,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             int disposedCount = 0;
             while (_imageQueue.TryTake(out SaveImageTask pendingTask))
             {
-                try
-                {
-                    pendingTask.Image?.Dispose();
+                // 保存任务只借用上游 Mat 引用，停止队列时不能在这里释放上游图像。
+                if (pendingTask != null)
                     disposedCount++;
-                }
-                catch
-                {
-                }
             }
 
             return disposedCount;

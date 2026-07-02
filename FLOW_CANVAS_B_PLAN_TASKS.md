@@ -20,6 +20,21 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-07-02 主链路一眼定位诊断：
+  - [x] 新反馈已记录：现场需要一次运行就能判断慢耗时或结果缺失到底卡在流程调度、图像源回调结果准备、节点内部还是线程收尾。
+  - [x] `Process.TryPrepareSkippedNodeRunResult` 已增加 `【链路诊断-跳过节点准备开始/结束/异常/跳过】` 日志，输出流程批次、节点类型、Provider程序集、主程序路径、结果前后摘要和Provider耗时。
+  - [x] `NodeImageSource.TryPrepareSkippedRunResult` 已增加 `【链路诊断-图像源回调结果入口/取回调Mat/构建输出/状态写入/出口】` 日志，确认回调Mat、OutputImage和Result写入是否真实发生。
+  - [x] `NodeImageSource.RunPendingCallbackFrame` 已拆分专用线程收尾日志，记录清理待处理Mat、释放运行状态和线程总耗时，避免流程结束后黑盒等待。
+  - [x] `Program.Main` 和 `NodeImageSource.RunPendingCallbackFrame` 已增加 `诊断版本=2026-07-02-链路诊断V2` 程序身份日志，直接输出主程序路径、入口程序集和当前目录，避免现场运行产物无法确认。
+  - [x] 编译验证：MSBuild `Debug|Any CPU` 和 `Release|x64` 均通过，0 个错误；既有警告仍保留。
+- 2026-07-02 流程图并行完成驱动调度：
+  - [x] `Process.RunConnectedNodesParallel` 已从批次全部完成后推进，改为按节点完成顺序推进。
+  - [x] 爱光测量方案中 `ROI结果绘制 -> 图像显示` 不再需要等待旁路 `延迟执行` 节点完成后才被调度。
+  - [x] 已保留顺序单节点直接执行、条件分支跳过、失败下游禁用和并行信号等待预登记释放逻辑。
+- 2026-07-02 单流程图像源黑盒耗时诊断：
+  - [x] 新反馈已记录：单流程日志中“流程开始到图像旋转前”存在 19~106ms 黑盒耗时，需要拆开回调图像源跳过执行时的结果准备链路。
+  - [x] `NodeImageSource.TryPrepareSkippedRunResult` 已增加 `【性能诊断-图像源回调结果】` 日志，拆分取回调Mat、结果对象、构建输出、状态写入、结果赋值和总耗时。
+  - [x] 图像源回调结果准备超过通用阈值时追加 `【慢诊断-图像源回调结果】`，记录线程池、内存、句柄、GDI对象和GC现场。
 - 2026-06-30 内存泄漏与保存图像诊断：
   - [x] 新反馈已记录：软件内存从约600MB上涨到约5000MB，需要在本方案节点链路增加内存泄漏诊断，重点怀疑保存图像。
   - [x] `PerformanceSpikeDiagnostics` 已新增进程内存快照，记录工作集、私有内存、托管堆、线程数、句柄数、GDI对象、USER对象和GC次数。
@@ -1778,3 +1793,18 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 保留 `Program.cs` 中线程池最小线程数提升到64的启动配置。
 - [x] 保留 `LineCoreFront_C1_Seg.cs` 线芯SEG解析文件、项目编译引用以及 `NodeTDAI` 中对应解析调用。
 - [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，184个既有警告、0个错误。
+
+## 2026-07-02: 流程图并行分支完成驱动调度
+
+- [x] 将流程图并行调度从整批 `Task.WhenAll` 等待改为完成驱动推进，某个分支节点完成后立即重新计算可运行下游，避免 `ROI结果绘制 -> 图像显示` 被旁路 `延迟执行` 节点阻塞。
+- [x] 顺序单节点且没有其它并行任务时仍保持直接执行，减少普通串行流程的额外线程池调度开销。
+- [x] 保留原有分支跳过、失败下游禁用、`StopRun`、`StopBranch` 和并行信号等待预登记释放逻辑。
+- [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Debug|Any CPU` 通过，184个既有警告、0个错误。
+
+## 2026-07-02: 保存图片节点快速入队
+
+- [x] `NodeImageSave` 主流程不再同步执行 `Mat.ToBitmap`、保存前 ROI 标注绘制、目录创建、文件名去重和磁盘保存，只读取订阅引用并投递轻量保存任务到后台队列。
+- [x] 保存队列后台线程负责 `Mat.ToBitmap`、`DrawDisplayResultToBitmap`、创建目录、生成最终文件名、压缩保存和释放后台生成的 `Bitmap`，主流程只保留保存规则判断和队列投递。
+- [x] 新增 `【性能诊断-保存图像快速入队】`、`【内存诊断-保存图像后台取图】` 分段日志，用于区分主流程入队耗时与后台转换/标注/写盘耗时。
+- [x] `ParamFormImageSave` 新增 `GetOutputImageForSave()`，保存节点快速获取原始 `OutputImage` 引用；保留旧 `GetImage()` 兼容其它可能调用。
+- [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Release|x64` 和 `Debug|x64` 均通过，0个错误；警告为项目既有警告。
