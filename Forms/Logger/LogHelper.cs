@@ -326,6 +326,9 @@ namespace Logger
             [CallerLineNumber] int lineNumber = 0
             )
         {
+            if (!LogLevelSettings.IsEnabled(level))
+                return; // 系统设置中关闭的日志等级不再写文件或刷新界面
+
             if (OnlyLogException && (level == MsgLevel.Info || level == MsgLevel.Debug))
                 return; // 过滤非异常日志
             SingleLog singleLog = new SingleLog();

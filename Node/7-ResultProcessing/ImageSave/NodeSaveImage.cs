@@ -102,7 +102,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         Result.RunTime = time;
                         LogHelper.AddLog(
-                            MsgLevel.Info,
+                            MsgLevel.Debug,
                             $"【性能诊断-保存图像快速入队】节点({ID}.{NodeName}) 节点计时={time}ms；快速入队={enqueueElapsed}ms；路径决策={enqueueResult.PathDecisionMs}ms；队列投递={enqueueResult.EnqueueMs}ms；目标路径={enqueueResult.TargetPathCount}；入队任务={enqueueResult.EnqueuedTaskCount}；已跳过={enqueueResult.Skipped}；当前队列={processor.QueuedCount}；图像={PerformanceSpikeDiagnostics.GetOutputImageText(outputImage)}",
                             true);
                         if (showLog)
@@ -387,7 +387,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             }
 
             LogHelper.AddLog(
-                MsgLevel.Info,
+                MsgLevel.Debug,
                 $"【内存诊断-保存队列启动】节点({_ownerText}) 工作线程={_workerCount}；内存={PerformanceSpikeDiagnostics.GetMemoryText()}",
                 true);
         }
@@ -423,7 +423,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                     bitmap = CreateBitmapForSave(saveImagedata, stopwatch, out SaveImageRenderTiming renderTiming);
                     MemorySnapshot afterRenderSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
                     LogHelper.AddLog(
-                        MsgLevel.Info,
+                        MsgLevel.Debug,
                         $"【内存诊断-保存图像后台取图】节点({_ownerText}) 源图={imageInfo}；待保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；有标注={renderTiming.HasDrawableDisplayResult}；ToBitmap={renderTiming.ToBitmapMs}ms；确保可绘制={renderTiming.EnsureDrawableMs}ms；写入标注={renderTiming.DrawDisplayResultMs}ms；后台取图总耗时={renderTiming.TotalMs}ms；目标路径={saveImagedata.TargetDirectories.Count}；私有内存变化={afterRenderSnapshot.PrivateMemoryMb - beforeSaveSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterRenderSnapshot.GdiObjectCount - beforeSaveSnapshot.GdiObjectCount}；前={beforeSaveSnapshot.ToLogText()}；后={afterRenderSnapshot.ToLogText()}",
                         true);
 
@@ -439,7 +439,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                         long afterSave = stopwatch.ElapsedMilliseconds;
                         MemorySnapshot afterSaveSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
                         LogHelper.AddLog(
-                            MsgLevel.Info,
+                            MsgLevel.Debug,
                             $"【内存诊断-保存队列消费】节点({_ownerText}) 保存完成；路径={fileName}；源图={imageInfo}；保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；压缩={saveImagedata.NeedCompress}；路径准备={afterPath - beforePath}ms；保存耗时={afterSave - afterPath}ms；后台总耗时={afterSave}ms；队列剩余={QueuedCount}；私有内存变化={afterSaveSnapshot.PrivateMemoryMb - beforeSaveSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterSaveSnapshot.GdiObjectCount - beforeSaveSnapshot.GdiObjectCount}；前={beforeSaveSnapshot.ToLogText()}；后={afterSaveSnapshot.ToLogText()}",
                             true);
                     }
@@ -458,7 +458,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                     bitmap?.Dispose();
                     MemorySnapshot afterDisposeSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
                     LogHelper.AddLog(
-                        MsgLevel.Info,
+                        MsgLevel.Debug,
                         $"【内存诊断-保存队列释放】节点({_ownerText}) 已释放后台生成Bitmap；源图={imageInfo}；释放后队列={QueuedCount}；私有内存变化={afterDisposeSnapshot.PrivateMemoryMb - beforeDisposeSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterDisposeSnapshot.GdiObjectCount - beforeDisposeSnapshot.GdiObjectCount}；前={beforeDisposeSnapshot.ToLogText()}；后={afterDisposeSnapshot.ToLogText()}",
                         true);
                 }
@@ -581,7 +581,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             _cancellationTokenSource.Cancel(); // 取消所有任务
             int disposedPendingCount = DisposePendingImages();
             LogHelper.AddLog(
-                MsgLevel.Info,
+                MsgLevel.Debug,
                 $"【内存诊断-保存队列停止】节点({_ownerText}) 停止保存队列；已释放待保存图片={disposedPendingCount}；剩余队列={QueuedCount}；内存={PerformanceSpikeDiagnostics.GetMemoryText()}",
                 true);
         }

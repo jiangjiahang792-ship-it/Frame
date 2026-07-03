@@ -493,7 +493,7 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                 return;
 
             string nodeName = node == null ? "颜色识别" : $"{node.ID}.{node.NodeName}";
-            LogHelper.AddLog(MsgLevel.Info, $"节点({nodeName}){step}，{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+            LogHelper.AddLog(MsgLevel.Debug, $"节点({nodeName}){step}，{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
         }
 
         // 内部结构，用于暂存扫描的结果

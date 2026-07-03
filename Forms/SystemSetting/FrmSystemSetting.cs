@@ -1,4 +1,5 @@
 ﻿using IWshRuntimeLibrary;
+using Logger;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,6 +11,14 @@ namespace TDJS_Vision.Forms.SystemSetting
 {
     public partial class FrmSystemSetting : FormBase
     {
+        /// <summary>
+        /// 日志等级设置加载标记，避免初始化复选框时触发保存。
+        /// </summary>
+        private bool _isLoadingLogSettings;
+
+        /// <summary>
+        /// 初始化系统设置窗口并加载持久化配置。
+        /// </summary>
         public FrmSystemSetting()
         {
             InitializeComponent();
@@ -17,6 +26,7 @@ namespace TDJS_Vision.Forms.SystemSetting
             checkBox2.Checked = Settings.Default.IsAutoLoad;
             textBox1.Text = Settings.Default.SolutionAddress;
             checkBox3.Checked = Settings.Default.IsAutoRun;
+            LoadLogLevelSettings();
             ConfigHelper.DeserializationCompletionEvent += UpdateRunInterval;
         }
 
@@ -266,5 +276,94 @@ namespace TDJS_Vision.Forms.SystemSetting
             Settings.Default.IsAutoRun = checkBox3.Checked;
             Settings.Default.Save();
         }
+
+        #region 日志记录等级
+
+        /// <summary>
+        /// 加载日志等级记录开关到界面复选框。
+        /// </summary>
+        private void LoadLogLevelSettings()
+        {
+            _isLoadingLogSettings = true;
+            try
+            {
+                checkBox4.Checked = LogLevelSettings.IsEnabled(MsgLevel.Debug);
+                checkBox5.Checked = LogLevelSettings.IsEnabled(MsgLevel.Info);
+                checkBox6.Checked = LogLevelSettings.IsEnabled(MsgLevel.Warn);
+                checkBox7.Checked = LogLevelSettings.IsEnabled(MsgLevel.Exception);
+                checkBox8.Checked = LogLevelSettings.IsEnabled(MsgLevel.Fatal);
+            }
+            finally
+            {
+                _isLoadingLogSettings = false;
+            }
+        }
+
+        /// <summary>
+        /// 保存单个日志等级记录开关。
+        /// </summary>
+        /// <param name="level">日志等级。</param>
+        /// <param name="enabled">是否允许记录。</param>
+        private void SaveLogLevelSetting(MsgLevel level, bool enabled)
+        {
+            if (_isLoadingLogSettings)
+            {
+                return;
+            }
+
+            LogLevelSettings.SetEnabled(level, enabled);
+        }
+
+        /// <summary>
+        /// 调试日志记录开关变更。
+        /// </summary>
+        /// <param name="sender">事件发送者。</param>
+        /// <param name="e">事件参数。</param>
+        private void checkBox4_CheckedChanged(object sender, EventArgs e)
+        {
+            SaveLogLevelSetting(MsgLevel.Debug, checkBox4.Checked);
+        }
+
+        /// <summary>
+        /// 消息日志记录开关变更。
+        /// </summary>
+        /// <param name="sender">事件发送者。</param>
+        /// <param name="e">事件参数。</param>
+        private void checkBox5_CheckedChanged(object sender, EventArgs e)
+        {
+            SaveLogLevelSetting(MsgLevel.Info, checkBox5.Checked);
+        }
+
+        /// <summary>
+        /// 警告日志记录开关变更。
+        /// </summary>
+        /// <param name="sender">事件发送者。</param>
+        /// <param name="e">事件参数。</param>
+        private void checkBox6_CheckedChanged(object sender, EventArgs e)
+        {
+            SaveLogLevelSetting(MsgLevel.Warn, checkBox6.Checked);
+        }
+
+        /// <summary>
+        /// 异常日志记录开关变更。
+        /// </summary>
+        /// <param name="sender">事件发送者。</param>
+        /// <param name="e">事件参数。</param>
+        private void checkBox7_CheckedChanged(object sender, EventArgs e)
+        {
+            SaveLogLevelSetting(MsgLevel.Exception, checkBox7.Checked);
+        }
+
+        /// <summary>
+        /// 致命日志记录开关变更。
+        /// </summary>
+        /// <param name="sender">事件发送者。</param>
+        /// <param name="e">事件参数。</param>
+        private void checkBox8_CheckedChanged(object sender, EventArgs e)
+        {
+            SaveLogLevelSetting(MsgLevel.Fatal, checkBox8.Checked);
+        }
+
+        #endregion
     }
 }

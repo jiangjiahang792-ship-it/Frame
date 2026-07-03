@@ -102,7 +102,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         if (showLog)
                         {
                             LogHelper.AddLog(
-                                MsgLevel.Info,
+                                MsgLevel.Debug,
                                 $"【性能诊断-图像显示】节点({ID}.{NodeName}) 图像={imageInfo}；订阅读取={afterGetOutput}ms；ToBitmap={afterToBitmap - afterGetOutput}ms；图像事件={afterImageEvent - afterToBitmap}ms；窗口事件={afterWindowEvent - afterImageEvent}ms；状态={afterSetResult - afterWindowEvent}ms；节点总耗时={afterSetResult}ms；状态耗时={time}ms",
                                 true);
                             if (PerformanceSpikeDiagnostics.ShouldLog(
@@ -115,7 +115,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                                 afterSetResult - afterWindowEvent))
                             {
                                 LogHelper.AddLog(
-                                    MsgLevel.Info,
+                                    MsgLevel.Debug,
                                     $"【慢诊断-图像显示】节点({ID}.{NodeName}) 窗口={param.WindowName}；输出图像={PerformanceSpikeDiagnostics.GetOutputImageText(outputImage)}；ToBitmap图像={PerformanceSpikeDiagnostics.GetMatText(firstMat)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(outputImage.DisplayResult)}；订阅读取={afterGetOutput}ms；ToBitmap={afterToBitmap - afterGetOutput}ms；图像事件={afterImageEvent - afterToBitmap}ms；窗口事件={afterWindowEvent - afterImageEvent}ms；状态={afterSetResult - afterWindowEvent}ms；节点总耗时={afterSetResult}ms；状态耗时={time}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
                                     true);
                             }

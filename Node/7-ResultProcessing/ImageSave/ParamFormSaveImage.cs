@@ -170,7 +170,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         {
             MemorySnapshot afterSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
             LogHelper.AddLog(
-                MsgLevel.Info,
+                MsgLevel.Debug,
                 $"【内存诊断-保存图像取图】输出图像={PerformanceSpikeDiagnostics.GetOutputImageText(outputImage)}；待保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；有标注={hasDrawableDisplayResult}；订阅读取={afterSubscription}ms；ToBitmap={afterToBitmap - afterSubscription}ms；确保可绘制={afterEnsureDrawable - afterToBitmap}ms；写入标注={afterDrawDisplayResult - afterEnsureDrawable}ms；总耗时={afterDrawDisplayResult}ms；私有内存变化={afterSnapshot.PrivateMemoryMb - beforeSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterSnapshot.GdiObjectCount - beforeSnapshot.GdiObjectCount}；前={beforeSnapshot.ToLogText()}；后={afterSnapshot.ToLogText()}",
                 true);
         }

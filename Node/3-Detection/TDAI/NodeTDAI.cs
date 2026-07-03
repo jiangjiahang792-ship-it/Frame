@@ -64,19 +64,19 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             SetStatus(NodeStatus.Unexecuted, "*");
                             base.CheckTokenCancel(token);
 
-                            LogHelper.AddLog(MsgLevel.Info, $"流程{Process.ProcessName}AI检测开始{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                            LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测开始{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                             // 清空上次检测结果
                             res.AlgorithmResult.Clear();
 
                             // 获取图像
                             inputImage = form.GetOutputImage();
 
-                            LogHelper.AddLog(MsgLevel.Info, $"流程{Process.ProcessName}AI检测,图像获取完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
-                            LogHelper.AddLog(MsgLevel.Info, $"流程{Process.ProcessName}AI检测输入图像摘要：订阅({param.Text1}-{param.Text2})，{BuildOutputImageSummary(inputImage)}", true);
+                            LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测,图像获取完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                            LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测输入图像摘要：订阅({param.Text1}-{param.Text2})，{BuildOutputImageSummary(inputImage)}", true);
                             EnsureInputImageReady(inputImage, param);
-                            LogHelper.AddLog(MsgLevel.Info, $"流程{Process.ProcessName}AI检测模型检查开始：{BuildModelSummary(param)}", true);
+                            LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测模型检查开始：{BuildModelSummary(param)}", true);
                             await EnsureModelReadyAsync(param);
-                            LogHelper.AddLog(MsgLevel.Info, $"流程{Process.ProcessName}AI检测模型检查通过：{BuildModelSummary(param)}", true);
+                            LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测模型检查通过：{BuildModelSummary(param)}", true);
 
                             #region 通信获取对应检测项的配置(不是使用固定检测项时)
                             // terminalType端子型号、wireType电线型号、waterproofType防水栓型号
@@ -133,7 +133,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
                             #endregion
 
-                            LogHelper.AddLog(MsgLevel.Info, $"流程{Process.ProcessName}AI检测,Modbus地址{param.Adress} 获取完毕:{readValue}, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                            LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测,Modbus地址{param.Adress} 获取完毕:{readValue}, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
 
                             // 4种模型检出结果解析
                             int result_count = 0;
@@ -160,7 +160,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
                                         det_results.AddRange(tmp);
 
-                                        LogHelper.AddLog(MsgLevel.Info, $"流程{Process.ProcessName}AI检测推理完毕,结果数量:{tmp.Count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                                        LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测推理完毕,结果数量:{tmp.Count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                                     }
 
                                     #endregion
@@ -171,7 +171,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     {
                                         case ModelName.RL_12类线芯模型:
                                             RL12Parse.Parse(det_results, result_count, param, Process,ref res);
-                                            LogHelper.AddLog(MsgLevel.Info, $"流程{Process.ProcessName}AI检测结果运算完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                                            LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测结果运算完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                                             break;
                                         case ModelName.合压模型:
                                             ClosingTerminals_encrypted_Parse.Parse(det_results, result_count, param, Process,ref res);
@@ -246,7 +246,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                             tmp = handle.Detect(img, 0, 0, needMaskBox);
                                         seg_results.AddRange(tmp);
 
-                                        LogHelper.AddLog(MsgLevel.Info, $"流程{Process.ProcessName}AI检测推理完毕,结果数量:{tmp.Count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                                        LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测推理完毕,结果数量:{tmp.Count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                                     }
                                     #endregion
 
@@ -256,7 +256,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     {
                                         case ModelName.RL_线芯截面:
                                             LineCoreFront_C1_Seg.Parse(seg_results, result_count, param, Process, ref res);
-                                            LogHelper.AddLog(MsgLevel.Info, $"流程{Process.ProcessName}AI检测结果运算完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                                            LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测结果运算完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                                             LogAlgorithmResultSummary(Process.ProcessName, param, res);
                                             break;
                                         default:
@@ -286,7 +286,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             }
 
                             //Console.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
-                            LogHelper.AddLog(MsgLevel.Info, $"流程{Process.ProcessName}AI检测完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                            LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
 
                             // 返回结果
                             Result = res;
@@ -391,7 +391,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 : param.CurDetectItemName;
 
             LogHelper.AddLog(
-                MsgLevel.Info,
+                MsgLevel.Debug,
                 $"流程{processName}AI检测解析结果：模型名称={modelName}，检测项={detectItemName}，检测结果={detectResultCount}，矩形={rectCount}，NG缓存矩形={ngRectCount}，文本={textCount}。",
                 true);
         }

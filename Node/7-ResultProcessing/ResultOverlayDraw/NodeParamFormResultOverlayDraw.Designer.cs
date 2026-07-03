@@ -800,9 +800,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.comboBoxTextPosition.Size = new System.Drawing.Size(504, 26);
             this.comboBoxTextPosition.TabIndex = 17;
             this.comboBoxTextPosition.SelectedIndexChanged += new System.EventHandler(this.ItemControl_ValueChanged);
-            //
+            // 
             // labelTextCoordinateMode
-            //
+            // 
             this.labelTextCoordinateMode.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelTextCoordinateMode.AutoSize = true;
             this.labelTextCoordinateMode.Location = new System.Drawing.Point(45, 371);
@@ -810,9 +810,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             this.labelTextCoordinateMode.Size = new System.Drawing.Size(62, 18);
             this.labelTextCoordinateMode.TabIndex = 18;
             this.labelTextCoordinateMode.Text = "坐标系";
-            //
+            // 
             // comboBoxTextCoordinateMode
-            //
+            // 
             this.comboBoxTextCoordinateMode.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
             this.comboBoxTextCoordinateMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxTextCoordinateMode.FormattingEnabled = true;
@@ -827,7 +827,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // 
             this.labelMargin.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.labelMargin.AutoSize = true;
-            this.labelMargin.Location = new System.Drawing.Point(63, 416);
+            this.labelMargin.Location = new System.Drawing.Point(63, 402);
             this.labelMargin.Name = "labelMargin";
             this.labelMargin.Size = new System.Drawing.Size(44, 18);
             this.labelMargin.TabIndex = 20;
@@ -836,7 +836,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             // numericMargin
             // 
             this.numericMargin.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.numericMargin.Location = new System.Drawing.Point(113, 411);
+            this.numericMargin.Location = new System.Drawing.Point(113, 400);
             this.numericMargin.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.numericMargin.Maximum = new decimal(new int[] {
             500,

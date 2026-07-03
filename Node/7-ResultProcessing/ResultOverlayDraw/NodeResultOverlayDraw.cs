@@ -109,11 +109,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 Result.RunTime = time;
                 if (showLog)
                 {
-                    LogHelper.AddLog(MsgLevel.Info, $"【性能诊断-ROI结果绘制】节点({ID}.{NodeName}) {performanceDiagnostics.ToLogText()}；状态耗时={time}ms", true);
+                    LogHelper.AddLog(MsgLevel.Debug, $"【性能诊断-ROI结果绘制】节点({ID}.{NodeName}) {performanceDiagnostics.ToLogText()}；状态耗时={time}ms", true);
                     if (performanceDiagnostics.ShouldLogSlow())
                     {
                         LogHelper.AddLog(
-                            MsgLevel.Info,
+                            MsgLevel.Debug,
                             $"【慢诊断-ROI结果绘制】节点({ID}.{NodeName}) {performanceDiagnostics.ToLogText()}；图像源={performanceDiagnostics.ImageSourceNodeText}；输入图像={performanceDiagnostics.InputImageText}；输出图像={performanceDiagnostics.OutputImageText}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；状态耗时={time}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
                             true);
                     }

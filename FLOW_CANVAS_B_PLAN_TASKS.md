@@ -20,6 +20,21 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-07-03 本地分段诊断日志降为 Debug：
+  - [x] 新反馈已记录：相机回调、AI、颜色识别、ROI结果绘制、图像显示、保存图像中的本地分段诊断不应继续占用 Info，应受系统设置 Debug 开关控制。
+  - [x] `NodeImageSource` 的相机回调入队、专用线程执行、链路诊断、性能诊断和慢诊断日志已改为 `Debug`，忙碌拒绝仍保留 `Warn`。
+  - [x] `NodeTDAI` 的 AI 检测阶段、模型检查、通信读取、推理完成、结果运算和解析结果摘要日志已改为 `Debug`，节点运行结果和异常等级保持不变。
+  - [x] `NodeColorDiscern`、`NodeParamFormColorDiscern`、`NodeResultOverlayDraw`、`NodeImageShow`、`NodeSaveImage`、`ParamFormSaveImage` 的分段/性能/内存诊断日志已改为 `Debug`。
+  - [x] 已新增 `Tests/DiagnosticLogLevel.Tests.ps1` 回归检查，防止点名节点的诊断日志再次退回 `Info/Warn`。
+  - [x] 验证通过：诊断日志等级回归、日志等级开关回归、既有两个源码回归、`git diff --check`、MSBuild `Debug|Any CPU` 构建均通过，构建 0 个错误。
+- 2026-07-03 系统设置日志等级记录开关：
+  - [x] 新反馈已记录：`FrmSystemSetting.tableLayoutPanel2` 已有 Debug/Info/Warn/Exception/Fatal 日志等级选项，但 `LogHelper.AddLog` 还没有按这些选项隔开判定。
+  - [x] 已新增 `LogDebugEnabled`、`LogInfoEnabled`、`LogWarnEnabled`、`LogExceptionEnabled`、`LogFatalEnabled` 用户级设置，默认保持调试关闭、其它等级开启。
+  - [x] 已新增 `LogLevelSettings` 统一读取和保存日志等级开关，并使用内存缓存降低相机回调、AI、性能诊断等高频日志入口开销。
+  - [x] `FrmSystemSetting` 已加载并保存日志等级复选框，设计器中的复选框文本已改为中文显示并绑定变更事件。
+  - [x] `LogHelper.AddLog` 已在入队写文件前执行等级开关过滤，关闭的等级不再落盘或刷新日志界面。
+  - [x] 已新增 `Tests/LogLevelSettings.Tests.ps1` 回归检查，防止日志等级设置链路再次断开。
+  - [x] 验证通过：日志等级回归检查、既有两个源码回归检查、MSBuild `Debug|Any CPU` 构建均通过，构建 0 个错误。
 - 2026-07-02 端子右AI文本不显示排查与修复：
   - [x] 新反馈已记录：节点(56.ROI结果绘制)订阅节点(30.AI检测)输出时，日志显示检测框存在但显示结果文本为0，画面只显示矩形框。
   - [x] 已确认方案节点56文本项订阅 `30.AI检测 / AI输出结果`，不是手填空文本；根因为 `BiteGlueLength` 缺少依赖框时解析器提前 `return`，导致最终 `AlgorithmResult.Texts` 未赋值。
