@@ -20,6 +20,16 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-07-02 端子右AI文本不显示排查与修复：
+  - [x] 新反馈已记录：节点(56.ROI结果绘制)订阅节点(30.AI检测)输出时，日志显示检测框存在但显示结果文本为0，画面只显示矩形框。
+  - [x] 已确认方案节点56文本项订阅 `30.AI检测 / AI输出结果`，不是手填空文本；根因为 `BiteGlueLength` 缺少依赖框时解析器提前 `return`，导致最终 `AlgorithmResult.Texts` 未赋值。
+  - [x] `RL12Parse`、`RL12angondingParse` 与 `XMSGParse` 已改为缺少咬胶长度依赖框或比例分母为0时仅将当前检测项按0/NG继续解析，保留已生成矩形和后续文本汇总。
+  - [x] 已新增 `Tests/TDAIParseNoEarlyReturn.Tests.ps1` 回归检查，防止咬胶长度缺依赖框再次提前退出整个AI解析。
+- 2026-07-02 瑞玲6相机版本方案切换旧回调释放：
+  - [x] 新反馈已记录：`D:\MyCode\PublicWook\TDJS-Vision` 仓库 `瑞玲6相机版本` 分支同样需要在删除流程、重置方案、打开新方案前释放旧流程节点资源，避免旧图像源节点相机回调继续触发旧流程。
+  - [x] `Solution.RemoveProcess(Process)` 与 `Solution.RemoveProcess(string)` 已在移除流程和节点前释放流程内节点资源，并使用 `ToList()` 保证移除节点时遍历安全。
+  - [x] `Solution.SolReset()` 已在清空流程和节点前释放全部流程节点资源，保留原有 2D/3D 相机、光源、PLC、Modbus、TCP、COM 设备释放逻辑。
+  - [x] 已新增 `Tests/SolutionResourceRelease.Tests.ps1` 回归检查，防止后续再次漏掉流程资源释放顺序。
 - 2026-07-02 主链路一眼定位诊断：
   - [x] 新反馈已记录：现场需要一次运行就能判断慢耗时或结果缺失到底卡在流程调度、图像源回调结果准备、节点内部还是线程收尾。
   - [x] `Process.TryPrepareSkippedNodeRunResult` 已增加 `【链路诊断-跳过节点准备开始/结束/异常/跳过】` 日志，输出流程批次、节点类型、Provider程序集、主程序路径、结果前后摘要和Provider耗时。

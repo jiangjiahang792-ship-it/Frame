@@ -187,7 +187,81 @@ namespace TDJS_Vision
 
         #region 私有方法
 
+        /// <summary>
+        /// 释放当前方案所有流程的节点资源，清空流程前必须先调用，避免旧节点继续持有设备回调。
+        /// </summary>
+        private void ReleaseAllProcessResources()
+        {
+            foreach (Process process in AllProcesses.ToList())
+                ReleaseProcessResources(process);
+        }
 
+        /// <summary>
+        /// 释放单个流程内所有节点持有的事件订阅、参数窗体和模型句柄。
+        /// </summary>
+        /// <param name="process">需要释放资源的流程。</param>
+        private void ReleaseProcessResources(Process process)
+        {
+            if (process == null || process.Nodes == null)
+                return;
+
+            foreach (NodeBase node in process.Nodes.ToList())
+                ReleaseNodeResources(node);
+        }
+
+        /// <summary>
+        /// 释放节点级资源，重点用于图像源节点参数窗体 Dispose 时解除相机回调绑定。
+        /// </summary>
+        /// <param name="node">需要释放资源的节点。</param>
+        private void ReleaseNodeResources(NodeBase node)
+        {
+            if (node == null)
+                return;
+
+            ReleaseAiNodeModel(node);
+            DisposeNodeParamForm(node);
+        }
+
+        /// <summary>
+        /// 释放 AI 节点独占的模型句柄，避免删除流程后模型仍占用显存或文件句柄。
+        /// </summary>
+        /// <param name="node">待检查的节点。</param>
+        private void ReleaseAiNodeModel(NodeBase node)
+        {
+            if (node.NodeType != NodeType.AITD || !(node.ParamForm?.Params is NodeParamTDAI param))
+                return;
+
+            try
+            {
+                ModelHandleManager.Destroy(param.Yolo8);
+                param.Yolo8 = null;
+                param.LoadedModelPath = null;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, $"释放节点({node.ID}.{node.NodeName})AI模型资源失败：{ex.Message}", true);
+            }
+        }
+
+        /// <summary>
+        /// 释放节点参数窗体资源，参数窗体内部会处理相机回调等事件解绑。
+        /// </summary>
+        /// <param name="node">参数窗体所属节点。</param>
+        private void DisposeNodeParamForm(NodeBase node)
+        {
+            IDisposable disposable = node.ParamForm as IDisposable;
+            if (disposable == null)
+                return;
+
+            try
+            {
+                disposable.Dispose();
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, $"释放节点({node.ID}.{node.NodeName})参数窗体资源失败：{ex.Message}", true);
+            }
+        }
 
         #endregion
 
@@ -210,9 +284,13 @@ namespace TDJS_Vision
         /// <param name="process"></param>
         public void RemoveProcess(Process process)
         {
+            if (process == null)
+                return;
+
+            ReleaseProcessResources(process);
             AllProcesses.Remove(process);
 
-            foreach (var node in process.Nodes)
+            foreach (var node in process.Nodes.ToList())
             {
                 Solution.Instance.Nodes.Remove(node);
             }
@@ -229,10 +307,12 @@ namespace TDJS_Vision
 
             if (processToRemove != null)
             {
+                ReleaseProcessResources(processToRemove);
+
                 // 从列表中移除流程
                 AllProcesses.Remove(processToRemove);
 
-                foreach (var node in processToRemove.Nodes)
+                foreach (var node in processToRemove.Nodes.ToList())
                 {
                     Solution.Instance.Nodes.Remove(node);
                 }
@@ -770,6 +850,8 @@ namespace TDJS_Vision
         /// </summary>
         public void SolReset()
         {
+            ReleaseAllProcessResources();
+
             try
             {
                 // 释放旧方案的硬件资源（光源、相机、PLC、Modbus、TCP）

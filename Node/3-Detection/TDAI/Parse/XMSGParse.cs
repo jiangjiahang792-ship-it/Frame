@@ -254,9 +254,25 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                                 int sum = frontFootLeft - behindFootRight;
 
-                                value = (float)Math.Abs((result.Box.Width / (sum * 1.0) * 100));
+                                if (sum == 0)
+                                {
+                                    // 依赖框重叠导致比例无效时，仅将当前检测项判为NG，避免整段AI解析提前结束。
+                                    allOk = false;
+                                    value = 0;
+                                    rawValue = "0";
+                                }
+                                else
+                                {
+                                    value = (float)Math.Abs((result.Box.Width / (sum * 1.0) * 100));
+                                }
                             }
-                            else return;
+                            else
+                            {
+                                // 咬胶长度需要前后端子脚框共同参与计算，缺任一依赖框时继续输出文本和已解析矩形。
+                                allOk = false;
+                                value = 0;
+                                rawValue = "0";
+                            }
                         }
 
                         // 是否需要转成物理值
