@@ -234,6 +234,12 @@
     <Compile Include="ConfigHelper.cs" />
     <Compile Include="Diagnostics\PerformanceSpikeDiagnostics.cs" />
     <Compile Include="DetectItemLanguage.cs" />
+    <Compile Include="Forms\AiTrainForm\UnsupervisedTrainForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\AiTrainForm\UnsupervisedTrainForm.Designer.cs">
+      <DependentUpon>UnsupervisedTrainForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="LanguageManager.cs" />
     <Compile Include="Device\3D\Camera3DModels.cs" />
     <Compile Include="Device\3D\CameraHik3D.cs" />
@@ -1477,6 +1483,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="FormMain.resx">
       <DependentUpon>FormMain.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\AiTrainForm\UnsupervisedTrainForm.resx">
+      <DependentUpon>UnsupervisedTrainForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\CameraAdd\CameraParamsShowControl.resx">
       <DependentUpon>CameraParamsShowControl.cs</DependentUpon>

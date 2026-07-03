@@ -79,6 +79,9 @@
             this.LeftToolStripPanel = new System.Windows.Forms.ToolStripPanel();
             this.ContentPanel = new System.Windows.Forms.ToolStripContentPanel();
             this.tableLayoutPanel2 = new System.Windows.Forms.TableLayoutPanel();
+            this.toolStripMenuItem1 = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripMenuItem2 = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripMenuItem3 = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.toolStrip1.SuspendLayout();
             this.tableLayoutPanel2.SuspendLayout();
@@ -95,10 +98,11 @@
             this.视图ToolStripMenuItem,
             this.设置ToolStripMenuItem,
             this.帮助ToolStripMenuItem,
+            this.toolStripMenuItem1,
             this.登录ToolStripMenuItem});
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
-            this.menuStrip1.Size = new System.Drawing.Size(1552, 36);
+            this.menuStrip1.Size = new System.Drawing.Size(1552, 32);
             this.menuStrip1.TabIndex = 0;
             this.menuStrip1.Text = "menuStrip1";
             // 
@@ -111,7 +115,7 @@
             this.保存方案ToolStripMenuItem,
             this.另存方案ToolStripMenuItem});
             this.文件ToolStripMenuItem.Name = "文件ToolStripMenuItem";
-            this.文件ToolStripMenuItem.Size = new System.Drawing.Size(62, 30);
+            this.文件ToolStripMenuItem.Size = new System.Drawing.Size(62, 28);
             this.文件ToolStripMenuItem.Text = "文件";
             // 
             // 新建方案ToolStripMenuItem
@@ -156,7 +160,7 @@
             this.运行日志ToolStripMenuItem,
             this.公司Logo视图ToolStripMenuItem});
             this.视图ToolStripMenuItem.Name = "视图ToolStripMenuItem";
-            this.视图ToolStripMenuItem.Size = new System.Drawing.Size(62, 30);
+            this.视图ToolStripMenuItem.Size = new System.Drawing.Size(62, 28);
             this.视图ToolStripMenuItem.Text = "视图";
             // 
             // 默认视图ToolStripMenuItem
@@ -218,7 +222,7 @@
             this.系统设置ToolStripMenuItem,
             this.全局信号设置ToolStripMenuItem});
             this.设置ToolStripMenuItem.Name = "设置ToolStripMenuItem";
-            this.设置ToolStripMenuItem.Size = new System.Drawing.Size(62, 30);
+            this.设置ToolStripMenuItem.Size = new System.Drawing.Size(62, 28);
             this.设置ToolStripMenuItem.Text = "设置";
             // 
             // aI配置工具ToolStripMenuItem
@@ -264,7 +268,7 @@
             this.联系我们ToolStripMenuItem1,
             this.关于TDJS_VisionToolStripMenuItem1});
             this.帮助ToolStripMenuItem.Name = "帮助ToolStripMenuItem";
-            this.帮助ToolStripMenuItem.Size = new System.Drawing.Size(62, 30);
+            this.帮助ToolStripMenuItem.Size = new System.Drawing.Size(62, 28);
             this.帮助ToolStripMenuItem.Text = "帮助";
             // 
             // 使用教程ToolStripMenuItem
@@ -293,7 +297,7 @@
             this.登录ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.登录ToolStripMenuItem.Image = global::TDJS_Vision.Properties.Resources.用户登录;
             this.登录ToolStripMenuItem.Name = "登录ToolStripMenuItem";
-            this.登录ToolStripMenuItem.Size = new System.Drawing.Size(40, 30);
+            this.登录ToolStripMenuItem.Size = new System.Drawing.Size(40, 28);
             this.登录ToolStripMenuItem.Click += new System.EventHandler(this.登录ToolStripMenuItem_Click);
             // 
             // dockPanel1
@@ -302,7 +306,7 @@
             this.dockPanel1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.dockPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.dockPanel1.DockBackColor = System.Drawing.Color.FromArgb(((int)(((byte)(238)))), ((int)(((byte)(238)))), ((int)(((byte)(242)))));
-            this.dockPanel1.Location = new System.Drawing.Point(3, 79);
+            this.dockPanel1.Location = new System.Drawing.Point(3, 75);
             this.dockPanel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.dockPanel1.Name = "dockPanel1";
             this.dockPanel1.ShowAutoHideContentOnHover = false;
@@ -342,7 +346,7 @@
             this.tsbt_SolRunLoop,
             this.tsbt_SolRunStop,
             this.toolStripLabel1});
-            this.toolStrip1.Location = new System.Drawing.Point(0, 36);
+            this.toolStrip1.Location = new System.Drawing.Point(0, 32);
             this.toolStrip1.Name = "toolStrip1";
             this.toolStrip1.Size = new System.Drawing.Size(1552, 41);
             this.toolStrip1.TabIndex = 1;
@@ -591,6 +595,27 @@
             this.tableLayoutPanel2.Size = new System.Drawing.Size(1552, 886);
             this.tableLayoutPanel2.TabIndex = 5;
             // 
+            // toolStripMenuItem1
+            // 
+            this.toolStripMenuItem1.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.toolStripMenuItem2,
+            this.toolStripMenuItem3});
+            this.toolStripMenuItem1.Name = "toolStripMenuItem1";
+            this.toolStripMenuItem1.Size = new System.Drawing.Size(80, 28);
+            this.toolStripMenuItem1.Text = "AI训练";
+            // 
+            // toolStripMenuItem2
+            // 
+            this.toolStripMenuItem2.Name = "toolStripMenuItem2";
+            this.toolStripMenuItem2.Size = new System.Drawing.Size(270, 34);
+            this.toolStripMenuItem2.Text = "无监督训练";
+            // 
+            // toolStripMenuItem3
+            // 
+            this.toolStripMenuItem3.Name = "toolStripMenuItem3";
+            this.toolStripMenuItem3.Size = new System.Drawing.Size(270, 34);
+            this.toolStripMenuItem3.Text = "大模型训练";
+            // 
             // FormMain
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
@@ -673,6 +698,9 @@
         private System.Windows.Forms.ToolStripButton tsbt_ComManager;
         private System.Windows.Forms.ToolStripMenuItem 检测项配置ToolStripMenuItem;
         private System.Windows.Forms.ToolStripButton tsbt_ClearCount;
+        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItem1;
+        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItem2;
+        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItem3;
     }
 }
 
