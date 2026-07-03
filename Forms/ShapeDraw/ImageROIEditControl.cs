@@ -17,6 +17,11 @@ namespace TDJS_Vision.Forms.ShapeDraw
         private ROI selectedROI = null; // 当前选中的ROI
         private ROISelectionState ROISelectionState = ROISelectionState.None; // 记录选中ROI的哪个部位
 
+        /// <summary>
+        /// ROI 集合变化事件。
+        /// </summary>
+        public event EventHandler RoiChanged;
+
         public ImageROIEditControl()
         {
             InitializeComponent();
@@ -39,6 +44,7 @@ namespace TDJS_Vision.Forms.ShapeDraw
         {
             roiManager.ROIs.Clear();
             pictureBox1.Invalidate();
+            OnRoiChanged();
         }
 
         /// <summary>
@@ -65,6 +71,27 @@ namespace TDJS_Vision.Forms.ShapeDraw
         public List<ROI> GetROIs()
         {
             return new List<ROI>(roiManager.ROIs);
+        }
+
+        /// <summary>
+        /// 获取当前 ROI 数量。
+        /// </summary>
+        /// <returns>ROI 数量。</returns>
+        public int GetRoiCount()
+        {
+            return roiManager.ROIs.Count;
+        }
+
+        /// <summary>
+        /// 进入矩形 ROI 绘制状态。
+        /// </summary>
+        public void BeginDrawRectangleRoi()
+        {
+            selectedROIType = ROIType.Rectangle;
+            矩形ToolStripMenuItem1.Checked = true;
+            圆形ToolStripMenuItem1.Checked = false;
+            绘制状态ToolStripMenuItem.Checked = true;
+            CurStatus = Status.ReadyDraw;
         }
 
         /// <summary>
@@ -110,13 +137,18 @@ namespace TDJS_Vision.Forms.ShapeDraw
             // 立即强制重绘，让ROI为实际区域
             this.PerformLayout();
             this.Parent?.Refresh();
+            OnRoiChanged();
         }
         /// <summary>
         /// 移除上一个ROI
         /// </summary>
         public void RemovePrevious()
         {
+            if (roiManager.ROIs.Count == 0)
+                return;
+
             roiManager.RemovePrevious();
+            OnRoiChanged();
         }
 
         /// <summary>
@@ -299,14 +331,17 @@ namespace TDJS_Vision.Forms.ShapeDraw
                     roiManager.AddROI(currentROI);
                     selectedROI = currentROI;
                     CurStatus = Status.EndDraw;
+                    OnRoiChanged();
                 }
                 else if (CurStatus == Status.StartEdit)
                 {
                     CurStatus = Status.EndEdit;
+                    OnRoiChanged();
                 }
                 else if (CurStatus == Status.StartMove)
                 {
                     CurStatus = Status.EndMove;
+                    OnRoiChanged();
                 }
             }
             catch (Exception)
@@ -369,6 +404,14 @@ namespace TDJS_Vision.Forms.ShapeDraw
             {
                 CurStatus = Status.ReadyMove;
             }
+        }
+
+        /// <summary>
+        /// 触发 ROI 集合变化事件。
+        /// </summary>
+        private void OnRoiChanged()
+        {
+            RoiChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 

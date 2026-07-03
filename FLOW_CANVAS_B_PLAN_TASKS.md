@@ -20,6 +20,14 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-07-03 无监督训练界面第一阶段：
+  - [x] 新反馈已记录：本阶段先完善 `Forms/AiTrainForm/UnsupervisedTrainForm` 训练界面，不做流程识别节点；无监督环境必须隔离在运行目录 `UnsupervisedDll`，缺失时不影响软件启动。
+  - [x] 检查页已增加图像路径选择、递归加载、All/OK/NG 分类、OK 绿色边框和 NG 红色边框缩略图、右侧图像预览与单 ROI 绘制入口。
+  - [x] ROI 已改为可选：不使用 ROI 时按整图训练；使用 ROI 时训练前校验只能有一个矩形 ROI，并把 ROI 参数写入模板清单。
+  - [x] 训练页已增加模型类型、阈值、最小面积、输入尺寸、训练轮数、BatchSize、CPU/GPU/AUTO、模板名称、运行目录 `Model` 输出路径、进度条和训练日志。
+  - [x] 已新增 `UnsupervisedRuntimeBootstrapper`、`UnsupervisedAnomalibDetector`、`UnsupervisedTrainingService` 和 `UnsupervisedTemplatePackage`，训练时才延迟加载 `UnsupervisedDll\AnomalibLib.dll`。
+  - [x] 训练成功后将 `model.onnx` 与 `manifest.json` 打包为单个 `.tdunsup` 模板文件，输出限定在运行目录 `Model` 文件夹。
+  - [x] 已新增无监督训练窗体布局、运行环境隔离和模板打包回归脚本。
 - 2026-07-03 本地分段诊断日志降为 Debug：
   - [x] 新反馈已记录：相机回调、AI、颜色识别、ROI结果绘制、图像显示、保存图像中的本地分段诊断不应继续占用 Info，应受系统设置 Debug 开关控制。
   - [x] `NodeImageSource` 的相机回调入队、专用线程执行、链路诊断、性能诊断和慢诊断日志已改为 `Debug`，忙碌拒绝仍保留 `Warn`。
