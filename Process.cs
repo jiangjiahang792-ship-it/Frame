@@ -1801,14 +1801,14 @@ namespace TDJS_Vision
             ISkippedNodeRunResultProvider provider = nodeToSkip as ISkippedNodeRunResultProvider;
             if (provider == null)
             {
-                LogHelper.AddLog(MsgLevel.Debug,
-                    $"【链路诊断-跳过节点准备跳过】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider=无；主程序={PerformanceSpikeDiagnostics.GetCurrentProcessPathText()}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                PerformanceSpikeDiagnostics.LogIfEnabled(MsgLevel.Debug,
+                    () => $"【链路诊断-跳过节点准备跳过】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider=无；主程序={PerformanceSpikeDiagnostics.GetCurrentProcessPathText()}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
                     true);
                 return true;
             }
 
-            LogHelper.AddLog(MsgLevel.Debug,
-                $"【链路诊断-跳过节点准备开始】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider={PerformanceSpikeDiagnostics.GetAssemblyText(provider)}；结果前={GetNodeResultText(nodeToSkip.Result)}；主程序={PerformanceSpikeDiagnostics.GetCurrentProcessPathText()}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+            PerformanceSpikeDiagnostics.LogIfEnabled(MsgLevel.Debug,
+                () => $"【链路诊断-跳过节点准备开始】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider={PerformanceSpikeDiagnostics.GetAssemblyText(provider)}；结果前={GetNodeResultText(nodeToSkip.Result)}；主程序={PerformanceSpikeDiagnostics.GetCurrentProcessPathText()}",
                 true);
 
             string message;
@@ -1820,17 +1820,23 @@ namespace TDJS_Vision
             catch (Exception ex)
             {
                 prepareWatch.Stop();
-                LogHelper.AddLog(MsgLevel.Exception,
-                    $"【链路诊断-跳过节点准备异常】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider耗时={prepareWatch.ElapsedMilliseconds}ms；异常={ex.GetType().Name}:{ex.Message}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                PerformanceSpikeDiagnostics.LogIfEnabled(MsgLevel.Exception,
+                    () => $"【链路诊断-跳过节点准备异常】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider耗时={prepareWatch.ElapsedMilliseconds}ms；异常={ex.GetType().Name}:{ex.Message}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
                     true);
                 throw;
             }
 
             prepareWatch.Stop();
             int appendedRunTime = nodeToSkip.Result == null ? 0 : nodeToSkip.Result.RunTime;
-            LogHelper.AddLog(MsgLevel.Debug,
-                $"【链路诊断-跳过节点准备结束】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；成功={prepared}；Provider耗时={prepareWatch.ElapsedMilliseconds}ms；消息={FormatDiagnosticMessage(message)}；结果后={GetNodeResultText(nodeToSkip.Result)}；RunTime追加={appendedRunTime}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+            PerformanceSpikeDiagnostics.LogIfEnabled(MsgLevel.Debug,
+                () => $"【链路诊断-跳过节点准备结束】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；成功={prepared}；Provider耗时={prepareWatch.ElapsedMilliseconds}ms；消息={FormatDiagnosticMessage(message)}；结果后={GetNodeResultText(nodeToSkip.Result)}；RunTime追加={appendedRunTime}ms",
                 true);
+            PerformanceSpikeDiagnostics.LogSlowIfEnabled(
+                MsgLevel.Debug,
+                PerformanceSpikeDiagnostics.CommonSlowMs,
+                () => $"【慢诊断-跳过节点准备】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider耗时={prepareWatch.ElapsedMilliseconds}ms；结果后={GetNodeResultText(nodeToSkip.Result)}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                true,
+                prepareWatch.ElapsedMilliseconds);
 
             if (prepared)
             {

@@ -15,6 +15,7 @@ using System.Net;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Controls;
+using TDJS_Vision.Diagnostics;
 
 namespace TDJS_Vision.Device.Camera
 {
@@ -557,9 +558,17 @@ namespace TDJS_Vision.Device.Camera
                 rgbToBgrMs = rgbWatch.ElapsedMilliseconds;
             }
 
-            LogHelper.AddLog(MsgLevel.Info,
-                $"相机{devName} 回调Mat转换分段：ConvertPixelType={convertWatch.ElapsedMilliseconds}ms, CopyToMat={copyWatch.ElapsedMilliseconds}ms, RGB转BGR={rgbToBgrMs}ms, PixelType={image.PixelType}->{dstPixelType}, 尺寸={image.Width}x{image.Height}",
-                true);
+            long convertMs = convertWatch.ElapsedMilliseconds;
+            long copyMs = copyWatch.ElapsedMilliseconds;
+            PerformanceSpikeDiagnostics.LogSlowIfEnabled(
+                MsgLevel.Debug,
+                PerformanceSpikeDiagnostics.CommonSlowMs,
+                () => $"相机{devName} 回调Mat转换分段：ConvertPixelType={convertMs}ms, CopyToMat={copyMs}ms, RGB转BGR={rgbToBgrMs}ms, PixelType={image.PixelType}->{dstPixelType}, 尺寸={image.Width}x{image.Height}",
+                true,
+                convertMs,
+                copyMs,
+                rgbToBgrMs,
+                convertMs + copyMs + rgbToBgrMs);
             return mat;
         }
 

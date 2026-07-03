@@ -273,8 +273,14 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 long queuedTimestamp = Interlocked.Exchange(ref _callbackQueuedTimestamp, 0);
                 long waitMs = CalculateElapsedMilliseconds(queuedTimestamp, Stopwatch.GetTimestamp());
                 long runCount = Interlocked.Increment(ref _callbackRunCount);
-                LogHelper.AddLog(MsgLevel.Debug, $"【版本诊断-专用线程执行入口】{PerformanceSpikeDiagnostics.GetExecutableIdentityText()}；流程={Process?.ProcessName}；节点=({ID}.{NodeName})；排队等待={waitMs}ms；执行次数={runCount}", true);
-                LogHelper.AddLog(MsgLevel.Debug, $"流程【{Process.ProcessName}】专用线程执行Run方法, 排队等待={waitMs}ms, 执行次数={runCount}, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【版本诊断-专用线程执行入口】{PerformanceSpikeDiagnostics.GetExecutableIdentityText()}；流程={Process?.ProcessName}；节点=({ID}.{NodeName})；排队等待={waitMs}ms；执行次数={runCount}",
+                    true);
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"流程【{Process.ProcessName}】专用线程执行Run方法, 排队等待={waitMs}ms, 执行次数={runCount}, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}",
+                    true);
                 Process.Run(this, false).GetAwaiter().GetResult();
             }
             catch (Exception ex)
@@ -289,8 +295,21 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 ReleaseCallbackRunState();
                 long afterRelease = runWatch.ElapsedMilliseconds;
                 runWatch.Stop();
-                LogHelper.AddLog(MsgLevel.Debug, $"【链路诊断-专用线程收尾】流程={Process?.ProcessName}；节点=({ID}.{NodeName})；清理待处理Mat={afterClear - beforeClear}ms；释放运行状态={afterRelease - afterClear}ms；总耗时={runWatch.ElapsedMilliseconds}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}", true);
-                LogHelper.AddLog(MsgLevel.Debug, $"流程【{Process?.ProcessName}】专用线程Run结束, 耗时={runWatch.ElapsedMilliseconds}ms, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+                long clearMs = afterClear - beforeClear;
+                long releaseMs = afterRelease - afterClear;
+                long totalMs = runWatch.ElapsedMilliseconds;
+                PerformanceSpikeDiagnostics.LogSlowIfEnabled(
+                    MsgLevel.Debug,
+                    PerformanceSpikeDiagnostics.CommonSlowMs,
+                    () => $"【链路诊断-专用线程收尾】流程={Process?.ProcessName}；节点=({ID}.{NodeName})；清理待处理Mat={clearMs}ms；释放运行状态={releaseMs}ms；总耗时={totalMs}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                    true,
+                    clearMs,
+                    releaseMs,
+                    totalMs);
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"流程【{Process?.ProcessName}】专用线程Run结束, 耗时={totalMs}ms, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}",
+                    true);
             }
         }
 
@@ -371,34 +390,34 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         {
             message = string.Empty;
             Stopwatch performanceStopwatch = Stopwatch.StartNew();
-            LogHelper.AddLog(
+            PerformanceSpikeDiagnostics.LogIfEnabled(
                 MsgLevel.Debug,
-                $"【链路诊断-图像源回调结果入口】{GetCallbackResultContextText()}；主程序={PerformanceSpikeDiagnostics.GetCurrentProcessPathText()}；节点程序集={PerformanceSpikeDiagnostics.GetAssemblyText(this)}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                () => $"【链路诊断-图像源回调结果入口】{GetCallbackResultContextText()}；主程序={PerformanceSpikeDiagnostics.GetCurrentProcessPathText()}；节点程序集={PerformanceSpikeDiagnostics.GetAssemblyText(this)}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
                 true);
             Mat callbackMat = TakePendingCallbackMat();
             long afterTakeMat = performanceStopwatch.ElapsedMilliseconds;
-            LogHelper.AddLog(
+            PerformanceSpikeDiagnostics.LogIfEnabled(
                 MsgLevel.Debug,
-                $"【链路诊断-图像源取回调Mat】{GetCallbackResultContextText()}；取回调Mat={afterTakeMat}ms；Mat={PerformanceSpikeDiagnostics.GetMatText(callbackMat)}",
+                () => $"【链路诊断-图像源取回调Mat】{GetCallbackResultContextText()}；取回调Mat={afterTakeMat}ms；Mat={PerformanceSpikeDiagnostics.GetMatText(callbackMat)}",
                 true);
             if (callbackMat == null || callbackMat.Empty())
             {
                 callbackMat?.Dispose();
                 message = "没有可用的相机回调图像。";
+                string failedMessage = message;
                 int failedTime = SetRunResult(startTime, NodeStatus.Failed);
                 long afterFailedStatus = performanceStopwatch.ElapsedMilliseconds;
-                LogHelper.AddLog(
+                PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    $"【链路诊断-图像源回调结果失败出口】{GetCallbackResultContextText()}；取回调Mat={afterTakeMat}ms；状态={afterFailedStatus - afterTakeMat}ms；总耗时={afterFailedStatus}ms；状态耗时={failedTime}ms；原因={message}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                    () => $"【链路诊断-图像源回调结果失败出口】{GetCallbackResultContextText()}；取回调Mat={afterTakeMat}ms；状态={afterFailedStatus - afterTakeMat}ms；总耗时={afterFailedStatus}ms；状态耗时={failedTime}ms；原因={failedMessage}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
                     true);
-                LogHelper.AddLog(
+                PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    $"【性能诊断-图像源回调结果】节点({ID}.{NodeName}) 准备失败；取回调Mat={afterTakeMat}ms；状态={afterFailedStatus - afterTakeMat}ms；总耗时={afterFailedStatus}ms；状态耗时={failedTime}ms；原因={message}",
+                    () => $"【性能诊断-图像源回调结果】节点({ID}.{NodeName}) 准备失败；取回调Mat={afterTakeMat}ms；状态={afterFailedStatus - afterTakeMat}ms；总耗时={afterFailedStatus}ms；状态耗时={failedTime}ms；原因={failedMessage}",
                     true);
                 return false;
             }
 
-            string callbackMatText = PerformanceSpikeDiagnostics.GetMatText(callbackMat);
             NodeResultImageSource result = Result as NodeResultImageSource;
             if (result == null)
             {
@@ -409,41 +428,38 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
             result.OutputImage = BuildOutputImage(callbackMat);
             long afterBuildOutput = performanceStopwatch.ElapsedMilliseconds;
-            LogHelper.AddLog(
+            PerformanceSpikeDiagnostics.LogIfEnabled(
                 MsgLevel.Debug,
-                $"【链路诊断-图像源构建输出】{GetCallbackResultContextText()}；结果对象={afterEnsureResult - afterTakeMat}ms；构建输出={afterBuildOutput - afterEnsureResult}ms；输入={callbackMatText}；输出={PerformanceSpikeDiagnostics.GetOutputImageText(result.OutputImage)}",
+                () => $"【链路诊断-图像源构建输出】{GetCallbackResultContextText()}；结果对象={afterEnsureResult - afterTakeMat}ms；构建输出={afterBuildOutput - afterEnsureResult}ms；输入={PerformanceSpikeDiagnostics.GetMatText(callbackMat)}；输出={PerformanceSpikeDiagnostics.GetOutputImageText(result.OutputImage)}",
                 true);
             int time = SetRunResult(startTime, NodeStatus.Successful);
             long afterSetStatus = performanceStopwatch.ElapsedMilliseconds;
-            LogHelper.AddLog(
+            PerformanceSpikeDiagnostics.LogIfEnabled(
                 MsgLevel.Debug,
-                $"【链路诊断-图像源状态写入】{GetCallbackResultContextText()}；状态={afterSetStatus - afterBuildOutput}ms；状态耗时={time}ms；ResultBeforeAssign={PerformanceSpikeDiagnostics.GetAssemblyText(result)}",
+                () => $"【链路诊断-图像源状态写入】{GetCallbackResultContextText()}；状态={afterSetStatus - afterBuildOutput}ms；状态耗时={time}ms；ResultBeforeAssign={PerformanceSpikeDiagnostics.GetAssemblyText(result)}",
                 true);
             result.RunTime = time;
             Result = result;
             long afterAssignResult = performanceStopwatch.ElapsedMilliseconds;
-            LogHelper.AddLog(
+            PerformanceSpikeDiagnostics.LogIfEnabled(
                 MsgLevel.Debug,
-                $"【链路诊断-图像源回调结果出口】{GetCallbackResultContextText()}；总耗时={afterAssignResult}ms；状态耗时={time}ms；结果={PerformanceSpikeDiagnostics.GetAssemblyText(Result)}；输出={PerformanceSpikeDiagnostics.GetOutputImageText(result.OutputImage)}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                () => $"【链路诊断-图像源回调结果出口】{GetCallbackResultContextText()}；总耗时={afterAssignResult}ms；状态耗时={time}ms；结果={PerformanceSpikeDiagnostics.GetAssemblyText(Result)}；输出={PerformanceSpikeDiagnostics.GetOutputImageText(result.OutputImage)}",
                 true);
-            LogHelper.AddLog(
+            PerformanceSpikeDiagnostics.LogIfEnabled(
                 MsgLevel.Debug,
-                $"【性能诊断-图像源回调结果】节点({ID}.{NodeName}) 取回调Mat={afterTakeMat}ms；结果对象={afterEnsureResult - afterTakeMat}ms；构建输出={afterBuildOutput - afterEnsureResult}ms；状态={afterSetStatus - afterBuildOutput}ms；结果赋值={afterAssignResult - afterSetStatus}ms；总耗时={afterAssignResult}ms；状态耗时={time}ms；输入={callbackMatText}；输出={PerformanceSpikeDiagnostics.GetOutputImageText(result.OutputImage)}",
+                () => $"【性能诊断-图像源回调结果】节点({ID}.{NodeName}) 取回调Mat={afterTakeMat}ms；结果对象={afterEnsureResult - afterTakeMat}ms；构建输出={afterBuildOutput - afterEnsureResult}ms；状态={afterSetStatus - afterBuildOutput}ms；结果赋值={afterAssignResult - afterSetStatus}ms；总耗时={afterAssignResult}ms；状态耗时={time}ms；输入={PerformanceSpikeDiagnostics.GetMatText(callbackMat)}；输出={PerformanceSpikeDiagnostics.GetOutputImageText(result.OutputImage)}",
                 true);
-            if (PerformanceSpikeDiagnostics.ShouldLog(
+            PerformanceSpikeDiagnostics.LogSlowIfEnabled(
+                MsgLevel.Debug,
                 PerformanceSpikeDiagnostics.CommonSlowMs,
+                () => $"【慢诊断-图像源回调结果】节点({ID}.{NodeName}) 取回调Mat={afterTakeMat}ms；结果对象={afterEnsureResult - afterTakeMat}ms；构建输出={afterBuildOutput - afterEnsureResult}ms；状态={afterSetStatus - afterBuildOutput}ms；结果赋值={afterAssignResult - afterSetStatus}ms；总耗时={afterAssignResult}ms；状态耗时={time}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                true,
                 afterAssignResult,
                 afterTakeMat,
                 afterEnsureResult - afterTakeMat,
                 afterBuildOutput - afterEnsureResult,
                 afterSetStatus - afterBuildOutput,
-                afterAssignResult - afterSetStatus))
-            {
-                LogHelper.AddLog(
-                    MsgLevel.Debug,
-                    $"【慢诊断-图像源回调结果】节点({ID}.{NodeName}) 取回调Mat={afterTakeMat}ms；结果对象={afterEnsureResult - afterTakeMat}ms；构建输出={afterBuildOutput - afterEnsureResult}ms；状态={afterSetStatus - afterBuildOutput}ms；结果赋值={afterAssignResult - afterSetStatus}ms；总耗时={afterAssignResult}ms；状态耗时={time}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
-                    true);
-            }
+                afterAssignResult - afterSetStatus);
 
             return true;
         }

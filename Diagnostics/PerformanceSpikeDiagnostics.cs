@@ -89,6 +89,46 @@ namespace TDJS_Vision.Diagnostics
         }
 
         /// <summary>
+        /// 判断当前诊断日志等级是否允许记录，供高频入口在拼接重诊断文本前快速退出。
+        /// </summary>
+        /// <param name="level">需要记录的日志等级。</param>
+        /// <returns>允许记录返回 true，否则返回 false。</returns>
+        public static bool IsDiagnosticLogEnabled(MsgLevel level)
+        {
+            return LogHelper.CanRecord(level);
+        }
+
+        /// <summary>
+        /// 仅在日志等级开启后才生成并记录诊断文本，避免关闭 Debug 时仍采集运行时现场。
+        /// </summary>
+        /// <param name="level">需要记录的日志等级。</param>
+        /// <param name="messageFactory">诊断文本生成器，只有需要记录时才会执行。</param>
+        /// <param name="isDisplay">是否刷新日志界面。</param>
+        public static void LogIfEnabled(MsgLevel level, Func<string> messageFactory, bool isDisplay = false)
+        {
+            if (!IsDiagnosticLogEnabled(level) || messageFactory == null)
+                return;
+
+            LogHelper.AddLog(level, messageFactory(), isDisplay);
+        }
+
+        /// <summary>
+        /// 仅在日志等级开启且存在慢耗时后才生成并记录诊断文本，用于现场毛刺定位。
+        /// </summary>
+        /// <param name="level">需要记录的日志等级。</param>
+        /// <param name="thresholdMs">慢耗时阈值，单位毫秒。</param>
+        /// <param name="messageFactory">诊断文本生成器，只有需要记录时才会执行。</param>
+        /// <param name="isDisplay">是否刷新日志界面。</param>
+        /// <param name="elapsedItems">需要参与慢耗时判定的耗时集合。</param>
+        public static void LogSlowIfEnabled(MsgLevel level, long thresholdMs, Func<string> messageFactory, bool isDisplay = false, params long[] elapsedItems)
+        {
+            if (!IsDiagnosticLogEnabled(level) || !ShouldLog(thresholdMs, elapsedItems) || messageFactory == null)
+                return;
+
+            LogHelper.AddLog(level, messageFactory(), isDisplay);
+        }
+
+        /// <summary>
         /// 生成当前线程、线程池、进程内存和GC状态文本。
         /// </summary>
         /// <returns>运行时现场诊断文本。</returns>
@@ -227,6 +267,10 @@ namespace TDJS_Vision.Diagnostics
         /// <param name="elapsedMilliseconds">节点耗时。</param>
         public static void LogNodeMemoryIfNeeded(string processName, int nodeId, string nodeName, string statusText, int elapsedMilliseconds)
         {
+            // Debug 关闭时不做进程资源查询，避免内存诊断本身影响节点耗时。
+            if (!IsDiagnosticLogEnabled(MsgLevel.Debug))
+                return;
+
             if (!ShouldSampleNodeMemory())
                 return;
 
@@ -292,9 +336,9 @@ namespace TDJS_Vision.Diagnostics
             if (!shouldLog)
                 return;
 
-            LogHelper.AddLog(
-                MsgLevel.Info,
-                $"【内存诊断-节点水位】原因={reason}；流程={processName ?? "未知"}；节点=({nodeId}.{nodeName})；状态={statusText}；节点耗时={elapsedMilliseconds}ms；较基线私有内存={snapshot.PrivateMemoryMb - baseline.PrivateMemoryMb:F1}MB；较上次日志私有内存={snapshot.PrivateMemoryMb - previousLogSnapshot.PrivateMemoryMb:F1}MB；当前={snapshot.ToLogText()}；基线={baseline.ToLogText()}",
+            LogIfEnabled(
+                MsgLevel.Debug,
+                () => $"【内存诊断-节点水位】原因={reason}；流程={processName ?? "未知"}；节点=({nodeId}.{nodeName})；状态={statusText}；节点耗时={elapsedMilliseconds}ms；较基线私有内存={snapshot.PrivateMemoryMb - baseline.PrivateMemoryMb:F1}MB；较上次日志私有内存={snapshot.PrivateMemoryMb - previousLogSnapshot.PrivateMemoryMb:F1}MB；当前={snapshot.ToLogText()}；基线={baseline.ToLogText()}",
                 true);
         }
 

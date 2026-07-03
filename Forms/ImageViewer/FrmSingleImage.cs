@@ -169,8 +169,6 @@ namespace TDJS_Vision.Forms.ImageViewer
                 return;
             }
 
-            string bitmapInfo = GetBitmapDiagnosticText(bitmap);
-            string displayInfo = GetDisplayResultDiagnosticText(displayResult);
             Stopwatch scheduleStopwatch = Stopwatch.StartNew();
             Action updateImage = () =>
             {
@@ -184,17 +182,17 @@ namespace TDJS_Vision.Forms.ImageViewer
                 Stopwatch uiStopwatch = Stopwatch.StartNew();
                 showImageControl1.SetImage(bitmap, displayResult);
                 long setImageMs = uiStopwatch.ElapsedMilliseconds;
-                LogHelper.AddLog(
+                PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    $"【性能诊断-图像显示】窗口({FormName}) UI刷新完成，图像={bitmapInfo}；显示结果={displayInfo}；排队等待={queueDelay}ms；SetImage={setImageMs}ms。",
+                    () => $"【性能诊断-图像显示】窗口({FormName}) UI刷新完成，图像={GetBitmapDiagnosticText(bitmap)}；显示结果={GetDisplayResultDiagnosticText(displayResult)}；排队等待={queueDelay}ms；SetImage={setImageMs}ms。",
                     true);
-                if (PerformanceSpikeDiagnostics.ShouldLog(PerformanceSpikeDiagnostics.UiQueueSlowMs, queueDelay, setImageMs))
-                {
-                    LogHelper.AddLog(
-                        MsgLevel.Debug,
-                        $"【慢诊断-窗口图像显示】窗口({FormName}) 图像={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；排队等待={queueDelay}ms；SetImage={setImageMs}ms；窗体可见={Visible}；句柄已创建={IsHandleCreated}；InvokeRequired={InvokeRequired}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
-                        true);
-                }
+                PerformanceSpikeDiagnostics.LogSlowIfEnabled(
+                    MsgLevel.Debug,
+                    PerformanceSpikeDiagnostics.UiQueueSlowMs,
+                    () => $"【慢诊断-窗口图像显示】窗口({FormName}) 图像={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；排队等待={queueDelay}ms；SetImage={setImageMs}ms；窗体可见={Visible}；句柄已创建={IsHandleCreated}；InvokeRequired={InvokeRequired}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                    true,
+                    queueDelay,
+                    setImageMs);
             };
 
             if (InvokeRequired)
@@ -209,17 +207,16 @@ namespace TDJS_Vision.Forms.ImageViewer
                 {
                     BeginInvoke(updateImage);
                     long postMs = scheduleStopwatch.ElapsedMilliseconds;
-                    LogHelper.AddLog(
+                    PerformanceSpikeDiagnostics.LogIfEnabled(
                         MsgLevel.Debug,
-                        $"【性能诊断-图像显示】窗口({FormName}) 已投递UI刷新，图像={bitmapInfo}；显示结果={displayInfo}；投递耗时={postMs}ms。",
+                        () => $"【性能诊断-图像显示】窗口({FormName}) 已投递UI刷新，图像={GetBitmapDiagnosticText(bitmap)}；显示结果={GetDisplayResultDiagnosticText(displayResult)}；投递耗时={postMs}ms。",
                         true);
-                    if (PerformanceSpikeDiagnostics.ShouldLog(PerformanceSpikeDiagnostics.CommonSlowMs, postMs))
-                    {
-                        LogHelper.AddLog(
-                            MsgLevel.Debug,
-                            $"【慢诊断-窗口投递】窗口({FormName}) 图像={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；投递耗时={postMs}ms；句柄已创建={IsHandleCreated}；InvokeRequired={InvokeRequired}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
-                            true);
-                    }
+                    PerformanceSpikeDiagnostics.LogSlowIfEnabled(
+                        MsgLevel.Debug,
+                        PerformanceSpikeDiagnostics.CommonSlowMs,
+                        () => $"【慢诊断-窗口投递】窗口({FormName}) 图像={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；投递耗时={postMs}ms；句柄已创建={IsHandleCreated}；InvokeRequired={InvokeRequired}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                        true,
+                        postMs);
                 }
                 catch
                 {

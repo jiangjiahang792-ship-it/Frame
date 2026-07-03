@@ -309,6 +309,22 @@ namespace Logger
         }
 
         /// <summary>
+        /// 判断指定日志等级当前是否会被记录，统一包含系统设置和仅记录异常菜单过滤。
+        /// </summary>
+        /// <param name="level">日志等级。</param>
+        /// <returns>当前等级会被记录返回 true，否则返回 false。</returns>
+        public static bool CanRecord(MsgLevel level)
+        {
+            if (!LogLevelSettings.IsEnabled(level))
+                return false;
+
+            if (OnlyLogException && (level == MsgLevel.Info || level == MsgLevel.Debug))
+                return false;
+
+            return true;
+        }
+
+        /// <summary>
         /// 记录一条日志并触发异步落地
         /// </summary>
         /// <param name="level">日志级别</param>
@@ -326,11 +342,9 @@ namespace Logger
             [CallerLineNumber] int lineNumber = 0
             )
         {
-            if (!LogLevelSettings.IsEnabled(level))
-                return; // 系统设置中关闭的日志等级不再写文件或刷新界面
+            if (!CanRecord(level))
+                return; // 系统设置或仅记录异常菜单关闭的日志不再写文件或刷新界面
 
-            if (OnlyLogException && (level == MsgLevel.Info || level == MsgLevel.Debug))
-                return; // 过滤非异常日志
             SingleLog singleLog = new SingleLog();
             singleLog.MakeLog(GetHighResTimestamp(), $"{level}", logInfo, filePath, memberName, $"{lineNumber}");
             

@@ -20,6 +20,16 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-07-03 诊断日志公共懒执行入口：
+  - [x] 新反馈已记录：诊断信息很多时，不能在日志等级关闭后仍提前执行 `GetRuntimeText()`、图像摘要和相机分段诊断文本。
+  - [x] `LogHelper` 已新增统一记录判定入口，集中处理系统设置日志等级和“仅记录异常日志”菜单过滤。
+  - [x] `PerformanceSpikeDiagnostics` 已新增公共诊断判定入口，先检查缓存日志等级，再按需执行 `Func<string>` 生成诊断文本。
+  - [x] `PerformanceSpikeDiagnostics` 已新增慢诊断懒执行入口，先检查日志等级和耗时阈值，再采集运行时现场。
+  - [x] `CameraHik` 的回调 Mat 转换分段日志已改为 Debug 慢日志，正常帧不再每次生成分段详情。
+  - [x] `NodeImageSource` 和 `Process.TryPrepareSkippedNodeRunResult` 的高频链路诊断已改为公共懒执行，避免 Debug 关闭时仍采集线程、内存、GDI、GC 和图像摘要。
+  - [x] `ShowImageControl` 和 `FrmSingleImage` 的图像显示性能诊断已改为公共懒执行入口，Debug 关闭时不再提前生成图像摘要、显示结果摘要和运行时现场。
+  - [x] `PerformanceSpikeDiagnostics.LogNodeMemoryIfNeeded` 已在 Debug 关闭时直接跳过节点内存水位采样，避免未开启诊断时仍查询进程内存、GDI 和句柄资源。
+  - [x] 已新增 `Tests/DiagnosticLazyEvaluation.Tests.ps1` 回归检查，防止高频诊断再次在 `LogHelper.AddLog` 过滤前提前构建重诊断文本。
 - 2026-07-03 无监督训练界面第一阶段：
   - [x] 新反馈已记录：本阶段先完善 `Forms/AiTrainForm/UnsupervisedTrainForm` 训练界面，不做流程识别节点；无监督环境必须隔离在运行目录 `UnsupervisedDll`，缺失时不影响软件启动。
   - [x] 检查页已增加图像路径选择、递归加载、All/OK/NG 分类、OK 绿色边框和 NG 红色边框缩略图、右侧图像预览与单 ROI 绘制入口。
