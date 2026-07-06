@@ -4,11 +4,24 @@ using System.Windows.Forms;
 
 namespace TDJS_Vision.Forms.YTMessageBox
 {
+    /// <summary>
+    /// 自定义消息弹窗，统一软件内提示框样式。
+    /// </summary>
     public partial class MessageBoxTD : FormBase
     {
+        /// <summary>
+        /// 用户点击后的对话框结果。
+        /// </summary>
         private DialogResult result = DialogResult.None;
+
+        /// <summary>
+        /// 当前弹窗按钮类型。
+        /// </summary>
         private MessageBoxButtons buttons;
 
+        /// <summary>
+        /// 初始化自定义消息弹窗。
+        /// </summary>
         public MessageBoxTD()
         {
             InitializeComponent();
@@ -46,6 +59,20 @@ namespace TDJS_Vision.Forms.YTMessageBox
 
         public static DialogResult Show(string message, string title, MessageBoxButtons buttons, MessageBoxIcon icon)
         {
+            return Show(null, message, title, buttons, icon);
+        }
+
+        /// <summary>
+        /// 显示带 owner 的消息弹窗，避免二级模态窗体中弹框隐藏到父窗体后方。
+        /// </summary>
+        /// <param name="owner">弹窗所属窗口。</param>
+        /// <param name="message">提示内容。</param>
+        /// <param name="title">标题。</param>
+        /// <param name="buttons">按钮类型。</param>
+        /// <param name="icon">图标类型。</param>
+        /// <returns>用户点击结果。</returns>
+        public static DialogResult Show(IWin32Window owner, string message, string title, MessageBoxButtons buttons, MessageBoxIcon icon)
+        {
             using (var msgBox = new MessageBoxTD())
             {
                 msgBox.Text = title; // 设置窗体标题
@@ -54,22 +81,55 @@ namespace TDJS_Vision.Forms.YTMessageBox
                 // 设置按钮
                 msgBox.SetButtons(buttons);
                 msgBox.SetIcon(icon);
-                msgBox.ShowDialog();
+                if (owner != null)
+                {
+                    msgBox.StartPosition = FormStartPosition.CenterParent;
+                    msgBox.ShowInTaskbar = false;
+                    msgBox.ShowDialog(owner);
+                }
+                else
+                {
+                    msgBox.ShowDialog();
+                }
                 return msgBox.result;
             }
         }
         public static DialogResult Show(string message)
+        {
+            return Show(null, message);
+        }
+
+        /// <summary>
+        /// 显示带 owner 的默认 OK 消息弹窗。
+        /// </summary>
+        /// <param name="owner">弹窗所属窗口。</param>
+        /// <param name="message">提示内容。</param>
+        /// <returns>用户点击结果。</returns>
+        public static DialogResult Show(IWin32Window owner, string message)
         {
             using (var msgBox = new MessageBoxTD())
             {
                 msgBox.Text = "";
                 msgBox.labelMessage.Text = message;
                 msgBox.SetButtons(MessageBoxButtons.OK); // 默认按钮为 OK
-                msgBox.ShowDialog();
+                if (owner != null)
+                {
+                    msgBox.StartPosition = FormStartPosition.CenterParent;
+                    msgBox.ShowInTaskbar = false;
+                    msgBox.ShowDialog(owner);
+                }
+                else
+                {
+                    msgBox.ShowDialog();
+                }
                 return msgBox.result;
             }
         }
 
+        /// <summary>
+        /// 根据按钮类型构建弹窗按钮。
+        /// </summary>
+        /// <param name="buttons">按钮类型。</param>
         private void SetButtons(MessageBoxButtons buttons)
         {
             foreach (Control control in tableLayoutPanel2.Controls)

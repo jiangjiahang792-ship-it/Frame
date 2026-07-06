@@ -661,7 +661,12 @@ namespace TDJS_Vision
 
         private void 流程管理ToolStripMenuItem_Click(object value1, object value2)
         {
-            FrmNewProcessWizard.ShowDialog();
+            if (FrmNewProcessWizard == null || FrmNewProcessWizard.IsDisposed)
+            {
+                FrmNewProcessWizard = new FormNewProcessWizard();
+            }
+
+            ShowOwnedMaximizedDialog(FrmNewProcessWizard);
         }
 
         private async void 停止运行ToolStripMenuItem_Click(object value1, object value2)
@@ -1043,7 +1048,27 @@ namespace TDJS_Vision
                 unsupervisedTrainForm = new UnsupervisedTrainForm();
             }
 
-            unsupervisedTrainForm.ShowDialog(this);
+            ShowOwnedMaximizedDialog(unsupervisedTrainForm);
+        }
+
+        /// <summary>
+        /// 以主窗体为 owner 显示最大化弹窗，并在显示前预定位到主窗体区域，避免恢复最大化后露出主界面底部。
+        /// </summary>
+        /// <param name="dialog">需要显示的弹窗。</param>
+        private void ShowOwnedMaximizedDialog(Form dialog)
+        {
+            if (dialog == null || dialog.IsDisposed)
+                return;
+
+            if (dialog.WindowState == FormWindowState.Maximized)
+            {
+                dialog.StartPosition = FormStartPosition.Manual;
+                dialog.WindowState = FormWindowState.Normal;
+                dialog.Bounds = Bounds;
+                dialog.WindowState = FormWindowState.Maximized;
+            }
+
+            dialog.ShowDialog(this);
         }
 
         /// <summary>

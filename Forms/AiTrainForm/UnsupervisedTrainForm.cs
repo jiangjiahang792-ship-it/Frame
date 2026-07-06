@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Globalization;
@@ -28,6 +29,51 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// 无监督训练服务。
         /// </summary>
         private readonly UnsupervisedTrainingService _trainingService = new UnsupervisedTrainingService();
+
+        /// <summary>
+        /// 检查页主背景色。
+        /// </summary>
+        private static readonly Color InspectionBackColor = Color.FromArgb(48, 48, 48);
+
+        /// <summary>
+        /// 缩略图网格背景色。
+        /// </summary>
+        private static readonly Color InspectionGridBackColor = Color.FromArgb(42, 42, 42);
+
+        /// <summary>
+        /// 缩略图卡片背景色。
+        /// </summary>
+        private static readonly Color InspectionCardBackColor = Color.FromArgb(58, 58, 58);
+
+        /// <summary>
+        /// 检查页强调色。
+        /// </summary>
+        private static readonly Color InspectionAccentColor = Color.FromArgb(0, 188, 188);
+
+        /// <summary>
+        /// 顶部导航栏背景色。
+        /// </summary>
+        private static readonly Color NavigationBackColor = Color.FromArgb(54, 54, 54);
+
+        /// <summary>
+        /// 输入框暗色背景色。
+        /// </summary>
+        private static readonly Color DarkInputBackColor = Color.FromArgb(38, 38, 38);
+
+        /// <summary>
+        /// 分类按钮字体，复用静态实例降低频繁刷新时的 GDI 对象压力。
+        /// </summary>
+        private static readonly Font FilterButtonFont = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold, GraphicsUnit.Point, 134);
+
+        /// <summary>
+        /// 操作按钮字体。
+        /// </summary>
+        private static readonly Font ActionButtonFont = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 134);
+
+        /// <summary>
+        /// 自适应文本字体缓存，避免每次刷新按钮状态都创建新的 GDI 字体对象。
+        /// </summary>
+        private static readonly Dictionary<string, Font> AutoFitFontCache = new Dictionary<string, Font>();
 
         /// <summary>
         /// 当前分类筛选。
@@ -60,6 +106,11 @@ namespace TDJS_Vision.Forms.AiTrainForm
         private bool _outputPathUserSelected;
 
         /// <summary>
+        /// 是否正在修正最大化边界，避免 Resize 递归。
+        /// </summary>
+        private bool _applyingMaximizedBounds;
+
+        /// <summary>
         /// 初始化无监督训练窗体。
         /// </summary>
         public UnsupervisedTrainForm()
@@ -73,6 +124,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// </summary>
         private void InitializeFormState()
         {
+            ApplyRuntimeTabHeaderMode();
+            ApplyInspectionTheme();
             comboBoxModelType.SelectedIndex = 0;
             comboBoxDevice.SelectedIndex = 0;
             buttonStopTraining.Enabled = false;
@@ -82,6 +135,87 @@ namespace TDJS_Vision.Forms.AiTrainForm
             RefreshRuntimeStatus();
             UpdateImageCountText();
             UpdateRoiStatus();
+        }
+
+        /// <summary>
+        /// 运行时收起原生页签头；设计器中保留页签，方便直接切换和设计训练页。
+        /// </summary>
+        private void ApplyRuntimeTabHeaderMode()
+        {
+            if (IsDesignerHosted())
+                return;
+
+            tabControlMain.ItemSize = new Size(1, 1);
+            tabControlMain.Padding = Point.Empty;
+            tabControlMain.SizeMode = TabSizeMode.Fixed;
+            tabControlMain.TabStop = false;
+        }
+
+        /// <summary>
+        /// 判断当前窗体是否运行在 WinForms 设计器中。
+        /// </summary>
+        /// <returns>在设计器中返回 true。</returns>
+        private bool IsDesignerHosted()
+        {
+            return DesignMode || LicenseManager.UsageMode == LicenseUsageMode.Designtime;
+        }
+
+        /// <summary>
+        /// 窗体首次显示后修正最大化边界，避免底部露出主界面。
+        /// </summary>
+        private void UnsupervisedTrainForm_Shown(object sender, EventArgs e)
+        {
+            EnsureMaximizedBounds();
+        }
+
+        /// <summary>
+        /// 从最小化恢复到最大化后再次修正边界。
+        /// </summary>
+        private void UnsupervisedTrainForm_Resize(object sender, EventArgs e)
+        {
+            RefreshAdaptiveText();
+
+            if (WindowState != FormWindowState.Maximized || IsDisposed || !IsHandleCreated)
+                return;
+
+            BeginInvoke(new Action(EnsureMaximizedBounds));
+        }
+
+        /// <summary>
+        /// 切换到检查页。
+        /// </summary>
+        private void buttonNavCheck_Click(object sender, EventArgs e)
+        {
+            SelectNavigationTab(0);
+        }
+
+        /// <summary>
+        /// 切换到训练页。
+        /// </summary>
+        private void buttonNavTraining_Click(object sender, EventArgs e)
+        {
+            SelectNavigationTab(1);
+        }
+
+        /// <summary>
+        /// TabControl 选中项变化时同步顶部导航按钮状态。
+        /// </summary>
+        private void tabControlMain_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            UpdateNavigationButtonState();
+        }
+
+        /// <summary>
+        /// 使用自定义导航按钮切换隐藏页签。
+        /// </summary>
+        /// <param name="tabIndex">目标页签索引。</param>
+        private void SelectNavigationTab(int tabIndex)
+        {
+            if (tabIndex < 0 || tabIndex >= tabControlMain.TabPages.Count)
+                return;
+
+            tabControlMain.SelectedIndex = tabIndex;
+            UpdateNavigationButtonState();
         }
 
         /// <summary>
@@ -143,13 +277,13 @@ namespace TDJS_Vision.Forms.AiTrainForm
         {
             if (_selectedImage == null)
             {
-                MessageBoxTD.Show("请先选择一张预览图像。");
+                MessageBoxTD.Show(this, "请先选择一张预览图像。");
                 return;
             }
 
             if (imageROIEditControlPreview.GetRoiCount() >= 1)
             {
-                MessageBoxTD.Show("当前只允许一个 ROI，请先清空已有 ROI。");
+                MessageBoxTD.Show(this, "当前只允许一个 ROI，请先清空已有 ROI。");
                 return;
             }
 
@@ -192,7 +326,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
 
                 if (!IsPathUnderRoot(dialog.FileName, modelRoot))
                 {
-                    MessageBoxTD.Show("模板文件必须保存到运行目录 Model 文件夹内。");
+                    MessageBoxTD.Show(this, "模板文件必须保存到运行目录 Model 文件夹内。");
                     return;
                 }
 
@@ -221,7 +355,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
                     _trainingService.Train(request, progress, log, _trainingCancellation.Token));
 
                 AppendTrainingLog("训练完成，模板已生成：" + result.TemplatePath);
-                MessageBoxTD.Show("无监督模板生成完成：" + result.TemplatePath);
+                MessageBoxTD.Show(this, "无监督模板生成完成：" + result.TemplatePath);
             }
             catch (OperationCanceledException)
             {
@@ -231,7 +365,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             {
                 AppendTrainingLog("训练失败：" + ex.Message);
                 LogHelper.AddLog(MsgLevel.Exception, "无监督训练失败：" + ex.Message, true);
-                MessageBoxTD.Show("训练失败：" + ex.Message);
+                MessageBoxTD.Show(this, "训练失败：" + ex.Message);
             }
             finally
             {
@@ -268,7 +402,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
         {
             if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
             {
-                MessageBoxTD.Show("请选择有效的图像路径。");
+                MessageBoxTD.Show(this, "请选择有效的图像路径。");
                 return;
             }
 
@@ -306,7 +440,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             }
             catch (Exception ex)
             {
-                MessageBoxTD.Show("加载图像失败：" + ex.Message);
+                MessageBoxTD.Show(this, "加载图像失败：" + ex.Message);
                 LogHelper.AddLog(MsgLevel.Exception, "加载无监督训练图像失败：" + ex.Message, true);
             }
             finally
@@ -352,10 +486,10 @@ namespace TDJS_Vision.Forms.AiTrainForm
         {
             var card = new Panel
             {
-                Width = 156,
-                Height = 128,
-                Margin = new Padding(6),
-                BackColor = Color.White,
+                Width = 172,
+                Height = 172,
+                Margin = new Padding(4),
+                BackColor = InspectionCardBackColor,
                 Tag = item,
                 Cursor = Cursors.Hand
             };
@@ -366,8 +500,9 @@ namespace TDJS_Vision.Forms.AiTrainForm
             {
                 Image = item.Thumbnail,
                 Location = new Point(10, 10),
-                Size = new Size(136, 86),
+                Size = new Size(152, 126),
                 SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.Black,
                 Tag = item,
                 Cursor = Cursors.Hand
             };
@@ -377,10 +512,12 @@ namespace TDJS_Vision.Forms.AiTrainForm
             var label = new Label
             {
                 Text = item.DisplayName,
-                Location = new Point(8, 100),
-                Size = new Size(140, 22),
+                Location = new Point(8, 140),
+                Size = new Size(156, 24),
                 TextAlign = ContentAlignment.MiddleCenter,
                 AutoEllipsis = true,
+                BackColor = InspectionCardBackColor,
+                ForeColor = Color.Gainsboro,
                 Tag = item,
                 Cursor = Cursors.Hand
             };
@@ -397,10 +534,10 @@ namespace TDJS_Vision.Forms.AiTrainForm
         {
             if (!(sender is Control control) || !(control.Tag is UnsupervisedImageItem item)) return;
 
-            Color color = item.Category == UnsupervisedImageCategory.NG ? Color.IndianRed : Color.SeaGreen;
+            Color color = item.Category == UnsupervisedImageCategory.NG ? Color.FromArgb(230, 40, 40) : Color.FromArgb(0, 190, 100);
             if (ReferenceEquals(item, _selectedImage))
             {
-                color = Color.DodgerBlue;
+                color = InspectionAccentColor;
             }
 
             using (var pen = new Pen(color, 3))
@@ -433,12 +570,13 @@ namespace TDJS_Vision.Forms.AiTrainForm
             {
                 SetPreviewImage(LoadBitmapWithoutLock(item.FilePath));
                 labelPreviewTitle.Text = "图像预览 / ROI编辑：" + item.DisplayName;
+                FitLabelText(labelPreviewTitle, 10F, 7F, FontStyle.Bold);
                 UpdateRoiStatus();
                 flowLayoutPanelImages.Invalidate();
             }
             catch (Exception ex)
             {
-                MessageBoxTD.Show("预览图像失败：" + ex.Message);
+                MessageBoxTD.Show(this, "预览图像失败：" + ex.Message);
             }
         }
 
@@ -640,8 +778,302 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <param name="selected">是否选中。</param>
         private static void ApplyFilterButtonStyle(Button button, bool selected)
         {
-            button.BackColor = selected ? Color.FromArgb(225, 238, 255) : SystemColors.Control;
-            button.FlatStyle = selected ? FlatStyle.Flat : FlatStyle.Standard;
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = selected ? 1 : 0;
+            button.FlatAppearance.BorderColor = InspectionAccentColor;
+            button.BackColor = selected ? InspectionAccentColor : Color.FromArgb(82, 82, 82);
+            button.ForeColor = Color.White;
+            button.TextAlign = ContentAlignment.MiddleCenter;
+            button.UseVisualStyleBackColor = false;
+            FitButtonText(button, FilterButtonFont.SizeInPoints, 8F, FontStyle.Bold);
+        }
+
+        /// <summary>
+        /// 应用类似标注工具的深色检查工作区主题。
+        /// </summary>
+        private void ApplyInspectionTheme()
+        {
+            BackColor = InspectionBackColor;
+            tableLayoutPanelMainRoot.BackColor = InspectionBackColor;
+            panelMainNavigation.BackColor = InspectionBackColor;
+            tabControlMain.BackColor = NavigationBackColor;
+            tabControlMain.ForeColor = Color.WhiteSmoke;
+            tabPageCheck.BackColor = InspectionBackColor;
+            tabPageCheck.UseVisualStyleBackColor = false;
+            tableLayoutPanelCheckRoot.BackColor = InspectionBackColor;
+            tableLayoutPanelCheckBody.BackColor = InspectionBackColor;
+            panelCheckToolbar.BackColor = InspectionBackColor;
+            panelCategory.BackColor = Color.FromArgb(52, 52, 52);
+            flowLayoutPanelImages.BackColor = InspectionGridBackColor;
+            flowLayoutPanelImages.BorderStyle = BorderStyle.None;
+            tableLayoutPanelPreview.BackColor = InspectionGridBackColor;
+            panelRoiToolbar.BackColor = InspectionGridBackColor;
+            panelCheckStatus.BackColor = Color.FromArgb(56, 56, 56);
+            imageROIEditControlPreview.BackColor = Color.Black;
+
+            labelImageFolder.ForeColor = Color.Gainsboro;
+            labelCategoryTitle.ForeColor = InspectionAccentColor;
+            labelPreviewTitle.ForeColor = Color.Gainsboro;
+            labelImageCount.ForeColor = Color.Gainsboro;
+            labelRoiStatus.ForeColor = Color.Gainsboro;
+            textBoxImageFolder.BackColor = Color.FromArgb(38, 38, 38);
+            textBoxImageFolder.ForeColor = Color.White;
+            textBoxImageFolder.BorderStyle = BorderStyle.FixedSingle;
+
+            ApplyActionButtonStyle(buttonSelectImageFolder);
+            ApplyActionButtonStyle(buttonReloadImages);
+            ApplyActionButtonStyle(buttonDrawRoi);
+            ApplyActionButtonStyle(buttonClearRoi);
+            HighlightFilterButton();
+            ApplyTrainingTheme();
+            UpdateNavigationButtonState();
+            RefreshAdaptiveText();
+        }
+
+        /// <summary>
+        /// 刷新顶部自定义导航按钮选中态。
+        /// </summary>
+        private void UpdateNavigationButtonState()
+        {
+            ApplyNavigationButtonStyle(buttonNavCheck, tabControlMain.SelectedIndex == 0);
+            ApplyNavigationButtonStyle(buttonNavTraining, tabControlMain.SelectedIndex == 1);
+        }
+
+        /// <summary>
+        /// 应用顶部导航按钮样式，保证导航条背景与工作区同色。
+        /// </summary>
+        /// <param name="button">导航按钮。</param>
+        /// <param name="selected">是否选中。</param>
+        private static void ApplyNavigationButtonStyle(Button button, bool selected)
+        {
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.BackColor = selected ? InspectionGridBackColor : InspectionBackColor;
+            button.ForeColor = selected ? InspectionAccentColor : Color.WhiteSmoke;
+            button.TextAlign = ContentAlignment.MiddleCenter;
+            button.UseVisualStyleBackColor = false;
+            FitButtonText(button, 12F, 8F, FontStyle.Bold);
+        }
+
+        /// <summary>
+        /// 应用训练页深色工作区主题，使训练页和检查页保持一致背景。
+        /// </summary>
+        private void ApplyTrainingTheme()
+        {
+            tabPageTraining.BackColor = InspectionBackColor;
+            tabPageTraining.UseVisualStyleBackColor = false;
+            tableLayoutPanelTrainingRoot.BackColor = InspectionBackColor;
+            groupBoxTrainingParams.BackColor = InspectionBackColor;
+            groupBoxTrainingParams.ForeColor = Color.Gainsboro;
+            groupBoxTrainingOutput.BackColor = InspectionBackColor;
+            groupBoxTrainingOutput.ForeColor = Color.Gainsboro;
+            tableLayoutPanelTrainingParams.BackColor = InspectionBackColor;
+            tableLayoutPanelTrainingOutput.BackColor = InspectionBackColor;
+            panelTrainingButtons.BackColor = InspectionBackColor;
+            textBoxTrainingLog.BackColor = DarkInputBackColor;
+            textBoxTrainingLog.ForeColor = Color.Gainsboro;
+            textBoxTrainingLog.BorderStyle = BorderStyle.FixedSingle;
+
+            ApplyTrainingLabelStyle(labelModelType);
+            ApplyTrainingLabelStyle(labelThreshold);
+            ApplyTrainingLabelStyle(labelMiniArea);
+            ApplyTrainingLabelStyle(labelInputWidth);
+            ApplyTrainingLabelStyle(labelInputHeight);
+            ApplyTrainingLabelStyle(labelEpochs);
+            ApplyTrainingLabelStyle(labelBatchSize);
+            ApplyTrainingLabelStyle(labelDevice);
+            ApplyTrainingLabelStyle(labelTemplateName);
+            ApplyTrainingLabelStyle(labelModelOutputPath);
+
+            ApplyTrainingInputStyle(comboBoxModelType);
+            ApplyTrainingInputStyle(numericUpDownThreshold);
+            ApplyTrainingInputStyle(numericUpDownMiniArea);
+            ApplyTrainingInputStyle(numericUpDownInputWidth);
+            ApplyTrainingInputStyle(numericUpDownInputHeight);
+            ApplyTrainingInputStyle(numericUpDownEpochs);
+            ApplyTrainingInputStyle(numericUpDownBatchSize);
+            ApplyTrainingInputStyle(comboBoxDevice);
+            ApplyTrainingInputStyle(textBoxTemplateName);
+            ApplyTrainingInputStyle(textBoxModelOutputPath);
+
+            ApplyActionButtonStyle(buttonSelectModelOutput);
+            ApplyActionButtonStyle(buttonStartTraining);
+            ApplyActionButtonStyle(buttonStopTraining);
+        }
+
+        /// <summary>
+        /// 应用训练页标签颜色。
+        /// </summary>
+        /// <param name="label">标签控件。</param>
+        private static void ApplyTrainingLabelStyle(Label label)
+        {
+            label.ForeColor = Color.Gainsboro;
+        }
+
+        /// <summary>
+        /// 应用训练页输入控件颜色。
+        /// </summary>
+        /// <param name="control">输入控件。</param>
+        private static void ApplyTrainingInputStyle(Control control)
+        {
+            control.BackColor = DarkInputBackColor;
+            control.ForeColor = Color.White;
+        }
+
+        /// <summary>
+        /// 应用检查页操作按钮样式。
+        /// </summary>
+        /// <param name="button">按钮控件。</param>
+        private static void ApplyActionButtonStyle(Button button)
+        {
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderColor = Color.FromArgb(95, 95, 95);
+            button.BackColor = Color.FromArgb(68, 68, 68);
+            button.ForeColor = Color.White;
+            button.TextAlign = ContentAlignment.MiddleCenter;
+            button.UseVisualStyleBackColor = false;
+            FitButtonText(button, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
+        }
+
+        /// <summary>
+        /// 刷新按钮和标题的文字自适应，避免不同 DPI 或窗口尺寸下文字被裁切。
+        /// </summary>
+        private void RefreshAdaptiveText()
+        {
+            FitButtonText(buttonNavCheck, 12F, 8F, FontStyle.Bold);
+            FitButtonText(buttonNavTraining, 12F, 8F, FontStyle.Bold);
+            FitButtonText(buttonFilterAll, FilterButtonFont.SizeInPoints, 8F, FontStyle.Bold);
+            FitButtonText(buttonFilterOk, FilterButtonFont.SizeInPoints, 8F, FontStyle.Bold);
+            FitButtonText(buttonFilterNg, FilterButtonFont.SizeInPoints, 8F, FontStyle.Bold);
+            FitButtonText(buttonSelectImageFolder, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
+            FitButtonText(buttonReloadImages, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
+            FitButtonText(buttonDrawRoi, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
+            FitButtonText(buttonClearRoi, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
+            FitButtonText(buttonSelectModelOutput, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
+            FitButtonText(buttonStartTraining, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
+            FitButtonText(buttonStopTraining, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
+            FitLabelText(labelPreviewTitle, 10F, 7F, FontStyle.Bold);
+        }
+
+        /// <summary>
+        /// 按按钮可用空间缩小字体，保证文本尽量完整显示。
+        /// </summary>
+        /// <param name="button">按钮控件。</param>
+        /// <param name="preferredSize">首选字号。</param>
+        /// <param name="minSize">最小字号。</param>
+        /// <param name="style">字体样式。</param>
+        private static void FitButtonText(Button button, float preferredSize, float minSize, FontStyle style)
+        {
+            if (button == null || string.IsNullOrEmpty(button.Text))
+                return;
+
+            Size available = new Size(Math.Max(1, button.ClientSize.Width - 8), Math.Max(1, button.ClientSize.Height - 6));
+            float fittedSize = CalculateFittedFontSize(button.Text, available, preferredSize, minSize, style);
+            button.Font = GetAutoFitFont(fittedSize, style);
+        }
+
+        /// <summary>
+        /// 按标签可用空间缩小字体，保证预览标题尽量展示更多文件名。
+        /// </summary>
+        /// <param name="label">标签控件。</param>
+        /// <param name="preferredSize">首选字号。</param>
+        /// <param name="minSize">最小字号。</param>
+        /// <param name="style">字体样式。</param>
+        private static void FitLabelText(Label label, float preferredSize, float minSize, FontStyle style)
+        {
+            if (label == null || string.IsNullOrEmpty(label.Text))
+                return;
+
+            Size available = new Size(Math.Max(1, label.ClientSize.Width - 6), Math.Max(1, label.ClientSize.Height - 4));
+            float fittedSize = CalculateFittedFontSize(label.Text, available, preferredSize, minSize, style);
+            label.Font = GetAutoFitFont(fittedSize, style);
+        }
+
+        /// <summary>
+        /// 根据文本和控件可用空间计算适配字号。
+        /// </summary>
+        /// <param name="text">显示文本。</param>
+        /// <param name="available">可用区域。</param>
+        /// <param name="preferredSize">首选字号。</param>
+        /// <param name="minSize">最小字号。</param>
+        /// <param name="style">字体样式。</param>
+        /// <returns>适配后的字号。</returns>
+        private static float CalculateFittedFontSize(string text, Size available, float preferredSize, float minSize, FontStyle style)
+        {
+            float size = preferredSize;
+            while (size > minSize)
+            {
+                Font font = GetAutoFitFont(size, style);
+                Size measured = TextRenderer.MeasureText(text, font, available, TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+                if (measured.Width <= available.Width && measured.Height <= available.Height)
+                    return size;
+
+                size -= 0.5F;
+            }
+
+            return minSize;
+        }
+
+        /// <summary>
+        /// 获取自适应字体缓存项。
+        /// </summary>
+        /// <param name="size">字号。</param>
+        /// <param name="style">字体样式。</param>
+        /// <returns>缓存字体。</returns>
+        private static Font GetAutoFitFont(float size, FontStyle style)
+        {
+            string key = style.ToString() + "_" + size.ToString("0.0", CultureInfo.InvariantCulture);
+            Font font;
+            if (!AutoFitFontCache.TryGetValue(key, out font))
+            {
+                font = new Font("Microsoft YaHei UI", size, style, GraphicsUnit.Point, 134);
+                AutoFitFontCache[key] = font;
+            }
+
+            return font;
+        }
+
+        /// <summary>
+        /// 修正最大化边界，覆盖父窗口区域，避免最小化后再最大化露出主界面底部。
+        /// </summary>
+        private void EnsureMaximizedBounds()
+        {
+            if (_applyingMaximizedBounds || IsDisposed)
+                return;
+
+            _applyingMaximizedBounds = true;
+            try
+            {
+                Rectangle targetBounds = GetMaximizedTargetBounds();
+                if (MaximizedBounds != targetBounds)
+                {
+                    MaximizedBounds = targetBounds;
+                }
+
+                StartPosition = FormStartPosition.Manual;
+                if (WindowState != FormWindowState.Maximized)
+                {
+                    WindowState = FormWindowState.Maximized;
+                }
+            }
+            finally
+            {
+                _applyingMaximizedBounds = false;
+            }
+        }
+
+        /// <summary>
+        /// 获取最大化目标边界；优先覆盖父窗口，避免对话框底部露出主界面。
+        /// </summary>
+        /// <returns>最大化目标边界。</returns>
+        private Rectangle GetMaximizedTargetBounds()
+        {
+            if (Owner != null && !Owner.IsDisposed && Owner.WindowState != FormWindowState.Minimized)
+            {
+                return Owner.Bounds;
+            }
+
+            return Screen.FromControl(this).Bounds;
         }
 
         /// <summary>

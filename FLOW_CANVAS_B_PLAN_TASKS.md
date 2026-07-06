@@ -20,6 +20,44 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-07-06 无监督训练窗体设计器可见性修复：
+  - [x] 新反馈已记录：`UnsupervisedTrainForm` 在设计器里看不到“训练”页，导致无法继续可视化设计训练界面。
+  - [x] 已将原生 `TabControl` 页签隐藏从 `.Designer.cs` 移到运行时方法，设计器中保留可见 `检查/训练` 页签。
+  - [x] 已增加设计器检测保护，构造期通过 `LicenseManager.UsageMode` 判断 WinForms 设计器环境，避免设计器加载时收起页签。
+  - [x] 运行软件时仍会把原生页签收起为 `1x1`，保持自定义深色顶部导航效果不变。
+  - [x] 已扩展 `Tests/UnsupervisedTrainForm.Tests.ps1`，回归检查设计器中不再隐藏原生页签，并确保运行时隐藏入口存在。
+- 2026-07-06 无监督训练界面顶部背景与文本自适应：
+  - [x] 新反馈已记录：顶部页签区域右侧仍是浅色背景，需要与界面保持同一深色背景；按钮文字需要按控件尺寸自适应，避免文字被裁切。
+  - [x] 已新增设计器可见的根布局和深色顶部导航面板，原生 `TabControl` 页签头收起为 1 像素，仅作为内容页容器使用。
+  - [x] 已增加 `检查/训练` 自定义导航按钮和选中态刷新逻辑，顶部空白区域与检查页背景统一为深色。
+  - [x] 已增加按钮文字自适应字号方法，分类按钮、路径按钮、ROI 按钮和训练按钮会按可用宽高缩小文字。
+  - [x] 已将右侧 ROI 工具条改为标题独占一行、ROI 按钮位于下一行右侧，长图片名不再和按钮抢同一行宽度。
+  - [x] 已扩展 `Tests/UnsupervisedTrainForm.Tests.ps1`，回归检查深色导航、隐藏原生页签、按钮切页和文字自适应入口。
+- 2026-07-06 无监督训练界面视觉优化：
+  - [x] 新反馈已记录：检查/训练顶部页签太小，左侧分类按钮偏小，右侧预览标题与 ROI 按钮存在文本重叠，训练页背景需要与检查页一致。
+  - [x] 已将无监督训练窗体顶部 `检查/训练` 页签改为大号深色导航样式，选中项使用青色文字和底部强调线。
+  - [x] 已放大左侧 All/OK/NG 分类按钮和分类标题，提升最大化界面中的可读性。
+  - [x] 已把右侧 ROI 工具条改为设计器可见的 `TableLayoutPanel` 伸缩布局，标题占剩余宽度并启用省略，避免长图像名压到按钮上。
+  - [x] 已为训练页应用与检查页一致的深色背景、输入框、日志框和操作按钮样式。
+  - [x] 已扩展 `Tests/UnsupervisedTrainForm.Tests.ps1`，回归检查大页签、分类按钮、ROI 工具条和训练页深色主题。
+- 2026-07-06 无监督训练完成后 UI 卡死修复：
+  - [x] 新反馈已记录：点击开始训练后日志显示训练完成，但界面按钮无响应，疑似 UI 线程被完成后的弹窗阻塞。
+  - [x] 已定位到 `MessageBoxTD.Show()` 默认无 owner 调用 `ShowDialog()`，在无监督训练这种二级模态窗体内可能隐藏到后方，导致 UI 看似卡死。
+  - [x] 已为 `MessageBoxTD` 增加带 owner 的显示重载，并在有 owner 时使用 `CenterParent` 和 `ShowDialog(owner)`。
+  - [x] 已将 `UnsupervisedTrainForm` 内所有 `MessageBoxTD.Show` 调整为传入 `this`，确保提示框始终显示在训练窗体前方。
+  - [x] 已新增 `Tests/UnsupervisedTrainingDialogOwnership.Tests.ps1`，回归检查无监督训练窗体中的弹窗 owner 约束。
+- 2026-07-06 最大化弹窗恢复露底复修：
+  - [x] 新反馈已记录：无监督训练窗口从最小化恢复到最大化后仍可能露出主界面底部，`FormNewProcessWizard` 也存在同类问题。
+  - [x] 已将 `FormBase` 的最大化边界从一次性固定屏幕工作区改为可刷新逻辑，并处理 `WM_GETMINMAXINFO`，支持 owner 区域最大化。
+  - [x] 已取消 `FormMain` 的 MDI 容器属性，并将根布局改为 DockPanel 行百分比填充，避免 DockPanel 工作区高度被 AutoSize 卡住。
+  - [x] 已统一 `FormMain` 中最大化弹窗的打开入口，无监督训练和流程编辑窗口都按主窗体 owner 边界显示。
+  - [x] 已新增 `Tests/FormWindowMaximizeBehavior.Tests.ps1` 并更新菜单入口测试，回归检查最大化边界与主窗体布局约束。
+- 2026-07-06 无监督训练检查页界面配置：
+  - [x] 新反馈已记录：检查页希望更接近参考标注工具，采用左侧分类、深色缩略图网格、右侧 ROI 预览的操作界面。
+  - [x] 已扩大左侧分类栏与缩略图网格空间，缩略图卡片改为深色大卡片，并用 OK/NG/选中颜色绘制边框。
+  - [x] 已为检查页应用深色运行时主题，路径栏、分类按钮、缩略图容器、ROI 工具栏和状态栏统一为标注工具风格。
+  - [x] 已新增最大化边界修正逻辑，窗体显示和从最小化恢复到最大化时优先覆盖父窗口区域，避免底部露出主界面。
+  - [x] 已扩展 `Tests/UnsupervisedTrainForm.Tests.ps1`，回归检查深色检查页主题和最大化边界修正入口。
 - 2026-07-06 FormMain 无监督训练菜单接线：
   - [x] 新反馈已记录：`FormMain` 中的 `toolStripMenuItem2` 就是无监督训练窗口入口，需要接到已完成的无监督训练窗体。
   - [x] 已在设计器中为 `toolStripMenuItem2` 绑定点击事件，保证 WinForms 设计器可见。

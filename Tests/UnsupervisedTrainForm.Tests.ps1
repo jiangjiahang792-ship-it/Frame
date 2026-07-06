@@ -16,6 +16,18 @@ function Assert-Contains {
     }
 }
 
+function Assert-NotContains {
+    param(
+        [string]$Text,
+        [string]$Pattern,
+        [string]$Message
+    )
+
+    if ($Text -match [regex]::Escape($Pattern)) {
+        throw $Message
+    }
+}
+
 $designer = Get-Content -LiteralPath $designerPath -Encoding UTF8 -Raw
 $code = Get-Content -LiteralPath $codePath -Encoding UTF8 -Raw
 
@@ -33,6 +45,23 @@ Assert-Contains $designer "flowLayoutPanelImages" "Missing thumbnail container."
 Assert-Contains $designer "imageROIEditControlPreview" "Missing ROI preview control."
 Assert-Contains $designer "buttonDrawRoi" "Missing draw ROI action."
 Assert-Contains $designer "buttonClearRoi" "Missing clear ROI action."
+Assert-Contains $designer "tableLayoutPanelMainRoot" "Main form must use a root layout panel so the top navigation background matches the workspace."
+Assert-Contains $designer "panelMainNavigation" "Missing dark top navigation panel."
+Assert-Contains $designer "buttonNavCheck" "Missing custom check navigation button."
+Assert-Contains $designer "buttonNavTraining" "Missing custom training navigation button."
+Assert-Contains $designer "this.tableLayoutPanelMainRoot.Controls.Add(this.panelMainNavigation, 0, 0);" "Top navigation panel must occupy the first root row."
+Assert-Contains $designer "this.tableLayoutPanelMainRoot.Controls.Add(this.tabControlMain, 0, 1);" "Tab content must sit below the custom navigation row."
+Assert-Contains $designer "this.tabControlMain.ItemSize = new System.Drawing.Size(118, 34);" "Designer must keep native TabControl headers visible so the training page can be selected visually."
+Assert-NotContains $designer "this.tabControlMain.ItemSize = new System.Drawing.Size(1, 1);" "Designer must not hide native TabControl headers; runtime code should hide them instead."
+Assert-Contains $designer "this.buttonNavCheck.Click += new System.EventHandler(this.buttonNavCheck_Click);" "Check navigation button must switch tabs."
+Assert-Contains $designer "this.buttonNavTraining.Click += new System.EventHandler(this.buttonNavTraining_Click);" "Training navigation button must switch tabs."
+Assert-Contains $designer "this.buttonFilterAll.Size = new System.Drawing.Size(175, 63);" "All filter button must be large enough for category labels."
+Assert-Contains $designer "this.buttonFilterOk.Size = new System.Drawing.Size(175, 63);" "OK filter button must be large enough for category labels."
+Assert-Contains $designer "this.buttonFilterNg.Size = new System.Drawing.Size(175, 63);" "NG filter button must be large enough for category labels."
+Assert-Contains $designer "tableLayoutPanelRoiToolbar" "ROI toolbar must use a layout panel to prevent title and buttons from overlapping."
+Assert-Contains $designer "this.tableLayoutPanelRoiToolbar.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));" "ROI toolbar title column must take remaining width."
+Assert-Contains $designer "this.tableLayoutPanelRoiToolbar.SetColumnSpan(this.labelPreviewTitle, 3);" "Preview title must use the full toolbar width."
+Assert-Contains $designer "this.labelPreviewTitle.AutoEllipsis = true;" "Preview title must ellipsize long file names instead of overlapping buttons."
 Assert-Contains $designer "comboBoxModelType" "Missing model type control."
 Assert-Contains $designer "numericUpDownThreshold" "Missing threshold control."
 Assert-Contains $designer "numericUpDownMiniArea" "Missing mini area control."
@@ -41,11 +70,28 @@ Assert-Contains $designer "textBoxTemplateName" "Missing template name control."
 Assert-Contains $designer "textBoxModelOutputPath" "Missing model output path control."
 Assert-Contains $designer "progressBarTraining" "Missing training progress bar."
 Assert-Contains $designer "textBoxTrainingLog" "Missing training log control."
+Assert-Contains $designer "this.WindowState = System.Windows.Forms.FormWindowState.Maximized;" "Unsupervised form must open maximized."
+Assert-Contains $designer "this.Shown += new System.EventHandler(this.UnsupervisedTrainForm_Shown);" "Unsupervised form must repair maximized bounds on shown."
+Assert-Contains $designer "this.Resize += new System.EventHandler(this.UnsupervisedTrainForm_Resize);" "Unsupervised form must repair maximized bounds after minimize and maximize."
 
 Assert-Contains $code "LoadImagesAsync" "Missing async image loading logic."
 Assert-Contains $code "RenderImageCards" "Missing thumbnail rendering logic."
 Assert-Contains $code "GetTrainingRoiRectOrNull" "Missing optional ROI training decision."
 Assert-Contains $code "FullImageTrainingWhenNoRoi" "Missing full-image training path marker."
 Assert-Contains $code "buttonStartTraining_Click" "Missing start training event."
+Assert-Contains $code "ApplyInspectionTheme" "Missing dark inspection workspace theme."
+Assert-Contains $code "UpdateNavigationButtonState" "Missing custom navigation selected-state refresh."
+Assert-Contains $code "ApplyRuntimeTabHeaderMode" "Missing runtime-only TabControl header hiding."
+Assert-Contains $code "IsDesignerHosted" "Missing designer host guard for visible design-time tabs."
+Assert-Contains $code "LicenseManager.UsageMode" "Designer detection must use LicenseManager in constructor-time code."
+Assert-Contains $code "FitButtonText" "Missing button text auto-fit helper."
+Assert-Contains $code "FitLabelText" "Missing preview title text auto-fit helper."
+Assert-Contains $code "ApplyTrainingTheme" "Missing dark training workspace theme."
+Assert-Contains $code "ApplyTrainingInputStyle" "Missing dark input styling for training controls."
+Assert-Contains $code "ApplyActionButtonStyle" "Missing shared dark action button styling."
+Assert-Contains $code "InspectionGridBackColor" "Missing inspection grid color token."
+Assert-Contains $code "EnsureMaximizedBounds" "Missing maximized bounds repair logic."
+Assert-Contains $code "MaximizedBounds" "Missing explicit maximized bounds assignment."
+Assert-Contains $code "Owner.Bounds" "Maximized bounds must be able to cover the owner window."
 
 Write-Host "UnsupervisedTrainForm layout checks passed."
