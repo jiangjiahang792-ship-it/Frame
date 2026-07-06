@@ -21,6 +21,7 @@ using TDJS_Vision.Forms.ProcessNew;
 using TDJS_Vision.Forms.ResultView;
 using TDJS_Vision.Forms.SolRunParam;
 using TDJS_Vision.Forms.SystemSetting;
+using TDJS_Vision.Forms.AiTrainForm;
 using TDJS_Vision.Forms.TCPAdd;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Properties;
@@ -120,6 +121,10 @@ namespace TDJS_Vision
         /// 检测项配置窗口
         /// </summary>
         static FormDetectItemManager formDetectItemManager = new FormDetectItemManager();
+        /// <summary>
+        /// 无监督训练窗口，采用懒加载避免主窗体启动时触碰无监督训练依赖。
+        /// </summary>
+        private UnsupervisedTrainForm unsupervisedTrainForm;
 
         #endregion
 
@@ -1016,6 +1021,29 @@ namespace TDJS_Vision
         private void 检测项配置ToolStripMenuItem_Click(object sender, EventArgs e)
         {
             formDetectItemManager.ShowDialog();
+        }
+
+        /// <summary>
+        /// 打开无监督训练窗口。
+        /// </summary>
+        /// <param name="sender">触发菜单项。</param>
+        /// <param name="e">事件参数。</param>
+        private void UnsupervisedTrainToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            OpenUnsupervisedTrainForm();
+        }
+
+        /// <summary>
+        /// 懒加载并显示无监督训练窗口，保持无监督运行环境与主程序启动隔离。
+        /// </summary>
+        private void OpenUnsupervisedTrainForm()
+        {
+            if (unsupervisedTrainForm == null || unsupervisedTrainForm.IsDisposed)
+            {
+                unsupervisedTrainForm = new UnsupervisedTrainForm();
+            }
+
+            unsupervisedTrainForm.ShowDialog(this);
         }
 
         /// <summary>

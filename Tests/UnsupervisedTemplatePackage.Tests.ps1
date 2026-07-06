@@ -40,6 +40,10 @@ Assert-Contains $package "model.onnx" "Template package must include model.onnx.
 Assert-Contains $service "UnsupervisedTemplatePackage.Create" "Training success must create template package."
 Assert-Contains $service "CropImageToRoi" "Training service must support ROI crop dataset."
 Assert-Contains $service "CopyImageToDataset" "Training service must support full-image dataset."
+Assert-Contains $service "ValidateDatasetImageCount(dataset);" "Training service must validate dataset image count before native training."
+Assert-Contains $service "OK 图片数量不足" "Training service must report insufficient OK images before native training."
+Assert-Contains $service "NG 图片数量不足" "Training service must report insufficient NG images before native training."
+Assert-Contains $service "如需纯 OK 训练，请不要放入 NG 图像" "Training service must explain pure OK training when NG count is one."
 Assert-Contains $csproj "System.IO.Compression" "Project must reference System.IO.Compression."
 
 Write-Host "Unsupervised template package checks passed."

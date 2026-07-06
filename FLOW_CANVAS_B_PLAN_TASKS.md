@@ -20,6 +20,22 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-07-06 FormMain 无监督训练菜单接线：
+  - [x] 新反馈已记录：`FormMain` 中的 `toolStripMenuItem2` 就是无监督训练窗口入口，需要接到已完成的无监督训练窗体。
+  - [x] 已在设计器中为 `toolStripMenuItem2` 绑定点击事件，保证 WinForms 设计器可见。
+  - [x] 已在 `FormMain` 中懒加载并显示 `UnsupervisedTrainForm`，避免主窗体启动时加载或检查无监督 native 依赖。
+  - [x] 已新增 `Tests/FormMainUnsupervisedMenu.Tests.ps1` 回归检查，防止菜单入口再次断开。
+- 2026-07-06 无监督运行环境落位：
+  - [x] 新反馈已记录：训练时报错“无监督环境缺少 AnomalibLib.dll”，需要把参考工程运行环境放到当前软件运行目录。
+  - [x] 已确认当前运行目录 `bin\Debug` 缺少 `UnsupervisedDll`，参考工程运行库目录为 `D:\MyCode\PublicWook\家有的无监督算法\App_Main_CPU\App_Main_CPU\AnomalibRuntime`。
+  - [x] 已将整套 `AnomalibRuntime` 复制到 `D:\MyCode\PublicWook\TDJS-Vision\bin\Debug\UnsupervisedDll`，包含 `AnomalibLib.dll`、`device.license`、Python 环境、anomalib、预训练权重和推理依赖。
+  - [x] 已验证 `AnomalibLib.dll`、`device.license`、`python_env\python.exe`、`python_env_gpu\Scripts\python.exe` 均存在。
+  - [x] 已根据实际运行输出目录补充复制到 `D:\MyCode\PublicWook\TDJS-Vision\bin\x64\Debug\UnsupervisedDll`，该目录下同样已验证 `AnomalibLib.dll` 与 Python 环境存在。
+- 2026-07-06 无监督训练图片数量前置校验：
+  - [x] 新反馈已记录：`TrainModel` 返回 `-2` 时，当前实际原因可能是 NG 图片数量不足，需要在 `UnsupervisedTrainingService` 调用 native 前提前拦截并弹窗提示。
+  - [x] 已在数据集准备完成后校验实际写入数量：OK 少于 2 张直接提示；NG 为 1 张直接提示“最少 2 张，如需纯 OK 训练请不要放入 NG 图像”。
+  - [x] 已复用训练窗体已有异常弹框链路，服务层抛出的中文异常会直接显示到 `MessageBoxTD`。
+  - [x] 已扩展 `Tests/UnsupervisedTemplatePackage.Tests.ps1`，防止图片数量前置校验被移除。
 - 2026-07-03 诊断日志公共懒执行入口：
   - [x] 新反馈已记录：诊断信息很多时，不能在日志等级关闭后仍提前执行 `GetRuntimeText()`、图像摘要和相机分段诊断文本。
   - [x] `LogHelper` 已新增统一记录判定入口，集中处理系统设置日志等级和“仅记录异常日志”菜单过滤。
@@ -30,6 +46,11 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
   - [x] `ShowImageControl` 和 `FrmSingleImage` 的图像显示性能诊断已改为公共懒执行入口，Debug 关闭时不再提前生成图像摘要、显示结果摘要和运行时现场。
   - [x] `PerformanceSpikeDiagnostics.LogNodeMemoryIfNeeded` 已在 Debug 关闭时直接跳过节点内存水位采样，避免未开启诊断时仍查询进程内存、GDI 和句柄资源。
   - [x] 已新增 `Tests/DiagnosticLazyEvaluation.Tests.ps1` 回归检查，防止高频诊断再次在 `LogHelper.AddLog` 过滤前提前构建重诊断文本。
+- 2026-07-03 相机回调图运行快速路径：
+  - [x] 新反馈已记录：高频相机回调中，图像源回调结果准备后进入首个图像旋转节点前的通用图调度耗时仍偏高，需要减少直链场景固定开销。
+  - [x] `Process.Run(NodeBase,bool)` 已增加相机回调快速路径：当跳过的图像源只有一个默认下游且该下游为 `ImageRotate`，直接运行首个图像旋转节点，再从其单一下游恢复通用图运行时。
+  - [x] 复杂图、多个默认下游、非图像旋转首节点、非画布图或不满足并行图运行条件时，自动回退原有 `RunConnectedNodes(nodeImage, null, nodeImage)` 逻辑。
+  - [x] 已新增 `Tests/CameraCallbackFastPath.Tests.ps1` 回归检查，防止快速路径绕过图像源结果准备或误用于多个下游的复杂场景。
 - 2026-07-03 无监督训练界面第一阶段：
   - [x] 新反馈已记录：本阶段先完善 `Forms/AiTrainForm/UnsupervisedTrainForm` 训练界面，不做流程识别节点；无监督环境必须隔离在运行目录 `UnsupervisedDll`，缺失时不影响软件启动。
   - [x] 检查页已增加图像路径选择、递归加载、All/OK/NG 分类、OK 绿色边框和 NG 红色边框缩略图、右侧图像预览与单 ROI 绘制入口。

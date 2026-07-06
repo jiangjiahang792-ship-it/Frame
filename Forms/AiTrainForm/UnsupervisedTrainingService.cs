@@ -51,6 +51,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             log?.Report("正在准备训练数据集。");
             DatasetBuildResult dataset = BuildDataset(request, datasetRoot, token);
             log?.Report("数据集准备完成，OK=" + dataset.OkCount.ToString(CultureInfo.InvariantCulture) + "，NG=" + dataset.NgCount.ToString(CultureInfo.InvariantCulture));
+            ValidateDatasetImageCount(dataset);
 
             token.ThrowIfCancellationRequested();
             progress?.Report(1);
@@ -140,6 +141,26 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 throw new InvalidOperationException("训练输入尺寸必须大于 0。");
             if (request.BatchSize <= 0 || request.MaxEpochs <= 0)
                 throw new InvalidOperationException("训练轮数和批次大小必须大于 0。");
+        }
+
+        /// <summary>
+        /// 校验实际写入训练数据集的图片数量，避免 native 训练返回笼统的 -2 错误码。
+        /// </summary>
+        /// <param name="dataset">数据集构建结果。</param>
+        private static void ValidateDatasetImageCount(DatasetBuildResult dataset)
+        {
+            const int minOkCount = 2;
+            const int minNgCount = 2;
+
+            if (dataset.OkCount < minOkCount)
+            {
+                throw new InvalidOperationException("OK 图片数量不足，当前 " + dataset.OkCount.ToString(CultureInfo.InvariantCulture) + " 张，最少 " + minOkCount.ToString(CultureInfo.InvariantCulture) + " 张。");
+            }
+
+            if (dataset.NgCount == 1)
+            {
+                throw new InvalidOperationException("NG 图片数量不足，当前 1 张，最少 " + minNgCount.ToString(CultureInfo.InvariantCulture) + " 张；如需纯 OK 训练，请不要放入 NG 图像。");
+            }
         }
 
         /// <summary>

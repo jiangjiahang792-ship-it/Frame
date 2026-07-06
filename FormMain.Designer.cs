@@ -609,6 +609,7 @@
             this.toolStripMenuItem2.Name = "toolStripMenuItem2";
             this.toolStripMenuItem2.Size = new System.Drawing.Size(270, 34);
             this.toolStripMenuItem2.Text = "无监督训练";
+            this.toolStripMenuItem2.Click += new System.EventHandler(this.UnsupervisedTrainToolStripMenuItem_Click);
             // 
             // toolStripMenuItem3
             // 

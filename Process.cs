@@ -341,6 +341,102 @@ namespace TDJS_Vision
             return await RunConnectedNodesParallel(nodeToSkip, stopBeforeNode, startNodeOverride);
         }
 
+        /// <summary>
+        /// 相机回调高频入口的保守快速路径：图像源结果准备完成后，直接运行单一下游图像旋转节点，再从其下游恢复通用图运行时。
+        /// </summary>
+        /// <param name="nodeImage">本次相机回调对应的图像源节点。</param>
+        /// <returns>快速路径处理结果；未命中时由普通图运行时继续处理。</returns>
+        private async Task<CameraCallbackFastPathResult> TryRunCameraCallbackFastPath(NodeBase nodeImage)
+        {
+            NodeBase fastStartNode;
+            if (!CanUseCameraCallbackFastPath(nodeImage, out fastStartNode))
+                return CameraCallbackFastPathResult.NotHandled;
+
+            Stopwatch fastPathWatch = Stopwatch.StartNew();
+            ConnectedNodeRunResult fastResult = await RunConnectedNode(fastStartNode, null);
+            long afterFirstNode = fastPathWatch.ElapsedMilliseconds;
+            if (fastResult == null)
+                return CameraCallbackFastPathResult.HandledContinue;
+
+            if (fastResult.Exception != null)
+            {
+                OperationCanceledException canceledException = fastResult.Exception as OperationCanceledException;
+                if (canceledException != null)
+                    throw canceledException;
+
+                throw fastResult.Exception;
+            }
+
+            long prefixRunTime = RunTime + GetRunResultLogicalTime(fastResult);
+            if (fastResult.FailedStatus)
+            {
+                RunTime = prefixRunTime;
+                return CameraCallbackFastPathResult.HandledContinue;
+            }
+
+            NodeReturn firstReturn = fastResult.Return ?? new NodeReturn();
+            if (firstReturn.Flag == NodeRunFlag.StopRun)
+            {
+                RunTime = prefixRunTime;
+                return CameraCallbackFastPathResult.HandledStopRun;
+            }
+
+            if (firstReturn.Flag == NodeRunFlag.StopBranch)
+            {
+                RunTime = prefixRunTime;
+                return CameraCallbackFastPathResult.HandledContinue;
+            }
+
+            NodeBase resumeNode = firstReturn.NextIndex >= 0
+                ? GetNodeByLegacyIndex(firstReturn.NextIndex)
+                : GetSingleNextNode(fastStartNode, firstReturn.NextBranch);
+            if (resumeNode == null)
+            {
+                RunTime = prefixRunTime;
+                return CameraCallbackFastPathResult.HandledContinue;
+            }
+
+            bool stoppedEarly = await RunConnectedNodes(null, null, resumeNode);
+            long afterRemainder = fastPathWatch.ElapsedMilliseconds;
+            RunTime += prefixRunTime;
+            PerformanceSpikeDiagnostics.LogIfEnabled(
+                MsgLevel.Debug,
+                () => $"【性能诊断-相机回调快速路径】流程={ProcessName}；跳过节点=({nodeImage?.ID}.{nodeImage?.NodeName})；首节点=({fastStartNode.ID}.{fastStartNode.NodeName})；恢复节点=({resumeNode.ID}.{resumeNode.NodeName})；首节点含调度={afterFirstNode}ms；后续={afterRemainder - afterFirstNode}ms；总耗时={afterRemainder}ms",
+                true);
+
+            return stoppedEarly
+                ? CameraCallbackFastPathResult.HandledStopRun
+                : CameraCallbackFastPathResult.HandledContinue;
+        }
+
+        /// <summary>
+        /// 判断当前相机回调是否可以使用首节点直跑优化；第一阶段只支持图像源到单一图像旋转的稳定直链。
+        /// </summary>
+        /// <param name="nodeImage">本次相机回调对应的图像源节点。</param>
+        /// <param name="fastStartNode">命中快速路径时输出要直接执行的首个下游节点。</param>
+        /// <returns>可以安全使用快速路径时返回 true。</returns>
+        private bool CanUseCameraCallbackFastPath(NodeBase nodeImage, out NodeBase fastStartNode)
+        {
+            fastStartNode = null;
+            if (nodeImage == null ||
+                nodeImage.NodeType != NodeType.ImageSource ||
+                !HasCanvasGraph ||
+                !CanUseParallelConnectedRuntime() ||
+                !TryGetSingleDefaultNextNode(nodeImage, out fastStartNode) ||
+                fastStartNode == null ||
+                !fastStartNode.Active ||
+                fastStartNode.NodeType != NodeType.ImageRotate)
+            {
+                return false;
+            }
+
+            NodeBase ignoredResumeNode;
+            if (CountDefaultNextNodes(fastStartNode, out ignoredResumeNode) > 1)
+                return false;
+
+            return true;
+        }
+
         private async Task<bool> RunConnectedNodesSequential(NodeBase nodeToSkip = null, NodeBase stopBeforeNode = null, NodeBase startNodeOverride = null)
         {
             HashSet<int> visitedNodeIds = new HashSet<int>();
@@ -1433,6 +1529,48 @@ namespace TDJS_Vision
         /// <summary>
         /// 流程图节点执行后的统一结果，用于调度器继续推进下游节点。
         /// </summary>
+        private sealed class CameraCallbackFastPathResult
+        {
+            /// <summary>
+            /// 未命中快速路径，调用方继续走普通图运行时。
+            /// </summary>
+            public static readonly CameraCallbackFastPathResult NotHandled = new CameraCallbackFastPathResult(false, false);
+
+            /// <summary>
+            /// 快速路径已处理，流程继续按普通成功出口收尾。
+            /// </summary>
+            public static readonly CameraCallbackFastPathResult HandledContinue = new CameraCallbackFastPathResult(true, false);
+
+            /// <summary>
+            /// 快速路径已处理，且节点要求提前结束整个流程。
+            /// </summary>
+            public static readonly CameraCallbackFastPathResult HandledStopRun = new CameraCallbackFastPathResult(true, true);
+
+            /// <summary>
+            /// 是否已经由快速路径处理。
+            /// </summary>
+            public readonly bool Handled;
+
+            /// <summary>
+            /// 是否需要按提前完成收尾。
+            /// </summary>
+            public readonly bool StoppedEarly;
+
+            /// <summary>
+            /// 创建相机回调快速路径结果。
+            /// </summary>
+            /// <param name="handled">是否已经处理。</param>
+            /// <param name="stoppedEarly">是否提前结束流程。</param>
+            private CameraCallbackFastPathResult(bool handled, bool stoppedEarly)
+            {
+                Handled = handled;
+                StoppedEarly = stoppedEarly;
+            }
+        }
+
+        /// <summary>
+        /// 流程图节点执行后的统一结果，用于调度器继续推进下游节点。
+        /// </summary>
         private sealed class ConnectedNodeRunResult
         {
             /// <summary>
@@ -1569,6 +1707,81 @@ namespace TDJS_Vision
                 if (nextNode != null)
                     pendingNodes.AddLast(nextNode);
             }
+        }
+
+        /// <summary>
+        /// 获取节点唯一的默认下游节点；没有下游或存在多个默认下游时返回 false。
+        /// </summary>
+        /// <param name="node">待检查的上游节点。</param>
+        /// <param name="nextNode">唯一默认下游节点。</param>
+        /// <returns>仅存在一个默认下游节点时返回 true。</returns>
+        private bool TryGetSingleDefaultNextNode(NodeBase node, out NodeBase nextNode)
+        {
+            return CountDefaultNextNodes(node, out nextNode) == 1;
+        }
+
+        /// <summary>
+        /// 统计节点默认下游节点数量，并在数量为一时输出该节点。
+        /// </summary>
+        /// <param name="node">待检查的上游节点。</param>
+        /// <param name="singleNode">默认下游数量为一时输出该节点，否则为空。</param>
+        /// <returns>默认下游节点数量。</returns>
+        private int CountDefaultNextNodes(NodeBase node, out NodeBase singleNode)
+        {
+            singleNode = null;
+            int count = 0;
+            if (node == null)
+                return count;
+
+            foreach (ProcessConnection connection in _connections)
+            {
+                if (connection.FromNodeId != node.ID ||
+                    GetEffectiveConnectionBranch(connection) != ProcessConnectionBranch.Default)
+                {
+                    continue;
+                }
+
+                NodeBase candidate = GetNodeById(connection.ToNodeId);
+                if (candidate == null)
+                    continue;
+
+                count++;
+                singleNode = count == 1 ? candidate : null;
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        /// 按节点本次输出分支获取唯一后续节点；没有后续或多个后续时返回空并交由通用逻辑兜底。
+        /// </summary>
+        /// <param name="node">刚执行完成的节点。</param>
+        /// <param name="branch">节点本次输出分支。</param>
+        /// <returns>唯一后续节点；不存在唯一节点时返回 null。</returns>
+        private NodeBase GetSingleNextNode(NodeBase node, ProcessConnectionBranch branch)
+        {
+            NodeBase singleNode = null;
+            int count = 0;
+            if (node == null)
+                return null;
+
+            foreach (ProcessConnection connection in _connections)
+            {
+                if (connection.FromNodeId != node.ID ||
+                    !ConnectionMatchesNodeOutput(node, connection, branch))
+                {
+                    continue;
+                }
+
+                NodeBase candidate = GetNodeById(connection.ToNodeId);
+                if (candidate == null)
+                    continue;
+
+                count++;
+                singleNode = count == 1 ? candidate : null;
+            }
+
+            return count == 1 ? singleNode : null;
         }
 
         /// <summary>
@@ -2285,7 +2498,10 @@ namespace TDJS_Vision
             {
                 try
                 {
-                    bool stoppedEarly = await RunConnectedNodes(nodeImage, null, nodeImage);
+                    CameraCallbackFastPathResult fastPathResult = await TryRunCameraCallbackFastPath(nodeImage);
+                    bool stoppedEarly = fastPathResult.Handled
+                        ? fastPathResult.StoppedEarly
+                        : await RunConnectedNodes(nodeImage, null, nodeImage);
                     if (stoppedEarly)
                     {
                         Success = true;
