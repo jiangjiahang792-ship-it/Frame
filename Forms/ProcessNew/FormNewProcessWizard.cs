@@ -805,6 +805,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.BatteryEar:
                 case NodeType.RGBDiscern:
                 case NodeType.BinarizationAnalysis:
+                case NodeType.UnsupervisedDetection:
                     return Color.FromArgb(125, 84, 188);
                 case NodeType.CaliperLine:
                 case NodeType.CaliperCircle:
@@ -921,6 +922,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return "RGB";
                 case NodeType.BinarizationAnalysis:
                     return "BW";
+                case NodeType.UnsupervisedDetection:
+                    return "US";
                 case NodeType.LightSourceControl:
                     return "LT";
                 case NodeType.CameraIO:

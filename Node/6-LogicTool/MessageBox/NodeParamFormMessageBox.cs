@@ -2,6 +2,7 @@
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Node._3_Detection.Unsupervised;
 using TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead;
 using TDJS_Vision.Node._5_EquipmentCommunication.PlcRead;
 using TDJS_Vision.Node._6_LogicTool.SharedVariable;
@@ -29,6 +30,12 @@ namespace TDJS_Vision.Node._6_LogicTool.MessageBox
                 {
                     case NodeType.AITD:
                         result = nodeSubscription1.GetValue<AlgorithmResult>().IsAllOk;
+                        break;
+                    case NodeType.UnsupervisedDetection:
+                        var unsupervisedResult = nodeSubscription1.GetSelectedResult<NodeResultUnsupervisedDetection>().AlgorithmResult;
+                        if (unsupervisedResult == null)
+                            throw new Exception("无监督输出结果为空，无法进行条件判断！");
+                        result = unsupervisedResult.IsAllOk;
                         break;
                     case NodeType.Summarize:
                         result = nodeSubscription1.GetValue<AlgorithmResult>().IsAllOk;

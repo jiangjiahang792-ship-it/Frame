@@ -14,6 +14,7 @@ using TDJS_Vision.Node._3_Detection.FindLine;
 using TDJS_Vision.Node._3_Detection.MatchTemplate;
 using TDJS_Vision.Node._3_Detection.QRScan;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Node._3_Detection.Unsupervised;
 using TDJS_Vision.Node._4_Measurement.CaliperCircle;
 using TDJS_Vision.Node._4_Measurement.CaliperEllipse;
 using TDJS_Vision.Node._4_Measurement.CaliperLine;
@@ -88,6 +89,8 @@ namespace TDJS_Vision.Node
                     return new NodePlcWrite(nodeId, nodeName, process, nodeType);
                 case NodeType.AITD:
                     return new NodeTDAI(nodeId, nodeName, process, nodeType);
+                case NodeType.UnsupervisedDetection:
+                    return new NodeUnsupervisedDetection(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageSave:
                     return new NodeImageSave(nodeId, nodeName, process, nodeType);
                 case NodeType.SleepTool:

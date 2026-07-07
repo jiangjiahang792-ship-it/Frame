@@ -469,5 +469,9 @@ namespace TDJS_Vision.Node
         /// 图像预处理
         /// </summary>
         ImagePreprocess,
+        /// <summary>
+        /// 无监督检测
+        /// </summary>
+        UnsupervisedDetection,
     }
 }

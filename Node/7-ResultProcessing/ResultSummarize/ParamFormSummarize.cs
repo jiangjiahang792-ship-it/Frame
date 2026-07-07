@@ -51,6 +51,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSummarize
                 switch (nodeSub.GetNodeType())
                 {
                     case NodeType.AITD:
+                    case NodeType.UnsupervisedDetection:
                         return nodeSub.GetValue<AlgorithmResult>();
                     case NodeType.SharedVariable:
                         var res = nodeSub.GetValue<SharedVarValue>();

@@ -3,6 +3,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using OpenCvSharp;
 
 namespace TDJS_Vision.Forms.AiTrainForm
 {
@@ -51,6 +52,25 @@ namespace TDJS_Vision.Forms.AiTrainForm
         }
 
         /// <summary>
+        /// 加载训练窗口生成模板包中的 ONNX 模型。
+        /// </summary>
+        /// <param name="modelType">算法类型。</param>
+        /// <param name="modelPath">模板包解出的 ONNX 模型路径。</param>
+        /// <param name="threshold">异常阈值。</param>
+        /// <param name="width">模型输入宽度。</param>
+        /// <param name="height">模型输入高度。</param>
+        /// <param name="miniArea">最小异常面积。</param>
+        /// <param name="batchSize">批次大小。</param>
+        /// <param name="device">推理设备。</param>
+        /// <param name="pythonPath">Python 路径。</param>
+        /// <returns>native 返回码。</returns>
+        public int LoadModel(string modelType, string modelPath, float threshold, int width, int height, float miniArea, int batchSize, string device, string pythonPath)
+        {
+            ReleaseHandle();
+            return UnsupervisedAnomalibNative.Init(modelType, modelPath, threshold, width, height, miniArea, 1, batchSize, device, pythonPath, false, out _handle);
+        }
+
+        /// <summary>
         /// 执行模型训练。
         /// </summary>
         /// <param name="okPath">OK 数据集路径。</param>
@@ -75,6 +95,30 @@ namespace TDJS_Vision.Forms.AiTrainForm
         {
             if (_handle == IntPtr.Zero) return 0;
             return UnsupervisedAnomalibNative.CancelTrain(_handle);
+        }
+
+        /// <summary>
+        /// 对 BGR 图像执行无监督异常推理。
+        /// </summary>
+        /// <param name="image">BGR 或可转换为 BGR 的 OpenCV 图像。</param>
+        /// <param name="threshold">异常阈值。</param>
+        /// <param name="miniArea">最小异常面积。</param>
+        /// <param name="maxBoxes">最多返回的异常框数量。</param>
+        /// <returns>无监督推理结果。</returns>
+        public UnsupervisedAnomalibResult InferBgr(Mat image, float threshold, float miniArea, int maxBoxes)
+        {
+            if (_handle == IntPtr.Zero)
+                throw new InvalidOperationException("无监督模型尚未加载。");
+            if (image == null || image.Empty())
+                throw new ArgumentException("无监督推理输入图像不能为空。", nameof(image));
+
+            int boxCapacity = Math.Max(1, maxBoxes);
+            int[] boxes = new int[boxCapacity * 4];
+            using (Mat input = EnsureBgr(image))
+            {
+                int ret = UnsupervisedAnomalibNative.Infer(_handle, input.Data, input.Width, input.Height, threshold, miniArea, string.Empty, out float score, null, boxes, boxCapacity, out int count);
+                return new UnsupervisedAnomalibResult(ret, score, ToRectangles(boxes, count, boxCapacity));
+            }
         }
 
         /// <summary>
@@ -130,6 +174,80 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 _handle = IntPtr.Zero;
             }
         }
+
+        /// <summary>
+        /// 确保输入图像为 BGR 三通道，匹配 native Infer 接口预期。
+        /// </summary>
+        /// <param name="image">原始图像。</param>
+        /// <returns>BGR 图像副本。</returns>
+        private static Mat EnsureBgr(Mat image)
+        {
+            if (image.Channels() == 3)
+                return image.Clone();
+
+            Mat bgr = new Mat();
+            if (image.Channels() == 1)
+                Cv2.CvtColor(image, bgr, ColorConversionCodes.GRAY2BGR);
+            else if (image.Channels() == 4)
+                Cv2.CvtColor(image, bgr, ColorConversionCodes.BGRA2BGR);
+            else
+                throw new InvalidOperationException("无监督推理只支持 1、3、4 通道图像。");
+
+            return bgr;
+        }
+
+        /// <summary>
+        /// 将 native 返回的 x、y、width、height 数组转换为矩形集合。
+        /// </summary>
+        /// <param name="boxes">native 返回的扁平矩形数组。</param>
+        /// <param name="count">native 返回的实际数量。</param>
+        /// <param name="capacity">托管数组可容纳的最大数量。</param>
+        /// <returns>异常矩形集合。</returns>
+        private static Rectangle[] ToRectangles(int[] boxes, int count, int capacity)
+        {
+            int safeCount = Math.Max(0, Math.Min(count, capacity));
+            Rectangle[] rects = new Rectangle[safeCount];
+            for (int i = 0; i < safeCount; i++)
+            {
+                int offset = i * 4;
+                rects[i] = new Rectangle(boxes[offset], boxes[offset + 1], boxes[offset + 2], boxes[offset + 3]);
+            }
+            return rects;
+        }
+    }
+
+    /// <summary>
+    /// 无监督 native 推理结果。
+    /// </summary>
+    public sealed class UnsupervisedAnomalibResult
+    {
+        /// <summary>
+        /// 初始化无监督推理结果。
+        /// </summary>
+        /// <param name="returnCode">native 返回码。</param>
+        /// <param name="score">异常分数。</param>
+        /// <param name="boxes">异常区域矩形。</param>
+        public UnsupervisedAnomalibResult(int returnCode, float score, Rectangle[] boxes)
+        {
+            ReturnCode = returnCode;
+            Score = score;
+            Boxes = boxes ?? new Rectangle[0];
+        }
+
+        /// <summary>
+        /// native 返回码，0 表示推理调用成功。
+        /// </summary>
+        public int ReturnCode { get; }
+
+        /// <summary>
+        /// native 返回的异常分数。
+        /// </summary>
+        public float Score { get; }
+
+        /// <summary>
+        /// native 返回的异常区域矩形。
+        /// </summary>
+        public Rectangle[] Boxes { get; }
     }
 
     /// <summary>
@@ -323,6 +441,24 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// </summary>
         [DllImport(DllName, EntryPoint = "CancelTrain", CallingConvention = CallingConvention.Cdecl)]
         public static extern int CancelTrain(IntPtr handle);
+
+        /// <summary>
+        /// 执行 native 推理。
+        /// </summary>
+        [DllImport(DllName, EntryPoint = "Infer", CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Infer(
+            IntPtr handle,
+            IntPtr inputData,
+            int width,
+            int height,
+            float threshold,
+            float miniArea,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string saveMapPath,
+            out float anomalyScore,
+            [Out] float[] anomalyMap,
+            [Out] int[] boxes,
+            int maxBoxes,
+            out int actualCount);
 
         /// <summary>
         /// 释放 native 模型句柄。

@@ -235,6 +235,7 @@
   "ProcessNew.NodeType.PLCRead": "PLC读取",
   "ProcessNew.NodeType.PLCWrite": "PLC写入",
   "ProcessNew.NodeType.AITD": "AI检测",
+  "ProcessNew.NodeType.UnsupervisedDetection": "无监督检测",
   "ProcessNew.NodeType.ImageSave": "保存图片",
   "ProcessNew.NodeType.ImageShow": "图像显示",
   "ProcessNew.NodeType.SleepTool": "延迟执行",

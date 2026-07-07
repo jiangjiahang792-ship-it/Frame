@@ -235,6 +235,7 @@
   "ProcessNew.NodeType.PLCRead": "PLC Read",
   "ProcessNew.NodeType.PLCWrite": "PLC Write",
   "ProcessNew.NodeType.AITD": "AI Detection",
+  "ProcessNew.NodeType.UnsupervisedDetection": "Unsupervised Detection",
   "ProcessNew.NodeType.ImageSave": "Save Image",
   "ProcessNew.NodeType.ImageShow": "Image Display",
   "ProcessNew.NodeType.SleepTool": "Delay",

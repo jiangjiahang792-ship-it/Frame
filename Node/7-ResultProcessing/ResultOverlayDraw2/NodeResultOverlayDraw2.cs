@@ -990,14 +990,27 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         }
 
         /// <summary>
-        /// TDAI节点运行成功但未检出目标时属于正常空结果，不把它当成ROI订阅缺失来显示“未查到”。
+        /// 判断订阅来源成功运行但没有几何输出时，是否应视为正常空结果。
         /// </summary>
         /// <param name="sourceNode">订阅来源节点。</param>
         /// <returns>需要隐藏缺失提示时返回 true。</returns>
         private static bool ShouldSuppressMissingPromptForSource(NodeBase sourceNode)
         {
-            return sourceNode is NodeTDAI &&
-                sourceNode.RuntimeStatus == NodeStatus.Successful;
+            if (sourceNode == null || sourceNode.RuntimeStatus != NodeStatus.Successful)
+                return false;
+
+            return IsSuccessfulEmptyGeometrySource(sourceNode);
+        }
+
+        /// <summary>
+        /// 判断节点类型是否允许“成功运行但没有矩形/轮廓”作为有效输出。
+        /// </summary>
+        /// <param name="sourceNode">订阅来源节点。</param>
+        /// <returns>允许成功空几何输出时返回 true。</returns>
+        private static bool IsSuccessfulEmptyGeometrySource(NodeBase sourceNode)
+        {
+            return sourceNode is NodeTDAI ||
+                sourceNode.NodeType == NodeType.UnsupervisedDetection;
         }
 
         /// <summary>

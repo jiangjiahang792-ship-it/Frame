@@ -20,6 +20,20 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-07-06 无监督 GPU 模板执行返回 -2 修复：
+  - [x] 新反馈已记录：CPU 训练模板可正常加载，但选择 GPU 训练后模板显示训练成功，点击执行会出现 `-2` 返回码。
+  - [x] 已定位到新增 `推理批次` 参数对旧节点默认成 1，可能覆盖 GPU 模板 manifest 中的训练批次，导致 GPU 加载/推理返回 `-2`。
+  - [x] 已将无监督检测节点 `InferenceBatchSize` 默认值改为 0，表示未显式设置时跟随模板批次。
+  - [x] 已在参数窗体回显旧参数时，若推理批次未设置则从模板清单恢复批次，避免旧方案打开后继续使用错误默认值。
+- 2026-07-06 无监督检测节点运行参数补充：
+  - [x] 新反馈已记录：无监督检测节点参数界面需要增加 `异常阈值`、`推理批次`、`最小缺陷面积` 三个运行参数。
+  - [x] 已在无监督检测节点参数对象中新增阈值、推理批次、最小缺陷面积字段，并保留默认值和注释。
+  - [x] 已在 `ParamFormUnsupervisedDetection.Designer.cs` 中新增设计器可见的三个数值控件，保存/回显时同步到节点参数。
+  - [x] 已让运行适配器优先使用节点参数执行 `LoadModel` 与 `InferBgr`，参数变更会触发模型句柄按新批次/阈值/面积重新加载。
+- 2026-07-06 无监督空异常框订阅提示修复：
+  - [x] 新反馈已记录：`ROI结果绘制` 订阅无监督输出矩形时，没有异常框会显示“未查到”，但无监督成功空框应表示正常空结果；颜色识别等节点仍需要保留未查到提示。
+  - [x] 已将 `ROI结果绘制` 与 `ROI结果绘制2` 的空几何白名单按节点类型扩展到 `UnsupervisedDetection`，仅在来源节点成功运行时隐藏缺失提示。
+  - [x] 已扩展无监督检测节点回归测试，检查两个 ROI 绘制节点都覆盖该场景。
 - 2026-07-06 无监督训练窗体设计器可见性修复：
   - [x] 新反馈已记录：`UnsupervisedTrainForm` 在设计器里看不到“训练”页，导致无法继续可视化设计训练界面。
   - [x] 已将原生 `TabControl` 页签隐藏从 `.Designer.cs` 移到运行时方法，设计器中保留可见 `检查/训练` 页签。
@@ -1910,3 +1924,13 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 新增 `【性能诊断-保存图像快速入队】`、`【内存诊断-保存图像后台取图】` 分段日志，用于区分主流程入队耗时与后台转换/标注/写盘耗时。
 - [x] `ParamFormImageSave` 新增 `GetOutputImageForSave()`，保存节点快速获取原始 `OutputImage` 引用；保留旧 `GetImage()` 兼容其它可能调用。
 - [x] 编译验证：MSBuild `TDJS-Vision.sln` 的 `Release|x64` 和 `Debug|x64` 均通过，0个错误；警告为项目既有警告。
+
+## 2026-07-06: 无监督检测节点接入
+
+- [x] 新增 `UnsupervisedDetection` 节点类型、工具箱“检测识别/无监督检测”入口、节点工厂和流程编辑创建分支。
+- [x] 新增无监督检测节点、参数窗体、节点参数、节点结果和运行适配器；参数窗体控件全部写入 `.Designer.cs`，只允许选择训练窗口生成到运行目录 `Model` 文件夹下的 `.tdunsup` 模板。
+- [x] 扩展无监督模板包解包能力，识别时从模板包读取 `manifest.json` 和 `model.onnx`，按模板 ROI 执行整图或 ROI 推理，并将异常框偏移回原图坐标。
+- [x] 扩展 `UnsupervisedAnomalibDetector` 的 `LoadModel` 和 `InferBgr`，复用运行目录 `UnsupervisedDll` 环境，节点运行时缓存模型句柄，删除节点时释放 native 资源。
+- [x] 输出 `AlgorithmResult`，OK/NG 判定、异常分数、异常框数量和 NG 矩形写入 `Rects`/`RectsNgMap`，供 ROI 结果绘制节点订阅；同步支持 `If`、`ConditionRun`、`MessageBox`、`ProcessTrigger` 和结果汇总读取无监督 OK/NG。
+- [x] 修复 GPU 训练模板在检测节点执行时 `LoadModel` 返回 `-2` 的隔离问题：模板中的训练设备只作为首选推理设备，`GPU/AUTO` 初始化失败时自动执行 CPU 回退加载。
+- [x] 无监督检测节点加载模型失败时输出设备、批次、阈值、最小缺陷面积、模型路径、Python 路径和 CPU 回退返回码，便于继续排查 GPU 环境问题。

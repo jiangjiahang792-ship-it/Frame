@@ -23,6 +23,7 @@ using TDJS_Vision.Node._3_Detection.FindLine;
 using TDJS_Vision.Node._3_Detection.MatchTemplate;
 using TDJS_Vision.Node._3_Detection.QRScan;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Node._3_Detection.Unsupervised;
 using TDJS_Vision.Node._4_Measurement.CaliperCircle;
 using TDJS_Vision.Node._4_Measurement.CaliperEllipse;
 using TDJS_Vision.Node._4_Measurement.CaliperLine;
@@ -603,6 +604,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.AITD:
                     node = new NodeTDAI(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.UnsupervisedDetection:
+                    node = new NodeUnsupervisedDetection(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.ImageSave:
                     node = new NodeImageSave(nodeId, nodeName, _process, nodeType);

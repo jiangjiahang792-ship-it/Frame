@@ -3,6 +3,7 @@ using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._3_Detection.ColorDiscern;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Node._3_Detection.Unsupervised;
 using TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead;
 using TDJS_Vision.Node._5_EquipmentCommunication.PlcRead;
 using TDJS_Vision.Node._6_LogicTool.SharedVariable;
@@ -34,6 +35,12 @@ namespace TDJS_Vision.Node._6_LogicTool.If
                         if (aiResult == null)
                             throw new Exception("AI输出结果为空，无法进行条件判断！");
                         result = aiResult.IsAllOk;
+                        break;
+                    case NodeType.UnsupervisedDetection:
+                        var unsupervisedResult = nodeSubscription1.GetSelectedResult<NodeResultUnsupervisedDetection>().AlgorithmResult;
+                        if (unsupervisedResult == null)
+                            throw new Exception("无监督输出结果为空，无法进行条件判断！");
+                        result = unsupervisedResult.IsAllOk;
                         break;
                     case NodeType.PLCRead:
                         result = (bool)nodeSubscription1.GetValue<PlcReadResult>().Data;
@@ -81,6 +88,7 @@ namespace TDJS_Vision.Node._6_LogicTool.If
                 switch (nodeSubscription1.GetNodeType())
                 {
                     case NodeType.AITD:
+                    case NodeType.UnsupervisedDetection:
                     case NodeType.PLCRead:
                     case NodeType.ModbusRead:
                     case NodeType.SharedVariable:

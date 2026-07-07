@@ -118,8 +118,9 @@ namespace TDJS_Vision.Node._6_LogicTool.ProcessTrigger
                         #endregion
 
                     case NodeType.AITD:
+                    case NodeType.UnsupervisedDetection:
 
-                        #region 解析出TDAI节点结果的bool值
+                        #region 解析出AI类检测节点结果的bool值
 
                         var resAi = nodeSubscription1.GetValue<AlgorithmResult>();
 

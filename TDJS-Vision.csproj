@@ -1068,6 +1068,18 @@
     <Compile Include="Node\3-Detection\TDAI\ParamFormTDAI.Designer.cs">
       <DependentUpon>ParamFormTDAI.cs</DependentUpon>
     </Compile>
+    <Compile Include="Node\3-Detection\Unsupervised\NodeParamUnsupervisedDetection.cs" />
+    <Compile Include="Node\3-Detection\Unsupervised\NodeResultUnsupervisedDetection.cs" />
+    <Compile Include="Node\3-Detection\Unsupervised\NodeUnsupervisedDetection.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\Unsupervised\ParamFormUnsupervisedDetection.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\Unsupervised\ParamFormUnsupervisedDetection.Designer.cs">
+      <DependentUpon>ParamFormUnsupervisedDetection.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\Unsupervised\UnsupervisedDetectionRuntime.cs" />
     <Compile Include="Node\3-Detection\MatchTemplate\FastTemplateMatcher.cs" />
     <Compile Include="Node\3-Detection\MatchTemplate\NodeParamFormMatchTemplate.cs">
       <SubType>Form</SubType>
