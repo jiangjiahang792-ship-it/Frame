@@ -80,7 +80,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                     float threshold = ResolveThreshold(param, manifest);
                     float miniArea = ResolveMiniArea(param, manifest);
                     UnsupervisedAnomalibResult nativeResult = _detector.InferBgr(inferImage, threshold, miniArea, maxBoxes);
-                    List<DrawingRect> boxes = OffsetBoxesToSourceImage(nativeResult.Boxes, roiRect, sourceImage.Width, sourceImage.Height);
+                    List<DrawingRect> boxes = OffsetBoxesToSourceImage(nativeResult.Boxes, roiRect, sourceImage.Width, sourceImage.Height, inferImage.Width, inferImage.Height, manifest.InputWidth, manifest.InputHeight);
                     bool isOk = nativeResult.ReturnCode == 0 && boxes.Count == 0;
                     string message = BuildResultMessage(nativeResult, boxes.Count);
                     return new UnsupervisedDetectionRunResult(nativeResult, manifest, roiRect, boxes, isOk, message);
@@ -379,28 +379,69 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// <summary>
         /// 将 ROI 内异常框偏移回源图坐标。
         /// </summary>
-        /// <param name="boxes">native 返回矩形。</param>
+        /// <param name="boxes">native 返回的模型输入坐标矩形。</param>
         /// <param name="roiRect">推理 ROI。</param>
         /// <param name="imageWidth">源图宽度。</param>
         /// <param name="imageHeight">源图高度。</param>
+        /// <param name="inferenceImageWidth">实际送入 native 的图像宽度，ROI 模式下为 ROI 宽度。</param>
+        /// <param name="inferenceImageHeight">实际送入 native 的图像高度，ROI 模式下为 ROI 高度。</param>
+        /// <param name="modelInputWidth">模板记录的模型输入宽度。</param>
+        /// <param name="modelInputHeight">模板记录的模型输入高度。</param>
         /// <returns>源图坐标系异常矩形。</returns>
-        internal static List<DrawingRect> OffsetBoxesToSourceImage(DrawingRect[] boxes, CvRect? roiRect, int imageWidth, int imageHeight)
+        internal static List<DrawingRect> OffsetBoxesToSourceImage(DrawingRect[] boxes, CvRect? roiRect, int imageWidth, int imageHeight, int inferenceImageWidth, int inferenceImageHeight, int modelInputWidth, int modelInputHeight)
         {
             List<DrawingRect> result = new List<DrawingRect>();
-            if (boxes == null || imageWidth <= 0 || imageHeight <= 0)
+            if (boxes == null || imageWidth <= 0 || imageHeight <= 0 || inferenceImageWidth <= 0 || inferenceImageHeight <= 0)
                 return result;
 
             int offsetX = roiRect.HasValue ? roiRect.Value.X : 0;
             int offsetY = roiRect.HasValue ? roiRect.Value.Y : 0;
             foreach (DrawingRect box in boxes)
             {
-                DrawingRect shifted = new DrawingRect(box.X + offsetX, box.Y + offsetY, box.Width, box.Height);
+                DrawingRect scaled = ScaleBoxToInferenceImage(box, inferenceImageWidth, inferenceImageHeight, modelInputWidth, modelInputHeight);
+                DrawingRect shifted = new DrawingRect(scaled.X + offsetX, scaled.Y + offsetY, scaled.Width, scaled.Height);
                 DrawingRect clamped = ClampDrawingRect(shifted, imageWidth, imageHeight);
                 if (clamped.Width > 0 && clamped.Height > 0)
                     result.Add(clamped);
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// 将 native 返回的模型输入坐标矩形缩放到实际推理图像坐标。
+        /// </summary>
+        /// <param name="box">native 返回矩形。</param>
+        /// <param name="inferenceImageWidth">实际推理图像宽度。</param>
+        /// <param name="inferenceImageHeight">实际推理图像高度。</param>
+        /// <param name="modelInputWidth">模型输入宽度。</param>
+        /// <param name="modelInputHeight">模型输入高度。</param>
+        /// <returns>实际推理图像坐标矩形。</returns>
+        private static DrawingRect ScaleBoxToInferenceImage(DrawingRect box, int inferenceImageWidth, int inferenceImageHeight, int modelInputWidth, int modelInputHeight)
+        {
+            if (modelInputWidth <= 0 || modelInputHeight <= 0 ||
+                (modelInputWidth == inferenceImageWidth && modelInputHeight == inferenceImageHeight))
+            {
+                return box;
+            }
+
+            double scaleX = inferenceImageWidth / (double)modelInputWidth;
+            double scaleY = inferenceImageHeight / (double)modelInputHeight;
+            int left = RoundToInt(box.Left * scaleX);
+            int top = RoundToInt(box.Top * scaleY);
+            int right = RoundToInt(box.Right * scaleX);
+            int bottom = RoundToInt(box.Bottom * scaleY);
+            return new DrawingRect(left, top, Math.Max(1, right - left), Math.Max(1, bottom - top));
+        }
+
+        /// <summary>
+        /// 将缩放后的浮点坐标转换为整数像素坐标。
+        /// </summary>
+        /// <param name="value">浮点坐标值。</param>
+        /// <returns>四舍五入后的整数坐标。</returns>
+        private static int RoundToInt(double value)
+        {
+            return (int)Math.Round(value, MidpointRounding.AwayFromZero);
         }
 
         /// <summary>

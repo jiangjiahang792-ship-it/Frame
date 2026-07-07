@@ -1043,12 +1043,13 @@ namespace TDJS_Vision
         /// </summary>
         private void OpenUnsupervisedTrainForm()
         {
-            if (unsupervisedTrainForm == null || unsupervisedTrainForm.IsDisposed)
+            using (var form = new UnsupervisedTrainForm())
             {
-                unsupervisedTrainForm = new UnsupervisedTrainForm();
+                unsupervisedTrainForm = form;
+                ShowOwnedMaximizedDialog(form);
             }
 
-            ShowOwnedMaximizedDialog(unsupervisedTrainForm);
+            unsupervisedTrainForm = null;
         }
 
         /// <summary>

@@ -15,6 +15,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
         {
             if (disposing && (components != null))
             {
+                ReleaseRuntimeResources();
                 components.Dispose();
             }
             base.Dispose(disposing);
@@ -42,6 +43,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
             this.labelImageFolder = new System.Windows.Forms.Label();
             this.tableLayoutPanelCheckBody = new System.Windows.Forms.TableLayoutPanel();
             this.panelCategory = new System.Windows.Forms.Panel();
+            this.buttonSetSelectedNg = new System.Windows.Forms.Button();
+            this.buttonSetSelectedOk = new System.Windows.Forms.Button();
             this.buttonFilterNg = new System.Windows.Forms.Button();
             this.buttonFilterOk = new System.Windows.Forms.Button();
             this.buttonFilterAll = new System.Windows.Forms.Button();
@@ -297,6 +300,30 @@ namespace TDJS_Vision.Forms.AiTrainForm
             this.panelCategory.Size = new System.Drawing.Size(194, 528);
             this.panelCategory.TabIndex = 0;
             // 
+            // buttonSetSelectedNg
+            // 
+            this.buttonSetSelectedNg.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.buttonSetSelectedNg.Font = new System.Drawing.Font("Microsoft YaHei UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.buttonSetSelectedNg.Location = new System.Drawing.Point(1017, 3);
+            this.buttonSetSelectedNg.Name = "buttonSetSelectedNg";
+            this.buttonSetSelectedNg.Size = new System.Drawing.Size(134, 36);
+            this.buttonSetSelectedNg.TabIndex = 5;
+            this.buttonSetSelectedNg.Text = "设NG";
+            this.buttonSetSelectedNg.UseVisualStyleBackColor = true;
+            this.buttonSetSelectedNg.Click += new System.EventHandler(this.buttonSetSelectedNg_Click);
+            // 
+            // buttonSetSelectedOk
+            // 
+            this.buttonSetSelectedOk.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.buttonSetSelectedOk.Font = new System.Drawing.Font("Microsoft YaHei UI", 9F);
+            this.buttonSetSelectedOk.Location = new System.Drawing.Point(877, 3);
+            this.buttonSetSelectedOk.Name = "buttonSetSelectedOk";
+            this.buttonSetSelectedOk.Size = new System.Drawing.Size(134, 36);
+            this.buttonSetSelectedOk.TabIndex = 4;
+            this.buttonSetSelectedOk.Text = "设OK";
+            this.buttonSetSelectedOk.UseVisualStyleBackColor = true;
+            this.buttonSetSelectedOk.Click += new System.EventHandler(this.buttonSetSelectedOk_Click);
+            // 
             // buttonFilterNg
             // 
             this.buttonFilterNg.Location = new System.Drawing.Point(11, 182);
@@ -441,6 +468,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
             // 
             // panelCheckStatus
             // 
+            this.panelCheckStatus.Controls.Add(this.buttonSetSelectedOk);
+            this.panelCheckStatus.Controls.Add(this.buttonSetSelectedNg);
             this.panelCheckStatus.Controls.Add(this.labelRoiStatus);
             this.panelCheckStatus.Controls.Add(this.labelImageCount);
             this.panelCheckStatus.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -566,7 +595,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             "fastflow",
             "cflow",
             "efficient_ad"});
-            this.comboBoxModelType.Location = new System.Drawing.Point(123, 3);
+            this.comboBoxModelType.Location = new System.Drawing.Point(123, 8);
             this.comboBoxModelType.Name = "comboBoxModelType";
             this.comboBoxModelType.Size = new System.Drawing.Size(278, 39);
             this.comboBoxModelType.TabIndex = 1;
@@ -784,7 +813,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             "CPU",
             "GPU",
             "AUTO"});
-            this.comboBoxDevice.Location = new System.Drawing.Point(123, 297);
+            this.comboBoxDevice.Location = new System.Drawing.Point(123, 302);
             this.comboBoxDevice.Name = "comboBoxDevice";
             this.comboBoxDevice.Size = new System.Drawing.Size(278, 39);
             this.comboBoxDevice.TabIndex = 15;
@@ -1013,6 +1042,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
         private System.Windows.Forms.Label labelImageFolder;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanelCheckBody;
         private System.Windows.Forms.Panel panelCategory;
+        private System.Windows.Forms.Button buttonSetSelectedNg;
+        private System.Windows.Forms.Button buttonSetSelectedOk;
         private System.Windows.Forms.Button buttonFilterNg;
         private System.Windows.Forms.Button buttonFilterOk;
         private System.Windows.Forms.Button buttonFilterAll;

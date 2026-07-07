@@ -6,6 +6,7 @@ using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -24,6 +25,16 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// 已加载的训练图片。
         /// </summary>
         private readonly List<UnsupervisedImageItem> _images = new List<UnsupervisedImageItem>();
+
+        /// <summary>
+        /// 当前已渲染的缩略图卡片索引，用于局部刷新选中边框。
+        /// </summary>
+        private readonly Dictionary<UnsupervisedImageItem, Control> _imageCards = new Dictionary<UnsupervisedImageItem, Control>();
+
+        /// <summary>
+        /// 本次软件运行期间最近一次加载成功的图像路径，用于关闭再打开训练窗体时恢复现场。
+        /// </summary>
+        private static string _lastImageFolder;
 
         /// <summary>
         /// 无监督训练服务。
@@ -49,6 +60,11 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// 检查页强调色。
         /// </summary>
         private static readonly Color InspectionAccentColor = Color.FromArgb(0, 188, 188);
+
+        /// <summary>
+        /// 缩略图选中边框颜色，按用户习惯使用明确蓝色。
+        /// </summary>
+        private static readonly Color InspectionSelectedBorderColor = Color.FromArgb(0, 122, 204);
 
         /// <summary>
         /// 顶部导航栏背景色。
@@ -111,6 +127,11 @@ namespace TDJS_Vision.Forms.AiTrainForm
         private bool _applyingMaximizedBounds;
 
         /// <summary>
+        /// 运行期图片资源是否已经释放，避免关闭和 Dispose 重复释放。
+        /// </summary>
+        private bool _runtimeResourcesReleased;
+
+        /// <summary>
         /// 初始化无监督训练窗体。
         /// </summary>
         public UnsupervisedTrainForm()
@@ -125,15 +146,18 @@ namespace TDJS_Vision.Forms.AiTrainForm
         private void InitializeFormState()
         {
             ApplyRuntimeTabHeaderMode();
+            EnableDoubleBufferedScrolling(flowLayoutPanelImages);
             ApplyInspectionTheme();
             comboBoxModelType.SelectedIndex = 0;
             comboBoxDevice.SelectedIndex = 0;
             buttonStopTraining.Enabled = false;
             imageROIEditControlPreview.RoiChanged += imageROIEditControlPreview_RoiChanged;
             textBoxTemplateName.Text = "无监督模板_" + DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
+            RestoreLastImageFolder();
             UpdateGeneratedModelPath();
             RefreshRuntimeStatus();
             UpdateImageCountText();
+            UpdateSelectionActionState();
             UpdateRoiStatus();
         }
 
@@ -163,9 +187,10 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <summary>
         /// 窗体首次显示后修正最大化边界，避免底部露出主界面。
         /// </summary>
-        private void UnsupervisedTrainForm_Shown(object sender, EventArgs e)
+        private async void UnsupervisedTrainForm_Shown(object sender, EventArgs e)
         {
             EnsureMaximizedBounds();
+            await TryAutoReloadLastImageFolderAsync();
         }
 
         /// <summary>
@@ -268,6 +293,22 @@ namespace TDJS_Vision.Forms.AiTrainForm
         private void buttonFilterNg_Click(object sender, EventArgs e)
         {
             SetFilter(UnsupervisedImageCategory.NG);
+        }
+
+        /// <summary>
+        /// 将当前选中图片标记为 OK。
+        /// </summary>
+        private void buttonSetSelectedOk_Click(object sender, EventArgs e)
+        {
+            SetSelectedImageCategory(UnsupervisedImageCategory.OK);
+        }
+
+        /// <summary>
+        /// 将当前选中图片标记为 NG。
+        /// </summary>
+        private void buttonSetSelectedNg_Click(object sender, EventArgs e)
+        {
+            SetSelectedImageCategory(UnsupervisedImageCategory.NG);
         }
 
         /// <summary>
@@ -400,12 +441,15 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <param name="folder">图片目录。</param>
         private async Task LoadImagesAsync(string folder)
         {
+            _runtimeResourcesReleased = false;
             if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
             {
                 MessageBoxTD.Show(this, "请选择有效的图像路径。");
                 return;
             }
 
+            RememberLastImageFolder(folder);
+            textBoxImageFolder.Text = folder;
             _loadCancellation?.Cancel();
             _loadCancellation?.Dispose();
             _loadCancellation = new CancellationTokenSource();
@@ -417,6 +461,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             _selectedImage = null;
             SetPreviewImage(null);
             UpdateImageCountText();
+            UpdateSelectionActionState();
             UpdateRoiStatus();
 
             try
@@ -464,17 +509,58 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// </summary>
         private void RenderImageCards()
         {
+            flowLayoutPanelImages.SuspendLayout();
             ClearImageCards();
-            IEnumerable<UnsupervisedImageItem> source = _currentFilter == UnsupervisedImageCategory.All
-                ? _images
-                : _images.Where(item => item.Category == _currentFilter);
-
-            foreach (UnsupervisedImageItem item in source)
+            try
             {
-                flowLayoutPanelImages.Controls.Add(CreateImageCard(item));
+                List<Control> cards = GetFilteredImages()
+                    .Select(CreateImageCard)
+                    .ToList();
+                if (cards.Count > 0)
+                    flowLayoutPanelImages.Controls.AddRange(cards.ToArray());
+            }
+            finally
+            {
+                flowLayoutPanelImages.ResumeLayout(true);
+                flowLayoutPanelImages.PerformLayout();
             }
 
             HighlightFilterButton();
+        }
+
+        /// <summary>
+        /// 记录最近一次成功使用的图像路径。
+        /// </summary>
+        /// <param name="folder">图像文件夹。</param>
+        private static void RememberLastImageFolder(string folder)
+        {
+            if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+                return;
+
+            _lastImageFolder = folder;
+        }
+
+        /// <summary>
+        /// 恢复本次软件运行期间最近一次加载的图像路径。
+        /// </summary>
+        private void RestoreLastImageFolder()
+        {
+            if (string.IsNullOrWhiteSpace(_lastImageFolder) || !Directory.Exists(_lastImageFolder))
+                return;
+
+            textBoxImageFolder.Text = _lastImageFolder;
+        }
+
+        /// <summary>
+        /// 窗体重新打开时自动加载上次路径，避免用户重复选择图像目录。
+        /// </summary>
+        private async Task TryAutoReloadLastImageFolderAsync()
+        {
+            string folder = textBoxImageFolder.Text;
+            if (_images.Count > 0 || string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+                return;
+
+            await LoadImagesAsync(folder);
         }
 
         /// <summary>
@@ -484,46 +570,18 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <returns>缩略图控件。</returns>
         private Control CreateImageCard(UnsupervisedImageItem item)
         {
-            var card = new Panel
+            var card = new UnsupervisedImageCardControl(item)
             {
                 Width = 172,
                 Height = 172,
                 Margin = new Padding(4),
                 BackColor = InspectionCardBackColor,
                 Tag = item,
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                Selected = ReferenceEquals(item, _selectedImage)
             };
-            card.Paint += imageCard_Paint;
             card.Click += imageCard_Click;
-
-            var picture = new PictureBox
-            {
-                Image = item.Thumbnail,
-                Location = new Point(10, 10),
-                Size = new Size(152, 126),
-                SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.Black,
-                Tag = item,
-                Cursor = Cursors.Hand
-            };
-            picture.Click += imageCard_Click;
-            card.Controls.Add(picture);
-
-            var label = new Label
-            {
-                Text = item.DisplayName,
-                Location = new Point(8, 140),
-                Size = new Size(156, 24),
-                TextAlign = ContentAlignment.MiddleCenter,
-                AutoEllipsis = true,
-                BackColor = InspectionCardBackColor,
-                ForeColor = Color.Gainsboro,
-                Tag = item,
-                Cursor = Cursors.Hand
-            };
-            label.Click += imageCard_Click;
-            card.Controls.Add(label);
-
+            _imageCards[item] = card;
             return card;
         }
 
@@ -537,7 +595,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             Color color = item.Category == UnsupervisedImageCategory.NG ? Color.FromArgb(230, 40, 40) : Color.FromArgb(0, 190, 100);
             if (ReferenceEquals(item, _selectedImage))
             {
-                color = InspectionAccentColor;
+                color = InspectionSelectedBorderColor;
             }
 
             using (var pen = new Pen(color, 3))
@@ -565,19 +623,62 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <param name="item">图片信息。</param>
         private void SelectImage(UnsupervisedImageItem item)
         {
+            UnsupervisedImageItem previous = _selectedImage;
             _selectedImage = item;
             try
             {
                 SetPreviewImage(LoadBitmapWithoutLock(item.FilePath));
                 labelPreviewTitle.Text = "图像预览 / ROI编辑：" + item.DisplayName;
                 FitLabelText(labelPreviewTitle, 10F, 7F, FontStyle.Bold);
+                InvalidateImageCard(previous);
+                InvalidateImageCard(item);
+                UpdateSelectionActionState();
                 UpdateRoiStatus();
-                flowLayoutPanelImages.Invalidate();
             }
             catch (Exception ex)
             {
                 MessageBoxTD.Show(this, "预览图像失败：" + ex.Message);
             }
+        }
+
+        /// <summary>
+        /// 修改当前选中图片的训练分类。
+        /// </summary>
+        /// <param name="category">目标分类。</param>
+        private void SetSelectedImageCategory(UnsupervisedImageCategory category)
+        {
+            if (_selectedImage == null)
+            {
+                MessageBoxTD.Show(this, "请先选择一张图片。");
+                return;
+            }
+
+            _selectedImage.Category = category;
+            UpdateImageCountText();
+            RefreshSelectedImageAfterCategoryChange();
+        }
+
+        /// <summary>
+        /// 分类变化后刷新缩略图并保持合理的选中状态。
+        /// </summary>
+        private void RefreshSelectedImageAfterCategoryChange()
+        {
+            UnsupervisedImageItem selected = _selectedImage;
+            RenderImageCards();
+            if (selected != null && IsImageVisibleByCurrentFilter(selected))
+            {
+                InvalidateImageCard(selected);
+                return;
+            }
+
+            UnsupervisedImageItem fallback = GetFilteredImages().FirstOrDefault();
+            if (fallback != null)
+            {
+                SelectImage(fallback);
+                return;
+            }
+
+            ClearSelection();
         }
 
         /// <summary>
@@ -697,6 +798,27 @@ namespace TDJS_Vision.Forms.AiTrainForm
         }
 
         /// <summary>
+        /// 根据当前筛选条件返回需要显示的图片集合。
+        /// </summary>
+        /// <returns>筛选后的图片集合。</returns>
+        private IEnumerable<UnsupervisedImageItem> GetFilteredImages()
+        {
+            return _currentFilter == UnsupervisedImageCategory.All
+                ? _images
+                : _images.Where(IsImageVisibleByCurrentFilter);
+        }
+
+        /// <summary>
+        /// 判断图片是否属于当前筛选范围。
+        /// </summary>
+        /// <param name="item">图片信息。</param>
+        /// <returns>需要显示时返回 true。</returns>
+        private bool IsImageVisibleByCurrentFilter(UnsupervisedImageItem item)
+        {
+            return item != null && (_currentFilter == UnsupervisedImageCategory.All || item.Category == _currentFilter);
+        }
+
+        /// <summary>
         /// 更新 ROI 状态。
         /// </summary>
         private void UpdateRoiStatus()
@@ -745,6 +867,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             buttonSelectImageFolder.Enabled = !busy;
             buttonReloadImages.Enabled = !busy;
             Cursor = busy ? Cursors.WaitCursor : Cursors.Default;
+            UpdateSelectionActionState();
         }
 
         /// <summary>
@@ -759,6 +882,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             buttonSelectModelOutput.Enabled = !busy;
             buttonSelectImageFolder.Enabled = !busy;
             buttonReloadImages.Enabled = !busy;
+            UpdateSelectionActionState();
         }
 
         /// <summary>
@@ -822,6 +946,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
 
             ApplyActionButtonStyle(buttonSelectImageFolder);
             ApplyActionButtonStyle(buttonReloadImages);
+            ApplyActionButtonStyle(buttonSetSelectedOk);
+            ApplyActionButtonStyle(buttonSetSelectedNg);
             ApplyActionButtonStyle(buttonDrawRoi);
             ApplyActionButtonStyle(buttonClearRoi);
             HighlightFilterButton();
@@ -1084,7 +1210,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
         {
             Bitmap old = _previewBitmap;
             _previewBitmap = bitmap;
-            imageROIEditControlPreview.SetImage(bitmap);
+            if (imageROIEditControlPreview != null && !imageROIEditControlPreview.IsDisposed)
+                imageROIEditControlPreview.SetImage(bitmap);
             old?.Dispose();
         }
 
@@ -1093,11 +1220,55 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// </summary>
         private void ClearImageCards()
         {
-            foreach (Control control in flowLayoutPanelImages.Controls)
+            if (flowLayoutPanelImages == null) return;
+
+            Control[] controls = flowLayoutPanelImages.Controls.Cast<Control>().ToArray();
+            flowLayoutPanelImages.Controls.Clear();
+            foreach (Control control in controls)
             {
                 control.Dispose();
             }
-            flowLayoutPanelImages.Controls.Clear();
+            _imageCards.Clear();
+        }
+
+        /// <summary>
+        /// 清空当前选中图片和预览图。
+        /// </summary>
+        private void ClearSelection()
+        {
+            UnsupervisedImageItem previous = _selectedImage;
+            _selectedImage = null;
+            SetPreviewImage(null);
+            labelPreviewTitle.Text = "图像预览 / ROI编辑";
+            InvalidateImageCard(previous);
+            UpdateSelectionActionState();
+            UpdateRoiStatus();
+        }
+
+        /// <summary>
+        /// 局部刷新指定图片卡片。
+        /// </summary>
+        /// <param name="item">图片信息。</param>
+        private void InvalidateImageCard(UnsupervisedImageItem item)
+        {
+            if (item == null) return;
+            Control card;
+            if (_imageCards.TryGetValue(item, out card) && card != null && !card.IsDisposed)
+            {
+                if (card is UnsupervisedImageCardControl imageCard)
+                    imageCard.Selected = ReferenceEquals(item, _selectedImage);
+                card.Invalidate();
+            }
+        }
+
+        /// <summary>
+        /// 更新选中图片分类按钮可用状态。
+        /// </summary>
+        private void UpdateSelectionActionState()
+        {
+            bool enabled = _selectedImage != null && buttonSelectImageFolder.Enabled;
+            buttonSetSelectedOk.Enabled = enabled;
+            buttonSetSelectedNg.Enabled = enabled;
         }
 
         /// <summary>
@@ -1142,6 +1313,17 @@ namespace TDJS_Vision.Forms.AiTrainForm
             {
                 return new Bitmap(image);
             }
+        }
+
+        /// <summary>
+        /// 为滚动容器开启双缓冲，减少大量缩略图滚动时的闪烁和卡顿。
+        /// </summary>
+        /// <param name="control">滚动容器。</param>
+        private static void EnableDoubleBufferedScrolling(Control control)
+        {
+            if (control == null) return;
+            PropertyInfo property = typeof(Control).GetProperty("DoubleBuffered", BindingFlags.Instance | BindingFlags.NonPublic);
+            property?.SetValue(control, true, null);
         }
 
         /// <summary>
@@ -1205,19 +1387,129 @@ namespace TDJS_Vision.Forms.AiTrainForm
         }
 
         /// <summary>
-        /// 窗体关闭时释放图片和取消后台任务。
+        /// 释放运行期加载的图片、缩略图和后台任务。
+        /// </summary>
+        private void ReleaseRuntimeResources()
+        {
+            if (_runtimeResourcesReleased)
+                return;
+
+            _runtimeResourcesReleased = true;
+            _loadCancellation?.Cancel();
+            _trainingCancellation?.Cancel();
+            _trainingService.CancelActiveTraining();
+            ClearImageCards();
+            DisposeImageItems();
+            _selectedImage = null;
+            SetPreviewImage(null);
+            _loadCancellation?.Dispose();
+            _loadCancellation = null;
+            _trainingCancellation?.Dispose();
+            _trainingCancellation = null;
+        }
+
+        /// <summary>
+        /// 窗体开始关闭时释放图片和取消后台任务。
+        /// </summary>
+        /// <param name="e">关闭事件参数。</param>
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            ReleaseRuntimeResources();
+            base.OnFormClosing(e);
+        }
+
+        /// <summary>
+        /// 窗体关闭后再次确保资源已释放。
         /// </summary>
         /// <param name="e">关闭事件参数。</param>
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
-            _loadCancellation?.Cancel();
-            _trainingCancellation?.Cancel();
-            _trainingService.CancelActiveTraining();
-            DisposeImageItems();
-            SetPreviewImage(null);
-            _loadCancellation?.Dispose();
-            _trainingCancellation?.Dispose();
+            ReleaseRuntimeResources();
             base.OnFormClosed(e);
+        }
+
+        /// <summary>
+        /// 无监督图片缩略图自绘卡片，替代 PictureBox+Label 组合以降低滚动时控件数量。
+        /// </summary>
+        private sealed class UnsupervisedImageCardControl : Control
+        {
+            /// <summary>
+            /// 卡片对应的图片信息。
+            /// </summary>
+            private readonly UnsupervisedImageItem _item;
+
+            /// <summary>
+            /// 初始化缩略图卡片。
+            /// </summary>
+            /// <param name="item">图片信息。</param>
+            public UnsupervisedImageCardControl(UnsupervisedImageItem item)
+            {
+                _item = item;
+                SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            }
+
+            /// <summary>
+            /// 是否为当前选中图片。
+            /// </summary>
+            public bool Selected { get; set; }
+
+            /// <summary>
+            /// 计算缩略图在卡片图片区域中的等比显示矩形。
+            /// </summary>
+            /// <param name="sourceSize">缩略图原始尺寸。</param>
+            /// <param name="targetSize">显示区域尺寸。</param>
+            /// <returns>相对显示区域左上角的绘制矩形。</returns>
+            private static Rectangle CalculateFitRect(Size sourceSize, Size targetSize)
+            {
+                if (sourceSize.Width <= 0 || sourceSize.Height <= 0)
+                    return new Rectangle(0, 0, Math.Max(1, targetSize.Width), Math.Max(1, targetSize.Height));
+
+                float scale = Math.Min((float)targetSize.Width / sourceSize.Width, (float)targetSize.Height / sourceSize.Height);
+                int width = Math.Max(1, (int)(sourceSize.Width * scale));
+                int height = Math.Max(1, (int)(sourceSize.Height * scale));
+                int x = (targetSize.Width - width) / 2;
+                int y = (targetSize.Height - height) / 2;
+                return new Rectangle(x, y, width, height);
+            }
+
+            /// <summary>
+            /// 绘制缩略图、文件名和 OK/NG/选中边框。
+            /// </summary>
+            /// <param name="e">绘制参数。</param>
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (Brush cardBrush = new SolidBrush(InspectionCardBackColor))
+                {
+                    e.Graphics.FillRectangle(cardBrush, ClientRectangle);
+                }
+
+                Rectangle imageRect = new Rectangle(10, 10, Width - 20, 126);
+                using (Brush imageBrush = new SolidBrush(Color.Black))
+                {
+                    e.Graphics.FillRectangle(imageBrush, imageRect);
+                }
+
+                if (_item?.Thumbnail != null)
+                {
+                    Rectangle target = CalculateFitRect(_item.Thumbnail.Size, imageRect.Size);
+                    target.Offset(imageRect.Location);
+                    e.Graphics.InterpolationMode = InterpolationMode.HighQualityBilinear;
+                    e.Graphics.DrawImage(_item.Thumbnail, target);
+                }
+
+                Rectangle textRect = new Rectangle(8, 140, Width - 16, 24);
+                TextRenderer.DrawText(e.Graphics, _item?.DisplayName ?? string.Empty, Font, textRect, Color.Gainsboro, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+
+                Color borderColor = Selected
+                    ? InspectionSelectedBorderColor
+                    : (_item != null && _item.Category == UnsupervisedImageCategory.NG ? Color.FromArgb(230, 40, 40) : Color.FromArgb(0, 190, 100));
+                using (Pen pen = new Pen(borderColor, Selected ? 4 : 3))
+                {
+                    e.Graphics.DrawRectangle(pen, 2, 2, Width - 5, Height - 5);
+                }
+            }
         }
     }
 }

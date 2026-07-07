@@ -23,7 +23,9 @@ Assert-Contains $designer 'this.toolStripMenuItem2.Click += new System.EventHand
 Assert-Contains $form 'using TDJS_Vision.Forms.AiTrainForm;' 'FormMain does not import unsupervised train namespace'
 Assert-Contains $form 'private UnsupervisedTrainForm unsupervisedTrainForm;' 'FormMain does not keep a lazy unsupervised train form field'
 Assert-Contains $form 'private void UnsupervisedTrainToolStripMenuItem_Click(object sender, EventArgs e)' 'FormMain does not define unsupervised train click handler'
-Assert-Contains $form 'unsupervisedTrainForm = new UnsupervisedTrainForm();' 'FormMain does not create UnsupervisedTrainForm lazily'
-Assert-Contains $form 'ShowOwnedMaximizedDialog(unsupervisedTrainForm);' 'FormMain does not open UnsupervisedTrainForm through the owned maximized dialog helper'
+Assert-Contains $form 'using (var form = new UnsupervisedTrainForm())' 'FormMain must create a fresh UnsupervisedTrainForm for each open to avoid reusing disposed image resources'
+Assert-Contains $form 'unsupervisedTrainForm = form;' 'FormMain should keep the active unsupervised form only while the dialog is open'
+Assert-Contains $form 'ShowOwnedMaximizedDialog(form);' 'FormMain does not open UnsupervisedTrainForm through the owned maximized dialog helper'
+Assert-Contains $form 'unsupervisedTrainForm = null;' 'FormMain must clear the unsupervised form reference after the dialog closes'
 
 Write-Host "FormMain unsupervised menu checks passed."

@@ -30,6 +30,8 @@ function Assert-NotContains {
 
 $designer = Get-Content -LiteralPath $designerPath -Encoding UTF8 -Raw
 $code = Get-Content -LiteralPath $codePath -Encoding UTF8 -Raw
+$setSelectedOkText = -join @([char]0x9009, [char]0x4E2D, [char]0x8BBE, [char]0x4F, [char]0x4B)
+$setSelectedNgText = -join @([char]0x9009, [char]0x4E2D, [char]0x8BBE, [char]0x4E, [char]0x47)
 
 Assert-Contains $designer "tabControlMain" "Missing main TabControl."
 Assert-Contains $designer "tabPageCheck" "Missing check tab."
@@ -41,6 +43,12 @@ Assert-Contains $designer "buttonReloadImages" "Missing reload button."
 Assert-Contains $designer "buttonFilterAll" "Missing All filter button."
 Assert-Contains $designer "buttonFilterOk" "Missing OK filter button."
 Assert-Contains $designer "buttonFilterNg" "Missing NG filter button."
+Assert-Contains $designer "buttonSetSelectedOk" "Missing selected-image OK assignment button."
+Assert-Contains $designer "buttonSetSelectedNg" "Missing selected-image NG assignment button."
+Assert-Contains $designer ('this.buttonSetSelectedOk.Text = "' + $setSelectedOkText + '";') "Selected OK assignment button must use Simplified Chinese text."
+Assert-Contains $designer ('this.buttonSetSelectedNg.Text = "' + $setSelectedNgText + '";') "Selected NG assignment button must use Simplified Chinese text."
+Assert-Contains $designer "this.buttonSetSelectedOk.Click += new System.EventHandler(this.buttonSetSelectedOk_Click);" "Selected OK assignment button must be wired."
+Assert-Contains $designer "this.buttonSetSelectedNg.Click += new System.EventHandler(this.buttonSetSelectedNg_Click);" "Selected NG assignment button must be wired."
 Assert-Contains $designer "flowLayoutPanelImages" "Missing thumbnail container."
 Assert-Contains $designer "imageROIEditControlPreview" "Missing ROI preview control."
 Assert-Contains $designer "buttonDrawRoi" "Missing draw ROI action."
@@ -76,6 +84,24 @@ Assert-Contains $designer "this.Resize += new System.EventHandler(this.Unsupervi
 
 Assert-Contains $code "LoadImagesAsync" "Missing async image loading logic."
 Assert-Contains $code "RenderImageCards" "Missing thumbnail rendering logic."
+Assert-Contains $code "UnsupervisedImageCardControl" "Thumbnail rendering must use a lightweight owner-drawn card control."
+Assert-Contains $code "Controls.AddRange(cards.ToArray())" "Thumbnail rendering must batch add card controls for smoother scrolling."
+Assert-Contains $code "flowLayoutPanelImages.SuspendLayout();" "Thumbnail rendering must suspend layout while rebuilding cards."
+Assert-Contains $code "flowLayoutPanelImages.ResumeLayout(true);" "Thumbnail rendering must resume layout with immediate layout so all cards are positioned instead of overlapping."
+Assert-Contains $code "flowLayoutPanelImages.PerformLayout();" "Thumbnail rendering must force FlowLayoutPanel to arrange all thumbnail cards."
+Assert-Contains $code "EnableDoubleBufferedScrolling(flowLayoutPanelImages)" "Thumbnail container must enable double buffering for smoother scrolling."
+Assert-Contains $code "RememberLastImageFolder" "Form must remember the last loaded image folder."
+Assert-Contains $code "RestoreLastImageFolder" "Form must restore the last image folder when reopened."
+Assert-Contains $code "TryAutoReloadLastImageFolderAsync" "Form must auto reload the remembered image folder when reopened."
+Assert-Contains $code "LastImageFolder" "Form must persist the last image folder for the current application session."
+Assert-Contains $code "InspectionSelectedBorderColor" "Selected thumbnail must use a dedicated blue border color."
+Assert-Contains $code "SetSelectedImageCategory" "Missing selected-image OK/NG classification logic."
+Assert-Contains $code "buttonSetSelectedOk_Click" "Missing selected OK click handler."
+Assert-Contains $code "buttonSetSelectedNg_Click" "Missing selected NG click handler."
+Assert-Contains $code "RefreshSelectedImageAfterCategoryChange" "Changing OK/NG must keep selection state coherent after filtering."
+Assert-Contains $code "ReleaseRuntimeResources" "Form must release loaded images and preview state when the dialog closes."
+Assert-NotContains $code "var picture = new PictureBox" "Thumbnail cards must not create a PictureBox for every image."
+Assert-NotContains $code "var label = new Label" "Thumbnail cards must not create a Label for every image."
 Assert-Contains $code "GetTrainingRoiRectOrNull" "Missing optional ROI training decision."
 Assert-Contains $code "FullImageTrainingWhenNoRoi" "Missing full-image training path marker."
 Assert-Contains $code "buttonStartTraining_Click" "Missing start training event."
