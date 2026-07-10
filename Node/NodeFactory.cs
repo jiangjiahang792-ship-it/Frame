@@ -11,6 +11,7 @@ using TDJS_Vision.Node._3_Detection.BinaryAnalysis;
 using TDJS_Vision.Node._3_Detection.ColorDiscern;
 using TDJS_Vision.Node._3_Detection.FindCircle;
 using TDJS_Vision.Node._3_Detection.FindLine;
+using TDJS_Vision.Node._3_Detection.LargeModel;
 using TDJS_Vision.Node._3_Detection.MatchTemplate;
 using TDJS_Vision.Node._3_Detection.QRScan;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -91,6 +92,8 @@ namespace TDJS_Vision.Node
                     return new NodeTDAI(nodeId, nodeName, process, nodeType);
                 case NodeType.UnsupervisedDetection:
                     return new NodeUnsupervisedDetection(nodeId, nodeName, process, nodeType);
+                case NodeType.LargeModelDetection:
+                    return new NodeLargeModelDetection(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageSave:
                     return new NodeImageSave(nodeId, nodeName, process, nodeType);
                 case NodeType.SleepTool:

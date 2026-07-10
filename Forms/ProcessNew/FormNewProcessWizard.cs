@@ -806,6 +806,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.RGBDiscern:
                 case NodeType.BinarizationAnalysis:
                 case NodeType.UnsupervisedDetection:
+                case NodeType.LargeModelDetection:
                     return Color.FromArgb(125, 84, 188);
                 case NodeType.CaliperLine:
                 case NodeType.CaliperCircle:
@@ -924,6 +925,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return "BW";
                 case NodeType.UnsupervisedDetection:
                     return "US";
+                case NodeType.LargeModelDetection:
+                    return "LM";
                 case NodeType.LightSourceControl:
                     return "LT";
                 case NodeType.CameraIO:

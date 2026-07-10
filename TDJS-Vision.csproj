@@ -247,6 +247,18 @@
     <Compile Include="Forms\AiTrainForm\UnsupervisedTemplatePackage.cs" />
     <Compile Include="Forms\AiTrainForm\UnsupervisedTrainingModels.cs" />
     <Compile Include="Forms\AiTrainForm\UnsupervisedTrainingService.cs" />
+    <Compile Include="Forms\AiTrainForm\LargeModelTrainForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\AiTrainForm\LargeModelTrainForm.Designer.cs">
+      <DependentUpon>LargeModelTrainForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\AiTrainForm\LargeModelDinov2Detector.cs" />
+    <Compile Include="Forms\AiTrainForm\LargeModelImageLoader.cs" />
+    <Compile Include="Forms\AiTrainForm\LargeModelRuntimeBootstrapper.cs" />
+    <Compile Include="Forms\AiTrainForm\LargeModelTemplatePackage.cs" />
+    <Compile Include="Forms\AiTrainForm\LargeModelTrainingModels.cs" />
+    <Compile Include="Forms\AiTrainForm\LargeModelTrainingService.cs" />
     <Compile Include="LanguageManager.cs" />
     <Compile Include="Device\3D\Camera3DModels.cs" />
     <Compile Include="Device\3D\CameraHik3D.cs" />
@@ -1080,6 +1092,18 @@
       <DependentUpon>ParamFormUnsupervisedDetection.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\3-Detection\Unsupervised\UnsupervisedDetectionRuntime.cs" />
+    <Compile Include="Node\3-Detection\LargeModel\NodeParamLargeModelDetection.cs" />
+    <Compile Include="Node\3-Detection\LargeModel\NodeResultLargeModelDetection.cs" />
+    <Compile Include="Node\3-Detection\LargeModel\NodeLargeModelDetection.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\LargeModel\ParamFormLargeModelDetection.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\LargeModel\ParamFormLargeModelDetection.Designer.cs">
+      <DependentUpon>ParamFormLargeModelDetection.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\LargeModel\LargeModelDetectionRuntime.cs" />
     <Compile Include="Node\3-Detection\MatchTemplate\FastTemplateMatcher.cs" />
     <Compile Include="Node\3-Detection\MatchTemplate\NodeParamFormMatchTemplate.cs">
       <SubType>Form</SubType>
@@ -1505,6 +1529,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\AiTrainForm\UnsupervisedTrainForm.resx">
       <DependentUpon>UnsupervisedTrainForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\AiTrainForm\LargeModelTrainForm.resx">
+      <DependentUpon>LargeModelTrainForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\CameraAdd\CameraParamsShowControl.resx">
       <DependentUpon>CameraParamsShowControl.cs</DependentUpon>

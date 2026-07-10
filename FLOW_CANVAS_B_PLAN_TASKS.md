@@ -20,6 +20,12 @@ The current implementation step is **FlagRead Wait/No-Wait Option Feedback Pass*
 
 ### Latest Progress
 
+- 2026-07-08 旧方案数据升级：
+  - [x] 新反馈已记录：桌面 `工位1方案带旋转.Sol` 是旧版 `1.0.0.0` 顺序流程方案，需要按当前方案格式重构数据。
+  - [x] 已生成 `工位1方案带旋转_当前版本.Sol`，版本更新为 `2.4.0.0`，保留设备、节点参数、全局信号、检测项配置和 OK/NG 计数。
+  - [x] 已为 4 个旧顺序流程补齐 `IsCameraCallbackTriggered`、`HasCanvasGraph`、`ConnectionInfos`、节点画布布局、起始节点和日志开关字段。
+  - [x] 已按兼容顺序流程保留 `HasCanvasGraph=false` 并生成 `Legacy` 连线，避免改变 If/EndIf 顺序执行语义。
+  - [x] 已完成 JSON 结构校验：5 个设备、4 个流程、49 个节点、45 条连线均有效。
 - 2026-07-06 无监督 GPU 模板执行返回 -2 修复：
   - [x] 新反馈已记录：CPU 训练模板可正常加载，但选择 GPU 训练后模板显示训练成功，点击执行会出现 `-2` 返回码。
   - [x] 已定位到新增 `推理批次` 参数对旧节点默认成 1，可能覆盖 GPU 模板 manifest 中的训练批次，导致 GPU 加载/推理返回 `-2`。
@@ -1940,3 +1946,14 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 增加无监督训练检查页手动分类操作：选中图片使用蓝色边框显示，可通过“选中设OK”“选中设NG”按钮在 OK/NG 分类之间切换并实时刷新数量和筛选结果。
 - [x] 修复无监督训练检查页缩略图只显示一张的问题：批量添加自绘缩略图后立即恢复并触发 `FlowLayoutPanel` 布局，避免 54 张图像控件重叠在同一位置。
 - [x] 无监督训练窗体关闭后再次打开时恢复本次软件运行期间最近一次图像路径，并在路径仍存在时自动重新加载，避免重复手动选择路径。
+
+## 2026-07-08: 大模型算法集成
+
+- [x] 新增大模型训练界面入口，`FormMain` 的“大模型训练”菜单每次打开新的 `LargeModelTrainForm`，避免复用已释放的 native/图像资源。
+- [x] 参考无监督训练界面复制并改造大模型训练窗体，模板扩展名独立为 `.tdlarge`，训练输出写入运行目录 `Model` 文件夹。
+- [x] 新增 `LargeModelDll` 隔离运行环境检查，DINOv2 native 包装延迟加载 `Dinov2AD.dll` 和 `OpenCvBridge.dll`，不在工程中硬引用算法 DLL。
+- [x] 新增 DINOv2 `init/train/infer/release` 托管封装，推理阶段直接传递 OpenCvSharp `Mat.CvPtr`，避免通过临时图片文件传递图像。
+- [x] 根据 DINOv2 demo 与 DLL `train` 签名收敛大模型训练参数面板：仅保留 demo 中有依据的模型精度、运行设备、图像阈值和面积阈值；训练轮数、迭代、BatchSize、输入宽高不放入界面，避免误导为 native 可调训练超参。
+- [x] 新增大模型模板包，按 demo 的模型/特征对应关系把当前使用的 engine/ONNX 与训练生成的 memory bank 一起写入 `.tdlarge`，模板清单使用 `manifest.json` 保存模型、阈值、面积阈值和 ROI 信息。
+- [x] 新增“大模型调用”流程节点、参数窗体、节点参数、节点结果和运行适配器，输出 `AlgorithmResult`、OK/NG、异常分数和异常框，供条件判断、结果汇总和 ROI 绘制订阅。
+- [x] 排查大模型节点选择新训练模板运行失败：已用最新 `.tdlarge` 执行 engine+bank 解包、native 加载和单图推理冒烟验证；运行参数界面移除 demo 未提供的“推理批次”，失败日志增加模板路径与输入图像摘要，便于定位是否未保存参数、订阅为空或上游图像为空。

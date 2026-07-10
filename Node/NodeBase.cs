@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Node._3_Detection.LargeModel;
 using TDJS_Vision.Node._3_Detection.Unsupervised;
 using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
@@ -643,6 +644,12 @@ namespace TDJS_Vision.Node
             if (NodeType == NodeType.UnsupervisedDetection && this is NodeUnsupervisedDetection unsupervisedNode)
             {
                 unsupervisedNode.DisposeRuntime();
+            }
+
+            // 移除大模型调用节点时释放 native 模型句柄。
+            if (NodeType == NodeType.LargeModelDetection && this is NodeLargeModelDetection largeModelNode)
+            {
+                largeModelNode.DisposeRuntime();
             }
 
             // 移除的节点如果包含了加载的检测项也需要从静态全局检测项中移除

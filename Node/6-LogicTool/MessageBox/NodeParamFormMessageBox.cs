@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
+using TDJS_Vision.Node._3_Detection.LargeModel;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._3_Detection.Unsupervised;
 using TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead;
@@ -36,6 +37,12 @@ namespace TDJS_Vision.Node._6_LogicTool.MessageBox
                         if (unsupervisedResult == null)
                             throw new Exception("无监督输出结果为空，无法进行条件判断！");
                         result = unsupervisedResult.IsAllOk;
+                        break;
+                    case NodeType.LargeModelDetection:
+                        var largeModelResult = nodeSubscription1.GetSelectedResult<NodeResultLargeModelDetection>().AlgorithmResult;
+                        if (largeModelResult == null)
+                            throw new Exception("大模型输出结果为空，无法进行条件判断！");
+                        result = largeModelResult.IsAllOk;
                         break;
                     case NodeType.Summarize:
                         result = nodeSubscription1.GetValue<AlgorithmResult>().IsAllOk;

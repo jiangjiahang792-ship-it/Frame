@@ -20,6 +20,7 @@
       <Nodes>
         <Node Text="AI检测" ImageName="AI检测" Tag="AITD" SelectedImageName="AI检测" />
         <Node Text="无监督检测" ImageName="AI检测" Tag="UnsupervisedDetection" SelectedImageName="AI检测" />
+        <Node Text="大模型调用" ImageName="AI检测" Tag="LargeModelDetection" SelectedImageName="AI检测" />
         <Node Text="直线检测" ImageName="检测直线" Tag="LineFind" SelectedImageName="检测直线" />
         <Node Text="圆检测" ImageName="检测圆" Tag="CircleFind" SelectedImageName="检测圆" />
         <Node Text="二维码识别" ImageName="二维码识别" Tag="QRScan" SelectedImageName="二维码识别" />

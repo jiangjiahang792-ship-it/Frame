@@ -473,5 +473,9 @@ namespace TDJS_Vision.Node
         /// 无监督检测
         /// </summary>
         UnsupervisedDetection,
+        /// <summary>
+        /// 大模型调用
+        /// </summary>
+        LargeModelDetection,
     }
 }

@@ -126,6 +126,11 @@ namespace TDJS_Vision
         /// </summary>
         private UnsupervisedTrainForm unsupervisedTrainForm;
 
+        /// <summary>
+        /// 大模型训练窗口，采用懒加载避免主窗体启动时触碰大模型 native 依赖。
+        /// </summary>
+        private LargeModelTrainForm largeModelTrainForm;
+
         #endregion
 
         private UserRole Role { get; set; } = UserRole.Low; // 登录的用户角色
@@ -1039,6 +1044,16 @@ namespace TDJS_Vision
         }
 
         /// <summary>
+        /// 打开大模型训练窗口。
+        /// </summary>
+        /// <param name="sender">触发菜单项。</param>
+        /// <param name="e">事件参数。</param>
+        private void LargeModelTrainToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            OpenLargeModelTrainForm();
+        }
+
+        /// <summary>
         /// 懒加载并显示无监督训练窗口，保持无监督运行环境与主程序启动隔离。
         /// </summary>
         private void OpenUnsupervisedTrainForm()
@@ -1050,6 +1065,20 @@ namespace TDJS_Vision
             }
 
             unsupervisedTrainForm = null;
+        }
+
+        /// <summary>
+        /// 懒加载并显示大模型训练窗口，保持 LargeModelDll 运行环境与主程序启动隔离。
+        /// </summary>
+        private void OpenLargeModelTrainForm()
+        {
+            using (var form = new LargeModelTrainForm())
+            {
+                largeModelTrainForm = form;
+                ShowOwnedMaximizedDialog(form);
+            }
+
+            largeModelTrainForm = null;
         }
 
         /// <summary>

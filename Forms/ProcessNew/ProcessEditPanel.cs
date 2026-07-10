@@ -20,6 +20,7 @@ using TDJS_Vision.Node._3_Detection.BinaryAnalysis;
 using TDJS_Vision.Node._3_Detection.ColorDiscern;
 using TDJS_Vision.Node._3_Detection.FindCircle;
 using TDJS_Vision.Node._3_Detection.FindLine;
+using TDJS_Vision.Node._3_Detection.LargeModel;
 using TDJS_Vision.Node._3_Detection.MatchTemplate;
 using TDJS_Vision.Node._3_Detection.QRScan;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -607,6 +608,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.UnsupervisedDetection:
                     node = new NodeUnsupervisedDetection(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.LargeModelDetection:
+                    node = new NodeLargeModelDetection(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.ImageSave:
                     node = new NodeImageSave(nodeId, nodeName, _process, nodeType);

@@ -1010,7 +1010,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         private static bool IsSuccessfulEmptyGeometrySource(NodeBase sourceNode)
         {
             return sourceNode is NodeTDAI ||
-                sourceNode.NodeType == NodeType.UnsupervisedDetection;
+                sourceNode.NodeType == NodeType.UnsupervisedDetection ||
+                sourceNode.NodeType == NodeType.LargeModelDetection;
         }
 
         /// <summary>

@@ -52,6 +52,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSummarize
                 {
                     case NodeType.AITD:
                     case NodeType.UnsupervisedDetection:
+                    case NodeType.LargeModelDetection:
                         return nodeSub.GetValue<AlgorithmResult>();
                     case NodeType.SharedVariable:
                         var res = nodeSub.GetValue<SharedVarValue>();

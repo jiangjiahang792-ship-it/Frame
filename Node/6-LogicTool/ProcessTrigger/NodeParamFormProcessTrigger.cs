@@ -119,6 +119,7 @@ namespace TDJS_Vision.Node._6_LogicTool.ProcessTrigger
 
                     case NodeType.AITD:
                     case NodeType.UnsupervisedDetection:
+                    case NodeType.LargeModelDetection:
 
                         #region 解析出AI类检测节点结果的bool值
 
