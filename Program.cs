@@ -16,12 +16,68 @@ namespace TDJS_Vision
         /// </summary>
         private const int MinimumThreadPoolThreads = 64;
 
+        /// <summary>
+        /// 当前软件在同一 Windows 桌面会话内的单实例互斥锁名称。
+        /// </summary>
+        private const string SingleInstanceMutexName = @"Local\TDJS_Vision_SingleInstance_20260713";
+
+        /// <summary>
+        /// 当前进程正在运行的主窗体实例。
+        /// </summary>
         public static FormMain MainForm { get; private set; } = null;
+
         /// <summary>
         /// 应用程序的主入口点。
         /// </summary>
         [STAThread]
         static void Main(string[] args)
+        {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+
+            using (Mutex singleInstanceMutex = new Mutex(false, SingleInstanceMutexName))
+            {
+                bool hasSingleInstance = TryEnterSingleInstance(singleInstanceMutex);
+                if (!hasSingleInstance)
+                {
+                    MessageBoxTD.Show("软件已经运行，请勿重复启动！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                try
+                {
+                    RunApplication(args);
+                }
+                finally
+                {
+                    singleInstanceMutex.ReleaseMutex();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 尝试获得当前桌面会话内的软件单实例运行权。
+        /// </summary>
+        /// <param name="singleInstanceMutex">用于限制重复启动的命名互斥锁。</param>
+        /// <returns>获得运行权返回 true；已有进程持有运行权返回 false。</returns>
+        private static bool TryEnterSingleInstance(Mutex singleInstanceMutex)
+        {
+            try
+            {
+                return singleInstanceMutex.WaitOne(0, false);
+            }
+            catch (AbandonedMutexException)
+            {
+                // 上一次进程异常退出时系统会标记互斥锁废弃，当前进程已经接管所有权，可以继续启动。
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// 执行主程序正常启动流程，必须在单实例互斥锁获取成功后调用。
+        /// </summary>
+        /// <param name="args">启动命令行参数。</param>
+        private static void RunApplication(string[] args)
         {
             ConfigureThreadPoolMinimums();
             LogHelper.AddLog(MsgLevel.Warn, $"【启动诊断-程序身份】{PerformanceSpikeDiagnostics.GetExecutableIdentityText()}；命令行={Environment.CommandLine}", true);
@@ -31,8 +87,6 @@ namespace TDJS_Vision
             {
                 MessageBoxTD.Show("HslCommunication通信库授权失败！", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
             string solutionPath = null;
 
             if (args.Length > 0)

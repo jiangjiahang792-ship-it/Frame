@@ -193,7 +193,7 @@
             this.label6.Name = "label6";
             this.label6.Size = new System.Drawing.Size(143, 18);
             this.label6.TabIndex = 2;
-            this.label6.Text = "订阅AI检测结果:";
+            this.label6.Text = "订阅OK/NG判定结果:";
             // 
             // tableLayoutPanel1
             // 

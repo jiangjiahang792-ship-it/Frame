@@ -1960,5 +1960,27 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 自由画布节点卡片新增模型运行参数摘要：大模型调用显示阈值、面积和最大框数，无监督检测显示阈值、推理批次、最小面积和最大框数，保存参数后刷新节点显示。
 - [x] 修复大模型训练选择 `840x840` 分辨率时缺少 ONNX 的问题：训练服务缺少同尺寸 ONNX 时会优先调用 `LargeModelDll\export_dinov2.py`、`LargeModelDll\dinov2` 和隔离 `third_party\python_native_env` 自动导出固定位置编码 ONNX，再按原逻辑生成 TensorRT engine。
 - [x] 已在当前 `bin\x64\Debug\LargeModelDll` 补齐隔离 ONNX 导出环境、DINOv2 权重缓存、`dinov2_840x840.onnx` 和 `dinov2_840x840_fp16.engine`；trtexec 验证输入 `1x3x840x840`、输出 `1x3600x384` 可正常构建并推理。
+- [x] 同步 `bin\x64\Release\LargeModelDll` 与 Debug 大模型运行环境，包含 native DLL、TensorRT、DINOv2 自动导出环境、权重缓存及已生成的 448x224、448x448、840x840、1120x1120 ONNX/engine；Release|x64 编译通过。
 - [x] 新增“大模型调用”流程节点、参数窗体、节点参数、节点结果和运行适配器，输出 `AlgorithmResult`、OK/NG、异常分数和异常框，供条件判断、结果汇总和 ROI 绘制订阅。
 - [x] 排查大模型节点选择新训练模板运行失败：已用最新 `.tdlarge` 执行 engine+bank 解包、native 加载和单图推理冒烟验证；运行参数界面移除 demo 未提供的“推理批次”，失败日志增加模板路径与输入图像摘要，便于定位是否未保存参数、订阅为空或上游图像为空。
+
+## 2026-07-13: 保存图片节点兼容多条件判定结果
+
+- [x] 新增保存图片统一 OK/NG 判定对象、判定解析接口和可插拔结果适配器，默认兼容 `AlgorithmResult` 与多条件节点输出的 `bool` 条件结果。
+- [x] `ParamFormImageSave` 的 OK/NG 订阅改为先按 `object` 读取，再由统一解析器转换，避免多条件布尔结果被强制转换成 `AlgorithmResult` 时抛出类型不匹配异常。
+- [x] 保存图片参数界面标签在 `.Designer.cs` 中由“订阅AI检测结果”调整为“订阅OK/NG判定结果”，明确支持 AI 与多条件结果。
+- [x] `NodeImageSave` 改为消费统一判定结果；AI结果继续按具体 NG 检测项建立子目录，多条件 NG 结果没有检测项分类时保存到通用 `NG` 目录。
+- [x] 多条件 True/False 适配复用不可变静态判定对象和只读空分类集合，避免保存节点高频运行时重复创建临时小对象。
+- [x] 新增 `ImageSaveMultiConditionSubscription.Tests.ps1` 回归测试，覆盖多条件 True/False、AI检测项分类、不支持类型错误以及保存节点接线约束。
+- [x] 验证记录：`ImageSaveMultiConditionSubscription.Tests.ps1`、`DiagnosticLogLevel.Tests.ps1`、`LargeModelIntegration.Tests.ps1`、`UnsupervisedDetectionNode.Tests.ps1` 均通过；MSBuild `Debug|Any CPU` 与 `Debug|x64` 均为 183 个既有警告、0 个错误。
+- [x] 全量脚本测试额外发现两个与本次修改文件无关的既有失败：`FormWindowMaximizeBehavior.Tests.ps1` 的主窗体 `AutoSize` 断言、`UnsupervisedTrainForm.Tests.ps1` 的无监督按钮文本断言，本次未扩大范围修改。
+
+## 2026-07-13: 主程序防止重复启动
+
+- [x] 新反馈已记录：客户可能多次点击软件 exe，需要避免同一桌面会话内启动多个独立主程序进程。
+- [x] `Program.Main` 新增本地命名 `Mutex` 单实例保护，抢到运行权的首个进程持有互斥锁直到 `Application.Run` 结束。
+- [x] 重复启动的第二个进程会在进入线程池配置、启动诊断日志、通信库授权和主窗体创建前拦截，仅弹出“软件已经运行，请勿重复启动！”中文提示后退出。
+- [x] 单实例抢锁逻辑抽成 `TryEnterSingleInstance`，兼容上次异常退出导致的废弃互斥锁，下一次启动可自动接管继续运行。
+- [x] 正常启动流程抽成 `RunApplication(args)`，保留 `.Sol` 参数打开方案的既有行为。
+- [x] 新增 `ProgramSingleInstance.Tests.ps1` 回归检查，覆盖互斥锁名称、抢锁顺序、重复启动提示、废弃互斥锁接管和释放约束。
+- [x] 验证记录：`ProgramSingleInstance.Tests.ps1`、`ImageSaveMultiConditionSubscription.Tests.ps1`、`git diff --check` 均通过；MSBuild `Debug|x64` 通过，183 个既有警告、0 个错误。

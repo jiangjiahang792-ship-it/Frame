@@ -23,8 +23,27 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// </summary>
         public INodeParam Params { get; set; }
 
+        /// <summary>
+        /// OK/NG 订阅结果解析器，用于隔离 AI 结果和多条件布尔结果的类型差异。
+        /// </summary>
+        private readonly IImageSaveJudgmentResolver _imageSaveJudgmentResolver;
+
+        /// <summary>
+        /// 使用默认保存判定结果适配器初始化参数窗体。
+        /// </summary>
         public ParamFormImageSave()
+            : this(new ImageSaveJudgmentResolver())
         {
+        }
+
+        /// <summary>
+        /// 使用指定保存判定结果解析器初始化参数窗体。
+        /// </summary>
+        /// <param name="imageSaveJudgmentResolver">OK/NG 订阅结果解析器。</param>
+        internal ParamFormImageSave(IImageSaveJudgmentResolver imageSaveJudgmentResolver)
+        {
+            _imageSaveJudgmentResolver = imageSaveJudgmentResolver ??
+                throw new ArgumentNullException(nameof(imageSaveJudgmentResolver));
             InitializeComponent();
         }
 
@@ -257,6 +276,16 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             {
                 throw;
             }
+        }
+
+        /// <summary>
+        /// 获取保存图像节点使用的统一 OK/NG 判定结果。
+        /// </summary>
+        /// <returns>兼容 AI 算法结果和多条件布尔结果的统一判定对象。</returns>
+        public ImageSaveJudgment GetImageSaveJudgment()
+        {
+            object subscriptionValue = nodeSubscriptionAiRes.GetValue<object>();
+            return _imageSaveJudgmentResolver.Resolve(subscriptionValue);
         }
 
         /// <summary>

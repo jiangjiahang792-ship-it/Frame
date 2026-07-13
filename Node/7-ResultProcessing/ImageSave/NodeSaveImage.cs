@@ -7,7 +7,6 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenCvSharp;
@@ -78,7 +77,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 
                         Stopwatch enqueueStopwatch = Stopwatch.StartNew();
                         string barcode = string.Empty;
-                        AlgorithmResult algorithmResult = null;
+                        ImageSaveJudgment imageSaveJudgment = null;
                         OutputImage outputImage;
 
                         // 参数获取订阅控件的值
@@ -89,7 +88,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                                 throw new Exception($"获取条码结果失败！");
                         }
                         if (param.NeedOkNg)
-                            algorithmResult = form.GetAiResult();
+                            imageSaveJudgment = form.GetImageSaveJudgment();
                         outputImage = form.GetOutputImageForSave();
 
                         // 参数合法性判断
@@ -97,7 +96,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                             throw new Exception($"存图路径未设置！");
 
                         // 保存图像节点只做轻量任务投递，耗时的 ToBitmap、标注绘制、压缩和写盘都由后台队列处理。
-                        SaveImageEnqueueResult enqueueResult = EnqueueSaveImage(param, outputImage, algorithmResult, barcode);
+                        SaveImageEnqueueResult enqueueResult = EnqueueSaveImage(param, outputImage, imageSaveJudgment, barcode);
                         long enqueueElapsed = enqueueStopwatch.ElapsedMilliseconds;
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         Result.RunTime = time;
@@ -149,10 +148,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// </summary>
         /// <param name="param">保存图像节点参数。</param>
         /// <param name="outputImage">订阅得到的输出图像。</param>
-        /// <param name="algorithmResult">用于 OK/NG 目录判断的算法结果。</param>
+        /// <param name="imageSaveJudgment">用于 OK/NG 目录判断的统一判定结果。</param>
         /// <param name="barcode">条码命名值。</param>
         /// <returns>主流程入队诊断结果。</returns>
-        private SaveImageEnqueueResult EnqueueSaveImage(NodeParamSaveImage param, OutputImage outputImage, AlgorithmResult algorithmResult, string barcode)
+        private SaveImageEnqueueResult EnqueueSaveImage(NodeParamSaveImage param, OutputImage outputImage, ImageSaveJudgment imageSaveJudgment, string barcode)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
             DateTime time = DateTime.Now;
@@ -181,11 +180,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             // 5.是否区分OK/NG
             if (param.NeedOkNg)
             {
-                if (algorithmResult == null)
-                    throw new Exception($"无法获取/解析AI检测结果！");
+                if (imageSaveJudgment == null)
+                    throw new Exception($"无法获取或解析 OK/NG 判定结果！");
 
-                // 根据AI检测总结果判断创建OK/NG文件夹
-                bool allAreOk = IsAllDetectResultOk(algorithmResult);
+                // 根据统一判定结果创建 OK/NG 文件夹，兼容 AI 结果和多条件布尔结果。
+                bool allAreOk = imageSaveJudgment.IsOk;
                 string okNg = allAreOk ? "OK" : "NG";
                 imageSavePath = Path.Combine(imageSavePath, okNg);
 
@@ -196,7 +195,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                         if (allAreOk)
                             paths.Add(imageSavePath);
                         else
-                            AddNgImagePaths(paths, imageSavePath, algorithmResult);
+                            AddNgImagePaths(paths, imageSavePath, imageSaveJudgment);
                         break;
                     case ImageTypeToSave.OnlyOk:
                         if (allAreOk)
@@ -204,7 +203,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                         break;
                     case ImageTypeToSave.OnlyNg:
                         if (!allAreOk)
-                            AddNgImagePaths(paths, imageSavePath, algorithmResult);
+                            AddNgImagePaths(paths, imageSavePath, imageSaveJudgment);
                         break;
                     default:
                         break;
@@ -243,33 +242,26 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         }
 
         /// <summary>
-        /// 判断检测项结果是否全部 OK。
-        /// </summary>
-        /// <param name="algorithmResult">算法结果。</param>
-        /// <returns>所有检测项都存在且全部 OK 时返回 true。</returns>
-        private static bool IsAllDetectResultOk(AlgorithmResult algorithmResult)
-        {
-            return algorithmResult?.DetectResults != null &&
-                algorithmResult.DetectResults.Count > 0 &&
-                algorithmResult.DetectResults.All(pair => pair.Value != null && pair.Value.All(item => item != null && item.IsOk));
-        }
-
-        /// <summary>
-        /// 将 NG 检测项对应的子目录追加到目标路径集合。
+        /// 将 NG 检测项对应的子目录追加到目标路径集合；没有检测项分类时按配置回落到通用 NG 目录。
         /// </summary>
         /// <param name="paths">目标路径集合。</param>
         /// <param name="imageSavePath">OK/NG 根路径。</param>
-        /// <param name="algorithmResult">算法结果。</param>
-        private static void AddNgImagePaths(List<string> paths, string imageSavePath, AlgorithmResult algorithmResult)
+        /// <param name="imageSaveJudgment">统一保存判定结果。</param>
+        private static void AddNgImagePaths(List<string> paths, string imageSavePath, ImageSaveJudgment imageSaveJudgment)
         {
-            if (paths == null || algorithmResult?.DetectResults == null)
+            if (paths == null || imageSaveJudgment == null)
                 return;
 
-            foreach (KeyValuePair<string, List<SingleDetectResult>> pair in algorithmResult.DetectResults)
+            if (imageSaveJudgment.NgCategoryNames.Count == 0)
             {
-                if (pair.Value == null || !pair.Value.TrueForAll(item => item != null && item.IsOk))
-                    paths.Add(Path.Combine(imageSavePath, pair.Key));
+                if (imageSaveJudgment.UseGenericNgDirectoryWhenNoCategory)
+                    paths.Add(imageSavePath);
+
+                return;
             }
+
+            foreach (string categoryName in imageSaveJudgment.NgCategoryNames)
+                paths.Add(Path.Combine(imageSavePath, categoryName));
         }
 
         /// <summary>
