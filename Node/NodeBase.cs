@@ -136,6 +136,15 @@ namespace TDJS_Vision.Node
         }
 
         /// <summary>
+        /// 获取自由画布节点卡片上显示的运行参数摘要。
+        /// </summary>
+        /// <returns>运行参数摘要；空字符串表示不显示。</returns>
+        public virtual string GetCanvasParameterSummary()
+        {
+            return string.Empty;
+        }
+
+        /// <summary>
         /// 节点id
         /// </summary>
         public int ID { get { return _id; } private set { _id = value; } }
@@ -788,7 +797,10 @@ namespace TDJS_Vision.Node
             try
             {
                 if (Active && ParamForm is Form form)
+                {
                     form.ShowDialog();
+                    NodeStatusChanged?.Invoke(this, this);
+                }
             }
             catch (Exception ex)
             {

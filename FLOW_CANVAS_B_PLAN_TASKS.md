@@ -1953,7 +1953,12 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 参考无监督训练界面复制并改造大模型训练窗体，模板扩展名独立为 `.tdlarge`，训练输出写入运行目录 `Model` 文件夹。
 - [x] 新增 `LargeModelDll` 隔离运行环境检查，DINOv2 native 包装延迟加载 `Dinov2AD.dll` 和 `OpenCvBridge.dll`，不在工程中硬引用算法 DLL。
 - [x] 新增 DINOv2 `init/train/infer/release` 托管封装，推理阶段直接传递 OpenCvSharp `Mat.CvPtr`，避免通过临时图片文件传递图像。
-- [x] 根据 DINOv2 demo 与 DLL `train` 签名收敛大模型训练参数面板：仅保留 demo 中有依据的模型精度、运行设备、图像阈值和面积阈值；训练轮数、迭代、BatchSize、输入宽高不放入界面，避免误导为 native 可调训练超参。
+- [x] 根据 DINOv2 demo、ONNX/engine 导出文档与 DLL `train` 签名收敛大模型训练参数面板：保留模型精度、运行设备、图像阈值、面积阈值和输入宽高；输入宽高作为 ONNX/engine 分辨率参数，必须为 14 的倍数；训练轮数、迭代、BatchSize 不放入界面，避免误导为 native 可调训练超参。
 - [x] 新增大模型模板包，按 demo 的模型/特征对应关系把当前使用的 engine/ONNX 与训练生成的 memory bank 一起写入 `.tdlarge`，模板清单使用 `manifest.json` 保存模型、阈值、面积阈值和 ROI 信息。
+- [x] 大模型训练服务已支持按所选分辨率选择模型：CPU 使用 `dinov2_<宽>x<高>.onnx`，GPU 优先使用 `dinov2_<宽>x<高>_<fp16/fp32>.engine`，缺少 engine 但存在同尺寸 ONNX 时调用 `LargeModelDll\trtexec.exe` 自动生成 engine 后再训练 bank。
+- [x] 修正大模型图像阈值控件范围：DINOv2 `score/image_thresh` 是特征距离阈值，不是 0~1 概率；训练界面和大模型调用节点均改为 4 位小数、最大 1000000，保留 0 表示使用 bank 自动阈值。
+- [x] 自由画布节点卡片新增模型运行参数摘要：大模型调用显示阈值、面积和最大框数，无监督检测显示阈值、推理批次、最小面积和最大框数，保存参数后刷新节点显示。
+- [x] 修复大模型训练选择 `840x840` 分辨率时缺少 ONNX 的问题：训练服务缺少同尺寸 ONNX 时会优先调用 `LargeModelDll\export_dinov2.py`、`LargeModelDll\dinov2` 和隔离 `third_party\python_native_env` 自动导出固定位置编码 ONNX，再按原逻辑生成 TensorRT engine。
+- [x] 已在当前 `bin\x64\Debug\LargeModelDll` 补齐隔离 ONNX 导出环境、DINOv2 权重缓存、`dinov2_840x840.onnx` 和 `dinov2_840x840_fp16.engine`；trtexec 验证输入 `1x3x840x840`、输出 `1x3600x384` 可正常构建并推理。
 - [x] 新增“大模型调用”流程节点、参数窗体、节点参数、节点结果和运行适配器，输出 `AlgorithmResult`、OK/NG、异常分数和异常框，供条件判断、结果汇总和 ROI 绘制订阅。
 - [x] 排查大模型节点选择新训练模板运行失败：已用最新 `.tdlarge` 执行 engine+bank 解包、native 加载和单图推理冒烟验证；运行参数界面移除 demo 未提供的“推理批次”，失败日志增加模板路径与输入图像摘要，便于定位是否未保存参数、订阅为空或上游图像为空。

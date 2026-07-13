@@ -263,35 +263,6 @@ namespace TDJS_Vision.Device.Camera
 
 
         /// <summary>
-        /// Bitmap转换为 BGR24 格式的 byte[]
-        /// </summary>
-        /// <param name="bitmap"></param>
-        /// <returns></returns>
-        public static byte[] ConvertBitmapToBgr24(Bitmap bitmap)
-        {
-            // 创建一个新的 24bpp BGR 格式的 Bitmap
-            Bitmap bgrBitmap = new Bitmap(bitmap.Width, bitmap.Height, PixelFormat.Format24bppRgb);
-
-            using (Graphics g = Graphics.FromImage(bgrBitmap))
-            {
-                g.DrawImage(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
-            }
-
-            // 锁定图像内存
-            var rect = new Rectangle(0, 0, bgrBitmap.Width, bgrBitmap.Height);
-            var bmpData = bgrBitmap.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
-
-            int bufferSize = Math.Abs(bmpData.Stride) * bgrBitmap.Height;
-            byte[] buffer = new byte[bufferSize];
-
-            // 复制图像数据到 byte[]
-            Marshal.Copy(bmpData.Scan0, buffer, 0, bufferSize);
-            bgrBitmap.UnlockBits(bmpData);
-
-            return buffer;
-        }
-
-        /// <summary>
         /// 打开相机
         /// </summary>
         /// <param name="CamerSerialization"></param>

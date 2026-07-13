@@ -8,6 +8,7 @@ $toolTreePath = Join-Path $root "ToolTreeView.xml"
 $nodeTypePath = Join-Path $root "Node\INode.cs"
 $nodeFactoryPath = Join-Path $root "Node\NodeFactory.cs"
 $nodeBasePath = Join-Path $root "Node\NodeBase.cs"
+$flowCanvasPath = Join-Path $root "Forms\ProcessNew\ProcessFlowCanvas.cs"
 $taskPath = Join-Path $root "FLOW_CANVAS_B_PLAN_TASKS.md"
 
 $runtimeBootstrapperPath = Join-Path $root "Forms\AiTrainForm\LargeModelRuntimeBootstrapper.cs"
@@ -32,6 +33,9 @@ $largeModelIntegrationText = -join @([char]0x5927, [char]0x6A21, [char]0x578B, [
 $trainingParamsText = -join @([char]0x8BAD, [char]0x7EC3, [char]0x53C2, [char]0x6570)
 $trainingEpochsText = -join @([char]0x8BAD, [char]0x7EC3, [char]0x8F6E, [char]0x6570)
 $iterationText = -join @([char]0x8FED, [char]0x4EE3)
+$summaryThresholdText = -join @([char]0x9608, [char]0x503C, [char]0x3A)
+$summaryAreaText = -join @([char]0x9762, [char]0x79EF, [char]0x3A)
+$summaryBoxesText = -join @([char]0x6846, [char]0x3A)
 
 function Assert-FileExists {
     param([string]$Path, [string]$Message)
@@ -50,6 +54,13 @@ function Assert-Contains {
 function Assert-NotContains {
     param([string]$Text, [string]$Pattern, [string]$Message)
     if ($Text.IndexOf($Pattern, [System.StringComparison]::Ordinal) -ge 0) {
+        throw $Message
+    }
+}
+
+function Assert-Matches {
+    param([string]$Text, [string]$Pattern, [string]$Message)
+    if (-not [System.Text.RegularExpressions.Regex]::IsMatch($Text, $Pattern, [System.Text.RegularExpressions.RegexOptions]::Singleline)) {
         throw $Message
     }
 }
@@ -75,6 +86,7 @@ $toolTree = Get-Content -LiteralPath $toolTreePath -Encoding UTF8 -Raw
 $nodeType = Get-Content -LiteralPath $nodeTypePath -Encoding UTF8 -Raw
 $nodeFactory = Get-Content -LiteralPath $nodeFactoryPath -Encoding UTF8 -Raw
 $nodeBase = Get-Content -LiteralPath $nodeBasePath -Encoding UTF8 -Raw
+$flowCanvas = Get-Content -LiteralPath $flowCanvasPath -Encoding UTF8 -Raw
 $bootstrapper = Get-Content -LiteralPath $runtimeBootstrapperPath -Encoding UTF8 -Raw
 $detector = Get-Content -LiteralPath $detectorPath -Encoding UTF8 -Raw
 $service = Get-Content -LiteralPath $trainingServicePath -Encoding UTF8 -Raw
@@ -127,16 +139,22 @@ Assert-Contains $trainDesigner "groupBoxTrainingParams" "Large-model train page 
 Assert-Contains $trainDesigner "tableLayoutPanelTrainingParams" "Large-model train page must define a training-parameter layout."
 Assert-Contains $trainDesigner "comboBoxModelType" "Large-model train page must show model precision control from demo."
 Assert-Contains $trainDesigner "numericUpDownThreshold" "Large-model train page must show image-threshold control from demo."
+Assert-Matches $trainDesigner "numericUpDownThreshold\.Maximum\s*=\s*new decimal\(new int\[\]\s*\{\s*1000000," "Large-model image threshold is a distance threshold and must not be capped at 1."
 Assert-Contains $trainDesigner "numericUpDownMiniArea" "Large-model train page must show area-threshold control from demo."
+Assert-Contains $trainDesigner "numericUpDownInputWidth" "Large-model train page must show input-width control because DINOv2 export supports resolution."
+Assert-Contains $trainDesigner "numericUpDownInputHeight" "Large-model train page must show input-height control because DINOv2 export supports resolution."
+Assert-Contains $trainDesigner "labelInputWidth" "Large-model train page must show input-width label."
+Assert-Contains $trainDesigner "labelInputHeight" "Large-model train page must show input-height label."
+Assert-Contains $trainDesigner "this.numericUpDownInputWidth.Increment = new decimal(new int[] {" "Large-model input-width control must define a DINOv2 patch-size step."
+Assert-Contains $trainDesigner "this.numericUpDownInputHeight.Increment = new decimal(new int[] {" "Large-model input-height control must define a DINOv2 patch-size step."
+Assert-Contains $trainDesigner "            14," "Large-model input-size controls must step by DINOv2 patch size 14."
 Assert-Contains $trainDesigner "comboBoxDevice" "Large-model train page must show device control from demo."
 Assert-Contains $trainForm "comboBoxModelType.Text" "Large-model train form must read model precision from UI."
 Assert-Contains $trainForm "numericUpDownThreshold.Value" "Large-model train form must read image threshold from UI."
 Assert-Contains $trainForm "numericUpDownMiniArea.Value" "Large-model train form must read area threshold from UI."
+Assert-Contains $trainForm "numericUpDownInputWidth.Value" "Large-model train form must read input width from UI."
+Assert-Contains $trainForm "numericUpDownInputHeight.Value" "Large-model train form must read input height from UI."
 Assert-Contains $trainForm "comboBoxDevice.Text" "Large-model train form must read device from UI."
-Assert-NotContains $trainDesigner "numericUpDownInputWidth" "Large-model train page must not show input-width control."
-Assert-NotContains $trainDesigner "numericUpDownInputHeight" "Large-model train page must not show input-height control."
-Assert-NotContains $trainDesigner "labelInputWidth" "Large-model train page must not show input-width label."
-Assert-NotContains $trainDesigner "labelInputHeight" "Large-model train page must not show input-height label."
 Assert-NotContains $trainDesigner '"AUTO"' "Large-model train page must not show AUTO because the C# demo only exposes CPU/GPU."
 Assert-NotContains $trainDesigner $trainingEpochsText "Large-model train form must not show training epochs text."
 Assert-NotContains $trainDesigner $iterationText "Large-model train form must not show iteration text."
@@ -144,8 +162,6 @@ Assert-NotContains $trainDesigner "numericUpDownEpochs" "Large-model train form 
 Assert-NotContains $trainDesigner "numericUpDownBatchSize" "Large-model train form must not show batch-size control."
 Assert-NotContains $trainDesigner "labelEpochs" "Large-model train form must not show epochs label."
 Assert-NotContains $trainDesigner "labelBatchSize" "Large-model train form must not show batch-size label."
-Assert-NotContains $trainForm "numericUpDownInputWidth" "Large-model train form must not read input width from UI."
-Assert-NotContains $trainForm "numericUpDownInputHeight" "Large-model train form must not read input height from UI."
 Assert-NotContains $trainForm "MaxEpochs" "Large-model train request must not pass unsupported epochs."
 Assert-NotContains $trainForm "BatchSize" "Large-model train request must not pass unsupported batch size."
 Assert-NotContains $trainForm $iterationText "Large-model train request must not pass unsupported iterations."
@@ -160,6 +176,8 @@ Assert-Contains $nodeFactory "new NodeLargeModelDetection" "NodeFactory must ins
 Assert-Contains $toolTree ('Text="' + $largeModelCallText + '"') "Tool tree must show the large-model node."
 Assert-Contains $toolTree 'Tag="LargeModelDetection"' "Tool tree tag must match NodeType."
 Assert-Contains $nodeBase "NodeType.LargeModelDetection" "Node removal must release large-model native handles."
+Assert-Contains $nodeBase "GetCanvasParameterSummary" "NodeBase must expose a canvas runtime-parameter summary hook."
+Assert-Contains $flowCanvas "DrawNodeParameterSummary" "Flow canvas must draw runtime parameters on the node card."
 
 Assert-Contains $csproj 'Forms\AiTrainForm\LargeModelTrainForm.cs' "Project must include the large-model training form."
 Assert-Contains $csproj 'Forms\AiTrainForm\LargeModelTrainForm.Designer.cs' "Project must include the large-model designer."
@@ -174,12 +192,17 @@ Assert-Contains $param "TemplatePath" "Large-model params must save the template
 Assert-Contains $param "ImageThreshold" "Large-model params must save the image threshold."
 Assert-Contains $param "AreaThreshold" "Large-model params must save the area threshold."
 Assert-Contains $param "DefaultImageThreshold = 0F" "Default image threshold must use the bank threshold."
+Assert-Contains $node "public override string GetCanvasParameterSummary()" "Large-model node must display runtime parameters on the canvas node."
+Assert-Contains $node $summaryThresholdText "Large-model node summary must include image threshold."
+Assert-Contains $node $summaryAreaText "Large-model node summary must include area threshold."
+Assert-Contains $node $summaryBoxesText "Large-model node summary must include max boxes."
 Assert-Contains $result ('[DisplayName("' + $largeModelOutputText + '")]') "Large-model result must use Simplified Chinese display name."
 Assert-Contains $node "LargeModelDetectionRuntime" "Large-model node must use the isolated runtime."
 Assert-Contains $node "AlgorithmResult" "Large-model node must publish AlgorithmResult."
 Assert-Contains $node "RectsNgMap" "Large-model node must publish anomaly boxes."
 Assert-Contains $paramForm "nodeSubscription1.Init(node)" "Large-model param form must support image subscription."
 Assert-Contains $paramDesigner ('Text = "' + $largeModelTemplateText + '"') "Large-model param designer must contain Simplified Chinese label text."
+Assert-Matches $paramDesigner "numericUpDownThreshold\.Maximum\s*=\s*new decimal\(new int\[\]\s*\{\s*1000000," "Large-model runtime image threshold is a native distance threshold and must not be capped at 1."
 Assert-NotContains $paramDesigner "numericUpDownInferenceBatchSize" "Large-model runtime param form must not show unsupported inference batch-size control."
 Assert-NotContains $paramDesigner "labelInferenceBatchSize" "Large-model runtime param form must not show unsupported inference batch-size label."
 Assert-NotContains $paramForm "GetValidInferenceBatchSize" "Large-model runtime param form must not keep unused inference batch-size helpers."
@@ -189,6 +212,18 @@ Assert-Contains $runtime "ResolvePrimaryModelPath" "Large-model runtime must pre
 Assert-Contains $runtime "extractResult.ModelPath" "Large-model runtime must load the packaged engine or ONNX before falling back."
 Assert-Contains $runtime "OffsetBoxesToSourceImage" "Large-model runtime must offset ROI boxes back to source image."
 Assert-Contains $runtime "IsOk" "Large-model result must expose OK/NG decision."
+Assert-Contains $service "ValidatePatchSizeMultiple" "Training service must validate DINOv2 input size is a multiple of 14."
+Assert-Contains $service "EnsureTrainingModelPath" "Training service must prepare the ONNX or engine matching the selected resolution."
+Assert-Contains $service "EnsureOnnxModelPath" "Training service must auto-export the selected-resolution ONNX before failing."
+Assert-Contains $service "ExportOnnxModel" "Training service must call the isolated DINOv2 exporter when ONNX is missing."
+Assert-Contains $service '"export_dinov2.py"' "ONNX export must use the demo-aligned exporter script under LargeModelDll."
+Assert-Contains $service 'Path.Combine(root, "third_party", "python_native_env", "python.exe")' "ONNX export must use the isolated Python runtime under LargeModelDll."
+Assert-Contains $service 'Path.Combine(root, "dinov2")' "ONNX export must use the isolated DINOv2 source under LargeModelDll."
+Assert-Contains $service "--pos-mode fixed" "ONNX export must keep the demo-recommended fixed positional embedding mode."
+Assert-Contains $service "--output" "ONNX export must write the generated model to the requested LargeModelDll ONNX path."
+Assert-Contains $service "BuildTensorRtEngine" "GPU training must be able to build TensorRT engine from the matching ONNX."
+Assert-Contains $service "--onnx=" "TensorRT build must pass the ONNX path to trtexec."
+Assert-Contains $service "--saveEngine=" "TensorRT build must save the selected-resolution engine."
 
 Assert-Contains $task $largeModelIntegrationText "Task record must include the large-model integration entry."
 

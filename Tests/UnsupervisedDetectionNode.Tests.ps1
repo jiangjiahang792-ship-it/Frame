@@ -6,6 +6,7 @@ $toolTreePath = Join-Path $root "ToolTreeView.xml"
 $nodeTypePath = Join-Path $root "Node\INode.cs"
 $nodeFactoryPath = Join-Path $root "Node\NodeFactory.cs"
 $processEditPanelPath = Join-Path $root "Forms\ProcessNew\ProcessEditPanel.cs"
+$flowCanvasPath = Join-Path $root "Forms\ProcessNew\ProcessFlowCanvas.cs"
 $wizardPath = Join-Path $root "Forms\ProcessNew\FormNewProcessWizard.cs"
 $nodeBasePath = Join-Path $root "Node\NodeBase.cs"
 $detectorPath = Join-Path $root "Forms\AiTrainForm\UnsupervisedAnomalibDetector.cs"
@@ -33,6 +34,10 @@ $thresholdText = -join @([char]0x5F02, [char]0x5E38, [char]0x9608, [char]0x503C)
 $inferenceBatchText = -join @([char]0x63A8, [char]0x7406, [char]0x6279, [char]0x6B21)
 $miniAreaText = -join @([char]0x6700, [char]0x5C0F, [char]0x7F3A, [char]0x9677, [char]0x9762, [char]0x79EF)
 $cpuFallbackText = -join @([char]0x43, [char]0x50, [char]0x55, [char]0x56DE, [char]0x9000)
+$summaryThresholdText = -join @([char]0x9608, [char]0x503C, [char]0x3A)
+$summaryBatchText = -join @([char]0x6279, [char]0x6B21, [char]0x3A)
+$summaryAreaText = -join @([char]0x9762, [char]0x79EF, [char]0x3A)
+$summaryBoxesText = -join @([char]0x6846, [char]0x3A)
 
 function Assert-FileExists {
     param([string]$Path, [string]$Message)
@@ -60,6 +65,7 @@ $toolTree = Get-Content -LiteralPath $toolTreePath -Encoding UTF8 -Raw
 $nodeType = Get-Content -LiteralPath $nodeTypePath -Encoding UTF8 -Raw
 $nodeFactory = Get-Content -LiteralPath $nodeFactoryPath -Encoding UTF8 -Raw
 $processEditPanel = Get-Content -LiteralPath $processEditPanelPath -Encoding UTF8 -Raw
+$flowCanvas = Get-Content -LiteralPath $flowCanvasPath -Encoding UTF8 -Raw
 $wizard = Get-Content -LiteralPath $wizardPath -Encoding UTF8 -Raw
 $nodeBase = Get-Content -LiteralPath $nodeBasePath -Encoding UTF8 -Raw
 $detector = Get-Content -LiteralPath $detectorPath -Encoding UTF8 -Raw
@@ -112,6 +118,8 @@ Assert-Contains $runtime "modelInputHeight" "Runtime adapter must use the templa
 Assert-Contains $runtime "ResolveThreshold" "Runtime adapter must resolve the node anomaly threshold."
 Assert-Contains $runtime "ResolveMiniArea" "Runtime adapter must resolve the node minimum defect area."
 Assert-Contains $runtime "ResolveInferenceBatchSize" "Runtime adapter must resolve the node inference batch size."
+Assert-Contains $nodeBase "GetCanvasParameterSummary" "NodeBase must expose a canvas runtime-parameter summary hook."
+Assert-Contains $flowCanvas "DrawNodeParameterSummary" "Flow canvas must draw runtime parameters on the node card."
 Assert-Contains $runtime "LoadModelWithFallback" "Runtime adapter must retry GPU/AUTO template loading with CPU fallback."
 Assert-Contains $runtime "ShouldRetryLoadModelOnCpu" "Runtime adapter must isolate the CPU fallback decision for failed GPU/AUTO loading."
 Assert-Contains $runtime $cpuFallbackText "Runtime adapter must report when GPU/AUTO loading is recovered by CPU fallback."
@@ -124,6 +132,11 @@ Assert-Contains $param "Threshold" "Node param must persist the anomaly threshol
 Assert-Contains $param "InferenceBatchSize" "Node param must persist the inference batch size."
 Assert-Contains $param "DefaultInferenceBatchSize = 0" "Default inference batch size must mean 'use template batch size' for legacy GPU templates."
 Assert-Contains $param "MiniArea" "Node param must persist the minimum defect area."
+Assert-Contains $node "public override string GetCanvasParameterSummary()" "Unsupervised node must display runtime parameters on the canvas node."
+Assert-Contains $node $summaryThresholdText "Unsupervised node summary must include threshold."
+Assert-Contains $node $summaryBatchText "Unsupervised node summary must include inference batch size."
+Assert-Contains $node $summaryAreaText "Unsupervised node summary must include minimum area."
+Assert-Contains $node $summaryBoxesText "Unsupervised node summary must include max boxes."
 Assert-Contains $form "nodeSubscription1.Init(node)" "Param form must initialize the image subscription control."
 Assert-Contains $form "GetOutputImage" "Param form must expose the subscribed OutputImage."
 Assert-Contains $form "numericUpDownThreshold.Value" "Param form must save the anomaly threshold control value."

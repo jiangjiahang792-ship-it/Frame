@@ -3151,6 +3151,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                 graphics.DrawString(metaText, metaFont, metaBrush, metaRect, textFormat);
             }
 
+            DrawNodeParameterSummary(graphics, node, bounds);
+
             if (node.IsStartNode)
             {
                 Rectangle badge = new Rectangle(bounds.Right - 47, bounds.Y + 18, 34, 16);
@@ -3167,6 +3169,27 @@ namespace TDJS_Vision.Forms.ProcessNew
             DrawAnchor(graphics, node, "Right", conditionalBranchNode ? "T" : null);
             DrawAnchor(graphics, node, "Bottom", conditionalBranchNode ? "F" : null);
             DrawAnchor(graphics, node, "Left");
+        }
+
+        /// <summary>
+        /// 绘制节点运行参数摘要。
+        /// </summary>
+        /// <param name="graphics">绘图对象。</param>
+        /// <param name="node">节点。</param>
+        /// <param name="bounds">节点边界。</param>
+        private void DrawNodeParameterSummary(Graphics graphics, NodeBase node, Rectangle bounds)
+        {
+            string summary = node == null ? null : node.GetCanvasParameterSummary();
+            if (string.IsNullOrWhiteSpace(summary))
+                return;
+
+            using (Font summaryFont = new Font("Microsoft YaHei", 6.8F, FontStyle.Regular))
+            using (SolidBrush summaryBrush = new SolidBrush(NodeMetaTextColor))
+            using (StringFormat textFormat = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap })
+            {
+                RectangleF summaryRect = new RectangleF(bounds.X + 14, bounds.Y + 55, bounds.Width - 28, 16);
+                graphics.DrawString(summary, summaryFont, summaryBrush, summaryRect, textFormat);
+            }
         }
 
         private void DrawConnection(Graphics graphics, ProcessConnection connection)
@@ -3613,10 +3636,17 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         private Size GetNodeSize(NodeBase node)
         {
+            if (node == null)
+                return DefaultCanvasNodeSize;
+
             if (node.CanvasSize.Width <= 0 || node.CanvasSize.Height <= 0)
                 return DefaultCanvasNodeSize;
 
-            return node.CanvasSize;
+            Size size = node.CanvasSize;
+            if (!string.IsNullOrWhiteSpace(node.GetCanvasParameterSummary()))
+                size.Height = Math.Max(size.Height, 84);
+
+            return size;
         }
 
         private Rectangle GetAnchorBounds(NodeBase node, string anchorName)
@@ -4141,6 +4171,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                 return false;
 
             form.ShowDialog();
+            InvalidateNode(node);
+            RequestOverlayInvalidate(false, true);
             return true;
         }
 
