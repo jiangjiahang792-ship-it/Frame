@@ -16,13 +16,16 @@ if str(TOOLS_DIR) not in sys.path:
 from real_workflow_capture_model import (
     build_default_capture_plan,
     load_capture_plan,
+    load_module_review,
     save_capture_plan,
     validate_capture_plan,
+    verify_module_review,
 )
 
 
 OLD_ANNOTATIONS = ROOT / "docs" / "manual-assets" / "annotations" / "red-box-annotations.json"
 CAPTURE_PLAN = ROOT / "docs" / "manual-assets" / "real-workflow" / "capture-plan.json"
+MODULE_REVIEW = ROOT / "docs" / "manual-assets" / "real-workflow" / "module-review.csv"
 
 
 class RealWorkflowCapturePlanTests(unittest.TestCase):
@@ -75,6 +78,14 @@ class RealWorkflowCapturePlanTests(unittest.TestCase):
         expected = set(json.loads(OLD_ANNOTATIONS.read_text(encoding="utf-8")))
         errors = validate_capture_plan(load_capture_plan(CAPTURE_PLAN), expected)
         self.assertEqual([], errors)
+
+    def test_module_review_approves_all_86_original_screenshots(self) -> None:
+        """逐模块复核清单必须覆盖 86 项并批准全部原始截图。"""
+
+        rows = load_module_review(MODULE_REVIEW)
+        self.assertEqual(86, len(rows))
+        self.assertEqual([], verify_module_review(rows, set(load_capture_plan(CAPTURE_PLAN))))
+        self.assertTrue(all(row.screenshot_approved for row in rows.values()))
 
 
 if __name__ == "__main__":

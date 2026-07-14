@@ -9,7 +9,9 @@
     [string]$OutputDirectory,
 
     [Parameter(Mandatory = $true)]
-    [string]$ResultJson
+    [string]$ResultJson,
+
+    [string[]]$OnlyModules = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -122,6 +124,77 @@ function Set-ReadableDefaults {
         }
         if ($control.HasChildren) {
             Set-ReadableDefaults $control
+        }
+    }
+}
+
+function Set-WorkflowDisplayText {
+    param(
+        [Windows.Forms.Control]$Parent,
+        [int]$NodeCount
+    )
+
+    foreach ($control in $Parent.Controls) {
+        if ($control.Text -eq 'ProcessNew.NodeCount') { $control.Text = "节点数量：$NodeCount" }
+        elseif ($control.Text -eq 'ProcessNew.Elapsed') { $control.Text = '运行耗时：--' }
+        if ($control.HasChildren) {
+            Set-WorkflowDisplayText $control $NodeCount
+        }
+    }
+}
+
+function Get-DescendantControls {
+    param([Windows.Forms.Control]$Parent)
+
+    foreach ($control in $Parent.Controls) {
+        $control
+        if ($control.HasChildren) {
+            Get-DescendantControls $control
+        }
+    }
+}
+
+function Set-ModuleReadableState {
+    param(
+        [string]$ModuleName,
+        [Windows.Forms.Form]$Form
+    )
+
+    if ($ModuleName -eq '运行参数') {
+        $Form.Text = '运行参数设置'
+        $textMap = @{
+            'SolRunParam.Exposure' = '曝光时间'
+            'SolRunParam.Gain' = '增益'
+            'SolRunParam.ScoreThreshold' = '置信度阈值'
+            'SolRunParam.NMSScore' = 'NMS阈值'
+            'SolRunParam.ContinuousGrab' = '连续采集'
+            'SolRunParam.OneClickLearning' = '一键学习'
+            'SolRunParam.GrabOnce' = '单次取图'
+            'SolRunParam.SingleImageTest' = '单图测试'
+            'SolRunParam.MultiImageTest' = '批量测试'
+            'SolRunParam.SaveSettings' = '保存设置'
+        }
+        foreach ($control in Get-DescendantControls $Form) {
+            if ($textMap.ContainsKey($control.Text)) {
+                $control.Text = $textMap[$control.Text]
+            }
+            if ($control -is [Windows.Forms.DataGridView]) {
+                foreach ($column in $control.Columns) {
+                    if ($column.HeaderText -match 'Enable') { $column.HeaderText = '启用' }
+                    elseif ($column.HeaderText -match 'Detect') { $column.HeaderText = '检测项' }
+                    elseif ($column.HeaderText -match 'Min') { $column.HeaderText = '最小值' }
+                    elseif ($column.HeaderText -match 'Current') { $column.HeaderText = '当前值' }
+                    elseif ($column.HeaderText -match 'Max') { $column.HeaderText = '最大值' }
+                    elseif ($column.HeaderText -match 'Count') { $column.HeaderText = '统计项' }
+                }
+            }
+        }
+        $tabControl = @(Get-DescendantControls $Form | Where-Object { $_ -is [Windows.Forms.TabControl] }) | Select-Object -First 1
+        if ($null -ne $tabControl -and $tabControl.TabPages.Count -gt 0) {
+            if ($tabControl.TabPages[0].Text -eq 'SolRunParam.ModbusCommunication') {
+                $tabControl.TabPages[0].Text = 'Modbus通信'
+            }
+            $tabControl.SelectedIndex = $tabControl.TabPages.Count - 1
         }
     }
 }
@@ -330,6 +403,8 @@ function New-DemoWorkflow {
     }
 
     $process = Get-PrivateFieldValue $editPanel '_process'
+    $process.ProcessName = '客户演示流程'
+    $selectedPage.Text = '客户演示流程'
     $links = @(
         @('ImageSource', 'ImagePreprocess'),
         @('ImagePreprocess', 'ImageCrop'),
@@ -349,6 +424,20 @@ function New-DemoWorkflow {
         $process.Connections.Add($connection)
     }
     $process.NotifyConnectionsChanged()
+    # 运行参数等真实窗体从方案单例读取流程和节点；仅在本截图进程中注册演示对象。
+    $solutionType = $assembly.GetType('TDJS_Vision.Solution', $true)
+    $solutionInstance = $solutionType.GetProperty('Instance').GetValue($null, $null)
+    if (-not $solutionInstance.AllProcesses.Contains($process)) {
+        $solutionInstance.AllProcesses.Add($process)
+    }
+    foreach ($node in $process.Nodes) {
+        if (-not $solutionInstance.Nodes.Contains($node)) {
+            $solutionInstance.Nodes.Add($node)
+        }
+    }
+    # 直接加载 Release 程序集不会经过主程序语言初始化，这里只修正演示截图中的可见占位键。
+    Set-WorkflowDisplayText $wizard $process.Nodes.Count
+    $wizard.Text = '流程编辑器'
     $canvas = Get-PrivateFieldValue $editPanel 'processFlowCanvas'
     $canvas.Invalidate()
     Invoke-UiEvents 15
@@ -371,6 +460,9 @@ $index = 0
 foreach ($property in $plan.PSObject.Properties) {
     $index++
     $moduleName = $property.Name
+    if ($OnlyModules.Count -gt 0 -and $moduleName -notin $OnlyModules) {
+        continue
+    }
     $task = $property.Value
     $fileName = Get-SafeFileName $index $moduleName
     $targetFile = Join-Path $outputPath $fileName
@@ -402,6 +494,7 @@ foreach ($property in $plan.PSObject.Properties) {
             $form.Activate()
             Invoke-UiEvents 12
             Set-ReadableDefaults $form
+            Set-ModuleReadableState $moduleName $form
             Invoke-UiEvents 8
             Save-FormScreenshot $form $targetFile
         }
@@ -454,6 +547,13 @@ Write-Output "Captured=$capturedCount Failed=$failedCount Result=$resultPath"
 try { $workflow.Wizard.Close() } catch {}
 try { $workflow.Wizard.Dispose() } catch {}
 [Environment]::Exit(0)
+
+
+
+
+
+
+
 
 
 

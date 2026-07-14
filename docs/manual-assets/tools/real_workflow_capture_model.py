@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import argparse
+import csv
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -54,6 +56,22 @@ class CaptureTask:
     steps: tuple[str, ...]
     hardware_required: bool
     expected_visible_objects: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ModuleReview:
+    """记录一个模块原始截图、标注和正文的人工复核状态。"""
+
+    module_name: str
+    screenshot_file: str
+    capture_kind: str
+    precondition_state: str
+    visible_objects: tuple[str, ...]
+    hardware_state: str
+    screenshot_approved: bool
+    annotation_approved: bool
+    text_approved: bool
+    review_notes: str
 
 
 def _flow_task(module_name: str, source_window: str) -> CaptureTask:
@@ -347,3 +365,90 @@ def validate_capture_plan(
         if "新建流程" not in steps:
             errors.append("流程画布截图前必须执行新建流程。")
     return errors
+
+
+def _is_approved(value: object) -> bool:
+    """把核对清单中的中文或英文肯定值转换为布尔值。"""
+
+    return str(value or "").strip().lower() in {"是", "通过", "true", "yes", "1"}
+
+
+def load_module_review(path: Path) -> dict[str, ModuleReview]:
+    """读取 UTF-8 BOM 兼容的 86 模块核对清单。"""
+
+    rows: dict[str, ModuleReview] = {}
+    with path.open("r", encoding="utf-8-sig", newline="") as stream:
+        for raw in csv.DictReader(stream):
+            module_name = str(raw.get("模块") or "").strip()
+            if not module_name:
+                raise ValueError("核对清单存在未填写模块名的行。")
+            visible_objects = tuple(
+                item.strip()
+                for item in str(raw.get("可见对象") or "").split("｜")
+                if item.strip()
+            )
+            rows[module_name] = ModuleReview(
+                module_name=module_name,
+                screenshot_file=str(raw.get("截图文件") or "").strip(),
+                capture_kind=str(raw.get("截图类型") or "").strip(),
+                precondition_state=str(raw.get("前置状态") or "").strip(),
+                visible_objects=visible_objects,
+                hardware_state=str(raw.get("硬件状态") or "").strip(),
+                screenshot_approved=_is_approved(raw.get("截图合格")),
+                annotation_approved=_is_approved(raw.get("红框合格")),
+                text_approved=_is_approved(raw.get("文字合格")),
+                review_notes=str(raw.get("复核备注") or "").strip(),
+            )
+    return rows
+
+
+def verify_module_review(
+    rows: dict[str, ModuleReview], expected_modules: set[str]
+) -> list[str]:
+    """校验核对清单覆盖范围和进入标注阶段所需的截图状态。"""
+
+    errors: list[str] = []
+    missing = sorted(expected_modules - set(rows))
+    extra = sorted(set(rows) - expected_modules)
+    if missing:
+        errors.append("核对清单缺少模块：" + "、".join(missing))
+    if extra:
+        errors.append("核对清单存在多余模块：" + "、".join(extra))
+    for module_name, row in rows.items():
+        if not row.screenshot_file:
+            errors.append(f"{module_name} 未填写截图文件。")
+        if not row.visible_objects:
+            errors.append(f"{module_name} 未填写可见对象。")
+        if not row.screenshot_approved:
+            errors.append(f"{module_name} 的原始截图尚未复核通过。")
+        if row.capture_kind in {"硬件配置", "能力限制"} and "未连接" not in row.hardware_state:
+            errors.append(f"{module_name} 的硬件状态必须明确为未连接。")
+    return errors
+
+
+def _main() -> int:
+    """提供命令行核对入口，供说明书制作流程调用。"""
+
+    parser = argparse.ArgumentParser(description="校验真实流程截图核对清单。")
+    parser.add_argument("--verify-review", type=Path, help="需要校验的 module-review.csv")
+    parser.add_argument(
+        "--capture-plan",
+        type=Path,
+        default=Path(__file__).resolve().parents[1] / "real-workflow" / "capture-plan.json",
+        help="86 模块截图计划。",
+    )
+    args = parser.parse_args()
+    if args.verify_review is None:
+        parser.error("必须指定 --verify-review。")
+    tasks = load_capture_plan(args.capture_plan)
+    rows = load_module_review(args.verify_review)
+    errors = verify_module_review(rows, set(tasks))
+    approved = sum(1 for row in rows.values() if row.screenshot_approved)
+    print(f"MODULES={len(rows)} SCREENSHOT_APPROVED={approved} ERRORS={len(errors)}")
+    for error in errors:
+        print("ERROR=" + error)
+    return 1 if errors else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())
