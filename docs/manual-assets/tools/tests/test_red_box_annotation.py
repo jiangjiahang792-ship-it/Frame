@@ -24,6 +24,7 @@ from red_box_annotation import (
     load_annotation_config,
     render_annotated_image,
 )
+from build_annotated_screenshots import build_annotated_images
 
 
 def write_config(tmp_path: Path, regions: list[dict[str, object]]) -> Path:
@@ -151,6 +152,49 @@ class AnnotationRenderingTests(unittest.TestCase):
             self.assertEqual(before, source.read_bytes())
             with Image.open(output) as image:
                 self.assertEqual((230, 0, 18), image.getpixel((300, 120))[:3])
+
+
+class BatchAnnotationTests(unittest.TestCase):
+    """验证批量标注图片和清单生成。"""
+
+    def test_builds_one_image_and_manifest_without_changing_source(self) -> None:
+        """批量生成必须保留原图并输出模块图片和明细清单。"""
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            screenshots = root / "screenshots"
+            output = root / "annotated"
+            screenshots.mkdir()
+            source = screenshots / "sample.png"
+            Image.new("RGB", (800, 500), "white").save(source)
+            source_bytes = source.read_bytes()
+            config = root / "config.json"
+            config.write_text(
+                json.dumps(
+                    {
+                        "测试模块": {
+                            "source_file": source.name,
+                            "regions": [
+                                {
+                                    "index": 1,
+                                    "label": "输入区域",
+                                    "box": [0.1, 0.2, 0.5, 0.7],
+                                }
+                            ],
+                        }
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            summary = build_annotated_images(config, screenshots, output)
+
+            self.assertEqual(1, summary.module_count)
+            self.assertEqual(1, summary.image_count)
+            self.assertEqual(source_bytes, source.read_bytes())
+            self.assertTrue((output / "001-测试模块.png").exists())
+            self.assertTrue((output / "annotation-manifest.csv").exists())
 
 
 if __name__ == "__main__":
