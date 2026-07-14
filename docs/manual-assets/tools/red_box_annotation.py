@@ -6,6 +6,12 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from PIL import Image, ImageDraw, ImageFont
+
+
+RED = (230, 0, 18)
+WHITE = (255, 255, 255)
+NUMBER_FONT = Path(r"C:\Windows\Fonts\arialbd.ttf")
 
 @dataclass(frozen=True)
 class AnnotationRegion:
@@ -62,3 +68,54 @@ def load_annotation_config(path: Path) -> dict[str, ModuleAnnotation]:
         )
 
     return annotations
+
+
+def render_annotated_image(
+    source: Path,
+    output: Path,
+    annotation: ModuleAnnotation,
+) -> None:
+    """在原图副本上绘制红框和白字红底编号。"""
+
+    with Image.open(source) as source_image:
+        image = source_image.convert("RGB")
+
+    width, height = image.size
+    line_width = max(4, round(min(width, height) * 0.006))
+    radius = max(14, line_width * 3)
+    font_size = max(16, round(radius * 1.15))
+    font = ImageFont.truetype(str(NUMBER_FONT), font_size)
+    draw = ImageDraw.Draw(image)
+
+    for region in annotation.regions:
+        left, top, right, bottom = region.box
+        pixel_box = (
+            round(left * width),
+            round(top * height),
+            round(right * width),
+            round(bottom * height),
+        )
+        draw.rectangle(pixel_box, outline=RED, width=line_width)
+
+        center_x = min(max(pixel_box[0] + radius, radius + line_width), width - radius - line_width)
+        center_y = min(max(pixel_box[1] + radius, radius + line_width), height - radius - line_width)
+        circle_box = (
+            center_x - radius,
+            center_y - radius,
+            center_x + radius,
+            center_y + radius,
+        )
+        draw.ellipse(circle_box, fill=RED)
+        number = str(region.index)
+        text_box = draw.textbbox((0, 0), number, font=font)
+        text_width = text_box[2] - text_box[0]
+        text_height = text_box[3] - text_box[1]
+        draw.text(
+            (center_x - text_width / 2, center_y - text_height / 2 - text_box[1]),
+            number,
+            fill=WHITE,
+            font=font,
+        )
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    image.save(output, format="PNG")

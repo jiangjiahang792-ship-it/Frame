@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from PIL import Image
+
 TOOLS_DIR = Path(__file__).resolve().parents[1]
 ROOT = Path(__file__).resolve().parents[4]
 CONFIG = ROOT / "docs" / "manual-assets" / "annotations" / "red-box-annotations.json"
@@ -16,7 +18,12 @@ MANIFEST = ROOT / "docs" / "manual-assets" / "screenshots" / "screenshot-manifes
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
-from red_box_annotation import load_annotation_config
+from red_box_annotation import (
+    AnnotationRegion,
+    ModuleAnnotation,
+    load_annotation_config,
+    render_annotated_image,
+)
 
 
 def write_config(tmp_path: Path, regions: list[dict[str, object]]) -> Path:
@@ -113,6 +120,37 @@ class AnnotationConfigTests(unittest.TestCase):
         self.assertEqual(86, len(expected_modules))
         self.assertEqual(expected_modules, set(config))
         self.assertTrue(all(1 <= len(item.regions) <= 4 for item in config.values()))
+
+
+class AnnotationRenderingTests(unittest.TestCase):
+    """验证红框和编号绘制结果。"""
+
+    def test_draws_red_box_without_changing_source(self) -> None:
+        """输出必须包含红框且原始图片字节保持不变。"""
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source.png"
+            output = root / "annotated.png"
+            Image.new("RGB", (1000, 600), "white").save(source)
+            before = source.read_bytes()
+            annotation = ModuleAnnotation(
+                module="测试模块",
+                source_file=source.name,
+                regions=(
+                    AnnotationRegion(
+                        index=1,
+                        label="输入区域",
+                        box=(0.1, 0.2, 0.5, 0.7),
+                    ),
+                ),
+            )
+
+            render_annotated_image(source, output, annotation)
+
+            self.assertEqual(before, source.read_bytes())
+            with Image.open(output) as image:
+                self.assertEqual((230, 0, 18), image.getpixel((300, 120))[:3])
 
 
 if __name__ == "__main__":
