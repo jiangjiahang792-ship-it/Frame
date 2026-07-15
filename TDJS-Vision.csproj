@@ -1195,6 +1195,7 @@
     <Compile Include="Node\5-EquipmentCommunication\CameraIO\ParamFormCameraIO.Designer.cs">
       <DependentUpon>ParamFormCameraIO.cs</DependentUpon>
     </Compile>
+    <Compile Include="Node\1-Acquisition\ImageSource\CameraFrameAwaiter.cs" />
     <Compile Include="Node\1-Acquisition\ImageSource\NodeImageSource.cs">
       <SubType>UserControl</SubType>
     </Compile>
