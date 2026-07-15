@@ -2030,5 +2030,6 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 已确认点击停止后取消回调等待、停止本次运行启动的相机取流并丢弃迟到帧。
 - [x] 已确认隐藏 `Off/On` 触发模式界面，运行固定为 `TriggerModel.On`；旧方案中的 `Off` 自动迁移为 `On` 并保留原触发源。
 - [x] 已完成设计说明：`docs/superpowers/specs/2026-07-15-camera-image-source-callback-acquisition-design.md`。
-- [ ] 编写详细实施计划并按测试驱动方式完成代码改造。
+- [x] 已完成详细实施计划：`docs/superpowers/plans/2026-07-15-camera-image-source-callback-acquisition.md`。
+- [ ] 按测试驱动方式完成代码改造。
 - [ ] 完成专项测试、相关回归测试与 `Debug|x64` 编译验证。
