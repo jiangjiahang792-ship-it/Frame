@@ -2032,4 +2032,5 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 已完成设计说明：`docs/superpowers/specs/2026-07-15-camera-image-source-callback-acquisition-design.md`。
 - [x] 已完成详细实施计划：`docs/superpowers/plans/2026-07-15-camera-image-source-callback-acquisition.md`。
 - [ ] 按测试驱动方式完成代码改造。
+  - [x] 已建立 `Tests/CameraImageSourceUnifiedCallback.Tests.ps1` 专项回归契约，覆盖同轮回调等待、软触发顺序、禁用同步取图、旧参数迁移、硬触发校验、菜单清理和重复软触发清理。
 - [ ] 完成专项测试、相关回归测试与 `Debug|x64` 编译验证。
