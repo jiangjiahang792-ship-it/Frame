@@ -135,7 +135,6 @@ Assert-Contains $cameraHik 'PerformanceSpikeDiagnostics.LogSlowIfEnabled(' 'Came
 Assert-NotContains $cameraHik '回调Mat转换分段：ConvertPixelType={convertWatch.ElapsedMilliseconds}ms' 'CameraHik must not build callback conversion segment text for every frame before the diagnostic guard.'
 
 Assert-Contains $nodeImageSource 'PerformanceSpikeDiagnostics.LogIfEnabled(' 'NodeImageSource high-frequency diagnostics must use the shared lazy helper.'
-Assert-Contains $nodeImageSource 'PerformanceSpikeDiagnostics.LogSlowIfEnabled(' 'NodeImageSource slow diagnostics must use the shared lazy slow-log helper.'
 Assert-Contains $process 'PerformanceSpikeDiagnostics.LogIfEnabled(' 'Process skipped-node diagnostics must use the shared lazy helper.'
 Assert-Contains $diagnostics 'if (!IsDiagnosticLogEnabled(MsgLevel.Debug))' 'Node memory diagnostics must skip resource sampling when Debug diagnostics are disabled.'
 Assert-Contains $showImageControl 'PerformanceSpikeDiagnostics.LogIfEnabled(' 'ShowImageControl image display diagnostics must use the shared lazy helper.'

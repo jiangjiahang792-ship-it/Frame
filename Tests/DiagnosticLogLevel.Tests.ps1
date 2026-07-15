@@ -48,21 +48,7 @@ function Assert-DiagnosticMarkerUsesDebug {
 
 $diagnosticMarkers = @(
     @{ Path = 'Node\1-Acquisition\ImageSource\NodeImageSource.cs'; Markers = @(
-        'Bitmap转Mat完毕',
-        '接收Mat图像成功',
-        '相机回调帧已交给专用线程',
-        '【版本诊断-专用线程执行入口】',
-        '专用线程执行Run方法',
-        '【链路诊断-专用线程收尾】',
-        '专用线程Run结束',
-        '【链路诊断-图像源回调结果入口】',
-        '【链路诊断-图像源取回调Mat】',
-        '【链路诊断-图像源回调结果失败出口】',
-        '【性能诊断-图像源回调结果】',
-        '【链路诊断-图像源构建输出】',
-        '【链路诊断-图像源状态写入】',
-        '【链路诊断-图像源回调结果出口】',
-        '【慢诊断-图像源回调结果】'
+        'Bitmap转Mat完毕'
     ) },
     @{ Path = 'Node\3-Detection\TDAI\NodeTDAI.cs'; Markers = @(
         'AI检测开始',

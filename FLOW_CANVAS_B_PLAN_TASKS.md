@@ -2035,4 +2035,6 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
   - [x] 已建立 `Tests/CameraImageSourceUnifiedCallback.Tests.ps1` 专项回归契约，覆盖同轮回调等待、软触发顺序、禁用同步取图、旧参数迁移、硬触发校验、菜单清理和重复软触发清理。
   - [x] 已建立 `Tests/CameraFrameAwaiter.Tests.ps1` 行为测试，覆盖单帧交付、迟到帧拒绝和停止令牌取消等待。
   - [x] 已新增 `ICameraFrameAwaiter` 与 `CameraFrameAwaiter`，以一次性任务完成源实现线程安全的单帧交付、流程取消和释放保护；行为测试已通过。
+  - [x] `NodeImageSource` 已删除旧回调工作线程、待处理帧和回调二次启动 `Process.Run` 的入口；相机路径改为先登记等待，软触发调用一次 `GrabOne()`，收到回调后在同一轮流程继续下游。
+  - [x] 已同步清理只属于旧专用线程架构的诊断测试标记；`CameraFrameAwaiter.Tests.ps1`、`DiagnosticLazyEvaluation.Tests.ps1`、`DiagnosticLogLevel.Tests.ps1` 均通过，阶段性 `Debug|x64` 编译为 180 个既有警告、0 个错误。
 - [ ] 完成专项测试、相关回归测试与 `Debug|x64` 编译验证。

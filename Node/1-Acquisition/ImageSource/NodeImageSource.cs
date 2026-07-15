@@ -8,12 +8,13 @@ using System.Drawing;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Device.Camera;
 using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node._6_LogicTool.SharedVariable;
 
 namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 {
-    public class NodeImageSource : NodeBase, ISkippedNodeRunResultProvider
+    public class NodeImageSource : NodeBase
     {
         /// <summary>
         /// 用于保存上次访问的图片索引
@@ -30,52 +31,29 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// </summary>
         private Mat _mat;
         /// <summary>
-        /// 相机回调触发运行状态，0 表示空闲，1 表示已有一帧正在转换或驱动流程运行。
+        /// 当前图像源的一次性相机回调等待器。
         /// </summary>
-        private int _callbackRunState;
-        /// <summary>
-        /// 待写入当前流程批次结果的相机回调图像。
-        /// </summary>
-        private Mat _pendingCallbackMat;
-        /// <summary>
-        /// 相机回调流程专用工作线程唤醒信号，避免每帧通过线程池调度。
-        /// </summary>
-        private readonly AutoResetEvent _callbackWorkerSignal = new AutoResetEvent(false);
-        /// <summary>
-        /// 相机回调流程专用工作线程创建锁。
-        /// </summary>
-        private readonly object _callbackWorkerLock = new object();
-        /// <summary>
-        /// 相机回调流程专用工作线程。
-        /// </summary>
-        private Thread _callbackWorkerThread;
-        /// <summary>
-        /// 相机回调流程专用工作线程是否正在停止。
-        /// </summary>
-        private volatile bool _callbackWorkerStopping;
-        /// <summary>
-        /// 当前已入队帧的高精度计时器时间戳，用于统计等待专用线程耗时。
-        /// </summary>
-        private long _callbackQueuedTimestamp;
-        /// <summary>
-        /// 相机回调收到的有效帧数量。
-        /// </summary>
-        private long _callbackReceivedCount;
-        /// <summary>
-        /// 相机回调接受并准备处理的帧数量。
-        /// </summary>
-        private long _callbackAcceptedCount;
-        /// <summary>
-        /// 相机回调因流程忙碌而拒绝的帧数量。
-        /// </summary>
-        private long _callbackBusyRejectedCount;
-        /// <summary>
-        /// 相机回调专用线程实际启动流程运行的次数。
-        /// </summary>
-        private long _callbackRunCount;
+        private readonly ICameraFrameAwaiter _cameraFrameAwaiter;
 
-        public NodeImageSource(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
+        /// <summary>
+        /// 创建使用默认相机帧等待器的图像源节点。
+        /// </summary>
+        public NodeImageSource(int nodeId, string nodeName, Process process, NodeType nodeType)
+            : this(nodeId, nodeName, process, nodeType, new CameraFrameAwaiter())
         {
+        }
+
+        /// <summary>
+        /// 创建使用指定相机帧等待器的图像源节点，便于替换和测试回调协作实现。
+        /// </summary>
+        internal NodeImageSource(
+            int nodeId,
+            string nodeName,
+            Process process,
+            NodeType nodeType,
+            ICameraFrameAwaiter cameraFrameAwaiter) : base(nodeId, nodeName, process, nodeType)
+        {
+            _cameraFrameAwaiter = cameraFrameAwaiter ?? throw new ArgumentNullException(nameof(cameraFrameAwaiter));
             ParamForm = new ParamFormImageSource(this);
             ParamForm.SetNodeBelong(this);
             Result = new NodeResultImageSource();
@@ -163,179 +141,26 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <param name="mat">相机回调 Mat 帧。</param>
         public void HandleCameraCallbackFrame(Mat mat)
         {
-            Stopwatch enqueueWatch = Stopwatch.StartNew();
-            if (mat == null || mat.Empty() || Process == null)
+            if (mat == null || mat.Empty())
             {
                 mat?.Dispose();
                 return;
             }
 
-            if (!Process.IsCameraCallbackTriggered)
+            if (_cameraFrameAwaiter.TrySupplyFrame(mat))
             {
-                mat.Dispose();
-                return;
-            }
-
-            if (!Active || !Process.Enable)
-            {
-                mat.Dispose();
-                return;
-            }
-
-            if (!Solution.Instance.IsRunning && !Process.IsHandRun)
-            {
-                mat.Dispose();
-                return;
-            }
-
-            long receivedCount = Interlocked.Increment(ref _callbackReceivedCount);
-            if (Process.IsRuning)
-            {
-                mat.Dispose();
-                LogBusyRejectedFrame(receivedCount, "流程正在运行");
-                return;
-            }
-
-            if (!TryEnterCallbackRunState())
-            {
-                mat.Dispose();
-                LogBusyRejectedFrame(receivedCount, "专用线程正在处理上一帧");
-                return;
-            }
-
-            try
-            {
-                EnsureCallbackWorkerStarted();
-                long acceptedCount = Interlocked.Increment(ref _callbackAcceptedCount);
-                LogHelper.AddLog(MsgLevel.Debug, $"流程【{Process.ProcessName}】接收Mat图像成功, 尺寸={mat.Width}x{mat.Height}, 通道={mat.Channels()}, 接收帧={receivedCount}, 处理帧={acceptedCount}, 忙碌丢帧={Volatile.Read(ref _callbackBusyRejectedCount)}, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
-                StorePendingCallbackMat(mat);
-                mat = null;
-                Interlocked.Exchange(ref _callbackQueuedTimestamp, Stopwatch.GetTimestamp());
-                _callbackWorkerSignal.Set();
-
-                LogHelper.AddLog(MsgLevel.Debug, $"流程【{Process.ProcessName}】相机回调帧已交给专用线程, 入队耗时={enqueueWatch.ElapsedMilliseconds}ms, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
-            }
-            catch (Exception ex)
-            {
-                mat?.Dispose();
-                ClearPendingCallbackMat();
-                ReleaseCallbackRunState();
-                LogHelper.AddLog(MsgLevel.Exception, $"相机回调Mat图像处理失败：{ex.Message}", true);
-            }
-        }
-
-        /// <summary>
-        /// 确保相机回调流程专用工作线程已启动。
-        /// </summary>
-        private void EnsureCallbackWorkerStarted()
-        {
-            if (_callbackWorkerThread != null && _callbackWorkerThread.IsAlive)
-                return;
-
-            lock (_callbackWorkerLock)
-            {
-                if (_callbackWorkerThread != null && _callbackWorkerThread.IsAlive)
-                    return;
-
-                _callbackWorkerStopping = false;
-                _callbackWorkerThread = new Thread(CallbackWorkerLoop)
-                {
-                    IsBackground = true,
-                    Name = $"图像源回调流程-{Process?.ProcessName}-{ID}"
-                };
-                _callbackWorkerThread.Start();
-            }
-        }
-
-        /// <summary>
-        /// 相机回调流程专用工作线程循环，收到信号后同步执行当前流程。
-        /// </summary>
-        private void CallbackWorkerLoop()
-        {
-            while (!_callbackWorkerStopping)
-            {
-                _callbackWorkerSignal.WaitOne();
-                if (_callbackWorkerStopping)
-                    break;
-
-                RunPendingCallbackFrame();
-            }
-        }
-
-        /// <summary>
-        /// 执行已入队的相机回调帧，并在结束后释放忙碌状态。
-        /// </summary>
-        private void RunPendingCallbackFrame()
-        {
-            Stopwatch runWatch = Stopwatch.StartNew();
-            try
-            {
-                long queuedTimestamp = Interlocked.Exchange(ref _callbackQueuedTimestamp, 0);
-                long waitMs = CalculateElapsedMilliseconds(queuedTimestamp, Stopwatch.GetTimestamp());
-                long runCount = Interlocked.Increment(ref _callbackRunCount);
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    () => $"【版本诊断-专用线程执行入口】{PerformanceSpikeDiagnostics.GetExecutableIdentityText()}；流程={Process?.ProcessName}；节点=({ID}.{NodeName})；排队等待={waitMs}ms；执行次数={runCount}",
+                    () => $"流程【{Process?.ProcessName}】图像源节点({ID}.{NodeName})已接收当前 RunId={Process?.CurrentRunId} 的相机回调帧。",
                     true);
-                PerformanceSpikeDiagnostics.LogIfEnabled(
-                    MsgLevel.Debug,
-                    () => $"流程【{Process.ProcessName}】专用线程执行Run方法, 排队等待={waitMs}ms, 执行次数={runCount}, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}",
-                    true);
-                Process.Run(this, false).GetAwaiter().GetResult();
+                return;
             }
-            catch (Exception ex)
-            {
-                LogHelper.AddLog(MsgLevel.Exception, $"相机回调流程【{Process?.ProcessName}】运行异常：{ex.Message}", true);
-            }
-            finally
-            {
-                long beforeClear = runWatch.ElapsedMilliseconds;
-                ClearPendingCallbackMat();
-                long afterClear = runWatch.ElapsedMilliseconds;
-                ReleaseCallbackRunState();
-                long afterRelease = runWatch.ElapsedMilliseconds;
-                runWatch.Stop();
-                long clearMs = afterClear - beforeClear;
-                long releaseMs = afterRelease - afterClear;
-                long totalMs = runWatch.ElapsedMilliseconds;
-                PerformanceSpikeDiagnostics.LogSlowIfEnabled(
-                    MsgLevel.Debug,
-                    PerformanceSpikeDiagnostics.CommonSlowMs,
-                    () => $"【链路诊断-专用线程收尾】流程={Process?.ProcessName}；节点=({ID}.{NodeName})；清理待处理Mat={clearMs}ms；释放运行状态={releaseMs}ms；总耗时={totalMs}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
-                    true,
-                    clearMs,
-                    releaseMs,
-                    totalMs);
-                PerformanceSpikeDiagnostics.LogIfEnabled(
-                    MsgLevel.Debug,
-                    () => $"流程【{Process?.ProcessName}】专用线程Run结束, 耗时={totalMs}ms, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}",
-                    true);
-            }
-        }
 
-        /// <summary>
-        /// 记录忙碌拒绝帧日志，当前帧由调用方在记录前释放。
-        /// </summary>
-        /// <param name="receivedCount">当前累计收到帧数。</param>
-        /// <param name="reason">拒绝原因。</param>
-        private void LogBusyRejectedFrame(long receivedCount, string reason)
-        {
-            long rejectedCount = Interlocked.Increment(ref _callbackBusyRejectedCount);
-            LogHelper.AddLog(MsgLevel.Warn, $"流程【{Process.ProcessName}】忙碌拒绝相机回调帧，原因：{reason}；接收帧={receivedCount}，处理帧={Volatile.Read(ref _callbackAcceptedCount)}，忙碌丢帧={rejectedCount}，Process.IsRuning={Process.IsRuning}，RunState={Volatile.Read(ref _callbackRunState)}。", true);
-        }
-
-        /// <summary>
-        /// 计算两个高精度时间戳之间的毫秒差。
-        /// </summary>
-        /// <param name="startTimestamp">开始时间戳。</param>
-        /// <param name="endTimestamp">结束时间戳。</param>
-        /// <returns>毫秒差，开始时间戳为空时返回 0。</returns>
-        private static long CalculateElapsedMilliseconds(long startTimestamp, long endTimestamp)
-        {
-            if (startTimestamp <= 0 || endTimestamp <= startTimestamp)
-                return 0;
-
-            return (endTimestamp - startTimestamp) * 1000 / Stopwatch.Frequency;
+            mat.Dispose();
+            PerformanceSpikeDiagnostics.LogIfEnabled(
+                MsgLevel.Debug,
+                () => $"流程【{Process?.ProcessName}】图像源节点({ID}.{NodeName})没有有效等待者，已丢弃迟到回调帧。",
+                true);
         }
 
         /// <summary>
@@ -346,7 +171,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             if (!ReferenceEquals(node, this))
                 return;
 
-            StopCallbackWorker();
+            _cameraFrameAwaiter.CancelPendingWait();
         }
 
         /// <summary>
@@ -356,121 +181,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         {
             NodeBase.NodeDeletedEvent -= NodeImageSource_NodeDeletedEvent;
             Disposed -= NodeImageSource_Disposed;
-            StopCallbackWorker();
-        }
-
-        /// <summary>
-        /// 停止相机回调流程专用工作线程。
-        /// </summary>
-        private void StopCallbackWorker()
-        {
-            Thread workerThread;
-            lock (_callbackWorkerLock)
-            {
-                _callbackWorkerStopping = true;
-                workerThread = _callbackWorkerThread;
-                _callbackWorkerSignal.Set();
-                _callbackWorkerThread = null;
-            }
-
-            if (workerThread != null && workerThread.IsAlive && !ReferenceEquals(Thread.CurrentThread, workerThread))
-            {
-                if (!workerThread.Join(500))
-                    LogHelper.AddLog(MsgLevel.Warn, $"流程【{Process?.ProcessName}】相机回调专用线程停止等待超时。", true);
-            }
-
-            ClearPendingCallbackMat();
-            ReleaseCallbackRunState();
-        }
-
-        /// <summary>
-        /// 为跳过执行的图像源节点准备当前流程批次的回调图像结果。
-        /// </summary>
-        public bool TryPrepareSkippedRunResult(DateTime startTime, out string message)
-        {
-            message = string.Empty;
-            Stopwatch performanceStopwatch = Stopwatch.StartNew();
-            PerformanceSpikeDiagnostics.LogIfEnabled(
-                MsgLevel.Debug,
-                () => $"【链路诊断-图像源回调结果入口】{GetCallbackResultContextText()}；主程序={PerformanceSpikeDiagnostics.GetCurrentProcessPathText()}；节点程序集={PerformanceSpikeDiagnostics.GetAssemblyText(this)}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
-                true);
-            Mat callbackMat = TakePendingCallbackMat();
-            long afterTakeMat = performanceStopwatch.ElapsedMilliseconds;
-            PerformanceSpikeDiagnostics.LogIfEnabled(
-                MsgLevel.Debug,
-                () => $"【链路诊断-图像源取回调Mat】{GetCallbackResultContextText()}；取回调Mat={afterTakeMat}ms；Mat={PerformanceSpikeDiagnostics.GetMatText(callbackMat)}",
-                true);
-            if (callbackMat == null || callbackMat.Empty())
-            {
-                callbackMat?.Dispose();
-                message = "没有可用的相机回调图像。";
-                string failedMessage = message;
-                int failedTime = SetRunResult(startTime, NodeStatus.Failed);
-                long afterFailedStatus = performanceStopwatch.ElapsedMilliseconds;
-                PerformanceSpikeDiagnostics.LogIfEnabled(
-                    MsgLevel.Debug,
-                    () => $"【链路诊断-图像源回调结果失败出口】{GetCallbackResultContextText()}；取回调Mat={afterTakeMat}ms；状态={afterFailedStatus - afterTakeMat}ms；总耗时={afterFailedStatus}ms；状态耗时={failedTime}ms；原因={failedMessage}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
-                    true);
-                PerformanceSpikeDiagnostics.LogIfEnabled(
-                    MsgLevel.Debug,
-                    () => $"【性能诊断-图像源回调结果】节点({ID}.{NodeName}) 准备失败；取回调Mat={afterTakeMat}ms；状态={afterFailedStatus - afterTakeMat}ms；总耗时={afterFailedStatus}ms；状态耗时={failedTime}ms；原因={failedMessage}",
-                    true);
-                return false;
-            }
-
-            NodeResultImageSource result = Result as NodeResultImageSource;
-            if (result == null)
-            {
-                result = new NodeResultImageSource();
-                Result = result;
-            }
-            long afterEnsureResult = performanceStopwatch.ElapsedMilliseconds;
-
-            result.OutputImage = BuildOutputImage(callbackMat);
-            long afterBuildOutput = performanceStopwatch.ElapsedMilliseconds;
-            PerformanceSpikeDiagnostics.LogIfEnabled(
-                MsgLevel.Debug,
-                () => $"【链路诊断-图像源构建输出】{GetCallbackResultContextText()}；结果对象={afterEnsureResult - afterTakeMat}ms；构建输出={afterBuildOutput - afterEnsureResult}ms；输入={PerformanceSpikeDiagnostics.GetMatText(callbackMat)}；输出={PerformanceSpikeDiagnostics.GetOutputImageText(result.OutputImage)}",
-                true);
-            int time = SetRunResult(startTime, NodeStatus.Successful);
-            long afterSetStatus = performanceStopwatch.ElapsedMilliseconds;
-            PerformanceSpikeDiagnostics.LogIfEnabled(
-                MsgLevel.Debug,
-                () => $"【链路诊断-图像源状态写入】{GetCallbackResultContextText()}；状态={afterSetStatus - afterBuildOutput}ms；状态耗时={time}ms；ResultBeforeAssign={PerformanceSpikeDiagnostics.GetAssemblyText(result)}",
-                true);
-            result.RunTime = time;
-            Result = result;
-            long afterAssignResult = performanceStopwatch.ElapsedMilliseconds;
-            PerformanceSpikeDiagnostics.LogIfEnabled(
-                MsgLevel.Debug,
-                () => $"【链路诊断-图像源回调结果出口】{GetCallbackResultContextText()}；总耗时={afterAssignResult}ms；状态耗时={time}ms；结果={PerformanceSpikeDiagnostics.GetAssemblyText(Result)}；输出={PerformanceSpikeDiagnostics.GetOutputImageText(result.OutputImage)}",
-                true);
-            PerformanceSpikeDiagnostics.LogIfEnabled(
-                MsgLevel.Debug,
-                () => $"【性能诊断-图像源回调结果】节点({ID}.{NodeName}) 取回调Mat={afterTakeMat}ms；结果对象={afterEnsureResult - afterTakeMat}ms；构建输出={afterBuildOutput - afterEnsureResult}ms；状态={afterSetStatus - afterBuildOutput}ms；结果赋值={afterAssignResult - afterSetStatus}ms；总耗时={afterAssignResult}ms；状态耗时={time}ms；输入={PerformanceSpikeDiagnostics.GetMatText(callbackMat)}；输出={PerformanceSpikeDiagnostics.GetOutputImageText(result.OutputImage)}",
-                true);
-            PerformanceSpikeDiagnostics.LogSlowIfEnabled(
-                MsgLevel.Debug,
-                PerformanceSpikeDiagnostics.CommonSlowMs,
-                () => $"【慢诊断-图像源回调结果】节点({ID}.{NodeName}) 取回调Mat={afterTakeMat}ms；结果对象={afterEnsureResult - afterTakeMat}ms；构建输出={afterBuildOutput - afterEnsureResult}ms；状态={afterSetStatus - afterBuildOutput}ms；结果赋值={afterAssignResult - afterSetStatus}ms；总耗时={afterAssignResult}ms；状态耗时={time}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
-                true,
-                afterAssignResult,
-                afterTakeMat,
-                afterEnsureResult - afterTakeMat,
-                afterBuildOutput - afterEnsureResult,
-                afterSetStatus - afterBuildOutput,
-                afterAssignResult - afterSetStatus);
-
-            return true;
-        }
-
-        /// <summary>
-        /// 生成图像源回调结果链路上下文，方便把同一次流程运行中的多条日志串起来。
-        /// </summary>
-        /// <returns>流程、批次和节点上下文文本。</returns>
-        private string GetCallbackResultContextText()
-        {
-            return $"流程={Process?.ProcessName}；RunId={Process?.CurrentRunId}；节点=({ID}.{NodeName})";
+            _cameraFrameAwaiter.Dispose();
         }
 
         /// <summary>
@@ -640,46 +351,38 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         }
 
         /// <summary>
-        /// 保存待处理回调图像，并释放未消费的旧帧。
+        /// 在当前流程批次中等待相机回调图像，软触发时只发送一次采图命令。
         /// </summary>
-        private void StorePendingCallbackMat(Mat mat)
+        /// <param name="param">当前图像源相机参数。</param>
+        /// <param name="token">流程停止时使用的取消令牌。</param>
+        /// <returns>由相机回调帧构建的标准图像输出。</returns>
+        private async Task<OutputImage> AcquireCameraImageAsync(NodeParamImageSoucre param, CancellationToken token)
         {
-            Mat oldMat = Interlocked.Exchange(ref _pendingCallbackMat, mat);
-            oldMat?.Dispose();
-        }
+            if (param == null)
+                throw new ArgumentNullException(nameof(param));
+            if (param.Camera == null)
+                throw new Exception("相机对象无效！");
+            if (!param.Camera.IsOpen)
+                throw new Exception("相机尚未连接！");
 
-        /// <summary>
-        /// 取走待处理回调图像，调用方接管 Mat 生命周期。
-        /// </summary>
-        private Mat TakePendingCallbackMat()
-        {
-            return Interlocked.Exchange(ref _pendingCallbackMat, null);
-        }
+            Task<Mat> frameTask = _cameraFrameAwaiter.BeginWaitAsync(token);
+            Mat callbackMat = null;
+            try
+            {
+                if (param.TriggerSource == TriggerSource.SOFT)
+                    param.Camera.GrabOne();
 
-        /// <summary>
-        /// 清理未被流程消费的回调图像。
-        /// </summary>
-        private void ClearPendingCallbackMat()
-        {
-            Mat mat = Interlocked.Exchange(ref _pendingCallbackMat, null);
-            mat?.Dispose();
-        }
-
-        /// <summary>
-        /// 尝试进入相机回调运行态，不等待上一帧，失败时调用方直接丢弃当前帧。
-        /// </summary>
-        /// <returns>成功进入运行态返回 true。</returns>
-        private bool TryEnterCallbackRunState()
-        {
-            return Interlocked.CompareExchange(ref _callbackRunState, 1, 0) == 0;
-        }
-
-        /// <summary>
-        /// 释放相机回调运行态。
-        /// </summary>
-        private void ReleaseCallbackRunState()
-        {
-            Volatile.Write(ref _callbackRunState, 0);
+                callbackMat = await frameTask.ConfigureAwait(false);
+                OutputImage outputImage = BuildOutputImage(callbackMat);
+                callbackMat = null;
+                return outputImage;
+            }
+            catch
+            {
+                callbackMat?.Dispose();
+                _cameraFrameAwaiter.CancelPendingWait();
+                throw;
+            }
         }
 
         /// <summary>
@@ -719,33 +422,24 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         }
                         else if (param.ImageSource == "相机")
                         {
-                            if (param.Camera == null) throw new Exception("相机对象无效！");
-                            if (!param.Camera.IsOpen) throw new Exception("相机尚未连接！");
+                            if (param.Camera == null)
+                                throw new Exception("相机对象无效！");
+                            if (!param.Camera.IsOpen)
+                                throw new Exception("相机尚未连接！");
 
                             // 是否需要每次设置相机参数
                             if (param.IsEveryTime)
                             {
-                                //TODO: param.Camera.SetTriggerMode(true);
                                 param.Camera.SetTriggerDelay(param.TriggerDelay);
                                 param.Camera.SetExposureTime(param.ExposureTime);
                                 param.Camera.SetGain(param.Gain);
                                 param.Camera.GetImageTimeOut = param.TimeOut;
                                 param.Camera.SetTriggerSource(param.TriggerSource);
                                 param.Camera.SetTriggerEdge(param.TriggerEdge);
+                                param.Camera.SetTriggerMode(TriggerModel.On);
                             }
-                            try
-                            {
-                                // 获取一帧图像并设置结果
-                                using (var img = param.Camera.GetOneFrameImage())
-                                {
-                                    res.OutputImage = BuildOutputImage(img?.ToMat());
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                // 获取一帧图像并设置结果
-                                res.OutputImage = BuildOutputImage(null);
-                            }
+
+                            res.OutputImage = await AcquireCameraImageAsync(param, token).ConfigureAwait(false);
                         }
                         else if (param.ImageSource == "共享变量")
                         {
