@@ -1533,6 +1533,7 @@
     <Compile Include="Forms\ShapeDraw\ROI.cs" />
     <Compile Include="Forms\ShapeDraw\ROIManager.cs" />
     <Compile Include="Process.cs" />
+    <Compile Include="ProcessCameraConfigurationValidator.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SharedVariable.cs" />

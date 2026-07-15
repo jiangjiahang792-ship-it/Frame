@@ -77,9 +77,12 @@ Assert-NotContains $designerSource '"Off"' 'The parameter form must not display 
 Assert-NotContains $designerSource 'CamerModelComboBox' 'The trigger model control must be removed.'
 Assert-Contains $validatorSource 'public interface IProcessCameraConfigurationValidator' 'A replaceable process camera validator is required.'
 Assert-Contains $validatorSource 'ToDisplayText()' 'The validator error must expose Chinese display text.'
-Assert-NotContains $processDesignerSource 'CameraCallbackTriggeredProcess' 'The legacy callback process menu must be removed.'
+Assert-NotContains $processPanelSource 'ProcessNew.CameraCallbackTriggeredProcess' 'The legacy callback process menu language binding must be removed.'
+Assert-NotContains $processDesignerSource '是否为相机回调触发流程ToolStripMenuItem' 'The legacy callback process menu must be removed from the designer.'
 Assert-Contains $processPanelSource 'TryValidateCameraConfiguration' 'ProcessEditPanel must validate before running.'
 Assert-Contains $mainSource 'TryValidateCameraConfiguration' 'FormMain must validate before running.'
 Assert-NotContains $solutionSource 'TriggerSoftCameraCallbacksForProcesses(groupCopy)' 'The solution loop must not duplicate soft triggers.'
+Assert-NotContains $solutionSource '.IsCameraCallbackTriggered' 'Runtime acquisition must not depend on the legacy process compatibility flag.'
+Assert-Contains $solutionSource 'startedCallbackCameras = StartCameraCallbackGrabbingForProcesses(AllProcesses);' 'Single and loop solution runs must both start callback grabbing.'
 
 Write-Host 'Camera image-source unified callback regression checks passed.'

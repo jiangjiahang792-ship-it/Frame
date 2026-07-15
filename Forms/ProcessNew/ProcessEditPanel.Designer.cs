@@ -48,7 +48,6 @@
             this.流程重命名ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.是否输出日志ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.是否为触发流程ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.是否为相机回调触发流程ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.contextMenuStripFlowCanvas = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.撤销ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.重做ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -265,10 +264,9 @@
             this.设置流程组别ToolStripMenuItem,
             this.流程重命名ToolStripMenuItem,
             this.是否输出日志ToolStripMenuItem,
-            this.是否为触发流程ToolStripMenuItem,
-            this.是否为相机回调触发流程ToolStripMenuItem});
+            this.是否为触发流程ToolStripMenuItem});
             this.contextMenuStrip1.Name = "contextMenuStrip1";
-            this.contextMenuStrip1.Size = new System.Drawing.Size(297, 228);
+            this.contextMenuStrip1.Size = new System.Drawing.Size(225, 196);
             this.contextMenuStrip1.Opening += new System.ComponentModel.CancelEventHandler(this.contextMenuStrip1_Opening);
             //
             // 是否启用流程ToolStripMenuItem
@@ -317,14 +315,6 @@
             this.是否为触发流程ToolStripMenuItem.Size = new System.Drawing.Size(224, 32);
             this.是否为触发流程ToolStripMenuItem.Text = "是否为被触发流程";
             this.是否为触发流程ToolStripMenuItem.Click += new System.EventHandler(this.是否为触发流程ToolStripMenuItem_Click);
-            //
-            // 是否为相机回调触发流程ToolStripMenuItem
-            //
-            this.是否为相机回调触发流程ToolStripMenuItem.Name = "是否为相机回调触发流程ToolStripMenuItem";
-            this.是否为相机回调触发流程ToolStripMenuItem.Size = new System.Drawing.Size(296, 32);
-            this.是否为相机回调触发流程ToolStripMenuItem.Text = "是否为相机回调触发流程";
-            this.是否为相机回调触发流程ToolStripMenuItem.Click += new System.EventHandler(this.是否为相机回调触发流程ToolStripMenuItem_Click);
-            //
             // contextMenuStripFlowCanvas
             //
             this.contextMenuStripFlowCanvas.ImageScalingSize = new System.Drawing.Size(24, 24);
@@ -546,7 +536,6 @@
         private System.Windows.Forms.ToolStripMenuItem 流程重命名ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 是否输出日志ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 是否为触发流程ToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem 是否为相机回调触发流程ToolStripMenuItem;
         private System.Windows.Forms.ContextMenuStrip contextMenuStripFlowCanvas;
         private System.Windows.Forms.ToolStripMenuItem 撤销ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 重做ToolStripMenuItem;

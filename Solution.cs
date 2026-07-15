@@ -104,6 +104,11 @@ namespace TDJS_Vision
         public List<ICamera> CameraDevices => AllDevices.OfType<ICamera>().ToList();
 
         /// <summary>
+        /// 流程运行前的相机触发配置校验器，允许后续替换为自定义实现。
+        /// </summary>
+        public IProcessCameraConfigurationValidator CameraConfigurationValidator { get; set; } = new ProcessCameraConfigurationValidator();
+
+        /// <summary>
         /// 3D 相机设备
         /// </summary>
         public List<I3DCamera> Camera3DDevices => AllDevices.OfType<I3DCamera>().ToList();
@@ -358,15 +363,21 @@ namespace TDJS_Vision
             if (AllProcesses == null || AllProcesses.Count == 0)
                 return;
 
+            string validationMessage;
+            if (!TryValidateCameraConfiguration(AllProcesses, out validationMessage))
+            {
+                LogHelper.AddLog(MsgLevel.Exception, validationMessage, true);
+                return;
+            }
+
             IsRunning = true;
             Solution.Instance.ResetTokenSource();
             var _cts = CancellationTokenSource.CreateLinkedTokenSource(Solution.Instance.CancellationToken);
-            List<ICamera> startedCallbackCameras = isCyclical
-                ? StartCameraCallbackGrabbingForProcesses(AllProcesses)
-                : new List<ICamera>();
+            List<ICamera> startedCallbackCameras = new List<ICamera>();
 
             try
             {
+                startedCallbackCameras = StartCameraCallbackGrabbingForProcesses(AllProcesses);
                 var groupTasks = new List<Task>();
 
                 foreach (var group in AllProcesses.GroupBy(p => p.Group))
@@ -387,7 +398,6 @@ namespace TDJS_Vision
                             {
                                 if (targetProcess == null ||
                                     !targetProcess.IsPassiveTriggered ||
-                                    targetProcess.IsCameraCallbackTriggered ||
                                     targetProcess.Group != groupCopy[0].Group)
                                 {
                                     return;
@@ -407,18 +417,13 @@ namespace TDJS_Vision
                                 proc.SetTriggerAction(triggerAction);
                             }
 
-                            if (isCyclical)
-                                TriggerSoftCameraCallbacksForProcesses(groupCopy);
-
                             // 按优先级执行主动流程
                             var priorityLevels = groupCopy.Select(p => p.RunLv).Distinct().OrderBy(lv => lv);
                             foreach (var priority in priorityLevels)
                             {
-                                // 相机回调触发流程只由图像源节点回调启动；方案循环只负责保持运行态。
                                 var activeProcesses = groupCopy
                                     .Where(p => p.RunLv == priority &&
-                                                !p.IsPassiveTriggered &&
-                                                !p.IsCameraCallbackTriggered)
+                                                !p.IsPassiveTriggered)
                                     .ToList();
 
                                 if (!activeProcesses.Any()) continue;
@@ -486,7 +491,7 @@ namespace TDJS_Vision
         }
 
         /// <summary>
-        /// 启动指定流程集合中相机回调触发流程的取流，并返回本方法实际启动的相机。
+        /// 启动指定流程集合中相机图像源的回调取流，并返回本方法实际启动的相机。
         /// </summary>
         /// <param name="processes">待检查的流程集合。</param>
         /// <returns>本次启动的相机集合，调用方退出运行态时需要停止。</returns>
@@ -501,7 +506,6 @@ namespace TDJS_Vision
             {
                 if (process == null ||
                     !process.Enable ||
-                    !process.IsCameraCallbackTriggered ||
                     process.Nodes == null)
                 {
                     continue;
@@ -552,7 +556,7 @@ namespace TDJS_Vision
                             startedCameras.Add(camera);
 
                         string actionText = wasGrabbing ? "已重启取流" : "已启动取流";
-                        LogHelper.AddLog(MsgLevel.Info, $"相机【{camera.UserDefinedName}】{actionText}，用于相机回调触发流程【{process.ProcessName}】。", true);
+                        LogHelper.AddLog(MsgLevel.Info, $"相机【{camera.UserDefinedName}】{actionText}，用于流程【{process.ProcessName}】的图像源回调取图。", true);
                     }
                     catch (Exception ex)
                     {
@@ -567,7 +571,7 @@ namespace TDJS_Vision
         }
 
         /// <summary>
-        /// 启动单个流程中相机回调触发流程的取流。
+        /// 启动单个流程中相机图像源的回调取流。
         /// </summary>
         /// <param name="process">待检查的流程。</param>
         /// <returns>本次启动的相机集合。</returns>
@@ -624,66 +628,6 @@ namespace TDJS_Vision
                     LogHelper.AddLog(MsgLevel.Exception, $"停止相机【{camera.UserDefinedName}】回调取流失败：{ex.Message}", true);
                 }
             }
-        }
-
-        /// <summary>
-        /// 对软触发相机回调流程发出一次软触发命令，硬触发和连续取流相机不处理。
-        /// </summary>
-        /// <param name="processes">待检查的流程集合。</param>
-        public void TriggerSoftCameraCallbacksForProcesses(IEnumerable<Process> processes)
-        {
-            if (processes == null)
-                return;
-
-            HashSet<ICamera> triggeredCameras = new HashSet<ICamera>();
-            foreach (Process process in processes)
-            {
-                if (process == null ||
-                    !process.Enable ||
-                    !process.IsCameraCallbackTriggered ||
-                    process.Nodes == null)
-                {
-                    continue;
-                }
-
-                foreach (NodeBase node in process.Nodes)
-                {
-                    NodeImageSource imageSource = node as NodeImageSource;
-                    if (imageSource == null || !imageSource.Active)
-                        continue;
-
-                    NodeParamImageSoucre param = imageSource.ParamForm == null
-                        ? null
-                        : imageSource.ParamForm.Params as NodeParamImageSoucre;
-                    ICamera camera = GetCameraCallbackCamera(param);
-                    if (camera == null ||
-                        param.TriggerModel != TriggerModel.On ||
-                        param.TriggerSource != TriggerSource.SOFT ||
-                        !triggeredCameras.Add(camera))
-                    {
-                        continue;
-                    }
-
-                    try
-                    {
-                        if (camera.IsOpen && camera.GetGrabStatus())
-                            camera.GrabOne();
-                    }
-                    catch (Exception ex)
-                    {
-                        LogHelper.AddLog(MsgLevel.Exception, $"相机【{camera.UserDefinedName}】软触发回调失败：{ex.Message}", true);
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// 对单个流程中的软触发相机回调发出一次软触发命令。
-        /// </summary>
-        /// <param name="process">待检查的流程。</param>
-        public void TriggerSoftCameraCallbacksForProcess(Process process)
-        {
-            TriggerSoftCameraCallbacksForProcesses(new[] { process });
         }
 
         /// <summary>
@@ -804,6 +748,27 @@ namespace TDJS_Vision
                 WriteSolutionLoadLogSafely($"方案加载上下文异常，已忽略：{ex}");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// 校验指定流程能否按当前相机触发配置运行。
+        /// </summary>
+        /// <param name="processes">待校验的流程集合。</param>
+        /// <param name="message">校验失败时供界面展示的简体中文消息。</param>
+        /// <returns>全部流程配置正确时返回 true。</returns>
+        public bool TryValidateCameraConfiguration(IEnumerable<Process> processes, out string message)
+        {
+            IProcessCameraConfigurationValidator validator = CameraConfigurationValidator ?? new ProcessCameraConfigurationValidator();
+            IReadOnlyList<ProcessCameraConfigurationError> errors = validator.Validate(processes);
+            if (errors.Count == 0)
+            {
+                message = string.Empty;
+                return true;
+            }
+
+            message = "以下流程的相机触发配置有误，已停止运行：\r\n\r\n" +
+                string.Join("\r\n", errors.Select(error => error.ToDisplayText()));
+            return false;
         }
 
         /// <summary>

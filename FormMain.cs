@@ -928,6 +928,9 @@ namespace TDJS_Vision
 
         private async void 循环运行ToolStripMenuItem_Click(object value1, object value2)
         {
+            if (!ValidateCameraConfigurationBeforeRun())
+                return;
+
             await FormGlobalSignal.SendGlobalSignals(this, true);
             FormGlobalSignal.StartListenSignals();
             SetRunStatus(true);
@@ -944,6 +947,9 @@ namespace TDJS_Vision
 
         private async void 单次运行ToolStripMenuItem_Click(object value1, object value2)
         {
+            if (!ValidateCameraConfigurationBeforeRun())
+                return;
+
             await FormGlobalSignal.SendGlobalSignals(this, true);
             FormGlobalSignal.StartListenSignals();
             SetRunStatus(true);
@@ -957,6 +963,20 @@ namespace TDJS_Vision
                 SetRunStatus(false);
             }
             await FormGlobalSignal.SendGlobalSignals(this, false);
+        }
+
+        /// <summary>
+        /// 校验方案内所有流程的硬触发图像源配置，并在错误时显示汇总提示。
+        /// </summary>
+        /// <returns>方案允许启动时返回 true。</returns>
+        private bool ValidateCameraConfigurationBeforeRun()
+        {
+            string message;
+            if (Solution.Instance.TryValidateCameraConfiguration(Solution.Instance.AllProcesses, out message))
+                return true;
+
+            MessageBoxTD.Show(message, "相机触发配置错误", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
         }
 
         /// <summary>

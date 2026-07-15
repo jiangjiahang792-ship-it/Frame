@@ -2039,4 +2039,11 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
   - [x] 已同步清理只属于旧专用线程架构的诊断测试标记；`CameraFrameAwaiter.Tests.ps1`、`DiagnosticLazyEvaluation.Tests.ps1`、`DiagnosticLogLevel.Tests.ps1` 均通过，阶段性 `Debug|x64` 编译为 180 个既有警告、0 个错误。
   - [x] 图像源参数界面已在 `.Designer.cs` 中删除 `Off/On` 触发模式控件并回收布局行；保存和应用相机参数固定为 `TriggerModel.On`，旧 `Off` 参数加载时自动迁移并保留原触发源。
   - [x] 图像源相机回调订阅已改为只依赖有效相机参数，不再依赖流程菜单开关；专项测试已推进到缺少硬触发配置校验器的下一预期失败点，阶段性编译为 180 个既有警告、0 个错误。
-- [ ] 完成专项测试、相关回归测试与 `Debug|x64` 编译验证。
+  - [x] 已新增可替换的流程相机配置校验器；新画布按实际上游连线校验，旧流程按节点顺序兼容校验，硬触发图像源存在有效上游节点时生成包含流程名和节点信息的中文错误。
+  - [x] 流程编辑页和主窗体的单次、循环入口均在发送启动信号及切换运行状态前校验；底层 `Solution.Run` 同时保留日志型安全校验，避免其他调用入口绕过规则。
+  - [x] 单次与循环运行均统一启动相机图像源回调取流并在退出时停止本轮启动的相机；软触发只由运行到 `NodeImageSource` 时调用一次 `GrabOne()`，删除方案层重复软触发逻辑。
+  - [x] 已从 `ProcessEditPanel.Designer.cs` 删除“是否为相机回调触发流程”菜单及代码绑定；运行时不再依赖旧兼容标志，旧方案字段仅保留反序列化兼容。
+  - [x] 点击停止通过运行取消令牌解除图像源回调等待；运行方法的 `finally` 停止本轮启动的相机，等待器拒绝并释放停止后的迟到帧。
+- [x] 完成专项测试、相关回归测试与 `Debug|x64` 编译验证。
+  - [x] `CameraFrameAwaiter.Tests.ps1`、`CameraImageSourceUnifiedCallback.Tests.ps1`、`CameraCallbackFastPath.Tests.ps1`、`DiagnosticLazyEvaluation.Tests.ps1`、`DiagnosticLogLevel.Tests.ps1`、`SolutionResourceRelease.Tests.ps1` 均通过。
+  - [x] `git diff --check` 通过；MSBuild `Debug|x64` 编译通过，180 个既有警告、0 个错误。

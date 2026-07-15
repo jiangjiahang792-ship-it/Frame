@@ -169,10 +169,6 @@ namespace TDJS_Vision.Forms.ProcessNew
                     {
                         item.Checked = processConfig.IsPassiveTriggered;
                     }
-                    if ("是否为相机回调触发流程ToolStripMenuItem" == item.Name)
-                    {
-                        item.Checked = processConfig.IsCameraCallbackTriggered;
-                    }
                 }
                 _process.RunLv = processConfig.Level;
                 _process.Group = processConfig.Group;
@@ -265,7 +261,6 @@ namespace TDJS_Vision.Forms.ProcessNew
             LanguageManager.Bind(流程重命名ToolStripMenuItem, "ProcessNew.RenameProcess");
             LanguageManager.Bind(是否输出日志ToolStripMenuItem, "ProcessNew.OutputLog");
             LanguageManager.Bind(是否为触发流程ToolStripMenuItem, "ProcessNew.PassiveTriggeredProcess");
-            LanguageManager.Bind(是否为相机回调触发流程ToolStripMenuItem, "ProcessNew.CameraCallbackTriggeredProcess");
             ApplyLanguage();
         }
 
@@ -283,7 +278,6 @@ namespace TDJS_Vision.Forms.ProcessNew
             LanguageManager.ApplyToolStripItem(流程重命名ToolStripMenuItem);
             LanguageManager.ApplyToolStripItem(是否输出日志ToolStripMenuItem);
             LanguageManager.ApplyToolStripItem(是否为触发流程ToolStripMenuItem);
-            LanguageManager.ApplyToolStripItem(是否为相机回调触发流程ToolStripMenuItem);
             buttonClean.Text = string.Empty;
             buttonRun.Text = string.Empty;
             buttonLoop.Text = string.Empty;
@@ -992,11 +986,16 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (_isLoopRunRequested)
                 return;
 
+            if (!ValidateCameraConfigurationBeforeRun())
+                return;
+
             bool listenStarted = false;
+            List<ICamera> startedCallbackCameras = null;
             try
             {
                 // 重置运行取消令牌
                 Solution.Instance.ResetTokenSource();
+                startedCallbackCameras = Solution.Instance.StartCameraCallbackGrabbingForProcess(_process);
                 FormGlobalSignal.StartListenSignals();
                 listenStarted = true;
                 _process.IsHandRun = true;
@@ -1005,6 +1004,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             catch (Exception) { }
             finally
             {
+                Solution.Instance.StopStartedCameraCallbackGrabbing(startedCallbackCameras);
                 _process.IsHandRun = false;
                 if (listenStarted)
                     FormGlobalSignal.StopListenSignals();
@@ -1019,6 +1019,9 @@ namespace TDJS_Vision.Forms.ProcessNew
         private async void buttonLoop_Click(object sender, EventArgs e)
         {
             if (_isLoopRunRequested)
+                return;
+
+            if (!ValidateCameraConfigurationBeforeRun())
                 return;
 
             _isLoopRunRequested = true;
@@ -1036,22 +1039,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
                 FormGlobalSignal.StartListenSignals();
                 listenStarted = true;
-
-                // 相机回调触发流程由图像源节点的相机帧事件启动，这里只保持运行态和相机取流。
-                if (_process.IsCameraCallbackTriggered)
-                {
-                    _process.IsHandRun = true;
-                    startedCallbackCameras = Solution.Instance.StartCameraCallbackGrabbingForProcess(_process);
-                    while (!Solution.Instance.CancellationToken.IsCancellationRequested)
-                    {
-                        // 软触发相机没有外部触发信号时，需要按循环间隔主动发出一次采图命令。
-                        Solution.Instance.TriggerSoftCameraCallbacksForProcess(_process);
-                        int interval = Math.Max(1, Solution.Instance.RunInterval);
-                        await System.Threading.Tasks.Task.Delay(interval, Solution.Instance.CancellationToken);
-                    }
-
-                    return;
-                }
+                startedCallbackCameras = Solution.Instance.StartCameraCallbackGrabbingForProcess(_process);
 
                 while (!Solution.Instance.CancellationToken.IsCancellationRequested)
                 {
@@ -1080,6 +1068,20 @@ namespace TDJS_Vision.Forms.ProcessNew
                 buttonStop.Enabled = false;
                 RefreshRuntimeCanvasState();
             }
+        }
+
+        /// <summary>
+        /// 校验当前流程的硬触发图像源是否错误地配置了上游节点。
+        /// </summary>
+        /// <returns>当前流程允许启动时返回 true。</returns>
+        private bool ValidateCameraConfigurationBeforeRun()
+        {
+            string message;
+            if (Solution.Instance.TryValidateCameraConfiguration(new[] { _process }, out message))
+                return true;
+
+            MessageBoxTD.Show(message, "相机触发配置错误", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
         }
 
         /// <summary>
@@ -1188,7 +1190,6 @@ namespace TDJS_Vision.Forms.ProcessNew
             是否启用流程ToolStripMenuItem.Enabled = uiSwitchEnable.Enabled;
             是否输出日志ToolStripMenuItem.Checked = _process == null || _process.ShowLog;
             是否为触发流程ToolStripMenuItem.Checked = _process != null && _process.IsPassiveTriggered;
-            是否为相机回调触发流程ToolStripMenuItem.Checked = _process != null && _process.IsCameraCallbackTriggered;
         }
 
         private void 是否启用流程ToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1227,31 +1228,6 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             是否为触发流程ToolStripMenuItem.Checked = !是否为触发流程ToolStripMenuItem.Checked;
             _process.IsPassiveTriggered = 是否为触发流程ToolStripMenuItem.Checked;
-        }
-
-        /// <summary>
-        /// 设置当前流程是否由相机回调帧触发运行。
-        /// </summary>
-        private void 是否为相机回调触发流程ToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            是否为相机回调触发流程ToolStripMenuItem.Checked = !是否为相机回调触发流程ToolStripMenuItem.Checked;
-            _process.IsCameraCallbackTriggered = 是否为相机回调触发流程ToolStripMenuItem.Checked;
-            SyncImageSourceCameraCallbackBindings();
-        }
-
-        /// <summary>
-        /// 根据流程菜单开关同步所有图像源节点的相机回调订阅。
-        /// </summary>
-        private void SyncImageSourceCameraCallbackBindings()
-        {
-            if (_process == null)
-                return;
-
-            foreach (NodeBase node in _process.Nodes)
-            {
-                if (node?.ParamForm is ParamFormImageSource form)
-                    form.SyncCameraCallbackBinding();
-            }
         }
 
         /// <summary>

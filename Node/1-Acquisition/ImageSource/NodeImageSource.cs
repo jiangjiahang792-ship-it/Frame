@@ -164,7 +164,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         }
 
         /// <summary>
-        /// 节点删除时停止相机回调专用线程并释放未消费帧。
+        /// 节点删除时取消尚未完成的相机回调等待。
         /// </summary>
         private void NodeImageSource_NodeDeletedEvent(object sender, NodeBase node)
         {
@@ -175,7 +175,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         }
 
         /// <summary>
-        /// 节点释放时清理相机回调专用线程和静态事件订阅。
+        /// 节点释放时清理相机回调等待器和静态事件订阅。
         /// </summary>
         private void NodeImageSource_Disposed(object sender, EventArgs e)
         {
