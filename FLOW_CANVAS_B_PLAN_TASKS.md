@@ -2037,4 +2037,6 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
   - [x] 已新增 `ICameraFrameAwaiter` 与 `CameraFrameAwaiter`，以一次性任务完成源实现线程安全的单帧交付、流程取消和释放保护；行为测试已通过。
   - [x] `NodeImageSource` 已删除旧回调工作线程、待处理帧和回调二次启动 `Process.Run` 的入口；相机路径改为先登记等待，软触发调用一次 `GrabOne()`，收到回调后在同一轮流程继续下游。
   - [x] 已同步清理只属于旧专用线程架构的诊断测试标记；`CameraFrameAwaiter.Tests.ps1`、`DiagnosticLazyEvaluation.Tests.ps1`、`DiagnosticLogLevel.Tests.ps1` 均通过，阶段性 `Debug|x64` 编译为 180 个既有警告、0 个错误。
+  - [x] 图像源参数界面已在 `.Designer.cs` 中删除 `Off/On` 触发模式控件并回收布局行；保存和应用相机参数固定为 `TriggerModel.On`，旧 `Off` 参数加载时自动迁移并保留原触发源。
+  - [x] 图像源相机回调订阅已改为只依赖有效相机参数，不再依赖流程菜单开关；专项测试已推进到缺少硬触发配置校验器的下一预期失败点，阶段性编译为 180 个既有警告、0 个错误。
 - [ ] 完成专项测试、相关回归测试与 `Debug|x64` 编译验证。

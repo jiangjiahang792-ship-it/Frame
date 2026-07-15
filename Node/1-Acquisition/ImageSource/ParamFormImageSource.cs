@@ -99,6 +99,16 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 }
                 else if (param.ImageSource == "相机")
                 {
+                    // 旧方案可能保存了连续取流模式；新版本统一迁移为回调触发模式。
+                    if (param.TriggerModel == TriggerModel.Off)
+                    {
+                        param.TriggerModel = TriggerModel.On;
+                        LogHelper.AddLog(
+                            MsgLevel.Info,
+                            $"流程【{_imageSourceNode?.Process?.ProcessName}】图像源节点({_imageSourceNode?.ID}.{_imageSourceNode?.NodeName})的旧触发模式 Off 已迁移为 On。",
+                            true);
+                    }
+
                     // 还原选中的相机 
                     comboBoxChoiceCamera.Items.Clear();
                     comboBoxChoiceCamera.Items.Add("[未设置]");
@@ -108,8 +118,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     }
                     int index = comboBoxChoiceCamera.Items.IndexOf(param.CameraName);
                     comboBoxChoiceCamera.SelectedIndex = index == -1 ? 0 : index;
-                    // 还原选中的模式
-                    CamerModelComboBox.Text = param.TriggerModel.ToString();
                     // 还原选中的触发源
                     comboBoxTriggerMode.Text = GetTriggerSourceDisplayText(param.TriggerSource);
                     // 硬触发沿
@@ -130,12 +138,12 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                             param.Camera = camera;
                             // 不是频闪应用可以在参数界面只设置一次,是频闪的话相机需要在节点运行时每次设置
                             if (!param.IsEveryTime)
-                                SetCameraParams(param.Camera, param.TriggerModel, param.TriggerSource, param.TriggerEdge, param.TriggerDelay
+                                SetCameraParams(param.Camera, TriggerModel.On, param.TriggerSource, param.TriggerEdge, param.TriggerDelay
                                     , param.ExposureTime, param.Gain, param.TimeOut);
                         }
                     }
 
-                    // 按流程菜单开关同步回调订阅，未启用相机回调触发流程时保持注销状态。
+                    // 相机图像源统一使用回调取图，不再依赖流程菜单开关。
                     SyncCameraCallbackBinding();
                 }
                 else if (param.ImageSource == "共享变量")
@@ -147,12 +155,12 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         }
 
         /// <summary>
-        /// 按流程菜单开关同步当前图像源节点的相机回调订阅。
+        /// 根据当前有效相机参数同步图像源节点的回调订阅。
         /// </summary>
         public void SyncCameraCallbackBinding()
         {
             ICamera camera = GetCallbackCameraFromParams();
-            if (!IsCameraCallbackMenuEnabled() || camera == null)
+            if (camera == null)
             {
                 UnbindCameraCallback();
                 return;
@@ -170,16 +178,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 return param.Camera;
 
             return null;
-        }
-
-        /// <summary>
-        /// 判断流程菜单是否启用了相机回调触发流程。
-        /// </summary>
-        private bool IsCameraCallbackMenuEnabled()
-        {
-            return _imageSourceNode != null &&
-                _imageSourceNode.Process != null &&
-                _imageSourceNode.Process.IsCameraCallbackTriggered;
         }
 
         /// <summary>
@@ -532,16 +530,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 // 保存相机名称参与序列化
                 _nodeParamImageSource.CameraName = comboBoxChoiceCamera.Text;
 
-                //设置相机
-                switch (CamerModelComboBox.Text)
-                {
-                    case "Off":
-                        _nodeParamImageSource.TriggerModel = TriggerModel.Off;
-                        break;
-                    case "On":
-                        _nodeParamImageSource.TriggerModel = TriggerModel.On;
-                        break;
-                }
+                // 相机图像源统一使用回调触发模式。
+                _nodeParamImageSource.TriggerModel = TriggerModel.On;
 
                 _nodeParamImageSource.TriggerSource = ParseTriggerSourceText(comboBoxTriggerMode.Text);
 
@@ -579,7 +569,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
                 // 不是频闪应用可以在参数界面只设置一次,是频闪的话相机需要在节点运行时每次设置
                 if (!_nodeParamImageSource.IsEveryTime)
-                    SetCameraParams(_nodeParamImageSource.Camera, _nodeParamImageSource.TriggerModel, _nodeParamImageSource.TriggerSource, _nodeParamImageSource.TriggerEdge, _nodeParamImageSource.TriggerDelay
+                    SetCameraParams(_nodeParamImageSource.Camera, TriggerModel.On, _nodeParamImageSource.TriggerSource, _nodeParamImageSource.TriggerEdge, _nodeParamImageSource.TriggerDelay
                         , _nodeParamImageSource.ExposureTime, _nodeParamImageSource.Gain, _nodeParamImageSource.TimeOut);
 
             }
@@ -675,19 +665,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 InitCameraList();
         }
 
-        private void CamerModelComboBox_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            // 软触发
-            if (0 == CamerModelComboBox.SelectedIndex)
-            {
-                comboBoxTriggerMode.Enabled = false;
-                comboBoxTriggerEdge.Enabled = false;
-            }
-            else {
-                comboBoxTriggerMode.Enabled = true;
-                comboBoxTriggerEdge.Enabled = true;
-            }
-        }
     }
 
     /// <summary>
