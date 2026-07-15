@@ -72,6 +72,7 @@ using TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2;
 using TDJS_Vision.Node._7_ResultProcessing.ResultSummarize;
 using TDJS_Vision.Node._8_GeometryCreation.LineMergeFit;
 using TDJS_Vision.Forms.GlobalSignalSettings;
+using TDJS_Vision.Startup;
 using static OpenCvSharp.ML.DTrees;
 using static TDJS_Vision.Forms.ProcessNew.FormNewProcessWizard;
 
@@ -123,8 +124,17 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// <summary>
         /// 流程编辑面板构造函数
         /// </summary>
-        /// <param name="processName"></param>
-        public ProcessEditPanel(string processName, bool showInfo = true, ProcessConfig processConfig = null)
+        /// <param name="processName">流程名称。</param>
+        /// <param name="showInfo">是否记录详细加载日志。</param>
+        /// <param name="processConfig">需要恢复的流程配置。</param>
+        /// <param name="startupNodeOffset">当前流程之前已经恢复的节点数量。</param>
+        /// <param name="startupNodeTotal">本次方案需要恢复的节点总数。</param>
+        public ProcessEditPanel(
+            string processName,
+            bool showInfo = true,
+            ProcessConfig processConfig = null,
+            int startupNodeOffset = 0,
+            int startupNodeTotal = 0)
         {
             InitializeComponent();
             ConfigureCommandButtons();
@@ -171,7 +181,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 if(showInfo)
                     LogHelper.AddLog(MsgLevel.Debug, LanguageManager.Format("ProcessNew.LoadingProcess", _process.ProcessName), true);
                 // 阻塞UI去创建流程
-                CreateProcess(processConfig, showInfo);
+                CreateProcess(processConfig, showInfo, startupNodeOffset, startupNodeTotal);
                 SetProcessEnable(processConfig.Enable, true, false);
                 if(showInfo)
                     LogHelper.AddLog(MsgLevel.Debug, LanguageManager.Format("ProcessNew.ProcessLoaded", _process.ProcessName), true);
@@ -524,12 +534,33 @@ namespace TDJS_Vision.Forms.ProcessNew
                 }
             }
         }
-        private void CreateProcess(ProcessConfig processConfig, bool showInfo)
+        /// <summary>
+        /// 根据配置恢复流程节点、参数和画布连接。
+        /// </summary>
+        /// <param name="processConfig">流程配置。</param>
+        /// <param name="showInfo">是否记录详细加载日志。</param>
+        /// <param name="startupNodeOffset">当前流程之前已经恢复的节点数量。</param>
+        /// <param name="startupNodeTotal">本次方案需要恢复的节点总数。</param>
+        private void CreateProcess(
+            ProcessConfig processConfig,
+            bool showInfo,
+            int startupNodeOffset,
+            int startupNodeTotal)
         {
             _process.HasCanvasGraph = processConfig.HasCanvasGraph;
             int nodeIndex = 0;
+            int progressNodeIndex = 0;
             foreach (var nodeInfo in processConfig.NodeInfos)
             {
+                progressNodeIndex++;
+                StartupProgressContext.ReportItem(
+                    "正在恢复流程节点",
+                    $"{_process.ProcessName} / {nodeInfo.NodeName}",
+                    startupNodeOffset + progressNodeIndex,
+                    startupNodeTotal,
+                    86,
+                    95);
+
                 NodeBase nodeBase = null;
                 try
                 {
@@ -559,9 +590,16 @@ namespace TDJS_Vision.Forms.ProcessNew
                 }
                 catch (Exception ex)
                 {
-                    MessageBoxTD.Show(ex.Message, LanguageManager.T("Common.Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    if(showInfo)
-                        LogHelper.AddLog(MsgLevel.Exception, LanguageManager.Format("ProcessNew.NodeLoadFailed", nodeInfo.ID, nodeInfo.NodeName, ex.Message), true);
+                    var nodeLoadException = new InvalidOperationException(
+                        $"流程“{_process.ProcessName}”的节点“{nodeInfo.NodeName}”恢复失败。",
+                        ex);
+                    if (StartupProgressContext.IsActive)
+                        StartupProgressContext.ReportFailure("恢复流程节点", nodeLoadException);
+
+                    LogHelper.AddLog(
+                        MsgLevel.Exception,
+                        LanguageManager.Format("ProcessNew.NodeLoadFailed", nodeInfo.ID, nodeInfo.NodeName, ex.Message),
+                        true);
                     continue;
                 }
 

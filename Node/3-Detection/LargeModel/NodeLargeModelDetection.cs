@@ -38,24 +38,6 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
         }
 
         /// <summary>
-        /// 获取自由画布节点卡片上显示的大模型运行参数。
-        /// </summary>
-        /// <returns>运行参数摘要。</returns>
-        public override string GetCanvasParameterSummary()
-        {
-            NodeParamLargeModelDetection param = ParamForm == null ? null : ParamForm.Params as NodeParamLargeModelDetection;
-            if (param == null)
-                return "未设置运行参数";
-
-            string thresholdText = param.ImageThreshold <= 0F
-                ? "自动"
-                : param.ImageThreshold.ToString("0.####", CultureInfo.InvariantCulture);
-            string areaText = param.AreaThreshold.ToString(CultureInfo.InvariantCulture);
-            string maxBoxesText = param.MaxBoxes.ToString(CultureInfo.InvariantCulture);
-            return string.Format(CultureInfo.InvariantCulture, "阈值:{0} 面积:{1} 框:{2}", thresholdText, areaText, maxBoxesText);
-        }
-
-        /// <summary>
         /// 节点运行。
         /// </summary>
         /// <param name="token">取消令牌。</param>

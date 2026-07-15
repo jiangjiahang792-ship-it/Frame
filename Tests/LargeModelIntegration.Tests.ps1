@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
 $csprojPath = Join-Path $root "TDJS-Vision.csproj"
@@ -106,7 +106,7 @@ Assert-Contains $formMainDesigner 'this.toolStripMenuItem3.Click += new System.E
 Assert-Contains $formMain 'private LargeModelTrainForm largeModelTrainForm;' "FormMain must keep the large-model training form field."
 Assert-Contains $formMain 'private void LargeModelTrainToolStripMenuItem_Click(object sender, EventArgs e)' "FormMain missing large-model train menu handler."
 Assert-Contains $formMain 'using (var form = new LargeModelTrainForm())' "Large-model training form must be created per open."
-Assert-Contains $formMain 'ShowOwnedMaximizedDialog(form);' "Large-model training form must use owned maximized dialog."
+Assert-Contains $formMain 'exclusiveWorkspacePresenter.ShowDialog(this, form);' "大模型训练窗口必须使用独占工作区显示接口。"
 
 Assert-Contains $bootstrapper 'Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "LargeModelDll")' "Large-model runtime must be isolated under LargeModelDll."
 Assert-Contains $bootstrapper '"Dinov2AD.dll"' "Runtime check must include Dinov2AD.dll."
@@ -192,10 +192,10 @@ Assert-Contains $param "TemplatePath" "Large-model params must save the template
 Assert-Contains $param "ImageThreshold" "Large-model params must save the image threshold."
 Assert-Contains $param "AreaThreshold" "Large-model params must save the area threshold."
 Assert-Contains $param "DefaultImageThreshold = 0F" "Default image threshold must use the bank threshold."
-Assert-Contains $node "public override string GetCanvasParameterSummary()" "Large-model node must display runtime parameters on the canvas node."
-Assert-Contains $node $summaryThresholdText "Large-model node summary must include image threshold."
-Assert-Contains $node $summaryAreaText "Large-model node summary must include area threshold."
-Assert-Contains $node $summaryBoxesText "Large-model node summary must include max boxes."
+Assert-NotContains $node "public override string GetCanvasParameterSummary()" "大模型调用节点不应在画布显示运行参数摘要。"
+Assert-NotContains $node $summaryThresholdText "大模型调用节点不应显示阈值摘要。"
+Assert-NotContains $node $summaryAreaText "大模型调用节点不应显示面积摘要。"
+Assert-NotContains $node $summaryBoxesText "大模型调用节点不应显示框数摘要。"
 Assert-Contains $result ('[DisplayName("' + $largeModelOutputText + '")]') "Large-model result must use Simplified Chinese display name."
 Assert-Contains $node "LargeModelDetectionRuntime" "Large-model node must use the isolated runtime."
 Assert-Contains $node "AlgorithmResult" "Large-model node must publish AlgorithmResult."

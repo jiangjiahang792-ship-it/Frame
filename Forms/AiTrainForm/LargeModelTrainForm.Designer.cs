@@ -43,8 +43,6 @@
             this.labelImageFolder = new System.Windows.Forms.Label();
             this.tableLayoutPanelCheckBody = new System.Windows.Forms.TableLayoutPanel();
             this.panelCategory = new System.Windows.Forms.Panel();
-            this.buttonSetSelectedNg = new System.Windows.Forms.Button();
-            this.buttonSetSelectedOk = new System.Windows.Forms.Button();
             this.buttonFilterNg = new System.Windows.Forms.Button();
             this.buttonFilterOk = new System.Windows.Forms.Button();
             this.buttonFilterAll = new System.Windows.Forms.Button();
@@ -58,6 +56,8 @@
             this.buttonClearRoi = new System.Windows.Forms.Button();
             this.imageROIEditControlPreview = new TDJS_Vision.Forms.ShapeDraw.ImageROIEditControl();
             this.panelCheckStatus = new System.Windows.Forms.Panel();
+            this.buttonSetSelectedOk = new System.Windows.Forms.Button();
+            this.buttonSetSelectedNg = new System.Windows.Forms.Button();
             this.labelRoiStatus = new System.Windows.Forms.Label();
             this.labelImageCount = new System.Windows.Forms.Label();
             this.tabPageTraining = new System.Windows.Forms.TabPage();
@@ -294,30 +294,6 @@
             this.panelCategory.Size = new System.Drawing.Size(194, 528);
             this.panelCategory.TabIndex = 0;
             // 
-            // buttonSetSelectedNg
-            // 
-            this.buttonSetSelectedNg.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.buttonSetSelectedNg.Font = new System.Drawing.Font("Microsoft YaHei UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.buttonSetSelectedNg.Location = new System.Drawing.Point(1017, 3);
-            this.buttonSetSelectedNg.Name = "buttonSetSelectedNg";
-            this.buttonSetSelectedNg.Size = new System.Drawing.Size(134, 36);
-            this.buttonSetSelectedNg.TabIndex = 5;
-            this.buttonSetSelectedNg.Text = "设NG";
-            this.buttonSetSelectedNg.UseVisualStyleBackColor = true;
-            this.buttonSetSelectedNg.Click += new System.EventHandler(this.buttonSetSelectedNg_Click);
-            // 
-            // buttonSetSelectedOk
-            // 
-            this.buttonSetSelectedOk.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.buttonSetSelectedOk.Font = new System.Drawing.Font("Microsoft YaHei UI", 9F);
-            this.buttonSetSelectedOk.Location = new System.Drawing.Point(877, 3);
-            this.buttonSetSelectedOk.Name = "buttonSetSelectedOk";
-            this.buttonSetSelectedOk.Size = new System.Drawing.Size(134, 36);
-            this.buttonSetSelectedOk.TabIndex = 4;
-            this.buttonSetSelectedOk.Text = "设OK";
-            this.buttonSetSelectedOk.UseVisualStyleBackColor = true;
-            this.buttonSetSelectedOk.Click += new System.EventHandler(this.buttonSetSelectedOk_Click);
-            // 
             // buttonFilterNg
             // 
             this.buttonFilterNg.Location = new System.Drawing.Point(11, 182);
@@ -472,6 +448,30 @@
             this.panelCheckStatus.Size = new System.Drawing.Size(1154, 42);
             this.panelCheckStatus.TabIndex = 2;
             // 
+            // buttonSetSelectedOk
+            // 
+            this.buttonSetSelectedOk.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.buttonSetSelectedOk.Font = new System.Drawing.Font("Microsoft YaHei UI", 9F);
+            this.buttonSetSelectedOk.Location = new System.Drawing.Point(877, 3);
+            this.buttonSetSelectedOk.Name = "buttonSetSelectedOk";
+            this.buttonSetSelectedOk.Size = new System.Drawing.Size(134, 36);
+            this.buttonSetSelectedOk.TabIndex = 4;
+            this.buttonSetSelectedOk.Text = "设OK";
+            this.buttonSetSelectedOk.UseVisualStyleBackColor = true;
+            this.buttonSetSelectedOk.Click += new System.EventHandler(this.buttonSetSelectedOk_Click);
+            // 
+            // buttonSetSelectedNg
+            // 
+            this.buttonSetSelectedNg.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.buttonSetSelectedNg.Font = new System.Drawing.Font("Microsoft YaHei UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.buttonSetSelectedNg.Location = new System.Drawing.Point(1017, 3);
+            this.buttonSetSelectedNg.Name = "buttonSetSelectedNg";
+            this.buttonSetSelectedNg.Size = new System.Drawing.Size(134, 36);
+            this.buttonSetSelectedNg.TabIndex = 5;
+            this.buttonSetSelectedNg.Text = "设NG";
+            this.buttonSetSelectedNg.UseVisualStyleBackColor = true;
+            this.buttonSetSelectedNg.Click += new System.EventHandler(this.buttonSetSelectedNg_Click);
+            // 
             // labelRoiStatus
             // 
             this.labelRoiStatus.AutoSize = true;
@@ -579,7 +579,7 @@
             this.comboBoxModelType.Items.AddRange(new object[] {
             "fp16",
             "fp32"});
-            this.comboBoxModelType.Location = new System.Drawing.Point(123, 8);
+            this.comboBoxModelType.Location = new System.Drawing.Point(123, 3);
             this.comboBoxModelType.Name = "comboBoxModelType";
             this.comboBoxModelType.Size = new System.Drawing.Size(278, 39);
             this.comboBoxModelType.TabIndex = 1;
@@ -612,11 +612,6 @@
             this.numericUpDownThreshold.Name = "numericUpDownThreshold";
             this.numericUpDownThreshold.Size = new System.Drawing.Size(160, 38);
             this.numericUpDownThreshold.TabIndex = 3;
-            this.numericUpDownThreshold.Value = new decimal(new int[] {
-            0,
-            0,
-            0,
-            0});
             // 
             // labelMiniArea
             // 
@@ -740,7 +735,7 @@
             this.comboBoxDevice.Items.AddRange(new object[] {
             "GPU",
             "CPU"});
-            this.comboBoxDevice.Location = new System.Drawing.Point(123, 218);
+            this.comboBoxDevice.Location = new System.Drawing.Point(123, 213);
             this.comboBoxDevice.Name = "comboBoxDevice";
             this.comboBoxDevice.Size = new System.Drawing.Size(278, 39);
             this.comboBoxDevice.TabIndex = 11;

@@ -1984,3 +1984,40 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 正常启动流程抽成 `RunApplication(args)`，保留 `.Sol` 参数打开方案的既有行为。
 - [x] 新增 `ProgramSingleInstance.Tests.ps1` 回归检查，覆盖互斥锁名称、抢锁顺序、重复启动提示、废弃互斥锁接管和释放约束。
 - [x] 验证记录：`ProgramSingleInstance.Tests.ps1`、`ImageSaveMultiConditionSubscription.Tests.ps1`、`git diff --check` 均通过；MSBuild `Debug|x64` 通过，183 个既有警告、0 个错误。
+
+## 2026-07-13: 主窗体授权程序启动
+
+- [x] `FormMain` 的“授权”菜单点击后从软件运行目录启动 `activate.exe`，不依赖当前工作目录且不等待子进程退出。
+- [x] 新增可插拔 `IExternalProgramLauncher` 接口及默认 `ExternalProgramLauncher` 实现，窗体只负责路径、存在性检查和界面反馈。
+- [x] `activate.exe` 不存在或启动失败时显示简体中文错误提示，避免异常终止主程序。
+- [x] “授权”菜单点击事件在 `FormMain.Designer.cs` 中绑定，控件继续可在 WinForm 设计器中查看。
+- [x] 新增 `FormMainAuthorizationMenu.Tests.ps1` 回归测试，覆盖事件绑定、运行目录路径、中文错误提示和启动器实现约束。
+- [x] 验证记录：`FormMainAuthorizationMenu.Tests.ps1`、`FormMainUnsupervisedMenu.Tests.ps1` 和 `git diff --check` 均通过；MSBuild `Debug|x64` 通过，183 个既有警告、0 个错误。
+## 2026-07-14: 框架代码分布与新增节点开发交接文档
+
+- [x] 基于当前源码梳理 `Program → FormMain → Solution → Process → NodeBase` 的启动、方案、流程和节点运行链路。
+- [x] 梳理根目录、`Node`、`Forms`、`Device`、语言资源、第三方依赖、测试和交付文件的职责边界。
+- [x] 核实工具箱拖拽、普通流程节点创建、组合模块节点工厂、画布、订阅、方案保存加载、复制粘贴和资源释放链路。
+- [x] 对比 `NodeType`、`ToolTreeView.xml`、`NodeFactory` 和 `ProcessEditPanel`：当前共 73 个枚举值、64 个工具箱叶节点、两套各 67 个创建映射，两套映射一致。
+- [x] 输出 `docs/TDJS-Vision框架代码分布与新增节点开发交接文档.md`，包含新增节点的文件骨架、两套注册点、Designer 约束、`.csproj`、多语言、序列化兼容、性能、测试门禁和常见故障定位。
+- [x] 本任务未修改业务源代码、窗体设计器和测试代码，只新增交接文档、实施计划并追加本任务记录。
+- [x] 验证结果：主文档共 821 行、14 个一级章节和 23 项交付检查项；UTF-8 读取无替换字符，16 个关键源码路径全部存在，必需注册点均有覆盖，无占位词、无尾随空白，Markdown 代码围栏成对，`git diff --check` 返回 0。
+
+## 2026-07-14: 输出 Word 版开发交接文档
+
+- [x] 将框架代码分布与新增节点开发交接内容排版为 Word 文档，输出到 `outputs/TDJS-Vision框架代码分布与新增节点开发交接文档.docx`。
+- [x] Word 文档包含封面、自动目录、14 个一级章节、核心架构与数据流图、代码分布表、新增节点 14 步流程、故障定位表、开发提交检查表和推荐阅读顺序。
+- [x] 文档采用 Letter 页面、1 英寸页边距、统一蓝灰色技术手册样式、中文字体、页码、页眉分隔线、固定表格列宽、重复表头、代码块和检查框。
+- [x] 修正 Word 更新域后独立编号列表串号的问题，各开发步骤列表按源文档从 1 开始；项目符号列表保持项目符号语义。
+- [x] 为核心架构图补充“TDJS-Vision 核心架构与数据流”替代文本；所有数据表首行均标记为重复表头，封面键值信息表保留非表头语义。
+- [x] 使用 Microsoft Word 导出并逐页检查 28 页最终版，确认封面、目录、架构图、表格分页、代码块、编号、检查表和页码无截断、重叠或乱码。
+- [x] 结构审计结果：1 个纵向章节，页面与页边距正确；1 张内嵌图片；12 张表格的总宽、缩进、网格列和单元格宽度一致；标题样式为 15 个一级标题和 40 个二级标题；可访问性高风险为 0。
+- [x] 本任务未修改业务源代码、窗体设计器和测试代码，只新增 Word 交付文档并追加任务记录。
+
+## 2026-07-15: 统一检测节点画布高度
+
+- [x] 删除无监督检测节点和大模型调用节点底部的阈值、批次、面积及最大框数参数摘要。
+- [x] 两类节点继承画布参数摘要的空默认实现，不再触发节点高度提高到 84，恢复为与其他普通节点一致的默认高度。
+- [x] 保留画布通用参数摘要绘制与高度计算能力，避免影响其他节点及后续可插拔扩展。
+- [x] 更新无监督检测与大模型集成专项检查，覆盖两个节点不再重写画布参数摘要的行为。
+- [x] 验证记录：`UnsupervisedDetectionNode.Tests.ps1` 和 `LargeModelIntegration.Tests.ps1` 均通过；MSBuild `Debug|x64` 编译通过，182 个既有警告、0 个错误。

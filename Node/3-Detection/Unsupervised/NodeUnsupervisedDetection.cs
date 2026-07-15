@@ -38,25 +38,6 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         }
 
         /// <summary>
-        /// 获取自由画布节点卡片上显示的无监督运行参数。
-        /// </summary>
-        /// <returns>运行参数摘要。</returns>
-        public override string GetCanvasParameterSummary()
-        {
-            NodeParamUnsupervisedDetection param = ParamForm == null ? null : ParamForm.Params as NodeParamUnsupervisedDetection;
-            if (param == null)
-                return "未设置运行参数";
-
-            string batchText = param.InferenceBatchSize <= 0
-                ? "模板"
-                : param.InferenceBatchSize.ToString(CultureInfo.InvariantCulture);
-            string thresholdText = param.Threshold.ToString("0.####", CultureInfo.InvariantCulture);
-            string areaText = param.MiniArea.ToString("0.####", CultureInfo.InvariantCulture);
-            string maxBoxesText = param.MaxBoxes.ToString(CultureInfo.InvariantCulture);
-            return string.Format(CultureInfo.InvariantCulture, "阈值:{0} 批次:{1} 面积:{2} 框:{3}", thresholdText, batchText, areaText, maxBoxesText);
-        }
-
-        /// <summary>
         /// 节点运行。
         /// </summary>
         /// <param name="token">取消令牌。</param>

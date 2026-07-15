@@ -7,6 +7,7 @@ using System.Diagnostics;
 using TDJS_Vision.Forms.LightAdd;
 using System.Linq;
 using TDJS_Vision.Forms.YTMessageBox;
+using TDJS_Vision.Startup;
 
 namespace TDJS_Vision.Forms.CameraAdd
 {
@@ -56,8 +57,15 @@ namespace TDJS_Vision.Forms.CameraAdd
                 // 添加新的相机
                 if (e)
                     LogHelper.AddLog(MsgLevel.Debug, $"================================================= 正在加载【相机设备列表】=================================================", true);
-                foreach (var dev in ConfigHelper.SolConfig.Devices)
+                var cameras = ConfigHelper.SolConfig.Devices
+                    .Where(dev => dev is I3DCamera || dev is ICamera)
+                    .ToList();
+                if (cameras.Count == 0)
+                    StartupProgressContext.ReportItem("正在恢复相机设备", "没有需要恢复的相机", 0, 0, 43, 55);
+                for (int index = 0; index < cameras.Count; index++)
                 {
+                    var dev = cameras[index];
+                    StartupProgressContext.ReportItem("正在恢复相机设备", dev.DevName, index + 1, cameras.Count, 43, 55);
                     if (dev is I3DCamera camera3D)
                     {
                         camera3D.CreateDevice(); // 创建 3D 相机，必要的
@@ -84,7 +92,11 @@ namespace TDJS_Vision.Forms.CameraAdd
                     LogHelper.AddLog(MsgLevel.Debug, $"================================================【相机设备列表】已加载完成 ================================================", true);
 
             }
-            catch (Exception) { }
+            catch (Exception ex)
+            {
+                StartupProgressContext.ReportFailure("恢复相机设备", ex);
+                LogHelper.AddLog(MsgLevel.Exception, $"恢复相机设备失败：{ex}", true);
+            }
             finally
             {
                 // 触发相机反序列化完成事件

@@ -5,6 +5,7 @@ using TDJS_Vision.Forms.PLCAdd;
 using TDJS_Vision.Device.TCP;
 using TDJS_Vision.Forms.ModbusAdd;
 using System.Linq;
+using TDJS_Vision.Startup;
 
 namespace TDJS_Vision.Forms.TCPAdd
 {
@@ -45,27 +46,32 @@ namespace TDJS_Vision.Forms.TCPAdd
                 flowLayoutPanel1.Controls.Clear();
 
                 // 添加新的TCP
-                SingleTcp singleTCP = null;
+                var tcpDevices = ConfigHelper.SolConfig.Devices.OfType<ITcpDevice>().ToList();
                 if (e)
                     LogHelper.AddLog(MsgLevel.Debug, $"================================================= 正在加载【TCP设备列表】=================================================", true);
-                foreach (var dev in ConfigHelper.SolConfig.Devices)
+                if (tcpDevices.Count == 0)
+                    StartupProgressContext.ReportItem("正在恢复TCP设备", "没有需要恢复的TCP", 0, 0, 70, 77);
+                for (int index = 0; index < tcpDevices.Count; index++)
                 {
-                    if (dev is ITcpDevice tcpDev)
-                    {
-                        tcpDev.CreateDevice(); // 创建tcpDev，必要的
-                        singleTCP = new SingleTcp(tcpDev);
-                        singleTCP.Anchor = AnchorStyles.Left;
-                        singleTCP.Anchor = AnchorStyles.Right;
-                        flowLayoutPanel1.Controls.Add(singleTCP);
-                        if (e)
-                            LogHelper.AddLog(MsgLevel.Info, $"TCP设备【{tcpDev.DevName}】已加载！", true);
-                    }
+                    ITcpDevice tcpDev = tcpDevices[index];
+                    StartupProgressContext.ReportItem("正在恢复TCP设备", tcpDev.DevName, index + 1, tcpDevices.Count, 70, 77);
+                    tcpDev.CreateDevice(); // 创建tcpDev，必要的
+                    SingleTcp singleTCP = new SingleTcp(tcpDev);
+                    singleTCP.Anchor = AnchorStyles.Left;
+                    singleTCP.Anchor = AnchorStyles.Right;
+                    flowLayoutPanel1.Controls.Add(singleTCP);
+                    if (e)
+                        LogHelper.AddLog(MsgLevel.Info, $"TCP设备【{tcpDev.DevName}】已加载！", true);
                 }
                 if (e)
                     LogHelper.AddLog(MsgLevel.Debug, $"================================================【TCP设备列表】已加载完成 ================================================", true);
 
             }
-            catch (Exception) { }
+            catch (Exception ex)
+            {
+                StartupProgressContext.ReportFailure("恢复TCP设备", ex);
+                LogHelper.AddLog(MsgLevel.Exception, $"恢复TCP设备失败：{ex}", true);
+            }
             finally
             {
                 // 触发TCP反序列化完成事件

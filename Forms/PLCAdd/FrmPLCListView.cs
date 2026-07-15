@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.CameraAdd;
 using TDJS_Vision.Device.PLC;
+using TDJS_Vision.Startup;
 
 namespace TDJS_Vision.Forms.PLCAdd
 {
@@ -43,27 +44,32 @@ namespace TDJS_Vision.Forms.PLCAdd
                 // 先移除旧方案的PLC控件
                 flowLayoutPanel1.Controls.Clear();
                 // 添加新的PLC
-                SinglePLC singlePLC = null;
+                var plcs = ConfigHelper.SolConfig.Devices.OfType<IPlc>().ToList();
                 if (e)
                     LogHelper.AddLog(MsgLevel.Debug, $"================================================= 正在加载【PLC设备列表】=================================================", true);
-                foreach (var dev in ConfigHelper.SolConfig.Devices)
+                if (plcs.Count == 0)
+                    StartupProgressContext.ReportItem("正在恢复PLC设备", "没有需要恢复的PLC", 0, 0, 55, 63);
+                for (int index = 0; index < plcs.Count; index++)
                 {
-                    if (dev is IPlc plc)
-                    {
-                        plc.CreateDevice(); // 创建PLC，必要的
-                        singlePLC = new SinglePLC(plc);
-                        singlePLC.Anchor = AnchorStyles.Left;
-                        singlePLC.Anchor = AnchorStyles.Right;
-                        flowLayoutPanel1.Controls.Add(singlePLC);
-                        if (e)
-                            LogHelper.AddLog(MsgLevel.Info, $"PLC设备【{dev.DevName}】已加载！", true);
-                    }
+                    IPlc plc = plcs[index];
+                    StartupProgressContext.ReportItem("正在恢复PLC设备", plc.DevName, index + 1, plcs.Count, 55, 63);
+                    plc.CreateDevice(); // 创建PLC，必要的
+                    SinglePLC singlePLC = new SinglePLC(plc);
+                    singlePLC.Anchor = AnchorStyles.Left;
+                    singlePLC.Anchor = AnchorStyles.Right;
+                    flowLayoutPanel1.Controls.Add(singlePLC);
+                    if (e)
+                        LogHelper.AddLog(MsgLevel.Info, $"PLC设备【{plc.DevName}】已加载！", true);
                 }
                 if (e)
                     LogHelper.AddLog(MsgLevel.Debug, $"================================================【PLC设备列表】已加载完成 ================================================", true);
 
             }
-            catch (Exception) { }
+            catch (Exception ex)
+            {
+                StartupProgressContext.ReportFailure("恢复PLC设备", ex);
+                LogHelper.AddLog(MsgLevel.Exception, $"恢复PLC设备失败：{ex}", true);
+            }
             finally
             {
                 OnPLCDeserializationCompletionEvent?.Invoke(this, e);

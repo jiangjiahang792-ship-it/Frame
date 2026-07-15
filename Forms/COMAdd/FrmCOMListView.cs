@@ -4,6 +4,8 @@ using System.Windows.Forms;
 using TDJS_Vision.Device.Light;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Device.COM;
+using System.Linq;
+using TDJS_Vision.Startup;
 
 namespace TDJS_Vision.Forms.COMAdd
 {
@@ -44,28 +46,31 @@ namespace TDJS_Vision.Forms.COMAdd
                 // 先移除旧方案的串口控件
                 flowLayoutPanel1.Controls.Clear();
                 // 添加新的串口
-                SingleCOM singleCOM = null;
+                var comDevices = ConfigHelper.SolConfig.Devices.OfType<ComDevice>().ToList();
                 if (e)
                     LogHelper.AddLog(MsgLevel.Debug, $"================================================= 正在加载【串口设备列表】=================================================", true);
-                foreach (var dev in ConfigHelper.SolConfig.Devices)
+                if (comDevices.Count == 0)
+                    StartupProgressContext.ReportItem("正在恢复串口设备", "没有需要恢复的串口", 0, 0, 77, 84);
+                for (int index = 0; index < comDevices.Count; index++)
                 {
-                    if (dev is ComDevice devCom)
-                    {
-                        devCom.CreateDevice(); // 创建串口，必要的
-                        singleCOM = new SingleCOM(devCom);
-                        singleCOM.Anchor = AnchorStyles.Left;
-                        singleCOM.Anchor = AnchorStyles.Right;
-                        flowLayoutPanel1.Controls.Add(singleCOM);
-                        if (e)
-                            LogHelper.AddLog(MsgLevel.Info, $"串口设备【{devCom.DevName}】已加载！", true);
-                    }
+                    ComDevice devCom = comDevices[index];
+                    StartupProgressContext.ReportItem("正在恢复串口设备", devCom.DevName, index + 1, comDevices.Count, 77, 84);
+                    devCom.CreateDevice(); // 创建串口，必要的
+                    SingleCOM singleCOM = new SingleCOM(devCom);
+                    singleCOM.Anchor = AnchorStyles.Left;
+                    singleCOM.Anchor = AnchorStyles.Right;
+                    flowLayoutPanel1.Controls.Add(singleCOM);
+                    if (e)
+                        LogHelper.AddLog(MsgLevel.Info, $"串口设备【{devCom.DevName}】已加载！", true);
                 }
                 if (e)
                     LogHelper.AddLog(MsgLevel.Debug, $"================================================【串口设备列表】已加载完成 ================================================", true);
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                StartupProgressContext.ReportFailure("恢复串口设备", ex);
+                LogHelper.AddLog(MsgLevel.Exception, $"恢复串口设备失败：{ex}", true);
             }
             finally
             {

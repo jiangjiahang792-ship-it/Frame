@@ -7,11 +7,13 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.COMAdd;
 using TDJS_Vision.Forms.TCPAdd;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node;
+using TDJS_Vision.Startup;
 
 namespace TDJS_Vision.Forms.ProcessNew
 {
@@ -1141,8 +1143,15 @@ namespace TDJS_Vision.Forms.ProcessNew
                 tabControl1.Controls.Clear();
 
                 // 根据加载的配置重新添加流程控件
-                foreach (var processInfo in ConfigHelper.SolConfig.ProcessInfos)
+                var processInfos = ConfigHelper.SolConfig.ProcessInfos.ToList();
+                int startupNodeTotal = processInfos.Sum(processInfo => processInfo.NodeInfos?.Count ?? 0);
+                int startupNodeOffset = 0;
+                if (processInfos.Count == 0)
+                    StartupProgressContext.ReportItem("正在恢复检测流程", "没有需要恢复的流程", 0, 0, 84, 95);
+                for (int index = 0; index < processInfos.Count; index++)
                 {
+                    var processInfo = processInfos[index];
+                    StartupProgressContext.ReportItem("正在恢复检测流程", processInfo.ProcessName, index + 1, processInfos.Count, 84, 86);
                     TabPage tabPage = new TabPage();
                     tabPage.Name = processInfo.ProcessName;
                     tabPage.Padding = new Padding(3);
@@ -1150,7 +1159,13 @@ namespace TDJS_Vision.Forms.ProcessNew
                     tabPage.Text = $"{processInfo.ID}.{processInfo.ProcessName}";
                     tabPage.UseVisualStyleBackColor = true;
 
-                    ProcessEditPanel nodeEditPanel = new ProcessEditPanel(processInfo.ProcessName, e, processInfo);
+                    ProcessEditPanel nodeEditPanel = new ProcessEditPanel(
+                        processInfo.ProcessName,
+                        e,
+                        processInfo,
+                        startupNodeOffset,
+                        startupNodeTotal);
+                    startupNodeOffset += processInfo.NodeInfos?.Count ?? 0;
                     nodeEditPanel.Dock = DockStyle.Fill;
                     tabPage.Controls.Add(nodeEditPanel);
                     tabControl1.Controls.Add(tabPage);
@@ -1158,8 +1173,10 @@ namespace TDJS_Vision.Forms.ProcessNew
 
                 LayoutProcessActionStrip();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                StartupProgressContext.ReportFailure("恢复检测流程", ex);
+                LogHelper.AddLog(MsgLevel.Exception, $"恢复检测流程失败：{ex}", true);
             }
         }
 

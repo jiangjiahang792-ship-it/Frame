@@ -11,6 +11,7 @@ using TDJS_Vision.Forms.GlobalSignalSettings;
 using TDJS_Vision.Forms.ImageViewer;
 using TDJS_Vision.Node;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Startup;
 
 namespace TDJS_Vision
 {
@@ -116,15 +117,19 @@ namespace TDJS_Vision
         {
             try
             {
+                string solutionName = Path.GetFileName(solFile);
+                StartupProgressContext.ReportItem("正在读取方案文件", solutionName, 1, 1, 30, 32);
                 string json = File.ReadAllText(solFile);
+                StartupProgressContext.ReportItem("正在解析方案配置", solutionName, 1, 1, 32, 35);
                 SolConfig = JsonConvert.DeserializeObject<SolConfig>(json);
-                SolConfig.SolName = solFile;
-
                 if (SolConfig == null)
                     throw new Exception("方案配置文件已损坏！");
 
+                SolConfig.SolName = solFile;
+
                 #region 清理旧方案设备和流程节点
 
+                StartupProgressContext.ReportStage("正在清理旧方案数据", solutionName, 35);
                 Solution.Instance.SolReset();
 
                 #endregion
@@ -147,9 +152,9 @@ namespace TDJS_Vision
                 Solution.Instance.NodeCount = SolConfig.NodeCount;
 
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                throw ex;
+                throw;
             }
         }
 

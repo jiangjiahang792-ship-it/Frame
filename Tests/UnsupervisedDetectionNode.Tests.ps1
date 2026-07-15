@@ -53,6 +53,13 @@ function Assert-Contains {
     }
 }
 
+function Assert-NotContains {
+    param([string]$Text, [string]$Pattern, [string]$Message)
+    if ($Text.IndexOf($Pattern, [System.StringComparison]::Ordinal) -ge 0) {
+        throw $Message
+    }
+}
+
 Assert-FileExists $nodePath "Missing unsupervised detection node class."
 Assert-FileExists $paramPath "Missing unsupervised detection param class."
 Assert-FileExists $resultPath "Missing unsupervised detection result class."
@@ -132,11 +139,11 @@ Assert-Contains $param "Threshold" "Node param must persist the anomaly threshol
 Assert-Contains $param "InferenceBatchSize" "Node param must persist the inference batch size."
 Assert-Contains $param "DefaultInferenceBatchSize = 0" "Default inference batch size must mean 'use template batch size' for legacy GPU templates."
 Assert-Contains $param "MiniArea" "Node param must persist the minimum defect area."
-Assert-Contains $node "public override string GetCanvasParameterSummary()" "Unsupervised node must display runtime parameters on the canvas node."
-Assert-Contains $node $summaryThresholdText "Unsupervised node summary must include threshold."
-Assert-Contains $node $summaryBatchText "Unsupervised node summary must include inference batch size."
-Assert-Contains $node $summaryAreaText "Unsupervised node summary must include minimum area."
-Assert-Contains $node $summaryBoxesText "Unsupervised node summary must include max boxes."
+Assert-NotContains $node "public override string GetCanvasParameterSummary()" "Unsupervised node must not display runtime parameters on the canvas node."
+Assert-NotContains $node $summaryThresholdText "Unsupervised node must not display the threshold summary."
+Assert-NotContains $node $summaryBatchText "Unsupervised node must not display the batch-size summary."
+Assert-NotContains $node $summaryAreaText "Unsupervised node must not display the area summary."
+Assert-NotContains $node $summaryBoxesText "Unsupervised node must not display the max-boxes summary."
 Assert-Contains $form "nodeSubscription1.Init(node)" "Param form must initialize the image subscription control."
 Assert-Contains $form "GetOutputImage" "Param form must expose the subscribed OutputImage."
 Assert-Contains $form "numericUpDownThreshold.Value" "Param form must save the anomaly threshold control value."

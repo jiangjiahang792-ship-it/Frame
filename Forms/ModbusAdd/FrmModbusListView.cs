@@ -6,6 +6,7 @@ using TDJS_Vision.Forms.PLCAdd;
 using TDJS_Vision.Device.Modbus;
 using TDJS_Vision.Device;
 using System.Linq;
+using TDJS_Vision.Startup;
 
 namespace TDJS_Vision.Forms.ModbusAdd
 {
@@ -45,27 +46,32 @@ namespace TDJS_Vision.Forms.ModbusAdd
                 // 先移除旧方案的Modbus控件
                 flowLayoutPanel1.Controls.Clear();
                 // 添加新的Modbus
-                SingleModbus singlePLC = null;
+                var modbusDevices = ConfigHelper.SolConfig.Devices.OfType<IModbus>().ToList();
                 if (e)
                     LogHelper.AddLog(MsgLevel.Debug, $"================================================= 正在加载【Modbus设备列表】=================================================", true);
-                foreach (var dev in ConfigHelper.SolConfig.Devices)
+                if (modbusDevices.Count == 0)
+                    StartupProgressContext.ReportItem("正在恢复Modbus设备", "没有需要恢复的Modbus", 0, 0, 63, 70);
+                for (int index = 0; index < modbusDevices.Count; index++)
                 {
-                    if (dev is IModbus modbus)
-                    {
-                        modbus.CreateDevice(); // 创建modbus，必要的
-                        singlePLC = new SingleModbus(modbus);
-                        singlePLC.Anchor = AnchorStyles.Left;
-                        singlePLC.Anchor = AnchorStyles.Right;
-                        flowLayoutPanel1.Controls.Add(singlePLC);
-                        if (e)
-                            LogHelper.AddLog(MsgLevel.Info, $"Modbus设备【{modbus.DevName}】已加载！", true);
-                    }
+                    IModbus modbus = modbusDevices[index];
+                    StartupProgressContext.ReportItem("正在恢复Modbus设备", modbus.DevName, index + 1, modbusDevices.Count, 63, 70);
+                    modbus.CreateDevice(); // 创建modbus，必要的
+                    SingleModbus singleModbus = new SingleModbus(modbus);
+                    singleModbus.Anchor = AnchorStyles.Left;
+                    singleModbus.Anchor = AnchorStyles.Right;
+                    flowLayoutPanel1.Controls.Add(singleModbus);
+                    if (e)
+                        LogHelper.AddLog(MsgLevel.Info, $"Modbus设备【{modbus.DevName}】已加载！", true);
                 }
                 if (e)
                     LogHelper.AddLog(MsgLevel.Debug, $"================================================【Modbus设备列表】已加载完成 ================================================", true);
 
             }
-            catch (Exception) { }
+            catch (Exception ex)
+            {
+                StartupProgressContext.ReportFailure("恢复Modbus设备", ex);
+                LogHelper.AddLog(MsgLevel.Exception, $"恢复Modbus设备失败：{ex}", true);
+            }
             finally
             {
                 // 触发Modbus反序列化完成事件

@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using Logger;
 using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Forms.YTMessageBox;
+using TDJS_Vision.Startup;
 
 namespace TDJS_Vision
 {
@@ -24,7 +25,7 @@ namespace TDJS_Vision
         /// <summary>
         /// 当前进程正在运行的主窗体实例。
         /// </summary>
-        public static FormMain MainForm { get; private set; } = null;
+        public static FormMain MainForm { get; internal set; } = null;
 
         /// <summary>
         /// 应用程序的主入口点。
@@ -89,19 +90,13 @@ namespace TDJS_Vision
             }
             string solutionPath = null;
 
-            if (args.Length > 0)
-            {
+            if (args.Length > 0 && args[0].EndsWith(".Sol", StringComparison.OrdinalIgnoreCase))
                 solutionPath = args[0];
-                if (solutionPath.EndsWith(".Sol", StringComparison.OrdinalIgnoreCase))
-                {
-                    MainForm = new FormMain(solutionPath);
-                    // 路径合法，传递给主窗体
-                    Application.Run(MainForm);
-                    return;
-                }
+
+            using (StartupApplicationContext startupContext = new StartupApplicationContext(solutionPath))
+            {
+                Application.Run(startupContext);
             }
-            MainForm = new FormMain(solutionPath);
-            Application.Run(MainForm);
         }
 
         /// <summary>

@@ -8,6 +8,7 @@ using TDJS_Vision.Forms.CameraAdd;
 using TDJS_Vision.Device.Light;
 using System.Linq;
 using TDJS_Vision.Forms.YTMessageBox;
+using TDJS_Vision.Startup;
 
 namespace TDJS_Vision.Forms.LightAdd
 {
@@ -57,28 +58,31 @@ namespace TDJS_Vision.Forms.LightAdd
                 // 先移除旧方案的光源控件
                 flowLayoutPanel1.Controls.Clear();
                 // 添加新的光源
-                SingleLight singleLight = null;
+                List<ILight> lights = ConfigHelper.SolConfig.Devices.OfType<ILight>().ToList();
                 if (e)
                     LogHelper.AddLog(MsgLevel.Debug, $"================================================= 正在加载【光源设备列表】=================================================", true);
-                foreach (var dev in ConfigHelper.SolConfig.Devices)
+                if (lights.Count == 0)
+                    StartupProgressContext.ReportItem("正在恢复光源设备", "没有需要恢复的光源", 0, 0, 35, 43);
+                for (int index = 0; index < lights.Count; index++)
                 {
-                    if (dev is ILight light)
-                    {
-                        light.CreateDevice(); // 创建光源，必要的
-                        singleLight = new SingleLight(light);
-                        singleLight.Anchor = AnchorStyles.Left;
-                        singleLight.Anchor = AnchorStyles.Right;
-                        flowLayoutPanel1.Controls.Add(singleLight);
-                        if (e)
-                            LogHelper.AddLog(MsgLevel.Info, $"光源设备【{light.DevName}】已加载！", true);
-                    }
+                    ILight light = lights[index];
+                    StartupProgressContext.ReportItem("正在恢复光源设备", light.DevName, index + 1, lights.Count, 35, 43);
+                    light.CreateDevice(); // 创建光源，必要的
+                    SingleLight singleLight = new SingleLight(light);
+                    singleLight.Anchor = AnchorStyles.Left;
+                    singleLight.Anchor = AnchorStyles.Right;
+                    flowLayoutPanel1.Controls.Add(singleLight);
+                    if (e)
+                        LogHelper.AddLog(MsgLevel.Info, $"光源设备【{light.DevName}】已加载！", true);
                 }
                 if (e)
                     LogHelper.AddLog(MsgLevel.Debug, $"================================================【光源设备列表】已加载完成 ================================================", true);
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                StartupProgressContext.ReportFailure("恢复光源设备", ex);
+                LogHelper.AddLog(MsgLevel.Exception, $"恢复光源设备失败：{ex}", true);
             }
             finally
             {

@@ -109,6 +109,16 @@ namespace TDJS_Vision.Properties {
                 return ((System.Drawing.Bitmap)(obj));
             }
         }
+
+        /// <summary>
+        ///   查找用于轻盈科技启动页的红蓝单眼机器人位图资源。
+        /// </summary>
+        internal static System.Drawing.Bitmap StartupMascot {
+            get {
+                object obj = ResourceManager.GetObject("StartupMascot", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
         
         /// <summary>
         ///   查找 System.Drawing.Bitmap 类型的本地化资源。

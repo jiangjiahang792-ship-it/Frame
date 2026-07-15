@@ -624,6 +624,7 @@
             this.授权ToolStripMenuItem.Name = "授权ToolStripMenuItem";
             this.授权ToolStripMenuItem.Size = new System.Drawing.Size(270, 34);
             this.授权ToolStripMenuItem.Text = "授权";
+            this.授权ToolStripMenuItem.Click += new System.EventHandler(this.授权ToolStripMenuItem_Click);
             // 
             // FormMain
             // 

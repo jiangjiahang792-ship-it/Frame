@@ -29,6 +29,7 @@ using TDJS_Vision.Node._3_Detection.TDAI;
 using System.Windows.Forms;
 using ServiceStack;
 using System.Diagnostics;
+using TDJS_Vision.Startup;
 
 namespace TDJS_Vision
 {
@@ -757,25 +758,67 @@ namespace TDJS_Vision
         }
 
         /// <summary>
-        /// 方案加载
+        /// 加载方案；数据恢复失败只写入日志，不显示阻断操作的弹窗。
         /// </summary>
-        /// <returns></returns>
-        public void Load(string configFile, bool flag)
+        /// <param name="configFile">需要加载的方案文件。</param>
+        /// <param name="flag">是否输出详细加载信息。</param>
+        /// <returns>方案及全部数据完整恢复返回 true，否则返回 false。</returns>
+        public bool Load(string configFile, bool flag)
         {
             try
             {
-                if (File.Exists(configFile))
+                using (StartupProgressContext.Begin(new NullStartupProgressReporter()))
                 {
-                    ConfigHelper.SolLoad(configFile, flag);
-                }
-                else
-                {
-                    throw new Exception("方案文件不存在！");
+                    try
+                    {
+                        if (!File.Exists(configFile))
+                            throw new FileNotFoundException("方案文件不存在！", configFile);
+
+                        ConfigHelper.SolLoad(configFile, flag);
+                        IReadOnlyList<StartupFailure> failures = StartupProgressContext.DrainFailures();
+                        if (failures.Count > 0)
+                        {
+                            WriteSolutionLoadLogSafely(
+                                $"方案数据恢复失败，已忽略：{new StartupInitializationException(failures)}");
+                            return false;
+                        }
+
+                        return true;
+                    }
+                    catch (Exception ex)
+                    {
+                        WriteSolutionLoadLogSafely($"方案反序列化异常，已忽略：{ex}");
+                        IReadOnlyList<StartupFailure> pendingFailures = StartupProgressContext.DrainFailures();
+                        if (pendingFailures.Count > 0)
+                        {
+                            WriteSolutionLoadLogSafely(
+                                $"方案数据恢复附加异常，已忽略：{new StartupInitializationException(pendingFailures)}");
+                        }
+
+                        return false;
+                    }
                 }
             }
             catch (Exception ex)
             {
-                MessageBoxTD.Show($"反序列化异常!{ex.Message}");
+                WriteSolutionLoadLogSafely($"方案加载上下文异常，已忽略：{ex}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 安全记录方案加载失败，确保日志组件异常也不会重新阻断界面操作。
+        /// </summary>
+        /// <param name="message">需要记录的完整错误信息。</param>
+        private static void WriteSolutionLoadLogSafely(string message)
+        {
+            try
+            {
+                LogHelper.AddLog(MsgLevel.Exception, message, true);
+            }
+            catch
+            {
+                // 加载失败后不再传播日志异常，调用方可以继续使用软件。
             }
         }
 

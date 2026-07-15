@@ -1,6 +1,7 @@
 using Logger;
 using Sunny.UI;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -24,7 +25,9 @@ using TDJS_Vision.Forms.SystemSetting;
 using TDJS_Vision.Forms.AiTrainForm;
 using TDJS_Vision.Forms.TCPAdd;
 using TDJS_Vision.Forms.YTMessageBox;
+using TDJS_Vision.Forms.Workspace;
 using TDJS_Vision.Properties;
+using TDJS_Vision.Startup;
 using WeifenLuo.WinFormsUI.Docking;
 
 namespace TDJS_Vision
@@ -146,84 +149,362 @@ namespace TDJS_Vision
         private ToolStripComboBox languageToolStripComboBox;
         private bool isApplyingLanguage;
 
-        public FormMain()
+        /// <summary>
+        /// 用于启动授权程序的外部程序启动器。
+        /// </summary>
+        private readonly IExternalProgramLauncher externalProgramLauncher;
+
+        /// <summary>
+        /// 统一显示流程编辑和 AI 训练等独占工作区窗口。
+        /// </summary>
+        private readonly IExclusiveWorkspacePresenter exclusiveWorkspacePresenter;
+
+        /// <summary>
+        /// 使用独立动画和真实进度执行手动方案加载。
+        /// </summary>
+        private readonly ISolutionLoadingCoordinator solutionLoadingCoordinator;
+
+        /// <summary>
+        /// 启动时需要打开的方案路径。
+        /// </summary>
+        private string args = string.Empty;
+
+        /// <summary>
+        /// 标记主窗体布局、SDK 和事件是否已经完成一次结构初始化。
+        /// </summary>
+        private bool _startupStructureInitialized;
+
+        /// <summary>
+        /// 标记启动期事件是否已经绑定，避免重试时重复订阅静态事件。
+        /// </summary>
+        private bool _startupEventsBound;
+
+        /// <summary>
+        /// 标记全部关键启动初始化是否已经成功完成。
+        /// </summary>
+        private bool _startupInitializationCompleted;
+
+        /// <summary>
+        /// 标记脚本预热和自动运行后台任务是否已经启动。
+        /// </summary>
+        private bool _nonBlockingWarmupsStarted;
+
+        /// <summary>
+        /// 标记关键方案加载成功后是否需要启动自动运行。
+        /// </summary>
+        private bool _shouldStartAutoRun;
+
+        /// <summary>
+        /// 初始化主窗体。
+        /// </summary>
+        public FormMain() : this(
+            string.Empty,
+            new ExternalProgramLauncher(),
+            new ExclusiveWorkspacePresenter(),
+            new SolutionLoadingCoordinator())
         {
-            InitializeComponent();
-            InitializeLanguageUI();
-            // 自定义主题设置
-            this.dockPanel1.Theme = new GreenTheme();
         }
-        string args = string.Empty;
-        public FormMain(string args)
+
+        /// <summary>
+        /// 使用指定启动参数初始化主窗体。
+        /// </summary>
+        /// <param name="args">启动时需要打开的方案路径。</param>
+        public FormMain(string args) : this(
+            args,
+            new ExternalProgramLauncher(),
+            new ExclusiveWorkspacePresenter(),
+            new SolutionLoadingCoordinator())
         {
+        }
+
+        /// <summary>
+        /// 使用指定启动参数和外部程序启动器初始化主窗体。
+        /// </summary>
+        /// <param name="args">启动时需要打开的方案路径。</param>
+        /// <param name="externalProgramLauncher">外部程序启动器。</param>
+        internal FormMain(string args, IExternalProgramLauncher externalProgramLauncher)
+            : this(
+                args,
+                externalProgramLauncher,
+                new ExclusiveWorkspacePresenter(),
+                new SolutionLoadingCoordinator())
+        {
+        }
+
+        /// <summary>
+        /// 使用可替换的外部程序、工作区和方案加载服务初始化主窗体。
+        /// </summary>
+        /// <param name="args">启动时需要打开的方案路径。</param>
+        /// <param name="externalProgramLauncher">外部程序启动器。</param>
+        /// <param name="exclusiveWorkspacePresenter">独占工作区显示接口。</param>
+        /// <param name="solutionLoadingCoordinator">方案动画加载接口。</param>
+        internal FormMain(
+            string args,
+            IExternalProgramLauncher externalProgramLauncher,
+            IExclusiveWorkspacePresenter exclusiveWorkspacePresenter,
+            ISolutionLoadingCoordinator solutionLoadingCoordinator)
+        {
+            this.externalProgramLauncher = externalProgramLauncher ?? throw new ArgumentNullException(nameof(externalProgramLauncher));
+            this.exclusiveWorkspacePresenter = exclusiveWorkspacePresenter ?? throw new ArgumentNullException(nameof(exclusiveWorkspacePresenter));
+            this.solutionLoadingCoordinator = solutionLoadingCoordinator ?? throw new ArgumentNullException(nameof(solutionLoadingCoordinator));
             InitializeComponent();
             InitializeLanguageUI();
             // 自定义主题设置
-            this.dockPanel1.Theme = new GreenTheme();
+            dockPanel1.Theme = new GreenTheme();
             this.args = args ?? string.Empty;
         }
+
         /// <summary>
         /// 主窗口加载
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void FormMain_Load(object sender, EventArgs e)
+        private async void FormMain_Load(object sender, EventArgs e)
         {
-            // 初始化主窗口布局
+            if (_startupInitializationCompleted)
+                return;
+
+            try
+            {
+                await InitializeForStartupAsync(new NullStartupProgressReporter());
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, $"主窗体兜底启动初始化失败：{ex}", true);
+                MessageBoxTD.Show($"软件启动初始化失败：{ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// 在主窗体显示前完成关键启动初始化，并将真实进度上报给启动页。
+        /// </summary>
+        /// <param name="reporter">启动进度接收接口。</param>
+        /// <returns>关键初始化完成任务。</returns>
+        internal Task InitializeForStartupAsync(IStartupProgressReporter reporter)
+        {
+            if (_startupInitializationCompleted)
+                return Task.CompletedTask;
+
+            if (reporter == null)
+                throw new ArgumentNullException(nameof(reporter));
+
+            using (StartupProgressContext.Begin(reporter))
+            {
+                reporter.Report(new StartupProgressInfo("正在初始化主界面", "加载窗口布局和界面资源", 0, 0, 14));
+                InitializeStartupStructure();
+
+                reporter.Report(new StartupProgressInfo("正在检查启动方案", "准备读取方案配置", 0, 0, 28));
+                LoadStartupSolution();
+                StartupProgressContext.ThrowIfFailures();
+
+                reporter.Report(new StartupProgressInfo("正在启动后台服务", "准备脚本引擎和自动运行任务", 0, 0, 97));
+                StartNonBlockingWarmups();
+                _startupInitializationCompleted = true;
+            }
+
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 初始化只需执行一次的主窗口布局、SDK、菜单状态和事件。
+        /// </summary>
+        private void InitializeStartupStructure()
+        {
+            if (_startupStructureInitialized)
+                return;
+
             InitDockPanel();
-
             ApplyLanguage();
-
-            // 初始化海康相机SDK
             CameraHik.InitSDK();
 
-            // 工具菜单状态同步
             运行日志ToolStripMenuItem.Checked = FrmLoggerDlg.Visible;
             检测结果ToolStripMenuItem.Checked = FrmResultDlg.Visible;
             图像显示ToolStripMenuItem.Checked = FrmImgeDlg.Visible;
             公司Logo视图ToolStripMenuItem.Checked = FrmLogoDlg.Visible;
-            默认视图ToolStripMenuItem.Checked = FrmLoggerDlg.Visible && FrmResultDlg.Visible && FrmImgeDlg.Visible ? true : false;
+            默认视图ToolStripMenuItem.Checked = FrmLoggerDlg.Visible && FrmResultDlg.Visible && FrmImgeDlg.Visible;
 
-            // 布局同步更新事件
+            BindStartupEvents();
+
+            文件ToolStripMenuItem.Enabled = false;
+            设置ToolStripMenuItem.Enabled = false;
+            toolStrip1.Enabled = false;
+
+#if DEBUG
+            FormLogin.LoginTest(UserRole.Hight);
+#else
+            FormLogin.LoginTest(UserRole.Low);
+#endif
+
+            _startupStructureInitialized = true;
+        }
+
+        /// <summary>
+        /// 绑定启动期间需要的窗口、登录和快捷键事件，重试时不会重复订阅。
+        /// </summary>
+        private void BindStartupEvents()
+        {
+            if (_startupEventsBound)
+                return;
+
             FrmImgeDlg.HideChangedEvent += HideChangedEvent;
             FrmResultDlg.HideChangedEvent += HideChangedEvent;
             FrmLoggerDlg.HideChangedEvent += HideChangedEvent;
             FrmLogoDlg.HideChangedEvent += HideChangedEvent;
 
-            // 界面锁事件
             FormLogin.LoginEvent += OnLoginEvent;
             FormLogin.LogoutEvent += OnLogoutEvent;
 
-            // 保存快捷键事件处理
             FrmNewProcessWizard.OnShotKeySavePressed += OnShotKeySavePressed;
             FrmLightAdd.OnShotKeySavePressed += OnShotKeySavePressed;
             FrmCameraAdd.OnShotKeySavePressed += OnShotKeySavePressed;
             FrmPLCAdd.OnShotKeySavePressed += OnShotKeySavePressed;
+            _startupEventsBound = true;
+        }
 
-
-            // 设置控件Enable为未登录状态
-            文件ToolStripMenuItem.Enabled = false;
-            设置ToolStripMenuItem.Enabled = false;
-            toolStrip1.Enabled = false;
-
-            // 加载默认方案
-            AutoLoadSolutionAsync();
-
-#if DEBUG
-            //调试时登录工程师权限
-            FormLogin.LoginTest(UserRole.Hight); // 测试登录
-#else
-            FormLogin.LoginTest(UserRole.Low); // 测试登录
-#endif
-            // 预热脚本引擎
-            Task.Run(() => { CSharpScriptEngine.Instance.WarmUp(); });
-
-
-            // 双击关联的方案文件，加载指定方案
-            if (!string.IsNullOrEmpty(this.args))
+        /// <summary>
+        /// 按命令行方案优先、自动加载方案其次的顺序完成关键方案加载。
+        /// </summary>
+        private void LoadStartupSolution()
+        {
+            string solutionName = "启动方案";
+            try
             {
-                ConfigHelper.SolLoad(this.args, true); // 加载指定方案
-                this.args = string.Empty; // 清空参数，避免重复加载
+                string targetSolutionPath = !string.IsNullOrWhiteSpace(args)
+                    ? args
+                    : Settings.Default.IsAutoLoad ? Settings.Default.SolutionAddress : string.Empty;
+
+                if (string.IsNullOrWhiteSpace(targetSolutionPath))
+                {
+                    StartupProgressContext.ReportStage("未配置自动加载方案", "将使用空白主界面", 95);
+                    _shouldStartAutoRun = false;
+                    return;
+                }
+
+                solutionName = Path.GetFileName(targetSolutionPath);
+                if (!File.Exists(targetSolutionPath))
+                    throw new FileNotFoundException($"方案文件不存在：{solutionName}", targetSolutionPath);
+
+                StartupProgressContext.ReportStage("正在加载方案数据", solutionName, 30);
+                ConfigHelper.SolLoad(targetSolutionPath, true);
+
+                IReadOnlyList<StartupFailure> dataFailures = StartupProgressContext.DrainFailures();
+                if (dataFailures.Count > 0)
+                {
+                    ContinueAfterStartupSolutionLoadFailure(
+                        solutionName,
+                        new StartupInitializationException(dataFailures));
+                    return;
+                }
+
+                _shouldStartAutoRun = Settings.Default.IsAutoRun;
+            }
+            catch (Exception ex)
+            {
+                ContinueAfterStartupSolutionLoadFailure(solutionName, ex);
+
+                IReadOnlyList<StartupFailure> pendingFailures = StartupProgressContext.DrainFailures();
+                if (pendingFailures.Count > 0)
+                {
+                    WriteStartupSolutionLogSafely(
+                        $"方案数据恢复附加异常，已忽略：{new StartupInitializationException(pendingFailures)}");
+                }
+            }
+            finally
+            {
+                args = string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// 将启动方案数据异常降级为日志，并禁止自动运行可能不完整的方案。
+        /// </summary>
+        /// <param name="solutionName">发生异常的方案文件名。</param>
+        /// <param name="exception">原始加载或数据恢复异常。</param>
+        private void ContinueAfterStartupSolutionLoadFailure(string solutionName, Exception exception)
+        {
+            _shouldStartAutoRun = false;
+            WriteStartupSolutionLogSafely($"方案数据加载异常，已忽略：方案={solutionName}；{exception}");
+
+            try
+            {
+                StartupProgressContext.ReportStage(
+                    "方案数据加载异常",
+                    "已记录日志，继续进入主页面",
+                    95);
+            }
+            catch (Exception progressException)
+            {
+                WriteStartupSolutionLogSafely($"方案异常进度上报失败，已忽略：{progressException}");
+            }
+        }
+
+        /// <summary>
+        /// 安全记录启动方案加载异常，日志组件自身异常也不会阻止进入主页面。
+        /// </summary>
+        /// <param name="message">需要写入运行日志的完整消息。</param>
+        private static void WriteStartupSolutionLogSafely(string message)
+        {
+            try
+            {
+                LogHelper.AddLog(MsgLevel.Exception, message, true);
+            }
+            catch
+            {
+                // 数据加载已经失败时不再传播日志异常，确保主页面仍能显示。
+            }
+        }
+
+        /// <summary>
+        /// 启动不影响主页面显示的脚本预热和自动运行后台任务。
+        /// </summary>
+        private void StartNonBlockingWarmups()
+        {
+            if (_nonBlockingWarmupsStarted)
+                return;
+
+            _nonBlockingWarmupsStarted = true;
+            _ = WarmUpScriptEngineInBackgroundAsync();
+
+            if (_shouldStartAutoRun)
+                RunAutoSolutionInBackgroundAsync();
+        }
+
+        /// <summary>
+        /// 在后台预热脚本引擎，并将非关键失败写入日志而不阻止主页面显示。
+        /// </summary>
+        /// <returns>脚本引擎后台预热任务。</returns>
+        private async Task WarmUpScriptEngineInBackgroundAsync()
+        {
+            try
+            {
+                await Task.Run(() => { CSharpScriptEngine.Instance.WarmUp(); });
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, $"脚本引擎后台预热失败：{ex}", true);
+            }
+        }
+
+        /// <summary>
+        /// 在后台保持方案自动运行，不让长期循环任务阻塞启动页关闭。
+        /// </summary>
+        private async void RunAutoSolutionInBackgroundAsync()
+        {
+            SetLockStatus(UserRole.Low);
+            SetRunStatus(true);
+            try
+            {
+                FormGlobalSignal.StartListenSignals();
+                await Solution.Instance.Run(true);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, $"方案自动运行失败：{ex}", true);
+            }
+            finally
+            {
+                FormGlobalSignal.StopListenSignals();
+                SetRunStatus(false);
             }
         }
 
@@ -370,43 +651,6 @@ namespace TDJS_Vision
             设置ToolStripMenuItem.Enabled = false;
             toolStrip1.Enabled = false;
             Role = UserRole.Unknown;
-        }
-
-        /// <summary>
-        /// 软件启动是否加载指定方案
-        /// </summary>
-        private async Task AutoLoadSolutionAsync()
-        {
-            if (Settings.Default.IsAutoLoad)
-            {
-                try
-                {
-                    toolStripLabel1.Visible = true;
-                    SetRunStatus(true); // 设置为正在加载方案状态
-                    Solution.Instance.Load(Settings.Default.SolutionAddress, true);
-                    toolStripLabel1.Visible = false;
-                    SetRunStatus(false);
-                }
-                catch (Exception)
-                {
-                    LogHelper.AddLog(MsgLevel.Exception, LanguageManager.T("Log.LoadSolutionFailed"), true);
-                }
-                if (Settings.Default.IsAutoRun)
-                {
-                    SetLockStatus(UserRole.Low);
-                    SetRunStatus(true);
-                    try
-                    {
-                        FormGlobalSignal.StartListenSignals();
-                        await Solution.Instance.Run(true);
-                    }
-                    finally
-                    {
-                        FormGlobalSignal.StopListenSignals();
-                        SetRunStatus(false);
-                    }
-                }
-            }
         }
 
         /// <summary>
@@ -671,7 +915,7 @@ namespace TDJS_Vision
                 FrmNewProcessWizard = new FormNewProcessWizard();
             }
 
-            ShowOwnedMaximizedDialog(FrmNewProcessWizard);
+            exclusiveWorkspacePresenter.ShowDialog(this, FrmNewProcessWizard);
         }
 
         private async void 停止运行ToolStripMenuItem_Click(object value1, object value2)
@@ -875,9 +1119,19 @@ namespace TDJS_Vision
             {
                 toolStripLabel1.Visible = true;
                 SetRunStatus(true); // 设置为正在加载方案状态
-                Solution.Instance.Load(openFileDialog1.FileName, true);
-                SetRunStatus(false);
-                toolStripLabel1.Visible = false;
+                try
+                {
+                    solutionLoadingCoordinator.Load(this, openFileDialog1.FileName, true);
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.AddLog(MsgLevel.Exception, $"手动打开方案失败，已忽略：{ex}", true);
+                }
+                finally
+                {
+                    SetRunStatus(false);
+                    toolStripLabel1.Visible = false;
+                }
             }
         }
 
@@ -889,9 +1143,12 @@ namespace TDJS_Vision
         private void 新建方案ToolStripMenuItem_Click(object sender, EventArgs e)
         {
             // 新建方案实际和调用加载空方案一样(传入false，表示不需要打印反序列化的信息因为新建方案实际上就是加载一个空的方案)
-            Solution.Instance.Load(Application.StartupPath + "\\空方案.Sol", false);
+            bool loadSucceeded = Solution.Instance.Load(Application.StartupPath + "\\空方案.Sol", false);
             Solution.Instance.SolFileName = string.Empty;
-            LogHelper.AddLog(MsgLevel.Info, LanguageManager.T("Log.NewSolutionSuccess"), true);
+            if (loadSucceeded)
+                LogHelper.AddLog(MsgLevel.Info, LanguageManager.T("Log.NewSolutionSuccess"), true);
+            else
+                LogHelper.AddLog(MsgLevel.Warn, "空方案数据加载异常，已忽略并继续使用当前界面。", true);
         }
 
         private void 联系我们ToolStripMenuItem_Click(object sender, EventArgs e)
@@ -916,6 +1173,30 @@ namespace TDJS_Vision
         private void 关于TDJS_VisionToolStripMenuItem1_Click(object sender, EventArgs e)
         {
             frmAbout.ShowDialog();
+        }
+
+        /// <summary>
+        /// 启动软件运行目录中的授权程序。
+        /// </summary>
+        /// <param name="sender">触发事件的菜单项。</param>
+        /// <param name="e">事件参数。</param>
+        private void 授权ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            string activationProgramPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "activate.exe");
+            if (!File.Exists(activationProgramPath))
+            {
+                MessageBoxTD.Show($"未找到授权程序：{activationProgramPath}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            try
+            {
+                externalProgramLauncher.Start(activationProgramPath);
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show($"启动授权程序失败：{ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void 默认视图ToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1058,13 +1339,18 @@ namespace TDJS_Vision
         /// </summary>
         private void OpenUnsupervisedTrainForm()
         {
-            using (var form = new UnsupervisedTrainForm())
+            try
             {
-                unsupervisedTrainForm = form;
-                ShowOwnedMaximizedDialog(form);
+                using (var form = new UnsupervisedTrainForm())
+                {
+                    unsupervisedTrainForm = form;
+                    exclusiveWorkspacePresenter.ShowDialog(this, form);
+                }
             }
-
-            unsupervisedTrainForm = null;
+            finally
+            {
+                unsupervisedTrainForm = null;
+            }
         }
 
         /// <summary>
@@ -1072,33 +1358,18 @@ namespace TDJS_Vision
         /// </summary>
         private void OpenLargeModelTrainForm()
         {
-            using (var form = new LargeModelTrainForm())
+            try
             {
-                largeModelTrainForm = form;
-                ShowOwnedMaximizedDialog(form);
+                using (var form = new LargeModelTrainForm())
+                {
+                    largeModelTrainForm = form;
+                    exclusiveWorkspacePresenter.ShowDialog(this, form);
+                }
             }
-
-            largeModelTrainForm = null;
-        }
-
-        /// <summary>
-        /// 以主窗体为 owner 显示最大化弹窗，并在显示前预定位到主窗体区域，避免恢复最大化后露出主界面底部。
-        /// </summary>
-        /// <param name="dialog">需要显示的弹窗。</param>
-        private void ShowOwnedMaximizedDialog(Form dialog)
-        {
-            if (dialog == null || dialog.IsDisposed)
-                return;
-
-            if (dialog.WindowState == FormWindowState.Maximized)
+            finally
             {
-                dialog.StartPosition = FormStartPosition.Manual;
-                dialog.WindowState = FormWindowState.Normal;
-                dialog.Bounds = Bounds;
-                dialog.WindowState = FormWindowState.Maximized;
+                largeModelTrainForm = null;
             }
-
-            dialog.ShowDialog(this);
         }
 
         /// <summary>
