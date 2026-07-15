@@ -2021,3 +2021,14 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 保留画布通用参数摘要绘制与高度计算能力，避免影响其他节点及后续可插拔扩展。
 - [x] 更新无监督检测与大模型集成专项检查，覆盖两个节点不再重写画布参数摘要的行为。
 - [x] 验证记录：`UnsupervisedDetectionNode.Tests.ps1` 和 `LargeModelIntegration.Tests.ps1` 均通过；MSBuild `Debug|x64` 编译通过，182 个既有警告、0 个错误。
+
+## 2026-07-15: 相机图像源统一回调取图
+
+- [x] 已确认相机图像源统一通过相机帧回调取得图像，不再使用 `GetOneFrameImage()`。
+- [x] 已确认软触发先运行图像源上游节点，到达图像源后调用一次 `GrabOne()`，回调唤醒当前节点并由同一 `RunId` 继续下游。
+- [x] 已确认硬触发图像源存在上游节点时属于非法配置，流程编辑页与主窗体的单次、循环运行入口均需弹出中文提示并拒绝启动。
+- [x] 已确认点击停止后取消回调等待、停止本次运行启动的相机取流并丢弃迟到帧。
+- [x] 已确认隐藏 `Off/On` 触发模式界面，运行固定为 `TriggerModel.On`；旧方案中的 `Off` 自动迁移为 `On` 并保留原触发源。
+- [x] 已完成设计说明：`docs/superpowers/specs/2026-07-15-camera-image-source-callback-acquisition-design.md`。
+- [ ] 编写详细实施计划并按测试驱动方式完成代码改造。
+- [ ] 完成专项测试、相关回归测试与 `Debug|x64` 编译验证。
