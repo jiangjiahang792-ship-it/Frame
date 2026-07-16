@@ -2047,3 +2047,15 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 完成专项测试、相关回归测试与 `Debug|x64` 编译验证。
   - [x] `CameraFrameAwaiter.Tests.ps1`、`CameraImageSourceUnifiedCallback.Tests.ps1`、`CameraCallbackFastPath.Tests.ps1`、`DiagnosticLazyEvaluation.Tests.ps1`、`DiagnosticLogLevel.Tests.ps1`、`SolutionResourceRelease.Tests.ps1` 均通过。
   - [x] `git diff --check` 通过；MSBuild `Debug|x64` 编译通过，180 个既有警告、0 个错误。
+
+## 2026-07-16: 日志界面高频刷新防卡死
+
+- [x] 定位根因：非运行状态下每条日志分别 `BeginInvoke` 到 UI，高频更新两个列表并重复滚动；运行结束还会一次性排空积压日志，导致 UI 消息队列被日志刷新占满。
+- [x] 新增可替换的 `ILogUiBuffer` 和 2000 条默认有界实现，使用线程安全队列保存最新待显示日志，超限仅淘汰最旧的界面记录，不影响日志文件完整写入。
+- [x] 在 `LogHelper.Designer.cs` 中新增 100ms WinForms 定时器，所有运行状态统一入队，每个 UI 节拍最多批量处理 100 条。
+- [x] 六个日志列表按批次统一暂停和恢复绘制，每批只滚动一次当前列表；“全部”保留 1000 条、分类保留 300 条，超限删除最旧记录而不再整表清空。
+- [x] 日志窗口隐藏时不更新列表控件；主动清空显示会同步清空待显示缓冲区，控件释放时解除静态日志事件。
+- [x] 完成专项测试、相关日志回归、资源释放测试和 `Debug|x64` 编译验证。
+  - [x] `LogUiThrottledRefresh.Tests.ps1` 覆盖容量、顺序、分批、清空、10000 条并发写入、无逐条 UI 投递、设计器定时器和释放解绑约束。
+  - [x] `LogLevelSettings.Tests.ps1`、`DiagnosticLogLevel.Tests.ps1`、`DiagnosticLazyEvaluation.Tests.ps1`、`SolutionResourceRelease.Tests.ps1` 均通过。
+  - [x] `git diff --check` 通过；MSBuild `Debug|x64` 编译通过，180 个既有警告、0 个错误。

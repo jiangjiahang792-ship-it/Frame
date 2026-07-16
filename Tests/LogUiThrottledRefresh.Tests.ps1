@@ -80,5 +80,9 @@ Assert-True (-not $helperSource.Contains('this.BeginInvoke')) 'High-frequency lo
 Assert-True ($helperSource.Contains('const int UiRefreshBatchSize = 100')) 'The UI refresh batch size must be 100.'
 Assert-True ($designerSource.Contains('this.logRefreshTimer.Interval = 100;')) 'The designer timer interval must be 100ms.'
 Assert-True ($designerSource.Contains('this.logRefreshTimer.Tick +=')) 'The designer timer must bind the refresh event.'
+Assert-True ($helperSource.Contains('LogAddEvent -= LogHelper_LogAddEvent;')) 'The static log event must be detached when the control is disposed.'
+Assert-True ($helperSource.Contains('_logUiBuffer.Clear();')) 'Clearing the display must clear pending UI logs.'
+Assert-True ($helperSource.Contains('finally')) 'Batch updates must always resume list rendering.'
+Assert-True (-not $helperSource.Contains('if (listBoxAll.Items.Count > 1000)')) 'History limits must trim old entries instead of clearing the full list.'
 
 Write-Host 'Log UI throttled refresh checks passed.'

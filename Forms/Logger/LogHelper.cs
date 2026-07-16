@@ -5,6 +5,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 
 namespace Logger
@@ -112,6 +113,19 @@ namespace Logger
             _logUiBuffer = logUiBuffer ?? throw new ArgumentNullException(nameof(logUiBuffer));
             InitializeComponent();
             LogAddEvent += LogHelper_LogAddEvent;
+            Disposed += LogHelper_Disposed;
+        }
+
+        /// <summary>
+        /// 控件释放时解除静态日志事件并清空待显示记录，避免旧窗口实例被长期持有。
+        /// </summary>
+        /// <param name="sender">事件发送者。</param>
+        /// <param name="e">事件参数。</param>
+        private void LogHelper_Disposed(object sender, EventArgs e)
+        {
+            LogAddEvent -= LogHelper_LogAddEvent;
+            Disposed -= LogHelper_Disposed;
+            _logUiBuffer.Clear();
         }
 
         public void AdjustListBoxWidth(ListBox listBox)
@@ -450,6 +464,7 @@ namespace Logger
         {
             try
             {
+                _logUiBuffer.Clear();
                 switch (tabControl1.SelectedIndex)
                 {
                     case 0:

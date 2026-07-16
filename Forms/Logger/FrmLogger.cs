@@ -114,6 +114,9 @@ namespace Logger
             HideChangedEvent?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// 请求日志控件立即刷新一个有上限的批次，不会一次性排空全部积压日志。
+        /// </summary>
         public void FlushLogs()
         {
             logHelper1?.FlushPendingLogs();
