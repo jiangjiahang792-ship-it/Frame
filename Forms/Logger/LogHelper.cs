@@ -5,12 +5,32 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
 using System.Threading.Tasks;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 
 namespace Logger
 {
     public partial class LogHelper : UserControl
     {
+        /// <summary>
+        /// 单次 UI 刷新最多处理的日志数量，限制每个消息循环节拍的工作量。
+        /// </summary>
+        private const int UiRefreshBatchSize = 100;
+
+        /// <summary>
+        /// “全部”日志列表允许保留的最大行数。
+        /// </summary>
+        private const int AllLogDisplayLimit = 1000;
+
+        /// <summary>
+        /// 单个日志等级列表允许保留的最大行数。
+        /// </summary>
+        private const int LevelLogDisplayLimit = 300;
+
+        /// <summary>
+        /// 保存等待显示日志的有界缓冲区。
+        /// </summary>
+        private readonly ILogUiBuffer _logUiBuffer;
+
         static readonly string LogDictory = Environment.CurrentDirectory + @"\Logs\";
         static event EventHandler<LevelAndInfo> LogAddEvent;
         private static readonly BlockingCollection<Action> _logQueue = new BlockingCollection<Action>();
@@ -76,8 +96,20 @@ namespace Logger
         }
         #endregion
 
-        public LogHelper()
+        /// <summary>
+        /// 创建使用默认 2000 条有界缓冲区的日志显示控件。
+        /// </summary>
+        public LogHelper() : this(new BoundedLogUiBuffer(2000))
         {
+        }
+
+        /// <summary>
+        /// 创建使用指定界面缓冲区的日志显示控件。
+        /// </summary>
+        /// <param name="logUiBuffer">可替换的日志界面缓冲区。</param>
+        internal LogHelper(ILogUiBuffer logUiBuffer)
+        {
+            _logUiBuffer = logUiBuffer ?? throw new ArgumentNullException(nameof(logUiBuffer));
             InitializeComponent();
             LogAddEvent += LogHelper_LogAddEvent;
         }
@@ -108,152 +140,135 @@ namespace Logger
             }
         }
 
-        private static readonly ConcurrentQueue<LevelAndInfo> _pendingLogs = new ConcurrentQueue<LevelAndInfo>();
-
+        /// <summary>
+        /// 在 UI 线程中刷新一批待显示日志；非 UI 调用和隐藏窗口不会执行控件更新。
+        /// </summary>
         public void FlushPendingLogs()
         {
-            if (_pendingLogs.IsEmpty) return;
-            
-            if (this.InvokeRequired)
-            {
-                this.BeginInvoke((MethodInvoker)delegate { FlushPendingLogsInternal(); });
-            }
-            else
-            {
-                FlushPendingLogsInternal();
-            }
+            if (IsDisposed || Disposing || !IsHandleCreated || !Visible || InvokeRequired)
+                return;
+
+            FlushPendingLogsInternal();
         }
 
+        /// <summary>
+        /// 处理日志刷新定时器节拍，每个节拍最多消费一个固定批次。
+        /// </summary>
+        /// <param name="sender">事件发送者。</param>
+        /// <param name="e">事件参数。</param>
+        private void LogHelper_LogRefreshTimerTick(object sender, EventArgs e)
+        {
+            FlushPendingLogs();
+        }
+
+        /// <summary>
+        /// 批量更新全部日志列表和各等级列表，并在一次刷新后统一裁剪与滚动。
+        /// </summary>
         private void FlushPendingLogsInternal()
         {
-            listBoxAll.BeginUpdate();
-            
-            while (_pendingLogs.TryDequeue(out LevelAndInfo item))
+            IReadOnlyList<LogUiEntry> batch = _logUiBuffer.DequeueBatch(UiRefreshBatchSize);
+            if (batch.Count == 0)
+                return;
+
+            ListBox[] listBoxes = GetAllLogListBoxes();
+            foreach (ListBox listBox in listBoxes)
+                listBox.BeginUpdate();
+
+            try
             {
-                switch (item.Level)
+                foreach (LogUiEntry entry in batch)
                 {
-                    case MsgLevel.Debug:
-                        ControlListBox(item.Info, listBoxDebug);
-                        break;
-                    case MsgLevel.Info:
-                        ControlListBox(item.Info, listBoxInfo);
-                        break;
-                    case MsgLevel.Warn:
-                        ControlListBox(item.Info, listBoxWarn);
-                        break;
-                    case MsgLevel.Exception:
-                        ControlListBox(item.Info, listBoxExpection);
-                        break;
-                    case MsgLevel.Fatal:
-                        ControlListBox(item.Info, listBoxFatal);
-                        break;
-                    default:
-                        break;
+                    listBoxAll.Items.Add(entry.Info);
+                    ListBox levelListBox = GetLevelListBox(entry.Level);
+                    if (levelListBox != null)
+                        levelListBox.Items.Add(entry.Info);
                 }
-                listBoxAll.Items.Add(item.Info);
+
+                TrimOldestItems(listBoxAll, AllLogDisplayLimit);
+                foreach (ListBox listBox in listBoxes)
+                {
+                    if (!ReferenceEquals(listBox, listBoxAll))
+                        TrimOldestItems(listBox, LevelLogDisplayLimit);
+                }
             }
-            
-            if (listBoxAll.Items.Count > 0)
+            finally
             {
-                listBoxAll.SelectedIndex = listBoxAll.Items.Count - 1;
-                listBoxAll.SelectedIndex = -1;
+                foreach (ListBox listBox in listBoxes)
+                    listBox.EndUpdate();
             }
 
-            if (listBoxAll.Items.Count > 1000)
-            {
-                listBoxAll.Items.Clear();
-            }
-
-            listBoxAll.EndUpdate();
+            ScrollSelectedLogListToEnd();
         }
 
+        /// <summary>
+        /// 将后台日志事件快速写入界面缓冲区，不直接投递 UI 消息。
+        /// </summary>
+        /// <param name="sender">事件发送者。</param>
+        /// <param name="levelAndInfo">待显示日志。</param>
         private void LogHelper_LogAddEvent(object sender, LevelAndInfo levelAndInfo)
         {
-            // 判断当前软件是否正在运行，如果运行则不刷新日志UI（避免UI假死），暂存到队列
-            if (TDJS_Vision.Solution.Instance.IsRunning)
+            _logUiBuffer.Enqueue(new LogUiEntry(levelAndInfo.Level, levelAndInfo.Info));
+        }
+
+        /// <summary>
+        /// 获取日志控件中的全部列表，供批量暂停和恢复绘制。
+        /// </summary>
+        /// <returns>全部日志列表控件。</returns>
+        private ListBox[] GetAllLogListBoxes()
+        {
+            return new[] { listBoxAll, listBoxInfo, listBoxDebug, listBoxWarn, listBoxExpection, listBoxFatal };
+        }
+
+        /// <summary>
+        /// 根据日志等级获取对应的分类列表。
+        /// </summary>
+        /// <param name="level">日志等级。</param>
+        /// <returns>对应分类列表；未知等级返回 null。</returns>
+        private ListBox GetLevelListBox(MsgLevel level)
+        {
+            switch (level)
             {
-                _pendingLogs.Enqueue(levelAndInfo);
-                while (_pendingLogs.Count > 1000)
-                {
-                    _pendingLogs.TryDequeue(out _);
-                }
+                case MsgLevel.Debug:
+                    return listBoxDebug;
+                case MsgLevel.Info:
+                    return listBoxInfo;
+                case MsgLevel.Warn:
+                    return listBoxWarn;
+                case MsgLevel.Exception:
+                    return listBoxExpection;
+                case MsgLevel.Fatal:
+                    return listBoxFatal;
+                default:
+                    return null;
+            }
+        }
+
+        /// <summary>
+        /// 删除列表中超出显示上限的最旧日志。
+        /// </summary>
+        /// <param name="listBox">待裁剪列表。</param>
+        /// <param name="displayLimit">允许保留的最大行数。</param>
+        private static void TrimOldestItems(ListBox listBox, int displayLimit)
+        {
+            int removeCount = listBox.Items.Count - displayLimit;
+            for (int index = 0; index < removeCount; index++)
+                listBox.Items.RemoveAt(0);
+        }
+
+        /// <summary>
+        /// 每批刷新结束后仅将当前可见日志列表滚动到底部一次。
+        /// </summary>
+        private void ScrollSelectedLogListToEnd()
+        {
+            if (tabControl1.SelectedTab == null || tabControl1.SelectedTab.Controls.Count == 0)
                 return;
-            }
 
-            if (!_pendingLogs.IsEmpty)
-            {
-                FlushPendingLogs();
-            }
+            ListBox listBox = tabControl1.SelectedTab.Controls[0] as ListBox;
+            if (listBox == null || listBox.Items.Count == 0)
+                return;
 
-            if (this.InvokeRequired)
-            {
-                this.BeginInvoke((MethodInvoker)delegate
-                {
-                    // 根据日志级别分发到不同列表控件
-                    switch (levelAndInfo.Level)
-                    {
-                        case MsgLevel.Debug:
-                            ControlListBox(levelAndInfo.Info, listBoxDebug);
-                            break;
-                        case MsgLevel.Info:
-                            ControlListBox(levelAndInfo.Info, listBoxInfo);
-                            break;
-                        case MsgLevel.Warn:
-                            ControlListBox(levelAndInfo.Info, listBoxWarn);
-                            break;
-                        case MsgLevel.Exception:
-                            ControlListBox(levelAndInfo.Info, listBoxExpection);
-                            break;
-                        case MsgLevel.Fatal:
-                            ControlListBox(levelAndInfo.Info, listBoxFatal);
-                            break;
-                        default:
-                            break;
-                    }
-                    // 同步在全局列表显示
-                    listBoxAll.Items.Add(levelAndInfo.Info);
-                    listBoxAll.SelectedIndex = listBoxAll.Items.Count - 1;
-                    listBoxAll.SelectedIndex = -1;    // 取消选中效果
-                    // 限制最大UI行数，防止内存溢出
-                    if (listBoxAll.Items.Count > 1000)
-                    {
-                        listBoxAll.Items.Clear();
-                    }
-                });
-            }
-            else
-            {
-                // 根据日志级别分发到不同列表控件
-                switch (levelAndInfo.Level)
-                {
-                    case MsgLevel.Debug:
-                        ControlListBox(levelAndInfo.Info, listBoxDebug);
-                        break;
-                    case MsgLevel.Info:
-                        ControlListBox(levelAndInfo.Info, listBoxInfo);
-                        break;
-                    case MsgLevel.Warn:
-                        ControlListBox(levelAndInfo.Info, listBoxWarn);
-                        break;
-                    case MsgLevel.Exception:
-                        ControlListBox(levelAndInfo.Info, listBoxExpection);
-                        break;
-                    case MsgLevel.Fatal:
-                        ControlListBox(levelAndInfo.Info, listBoxFatal);
-                        break;
-                    default:
-                        break;
-                }
-                // 同步在全局列表显示
-                listBoxAll.Items.Add(levelAndInfo.Info);
-                listBoxAll.SelectedIndex = listBoxAll.Items.Count - 1;
-                listBoxAll.SelectedIndex = -1;    // 取消选中效果
-                // 限制最大UI行数，防止内存溢出
-                if (listBoxAll.Items.Count > 1000)
-                {
-                    listBoxAll.Items.Clear();
-                }
-            }
+            int visibleItemCount = Math.Max(1, listBox.ClientSize.Height / Math.Max(1, listBox.ItemHeight));
+            listBox.TopIndex = Math.Max(0, listBox.Items.Count - visibleItemCount);
         }
 
         private void listBox1_DrawItem(object sender, DrawItemEventArgs e)
@@ -363,16 +378,6 @@ namespace Logger
                     LogAddEvent?.Invoke(null, levelAndInfo);
                 }
             });
-        }
-
-        private void ControlListBox(string logToShow, ListBox myListBox)
-        {
-            myListBox.Items.Add(logToShow);
-            myListBox.SelectedIndex = myListBox.Items.Count - 1;
-            if (myListBox.Items.Count > 300)
-            {
-                myListBox.Items.Clear();
-            }
         }
 
         private static DateTime _lastCheckTime = DateTime.MinValue;

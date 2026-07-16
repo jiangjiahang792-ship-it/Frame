@@ -48,6 +48,7 @@ namespace Logger
             this.tabPageFatal = new System.Windows.Forms.TabPage();
             this.listBoxFatal = new System.Windows.Forms.ListBox();
             this.imageList1 = new System.Windows.Forms.ImageList(this.components);
+            this.logRefreshTimer = new System.Windows.Forms.Timer(this.components);
             this.contextMenuStrip1.SuspendLayout();
             this.tabControl1.SuspendLayout();
             this.pageAll.SuspendLayout();
@@ -57,6 +58,12 @@ namespace Logger
             this.pageExpection.SuspendLayout();
             this.tabPageFatal.SuspendLayout();
             this.SuspendLayout();
+            // 
+            // logRefreshTimer
+            // 
+            this.logRefreshTimer.Enabled = true;
+            this.logRefreshTimer.Interval = 100;
+            this.logRefreshTimer.Tick += new System.EventHandler(this.LogHelper_LogRefreshTimerTick);
             // 
             // contextMenuStrip1
             // 
@@ -320,6 +327,7 @@ namespace Logger
         private System.Windows.Forms.TabPage pageExpection;
         public System.Windows.Forms.ListBox listBoxExpection;
         private System.Windows.Forms.ImageList imageList1;
+        private System.Windows.Forms.Timer logRefreshTimer;
         private System.Windows.Forms.TabPage tabPageFatal;
         public System.Windows.Forms.ListBox listBoxFatal;
         private System.Windows.Forms.ToolStripMenuItem 打开日志目录ToolStripMenuItem;

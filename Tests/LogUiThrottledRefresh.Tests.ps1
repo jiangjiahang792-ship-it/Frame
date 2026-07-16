@@ -68,4 +68,17 @@ namespace Logger
 Add-Type -TypeDefinition ($bufferSource + $testHarness) -ReferencedAssemblies @('System.dll', 'System.Core.dll')
 [Logger.LogUiBufferBehaviorChecks]::Run()
 
-Write-Host 'Log UI bounded buffer behavior checks passed.'
+$helperPath = Join-Path $projectRoot 'Forms\Logger\LogHelper.cs'
+$designerPath = Join-Path $projectRoot 'Forms\Logger\LogHelper.Designer.cs'
+$helperSource = Get-Content -Raw -Encoding UTF8 -LiteralPath $helperPath
+$designerSource = Get-Content -Raw -Encoding UTF8 -LiteralPath $designerPath
+
+Assert-True ($helperSource.Contains('new BoundedLogUiBuffer(2000)')) 'The UI buffer capacity must be 2000.'
+Assert-True ($helperSource.Contains('_logUiBuffer.Enqueue')) 'The log event must enqueue UI entries.'
+Assert-True (-not $helperSource.Contains('TDJS_Vision.Solution.Instance.IsRunning')) 'UI scheduling must not depend on solution run state.'
+Assert-True (-not $helperSource.Contains('this.BeginInvoke')) 'High-frequency logs must not enqueue one UI delegate per entry.'
+Assert-True ($helperSource.Contains('const int UiRefreshBatchSize = 100')) 'The UI refresh batch size must be 100.'
+Assert-True ($designerSource.Contains('this.logRefreshTimer.Interval = 100;')) 'The designer timer interval must be 100ms.'
+Assert-True ($designerSource.Contains('this.logRefreshTimer.Tick +=')) 'The designer timer must bind the refresh event.'
+
+Write-Host 'Log UI throttled refresh checks passed.'
