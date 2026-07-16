@@ -27,11 +27,19 @@
 
 ## 文件生成与失败安全
 
-- ONNX 先输出为同目录临时文件，导出成功且文件有效后再替换正式 ONNX。
-- Engine 继续先输出为 `.building.engine` 临时文件，构建成功后再替换正式 Engine。
+- ONNX 和 Engine 均先输出为同目录 `<模型名>_<GUID>.building.<扩展名>` 唯一临时文件；达到 64 字节且通过实际 native 加载验证后，才原子替换正式模型。
 - 每次训练开始时清理该模板受控工作目录中的旧 Bank；只有本次 native 训练成功并生成 Bank 后才继续打包。
 - ONNX 或 Engine 生成失败时保留上一份正式模型文件，便于已有模板继续推理，但本次训练必须停止，不能回退复用旧文件继续训练。
-- 临时文件只允许在 `LargeModelDll` 运行目录中创建和清理，工作目录清理继续受现有路径边界保护。
+- `.tdlarge` 先写入同目录 `<模板名>_<GUID>.building.tdlarge`；模型和 Bank 逐块复制时检查取消，完整关闭 ZIP 后验证 `manifest.json`、本次模型和 `bank.bin` 均存在且可读，最后一次取消检查通过后才原子替换正式模板。
+- 模板打包失败或取消时保留旧正式模板并尽力清理本次临时文件；正式模板一旦原子提交，调用链不得再用提交后的取消检查把成功改报为取消。
+- 模板工作目录的可信允许根固定为 `Model\_LargeModelTraining`。模板名 `.`、`..` 必须在任何递归清理前拒绝，规范化后的模板工作目录及 `dataset`、`model` 清理目标都必须严格位于该固定根之下。
+
+## 取消与 native 生命周期
+
+- 外部 ONNX/Engine 进程在启动前、最终退出后检查取消；取消时终止进程并最多等待 5 秒退出，再尽力清理临时模型。
+- DINOv2 检测器使用生命周期锁保护 disposed 状态和句柄发布。native Init 返回值先保存在局部变量中；只有对象未释放且令牌未取消时才能在锁内发布，否则立即释放局部句柄。
+- `TrainMemoryBank` 接收 `CancellationToken`，在 Init 返回后及 native Train 前检查取消；取消发生在阻塞 Init 内时，Dispose 后句柄不能复活，native Train 调用数必须为零。
+- 同一 `LargeModelDll` 的训练链使用 `FileShare.None` 锁文件跨线程、跨进程串行，锁覆盖数据集、模型、Bank 和模板原子发布。
 
 ## 日志与错误
 
@@ -39,11 +47,12 @@
 
 ## 测试
 
-- 自动检查 GPU 路径不再因为 `File.Exists(enginePath)` 直接返回旧 Engine。
-- 自动检查 ONNX 路径不再因为 `File.Exists(onnxPath)` 直接返回旧 ONNX。
-- 自动检查 GPU 顺序为强制 ONNX 导出、Engine 构建、Bank 训练。
-- 自动检查 CPU 路径强制 ONNX 导出但不生成 Engine。
-- 自动检查 ONNX 使用临时文件并在成功后原子替换，失败时不回退旧模型继续训练。
+- 可执行组件测试检查连续 CPU/GPU 顺序、模型发布、无效产物、取消、跨进程锁、清理异常和并发进程日志。
+- 可执行生产测试动态编译真实 `LargeModelTrainingService`、`ProductionTrainingStages`、检测器和模板发布器，直接调用 `Train`。
+- 阻塞 native Init 测试按“进入 Init → 取消并 Dispose → 允许 Init 返回”排序，断言晚到句柄释放一次且 native Train 为零。
+- 生产路径边界测试输入模板名 `..`，断言在任何清理前失败且 `Model\dataset`、`Model\model` 哨兵不变。
+- 模板测试覆盖复制期间取消、源流写入失败、旧模板保留、无 GUID 临时残留、ZIP 必要条目验证和成功原子替换。
+- CPU/GPU 生产入口逐次记录并断言：CPU Bank/Package 使用本次 ONNX；GPU Engine 使用本次 ONNX；GPU Bank/Package 使用本次 Engine。
 - 运行大模型专项 PowerShell 测试，并使用 Visual Studio 2022 MSBuild 编译 x64 Debug 项目。
 
 ## 非目标
