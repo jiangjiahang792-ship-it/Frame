@@ -62,7 +62,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             token.ThrowIfCancellationRequested();
             progress?.Report(5);
 
-            string modelPath = EnsureTrainingModelPath(runtime.RootPath, request, log, token);
+            string modelPath = RebuildTrainingModelPath(runtime.RootPath, request, log, token);
             string bankPath = Path.Combine(modelOutputRoot, "memory.bank");
             int deviceMode = LargeModelRuntimeBootstrapper.ResolveDeviceMode(request.Device);
             using (var detector = new LargeModelDinov2Detector(runtime.RootPath))
@@ -165,64 +165,68 @@ namespace TDJS_Vision.Forms.AiTrainForm
         }
 
         /// <summary>
-        /// 确保训练使用的 ONNX 或 TensorRT engine 与所选分辨率匹配。
+        /// 为本次训练重新生成与所选设备、分辨率和精度匹配的模型。
         /// </summary>
         /// <param name="runtimeRoot">大模型运行环境目录。</param>
         /// <param name="request">训练请求。</param>
         /// <param name="log">训练日志回调。</param>
         /// <param name="token">取消令牌。</param>
-        /// <returns>实际训练使用的模型路径。</returns>
-        private static string EnsureTrainingModelPath(string runtimeRoot, LargeModelTrainingRequest request, IProgress<string> log, CancellationToken token)
+        /// <returns>本次训练实际使用的新 ONNX 或 TensorRT Engine 路径。</returns>
+        private static string RebuildTrainingModelPath(string runtimeRoot, LargeModelTrainingRequest request, IProgress<string> log, CancellationToken token)
         {
             string root = LargeModelDinov2Native.ResolveRuntimeRoot(runtimeRoot);
             string sizeText = BuildSizeText(request.InputWidth, request.InputHeight);
             string normalizedDevice = LargeModelRuntimeBootstrapper.NormalizeDevice(request.Device);
             string normalizedPrecision = LargeModelRuntimeBootstrapper.NormalizePrecision(request.Precision);
-            string onnxPath = Path.Combine(root, "dinov2_" + sizeText + ".onnx");
+            string onnxPath = RebuildOnnxModelPath(root, request.InputWidth, request.InputHeight, sizeText, log, token);
 
             if (string.Equals(normalizedDevice, "CPU", StringComparison.OrdinalIgnoreCase))
             {
-                return EnsureOnnxModelPath(root, onnxPath, request.InputWidth, request.InputHeight, sizeText, log, token);
+                return onnxPath;
             }
 
             string enginePath = Path.Combine(root, "dinov2_" + sizeText + "_" + normalizedPrecision + ".engine");
-            if (File.Exists(enginePath))
-                return enginePath;
-
-            EnsureOnnxModelPath(root, onnxPath, request.InputWidth, request.InputHeight, sizeText, log, token);
-
             string trtexecPath = Path.Combine(root, "trtexec.exe");
             if (!File.Exists(trtexecPath))
-                throw new FileNotFoundException("LargeModelDll 缺少 trtexec.exe，无法从 ONNX 生成 TensorRT engine。", trtexecPath);
+                throw new FileNotFoundException("LargeModelDll 缺少 trtexec.exe，无法从 ONNX 生成 TensorRT Engine。", trtexecPath);
 
-            log?.Report("未找到对应 engine，开始从 ONNX 生成 TensorRT engine：" + Path.GetFileName(enginePath));
+            log?.Report("开始使用当前电脑显卡重新生成 TensorRT Engine：" + Path.GetFileName(enginePath));
             BuildTensorRtEngine(root, trtexecPath, onnxPath, enginePath, normalizedPrecision, log, token);
             return enginePath;
         }
 
         /// <summary>
-        /// 确保所选分辨率的 ONNX 存在；缺失时使用隔离导出环境现场生成。
+        /// 为本次训练重新导出所选分辨率的 ONNX，并在成功后替换正式模型。
         /// </summary>
         /// <param name="root">大模型运行环境目录。</param>
-        /// <param name="onnxPath">目标 ONNX 路径。</param>
         /// <param name="width">输入宽度。</param>
         /// <param name="height">输入高度。</param>
         /// <param name="sizeText">分辨率文本。</param>
         /// <param name="log">训练日志回调。</param>
         /// <param name="token">取消令牌。</param>
-        /// <returns>ONNX 完整路径。</returns>
-        private static string EnsureOnnxModelPath(string root, string onnxPath, int width, int height, string sizeText, IProgress<string> log, CancellationToken token)
+        /// <returns>本次训练新生成的 ONNX 完整路径。</returns>
+        private static string RebuildOnnxModelPath(string root, int width, int height, string sizeText, IProgress<string> log, CancellationToken token)
         {
-            if (File.Exists(onnxPath))
+            string onnxPath = Path.Combine(root, "dinov2_" + sizeText + ".onnx");
+            string tempOnnxPath = Path.Combine(root, Path.GetFileNameWithoutExtension(onnxPath) + ".building.onnx");
+            TryDeleteGeneratedFile(tempOnnxPath);
+
+            try
+            {
+                log?.Report("开始为本次训练重新导出 DINOv2 ONNX：" + Path.GetFileName(onnxPath));
+                ExportOnnxModel(root, tempOnnxPath, width, height, sizeText, log, token);
+                if (!File.Exists(tempOnnxPath))
+                    throw new FileNotFoundException("DINOv2 ONNX 导出完成后仍未找到临时模型文件：" + tempOnnxPath, tempOnnxPath);
+
+                ReplaceGeneratedFile(tempOnnxPath, onnxPath);
+                log?.Report("本次训练 ONNX 已更新：" + onnxPath);
                 return onnxPath;
-
-            log?.Report("未找到所选分辨率 ONNX，开始导出：" + Path.GetFileName(onnxPath));
-            ExportOnnxModel(root, onnxPath, width, height, sizeText, log, token);
-
-            if (!File.Exists(onnxPath))
-                throw new FileNotFoundException("DINOv2 ONNX 导出完成后仍未找到模型文件：" + onnxPath, onnxPath);
-
-            return onnxPath;
+            }
+            catch
+            {
+                TryDeleteGeneratedFile(tempOnnxPath);
+                throw;
+            }
         }
 
         /// <summary>
@@ -372,6 +376,40 @@ namespace TDJS_Vision.Forms.AiTrainForm
         }
 
         /// <summary>
+        /// 使用同目录生成完成的临时文件替换正式模型文件。
+        /// </summary>
+        /// <param name="temporaryPath">已经完整生成的临时文件路径。</param>
+        /// <param name="targetPath">正式文件路径。</param>
+        private static void ReplaceGeneratedFile(string temporaryPath, string targetPath)
+        {
+            if (File.Exists(targetPath))
+            {
+                // 同目录替换由文件系统原子完成；替换失败时保留原正式文件。
+                File.Replace(temporaryPath, targetPath, null, true);
+                return;
+            }
+
+            File.Move(temporaryPath, targetPath);
+        }
+
+        /// <summary>
+        /// 尽力清理模型生成过程中遗留的临时文件。
+        /// </summary>
+        /// <param name="path">待清理的受控临时文件路径。</param>
+        private static void TryDeleteGeneratedFile(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                    File.Delete(path);
+            }
+            catch
+            {
+                // 临时文件清理失败不能覆盖真正的 ONNX 或 Engine 生成异常。
+            }
+        }
+
+        /// <summary>
         /// 调用 trtexec 从 ONNX 生成目标分辨率 TensorRT engine。
         /// </summary>
         /// <param name="runtimeRoot">大模型运行环境目录。</param>
@@ -384,55 +422,59 @@ namespace TDJS_Vision.Forms.AiTrainForm
         private static void BuildTensorRtEngine(string runtimeRoot, string trtexecPath, string onnxPath, string enginePath, string precision, IProgress<string> log, CancellationToken token)
         {
             string tempEnginePath = Path.Combine(Path.GetDirectoryName(enginePath), Path.GetFileNameWithoutExtension(enginePath) + ".building.engine");
-            if (File.Exists(tempEnginePath))
-                File.Delete(tempEnginePath);
+            TryDeleteGeneratedFile(tempEnginePath);
 
-            string precisionArgs = string.Equals(precision, "fp16", StringComparison.OrdinalIgnoreCase) ? " --fp16" : " --noTF32";
-            string arguments = "--onnx=\"" + onnxPath + "\" --saveEngine=\"" + tempEnginePath + "\"" + precisionArgs + " --workspace=4096";
-            StringBuilder processOutput = new StringBuilder();
-
-            using (System.Diagnostics.Process process = new System.Diagnostics.Process())
+            try
             {
-                process.StartInfo = new System.Diagnostics.ProcessStartInfo
+                string precisionArgs = string.Equals(precision, "fp16", StringComparison.OrdinalIgnoreCase) ? " --fp16" : " --noTF32";
+                string arguments = "--onnx=\"" + onnxPath + "\" --saveEngine=\"" + tempEnginePath + "\"" + precisionArgs + " --workspace=4096";
+                StringBuilder processOutput = new StringBuilder();
+
+                using (System.Diagnostics.Process process = new System.Diagnostics.Process())
                 {
-                    FileName = trtexecPath,
-                    Arguments = arguments,
-                    WorkingDirectory = runtimeRoot,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                };
-
-                process.OutputDataReceived += (sender, args) => AppendProcessLog(processOutput, log, args.Data);
-                process.ErrorDataReceived += (sender, args) => AppendProcessLog(processOutput, log, args.Data);
-
-                process.Start();
-                process.BeginOutputReadLine();
-                process.BeginErrorReadLine();
-
-                while (!process.WaitForExit(500))
-                {
-                    if (token.IsCancellationRequested)
+                    process.StartInfo = new System.Diagnostics.ProcessStartInfo
                     {
-                        TryKillProcess(process);
-                        token.ThrowIfCancellationRequested();
+                        FileName = trtexecPath,
+                        Arguments = arguments,
+                        WorkingDirectory = runtimeRoot,
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    };
+
+                    process.OutputDataReceived += (sender, args) => AppendProcessLog(processOutput, log, args.Data);
+                    process.ErrorDataReceived += (sender, args) => AppendProcessLog(processOutput, log, args.Data);
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+
+                    while (!process.WaitForExit(500))
+                    {
+                        if (token.IsCancellationRequested)
+                        {
+                            TryKillProcess(process);
+                            token.ThrowIfCancellationRequested();
+                        }
                     }
+
+                    process.WaitForExit();
+                    if (process.ExitCode != 0)
+                        throw new InvalidOperationException("TensorRT Engine 生成失败，trtexec 返回码：" + process.ExitCode.ToString(CultureInfo.InvariantCulture) + "\r\n" + processOutput);
                 }
 
-                process.WaitForExit();
-                if (process.ExitCode != 0)
-                    throw new InvalidOperationException("TensorRT engine 生成失败，trtexec 返回码：" + process.ExitCode.ToString(CultureInfo.InvariantCulture) + "\r\n" + processOutput);
+                if (!File.Exists(tempEnginePath))
+                    throw new FileNotFoundException("TensorRT 未生成临时 Engine 文件。", tempEnginePath);
+
+                ReplaceGeneratedFile(tempEnginePath, enginePath);
+                log?.Report("TensorRT Engine 重新生成完成：" + enginePath);
             }
-
-            if (!File.Exists(tempEnginePath))
-                throw new FileNotFoundException("TensorRT 未生成 engine 文件。", tempEnginePath);
-
-            if (File.Exists(enginePath))
-                File.Delete(enginePath);
-
-            File.Move(tempEnginePath, enginePath);
-            log?.Report("TensorRT engine 生成完成：" + enginePath);
+            catch
+            {
+                TryDeleteGeneratedFile(tempEnginePath);
+                throw;
+            }
         }
 
         /// <summary>

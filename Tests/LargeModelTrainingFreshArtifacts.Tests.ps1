@@ -1,0 +1,49 @@
+$ErrorActionPreference = "Stop"
+
+$root = Split-Path -Parent $PSScriptRoot
+$servicePath = Join-Path $root "Forms\AiTrainForm\LargeModelTrainingService.cs"
+
+function Assert-Contains {
+    param([string]$Text, [string]$Pattern, [string]$Message)
+    if ($Text.IndexOf($Pattern, [System.StringComparison]::Ordinal) -lt 0) {
+        throw $Message
+    }
+}
+
+function Assert-NotContains {
+    param([string]$Text, [string]$Pattern, [string]$Message)
+    if ($Text.IndexOf($Pattern, [System.StringComparison]::Ordinal) -ge 0) {
+        throw $Message
+    }
+}
+
+function Assert-Matches {
+    param([string]$Text, [string]$Pattern, [string]$Message)
+    if (-not [System.Text.RegularExpressions.Regex]::IsMatch(
+        $Text,
+        $Pattern,
+        [System.Text.RegularExpressions.RegexOptions]::Singleline)) {
+        throw $Message
+    }
+}
+
+if (-not (Test-Path -LiteralPath $servicePath)) {
+    throw "Missing large-model training service."
+}
+
+$service = Get-Content -LiteralPath $servicePath -Encoding UTF8 -Raw
+
+Assert-Contains $service 'string modelPath = RebuildTrainingModelPath(runtime.RootPath, request, log, token);' "Training must rebuild the model for every run."
+Assert-Contains $service 'string onnxPath = RebuildOnnxModelPath(root, request.InputWidth, request.InputHeight, sizeText, log, token);' "Every training run must rebuild ONNX before selecting CPU or GPU."
+Assert-NotContains $service 'if (File.Exists(enginePath))' "GPU training must not reuse an existing TensorRT engine."
+Assert-NotContains $service 'if (File.Exists(onnxPath))' "Training must not reuse an existing ONNX model."
+Assert-Contains $service 'Path.GetFileNameWithoutExtension(onnxPath) + ".building.onnx"' "ONNX export must use a temporary file."
+Assert-Contains $service 'ExportOnnxModel(root, tempOnnxPath, width, height, sizeText, log, token);' "ONNX export must target the temporary file."
+Assert-Contains $service 'ReplaceGeneratedFile(tempOnnxPath, onnxPath);' "A completed ONNX file must replace the previous formal model."
+Assert-Contains $service 'ReplaceGeneratedFile(tempEnginePath, enginePath);' "A completed engine must replace the previous formal engine."
+Assert-Contains $service 'TryDeleteGeneratedFile(tempOnnxPath);' "Failed ONNX export must clean its temporary file."
+Assert-Contains $service 'TryDeleteGeneratedFile(tempEnginePath);' "Failed engine generation must clean its temporary file."
+Assert-Matches $service 'private static string RebuildTrainingModelPath\(.*?string onnxPath = RebuildOnnxModelPath\(.*?if \(string.Equals\(normalizedDevice, "CPU".*?return onnxPath;.*?BuildTensorRtEngine\(root, trtexecPath, onnxPath, enginePath, normalizedPrecision, log, token\);' "CPU must return the new ONNX while GPU must build a new engine from it."
+Assert-Matches $service 'PrepareCleanDirectory\(modelOutputRoot, workRoot\);.*?string bankPath = Path.Combine\(modelOutputRoot, "memory.bank"\);.*?detector.TrainMemoryBank\(modelPath, bankPath' "Every run must clean the bank output and train a new bank."
+
+Write-Host "Large-model fresh-artifact training checks passed."
