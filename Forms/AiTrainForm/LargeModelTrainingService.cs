@@ -208,8 +208,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
         private static string RebuildOnnxModelPath(string root, int width, int height, string sizeText, IProgress<string> log, CancellationToken token)
         {
             string onnxPath = Path.Combine(root, "dinov2_" + sizeText + ".onnx");
-            string tempOnnxPath = Path.Combine(root, Path.GetFileNameWithoutExtension(onnxPath) + ".building.onnx");
-            TryDeleteGeneratedFile(tempOnnxPath);
+            string tempOnnxPath = Path.Combine(root, Path.GetFileNameWithoutExtension(onnxPath) + "_" + Guid.NewGuid().ToString("N") + ".building.onnx");
 
             try
             {
@@ -256,7 +255,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             if (!string.IsNullOrWhiteSpace(missingPath))
             {
                 throw new FileNotFoundException(
-                    "LargeModelDll 缺少 ONNX 导出环境，无法生成 dinov2_" + sizeText + ".onnx。请将 export_dinov2.py、dinov2 源码目录和 third_party\\python_native_env 放入 LargeModelDll，或手动放入 dinov2_" + sizeText + ".onnx。",
+                    "LargeModelDll 缺少 ONNX 导出环境，无法为本次训练重新生成 dinov2_" + sizeText + ".onnx。请补齐 LargeModelDll 下的 export_dinov2.py、dinov2 源码目录和 third_party\\python_native_env。",
                     missingPath);
             }
 
@@ -421,8 +420,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <param name="token">取消令牌。</param>
         private static void BuildTensorRtEngine(string runtimeRoot, string trtexecPath, string onnxPath, string enginePath, string precision, IProgress<string> log, CancellationToken token)
         {
-            string tempEnginePath = Path.Combine(Path.GetDirectoryName(enginePath), Path.GetFileNameWithoutExtension(enginePath) + ".building.engine");
-            TryDeleteGeneratedFile(tempEnginePath);
+            string tempEnginePath = Path.Combine(Path.GetDirectoryName(enginePath), Path.GetFileNameWithoutExtension(enginePath) + "_" + Guid.NewGuid().ToString("N") + ".building.engine");
 
             try
             {
