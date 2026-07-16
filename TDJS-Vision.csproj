@@ -1454,6 +1454,7 @@
     </Compile>
     <Compile Include="Forms\Logger\LoggerClass.cs" />
     <Compile Include="Forms\Logger\LogLevelSettings.cs" />
+    <Compile Include="Forms\Logger\LogUiBuffer.cs" />
     <Compile Include="Forms\Logger\LogHelper.cs">
       <SubType>UserControl</SubType>
     </Compile>
