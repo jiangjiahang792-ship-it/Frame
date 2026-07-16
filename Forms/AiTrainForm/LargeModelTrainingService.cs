@@ -21,6 +21,21 @@ namespace TDJS_Vision.Forms.AiTrainForm
         private const int Dinov2PatchSize = 14;
 
         /// <summary>
+        /// ONNX 产物允许发布的最小字节数。
+        /// </summary>
+        private const long MinimumOnnxArtifactLength = 64;
+
+        /// <summary>
+        /// TensorRT Engine 产物允许发布的最小字节数。
+        /// </summary>
+        private const long MinimumEngineArtifactLength = 64;
+
+        /// <summary>
+        /// 取消外部进程后等待其退出的最长毫秒数。
+        /// </summary>
+        private const int ProcessTerminationWaitMilliseconds = 5000;
+
+        /// <summary>
         /// 当前训练使用的 native 检测器。
         /// </summary>
         private LargeModelDinov2Detector _activeDetector;
@@ -29,6 +44,37 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// 当前训练检测器访问锁。
         /// </summary>
         private readonly object _activeDetectorLock = new object();
+
+        /// <summary>
+        /// 保护完整训练链顺序与跨进程串行的协调器。
+        /// </summary>
+        private readonly LargeModelTrainingCoordinator _trainingCoordinator;
+
+        /// <summary>
+        /// 负责模型临时生成、有效性验证和正式发布的组件。
+        /// </summary>
+        private readonly LargeModelArtifactPublisher _artifactPublisher;
+
+        /// <summary>
+        /// 使用生产协调器和产物发布器初始化大模型训练服务。
+        /// </summary>
+        public LargeModelTrainingService()
+            : this(new LargeModelTrainingCoordinator(), new LargeModelArtifactPublisher())
+        {
+        }
+
+        /// <summary>
+        /// 使用可替换组件初始化大模型训练服务。
+        /// </summary>
+        /// <param name="trainingCoordinator">完整训练链协调器。</param>
+        /// <param name="artifactPublisher">模型产物发布器。</param>
+        internal LargeModelTrainingService(
+            LargeModelTrainingCoordinator trainingCoordinator,
+            LargeModelArtifactPublisher artifactPublisher)
+        {
+            _trainingCoordinator = trainingCoordinator ?? throw new ArgumentNullException(nameof(trainingCoordinator));
+            _artifactPublisher = artifactPublisher ?? throw new ArgumentNullException(nameof(artifactPublisher));
+        }
 
         /// <summary>
         /// 执行一次大模型训练。
@@ -47,59 +93,14 @@ namespace TDJS_Vision.Forms.AiTrainForm
 
             string modelRoot = LargeModelRuntimeBootstrapper.EnsureModelRoot();
             EnsureTemplatePathInModelRoot(request.OutputTemplatePath, modelRoot);
-
-            string workRoot = Path.Combine(modelRoot, "_LargeModelTraining", SafeFileName(request.TemplateName));
-            string datasetRoot = Path.Combine(workRoot, "dataset");
-            string modelOutputRoot = Path.Combine(workRoot, "model");
-            PrepareCleanDirectory(datasetRoot, workRoot);
-            PrepareCleanDirectory(modelOutputRoot, workRoot);
-
-            log?.Report("正在准备大模型训练数据集。");
-            DatasetBuildResult dataset = BuildDataset(request, datasetRoot, token);
-            log?.Report("数据集准备完成，OK=" + dataset.OkCount.ToString(CultureInfo.InvariantCulture) + "，NG=" + dataset.NgCount.ToString(CultureInfo.InvariantCulture));
-            ValidateDatasetImageCount(dataset);
-
-            token.ThrowIfCancellationRequested();
-            progress?.Report(5);
-
-            string modelPath = RebuildTrainingModelPath(runtime.RootPath, request, log, token);
-            string bankPath = Path.Combine(modelOutputRoot, "memory.bank");
-            int deviceMode = LargeModelRuntimeBootstrapper.ResolveDeviceMode(request.Device);
-            using (var detector = new LargeModelDinov2Detector(runtime.RootPath))
-            {
-                SetActiveDetector(detector);
-                try
-                {
-                    log?.Report("正在训练 DINOv2 memory bank。");
-                    int trained = detector.TrainMemoryBank(modelPath, bankPath, deviceMode, dataset.OkPath, dataset.NgCount > 0 ? dataset.NgPath : string.Empty);
-                    if (trained < 0)
-                        throw new InvalidOperationException("大模型训练失败，native 返回码：" + trained.ToString(CultureInfo.InvariantCulture));
-                    if (!File.Exists(bankPath))
-                        throw new FileNotFoundException("大模型训练未生成 memory bank。", bankPath);
-
-                    log?.Report("memory bank 训练完成，处理图片数：" + trained.ToString(CultureInfo.InvariantCulture));
-                }
-                finally
-                {
-                    SetActiveDetector(null);
-                }
-            }
-
-            token.ThrowIfCancellationRequested();
-            progress?.Report(90);
-
-            log?.Report("正在打包大模型模板文件。");
-            LargeModelTemplateManifest manifest = BuildManifest(request, dataset, modelPath, deviceMode);
-            LargeModelTemplatePackage.Create(request.OutputTemplatePath, manifest, modelPath, bankPath);
-            progress?.Report(100);
-
-            return new LargeModelTrainingResult
-            {
-                TemplatePath = request.OutputTemplatePath,
-                BankPath = bankPath,
-                OkCount = dataset.OkCount,
-                NgCount = dataset.NgCount
-            };
+            string runtimeRoot = LargeModelDinov2Native.ResolveRuntimeRoot(runtime.RootPath);
+            bool useGpu = !string.Equals(
+                LargeModelRuntimeBootstrapper.NormalizeDevice(request.Device),
+                "CPU",
+                StringComparison.OrdinalIgnoreCase);
+            var stages = new ProductionTrainingStages(this, runtimeRoot, modelRoot, request, progress, log);
+            string modelPath = _trainingCoordinator.Execute(runtimeRoot, useGpu, stages, log, token);
+            return stages.CreateResult(modelPath);
         }
 
         /// <summary>
@@ -165,38 +166,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
         }
 
         /// <summary>
-        /// 为本次训练重新生成与所选设备、分辨率和精度匹配的模型。
-        /// </summary>
-        /// <param name="runtimeRoot">大模型运行环境目录。</param>
-        /// <param name="request">训练请求。</param>
-        /// <param name="log">训练日志回调。</param>
-        /// <param name="token">取消令牌。</param>
-        /// <returns>本次训练实际使用的新 ONNX 或 TensorRT Engine 路径。</returns>
-        private static string RebuildTrainingModelPath(string runtimeRoot, LargeModelTrainingRequest request, IProgress<string> log, CancellationToken token)
-        {
-            string root = LargeModelDinov2Native.ResolveRuntimeRoot(runtimeRoot);
-            string sizeText = BuildSizeText(request.InputWidth, request.InputHeight);
-            string normalizedDevice = LargeModelRuntimeBootstrapper.NormalizeDevice(request.Device);
-            string normalizedPrecision = LargeModelRuntimeBootstrapper.NormalizePrecision(request.Precision);
-            string onnxPath = RebuildOnnxModelPath(root, request.InputWidth, request.InputHeight, sizeText, log, token);
-
-            if (string.Equals(normalizedDevice, "CPU", StringComparison.OrdinalIgnoreCase))
-            {
-                return onnxPath;
-            }
-
-            string enginePath = Path.Combine(root, "dinov2_" + sizeText + "_" + normalizedPrecision + ".engine");
-            string trtexecPath = Path.Combine(root, "trtexec.exe");
-            if (!File.Exists(trtexecPath))
-                throw new FileNotFoundException("LargeModelDll 缺少 trtexec.exe，无法从 ONNX 生成 TensorRT Engine。", trtexecPath);
-
-            log?.Report("开始使用当前电脑显卡重新生成 TensorRT Engine：" + Path.GetFileName(enginePath));
-            BuildTensorRtEngine(root, trtexecPath, onnxPath, enginePath, normalizedPrecision, log, token);
-            return enginePath;
-        }
-
-        /// <summary>
-        /// 为本次训练重新导出所选分辨率的 ONNX，并在成功后替换正式模型。
+        /// 为本次训练重新导出并发布所选分辨率的 ONNX。
         /// </summary>
         /// <param name="root">大模型运行环境目录。</param>
         /// <param name="width">输入宽度。</param>
@@ -204,28 +174,80 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <param name="sizeText">分辨率文本。</param>
         /// <param name="log">训练日志回调。</param>
         /// <param name="token">取消令牌。</param>
-        /// <returns>本次训练新生成的 ONNX 完整路径。</returns>
-        private static string RebuildOnnxModelPath(string root, int width, int height, string sizeText, IProgress<string> log, CancellationToken token)
+        /// <returns>通过有效性与 native 加载验证的新 ONNX 正式路径。</returns>
+        private string RebuildOnnxModelPath(
+            string root,
+            int width,
+            int height,
+            string sizeText,
+            IProgress<string> log,
+            CancellationToken token)
         {
             string onnxPath = Path.Combine(root, "dinov2_" + sizeText + ".onnx");
-            string tempOnnxPath = Path.Combine(root, Path.GetFileNameWithoutExtension(onnxPath) + "_" + Guid.NewGuid().ToString("N") + ".building.onnx");
+            log?.Report("开始为本次训练重新导出 DINOv2 ONNX：" + Path.GetFileName(onnxPath));
+            string publishedPath = _artifactPublisher.Publish(
+                onnxPath,
+                "DINOv2 ONNX",
+                MinimumOnnxArtifactLength,
+                new CallbackArtifactGenerator(
+                    (temporaryPath, generationToken) => ExportOnnxModel(
+                        root,
+                        temporaryPath,
+                        width,
+                        height,
+                        sizeText,
+                        log,
+                        generationToken)),
+                new NativeModelArtifactValidator(root, 2, "DINOv2 ONNX"),
+                log,
+                token);
+            log?.Report("本次训练 ONNX 已更新：" + publishedPath);
+            return publishedPath;
+        }
 
-            try
-            {
-                log?.Report("开始为本次训练重新导出 DINOv2 ONNX：" + Path.GetFileName(onnxPath));
-                ExportOnnxModel(root, tempOnnxPath, width, height, sizeText, log, token);
-                if (!File.Exists(tempOnnxPath))
-                    throw new FileNotFoundException("DINOv2 ONNX 导出完成后仍未找到临时模型文件：" + tempOnnxPath, tempOnnxPath);
+        /// <summary>
+        /// 使用本次 ONNX 重新生成并发布 TensorRT Engine。
+        /// </summary>
+        /// <param name="root">大模型运行环境目录。</param>
+        /// <param name="onnxPath">本次新生成的 ONNX 正式路径。</param>
+        /// <param name="sizeText">分辨率文本。</param>
+        /// <param name="precision">fp16 或 fp32。</param>
+        /// <param name="log">训练日志回调。</param>
+        /// <param name="token">取消令牌。</param>
+        /// <returns>通过有效性与 native 加载验证的新 TensorRT Engine 正式路径。</returns>
+        private string RebuildTensorRtEnginePath(
+            string root,
+            string onnxPath,
+            string sizeText,
+            string precision,
+            IProgress<string> log,
+            CancellationToken token)
+        {
+            string normalizedPrecision = LargeModelRuntimeBootstrapper.NormalizePrecision(precision);
+            string enginePath = Path.Combine(root, "dinov2_" + sizeText + "_" + normalizedPrecision + ".engine");
+            string trtexecPath = Path.Combine(root, "trtexec.exe");
+            if (!File.Exists(trtexecPath))
+                throw new FileNotFoundException("LargeModelDll 缺少 trtexec.exe，无法从 ONNX 生成 TensorRT Engine。", trtexecPath);
 
-                ReplaceGeneratedFile(tempOnnxPath, onnxPath);
-                log?.Report("本次训练 ONNX 已更新：" + onnxPath);
-                return onnxPath;
-            }
-            catch
-            {
-                TryDeleteGeneratedFile(tempOnnxPath);
-                throw;
-            }
+            log?.Report("开始使用当前电脑显卡重新生成 TensorRT Engine：" + Path.GetFileName(enginePath));
+            string publishedPath = _artifactPublisher.Publish(
+                enginePath,
+                "TensorRT Engine",
+                MinimumEngineArtifactLength,
+                new CallbackArtifactGenerator(
+                    (temporaryPath, generationToken) => GenerateTensorRtEngine(
+                        root,
+                        trtexecPath,
+                        onnxPath,
+                        temporaryPath,
+                        normalizedPrecision,
+                        log,
+                        generationToken)),
+                new NativeModelArtifactValidator(root, 1, "TensorRT Engine"),
+                log,
+                token);
+            log?.Report("TensorRT Engine 重新生成完成：" + publishedPath);
+            return publishedPath;
         }
 
         /// <summary>
@@ -268,7 +290,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 + " --pos-mode fixed"
                 + " --output " + QuoteProcessArgument(onnxPath)
                 + " --repo " + QuoteProcessArgument(repoPath);
-            StringBuilder processOutput = new StringBuilder();
+            LargeModelProcessOutputBuffer processOutput = new LargeModelProcessOutputBuffer();
 
             using (System.Diagnostics.Process process = new System.Diagnostics.Process())
             {
@@ -288,6 +310,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 process.ErrorDataReceived += (sender, args) => AppendProcessLog(processOutput, log, args.Data);
 
                 log?.Report("正在导出 DINOv2 ONNX：" + sizeText);
+                token.ThrowIfCancellationRequested();
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
@@ -296,14 +319,15 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 {
                     if (token.IsCancellationRequested)
                     {
-                        TryKillProcess(process);
+                        TryKillProcessAndWait(process, log);
                         token.ThrowIfCancellationRequested();
                     }
                 }
 
                 process.WaitForExit();
+                token.ThrowIfCancellationRequested();
                 if (process.ExitCode != 0)
-                    throw new InvalidOperationException("DINOv2 ONNX 导出失败，python 返回码：" + process.ExitCode.ToString(CultureInfo.InvariantCulture) + "\r\n" + processOutput);
+                    throw new InvalidOperationException("DINOv2 ONNX 导出失败，python 返回码：" + process.ExitCode.ToString(CultureInfo.InvariantCulture) + "\r\n" + processOutput.GetText());
             }
 
             log?.Report("DINOv2 ONNX 导出完成：" + onnxPath);
@@ -375,135 +399,124 @@ namespace TDJS_Vision.Forms.AiTrainForm
         }
 
         /// <summary>
-        /// 使用同目录生成完成的临时文件替换正式模型文件。
-        /// </summary>
-        /// <param name="temporaryPath">已经完整生成的临时文件路径。</param>
-        /// <param name="targetPath">正式文件路径。</param>
-        private static void ReplaceGeneratedFile(string temporaryPath, string targetPath)
-        {
-            if (File.Exists(targetPath))
-            {
-                // 同目录替换由文件系统原子完成；替换失败时保留原正式文件。
-                File.Replace(temporaryPath, targetPath, null, true);
-                return;
-            }
-
-            File.Move(temporaryPath, targetPath);
-        }
-
-        /// <summary>
-        /// 尽力清理模型生成过程中遗留的临时文件。
-        /// </summary>
-        /// <param name="path">待清理的受控临时文件路径。</param>
-        private static void TryDeleteGeneratedFile(string path)
-        {
-            try
-            {
-                if (File.Exists(path))
-                    File.Delete(path);
-            }
-            catch
-            {
-                // 临时文件清理失败不能覆盖真正的 ONNX 或 Engine 生成异常。
-            }
-        }
-
-        /// <summary>
-        /// 调用 trtexec 从 ONNX 生成目标分辨率 TensorRT engine。
+        /// 调用 trtexec 从本次 ONNX 生成指定临时路径的 TensorRT Engine。
         /// </summary>
         /// <param name="runtimeRoot">大模型运行环境目录。</param>
         /// <param name="trtexecPath">trtexec 路径。</param>
         /// <param name="onnxPath">ONNX 模型路径。</param>
-        /// <param name="enginePath">engine 输出路径。</param>
+        /// <param name="engineOutputPath">本次唯一 Engine 临时输出路径。</param>
         /// <param name="precision">fp16 或 fp32。</param>
         /// <param name="log">训练日志回调。</param>
         /// <param name="token">取消令牌。</param>
-        private static void BuildTensorRtEngine(string runtimeRoot, string trtexecPath, string onnxPath, string enginePath, string precision, IProgress<string> log, CancellationToken token)
+        private static void GenerateTensorRtEngine(
+            string runtimeRoot,
+            string trtexecPath,
+            string onnxPath,
+            string engineOutputPath,
+            string precision,
+            IProgress<string> log,
+            CancellationToken token)
         {
-            string tempEnginePath = Path.Combine(Path.GetDirectoryName(enginePath), Path.GetFileNameWithoutExtension(enginePath) + "_" + Guid.NewGuid().ToString("N") + ".building.engine");
+            string precisionArgs = string.Equals(precision, "fp16", StringComparison.OrdinalIgnoreCase) ? " --fp16" : " --noTF32";
+            string arguments = "--onnx=" + QuoteProcessArgument(onnxPath)
+                + " --saveEngine=" + QuoteProcessArgument(engineOutputPath)
+                + precisionArgs + " --workspace=4096";
+            LargeModelProcessOutputBuffer processOutput = new LargeModelProcessOutputBuffer();
 
-            try
+            using (System.Diagnostics.Process process = new System.Diagnostics.Process())
             {
-                string precisionArgs = string.Equals(precision, "fp16", StringComparison.OrdinalIgnoreCase) ? " --fp16" : " --noTF32";
-                string arguments = "--onnx=\"" + onnxPath + "\" --saveEngine=\"" + tempEnginePath + "\"" + precisionArgs + " --workspace=4096";
-                StringBuilder processOutput = new StringBuilder();
-
-                using (System.Diagnostics.Process process = new System.Diagnostics.Process())
+                process.StartInfo = new System.Diagnostics.ProcessStartInfo
                 {
-                    process.StartInfo = new System.Diagnostics.ProcessStartInfo
+                    FileName = trtexecPath,
+                    Arguments = arguments,
+                    WorkingDirectory = runtimeRoot,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+
+                process.OutputDataReceived += (sender, args) => AppendProcessLog(processOutput, log, args.Data);
+                process.ErrorDataReceived += (sender, args) => AppendProcessLog(processOutput, log, args.Data);
+
+                token.ThrowIfCancellationRequested();
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+
+                while (!process.WaitForExit(500))
+                {
+                    if (token.IsCancellationRequested)
                     {
-                        FileName = trtexecPath,
-                        Arguments = arguments,
-                        WorkingDirectory = runtimeRoot,
-                        UseShellExecute = false,
-                        CreateNoWindow = true,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true
-                    };
-
-                    process.OutputDataReceived += (sender, args) => AppendProcessLog(processOutput, log, args.Data);
-                    process.ErrorDataReceived += (sender, args) => AppendProcessLog(processOutput, log, args.Data);
-
-                    process.Start();
-                    process.BeginOutputReadLine();
-                    process.BeginErrorReadLine();
-
-                    while (!process.WaitForExit(500))
-                    {
-                        if (token.IsCancellationRequested)
-                        {
-                            TryKillProcess(process);
-                            token.ThrowIfCancellationRequested();
-                        }
+                        TryKillProcessAndWait(process, log);
+                        token.ThrowIfCancellationRequested();
                     }
-
-                    process.WaitForExit();
-                    if (process.ExitCode != 0)
-                        throw new InvalidOperationException("TensorRT Engine 生成失败，trtexec 返回码：" + process.ExitCode.ToString(CultureInfo.InvariantCulture) + "\r\n" + processOutput);
                 }
 
-                if (!File.Exists(tempEnginePath))
-                    throw new FileNotFoundException("TensorRT 未生成临时 Engine 文件。", tempEnginePath);
-
-                ReplaceGeneratedFile(tempEnginePath, enginePath);
-                log?.Report("TensorRT Engine 重新生成完成：" + enginePath);
-            }
-            catch
-            {
-                TryDeleteGeneratedFile(tempEnginePath);
-                throw;
+                process.WaitForExit();
+                token.ThrowIfCancellationRequested();
+                if (process.ExitCode != 0)
+                    throw new InvalidOperationException("TensorRT Engine 生成失败，trtexec 返回码：" + process.ExitCode.ToString(CultureInfo.InvariantCulture) + "\r\n" + processOutput.GetText());
             }
         }
 
         /// <summary>
-        /// 收集 trtexec 输出并写入训练日志。
+        /// 收集外部进程输出并写入训练日志。
         /// </summary>
-        /// <param name="builder">输出缓存。</param>
+        /// <param name="buffer">线程安全输出缓存。</param>
         /// <param name="log">训练日志回调。</param>
         /// <param name="line">输出行。</param>
-        private static void AppendProcessLog(StringBuilder builder, IProgress<string> log, string line)
+        private static void AppendProcessLog(LargeModelProcessOutputBuffer buffer, IProgress<string> log, string line)
         {
             if (string.IsNullOrWhiteSpace(line))
                 return;
 
-            builder.AppendLine(line);
+            buffer.AppendLine(line);
             log?.Report(line);
         }
 
         /// <summary>
-        /// 尝试终止 trtexec 进程。
+        /// 取消时尽力终止外部进程，并在清理临时文件前有界等待进程退出。
         /// </summary>
         /// <param name="process">进程实例。</param>
-        private static void TryKillProcess(System.Diagnostics.Process process)
+        /// <param name="log">训练日志回调。</param>
+        private static void TryKillProcessAndWait(System.Diagnostics.Process process, IProgress<string> log)
         {
             try
             {
                 if (process != null && !process.HasExited)
                     process.Kill();
             }
+            catch (Exception ex)
+            {
+                TryReportProcessMessage(log, "取消训练时终止外部进程失败：" + ex.Message);
+            }
+
+            try
+            {
+                if (process != null && !process.HasExited && !process.WaitForExit(ProcessTerminationWaitMilliseconds))
+                    TryReportProcessMessage(log, "取消训练后外部进程未在限定时间内退出，临时文件将继续尽力清理。");
+            }
+            catch (Exception ex)
+            {
+                TryReportProcessMessage(log, "取消训练时等待外部进程退出失败：" + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// 尽力写入外部进程取消日志，日志回调异常不得覆盖取消异常。
+        /// </summary>
+        /// <param name="log">训练日志回调。</param>
+        /// <param name="message">简体中文日志内容。</param>
+        private static void TryReportProcessMessage(IProgress<string> log, string message)
+        {
+            try
+            {
+                log?.Report(message);
+            }
             catch
             {
-                // 取消时尽力终止 trtexec；失败时交给外层取消流程继续退出。
+                // 保留当前取消异常，不让日志回调失败改变异常语义。
             }
         }
 
@@ -739,6 +752,300 @@ namespace TDJS_Vision.Forms.AiTrainForm
             }
 
             return path + Path.DirectorySeparatorChar;
+        }
+
+        /// <summary>
+        /// 把生产模型导出或构建回调适配为可注入的产物生成器接口。
+        /// </summary>
+        private sealed class CallbackArtifactGenerator : ILargeModelArtifactGenerator
+        {
+            /// <summary>
+            /// 实际执行模型生成的回调。
+            /// </summary>
+            private readonly Action<string, CancellationToken> _callback;
+
+            /// <summary>
+            /// 使用指定生成回调初始化适配器。
+            /// </summary>
+            /// <param name="callback">接收唯一临时路径和取消令牌的生成回调。</param>
+            public CallbackArtifactGenerator(Action<string, CancellationToken> callback)
+            {
+                _callback = callback ?? throw new ArgumentNullException(nameof(callback));
+            }
+
+            /// <summary>
+            /// 执行实际模型导出或构建回调。
+            /// </summary>
+            /// <param name="temporaryPath">本次唯一临时模型路径。</param>
+            /// <param name="token">取消令牌。</param>
+            public void Generate(string temporaryPath, CancellationToken token)
+            {
+                _callback(temporaryPath, token);
+            }
+        }
+
+        /// <summary>
+        /// 使用实际 DINOv2 native 初始化路径验证 ONNX 或 Engine 可加载性。
+        /// </summary>
+        private sealed class NativeModelArtifactValidator : ILargeModelArtifactValidator
+        {
+            /// <summary>
+            /// 大模型运行环境目录。
+            /// </summary>
+            private readonly string _runtimeRoot;
+
+            /// <summary>
+            /// native 设备模式，GPU 为 1，CPU 为 2。
+            /// </summary>
+            private readonly int _deviceMode;
+
+            /// <summary>
+            /// 当前模型生成阶段名称。
+            /// </summary>
+            private readonly string _stageName;
+
+            /// <summary>
+            /// 初始化 native 模型产物验证器。
+            /// </summary>
+            /// <param name="runtimeRoot">大模型运行环境目录。</param>
+            /// <param name="deviceMode">native 设备模式。</param>
+            /// <param name="stageName">模型生成阶段名称。</param>
+            public NativeModelArtifactValidator(string runtimeRoot, int deviceMode, string stageName)
+            {
+                _runtimeRoot = runtimeRoot;
+                _deviceMode = deviceMode;
+                _stageName = stageName;
+            }
+
+            /// <summary>
+            /// 使用和 memory bank 训练相同的 native 初始化入口加载临时模型。
+            /// </summary>
+            /// <param name="modelPath">待验证的临时 ONNX 或 Engine 路径。</param>
+            public void Validate(string modelPath)
+            {
+                using (var detector = new LargeModelDinov2Detector(_runtimeRoot))
+                {
+                    int loadResult = detector.LoadModel(modelPath, string.Empty, _deviceMode);
+                    if (loadResult != 0)
+                    {
+                        throw new InvalidDataException(
+                            _stageName + " 生成物 native 加载验证失败，返回码："
+                            + loadResult.ToString(CultureInfo.InvariantCulture));
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 把现有数据集、模型、Bank 和模板逻辑接入可测试的训练协调接口。
+        /// </summary>
+        private sealed class ProductionTrainingStages : ILargeModelTrainingStages
+        {
+            /// <summary>
+            /// 拥有检测器取消状态和模型发布器的训练服务。
+            /// </summary>
+            private readonly LargeModelTrainingService _owner;
+
+            /// <summary>
+            /// 大模型运行环境目录。
+            /// </summary>
+            private readonly string _runtimeRoot;
+
+            /// <summary>
+            /// 当前训练请求。
+            /// </summary>
+            private readonly LargeModelTrainingRequest _request;
+
+            /// <summary>
+            /// 训练进度回调。
+            /// </summary>
+            private readonly IProgress<int> _progress;
+
+            /// <summary>
+            /// 训练日志回调。
+            /// </summary>
+            private readonly IProgress<string> _log;
+
+            /// <summary>
+            /// 当前模板受控训练工作目录。
+            /// </summary>
+            private readonly string _workRoot;
+
+            /// <summary>
+            /// 当前训练数据集目录。
+            /// </summary>
+            private readonly string _datasetRoot;
+
+            /// <summary>
+            /// 当前 memory bank 输出目录。
+            /// </summary>
+            private readonly string _modelOutputRoot;
+
+            /// <summary>
+            /// 当前 memory bank 输出路径。
+            /// </summary>
+            private readonly string _bankPath;
+
+            /// <summary>
+            /// 当前训练使用的 native 设备模式。
+            /// </summary>
+            private readonly int _deviceMode;
+
+            /// <summary>
+            /// 已完成的数据集构建结果。
+            /// </summary>
+            private DatasetBuildResult _dataset;
+
+            /// <summary>
+            /// 初始化生产训练阶段适配器，不在构造期间修改共享目录。
+            /// </summary>
+            /// <param name="owner">训练服务。</param>
+            /// <param name="runtimeRoot">大模型运行环境目录。</param>
+            /// <param name="modelRoot">模板输出根目录。</param>
+            /// <param name="request">训练请求。</param>
+            /// <param name="progress">训练进度回调。</param>
+            /// <param name="log">训练日志回调。</param>
+            public ProductionTrainingStages(
+                LargeModelTrainingService owner,
+                string runtimeRoot,
+                string modelRoot,
+                LargeModelTrainingRequest request,
+                IProgress<int> progress,
+                IProgress<string> log)
+            {
+                _owner = owner;
+                _runtimeRoot = runtimeRoot;
+                _request = request;
+                _progress = progress;
+                _log = log;
+                _workRoot = Path.Combine(modelRoot, "_LargeModelTraining", SafeFileName(request.TemplateName));
+                _datasetRoot = Path.Combine(_workRoot, "dataset");
+                _modelOutputRoot = Path.Combine(_workRoot, "model");
+                _bankPath = Path.Combine(_modelOutputRoot, "memory.bank");
+                _deviceMode = LargeModelRuntimeBootstrapper.ResolveDeviceMode(request.Device);
+            }
+
+            /// <summary>
+            /// 在独占训练锁内清理并构建本次训练数据集。
+            /// </summary>
+            /// <param name="token">取消令牌。</param>
+            public void PrepareDataset(CancellationToken token)
+            {
+                PrepareCleanDirectory(_datasetRoot, _workRoot);
+                PrepareCleanDirectory(_modelOutputRoot, _workRoot);
+                _log?.Report("正在准备大模型训练数据集。");
+                _dataset = BuildDataset(_request, _datasetRoot, token);
+                _log?.Report(
+                    "数据集准备完成，OK=" + _dataset.OkCount.ToString(CultureInfo.InvariantCulture)
+                    + "，NG=" + _dataset.NgCount.ToString(CultureInfo.InvariantCulture));
+                ValidateDatasetImageCount(_dataset);
+                token.ThrowIfCancellationRequested();
+                _progress?.Report(5);
+            }
+
+            /// <summary>
+            /// 为本次训练重新生成并发布 ONNX。
+            /// </summary>
+            /// <param name="token">取消令牌。</param>
+            /// <returns>本次新 ONNX 正式路径。</returns>
+            public string RebuildOnnxModel(CancellationToken token)
+            {
+                string sizeText = BuildSizeText(_request.InputWidth, _request.InputHeight);
+                return _owner.RebuildOnnxModelPath(
+                    _runtimeRoot,
+                    _request.InputWidth,
+                    _request.InputHeight,
+                    sizeText,
+                    _log,
+                    token);
+            }
+
+            /// <summary>
+            /// 使用本次 ONNX 重新生成并发布 TensorRT Engine。
+            /// </summary>
+            /// <param name="onnxPath">本次新 ONNX 正式路径。</param>
+            /// <param name="token">取消令牌。</param>
+            /// <returns>本次新 Engine 正式路径。</returns>
+            public string RebuildTensorRtEngine(string onnxPath, CancellationToken token)
+            {
+                string sizeText = BuildSizeText(_request.InputWidth, _request.InputHeight);
+                return _owner.RebuildTensorRtEnginePath(
+                    _runtimeRoot,
+                    onnxPath,
+                    sizeText,
+                    _request.Precision,
+                    _log,
+                    token);
+            }
+
+            /// <summary>
+            /// 使用本次已验证模型重新训练 memory bank。
+            /// </summary>
+            /// <param name="modelPath">本次新 ONNX 或 Engine 正式路径。</param>
+            /// <param name="token">取消令牌。</param>
+            public void TrainMemoryBank(string modelPath, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                using (var detector = new LargeModelDinov2Detector(_runtimeRoot))
+                {
+                    _owner.SetActiveDetector(detector);
+                    try
+                    {
+                        token.ThrowIfCancellationRequested();
+                        _log?.Report("正在训练 DINOv2 memory bank。");
+                        int trained = detector.TrainMemoryBank(
+                            modelPath,
+                            _bankPath,
+                            _deviceMode,
+                            _dataset.OkPath,
+                            _dataset.NgCount > 0 ? _dataset.NgPath : string.Empty);
+                        if (trained < 0)
+                            throw new InvalidOperationException("大模型训练失败，native 返回码：" + trained.ToString(CultureInfo.InvariantCulture));
+                        if (!File.Exists(_bankPath))
+                            throw new FileNotFoundException("大模型训练未生成 memory bank。", _bankPath);
+
+                        _log?.Report("memory bank 训练完成，处理图片数：" + trained.ToString(CultureInfo.InvariantCulture));
+                    }
+                    finally
+                    {
+                        _owner.SetActiveDetector(null);
+                    }
+                }
+            }
+
+            /// <summary>
+            /// 把本次模型、Bank 和参数清单打包为模板。
+            /// </summary>
+            /// <param name="modelPath">本次新 ONNX 或 Engine 正式路径。</param>
+            /// <param name="token">取消令牌。</param>
+            public void PackageTemplate(string modelPath, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                _progress?.Report(90);
+                _log?.Report("正在打包大模型模板文件。");
+                LargeModelTemplateManifest manifest = BuildManifest(_request, _dataset, modelPath, _deviceMode);
+                LargeModelTemplatePackage.Create(_request.OutputTemplatePath, manifest, modelPath, _bankPath);
+                _progress?.Report(100);
+            }
+
+            /// <summary>
+            /// 根据已经完成的受保护训练链创建服务返回结果。
+            /// </summary>
+            /// <param name="modelPath">协调器返回的本次新模型路径。</param>
+            /// <returns>大模型训练结果。</returns>
+            public LargeModelTrainingResult CreateResult(string modelPath)
+            {
+                if (string.IsNullOrWhiteSpace(modelPath) || _dataset == null)
+                    throw new InvalidOperationException("大模型训练链未完整结束，无法创建训练结果。");
+
+                return new LargeModelTrainingResult
+                {
+                    TemplatePath = _request.OutputTemplatePath,
+                    BankPath = _bankPath,
+                    OkCount = _dataset.OkCount,
+                    NgCount = _dataset.NgCount
+                };
+            }
         }
 
         /// <summary>

@@ -14,6 +14,7 @@ $taskPath = Join-Path $root "FLOW_CANVAS_B_PLAN_TASKS.md"
 $runtimeBootstrapperPath = Join-Path $root "Forms\AiTrainForm\LargeModelRuntimeBootstrapper.cs"
 $detectorPath = Join-Path $root "Forms\AiTrainForm\LargeModelDinov2Detector.cs"
 $trainingServicePath = Join-Path $root "Forms\AiTrainForm\LargeModelTrainingService.cs"
+$trainingPipelinePath = Join-Path $root "Forms\AiTrainForm\LargeModelTrainingPipeline.cs"
 $trainingModelsPath = Join-Path $root "Forms\AiTrainForm\LargeModelTrainingModels.cs"
 $templatePackagePath = Join-Path $root "Forms\AiTrainForm\LargeModelTemplatePackage.cs"
 $trainFormPath = Join-Path $root "Forms\AiTrainForm\LargeModelTrainForm.cs"
@@ -68,6 +69,7 @@ function Assert-Matches {
 Assert-FileExists $runtimeBootstrapperPath "Missing large-model runtime bootstrapper."
 Assert-FileExists $detectorPath "Missing DINOv2 native wrapper."
 Assert-FileExists $trainingServicePath "Missing large-model training service."
+Assert-FileExists $trainingPipelinePath "Missing executable large-model training pipeline coordinator."
 Assert-FileExists $trainingModelsPath "Missing large-model training models."
 Assert-FileExists $templatePackagePath "Missing large-model template package."
 Assert-FileExists $trainFormPath "Missing large-model training form."
@@ -90,6 +92,7 @@ $flowCanvas = Get-Content -LiteralPath $flowCanvasPath -Encoding UTF8 -Raw
 $bootstrapper = Get-Content -LiteralPath $runtimeBootstrapperPath -Encoding UTF8 -Raw
 $detector = Get-Content -LiteralPath $detectorPath -Encoding UTF8 -Raw
 $service = Get-Content -LiteralPath $trainingServicePath -Encoding UTF8 -Raw
+$trainingPipeline = Get-Content -LiteralPath $trainingPipelinePath -Encoding UTF8 -Raw
 $trainingModels = Get-Content -LiteralPath $trainingModelsPath -Encoding UTF8 -Raw
 $templatePackage = Get-Content -LiteralPath $templatePackagePath -Encoding UTF8 -Raw
 $trainForm = Get-Content -LiteralPath $trainFormPath -Encoding UTF8 -Raw
@@ -123,8 +126,10 @@ Assert-Contains $detector "CvPtr" "DINOv2 inference must pass the OpenCvSharp Ma
 Assert-NotContains $detector "Cv2.ImWrite" "Large-model inference must not pass images through temp files."
 
 Assert-Contains $service "LargeModelRuntimeBootstrapper.ValidateRuntime" "Training must validate LargeModelDll before running."
+Assert-Contains $service "LargeModelTrainingCoordinator" "Training service must execute the protected training coordinator."
+Assert-Contains $trainingPipeline "ILargeModelTrainingStages" "Training stages must be injectable for executable behavior tests."
 Assert-Contains $service "detector.TrainMemoryBank" "Training service must call DINOv2 train to generate the bank."
-Assert-Contains $service 'LargeModelTemplatePackage.Create(request.OutputTemplatePath, manifest, modelPath, bankPath)' "Training package must include the selected native model and bank."
+Assert-Contains $service 'LargeModelTemplatePackage.Create(_request.OutputTemplatePath, manifest, modelPath, _bankPath)' "Training package must include the selected native model and bank."
 Assert-Contains $templatePackage "bank.bin" "Large-model package must include the generated bank."
 Assert-Contains $templatePackage "manifest.json" "Large-model package must include the manifest."
 Assert-Contains $templatePackage "WriteModel" "Large-model package must write the selected engine or ONNX model."
@@ -180,6 +185,7 @@ Assert-Contains $nodeBase "GetCanvasParameterSummary" "NodeBase must expose a ca
 Assert-Contains $flowCanvas "DrawNodeParameterSummary" "Flow canvas must draw runtime parameters on the node card."
 
 Assert-Contains $csproj 'Forms\AiTrainForm\LargeModelTrainForm.cs' "Project must include the large-model training form."
+Assert-Contains $csproj 'Forms\AiTrainForm\LargeModelTrainingPipeline.cs' "Project must include the executable large-model training pipeline."
 Assert-Contains $csproj 'Forms\AiTrainForm\LargeModelTrainForm.Designer.cs' "Project must include the large-model designer."
 Assert-Contains $csproj 'Node\3-Detection\LargeModel\NodeLargeModelDetection.cs' "Project must include the large-model node."
 Assert-Contains $csproj 'Node\3-Detection\LargeModel\ParamFormLargeModelDetection.Designer.cs' "Project must include the large-model param designer."
@@ -213,7 +219,7 @@ Assert-Contains $runtime "extractResult.ModelPath" "Large-model runtime must loa
 Assert-Contains $runtime "OffsetBoxesToSourceImage" "Large-model runtime must offset ROI boxes back to source image."
 Assert-Contains $runtime "IsOk" "Large-model result must expose OK/NG decision."
 Assert-Contains $service "ValidatePatchSizeMultiple" "Training service must validate DINOv2 input size is a multiple of 14."
-Assert-Contains $service "RebuildTrainingModelPath" "Training service must rebuild the ONNX or engine for every training run."
+Assert-Contains $service "RebuildTensorRtEnginePath" "GPU training must rebuild the TensorRT Engine for every training run."
 Assert-Contains $service "RebuildOnnxModelPath" "Training service must export a fresh selected-resolution ONNX for every training run."
 Assert-Contains $service "ExportOnnxModel" "Training service must call the isolated DINOv2 exporter when ONNX is missing."
 Assert-Contains $service '"export_dinov2.py"' "ONNX export must use the demo-aligned exporter script under LargeModelDll."
@@ -221,7 +227,7 @@ Assert-Contains $service 'Path.Combine(root, "third_party", "python_native_env",
 Assert-Contains $service 'Path.Combine(root, "dinov2")' "ONNX export must use the isolated DINOv2 source under LargeModelDll."
 Assert-Contains $service "--pos-mode fixed" "ONNX export must keep the demo-recommended fixed positional embedding mode."
 Assert-Contains $service "--output" "ONNX export must write the generated model to the requested LargeModelDll ONNX path."
-Assert-Contains $service "BuildTensorRtEngine" "GPU training must be able to build TensorRT engine from the matching ONNX."
+Assert-Contains $service "GenerateTensorRtEngine" "GPU training must build TensorRT Engine from this run's matching ONNX."
 Assert-Contains $service "--onnx=" "TensorRT build must pass the ONNX path to trtexec."
 Assert-Contains $service "--saveEngine=" "TensorRT build must save the selected-resolution engine."
 

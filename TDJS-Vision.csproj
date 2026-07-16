@@ -269,6 +269,7 @@
     <Compile Include="Forms\AiTrainForm\LargeModelRuntimeBootstrapper.cs" />
     <Compile Include="Forms\AiTrainForm\LargeModelTemplatePackage.cs" />
     <Compile Include="Forms\AiTrainForm\LargeModelTrainingModels.cs" />
+    <Compile Include="Forms\AiTrainForm\LargeModelTrainingPipeline.cs" />
     <Compile Include="Forms\AiTrainForm\LargeModelTrainingService.cs" />
     <Compile Include="LanguageManager.cs" />
     <Compile Include="Device\3D\Camera3DModels.cs" />
