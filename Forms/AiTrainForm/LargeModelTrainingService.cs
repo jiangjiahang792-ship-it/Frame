@@ -11,6 +11,115 @@ using CvRect = OpenCvSharp.Rect;
 namespace TDJS_Vision.Forms.AiTrainForm
 {
     /// <summary>
+    /// 定义训练服务可替换的运行环境解析边界。
+    /// </summary>
+    internal interface ILargeModelTrainingEnvironment
+    {
+        /// <summary>
+        /// 验证大模型运行环境。
+        /// </summary>
+        /// <returns>运行环境状态。</returns>
+        LargeModelRuntimeStatus ValidateRuntime();
+
+        /// <summary>
+        /// 确保并返回固定 Model 根目录。
+        /// </summary>
+        /// <returns>Model 根目录。</returns>
+        string EnsureModelRoot();
+
+        /// <summary>
+        /// 解析实际 native 运行目录。
+        /// </summary>
+        /// <param name="runtimeRoot">运行环境检查返回的根目录。</param>
+        /// <returns>实际 native 运行目录。</returns>
+        string ResolveRuntimeRoot(string runtimeRoot);
+    }
+
+    /// <summary>
+    /// 定义能够创建训练结果的完整训练阶段会话。
+    /// </summary>
+    internal interface ILargeModelTrainingSession : ILargeModelTrainingStages
+    {
+        /// <summary>
+        /// 根据协调器返回的本次模型创建服务结果。
+        /// </summary>
+        /// <param name="modelPath">本次新模型路径。</param>
+        /// <returns>训练结果。</returns>
+        LargeModelTrainingResult CreateResult(string modelPath);
+    }
+
+    /// <summary>
+    /// 定义服务入口可替换的训练阶段工厂。
+    /// </summary>
+    internal interface ILargeModelTrainingStageFactory
+    {
+        /// <summary>
+        /// 创建一次完整训练使用的阶段会话。
+        /// </summary>
+        /// <param name="runtimeRoot">native 运行目录。</param>
+        /// <param name="modelRoot">固定 Model 根目录。</param>
+        /// <param name="request">训练请求。</param>
+        /// <param name="progress">训练进度回调。</param>
+        /// <param name="log">训练日志回调。</param>
+        /// <returns>本次训练阶段会话。</returns>
+        ILargeModelTrainingSession Create(
+            string runtimeRoot,
+            string modelRoot,
+            LargeModelTrainingRequest request,
+            IProgress<int> progress,
+            IProgress<string> log);
+    }
+
+    /// <summary>
+    /// 定义生产训练阶段使用的可替换模型重建边界。
+    /// </summary>
+    internal interface ILargeModelTrainingModelRebuilder
+    {
+        /// <summary>
+        /// 为本次请求重新生成 ONNX。
+        /// </summary>
+        /// <param name="runtimeRoot">native 运行目录。</param>
+        /// <param name="request">训练请求。</param>
+        /// <param name="log">训练日志回调。</param>
+        /// <param name="token">取消令牌。</param>
+        /// <returns>本次 ONNX 正式路径。</returns>
+        string RebuildOnnxModel(
+            string runtimeRoot,
+            LargeModelTrainingRequest request,
+            IProgress<string> log,
+            CancellationToken token);
+
+        /// <summary>
+        /// 使用本次 ONNX 重新生成 TensorRT Engine。
+        /// </summary>
+        /// <param name="runtimeRoot">native 运行目录。</param>
+        /// <param name="onnxPath">本次 ONNX 正式路径。</param>
+        /// <param name="request">训练请求。</param>
+        /// <param name="log">训练日志回调。</param>
+        /// <param name="token">取消令牌。</param>
+        /// <returns>本次 Engine 正式路径。</returns>
+        string RebuildTensorRtEngine(
+            string runtimeRoot,
+            string onnxPath,
+            LargeModelTrainingRequest request,
+            IProgress<string> log,
+            CancellationToken token);
+    }
+
+    /// <summary>
+    /// 定义生产阶段和模型验证器统一使用的检测器工厂。
+    /// </summary>
+    internal interface ILargeModelDinov2DetectorFactory
+    {
+        /// <summary>
+        /// 创建绑定指定运行目录的真实检测器。
+        /// </summary>
+        /// <param name="runtimeRoot">native 运行目录。</param>
+        /// <returns>DINOv2 检测器。</returns>
+        LargeModelDinov2Detector Create(string runtimeRoot);
+    }
+
+    /// <summary>
     /// 大模型训练服务，负责数据集准备、DINOv2 bank 训练和模板打包。
     /// </summary>
     public sealed class LargeModelTrainingService
@@ -56,11 +165,42 @@ namespace TDJS_Vision.Forms.AiTrainForm
         private readonly LargeModelArtifactPublisher _artifactPublisher;
 
         /// <summary>
+        /// 负责验证并解析 runtime 与固定 Model 根目录的环境边界。
+        /// </summary>
+        private readonly ILargeModelTrainingEnvironment _trainingEnvironment;
+
+        /// <summary>
+        /// 可选的完整训练阶段工厂；为空时使用真实生产阶段适配器。
+        /// </summary>
+        private readonly ILargeModelTrainingStageFactory _trainingStageFactory;
+
+        /// <summary>
+        /// 生产阶段使用的模型重建边界。
+        /// </summary>
+        private readonly ILargeModelTrainingModelRebuilder _modelRebuilder;
+
+        /// <summary>
+        /// 生产阶段和模型验证统一使用的检测器工厂。
+        /// </summary>
+        private readonly ILargeModelDinov2DetectorFactory _detectorFactory;
+
+        /// <summary>
+        /// 生产阶段使用的模板发布器。
+        /// </summary>
+        private readonly ILargeModelTemplatePublisher _templatePublisher;
+
+        /// <summary>
         /// 使用生产协调器和产物发布器初始化大模型训练服务。
         /// </summary>
         public LargeModelTrainingService()
-            : this(new LargeModelTrainingCoordinator(), new LargeModelArtifactPublisher())
         {
+            _trainingCoordinator = new LargeModelTrainingCoordinator();
+            _artifactPublisher = new LargeModelArtifactPublisher();
+            _trainingEnvironment = new ProductionTrainingEnvironment();
+            _trainingStageFactory = null;
+            _detectorFactory = new ProductionDinov2DetectorFactory();
+            _templatePublisher = new LargeModelTemplatePublisher();
+            _modelRebuilder = new ProductionTrainingModelRebuilder(this);
         }
 
         /// <summary>
@@ -74,6 +214,39 @@ namespace TDJS_Vision.Forms.AiTrainForm
         {
             _trainingCoordinator = trainingCoordinator ?? throw new ArgumentNullException(nameof(trainingCoordinator));
             _artifactPublisher = artifactPublisher ?? throw new ArgumentNullException(nameof(artifactPublisher));
+            _trainingEnvironment = new ProductionTrainingEnvironment();
+            _trainingStageFactory = null;
+            _detectorFactory = new ProductionDinov2DetectorFactory();
+            _templatePublisher = new LargeModelTemplatePublisher();
+            _modelRebuilder = new ProductionTrainingModelRebuilder(this);
+        }
+
+        /// <summary>
+        /// 使用可替换生产边界初始化可执行训练服务。
+        /// </summary>
+        /// <param name="trainingCoordinator">完整训练链协调器。</param>
+        /// <param name="artifactPublisher">模型产物发布器。</param>
+        /// <param name="trainingEnvironment">运行环境解析边界。</param>
+        /// <param name="trainingStageFactory">可选训练阶段工厂；为空时使用真实生产适配器。</param>
+        /// <param name="modelRebuilder">模型重建边界。</param>
+        /// <param name="detectorFactory">检测器工厂。</param>
+        /// <param name="templatePublisher">模板发布器。</param>
+        internal LargeModelTrainingService(
+            LargeModelTrainingCoordinator trainingCoordinator,
+            LargeModelArtifactPublisher artifactPublisher,
+            ILargeModelTrainingEnvironment trainingEnvironment,
+            ILargeModelTrainingStageFactory trainingStageFactory,
+            ILargeModelTrainingModelRebuilder modelRebuilder,
+            ILargeModelDinov2DetectorFactory detectorFactory,
+            ILargeModelTemplatePublisher templatePublisher)
+        {
+            _trainingCoordinator = trainingCoordinator ?? throw new ArgumentNullException(nameof(trainingCoordinator));
+            _artifactPublisher = artifactPublisher ?? throw new ArgumentNullException(nameof(artifactPublisher));
+            _trainingEnvironment = trainingEnvironment ?? throw new ArgumentNullException(nameof(trainingEnvironment));
+            _trainingStageFactory = trainingStageFactory;
+            _modelRebuilder = modelRebuilder ?? throw new ArgumentNullException(nameof(modelRebuilder));
+            _detectorFactory = detectorFactory ?? throw new ArgumentNullException(nameof(detectorFactory));
+            _templatePublisher = templatePublisher ?? throw new ArgumentNullException(nameof(templatePublisher));
         }
 
         /// <summary>
@@ -87,18 +260,29 @@ namespace TDJS_Vision.Forms.AiTrainForm
         public LargeModelTrainingResult Train(LargeModelTrainingRequest request, IProgress<int> progress, IProgress<string> log, CancellationToken token)
         {
             ValidateRequest(request);
-            LargeModelRuntimeStatus runtime = LargeModelRuntimeBootstrapper.ValidateRuntime();
+            LargeModelRuntimeStatus runtime = _trainingEnvironment.ValidateRuntime();
             if (!runtime.IsReady)
                 throw new InvalidOperationException(runtime.Message);
 
-            string modelRoot = LargeModelRuntimeBootstrapper.EnsureModelRoot();
+            string modelRoot = _trainingEnvironment.EnsureModelRoot();
             EnsureTemplatePathInModelRoot(request.OutputTemplatePath, modelRoot);
-            string runtimeRoot = LargeModelDinov2Native.ResolveRuntimeRoot(runtime.RootPath);
+            string runtimeRoot = _trainingEnvironment.ResolveRuntimeRoot(runtime.RootPath);
             bool useGpu = !string.Equals(
                 LargeModelRuntimeBootstrapper.NormalizeDevice(request.Device),
                 "CPU",
                 StringComparison.OrdinalIgnoreCase);
-            var stages = new ProductionTrainingStages(this, runtimeRoot, modelRoot, request, progress, log);
+            ILargeModelTrainingSession stages = _trainingStageFactory != null
+                ? _trainingStageFactory.Create(runtimeRoot, modelRoot, request, progress, log)
+                : new ProductionTrainingStages(
+                    this,
+                    _modelRebuilder,
+                    _detectorFactory,
+                    _templatePublisher,
+                    runtimeRoot,
+                    modelRoot,
+                    request,
+                    progress,
+                    log);
             string modelPath = _trainingCoordinator.Execute(runtimeRoot, useGpu, stages, log, token);
             return stages.CreateResult(modelPath);
         }
@@ -140,6 +324,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 throw new ArgumentNullException(nameof(request));
             if (string.IsNullOrWhiteSpace(request.TemplateName))
                 throw new InvalidOperationException("模板名称不能为空。");
+            ValidateTemplateName(request.TemplateName);
             if (string.IsNullOrWhiteSpace(request.OutputTemplatePath))
                 throw new InvalidOperationException("模板输出路径不能为空。");
             if (request.Images == null || request.Images.Count == 0)
@@ -198,11 +383,25 @@ namespace TDJS_Vision.Forms.AiTrainForm
                         sizeText,
                         log,
                         generationToken)),
-                new NativeModelArtifactValidator(root, 2, "DINOv2 ONNX"),
+                new NativeModelArtifactValidator(_detectorFactory, root, 2, "DINOv2 ONNX"),
                 log,
                 token);
             log?.Report("本次训练 ONNX 已更新：" + publishedPath);
             return publishedPath;
+        }
+
+        /// <summary>
+        /// 拒绝可被文件系统解释为当前目录或父目录的模板名称。
+        /// </summary>
+        /// <param name="templateName">原始模板名称。</param>
+        private static void ValidateTemplateName(string templateName)
+        {
+            string normalizedName = templateName == null ? string.Empty : templateName.Trim();
+            if (string.Equals(normalizedName, ".", StringComparison.Ordinal) ||
+                string.Equals(normalizedName, "..", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("模板名称不能使用当前目录或父目录标记。");
+            }
         }
 
         /// <summary>
@@ -243,7 +442,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
                         normalizedPrecision,
                         log,
                         generationToken)),
-                new NativeModelArtifactValidator(root, 1, "TensorRT Engine"),
+                new NativeModelArtifactValidator(_detectorFactory, root, 1, "TensorRT Engine"),
                 log,
                 token);
             log?.Report("TensorRT Engine 重新生成完成：" + publishedPath);
@@ -563,7 +762,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
         {
             string fullTarget = Path.GetFullPath(targetPath);
             string fullAllowed = EnsureTrailingSeparator(Path.GetFullPath(allowedRoot));
-            if (!fullTarget.StartsWith(fullAllowed, StringComparison.OrdinalIgnoreCase))
+            if (!fullTarget.StartsWith(fullAllowed, StringComparison.OrdinalIgnoreCase) ||
+                fullTarget.Length <= fullAllowed.Length)
                 throw new InvalidOperationException("训练临时目录不在允许范围内。");
 
             if (Directory.Exists(fullTarget))
@@ -730,12 +930,38 @@ namespace TDJS_Vision.Forms.AiTrainForm
         private static string SafeFileName(string name)
         {
             string value = string.IsNullOrWhiteSpace(name) ? "template" : name.Trim();
+            ValidateTemplateName(value);
             foreach (char c in Path.GetInvalidFileNameChars())
             {
                 value = value.Replace(c, '_');
             }
 
             return value;
+        }
+
+        /// <summary>
+        /// 在固定可信训练根下解析模板工作目录，并阻止规范化后的目录逃逸或等于可信根。
+        /// </summary>
+        /// <param name="modelRoot">固定 Model 根目录。</param>
+        /// <param name="templateName">模板名称。</param>
+        /// <param name="trustedTrainingRoot">返回的固定可信训练根。</param>
+        /// <returns>严格位于可信训练根下的模板工作目录。</returns>
+        private static string ResolveTrainingWorkRoot(
+            string modelRoot,
+            string templateName,
+            out string trustedTrainingRoot)
+        {
+            trustedTrainingRoot = Path.GetFullPath(Path.Combine(modelRoot, "_LargeModelTraining"));
+            string safeTemplateName = SafeFileName(templateName);
+            string fullWorkRoot = Path.GetFullPath(Path.Combine(trustedTrainingRoot, safeTemplateName));
+            string allowedPrefix = EnsureTrailingSeparator(trustedTrainingRoot);
+            if (!fullWorkRoot.StartsWith(allowedPrefix, StringComparison.OrdinalIgnoreCase) ||
+                fullWorkRoot.Length <= allowedPrefix.Length)
+            {
+                throw new InvalidOperationException("模板训练工作目录不在固定可信根目录内。");
+            }
+
+            return fullWorkRoot;
         }
 
         /// <summary>
@@ -752,6 +978,126 @@ namespace TDJS_Vision.Forms.AiTrainForm
             }
 
             return path + Path.DirectorySeparatorChar;
+        }
+
+        /// <summary>
+        /// 使用现有运行时引导器提供生产训练环境。
+        /// </summary>
+        private sealed class ProductionTrainingEnvironment : ILargeModelTrainingEnvironment
+        {
+            /// <summary>
+            /// 验证生产大模型运行环境。
+            /// </summary>
+            /// <returns>运行环境状态。</returns>
+            public LargeModelRuntimeStatus ValidateRuntime()
+            {
+                return LargeModelRuntimeBootstrapper.ValidateRuntime();
+            }
+
+            /// <summary>
+            /// 确保并返回生产 Model 根目录。
+            /// </summary>
+            /// <returns>Model 根目录。</returns>
+            public string EnsureModelRoot()
+            {
+                return LargeModelRuntimeBootstrapper.EnsureModelRoot();
+            }
+
+            /// <summary>
+            /// 解析生产 native 运行目录。
+            /// </summary>
+            /// <param name="runtimeRoot">环境检查返回的根目录。</param>
+            /// <returns>实际 native 运行目录。</returns>
+            public string ResolveRuntimeRoot(string runtimeRoot)
+            {
+                return LargeModelDinov2Native.ResolveRuntimeRoot(runtimeRoot);
+            }
+        }
+
+        /// <summary>
+        /// 使用训练服务现有外部进程和产物发布逻辑重新生成模型。
+        /// </summary>
+        private sealed class ProductionTrainingModelRebuilder : ILargeModelTrainingModelRebuilder
+        {
+            /// <summary>
+            /// 提供实际 ONNX 与 Engine 重建方法的训练服务。
+            /// </summary>
+            private readonly LargeModelTrainingService _owner;
+
+            /// <summary>
+            /// 初始化生产模型重建器。
+            /// </summary>
+            /// <param name="owner">训练服务。</param>
+            public ProductionTrainingModelRebuilder(LargeModelTrainingService owner)
+            {
+                _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+            }
+
+            /// <summary>
+            /// 为本次请求重新生成并发布 ONNX。
+            /// </summary>
+            /// <param name="runtimeRoot">native 运行目录。</param>
+            /// <param name="request">训练请求。</param>
+            /// <param name="log">训练日志回调。</param>
+            /// <param name="token">取消令牌。</param>
+            /// <returns>本次 ONNX 正式路径。</returns>
+            public string RebuildOnnxModel(
+                string runtimeRoot,
+                LargeModelTrainingRequest request,
+                IProgress<string> log,
+                CancellationToken token)
+            {
+                string sizeText = BuildSizeText(request.InputWidth, request.InputHeight);
+                return _owner.RebuildOnnxModelPath(
+                    runtimeRoot,
+                    request.InputWidth,
+                    request.InputHeight,
+                    sizeText,
+                    log,
+                    token);
+            }
+
+            /// <summary>
+            /// 使用本次 ONNX 重新生成并发布 TensorRT Engine。
+            /// </summary>
+            /// <param name="runtimeRoot">native 运行目录。</param>
+            /// <param name="onnxPath">本次 ONNX 正式路径。</param>
+            /// <param name="request">训练请求。</param>
+            /// <param name="log">训练日志回调。</param>
+            /// <param name="token">取消令牌。</param>
+            /// <returns>本次 Engine 正式路径。</returns>
+            public string RebuildTensorRtEngine(
+                string runtimeRoot,
+                string onnxPath,
+                LargeModelTrainingRequest request,
+                IProgress<string> log,
+                CancellationToken token)
+            {
+                string sizeText = BuildSizeText(request.InputWidth, request.InputHeight);
+                return _owner.RebuildTensorRtEnginePath(
+                    runtimeRoot,
+                    onnxPath,
+                    sizeText,
+                    request.Precision,
+                    log,
+                    token);
+            }
+        }
+
+        /// <summary>
+        /// 创建使用生产 native API 的 DINOv2 检测器。
+        /// </summary>
+        private sealed class ProductionDinov2DetectorFactory : ILargeModelDinov2DetectorFactory
+        {
+            /// <summary>
+            /// 创建绑定指定运行目录的生产检测器。
+            /// </summary>
+            /// <param name="runtimeRoot">native 运行目录。</param>
+            /// <returns>DINOv2 检测器。</returns>
+            public LargeModelDinov2Detector Create(string runtimeRoot)
+            {
+                return new LargeModelDinov2Detector(runtimeRoot);
+            }
         }
 
         /// <summary>
@@ -790,6 +1136,11 @@ namespace TDJS_Vision.Forms.AiTrainForm
         private sealed class NativeModelArtifactValidator : ILargeModelArtifactValidator
         {
             /// <summary>
+            /// 创建真实检测器的可替换工厂。
+            /// </summary>
+            private readonly ILargeModelDinov2DetectorFactory _detectorFactory;
+
+            /// <summary>
             /// 大模型运行环境目录。
             /// </summary>
             private readonly string _runtimeRoot;
@@ -807,11 +1158,17 @@ namespace TDJS_Vision.Forms.AiTrainForm
             /// <summary>
             /// 初始化 native 模型产物验证器。
             /// </summary>
+            /// <param name="detectorFactory">检测器工厂。</param>
             /// <param name="runtimeRoot">大模型运行环境目录。</param>
             /// <param name="deviceMode">native 设备模式。</param>
             /// <param name="stageName">模型生成阶段名称。</param>
-            public NativeModelArtifactValidator(string runtimeRoot, int deviceMode, string stageName)
+            public NativeModelArtifactValidator(
+                ILargeModelDinov2DetectorFactory detectorFactory,
+                string runtimeRoot,
+                int deviceMode,
+                string stageName)
             {
+                _detectorFactory = detectorFactory ?? throw new ArgumentNullException(nameof(detectorFactory));
                 _runtimeRoot = runtimeRoot;
                 _deviceMode = deviceMode;
                 _stageName = stageName;
@@ -823,7 +1180,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             /// <param name="modelPath">待验证的临时 ONNX 或 Engine 路径。</param>
             public void Validate(string modelPath)
             {
-                using (var detector = new LargeModelDinov2Detector(_runtimeRoot))
+                using (LargeModelDinov2Detector detector = _detectorFactory.Create(_runtimeRoot))
                 {
                     int loadResult = detector.LoadModel(modelPath, string.Empty, _deviceMode);
                     if (loadResult != 0)
@@ -839,12 +1196,27 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <summary>
         /// 把现有数据集、模型、Bank 和模板逻辑接入可测试的训练协调接口。
         /// </summary>
-        private sealed class ProductionTrainingStages : ILargeModelTrainingStages
+        internal sealed class ProductionTrainingStages : ILargeModelTrainingSession
         {
             /// <summary>
             /// 拥有检测器取消状态和模型发布器的训练服务。
             /// </summary>
             private readonly LargeModelTrainingService _owner;
+
+            /// <summary>
+            /// 当前阶段使用的可替换模型重建器。
+            /// </summary>
+            private readonly ILargeModelTrainingModelRebuilder _modelRebuilder;
+
+            /// <summary>
+            /// 当前阶段使用的检测器工厂。
+            /// </summary>
+            private readonly ILargeModelDinov2DetectorFactory _detectorFactory;
+
+            /// <summary>
+            /// 当前阶段使用的模板发布器。
+            /// </summary>
+            private readonly ILargeModelTemplatePublisher _templatePublisher;
 
             /// <summary>
             /// 大模型运行环境目录。
@@ -870,6 +1242,11 @@ namespace TDJS_Vision.Forms.AiTrainForm
             /// 当前模板受控训练工作目录。
             /// </summary>
             private readonly string _workRoot;
+
+            /// <summary>
+            /// 固定可信训练根目录，所有递归清理目标必须严格位于其下。
+            /// </summary>
+            private readonly string _trustedTrainingRoot;
 
             /// <summary>
             /// 当前训练数据集目录。
@@ -900,6 +1277,9 @@ namespace TDJS_Vision.Forms.AiTrainForm
             /// 初始化生产训练阶段适配器，不在构造期间修改共享目录。
             /// </summary>
             /// <param name="owner">训练服务。</param>
+            /// <param name="modelRebuilder">模型重建器。</param>
+            /// <param name="detectorFactory">检测器工厂。</param>
+            /// <param name="templatePublisher">模板发布器。</param>
             /// <param name="runtimeRoot">大模型运行环境目录。</param>
             /// <param name="modelRoot">模板输出根目录。</param>
             /// <param name="request">训练请求。</param>
@@ -907,18 +1287,24 @@ namespace TDJS_Vision.Forms.AiTrainForm
             /// <param name="log">训练日志回调。</param>
             public ProductionTrainingStages(
                 LargeModelTrainingService owner,
+                ILargeModelTrainingModelRebuilder modelRebuilder,
+                ILargeModelDinov2DetectorFactory detectorFactory,
+                ILargeModelTemplatePublisher templatePublisher,
                 string runtimeRoot,
                 string modelRoot,
                 LargeModelTrainingRequest request,
                 IProgress<int> progress,
                 IProgress<string> log)
             {
-                _owner = owner;
+                _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+                _modelRebuilder = modelRebuilder ?? throw new ArgumentNullException(nameof(modelRebuilder));
+                _detectorFactory = detectorFactory ?? throw new ArgumentNullException(nameof(detectorFactory));
+                _templatePublisher = templatePublisher ?? throw new ArgumentNullException(nameof(templatePublisher));
                 _runtimeRoot = runtimeRoot;
                 _request = request;
                 _progress = progress;
                 _log = log;
-                _workRoot = Path.Combine(modelRoot, "_LargeModelTraining", SafeFileName(request.TemplateName));
+                _workRoot = ResolveTrainingWorkRoot(modelRoot, request.TemplateName, out _trustedTrainingRoot);
                 _datasetRoot = Path.Combine(_workRoot, "dataset");
                 _modelOutputRoot = Path.Combine(_workRoot, "model");
                 _bankPath = Path.Combine(_modelOutputRoot, "memory.bank");
@@ -931,8 +1317,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
             /// <param name="token">取消令牌。</param>
             public void PrepareDataset(CancellationToken token)
             {
-                PrepareCleanDirectory(_datasetRoot, _workRoot);
-                PrepareCleanDirectory(_modelOutputRoot, _workRoot);
+                PrepareCleanDirectory(_datasetRoot, _trustedTrainingRoot);
+                PrepareCleanDirectory(_modelOutputRoot, _trustedTrainingRoot);
                 _log?.Report("正在准备大模型训练数据集。");
                 _dataset = BuildDataset(_request, _datasetRoot, token);
                 _log?.Report(
@@ -950,12 +1336,9 @@ namespace TDJS_Vision.Forms.AiTrainForm
             /// <returns>本次新 ONNX 正式路径。</returns>
             public string RebuildOnnxModel(CancellationToken token)
             {
-                string sizeText = BuildSizeText(_request.InputWidth, _request.InputHeight);
-                return _owner.RebuildOnnxModelPath(
+                return _modelRebuilder.RebuildOnnxModel(
                     _runtimeRoot,
-                    _request.InputWidth,
-                    _request.InputHeight,
-                    sizeText,
+                    _request,
                     _log,
                     token);
             }
@@ -968,12 +1351,10 @@ namespace TDJS_Vision.Forms.AiTrainForm
             /// <returns>本次新 Engine 正式路径。</returns>
             public string RebuildTensorRtEngine(string onnxPath, CancellationToken token)
             {
-                string sizeText = BuildSizeText(_request.InputWidth, _request.InputHeight);
-                return _owner.RebuildTensorRtEnginePath(
+                return _modelRebuilder.RebuildTensorRtEngine(
                     _runtimeRoot,
                     onnxPath,
-                    sizeText,
-                    _request.Precision,
+                    _request,
                     _log,
                     token);
             }
@@ -986,25 +1367,29 @@ namespace TDJS_Vision.Forms.AiTrainForm
             public void TrainMemoryBank(string modelPath, CancellationToken token)
             {
                 token.ThrowIfCancellationRequested();
-                using (var detector = new LargeModelDinov2Detector(_runtimeRoot))
+                using (LargeModelDinov2Detector detector = _detectorFactory.Create(_runtimeRoot))
                 {
                     _owner.SetActiveDetector(detector);
                     try
                     {
-                        token.ThrowIfCancellationRequested();
-                        _log?.Report("正在训练 DINOv2 memory bank。");
-                        int trained = detector.TrainMemoryBank(
-                            modelPath,
-                            _bankPath,
-                            _deviceMode,
-                            _dataset.OkPath,
-                            _dataset.NgCount > 0 ? _dataset.NgPath : string.Empty);
-                        if (trained < 0)
-                            throw new InvalidOperationException("大模型训练失败，native 返回码：" + trained.ToString(CultureInfo.InvariantCulture));
-                        if (!File.Exists(_bankPath))
-                            throw new FileNotFoundException("大模型训练未生成 memory bank。", _bankPath);
+                        using (token.Register(detector.Dispose))
+                        {
+                            token.ThrowIfCancellationRequested();
+                            _log?.Report("正在训练 DINOv2 memory bank。");
+                            int trained = detector.TrainMemoryBank(
+                                modelPath,
+                                _bankPath,
+                                _deviceMode,
+                                _dataset.OkPath,
+                                _dataset.NgCount > 0 ? _dataset.NgPath : string.Empty,
+                                token);
+                            if (trained < 0)
+                                throw new InvalidOperationException("大模型训练失败，native 返回码：" + trained.ToString(CultureInfo.InvariantCulture));
+                            if (!File.Exists(_bankPath))
+                                throw new FileNotFoundException("大模型训练未生成 memory bank。", _bankPath);
 
-                        _log?.Report("memory bank 训练完成，处理图片数：" + trained.ToString(CultureInfo.InvariantCulture));
+                            _log?.Report("memory bank 训练完成，处理图片数：" + trained.ToString(CultureInfo.InvariantCulture));
+                        }
                     }
                     finally
                     {
@@ -1024,7 +1409,13 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 _progress?.Report(90);
                 _log?.Report("正在打包大模型模板文件。");
                 LargeModelTemplateManifest manifest = BuildManifest(_request, _dataset, modelPath, _deviceMode);
-                LargeModelTemplatePackage.Create(_request.OutputTemplatePath, manifest, modelPath, _bankPath);
+                _templatePublisher.Publish(
+                    _request.OutputTemplatePath,
+                    manifest,
+                    modelPath,
+                    _bankPath,
+                    _log,
+                    token);
                 _progress?.Report(100);
             }
 

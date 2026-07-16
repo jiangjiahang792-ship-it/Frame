@@ -48,6 +48,10 @@ public static class LargeModelTrainingBehaviorHarness
                 "CPU stages must execute in the required order on every run.");
             AssertTrue(firstCpuModel.EndsWith("run1.onnx", StringComparison.Ordinal), "The first CPU run must consume its newly exported ONNX.");
             AssertTrue(secondCpuModel.EndsWith("run2.onnx", StringComparison.Ordinal), "The second CPU run must consume its newly exported ONNX.");
+            AssertEqual(firstCpuModel, cpuStages.BankInputPaths[0], "The first CPU Bank must receive the first run's ONNX.");
+            AssertEqual(secondCpuModel, cpuStages.BankInputPaths[1], "The second CPU Bank must receive the second run's ONNX.");
+            AssertEqual(firstCpuModel, cpuStages.PackageInputPaths[0], "The first CPU package must receive the first run's ONNX.");
+            AssertEqual(secondCpuModel, cpuStages.PackageInputPaths[1], "The second CPU package must receive the second run's ONNX.");
 
             RecordingTrainingStages gpuStages = new RecordingTrainingStages(root);
             string gpuModel = coordinator.Execute(root, true, gpuStages, null, CancellationToken.None);
@@ -60,6 +64,9 @@ public static class LargeModelTrainingBehaviorHarness
             AssertEqual(1, gpuStages.EngineCalls, "A GPU run must build a TensorRT engine.");
             AssertEqual(1, gpuStages.BankCalls, "A GPU run must train a bank.");
             AssertTrue(gpuModel.EndsWith("run1.engine", StringComparison.Ordinal), "The GPU run must consume its newly built Engine.");
+            AssertTrue(gpuStages.EngineInputPaths[0].EndsWith("run1.onnx", StringComparison.Ordinal), "GPU Engine must receive this run's ONNX.");
+            AssertEqual(gpuModel, gpuStages.BankInputPaths[0], "GPU Bank must receive this run's Engine.");
+            AssertEqual(gpuModel, gpuStages.PackageInputPaths[0], "GPU package must receive this run's Engine.");
         }
         finally
         {
@@ -518,6 +525,12 @@ public static class LargeModelTrainingBehaviorHarness
             throw new InvalidOperationException(message + " Expected " + expected + ", actual " + actual + ".");
     }
 
+    private static void AssertEqual(string expected, string actual, string message)
+    {
+        if (!string.Equals(expected, actual, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(message + " Expected=" + expected + ", Actual=" + actual + ".");
+    }
+
     private static byte[] CreateBytes(int length, byte value)
     {
         byte[] bytes = new byte[length];
@@ -619,9 +632,18 @@ public static class LargeModelTrainingBehaviorHarness
         {
             _root = root;
             Events = new List<string>();
+            EngineInputPaths = new List<string>();
+            BankInputPaths = new List<string>();
+            PackageInputPaths = new List<string>();
         }
 
         public List<string> Events { get; private set; }
+
+        public List<string> EngineInputPaths { get; private set; }
+
+        public List<string> BankInputPaths { get; private set; }
+
+        public List<string> PackageInputPaths { get; private set; }
 
         public int OnnxCalls { get; private set; }
 
@@ -647,6 +669,7 @@ public static class LargeModelTrainingBehaviorHarness
         {
             EngineCalls++;
             Events.Add("engine");
+            EngineInputPaths.Add(onnxPath);
             return Path.Combine(_root, "run" + EngineCalls + ".engine");
         }
 
@@ -654,12 +677,14 @@ public static class LargeModelTrainingBehaviorHarness
         {
             BankCalls++;
             Events.Add("bank");
+            BankInputPaths.Add(modelPath);
         }
 
         public void PackageTemplate(string modelPath, CancellationToken token)
         {
             PackageCalls++;
             Events.Add("package");
+            PackageInputPaths.Add(modelPath);
         }
     }
 

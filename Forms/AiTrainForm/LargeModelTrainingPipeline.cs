@@ -299,7 +299,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 stages.TrainMemoryBank(modelPath, token);
                 token.ThrowIfCancellationRequested();
                 stages.PackageTemplate(modelPath, token);
-                token.ThrowIfCancellationRequested();
+                // 模板发布阶段在原子提交前执行最后取消检查；提交后不能再把成功结果改报为取消。
                 return modelPath;
             }
         }

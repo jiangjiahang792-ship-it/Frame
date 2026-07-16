@@ -3,27 +3,232 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using OpenCvSharp;
 
 namespace TDJS_Vision.Forms.AiTrainForm
 {
+    /// <summary>
+    /// 定义 DINOv2 检测器使用的完整 native 调用边界。
+    /// </summary>
+    internal interface ILargeModelDinov2NativeApi
+    {
+        /// <summary>
+        /// 配置 native 运行目录。
+        /// </summary>
+        /// <param name="runtimeRoot">大模型运行环境目录。</param>
+        void Configure(string runtimeRoot);
+
+        /// <summary>
+        /// 初始化 native 模型实例。
+        /// </summary>
+        /// <param name="modelPath">模型路径。</param>
+        /// <param name="bankPath">memory bank 路径。</param>
+        /// <param name="deviceMode">native 设备模式。</param>
+        /// <returns>native 模型句柄。</returns>
+        IntPtr Init(string modelPath, string bankPath, int deviceMode);
+
+        /// <summary>
+        /// 执行 native memory bank 训练。
+        /// </summary>
+        /// <param name="handler">native 模型句柄。</param>
+        /// <param name="okImage">单张 OK 图像指针。</param>
+        /// <param name="okPath">OK 图像目录。</param>
+        /// <param name="ngImage">单张 NG 图像指针。</param>
+        /// <param name="ngPath">NG 图像目录。</param>
+        /// <param name="saveBankPath">memory bank 保存路径。</param>
+        /// <param name="appendMode">是否追加训练。</param>
+        /// <returns>native 训练返回值。</returns>
+        int Train(
+            IntPtr handler,
+            IntPtr okImage,
+            string okPath,
+            IntPtr ngImage,
+            string ngPath,
+            string saveBankPath,
+            int appendMode);
+
+        /// <summary>
+        /// 执行 native 单图推理。
+        /// </summary>
+        /// <param name="handler">native 模型句柄。</param>
+        /// <param name="image">OpenCV 图像镜像。</param>
+        /// <param name="imageThreshold">图像异常阈值。</param>
+        /// <param name="areaThreshold">异常区域面积阈值。</param>
+        /// <param name="heatmapSaveDir">热力图保存目录。</param>
+        /// <param name="outHeatmap">热力图输出指针。</param>
+        /// <param name="outScore">异常分数。</param>
+        /// <param name="outBboxes">异常框数组。</param>
+        /// <param name="maxBboxes">异常框容量。</param>
+        /// <param name="outNumBboxes">实际异常框数量。</param>
+        /// <returns>native 推理返回值。</returns>
+        int Infer(
+            IntPtr handler,
+            ref LargeModelOpenCvImage image,
+            float imageThreshold,
+            int areaThreshold,
+            string heatmapSaveDir,
+            IntPtr outHeatmap,
+            out float outScore,
+            LargeModelRectBBox[] outBboxes,
+            int maxBboxes,
+            out int outNumBboxes);
+
+        /// <summary>
+        /// 释放 native 模型实例。
+        /// </summary>
+        /// <param name="handler">待释放句柄。</param>
+        void Release(IntPtr handler);
+    }
+
+    /// <summary>
+    /// 把生产 P/Invoke 调用适配为可替换的 native API。
+    /// </summary>
+    internal sealed class LargeModelDinov2NativeApi : ILargeModelDinov2NativeApi
+    {
+        /// <summary>
+        /// 配置生产 native 运行目录。
+        /// </summary>
+        /// <param name="runtimeRoot">大模型运行环境目录。</param>
+        public void Configure(string runtimeRoot)
+        {
+            LargeModelDinov2Native.Configure(runtimeRoot);
+        }
+
+        /// <summary>
+        /// 初始化生产 native 模型实例。
+        /// </summary>
+        /// <param name="modelPath">模型路径。</param>
+        /// <param name="bankPath">memory bank 路径。</param>
+        /// <param name="deviceMode">native 设备模式。</param>
+        /// <returns>native 模型句柄。</returns>
+        public IntPtr Init(string modelPath, string bankPath, int deviceMode)
+        {
+            return LargeModelDinov2Native.Init(modelPath, bankPath, deviceMode);
+        }
+
+        /// <summary>
+        /// 执行生产 native memory bank 训练。
+        /// </summary>
+        /// <param name="handler">native 模型句柄。</param>
+        /// <param name="okImage">单张 OK 图像指针。</param>
+        /// <param name="okPath">OK 图像目录。</param>
+        /// <param name="ngImage">单张 NG 图像指针。</param>
+        /// <param name="ngPath">NG 图像目录。</param>
+        /// <param name="saveBankPath">memory bank 保存路径。</param>
+        /// <param name="appendMode">是否追加训练。</param>
+        /// <returns>native 训练返回值。</returns>
+        public int Train(
+            IntPtr handler,
+            IntPtr okImage,
+            string okPath,
+            IntPtr ngImage,
+            string ngPath,
+            string saveBankPath,
+            int appendMode)
+        {
+            return LargeModelDinov2Native.Train(
+                handler,
+                okImage,
+                okPath,
+                ngImage,
+                ngPath,
+                saveBankPath,
+                appendMode);
+        }
+
+        /// <summary>
+        /// 执行生产 native 单图推理。
+        /// </summary>
+        /// <param name="handler">native 模型句柄。</param>
+        /// <param name="image">OpenCV 图像镜像。</param>
+        /// <param name="imageThreshold">图像异常阈值。</param>
+        /// <param name="areaThreshold">异常区域面积阈值。</param>
+        /// <param name="heatmapSaveDir">热力图保存目录。</param>
+        /// <param name="outHeatmap">热力图输出指针。</param>
+        /// <param name="outScore">异常分数。</param>
+        /// <param name="outBboxes">异常框数组。</param>
+        /// <param name="maxBboxes">异常框容量。</param>
+        /// <param name="outNumBboxes">实际异常框数量。</param>
+        /// <returns>native 推理返回值。</returns>
+        public int Infer(
+            IntPtr handler,
+            ref LargeModelOpenCvImage image,
+            float imageThreshold,
+            int areaThreshold,
+            string heatmapSaveDir,
+            IntPtr outHeatmap,
+            out float outScore,
+            LargeModelRectBBox[] outBboxes,
+            int maxBboxes,
+            out int outNumBboxes)
+        {
+            return LargeModelDinov2Native.Infer(
+                handler,
+                ref image,
+                imageThreshold,
+                areaThreshold,
+                heatmapSaveDir,
+                outHeatmap,
+                out outScore,
+                outBboxes,
+                maxBboxes,
+                out outNumBboxes);
+        }
+
+        /// <summary>
+        /// 释放生产 native 模型实例。
+        /// </summary>
+        /// <param name="handler">待释放句柄。</param>
+        public void Release(IntPtr handler)
+        {
+            LargeModelDinov2Native.Release(handler);
+        }
+    }
+
     /// <summary>
     /// DINOv2 大模型 native 训练与推理封装。
     /// </summary>
     public sealed class LargeModelDinov2Detector : IDisposable
     {
         /// <summary>
+        /// 保护 disposed 状态和 native 句柄发布、摘除操作的生命周期锁。
+        /// </summary>
+        private readonly object _lifecycleLock = new object();
+
+        /// <summary>
+        /// 当前检测器使用的可替换 native API。
+        /// </summary>
+        private readonly ILargeModelDinov2NativeApi _nativeApi;
+
+        /// <summary>
         /// native 模型句柄。
         /// </summary>
         private IntPtr _handle = IntPtr.Zero;
+
+        /// <summary>
+        /// 当前检测器是否已释放；一旦置位不允许重新发布句柄。
+        /// </summary>
+        private bool _disposed;
 
         /// <summary>
         /// 初始化 DINOv2 封装并配置隔离运行环境。
         /// </summary>
         /// <param name="runtimeRoot">大模型运行环境目录。</param>
         public LargeModelDinov2Detector(string runtimeRoot)
+            : this(runtimeRoot, new LargeModelDinov2NativeApi())
         {
-            LargeModelDinov2Native.Configure(runtimeRoot);
+        }
+
+        /// <summary>
+        /// 使用可替换 native API 初始化 DINOv2 检测器。
+        /// </summary>
+        /// <param name="runtimeRoot">大模型运行环境目录。</param>
+        /// <param name="nativeApi">native 调用边界。</param>
+        internal LargeModelDinov2Detector(string runtimeRoot, ILargeModelDinov2NativeApi nativeApi)
+        {
+            _nativeApi = nativeApi ?? throw new ArgumentNullException(nameof(nativeApi));
+            _nativeApi.Configure(runtimeRoot);
         }
 
         /// <summary>
@@ -35,14 +240,66 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <returns>0 表示加载成功，-1 表示 native 初始化失败。</returns>
         public int LoadModel(string modelPath, string bankPath, int deviceMode)
         {
+            return LoadModel(modelPath, bankPath, deviceMode, CancellationToken.None);
+        }
+
+        /// <summary>
+        /// 以可取消方式加载 DINOv2 模型和 memory bank。
+        /// </summary>
+        /// <param name="modelPath">TensorRT engine 或 ONNX 模型路径。</param>
+        /// <param name="bankPath">memory bank 路径。</param>
+        /// <param name="deviceMode">0 自动、1 GPU TensorRT、2 CPU ONNX。</param>
+        /// <param name="token">取消令牌。</param>
+        /// <returns>0 表示加载成功，-1 表示 native 初始化失败。</returns>
+        public int LoadModel(string modelPath, string bankPath, int deviceMode, CancellationToken token)
+        {
             if (string.IsNullOrWhiteSpace(modelPath))
                 throw new ArgumentException("大模型模型路径不能为空。", nameof(modelPath));
             if (!File.Exists(modelPath))
                 throw new FileNotFoundException("未找到大模型模型文件。", modelPath);
 
-            ReleaseHandle();
-            _handle = LargeModelDinov2Native.Init(modelPath, bankPath ?? string.Empty, deviceMode);
-            return _handle == IntPtr.Zero ? -1 : 0;
+            token.ThrowIfCancellationRequested();
+            IntPtr previousHandle;
+            lock (_lifecycleLock)
+            {
+                ThrowIfDisposed();
+                previousHandle = _handle;
+                _handle = IntPtr.Zero;
+            }
+
+            ReleaseNativeHandle(previousHandle);
+            token.ThrowIfCancellationRequested();
+            IntPtr initializedHandle = _nativeApi.Init(modelPath, bankPath ?? string.Empty, deviceMode);
+            if (initializedHandle == IntPtr.Zero)
+            {
+                token.ThrowIfCancellationRequested();
+                lock (_lifecycleLock)
+                {
+                    ThrowIfDisposed();
+                }
+
+                return -1;
+            }
+
+            bool published = false;
+            lock (_lifecycleLock)
+            {
+                if (!_disposed && !token.IsCancellationRequested)
+                {
+                    _handle = initializedHandle;
+                    published = true;
+                }
+            }
+
+            if (!published)
+            {
+                // Init 在取消或 Dispose 后返回时，句柄仍是局部所有权，必须立即释放且绝不写回字段。
+                ReleaseNativeHandle(initializedHandle);
+                token.ThrowIfCancellationRequested();
+                throw new ObjectDisposedException(nameof(LargeModelDinov2Detector), "大模型检测器已释放，不能发布新句柄。");
+            }
+
+            return 0;
         }
 
         /// <summary>
@@ -56,22 +313,54 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <returns>native 实际处理的图片数量。</returns>
         public int TrainMemoryBank(string modelPath, string bankPath, int deviceMode, string okPath, string ngPath)
         {
+            return TrainMemoryBank(modelPath, bankPath, deviceMode, okPath, ngPath, CancellationToken.None);
+        }
+
+        /// <summary>
+        /// 以可取消方式使用 OK 图像生成 memory bank，并可选使用 NG 图像校准阈值。
+        /// </summary>
+        /// <param name="modelPath">TensorRT engine 或 ONNX 模型路径。</param>
+        /// <param name="bankPath">memory bank 输出路径。</param>
+        /// <param name="deviceMode">0 自动、1 GPU TensorRT、2 CPU ONNX。</param>
+        /// <param name="okPath">OK 训练图片目录。</param>
+        /// <param name="ngPath">NG 校准图片目录，可为空。</param>
+        /// <param name="token">取消令牌。</param>
+        /// <returns>native 实际处理的图片数量。</returns>
+        public int TrainMemoryBank(
+            string modelPath,
+            string bankPath,
+            int deviceMode,
+            string okPath,
+            string ngPath,
+            CancellationToken token)
+        {
             if (string.IsNullOrWhiteSpace(okPath))
                 throw new ArgumentException("OK 训练路径不能为空。", nameof(okPath));
             if (string.IsNullOrWhiteSpace(bankPath))
                 throw new ArgumentException("memory bank 输出路径不能为空。", nameof(bankPath));
 
-            int initRet = LoadModel(modelPath, bankPath, deviceMode);
+            int initRet = LoadModel(modelPath, bankPath, deviceMode, token);
             if (initRet != 0)
                 return -1;
 
+            token.ThrowIfCancellationRequested();
             string bankDirectory = Path.GetDirectoryName(bankPath);
             if (!string.IsNullOrWhiteSpace(bankDirectory))
             {
                 Directory.CreateDirectory(bankDirectory);
             }
 
-            return LargeModelDinov2Native.Train(_handle, IntPtr.Zero, okPath, IntPtr.Zero, ngPath ?? string.Empty, bankPath, 0);
+            IntPtr activeHandle = GetActiveHandle(token);
+            // 句柄取得后紧邻 native Train 再检查一次，阻止 Init 返回边界的取消继续进入训练。
+            token.ThrowIfCancellationRequested();
+            return _nativeApi.Train(
+                activeHandle,
+                IntPtr.Zero,
+                okPath,
+                IntPtr.Zero,
+                ngPath ?? string.Empty,
+                bankPath,
+                0);
         }
 
         /// <summary>
@@ -84,18 +373,17 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <returns>大模型推理结果。</returns>
         public LargeModelDinov2Result InferBgr(Mat image, float imageThreshold, int areaThreshold, int maxBoxes)
         {
-            if (_handle == IntPtr.Zero)
-                throw new InvalidOperationException("大模型模型尚未加载。");
             if (image == null || image.Empty())
                 throw new ArgumentException("大模型推理输入图像不能为空。", nameof(image));
 
+            IntPtr activeHandle = GetActiveHandle(CancellationToken.None);
             int boxCapacity = Math.Max(1, maxBoxes);
             LargeModelRectBBox[] boxes = new LargeModelRectBBox[boxCapacity];
             using (Mat input = EnsureBgr(image))
             {
                 LargeModelOpenCvImage nativeImage = new LargeModelOpenCvImage { Mat = input.CvPtr };
-                int status = LargeModelDinov2Native.Infer(
-                    _handle,
+                int status = _nativeApi.Infer(
+                    activeHandle,
                     ref nativeImage,
                     imageThreshold,
                     Math.Max(0, areaThreshold),
@@ -115,7 +403,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// </summary>
         public void Dispose()
         {
-            ReleaseHandle();
+            Dispose(true);
             GC.SuppressFinalize(this);
         }
 
@@ -124,19 +412,64 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// </summary>
         ~LargeModelDinov2Detector()
         {
-            ReleaseHandle();
+            Dispose(false);
         }
 
         /// <summary>
-        /// 释放 native 模型句柄。
+        /// 以线程安全且幂等的方式终止生命周期并释放当前句柄。
         /// </summary>
-        private void ReleaseHandle()
+        /// <param name="disposing">是否由显式 Dispose 调用。</param>
+        private void Dispose(bool disposing)
         {
-            if (_handle != IntPtr.Zero)
+            IntPtr handleToRelease;
+            lock (_lifecycleLock)
             {
-                LargeModelDinov2Native.Release(_handle);
+                if (_disposed)
+                    return;
+
+                _disposed = true;
+                handleToRelease = _handle;
                 _handle = IntPtr.Zero;
             }
+
+            ReleaseNativeHandle(handleToRelease);
+        }
+
+        /// <summary>
+        /// 获取仍属于当前未释放检测器的有效句柄。
+        /// </summary>
+        /// <param name="token">取消令牌。</param>
+        /// <returns>可用于紧随其后的 native 调用的句柄。</returns>
+        private IntPtr GetActiveHandle(CancellationToken token)
+        {
+            lock (_lifecycleLock)
+            {
+                token.ThrowIfCancellationRequested();
+                ThrowIfDisposed();
+                if (_handle == IntPtr.Zero)
+                    throw new InvalidOperationException("大模型模型尚未加载。");
+
+                return _handle;
+            }
+        }
+
+        /// <summary>
+        /// 检查当前检测器是否已经结束生命周期。
+        /// </summary>
+        private void ThrowIfDisposed()
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(LargeModelDinov2Detector));
+        }
+
+        /// <summary>
+        /// 在生命周期锁外释放指定 native 句柄，避免阻塞或回调导致死锁。
+        /// </summary>
+        /// <param name="handle">待释放句柄。</param>
+        private void ReleaseNativeHandle(IntPtr handle)
+        {
+            if (handle != IntPtr.Zero)
+                _nativeApi.Release(handle);
         }
 
         /// <summary>
