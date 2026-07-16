@@ -21,17 +21,19 @@
 
 ---
 
-### Task 1: 添加强制重建模型链的失败测试
+### Task 1: 以测试驱动方式实现强制重建模型链
 
 **Files:**
 - Create: `Tests/LargeModelTrainingFreshArtifacts.Tests.ps1`
+- Modify: `Forms/AiTrainForm/LargeModelTrainingService.cs:65`
+- Modify: `Forms/AiTrainForm/LargeModelTrainingService.cs:168-440`
 - Modify: `Tests/LargeModelIntegration.Tests.ps1`
 - Test: `Tests/LargeModelTrainingFreshArtifacts.Tests.ps1`
 - Test: `Tests/LargeModelIntegration.Tests.ps1`
 
 **Interfaces:**
-- Consumes: `Forms/AiTrainForm/LargeModelTrainingService.cs` 的源码文本。
-- Produces: 对 `RebuildTrainingModelPath`、`RebuildOnnxModelPath`、临时文件替换及禁止旧文件短路的自动检查。
+- Consumes: `LargeModelTrainingRequest`、`ExportOnnxModel`、`BuildTensorRtEngine`、`LargeModelDinov2Detector.TrainMemoryBank` 和 `LargeModelTrainingService.cs` 的源码文本。
+- Produces: `RebuildTrainingModelPath(...)`、`RebuildOnnxModelPath(...)`、`ReplaceGeneratedFile(...)`、`TryDeleteGeneratedFile(...)`，以及临时文件替换和禁止旧文件短路的自动检查。
 
 - [ ] **Step 1: 新建专项失败测试**
 
@@ -125,21 +127,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Tests\LargeModelIntegr
 
 Expected: FAIL，错误为 `Training service must rebuild the ONNX or engine for every training run.`。
 
----
-
-### Task 2: 实现 ONNX、Engine 和 Bank 每次重建
-
-**Files:**
-- Modify: `Forms/AiTrainForm/LargeModelTrainingService.cs:65`
-- Modify: `Forms/AiTrainForm/LargeModelTrainingService.cs:168-440`
-- Test: `Tests/LargeModelTrainingFreshArtifacts.Tests.ps1`
-- Test: `Tests/LargeModelIntegration.Tests.ps1`
-
-**Interfaces:**
-- Consumes: `LargeModelTrainingRequest`、`ExportOnnxModel`、`BuildTensorRtEngine`、`LargeModelDinov2Detector.TrainMemoryBank`。
-- Produces: `RebuildTrainingModelPath(...)`、`RebuildOnnxModelPath(...)`、`ReplaceGeneratedFile(...)`、`TryDeleteGeneratedFile(...)`。
-
-- [ ] **Step 1: 让训练入口调用强制重建方法**
+- [ ] **Step 5: 让训练入口调用强制重建方法**
 
 在 `LargeModelTrainingService.Train` 中将模型路径语句替换为：
 
@@ -147,7 +135,7 @@ Expected: FAIL，错误为 `Training service must rebuild the ONNX or engine for
 string modelPath = RebuildTrainingModelPath(runtime.RootPath, request, log, token);
 ```
 
-- [ ] **Step 2: 用每次重建逻辑替换现有模型复用逻辑**
+- [ ] **Step 6: 用每次重建逻辑替换现有模型复用逻辑**
 
 使用下面的完整方法替换现有 `EnsureTrainingModelPath` 和 `EnsureOnnxModelPath`：
 
@@ -218,7 +206,7 @@ private static string RebuildOnnxModelPath(string root, int width, int height, s
 }
 ```
 
-- [ ] **Step 3: 增加安全替换和临时文件清理方法**
+- [ ] **Step 7: 增加安全替换和临时文件清理方法**
 
 在 `LargeModelTrainingService` 的模型生成辅助方法区域增加：
 
@@ -258,7 +246,7 @@ private static void TryDeleteGeneratedFile(string path)
 }
 ```
 
-- [ ] **Step 4: 让 Engine 构建失败时清理临时文件并安全替换正式文件**
+- [ ] **Step 8: 让 Engine 构建失败时清理临时文件并安全替换正式文件**
 
 保留 `BuildTensorRtEngine` 的参数和 `trtexec` 启动参数，将方法体改为下面的完整实现：
 
@@ -322,7 +310,7 @@ private static void BuildTensorRtEngine(string runtimeRoot, string trtexecPath, 
 }
 ```
 
-- [ ] **Step 5: 运行专项测试并确认通过**
+- [ ] **Step 9: 运行专项测试并确认通过**
 
 Run:
 
@@ -332,7 +320,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Tests\LargeModelTraini
 
 Expected: PASS，并输出 `Large-model fresh-artifact training checks passed.`。
 
-- [ ] **Step 6: 运行大模型集成测试并确认通过**
+- [ ] **Step 10: 运行大模型集成测试并确认通过**
 
 Run:
 
@@ -342,7 +330,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Tests\LargeModelIntegr
 
 Expected: PASS，并输出现有大模型集成检查成功信息。
 
-- [ ] **Step 7: 单独提交功能代码与自动测试**
+- [ ] **Step 11: 单独提交功能代码与自动测试**
 
 ```powershell
 git add -- Forms/AiTrainForm/LargeModelTrainingService.cs Tests/LargeModelTrainingFreshArtifacts.Tests.ps1 Tests/LargeModelIntegration.Tests.ps1
@@ -354,7 +342,7 @@ git commit -m "fix: 大模型训练每次重建模型链"
 
 ---
 
-### Task 3: 更新任务记录并完成构建验证
+### Task 2: 更新任务记录并完成构建验证
 
 **Files:**
 - Modify: `任务记录.md`
