@@ -24,11 +24,13 @@
 - 修改 `Node/3-Detection/LargeModel/LargeModelDetectionRuntime.cs`，增加预加载、空图预热和成功后原子替换。
 - 移除阈值参与加载缓存匹配的逻辑。
 - 修改 `Node/3-Detection/LargeModel/NodeLargeModelDetection.cs`，提供异步预加载方法。
+- 用同一个配置门协调预加载后的参数提交和流程运行参数读取，避免连续运行竞态。
 - 修改参数窗体保存事件，在后台等待预加载，正确恢复界面状态与错误提示。
 
 ## 任务四：验证与记录
 
 - 运行大模型集成测试。
+- 运行保存预加载并发行为测试。
 - 编译 `TDJS-Vision.sln`。
 - 检查只改动本任务相关文件，不覆盖用户当前相机开发内容。
 - 将结果追加到 `任务记录.md` 并提交本任务文件。

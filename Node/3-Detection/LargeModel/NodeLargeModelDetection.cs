@@ -23,6 +23,11 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
         private readonly LargeModelDetectionRuntime _runtime = new LargeModelDetectionRuntime();
 
         /// <summary>
+        /// 模型预加载提交与流程推理共用的配置门，保证检测器和节点参数成对切换。
+        /// </summary>
+        private readonly LargeModelRuntimeConfigurationGate _configurationGate = new LargeModelRuntimeConfigurationGate();
+
+        /// <summary>
         /// 初始化大模型异常检测节点。
         /// </summary>
         /// <param name="nodeId">节点 ID。</param>
@@ -53,14 +58,6 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
                 return Task.FromResult(new NodeReturn(NodeRunFlag.StopRun));
             }
 
-            NodeParamLargeModelDetection param = ParamForm == null ? null : ParamForm.Params as NodeParamLargeModelDetection;
-            if (param == null)
-            {
-                LogHelper.AddLog(MsgLevel.Fatal, $"节点({NodeName})运行参数未设置或保存！", true);
-                SetRunResult(startTime, NodeStatus.Failed);
-                throw new Exception($"节点({NodeName})运行参数未设置或保存！");
-            }
-
             ParamFormLargeModelDetection form = ParamForm as ParamFormLargeModelDetection;
             NodeResultLargeModelDetection res = Result as NodeResultLargeModelDetection;
             if (form == null || res == null)
@@ -70,6 +67,7 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
             }
 
             OutputImage inputImage = null;
+            NodeParamLargeModelDetection param = null;
             try
             {
                 SetStatus(NodeStatus.Unexecuted, "*");
@@ -81,8 +79,16 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
                 if (sourceImage == null || sourceImage.Empty())
                     throw new InvalidOperationException("大模型调用输入图像为空。");
 
-                LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}大模型调用开始，模板={param.TemplatePath}", true);
-                LargeModelDetectionRunResult runResult = _runtime.Infer(sourceImage, param);
+                LargeModelDetectionRunResult runResult = _configurationGate.Execute(() =>
+                {
+                    NodeParamLargeModelDetection currentParam = form.Params as NodeParamLargeModelDetection;
+                    if (currentParam == null)
+                        throw new InvalidOperationException($"节点({NodeName})运行参数未设置或保存！");
+
+                    param = currentParam;
+                    LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}大模型调用开始，模板={currentParam.TemplatePath}", true);
+                    return _runtime.Infer(sourceImage, currentParam);
+                });
                 PublishResult(res, runResult);
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
@@ -104,10 +110,30 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
             }
             catch (Exception ex)
             {
-                LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}；模板={param.TemplatePath}；输入图像：{BuildOutputImageSummary(inputImage)}", true);
+                string templatePath = param == null ? "未设置" : param.TemplatePath;
+                LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}；模板={templatePath}；输入图像：{BuildOutputImageSummary(inputImage)}", true);
                 SetRunResult(startTime, NodeStatus.Failed);
                 throw new Exception($"节点({ID}.{NodeName})运行失败！原因:{ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// 在后台线程预先加载并预热大模型运行环境。
+        /// </summary>
+        /// <param name="param">待预加载的节点参数。</param>
+        /// <returns>预加载任务。</returns>
+        public Task PreloadRuntimeAsync(NodeParamLargeModelDetection param)
+        {
+            if (param == null)
+                throw new ArgumentNullException(nameof(param));
+
+            ParamFormLargeModelDetection form = ParamForm as ParamFormLargeModelDetection;
+            if (form == null)
+                throw new InvalidOperationException("当前节点的大模型参数窗体无效。");
+
+            return Task.Run(() => _configurationGate.PreloadAndCommit(
+                () => _runtime.Preload(param),
+                () => form.Params = param));
         }
 
         /// <summary>
@@ -115,7 +141,11 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
         /// </summary>
         public void DisposeRuntime()
         {
-            _runtime.Dispose();
+            _configurationGate.Execute(() =>
+            {
+                _runtime.Dispose();
+                return true;
+            });
         }
 
         /// <summary>
@@ -232,6 +262,53 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
             string judgeText = runResult.IsOk ? "OK" : "NG";
             float score = runResult.NativeResult == null ? 0F : runResult.NativeResult.Score;
             return string.Format(CultureInfo.InvariantCulture, "大模型调用：{0}，分数 {1:F4}，异常框 {2}，{3}", judgeText, score, runResult.Boxes.Count, runResult.Message);
+        }
+    }
+
+    /// <summary>
+    /// 协调大模型配置提交和流程推理，避免检测器与节点参数出现跨版本组合。
+    /// </summary>
+    internal sealed class LargeModelRuntimeConfigurationGate
+    {
+        /// <summary>
+        /// 配置提交和推理共用的同步锁。
+        /// </summary>
+        private readonly object _syncRoot = new object();
+
+        /// <summary>
+        /// 在配置稳定期间执行一次读取或推理操作。
+        /// </summary>
+        /// <typeparam name="TResult">操作结果类型。</typeparam>
+        /// <param name="action">待执行操作。</param>
+        /// <returns>操作结果。</returns>
+        public TResult Execute<TResult>(Func<TResult> action)
+        {
+            if (action == null)
+                throw new ArgumentNullException(nameof(action));
+
+            lock (_syncRoot)
+            {
+                return action();
+            }
+        }
+
+        /// <summary>
+        /// 在同一个配置门内完成候选模型预加载和参数提交；预加载失败时不执行提交。
+        /// </summary>
+        /// <param name="preloadAction">候选模型预加载操作。</param>
+        /// <param name="commitAction">预加载成功后的参数提交操作。</param>
+        public void PreloadAndCommit(Action preloadAction, Action commitAction)
+        {
+            if (preloadAction == null)
+                throw new ArgumentNullException(nameof(preloadAction));
+            if (commitAction == null)
+                throw new ArgumentNullException(nameof(commitAction));
+
+            lock (_syncRoot)
+            {
+                preloadAction();
+                commitAction();
+            }
         }
     }
 }

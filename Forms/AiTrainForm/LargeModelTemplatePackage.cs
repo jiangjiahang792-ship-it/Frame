@@ -302,6 +302,39 @@ namespace TDJS_Vision.Forms.AiTrainForm
         }
 
         /// <summary>
+        /// 直接从模板包读取清单，不解包模型与 memory bank 大文件。
+        /// </summary>
+        /// <param name="templatePath">模板包路径。</param>
+        /// <returns>模板清单。</returns>
+        public static LargeModelTemplateManifest ReadManifest(string templatePath)
+        {
+            if (string.IsNullOrWhiteSpace(templatePath))
+                throw new ArgumentException("模板路径不能为空。", nameof(templatePath));
+            if (!File.Exists(templatePath))
+                throw new FileNotFoundException("未找到大模型模板文件。", templatePath);
+
+            string fullTemplatePath = Path.GetFullPath(templatePath);
+            using (FileStream stream = new FileStream(fullTemplatePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (ZipArchive archive = new ZipArchive(stream, ZipArchiveMode.Read))
+            {
+                ZipArchiveEntry manifestEntry = archive.GetEntry(ManifestEntryName);
+                if (manifestEntry == null)
+                    throw new InvalidDataException("大模型模板缺少 manifest.json。");
+
+                using (Stream entryStream = manifestEntry.Open())
+                using (var reader = new StreamReader(entryStream, Encoding.UTF8, true))
+                {
+                    string json = reader.ReadToEnd();
+                    LargeModelTemplateManifest manifest = JsonConvert.DeserializeObject<LargeModelTemplateManifest>(json);
+                    if (manifest == null)
+                        throw new InvalidDataException("大模型模板清单解析失败。");
+
+                    return manifest;
+                }
+            }
+        }
+
+        /// <summary>
         /// 写入模板清单。
         /// </summary>
         /// <param name="archive">模板压缩包。</param>

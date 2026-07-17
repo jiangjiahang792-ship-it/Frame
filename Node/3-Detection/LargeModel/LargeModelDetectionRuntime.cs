@@ -32,16 +32,6 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
         private long _loadedTemplateTicks;
 
         /// <summary>
-        /// 当前已加载模型使用的图像阈值。
-        /// </summary>
-        private float _loadedImageThreshold;
-
-        /// <summary>
-        /// 当前已加载模型使用的面积阈值。
-        /// </summary>
-        private int _loadedAreaThreshold;
-
-        /// <summary>
         /// 当前模板解包结果。
         /// </summary>
         private LargeModelTemplateExtractResult _extractResult;
@@ -87,6 +77,21 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
         }
 
         /// <summary>
+        /// 预先加载并预热指定模板，使流程运行阶段直接进入推理。
+        /// </summary>
+        /// <param name="param">待预加载的节点参数。</param>
+        public void Preload(NodeParamLargeModelDetection param)
+        {
+            if (param == null)
+                throw new ArgumentNullException(nameof(param));
+
+            lock (_syncRoot)
+            {
+                EnsureModelLoaded(param, true);
+            }
+        }
+
+        /// <summary>
         /// 释放 native 模型句柄。
         /// </summary>
         public void Dispose()
@@ -103,13 +108,40 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
         /// <param name="param">节点参数。</param>
         private void EnsureModelLoaded(NodeParamLargeModelDetection param)
         {
+            // 保存成功后的正常运行走纯内存快速路径，不再每帧访问模板文件时间戳。
+            if (IsLoadedTemplateMatchedFast(param))
+                return;
+
+            EnsureModelLoaded(param, false);
+        }
+
+        /// <summary>
+        /// 仅使用内存状态判断流程当前参数是否已经对应已加载模型。
+        /// </summary>
+        /// <param name="param">节点参数。</param>
+        /// <returns>当前检测器与模板路径一致时返回 true。</returns>
+        private bool IsLoadedTemplateMatchedFast(NodeParamLargeModelDetection param)
+        {
+            return param != null &&
+                _detector != null &&
+                _extractResult != null &&
+                !string.IsNullOrWhiteSpace(param.TemplatePath) &&
+                string.Equals(_loadedTemplatePath, param.TemplatePath, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// 确保指定模板对应模型已经加载，并按需执行首次推理预热。
+        /// </summary>
+        /// <param name="param">节点参数。</param>
+        /// <param name="warmup">加载新模型后是否执行一次预热推理。</param>
+        private void EnsureModelLoaded(NodeParamLargeModelDetection param, bool warmup)
+        {
             string templatePath = ResolveTemplatePath(param.TemplatePath);
             long templateTicks = File.GetLastWriteTimeUtc(templatePath).Ticks;
             if (_detector != null &&
                 string.Equals(_loadedTemplatePath, templatePath, StringComparison.OrdinalIgnoreCase) &&
                 _loadedTemplateTicks == templateTicks &&
-                _extractResult != null &&
-                IsLoadedRuntimeParamMatched(param, _extractResult.Manifest))
+                _extractResult != null)
             {
                 return;
             }
@@ -121,30 +153,89 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
             string extractRoot = Path.Combine(LargeModelRuntimeBootstrapper.EnsureModelRoot(), "_LargeModelInference");
             Directory.CreateDirectory(extractRoot);
             LargeModelTemplateExtractResult extractResult = LargeModelTemplatePackage.Extract(templatePath, extractRoot);
-            float imageThreshold = ResolveImageThreshold(param, extractResult.Manifest);
-            int areaThreshold = ResolveAreaThreshold(param, extractResult.Manifest);
 
-            LoadModelResult loadResult = LoadModelWithFallback(runtime.RootPath, extractResult);
+            LoadModelResult loadResult = null;
+            bool published = false;
+            try
+            {
+                loadResult = LoadModelWithFallback(runtime.RootPath, extractResult);
+                if (warmup)
+                    WarmupDetector(loadResult.Detector, param, extractResult.Manifest);
 
-            ReleaseDetector();
-            _detector = loadResult.Detector;
-            _extractResult = extractResult;
-            _loadedTemplatePath = templatePath;
-            _loadedTemplateTicks = templateTicks;
-            _loadedImageThreshold = imageThreshold;
-            _loadedAreaThreshold = areaThreshold;
+                SwapLoadedDetector(loadResult.Detector, extractResult, templatePath, templateTicks);
+                published = true;
+            }
+            finally
+            {
+                if (!published && loadResult != null && loadResult.Detector != null)
+                    loadResult.Detector.Dispose();
+            }
         }
 
         /// <summary>
-        /// 判断当前 native 模型句柄是否已匹配节点运行参数。
+        /// 使用模板输入尺寸执行一次空图推理，提前完成 CUDA/TensorRT 首次初始化。
         /// </summary>
-        /// <param name="param">节点参数。</param>
+        /// <param name="detector">已经完成 native 初始化的新检测器。</param>
+        /// <param name="param">节点推理参数。</param>
         /// <param name="manifest">模板清单。</param>
-        /// <returns>运行参数一致时返回 true。</returns>
-        private bool IsLoadedRuntimeParamMatched(NodeParamLargeModelDetection param, LargeModelTemplateManifest manifest)
+        private static void WarmupDetector(
+            LargeModelDinov2Detector detector,
+            NodeParamLargeModelDetection param,
+            LargeModelTemplateManifest manifest)
         {
-            return AreFloatEqual(_loadedImageThreshold, ResolveImageThreshold(param, manifest)) &&
-                _loadedAreaThreshold == ResolveAreaThreshold(param, manifest);
+            if (detector == null)
+                throw new ArgumentNullException(nameof(detector));
+            if (manifest == null)
+                throw new InvalidDataException("大模型模板清单为空，无法预热模型。");
+            if (manifest.InputWidth <= 0 || manifest.InputHeight <= 0)
+                throw new InvalidDataException("大模型模板输入尺寸无效，无法预热模型。");
+
+            using (var warmupImage = new Mat(manifest.InputHeight, manifest.InputWidth, MatType.CV_8UC3, Scalar.Black))
+            {
+                // 预热只用于触发 GPU/CUDA/TensorRT 初始化，限制一个框可避免按用户配置分配不必要的大数组。
+                LargeModelDinov2Result result = detector.InferBgr(
+                    warmupImage,
+                    ResolveImageThreshold(param, manifest),
+                    ResolveAreaThreshold(param, manifest),
+                    1);
+                if (result.ReturnCode < 0)
+                {
+                    throw new InvalidOperationException(
+                        "大模型预热失败，native 返回码：" + result.ReturnCode.ToString(CultureInfo.InvariantCulture));
+                }
+            }
+        }
+
+        /// <summary>
+        /// 发布已经加载并预热成功的新模型，然后释放旧模型。
+        /// </summary>
+        /// <param name="detector">新检测器。</param>
+        /// <param name="extractResult">新模板解包结果。</param>
+        /// <param name="templatePath">新模板完整路径。</param>
+        /// <param name="templateTicks">新模板最后写入时间。</param>
+        private void SwapLoadedDetector(
+            LargeModelDinov2Detector detector,
+            LargeModelTemplateExtractResult extractResult,
+            string templatePath,
+            long templateTicks)
+        {
+            LargeModelDinov2Detector oldDetector = _detector;
+            _detector = detector;
+            _extractResult = extractResult;
+            _loadedTemplatePath = templatePath;
+            _loadedTemplateTicks = templateTicks;
+
+            if (oldDetector == null)
+                return;
+
+            try
+            {
+                oldDetector.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Trace.TraceWarning("释放旧大模型检测器失败：" + ex.Message);
+            }
         }
 
         /// <summary>
@@ -284,17 +375,6 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
                 message += "，CPU回退返回码：" + cpuRet.Value.ToString(CultureInfo.InvariantCulture);
 
             return message;
-        }
-
-        /// <summary>
-        /// 比较两个浮点配置值是否一致。
-        /// </summary>
-        /// <param name="left">左值。</param>
-        /// <param name="right">右值。</param>
-        /// <returns>近似一致时返回 true。</returns>
-        private static bool AreFloatEqual(float left, float right)
-        {
-            return Math.Abs(left - right) < 0.0001F;
         }
 
         /// <summary>
