@@ -1,9 +1,14 @@
 param(
-    [ValidateSet("All", "NativeLifecycle", "PathBoundary", "TemplatePublishing", "ProductionEntry")]
+    [ValidateSet("All", "NativeLifecycle", "PythonIsolation", "PathBoundary", "TemplatePublishing", "ProductionEntry")]
     [string]$Case = "All"
 )
 
 $ErrorActionPreference = "Stop"
+
+# 沙箱可能同时注入 Path 与 PATH；先统一键名，避免 ProcessStartInfo 构造环境块时因重复键失败。
+$inheritedProcessPath = [Environment]::GetEnvironmentVariable("PATH", "Process")
+[Environment]::SetEnvironmentVariable("Path", $null, "Process")
+[Environment]::SetEnvironmentVariable("PATH", $inheritedProcessPath, "Process")
 
 $root = Split-Path -Parent $PSScriptRoot
 $detectorPath = Join-Path $root "Forms\AiTrainForm\LargeModelDinov2Detector.cs"
@@ -54,6 +59,58 @@ using TDJS_Vision.Forms.AiTrainForm;
 
 public static class LargeModelTrainingProductionBehaviorHarness
 {
+    public static void RunPythonIsolation()
+    {
+        string root = CreateTemporaryDirectory();
+        string runtimeRoot = Path.Combine(root, "LargeModelDll");
+        string pythonRoot = Path.Combine(runtimeRoot, "third_party", "python_native_env");
+        string torchCacheRoot = Path.Combine(runtimeRoot, "_torch_cache");
+        Directory.CreateDirectory(Path.Combine(pythonRoot, "Library", "bin"));
+        Directory.CreateDirectory(Path.Combine(pythonRoot, "Scripts"));
+        Directory.CreateDirectory(torchCacheRoot);
+
+        try
+        {
+            System.Diagnostics.ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo();
+            startInfo.UseShellExecute = false;
+            startInfo.EnvironmentVariables.Clear();
+            startInfo.EnvironmentVariables["PATH"] = "C:\\Windows\\System32";
+            startInfo.EnvironmentVariables["PYTHONHOME"] = Path.Combine(root, "UnsupervisedDll", "python_env");
+            startInfo.EnvironmentVariables["PYTHONPATH"] = Path.Combine(root, "polluted-site-packages");
+
+            System.Reflection.MethodInfo configureMethod = typeof(LargeModelTrainingService).GetMethod(
+                "ConfigureOnnxExportEnvironment",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            AssertTrue(configureMethod != null, "The production service must expose the private ONNX environment configurator.");
+            configureMethod.Invoke(null, new object[] { startInfo, runtimeRoot, torchCacheRoot });
+
+            AssertEqual(
+                pythonRoot,
+                startInfo.EnvironmentVariables["PYTHONHOME"],
+                "ONNX export must replace the globally polluted PYTHONHOME with its own Python root.");
+            AssertEqual(
+                string.Empty,
+                startInfo.EnvironmentVariables["PYTHONPATH"],
+                "ONNX export must clear a globally polluted PYTHONPATH.");
+            string expectedPathPrefix = runtimeRoot
+                + ";" + pythonRoot
+                + ";" + Path.Combine(pythonRoot, "Library", "bin")
+                + ";" + Path.Combine(pythonRoot, "Scripts")
+                + ";";
+            AssertTrue(
+                startInfo.EnvironmentVariables["PATH"].StartsWith(expectedPathPrefix, StringComparison.OrdinalIgnoreCase),
+                "ONNX export must keep its runtime and native dependency directories at the front of PATH.");
+            AssertEqual(
+                torchCacheRoot,
+                startInfo.EnvironmentVariables["TORCH_HOME"],
+                "ONNX export must keep the isolated Torch cache root.");
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
     public static void RunNativeLifecycle()
     {
         string root = CreateTemporaryDirectory();
@@ -1160,11 +1217,13 @@ Remove-Item -LiteralPath $compileRoot -Recurse -Force
 
 switch ($Case) {
     "NativeLifecycle" { [LargeModelTrainingProductionBehaviorTests.LargeModelTrainingProductionBehaviorHarness]::RunNativeLifecycle() }
+    "PythonIsolation" { [LargeModelTrainingProductionBehaviorTests.LargeModelTrainingProductionBehaviorHarness]::RunPythonIsolation() }
     "PathBoundary" { [LargeModelTrainingProductionBehaviorTests.LargeModelTrainingProductionBehaviorHarness]::RunPathBoundary() }
     "TemplatePublishing" { [LargeModelTrainingProductionBehaviorTests.LargeModelTrainingProductionBehaviorHarness]::RunTemplatePublishing() }
     "ProductionEntry" { [LargeModelTrainingProductionBehaviorTests.LargeModelTrainingProductionBehaviorHarness]::RunProductionEntry() }
     "All" {
         [LargeModelTrainingProductionBehaviorTests.LargeModelTrainingProductionBehaviorHarness]::RunNativeLifecycle()
+        [LargeModelTrainingProductionBehaviorTests.LargeModelTrainingProductionBehaviorHarness]::RunPythonIsolation()
         [LargeModelTrainingProductionBehaviorTests.LargeModelTrainingProductionBehaviorHarness]::RunPathBoundary()
         [LargeModelTrainingProductionBehaviorTests.LargeModelTrainingProductionBehaviorHarness]::RunTemplatePublishing()
         [LargeModelTrainingProductionBehaviorTests.LargeModelTrainingProductionBehaviorHarness]::RunProductionEntry()

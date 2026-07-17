@@ -542,6 +542,9 @@ namespace TDJS_Vision.Forms.AiTrainForm
         {
             string pythonRoot = Path.Combine(runtimeRoot, "third_party", "python_native_env");
             PrependProcessPath(startInfo, runtimeRoot, pythonRoot, Path.Combine(pythonRoot, "Library", "bin"), Path.Combine(pythonRoot, "Scripts"));
+            // 无监督 native 初始化会修改进程级 PYTHONHOME；子进程必须显式恢复到大模型独立环境，避免标准库与解释器混用。
+            SetProcessEnvironment(startInfo, "PYTHONHOME", pythonRoot);
+            SetProcessEnvironment(startInfo, "PYTHONPATH", string.Empty);
             SetProcessEnvironment(startInfo, "PYTHONDONTWRITEBYTECODE", "1");
             SetProcessEnvironment(startInfo, "PYTHONNOUSERSITE", "1");
             SetProcessEnvironment(startInfo, "TORCH_HOME", torchCacheRoot);
