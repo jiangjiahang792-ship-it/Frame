@@ -1,0 +1,862 @@
+[
+    {
+        "module":  "3D图像显示",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\001-3D图像显示.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "3D图像显示",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "3D图像源",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\002-3D图像源.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "3D图像源",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "AI检测",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\003-AI检测.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "AI检测节点参数设置",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "AI结果绘制",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\004-AI结果绘制.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "绘制AI结果",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "AI训练入口",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\005-AI训练入口.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "无监督训练界面",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "C#脚本",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\006-C#脚本.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "C#脚本",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "Modbus写",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\007-Modbus写.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "Modbus写入",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "Modbus读",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\008-Modbus读.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "Modbus读取",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "Modbus软触发",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\009-Modbus软触发.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "Modbus软触发信号",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "Modbus通信",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\010-Modbus通信.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "Modbus设备管理",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "PLC写",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\011-PLC写.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "PLC数据寄存器写入",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "PLC读",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\012-PLC读.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "PLC数据寄存器读取",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "PLC软触发",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\013-PLC软触发.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "软触发拍照信号",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "PLC通信",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\014-PLC通信.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "PLC设备管理",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "ROI结果绘制",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\015-ROI结果绘制.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "ROI结果绘制",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "ROI结果绘制2",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\016-ROI结果绘制2.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "ROI结果绘制2",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "TCP响应",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\017-TCP响应.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "TCP服务器响应",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "TCP请求",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\018-TCP请求.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "TCP客户端发送",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "TCP通信",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\019-TCP通信.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "TCP设备管理",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "三维相机",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\020-三维相机.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "3D图像源",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "串口发送",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\021-串口发送.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "串口发送",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "串口通信",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\022-串口通信.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "串口设备管理",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "主界面与视图管理",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\023-主界面与视图管理.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "流程编辑器",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "二值化分析",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\024-二值化分析.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "二值化分析",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "二维工业相机",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\025-二维工业相机.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "设备添加",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "二维码识别",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\026-二维码识别.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "二维码识别",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "位置修正",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\027-位置修正.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "位置修正",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "保存图片",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\028-保存图片.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "保存图片参数设置",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "光源控制器",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\029-光源控制器.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "光源管理",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "全局信号",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\030-全局信号.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "全局信号设置",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "共享变量",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\031-共享变量.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "共享变量参数设置",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "卡尺找圆",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\032-卡尺找圆.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "卡尺找圆",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "卡尺找椭圆",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\033-卡尺找椭圆.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "卡尺找椭圆",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "卡尺找线",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\034-卡尺找线.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "卡尺找线",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "发送AI结果",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\035-发送AI结果.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "配置信号列表",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "否则",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\036-否则.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "条件执行",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "四则运算",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\037-四则运算.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "四则运算",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "图像分割",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\038-图像分割.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "图像拆分",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "图像旋转",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\039-图像旋转.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "旋转图像节点参数",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "图像显示",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\040-图像显示.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "ImageViewer.ImageShowTitle",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "图像源",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\041-图像源.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "图像源",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "图像裁剪",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\042-图像裁剪.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "图像裁剪",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "图像预处理",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\043-图像预处理.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "图像预处理",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "圆检测",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\044-圆检测.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "查找圆参数",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "多条件判断",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\045-多条件判断.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "多条件判断",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "大模型调用",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\046-大模型调用.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "大模型调用",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "如果",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\047-如果.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "条件执行",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "定期删除图片",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\048-定期删除图片.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "自动删除图片设置",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "导出检测表格",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\049-导出检测表格.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "导出检测表格参数",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "延迟执行",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\050-延迟执行.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "延迟工具",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "弹窗",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\051-弹窗.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "条件弹窗",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "打开光源",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\052-打开光源.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "光源打开",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "找点",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\053-找点.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "找点",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "方案管理",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\054-方案管理.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "流程编辑器",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "无监督检测",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\055-无监督检测.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "无监督检测",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "条件运行",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\056-条件运行.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "条件执行",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "检测结果显示",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\057-检测结果显示.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "检测结果",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "检测项配置",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\058-检测项配置.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "检测项管理",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "模版匹配",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\059-模版匹配.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "轮廓匹配",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "流程信号",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\060-流程信号.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "流程间信号",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "流程画布",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\061-流程画布.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "流程编辑器",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "流程管理",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\062-流程管理.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "流程编辑器",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "点到区域距离",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\063-点到区域距离.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "点到区域距离",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "点到点距离",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\064-点到点距离.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "点到点距离",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "点到线距离",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\065-点到线距离.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "点到线距离",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "用户登录与权限",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\066-用户登录与权限.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "登录",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "电池极耳检测",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\067-电池极耳检测.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "锂电池极耳检测",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "监听全局信号",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\068-监听全局信号.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "监听信号读取",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "直线检测",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\069-直线检测.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "查找直线参数",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "相机IO",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\070-相机IO.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "相机IO设置",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "相机IO手动控制",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\071-相机IO手动控制.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "相机IO设置",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "科锐IO模块",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\072-科锐IO模块.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "科锐IO模块",
+        "hardware_state":  "未连接演示",
+        "error":  null
+    },
+    {
+        "module":  "等待流程完成",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\073-等待流程完成.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "等待流程运行结束",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "系统设置",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\074-系统设置.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "系统设置",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "线到线夹角",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\075-线到线夹角.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "线到线夹角",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "线组合拟合",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\076-线组合拟合.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "线组合拟合",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "组合模块",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\077-组合模块.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "组合模块",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "组合输入",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\078-组合输入.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "组合输入",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "组合输出",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\079-组合输出.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "组合输出",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "结束如果",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\080-结束如果.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "条件执行",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "结果汇总",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\081-结果汇总.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "结果汇总",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "触发同组流程",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\082-触发同组流程.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "条件执行",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "运行参数",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\083-运行参数.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "运行参数设置",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "运行控制",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\084-运行控制.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "流程编辑器",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "运行日志",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\085-运行日志.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "流程编辑器",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    },
+    {
+        "module":  "颜色识别",
+        "file":  "D:\\MyCode\\PublicWook\\TDJS-Vision\\docs\\manual-assets\\real-workflow\\screenshots\\086-颜色识别.png",
+        "status":  "captured",
+        "node_count":  8,
+        "connection_count":  8,
+        "window_title":  "颜色识别",
+        "hardware_state":  "不依赖硬件",
+        "error":  null
+    }
+]

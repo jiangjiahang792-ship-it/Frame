@@ -1,0 +1,187 @@
+﻿using Logger;
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using TDJS_Vision.Device.Camera;
+
+namespace TDJS_Vision.Forms.CameraAdd
+{
+    /// <summary>
+    /// 单个相机控件
+    /// </summary>
+    public partial class SingleCamera : UserControl
+    {
+        /// <summary>
+        /// 相机对象
+        /// </summary>
+        public ICamera Camera;
+        /// <summary>
+        /// 是否被选中
+        /// </summary>
+        public bool IsSelected = false;
+        /// <summary>
+        /// 相机名称
+        /// </summary>
+        public string CameraName { get => label1.Text; set => label1.Text = value; }
+        /// <summary>
+        /// 当前类实例选中改变事件
+        /// </summary>
+        public static event EventHandler<SingleCamera> SelectedChange;
+        /// <summary>
+        /// 移除当前实例
+        /// </summary>
+        public static event EventHandler<SingleCamera> SingleCameraRemoveEvent;
+        /// <summary>
+        /// 保存所有的当前类实例
+        /// </summary>
+        public static List<SingleCamera> SingleCameraList = new List<SingleCamera>();
+
+        /// <summary>
+        /// 反序列化用
+        /// </summary>
+        /// <param name="camera"></param>
+        public SingleCamera(Device.Camera.ICamera camera)
+        {
+            InitializeComponent();
+            Camera = camera;
+            Camera.ConnectStatusEvent += Camera_ConnectStatusEvent;
+            if (camera.IsOpen)
+            {
+                try
+                {
+                    Camera.Open();
+                    Camera.StartGrabbing();
+                    Camera.SetTriggerMode(Camera.GetTriggerMode());
+                }
+                catch (Exception ex)
+                {
+                    uiSwitch1.Active = false;
+                    LogHelper.AddLog(MsgLevel.Exception, $"相机（{camera.UserDefinedName}）打开失败，请检查相机状态！原因：{ex.Message}", true);
+                }
+            }
+            this.label1.Text = camera.UserDefinedName;
+            Solution.Instance.AllDevices.Add(Camera);
+            // 保存所有的实例
+            SingleCameraList.Add(this);
+        }
+
+        private void Camera_ConnectStatusEvent(object sender, bool e)
+        {
+            uiSwitch1.ValueChanged -= uiSwitch1_ValueChanged;
+            uiSwitch1.Active = e;
+            uiSwitch1.ValueChanged += uiSwitch1_ValueChanged;
+        }
+
+        public SingleCamera(CameraParam parms)
+        {
+            InitializeComponent();
+
+            this.label1.Text =  parms.UserDefinedName;
+
+            try
+            {
+                Camera = new CameraHik(parms.DevInfo.cameraInfo, parms.UserDefinedName);
+                Camera.ConnectStatusEvent += Camera_ConnectStatusEvent;
+                Solution.Instance.AllDevices.Add(Camera);
+                // 保存所有的实例
+                SingleCameraList.Add(this);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// 点击选中
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void SinglePLCInfo_MouseClick(object sender, MouseEventArgs e)
+        {
+            SetSelected();
+            SelectedChange?.Invoke(this, this);
+        }
+
+        /// <summary>
+        /// 从相机管理窗口恢复最近选择时标记当前相机为选中。
+        /// </summary>
+        public void SelectInList()
+        {
+            SetSelected();
+        }
+
+        /// <summary>
+        /// 设置控件选中状态
+        /// </summary>
+        /// <param name="flag"></param>
+        private void SetSelected()
+        {
+            //先清除所有选中状态
+            foreach (var item in SingleCameraList)
+            {
+                item.tableLayoutPanel1.BackColor = Color.LightSteelBlue;
+                item.label1.BackColor = Color.LightSteelBlue;
+                item.IsSelected = false;
+            }
+            
+            // 设置当前选中的样式
+            this.tableLayoutPanel1.BackColor = Color.CornflowerBlue;
+            this.label1.BackColor = Color.CornflowerBlue;
+            IsSelected = true;
+        }
+
+        /// <summary>
+        /// 连接相机
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="value"></param>
+        private async void uiSwitch1_ValueChanged(object sender, bool value)
+        {
+            if (value)
+            {
+                try
+                {
+                    await Task.Run(() =>
+                    {
+                        Camera.Open();
+                        Camera.SetTriggerMode(Camera.GetTriggerMode());
+                        Camera.StartGrabbing();
+                    });
+                    LogHelper.AddLog(MsgLevel.Info, $"{Camera.UserDefinedName}已打开！", true);
+                }
+                catch (Exception e)
+                {
+                    uiSwitch1.Active = false;
+                    LogHelper.AddLog(MsgLevel.Fatal, $"{Camera.UserDefinedName}打开失败！原因：{e.Message}", true);
+                }
+            }
+            else
+            {
+                try
+                {
+                    Camera.Close();
+                    LogHelper.AddLog(MsgLevel.Info, $"{Camera.UserDefinedName}已关闭！", true);
+                }
+                catch (Exception e)
+                {
+                    LogHelper.AddLog(MsgLevel.Fatal, $"{Camera.UserDefinedName}关闭失败！", true);
+                }
+            }
+            
+        }
+
+        /// <summary>
+        /// 右击移除当前实例
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void 移除ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (IsSelected)
+                SingleCameraRemoveEvent?.Invoke(this, this);
+        }
+    }
+}

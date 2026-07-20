@@ -1,0 +1,176 @@
+﻿using System;
+using System.Windows.Forms;
+
+namespace TDJS_Vision.Forms.ImageViewer
+{
+    public partial class CanvasSet : FormBase
+    {
+        /// <summary>
+        /// 画布数量改变事件
+        /// </summary>
+        public static event EventHandler<int> WindowNumChangeEvent;
+        /// <summary>
+        /// 保存画布布局事件
+        /// </summary>
+        public static EventHandler SaveDockPanelEvent;
+
+        public CanvasSet()
+        {
+            InitializeComponent();
+            BindLanguage();
+            foreach (var control in tableLayoutPanel17.Controls)
+            {
+                if(control is TableLayoutPanel tableLayoutPanel)
+                {
+                    tableLayoutPanel.MouseClick += TableLayoutPanel_MouseClick;
+                    foreach (var con in tableLayoutPanel.Controls)
+                    {
+                        if (con is Label label)
+                        {
+                            label.MouseClick += Label_MouseClick;
+                        }
+                    }
+                }
+            }
+            LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+            FormClosed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+        }
+
+        private void BindLanguage()
+        {
+            LanguageManager.Bind(this, "ImageViewer.CanvasLayoutTitle");
+            LanguageManager.Bind(button1, "Common.OK");
+            LanguageManager.Bind(button2, "Common.Cancel");
+            ApplyLanguage();
+        }
+
+        private void LanguageManager_LanguageChanged(object sender, EventArgs e)
+        {
+            ApplyLanguage();
+        }
+
+        private void ApplyLanguage()
+        {
+            LanguageManager.Apply(this);
+            foreach (var control in tableLayoutPanel17.Controls)
+            {
+                if (control is RadioButton radioButton)
+                {
+                    int num = GetRadioButtonNumber(radioButton);
+                    radioButton.Tag = num;
+                    radioButton.Text = LanguageManager.Format("ImageViewer.CanvasName", num);
+                }
+            }
+        }
+
+        private int GetRadioButtonNumber(RadioButton radioButton)
+        {
+            if (radioButton.Tag is int num)
+                return num;
+
+            if (radioButton.Name.StartsWith("radioButton") &&
+                int.TryParse(radioButton.Name.Substring("radioButton".Length), out num))
+                return num;
+
+            string text = radioButton.Text;
+            if (!string.IsNullOrEmpty(text))
+            {
+                var digits = string.Empty;
+                foreach (char c in text)
+                {
+                    if (char.IsDigit(c))
+                        digits += c;
+                }
+                if (int.TryParse(digits, out num))
+                    return num;
+            }
+
+            return 0;
+        }
+
+        private void TableLayoutPanel_MouseClick(object sender, MouseEventArgs e)
+        {
+            TableLayoutPanel tableLayoutPanel = (TableLayoutPanel)sender;
+            int selected = int.Parse(tableLayoutPanel.Name.Remove(0, 16));
+            foreach (var control in tableLayoutPanel17.Controls)
+            {
+                if (control is RadioButton radioButton)
+                {
+                    if (radioButton.Name == $"radioButton{selected}")
+                    {
+                        radioButton.Checked = true;
+                    }
+                }
+            }
+        }
+
+        private void Label_MouseClick(object sender, MouseEventArgs e)
+        {
+            Label label = (Label)sender;
+            int selected = int.Parse(label.Parent.Name.Remove(0, 16));
+            foreach (var control in tableLayoutPanel17.Controls)
+            {
+                if (control is RadioButton radioButton)
+                {
+                    if (radioButton.Name == $"radioButton{selected}")
+                    {
+                        radioButton.Checked = true;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 取消按钮
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void button2_Click(object sender, EventArgs e)
+        {
+            this.Close();
+        }
+
+        /// <summary>
+        /// 确认按钮
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void button1_Click(object sender, EventArgs e)
+        {
+            foreach (var control in tableLayoutPanel17.Controls)
+            {
+                if(control is RadioButton radioButton)
+                {
+                    if(radioButton.Checked)
+                    {
+                        int num = GetRadioButtonNumber(radioButton);
+                        if(num != FrmImageViewer.CurWindowsNum)
+                            WindowNumChangeEvent?.Invoke(this, num);
+                    }
+                }
+            }
+            SaveDockPanelEvent?.Invoke(this, EventArgs.Empty);
+            this.Close();
+        }
+
+        /// <summary>
+        /// 窗口显示时选中匹配数量的单选框
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void CanvasSet_Shown(object sender, EventArgs e)
+        {
+            foreach (var control in tableLayoutPanel17.Controls)
+            {
+                if (control is RadioButton radioButton)
+                {
+                    int num = GetRadioButtonNumber(radioButton);
+                    if (num == FrmImageViewer.CurWindowsNum)
+                    {
+                        radioButton.Checked = true;
+                    }
+                }
+            }
+        }
+    }
+}

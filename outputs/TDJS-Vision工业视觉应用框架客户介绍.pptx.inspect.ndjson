@@ -1,0 +1,638 @@
+{"kind":"deck","id":"pr/0k9i2f","name":"Deck"}
+{"kind":"layout","layoutId":"357d6034-ce2e-46ea-bbd7-7242cf69390f","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"2003446b-9619-415a-bc58-74ea8290c662","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/nf3sqg","slide":1,"title":"TDJS-Vision","textShapes":6}
+{"kind":"shape","id":"sh/wnq1gby1","slide":1,"bbox":[0,0,18,720]}
+{"kind":"textbox","id":"sh/v2h076xg","slide":1,"text":"TDJS-Vision","textPreview":"TDJS-Vision","textChars":11,"textLines":1,"bbox":[64,54,480,42]}
+{"kind":"textbox","id":"sh/u18je1gv","slide":1,"text":"工业视觉应用框架","textPreview":"工业视觉应用框架","textChars":8,"textLines":1,"bbox":[64,142,820,92]}
+{"kind":"textbox","id":"sh/90zi5wfa","slide":1,"text":"让图像采集、视觉算法、现场通信与生产追溯在一个平台内协同运行","textPreview":"让图像采集、视觉算法、现场通信与生产追溯在一个平台内协同运行","textChars":30,"textLines":1,"bbox":[68,254,780,90]}
+{"kind":"shape","id":"sh/8zq1cry5","slide":1,"bbox":[68,378,560,4]}
+{"kind":"textbox","id":"sh/7yh03mxk","slide":1,"text":"面向测量、缺陷检测、定位、识别、AI 与 3D 视觉应用","textPreview":"面向测量、缺陷检测、定位、识别、AI 与 3D 视觉应用","textChars":28,"textLines":1,"bbox":[68,406,780,52]}
+{"kind":"shape","id":"sh/mx8ja1gz","slide":1,"bbox":[930,122,250,250]}
+{"kind":"textbox","id":"sh/kv6h8ryt","slide":1,"text":"客户介绍","textPreview":"客户介绍","textChars":4,"textLines":1,"bbox":[68,626,220,30]}
+{"kind":"textbox","id":"sh/el4rut03","slide":1,"text":"当前软件框架能力概览","textPreview":"当前软件框架能力概览","textChars":10,"textLines":1,"bbox":[900,626,300,30]}
+{"kind":"image","id":"im/kbmtszyh","slide":1,"name":"","alt":"TDJS-Vision 标识","bbox":[970,164,170,170]}
+{"kind":"notes","id":"nt/nf3sqg","slide":1,"text":""}
+{"kind":"slide","id":"sl/b7rqmd","slide":2,"title":"现场挑战","textShapes":14}
+{"kind":"shape","id":"sh/r2x0zmdk","slide":2,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/c361sru5","slide":2,"text":"现场挑战","textPreview":"现场挑战","textChars":4,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/d4f21cvq","slide":2,"text":"工业视觉项目的难点，往往不在单一算法","textPreview":"工业视觉项目的难点，往往不在单一算法","textChars":18,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/y5ojuhcb","slide":2,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/z6xk3mdg","slide":2,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/0761wru1","slide":2,"text":"02 / 23","textPreview":"02 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"textbox","id":"sh/lsf25wvm","slide":2,"text":"真正影响交付周期和长期维护的，是设备、算法、流程和数据之间的协同。","textPreview":"真正影响交付周期和长期维护的，是设备、算法、流程和数据之间的协同。","textChars":33,"textLines":1,"bbox":[56,148,510,116]}
+{"kind":"textbox","id":"sh/u9kjyxcr","slide":2,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[650,150,70,50]}
+{"kind":"textbox","id":"sh/fat0r2dc","slide":2,"text":"设备异构","textPreview":"设备异构","textChars":4,"textLines":1,"bbox":[742,150,200,40]}
+{"kind":"textbox","id":"sh/nq5ozq5k","slide":2,"text":"相机、光源、PLC、I/O 与协议各不相同","textPreview":"相机、光源、PLC、I/O 与协议各不相同","textChars":21,"textLines":1,"bbox":[742,198,430,56]}
+{"kind":"shape","id":"sh/mpwn6loz","slide":2,"bbox":[650,272,550,1]}
+{"kind":"textbox","id":"sh/9s7610nq","slide":2,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[650,292,70,50]}
+{"kind":"textbox","id":"sh/8re58v65","slide":2,"text":"算法分散","textPreview":"算法分散","textChars":4,"textLines":1,"bbox":[742,292,200,40]}
+{"kind":"textbox","id":"sh/zm5ov6po","slide":2,"text":"传统视觉、AI、测量工具缺少统一工作流","textPreview":"传统视觉、AI、测量工具缺少统一工作流","textChars":19,"textLines":1,"bbox":[742,340,430,56]}
+{"kind":"shape","id":"sh/y1wn2lo3","slide":2,"bbox":[650,414,550,1]}
+{"kind":"textbox","id":"sh/lon6xg7u","slide":2,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[650,434,70,50]}
+{"kind":"textbox","id":"sh/0ne54b69","slide":2,"text":"交付难复用","textPreview":"交付难复用","textChars":5,"textLines":1,"bbox":[742,434,200,40]}
+{"kind":"textbox","id":"sh/bylor6pc","slide":2,"text":"项目逻辑散落在代码中，换线与维护成本高","textPreview":"项目逻辑散落在代码中，换线与维护成本高","textChars":19,"textLines":1,"bbox":[742,482,430,56]}
+{"kind":"notes","id":"nt/b7rqmd","slide":2,"text":""}
+{"kind":"slide","id":"sl/xd2j6r","slide":3,"title":"平台价值","textShapes":18}
+{"kind":"shape","id":"sh/edojq5gv","slide":3,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/1gf2lkf6","slide":3,"text":"平台价值","textPreview":"平台价值","textChars":4,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/0f6lsfy1","slide":3,"text":"统一平台，把视觉项目变成可配置、可复用的工程资产","textPreview":"统一平台，把视觉项目变成可配置、可复用的工程资产","textChars":24,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/n2xknaxc","slide":3,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/2ho3upgr","slide":3,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/p4z2pkfi","slide":3,"text":"03 / 23","textPreview":"03 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"textbox","id":"sh/o3qlwfyx","slide":3,"text":"采集 → 算法 → 判断 → 控制 → 追溯","textPreview":"采集 → 算法 → 判断 → 控制 → 追溯","textChars":22,"textLines":1,"bbox":[56,154,1168,64]}
+{"kind":"shape","id":"sh/b6hkruxo","slide":3,"bbox":[56,270,250,220]}
+{"kind":"textbox","id":"sh/a583ypg3","slide":3,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[76,290,60,40]}
+{"kind":"textbox","id":"sh/cnqp0nad","slide":3,"text":"更快搭建","textPreview":"更快搭建","textChars":4,"textLines":1,"bbox":[76,350,210,42]}
+{"kind":"textbox","id":"sh/dojq9sry","slide":3,"text":"拖拽节点与参数化配置，缩短方案实现路径","textPreview":"拖拽节点与参数化配置，缩短方案实现路径","textChars":19,"textLines":1,"bbox":[76,414,210,74]}
+{"kind":"shape","id":"sh/q187yds7","slide":3,"bbox":[346,270,250,220]}
+{"kind":"textbox","id":"sh/b2h87i9s","slide":3,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[366,290,60,40]}
+{"kind":"textbox","id":"sh/0ra947a9","slide":3,"text":"更易复用","textPreview":"更易复用","textChars":4,"textLines":1,"bbox":[366,350,210,42]}
+{"kind":"textbox","id":"sh/lsjqdsru","slide":3,"text":"流程、组合模块和方案文件沉淀项目经验","textPreview":"流程、组合模块和方案文件沉淀项目经验","textChars":18,"textLines":1,"bbox":[366,414,210,74]}
+{"kind":"shape","id":"sh/ypsr2xsj","slide":3,"bbox":[636,270,250,220]}
+{"kind":"textbox","id":"sh/zq18b294","slide":3,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[656,290,60,40]}
+{"kind":"textbox","id":"sh/8vu987al","slide":3,"text":"更便于维护","textPreview":"更便于维护","textChars":5,"textLines":1,"bbox":[656,350,210,42]}
+{"kind":"textbox","id":"sh/9w3q1cr6","slide":3,"text":"设备、日志、结果和运行状态集中管理","textPreview":"设备、日志、结果和运行状态集中管理","textChars":17,"textLines":1,"bbox":[656,414,210,74]}
+{"kind":"shape","id":"sh/hczqlcja","slide":3,"bbox":[926,270,250,220]}
+{"kind":"textbox","id":"sh/wbqps72p","slide":3,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[946,290,60,40]}
+{"kind":"textbox","id":"sh/vah8j214","slide":3,"text":"更容易扩展","textPreview":"更容易扩展","textChars":5,"textLines":1,"bbox":[946,350,210,42]}
+{"kind":"textbox","id":"sh/u9o7qxkj","slide":3,"text":"接口化设备与节点体系承接新算法、新协议","textPreview":"接口化设备与节点体系承接新算法、新协议","textChars":19,"textLines":1,"bbox":[946,414,210,74]}
+{"kind":"textbox","id":"sh/5gzqpcj6","slide":3,"text":"平台价值不止是“能检测”，更在于让方案持续演进。","textPreview":"平台价值不止是“能检测”，更在于让方案持续演进。","textChars":24,"textLines":1,"bbox":[56,555,1168,46]}
+{"kind":"notes","id":"nt/xd2j6r","slide":3,"text":""}
+{"kind":"slide","id":"sl/ca6ipf","slide":4,"title":"软件总览","textShapes":7}
+{"kind":"shape","id":"sh/j29oryds","slide":4,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/k32p03ed","slide":4,"text":"软件总览","textPreview":"软件总览","textChars":4,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/l4b6t8vy","slide":4,"text":"一个工作台，完成方案、设备、运行与结果管理","textPreview":"一个工作台，完成方案、设备、运行与结果管理","textChars":21,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/65k72dwj","slide":4,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/76tovid4","slide":4,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/872p4nep","slide":4,"text":"04 / 23","textPreview":"04 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"shape","id":"sh/t8b6x8va","slide":4,"bbox":[56,142,1168,492]}
+{"kind":"shape","id":"sh/29gnq9wf","slide":4,"bbox":[72,158,1136,356]}
+{"kind":"textbox","id":"sh/napojex0","slide":4,"text":"统一工作台","textPreview":"统一工作台","textChars":5,"textLines":1,"bbox":[72,270,1136,64]}
+{"kind":"textbox","id":"sh/va94fm9s","slide":4,"text":"方案 · 设备 · 流程 · 图像 · 结果 · 日志","textPreview":"方案 · 设备 · 流程 · 图像 · 结果 · 日志","textChars":27,"textLines":1,"bbox":[72,356,1136,44]}
+{"kind":"shape","id":"sh/a9036hs7","slide":4,"bbox":[72,514,1136,100]}
+{"kind":"textbox","id":"sh/xwrmhwry","slide":4,"text":"方案文件 · 流程管理 · 相机/PLC/Modbus/TCP · 单次/循环运行 · 图像与结果视图","textPreview":"方案文件 · 流程管理 · 相机/PLC/Modbus/TCP · 单次/循环运行 · 图像与结果视图","textChars":51,"textLines":1,"bbox":[94,548,1092,34]}
+{"kind":"notes","id":"nt/ca6ipf","slide":4,"text":""}
+{"kind":"slide","id":"sl/jyjzj5","slide":5,"title":"核心架构","textShapes":11}
+{"kind":"shape","id":"sh/ed4z2dkj","slide":5,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/1gvixsja","slide":5,"text":"核心架构","textPreview":"核心架构","textChars":4,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/0fmh4n2p","slide":5,"text":"“方案—流程—节点”让复杂项目拥有清晰边界","textPreview":"“方案—流程—节点”让复杂项目拥有清晰边界","textChars":21,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/nix0z210","slide":5,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/2hoz6xkv","slide":5,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/pkfi1sj6","slide":5,"text":"05 / 23","textPreview":"05 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"shape","id":"sh/oj61872l","slide":5,"bbox":[100,178,1080,102]}
+{"kind":"textbox","id":"sh/jmt0ny1w","slide":5,"text":"方案 Solution","textPreview":"方案 Solution","textChars":11,"textLines":1,"bbox":[134,196,280,38]}
+{"kind":"textbox","id":"sh/ilkzutkb","slide":5,"text":"项目级配置：设备、流程、共享变量、检测项与统计","textPreview":"项目级配置：设备、流程、共享变量、检测项与统计","textChars":23,"textLines":1,"bbox":[430,203,710,54]}
+{"kind":"shape","id":"sh/07y9kbm1","slide":5,"bbox":[190,320,900,102]}
+{"kind":"textbox","id":"sh/18radg3m","slide":5,"text":"流程 Process","textPreview":"流程 Process","textChars":10,"textLines":1,"bbox":[224,338,280,38]}
+{"kind":"textbox","id":"sh/e5gril4v","slide":5,"text":"检测与控制链路：分组、优先级、触发、并行和运行统计","textPreview":"检测与控制链路：分组、优先级、触发、并行和运行统计","textChars":25,"textLines":1,"bbox":[520,345,530,54]}
+{"kind":"shape","id":"sh/f6psbqlg","slide":5,"bbox":[280,462,720,102]}
+{"kind":"textbox","id":"sh/obitovmx","slide":5,"text":"节点 Node","textPreview":"节点 Node","textChars":7,"textLines":1,"bbox":[314,480,280,38]}
+{"kind":"textbox","id":"sh/pcrah03i","slide":5,"text":"可插拔动作：采图、预处理、检测、测量、通信、逻辑与输出","textPreview":"可插拔动作：采图、预处理、检测、测量、通信、逻辑与输出","textChars":27,"textLines":1,"bbox":[610,487,350,54]}
+{"kind":"textbox","id":"sh/290rml47","slide":5,"text":"边界清晰，意味着算法、设备和业务逻辑可以独立替换与复用。","textPreview":"边界清晰，意味着算法、设备和业务逻辑可以独立替换与复用。","textChars":28,"textLines":1,"bbox":[120,602,1040,36]}
+{"kind":"notes","id":"nt/jyjzj5","slide":5,"text":""}
+{"kind":"slide","id":"sl/ohcp6f","slide":6,"title":"运行闭环","textShapes":25}
+{"kind":"shape","id":"sh/atsbmh0b","slide":6,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/xwjahwz2","slide":6,"text":"运行闭环","textPreview":"运行闭环","textChars":4,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/wvatorih","slide":6,"text":"从采图到追溯，完整闭环在同一条流程中完成","textPreview":"从采图到追溯，完整闭环在同一条流程中完成","textChars":20,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/jilsjmh8","slide":6,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/yhcbq10n","slide":6,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/lk3alwzy","slide":6,"text":"06 / 23","textPreview":"06 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"shape","id":"sh/kjutsrit","slide":6,"bbox":[55,228,116,116]}
+{"kind":"textbox","id":"sh/zmhs721o","slide":6,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[55,251,116,32]}
+{"kind":"textbox","id":"sh/e18rex03","slide":6,"text":"图像采集","textPreview":"图像采集","textChars":4,"textLines":1,"bbox":[40,372,146,58]}
+{"kind":"textbox","id":"sh/cbe1obe9","slide":6,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[175,265,48,40]}
+{"kind":"shape","id":"sh/dcnihgfu","slide":6,"bbox":[221,228,116,116]}
+{"kind":"textbox","id":"sh/q9cjmlwj","slide":6,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[221,251,116,32]}
+{"kind":"textbox","id":"sh/ba50fqxo","slide":6,"text":"图像预处理","textPreview":"图像预处理","textChars":5,"textLines":1,"bbox":[206,372,146,58]}
+{"kind":"textbox","id":"sh/0fe1svel","slide":6,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[341,265,48,40]}
+{"kind":"shape","id":"sh/lgnil0f6","slide":6,"bbox":[387,228,116,116]}
+{"kind":"textbox","id":"sh/ydwjqlwf","slide":6,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[387,251,116,32]}
+{"kind":"textbox","id":"sh/ze50jqx0","slide":6,"text":"检测与测量","textPreview":"检测与测量","textChars":5,"textLines":1,"bbox":[372,372,146,58]}
+{"kind":"textbox","id":"sh/gjuhgre1","slide":6,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[507,265,48,40]}
+{"kind":"shape","id":"sh/1k3i9wfm","slide":6,"bbox":[553,228,116,116]}
+{"kind":"textbox","id":"sh/h0vyds7q","slide":6,"text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[553,251,116,32]}
+{"kind":"textbox","id":"sh/gzmhknq5","slide":6,"text":"逻辑判断","textPreview":"逻辑判断","textChars":4,"textLines":1,"bbox":[538,372,146,58]}
+{"kind":"textbox","id":"sh/vytgbipk","slide":6,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[673,265,48,40]}
+{"kind":"shape","id":"sh/udkfid8z","slide":6,"bbox":[719,228,116,116]}
+{"kind":"textbox","id":"sh/54vyhc7m","slide":6,"text":"5","textPreview":"5","textChars":1,"textLines":1,"bbox":[719,251,116,32]}
+{"kind":"textbox","id":"sh/43mho761","slide":6,"text":"设备通信","textPreview":"设备通信","textChars":4,"textLines":1,"bbox":[704,372,146,58]}
+{"kind":"textbox","id":"sh/32dgf2pg","slide":6,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[839,265,48,40]}
+{"kind":"shape","id":"sh/i14zmx8v","slide":6,"bbox":[885,228,116,116]}
+{"kind":"textbox","id":"sh/d8fylc7i","slide":6,"text":"6","textPreview":"6","textChars":1,"textLines":1,"bbox":[885,251,116,32]}
+{"kind":"textbox","id":"sh/s76hs76d","slide":6,"text":"结果显示","textPreview":"结果显示","textChars":4,"textLines":1,"bbox":[870,372,146,58]}
+{"kind":"textbox","id":"sh/q1wnq5kj","slide":6,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[1005,265,48,40]}
+{"kind":"shape","id":"sh/b2p4za14","slide":6,"bbox":[1051,228,116,116]}
+{"kind":"textbox","id":"sh/c3y5sf2p","slide":6,"text":"7","textPreview":"7","textChars":1,"textLines":1,"bbox":[1051,251,116,32]}
+{"kind":"textbox","id":"sh/d47m1kju","slide":6,"text":"保存与追溯","textPreview":"保存与追溯","textChars":5,"textLines":1,"bbox":[1036,372,146,58]}
+{"kind":"shape","id":"sh/y5gnupkf","slide":6,"bbox":[150,490,980,92]}
+{"kind":"textbox","id":"sh/z6p43u10","slide":6,"text":"节点订阅传递图像与结果，流程调度负责顺序、分支、触发和停止。","textPreview":"节点订阅传递图像与结果，流程调度负责顺序、分支、触发和停止。","textChars":30,"textLines":1,"bbox":[180,518,920,38]}
+{"kind":"notes","id":"nt/ohcp6f","slide":6,"text":""}
+{"kind":"slide","id":"sl/o9fn5a","slide":7,"title":"2D 工业相机","textShapes":15}
+{"kind":"shape","id":"sh/436d8nah","slide":7,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/32dwfitw","slide":7,"text":"2D 工业相机","textPreview":"2D 工业相机","textChars":7,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/i14v6dsr","slide":7,"text":"统一相机接口，兼顾厂商差异与现场触发方式","textPreview":"统一相机接口，兼顾厂商差异与现场触发方式","textChars":20,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/h0vud8b6","slide":7,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/gzmd43al","slide":7,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/vydcbit0","slide":7,"text":"07 / 23","textPreview":"07 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"textbox","id":"sh/ux4v2dsf","slide":7,"text":"4 类","textPreview":"4 类","textChars":3,"textLines":1,"bbox":[72,164,360,72]}
+{"kind":"textbox","id":"sh/1wzepcra","slide":7,"text":"代码中覆盖的厂商识别逻辑\n海康 · Basler · 华睿 · 大华","textPreview":"代码中覆盖的厂商识别逻辑 | 海康 · Basler · 华睿 · 大华","textChars":34,"textLines":2,"bbox":[72,236,360,58]}
+{"kind":"shape","id":"sh/edcr2hkf","slide":7,"bbox":[520,154,2,430]}
+{"kind":"textbox","id":"sh/felsvmlk","slide":7,"text":"采集与触发","textPreview":"采集与触发","textChars":5,"textLines":1,"bbox":[570,160,280,40]}
+{"kind":"shape","id":"sh/gfe94r25","slide":7,"bbox":[570,222,170,40]}
+{"kind":"textbox","id":"sh/1gnaxw3q","slide":7,"text":"连续取流","textPreview":"连续取流","textChars":4,"textLines":1,"bbox":[570,229,170,26]}
+{"kind":"textbox","id":"sh/69cryhk3","slide":7,"text":"适合持续观察、调试和在线处理","textPreview":"适合持续观察、调试和在线处理","textChars":14,"textLines":1,"bbox":[770,227,400,48]}
+{"kind":"shape","id":"sh/ral8rmlo","slide":7,"bbox":[570,326,170,40]}
+{"kind":"textbox","id":"sh/sbu90729","slide":7,"text":"软触发","textPreview":"软触发","textChars":3,"textLines":1,"bbox":[570,333,170,26]}
+{"kind":"textbox","id":"sh/tc3atc3u","slide":7,"text":"由软件或流程节点发出一次采集命令","textPreview":"由软件或流程节点发出一次采集命令","textChars":16,"textLines":1,"bbox":[770,331,400,48]}
+{"kind":"shape","id":"sh/q5wra1k7","slide":7,"bbox":[570,430,170,40]}
+{"kind":"textbox","id":"sh/b6ps361s","slide":7,"text":"线路硬触发","textPreview":"线路硬触发","textChars":5,"textLines":1,"bbox":[570,437,170,26]}
+{"kind":"textbox","id":"sh/7qhovy1k","slide":7,"text":"与传感器、PLC 或设备节拍同步","textPreview":"与传感器、PLC 或设备节拍同步","textChars":16,"textLines":1,"bbox":[770,435,400,48]}
+{"kind":"textbox","id":"sh/mp872t0z","slide":7,"text":"曝光、增益、触发源、触发沿、延时和超时等参数可随方案保存。","textPreview":"曝光、增益、触发源、触发沿、延时和超时等参数可随方案保存。","textChars":29,"textLines":1,"bbox":[570,545,600,56]}
+{"kind":"textbox","id":"sh/9sz6x8ja","slide":7,"text":"具体兼容型号以 SDK 版本和现场联调结果为准。","textPreview":"具体兼容型号以 SDK 版本和现场联调结果为准。","textChars":24,"textLines":1,"bbox":[72,590,390,34]}
+{"kind":"image","id":"im/5kfat0v6","slide":7,"name":"","alt":"相机管理图标","bbox":[350,176,84,84]}
+{"kind":"notes","id":"nt/o9fn5a","slide":7,"text":""}
+{"kind":"slide","id":"sl/zr9dvj","slide":8,"title":"3D 视觉","textShapes":19}
+{"kind":"shape","id":"sh/1knmpkzm","slide":8,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/ehc3up0v","slide":8,"text":"3D 视觉","textPreview":"3D 视觉","textChars":5,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/fil4nahg","slide":8,"text":"深度图与点云，让检测从二维外观走向三维形貌","textPreview":"深度图与点云，让检测从二维外观走向三维形貌","textChars":21,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/one50zix","slide":8,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/ponmt4zi","slide":8,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/2lw3yp07","slide":8,"text":"08 / 23","textPreview":"08 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"textbox","id":"sh/nm54ruhs","slide":8,"text":"当前 3D 实现以海康线激光轮廓相机为主","textPreview":"当前 3D 实现以海康线激光轮廓相机为主","textChars":20,"textLines":1,"bbox":[56,150,600,42]}
+{"kind":"shape","id":"sh/cby54zi9","slide":8,"bbox":[56,224,260,104]}
+{"kind":"textbox","id":"sh/xc7mx4zu","slide":8,"text":"Origin","textPreview":"Origin","textChars":6,"textLines":1,"bbox":[74,241,224,32]}
+{"kind":"textbox","id":"sh/t0rmd43i","slide":8,"text":"原始数据","textPreview":"原始数据","textChars":4,"textLines":1,"bbox":[74,281,224,28]}
+{"kind":"shape","id":"sh/8zy54zmx","slide":8,"bbox":[346,224,260,104]}
+{"kind":"textbox","id":"sh/7yp4bulc","slide":8,"text":"Range","textPreview":"Range","textChars":5,"textLines":1,"bbox":[364,241,224,32]}
+{"kind":"textbox","id":"sh/6dgn2p47","slide":8,"text":"深度/距离","textPreview":"深度/距离","textChars":5,"textLines":1,"bbox":[364,281,224,28]}
+{"kind":"shape","id":"sh/h4rmh43u","slide":8,"bbox":[56,356,260,104]}
+{"kind":"textbox","id":"sh/g3i58jm9","slide":8,"text":"Intensity","textPreview":"Intensity","textChars":9,"textLines":1,"bbox":[74,373,224,32]}
+{"kind":"textbox","id":"sh/v294felo","slide":8,"text":"强度图","textPreview":"强度图","textChars":3,"textLines":1,"bbox":[74,413,224,28]}
+{"kind":"shape","id":"sh/u10n6943","slide":8,"bbox":[346,356,260,104]}
+{"kind":"textbox","id":"sh/x8nm5k3a","slide":8,"text":"Point Cloud","textPreview":"Point Cloud","textChars":11,"textLines":1,"bbox":[364,373,224,32]}
+{"kind":"textbox","id":"sh/w7elwfmp","slide":8,"text":"三维点云","textPreview":"三维点云","textChars":4,"textLines":1,"bbox":[364,413,224,28]}
+{"kind":"shape","id":"sh/ori5sful","slide":8,"bbox":[680,164,2,430]}
+{"kind":"textbox","id":"sh/psrmlkb6","slide":8,"text":"典型应用方向","textPreview":"典型应用方向","textChars":6,"textLines":1,"bbox":[728,170,420,42]}
+{"kind":"shape","id":"sh/2p0nq5cv","slide":8,"bbox":[728,253,10,10]}
+{"kind":"textbox","id":"sh/nq94jat0","slide":8,"text":"高度差与台阶","textPreview":"高度差与台阶","textChars":6,"textLines":1,"bbox":[752,244,396,40]}
+{"kind":"shape","id":"sh/cf25wzux","slide":8,"bbox":[728,325,10,10]}
+{"kind":"textbox","id":"sh/xgbmp4bi","slide":8,"text":"轮廓与缺口","textPreview":"轮廓与缺口","textChars":5,"textLines":1,"bbox":[752,316,396,40]}
+{"kind":"shape","id":"sh/ad0nupcr","slide":8,"bbox":[728,397,10,10]}
+{"kind":"textbox","id":"sh/bet4nutc","slide":8,"text":"平面度与翘曲","textPreview":"平面度与翘曲","textChars":6,"textLines":1,"bbox":[752,388,396,40]}
+{"kind":"shape","id":"sh/kj250zut","slide":8,"bbox":[728,469,10,10]}
+{"kind":"textbox","id":"sh/lkb6t4be","slide":8,"text":"体积与形貌异常","textPreview":"体积与形貌异常","textChars":7,"textLines":1,"bbox":[752,460,396,40]}
+{"kind":"textbox","id":"sh/vqhgf2hs","slide":8,"text":"精度取决于相机、光学、标定、安装和现场条件。","textPreview":"精度取决于相机、光学、标定、安装和现场条件。","textChars":22,"textLines":1,"bbox":[728,552,420,38]}
+{"kind":"notes","id":"nt/zr9dvj","slide":8,"text":""}
+{"kind":"slide","id":"sl/25quh0","slide":9,"title":"设备管理","textShapes":17}
+{"kind":"shape","id":"sh/zypkrut4","slide":9,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/kzyl0zap","slide":9,"text":"设备管理","textPreview":"设备管理","textChars":4,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/l072t4ba","slide":9,"text":"相机、光源和控制器统一纳入方案生命周期","textPreview":"相机、光源和控制器统一纳入方案生命周期","textChars":19,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/m1g329sv","slide":9,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/72pkvet0","slide":9,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/83yl4jal","slide":9,"text":"09 / 23","textPreview":"09 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"shape","id":"sh/9o72xob6","slide":9,"bbox":[56,154,360,136]}
+{"kind":"textbox","id":"sh/n6lkjatw","slide":9,"text":"2D/3D 相机","textPreview":"2D/3D 相机","textChars":8,"textLines":1,"bbox":[140,174,256,34]}
+{"kind":"textbox","id":"sh/bq543y98","slide":9,"text":"枚举、连接、取流、触发与参数保存","textPreview":"枚举、连接、取流、触发与参数保存","textChars":16,"textLines":1,"bbox":[78,232,316,46]}
+{"kind":"shape","id":"sh/qpwnutsn","slide":9,"bbox":[446,154,360,136]}
+{"kind":"textbox","id":"sh/cre5w3at","slide":9,"text":"光源","textPreview":"光源","textChars":2,"textLines":1,"bbox":[530,174,256,34]}
+{"kind":"textbox","id":"sh/3m54zy9c","slide":9,"text":"多品牌控制实现，随流程开关与调节","textPreview":"多品牌控制实现，随流程开关与调节","textChars":16,"textLines":1,"bbox":[468,232,316,46]}
+{"kind":"shape","id":"sh/2lwnqtsr","slide":9,"bbox":[836,154,360,136]}
+{"kind":"textbox","id":"sh/one5s3ax","slide":9,"text":"PLC","textPreview":"PLC","textChars":3,"textLines":1,"bbox":[920,174,256,34]}
+{"kind":"textbox","id":"sh/fil4ve90","slide":9,"text":"三菱、松下读写与软触发监听","textPreview":"三菱、松下读写与软触发监听","textChars":13,"textLines":1,"bbox":[858,232,316,46]}
+{"kind":"shape","id":"sh/excnm9sv","slide":9,"bbox":[56,330,360,136]}
+{"kind":"textbox","id":"sh/julo7ed8","slide":9,"text":"Modbus","textPreview":"Modbus","textChars":6,"textLines":1,"bbox":[140,350,256,34]}
+{"kind":"textbox","id":"sh/4vu5gjut","slide":9,"text":"RTU/TCP 主站与 TCP 从站能力","textPreview":"RTU/TCP 主站与 TCP 从站能力","textChars":20,"textLines":1,"bbox":[78,408,316,46]}
+{"kind":"shape","id":"sh/5g369ovy","slide":9,"bbox":[446,330,360,136]}
+{"kind":"textbox","id":"sh/rilobyd4","slide":9,"text":"TCP","textPreview":"TCP","textChars":3,"textLines":1,"bbox":[530,350,256,34]}
+{"kind":"textbox","id":"sh/sjupkjup","slide":9,"text":"客户端请求与服务器响应","textPreview":"客户端请求与服务器响应","textChars":11,"textLines":1,"bbox":[468,408,316,46]}
+{"kind":"shape","id":"sh/tk36dova","slide":9,"bbox":[836,330,360,136]}
+{"kind":"textbox","id":"sh/fm5ofydg","slide":9,"text":"串口 / I/O","textPreview":"串口 / I/O","textChars":8,"textLines":1,"bbox":[920,350,256,34]}
+{"kind":"textbox","id":"sh/pg7q5sfi","slide":9,"text":"COM 发送、相机 I/O 与科锐 I/O 模块","textPreview":"COM 发送、相机 I/O 与科锐 I/O 模块","textChars":24,"textLines":1,"bbox":[858,408,316,46]}
+{"kind":"textbox","id":"sh/ofy9cnex","slide":9,"text":"方案切换和软件退出时统一释放设备与模型资源，降低长期运行风险。","textPreview":"方案切换和软件退出时统一释放设备与模型资源，降低长期运行风险。","textChars":31,"textLines":1,"bbox":[56,546,1168,44]}
+{"kind":"image","id":"im/badg7i14","slide":9,"name":"","alt":"2D/3D 相机","bbox":[78,176,48,48]}
+{"kind":"image","id":"im/650bu90f","slide":9,"name":"","alt":"光源","bbox":[468,176,48,48]}
+{"kind":"image","id":"im/et0byt0b","slide":9,"name":"","alt":"PLC","bbox":[858,176,48,48]}
+{"kind":"image","id":"im/xwzal0bm","slide":9,"name":"","alt":"Modbus","bbox":[78,352,48,48]}
+{"kind":"image","id":"im/lkjap0bi","slide":9,"name":"","alt":"TCP","bbox":[468,352,48,48]}
+{"kind":"image","id":"im/9ojatkbu","slide":9,"name":"","alt":"串口 / I/O","bbox":[858,352,48,48]}
+{"kind":"notes","id":"nt/25quh0","slide":9,"text":""}
+{"kind":"slide","id":"sl/wldrak","slide":10,"title":"现场通信","textShapes":18}
+{"kind":"shape","id":"sh/lgv2pcb2","slide":10,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/ydk3excb","slide":10,"text":"现场通信","textPreview":"现场通信","textChars":4,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/zedkn2tw","slide":10,"text":"多协议通信把视觉结果接入真实生产节拍","textPreview":"多协议通信把视觉结果接入真实生产节拍","textChars":18,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/8jmlk7ut","slide":10,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/9kvmtcby","slide":10,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/mh43ihcn","slide":10,"text":"10 / 23","textPreview":"10 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"textbox","id":"sh/nid4rmt8","slide":10,"text":"流程节点层","textPreview":"流程节点层","textChars":5,"textLines":1,"bbox":[56,160,200,36]}
+{"kind":"shape","id":"sh/w76lorup","slide":10,"bbox":[56,222,220,40]}
+{"kind":"textbox","id":"sh/x8fmxwba","slide":10,"text":"PLC 读取/写入","textPreview":"PLC 读取/写入","textChars":9,"textLines":1,"bbox":[56,229,220,26]}
+{"kind":"shape","id":"sh/dsfetsv2","slide":10,"bbox":[310,222,220,40]}
+{"kind":"textbox","id":"sh/cr6d0nuh","slide":10,"text":"Modbus 读取/写入","textPreview":"Modbus 读取/写入","textChars":12,"textLines":1,"bbox":[310,229,220,26]}
+{"kind":"shape","id":"sh/rqxwridw","slide":10,"bbox":[564,222,220,40]}
+{"kind":"textbox","id":"sh/qpovydcb","slide":10,"text":"TCP 请求/响应","textPreview":"TCP 请求/响应","textChars":9,"textLines":1,"bbox":[564,229,220,26]}
+{"kind":"shape","id":"sh/1gzexcvy","slide":10,"bbox":[56,298,220,40]}
+{"kind":"textbox","id":"sh/0fqd47ud","slide":10,"text":"串口发送","textPreview":"串口发送","textChars":4,"textLines":1,"bbox":[56,305,220,26]}
+{"kind":"shape","id":"sh/zuhwv2ds","slide":10,"bbox":[310,298,220,40]}
+{"kind":"textbox","id":"sh/et8v2xc7","slide":10,"text":"相机 I/O","textPreview":"相机 I/O","textChars":6,"textLines":1,"bbox":[310,305,220,26]}
+{"kind":"shape","id":"sh/hkvul8vu","slide":10,"bbox":[564,298,220,40]}
+{"kind":"textbox","id":"sh/gjmds3u9","slide":10,"text":"软触发监听","textPreview":"软触发监听","textChars":5,"textLines":1,"bbox":[564,305,220,26]}
+{"kind":"textbox","id":"sh/83qd83m5","slide":10,"text":"⇅","textPreview":"⇅","textChars":1,"textLines":1,"bbox":[825,260,80,70]}
+{"kind":"shape","id":"sh/94zeh83q","slide":10,"bbox":[910,180,300,250]}
+{"kind":"textbox","id":"sh/m18v6d4z","slide":10,"text":"现场设备层","textPreview":"现场设备层","textChars":5,"textLines":1,"bbox":[940,208,240,38]}
+{"kind":"shape","id":"sh/72hwfilk","slide":10,"bbox":[946,279,10,10]}
+{"kind":"textbox","id":"sh/w7adcn21","slide":10,"text":"PLC / 运动控制","textPreview":"PLC / 运动控制","textChars":10,"textLines":1,"bbox":[970,270,206,40]}
+{"kind":"shape","id":"sh/h8jels3m","slide":10,"bbox":[946,325,10,10]}
+{"kind":"textbox","id":"sh/u58vadkv","slide":10,"text":"传感器 / I/O","textPreview":"传感器 / I/O","textChars":9,"textLines":1,"bbox":[970,316,206,40]}
+{"kind":"shape","id":"sh/v6hwjilg","slide":10,"bbox":[946,371,10,10]}
+{"kind":"textbox","id":"sh/4vadgn2d","slide":10,"text":"机器人 / 上位机","textPreview":"机器人 / 上位机","textChars":9,"textLines":1,"bbox":[970,362,206,40]}
+{"kind":"shape","id":"sh/5wjeps3i","slide":10,"bbox":[946,417,10,10]}
+{"kind":"textbox","id":"sh/fq5gfm50","slide":10,"text":"MES / 数据系统","textPreview":"MES / 数据系统","textChars":10,"textLines":1,"bbox":[970,408,206,40]}
+{"kind":"shape","id":"sh/epcz614f","slide":10,"bbox":[120,486,1040,88]}
+{"kind":"textbox","id":"sh/1snyhwnq","slide":10,"text":"检测结果不仅显示在屏幕上，还能成为设备动作、分拣、报警和数据追溯的输入。","textPreview":"检测结果不仅显示在屏幕上，还能成为设备动作、分拣、报警和数据追溯的输入。","textChars":36,"textLines":1,"bbox":[150,514,980,38]}
+{"kind":"notes","id":"nt/wldrak","slide":10,"text":""}
+{"kind":"slide","id":"sl/duribg","slide":11,"title":"图像预处理","textShapes":16}
+{"kind":"shape","id":"sh/p87utgfm","slide":11,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/25gvy1gv","slide":11,"text":"图像预处理","textPreview":"图像预处理","textChars":5,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/n6pcr6xg","slide":11,"text":"标准化图像输入，为稳定检测建立第一道防线","textPreview":"标准化图像输入，为稳定检测建立第一道防线","textChars":20,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/0jetwry5","slide":11,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/1knupwfq","slide":11,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/ehwbuhgz","slide":11,"text":"11 / 23","textPreview":"11 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"textbox","id":"sh/sfetsryt","slide":11,"text":"图像裁剪","textPreview":"图像裁剪","textChars":4,"textLines":1,"bbox":[64,270,236,36]}
+{"kind":"textbox","id":"sh/dgnulwfe","slide":11,"text":"聚焦有效区域，减少计算量","textPreview":"聚焦有效区域，减少计算量","textChars":12,"textLines":1,"bbox":[64,326,236,66]}
+{"kind":"textbox","id":"sh/x4ja9cny","slide":11,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[308,250,50,40]}
+{"kind":"textbox","id":"sh/v21s7m5s","slide":11,"text":"图像旋转","textPreview":"图像旋转","textChars":4,"textLines":1,"bbox":[358,270,236,36]}
+{"kind":"textbox","id":"sh/a1sryhon","slide":11,"text":"统一方向与坐标基准","textPreview":"统一方向与坐标基准","textChars":9,"textLines":1,"bbox":[358,326,236,66]}
+{"kind":"textbox","id":"sh/90za5cn2","slide":11,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[602,250,50,40]}
+{"kind":"textbox","id":"sh/nehs325w","slide":11,"text":"图像分割","textPreview":"图像分割","textChars":4,"textLines":1,"bbox":[652,270,236,36]}
+{"kind":"textbox","id":"sh/md8ruxob","slide":11,"text":"拆分多区域或多工位图像","textPreview":"拆分多区域或多工位图像","textChars":11,"textLines":1,"bbox":[652,326,236,66]}
+{"kind":"textbox","id":"sh/1cza1s7q","slide":11,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[896,250,50,40]}
+{"kind":"textbox","id":"sh/sfu9o7e1","slide":11,"text":"综合预处理","textPreview":"综合预处理","textChars":5,"textLines":1,"bbox":[946,270,236,36]}
+{"kind":"textbox","id":"sh/dg3ahcfm","slide":11,"text":"灰度、阈值、滤波等组合处理","textPreview":"灰度、阈值、滤波等组合处理","textChars":13,"textLines":1,"bbox":[946,326,236,66]}
+{"kind":"shape","id":"sh/qtsrmxwb","slide":11,"bbox":[120,438,1040,1]}
+{"kind":"textbox","id":"sh/ru1sf2xg","slide":11,"text":"预处理节点可以单独调参、复用和订阅上游图像，便于逐段验证图像质量。","textPreview":"预处理节点可以单独调参、复用和订阅上游图像，便于逐段验证图像质量。","textChars":33,"textLines":1,"bbox":[120,480,1040,46]}
+{"kind":"image","id":"im/elo7q5c3","slide":11,"name":"","alt":"图像裁剪","bbox":[146,176,72,72]}
+{"kind":"image","id":"im/f65knqtc","slide":11,"name":"","alt":"图像旋转","bbox":[440,176,72,72]}
+{"kind":"image","id":"im/r2lkjqdg","slide":11,"name":"","alt":"图像分割","bbox":[734,176,72,72]}
+{"kind":"image","id":"im/3ylkf6d4","slide":11,"name":"","alt":"综合预处理","bbox":[1028,176,72,72]}
+{"kind":"notes","id":"nt/duribg","slide":11,"text":""}
+{"kind":"slide","id":"sl/bw9hd5","slide":12,"title":"检测与识别","textShapes":12}
+{"kind":"shape","id":"sh/1sbah47y","slide":12,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/epkb6987","slide":12,"text":"检测与识别","textPreview":"检测与识别","textChars":5,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/fqtsfeps","slide":12,"text":"传统视觉覆盖高确定性、可解释的检测任务","textPreview":"传统视觉覆盖高确定性、可解释的检测任务","textChars":19,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/ofmtcjq9","slide":12,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/pgvalo7u","slide":12,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/2tkba983","slide":12,"text":"12 / 23","textPreview":"12 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"shape","id":"sh/netsjepo","slide":12,"bbox":[56,150,560,454]}
+{"kind":"textbox","id":"sh/5kra9k7q","slide":12,"text":"项目内置圆检测算子示例","textPreview":"项目内置圆检测算子示例","textChars":11,"textLines":1,"bbox":[70,574,532,24]}
+{"kind":"textbox","id":"sh/tgrm1szi","slide":12,"text":"现有检测节点","textPreview":"现有检测节点","textChars":6,"textLines":1,"bbox":[680,160,420,38]}
+{"kind":"shape","id":"sh/8fil87yx","slide":12,"bbox":[680,235,10,10]}
+{"kind":"textbox","id":"sh/7e94z2hc","slide":12,"text":"直线检测 / 圆检测","textPreview":"直线检测 / 圆检测","textChars":10,"textLines":1,"bbox":[704,226,436,40]}
+{"kind":"shape","id":"sh/6d036xgr","slide":12,"bbox":[680,301,10,10]}
+{"kind":"textbox","id":"sh/hkbm5cfe","slide":12,"text":"模板匹配 / 位置定位","textPreview":"模板匹配 / 位置定位","textChars":11,"textLines":1,"bbox":[704,292,436,40]}
+{"kind":"shape","id":"sh/gj2lc7yt","slide":12,"bbox":[680,367,10,10]}
+{"kind":"textbox","id":"sh/vi9432h8","slide":12,"text":"二维码识别 / 颜色识别","textPreview":"二维码识别 / 颜色识别","textChars":12,"textLines":1,"bbox":[704,358,436,40]}
+{"kind":"shape","id":"sh/uh03axgn","slide":12,"bbox":[680,433,10,10]}
+{"kind":"textbox","id":"sh/58bm9wfa","slide":12,"text":"二值化分析 / Blob 类分析","textPreview":"二值化分析 / Blob 类分析","textChars":16,"textLines":1,"bbox":[704,424,436,40]}
+{"kind":"shape","id":"sh/472lgry5","slide":12,"bbox":[680,499,10,10]}
+{"kind":"textbox","id":"sh/o3uxsfad","slide":12,"text":"电池极耳专用检测","textPreview":"电池极耳专用检测","textChars":8,"textLines":1,"bbox":[704,490,436,40]}
+{"kind":"textbox","id":"sh/po3e1kry","slide":12,"text":"特点：规则明确、结果可解释、调试路径清晰。","textPreview":"特点：规则明确、结果可解释、调试路径清晰。","textChars":21,"textLines":1,"bbox":[680,552,460,40]}
+{"kind":"image","id":"im/tg36dgvq","slide":12,"name":"","alt":"注液孔圆检测算子示例","bbox":[70,164,532,412]}
+{"kind":"notes","id":"nt/bw9hd5","slide":12,"text":""}
+{"kind":"slide","id":"sl/xthxk6","slide":13,"title":"尺寸测量","textShapes":26}
+{"kind":"shape","id":"sh/5szyxgjy","slide":13,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/ip8f21k7","slide":13,"text":"尺寸测量","textPreview":"尺寸测量","textChars":4,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/jqhgv61s","slide":13,"text":"卡尺与几何关系，构建可追溯的精密测量链","textPreview":"卡尺与几何关系，构建可追溯的精密测量链","textChars":19,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/wnqx0r21","slide":13,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/xozytwjm","slide":13,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/a18fyhkb","slide":13,"text":"13 / 23","textPreview":"13 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"shape","id":"sh/v2hgrm1w","slide":13,"bbox":[56,180,248,170]}
+{"kind":"textbox","id":"sh/gjahcv2l","slide":13,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[74,198,50,36]}
+{"kind":"textbox","id":"sh/hk3y50j6","slide":13,"text":"特征提取","textPreview":"特征提取","textChars":4,"textLines":1,"bbox":[74,250,212,38]}
+{"kind":"textbox","id":"sh/pcnih8nu","slide":13,"text":"卡尺找线 · 找圆 · 找椭圆 · 找点","textPreview":"卡尺找线 · 找圆 · 找椭圆 · 找点","textChars":20,"textLines":1,"bbox":[74,298,212,46]}
+{"kind":"textbox","id":"sh/4beh8369","slide":13,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[304,246,44,40]}
+{"kind":"shape","id":"sh/3a50fy5o","slide":13,"bbox":[348,180,248,170]}
+{"kind":"textbox","id":"sh/29wz6to3","slide":13,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[366,198,50,36]}
+{"kind":"textbox","id":"sh/h8nidoni","slide":13,"text":"基准修正","textPreview":"基准修正","textChars":4,"textLines":1,"bbox":[366,250,212,38]}
+{"kind":"textbox","id":"sh/g7eh436d","slide":13,"text":"位置修正 · 线组合拟合","textPreview":"位置修正 · 线组合拟合","textChars":12,"textLines":1,"bbox":[366,298,212,46]}
+{"kind":"textbox","id":"sh/v6l0by5s","slide":13,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[596,246,44,40]}
+{"kind":"shape","id":"sh/u5cz2to7","slide":13,"bbox":[640,180,248,170]}
+{"kind":"textbox","id":"sh/147ipsn2","slide":13,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[658,198,50,36]}
+{"kind":"textbox","id":"sh/03yhgn6h","slide":13,"text":"几何计算","textPreview":"几何计算","textChars":4,"textLines":1,"bbox":[658,250,212,38]}
+{"kind":"textbox","id":"sh/kjqt8vyp","slide":13,"text":"距离 · 角度 · 区域关系","textPreview":"距离 · 角度 · 区域关系","textChars":14,"textLines":1,"bbox":[658,298,212,46]}
+{"kind":"textbox","id":"sh/lkza10za","slide":13,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[888,246,44,40]}
+{"kind":"shape","id":"sh/yh8b6lgz","slide":13,"bbox":[932,180,248,170]}
+{"kind":"textbox","id":"sh/jihszqhk","slide":13,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[950,198,50,36]}
+{"kind":"textbox","id":"sh/wvqt4byt","slide":13,"text":"公差判断","textPreview":"公差判断","textChars":4,"textLines":1,"bbox":[950,250,212,38]}
+{"kind":"textbox","id":"sh/xwzaxgze","slide":13,"text":"结果汇总 · OK/NG · 通信输出","textPreview":"结果汇总 · OK/NG · 通信输出","textChars":19,"textLines":1,"bbox":[950,298,212,46]}
+{"kind":"textbox","id":"sh/atob2l0n","slide":13,"text":"9+","textPreview":"9+","textChars":2,"textLines":1,"bbox":[110,430,220,72]}
+{"kind":"textbox","id":"sh/buxsvqh8","slide":13,"text":"测量与几何节点","textPreview":"测量与几何节点","textChars":7,"textLines":1,"bbox":[110,502,220,58]}
+{"kind":"textbox","id":"sh/or6t0bih","slide":13,"text":"可组合","textPreview":"可组合","textChars":3,"textLines":1,"bbox":[420,430,260,72]}
+{"kind":"textbox","id":"sh/9sfatgz2","slide":13,"text":"多特征、多基准、多公差","textPreview":"多特征、多基准、多公差","textChars":11,"textLines":1,"bbox":[420,502,260,58]}
+{"kind":"textbox","id":"sh/rmdc3614","slide":13,"text":"可追溯","textPreview":"可追溯","textChars":3,"textLines":1,"bbox":[760,430,320,72]}
+{"kind":"textbox","id":"sh/ql4ba1kj","slide":13,"text":"原图、结果图、数值与统计","textPreview":"原图、结果图、数值与统计","textChars":12,"textLines":1,"bbox":[760,502,320,58]}
+{"kind":"textbox","id":"sh/dofu5gja","slide":13,"text":"最终测量精度由成像、标定、机械稳定性和算法参数共同决定。","textPreview":"最终测量精度由成像、标定、机械稳定性和算法参数共同决定。","textChars":28,"textLines":1,"bbox":[120,596,1040,32]}
+{"kind":"notes","id":"nt/xthxk6","slide":13,"text":""}
+{"kind":"slide","id":"sl/s4g2i9","slide":14,"title":"深度学习","textShapes":18}
+{"kind":"shape","id":"sh/atsnmxon","slide":14,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/xw36xsny","slide":14,"text":"深度学习","textPreview":"深度学习","textChars":4,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/cva5o76t","slide":14,"text":"四类 AI 模型，覆盖复杂目标的检测、形状与姿态","textPreview":"四类 AI 模型，覆盖复杂目标的检测、形状与姿态","textChars":24,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/nq1ori5w","slide":14,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/2psnidob","slide":14,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/psj6tsn2","slide":14,"text":"14 / 23","textPreview":"14 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"shape","id":"sh/ora5kn6h","slide":14,"bbox":[56,170,250,250]}
+{"kind":"textbox","id":"sh/f2h4ni50","slide":14,"text":"DET","textPreview":"DET","textChars":3,"textLines":1,"bbox":[76,198,210,68]}
+{"kind":"textbox","id":"sh/e18nedof","slide":14,"text":"目标检测","textPreview":"目标检测","textChars":4,"textLines":1,"bbox":[76,286,210,36]}
+{"kind":"shape","id":"sh/0zitsjmh","slide":14,"bbox":[91,342,180,1]}
+{"kind":"textbox","id":"sh/10rulonm","slide":14,"text":"类别 + 矩形框","textPreview":"类别 + 矩形框","textChars":8,"textLines":1,"bbox":[76,364,210,30]}
+{"kind":"shape","id":"sh/exgbq94b","slide":14,"bbox":[346,170,250,250]}
+{"kind":"textbox","id":"sh/fy9cje5w","slide":14,"text":"OBB","textPreview":"OBB","textChars":3,"textLines":1,"bbox":[366,198,210,68]}
+{"kind":"textbox","id":"sh/svytojm5","slide":14,"text":"旋转目标检测","textPreview":"旋转目标检测","textChars":6,"textLines":1,"bbox":[366,286,210,36]}
+{"kind":"shape","id":"sh/dw7uhonq","slide":14,"bbox":[381,342,180,1]}
+{"kind":"textbox","id":"sh/q9gbm94z","slide":14,"text":"类别 + 旋转框","textPreview":"类别 + 旋转框","textChars":8,"textLines":1,"bbox":[366,364,210,30]}
+{"kind":"shape","id":"sh/rapcfe5k","slide":14,"bbox":[636,170,250,250]}
+{"kind":"textbox","id":"sh/cr2t03m9","slide":14,"text":"SEG","textPreview":"SEG","textChars":3,"textLines":1,"bbox":[656,198,210,68]}
+{"kind":"textbox","id":"sh/xsbut8nu","slide":14,"text":"实例分割","textPreview":"实例分割","textChars":4,"textLines":1,"bbox":[656,286,210,36]}
+{"kind":"shape","id":"sh/lo7ud8fy","slide":14,"bbox":[671,342,180,1]}
+{"kind":"textbox","id":"sh/knytk3et","slide":14,"text":"类别 + 像素轮廓","textPreview":"类别 + 像素轮廓","textChars":9,"textLines":1,"bbox":[656,364,210,30]}
+{"kind":"shape","id":"sh/jmpcbyx8","slide":14,"bbox":[926,170,250,250]}
+{"kind":"textbox","id":"sh/ylgbitwn","slide":14,"text":"POSE","textPreview":"POSE","textChars":4,"textLines":1,"bbox":[946,198,210,68]}
+{"kind":"textbox","id":"sh/xknu9of2","slide":14,"text":"姿态检测","textPreview":"姿态检测","textChars":4,"textLines":1,"bbox":[946,286,210,36]}
+{"kind":"shape","id":"sh/wjetgjeh","slide":14,"bbox":[961,342,180,1]}
+{"kind":"textbox","id":"sh/bi5s7yxw","slide":14,"text":"类别 + 关键点","textPreview":"类别 + 关键点","textChars":8,"textLines":1,"bbox":[946,364,210,30]}
+{"kind":"textbox","id":"sh/ahwbetwb","slide":14,"text":"模型运行封装支持 TensorRT / OpenVINO 相关推理路径，并通过统一结果结构进入后续绘制与判断。","textPreview":"模型运行封装支持 TensorRT / OpenVINO 相关推理路径，并通过统一结果结构进入后续绘制与判断。","textChars":55,"textLines":1,"bbox":[100,484,1080,70]}
+{"kind":"textbox","id":"sh/9gna5of6","slide":14,"text":"模型效果依赖训练数据、标注质量、部署硬件和现场分布。","textPreview":"模型效果依赖训练数据、标注质量、部署硬件和现场分布。","textChars":26,"textLines":1,"bbox":[100,580,1080,28]}
+{"kind":"notes","id":"nt/s4g2i9","slide":14,"text":""}
+{"kind":"slide","id":"sl/ffrf97","slide":15,"title":"新型 AI 能力","textShapes":14}
+{"kind":"shape","id":"sh/yp832d8n","slide":15,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/lsz2dsre","slide":15,"text":"新型 AI 能力","textPreview":"新型 AI 能力","textChars":8,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/krql4nqt","slide":15,"text":"无监督检测降低异常样本门槛，大模型扩展分析边界","textPreview":"无监督检测降低异常样本门槛，大模型扩展分析边界","textChars":23,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/7uhkfi9k","slide":15,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/mt836x8z","slide":15,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/9wj2hs7a","slide":15,"text":"15 / 23","textPreview":"15 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"shape","id":"sh/8val8nq5","slide":15,"bbox":[56,160,548,430]}
+{"kind":"textbox","id":"sh/nyxk3y90","slide":15,"text":"无监督缺陷检测","textPreview":"无监督缺陷检测","textChars":7,"textLines":1,"bbox":[88,194,470,46]}
+{"kind":"textbox","id":"sh/2xojut8v","slide":15,"text":"适合缺陷种类多、异常样本难收集的表面检测任务。","textPreview":"适合缺陷种类多、异常样本难收集的表面检测任务。","textChars":23,"textLines":1,"bbox":[88,258,450,70]}
+{"kind":"shape","id":"sh/cjydofml","slide":15,"bbox":[88,363,10,10]}
+{"kind":"textbox","id":"sh/dk7ehkn6","slide":15,"text":"以正常样本建立特征分布","textPreview":"以正常样本建立特征分布","textChars":11,"textLines":1,"bbox":[112,354,426,40]}
+{"kind":"shape","id":"sh/qhwvmp4v","slide":15,"bbox":[88,421,10,10]}
+{"kind":"textbox","id":"sh/bi5wfu5g","slide":15,"text":"输出异常区域与异常分数","textPreview":"输出异常区域与异常分数","textChars":11,"textLines":1,"bbox":[112,412,426,40]}
+{"kind":"shape","id":"sh/0nydszmx","slide":15,"bbox":[88,479,10,10]}
+{"kind":"textbox","id":"sh/lo7el4ni","slide":15,"text":"支持训练界面和运行节点","textPreview":"支持训练界面和运行节点","textChars":11,"textLines":1,"bbox":[112,470,426,40]}
+{"kind":"shape","id":"sh/ylgvqp4r","slide":15,"bbox":[632,160,592,430]}
+{"kind":"textbox","id":"sh/zmpwju5c","slide":15,"text":"大模型辅助分析","textPreview":"大模型辅助分析","textChars":7,"textLines":1,"bbox":[668,194,500,46]}
+{"kind":"textbox","id":"sh/grudgvmt","slide":15,"text":"适合规则解释、文本化分析和受控的业务辅助场景。","textPreview":"适合规则解释、文本化分析和受控的业务辅助场景。","textChars":23,"textLines":1,"bbox":[668,258,470,70]}
+{"kind":"shape","id":"sh/1sne90ny","slide":15,"bbox":[668,363,10,10]}
+{"kind":"textbox","id":"sh/hcv2xsbq","slide":15,"text":"节点化调用与配置","textPreview":"节点化调用与配置","textChars":8,"textLines":1,"bbox":[692,354,446,40]}
+{"kind":"shape","id":"sh/wbmlo7u5","slide":15,"bbox":[668,421,10,10]}
+{"kind":"textbox","id":"sh/vatkv2tk","slide":15,"text":"可与传统视觉和 AI 结果组合","textPreview":"可与传统视觉和 AI 结果组合","textChars":15,"textLines":1,"bbox":[692,412,446,40]}
+{"kind":"shape","id":"sh/u9k3mxcz","slide":15,"bbox":[668,479,10,10]}
+{"kind":"textbox","id":"sh/50v21cbm","slide":15,"text":"关键生产判定应保留可验证规则","textPreview":"关键生产判定应保留可验证规则","textChars":14,"textLines":1,"bbox":[692,470,446,40]}
+{"kind":"notes","id":"nt/ffrf97","slide":15,"text":""}
+{"kind":"slide","id":"sl/6j9opk","slide":16,"title":"流程搭建示意","textShapes":30}
+{"kind":"shape","id":"sh/dgvip0fa","slide":16,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/qtkzulwj","slide":16,"text":"流程搭建示意","textPreview":"流程搭建示意","textChars":6,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/rud0nqx4","slide":16,"text":"拖拽、连线、调参，把检测思路直接变成可运行流程","textPreview":"拖拽、连线、调参，把检测思路直接变成可运行流程","textChars":23,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/0jmh0vel","slide":16,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/1kvit0f6","slide":16,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/eh4zylwf","slide":16,"text":"16 / 23","textPreview":"16 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"shape","id":"sh/zid0rqx0","slide":16,"bbox":[46,242,196,94]}
+{"kind":"shape","id":"sh/on614fex","slide":16,"bbox":[46,242,8,94]}
+{"kind":"textbox","id":"sh/9ofixkf2","slide":16,"text":"图像源","textPreview":"图像源","textChars":3,"textLines":1,"bbox":[66,257,162,32]}
+{"kind":"textbox","id":"sh/987qdojy","slide":16,"text":"相机 / 文件","textPreview":"相机 / 文件","textChars":7,"textLines":1,"bbox":[66,294,162,26]}
+{"kind":"textbox","id":"sh/87y9kjid","slide":16,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[242,266,49,40]}
+{"kind":"shape","id":"sh/n6p8be1s","slide":16,"bbox":[291,242,196,94]}
+{"kind":"shape","id":"sh/m5gri907","slide":16,"bbox":[291,242,8,94]}
+{"kind":"textbox","id":"sh/xwrqh8ju","slide":16,"text":"图像预处理","textPreview":"图像预处理","textChars":5,"textLines":1,"bbox":[311,257,162,32]}
+{"kind":"textbox","id":"sh/wvi9o3i9","slide":16,"text":"裁剪 / 旋转","textPreview":"裁剪 / 旋转","textChars":7,"textLines":1,"bbox":[311,294,162,26]}
+{"kind":"textbox","id":"sh/va98fy1o","slide":16,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[487,266,49,40]}
+{"kind":"shape","id":"sh/a9grmt0j","slide":16,"bbox":[536,242,196,94]}
+{"kind":"shape","id":"sh/d0nq54jq","slide":16,"bbox":[536,242,8,94]}
+{"kind":"textbox","id":"sh/czepczi5","slide":16,"text":"AI 检测","textPreview":"AI 检测","textChars":5,"textLines":1,"bbox":[556,257,162,32]}
+{"kind":"textbox","id":"sh/4ji9szq1","slide":16,"text":"DET / SEG","textPreview":"DET / SEG","textChars":9,"textLines":1,"bbox":[556,294,162,26]}
+{"kind":"textbox","id":"sh/pkrq14rm","slide":16,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[732,266,49,40]}
+{"kind":"shape","id":"sh/2h0rq98v","slide":16,"bbox":[781,242,196,94]}
+{"kind":"shape","id":"sh/3i98ze9g","slide":16,"bbox":[781,242,8,94]}
+{"kind":"textbox","id":"sh/cni9wjqx","slide":16,"text":"结果汇总","textPreview":"结果汇总","textChars":4,"textLines":1,"bbox":[801,257,162,32]}
+{"kind":"textbox","id":"sh/doba5ori","slide":16,"text":"规则 / OKNG","textPreview":"规则 / OKNG","textChars":9,"textLines":1,"bbox":[801,294,162,26]}
+{"kind":"textbox","id":"sh/ql0ru987","slide":16,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[977,266,49,40]}
+{"kind":"shape","id":"sh/rm983e9c","slide":16,"bbox":[1026,242,196,94]}
+{"kind":"shape","id":"sh/0b290jq9","slide":16,"bbox":[1026,242,8,94]}
+{"kind":"textbox","id":"sh/1cba9oru","slide":16,"text":"PLC 写入","textPreview":"PLC 写入","textChars":6,"textLines":1,"bbox":[1046,257,162,32]}
+{"kind":"textbox","id":"sh/b6dczitw","slide":16,"text":"输出判定","textPreview":"输出判定","textChars":4,"textLines":1,"bbox":[1046,294,162,26]}
+{"kind":"textbox","id":"sh/a54bqxsb","slide":16,"text":"工具箱","textPreview":"工具箱","textChars":3,"textLines":1,"bbox":[56,150,180,40]}
+{"kind":"shape","id":"sh/x8fu1sb2","slide":16,"bbox":[170,150,116,40]}
+{"kind":"textbox","id":"sh/w76tsnah","slide":16,"text":"采集","textPreview":"采集","textChars":2,"textLines":1,"bbox":[170,157,116,26]}
+{"kind":"shape","id":"sh/nidcvitk","slide":16,"bbox":[312,150,116,40]}
+{"kind":"textbox","id":"sh/mh4bmdsf","slide":16,"text":"处理","textPreview":"处理","textChars":2,"textLines":1,"bbox":[312,157,116,26]}
+{"kind":"shape","id":"sh/94vuxsbq","slide":16,"bbox":[454,150,116,40]}
+{"kind":"textbox","id":"sh/ojmtona5","slide":16,"text":"检测","textPreview":"检测","textChars":2,"textLines":1,"bbox":[454,157,116,26]}
+{"kind":"shape","id":"sh/7exc72t4","slide":16,"bbox":[596,150,116,40]}
+{"kind":"textbox","id":"sh/6dovyhsj","slide":16,"text":"测量","textPreview":"测量","textChars":2,"textLines":1,"bbox":[596,157,116,26]}
+{"kind":"shape","id":"sh/el4fm1on","slide":16,"bbox":[738,150,116,40]}
+{"kind":"textbox","id":"sh/fmxgv6p8","slide":16,"text":"通信","textPreview":"通信","textChars":2,"textLines":1,"bbox":[738,157,116,26]}
+{"kind":"shape","id":"sh/gn6xob6t","slide":16,"bbox":[880,150,116,40]}
+{"kind":"textbox","id":"sh/1ofyxg7e","slide":16,"text":"逻辑","textPreview":"逻辑","textChars":2,"textLines":1,"bbox":[880,157,116,26]}
+{"kind":"shape","id":"sh/6h4fy1or","slide":16,"bbox":[1022,150,116,40]}
+{"kind":"textbox","id":"sh/ridgr6pc","slide":16,"text":"结果","textPreview":"结果","textChars":2,"textLines":1,"bbox":[1022,157,116,26]}
+{"kind":"shape","id":"sh/sjmxkr6h","slide":16,"bbox":[80,392,1120,1]}
+{"kind":"shape","id":"sh/tkvytw72","slide":16,"bbox":[100,447,10,10]}
+{"kind":"textbox","id":"sh/qd8fulov","slide":16,"text":"节点参数独立配置","textPreview":"节点参数独立配置","textChars":8,"textLines":1,"bbox":[124,438,456,40]}
+{"kind":"shape","id":"sh/behg3qpg","slide":16,"bbox":[650,447,10,10]}
+{"kind":"textbox","id":"sh/l8jitkri","slide":16,"text":"连线决定数据与执行关系","textPreview":"连线决定数据与执行关系","textChars":11,"textLines":1,"bbox":[674,438,456,40]}
+{"kind":"shape","id":"sh/07a10fqx","slide":16,"bbox":[100,515,10,10]}
+{"kind":"textbox","id":"sh/zm10ra9s","slide":16,"text":"支持禁用、备注、复制与组合","textPreview":"支持禁用、备注、复制与组合","textChars":13,"textLines":1,"bbox":[124,506,456,40]}
+{"kind":"shape","id":"sh/ylsjyp87","slide":16,"bbox":[650,515,10,10]}
+{"kind":"textbox","id":"sh/dkzipkrm","slide":16,"text":"运行状态与耗时可视化","textPreview":"运行状态与耗时可视化","textChars":10,"textLines":1,"bbox":[674,506,456,40]}
+{"kind":"notes","id":"nt/6j9opk","slide":16,"text":""}
+{"kind":"slide","id":"sl/6hyhuk","slide":17,"title":"流程调度","textShapes":17}
+{"kind":"shape","id":"sh/rmxkr6h0","slide":17,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/cn6lkbil","slide":17,"text":"流程调度","textPreview":"流程调度","textChars":4,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/dof2tgz6","slide":17,"text":"分组、优先级、并行与触发，应对复杂设备节拍","textPreview":"分组、优先级、并行与触发，应对复杂设备节拍","textChars":21,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/epo3ml0r","slide":17,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/zaxkvqhc","slide":17,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/0bqlovix","slide":17,"text":"17 / 23","textPreview":"17 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"textbox","id":"sh/1cz2x0zi","slide":17,"text":"方案级调度","textPreview":"方案级调度","textChars":5,"textLines":1,"bbox":[56,154,300,40]}
+{"kind":"shape","id":"sh/ut4jah0n","slide":17,"bbox":[56,212,250,84]}
+{"kind":"textbox","id":"sh/fedkjmh8","slide":17,"text":"按 Group 分组","textPreview":"按 Group 分组","textChars":10,"textLines":1,"bbox":[74,235,214,38]}
+{"kind":"shape","id":"sh/ba1cv210","slide":17,"bbox":[346,212,250,84]}
+{"kind":"textbox","id":"sh/q98bmxkf","slide":17,"text":"按优先级执行","textPreview":"按优先级执行","textChars":6,"textLines":1,"bbox":[364,235,214,38]}
+{"kind":"shape","id":"sh/dcjuxcj6","slide":17,"bbox":[636,212,250,84]}
+{"kind":"textbox","id":"sh/cbato72l","slide":17,"text":"同级主动流程并行","textPreview":"同级主动流程并行","textChars":8,"textLines":1,"bbox":[654,235,214,38]}
+{"kind":"shape","id":"sh/3mhcri14","slide":17,"bbox":[926,212,250,84]}
+{"kind":"textbox","id":"sh/2l8bixkj","slide":17,"text":"等待被动流程完成","textPreview":"等待被动流程完成","textChars":8,"textLines":1,"bbox":[944,235,214,38]}
+{"kind":"textbox","id":"sh/p8zutsju","slide":17,"text":"流程内部逻辑","textPreview":"流程内部逻辑","textChars":6,"textLines":1,"bbox":[56,356,300,40]}
+{"kind":"shape","id":"sh/o7qtkn2p","slide":17,"bbox":[56,424,350,40]}
+{"kind":"textbox","id":"sh/fihcni1s","slide":17,"text":"If / Else / EndIf","textPreview":"If / Else / EndIf","textChars":17,"textLines":1,"bbox":[56,431,350,26]}
+{"kind":"shape","id":"sh/ehobedk7","slide":17,"bbox":[446,424,350,40]}
+{"kind":"textbox","id":"sh/idovqd4f","slide":17,"text":"多条件判断","textPreview":"多条件判断","textChars":5,"textLines":1,"bbox":[446,431,350,26]}
+{"kind":"shape","id":"sh/jexczil0","slide":17,"bbox":[836,424,350,40]}
+{"kind":"textbox","id":"sh/4f6dsnm5","slide":17,"text":"流程触发与信号","textPreview":"流程触发与信号","textChars":7,"textLines":1,"bbox":[836,431,350,26]}
+{"kind":"shape","id":"sh/5gfu1s3q","slide":17,"bbox":[56,500,350,40]}
+{"kind":"textbox","id":"sh/6hovud4b","slide":17,"text":"相机回调触发","textPreview":"相机回调触发","textChars":6,"textLines":1,"bbox":[56,507,350,26]}
+{"kind":"shape","id":"sh/rihc3ilw","slide":17,"bbox":[446,500,350,40]}
+{"kind":"textbox","id":"sh/sjqdwnmh","slide":17,"text":"等待流程完成","textPreview":"等待流程完成","textChars":6,"textLines":1,"bbox":[446,507,350,26]}
+{"kind":"shape","id":"sh/tkze5s32","slide":17,"bbox":[836,500,350,40]}
+{"kind":"textbox","id":"sh/e58vyx4n","slide":17,"text":"停止与取消令牌","textPreview":"停止与取消令牌","textChars":7,"textLines":1,"bbox":[836,507,350,26]}
+{"kind":"textbox","id":"sh/f6hw72ls","slide":17,"text":"可把检测、动作、等待和异常路径组织为可读、可维护的生产逻辑。","textPreview":"可把检测、动作、等待和异常路径组织为可读、可维护的生产逻辑。","textChars":30,"textLines":1,"bbox":[100,600,1080,32]}
+{"kind":"notes","id":"nt/6hyhuk","slide":17,"text":""}
+{"kind":"slide","id":"sl/p0g4t5","slide":18,"title":"可扩展设计","textShapes":15}
+{"kind":"shape","id":"sh/mlk3mpwz","slide":18,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/98vmx4vq","slide":18,"text":"可扩展设计","textPreview":"可扩展设计","textChars":5,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/87mloze5","slide":18,"text":"接口化与组合能力，让项目经验持续沉淀","textPreview":"接口化与组合能力，让项目经验持续沉淀","textChars":18,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/vad4zedw","slide":18,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/a943q9wb","slide":18,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/xcvm1ovm","slide":18,"text":"18 / 23","textPreview":"18 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"shape","id":"sh/wbmlsjeh","slide":18,"bbox":[470,220,340,190]}
+{"kind":"textbox","id":"sh/re9knaxc","slide":18,"text":"可插拔能力核心","textPreview":"可插拔能力核心","textChars":7,"textLines":1,"bbox":[500,258,280,42]}
+{"kind":"textbox","id":"sh/qd03e5wr","slide":18,"text":"INode · IDevice · 参数 · 结果","textPreview":"INode · IDevice · 参数 · 结果","textChars":25,"textLines":1,"bbox":[500,320,280,34]}
+{"kind":"shape","id":"sh/svm9wj65","slide":18,"bbox":[80,168,300,120]}
+{"kind":"textbox","id":"sh/dwva5o7q","slide":18,"text":"组合模块","textPreview":"组合模块","textChars":4,"textLines":1,"bbox":[100,186,260,34]}
+{"kind":"textbox","id":"sh/qt4ru9oz","slide":18,"text":"封装常用子流程","textPreview":"封装常用子流程","textChars":7,"textLines":1,"bbox":[100,234,260,32]}
+{"kind":"shape","id":"sh/ruds3epk","slide":18,"bbox":[80,430,300,120]}
+{"kind":"textbox","id":"sh/0j6t036h","slide":18,"text":"共享变量","textPreview":"共享变量","textChars":4,"textLines":1,"bbox":[100,448,260,34]}
+{"kind":"textbox","id":"sh/1kfa987m","slide":18,"text":"跨节点传递业务数据","textPreview":"跨节点传递业务数据","textChars":9,"textLines":1,"bbox":[100,496,260,32]}
+{"kind":"shape","id":"sh/ex4rytob","slide":18,"bbox":[900,168,300,120]}
+{"kind":"textbox","id":"sh/fyds7ypw","slide":18,"text":"C# 脚本","textPreview":"C# 脚本","textChars":5,"textLines":1,"bbox":[920,186,260,34]}
+{"kind":"textbox","id":"sh/gn29oz6x","slide":18,"text":"承接特殊计算与规则","textPreview":"承接特殊计算与规则","textChars":9,"textLines":1,"bbox":[920,234,260,32]}
+{"kind":"shape","id":"sh/hobax47i","slide":18,"bbox":[900,430,300,120]}
+{"kind":"textbox","id":"sh/x8jy5wva","slide":18,"text":"设备接口","textPreview":"设备接口","textChars":4,"textLines":1,"bbox":[920,448,260,34]}
+{"kind":"textbox","id":"sh/c7ahcrup","slide":18,"text":"接入新相机与协议","textPreview":"接入新相机与协议","textChars":8,"textLines":1,"bbox":[920,496,260,32]}
+{"kind":"textbox","id":"sh/b61g3md4","slide":18,"text":"扩展新能力时保持现有流程稳定，降低跨项目复制后的维护成本。","textPreview":"扩展新能力时保持现有流程稳定，降低跨项目复制后的维护成本。","textChars":29,"textLines":1,"bbox":[130,604,1020,30]}
+{"kind":"notes","id":"nt/p0g4t5","slide":18,"text":""}
+{"kind":"slide","id":"sl/5sppxe","slide":19,"title":"结果闭环","textShapes":20}
+{"kind":"shape","id":"sh/fqdona10","slide":19,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/0r6pgfil","slide":19,"text":"结果闭环","textPreview":"结果闭环","textChars":4,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/1sf6pkj6","slide":19,"text":"结果不仅要判定，更要显示、输出、统计与追溯","textPreview":"结果不仅要判定，更要显示、输出、统计与追溯","textChars":21,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/q14nalkj","slide":19,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/r2dojq14","slide":19,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/s3mpcvip","slide":19,"text":"19 / 23","textPreview":"19 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"textbox","id":"sh/ixkn6lkn","slide":19,"text":"结果绘制","textPreview":"结果绘制","textChars":4,"textLines":1,"bbox":[36,266,214,34]}
+{"kind":"textbox","id":"sh/3ytofq18","slide":19,"text":"框、轮廓、线、圆与文字叠加","textPreview":"框、轮廓、线、圆与文字叠加","textChars":13,"textLines":1,"bbox":[36,322,214,62]}
+{"kind":"textbox","id":"sh/bix4be5o","slide":19,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[246,258,35,40]}
+{"kind":"textbox","id":"sh/xkfmdone","slide":19,"text":"结果汇总","textPreview":"结果汇总","textChars":4,"textLines":1,"bbox":[281,266,214,34]}
+{"kind":"textbox","id":"sh/wj654jmt","slide":19,"text":"多检测项统一形成 OK/NG","textPreview":"多检测项统一形成 OK/NG","textChars":14,"textLines":1,"bbox":[281,322,214,62]}
+{"kind":"textbox","id":"sh/j6xofy5k","slide":19,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[491,258,35,40]}
+{"kind":"textbox","id":"sh/l8f6honq","slide":19,"text":"现场显示","textPreview":"现场显示","textChars":4,"textLines":1,"bbox":[526,266,214,34]}
+{"kind":"textbox","id":"sh/k76583m5","slide":19,"text":"图像、数值、状态和统计","textPreview":"图像、数值、状态和统计","textChars":11,"textLines":1,"bbox":[526,322,214,62]}
+{"kind":"textbox","id":"sh/fat43u5g","slide":19,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[736,258,35,40]}
+{"kind":"textbox","id":"sh/2hczy1sf","slide":19,"text":"图片归档","textPreview":"图片归档","textChars":4,"textLines":1,"bbox":[771,266,214,34]}
+{"kind":"textbox","id":"sh/3ilgr6t0","slide":19,"text":"按条件保存并定期清理","textPreview":"按条件保存并定期清理","textChars":10,"textLines":1,"bbox":[771,322,214,62]}
+{"kind":"textbox","id":"sh/4juh0bal","slide":19,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[981,258,35,40]}
+{"kind":"textbox","id":"sh/udszuhsj","slide":19,"text":"表格导出","textPreview":"表格导出","textChars":4,"textLines":1,"bbox":[1016,266,214,34]}
+{"kind":"textbox","id":"sh/fe1gnmt4","slide":19,"text":"检测结果形成 Excel 记录","textPreview":"检测结果形成 Excel 记录","textChars":15,"textLines":1,"bbox":[1016,322,214,62]}
+{"kind":"shape","id":"sh/gfuhwrap","slide":19,"bbox":[100,464,1080,112]}
+{"kind":"textbox","id":"sh/hg3ypwbu","slide":19,"text":"原图 + 结果图 + 数值 + 时间 + 统计 + 通信输出","textPreview":"原图 + 结果图 + 数值 + 时间 + 统计 + 通信输出","textChars":30,"textLines":1,"bbox":[130,492,1020,38]}
+{"kind":"textbox","id":"sh/6pszqhs7","slide":19,"text":"支持形成可查询、可复盘的质量证据链","textPreview":"支持形成可查询、可复盘的质量证据链","textChars":17,"textLines":1,"bbox":[130,536,1020,28]}
+{"kind":"image","id":"im/0ralg3ad","slide":19,"name":"","alt":"结果绘制","bbox":[111,174,64,64]}
+{"kind":"image","id":"im/dkniho32","slide":19,"name":"","alt":"结果汇总","bbox":[356,174,64,64]}
+{"kind":"image","id":"im/1o7ilo3e","slide":19,"name":"","alt":"现场显示","bbox":[601,174,64,64]}
+{"kind":"image","id":"im/pc7ip83a","slide":19,"name":"","alt":"图片归档","bbox":[846,174,64,64]}
+{"kind":"image","id":"im/a5czytw3","slide":19,"name":"","alt":"表格导出","bbox":[1091,174,64,64]}
+{"kind":"notes","id":"nt/5sppxe","slide":19,"text":""}
+{"kind":"slide","id":"sl/3ln2vr","slide":20,"title":"应用全景","textShapes":25}
+{"kind":"shape","id":"sh/vedc36lk","slide":20,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/wfmtwbm5","slide":20,"text":"应用全景","textPreview":"应用全景","textChars":4,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/hgvu5w3q","slide":20,"text":"同一套框架，可以承接七类核心视觉应用","textPreview":"同一套框架，可以承接七类核心视觉应用","textChars":18,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/ih4vy14b","slide":20,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/jidc76lg","slide":20,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/4jmd0bm1","slide":20,"text":"20 / 23","textPreview":"20 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"textbox","id":"sh/5kvu9g3m","slide":20,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[70,156,60,38]}
+{"kind":"textbox","id":"sh/6l4v2l47","slide":20,"text":"尺寸测量","textPreview":"尺寸测量","textChars":4,"textLines":1,"bbox":[148,156,200,36]}
+{"kind":"textbox","id":"sh/rmxcbqls","slide":20,"text":"长度、间距、角度、圆径、位置偏差","textPreview":"长度、间距、角度、圆径、位置偏差","textChars":16,"textLines":1,"bbox":[148,198,430,48]}
+{"kind":"shape","id":"sh/f2107at0","slide":20,"bbox":[70,252,500,1]}
+{"kind":"textbox","id":"sh/e1sze5cv","slide":20,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[70,268,60,38]}
+{"kind":"textbox","id":"sh/1oji9kb6","slide":20,"text":"外观缺陷","textPreview":"外观缺陷","textChars":4,"textLines":1,"bbox":[148,268,200,36]}
+{"kind":"textbox","id":"sh/g3ahgful","slide":20,"text":"划伤、脏污、破损、异物、毛刺、缺料","textPreview":"划伤、脏污、破损、异物、毛刺、缺料","textChars":17,"textLines":1,"bbox":[148,310,430,48]}
+{"kind":"shape","id":"sh/ryh03qd4","slide":20,"bbox":[70,364,500,1]}
+{"kind":"textbox","id":"sh/6x8zalcj","slide":20,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[70,380,60,38]}
+{"kind":"textbox","id":"sh/t0zi50ba","slide":20,"text":"装配检测","textPreview":"装配检测","textChars":4,"textLines":1,"bbox":[148,380,200,36]}
+{"kind":"textbox","id":"sh/szqhcvup","slide":20,"text":"漏装、错装、反装、偏位、间隙","textPreview":"漏装、错装、反装、偏位、间隙","textChars":14,"textLines":1,"bbox":[148,422,430,48]}
+{"kind":"shape","id":"sh/bul0fut8","slide":20,"bbox":[70,476,500,1]}
+{"kind":"textbox","id":"sh/qtcjmpcn","slide":20,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[70,492,60,38]}
+{"kind":"textbox","id":"sh/mpw3etwv","slide":20,"text":"定位引导","textPreview":"定位引导","textChars":4,"textLines":1,"bbox":[148,492,200,36]}
+{"kind":"textbox","id":"sh/7q5k7ydg","slide":20,"text":"模板定位、特征定位、位置修正、坐标输出","textPreview":"模板定位、特征定位、位置修正、坐标输出","textChars":19,"textLines":1,"bbox":[148,534,430,48]}
+{"kind":"textbox","id":"sh/8relg3e1","slide":20,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[675,156,60,38]}
+{"kind":"textbox","id":"sh/9s7m98vm","slide":20,"text":"识别追溯","textPreview":"识别追溯","textChars":4,"textLines":1,"bbox":[753,156,200,36]}
+{"kind":"textbox","id":"sh/udg3itw7","slide":20,"text":"二维码、颜色、类别、批次与结果记录","textPreview":"二维码、颜色、类别、批次与结果记录","textChars":17,"textLines":1,"bbox":[753,198,430,48]}
+{"kind":"shape","id":"sh/vep4byds","slide":20,"bbox":[675,252,500,1]}
+{"kind":"textbox","id":"sh/wfylk3ed","slide":20,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[675,268,60,38]}
+{"kind":"textbox","id":"sh/hg7md8vi","slide":20,"text":"AI 视觉","textPreview":"AI 视觉","textChars":5,"textLines":1,"bbox":[753,268,200,36]}
+{"kind":"textbox","id":"sh/qxc369w3","slide":20,"text":"检测、分割、姿态、旋转目标、异常检测","textPreview":"检测、分割、姿态、旋转目标、异常检测","textChars":18,"textLines":1,"bbox":[753,310,430,48]}
+{"kind":"shape","id":"sh/bilkzed8","slide":20,"bbox":[675,364,500,1]}
+{"kind":"textbox","id":"sh/dobe1wj2","slide":20,"text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[675,380,60,38]}
+{"kind":"textbox","id":"sh/sn2xsb2h","slide":20,"text":"3D 视觉","textPreview":"3D 视觉","textChars":5,"textLines":1,"bbox":[753,380,200,36]}
+{"kind":"textbox","id":"sh/rmtwz61c","slide":20,"text":"高度差、轮廓、平面度、台阶、体积方向","textPreview":"高度差、轮廓、平面度、台阶、体积方向","textChars":18,"textLines":1,"bbox":[753,422,430,48]}
+{"kind":"notes","id":"nt/3ln2vr","slide":20,"text":""}
+{"kind":"slide","id":"sl/l6wrd1","slide":21,"title":"典型行业","textShapes":17}
+{"kind":"shape","id":"sh/e5g7axwr","slide":21,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/l8rqlcv2","slide":21,"text":"典型行业","textPreview":"典型行业","textChars":4,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/07i9c7ex","slide":21,"text":"平台能力可复用于多种离散制造与质量场景","textPreview":"平台能力可复用于多种离散制造与质量场景","textChars":19,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/r2p8fid0","slide":21,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/qhg76dwf","slide":21,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/d47qhsv6","slide":21,"text":"21 / 23","textPreview":"21 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"shape","id":"sh/c3yp8nel","slide":21,"bbox":[56,156,8,106]}
+{"kind":"textbox","id":"sh/3ep8bid4","slide":21,"text":"新能源电池","textPreview":"新能源电池","textChars":5,"textLines":1,"bbox":[84,162,230,38]}
+{"kind":"textbox","id":"sh/2dw72dwj","slide":21,"text":"极耳、注液孔、封装、焊接与表面缺陷","textPreview":"极耳、注液孔、封装、焊接与表面缺陷","textChars":17,"textLines":1,"bbox":[84,208,500,48]}
+{"kind":"shape","id":"sh/87yhs3up","slide":21,"bbox":[646,156,8,106]}
+{"kind":"textbox","id":"sh/987il8va","slide":21,"text":"线束与连接器","textPreview":"线束与连接器","textChars":6,"textLines":1,"bbox":[674,162,230,38]}
+{"kind":"textbox","id":"sh/m5wzqtcz","slide":21,"text":"端子压接、线芯、胶塞、插针与颜色识别","textPreview":"端子压接、线芯、胶塞、插针与颜色识别","textChars":18,"textLines":1,"bbox":[674,208,500,48]}
+{"kind":"shape","id":"sh/76pgjydk","slide":21,"bbox":[56,298,8,106]}
+{"kind":"textbox","id":"sh/k3ehojut","slide":21,"text":"3C 电子","textPreview":"3C 电子","textChars":5,"textLines":1,"bbox":[84,304,230,38]}
+{"kind":"textbox","id":"sh/l4nyhove","slide":21,"text":"零件外观、装配完整性、尺寸与字符识别","textPreview":"零件外观、装配完整性、尺寸与字符识别","textChars":18,"textLines":1,"bbox":[84,350,500,48]}
+{"kind":"shape","id":"sh/y1wzm9cn","slide":21,"bbox":[646,298,8,106]}
+{"kind":"textbox","id":"sh/z25gfed8","slide":21,"text":"汽车零部件","textPreview":"汽车零部件","textChars":5,"textLines":1,"bbox":[674,304,230,38]}
+{"kind":"textbox","id":"sh/4zih0nux","slide":21,"text":"孔位、轮廓、装配、划伤与定位引导","textPreview":"孔位、轮廓、装配、划伤与定位引导","textChars":16,"textLines":1,"bbox":[674,350,500,48]}
+{"kind":"shape","id":"sh/50ritsbi","slide":21,"bbox":[56,440,8,106]}
+{"kind":"textbox","id":"sh/dgnyd83m","slide":21,"text":"包装与印刷","textPreview":"包装与印刷","textChars":5,"textLines":1,"bbox":[84,446,230,38]}
+{"kind":"textbox","id":"sh/cvehknm1","slide":21,"text":"条码、标签、缺印、偏位、封口和外观","textPreview":"条码、标签、缺印、偏位、封口和外观","textChars":17,"textLines":1,"bbox":[84,492,500,48]}
+{"kind":"shape","id":"sh/ru5gbilw","slide":21,"bbox":[646,440,8,106]}
+{"kind":"textbox","id":"sh/qtwzid4b","slide":21,"text":"精密制造","textPreview":"精密制造","textChars":4,"textLines":1,"bbox":[674,446,230,38]}
+{"kind":"textbox","id":"sh/ps3y98nq","slide":21,"text":"尺寸、公差、轮廓、高度差和表面异常","textPreview":"尺寸、公差、轮廓、高度差和表面异常","textChars":17,"textLines":1,"bbox":[674,492,500,48]}
+{"kind":"textbox","id":"sh/4ruhg3m5","slide":21,"text":"每个场景都从样品、节拍、精度、误判风险和现场通信条件出发验证。","textPreview":"每个场景都从样品、节拍、精度、误判风险和现场通信条件出发验证。","textChars":31,"textLines":1,"bbox":[80,598,1120,30]}
+{"kind":"notes","id":"nt/l6wrd1","slide":21,"text":""}
+{"kind":"slide","id":"sl/bhuka7","slide":22,"title":"项目交付","textShapes":23}
+{"kind":"shape","id":"sh/8z2dozmh","slide":22,"bbox":[0,0,12,720]}
+{"kind":"textbox","id":"sh/7ytwfelw","slide":22,"text":"项目交付","textPreview":"项目交付","textChars":4,"textLines":1,"bbox":[56,38,500,24]}
+{"kind":"textbox","id":"sh/6xkvm94b","slide":22,"text":"标准实施路径，让需求、算法与设备同步落地","textPreview":"标准实施路径，让需求、算法与设备同步落地","textChars":20,"textLines":1,"bbox":[56,62,1168,62]}
+{"kind":"shape","id":"sh/lwbed43q","slide":22,"bbox":[56,675,1168,1]}
+{"kind":"textbox","id":"sh/kv2dkzm5","slide":22,"text":"TDJS-Vision  工业视觉应用框架","textPreview":"TDJS-Vision  工业视觉应用框架","textChars":21,"textLines":1,"bbox":[56,684,520,20]}
+{"kind":"textbox","id":"sh/jutcbulk","slide":22,"text":"22 / 23","textPreview":"22 / 23","textChars":7,"textLines":1,"bbox":[1120,684,104,20]}
+{"kind":"shape","id":"sh/y90vip4z","slide":22,"bbox":[120,290,1040,4]}
+{"kind":"shape","id":"sh/5svepo3u","slide":22,"bbox":[82,252,76,76]}
+{"kind":"textbox","id":"sh/4rmdwjm9","slide":22,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[82,273,76,28]}
+{"kind":"textbox","id":"sh/6h0rax0n","slide":22,"text":"需求澄清","textPreview":"需求澄清","textChars":4,"textLines":1,"bbox":[54,358,132,34]}
+{"kind":"textbox","id":"sh/7i9sj2h8","slide":22,"text":"缺陷定义、节拍、精度与接口","textPreview":"缺陷定义、节拍、精度与接口","textChars":13,"textLines":1,"bbox":[27,410,186,72]}
+{"kind":"shape","id":"sh/sjitc7it","slide":22,"bbox":[276,252,76,76]}
+{"kind":"textbox","id":"sh/tkralsze","slide":22,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[276,273,76,28]}
+{"kind":"textbox","id":"sh/ydgrmd0r","slide":22,"text":"样品评估","textPreview":"样品评估","textChars":4,"textLines":1,"bbox":[248,358,132,34]}
+{"kind":"textbox","id":"sh/jepsfihc","slide":22,"text":"成像方案与可行性验证","textPreview":"成像方案与可行性验证","textChars":10,"textLines":1,"bbox":[221,410,186,72]}
+{"kind":"shape","id":"sh/kfy9onix","slide":22,"bbox":[470,252,76,76]}
+{"kind":"textbox","id":"sh/5g7ahszi","slide":22,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[470,273,76,28]}
+{"kind":"textbox","id":"sh/29kbih0v","slide":22,"text":"方案搭建","textPreview":"方案搭建","textChars":4,"textLines":1,"bbox":[442,358,132,34]}
+{"kind":"textbox","id":"sh/3atsrmhg","slide":22,"text":"设备、算法、流程和结果配置","textPreview":"设备、算法、流程和结果配置","textChars":13,"textLines":1,"bbox":[415,410,186,72]}
+{"kind":"shape","id":"sh/zulojexs","slide":22,"bbox":[664,252,76,76]}
+{"kind":"textbox","id":"sh/etc7a9g7","slide":22,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[664,273,76,28]}
+{"kind":"textbox","id":"sh/1g3qlofy","slide":22,"text":"离线验证","textPreview":"离线验证","textChars":4,"textLines":1,"bbox":[636,358,132,34]}
+{"kind":"textbox","id":"sh/0vupcjyd","slide":22,"text":"数据集、边界样本与稳定性测试","textPreview":"数据集、边界样本与稳定性测试","textChars":14,"textLines":1,"bbox":[609,410,186,72]}
+{"kind":"shape","id":"sh/ni58nex4","slide":22,"bbox":[858,252,76,76]}
+{"kind":"textbox","id":"sh/mhc7e9gj","slide":22,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[858,273,76,28]}
+{"kind":"textbox","id":"sh/9knqpofa","slide":22,"text":"现场联调","textPreview":"现场联调","textChars":4,"textLines":1,"bbox":[830,358,132,34]}
+{"kind":"textbox","id":"sh/ojepgjyp","slide":22,"text":"触发、通信、动作与异常路径","textPreview":"触发、通信、动作与异常路径","textChars":13,"textLines":1,"bbox":[803,410,186,72]}
+{"kind":"shape","id":"sh/bm58ryx0","slide":22,"bbox":[1052,252,76,76]}
+{"kind":"textbox","id":"sh/alw7itgf","slide":22,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[1052,273,76,28]}
+{"kind":"textbox","id":"sh/8ryp83ut","slide":22,"text":"验收迭代","textPreview":"验收迭代","textChars":4,"textLines":1,"bbox":[1024,358,132,34]}
+{"kind":"textbox","id":"sh/ts76h8ve","slide":22,"text":"指标确认、版本固化与持续优化","textPreview":"指标确认、版本固化与持续优化","textChars":14,"textLines":1,"bbox":[997,410,186,72]}
+{"kind":"shape","id":"sh/6pg76tcn","slide":22,"bbox":[200,536,880,66]}
+{"kind":"textbox","id":"sh/7qpofyd8","slide":22,"text":"框架沉淀通用能力，项目聚焦真正有差异的成像、算法与现场逻辑。","textPreview":"框架沉淀通用能力，项目聚焦真正有差异的成像、算法与现场逻辑。","textChars":30,"textLines":1,"bbox":[230,555,820,32]}
+{"kind":"notes","id":"nt/bhuka7","slide":22,"text":""}
+{"kind":"slide","id":"sl/oaapo0","slide":23,"title":"TDJS-Vision","textShapes":4}
+{"kind":"shape","id":"sh/oje94be5","slide":23,"bbox":[0,0,18,720]}
+{"kind":"textbox","id":"sh/ni5sv6dk","slide":23,"text":"TDJS-Vision","textPreview":"TDJS-Vision","textChars":11,"textLines":1,"bbox":[64,58,360,40]}
+{"kind":"textbox","id":"sh/mhwr21wz","slide":23,"text":"让每一次视觉项目交付，\n都成为下一次快速落地的基础","textPreview":"让每一次视觉项目交付， | 都成为下一次快速落地的基础","textChars":25,"textLines":2,"bbox":[64,160,820,180]}
+{"kind":"shape","id":"sh/1gnatwfu","slide":23,"bbox":[68,382,520,4]}
+{"kind":"textbox","id":"sh/0fe90re9","slide":23,"text":"欢迎从现场样品、检测指标和通信节拍开始，共同验证应用方案。","textPreview":"欢迎从现场样品、检测指标和通信节拍开始，共同验证应用方案。","textChars":29,"textLines":1,"bbox":[68,420,760,80]}
+{"kind":"shape","id":"sh/ze5srmxo","slide":23,"bbox":[944,178,220,220]}
+{"kind":"textbox","id":"sh/dc3qpwfi","slide":23,"text":"工业视觉应用框架 · 可配置 · 可复用 · 可扩展","textPreview":"工业视觉应用框架 · 可配置 · 可复用 · 可扩展","textChars":26,"textLines":1,"bbox":[68,626,800,30]}
+{"kind":"image","id":"im/veh0zex0","slide":23,"name":"","alt":"TDJS-Vision 标识","bbox":[980,214,148,148]}
+{"kind":"notes","id":"nt/oaapo0","slide":23,"text":""}

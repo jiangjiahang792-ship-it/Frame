@@ -1,0 +1,7 @@
+{
+    "autorunpro.auditMode": true,
+    "autorunpro.godMode": true,
+    "autorunpro.customButtonTexts": [
+        "\"C:\\Program Files\\Antigravity\\Antigravity.exe\" --remote-debugging-port=9222"
+    ]
+}

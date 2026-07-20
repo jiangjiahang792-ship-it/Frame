@@ -1,0 +1,1889 @@
+{
+  "SolVer": "1.0.0.0",
+  "SolName": "D:\\MyCode\\PublicWook\\TDJS-Vision\\工位1方案带旋转_当前版本.Sol",
+  "RunInterval": 0,
+  "NodeCount": 163,
+  "ProcessCount": 11,
+  "Devices": {
+    "ModbusTcp主站1": {
+      "DevName": "ModbusTcp主站1",
+      "UserDefinedName": "ModbusTcp主站1",
+      "ModbusParam": {
+        "TDJS_Vision.Device.Modbus.ModbusTcpParam": {
+          "IP": "192.168.123.199",
+          "Port": 502,
+          "DevType": "ModbusTcpPoll",
+          "DevName": "ModbusTcp主站1",
+          "UserDefinedName": "ModbusTcp主站1",
+          "HoldTime": 30,
+          "ID": 0,
+          "ClassName": "TDJS_Vision.Device.Modbus.ModbusTcpParam"
+        }
+      },
+      "IsConnect": true,
+      "DevType": "ModbusTcpPoll",
+      "Brand": "Unknow",
+      "ClassName": "TDJS_Vision.Device.Modbus.ModbusTcpPoll"
+    }
+  },
+  "ProcessInfos": [
+    {
+      "ID": 8,
+      "ProcessName": "前端数线芯",
+      "Enable": true,
+      "ShowLog": true,
+      "IsPassiveTriggered": false,
+      "IsCameraCallbackTriggered": false,
+      "Level": "Lv5",
+      "Group": "Group1",
+      "NodeInfos": [
+        {
+          "NodeType": "ModbusSoftTrigger",
+          "NodeName": "监听Modbus软触发信号",
+          "ID": 111,
+          "Active": false,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 48,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": true,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "ImageSource",
+          "NodeName": "图像源",
+          "ID": 112,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 158,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageSoucre": {
+              "ImageSource": "相机",
+              "PathText": null,
+              "ImagePath": null,
+              "IsAutoLoop": false,
+              "CameraName": "海康相机3",
+              "TriggerModel": "On",
+              "TriggerSource": "LINE0",
+              "TriggerEdge": "Rising",
+              "TriggerDelay": 0,
+              "ExposureTime": 4500.0,
+              "Gain": 1.0,
+              "TimeOut": 100,
+              "IsEveryTime": false,
+              "SharedVariableName": null
+            }
+          }
+        },
+        {
+          "NodeType": "ModbusWrite",
+          "NodeName": "Modbus写入",
+          "ID": 113,
+          "Active": false,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 268,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite.NodeParamModbusWrite": {
+              "DeviceName": "ModbusTcp主站1",
+              "Data": "0",
+              "IsSubscribed": false,
+              "Text1": null,
+              "Text2": null,
+              "StartAddress": "2",
+              "DataType": "线圈"
+            }
+          }
+        },
+        {
+          "NodeType": "ImageRotate",
+          "NodeName": "图像旋转",
+          "ID": 115,
+          "Active": false,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 378,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "AITD",
+          "NodeName": "AI检测",
+          "ID": 116,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 488,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._3_Detection.TDAI.NodeParamTDAI": {
+              "Text1": "112.图像源",
+              "Text2": "输出图像",
+              "ConfigPath": "D:\\TD\\软件\\AI\\1-2_encrypted.ai",
+              "IsFixed": true,
+              "CurDetectItemName": "工位1线芯数量检测",
+              "DetectItemName1": "工位1线芯数量检测",
+              "DeviceName": "[未设置]",
+              "DetectItemName2": "工位2线芯数量检测",
+              "IsAutoStudy": false,
+              "StudyNum": 3,
+              "StudyPercentage": 30.0,
+              "NeedConvert": false,
+              "Scale": 0.01,
+              "NodeName": "AI检测",
+              "ModelName": "RL_线芯截面",
+              "Adress": null,
+              "TDAICommuntionParams": []
+            }
+          }
+        },
+        {
+          "NodeType": "If",
+          "NodeName": "如果",
+          "ID": 117,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 598,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._6_LogicTool.If.NodeParamElse": {
+              "Text1": "116.AI检测",
+              "Text2": "AI输出结果"
+            }
+          }
+        },
+        {
+          "NodeType": "ModbusWrite",
+          "NodeName": "Modbus写入",
+          "ID": 118,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 708,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite.NodeParamModbusWrite": {
+              "DeviceName": "ModbusTcp主站1",
+              "Data": "1",
+              "IsSubscribed": false,
+              "Text1": null,
+              "Text2": null,
+              "StartAddress": "2",
+              "DataType": "线圈"
+            }
+          }
+        },
+        {
+          "NodeType": "SleepTool",
+          "NodeName": "延迟执行",
+          "ID": 121,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 818,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._6_LogicTool.SleepTool.NodeParamSleepTool": {
+              "Time": 50
+            }
+          }
+        },
+        {
+          "NodeType": "ModbusWrite",
+          "NodeName": "Modbus写入",
+          "ID": 122,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 48,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite.NodeParamModbusWrite": {
+              "DeviceName": "ModbusTcp主站1",
+              "Data": "0",
+              "IsSubscribed": false,
+              "Text1": null,
+              "Text2": null,
+              "StartAddress": "2",
+              "DataType": "线圈"
+            }
+          }
+        },
+        {
+          "NodeType": "EndIf",
+          "NodeName": "结束如果",
+          "ID": 123,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 158,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "DrawAIResult",
+          "NodeName": "AI结果绘制",
+          "ID": 124,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 268,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.ImageDraw.NodeParamImageDraw": {
+              "Text1": "112.图像源",
+              "Text2": "输出图像",
+              "Text3": "116.AI检测",
+              "Text4": "AI输出结果",
+              "Text5": null,
+              "Text6": null,
+              "FontSize": 20,
+              "LineWidth": 6,
+              "TextLoc": "LeftUp"
+            }
+          }
+        },
+        {
+          "NodeType": "ImageShow",
+          "NodeName": "图像显示",
+          "ID": 125,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 378,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageShow": {
+              "WindowName": "ImageWindow4",
+              "Text1": "124.AI结果绘制",
+              "Text2": "输出图像"
+            }
+          }
+        },
+        {
+          "NodeType": "ImageSave",
+          "NodeName": "保存图片",
+          "ID": 160,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": true,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 488,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.ImageSave.NodeParamSaveImage": {
+              "SavePath": "D:\\TDJS\\保存图片",
+              "NeedOkNg": true,
+              "IsBarCode": false,
+              "IsDayNight": true,
+              "DayDataTime": "2024-09-03T08:00:00",
+              "NightDataTime": "2024-09-03T20:00:00",
+              "NeedCompress": true,
+              "CompressValue": 80,
+              "ImageTypeToSave": "OkAndNg",
+              "ImgSubText1": "112.图像源",
+              "ImgSubText2": "输出图像",
+              "AiResSubText1": "116.AI检测",
+              "AiResSubText2": "AI输出结果",
+              "BarCodeSubText1": "111.监听Modbus软触发信号",
+              "BarCodeSubText2": null
+            }
+          }
+        }
+      ],
+      "HasCanvasGraph": false,
+      "ConnectionInfos": [
+        {
+          "ID": "legacy-8-111-112",
+          "FromNodeId": 111,
+          "ToNodeId": 112,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-8-112-113",
+          "FromNodeId": 112,
+          "ToNodeId": 113,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-8-113-115",
+          "FromNodeId": 113,
+          "ToNodeId": 115,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-8-115-116",
+          "FromNodeId": 115,
+          "ToNodeId": 116,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-8-116-117",
+          "FromNodeId": 116,
+          "ToNodeId": 117,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-8-117-118",
+          "FromNodeId": 117,
+          "ToNodeId": 118,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-8-118-121",
+          "FromNodeId": 118,
+          "ToNodeId": 121,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-8-121-122",
+          "FromNodeId": 121,
+          "ToNodeId": 122,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-8-122-123",
+          "FromNodeId": 122,
+          "ToNodeId": 123,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-8-123-124",
+          "FromNodeId": 123,
+          "ToNodeId": 124,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-8-124-125",
+          "FromNodeId": 124,
+          "ToNodeId": 125,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-8-125-160",
+          "FromNodeId": 125,
+          "ToNodeId": 160,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        }
+      ],
+      "OKNumber": 550,
+      "NGNumber": 25
+    },
+    {
+      "ID": 9,
+      "ProcessName": "前端端子检测",
+      "Enable": true,
+      "ShowLog": true,
+      "IsPassiveTriggered": false,
+      "IsCameraCallbackTriggered": false,
+      "Level": "Lv5",
+      "Group": "Group1",
+      "NodeInfos": [
+        {
+          "NodeType": "ModbusSoftTrigger",
+          "NodeName": "监听Modbus软触发信号",
+          "ID": 126,
+          "Active": false,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 48,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": true,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "ImageSource",
+          "NodeName": "图像源",
+          "ID": 127,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 158,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageSoucre": {
+              "ImageSource": "相机",
+              "PathText": null,
+              "ImagePath": null,
+              "IsAutoLoop": false,
+              "CameraName": "海康相机1",
+              "TriggerModel": "On",
+              "TriggerSource": "LINE0",
+              "TriggerEdge": "Rising",
+              "TriggerDelay": 0,
+              "ExposureTime": 2000.0,
+              "Gain": 3.0,
+              "TimeOut": 100,
+              "IsEveryTime": false,
+              "SharedVariableName": null
+            }
+          }
+        },
+        {
+          "NodeType": "ImageRotate",
+          "NodeName": "图像旋转",
+          "ID": 128,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 268,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate.NodeParamImageRotate": {
+              "Text1": "127.图像源",
+              "Text2": "输出图像",
+              "Angle": 0.0
+            }
+          }
+        },
+        {
+          "NodeType": "AITD",
+          "NodeName": "AI检测",
+          "ID": 129,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 378,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._3_Detection.TDAI.NodeParamTDAI": {
+              "Text1": "128.图像旋转",
+              "Text2": "旋转后图像",
+              "ConfigPath": "D:\\TD\\软件\\AI\\1-1_encrypted.ai",
+              "IsFixed": true,
+              "CurDetectItemName": "工位4线芯正面检测",
+              "DetectItemName1": "工位4线芯正面检测",
+              "DeviceName": "[未设置]",
+              "DetectItemName2": "工位2线芯数量检测",
+              "IsAutoStudy": false,
+              "StudyNum": 3,
+              "StudyPercentage": 30.0,
+              "NeedConvert": false,
+              "Scale": 0.01,
+              "NodeName": "AI检测",
+              "ModelName": "RL_12类线芯模型",
+              "Adress": null,
+              "TDAICommuntionParams": []
+            }
+          }
+        },
+        {
+          "NodeType": "If",
+          "NodeName": "如果",
+          "ID": 130,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 488,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._6_LogicTool.If.NodeParamElse": {
+              "Text1": "129.AI检测",
+              "Text2": "AI输出结果"
+            }
+          }
+        },
+        {
+          "NodeType": "ModbusWrite",
+          "NodeName": "Modbus写入",
+          "ID": 131,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 598,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite.NodeParamModbusWrite": {
+              "DeviceName": "ModbusTcp主站1",
+              "Data": "1",
+              "IsSubscribed": false,
+              "Text1": null,
+              "Text2": null,
+              "StartAddress": "0",
+              "DataType": "线圈"
+            }
+          }
+        },
+        {
+          "NodeType": "SleepTool",
+          "NodeName": "延迟执行",
+          "ID": 133,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 708,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._6_LogicTool.SleepTool.NodeParamSleepTool": {
+              "Time": 50
+            }
+          }
+        },
+        {
+          "NodeType": "ModbusWrite",
+          "NodeName": "Modbus写入",
+          "ID": 134,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 818,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite.NodeParamModbusWrite": {
+              "DeviceName": "ModbusTcp主站1",
+              "Data": "0",
+              "IsSubscribed": false,
+              "Text1": null,
+              "Text2": null,
+              "StartAddress": "0",
+              "DataType": "线圈"
+            }
+          }
+        },
+        {
+          "NodeType": "EndIf",
+          "NodeName": "结束如果",
+          "ID": 135,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 48,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "DrawAIResult",
+          "NodeName": "AI结果绘制",
+          "ID": 136,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 158,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.ImageDraw.NodeParamImageDraw": {
+              "Text1": "127.图像源",
+              "Text2": "输出图像",
+              "Text3": "129.AI检测",
+              "Text4": "AI输出结果",
+              "Text5": null,
+              "Text6": null,
+              "FontSize": 35,
+              "LineWidth": 6,
+              "TextLoc": "LeftUp"
+            }
+          }
+        },
+        {
+          "NodeType": "ImageShow",
+          "NodeName": "图像显示",
+          "ID": 137,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 268,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageShow": {
+              "WindowName": "ImageWindow2",
+              "Text1": "136.AI结果绘制",
+              "Text2": "输出图像"
+            }
+          }
+        },
+        {
+          "NodeType": "ImageSave",
+          "NodeName": "保存图片",
+          "ID": 163,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 378,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.ImageSave.NodeParamSaveImage": {
+              "SavePath": "D:\\TDJS\\保存图片",
+              "NeedOkNg": true,
+              "IsBarCode": false,
+              "IsDayNight": true,
+              "DayDataTime": "2024-09-03T08:00:00",
+              "NightDataTime": "2024-09-03T20:00:00",
+              "NeedCompress": true,
+              "CompressValue": 80,
+              "ImageTypeToSave": "OkAndNg",
+              "ImgSubText1": "127.图像源",
+              "ImgSubText2": "输出图像",
+              "AiResSubText1": "129.AI检测",
+              "AiResSubText2": "AI输出结果",
+              "BarCodeSubText1": "126.监听Modbus软触发信号",
+              "BarCodeSubText2": null
+            }
+          }
+        }
+      ],
+      "HasCanvasGraph": false,
+      "ConnectionInfos": [
+        {
+          "ID": "legacy-9-126-127",
+          "FromNodeId": 126,
+          "ToNodeId": 127,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-9-127-128",
+          "FromNodeId": 127,
+          "ToNodeId": 128,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-9-128-129",
+          "FromNodeId": 128,
+          "ToNodeId": 129,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-9-129-130",
+          "FromNodeId": 129,
+          "ToNodeId": 130,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-9-130-131",
+          "FromNodeId": 130,
+          "ToNodeId": 131,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-9-131-133",
+          "FromNodeId": 131,
+          "ToNodeId": 133,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-9-133-134",
+          "FromNodeId": 133,
+          "ToNodeId": 134,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-9-134-135",
+          "FromNodeId": 134,
+          "ToNodeId": 135,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-9-135-136",
+          "FromNodeId": 135,
+          "ToNodeId": 136,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-9-136-137",
+          "FromNodeId": 136,
+          "ToNodeId": 137,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-9-137-163",
+          "FromNodeId": 137,
+          "ToNodeId": 163,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        }
+      ],
+      "OKNumber": 537,
+      "NGNumber": 12
+    },
+    {
+      "ID": 10,
+      "ProcessName": "后端数线芯",
+      "Enable": true,
+      "ShowLog": true,
+      "IsPassiveTriggered": false,
+      "IsCameraCallbackTriggered": false,
+      "Level": "Lv5",
+      "Group": "Group1",
+      "NodeInfos": [
+        {
+          "NodeType": "ModbusSoftTrigger",
+          "NodeName": "监听Modbus软触发信号",
+          "ID": 138,
+          "Active": false,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 48,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": true,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "ImageSource",
+          "NodeName": "图像源",
+          "ID": 139,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 158,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageSoucre": {
+              "ImageSource": "相机",
+              "PathText": null,
+              "ImagePath": null,
+              "IsAutoLoop": false,
+              "CameraName": "海康相机4",
+              "TriggerModel": "On",
+              "TriggerSource": "LINE0",
+              "TriggerEdge": "Rising",
+              "TriggerDelay": 0,
+              "ExposureTime": 2600.0,
+              "Gain": 7.0,
+              "TimeOut": 100,
+              "IsEveryTime": false,
+              "SharedVariableName": null
+            }
+          }
+        },
+        {
+          "NodeType": "ImageRotate",
+          "NodeName": "图像旋转",
+          "ID": 140,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 268,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate.NodeParamImageRotate": {
+              "Text1": "139.图像源",
+              "Text2": "输出图像",
+              "Angle": 0.0
+            }
+          }
+        },
+        {
+          "NodeType": "AITD",
+          "NodeName": "AI检测",
+          "ID": 141,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 378,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._3_Detection.TDAI.NodeParamTDAI": {
+              "Text1": "140.图像旋转",
+              "Text2": "旋转后图像",
+              "ConfigPath": "D:\\TD\\软件\\AI\\1-2_encrypted.ai",
+              "IsFixed": true,
+              "CurDetectItemName": "工位2线芯数量检测",
+              "DetectItemName1": "工位2线芯数量检测",
+              "DeviceName": "[未设置]",
+              "DetectItemName2": "工位2线芯数量检测",
+              "IsAutoStudy": false,
+              "StudyNum": 3,
+              "StudyPercentage": 30.0,
+              "NeedConvert": false,
+              "Scale": 0.01,
+              "NodeName": "AI检测",
+              "ModelName": "RL_线芯截面",
+              "Adress": null,
+              "TDAICommuntionParams": []
+            }
+          }
+        },
+        {
+          "NodeType": "If",
+          "NodeName": "如果",
+          "ID": 142,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 488,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._6_LogicTool.If.NodeParamElse": {
+              "Text1": "141.AI检测",
+              "Text2": "AI输出结果"
+            }
+          }
+        },
+        {
+          "NodeType": "ModbusWrite",
+          "NodeName": "Modbus写入",
+          "ID": 143,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 598,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite.NodeParamModbusWrite": {
+              "DeviceName": "ModbusTcp主站1",
+              "Data": "1",
+              "IsSubscribed": false,
+              "Text1": null,
+              "Text2": null,
+              "StartAddress": "3",
+              "DataType": "线圈"
+            }
+          }
+        },
+        {
+          "NodeType": "SleepTool",
+          "NodeName": "延迟执行",
+          "ID": 144,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 708,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._6_LogicTool.SleepTool.NodeParamSleepTool": {
+              "Time": 50
+            }
+          }
+        },
+        {
+          "NodeType": "ModbusWrite",
+          "NodeName": "Modbus写入",
+          "ID": 145,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 818,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite.NodeParamModbusWrite": {
+              "DeviceName": "ModbusTcp主站1",
+              "Data": "0",
+              "IsSubscribed": false,
+              "Text1": null,
+              "Text2": null,
+              "StartAddress": "3",
+              "DataType": "线圈"
+            }
+          }
+        },
+        {
+          "NodeType": "EndIf",
+          "NodeName": "结束如果",
+          "ID": 146,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 48,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "DrawAIResult",
+          "NodeName": "AI结果绘制",
+          "ID": 147,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 158,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.ImageDraw.NodeParamImageDraw": {
+              "Text1": "140.图像旋转",
+              "Text2": "旋转后图像",
+              "Text3": "141.AI检测",
+              "Text4": "AI输出结果",
+              "Text5": null,
+              "Text6": null,
+              "FontSize": 26,
+              "LineWidth": 6,
+              "TextLoc": "LeftUp"
+            }
+          }
+        },
+        {
+          "NodeType": "ImageShow",
+          "NodeName": "图像显示",
+          "ID": 148,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 268,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageShow": {
+              "WindowName": "ImageWindow1",
+              "Text1": "147.AI结果绘制",
+              "Text2": "输出图像"
+            }
+          }
+        },
+        {
+          "NodeType": "ImageSave",
+          "NodeName": "保存图片",
+          "ID": 162,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 378,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.ImageSave.NodeParamSaveImage": {
+              "SavePath": "D:\\TDJS\\保存图片",
+              "NeedOkNg": true,
+              "IsBarCode": false,
+              "IsDayNight": true,
+              "DayDataTime": "2024-09-03T08:00:00",
+              "NightDataTime": "2024-09-03T20:00:00",
+              "NeedCompress": true,
+              "CompressValue": 80,
+              "ImageTypeToSave": "OkAndNg",
+              "ImgSubText1": "139.图像源",
+              "ImgSubText2": "输出图像",
+              "AiResSubText1": "139.图像源",
+              "AiResSubText2": "输出图像",
+              "BarCodeSubText1": "138.监听Modbus软触发信号",
+              "BarCodeSubText2": null
+            }
+          }
+        }
+      ],
+      "HasCanvasGraph": false,
+      "ConnectionInfos": [
+        {
+          "ID": "legacy-10-138-139",
+          "FromNodeId": 138,
+          "ToNodeId": 139,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-10-139-140",
+          "FromNodeId": 139,
+          "ToNodeId": 140,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-10-140-141",
+          "FromNodeId": 140,
+          "ToNodeId": 141,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-10-141-142",
+          "FromNodeId": 141,
+          "ToNodeId": 142,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-10-142-143",
+          "FromNodeId": 142,
+          "ToNodeId": 143,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-10-143-144",
+          "FromNodeId": 143,
+          "ToNodeId": 144,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-10-144-145",
+          "FromNodeId": 144,
+          "ToNodeId": 145,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-10-145-146",
+          "FromNodeId": 145,
+          "ToNodeId": 146,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-10-146-147",
+          "FromNodeId": 146,
+          "ToNodeId": 147,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-10-147-148",
+          "FromNodeId": 147,
+          "ToNodeId": 148,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-10-148-162",
+          "FromNodeId": 148,
+          "ToNodeId": 162,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        }
+      ],
+      "OKNumber": 542,
+      "NGNumber": 10
+    },
+    {
+      "ID": 11,
+      "ProcessName": "后端端子检测",
+      "Enable": true,
+      "ShowLog": true,
+      "IsPassiveTriggered": false,
+      "IsCameraCallbackTriggered": false,
+      "Level": "Lv5",
+      "Group": "Group1",
+      "NodeInfos": [
+        {
+          "NodeType": "ModbusSoftTrigger",
+          "NodeName": "监听Modbus软触发信号",
+          "ID": 149,
+          "Active": false,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 48,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": true,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "ImageSource",
+          "NodeName": "图像源",
+          "ID": 150,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 158,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageSoucre": {
+              "ImageSource": "相机",
+              "PathText": null,
+              "ImagePath": null,
+              "IsAutoLoop": false,
+              "CameraName": "海康相机2",
+              "TriggerModel": "On",
+              "TriggerSource": "LINE0",
+              "TriggerEdge": "Rising",
+              "TriggerDelay": 0,
+              "ExposureTime": 5000.0,
+              "Gain": 5.0,
+              "TimeOut": 100,
+              "IsEveryTime": false,
+              "SharedVariableName": null
+            }
+          }
+        },
+        {
+          "NodeType": "ImageRotate",
+          "NodeName": "图像旋转",
+          "ID": 151,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 268,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate.NodeParamImageRotate": {
+              "Text1": "150.图像源",
+              "Text2": "输出图像",
+              "Angle": 0.0
+            }
+          }
+        },
+        {
+          "NodeType": "AITD",
+          "NodeName": "AI检测",
+          "ID": 152,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 378,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._3_Detection.TDAI.NodeParamTDAI": {
+              "Text1": "151.图像旋转",
+              "Text2": "旋转后图像",
+              "ConfigPath": "D:\\TD\\软件\\AI\\1-1_encrypted.ai",
+              "IsFixed": true,
+              "CurDetectItemName": "工位3线芯正面检测",
+              "DetectItemName1": "工位3线芯正面检测",
+              "DeviceName": "[未设置]",
+              "DetectItemName2": "工位2线芯数量检测",
+              "IsAutoStudy": false,
+              "StudyNum": 3,
+              "StudyPercentage": 30.0,
+              "NeedConvert": false,
+              "Scale": 0.01,
+              "NodeName": "AI检测",
+              "ModelName": "RL_12类线芯模型",
+              "Adress": null,
+              "TDAICommuntionParams": []
+            }
+          }
+        },
+        {
+          "NodeType": "If",
+          "NodeName": "如果",
+          "ID": 153,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 488,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._6_LogicTool.If.NodeParamElse": {
+              "Text1": "152.AI检测",
+              "Text2": "AI输出结果"
+            }
+          }
+        },
+        {
+          "NodeType": "ModbusWrite",
+          "NodeName": "Modbus写入",
+          "ID": 154,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 598,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite.NodeParamModbusWrite": {
+              "DeviceName": "ModbusTcp主站1",
+              "Data": "1",
+              "IsSubscribed": false,
+              "Text1": null,
+              "Text2": null,
+              "StartAddress": "1",
+              "DataType": "线圈"
+            }
+          }
+        },
+        {
+          "NodeType": "SleepTool",
+          "NodeName": "延迟执行",
+          "ID": 155,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 708,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._6_LogicTool.SleepTool.NodeParamSleepTool": {
+              "Time": 50
+            }
+          }
+        },
+        {
+          "NodeType": "ModbusWrite",
+          "NodeName": "Modbus写入",
+          "ID": 156,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 48,
+          "CanvasY": 818,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite.NodeParamModbusWrite": {
+              "DeviceName": "ModbusTcp主站1",
+              "Data": "0",
+              "IsSubscribed": false,
+              "Text1": null,
+              "Text2": null,
+              "StartAddress": "1",
+              "DataType": "线圈"
+            }
+          }
+        },
+        {
+          "NodeType": "EndIf",
+          "NodeName": "结束如果",
+          "ID": 157,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 48,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": null
+        },
+        {
+          "NodeType": "DrawAIResult",
+          "NodeName": "AI结果绘制",
+          "ID": 158,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 158,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.ImageDraw.NodeParamImageDraw": {
+              "Text1": "151.图像旋转",
+              "Text2": "旋转后图像",
+              "Text3": "152.AI检测",
+              "Text4": "AI输出结果",
+              "Text5": null,
+              "Text6": null,
+              "FontSize": 35,
+              "LineWidth": 6,
+              "TextLoc": "LeftUp"
+            }
+          }
+        },
+        {
+          "NodeType": "ImageShow",
+          "NodeName": "图像显示",
+          "ID": 159,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 268,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._1_Acquisition.ImageSource.NodeParamImageShow": {
+              "WindowName": "ImageWindow3",
+              "Text1": "158.AI结果绘制",
+              "Text2": "输出图像"
+            }
+          }
+        },
+        {
+          "NodeType": "ImageSave",
+          "NodeName": "保存图片",
+          "ID": 161,
+          "Active": true,
+          "OutputLog": true,
+          "Selected": false,
+          "HasCanvasLayout": true,
+          "CanvasX": 348,
+          "CanvasY": 378,
+          "CanvasWidth": 240,
+          "CanvasHeight": 64,
+          "IsStartNode": false,
+          "NodeParam": {
+            "TDJS_Vision.Node._7_ResultProcessing.ImageSave.NodeParamSaveImage": {
+              "SavePath": "D:\\TDJS\\保存图片",
+              "NeedOkNg": true,
+              "IsBarCode": false,
+              "IsDayNight": true,
+              "DayDataTime": "2024-09-03T08:00:00",
+              "NightDataTime": "2024-09-03T20:00:00",
+              "NeedCompress": true,
+              "CompressValue": 80,
+              "ImageTypeToSave": "OkAndNg",
+              "ImgSubText1": "150.图像源",
+              "ImgSubText2": "输出图像",
+              "AiResSubText1": "152.AI检测",
+              "AiResSubText2": "AI输出结果",
+              "BarCodeSubText1": "149.监听Modbus软触发信号",
+              "BarCodeSubText2": null
+            }
+          }
+        }
+      ],
+      "HasCanvasGraph": false,
+      "ConnectionInfos": [
+        {
+          "ID": "legacy-11-149-150",
+          "FromNodeId": 149,
+          "ToNodeId": 150,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-11-150-151",
+          "FromNodeId": 150,
+          "ToNodeId": 151,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-11-151-152",
+          "FromNodeId": 151,
+          "ToNodeId": 152,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-11-152-153",
+          "FromNodeId": 152,
+          "ToNodeId": 153,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-11-153-154",
+          "FromNodeId": 153,
+          "ToNodeId": 154,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-11-154-155",
+          "FromNodeId": 154,
+          "ToNodeId": 155,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-11-155-156",
+          "FromNodeId": 155,
+          "ToNodeId": 156,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-11-156-157",
+          "FromNodeId": 156,
+          "ToNodeId": 157,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-11-157-158",
+          "FromNodeId": 157,
+          "ToNodeId": 158,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-11-158-159",
+          "FromNodeId": 158,
+          "ToNodeId": 159,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        },
+        {
+          "ID": "legacy-11-159-161",
+          "FromNodeId": 159,
+          "ToNodeId": 161,
+          "FromAnchor": "Legacy",
+          "ToAnchor": "Left",
+          "Branch": "Default"
+        }
+      ],
+      "OKNumber": 537,
+      "NGNumber": 10
+    }
+  ],
+  "GlobalSignal": {
+    "ReadySignals": [],
+    "StopSignals": [],
+    "ListenSignals": []
+  },
+  "DetectItemDic": {
+    "工位2线芯数量检测": [
+      {
+        "Name": "线芯聚拢度",
+        "MinValue": "80",
+        "MaxValue": "90",
+        "Enable": false,
+        "IsCountItem": false,
+        "CurValue": "4.48,22.49,24.66,42.09,20.76,21.60,43.98,25.01,44.26,43.94,44.58,29.52,44.75,43.20,44.94,42.59,42.93,47.00"
+      },
+      {
+        "Name": "线芯数量",
+        "MinValue": "5",
+        "MaxValue": "7",
+        "Enable": true,
+        "IsCountItem": true,
+        "CurValue": "0"
+      }
+    ],
+    "工位1线芯数量检测": [
+      {
+        "Name": "线芯数量",
+        "MinValue": "5",
+        "MaxValue": "19",
+        "Enable": true,
+        "IsCountItem": true,
+        "CurValue": "0"
+      },
+      {
+        "Name": "线芯聚拢度",
+        "MinValue": "80",
+        "MaxValue": "90",
+        "Enable": false,
+        "IsCountItem": false,
+        "CurValue": "43.51,45.45,44.51,24.32,44.05,47.56,43.02,44.61,42.88,44.39,24.96,51.34,16.85,24.04,23.06,48.56,47.14,4.97,25.37"
+      }
+    ],
+    "工位1线芯长度检测": [
+      {
+        "Name": "线芯长度",
+        "MinValue": "375",
+        "MaxValue": "400",
+        "Enable": true,
+        "IsCountItem": false,
+        "CurValue": "387.00"
+      },
+      {
+        "Name": "正插防水栓面积",
+        "MinValue": "375",
+        "MaxValue": "400",
+        "Enable": true,
+        "IsCountItem": false,
+        "CurValue": "0"
+      },
+      {
+        "Name": "反插防水栓",
+        "MinValue": "0",
+        "MaxValue": "0",
+        "Enable": true,
+        "IsCountItem": true,
+        "CurValue": "0"
+      },
+      {
+        "Name": "防水栓破损",
+        "MinValue": "0",
+        "MaxValue": "0",
+        "Enable": true,
+        "IsCountItem": true,
+        "CurValue": "0"
+      }
+    ],
+    "工位2线芯长度检测": [
+      {
+        "Name": "线芯长度",
+        "MinValue": "375",
+        "MaxValue": "400",
+        "Enable": true,
+        "IsCountItem": false,
+        "CurValue": "387.00"
+      },
+      {
+        "Name": "正插防水栓面积",
+        "MinValue": "375",
+        "MaxValue": "400",
+        "Enable": true,
+        "IsCountItem": false,
+        "CurValue": "0"
+      },
+      {
+        "Name": "反插防水栓",
+        "MinValue": "0",
+        "MaxValue": "0",
+        "Enable": true,
+        "IsCountItem": true,
+        "CurValue": "0"
+      },
+      {
+        "Name": "防水栓破损",
+        "MinValue": "0",
+        "MaxValue": "0",
+        "Enable": true,
+        "IsCountItem": true,
+        "CurValue": "0"
+      }
+    ],
+    "工位3线芯正面检测": [
+      {
+        "Name": "正插防水栓面积",
+        "MinValue": "60",
+        "MaxValue": "70",
+        "Enable": false,
+        "IsCountItem": false,
+        "CurValue": "0"
+      },
+      {
+        "Name": "咬胶长度",
+        "MinValue": "5",
+        "MaxValue": "81.53",
+        "Enable": false,
+        "IsCountItem": false,
+        "CurValue": "37.50"
+      },
+      {
+        "Name": "前铆脚面积",
+        "MinValue": "8840.30",
+        "MaxValue": "21675",
+        "Enable": true,
+        "IsCountItem": false,
+        "CurValue": "13321.00"
+      },
+      {
+        "Name": "前铆脚露线芯长度",
+        "MinValue": "21",
+        "MaxValue": "73",
+        "Enable": false,
+        "IsCountItem": false,
+        "CurValue": "31.00"
+      },
+      {
+        "Name": "后铆脚面积",
+        "MinValue": "6450.50",
+        "MaxValue": "12610.00",
+        "Enable": true,
+        "IsCountItem": false,
+        "CurValue": "10368.00"
+      },
+      {
+        "Name": "后铆脚露线芯长度",
+        "MinValue": "0",
+        "MaxValue": "81",
+        "Enable": true,
+        "IsCountItem": false,
+        "CurValue": "42.00"
+      },
+      {
+        "Name": "飞丝",
+        "MinValue": "0",
+        "MaxValue": "0",
+        "Enable": true,
+        "IsCountItem": true,
+        "CurValue": "0"
+      },
+      {
+        "Name": "防水栓破损",
+        "MinValue": "60",
+        "MaxValue": "70",
+        "Enable": false,
+        "IsCountItem": false,
+        "CurValue": "0"
+      },
+      {
+        "Name": "反插防水栓",
+        "MinValue": "60",
+        "MaxValue": "70",
+        "Enable": false,
+        "IsCountItem": false,
+        "CurValue": "0"
+      }
+    ],
+    "工位4线芯正面检测": [
+      {
+        "Name": "前铆脚露线芯长度",
+        "MinValue": "17",
+        "MaxValue": "90",
+        "Enable": true,
+        "IsCountItem": false,
+        "CurValue": "50.00"
+      },
+      {
+        "Name": "后铆脚露线芯长度",
+        "MinValue": "0",
+        "MaxValue": "57.20",
+        "Enable": false,
+        "IsCountItem": false,
+        "CurValue": "13.00"
+      },
+      {
+        "Name": "飞丝",
+        "MinValue": "0",
+        "MaxValue": "0",
+        "Enable": true,
+        "IsCountItem": true,
+        "CurValue": "0"
+      },
+      {
+        "Name": "前铆脚面积",
+        "MinValue": "2588",
+        "MaxValue": "15000",
+        "Enable": true,
+        "IsCountItem": false,
+        "CurValue": "11475.00"
+      },
+      {
+        "Name": "后铆脚面积",
+        "MinValue": "1897",
+        "MaxValue": "12000",
+        "Enable": true,
+        "IsCountItem": false,
+        "CurValue": "8827.00"
+      },
+      {
+        "Name": "咬胶长度",
+        "MinValue": "23.68",
+        "MaxValue": "99.54",
+        "Enable": false,
+        "IsCountItem": false,
+        "CurValue": "55.56"
+      },
+      {
+        "Name": "反插防水栓",
+        "MinValue": "60",
+        "MaxValue": "70",
+        "Enable": false,
+        "IsCountItem": false,
+        "CurValue": "0"
+      },
+      {
+        "Name": "正插防水栓面积",
+        "MinValue": "60",
+        "MaxValue": "70",
+        "Enable": false,
+        "IsCountItem": false,
+        "CurValue": "0"
+      },
+      {
+        "Name": "防水栓破损",
+        "MinValue": "60",
+        "MaxValue": "70",
+        "Enable": false,
+        "IsCountItem": false,
+        "CurValue": "0"
+      }
+    ]
+  }
+}

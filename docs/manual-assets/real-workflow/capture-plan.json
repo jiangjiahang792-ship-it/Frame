@@ -1,0 +1,1913 @@
+{
+  "3D图像显示": {
+    "module_name": "3D图像显示",
+    "capture_kind": "能力限制",
+    "source_window": "046-TDJS_Vision.Node._1_Acquisition.ImageShow3D.ParamFormImageShow3D.png",
+    "preconditions": [
+      "已打开三维取图配置",
+      "当前仅展示三维取图与显示配置"
+    ],
+    "steps": [
+      "打开3D图像显示真实参数窗口",
+      "确认三维取图或显示参数可见",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "三维设备选择",
+      "取图或显示参数",
+      "未连接状态"
+    ]
+  },
+  "3D图像源": {
+    "module_name": "3D图像源",
+    "capture_kind": "能力限制",
+    "source_window": "049-TDJS_Vision.Node._1_Acquisition.ImageSource3D.ParamFormImageSource3D.png",
+    "preconditions": [
+      "已打开三维取图配置",
+      "当前仅展示三维取图与显示配置"
+    ],
+    "steps": [
+      "打开3D图像源真实参数窗口",
+      "确认三维取图或显示参数可见",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "三维设备选择",
+      "取图或显示参数",
+      "未连接状态"
+    ]
+  },
+  "AI检测": {
+    "module_name": "AI检测",
+    "capture_kind": "真实参数",
+    "source_window": "062-TDJS_Vision.Node._3_Detection.TDAI.ParamFormTDAI.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加AI检测节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "AI结果绘制": {
+    "module_name": "AI结果绘制",
+    "capture_kind": "真实参数",
+    "source_window": "105-TDJS_Vision.Node._7_ResultProcessing.ImageDraw.NodeParamFormImageDraw.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加AI结果绘制节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "AI训练入口": {
+    "module_name": "AI训练入口",
+    "capture_kind": "真实参数",
+    "source_window": "011-TDJS_Vision.Forms.AiTrainForm.UnsupervisedTrainForm.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加AI训练入口节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "C#脚本": {
+    "module_name": "C#脚本",
+    "capture_kind": "真实参数",
+    "source_window": "093-TDJS_Vision.Node._6_LogicTool.CSharpScript.NodeParamFormCSharpScript.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加C#脚本节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "Modbus写": {
+    "module_name": "Modbus写",
+    "capture_kind": "硬件配置",
+    "source_window": "081-TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite.ParamFormModbusWrite.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开Modbus写真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "Modbus读": {
+    "module_name": "Modbus读",
+    "capture_kind": "硬件配置",
+    "source_window": "079-TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead.ParamFormModbusRead.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开Modbus读真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "Modbus软触发": {
+    "module_name": "Modbus软触发",
+    "capture_kind": "硬件配置",
+    "source_window": "080-TDJS_Vision.Node._5_EquipmentCommunication.ModbusSoftTrigger.ParamFormModbusSoftTrigger.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开Modbus软触发真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "Modbus通信": {
+    "module_name": "Modbus通信",
+    "capture_kind": "硬件配置",
+    "source_window": "030-TDJS_Vision.Forms.ModbusAdd.FrmModbusListView.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开Modbus通信真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "PLC写": {
+    "module_name": "PLC写",
+    "capture_kind": "硬件配置",
+    "source_window": "085-TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte.ParamFormPlcWrite.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开PLC写真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "PLC读": {
+    "module_name": "PLC读",
+    "capture_kind": "硬件配置",
+    "source_window": "083-TDJS_Vision.Node._5_EquipmentCommunication.PlcRead.ParamFormPlcRead.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开PLC读真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "PLC软触发": {
+    "module_name": "PLC软触发",
+    "capture_kind": "硬件配置",
+    "source_window": "084-TDJS_Vision.Node._5_EquipmentCommunication.PLCSoftTrigger.ParamFormWaitSoftTrigger.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开PLC软触发真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "PLC通信": {
+    "module_name": "PLC通信",
+    "capture_kind": "硬件配置",
+    "source_window": "032-TDJS_Vision.Forms.PLCAdd.FrmPLCListView.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开PLC通信真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "ROI结果绘制": {
+    "module_name": "ROI结果绘制",
+    "capture_kind": "真实参数",
+    "source_window": "107-TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw.NodeParamFormResultOverlayDraw.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加ROI结果绘制节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "ROI结果绘制2": {
+    "module_name": "ROI结果绘制2",
+    "capture_kind": "真实参数",
+    "source_window": "108-TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2.NodeParamFormResultOverlayDraw2.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加ROI结果绘制2节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "TCP响应": {
+    "module_name": "TCP响应",
+    "capture_kind": "硬件配置",
+    "source_window": "087-TDJS_Vision.Node._5_EquipmentCommunication.TcpServer.ParamFormTCPServer.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开TCP响应真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "TCP请求": {
+    "module_name": "TCP请求",
+    "capture_kind": "硬件配置",
+    "source_window": "086-TDJS_Vision.Node._5_EquipmentCommunication.TcpClient.ParamFormTCPClient.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开TCP请求真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "TCP通信": {
+    "module_name": "TCP通信",
+    "capture_kind": "硬件配置",
+    "source_window": "042-TDJS_Vision.Forms.TCPAdd.FrmTCPListView.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开TCP通信真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "三维相机": {
+    "module_name": "三维相机",
+    "capture_kind": "硬件配置",
+    "source_window": "049-TDJS_Vision.Node._1_Acquisition.ImageSource3D.ParamFormImageSource3D.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开三维相机真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "串口发送": {
+    "module_name": "串口发送",
+    "capture_kind": "硬件配置",
+    "source_window": "076-TDJS_Vision.Node._5_EquipmentCommunication.ComSend.ParamFormComSend.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开串口发送真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "串口通信": {
+    "module_name": "串口通信",
+    "capture_kind": "硬件配置",
+    "source_window": "014-TDJS_Vision.Forms.COMAdd.FrmCOMListView.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开串口通信真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "主界面与视图管理": {
+    "module_name": "主界面与视图管理",
+    "capture_kind": "真实流程",
+    "source_window": "002-平台基础-主界面-停止运行状态.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "已新建客户演示流程",
+      "演示流程包含节点和连接线"
+    ],
+    "steps": [
+      "打开客户演示方案",
+      "打开已建立流程",
+      "确认主界面显示流程和结果区域",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "已打开的方案",
+      "已建立的流程",
+      "功能工具栏",
+      "图像或日志区域"
+    ]
+  },
+  "二值化分析": {
+    "module_name": "二值化分析",
+    "capture_kind": "真实参数",
+    "source_window": "055-TDJS_Vision.Node._3_Detection.ColorDiscern.NodeParamFormBinaryAnalysis.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加二值化分析节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "二维工业相机": {
+    "module_name": "二维工业相机",
+    "capture_kind": "硬件配置",
+    "source_window": "012-TDJS_Vision.Forms.CameraAdd.FrmCameraInfo.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开二维工业相机真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "二维码识别": {
+    "module_name": "二维码识别",
+    "capture_kind": "真实参数",
+    "source_window": "061-TDJS_Vision.Node._3_Detection.QRScan.NodeParamFormQRScan.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加二维码识别节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "位置修正": {
+    "module_name": "位置修正",
+    "capture_kind": "真实参数",
+    "source_window": "072-TDJS_Vision.Node._4_Measurement.PositionCorrection.NodeParamFormPositionCorrection.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加位置修正节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "保存图片": {
+    "module_name": "保存图片",
+    "capture_kind": "真实参数",
+    "source_window": "106-TDJS_Vision.Node._7_ResultProcessing.ImageSave.ParamFormImageSave.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加保存图片节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "光源控制器": {
+    "module_name": "光源控制器",
+    "capture_kind": "硬件配置",
+    "source_window": "026-TDJS_Vision.Forms.LightAdd.FrmLightListView.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开光源控制器真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "全局信号": {
+    "module_name": "全局信号",
+    "capture_kind": "真实参数",
+    "source_window": "017-TDJS_Vision.Forms.GlobalSignalSettings.FormGlobalSignal.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加全局信号节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "共享变量": {
+    "module_name": "共享变量",
+    "capture_kind": "真实参数",
+    "source_window": "099-TDJS_Vision.Node._6_LogicTool.SharedVariable.NodeParamFormSharedVariable.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加共享变量节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "卡尺找圆": {
+    "module_name": "卡尺找圆",
+    "capture_kind": "真实参数",
+    "source_window": "064-TDJS_Vision.Node._4_Measurement.CaliperCircle.NodeParamFormCaliperCircle.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加卡尺找圆节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "卡尺找椭圆": {
+    "module_name": "卡尺找椭圆",
+    "capture_kind": "真实参数",
+    "source_window": "065-TDJS_Vision.Node._4_Measurement.CaliperEllipse.NodeParamFormCaliperEllipse.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加卡尺找椭圆节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "卡尺找线": {
+    "module_name": "卡尺找线",
+    "capture_kind": "真实参数",
+    "source_window": "066-TDJS_Vision.Node._4_Measurement.CaliperLine.NodeParamFormCaliperLine.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加卡尺找线节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "发送AI结果": {
+    "module_name": "发送AI结果",
+    "capture_kind": "真实参数",
+    "source_window": "073-TDJS_Vision.Node._5_EquipmentCommunication.AIResultSend.ParamFormSignalSend.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加发送AI结果节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "否则": {
+    "module_name": "否则",
+    "capture_kind": "真实参数",
+    "source_window": "094-TDJS_Vision.Node._6_LogicTool.If.NodeParamFormIf.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加否则节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "四则运算": {
+    "module_name": "四则运算",
+    "capture_kind": "真实参数",
+    "source_window": "088-TDJS_Vision.Node._6_LogicTool.ArithmeticOperation.NodeParamFormArithmeticOperation.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加四则运算节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "图像分割": {
+    "module_name": "图像分割",
+    "capture_kind": "真实参数",
+    "source_window": "053-TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit.ParamFormImageSplit.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加图像分割节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "图像旋转": {
+    "module_name": "图像旋转",
+    "capture_kind": "真实参数",
+    "source_window": "052-TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate.NodeParamFormImageRotate.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加图像旋转节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "图像显示": {
+    "module_name": "图像显示",
+    "capture_kind": "真实参数",
+    "source_window": "047-TDJS_Vision.Node._1_Acquisition.ImageSource.ParamFormImageShow.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加图像显示节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "图像源": {
+    "module_name": "图像源",
+    "capture_kind": "硬件配置",
+    "source_window": "048-TDJS_Vision.Node._1_Acquisition.ImageSource.ParamFormImageSource.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开图像源真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "图像裁剪": {
+    "module_name": "图像裁剪",
+    "capture_kind": "真实参数",
+    "source_window": "050-TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop.NodeParamFormImageCrop.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加图像裁剪节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "图像预处理": {
+    "module_name": "图像预处理",
+    "capture_kind": "真实参数",
+    "source_window": "051-TDJS_Vision.Node._2_ImagePreprocessing.ImagePreprocess.NodeParamFormImagePreprocess.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加图像预处理节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "圆检测": {
+    "module_name": "圆检测",
+    "capture_kind": "真实参数",
+    "source_window": "057-TDJS_Vision.Node._3_Detection.FindCircle.NodeParamFormFindCircle.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加圆检测节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "多条件判断": {
+    "module_name": "多条件判断",
+    "capture_kind": "真实参数",
+    "source_window": "096-TDJS_Vision.Node._6_LogicTool.MultiCondition.NodeParamFormMultiCondition.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加多条件判断节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "大模型调用": {
+    "module_name": "大模型调用",
+    "capture_kind": "真实参数",
+    "source_window": "059-TDJS_Vision.Node._3_Detection.LargeModel.ParamFormLargeModelDetection.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加大模型调用节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "如果": {
+    "module_name": "如果",
+    "capture_kind": "真实参数",
+    "source_window": "094-TDJS_Vision.Node._6_LogicTool.If.NodeParamFormIf.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加如果节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "定期删除图片": {
+    "module_name": "定期删除图片",
+    "capture_kind": "真实参数",
+    "source_window": "104-TDJS_Vision.Node._7_ResultProcessing.ImageDelete.NodeParamFormImageDelete.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加定期删除图片节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "导出检测表格": {
+    "module_name": "导出检测表格",
+    "capture_kind": "真实参数",
+    "source_window": "103-TDJS_Vision.Node._7_ResultProcessing.GenerateExcelSpreadsheet.ParamFormGenerateExcel.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加导出检测表格节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "延迟执行": {
+    "module_name": "延迟执行",
+    "capture_kind": "真实参数",
+    "source_window": "100-TDJS_Vision.Node._6_LogicTool.SleepTool.NodeParamFormSleepTool.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加延迟执行节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "弹窗": {
+    "module_name": "弹窗",
+    "capture_kind": "真实参数",
+    "source_window": "095-TDJS_Vision.Node._6_LogicTool.MessageBox.NodeParamFormMessageBox.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加弹窗节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "打开光源": {
+    "module_name": "打开光源",
+    "capture_kind": "硬件配置",
+    "source_window": "078-TDJS_Vision.Node._5_EquipmentCommunication.LightOpen.ParamFormLight.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开打开光源真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "找点": {
+    "module_name": "找点",
+    "capture_kind": "真实参数",
+    "source_window": "067-TDJS_Vision.Node._4_Measurement.FindPoint.NodeParamFormFindPoint.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加找点节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "方案管理": {
+    "module_name": "方案管理",
+    "capture_kind": "真实流程",
+    "source_window": "034-TDJS_Vision.Forms.ProcessNew.FormNewProcessWizard.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "已新建客户演示流程",
+      "演示流程包含节点和连接线"
+    ],
+    "steps": [
+      "新建客户演示方案",
+      "保存演示方案",
+      "打开方案管理入口",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "方案名称",
+      "新建方案",
+      "打开方案",
+      "保存方案"
+    ]
+  },
+  "无监督检测": {
+    "module_name": "无监督检测",
+    "capture_kind": "真实参数",
+    "source_window": "063-TDJS_Vision.Node._3_Detection.Unsupervised.ParamFormUnsupervisedDetection.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加无监督检测节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "条件运行": {
+    "module_name": "条件运行",
+    "capture_kind": "真实参数",
+    "source_window": "092-TDJS_Vision.Node._6_LogicTool.ConditionRun.NodeParamFormConditionRun.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加条件运行节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "检测结果显示": {
+    "module_name": "检测结果显示",
+    "capture_kind": "真实参数",
+    "source_window": "038-TDJS_Vision.Forms.ResultView.FrmResultView.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加检测结果显示节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "检测项配置": {
+    "module_name": "检测项配置",
+    "capture_kind": "真实参数",
+    "source_window": "016-TDJS_Vision.Forms.DetectItemManager.FormDetectItemManager.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加检测项配置节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "模版匹配": {
+    "module_name": "模版匹配",
+    "capture_kind": "真实参数",
+    "source_window": "060-TDJS_Vision.Node._3_Detection.MatchTemplate.NodeParamFormMatchTemplate.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加模版匹配节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "流程信号": {
+    "module_name": "流程信号",
+    "capture_kind": "真实参数",
+    "source_window": "097-TDJS_Vision.Node._6_LogicTool.ProcessSignal.NodeParamFormProcessSignal.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加流程信号节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "流程画布": {
+    "module_name": "流程画布",
+    "capture_kind": "真实流程",
+    "source_window": "002-平台基础-主界面-停止运行状态.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "已新建客户演示流程",
+      "演示流程包含节点和连接线"
+    ],
+    "steps": [
+      "打开客户演示方案",
+      "单击新建流程",
+      "添加本地图像、图像处理、检测和结果节点",
+      "建立节点连接线",
+      "调整画布后截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "流程名称",
+      "节点工具箱",
+      "真实节点",
+      "节点连接线",
+      "运行控制"
+    ]
+  },
+  "流程管理": {
+    "module_name": "流程管理",
+    "capture_kind": "真实流程",
+    "source_window": "034-TDJS_Vision.Forms.ProcessNew.FormNewProcessWizard.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "已新建客户演示流程",
+      "演示流程包含节点和连接线"
+    ],
+    "steps": [
+      "打开流程编辑器",
+      "单击新建流程",
+      "确认流程标签和新增删除入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "流程标签",
+      "新增流程按钮",
+      "删除流程按钮",
+      "已建立的流程"
+    ]
+  },
+  "点到区域距离": {
+    "module_name": "点到区域距离",
+    "capture_kind": "真实参数",
+    "source_window": "071-TDJS_Vision.Node._4_Measurement.PointRegionDistance.NodeParamFormPointRegionDistance.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加点到区域距离节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "点到点距离": {
+    "module_name": "点到点距离",
+    "capture_kind": "真实参数",
+    "source_window": "070-TDJS_Vision.Node._4_Measurement.PointPointDistance.NodeParamFormPointPointDistance.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加点到点距离节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "点到线距离": {
+    "module_name": "点到线距离",
+    "capture_kind": "真实参数",
+    "source_window": "069-TDJS_Vision.Node._4_Measurement.PointLineDistance.NodeParamFormPointLineDistance.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加点到线距离节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "用户登录与权限": {
+    "module_name": "用户登录与权限",
+    "capture_kind": "真实参数",
+    "source_window": "028-TDJS_Vision.Forms.Login.FormLogin.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加用户登录与权限节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "电池极耳检测": {
+    "module_name": "电池极耳检测",
+    "capture_kind": "真实参数",
+    "source_window": "054-TDJS_Vision.Node._3_Detection.BatteryEar.NodeParamFormBatteryEar.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加电池极耳检测节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "监听全局信号": {
+    "module_name": "监听全局信号",
+    "capture_kind": "真实参数",
+    "source_window": "082-TDJS_Vision.Node._5_EquipmentCommunication.PlcRead.ParamFormFlagRead.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加监听全局信号节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "直线检测": {
+    "module_name": "直线检测",
+    "capture_kind": "真实参数",
+    "source_window": "058-TDJS_Vision.Node._3_Detection.FindLine.NodeParamFormFindLine.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加直线检测节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "相机IO": {
+    "module_name": "相机IO",
+    "capture_kind": "硬件配置",
+    "source_window": "074-TDJS_Vision.Node._5_EquipmentCommunication.CameraIO.ParamFormCameraIO.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开相机IO真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "相机IO手动控制": {
+    "module_name": "相机IO手动控制",
+    "capture_kind": "硬件配置",
+    "source_window": "075-TDJS_Vision.Node._5_EquipmentCommunication.CamerIOImprovement.ParamFormCameraIOManual.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开相机IO手动控制真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "科锐IO模块": {
+    "module_name": "科锐IO模块",
+    "capture_kind": "硬件配置",
+    "source_window": "077-TDJS_Vision.Node._5_EquipmentCommunication.ERUIIO.ParamFormERUIIO.png",
+    "preconditions": [
+      "已打开真实设备或通信配置窗口",
+      "当前环境未连接真实设备"
+    ],
+    "steps": [
+      "打开科锐IO模块真实配置窗口",
+      "检查设备选择、地址、端口或站号等参数",
+      "保留未连接状态并截图"
+    ],
+    "hardware_required": true,
+    "expected_visible_objects": [
+      "设备选择或通信参数",
+      "连接或测试入口",
+      "未连接状态"
+    ]
+  },
+  "等待流程完成": {
+    "module_name": "等待流程完成",
+    "capture_kind": "真实参数",
+    "source_window": "101-TDJS_Vision.Node._6_LogicTool.WaitProcessComplete.NodeParamFormWaitProcessComplete.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加等待流程完成节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "系统设置": {
+    "module_name": "系统设置",
+    "capture_kind": "真实参数",
+    "source_window": "041-TDJS_Vision.Forms.SystemSetting.FrmSystemSetting.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加系统设置节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "线到线夹角": {
+    "module_name": "线到线夹角",
+    "capture_kind": "真实参数",
+    "source_window": "068-TDJS_Vision.Node._4_Measurement.LineLineAngle.NodeParamFormLineLineAngle.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加线到线夹角节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "线组合拟合": {
+    "module_name": "线组合拟合",
+    "capture_kind": "真实参数",
+    "source_window": "110-TDJS_Vision.Node._8_GeometryCreation.LineMergeFit.NodeParamFormLineMergeFit.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加线组合拟合节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "组合模块": {
+    "module_name": "组合模块",
+    "capture_kind": "真实参数",
+    "source_window": "090-TDJS_Vision.Node._6_LogicTool.CompositeModule.NodeParamFormCompositeModule.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加组合模块节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "组合输入": {
+    "module_name": "组合输入",
+    "capture_kind": "真实参数",
+    "source_window": "089-TDJS_Vision.Node._6_LogicTool.CompositeModule.NodeParamFormCompositeInput.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加组合输入节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "组合输出": {
+    "module_name": "组合输出",
+    "capture_kind": "真实参数",
+    "source_window": "091-TDJS_Vision.Node._6_LogicTool.CompositeModule.NodeParamFormCompositeOutput.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加组合输出节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "结束如果": {
+    "module_name": "结束如果",
+    "capture_kind": "真实参数",
+    "source_window": "094-TDJS_Vision.Node._6_LogicTool.If.NodeParamFormIf.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加结束如果节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "结果汇总": {
+    "module_name": "结果汇总",
+    "capture_kind": "真实参数",
+    "source_window": "109-TDJS_Vision.Node._7_ResultProcessing.ResultSummarize.ParamFormSummarize.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加结果汇总节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "触发同组流程": {
+    "module_name": "触发同组流程",
+    "capture_kind": "真实参数",
+    "source_window": "098-TDJS_Vision.Node._6_LogicTool.ProcessTrigger.NodeParamFormProcessTrigger.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加触发同组流程节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "运行参数": {
+    "module_name": "运行参数",
+    "capture_kind": "真实参数",
+    "source_window": "040-TDJS_Vision.Forms.SolRunParam.FormSolRunParam.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加运行参数节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  },
+  "运行控制": {
+    "module_name": "运行控制",
+    "capture_kind": "真实流程",
+    "source_window": "002-平台基础-主界面-停止运行状态.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "已新建客户演示流程",
+      "演示流程包含节点和连接线"
+    ],
+    "steps": [
+      "打开已建立流程",
+      "确认节点和连接完整",
+      "显示启动、循环和停止控制",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "已建立的流程",
+      "启动按钮",
+      "循环运行按钮",
+      "停止按钮"
+    ]
+  },
+  "运行日志": {
+    "module_name": "运行日志",
+    "capture_kind": "真实流程",
+    "source_window": "001-平台基础-软件启动-主窗口.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "已新建客户演示流程",
+      "演示流程包含节点和连接线"
+    ],
+    "steps": [
+      "打开客户演示方案",
+      "打开已建立流程",
+      "显示运行日志区域",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "已建立的流程",
+      "日志等级",
+      "日志内容",
+      "日志时间"
+    ]
+  },
+  "颜色识别": {
+    "module_name": "颜色识别",
+    "capture_kind": "真实参数",
+    "source_window": "056-TDJS_Vision.Node._3_Detection.ColorDiscern.NodeParamFormColorDiscern.png",
+    "preconditions": [
+      "已打开客户演示方案",
+      "演示流程中已添加对应节点",
+      "对应节点具备合理上游或输入"
+    ],
+    "steps": [
+      "在演示流程中添加颜色识别节点",
+      "从节点打开真实参数窗口",
+      "选择合理上游并填写演示参数",
+      "确认关键参数和保存入口可见",
+      "截图"
+    ],
+    "hardware_required": false,
+    "expected_visible_objects": [
+      "上游输入选择",
+      "关键参数区",
+      "确认或保存按钮"
+    ]
+  }
+}

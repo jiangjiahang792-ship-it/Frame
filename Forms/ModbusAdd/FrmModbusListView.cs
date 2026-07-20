@@ -1,0 +1,152 @@
+﻿using Logger;
+using System;
+using System.Windows.Forms;
+using TDJS_Vision.Forms.CameraAdd;
+using TDJS_Vision.Forms.PLCAdd;
+using TDJS_Vision.Device.Modbus;
+using TDJS_Vision.Device;
+using System.Linq;
+using TDJS_Vision.Startup;
+
+namespace TDJS_Vision.Forms.ModbusAdd
+{
+    public partial class FrmModbusListView : FormBase
+    {
+        /// <summary>
+        /// 添加Modbus时通过快捷键保存方案的事件
+        /// </summary>
+        public event EventHandler OnShotKeySavePressed;
+        /// <summary>
+        /// 添加Modbus窗口
+        /// </summary>
+        FrmModbusNew _frmAdd = new FrmModbusNew();
+        /// <summary>
+        /// Modbus反序列化完成事件
+        /// </summary>
+        public static event EventHandler<bool> OnModbusDeserializationCompletionEvent;
+        public FrmModbusListView()
+        {
+            InitializeComponent();
+            FrmModbusNew.ModbusAddEvent += FrmAdd_ModbusAddEvent;
+            SingleModbus.SelectedChange += SingleModbus_SelectedChange;
+            SingleModbus.SingleModbusRemoveEvent += SingleModbus_RemoveEvent;
+            FrmPLCListView.OnPLCDeserializationCompletionEvent += Deserialization;
+            this.KeyPreview = true;
+        }
+
+        /// <summary>
+        /// 反序列化Modbus设备
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void Deserialization(object sender, bool e)
+        {
+            try
+            {
+                // 先移除旧方案的Modbus控件
+                flowLayoutPanel1.Controls.Clear();
+                // 添加新的Modbus
+                var modbusDevices = ConfigHelper.SolConfig.Devices.OfType<IModbus>().ToList();
+                if (e)
+                    LogHelper.AddLog(MsgLevel.Debug, $"================================================= 正在加载【Modbus设备列表】=================================================", true);
+                if (modbusDevices.Count == 0)
+                    StartupProgressContext.ReportItem("正在恢复Modbus设备", "没有需要恢复的Modbus", 0, 0, 63, 70);
+                for (int index = 0; index < modbusDevices.Count; index++)
+                {
+                    IModbus modbus = modbusDevices[index];
+                    StartupProgressContext.ReportItem("正在恢复Modbus设备", modbus.DevName, index + 1, modbusDevices.Count, 63, 70);
+                    modbus.CreateDevice(); // 创建modbus，必要的
+                    SingleModbus singleModbus = new SingleModbus(modbus);
+                    singleModbus.Anchor = AnchorStyles.Left;
+                    singleModbus.Anchor = AnchorStyles.Right;
+                    flowLayoutPanel1.Controls.Add(singleModbus);
+                    if (e)
+                        LogHelper.AddLog(MsgLevel.Info, $"Modbus设备【{modbus.DevName}】已加载！", true);
+                }
+                if (e)
+                    LogHelper.AddLog(MsgLevel.Debug, $"================================================【Modbus设备列表】已加载完成 ================================================", true);
+
+            }
+            catch (Exception ex)
+            {
+                StartupProgressContext.ReportFailure("恢复Modbus设备", ex);
+                LogHelper.AddLog(MsgLevel.Exception, $"恢复Modbus设备失败：{ex}", true);
+            }
+            finally
+            {
+                // 触发Modbus反序列化完成事件
+                OnModbusDeserializationCompletionEvent?.Invoke(this, e);
+            }
+        }
+
+        /// <summary>
+        /// 按下保存快捷键
+        /// </summary>
+        /// <param name="e"></param>
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            if (e.Control && e.KeyCode == Keys.S)
+            {
+                // 触发保存方案事件
+                OnShotKeySavePressed?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        /// <summary>
+        /// 移除Modbus设备
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void SingleModbus_RemoveEvent(object sender, SingleModbus e)
+        {
+            SingleModbus.SingleModbuss.Remove(e);
+            panel1.Controls.Clear();
+            e.ModbusDevice.Disconnect();
+            Solution.Instance.AllDevices.Remove(e.ModbusDevice);
+            flowLayoutPanel1.Controls.Remove(e);
+            LogHelper.AddLog(MsgLevel.Info, $"Modbus设备（{e.ModbusDevice.DevName}）已成功移除！", true);
+        }
+
+        /// <summary>
+        /// Modbus选中改变
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void SingleModbus_SelectedChange(object sender, SingleModbus e)
+        {
+            //将选中的Modbus的参数控件设置到右侧
+            panel1.Controls.Clear();
+            var control = new ModbusParamsControl(e.Parms);
+            control.Dock = DockStyle.Fill;
+            panel1.Controls.Add(control);
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            _frmAdd.ShowDialog();
+        }
+
+        private void FrmAdd_ModbusAddEvent(object sender, IModbusParam e)
+        {
+            SingleModbus singleModbus = null;
+            try
+            {
+                singleModbus = new SingleModbus(e);
+                singleModbus.Anchor = AnchorStyles.Left;
+                singleModbus.Anchor = AnchorStyles.Right;
+                flowLayoutPanel1.Controls.Add(singleModbus);
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        private void FrmPLCListView_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            e.Cancel = true;
+            this.Hide();
+        }
+    }
+}
