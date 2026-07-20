@@ -74,12 +74,15 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
         /// </summary>
         internal List<CaliperLineTargetResult> ExecuteMeasures(NodeParamCaliperLine param, CancellationToken token)
         {
+            IReadOnlyList<PositionCorrectionInfo> corrections = ReadCorrections(param);
+            if (corrections.Count == 0)
+                return new List<CaliperLineTargetResult>();
+
             bool disposeGrayAfterUse;
             Mat gray = GetInputGrayMat(out disposeGrayAfterUse);
 
             try
             {
-                IReadOnlyList<PositionCorrectionInfo> corrections = ReadCorrections(param);
                 return MultiTargetMeasurementRunner.Run(
                     corrections,
                     token,
@@ -102,10 +105,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 return new List<PositionCorrectionInfo> { CreateIdentityCorrection() };
 
             List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
-            if (corrections == null || corrections.Count == 0)
-                throw new Exception("位置修正信息列表为空。");
-            for (int i = 0; i < corrections.Count; i++)
-                PositionCorrectionHelper.EnsureValid(corrections[i]);
+            corrections = corrections ?? new List<PositionCorrectionInfo>();
             return corrections;
         }
 
@@ -547,6 +547,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
 
         private void buttonDrawRoi_Click(object sender, EventArgs e)
         {
+            showImageControl1.SetDisplayResult(null);
             RefreshRoiFromFields();
         }
 

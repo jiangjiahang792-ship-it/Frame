@@ -7,6 +7,13 @@ function Assert-ContainsText {
     }
 }
 
+function Assert-NotContainsText {
+    param([string]$Content, [string]$Unexpected, [string]$Message)
+    if ($Content.Contains($Unexpected)) {
+        throw $Message
+    }
+}
+
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $targetWord = ([char]0x76EE).ToString() + ([char]0x6807).ToString()
 $tools = @(
@@ -37,6 +44,14 @@ foreach ($tool in $tools) {
     Assert-ContainsText $form 'ResolveAnchorIndex' ($tool.Name + ' must resolve which target owns the single editing ROI.')
     Assert-ContainsText $form 'InverseTransformPoint' ($tool.Name + ' must normalize the single editing ROI back to the baseline.')
     Assert-ContainsText $form 'CreateFailure' ($tool.Name + ' must create a retained failure item.')
+    Assert-ContainsText $form 'corrections = corrections ?? new List<PositionCorrectionInfo>();' ($tool.Name + ' must return an empty NG result instead of throwing for zero targets.')
+    Assert-ContainsText $form 'if (corrections.Count == 0)' ($tool.Name + ' must skip image access when there are zero targets.')
+    Assert-ContainsText $form 'SetDisplayResult(null);' ($tool.Name + ' must clear the previous multi-target overlay before editing its single ROI.')
+    $readMarker = 'private IReadOnlyList<PositionCorrectionInfo> ReadCorrections(NodeParam' + $tool.Name + ' param)'
+    $readStart = $form.IndexOf($readMarker)
+    $readEnd = $form.IndexOf('private ', $readStart + $readMarker.Length)
+    $readBody = $form.Substring($readStart, $readEnd - $readStart)
+    Assert-NotContainsText $readBody 'PositionCorrectionHelper.EnsureValid' ($tool.Name + ' must isolate an invalid correction as one failed target.')
     Assert-ContainsText $node 'items.All' ($tool.Name + ' overall status must require every target to pass.')
     Assert-ContainsText $node $targetWord ($tool.Name + ' display output must identify each target.')
 }

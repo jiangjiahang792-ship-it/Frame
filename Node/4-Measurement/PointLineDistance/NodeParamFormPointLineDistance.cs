@@ -233,6 +233,9 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
                 throw new Exception("点到线距离参数为空。");
 
             IReadOnlyList<PositionCorrectionInfo> corrections = ReadCorrections(param);
+            if (corrections.Count == 0)
+                return new List<PointLineDistanceTargetResult>();
+
             Mat sharedGray = null;
             bool disposeGrayAfterUse = false;
             if (param.SourceMode == MeasurementDataSourceMode.Draw)
@@ -595,10 +598,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
                 return new List<PositionCorrectionInfo> { CreateIdentityCorrection() };
 
             List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
-            if (corrections == null || corrections.Count == 0)
-                throw new Exception("位置修正信息列表为空。");
-            foreach (PositionCorrectionInfo correction in corrections)
-                PositionCorrectionHelper.EnsureValid(correction);
+            corrections = corrections ?? new List<PositionCorrectionInfo>();
             return corrections;
         }
 
@@ -1026,9 +1026,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
             PointF point = new PointF(circleRois[0].CX, circleRois[0].CY);
             PointF lineStart = new PointF(lineRois[0].SX, lineRois[0].SY);
             PointF lineEnd = new PointF(lineRois[0].EX, lineRois[0].EY);
-            PointF roiCenter = new PointF(
-                (point.X + lineStart.X + lineEnd.X) / 3f,
-                (point.Y + lineStart.Y + lineEnd.Y) / 3f);
+            PointF roiCenter = MeasurementNodeHelper.CalculateBoundsCenter(new[] { point, lineStart, lineEnd });
             PositionCorrectionInfo correctionInfo = ResolveEditingCorrection(roiCenter, requireCorrection);
             double scale = correctionInfo == null ? 1.0 : GetAverageScale(correctionInfo);
             if (correctionInfo != null)
@@ -1075,9 +1073,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
             PointF point = new PointF(circleRois[0].CX, circleRois[0].CY);
             PointF lineStart = new PointF(lineRois[0].SX, lineRois[0].SY);
             PointF lineEnd = new PointF(lineRois[0].EX, lineRois[0].EY);
-            PointF roiCenter = new PointF(
-                (point.X + lineStart.X + lineEnd.X) / 3f,
-                (point.Y + lineStart.Y + lineEnd.Y) / 3f);
+            PointF roiCenter = MeasurementNodeHelper.CalculateBoundsCenter(new[] { point, lineStart, lineEnd });
             PositionCorrectionInfo correctionInfo = ResolveEditingCorrection(roiCenter, false);
             double scale = correctionInfo == null ? 1.0 : GetAverageScale(correctionInfo);
             if (correctionInfo != null)
@@ -1196,6 +1192,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
         /// </summary>
         private void buttonDrawRoi_Click(object sender, EventArgs e)
         {
+            showImageControl1.SetDisplayResult(null);
             RefreshRoiFromFields();
         }
 

@@ -2070,10 +2070,10 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 已确认单目标测量失败时保留同序号结果项、数值写 `0`，节点总体状态为 NG，其他目标继续测量。
 - [x] 已完成设计文档：`docs/superpowers/specs/2026-07-20-multi-target-position-correction-measurement-design.md`。
 - [x] 已完成详细测试驱动实施计划：`docs/superpowers/plans/2026-07-20-multi-target-position-correction-measurement.md`。
-- [ ] 按计划完成多目标数据模型、位置修正、八类测量工具和界面改造。
+- [x] 按计划完成多目标数据模型、位置修正、八类测量工具和界面改造。
   - [x] 已新增模板目标位姿契约和可替换的多目标变换服务，覆盖尺度保护、正逆变换、旋转框命中及框外最近目标选择。
   - [x] `MultiTargetTransform.Tests.ps1` 已按测试驱动方式先失败后通过。
-- [ ] 完成专项测试、相关回归测试和 `Debug|x64` 编译验证。
+- [x] 完成专项测试、相关回归测试和 `Debug|x64` 编译验证。
 - [x] 2026-07-20 多目标位置修正节点改造
   - [x] 增加模板位姿列表、位置修正集合及单订阅界面的失败约束测试
   - [x] 模板匹配输出全部目标位姿，缩放固定输出 1.0
@@ -2104,3 +2104,12 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
   - [x] 三种卡尺补强普通算法失败分支，边缘点数和算法耗时等数值统一输出0
   - [x] `MultiTargetGeometryMeasurement.Tests.ps1` 先失败后通过；六项多目标专项测试全部通过
   - [x] `Debug|x64` 编译通过，只有项目既有警告、0个错误
+- [x] 2026-07-20 多目标测量审查修正与回归收尾
+  - [x] ROI归属中心统一改为整套测量几何的包围盒中心，避免顶点分布不均时误判所属目标
+  - [x] 空位置修正集合直接输出空结果且总体NG，不再读取图像或保留上一帧结果
+  - [x] 无效位置修正项交由多目标执行器逐项隔离，生成同序号全零失败项并继续后续目标
+  - [x] 八类测量工具再次进入绘制状态前清除上一轮多目标静态叠加，只保留当前可编辑几何
+  - [x] 线线夹角复用本轮共享灰度图尺寸，取消逐目标重复读取上游 `OutputImage`
+  - [x] 独立代码审查复核三项问题均已解决，未发现新的严重或重要问题
+  - [x] 六项多目标专项测试全部通过；`git diff --check` 通过；`Debug|x64` 完整编译通过，179个既有警告、0个错误
+  - [x] 全库41项PowerShell回归测试中39项通过；`ImageSaveMultiConditionSubscription.Tests.ps1` 因既有乱码导致脚本解析失败，`UnsupervisedTrainForm.Tests.ps1` 因既有中文按钮文本断言失败，均与本次测量改动文件无交集

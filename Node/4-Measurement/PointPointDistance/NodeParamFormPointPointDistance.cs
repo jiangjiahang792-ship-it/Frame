@@ -126,6 +126,9 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                 throw new Exception("点到点距离参数为空。");
 
             IReadOnlyList<PositionCorrectionInfo> corrections = ReadCorrections(param);
+            if (corrections.Count == 0)
+                return new List<PointPointDistanceTargetResult>();
+
             Mat sharedGray = null;
             bool disposeGrayAfterUse = false;
             if (param.SourceMode == MeasurementDataSourceMode.Draw)
@@ -416,10 +419,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                 return new List<PositionCorrectionInfo> { CreateIdentityCorrection() };
 
             List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
-            if (corrections == null || corrections.Count == 0)
-                throw new Exception("位置修正信息列表为空。");
-            foreach (PositionCorrectionInfo correction in corrections)
-                PositionCorrectionHelper.EnsureValid(correction);
+            corrections = corrections ?? new List<PositionCorrectionInfo>();
             return corrections;
         }
 
@@ -900,6 +900,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
 
         private void buttonDrawRoi_Click(object sender, EventArgs e)
         {
+            showImageControl1.SetDisplayResult(null);
             RefreshRoiFromFields();
         }
 

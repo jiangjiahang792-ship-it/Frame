@@ -174,6 +174,9 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 throw new Exception("线到线夹角参数为空。");
 
             IReadOnlyList<PositionCorrectionInfo> corrections = ReadCorrections(param);
+            if (corrections.Count == 0)
+                return new List<LineLineAngleTargetResult>();
+
             Mat sharedGray = null;
             bool disposeGrayAfterUse = false;
             if (param.SourceMode == MeasurementDataSourceMode.Draw)
@@ -203,7 +206,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         {
             var stopwatch = Stopwatch.StartNew();
             var result = new LineLineAngleMeasureResult();
-            CaptureDisplayImageSize(result);
+            CaptureDisplayImageSize(result, sharedGray);
 
             LineMeasurementInput input1;
             LineMeasurementInput input2;
@@ -473,10 +476,17 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         /// <summary>
         /// 记录当前输入图像尺寸，供结果 ROI 将测量线延长并裁剪到图像边界。
         /// </summary>
-        private void CaptureDisplayImageSize(LineLineAngleMeasureResult result)
+        private void CaptureDisplayImageSize(LineLineAngleMeasureResult result, Mat measuredImage)
         {
             if (result == null)
                 return;
+
+            if (measuredImage != null && !measuredImage.Empty())
+            {
+                result.DisplayImageWidth = measuredImage.Width;
+                result.DisplayImageHeight = measuredImage.Height;
+                return;
+            }
 
             Mat preview = GetPreviewMat();
             result.DisplayImageWidth = preview.Width;
@@ -680,10 +690,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 return new List<PositionCorrectionInfo> { CreateIdentityCorrection() };
 
             List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
-            if (corrections == null || corrections.Count == 0)
-                throw new Exception("位置修正信息列表为空。");
-            foreach (PositionCorrectionInfo correction in corrections)
-                PositionCorrectionHelper.EnsureValid(correction);
+            corrections = corrections ?? new List<PositionCorrectionInfo>();
             return corrections;
         }
 
@@ -1051,9 +1058,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             PointF l1End = new PointF(rois[0].EX, rois[0].EY);
             PointF l2Start = new PointF(rois[1].SX, rois[1].SY);
             PointF l2End = new PointF(rois[1].EX, rois[1].EY);
-            PointF roiCenter = new PointF(
-                (l1Start.X + l1End.X + l2Start.X + l2End.X) * 0.25f,
-                (l1Start.Y + l1End.Y + l2Start.Y + l2End.Y) * 0.25f);
+            PointF roiCenter = MeasurementNodeHelper.CalculateBoundsCenter(new[] { l1Start, l1End, l2Start, l2End });
             PositionCorrectionInfo correctionInfo = ResolveEditingCorrection(roiCenter, requireCorrection);
             if (correctionInfo != null)
             {
@@ -1102,9 +1107,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             PointF l1End = new PointF(rois[0].EX, rois[0].EY);
             PointF l2Start = new PointF(rois[1].SX, rois[1].SY);
             PointF l2End = new PointF(rois[1].EX, rois[1].EY);
-            PointF roiCenter = new PointF(
-                (l1Start.X + l1End.X + l2Start.X + l2End.X) * 0.25f,
-                (l1Start.Y + l1End.Y + l2Start.Y + l2End.Y) * 0.25f);
+            PointF roiCenter = MeasurementNodeHelper.CalculateBoundsCenter(new[] { l1Start, l1End, l2Start, l2End });
             PositionCorrectionInfo correctionInfo = ResolveEditingCorrection(roiCenter, false);
             if (correctionInfo != null)
             {
@@ -1197,6 +1200,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
 
         private void buttonDrawRoi_Click(object sender, EventArgs e)
         {
+            showImageControl1.SetDisplayResult(null);
             RefreshRoiFromFields();
         }
 

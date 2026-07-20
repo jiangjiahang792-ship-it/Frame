@@ -1,6 +1,7 @@
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -109,6 +110,40 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             target.Arcs.AddRange(source.Arcs);
             target.Ellipses.AddRange(source.Ellipses);
             target.Contours.AddRange(source.Contours);
+        }
+
+        /// <summary>
+        /// 计算一组测量几何点的轴对齐包围盒中心，用于判断唯一ROI属于哪个模板目标。
+        /// </summary>
+        public static PointF CalculateBoundsCenter(IEnumerable<PointF> points)
+        {
+            if (points == null)
+                throw new ArgumentNullException("points");
+
+            bool hasPoint = false;
+            float minX = 0;
+            float minY = 0;
+            float maxX = 0;
+            float maxY = 0;
+            foreach (PointF point in points)
+            {
+                if (!hasPoint)
+                {
+                    minX = maxX = point.X;
+                    minY = maxY = point.Y;
+                    hasPoint = true;
+                    continue;
+                }
+
+                minX = Math.Min(minX, point.X);
+                minY = Math.Min(minY, point.Y);
+                maxX = Math.Max(maxX, point.X);
+                maxY = Math.Max(maxY, point.Y);
+            }
+
+            if (!hasPoint)
+                throw new InvalidOperationException("测量几何为空，无法计算ROI包围盒中心。");
+            return new PointF((minX + maxX) * 0.5f, (minY + maxY) * 0.5f);
         }
     }
 }
