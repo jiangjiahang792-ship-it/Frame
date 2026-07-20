@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Threading;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
@@ -15,6 +16,8 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
     public partial class NodeParamFormLineLineAngle : FormBase, INodeParamForm
     {
         private readonly NodeBase node;
+        /// <summary>唯一编辑ROI的目标归属与坐标变换服务。</summary>
+        private readonly IMultiTargetTransformService _transformService = new MultiTargetTransformService();
         private bool _isSyncingRoi;
         private bool _roiVisible;
         private int _selectedRunRoiIndex;
@@ -164,7 +167,39 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             ClearEditingRoi();
         }
 
-        internal LineLineAngleMeasureResult ExecuteMeasure(NodeParamLineLineAngle param)
+        /// <summary>按目标顺序执行全部线线夹角测量，订阅模式保持单结果。</summary>
+        internal List<LineLineAngleTargetResult> ExecuteMeasures(NodeParamLineLineAngle param, CancellationToken token)
+        {
+            if (param == null)
+                throw new Exception("线到线夹角参数为空。");
+
+            IReadOnlyList<PositionCorrectionInfo> corrections = ReadCorrections(param);
+            Mat sharedGray = null;
+            bool disposeGrayAfterUse = false;
+            if (param.SourceMode == MeasurementDataSourceMode.Draw)
+                sharedGray = GetInputGrayMat(out disposeGrayAfterUse);
+
+            try
+            {
+                return MultiTargetMeasurementRunner.Run(
+                    corrections,
+                    token,
+                    correction =>
+                    {
+                        NodeParamLineLineAngle runtimeParam = BuildRuntimeParam(param, correction);
+                        return CreateTargetResult(ExecuteSingleMeasure(runtimeParam, sharedGray));
+                    },
+                    CreateFailure);
+            }
+            finally
+            {
+                if (disposeGrayAfterUse)
+                    sharedGray?.Dispose();
+            }
+        }
+
+        /// <summary>执行一次已经完成坐标变换的线线夹角测量。</summary>
+        private LineLineAngleMeasureResult ExecuteSingleMeasure(NodeParamLineLineAngle param, Mat sharedGray)
         {
             var stopwatch = Stopwatch.StartNew();
             var result = new LineLineAngleMeasureResult();
@@ -179,13 +214,14 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             }
             else
             {
-                bool disposeGrayAfterUse;
-                Mat gray = GetInputGrayMat(out disposeGrayAfterUse);
+                Mat gray = sharedGray;
+                bool disposeGrayAfterUse = false;
+                if (gray == null)
+                    gray = GetInputGrayMat(out disposeGrayAfterUse);
                 try
                 {
-                    NodeParamLineLineAngle runtimeParam = BuildRuntimeParam(param);
-                    CaliperLineMeasureResult line1Result = CaliperMeasurementAlgorithm.FindLine(gray, BuildLineParams(runtimeParam, true));
-                    CaliperLineMeasureResult line2Result = CaliperMeasurementAlgorithm.FindLine(gray, BuildLineParams(runtimeParam, false));
+                    CaliperLineMeasureResult line1Result = CaliperMeasurementAlgorithm.FindLine(gray, BuildLineParams(param, true));
+                    CaliperLineMeasureResult line2Result = CaliperMeasurementAlgorithm.FindLine(gray, BuildLineParams(param, false));
 
                     if (!line1Result.Success)
                         return FinishFailed(result, stopwatch, "直线1卡尺找线失败");
@@ -637,17 +673,95 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             return a.X * b.X + a.Y * b.Y;
         }
 
-        private NodeParamLineLineAngle BuildRuntimeParam(NodeParamLineLineAngle param)
+        /// <summary>读取全部位置修正；仅绘制模式启用修正时展开多目标。</summary>
+        private IReadOnlyList<PositionCorrectionInfo> ReadCorrections(NodeParamLineLineAngle param)
+        {
+            if (param.SourceMode != MeasurementDataSourceMode.Draw || !param.UsePositionCorrection)
+                return new List<PositionCorrectionInfo> { CreateIdentityCorrection() };
+
+            List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
+            if (corrections == null || corrections.Count == 0)
+                throw new Exception("位置修正信息列表为空。");
+            foreach (PositionCorrectionInfo correction in corrections)
+                PositionCorrectionHelper.EnsureValid(correction);
+            return corrections;
+        }
+
+        /// <summary>把单次算法结果转换为强类型目标结果。</summary>
+        private static LineLineAngleTargetResult CreateTargetResult(LineLineAngleMeasureResult measure)
+        {
+            if (measure == null)
+                throw new Exception("线到线夹角算法没有返回结果。");
+
+            var item = new LineLineAngleTargetResult
+            {
+                IsOk = measure.Success,
+                ErrorMessage = measure.Success ? string.Empty : measure.Message,
+                AlgorithmMs = measure.Success ? MeasurementResultRounder.Round(measure.AlgorithmMs) : 0,
+                RawResult = measure
+            };
+            if (!measure.Success)
+                return item;
+
+            item.Angle = MeasurementResultRounder.Round(measure.Angle);
+            item.Line1StartX = MeasurementResultRounder.Round(measure.Line1.Start.X);
+            item.Line1StartY = MeasurementResultRounder.Round(measure.Line1.Start.Y);
+            item.Line1EndX = MeasurementResultRounder.Round(measure.Line1.End.X);
+            item.Line1EndY = MeasurementResultRounder.Round(measure.Line1.End.Y);
+            item.Line2StartX = MeasurementResultRounder.Round(measure.Line2.Start.X);
+            item.Line2StartY = MeasurementResultRounder.Round(measure.Line2.Start.Y);
+            item.Line2EndX = MeasurementResultRounder.Round(measure.Line2.End.X);
+            item.Line2EndY = MeasurementResultRounder.Round(measure.Line2.End.Y);
+            if (measure.IntersectionPoint.HasValue)
+            {
+                item.IntersectionX = MeasurementResultRounder.Round(measure.IntersectionPoint.Value.X);
+                item.IntersectionY = MeasurementResultRounder.Round(measure.IntersectionPoint.Value.Y);
+            }
+            item.AverageDistance = MeasurementResultRounder.Round(measure.AverageDistance);
+            item.MinDistance = MeasurementResultRounder.Round(measure.MinDistance);
+            item.MaxDistance = MeasurementResultRounder.Round(measure.MaxDistance);
+            item.DistancePointCount = measure.DistancePointCount;
+            return item;
+        }
+
+        /// <summary>创建保留目标顺序且数值为零的失败项。</summary>
+        private static LineLineAngleTargetResult CreateFailure(PositionCorrectionInfo correction, Exception exception)
+        {
+            string message = exception == null ? "线到线夹角失败。" : exception.Message;
+            return new LineLineAngleTargetResult
+            {
+                IsOk = false,
+                ErrorMessage = message,
+                RawResult = new LineLineAngleMeasureResult { Success = false, Message = message }
+            };
+        }
+
+        /// <summary>创建不改变坐标的单目标修正项。</summary>
+        private static PositionCorrectionInfo CreateIdentityCorrection()
+        {
+            return new PositionCorrectionInfo
+            {
+                TargetIndex = 1,
+                IsValid = true,
+                BaseScaleX = 1,
+                BaseScaleY = 1,
+                CurrentScaleX = 1,
+                CurrentScaleY = 1
+            };
+        }
+
+        /// <summary>为单个模板目标构造已经仿射变换的运行参数。</summary>
+        private NodeParamLineLineAngle BuildRuntimeParam(NodeParamLineLineAngle param, PositionCorrectionInfo correction)
         {
             if (param == null || !param.UsePositionCorrection || param.SourceMode != MeasurementDataSourceMode.Draw)
                 return param;
 
-            PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
-            PositionCorrectionHelper.EnsureValid(correctionInfo);
-            PointF l1Start = correctionInfo.TransformPoint(param.Line1StartX, param.Line1StartY);
-            PointF l1End = correctionInfo.TransformPoint(param.Line1EndX, param.Line1EndY);
-            PointF l2Start = correctionInfo.TransformPoint(param.Line2StartX, param.Line2StartY);
-            PointF l2End = correctionInfo.TransformPoint(param.Line2EndX, param.Line2EndY);
+            PositionCorrectionHelper.EnsureValid(correction);
+            PointF l1Start = _transformService.TransformPoint(new PointF(param.Line1StartX, param.Line1StartY), correction);
+            PointF l1End = _transformService.TransformPoint(new PointF(param.Line1EndX, param.Line1EndY), correction);
+            PointF l2Start = _transformService.TransformPoint(new PointF(param.Line2StartX, param.Line2StartY), correction);
+            PointF l2End = _transformService.TransformPoint(new PointF(param.Line2EndX, param.Line2EndY), correction);
+            double scale = GetAverageScale(correction);
 
             return new NodeParamLineLineAngle
             {
@@ -666,24 +780,24 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 Line2StartY = l2Start.Y,
                 Line2EndX = l2End.X,
                 Line2EndY = l2End.Y,
-                CaliperWidth = param.CaliperWidth,
-                CaliperHeight = param.CaliperHeight,
+                CaliperWidth = (float)(param.CaliperWidth * scale),
+                CaliperHeight = (float)(param.CaliperHeight * scale),
                 Count = param.Count,
                 EdgeStrength = param.EdgeStrength,
                 Polarity = param.Polarity,
                 FindMode = param.FindMode,
                 Direction = param.Direction,
                 BlurSize = param.BlurSize,
-                Line1CaliperWidth = param.Line1CaliperWidth,
-                Line1CaliperHeight = param.Line1CaliperHeight,
+                Line1CaliperWidth = (float)(param.Line1CaliperWidth * scale),
+                Line1CaliperHeight = (float)(param.Line1CaliperHeight * scale),
                 Line1Count = param.Line1Count,
                 Line1EdgeStrength = param.Line1EdgeStrength,
                 Line1Polarity = param.Line1Polarity,
                 Line1FindMode = param.Line1FindMode,
                 Line1Direction = param.Line1Direction,
                 Line1BlurSize = param.Line1BlurSize,
-                Line2CaliperWidth = param.Line2CaliperWidth,
-                Line2CaliperHeight = param.Line2CaliperHeight,
+                Line2CaliperWidth = (float)(param.Line2CaliperWidth * scale),
+                Line2CaliperHeight = (float)(param.Line2CaliperHeight * scale),
                 Line2Count = param.Line2Count,
                 Line2EdgeStrength = param.Line2EdgeStrength,
                 Line2Polarity = param.Line2Polarity,
@@ -691,6 +805,16 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 Line2Direction = param.Line2Direction,
                 Line2BlurSize = param.Line2BlurSize
             };
+        }
+
+        /// <summary>计算各向缩放的平均值，供卡尺宽高等标量尺寸使用。</summary>
+        private static double GetAverageScale(PositionCorrectionInfo correction)
+        {
+            double scaleX = PositionCorrectionInfo.NormalizeScale(correction.CurrentScaleX) /
+                PositionCorrectionInfo.NormalizeScale(correction.BaseScaleX);
+            double scaleY = PositionCorrectionInfo.NormalizeScale(correction.CurrentScaleY) /
+                PositionCorrectionInfo.NormalizeScale(correction.BaseScaleY);
+            return (scaleX + scaleY) * 0.5;
         }
 
         private static CaliperLineParams BuildLineParams(NodeParamLineLineAngle param, bool firstLine)
@@ -820,7 +944,8 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             return value;
         }
 
-        private PositionCorrectionInfo GetEditingCorrectionInfo(bool require)
+        /// <summary>读取编辑阶段全部位置修正信息。</summary>
+        private List<PositionCorrectionInfo> GetEditingCorrections(bool require)
         {
             if (!checkBoxUsePositionCorrection.Checked || !radioButtonDraw.Checked)
                 return null;
@@ -835,9 +960,12 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
 
             try
             {
-                PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
-                PositionCorrectionHelper.EnsureValid(correctionInfo);
-                return correctionInfo;
+                List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
+                if (corrections == null || corrections.Count == 0)
+                    throw new Exception("位置修正信息列表为空。");
+                foreach (PositionCorrectionInfo correction in corrections)
+                    PositionCorrectionHelper.EnsureValid(correction);
+                return corrections;
             }
             catch
             {
@@ -845,6 +973,23 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                     throw;
                 return null;
             }
+        }
+
+        /// <summary>返回第一个模板目标，作为参数回显时的默认基准。</summary>
+        private PositionCorrectionInfo GetDefaultEditingCorrectionInfo(bool require)
+        {
+            List<PositionCorrectionInfo> corrections = GetEditingCorrections(require);
+            return corrections == null || corrections.Count == 0 ? null : corrections[0];
+        }
+
+        /// <summary>根据唯一编辑ROI中心确定它属于哪个模板目标。</summary>
+        private PositionCorrectionInfo ResolveEditingCorrection(PointF roiCenter, bool require)
+        {
+            List<PositionCorrectionInfo> corrections = GetEditingCorrections(require);
+            if (corrections == null || corrections.Count == 0)
+                return null;
+            int index = _transformService.ResolveAnchorIndex(roiCenter, corrections);
+            return corrections[index];
         }
 
         private void SetPreview(Mat image)
@@ -860,7 +1005,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             try
             {
                 SaveCurrentRunSettingsFromControls();
-                PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+                PositionCorrectionInfo correctionInfo = GetDefaultEditingCorrectionInfo(false);
                 PointF l1Start = new PointF(ParseFloat(textBoxL1StartX, string.Empty), ParseFloat(textBoxL1StartY, string.Empty));
                 PointF l1End = new PointF(ParseFloat(textBoxL1EndX, string.Empty), ParseFloat(textBoxL1EndY, string.Empty));
                 PointF l2Start = new PointF(ParseFloat(textBoxL2StartX, string.Empty), ParseFloat(textBoxL2StartY, string.Empty));
@@ -874,8 +1019,9 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 }
 
                 showImageControl1.ClearDynamicRoi();
-                showImageControl1.AddDynamicCaliper(l1Start.X, l1Start.Y, l1End.X, l1End.Y, _roiRunSettings[0].CaliperWidth, _roiRunSettings[0].CaliperHeight, _roiRunSettings[0].Count, Color.Lime, "Line1");
-                showImageControl1.AddDynamicCaliper(l2Start.X, l2Start.Y, l2End.X, l2End.Y, _roiRunSettings[1].CaliperWidth, _roiRunSettings[1].CaliperHeight, _roiRunSettings[1].Count, Color.DeepSkyBlue, "Line2");
+                double displayScale = correctionInfo == null ? 1.0 : GetAverageScale(correctionInfo);
+                showImageControl1.AddDynamicCaliper(l1Start.X, l1Start.Y, l1End.X, l1End.Y, (float)(_roiRunSettings[0].CaliperWidth * displayScale), (float)(_roiRunSettings[0].CaliperHeight * displayScale), _roiRunSettings[0].Count, Color.Lime, "Line1");
+                showImageControl1.AddDynamicCaliper(l2Start.X, l2Start.Y, l2End.X, l2End.Y, (float)(_roiRunSettings[1].CaliperWidth * displayScale), (float)(_roiRunSettings[1].CaliperHeight * displayScale), _roiRunSettings[1].Count, Color.DeepSkyBlue, "Line2");
                 var rois = showImageControl1.GetAllDynamicCalipers();
                 if (rois.Count > 0)
                     rois[0].Direction = _roiRunSettings[0].Direction;
@@ -901,17 +1047,20 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             if (rois.Count < 2)
                 return;
 
-            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(requireCorrection);
             PointF l1Start = new PointF(rois[0].SX, rois[0].SY);
             PointF l1End = new PointF(rois[0].EX, rois[0].EY);
             PointF l2Start = new PointF(rois[1].SX, rois[1].SY);
             PointF l2End = new PointF(rois[1].EX, rois[1].EY);
+            PointF roiCenter = new PointF(
+                (l1Start.X + l1End.X + l2Start.X + l2End.X) * 0.25f,
+                (l1Start.Y + l1End.Y + l2Start.Y + l2End.Y) * 0.25f);
+            PositionCorrectionInfo correctionInfo = ResolveEditingCorrection(roiCenter, requireCorrection);
             if (correctionInfo != null)
             {
-                l1Start = correctionInfo.InverseTransformPoint(l1Start.X, l1Start.Y);
-                l1End = correctionInfo.InverseTransformPoint(l1End.X, l1End.Y);
-                l2Start = correctionInfo.InverseTransformPoint(l2Start.X, l2Start.Y);
-                l2End = correctionInfo.InverseTransformPoint(l2End.X, l2End.Y);
+                l1Start = _transformService.InverseTransformPoint(l1Start, correctionInfo);
+                l1End = _transformService.InverseTransformPoint(l1End, correctionInfo);
+                l2Start = _transformService.InverseTransformPoint(l2Start, correctionInfo);
+                l2End = _transformService.InverseTransformPoint(l2End, correctionInfo);
             }
 
             _isSyncingRoi = true;
@@ -927,6 +1076,14 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 textBoxL2EndY.Text = l2End.Y.ToString("F2");
                 SaveRunSettingsFromRoi(_roiRunSettings[0], rois[0]);
                 SaveRunSettingsFromRoi(_roiRunSettings[1], rois[1]);
+                if (correctionInfo != null)
+                {
+                    double scale = GetAverageScale(correctionInfo);
+                    _roiRunSettings[0].CaliperWidth = (float)(_roiRunSettings[0].CaliperWidth / scale);
+                    _roiRunSettings[0].CaliperHeight = (float)(_roiRunSettings[0].CaliperHeight / scale);
+                    _roiRunSettings[1].CaliperWidth = (float)(_roiRunSettings[1].CaliperWidth / scale);
+                    _roiRunSettings[1].CaliperHeight = (float)(_roiRunSettings[1].CaliperHeight / scale);
+                }
                 LoadRunSettingsToControls(_roiRunSettings[_selectedRunRoiIndex]);
             }
             finally
@@ -941,17 +1098,20 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             if (rois.Count < 2)
                 return;
 
-            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
             PointF l1Start = new PointF(rois[0].SX, rois[0].SY);
             PointF l1End = new PointF(rois[0].EX, rois[0].EY);
             PointF l2Start = new PointF(rois[1].SX, rois[1].SY);
             PointF l2End = new PointF(rois[1].EX, rois[1].EY);
+            PointF roiCenter = new PointF(
+                (l1Start.X + l1End.X + l2Start.X + l2End.X) * 0.25f,
+                (l1Start.Y + l1End.Y + l2Start.Y + l2End.Y) * 0.25f);
+            PositionCorrectionInfo correctionInfo = ResolveEditingCorrection(roiCenter, false);
             if (correctionInfo != null)
             {
-                l1Start = correctionInfo.InverseTransformPoint(l1Start.X, l1Start.Y);
-                l1End = correctionInfo.InverseTransformPoint(l1End.X, l1End.Y);
-                l2Start = correctionInfo.InverseTransformPoint(l2Start.X, l2Start.Y);
-                l2End = correctionInfo.InverseTransformPoint(l2End.X, l2End.Y);
+                l1Start = _transformService.InverseTransformPoint(l1Start, correctionInfo);
+                l1End = _transformService.InverseTransformPoint(l1End, correctionInfo);
+                l2Start = _transformService.InverseTransformPoint(l2Start, correctionInfo);
+                l2End = _transformService.InverseTransformPoint(l2End, correctionInfo);
             }
 
             _isSyncingRoi = true;
@@ -1060,12 +1220,12 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
 
             try
             {
-                LineLineAngleMeasureResult result = ExecuteMeasure((NodeParamLineLineAngle)Params);
+                List<LineLineAngleTargetResult> items = ExecuteMeasures((NodeParamLineLineAngle)Params, CancellationToken.None);
                 SetPreview(GetPreviewMat());
-                showImageControl1.SetDisplayResult(NodeLineLineAngle.BuildDisplayResult(result));
+                showImageControl1.SetDisplayResult(NodeLineLineAngle.BuildDisplayResult(items));
 
-                if (!result.Success)
-                    MessageBoxTD.Show($"线到线夹角失败：{result.Message}");
+                if (items.Exists(item => !item.IsOk))
+                    MessageBoxTD.Show("部分模板目标线到线夹角失败，失败目标结果已保留为0。");
             }
             catch (Exception ex)
             {

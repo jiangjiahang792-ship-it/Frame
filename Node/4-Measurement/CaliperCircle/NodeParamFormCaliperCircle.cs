@@ -178,9 +178,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             {
                 IsOk = measure.Success,
                 ErrorMessage = measure.Success ? string.Empty : (string.IsNullOrWhiteSpace(measure.ErrorMessage) ? "未找到有效圆。" : measure.ErrorMessage),
-                EdgePointCount = measure.PointCount,
+                EdgePointCount = measure.Success ? measure.PointCount : 0,
                 EdgePoints = MeasurementResultRounder.RoundPoints(measure.EdgePoints),
-                AlgorithmMs = MeasurementResultRounder.Round(measure.AlgorithmMs)
+                AlgorithmMs = measure.Success ? MeasurementResultRounder.Round(measure.AlgorithmMs) : 0
             };
             if (measure.Success)
             {

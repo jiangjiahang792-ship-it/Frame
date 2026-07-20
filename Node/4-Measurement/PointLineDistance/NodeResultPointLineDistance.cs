@@ -1,9 +1,38 @@
+using System.Collections.Generic;
 using System.ComponentModel;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Node._4_Measurement.Common;
 
 namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
 {
+    /// <summary>表示单个模板目标的点到线距离结果，失败时全部数值为零。</summary>
+    public sealed class PointLineDistanceTargetResult : MultiTargetMeasurementItemBase
+    {
+        /// <summary>获取或设置点到线距离。</summary>
+        public double Distance { get; set; }
+        /// <summary>获取或设置目标点 X。</summary>
+        public double PointX { get; set; }
+        /// <summary>获取或设置目标点 Y。</summary>
+        public double PointY { get; set; }
+        /// <summary>获取或设置直线起点 X。</summary>
+        public double StartX { get; set; }
+        /// <summary>获取或设置直线起点 Y。</summary>
+        public double StartY { get; set; }
+        /// <summary>获取或设置直线终点 X。</summary>
+        public double EndX { get; set; }
+        /// <summary>获取或设置直线终点 Y。</summary>
+        public double EndY { get; set; }
+        /// <summary>获取或设置垂足 X。</summary>
+        public double FootX { get; set; }
+        /// <summary>获取或设置垂足 Y。</summary>
+        public double FootY { get; set; }
+        /// <summary>获取或设置单目标算法耗时。</summary>
+        public double AlgorithmMs { get; set; }
+        /// <summary>获取或设置单目标原始结果，供叠加绘制复用。</summary>
+        internal PointLineDistanceMeasureResult RawResult { get; set; }
+    }
+
     /// <summary>
     /// 点到线距离测量结果。
     /// </summary>
@@ -19,6 +48,10 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
         /// </summary>
         [DisplayName("是否OK")]
         public bool IsOk { get; set; }
+
+        /// <summary>获取或设置按模板目标顺序排列的点到线距离结果。</summary>
+        [DisplayName("多目标点到线距离结果")]
+        public List<PointLineDistanceTargetResult> Items { get; set; } = new List<PointLineDistanceTargetResult>();
 
         /// <summary>
         /// 后续多条件判定后的OK/NG状态，默认OK，绘制工具按该值选择颜色。

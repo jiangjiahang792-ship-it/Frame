@@ -3,6 +3,7 @@ using OpenCvSharp.Extensions;
 using System;
 using System.Drawing;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._4_Measurement.Common
 {
@@ -91,6 +92,23 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         {
             foreach (PointF point in points)
                 Cv2.Circle(image, new OpenCvSharp.Point((int)Math.Round(point.X), (int)Math.Round(point.Y)), 2, color, -1);
+        }
+
+        /// <summary>
+        /// 把单个模板目标的叠加图形追加到节点总叠加结果中。
+        /// </summary>
+        public static void AppendAlgorithmResult(AlgorithmResult target, AlgorithmResult source)
+        {
+            if (target == null || source == null)
+                return;
+
+            target.Rects.AddRange(source.Rects);
+            target.Texts.AddRange(source.Texts);
+            target.Lines.AddRange(source.Lines);
+            target.Circles.AddRange(source.Circles);
+            target.Arcs.AddRange(source.Arcs);
+            target.Ellipses.AddRange(source.Ellipses);
+            target.Contours.AddRange(source.Contours);
         }
     }
 }

@@ -3,6 +3,7 @@ using OpenCvSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -55,17 +56,15 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
                 if (form == null || param == null)
                     throw new Exception("点到线距离参数异常！");
 
-                PointLineDistanceMeasureResult measureResult = form.ExecuteMeasure(param);
-                NodeResultPointLineDistance nodeResult = BuildResult(measureResult);
+                List<PointLineDistanceTargetResult> items = form.ExecuteMeasures(param, token);
+                NodeResultPointLineDistance nodeResult = BuildResult(items);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
 
-                if (showLog && measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！{time} ms，点到线距离：{measureResult.DistanceResult.Distance:F3}px", true);
-
-                if (showLog && !measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})点到线距离失败：{measureResult.Message}，{time} ms", true);
+                if (showLog)
+                    LogHelper.AddLog(nodeResult.IsOk ? MsgLevel.Info : MsgLevel.Warn,
+                        $"节点({ID}.{NodeName})点到线距离完成！({time} ms，目标：{items.Count}，总体：{(nodeResult.IsOk ? "OK" : "NG")})", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -86,32 +85,54 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
         }
 
         /// <summary>
-        /// 将算法结果转换为节点结果。
+        /// 根据全部模板目标结果构建节点汇总结果。
         /// </summary>
-        internal static NodeResultPointLineDistance BuildResult(PointLineDistanceMeasureResult measureResult)
+        internal static NodeResultPointLineDistance BuildResult(List<PointLineDistanceTargetResult> items)
         {
             var result = new NodeResultPointLineDistance
             {
-                IsOk = measureResult.Success,
-                AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs)
+                Items = items ?? new List<PointLineDistanceTargetResult>()
             };
+            result.IsOk = result.Items.Count > 0 && result.Items.All(item => item.IsOk);
+            result.JudgeOk = result.IsOk;
+            result.AlgorithmMs = MeasurementResultRounder.Round(result.Items.Sum(item => item.AlgorithmMs));
 
-            if (measureResult.Success && measureResult.DistanceResult != null)
+            PointLineDistanceTargetResult first = result.Items.FirstOrDefault();
+            if (first != null)
             {
-                PointLineDistanceResult distance = measureResult.DistanceResult;
-                result.Distance = MeasurementResultRounder.Round(distance.Distance);
-                result.PointX = MeasurementResultRounder.Round(distance.TargetPoint.X);
-                result.PointY = MeasurementResultRounder.Round(distance.TargetPoint.Y);
-                result.StartX = MeasurementResultRounder.Round(distance.LineStart.X);
-                result.StartY = MeasurementResultRounder.Round(distance.LineStart.Y);
-                result.EndX = MeasurementResultRounder.Round(distance.LineEnd.X);
-                result.EndY = MeasurementResultRounder.Round(distance.LineEnd.Y);
-                result.FootX = MeasurementResultRounder.Round(distance.FootPoint.X);
-                result.FootY = MeasurementResultRounder.Round(distance.FootPoint.Y);
+                result.Distance = first.Distance;
+                result.PointX = first.PointX;
+                result.PointY = first.PointY;
+                result.StartX = first.StartX;
+                result.StartY = first.StartY;
+                result.EndX = first.EndX;
+                result.EndY = first.EndY;
+                result.FootX = first.FootX;
+                result.FootY = first.FootY;
             }
 
-            result.Result = BuildDisplayResult(measureResult);
+            result.Result = BuildDisplayResult(result.Items);
             result.OutputImage.DisplayResult = result.Result;
+            return result;
+        }
+
+        /// <summary>合并全部模板目标的点到线距离叠加结果。</summary>
+        internal static AlgorithmResult BuildDisplayResult(IReadOnlyList<PointLineDistanceTargetResult> items)
+        {
+            var result = new AlgorithmResult();
+            result.IsAllOk = items != null && items.Count > 0 && items.All(item => item.IsOk);
+            if (items == null)
+                return result;
+
+            foreach (PointLineDistanceTargetResult item in items)
+            {
+                MeasurementNodeHelper.AppendAlgorithmResult(result, BuildDisplayResult(item.RawResult));
+                result.Texts.Add(new ColorText(
+                    item.IsOk
+                        ? $"目标{item.TargetIndex} 点到线距离：{item.Distance:F3}px"
+                        : $"目标{item.TargetIndex} 点到线距离失败：数值0，原因：{item.ErrorMessage}",
+                    item.IsOk ? Color.Lime : Color.Red));
+            }
             return result;
         }
 
