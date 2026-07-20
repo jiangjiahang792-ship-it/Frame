@@ -65,7 +65,7 @@
 - Produces: `PositionCorrectionInfo.FromPoses(TemplateMatchPose basePose, TemplateMatchPose currentPose)`。
 - Consumes: `System.Drawing.PointF`、模板匹配框中心/宽高/角度。
 
-- [ ] **Step 1: 写入失败行为测试**
+- [x] **Step 1: 写入失败行为测试**
 
 在 `Tests/MultiTargetTransform.Tests.ps1` 中动态编译三个生产文件并验证：尺度 `0` 规范化为 `1`、平移旋转往返、ROI 中心落在第二个旋转框时返回索引 `1`、ROI 位于所有框外时选择最近目标。
 
@@ -88,13 +88,13 @@ $index = $service.ResolveAnchorIndex([System.Drawing.PointF]::new(220, 140), @($
 Assert-True ($index -eq 1) 'ROI中心位于第二个目标时必须返回索引1。'
 ```
 
-- [ ] **Step 2: 运行测试并确认按预期失败**
+- [x] **Step 2: 运行测试并确认按预期失败**
 
 Run: `powershell -ExecutionPolicy Bypass -File .\Tests\MultiTargetTransform.Tests.ps1`
 
 Expected: FAIL，提示 `TemplateMatchPose` 或 `MultiTargetTransformService` 类型不存在。
 
-- [ ] **Step 3: 实现位姿数据契约**
+- [x] **Step 3: 实现位姿数据契约**
 
 在 `TemplateMatchPose.cs` 中实现带完整 XML 注释的类型：
 
@@ -114,7 +114,7 @@ public sealed class TemplateMatchPose
 }
 ```
 
-- [ ] **Step 4: 扩展位置修正信息并实现公共服务**
+- [x] **Step 4: 扩展位置修正信息并实现公共服务**
 
 `PositionCorrectionInfo` 增加 `TargetIndex`、`BaseScaleX/Y`、`CurrentScaleX/Y`、`TargetWidth/Height`、`Score`，并通过工厂方法统一防御尺度：
 
@@ -157,7 +157,7 @@ int ResolveAnchorIndex(PointF roiCenter, IReadOnlyList<PositionCorrectionInfo> c
 
 默认实现先把点移到基准局部坐标，按 `CurrentScale/BaseScale` 缩放，再按角度差旋转并平移到当前中心。逆变换严格按相反顺序执行。旋转框命中使用逆旋转后的局部点与半宽、半高比较，框外时使用中心欧氏距离选择最近目标。
 
-- [ ] **Step 5: 把新增文件登记到项目并记录任务**
+- [x] **Step 5: 把新增文件登记到项目并记录任务**
 
 在 `TDJS-Vision.csproj` 的模板匹配和测量公共文件区域分别加入：
 
@@ -168,13 +168,13 @@ int ResolveAnchorIndex(PointF roiCenter, IReadOnlyList<PositionCorrectionInfo> c
 
 在任务记录中追加位姿契约和变换服务阶段完成项。
 
-- [ ] **Step 6: 运行测试并确认通过**
+- [x] **Step 6: 运行测试并确认通过**
 
 Run: `powershell -ExecutionPolicy Bypass -File .\Tests\MultiTargetTransform.Tests.ps1`
 
 Expected: PASS，输出 `多目标位置变换行为检查通过。`
 
-- [ ] **Step 7: 提交本阶段**
+- [x] **Step 7: 提交本阶段**
 
 ```powershell
 git add Tests/MultiTargetTransform.Tests.ps1 Node/3-Detection/MatchTemplate/TemplateMatchPose.cs Node/4-Measurement/Common/MultiTargetTransformService.cs Node/4-Measurement/Common/PositionCorrectionInfo.cs TDJS-Vision.csproj FLOW_CANVAS_B_PLAN_TASKS.md
@@ -204,7 +204,7 @@ git commit -m "feat: 增加多目标位姿变换基础"
 - Produces: `NodeResultPositionCorrection.Items`、`BasePose`、`Count`、`IsOk`。
 - Produces: `MultiTargetPositionCorrectionResult`，由 `NodeResultPositionCorrection` 继承。
 
-- [ ] **Step 1: 写入失败契约测试**
+- [x] **Step 1: 写入失败契约测试**
 
 `Tests/MultiTargetPositionCorrectionNode.Tests.ps1` 读取源码并断言：模板结果存在 `List<TemplateMatchPose> Poses`；`BuildResult` 遍历全部 `Matches` 并写入 `ScaleX = 1.0`、`ScaleY = 1.0`；位置修正参数只保存位姿列表订阅文本和基准位姿；位置修正结果存在 `List<PositionCorrectionInfo> Items`；Designer 中只有一个位姿列表订阅控件。
 
@@ -217,13 +217,13 @@ Assert-Contains $correctionForm 'poses[0]' '创建基准必须默认使用第一
 Assert-Contains $designer 'nodeSubscriptionPoses' '设计器必须包含位姿列表订阅控件。'
 ```
 
-- [ ] **Step 2: 运行测试并确认按预期失败**
+- [x] **Step 2: 运行测试并确认按预期失败**
 
 Run: `powershell -ExecutionPolicy Bypass -File .\Tests\MultiTargetPositionCorrectionNode.Tests.ps1`
 
 Expected: FAIL，首先报告模板结果缺少 `Poses`。
 
-- [ ] **Step 3: 输出全部模板位姿**
+- [x] **Step 3: 输出全部模板位姿**
 
 `NodeResultMatchTemplate` 增加：
 
@@ -256,7 +256,7 @@ for (int i = 0; i < matchResult.Matches.Count; i++)
 
 删除位置修正对 `MatchX/MatchY/Angle` 三个单值的依赖；是否保留这些显示属性不得影响新链路。
 
-- [ ] **Step 4: 把位置修正窗体改为单一位姿列表订阅**
+- [x] **Step 4: 把位置修正窗体改为单一位姿列表订阅**
 
 `NodeParamPositionCorrection` 使用以下字段：
 
@@ -269,7 +269,7 @@ public TemplateMatchPose BasePose { get; set; }
 
 在 `.Designer.cs` 中删除 X、Y、角度三个订阅控件，新增并布局 `nodeSubscriptionPoses`，标签文字为“模板目标位姿列表”。业务文件只调用 `nodeSubscriptionPoses.Init(node)`、`SetText` 和 `GetValue<List<TemplateMatchPose>>()`。
 
-- [ ] **Step 5: 构造并发布多目标位置修正结果**
+- [x] **Step 5: 构造并发布多目标位置修正结果**
 
 新增公共数据类并让节点结果继承：
 
@@ -309,7 +309,7 @@ List<PositionCorrectionInfo> items = poses
 
 目标列表为空时输出空 `Items`、`IsOk = false`，使用简体中文日志说明“模板目标位姿列表为空”。
 
-- [ ] **Step 6: 运行专项测试和编译**
+- [x] **Step 6: 运行专项测试和编译**
 
 Run: `powershell -ExecutionPolicy Bypass -File .\Tests\MultiTargetPositionCorrectionNode.Tests.ps1`
 
@@ -317,7 +317,7 @@ Run: `& "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current
 
 Expected: 专项测试 PASS；编译 0 个错误。
 
-- [ ] **Step 7: 提交本阶段**
+- [x] **Step 7: 提交本阶段**
 
 ```powershell
 git add Tests/MultiTargetPositionCorrectionNode.Tests.ps1 Node/3-Detection/MatchTemplate/NodeResultMatchTemplate.cs Node/3-Detection/MatchTemplate/NodeMatchTemplate.cs Node/4-Measurement/Common/MultiTargetPositionCorrectionResult.cs Node/4-Measurement/PositionCorrection TDJS-Vision.csproj FLOW_CANVAS_B_PLAN_TASKS.md
@@ -338,7 +338,7 @@ git commit -m "feat: 输出多目标位置修正集合"
 - Consumes: `IReadOnlyList<PositionCorrectionInfo>`、取消令牌、工具算法委托。
 - Produces: `IMultiTargetMeasurementItem`、`MultiTargetMeasurementItemBase`、`MultiTargetMeasurementRunner.Run<TItem>`。
 
-- [ ] **Step 1: 写入失败行为测试**
+- [x] **Step 1: 写入失败行为测试**
 
 测试使用三个变换项，第二项执行委托抛出异常，断言输出仍为三项、序号为 `1/2/3`、第二项失败且数值由失败工厂置 `0`、第三项仍执行；取消后不得继续生成普通失败项。
 
@@ -353,13 +353,13 @@ Assert-True (-not $items[1].IsOk) '第二个目标必须保留失败项。'
 Assert-True ($items[2].IsOk) '单目标失败后必须继续运行第三个目标。'
 ```
 
-- [ ] **Step 2: 运行测试并确认按预期失败**
+- [x] **Step 2: 运行测试并确认按预期失败**
 
 Run: `powershell -ExecutionPolicy Bypass -File .\Tests\MultiTargetMeasurementRunner.Tests.ps1`
 
 Expected: FAIL，提示 `MultiTargetMeasurementRunner` 不存在。
 
-- [ ] **Step 3: 实现公共结果接口和运行器**
+- [x] **Step 3: 实现公共结果接口和运行器**
 
 ```csharp
 public interface IMultiTargetMeasurementItem
@@ -388,7 +388,7 @@ public static List<TItem> Run<TItem>(
 
 实现要求：预分配容量；按输入顺序循环；每项前调用 `token.ThrowIfCancellationRequested()`；普通异常交给 `createFailure`；`OperationCanceledException` 直接重新抛出；强制写回 `TargetIndex` 和 `Correction`，避免工具遗漏公共字段。
 
-- [ ] **Step 4: 登记项目、记录任务并运行测试**
+- [x] **Step 4: 登记项目、记录任务并运行测试**
 
 在项目文件中加入：
 
@@ -400,7 +400,7 @@ Run: `powershell -ExecutionPolicy Bypass -File .\Tests\MultiTargetMeasurementRun
 
 Expected: PASS，输出 `多目标测量执行器行为检查通过。`
 
-- [ ] **Step 5: 提交本阶段**
+- [x] **Step 5: 提交本阶段**
 
 ```powershell
 git add Tests/MultiTargetMeasurementRunner.Tests.ps1 Node/4-Measurement/Common/MultiTargetMeasurementRunner.cs TDJS-Vision.csproj FLOW_CANVAS_B_PLAN_TASKS.md
@@ -428,7 +428,7 @@ git commit -m "feat: 增加多目标测量执行器"
 - Consumes: `NodeResultPositionCorrection.Items`、`IMultiTargetTransformService`、`MultiTargetMeasurementRunner.Run<TItem>`。
 - Produces: `NodeResultCaliperLine.Items`、`NodeResultCaliperCircle.Items`、`NodeResultCaliperEllipse.Items`。
 
-- [ ] **Step 1: 写入失败契约测试**
+- [x] **Step 1: 写入失败契约测试**
 
 测试逐文件断言存在 `Items` 列表、`ExecuteMeasures`、只获取一次灰度 Mat、调用公共运行器、失败工厂把数值写 `0`、运行按钮使用多结果绘制；同时断言没有循环调用会重复获取输入图像的旧 `ExecuteMeasure`。
 
@@ -441,13 +441,13 @@ Assert-Contains $ellipseResult 'List<CaliperEllipseTargetResult> Items' '找椭�
 Assert-Contains $lineNode 'Items.All(item => item.IsOk)' '节点总体状态必须由全部目标决定。'
 ```
 
-- [ ] **Step 2: 运行测试并确认按预期失败**
+- [x] **Step 2: 运行测试并确认按预期失败**
 
 Run: `powershell -ExecutionPolicy Bypass -File .\Tests\MultiTargetCaliper.Tests.ps1`
 
 Expected: FAIL，首先报告找线结果缺少 `Items`。
 
-- [ ] **Step 3: 定义三种卡尺目标结果项**
+- [x] **Step 3: 定义三种卡尺目标结果项**
 
 每个原结果文件增加目标项并把节点结果改为集合。找线项字段为 `EdgePointCount`、`EdgePoints`、`StartX/Y`、`EndX/Y`、`Length`、`Angle`、`AlgorithmMs`；找圆项为 `EdgePointCount`、`CenterX/Y`、`Radius`、`Diameter`、`AlgorithmMs`；找椭圆项为 `EdgePointCount`、`CenterX/Y`、`Width`、`Height`、`MajorAxis`、`MinorAxis`、`Angle`、`AlgorithmMs`。所有数值使用非空值类型，失败工厂显式赋 `0`。
 
@@ -459,7 +459,7 @@ public List<CaliperLineTargetResult> Items { get; set; } = new List<CaliperLineT
 public bool IsOk { get; set; }
 ```
 
-- [ ] **Step 4: 重构卡尺参数窗体为一次取图、多目标运行**
+- [x] **Step 4: 重构卡尺参数窗体为一次取图、多目标运行**
 
 三个窗体都实现以下流程，但使用各自参数和算法：
 
@@ -509,11 +509,11 @@ private CaliperEllipseTargetResult CreateFailure(PositionCorrectionInfo correcti
 
 `BuildRuntimeParam` 不再自行从订阅控件取单个修正信息，而是接收明确的 `PositionCorrectionInfo correction`。找线变换起终点；找圆变换圆心并叠加角度差；找椭圆变换中心并叠加角度差。
 
-- [ ] **Step 5: 实现唯一 ROI 的目标归属和标准化**
+- [x] **Step 5: 实现唯一 ROI 的目标归属和标准化**
 
 保存或运行按钮读取唯一动态 ROI 的几何中心，调用 `ResolveAnchorIndex`。用返回目标对应的 `InverseTransformPoint` 把起终点、圆心或椭圆中心转换为第一个基准坐标系。拖动过程不得调用多目标循环，也不得添加其他动态或静态 ROI。
 
-- [ ] **Step 6: 构建节点结果和合并绘制层**
+- [x] **Step 6: 构建节点结果和合并绘制层**
 
 节点用目标项集合构建结果：
 
@@ -527,7 +527,7 @@ nodeResult.OutputImage.DisplayResult = nodeResult.Result;
 
 绘制层为每项增加“目标N”中文文本；失败项显示红色和数值 `0`，成功项绘制对应测量几何。参数窗体点击运行调用同一多目标入口并一次性更新预览。
 
-- [ ] **Step 7: 运行专项测试和编译**
+- [x] **Step 7: 运行专项测试和编译**
 
 Run: `powershell -ExecutionPolicy Bypass -File .\Tests\MultiTargetCaliper.Tests.ps1`
 
@@ -537,7 +537,7 @@ Run: `& "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current
 
 Expected: 两个专项测试 PASS；编译 0 个错误。
 
-- [ ] **Step 8: 提交本阶段**
+- [x] **Step 8: 提交本阶段**
 
 ```powershell
 git add Tests/MultiTargetCaliper.Tests.ps1 Node/4-Measurement/CaliperLine Node/4-Measurement/CaliperCircle Node/4-Measurement/CaliperEllipse FLOW_CANVAS_B_PLAN_TASKS.md
@@ -559,17 +559,17 @@ git commit -m "feat: 支持多目标卡尺测量"
 - Consumes: `MultiTargetMeasurementRunner`、`IMultiTargetTransformService.TransformPoints`。
 - Produces: `NodeResultFindPoint.Items : List<FindPointTargetResult>`。
 
-- [ ] **Step 1: 写入失败契约测试**
+- [x] **Step 1: 写入失败契约测试**
 
 断言找点结果包含 `List<FindPointTargetResult> Items`；运行参数为每个修正项变换所有 `Regions`；只读取一次输入灰度图；失败项 `CenterX/CenterY/PointCount/ContourCount/AlgorithmMs` 为 `0`；运行绘制层包含全部目标序号。
 
-- [ ] **Step 2: 运行测试并确认按预期失败**
+- [x] **Step 2: 运行测试并确认按预期失败**
 
 Run: `powershell -ExecutionPolicy Bypass -File .\Tests\MultiTargetFindPoint.Tests.ps1`
 
 Expected: FAIL，报告找点结果缺少多目标集合。
 
-- [ ] **Step 3: 实现找点目标结果项和运行参数变换**
+- [x] **Step 3: 实现找点目标结果项和运行参数变换**
 
 `FindPointTargetResult` 包含公共字段以及 `PointCount`、`ContourCount`、`CenterX/Y`、`Points`、`RegionPoints`、`Contours`、`Message`、`AlgorithmMs`。`BuildRuntimeParam` 对每一个搜索区域调用：
 
@@ -591,11 +591,11 @@ private FindPointTargetResult CreateFailure(PositionCorrectionInfo correction, E
 
 保存唯一多边形 ROI 时使用其几何中心解析所属目标，再把全部顶点逆变换到基准坐标系。
 
-- [ ] **Step 4: 实现多目标运行、失败填0和合并绘制**
+- [x] **Step 4: 实现多目标运行、失败填0和合并绘制**
 
 一次获取输入 Mat，调用公共运行器逐目标执行现有 `FindPointAlgorithm`。失败工厂保留空点集、空轮廓、数值 `0` 和中文原因。节点总体状态使用 `items.Count > 0 && items.All(...)`。
 
-- [ ] **Step 5: 运行测试、编译并提交**
+- [x] **Step 5: 运行测试、编译并提交**
 
 Run: `powershell -ExecutionPolicy Bypass -File .\Tests\MultiTargetFindPoint.Tests.ps1`
 
@@ -632,7 +632,7 @@ git commit -m "feat: 支持多目标找点测量"
 - Consumes: 公共变换服务、公共运行器、现有几何测量算法。
 - Produces: 四种节点各自的 `Items` 结果集合。
 
-- [ ] **Step 1: 写入失败契约测试**
+- [x] **Step 1: 写入失败契约测试**
 
 逐工具断言：结果类存在目标项列表；只有 `SourceMode == MeasurementDataSourceMode.Draw && UsePositionCorrection` 才展开多目标；绘制点、线和区域逐点变换；订阅模式保持单次旧路径；失败项数值为 `0`；节点总体状态由全部目标决定。
 
@@ -643,13 +643,13 @@ Assert-Contains $pointLineForm 'MultiTargetMeasurementRunner.Run' '点线距离�
 Assert-Contains $pointRegionForm 'TransformPoints' '点区域距离必须变换区域全部顶点。'
 ```
 
-- [ ] **Step 2: 运行测试并确认按预期失败**
+- [x] **Step 2: 运行测试并确认按预期失败**
 
 Run: `powershell -ExecutionPolicy Bypass -File .\Tests\MultiTargetGeometryMeasurement.Tests.ps1`
 
 Expected: FAIL，首先报告线线角度缺少 `Items`。
 
-- [ ] **Step 3: 实现四种目标结果项**
+- [x] **Step 3: 实现四种目标结果项**
 
 - `LineLineAngleTargetResult`：`Angle`、`IntersectionX/Y`、`AverageDistance`、`MinDistance`、`MaxDistance`、`DistancePointCount`、两条线四组端点、`AlgorithmMs`。
 - `PointPointDistanceTargetResult`：`Distance`、两个点坐标、`AlgorithmMs`。
@@ -658,7 +658,7 @@ Expected: FAIL，首先报告线线角度缺少 `Items`。
 
 全部数值使用非空类型，失败工厂显式写 `0`。
 
-- [ ] **Step 4: 实现绘制模式的多目标参数生成**
+- [x] **Step 4: 实现绘制模式的多目标参数生成**
 
 每个窗体保留订阅模式原逻辑；绘制模式且启用位置修正时读取 `NodeResultPositionCorrection.Items` 并逐目标变换。四个公开给节点调用的多目标入口签名固定为：
 
@@ -743,15 +743,15 @@ private PointRegionDistanceTargetResult CreateFailure(PositionCorrectionInfo cor
 
 线线角度变换四个端点；点点距离变换两个点及绘制搜索区域；点线距离变换点、线和搜索区域；点区域距离变换点和区域全部顶点。
 
-- [ ] **Step 5: 为唯一编辑几何实现所属目标判断**
+- [x] **Step 5: 为唯一编辑几何实现所属目标判断**
 
 使用全部绘制几何的包围盒中心作为 ROI 中心：线线角度取四端点包围盒中心；点点距离取两点中点；点线距离取目标点与线段包围盒中心；点区域距离取目标点和区域合并包围盒中心。保存或运行时解析目标并把全部绘制几何逆变换到基准坐标系。编辑时不生成复制几何。
 
-- [ ] **Step 6: 合并多目标结果和显示**
+- [x] **Step 6: 合并多目标结果和显示**
 
 四个节点结果都设置 `Items`、总体 `IsOk`、`JudgeOk`、合并 `AlgorithmResult` 和 `OutputImage.DisplayResult`。每个目标绘制文本以“目标N”开头；失败目标显示红色和数值 `0`。
 
-- [ ] **Step 7: 运行专项测试和编译**
+- [x] **Step 7: 运行专项测试和编译**
 
 Run: `powershell -ExecutionPolicy Bypass -File .\Tests\MultiTargetGeometryMeasurement.Tests.ps1`
 
@@ -761,7 +761,7 @@ Run: `& "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current
 
 Expected: 两个专项测试 PASS；编译 0 个错误。
 
-- [ ] **Step 8: 提交本阶段**
+- [x] **Step 8: 提交本阶段**
 
 ```powershell
 git add Tests/MultiTargetGeometryMeasurement.Tests.ps1 Node/4-Measurement/LineLineAngle Node/4-Measurement/PointPointDistance Node/4-Measurement/PointLineDistance Node/4-Measurement/PointRegionDistance FLOW_CANVAS_B_PLAN_TASKS.md
@@ -780,7 +780,7 @@ git commit -m "feat: 支持多目标几何测量"
 - Consumes: Tasks 1-6 的全部实现和专项测试。
 - Produces: 可编译、可回退、任务记录完整的多目标测量版本。
 
-- [ ] **Step 1: 运行全部多目标专项测试**
+- [x] **Step 1: 运行全部多目标专项测试**
 
 ```powershell
 $tests = @(
@@ -799,11 +799,11 @@ foreach ($test in $tests) {
 
 Expected: 六个脚本全部 PASS。
 
-- [ ] **Step 2: 运行相关既有回归测试**
+- [x] **Step 2: 运行相关既有回归测试**
 
 运行仓库中包含 `MatchTemplate`、`PositionCorrection`、`Caliper`、`Measurement`、`ProcessCanvas`、`NodeSubscription` 关键字的既有测试脚本；每个脚本退出码必须为 `0`。若仓库没有对应脚本，在任务记录中明确写“未发现对应既有脚本”，不得伪造通过记录。
 
-- [ ] **Step 3: 检查源码规范和项目登记**
+- [x] **Step 3: 检查源码规范和项目登记**
 
 ```powershell
 git diff --check
@@ -812,24 +812,24 @@ rg -n "T[O]DO|T[B]D|待定" Node/3-Detection/MatchTemplate Node/4-Measurement Te
 
 Expected: `git diff --check` 无输出；新增改动无占位词；全部新增 `.cs` 文件在 `TDJS-Vision.csproj` 中存在唯一登记。
 
-- [ ] **Step 4: 完整编译解决方案**
+- [x] **Step 4: 完整编译解决方案**
 
 Run: `& "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe" "D:\MyCode\PublicWook\TDJS-Vision\TDJS-Vision.sln" /t:Build /p:Configuration=Debug /p:Platform=x64 /p:RestorePackages=false /m`
 
 Expected: Build succeeded，0 个错误；既有警告数量记录到任务文件。
 
-- [ ] **Step 5: 完成任务记录**
+- [x] **Step 5: 完成任务记录**
 
 把 `FLOW_CANVAS_B_PLAN_TASKS.md` 中“多目标位置修正与测量”的实现、专项测试和编译项改为 `[x]`，记录实际测试名称、成功数量、编译警告数和 0 错误结果。
 
-- [ ] **Step 6: 提交最终验证节点**
+- [x] **Step 6: 提交最终验证节点**
 
 ```powershell
 git add FLOW_CANVAS_B_PLAN_TASKS.md docs/superpowers/plans/2026-07-20-multi-target-position-correction-measurement.md
 git commit -m "test: 完成多目标测量回归验证"
 ```
 
-- [ ] **Step 7: 确认最终状态**
+- [x] **Step 7: 确认最终状态**
 
 ```powershell
 git status --short
