@@ -2069,6 +2069,6 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 已确认卡尺找线、卡尺找圆、卡尺找椭圆、找点、线线角度、点点距离、点线距离和点区域距离统一支持多目标运行结果。
 - [x] 已确认单目标测量失败时保留同序号结果项、数值写 `0`，节点总体状态为 NG，其他目标继续测量。
 - [x] 已完成设计文档：`docs/superpowers/specs/2026-07-20-multi-target-position-correction-measurement-design.md`。
-- [ ] 编写详细测试驱动实施计划。
+- [x] 已完成详细测试驱动实施计划：`docs/superpowers/plans/2026-07-20-multi-target-position-correction-measurement.md`。
 - [ ] 按计划完成多目标数据模型、位置修正、八类测量工具和界面改造。
 - [ ] 完成专项测试、相关回归测试和 `Debug|x64` 编译验证。
