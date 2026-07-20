@@ -2059,3 +2059,16 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
   - [x] `LogUiThrottledRefresh.Tests.ps1` 覆盖容量、顺序、分批、清空、10000 条并发写入、无逐条 UI 投递、设计器定时器和释放解绑约束。
   - [x] `LogLevelSettings.Tests.ps1`、`DiagnosticLogLevel.Tests.ps1`、`DiagnosticLazyEvaluation.Tests.ps1`、`SolutionResourceRelease.Tests.ps1` 均通过。
   - [x] `git diff --check` 通过；MSBuild `Debug|x64` 编译通过，180 个既有警告、0 个错误。
+
+## 2026-07-20: 多目标位置修正与测量
+
+- [x] 改造前工作区无未提交修改，已创建 Git 回退快照 `c92bd79`。
+- [x] 已确认模板匹配输出全部目标位姿，当前模型的 `ScaleX`、`ScaleY` 固定为 `1.0`。
+- [x] 已确认位置修正默认以第一个目标创建基准，并输出全部目标的变换集合。
+- [x] 已确认测量界面只保留一个可拖动 ROI，保存或运行时自动识别 ROI 所属目标并逆变换到统一基准坐标系。
+- [x] 已确认卡尺找线、卡尺找圆、卡尺找椭圆、找点、线线角度、点点距离、点线距离和点区域距离统一支持多目标运行结果。
+- [x] 已确认单目标测量失败时保留同序号结果项、数值写 `0`，节点总体状态为 NG，其他目标继续测量。
+- [x] 已完成设计文档：`docs/superpowers/specs/2026-07-20-multi-target-position-correction-measurement-design.md`。
+- [ ] 编写详细测试驱动实施计划。
+- [ ] 按计划完成多目标数据模型、位置修正、八类测量工具和界面改造。
+- [ ] 完成专项测试、相关回归测试和 `Debug|x64` 编译验证。
