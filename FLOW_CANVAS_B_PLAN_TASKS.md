@@ -2078,3 +2078,4 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
   - [x] 增加模板位姿列表、位置修正集合及单订阅界面的失败约束测试
   - [x] 模板匹配输出全部目标位姿，缩放固定输出 1.0
   - [x] 位置修正默认第一目标为基准，并输出全部目标修正集合
+  - [x] 补齐可供全部测量工具复用的公共位置修正结果契约

@@ -157,6 +157,19 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
             return new NodeResultPositionCorrection
             {
                 Items = resultItems,
+                BasePose = new TemplateMatchPose
+                {
+                    TargetIndex = 1,
+                    CenterX = first.BaseX,
+                    CenterY = first.BaseY,
+                    Angle = first.BaseAngle,
+                    ScaleX = first.BaseScaleX,
+                    ScaleY = first.BaseScaleY,
+                    Width = first.TargetWidth,
+                    Height = first.TargetHeight,
+                    IsValid = true
+                },
+                IsValid = true,
                 CorrectionInfo = first,
                 TargetCount = resultItems.Count,
                 IsOk = true,

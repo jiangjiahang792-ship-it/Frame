@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.ComponentModel;
 using TDJS_Vision.Node._4_Measurement.Common;
 
@@ -7,18 +6,12 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
     /// <summary>
     /// 表示位置修正节点输出的全部目标修正信息和汇总状态。
     /// </summary>
-    public class NodeResultPositionCorrection : INodeResult, IJudgmentResult
+    public class NodeResultPositionCorrection : MultiTargetPositionCorrectionResult, INodeResult, IJudgmentResult
     {
         /// <summary>
         /// 获取或设置节点运行耗时，单位为毫秒。
         /// </summary>
         public int RunTime { get; set; }
-
-        /// <summary>
-        /// 获取或设置全部模板目标的位置修正信息，列表顺序与模板匹配位姿列表一致。
-        /// </summary>
-        [DisplayName("位置修正信息列表")]
-        public List<PositionCorrectionInfo> Items { get; set; } = new List<PositionCorrectionInfo>();
 
         /// <summary>
         /// 获取或设置第一目标的位置修正信息，用于兼容尚未迁移的单目标工具。
