@@ -63,5 +63,26 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// 获取或设置当前位姿是否有效。
         /// </summary>
         public bool IsValid { get; set; }
+
+        /// <summary>
+        /// 创建当前位姿的独立副本，避免基准数据被后续运行结果修改。
+        /// </summary>
+        /// <returns>包含相同位姿数据的新对象。</returns>
+        public TemplateMatchPose Clone()
+        {
+            return new TemplateMatchPose
+            {
+                TargetIndex = TargetIndex,
+                CenterX = CenterX,
+                CenterY = CenterY,
+                Angle = Angle,
+                ScaleX = ScaleX,
+                ScaleY = ScaleY,
+                Score = Score,
+                Width = Width,
+                Height = Height,
+                IsValid = IsValid
+            };
+        }
     }
 }

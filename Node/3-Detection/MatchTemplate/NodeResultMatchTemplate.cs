@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Collections.Generic;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
@@ -19,6 +20,12 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
         [DisplayName("匹配数量")]
         public int MatchCount { get; set; }
+
+        /// <summary>
+        /// 获取或设置本次模板匹配得到的全部目标位姿。
+        /// </summary>
+        [DisplayName("匹配位姿列表")]
+        public List<TemplateMatchPose> Poses { get; set; } = new List<TemplateMatchPose>();
 
         [DisplayName("匹配点X")]
         public double? MatchX { get; set; }

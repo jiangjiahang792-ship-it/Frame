@@ -111,6 +111,19 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             nodeResult.Result.IsAllOk = matchResult.IsOk;
             nodeResult.IsOk = matchResult.IsOk;
             nodeResult.MatchCount = matchResult.Matches.Count;
+            nodeResult.Poses = matchResult.Matches.Select((match, index) => new TemplateMatchPose
+            {
+                TargetIndex = index + 1,
+                CenterX = match.Box.CenterX,
+                CenterY = match.Box.CenterY,
+                Angle = match.Box.Angle,
+                ScaleX = 1.0,
+                ScaleY = 1.0,
+                Score = match.Score * 100.0,
+                Width = match.Box.Width,
+                Height = match.Box.Height,
+                IsValid = true
+            }).ToList();
             if (matchResult.Matches.Count > 0)
             {
                 var firstMatch = matchResult.Matches[0];

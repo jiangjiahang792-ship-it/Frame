@@ -2074,3 +2074,7 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
   - [x] 已新增模板目标位姿契约和可替换的多目标变换服务，覆盖尺度保护、正逆变换、旋转框命中及框外最近目标选择。
   - [x] `MultiTargetTransform.Tests.ps1` 已按测试驱动方式先失败后通过。
 - [ ] 完成专项测试、相关回归测试和 `Debug|x64` 编译验证。
+- [x] 2026-07-20 多目标位置修正节点改造
+  - [x] 增加模板位姿列表、位置修正集合及单订阅界面的失败约束测试
+  - [x] 模板匹配输出全部目标位姿，缩放固定输出 1.0
+  - [x] 位置修正默认第一目标为基准，并输出全部目标修正集合

@@ -1,9 +1,15 @@
-﻿namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
+namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
 {
     partial class NodeParamFormPositionCorrection
     {
+        /// <summary>
+        /// 设计器组件容器。
+        /// </summary>
         private System.ComponentModel.IContainer components = null;
 
+        /// <summary>
+        /// 释放设计器创建的资源。
+        /// </summary>
         protected override void Dispose(bool disposing)
         {
             if (disposing && (components != null))
@@ -13,15 +19,14 @@
             base.Dispose(disposing);
         }
 
+        /// <summary>
+        /// 初始化位置修正窗口控件，所有可视控件均由设计器文件维护。
+        /// </summary>
         private void InitializeComponent()
         {
             this.groupBoxInput = new System.Windows.Forms.GroupBox();
-            this.labelAngle = new System.Windows.Forms.Label();
-            this.nodeSubscriptionAngle = new TDJS_Vision.Node.NodeSubscription();
-            this.labelY = new System.Windows.Forms.Label();
-            this.nodeSubscriptionY = new TDJS_Vision.Node.NodeSubscription();
-            this.labelX = new System.Windows.Forms.Label();
-            this.nodeSubscriptionX = new TDJS_Vision.Node.NodeSubscription();
+            this.labelPoses = new System.Windows.Forms.Label();
+            this.nodeSubscriptionPoses = new TDJS_Vision.Node.NodeSubscription();
             this.buttonCreateBaseline = new System.Windows.Forms.Button();
             this.labelBaselineStatus = new System.Windows.Forms.Label();
             this.groupBoxResult = new System.Windows.Forms.GroupBox();
@@ -34,78 +39,41 @@
             //
             // groupBoxInput
             //
-            this.groupBoxInput.Controls.Add(this.labelAngle);
-            this.groupBoxInput.Controls.Add(this.nodeSubscriptionAngle);
-            this.groupBoxInput.Controls.Add(this.labelY);
-            this.groupBoxInput.Controls.Add(this.nodeSubscriptionY);
-            this.groupBoxInput.Controls.Add(this.labelX);
-            this.groupBoxInput.Controls.Add(this.nodeSubscriptionX);
+            this.groupBoxInput.Controls.Add(this.labelPoses);
+            this.groupBoxInput.Controls.Add(this.nodeSubscriptionPoses);
             this.groupBoxInput.Controls.Add(this.buttonCreateBaseline);
             this.groupBoxInput.Controls.Add(this.labelBaselineStatus);
             this.groupBoxInput.Location = new System.Drawing.Point(18, 44);
             this.groupBoxInput.Name = "groupBoxInput";
-            this.groupBoxInput.Size = new System.Drawing.Size(548, 222);
+            this.groupBoxInput.Size = new System.Drawing.Size(548, 176);
             this.groupBoxInput.TabIndex = 0;
             this.groupBoxInput.TabStop = false;
-            this.groupBoxInput.Text = "位置补正";
+            this.groupBoxInput.Text = "位置修正";
             //
-            // labelAngle
+            // labelPoses
             //
-            this.labelAngle.AutoSize = true;
-            this.labelAngle.Location = new System.Drawing.Point(18, 118);
-            this.labelAngle.Name = "labelAngle";
-            this.labelAngle.Size = new System.Drawing.Size(37, 15);
-            this.labelAngle.TabIndex = 4;
-            this.labelAngle.Text = "角度";
+            this.labelPoses.AutoSize = true;
+            this.labelPoses.Location = new System.Drawing.Point(18, 39);
+            this.labelPoses.Name = "labelPoses";
+            this.labelPoses.Size = new System.Drawing.Size(67, 15);
+            this.labelPoses.TabIndex = 0;
+            this.labelPoses.Text = "目标位姿";
             //
-            // nodeSubscriptionAngle
+            // nodeSubscriptionPoses
             //
-            this.nodeSubscriptionAngle.Location = new System.Drawing.Point(86, 108);
-            this.nodeSubscriptionAngle.Margin = new System.Windows.Forms.Padding(4);
-            this.nodeSubscriptionAngle.Name = "nodeSubscriptionAngle";
-            this.nodeSubscriptionAngle.Size = new System.Drawing.Size(438, 32);
-            this.nodeSubscriptionAngle.TabIndex = 5;
-            //
-            // labelY
-            //
-            this.labelY.AutoSize = true;
-            this.labelY.Location = new System.Drawing.Point(18, 76);
-            this.labelY.Name = "labelY";
-            this.labelY.Size = new System.Drawing.Size(52, 15);
-            this.labelY.TabIndex = 2;
-            this.labelY.Text = "Y位置";
-            //
-            // nodeSubscriptionY
-            //
-            this.nodeSubscriptionY.Location = new System.Drawing.Point(86, 66);
-            this.nodeSubscriptionY.Margin = new System.Windows.Forms.Padding(4);
-            this.nodeSubscriptionY.Name = "nodeSubscriptionY";
-            this.nodeSubscriptionY.Size = new System.Drawing.Size(438, 32);
-            this.nodeSubscriptionY.TabIndex = 3;
-            //
-            // labelX
-            //
-            this.labelX.AutoSize = true;
-            this.labelX.Location = new System.Drawing.Point(18, 34);
-            this.labelX.Name = "labelX";
-            this.labelX.Size = new System.Drawing.Size(52, 15);
-            this.labelX.TabIndex = 0;
-            this.labelX.Text = "X位置";
-            //
-            // nodeSubscriptionX
-            //
-            this.nodeSubscriptionX.Location = new System.Drawing.Point(86, 24);
-            this.nodeSubscriptionX.Margin = new System.Windows.Forms.Padding(4);
-            this.nodeSubscriptionX.Name = "nodeSubscriptionX";
-            this.nodeSubscriptionX.Size = new System.Drawing.Size(438, 32);
-            this.nodeSubscriptionX.TabIndex = 1;
+            this.nodeSubscriptionPoses.Location = new System.Drawing.Point(91, 24);
+            this.nodeSubscriptionPoses.Margin = new System.Windows.Forms.Padding(4);
+            this.nodeSubscriptionPoses.MinimumSize = new System.Drawing.Size(160, 49);
+            this.nodeSubscriptionPoses.Name = "nodeSubscriptionPoses";
+            this.nodeSubscriptionPoses.Size = new System.Drawing.Size(433, 49);
+            this.nodeSubscriptionPoses.TabIndex = 1;
             //
             // buttonCreateBaseline
             //
-            this.buttonCreateBaseline.Location = new System.Drawing.Point(21, 161);
+            this.buttonCreateBaseline.Location = new System.Drawing.Point(21, 91);
             this.buttonCreateBaseline.Name = "buttonCreateBaseline";
             this.buttonCreateBaseline.Size = new System.Drawing.Size(100, 32);
-            this.buttonCreateBaseline.TabIndex = 6;
+            this.buttonCreateBaseline.TabIndex = 2;
             this.buttonCreateBaseline.Text = "创建基准";
             this.buttonCreateBaseline.UseVisualStyleBackColor = true;
             this.buttonCreateBaseline.Click += new System.EventHandler(this.buttonCreateBaseline_Click);
@@ -113,18 +81,19 @@
             // labelBaselineStatus
             //
             this.labelBaselineStatus.AutoSize = true;
-            this.labelBaselineStatus.Location = new System.Drawing.Point(140, 169);
+            this.labelBaselineStatus.Location = new System.Drawing.Point(140, 99);
+            this.labelBaselineStatus.MaximumSize = new System.Drawing.Size(390, 0);
             this.labelBaselineStatus.Name = "labelBaselineStatus";
-            this.labelBaselineStatus.Size = new System.Drawing.Size(97, 15);
-            this.labelBaselineStatus.TabIndex = 7;
-            this.labelBaselineStatus.Text = "基准：未创建";
+            this.labelBaselineStatus.Size = new System.Drawing.Size(307, 15);
+            this.labelBaselineStatus.TabIndex = 3;
+            this.labelBaselineStatus.Text = "基准：未创建（默认取位姿列表第1目标）";
             //
             // groupBoxResult
             //
             this.groupBoxResult.Controls.Add(this.labelRuntimeStatus);
-            this.groupBoxResult.Location = new System.Drawing.Point(18, 282);
+            this.groupBoxResult.Location = new System.Drawing.Point(18, 236);
             this.groupBoxResult.Name = "groupBoxResult";
-            this.groupBoxResult.Size = new System.Drawing.Size(548, 120);
+            this.groupBoxResult.Size = new System.Drawing.Size(548, 104);
             this.groupBoxResult.TabIndex = 1;
             this.groupBoxResult.TabStop = false;
             this.groupBoxResult.Text = "结果显示";
@@ -141,7 +110,7 @@
             //
             // buttonRun
             //
-            this.buttonRun.Location = new System.Drawing.Point(354, 424);
+            this.buttonRun.Location = new System.Drawing.Point(354, 360);
             this.buttonRun.Name = "buttonRun";
             this.buttonRun.Size = new System.Drawing.Size(96, 34);
             this.buttonRun.TabIndex = 2;
@@ -151,7 +120,7 @@
             //
             // buttonSave
             //
-            this.buttonSave.Location = new System.Drawing.Point(470, 424);
+            this.buttonSave.Location = new System.Drawing.Point(470, 360);
             this.buttonSave.Name = "buttonSave";
             this.buttonSave.Size = new System.Drawing.Size(96, 34);
             this.buttonSave.TabIndex = 3;
@@ -163,7 +132,7 @@
             //
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(584, 478);
+            this.ClientSize = new System.Drawing.Size(584, 414);
             this.Controls.Add(this.buttonSave);
             this.Controls.Add(this.buttonRun);
             this.Controls.Add(this.groupBoxResult);
@@ -177,19 +146,31 @@
             this.ResumeLayout(false);
         }
 
+        /// <summary>位置修正输入区域。</summary>
         private System.Windows.Forms.GroupBox groupBoxInput;
-        private System.Windows.Forms.Label labelAngle;
-        private TDJS_Vision.Node.NodeSubscription nodeSubscriptionAngle;
-        private System.Windows.Forms.Label labelY;
-        private TDJS_Vision.Node.NodeSubscription nodeSubscriptionY;
-        private System.Windows.Forms.Label labelX;
-        private TDJS_Vision.Node.NodeSubscription nodeSubscriptionX;
+
+        /// <summary>模板目标位姿列表标签。</summary>
+        private System.Windows.Forms.Label labelPoses;
+
+        /// <summary>模板目标位姿列表订阅控件。</summary>
+        private TDJS_Vision.Node.NodeSubscription nodeSubscriptionPoses;
+
+        /// <summary>创建第一目标基准按钮。</summary>
         private System.Windows.Forms.Button buttonCreateBaseline;
+
+        /// <summary>第一目标基准状态标签。</summary>
         private System.Windows.Forms.Label labelBaselineStatus;
+
+        /// <summary>运行结果显示区域。</summary>
         private System.Windows.Forms.GroupBox groupBoxResult;
+
+        /// <summary>运行结果摘要标签。</summary>
         private System.Windows.Forms.Label labelRuntimeStatus;
+
+        /// <summary>预览执行按钮。</summary>
         private System.Windows.Forms.Button buttonRun;
+
+        /// <summary>保存参数按钮。</summary>
         private System.Windows.Forms.Button buttonSave;
     }
 }
-
