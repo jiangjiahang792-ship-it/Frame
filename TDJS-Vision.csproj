@@ -241,6 +241,7 @@
     <Compile Include="Startup\IStartupProgressReporter.cs" />
     <Compile Include="Startup\ISolutionLoadingCoordinator.cs" />
     <Compile Include="Startup\SolutionLoadingCoordinator.cs" />
+    <Compile Include="Startup\SolutionAiRuntimePreloader.cs" />
     <Compile Include="Startup\StartupApplicationContext.cs" />
     <Compile Include="Startup\StartupFailureAction.cs" />
     <Compile Include="Startup\StartupProgressContext.cs" />
@@ -829,6 +830,17 @@
     <Compile Include="Forms\CameraAdd\Camera3DParamsShowControl.Designer.cs">
       <DependentUpon>Camera3DParamsShowControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Forms\CameraAdd\CameraLiveDebugControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Forms\CameraAdd\CameraLiveDebugControl.Designer.cs">
+      <DependentUpon>CameraLiveDebugControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\CameraAdd\Quality\BitmapGrayConverter.cs" />
+    <Compile Include="Forms\CameraAdd\Quality\CameraImageQualityResult.cs" />
+    <Compile Include="Forms\CameraAdd\Quality\CameraImageQualityThresholds.cs" />
+    <Compile Include="Forms\CameraAdd\Quality\ImageQualityAnalyzer.cs" />
+    <Compile Include="Forms\CameraAdd\Quality\MovingAverageFilter.cs" />
     <Compile Include="Forms\CameraAdd\FrmCameraInfo.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -1467,6 +1479,7 @@
     <Compile Include="Node\NodeBase.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="Node\INodeRuntimePreloader.cs" />
     <Compile Include="Node\NodeBase.Designer.cs">
       <DependentUpon>NodeBase.cs</DependentUpon>
     </Compile>
@@ -1925,9 +1938,6 @@
     </Compile>
     <None Include="Resources\注液孔检测算子示例.png" />
     <None Include="Icon\Logo\瞳达精视.jpg" />
-    <None Include="空方案.Sol">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
@@ -1954,7 +1964,6 @@
     <Folder Include="Icon\NodeIcon\" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="APP.ico" />
     <Content Include="dll\Basler.Pylon.dll" />
     <Content Include="dll\FastColoredTextBox.dll" />
     <Content Include="dll\HslCommunication.dll" />

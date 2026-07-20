@@ -5,6 +5,8 @@ $csprojPath = Join-Path $root "TDJS-Vision.csproj"
 $formMainPath = Join-Path $root "FormMain.cs"
 $formMainDesignerPath = Join-Path $root "FormMain.Designer.cs"
 $toolTreePath = Join-Path $root "ToolTreeView.xml"
+$zhLanguagePath = Join-Path $root "Languages\zh-CN.json"
+$enLanguagePath = Join-Path $root "Languages\en-US.json"
 $nodeTypePath = Join-Path $root "Node\INode.cs"
 $nodeFactoryPath = Join-Path $root "Node\NodeFactory.cs"
 $nodeBasePath = Join-Path $root "Node\NodeBase.cs"
@@ -80,11 +82,15 @@ Assert-FileExists $resultPath "Missing large-model node result."
 Assert-FileExists $paramFormPath "Missing large-model node param form."
 Assert-FileExists $paramDesignerPath "Missing large-model node param designer."
 Assert-FileExists $runtimePath "Missing large-model node runtime."
+Assert-FileExists $zhLanguagePath "Missing Simplified Chinese language file."
+Assert-FileExists $enLanguagePath "Missing English language file."
 
 $csproj = Get-Content -LiteralPath $csprojPath -Encoding UTF8 -Raw
 $formMain = Get-Content -LiteralPath $formMainPath -Encoding UTF8 -Raw
 $formMainDesigner = Get-Content -LiteralPath $formMainDesignerPath -Encoding UTF8 -Raw
 $toolTree = Get-Content -LiteralPath $toolTreePath -Encoding UTF8 -Raw
+$zhLanguage = Get-Content -LiteralPath $zhLanguagePath -Encoding UTF8 -Raw
+$enLanguage = Get-Content -LiteralPath $enLanguagePath -Encoding UTF8 -Raw
 $nodeType = Get-Content -LiteralPath $nodeTypePath -Encoding UTF8 -Raw
 $nodeFactory = Get-Content -LiteralPath $nodeFactoryPath -Encoding UTF8 -Raw
 $nodeBase = Get-Content -LiteralPath $nodeBasePath -Encoding UTF8 -Raw
@@ -110,6 +116,8 @@ Assert-Contains $formMain 'private LargeModelTrainForm largeModelTrainForm;' "Fo
 Assert-Contains $formMain 'private void LargeModelTrainToolStripMenuItem_Click(object sender, EventArgs e)' "FormMain missing large-model train menu handler."
 Assert-Contains $formMain 'using (var form = new LargeModelTrainForm())' "Large-model training form must be created per open."
 Assert-Contains $formMain 'exclusiveWorkspacePresenter.ShowDialog(this, form);' "大模型训练窗口必须使用独占工作区显示接口。"
+Assert-Contains $zhLanguage '"ProcessNew.NodeType.LargeModelDetection": "大模型调用"' "大模型节点必须包含简体中文名称。"
+Assert-Contains $enLanguage '"ProcessNew.NodeType.LargeModelDetection": "Large Model Detection"' "大模型节点必须包含英文名称。"
 
 Assert-Contains $bootstrapper 'Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "LargeModelDll")' "Large-model runtime must be isolated under LargeModelDll."
 Assert-Contains $bootstrapper '"Dinov2AD.dll"' "Runtime check must include Dinov2AD.dll."

@@ -149,6 +149,8 @@ namespace TDJS_Vision
                 // 3.PLC管理窗口订阅相机完成事件进行PLC还原 完成后触发PLC完成事件，Modbus-》TCP也是如此
                 // 4.流程管理窗口订阅PLC完成事件进行流程还原，因为流程还原需要用到设备，这样保证了在还原流程时设备可用
                 DeserializationCompletionEvent?.Invoke(null, flag);
+                // 所有流程节点和参数恢复完成后顺序预加载 AI 运行时，覆盖软件启动和手动打开方案入口。
+                SolutionAiRuntimePreloader.PreloadEnabledNodes();
                 Solution.Instance.NodeCount = SolConfig.NodeCount;
 
             }

@@ -120,6 +120,19 @@ namespace TDJS_Vision.Device.Camera
         Bitmap GetOneFrameImage();
 
         TriggerSource GetTriggerSource();
+
+        /// <summary>
+        /// 获取触发源 SDK 可选枚举。
+        /// </summary>
+        /// <returns>触发源 SDK 枚举值。</returns>
+        IEnumValue GetTriggerSourceOptions();
+
+        /// <summary>
+        /// 获取触发极性 SDK 可选枚举。
+        /// </summary>
+        /// <returns>触发极性 SDK 枚举值。</returns>
+        IEnumValue GetTriggerActivationOptions();
+
         /// <summary>
         /// 设置硬件触发时的触发沿
         /// </summary>

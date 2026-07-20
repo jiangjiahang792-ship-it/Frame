@@ -215,7 +215,7 @@ namespace TDJS_Vision.Node
                 case NodeType.CameraIOManual:
                     return new NodeCameraIOManual(nodeId, nodeName, process, nodeType);
                 case NodeType.ReadFlag:
-                    return new NodeFlagRead(nodeId, nodeName, process, nodeType);
+                    return new NodeFlagRead(nodeId, nodeName, process, nodeType); 
                 default:
                     throw new NotSupportedException("未支持的节点类型：" + nodeType);
             }

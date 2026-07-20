@@ -579,7 +579,7 @@
             this.comboBoxModelType.Items.AddRange(new object[] {
             "fp16",
             "fp32"});
-            this.comboBoxModelType.Location = new System.Drawing.Point(123, 3);
+            this.comboBoxModelType.Location = new System.Drawing.Point(123, 8);
             this.comboBoxModelType.Name = "comboBoxModelType";
             this.comboBoxModelType.Size = new System.Drawing.Size(278, 39);
             this.comboBoxModelType.TabIndex = 1;
@@ -735,7 +735,7 @@
             this.comboBoxDevice.Items.AddRange(new object[] {
             "GPU",
             "CPU"});
-            this.comboBoxDevice.Location = new System.Drawing.Point(123, 213);
+            this.comboBoxDevice.Location = new System.Drawing.Point(123, 218);
             this.comboBoxDevice.Name = "comboBoxDevice";
             this.comboBoxDevice.Size = new System.Drawing.Size(278, 39);
             this.comboBoxDevice.TabIndex = 11;

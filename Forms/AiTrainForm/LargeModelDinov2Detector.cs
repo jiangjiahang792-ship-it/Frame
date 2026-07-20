@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -373,26 +374,73 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <returns>大模型推理结果。</returns>
         public LargeModelDinov2Result InferBgr(Mat image, float imageThreshold, int areaThreshold, int maxBoxes)
         {
+            long inputPreparationMilliseconds;
+            long nativeInferenceMilliseconds;
+            return InferBgr(
+                image,
+                imageThreshold,
+                areaThreshold,
+                maxBoxes,
+                out inputPreparationMilliseconds,
+                out nativeInferenceMilliseconds);
+        }
+
+        /// <summary>
+        /// 对 BGR 图像执行大模型异常推理，并返回托管图像准备与 native 调用耗时。
+        /// </summary>
+        /// <param name="image">BGR、灰度或 BGRA OpenCV 图像。</param>
+        /// <param name="imageThreshold">图像级异常阈值。</param>
+        /// <param name="areaThreshold">异常框最小面积阈值。</param>
+        /// <param name="maxBoxes">最多返回的异常框数量。</param>
+        /// <param name="inputPreparationMilliseconds">BGR 转换或复制耗时。</param>
+        /// <param name="nativeInferenceMilliseconds">native Infer 调用耗时。</param>
+        /// <returns>大模型推理结果。</returns>
+        public LargeModelDinov2Result InferBgr(
+            Mat image,
+            float imageThreshold,
+            int areaThreshold,
+            int maxBoxes,
+            out long inputPreparationMilliseconds,
+            out long nativeInferenceMilliseconds)
+        {
             if (image == null || image.Empty())
                 throw new ArgumentException("大模型推理输入图像不能为空。", nameof(image));
 
+            inputPreparationMilliseconds = 0L;
+            nativeInferenceMilliseconds = 0L;
             IntPtr activeHandle = GetActiveHandle(CancellationToken.None);
             int boxCapacity = Math.Max(1, maxBoxes);
             LargeModelRectBBox[] boxes = new LargeModelRectBBox[boxCapacity];
-            using (Mat input = EnsureBgr(image))
+            Stopwatch inputTimer = Stopwatch.StartNew();
+            Mat input = EnsureBgr(image);
+            inputTimer.Stop();
+            inputPreparationMilliseconds = inputTimer.ElapsedMilliseconds;
+            using (input)
             {
                 LargeModelOpenCvImage nativeImage = new LargeModelOpenCvImage { Mat = input.CvPtr };
-                int status = _nativeApi.Infer(
-                    activeHandle,
-                    ref nativeImage,
-                    imageThreshold,
-                    Math.Max(0, areaThreshold),
-                    string.Empty,
-                    IntPtr.Zero,
-                    out float score,
-                    boxes,
-                    boxCapacity,
-                    out int count);
+                float score;
+                int count;
+                Stopwatch nativeTimer = Stopwatch.StartNew();
+                int status;
+                try
+                {
+                    status = _nativeApi.Infer(
+                        activeHandle,
+                        ref nativeImage,
+                        imageThreshold,
+                        Math.Max(0, areaThreshold),
+                        string.Empty,
+                        IntPtr.Zero,
+                        out score,
+                        boxes,
+                        boxCapacity,
+                        out count);
+                }
+                finally
+                {
+                    nativeTimer.Stop();
+                    nativeInferenceMilliseconds = nativeTimer.ElapsedMilliseconds;
+                }
 
                 return new LargeModelDinov2Result(status, score, ToRectangles(boxes, count, boxCapacity));
             }

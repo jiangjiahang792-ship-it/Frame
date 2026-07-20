@@ -644,8 +644,11 @@ namespace TDJS_Vision.Device.Camera
         public TriggerSource GetTriggerSource()
         {
             if (device == null) throw new Exception("相机对象为空！");
-            if (!(GetTriggerMode() == TriggerModel.Off))
+            if (GetTriggerMode() == TriggerModel.Off)
+            {
+                TriggerSource = TriggerSource.Auto;
                 return TriggerSource.Auto;
+            }
 
             IEnumValue triggerSourceEnum;
             device.Parameters.GetEnumValue("TriggerSource", out triggerSourceEnum);
@@ -671,6 +674,36 @@ namespace TDJS_Vision.Device.Camera
                     TriggerSource = TriggerSource.Auto;
                     return TriggerSource;
             }
+        }
+
+        /// <summary>
+        /// 获取触发源 SDK 可选枚举，用于界面按 SupportEnumEntries 动态显示相机真实支持项。
+        /// </summary>
+        /// <returns>触发源 SDK 枚举值。</returns>
+        public IEnumValue GetTriggerSourceOptions()
+        {
+            if (device == null) throw new Exception("相机对象为空！");
+            IEnumValue enumValue;
+            int Rnet = device.Parameters.GetEnumValue("TriggerSource", out enumValue);
+            if (Rnet != MvError.MV_OK)
+                LogHelper.AddLog(MsgLevel.Exception, $"获取触发源失败！错误码：{Rnet}", true);
+            _ = enumValue?.SupportEnumEntries;
+            return enumValue;
+        }
+
+        /// <summary>
+        /// 获取触发极性 SDK 可选枚举，用于界面隐藏不支持的触发极性。
+        /// </summary>
+        /// <returns>触发极性 SDK 枚举值。</returns>
+        public IEnumValue GetTriggerActivationOptions()
+        {
+            if (device == null) throw new Exception("相机对象为空！");
+            IEnumValue enumValue;
+            int Rnet = device.Parameters.GetEnumValue("TriggerActivation", out enumValue);
+            if (Rnet != MvError.MV_OK)
+                LogHelper.AddLog(MsgLevel.Exception, $"获取触发极性失败！错误码：{Rnet}", true);
+            _ = enumValue?.SupportEnumEntries;
+            return enumValue;
         }
 
         /// <summary>
@@ -707,6 +740,9 @@ namespace TDJS_Vision.Device.Camera
                     case TriggerSource.LINE3:
                         device.Parameters.SetEnumValue("TriggerSource", 3);
                         break;
+                    case TriggerSource.LINE4:
+                        device.Parameters.SetEnumValue("TriggerSource", 4);
+                        break;
                     default:
                         break;
                 }
@@ -729,6 +765,9 @@ namespace TDJS_Vision.Device.Camera
                         break;
                     case TriggerSource.LINE3:
                         device.Parameters.SetEnumValue("TriggerSource", 3);
+                        break;
+                    case TriggerSource.LINE4:
+                        device.Parameters.SetEnumValue("TriggerSource", 4);
                         break;
                     default:
                         break;
@@ -755,6 +794,9 @@ namespace TDJS_Vision.Device.Camera
                         break;
                     case TriggerSource.LINE3:
                         device.Parameters.SetEnumValue("TriggerSource", 3);
+                        break;
+                    case TriggerSource.LINE4:
+                        device.Parameters.SetEnumValue("TriggerSource", 4);
                         break;
                     default:
                         break;
@@ -893,6 +935,12 @@ namespace TDJS_Vision.Device.Camera
                case "Line2":
                     Rnet = device.Parameters.SetEnumValue("LineSelector", 2);
                     break;
+                case "Line3":
+                    Rnet = device.Parameters.SetEnumValue("LineSelector", 3);
+                    break;
+                case "Line4":
+                    Rnet = device.Parameters.SetEnumValue("LineSelector", 4);
+                    break;
                 default:
                     break;
             }
@@ -911,7 +959,7 @@ namespace TDJS_Vision.Device.Camera
             if (device == null) throw new Exception("相机对象为空！");
             int Rnet = 0;
             IEnumValue enumValue;
-            device.Parameters.GetEnumValue("LineMode", out enumValue);
+            Rnet = device.Parameters.GetEnumValue("LineMode", out enumValue);
             if (Rnet != MvError.MV_OK)
             {
                 LogHelper.AddLog(MsgLevel.Exception, $"获取线路模式失败！错误码：{Rnet}", true);
@@ -930,9 +978,11 @@ namespace TDJS_Vision.Device.Camera
             switch (lineMode)
             { 
                 case "输入":
+                case "Input":
                     Rnet = device.Parameters.SetEnumValue("LineMode", 0);
                     break;
                 case "输出":
+                case "Output":
                     if (Brand==DeviceBrand.HuarayTechnology)
                     {
                         Rnet = device.Parameters.SetEnumValue("LineMode", 1);

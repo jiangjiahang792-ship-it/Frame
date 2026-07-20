@@ -106,6 +106,14 @@ namespace TDJS_Vision.Forms.CameraAdd
         }
 
         /// <summary>
+        /// 从相机管理窗口恢复最近选择时标记当前相机为选中。
+        /// </summary>
+        public void SelectInList()
+        {
+            SetSelected();
+        }
+
+        /// <summary>
         /// 设置控件选中状态
         /// </summary>
         /// <param name="flag"></param>
@@ -116,7 +124,7 @@ namespace TDJS_Vision.Forms.CameraAdd
             {
                 item.tableLayoutPanel1.BackColor = Color.LightSteelBlue;
                 item.label1.BackColor = Color.LightSteelBlue;
-                IsSelected = false;
+                item.IsSelected = false;
             }
             
             // 设置当前选中的样式

@@ -172,6 +172,14 @@ namespace TDJS_Vision.Forms.CameraAdd
         }
 
         /// <summary>
+        /// 从相机管理窗口恢复最近选择时标记当前 3D 相机为选中。
+        /// </summary>
+        public void SelectInList()
+        {
+            SetSelected();
+        }
+
+        /// <summary>
         /// 设置当前控件为选中状态，并清除其它 3D 相机控件选中状态。
         /// </summary>
         private void SetSelected()

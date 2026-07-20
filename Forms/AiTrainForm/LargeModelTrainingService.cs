@@ -383,7 +383,12 @@ namespace TDJS_Vision.Forms.AiTrainForm
                         sizeText,
                         log,
                         generationToken)),
-                new NativeModelArtifactValidator(_detectorFactory, root, 2, "DINOv2 ONNX"),
+                new CallbackArtifactValidator(
+                    temporaryPath => ValidateOnnxArtifactInSubprocess(
+                        root,
+                        temporaryPath,
+                        log,
+                        token)),
                 log,
                 token);
             log?.Report("本次训练 ONNX 已更新：" + publishedPath);
@@ -442,7 +447,13 @@ namespace TDJS_Vision.Forms.AiTrainForm
                         normalizedPrecision,
                         log,
                         generationToken)),
-                new NativeModelArtifactValidator(_detectorFactory, root, 1, "TensorRT Engine"),
+                new CallbackArtifactValidator(
+                    temporaryPath => ValidateTensorRtEngineInSubprocess(
+                        root,
+                        trtexecPath,
+                        temporaryPath,
+                        log,
+                        token)),
                 log,
                 token);
             log?.Report("TensorRT Engine 重新生成完成：" + publishedPath);
@@ -530,6 +541,37 @@ namespace TDJS_Vision.Forms.AiTrainForm
             }
 
             log?.Report("DINOv2 ONNX 导出完成：" + onnxPath);
+        }
+
+        /// <summary>
+        /// 在隔离 Python 子进程中检查 ONNX 结构，避免不安全的 native 初始化破坏主程序内存。
+        /// </summary>
+        /// <param name="runtimeRoot">大模型运行环境目录。</param>
+        /// <param name="onnxPath">待验证的 ONNX 临时文件。</param>
+        /// <param name="log">训练日志回调。</param>
+        /// <param name="token">取消令牌。</param>
+        private static void ValidateOnnxArtifactInSubprocess(
+            string runtimeRoot,
+            string onnxPath,
+            IProgress<string> log,
+            CancellationToken token)
+        {
+            string pythonPath = Path.Combine(runtimeRoot, "third_party", "python_native_env", "python.exe");
+            string torchCacheRoot = Path.Combine(runtimeRoot, "_torch_cache");
+            const string validationScript = "import onnx,sys; onnx.checker.check_model(sys.argv[1]); print('ONNX validation passed')";
+            System.Diagnostics.ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = pythonPath,
+                Arguments = "-c " + QuoteProcessArgument(validationScript) + " " + QuoteProcessArgument(onnxPath),
+                WorkingDirectory = runtimeRoot,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            ConfigureOnnxExportEnvironment(startInfo, runtimeRoot, torchCacheRoot);
+            log?.Report("正在隔离子进程中校验 DINOv2 ONNX。");
+            RunArtifactValidationProcess(startInfo, "DINOv2 ONNX", log, token);
         }
 
         /// <summary>
@@ -660,6 +702,83 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 if (process.ExitCode != 0)
                     throw new InvalidOperationException("TensorRT Engine 生成失败，trtexec 返回码：" + process.ExitCode.ToString(CultureInfo.InvariantCulture) + "\r\n" + processOutput.GetText());
             }
+        }
+
+        /// <summary>
+        /// 在独立 trtexec 子进程中反序列化 Engine，native 崩溃时不会终止主程序。
+        /// </summary>
+        /// <param name="runtimeRoot">大模型运行环境目录。</param>
+        /// <param name="trtexecPath">trtexec 程序路径。</param>
+        /// <param name="enginePath">待验证的 Engine 临时文件。</param>
+        /// <param name="log">训练日志回调。</param>
+        /// <param name="token">取消令牌。</param>
+        private static void ValidateTensorRtEngineInSubprocess(
+            string runtimeRoot,
+            string trtexecPath,
+            string enginePath,
+            IProgress<string> log,
+            CancellationToken token)
+        {
+            System.Diagnostics.ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = trtexecPath,
+                Arguments = "--loadEngine=" + QuoteProcessArgument(enginePath) + " --skipInference",
+                WorkingDirectory = runtimeRoot,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            log?.Report("正在隔离子进程中校验 TensorRT Engine。");
+            RunArtifactValidationProcess(startInfo, "TensorRT Engine", log, token);
+        }
+
+        /// <summary>
+        /// 执行可取消的模型产物子进程校验并收集失败诊断。
+        /// </summary>
+        /// <param name="startInfo">校验进程启动信息。</param>
+        /// <param name="stageName">模型产物阶段名称。</param>
+        /// <param name="log">训练日志回调。</param>
+        /// <param name="token">取消令牌。</param>
+        private static void RunArtifactValidationProcess(
+            System.Diagnostics.ProcessStartInfo startInfo,
+            string stageName,
+            IProgress<string> log,
+            CancellationToken token)
+        {
+            LargeModelProcessOutputBuffer processOutput = new LargeModelProcessOutputBuffer();
+            using (System.Diagnostics.Process process = new System.Diagnostics.Process())
+            {
+                process.StartInfo = startInfo;
+                process.OutputDataReceived += (sender, args) => AppendProcessLog(processOutput, null, args.Data);
+                process.ErrorDataReceived += (sender, args) => AppendProcessLog(processOutput, null, args.Data);
+
+                token.ThrowIfCancellationRequested();
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+
+                while (!process.WaitForExit(500))
+                {
+                    if (token.IsCancellationRequested)
+                    {
+                        TryKillProcessAndWait(process, log);
+                        token.ThrowIfCancellationRequested();
+                    }
+                }
+
+                process.WaitForExit();
+                token.ThrowIfCancellationRequested();
+                if (process.ExitCode != 0)
+                {
+                    throw new InvalidDataException(
+                        stageName + " 子进程校验失败，返回码："
+                        + process.ExitCode.ToString(CultureInfo.InvariantCulture)
+                        + "\r\n" + processOutput.GetText());
+                }
+            }
+
+            log?.Report(stageName + " 子进程校验通过。");
         }
 
         /// <summary>
@@ -1134,65 +1253,31 @@ namespace TDJS_Vision.Forms.AiTrainForm
         }
 
         /// <summary>
-        /// 使用实际 DINOv2 native 初始化路径验证 ONNX 或 Engine 可加载性。
+        /// 把模型产物校验回调适配为可注入的验证器接口。
         /// </summary>
-        private sealed class NativeModelArtifactValidator : ILargeModelArtifactValidator
+        private sealed class CallbackArtifactValidator : ILargeModelArtifactValidator
         {
             /// <summary>
-            /// 创建真实检测器的可替换工厂。
+            /// 实际执行模型产物校验的回调。
             /// </summary>
-            private readonly ILargeModelDinov2DetectorFactory _detectorFactory;
+            private readonly Action<string> _callback;
 
             /// <summary>
-            /// 大模型运行环境目录。
+            /// 初始化模型产物校验适配器。
             /// </summary>
-            private readonly string _runtimeRoot;
-
-            /// <summary>
-            /// native 设备模式，GPU 为 1，CPU 为 2。
-            /// </summary>
-            private readonly int _deviceMode;
-
-            /// <summary>
-            /// 当前模型生成阶段名称。
-            /// </summary>
-            private readonly string _stageName;
-
-            /// <summary>
-            /// 初始化 native 模型产物验证器。
-            /// </summary>
-            /// <param name="detectorFactory">检测器工厂。</param>
-            /// <param name="runtimeRoot">大模型运行环境目录。</param>
-            /// <param name="deviceMode">native 设备模式。</param>
-            /// <param name="stageName">模型生成阶段名称。</param>
-            public NativeModelArtifactValidator(
-                ILargeModelDinov2DetectorFactory detectorFactory,
-                string runtimeRoot,
-                int deviceMode,
-                string stageName)
+            /// <param name="callback">接收待验证模型路径的校验回调。</param>
+            public CallbackArtifactValidator(Action<string> callback)
             {
-                _detectorFactory = detectorFactory ?? throw new ArgumentNullException(nameof(detectorFactory));
-                _runtimeRoot = runtimeRoot;
-                _deviceMode = deviceMode;
-                _stageName = stageName;
+                _callback = callback ?? throw new ArgumentNullException(nameof(callback));
             }
 
             /// <summary>
-            /// 使用和 memory bank 训练相同的 native 初始化入口加载临时模型。
+            /// 执行隔离的模型产物校验。
             /// </summary>
             /// <param name="modelPath">待验证的临时 ONNX 或 Engine 路径。</param>
             public void Validate(string modelPath)
             {
-                using (LargeModelDinov2Detector detector = _detectorFactory.Create(_runtimeRoot))
-                {
-                    int loadResult = detector.LoadModel(modelPath, string.Empty, _deviceMode);
-                    if (loadResult != 0)
-                    {
-                        throw new InvalidDataException(
-                            _stageName + " 生成物 native 加载验证失败，返回码："
-                            + loadResult.ToString(CultureInfo.InvariantCulture));
-                    }
-                }
+                _callback(modelPath);
             }
         }
 

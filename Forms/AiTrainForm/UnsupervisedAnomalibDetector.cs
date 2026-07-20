@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -107,16 +108,64 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <returns>无监督推理结果。</returns>
         public UnsupervisedAnomalibResult InferBgr(Mat image, float threshold, float miniArea, int maxBoxes)
         {
+            long inputPreparationMilliseconds;
+            long nativeInferenceMilliseconds;
+            return InferBgr(
+                image,
+                threshold,
+                miniArea,
+                maxBoxes,
+                out inputPreparationMilliseconds,
+                out nativeInferenceMilliseconds);
+        }
+
+        /// <summary>
+        /// 对 BGR 图像执行无监督异常推理，并返回托管图像准备与 native 调用耗时。
+        /// </summary>
+        /// <param name="image">BGR 或可转换为 BGR 的 OpenCV 图像。</param>
+        /// <param name="threshold">异常阈值。</param>
+        /// <param name="miniArea">最小异常面积。</param>
+        /// <param name="maxBoxes">最多返回的异常框数量。</param>
+        /// <param name="inputPreparationMilliseconds">BGR 转换或复制耗时。</param>
+        /// <param name="nativeInferenceMilliseconds">native Infer 调用耗时。</param>
+        /// <returns>无监督推理结果。</returns>
+        public UnsupervisedAnomalibResult InferBgr(
+            Mat image,
+            float threshold,
+            float miniArea,
+            int maxBoxes,
+            out long inputPreparationMilliseconds,
+            out long nativeInferenceMilliseconds)
+        {
             if (_handle == IntPtr.Zero)
                 throw new InvalidOperationException("无监督模型尚未加载。");
             if (image == null || image.Empty())
                 throw new ArgumentException("无监督推理输入图像不能为空。", nameof(image));
 
+            inputPreparationMilliseconds = 0L;
+            nativeInferenceMilliseconds = 0L;
             int boxCapacity = Math.Max(1, maxBoxes);
             int[] boxes = new int[boxCapacity * 4];
-            using (Mat input = EnsureBgr(image))
+            Stopwatch inputTimer = Stopwatch.StartNew();
+            Mat input = EnsureBgr(image);
+            inputTimer.Stop();
+            inputPreparationMilliseconds = inputTimer.ElapsedMilliseconds;
+            using (input)
             {
-                int ret = UnsupervisedAnomalibNative.Infer(_handle, input.Data, input.Width, input.Height, threshold, miniArea, string.Empty, out float score, null, boxes, boxCapacity, out int count);
+                float score;
+                int count;
+                Stopwatch nativeTimer = Stopwatch.StartNew();
+                int ret;
+                try
+                {
+                    ret = UnsupervisedAnomalibNative.Infer(_handle, input.Data, input.Width, input.Height, threshold, miniArea, string.Empty, out score, null, boxes, boxCapacity, out count);
+                }
+                finally
+                {
+                    nativeTimer.Stop();
+                    nativeInferenceMilliseconds = nativeTimer.ElapsedMilliseconds;
+                }
+
                 return new UnsupervisedAnomalibResult(ret, score, ToRectangles(boxes, count, boxCapacity));
             }
         }

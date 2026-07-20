@@ -116,18 +116,42 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// <summary>
         /// 保存节点参数。
         /// </summary>
-        private void buttonSave_Click(object sender, EventArgs e)
+        private async void buttonSave_Click(object sender, EventArgs e)
         {
-            if (SaveParams())
+            NodeParamUnsupervisedDetection param;
+            if (!TryBuildParams(out param))
+                return;
+
+            NodeUnsupervisedDetection unsupervisedNode = _node as NodeUnsupervisedDetection;
+            if (unsupervisedNode == null)
+            {
+                MessageBoxTD.Show("参数设置异常，原因：当前节点不是无监督检测节点。");
+                return;
+            }
+
+            SetPreloadUiState(true);
+            try
+            {
+                await unsupervisedNode.PreloadRuntimeAsync(param);
                 Hide();
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show("无监督模型加载失败，原模型未更改。原因：" + ex.Message);
+            }
+            finally
+            {
+                SetPreloadUiState(false);
+            }
         }
 
         /// <summary>
         /// 保存当前界面参数到节点参数对象。
         /// </summary>
         /// <returns>保存成功返回 true。</returns>
-        private bool SaveParams()
+        private bool TryBuildParams(out NodeParamUnsupervisedDetection param)
         {
+            param = null;
             try
             {
                 if (string.IsNullOrWhiteSpace(nodeSubscription1.GetText1()) || string.IsNullOrWhiteSpace(nodeSubscription1.GetText2()))
@@ -138,7 +162,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                 if (!int.TryParse(textBoxMaxBoxes.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out maxBoxes) || maxBoxes <= 0)
                     throw new InvalidOperationException("最大异常框必须为大于 0 的整数。");
 
-                Params = new NodeParamUnsupervisedDetection
+                param = new NodeParamUnsupervisedDetection
                 {
                     Text1 = nodeSubscription1.GetText1(),
                     Text2 = nodeSubscription1.GetText2(),
@@ -155,6 +179,19 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                 MessageBoxTD.Show("参数设置异常，原因：" + ex.Message);
                 return false;
             }
+        }
+
+        /// <summary>
+        /// 切换模型预加载期间的参数窗体交互状态。
+        /// </summary>
+        /// <param name="isLoading">是否正在加载并预热模型。</param>
+        private void SetPreloadUiState(bool isLoading)
+        {
+            UseWaitCursor = isLoading;
+            buttonSave.Enabled = !isLoading;
+            buttonSelectTemplate.Enabled = !isLoading;
+            buttonRefreshTemplate.Enabled = !isLoading;
+            buttonSave.Text = isLoading ? "模型加载中..." : "保存";
         }
 
         /// <summary>
@@ -180,12 +217,11 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                 }
 
                 string templatePath = EnsureTemplatePathInModelRoot(textBoxTemplatePath.Text);
-                string extractRoot = Path.Combine(UnsupervisedRuntimeBootstrapper.EnsureModelRoot(), "_UnsupervisedPreview");
-                UnsupervisedTemplateExtractResult result = UnsupervisedTemplatePackage.Extract(templatePath, extractRoot);
+                UnsupervisedTemplateManifest manifest = UnsupervisedTemplatePackage.ReadManifest(templatePath);
                 if (applyDefaultsToControls)
-                    ApplyTemplateDefaultsToControls(result.Manifest);
+                    ApplyTemplateDefaultsToControls(manifest);
 
-                labelTemplateInfo.Text = BuildTemplateInfo(result.Manifest);
+                labelTemplateInfo.Text = BuildTemplateInfo(manifest);
             }
             catch (Exception ex)
             {

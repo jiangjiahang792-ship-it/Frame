@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
+using Logger;
 using OpenCvSharp;
 using TDJS_Vision.Forms.AiTrainForm;
 using CvRect = OpenCvSharp.Rect;
@@ -47,6 +48,16 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         private int _loadedInferenceBatchSize;
 
         /// <summary>
+        /// 当前模型实际使用的推理设备。
+        /// </summary>
+        private string _loadedDevice;
+
+        /// <summary>
+        /// 当前实际加载的模型文件路径。
+        /// </summary>
+        private string _loadedModelPath;
+
+        /// <summary>
         /// 当前模板解包结果。
         /// </summary>
         private UnsupervisedTemplateExtractResult _extractResult;
@@ -74,17 +85,65 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                 EnsureModelLoaded(param);
                 UnsupervisedTemplateManifest manifest = _extractResult.Manifest;
                 CvRect? roiRect = null;
-                using (Mat inferImage = BuildInferenceImage(sourceImage, manifest, out roiRect))
+                Stopwatch imageTimer = Stopwatch.StartNew();
+                Mat inferImage = BuildInferenceImage(sourceImage, manifest, out roiRect);
+                imageTimer.Stop();
+                using (inferImage)
                 {
                     int maxBoxes = param.MaxBoxes <= 0 ? NodeParamUnsupervisedDetection.DefaultMaxBoxes : param.MaxBoxes;
                     float threshold = ResolveThreshold(param, manifest);
                     float miniArea = ResolveMiniArea(param, manifest);
-                    UnsupervisedAnomalibResult nativeResult = _detector.InferBgr(inferImage, threshold, miniArea, maxBoxes);
+                    long detectorPreparationMilliseconds;
+                    long nativeInferenceMilliseconds;
+                    Stopwatch inferenceCallTimer = Stopwatch.StartNew();
+                    UnsupervisedAnomalibResult nativeResult = _detector.InferBgr(
+                        inferImage,
+                        threshold,
+                        miniArea,
+                        maxBoxes,
+                        out detectorPreparationMilliseconds,
+                        out nativeInferenceMilliseconds);
+                    inferenceCallTimer.Stop();
+
+                    Stopwatch postprocessTimer = Stopwatch.StartNew();
                     List<DrawingRect> boxes = OffsetBoxesToSourceImage(nativeResult.Boxes, roiRect, sourceImage.Width, sourceImage.Height, inferImage.Width, inferImage.Height, manifest.InputWidth, manifest.InputHeight);
                     bool isOk = nativeResult.ReturnCode == 0 && boxes.Count == 0;
                     string message = BuildResultMessage(nativeResult, boxes.Count);
-                    return new UnsupervisedDetectionRunResult(nativeResult, manifest, roiRect, boxes, isOk, message);
+                    postprocessTimer.Stop();
+
+                    long wrapperPostprocessMilliseconds = Math.Max(
+                        0L,
+                        inferenceCallTimer.ElapsedMilliseconds - detectorPreparationMilliseconds - nativeInferenceMilliseconds);
+                    return new UnsupervisedDetectionRunResult(
+                        nativeResult,
+                        manifest,
+                        roiRect,
+                        boxes,
+                        isOk,
+                        message,
+                        _loadedDevice,
+                        _loadedModelPath,
+                        sourceImage.Width,
+                        sourceImage.Height,
+                        imageTimer.ElapsedMilliseconds + detectorPreparationMilliseconds,
+                        nativeInferenceMilliseconds,
+                        postprocessTimer.ElapsedMilliseconds + wrapperPostprocessMilliseconds);
                 }
+            }
+        }
+
+        /// <summary>
+        /// 预先加载并预热指定模板，使流程运行阶段直接进入推理。
+        /// </summary>
+        /// <param name="param">待预加载的节点参数。</param>
+        public void Preload(NodeParamUnsupervisedDetection param)
+        {
+            if (param == null)
+                throw new ArgumentNullException(nameof(param));
+
+            lock (_syncRoot)
+            {
+                EnsureModelLoaded(param, true);
             }
         }
 
@@ -104,6 +163,35 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// </summary>
         /// <param name="param">节点参数。</param>
         private void EnsureModelLoaded(NodeParamUnsupervisedDetection param)
+        {
+            // 保存成功后的正常运行只匹配内存状态，不再每帧读取模板文件时间戳。
+            if (IsLoadedTemplateMatchedFast(param))
+                return;
+
+            EnsureModelLoaded(param, false);
+        }
+
+        /// <summary>
+        /// 仅使用内存状态判断当前检测器是否匹配节点参数。
+        /// </summary>
+        /// <param name="param">节点参数。</param>
+        /// <returns>模板和所有加载期参数一致时返回 true。</returns>
+        private bool IsLoadedTemplateMatchedFast(NodeParamUnsupervisedDetection param)
+        {
+            return param != null &&
+                _detector != null &&
+                _extractResult != null &&
+                !string.IsNullOrWhiteSpace(param.TemplatePath) &&
+                string.Equals(_loadedTemplatePath, param.TemplatePath, StringComparison.OrdinalIgnoreCase) &&
+                IsLoadedRuntimeParamMatched(param, _extractResult.Manifest);
+        }
+
+        /// <summary>
+        /// 确保指定模板对应模型已经加载，并按需执行首次推理预热。
+        /// </summary>
+        /// <param name="param">节点参数。</param>
+        /// <param name="warmup">加载新模型后是否执行一次预热推理。</param>
+        private void EnsureModelLoaded(NodeParamUnsupervisedDetection param, bool warmup)
         {
             string templatePath = ResolveTemplatePath(param.TemplatePath);
             long templateTicks = File.GetLastWriteTimeUtc(templatePath).Ticks;
@@ -129,16 +217,124 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             float miniArea = ResolveMiniArea(param, extractResult.Manifest);
             int batchSize = ResolveInferenceBatchSize(param, extractResult.Manifest);
 
-            LoadModelResult loadResult = LoadModelWithFallback(runtime.RootPath, extractResult, threshold, miniArea, batchSize, device, pythonPath);
+            LoadModelResult loadResult = null;
+            bool published = false;
+            try
+            {
+                loadResult = LoadModelWithFallback(runtime.RootPath, extractResult, threshold, miniArea, batchSize, device, pythonPath);
+                if (warmup)
+                    WarmupDetector(loadResult.Detector, param, extractResult.Manifest);
 
-            ReleaseDetector();
-            _detector = loadResult.Detector;
+                SwapLoadedDetector(
+                    loadResult.Detector,
+                    extractResult,
+                    templatePath,
+                    templateTicks,
+                    threshold,
+                    miniArea,
+                    batchSize,
+                    loadResult.Device,
+                    extractResult.ModelPath);
+                published = true;
+                LogLoadedRuntime();
+            }
+            finally
+            {
+                if (!published && loadResult != null && loadResult.Detector != null)
+                    loadResult.Detector.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// 使用模板输入尺寸执行一次空图推理，提前完成 Python、CUDA 或推理后端的首次初始化。
+        /// </summary>
+        /// <param name="detector">已经完成 native 初始化的新检测器。</param>
+        /// <param name="param">节点推理参数。</param>
+        /// <param name="manifest">模板清单。</param>
+        private static void WarmupDetector(
+            UnsupervisedAnomalibDetector detector,
+            NodeParamUnsupervisedDetection param,
+            UnsupervisedTemplateManifest manifest)
+        {
+            if (detector == null)
+                throw new ArgumentNullException(nameof(detector));
+            if (manifest == null)
+                throw new InvalidDataException("无监督模板清单为空，无法预热模型。");
+            if (manifest.InputWidth <= 0 || manifest.InputHeight <= 0)
+                throw new InvalidDataException("无监督模板输入尺寸无效，无法预热模型。");
+
+            using (var warmupImage = new Mat(manifest.InputHeight, manifest.InputWidth, MatType.CV_8UC3, Scalar.Black))
+            {
+                UnsupervisedAnomalibResult result = detector.InferBgr(
+                    warmupImage,
+                    ResolveThreshold(param, manifest),
+                    ResolveMiniArea(param, manifest),
+                    1);
+                if (result.ReturnCode < 0)
+                {
+                    throw new InvalidOperationException(
+                        "无监督模型预热失败，native 返回码：" + result.ReturnCode.ToString(CultureInfo.InvariantCulture));
+                }
+            }
+        }
+
+        /// <summary>
+        /// 发布已经加载并预热成功的新模型，然后释放旧模型。
+        /// </summary>
+        /// <param name="detector">新检测器。</param>
+        /// <param name="extractResult">新模板解包结果。</param>
+        /// <param name="templatePath">新模板完整路径。</param>
+        /// <param name="templateTicks">新模板最后写入时间。</param>
+        /// <param name="threshold">模型加载时使用的异常阈值。</param>
+        /// <param name="miniArea">模型加载时使用的最小缺陷面积。</param>
+        /// <param name="batchSize">模型加载时使用的推理批次。</param>
+        /// <param name="device">实际加载成功的推理设备。</param>
+        /// <param name="modelPath">实际加载的模型文件路径。</param>
+        private void SwapLoadedDetector(
+            UnsupervisedAnomalibDetector detector,
+            UnsupervisedTemplateExtractResult extractResult,
+            string templatePath,
+            long templateTicks,
+            float threshold,
+            float miniArea,
+            int batchSize,
+            string device,
+            string modelPath)
+        {
+            UnsupervisedAnomalibDetector oldDetector = _detector;
+            _detector = detector;
             _extractResult = extractResult;
             _loadedTemplatePath = templatePath;
             _loadedTemplateTicks = templateTicks;
             _loadedThreshold = threshold;
             _loadedMiniArea = miniArea;
             _loadedInferenceBatchSize = batchSize;
+            _loadedDevice = device;
+            _loadedModelPath = modelPath;
+
+            if (oldDetector == null)
+                return;
+
+            try
+            {
+                oldDetector.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Trace.TraceWarning("释放旧无监督检测器失败：" + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// 将模型加载后的真实设备和模型路径写入统一运行日志。
+        /// </summary>
+        private void LogLoadedRuntime()
+        {
+            LogHelper.AddLog(
+                MsgLevel.Info,
+                "无监督运行模型加载成功，实际设备=" + (_loadedDevice ?? "未知") +
+                "，实际模型=" + (_loadedModelPath ?? "未知"),
+                true);
         }
 
         /// <summary>
@@ -213,16 +409,22 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                 return "CPU";
 
             string text = device.Trim().ToUpperInvariant();
-            if (text.StartsWith("AUTO", StringComparison.Ordinal))
-                return "AUTO";
-            if (text.Contains("GPU"))
-                return "GPU";
+            if (string.Equals(text, "GPU_TENSORRT", StringComparison.Ordinal) ||
+                string.Equals(text, "GPU_ORT", StringComparison.Ordinal))
+                return text;
+            if (string.Equals(text, "AUTO_TENSORRT", StringComparison.Ordinal) ||
+                string.Equals(text, "AUTO_ORT", StringComparison.Ordinal))
+                return text;
+            if (string.Equals(text, "GPU", StringComparison.Ordinal))
+                return "GPU_ORT";
+            if (string.Equals(text, "AUTO", StringComparison.Ordinal))
+                return "AUTO_ORT";
 
             return "CPU";
         }
 
         /// <summary>
-        /// 加载无监督模板模型；GPU/AUTO 初始化失败时使用 CPU 回退，避免训练设备限制推理设备。
+        /// 加载无监督模板模型；只有 AUTO 初始化失败时允许使用 CPU 回退。
         /// </summary>
         /// <param name="runtimeRoot">无监督运行环境目录。</param>
         /// <param name="extractResult">模板解包结果。</param>
@@ -288,11 +490,11 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// 判断当前失败是否允许用 CPU 重新初始化。
         /// </summary>
         /// <param name="device">首选推理设备。</param>
-        /// <returns>GPU 或 AUTO 失败时返回 true。</returns>
+        /// <returns>AUTO 后端失败时返回 true。</returns>
         private static bool ShouldRetryLoadModelOnCpu(string device)
         {
-            return string.Equals(device, "GPU", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(device, "AUTO", StringComparison.OrdinalIgnoreCase);
+            return !string.IsNullOrWhiteSpace(device) &&
+                device.StartsWith("AUTO", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -518,6 +720,8 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             {
                 _detector.Dispose();
                 _detector = null;
+                _loadedDevice = null;
+                _loadedModelPath = null;
             }
         }
 
@@ -563,7 +767,27 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// <param name="boxes">源图坐标系异常矩形。</param>
         /// <param name="isOk">最终 OK/NG 判定。</param>
         /// <param name="message">结果摘要。</param>
-        public UnsupervisedDetectionRunResult(UnsupervisedAnomalibResult nativeResult, UnsupervisedTemplateManifest manifest, CvRect? roiRect, List<DrawingRect> boxes, bool isOk, string message)
+        /// <param name="actualDevice">实际推理设备。</param>
+        /// <param name="actualModelPath">实际模型路径。</param>
+        /// <param name="inputWidth">输入图像宽度。</param>
+        /// <param name="inputHeight">输入图像高度。</param>
+        /// <param name="imagePreparationMilliseconds">图像准备耗时。</param>
+        /// <param name="nativeInferenceMilliseconds">native 推理耗时。</param>
+        /// <param name="postprocessMilliseconds">结果处理耗时。</param>
+        public UnsupervisedDetectionRunResult(
+            UnsupervisedAnomalibResult nativeResult,
+            UnsupervisedTemplateManifest manifest,
+            CvRect? roiRect,
+            List<DrawingRect> boxes,
+            bool isOk,
+            string message,
+            string actualDevice,
+            string actualModelPath,
+            int inputWidth,
+            int inputHeight,
+            long imagePreparationMilliseconds,
+            long nativeInferenceMilliseconds,
+            long postprocessMilliseconds)
         {
             NativeResult = nativeResult;
             Manifest = manifest;
@@ -571,6 +795,13 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             Boxes = boxes ?? new List<DrawingRect>();
             IsOk = isOk;
             Message = message;
+            ActualDevice = actualDevice;
+            ActualModelPath = actualModelPath;
+            InputWidth = inputWidth;
+            InputHeight = inputHeight;
+            ImagePreparationMilliseconds = imagePreparationMilliseconds;
+            NativeInferenceMilliseconds = nativeInferenceMilliseconds;
+            PostprocessMilliseconds = postprocessMilliseconds;
         }
 
         /// <summary>
@@ -602,5 +833,40 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// 结果摘要。
         /// </summary>
         public string Message { get; }
+
+        /// <summary>
+        /// 实际推理设备。
+        /// </summary>
+        public string ActualDevice { get; }
+
+        /// <summary>
+        /// 实际加载的模型文件路径。
+        /// </summary>
+        public string ActualModelPath { get; }
+
+        /// <summary>
+        /// 输入图像宽度。
+        /// </summary>
+        public int InputWidth { get; }
+
+        /// <summary>
+        /// 输入图像高度。
+        /// </summary>
+        public int InputHeight { get; }
+
+        /// <summary>
+        /// ROI 裁剪、BGR 转换与图像复制耗时。
+        /// </summary>
+        public long ImagePreparationMilliseconds { get; }
+
+        /// <summary>
+        /// native Infer 调用耗时。
+        /// </summary>
+        public long NativeInferenceMilliseconds { get; }
+
+        /// <summary>
+        /// native 返回转换和结果坐标处理耗时。
+        /// </summary>
+        public long PostprocessMilliseconds { get; }
     }
 }

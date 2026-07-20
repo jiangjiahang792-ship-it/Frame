@@ -30,6 +30,21 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// </summary>
         FrmCameraInfo _infoWnd = new FrmCameraInfo();
 
+        /// <summary>
+        /// 上一次选中的 2D 相机，用于再次打开窗口时恢复预览。
+        /// </summary>
+        private static ICamera _lastSelectedCamera;
+
+        /// <summary>
+        /// 上一次选中的 3D 相机，用于再次打开窗口时恢复预览。
+        /// </summary>
+        private static I3DCamera _lastSelectedCamera3D;
+
+        /// <summary>
+        /// 上一次选择是否为 3D 相机，保证 2D 和 3D 同名时仍按最后点击类型恢复。
+        /// </summary>
+        private static bool _lastSelectionIs3D;
+
         public FrmCameraListView()
         {
             InitializeComponent();
@@ -40,7 +55,18 @@ namespace TDJS_Vision.Forms.CameraAdd
             SingleCamera3D.SelectedChange += SingleCamera3D_SelectedChange;
             SingleCamera3D.SingleCamera3DRemoveEvent += SingleCamera3D_SingleCamera3DRemoveEvent;
             FrmLightListView.OnLightDeserializationCompletionEvent += Deserialization;
+            Shown += FrmCameraListView_Shown;
             this.KeyPreview = true;
+        }
+
+        /// <summary>
+        /// 窗口显示后自动恢复最近选择的相机预览。
+        /// </summary>
+        /// <param name="sender">事件源。</param>
+        /// <param name="e">事件参数。</param>
+        private void FrmCameraListView_Shown(object sender, EventArgs e)
+        {
+            ShowLastSelectedCameraOrFirst();
         }
 
         /// <summary>
@@ -126,7 +152,9 @@ namespace TDJS_Vision.Forms.CameraAdd
         private void SingleCamera_SingleCameraRemoveEvent(object sender, SingleCamera e)
         {
             SingleCamera.SingleCameraList.Remove(e);
-            panel1.Controls.Clear();
+            ClearPreviewPanel();
+            if (ReferenceEquals(_lastSelectedCamera, e.Camera))
+                _lastSelectedCamera = null;
             e.Camera.Dispose();
             //然后移除掉方案中的全局相机并释放相机内存
             Solution.Instance.AllDevices.Remove(e.Camera);
@@ -143,7 +171,9 @@ namespace TDJS_Vision.Forms.CameraAdd
         private void SingleCamera3D_SingleCamera3DRemoveEvent(object sender, SingleCamera3D e)
         {
             SingleCamera3D.SingleCamera3DList.Remove(e);
-            panel1.Controls.Clear();
+            ClearPreviewPanel();
+            if (ReferenceEquals(_lastSelectedCamera3D, e.Camera3D))
+                _lastSelectedCamera3D = null;
             e.Camera3D.Dispose();
             Solution.Instance.AllDevices.Remove(e.Camera3D);
             flowLayoutPanel1.Controls.Remove(e);
@@ -204,10 +234,7 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// <param name="e"></param>
         private void SingleCamera_SingleCameraSelectedChanged(object sender, SingleCamera e)
         {
-            panel1.Controls.Clear();
-            var control = new CameraParamsShowControl(e.Camera);
-            control.Dock = DockStyle.Fill;
-            panel1.Controls.Add(control);
+            Select2DCameraForPreview(e);
         }
 
         /// <summary>
@@ -217,10 +244,141 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// <param name="e">当前选中的 3D 相机控件。</param>
         private void SingleCamera3D_SelectedChange(object sender, SingleCamera3D e)
         {
-            panel1.Controls.Clear();
-            var control = new Camera3DParamsShowControl(e.Camera3D);
+            Select3DCameraForPreview(e);
+        }
+
+        /// <summary>
+        /// 自动显示上一次选中的相机；没有历史选择时显示列表中的第一台相机。
+        /// </summary>
+        private void ShowLastSelectedCameraOrFirst()
+        {
+            if (_lastSelectionIs3D)
+            {
+                if (TrySelectLast3DCamera() || TrySelectFirst3DCamera() || TrySelectLast2DCamera() || TrySelectFirst2DCamera())
+                    return;
+            }
+            else
+            {
+                if (TrySelectLast2DCamera() || TrySelectFirst2DCamera() || TrySelectLast3DCamera() || TrySelectFirst3DCamera())
+                    return;
+            }
+
+            ClearPreviewPanel();
+        }
+
+        /// <summary>
+        /// 尝试恢复上一次选中的 2D 相机。
+        /// </summary>
+        /// <returns>恢复成功返回 true。</returns>
+        private bool TrySelectLast2DCamera()
+        {
+            if (_lastSelectedCamera == null)
+                return false;
+
+            SingleCamera cameraControl = SingleCamera.SingleCameraList.FirstOrDefault(item => ReferenceEquals(item.Camera, _lastSelectedCamera));
+            if (cameraControl == null)
+                return false;
+
+            Select2DCameraForPreview(cameraControl);
+            return true;
+        }
+
+        /// <summary>
+        /// 尝试选择第一台 2D 相机。
+        /// </summary>
+        /// <returns>选择成功返回 true。</returns>
+        private bool TrySelectFirst2DCamera()
+        {
+            SingleCamera cameraControl = SingleCamera.SingleCameraList.FirstOrDefault();
+            if (cameraControl == null)
+                return false;
+
+            Select2DCameraForPreview(cameraControl);
+            return true;
+        }
+
+        /// <summary>
+        /// 尝试恢复上一次选中的 3D 相机。
+        /// </summary>
+        /// <returns>恢复成功返回 true。</returns>
+        private bool TrySelectLast3DCamera()
+        {
+            if (_lastSelectedCamera3D == null)
+                return false;
+
+            SingleCamera3D cameraControl = SingleCamera3D.SingleCamera3DList.FirstOrDefault(item => ReferenceEquals(item.Camera3D, _lastSelectedCamera3D));
+            if (cameraControl == null)
+                return false;
+
+            Select3DCameraForPreview(cameraControl);
+            return true;
+        }
+
+        /// <summary>
+        /// 尝试选择第一台 3D 相机。
+        /// </summary>
+        /// <returns>选择成功返回 true。</returns>
+        private bool TrySelectFirst3DCamera()
+        {
+            SingleCamera3D cameraControl = SingleCamera3D.SingleCamera3DList.FirstOrDefault();
+            if (cameraControl == null)
+                return false;
+
+            Select3DCameraForPreview(cameraControl);
+            return true;
+        }
+
+        /// <summary>
+        /// 选择 2D 相机并显示实时调试预览。
+        /// </summary>
+        /// <param name="cameraControl">2D 相机列表控件。</param>
+        private void Select2DCameraForPreview(SingleCamera cameraControl)
+        {
+            if (cameraControl?.Camera == null)
+                return;
+
+            _lastSelectedCamera = cameraControl.Camera;
+            _lastSelectionIs3D = false;
+            cameraControl.SelectInList();
+            ShowPreviewControl(new CameraLiveDebugControl(cameraControl.Camera));
+        }
+
+        /// <summary>
+        /// 选择 3D 相机并显示实时调试预览。
+        /// </summary>
+        /// <param name="cameraControl">3D 相机列表控件。</param>
+        private void Select3DCameraForPreview(SingleCamera3D cameraControl)
+        {
+            if (cameraControl?.Camera3D == null)
+                return;
+
+            _lastSelectedCamera3D = cameraControl.Camera3D;
+            _lastSelectionIs3D = true;
+            cameraControl.SelectInList();
+            ShowPreviewControl(new CameraLiveDebugControl(cameraControl.Camera3D));
+        }
+
+        /// <summary>
+        /// 显示右侧相机预览调试控件。
+        /// </summary>
+        /// <param name="control">需要显示的相机调试控件。</param>
+        private void ShowPreviewControl(UserControl control)
+        {
+            ClearPreviewPanel();
             control.Dock = DockStyle.Fill;
             panel1.Controls.Add(control);
+        }
+
+        /// <summary>
+        /// 清空并释放右侧预览区域控件，避免旧相机回调继续刷新。
+        /// </summary>
+        private void ClearPreviewPanel()
+        {
+            foreach (Control control in panel1.Controls)
+            {
+                control.Dispose();
+            }
+            panel1.Controls.Clear();
         }
 
         /// <summary>
@@ -234,27 +392,14 @@ namespace TDJS_Vision.Forms.CameraAdd
         }
 
         /// <summary>
-        /// 窗口关闭关掉所有相机
+        /// 窗口关闭时释放实时预览控件，并由预览控件恢复相机调试前状态。
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
         private void FrmCameraListView_FormClosing(object sender, FormClosingEventArgs e)
         {
-            try 
-            {
-                foreach (var item in Solution.Instance.CameraDevices)
-                {
-                    if (item.IsOpen)
-                    {
-                        item.SetTriggerMode(TriggerModel.On);
-                        item.SetTriggerSource(TriggerSource.LINE0); // 默认设置触发源为LINE0
-                    }
-                }
-            } 
-            catch(Exception ex)
-            {
-                LogHelper.AddLog(MsgLevel.Exception, ex.Message, true);    
-            }
+            ClearPreviewPanel();
+            OnCameraListViewClosed?.Invoke(this, EventArgs.Empty);
         }
     }
 }

@@ -15,12 +15,17 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
     /// <summary>
     /// 无监督异常检测节点。
     /// </summary>
-    public class NodeUnsupervisedDetection : NodeBase
+    public class NodeUnsupervisedDetection : NodeBase, INodeRuntimePreloader
     {
         /// <summary>
         /// 无监督模板加载与推理运行适配器。
         /// </summary>
         private readonly UnsupervisedDetectionRuntime _runtime = new UnsupervisedDetectionRuntime();
+
+        /// <summary>
+        /// 模型预加载提交与流程推理共用的配置门，保证检测器和节点参数成对切换。
+        /// </summary>
+        private readonly UnsupervisedRuntimeConfigurationGate _configurationGate = new UnsupervisedRuntimeConfigurationGate();
 
         /// <summary>
         /// 初始化无监督异常检测节点。
@@ -53,14 +58,6 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                 return Task.FromResult(new NodeReturn(NodeRunFlag.StopRun));
             }
 
-            NodeParamUnsupervisedDetection param = ParamForm == null ? null : ParamForm.Params as NodeParamUnsupervisedDetection;
-            if (param == null)
-            {
-                LogHelper.AddLog(MsgLevel.Fatal, $"节点({NodeName})运行参数未设置或保存！", true);
-                SetRunResult(startTime, NodeStatus.Failed);
-                throw new Exception($"节点({NodeName})运行参数未设置或保存！");
-            }
-
             ParamFormUnsupervisedDetection form = ParamForm as ParamFormUnsupervisedDetection;
             NodeResultUnsupervisedDetection res = Result as NodeResultUnsupervisedDetection;
             if (form == null || res == null)
@@ -69,19 +66,29 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                 throw new Exception($"节点({NodeName})参数窗体或结果类型不匹配！");
             }
 
+            OutputImage inputImage = null;
+            NodeParamUnsupervisedDetection param = null;
             try
             {
                 SetStatus(NodeStatus.Unexecuted, "*");
                 base.CheckTokenCancel(token);
                 res.AlgorithmResult.Clear();
 
-                OutputImage inputImage = form.GetOutputImage();
+                inputImage = form.GetOutputImage();
                 Mat sourceImage = GetFirstImage(inputImage);
                 if (sourceImage == null || sourceImage.Empty())
                     throw new InvalidOperationException("无监督检测输入图像为空。");
 
-                LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}无监督检测开始，模板={param.TemplatePath}", true);
-                UnsupervisedDetectionRunResult runResult = _runtime.Infer(sourceImage, param);
+                UnsupervisedDetectionRunResult runResult = _configurationGate.Execute(() =>
+                {
+                    NodeParamUnsupervisedDetection currentParam = form.Params as NodeParamUnsupervisedDetection;
+                    if (currentParam == null)
+                        throw new InvalidOperationException($"节点({NodeName})运行参数未设置或保存！");
+
+                    param = currentParam;
+                    LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}无监督检测开始，模板={currentParam.TemplatePath}", true);
+                    return _runtime.Infer(sourceImage, currentParam);
+                });
                 PublishResult(res, runResult);
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
@@ -90,7 +97,10 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                 if (showLog)
                 {
                     string judgeText = runResult.IsOk ? "OK" : "NG";
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，结果：{judgeText}，异常框：{runResult.Boxes.Count}，分数：{runResult.NativeResult.Score:F4})", true);
+                    LogHelper.AddLog(
+                        MsgLevel.Info,
+                        $"节点({ID}.{NodeName})运行成功！({time} ms，结果：{judgeText}，异常框：{runResult.Boxes.Count}，分数：{runResult.NativeResult.Score:F4}，实际设备：{runResult.ActualDevice}，输入：{runResult.InputWidth}x{runResult.InputHeight}，图像准备：{runResult.ImagePreparationMilliseconds} ms，native推理：{runResult.NativeInferenceMilliseconds} ms，结果处理：{runResult.PostprocessMilliseconds} ms)",
+                        true);
                 }
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
@@ -103,10 +113,57 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             }
             catch (Exception ex)
             {
-                LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
+                string templatePath = param == null ? "未设置" : param.TemplatePath;
+                LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}；模板={templatePath}", true);
                 SetRunResult(startTime, NodeStatus.Failed);
                 throw new Exception($"节点({ID}.{NodeName})运行失败！原因:{ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// 在后台线程预先加载并预热无监督运行环境。
+        /// </summary>
+        /// <param name="param">待预加载的节点参数。</param>
+        /// <returns>预加载任务。</returns>
+        public Task PreloadRuntimeAsync(NodeParamUnsupervisedDetection param)
+        {
+            if (param == null)
+                throw new ArgumentNullException(nameof(param));
+
+            ParamFormUnsupervisedDetection form = ParamForm as ParamFormUnsupervisedDetection;
+            if (form == null)
+                throw new InvalidOperationException("当前节点的无监督参数窗体无效。");
+
+            return Task.Run(() => _configurationGate.PreloadAndCommit(
+                () => _runtime.Preload(param),
+                () => form.Params = param));
+        }
+
+        /// <summary>
+        /// 获取当前节点是否存在可用于方案打开预加载的已保存无监督参数。
+        /// </summary>
+        public bool HasSavedRuntimeConfiguration
+        {
+            get
+            {
+                ParamFormUnsupervisedDetection form = ParamForm as ParamFormUnsupervisedDetection;
+                NodeParamUnsupervisedDetection param = form == null ? null : form.Params as NodeParamUnsupervisedDetection;
+                return param != null && !string.IsNullOrWhiteSpace(param.TemplatePath);
+            }
+        }
+
+        /// <summary>
+        /// 从方案恢复的节点参数预加载并预热无监督运行时。
+        /// </summary>
+        /// <returns>预加载任务。</returns>
+        public Task PreloadSavedRuntimeAsync()
+        {
+            ParamFormUnsupervisedDetection form = ParamForm as ParamFormUnsupervisedDetection;
+            NodeParamUnsupervisedDetection param = form == null ? null : form.Params as NodeParamUnsupervisedDetection;
+            if (param == null || string.IsNullOrWhiteSpace(param.TemplatePath))
+                return Task.CompletedTask;
+
+            return PreloadRuntimeAsync(param);
         }
 
         /// <summary>
@@ -114,7 +171,11 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// </summary>
         public void DisposeRuntime()
         {
-            _runtime.Dispose();
+            _configurationGate.Execute(() =>
+            {
+                _runtime.Dispose();
+                return true;
+            });
         }
 
         /// <summary>
@@ -175,6 +236,53 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             string judgeText = runResult.IsOk ? "OK" : "NG";
             float score = runResult.NativeResult == null ? 0F : runResult.NativeResult.Score;
             return string.Format(CultureInfo.InvariantCulture, "无监督检测：{0}，分数 {1:F4}，异常框 {2}，{3}", judgeText, score, runResult.Boxes.Count, runResult.Message);
+        }
+    }
+
+    /// <summary>
+    /// 协调无监督配置提交和流程推理，避免检测器与节点参数出现跨版本组合。
+    /// </summary>
+    internal sealed class UnsupervisedRuntimeConfigurationGate
+    {
+        /// <summary>
+        /// 配置提交和推理共用的同步锁。
+        /// </summary>
+        private readonly object _syncRoot = new object();
+
+        /// <summary>
+        /// 在配置稳定期间执行一次读取或推理操作。
+        /// </summary>
+        /// <typeparam name="TResult">操作结果类型。</typeparam>
+        /// <param name="action">待执行操作。</param>
+        /// <returns>操作结果。</returns>
+        public TResult Execute<TResult>(Func<TResult> action)
+        {
+            if (action == null)
+                throw new ArgumentNullException(nameof(action));
+
+            lock (_syncRoot)
+            {
+                return action();
+            }
+        }
+
+        /// <summary>
+        /// 在同一个配置门内完成候选模型预加载和参数提交；预加载失败时不执行提交。
+        /// </summary>
+        /// <param name="preloadAction">候选模型预加载操作。</param>
+        /// <param name="commitAction">预加载成功后的参数提交操作。</param>
+        public void PreloadAndCommit(Action preloadAction, Action commitAction)
+        {
+            if (preloadAction == null)
+                throw new ArgumentNullException(nameof(preloadAction));
+            if (commitAction == null)
+                throw new ArgumentNullException(nameof(commitAction));
+
+            lock (_syncRoot)
+            {
+                preloadAction();
+                commitAction();
+            }
         }
     }
 }

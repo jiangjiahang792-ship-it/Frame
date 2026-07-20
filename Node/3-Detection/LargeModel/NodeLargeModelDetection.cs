@@ -15,7 +15,7 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
     /// <summary>
     /// 大模型异常检测节点。
     /// </summary>
-    public class NodeLargeModelDetection : NodeBase
+    public class NodeLargeModelDetection : NodeBase, INodeRuntimePreloader
     {
         /// <summary>
         /// 大模型模板加载与推理运行适配器。
@@ -97,7 +97,10 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
                 if (showLog)
                 {
                     string judgeText = runResult.IsOk ? "OK" : "NG";
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，结果：{judgeText}，异常框：{runResult.Boxes.Count}，分数：{runResult.NativeResult.Score:F4})", true);
+                    LogHelper.AddLog(
+                        MsgLevel.Info,
+                        $"节点({ID}.{NodeName})运行成功！({time} ms，结果：{judgeText}，异常框：{runResult.Boxes.Count}，分数：{runResult.NativeResult.Score:F4}，实际设备：{runResult.ActualDevice}，输入：{runResult.InputWidth}x{runResult.InputHeight}，图像准备：{runResult.ImagePreparationMilliseconds} ms，native推理：{runResult.NativeInferenceMilliseconds} ms，结果处理：{runResult.PostprocessMilliseconds} ms)",
+                        true);
                 }
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
@@ -134,6 +137,33 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
             return Task.Run(() => _configurationGate.PreloadAndCommit(
                 () => _runtime.Preload(param),
                 () => form.Params = param));
+        }
+
+        /// <summary>
+        /// 获取当前节点是否存在可用于方案打开预加载的已保存大模型参数。
+        /// </summary>
+        public bool HasSavedRuntimeConfiguration
+        {
+            get
+            {
+                ParamFormLargeModelDetection form = ParamForm as ParamFormLargeModelDetection;
+                NodeParamLargeModelDetection param = form == null ? null : form.Params as NodeParamLargeModelDetection;
+                return param != null && !string.IsNullOrWhiteSpace(param.TemplatePath);
+            }
+        }
+
+        /// <summary>
+        /// 从方案恢复的节点参数预加载并预热大模型运行时。
+        /// </summary>
+        /// <returns>预加载任务。</returns>
+        public Task PreloadSavedRuntimeAsync()
+        {
+            ParamFormLargeModelDetection form = ParamForm as ParamFormLargeModelDetection;
+            NodeParamLargeModelDetection param = form == null ? null : form.Params as NodeParamLargeModelDetection;
+            if (param == null || string.IsNullOrWhiteSpace(param.TemplatePath))
+                return Task.CompletedTask;
+
+            return PreloadRuntimeAsync(param);
         }
 
         /// <summary>

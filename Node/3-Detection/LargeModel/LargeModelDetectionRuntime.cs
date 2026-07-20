@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
+using Logger;
 using OpenCvSharp;
 using TDJS_Vision.Forms.AiTrainForm;
 using CvRect = OpenCvSharp.Rect;
@@ -30,6 +31,16 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
         /// 当前已加载模板最后写入时间。
         /// </summary>
         private long _loadedTemplateTicks;
+
+        /// <summary>
+        /// 当前模型实际使用的推理设备。
+        /// </summary>
+        private string _loadedDevice;
+
+        /// <summary>
+        /// 当前实际加载的模型文件路径。
+        /// </summary>
+        private string _loadedModelPath;
 
         /// <summary>
         /// 当前模板解包结果。
@@ -59,19 +70,51 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
                 EnsureModelLoaded(param);
                 LargeModelTemplateManifest manifest = _extractResult.Manifest;
                 CvRect? roiRect = null;
-                using (Mat inferImage = BuildInferenceImage(sourceImage, manifest, out roiRect))
+                Stopwatch imageTimer = Stopwatch.StartNew();
+                Mat inferImage = BuildInferenceImage(sourceImage, manifest, out roiRect);
+                imageTimer.Stop();
+                using (inferImage)
                 {
                     int maxBoxes = param.MaxBoxes <= 0 ? NodeParamLargeModelDetection.DefaultMaxBoxes : param.MaxBoxes;
                     float imageThreshold = ResolveImageThreshold(param, manifest);
                     int areaThreshold = ResolveAreaThreshold(param, manifest);
-                    LargeModelDinov2Result nativeResult = _detector.InferBgr(inferImage, imageThreshold, areaThreshold, maxBoxes);
+                    long detectorPreparationMilliseconds;
+                    long nativeInferenceMilliseconds;
+                    Stopwatch inferenceCallTimer = Stopwatch.StartNew();
+                    LargeModelDinov2Result nativeResult = _detector.InferBgr(
+                        inferImage,
+                        imageThreshold,
+                        areaThreshold,
+                        maxBoxes,
+                        out detectorPreparationMilliseconds,
+                        out nativeInferenceMilliseconds);
+                    inferenceCallTimer.Stop();
                     if (nativeResult.ReturnCode < 0)
                         throw new InvalidOperationException("大模型推理失败，native 返回码：" + nativeResult.ReturnCode.ToString(CultureInfo.InvariantCulture));
 
+                    Stopwatch postprocessTimer = Stopwatch.StartNew();
                     List<DrawingRect> boxes = OffsetBoxesToSourceImage(nativeResult.Boxes, roiRect, sourceImage.Width, sourceImage.Height);
                     bool isOk = nativeResult.IsOk;
                     string message = BuildResultMessage(nativeResult, boxes.Count);
-                    return new LargeModelDetectionRunResult(nativeResult, manifest, roiRect, boxes, isOk, message);
+                    postprocessTimer.Stop();
+
+                    long wrapperPostprocessMilliseconds = Math.Max(
+                        0L,
+                        inferenceCallTimer.ElapsedMilliseconds - detectorPreparationMilliseconds - nativeInferenceMilliseconds);
+                    return new LargeModelDetectionRunResult(
+                        nativeResult,
+                        manifest,
+                        roiRect,
+                        boxes,
+                        isOk,
+                        message,
+                        _loadedDevice,
+                        _loadedModelPath,
+                        sourceImage.Width,
+                        sourceImage.Height,
+                        imageTimer.ElapsedMilliseconds + detectorPreparationMilliseconds,
+                        nativeInferenceMilliseconds,
+                        postprocessTimer.ElapsedMilliseconds + wrapperPostprocessMilliseconds);
                 }
             }
         }
@@ -162,8 +205,15 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
                 if (warmup)
                     WarmupDetector(loadResult.Detector, param, extractResult.Manifest);
 
-                SwapLoadedDetector(loadResult.Detector, extractResult, templatePath, templateTicks);
+                SwapLoadedDetector(
+                    loadResult.Detector,
+                    extractResult,
+                    templatePath,
+                    templateTicks,
+                    FormatDeviceMode(loadResult.DeviceMode, loadResult.ModelPath),
+                    loadResult.ModelPath);
                 published = true;
+                LogLoadedRuntime();
             }
             finally
             {
@@ -213,17 +263,23 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
         /// <param name="extractResult">新模板解包结果。</param>
         /// <param name="templatePath">新模板完整路径。</param>
         /// <param name="templateTicks">新模板最后写入时间。</param>
+        /// <param name="device">实际加载成功的推理设备。</param>
+        /// <param name="modelPath">实际加载的模型文件路径。</param>
         private void SwapLoadedDetector(
             LargeModelDinov2Detector detector,
             LargeModelTemplateExtractResult extractResult,
             string templatePath,
-            long templateTicks)
+            long templateTicks,
+            string device,
+            string modelPath)
         {
             LargeModelDinov2Detector oldDetector = _detector;
             _detector = detector;
             _extractResult = extractResult;
             _loadedTemplatePath = templatePath;
             _loadedTemplateTicks = templateTicks;
+            _loadedDevice = device;
+            _loadedModelPath = modelPath;
 
             if (oldDetector == null)
                 return;
@@ -236,6 +292,38 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
             {
                 Trace.TraceWarning("释放旧大模型检测器失败：" + ex.Message);
             }
+        }
+
+        /// <summary>
+        /// 将 native 设备模式转换为用户可读文本。
+        /// </summary>
+        /// <param name="deviceMode">0 自动、1 GPU、2 CPU。</param>
+        /// <param name="modelPath">实际加载的模型路径。</param>
+        /// <returns>实际设备文本。</returns>
+        private static string FormatDeviceMode(int deviceMode, string modelPath)
+        {
+            if (deviceMode == 1)
+            {
+                return string.Equals(Path.GetExtension(modelPath), ".engine", StringComparison.OrdinalIgnoreCase)
+                    ? "GPU_TENSORRT"
+                    : "GPU";
+            }
+            if (deviceMode == 2)
+                return "CPU_ONNX";
+
+            return "AUTO";
+        }
+
+        /// <summary>
+        /// 将模型加载后的真实设备和模型路径写入统一运行日志。
+        /// </summary>
+        private void LogLoadedRuntime()
+        {
+            LogHelper.AddLog(
+                MsgLevel.Info,
+                "大模型运行模型加载成功，实际设备=" + (_loadedDevice ?? "未知") +
+                "，实际模型=" + (_loadedModelPath ?? "未知"),
+                true);
         }
 
         /// <summary>
@@ -271,7 +359,7 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
         }
 
         /// <summary>
-        /// 加载大模型模板模型；首选设备失败时按模板尺寸尝试 CPU ONNX 回退。
+        /// 加载大模型模板模型；只有 AUTO 初始化失败时允许按模板尺寸尝试 CPU ONNX 回退。
         /// </summary>
         /// <param name="runtimeRoot">大模型运行环境目录。</param>
         /// <param name="extractResult">模板解包结果。</param>
@@ -283,7 +371,7 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
             int firstDeviceMode = ResolveManifestDeviceMode(extractResult.Manifest);
             LargeModelDinov2Detector detector = LoadModelOnce(runtimeRoot, firstModelPath, extractResult.BankPath, firstDeviceMode, out firstRet);
             if (firstRet == 0)
-                return new LoadModelResult(detector, firstDeviceMode);
+                return new LoadModelResult(detector, firstDeviceMode, firstModelPath);
 
             detector.Dispose();
             if (!ShouldRetryLoadModelOnCpu(firstDeviceMode))
@@ -295,7 +383,7 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
             if (cpuRet == 0)
             {
                 Trace.TraceWarning("大模型首选设备加载失败，返回码=" + firstRet.ToString(CultureInfo.InvariantCulture) + "，已执行 CPU 回退。");
-                return new LoadModelResult(cpuDetector, 2);
+                return new LoadModelResult(cpuDetector, 2, cpuModelPath);
             }
 
             cpuDetector.Dispose();
@@ -351,10 +439,10 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
         /// 判断当前失败是否允许用 CPU 重新初始化。
         /// </summary>
         /// <param name="deviceMode">首选设备模式。</param>
-        /// <returns>GPU 或 AUTO 失败时返回 true。</returns>
+        /// <returns>AUTO 模式失败时返回 true。</returns>
         private static bool ShouldRetryLoadModelOnCpu(int deviceMode)
         {
-            return deviceMode == 0 || deviceMode == 1;
+            return deviceMode == 0;
         }
 
         /// <summary>
@@ -521,6 +609,8 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
             {
                 _detector.Dispose();
                 _detector = null;
+                _loadedDevice = null;
+                _loadedModelPath = null;
             }
         }
 
@@ -534,10 +624,12 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
             /// </summary>
             /// <param name="detector">已加载模型的检测器。</param>
             /// <param name="deviceMode">实际加载成功的设备模式。</param>
-            public LoadModelResult(LargeModelDinov2Detector detector, int deviceMode)
+            /// <param name="modelPath">实际加载成功的模型路径。</param>
+            public LoadModelResult(LargeModelDinov2Detector detector, int deviceMode, string modelPath)
             {
                 Detector = detector;
                 DeviceMode = deviceMode;
+                ModelPath = modelPath;
             }
 
             /// <summary>
@@ -549,6 +641,11 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
             /// 实际加载成功的设备模式。
             /// </summary>
             public int DeviceMode { get; private set; }
+
+            /// <summary>
+            /// 实际加载成功的模型路径。
+            /// </summary>
+            public string ModelPath { get; private set; }
         }
     }
 
@@ -566,7 +663,27 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
         /// <param name="boxes">源图坐标系异常矩形。</param>
         /// <param name="isOk">最终 OK/NG 判定。</param>
         /// <param name="message">结果摘要。</param>
-        public LargeModelDetectionRunResult(LargeModelDinov2Result nativeResult, LargeModelTemplateManifest manifest, CvRect? roiRect, List<DrawingRect> boxes, bool isOk, string message)
+        /// <param name="actualDevice">实际推理设备。</param>
+        /// <param name="actualModelPath">实际模型路径。</param>
+        /// <param name="inputWidth">输入图像宽度。</param>
+        /// <param name="inputHeight">输入图像高度。</param>
+        /// <param name="imagePreparationMilliseconds">图像准备耗时。</param>
+        /// <param name="nativeInferenceMilliseconds">native 推理耗时。</param>
+        /// <param name="postprocessMilliseconds">结果处理耗时。</param>
+        public LargeModelDetectionRunResult(
+            LargeModelDinov2Result nativeResult,
+            LargeModelTemplateManifest manifest,
+            CvRect? roiRect,
+            List<DrawingRect> boxes,
+            bool isOk,
+            string message,
+            string actualDevice,
+            string actualModelPath,
+            int inputWidth,
+            int inputHeight,
+            long imagePreparationMilliseconds,
+            long nativeInferenceMilliseconds,
+            long postprocessMilliseconds)
         {
             NativeResult = nativeResult;
             Manifest = manifest;
@@ -574,6 +691,13 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
             Boxes = boxes ?? new List<DrawingRect>();
             IsOk = isOk;
             Message = message;
+            ActualDevice = actualDevice;
+            ActualModelPath = actualModelPath;
+            InputWidth = inputWidth;
+            InputHeight = inputHeight;
+            ImagePreparationMilliseconds = imagePreparationMilliseconds;
+            NativeInferenceMilliseconds = nativeInferenceMilliseconds;
+            PostprocessMilliseconds = postprocessMilliseconds;
         }
 
         /// <summary>
@@ -605,5 +729,40 @@ namespace TDJS_Vision.Node._3_Detection.LargeModel
         /// 结果摘要。
         /// </summary>
         public string Message { get; }
+
+        /// <summary>
+        /// 实际推理设备。
+        /// </summary>
+        public string ActualDevice { get; }
+
+        /// <summary>
+        /// 实际加载的模型文件路径。
+        /// </summary>
+        public string ActualModelPath { get; }
+
+        /// <summary>
+        /// 输入图像宽度。
+        /// </summary>
+        public int InputWidth { get; }
+
+        /// <summary>
+        /// 输入图像高度。
+        /// </summary>
+        public int InputHeight { get; }
+
+        /// <summary>
+        /// ROI 裁剪、BGR 转换与图像复制耗时。
+        /// </summary>
+        public long ImagePreparationMilliseconds { get; }
+
+        /// <summary>
+        /// native Infer 调用耗时。
+        /// </summary>
+        public long NativeInferenceMilliseconds { get; }
+
+        /// <summary>
+        /// native 返回转换和结果坐标处理耗时。
+        /// </summary>
+        public long PostprocessMilliseconds { get; }
     }
 }
