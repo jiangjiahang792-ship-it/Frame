@@ -2071,4 +2071,6 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 已完成设计文档：`docs/superpowers/specs/2026-07-20-multi-target-position-correction-measurement-design.md`。
 - [x] 已完成详细测试驱动实施计划：`docs/superpowers/plans/2026-07-20-multi-target-position-correction-measurement.md`。
 - [ ] 按计划完成多目标数据模型、位置修正、八类测量工具和界面改造。
+  - [x] 已新增模板目标位姿契约和可替换的多目标变换服务，覆盖尺度保护、正逆变换、旋转框命中及框外最近目标选择。
+  - [x] `MultiTargetTransform.Tests.ps1` 已按测试驱动方式先失败后通过。
 - [ ] 完成专项测试、相关回归测试和 `Debug|x64` 编译验证。
