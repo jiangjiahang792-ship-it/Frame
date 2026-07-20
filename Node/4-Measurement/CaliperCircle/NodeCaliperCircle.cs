@@ -3,6 +3,7 @@ using OpenCvSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -46,20 +47,15 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 if (form == null || param == null)
                     throw new Exception("卡尺找圆参数异常！");
 
-                CaliperCircleMeasureResult measureResult = form.ExecuteMeasure(param);
-                if (measureResult == null)
-                    throw new Exception("Caliper circle measurement returned no result.");
-
-                NodeResultCaliperCircle nodeResult = BuildResult(measureResult);
+                List<CaliperCircleTargetResult> items = form.ExecuteMeasures(param, token);
+                NodeResultCaliperCircle nodeResult = BuildResult(items);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
 
-                if (showLog && measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，半径：{nodeResult.Radius:F3}px)", true);
-
-                if (showLog && !measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Warn, $"Node({ID}.{NodeName}) caliper circle found no valid circle. ({time} ms, edge points: {measureResult.PointCount})", true);
+                if (showLog)
+                    LogHelper.AddLog(nodeResult.IsOk ? MsgLevel.Info : MsgLevel.Warn,
+                        $"节点({ID}.{NodeName})卡尺找圆完成！({time} ms，目标：{items.Count}，总体：{(nodeResult.IsOk ? "OK" : "NG")})", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -79,43 +75,50 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             }
         }
 
-        internal static NodeResultCaliperCircle BuildResult(CaliperCircleMeasureResult measureResult)
+        /// <summary>根据全部目标项构建节点汇总结果。</summary>
+        internal static NodeResultCaliperCircle BuildResult(List<CaliperCircleTargetResult> items)
         {
             var result = new NodeResultCaliperCircle();
-            result.IsOk = measureResult.Success;
-            result.EdgePointCount = measureResult.PointCount;
-            if (measureResult.Success)
+            result.Items = items ?? new List<CaliperCircleTargetResult>();
+            result.IsOk = result.Items.Count > 0 && result.Items.All(item => item.IsOk);
+            result.JudgeOk = result.IsOk;
+            result.EdgePointCount = result.Items.Sum(item => item.EdgePointCount);
+            CaliperCircleTargetResult first = result.Items.FirstOrDefault();
+            if (first != null)
             {
-                result.CenterX = MeasurementResultRounder.Round(measureResult.Center.X);
-                result.CenterY = MeasurementResultRounder.Round(measureResult.Center.Y);
-                result.Radius = MeasurementResultRounder.Round(measureResult.Radius);
-                result.Diameter = MeasurementResultRounder.Round(measureResult.Radius * 2.0);
+                result.CenterX = first.CenterX;
+                result.CenterY = first.CenterY;
+                result.Radius = first.Radius;
+                result.Diameter = first.Diameter;
+                result.AlgorithmMs = result.Items.Sum(item => item.AlgorithmMs);
             }
-            result.AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs);
-            result.Result = BuildDisplayResult(measureResult);
+            result.Result = BuildDisplayResult(result.Items);
             result.OutputImage.DisplayResult = result.Result;
             return result;
         }
 
-        internal static AlgorithmResult BuildDisplayResult(CaliperCircleMeasureResult measureResult)
+        /// <summary>合并全部模板目标的找圆绘制结果。</summary>
+        internal static AlgorithmResult BuildDisplayResult(IReadOnlyList<CaliperCircleTargetResult> items)
         {
             var result = new AlgorithmResult();
-            result.IsAllOk = measureResult.Success;
-            foreach (PointF point in measureResult.EdgePoints)
-                result.Circles.Add(new ColorCircle(point, 2, Color.Yellow));
-
-            if (measureResult.Success)
+            result.IsAllOk = items != null && items.Count > 0 && items.All(item => item.IsOk);
+            if (items == null)
+                return result;
+            foreach (CaliperCircleTargetResult item in items)
             {
-                result.Circles.Add(new ColorCircle(measureResult.Center, (int)Math.Round(measureResult.Radius), Color.Lime));
-                result.Circles.Add(new ColorCircle(measureResult.Center, 3, Color.Red));
-                result.Texts.Add(new ColorText($"卡尺找圆：点数 {measureResult.PointCount}，圆心({measureResult.Center.X:F3}, {measureResult.Center.Y:F3})，半径 {measureResult.Radius:F3}px", Color.Lime));
-            }
-            else
-            {
-                string message = string.IsNullOrWhiteSpace(measureResult.ErrorMessage)
-                    ? $"卡尺找圆失败：点数 {measureResult.PointCount}"
-                    : measureResult.ErrorMessage;
-                result.Texts.Add(new ColorText(message, Color.Red));
+                foreach (PointF point in item.EdgePoints ?? new List<PointF>())
+                    result.Circles.Add(new ColorCircle(point, 2, Color.Yellow));
+                if (item.IsOk)
+                {
+                    var center = new PointF((float)item.CenterX, (float)item.CenterY);
+                    result.Circles.Add(new ColorCircle(center, (int)Math.Round(item.Radius), Color.Lime));
+                    result.Circles.Add(new ColorCircle(center, 3, Color.Red));
+                    result.Texts.Add(new ColorText($"目标{item.TargetIndex} 卡尺找圆：点数 {item.EdgePointCount}，圆心({item.CenterX:F3}, {item.CenterY:F3})，半径 {item.Radius:F3}px", Color.Lime));
+                }
+                else
+                {
+                    result.Texts.Add(new ColorText($"目标{item.TargetIndex} 卡尺找圆失败：数值0，原因：{item.ErrorMessage}", Color.Red));
+                }
             }
 
             return result;

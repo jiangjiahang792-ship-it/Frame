@@ -3,15 +3,53 @@ using System.ComponentModel;
 using System.Drawing;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Node._4_Measurement.Common;
 
 namespace TDJS_Vision.Node._4_Measurement.CaliperLine
 {
+    /// <summary>
+    /// 表示单个模板目标的卡尺找线结果，失败时数值保持为零。
+    /// </summary>
+    public sealed class CaliperLineTargetResult : MultiTargetMeasurementItemBase
+    {
+        /// <summary>获取或设置找到的边缘点数量。</summary>
+        public int EdgePointCount { get; set; }
+
+        /// <summary>获取或设置找到的边缘点集合。</summary>
+        public List<PointF> EdgePoints { get; set; } = new List<PointF>();
+
+        /// <summary>获取或设置拟合线起点 X 坐标。</summary>
+        public double StartX { get; set; }
+
+        /// <summary>获取或设置拟合线起点 Y 坐标。</summary>
+        public double StartY { get; set; }
+
+        /// <summary>获取或设置拟合线终点 X 坐标。</summary>
+        public double EndX { get; set; }
+
+        /// <summary>获取或设置拟合线终点 Y 坐标。</summary>
+        public double EndY { get; set; }
+
+        /// <summary>获取或设置拟合线长度。</summary>
+        public double Length { get; set; }
+
+        /// <summary>获取或设置拟合线绝对角度。</summary>
+        public double Angle { get; set; }
+
+        /// <summary>获取或设置单目标算法耗时。</summary>
+        public double AlgorithmMs { get; set; }
+    }
+
     public class NodeResultCaliperLine : INodeResult, IJudgmentResult
     {
         public int RunTime { get; set; }
 
         [DisplayName("是否OK")]
         public bool IsOk { get; set; }
+
+        /// <summary>获取或设置按模板目标顺序排列的找线结果。</summary>
+        [DisplayName("多目标卡尺找线结果")]
+        public List<CaliperLineTargetResult> Items { get; set; } = new List<CaliperLineTargetResult>();
 
         /// <summary>
         /// 后续多条件判定后的OK/NG状态，默认OK，绘制工具按该值选择颜色。

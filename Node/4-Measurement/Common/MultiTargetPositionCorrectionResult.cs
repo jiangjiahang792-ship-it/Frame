@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.ComponentModel;
 using TDJS_Vision.Node._3_Detection.MatchTemplate;
 
 namespace TDJS_Vision.Node._4_Measurement.Common
@@ -11,6 +12,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         /// <summary>
         /// 获取或设置与模板匹配目标顺序一致的位置修正集合。
         /// </summary>
+        [DisplayName("位置修正信息列表")]
         public List<PositionCorrectionInfo> Items { get; set; } = new List<PositionCorrectionInfo>();
 
         /// <summary>

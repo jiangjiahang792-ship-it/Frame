@@ -3,6 +3,7 @@ using OpenCvSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -46,20 +47,15 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 if (form == null || param == null)
                     throw new Exception("卡尺找椭圆参数异常！");
 
-                CaliperEllipseMeasureResult measureResult = form.ExecuteMeasure(param);
-                if (measureResult == null)
-                    throw new Exception("Caliper ellipse measurement returned no result.");
-
-                NodeResultCaliperEllipse nodeResult = BuildResult(measureResult);
+                List<CaliperEllipseTargetResult> items = form.ExecuteMeasures(param, token);
+                NodeResultCaliperEllipse nodeResult = BuildResult(items);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
 
-                if (showLog && measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，点数：{measureResult.PointCount})", true);
-
-                if (showLog && !measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Warn, $"Node({ID}.{NodeName}) caliper ellipse found no valid ellipse. ({time} ms, edge points: {measureResult.PointCount})", true);
+                if (showLog)
+                    LogHelper.AddLog(nodeResult.IsOk ? MsgLevel.Info : MsgLevel.Warn,
+                        $"节点({ID}.{NodeName})卡尺找椭圆完成！({time} ms，目标：{items.Count}，总体：{(nodeResult.IsOk ? "OK" : "NG")})", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -79,49 +75,55 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             }
         }
 
-        internal static NodeResultCaliperEllipse BuildResult(CaliperEllipseMeasureResult measureResult)
+        /// <summary>根据全部目标项构建节点汇总结果。</summary>
+        internal static NodeResultCaliperEllipse BuildResult(List<CaliperEllipseTargetResult> items)
         {
             var result = new NodeResultCaliperEllipse();
-            result.IsOk = measureResult.Success;
-            result.EdgePointCount = measureResult.PointCount;
-            if (measureResult.Success)
+            result.Items = items ?? new List<CaliperEllipseTargetResult>();
+            result.IsOk = result.Items.Count > 0 && result.Items.All(item => item.IsOk);
+            result.JudgeOk = result.IsOk;
+            result.EdgePointCount = result.Items.Sum(item => item.EdgePointCount);
+            CaliperEllipseTargetResult first = result.Items.FirstOrDefault();
+            if (first != null)
             {
-                result.CenterX = MeasurementResultRounder.Round(measureResult.Center.X);
-                result.CenterY = MeasurementResultRounder.Round(measureResult.Center.Y);
-                result.Width = MeasurementResultRounder.Round(measureResult.Size.Width);
-                result.Height = MeasurementResultRounder.Round(measureResult.Size.Height);
-                result.MajorAxis = MeasurementResultRounder.Round(Math.Max(measureResult.Size.Width, measureResult.Size.Height));
-                result.MinorAxis = MeasurementResultRounder.Round(Math.Min(measureResult.Size.Width, measureResult.Size.Height));
-                result.Angle = MeasurementResultRounder.Round(measureResult.Angle);
+                result.CenterX = first.CenterX;
+                result.CenterY = first.CenterY;
+                result.Width = first.Width;
+                result.Height = first.Height;
+                result.MajorAxis = first.MajorAxis;
+                result.MinorAxis = first.MinorAxis;
+                result.Angle = first.Angle;
+                result.AlgorithmMs = result.Items.Sum(item => item.AlgorithmMs);
             }
-            result.AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs);
-            result.Result = BuildDisplayResult(measureResult);
+            result.Result = BuildDisplayResult(result.Items);
             result.OutputImage.DisplayResult = result.Result;
             return result;
         }
 
-        internal static AlgorithmResult BuildDisplayResult(CaliperEllipseMeasureResult measureResult)
+        /// <summary>合并全部模板目标的找椭圆绘制结果。</summary>
+        internal static AlgorithmResult BuildDisplayResult(IReadOnlyList<CaliperEllipseTargetResult> items)
         {
             var result = new AlgorithmResult();
-            result.IsAllOk = measureResult.Success;
-            foreach (PointF point in measureResult.EdgePoints)
-                result.Circles.Add(new ColorCircle(point, 2, Color.Yellow));
-            foreach (PointF point in measureResult.FailedPoints)
-                result.Circles.Add(new ColorCircle(point, 2, Color.Red));
-
-            if (measureResult.Success)
+            result.IsAllOk = items != null && items.Count > 0 && items.All(item => item.IsOk);
+            if (items == null)
+                return result;
+            foreach (CaliperEllipseTargetResult item in items)
             {
-                var center = new PointF(measureResult.Center.X, measureResult.Center.Y);
-                result.Ellipses.Add(new ColorEllipse(center, measureResult.Size.Width, measureResult.Size.Height, measureResult.Angle, Color.Lime));
-                result.Circles.Add(new ColorCircle(center, 3, Color.Red));
-                result.Texts.Add(new ColorText($"卡尺找椭圆：点数 {measureResult.PointCount}，中心({measureResult.Center.X:F3}, {measureResult.Center.Y:F3})，宽高({measureResult.Size.Width:F3}, {measureResult.Size.Height:F3})，角度 {measureResult.Angle:F3}°", Color.Lime));
-            }
-            else
-            {
-                string message = string.IsNullOrWhiteSpace(measureResult.ErrorMessage)
-                    ? $"卡尺找椭圆失败：点数 {measureResult.PointCount}"
-                    : measureResult.ErrorMessage;
-                result.Texts.Add(new ColorText(message, Color.Red));
+                foreach (PointF point in item.EdgePoints ?? new List<PointF>())
+                    result.Circles.Add(new ColorCircle(point, 2, Color.Yellow));
+                foreach (PointF point in item.FailedPoints ?? new List<PointF>())
+                    result.Circles.Add(new ColorCircle(point, 2, Color.Red));
+                if (item.IsOk)
+                {
+                    var center = new PointF((float)item.CenterX, (float)item.CenterY);
+                    result.Ellipses.Add(new ColorEllipse(center, (float)item.Width, (float)item.Height, (float)item.Angle, Color.Lime));
+                    result.Circles.Add(new ColorCircle(center, 3, Color.Red));
+                    result.Texts.Add(new ColorText($"目标{item.TargetIndex} 卡尺找椭圆：点数 {item.EdgePointCount}，中心({item.CenterX:F3}, {item.CenterY:F3})，宽高({item.Width:F3}, {item.Height:F3})，角度 {item.Angle:F3}°", Color.Lime));
+                }
+                else
+                {
+                    result.Texts.Add(new ColorText($"目标{item.TargetIndex} 卡尺找椭圆失败：数值0，原因：{item.ErrorMessage}", Color.Red));
+                }
             }
 
             return result;
