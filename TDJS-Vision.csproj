@@ -391,6 +391,7 @@
     <Compile Include="Node\4-Measurement\Common\PositionCorrectionInfo.cs" />
     <Compile Include="Node\4-Measurement\Common\MultiTargetTransformService.cs" />
     <Compile Include="Node\4-Measurement\Common\MultiTargetPositionCorrectionResult.cs" />
+    <Compile Include="Node\4-Measurement\Common\MultiTargetMeasurementRunner.cs" />
     <Compile Include="Node\4-Measurement\CaliperLine\NodeCaliperLine.cs">
       <SubType>UserControl</SubType>
     </Compile>
