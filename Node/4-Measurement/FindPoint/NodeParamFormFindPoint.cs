@@ -64,6 +64,7 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
         public void SetNodeBelong(NodeBase node)
         {
             nodeSubscriptionImage.Init(node);
+            nodeSubscriptionPositionCorrection.SetExpectedValueType<List<PositionCorrectionInfo>>();
             nodeSubscriptionPositionCorrection.Init(node);
         }
 

@@ -1490,6 +1490,7 @@
     <Compile Include="Node\NodeSubscription.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="Node\SubscriptionValueTypeFilter.cs" />
     <Compile Include="Node\NodeSubscription.Designer.cs">
       <DependentUpon>NodeSubscription.cs</DependentUpon>
     </Compile>

@@ -179,6 +179,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
             nodeSubscriptionImage.Init(node);
             nodeSubscriptionPoint.Init(node);
             nodeSubscriptionLine.Init(node);
+            nodeSubscriptionPositionCorrection.SetExpectedValueType<List<PositionCorrectionInfo>>();
             nodeSubscriptionPositionCorrection.Init(node);
         }
 

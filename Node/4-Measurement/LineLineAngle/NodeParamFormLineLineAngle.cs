@@ -125,6 +125,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             nodeSubscriptionImage.Init(node);
             nodeSubscriptionLine1.Init(node);
             nodeSubscriptionLine2.Init(node);
+            nodeSubscriptionPositionCorrection.SetExpectedValueType<List<PositionCorrectionInfo>>();
             nodeSubscriptionPositionCorrection.Init(node);
         }
 

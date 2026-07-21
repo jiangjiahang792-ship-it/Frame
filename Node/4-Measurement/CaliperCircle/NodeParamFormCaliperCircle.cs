@@ -32,6 +32,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
         public void SetNodeBelong(NodeBase node)
         {
             nodeSubscription1.Init(node);
+            nodeSubscriptionPositionCorrection.SetExpectedValueType<List<PositionCorrectionInfo>>();
             nodeSubscriptionPositionCorrection.Init(node);
         }
 

@@ -38,6 +38,10 @@ namespace TDJS_Vision.Node
         /// 正在由代码刷新节点下拉框，避免 SelectedIndexChanged 反复触发订阅恢复逻辑。
         /// </summary>
         private bool _isUpdatingNodeCombo;
+        /// <summary>
+        /// 调用方声明的订阅值类型；为空时保留显示全部结果属性的兼容行为。
+        /// </summary>
+        private Type _expectedValueType;
 
         public NodeSubscription()
         {
@@ -114,6 +118,26 @@ namespace TDJS_Vision.Node
 
             NodeBase.NodeDeletedEvent -= NodeBase_NodeDeletedEvent;
             NodeBase.NodeDeletedEvent += NodeBase_NodeDeletedEvent;
+        }
+
+        /// <summary>
+        /// 声明此订阅控件期望读取的结果值类型，并刷新当前结果属性列表。
+        /// </summary>
+        /// <typeparam name="T">期望读取的结果值类型。</typeparam>
+        public void SetExpectedValueType<T>()
+        {
+            SetExpectedValueType(typeof(T));
+        }
+
+        /// <summary>
+        /// 声明此订阅控件期望读取的结果值类型，并刷新当前结果属性列表。
+        /// </summary>
+        /// <param name="expectedValueType">期望读取的结果值类型；为空时取消类型筛选。</param>
+        public void SetExpectedValueType(Type expectedValueType)
+        {
+            _expectedValueType = expectedValueType;
+            if (_selectedNode != null)
+                InitProperties(_selectedNode, _text2);
         }
 
         private void Process_ConnectionsChanged(object sender, EventArgs e)
@@ -213,19 +237,27 @@ namespace TDJS_Vision.Node
         {
             comboBox2.Items.Clear();
             Type nodeResult = nodeBase.Result.GetType();
-            var properties = nodeResult.GetProperties();
+            IReadOnlyList<PropertyInfo> properties = SubscriptionValueTypeFilter.GetDisplayProperties(nodeResult, _expectedValueType);
 
             foreach (var property in properties) //遍历属性
             {
                 var displayNameAttribute = property.GetCustomAttribute<DisplayNameAttribute>();
-                if (displayNameAttribute != null)
-                {
-                    comboBox2.Items.Add(displayNameAttribute.DisplayName);
-                }
+                comboBox2.Items.Add(displayNameAttribute.DisplayName);
             }
 
             foreach (string variableName in DynamicResultVariableResolver.GetVariableNames(nodeBase))
             {
+                if (_expectedValueType != null)
+                {
+                    object dynamicValue;
+                    if (!DynamicResultVariableResolver.TryGetValue(nodeBase.Result, variableName, out dynamicValue) ||
+                        dynamicValue == null ||
+                        !SubscriptionValueTypeFilter.IsCompatible(dynamicValue.GetType(), _expectedValueType))
+                    {
+                        continue;
+                    }
+                }
+
                 string displayName = DynamicResultVariableResolver.ToDisplayName(variableName);
                 if (!comboBox2.Items.Contains(displayName))
                     comboBox2.Items.Add(displayName);
@@ -247,6 +279,11 @@ namespace TDJS_Vision.Node
                     comboBox2.SelectedIndex = index1 == -1 ? 0 : index1;
                     _text2 = comboBox2.Text;
                 }
+            }
+            else
+            {
+                comboBox2.Text = string.Empty;
+                _text2 = string.Empty;
             }
         }
         /// <summary>

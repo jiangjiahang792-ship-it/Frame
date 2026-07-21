@@ -2113,3 +2113,11 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
   - [x] 独立代码审查复核三项问题均已解决，未发现新的严重或重要问题
   - [x] 六项多目标专项测试全部通过；`git diff --check` 通过；`Debug|x64` 完整编译通过，179个既有警告、0个错误
   - [x] 全库41项PowerShell回归测试中39项通过；`ImageSaveMultiConditionSubscription.Tests.ps1` 因既有乱码导致脚本解析失败，`UnsupervisedTrainForm.Tests.ps1` 因既有中文按钮文本断言失败，均与本次测量改动文件无交集
+
+## 2026-07-21: 修复旧方案位置修正订阅与多目标列表不兼容
+
+- [x] 使用用户提供的 `222.Sol` 定位根因：卡尺找圆仍保存“位置修正信息”单值订阅，新版确认 ROI 按 `List<PositionCorrectionInfo>` 读取时触发类型不匹配。
+- [x] 为通用订阅控件增加期望值类型约束，只显示能够赋值给调用方目标类型的结果属性；旧单值名称不存在于筛选结果时自动回落到“位置修正信息列表”。
+- [x] 卡尺找线、卡尺找圆、卡尺找椭圆、找点、线线夹角、点点距离、点线距离和点区域距离统一声明位置修正列表类型，已有方案打开后无需手工重配，保存时自动写回列表订阅名称。
+- [x] 新增 `PositionCorrectionSubscriptionCompatibility.Tests.ps1`，覆盖旧单值属性排除、列表属性选择、接口类型兼容、未声明类型保持原行为，以及八类测量工具初始化顺序；测试按测试驱动方式先失败后通过。
+- [x] 七项多目标专项回归测试全部通过；`git diff --check` 通过；MSBuild `Debug|x64` 完整编译通过，179 个项目既有警告、0 个错误。
