@@ -48,6 +48,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             this.comboBoxFindMode = new System.Windows.Forms.ComboBox();
             this.labelDirection = new System.Windows.Forms.Label();
             this.comboBoxDirection = new System.Windows.Forms.ComboBox();
+            this.labelSamplingMode = new System.Windows.Forms.Label();
+            this.comboBoxSamplingMode = new System.Windows.Forms.ComboBox();
             this.checkBoxEnableFitValidPointCount = new System.Windows.Forms.CheckBox();
             this.labelFitValidPointCount = new System.Windows.Forms.Label();
             this.textBoxFitValidPointCount = new System.Windows.Forms.TextBox();
@@ -234,12 +236,14 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             this.groupBoxCaliper.Controls.Add(this.comboBoxFindMode);
             this.groupBoxCaliper.Controls.Add(this.labelDirection);
             this.groupBoxCaliper.Controls.Add(this.comboBoxDirection);
+            this.groupBoxCaliper.Controls.Add(this.labelSamplingMode);
+            this.groupBoxCaliper.Controls.Add(this.comboBoxSamplingMode);
             this.groupBoxCaliper.Controls.Add(this.checkBoxEnableFitValidPointCount);
             this.groupBoxCaliper.Controls.Add(this.labelFitValidPointCount);
             this.groupBoxCaliper.Controls.Add(this.textBoxFitValidPointCount);
             this.groupBoxCaliper.Location = new System.Drawing.Point(18, 378);
             this.groupBoxCaliper.Name = "groupBoxCaliper";
-            this.groupBoxCaliper.Size = new System.Drawing.Size(390, 246);
+            this.groupBoxCaliper.Size = new System.Drawing.Size(390, 276);
             this.groupBoxCaliper.TabIndex = 4;
             this.groupBoxCaliper.TabStop = false;
             this.groupBoxCaliper.Text = "卡尺参数";
@@ -412,6 +416,24 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             this.textBoxFitValidPointCount.Size = new System.Drawing.Size(56, 25);
             this.textBoxFitValidPointCount.TabIndex = 18;
             this.textBoxFitValidPointCount.Text = "10";
+            //
+            // labelSamplingMode
+            //
+            this.labelSamplingMode.AutoSize = true;
+            this.labelSamplingMode.Location = new System.Drawing.Point(16, 232);
+            this.labelSamplingMode.Name = "labelSamplingMode";
+            this.labelSamplingMode.Size = new System.Drawing.Size(67, 15);
+            this.labelSamplingMode.TabIndex = 19;
+            this.labelSamplingMode.Text = "采样模式";
+            //
+            // comboBoxSamplingMode
+            //
+            this.comboBoxSamplingMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxSamplingMode.FormattingEnabled = true;
+            this.comboBoxSamplingMode.Location = new System.Drawing.Point(88, 228);
+            this.comboBoxSamplingMode.Name = "comboBoxSamplingMode";
+            this.comboBoxSamplingMode.Size = new System.Drawing.Size(120, 23);
+            this.comboBoxSamplingMode.TabIndex = 20;
             // 
             // showImageControl1
             // 
@@ -484,7 +506,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(962, 646);
+            this.ClientSize = new System.Drawing.Size(962, 676);
             this.Controls.Add(this.buttonSave);
             this.Controls.Add(this.buttonRun);
             this.Controls.Add(this.buttonRefresh);
@@ -540,6 +562,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
         private System.Windows.Forms.ComboBox comboBoxFindMode;
         private System.Windows.Forms.Label labelDirection;
         private System.Windows.Forms.ComboBox comboBoxDirection;
+        private System.Windows.Forms.Label labelSamplingMode;
+        private System.Windows.Forms.ComboBox comboBoxSamplingMode;
         private System.Windows.Forms.CheckBox checkBoxEnableFitValidPointCount;
         private System.Windows.Forms.Label labelFitValidPointCount;
         private System.Windows.Forms.TextBox textBoxFitValidPointCount;

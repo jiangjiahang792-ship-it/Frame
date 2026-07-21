@@ -63,6 +63,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 comboBoxPolarity.SelectedItem = param.Polarity;
                 comboBoxFindMode.SelectedItem = param.FindMode;
                 comboBoxDirection.SelectedIndex = param.Direction == 1 ? 1 : 0;
+                comboBoxSamplingMode.SelectedIndex = param.SamplingMode == CaliperSamplingMode.AntiInterference ? 1 : 0;
                 UpdatePositionCorrectionEnabled();
                 UpdateFitValidPointCountEnabled();
             }
@@ -147,6 +148,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 BlurSize = param.BlurSize,
                 Polarity = param.Polarity,
                 FindMode = param.FindMode,
+                SamplingMode = param.SamplingMode,
                 Direction = param.Direction
             };
         }
@@ -169,6 +171,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 EdgeStrength = runtimeParam.EdgeStrength,
                 Polarity = runtimeParam.Polarity,
                 FindMode = runtimeParam.FindMode,
+                SamplingMode = runtimeParam.SamplingMode,
                 Direction = runtimeParam.Direction,
                 BlurSize = runtimeParam.BlurSize
             };
@@ -238,6 +241,10 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             comboBoxDirection.Items.Add("由内向外");
             comboBoxDirection.Items.Add("由外向内");
             comboBoxDirection.SelectedIndex = 0;
+
+            comboBoxSamplingMode.Items.Add("快速采样");
+            comboBoxSamplingMode.Items.Add("抗干扰采样");
+            comboBoxSamplingMode.SelectedIndex = 0;
         }
 
         private void BindRoiRefreshEvents()
@@ -416,6 +423,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                     BlurSize = ParseInt(textBoxBlurSize, "平滑核"),
                     Polarity = (CaliperEdgePolarity)comboBoxPolarity.SelectedItem,
                     FindMode = (CaliperEdgeFindMode)comboBoxFindMode.SelectedItem,
+                    SamplingMode = comboBoxSamplingMode.SelectedIndex == 1
+                        ? CaliperSamplingMode.AntiInterference
+                        : CaliperSamplingMode.Fast,
                     Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0
                 };
                 return true;
