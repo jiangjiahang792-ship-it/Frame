@@ -71,6 +71,11 @@ namespace TDJS_Vision.Node._4_Measurement.Common
     public static class MultiTargetMeasurementRunner
     {
         /// <summary>
+        /// 公共执行器首次使用时读取并缓存的自动并发上限；逻辑处理器数量在程序运行期间保持稳定，无需逐轮读取。
+        /// </summary>
+        private static readonly int AutomaticMaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1);
+
+        /// <summary>
         /// 逐目标执行测量；普通异常生成失败项，取消异常立即向上抛出。
         /// </summary>
         /// <typeparam name="TItem">具体测量工具的目标结果项类型。</typeparam>
@@ -106,7 +111,10 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         /// <param name="token">用于取消尚未开始或正在调度的目标测量的令牌。</param>
         /// <param name="execute">执行单个目标测量的委托。</param>
         /// <param name="createFailure">创建保留列表位置的失败结果项委托。</param>
-        /// <param name="maxDegreeOfParallelism">最大并发度；小于等于零时根据 CPU 核心数自动计算。</param>
+        /// <param name="maxDegreeOfParallelism">
+        /// 最大并发度；小于等于零时使用公共执行器首次加载时根据 <see cref="Environment.ProcessorCount"/>
+        /// 缓存的自动上限，默认保留一个逻辑处理器供界面、相机和其他流程使用，并且并发度不会超过目标数量。
+        /// </param>
         /// <returns>数量和顺序均与输入修正集合一致的测量结果项。</returns>
         public static List<TItem> RunParallel<TItem>(
             IReadOnlyList<PositionCorrectionInfo> corrections,
@@ -123,10 +131,9 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             if (corrections.Count <= 1)
                 return Run(corrections, token, execute, createFailure);
 
-            int automaticDegree = Math.Max(1, Environment.ProcessorCount - 1);
             int requestedDegree = maxDegreeOfParallelism > 0
                 ? maxDegreeOfParallelism
-                : automaticDegree;
+                : AutomaticMaxDegreeOfParallelism;
             int degree = Math.Min(corrections.Count, Math.Max(1, requestedDegree));
             if (degree <= 1)
                 return Run(corrections, token, execute, createFailure);

@@ -10,6 +10,7 @@ $runnerBody = $runnerBody -replace '(?m)^using [^;]+;\r?\n', ''
 $source = @'
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -90,6 +91,14 @@ namespace TDJS_Vision.Node._4_Measurement.Common
 
         private static void VerifyParallel()
         {
+            FieldInfo automaticDegreeField = typeof(MultiTargetMeasurementRunner).GetField(
+                "AutomaticMaxDegreeOfParallelism",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            Assert(automaticDegreeField != null && automaticDegreeField.IsInitOnly,
+                "The automatic parallel limit must be cached once in a static readonly field.");
+            Assert((int)automaticDegreeField.GetValue(null) == Math.Max(1, Environment.ProcessorCount - 1),
+                "The cached automatic limit must reserve one logical processor.");
+
             var corrections = new List<PositionCorrectionInfo>();
             for (int i = 1; i <= 5; i++)
                 corrections.Add(new PositionCorrectionInfo { TargetIndex = i });
