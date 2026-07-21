@@ -2,6 +2,7 @@ using Logger;
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Threading;
@@ -23,17 +24,17 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
 
         public override Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
-            DateTime startTime = DateTime.Now;
+            Stopwatch stopwatch = Stopwatch.StartNew();
             if (!Active)
             {
-                SetRunResult(startTime, NodeStatus.Unexecuted);
+                SetRunResult(stopwatch, NodeStatus.Unexecuted);
                 return Task.FromResult(new NodeReturn(NodeRunFlag.StopRun));
             }
 
             if (ParamForm.Params == null)
             {
                 LogHelper.AddLog(MsgLevel.Fatal, $"节点({NodeName})运行参数未设置或保存！", true);
-                SetRunResult(startTime, NodeStatus.Failed);
+                SetRunResult(stopwatch, NodeStatus.Failed);
                 throw new Exception($"节点({NodeName})运行参数未设置或保存！");
             }
 
@@ -49,7 +50,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
 
                 List<CaliperCircleTargetResult> items = form.ExecuteMeasures(param, token);
                 NodeResultCaliperCircle nodeResult = BuildResult(items);
-                int time = SetRunResult(startTime, NodeStatus.Successful);
+                int time = SetRunResult(stopwatch, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
 
@@ -62,14 +63,14 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             catch (OperationCanceledException)
             {
                 LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})运行取消！", true);
-                int time = SetRunResult(startTime, NodeStatus.Unexecuted);
+                int time = SetRunResult(stopwatch, NodeStatus.Unexecuted);
                 Result.RunTime = time;
                 throw new OperationCanceledException($"节点({ID}.{NodeName})运行取消！");
             }
             catch (Exception ex)
             {
                 LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
-                int time = SetRunResult(startTime, NodeStatus.Failed);
+                int time = SetRunResult(stopwatch, NodeStatus.Failed);
                 Result.RunTime = time;
                 throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
             }

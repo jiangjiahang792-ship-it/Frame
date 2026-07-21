@@ -56,4 +56,25 @@ foreach ($tool in $tools) {
     Assert-ContainsText $node $targetWord ($tool.Name + ' display output must identify each target.')
 }
 
+$circleFormPath = Join-Path $projectRoot 'Node\4-Measurement\CaliperCircle\NodeParamFormCaliperCircle.cs'
+$circleNodePath = Join-Path $projectRoot 'Node\4-Measurement\CaliperCircle\NodeCaliperCircle.cs'
+$circleForm = Get-Content -LiteralPath $circleFormPath -Raw -Encoding UTF8
+$circleNode = Get-Content -LiteralPath $circleNodePath -Raw -Encoding UTF8
+
+Assert-ContainsText $circleForm 'MultiTargetMeasurementRunner.RunParallel(' 'CaliperCircle must use target-level parallel execution.'
+Assert-NotContainsText $circleForm 'Parallel.For' 'CaliperCircle must delegate concurrency to the common runner.'
+
+$executeMarker = 'internal List<CaliperCircleTargetResult> ExecuteMeasures(NodeParamCaliperCircle param, CancellationToken token)'
+$executeStart = $circleForm.IndexOf($executeMarker)
+$executeEnd = $circleForm.IndexOf('private ', $executeStart + $executeMarker.Length)
+$executeBody = $circleForm.Substring($executeStart, $executeEnd - $executeStart)
+$grayReadCount = ([regex]::Matches($executeBody, 'GetInputGrayMat\(')).Count
+if ($grayReadCount -ne 1) {
+    throw 'CaliperCircle must acquire exactly one gray image outside parallel target execution.'
+}
+
+Assert-ContainsText $circleNode 'Stopwatch.StartNew()' 'CaliperCircle node runtime must use a high-resolution stopwatch.'
+Assert-ContainsText $circleNode 'SetRunResult(stopwatch,' 'CaliperCircle must report wall-clock time from the stopwatch.'
+Assert-NotContainsText $circleNode 'DateTime startTime = DateTime.Now;' 'CaliperCircle must not use DateTime for short runtime measurement.'
+
 Write-Host 'Multi-target caliper source checks passed.'

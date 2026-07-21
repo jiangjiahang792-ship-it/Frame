@@ -85,7 +85,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             Mat gray = GetInputGrayMat(out disposeGrayAfterUse);
             try
             {
-                return MultiTargetMeasurementRunner.Run(
+                return MultiTargetMeasurementRunner.RunParallel(
                     corrections,
                     token,
                     correction => ExecuteOne(gray, BuildRuntimeParam(param, correction), correction),
