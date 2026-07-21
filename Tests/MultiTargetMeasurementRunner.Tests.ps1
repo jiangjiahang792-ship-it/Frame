@@ -11,6 +11,7 @@ $source = @'
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace TDJS_Vision.Node._4_Measurement.Common
 {
@@ -84,6 +85,111 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             }
 
             Assert(cancellationThrown, "Cancellation must be rethrown instead of becoming a failure item.");
+            VerifyParallel();
+        }
+
+        private static void VerifyParallel()
+        {
+            var corrections = new List<PositionCorrectionInfo>();
+            for (int i = 1; i <= 5; i++)
+                corrections.Add(new PositionCorrectionInfo { TargetIndex = i });
+
+            int activeCount = 0;
+            int maximumActiveCount = 0;
+            int startedCount = 0;
+            var firstWave = new CountdownEvent(2);
+            var releaseFirstWave = new ManualResetEventSlim(false);
+
+            List<RunnerTestItem> items = MultiTargetMeasurementRunner.RunParallel(
+                corrections,
+                CancellationToken.None,
+                correction =>
+                {
+                    int active = Interlocked.Increment(ref activeCount);
+                    UpdateMaximum(ref maximumActiveCount, active);
+                    int started = Interlocked.Increment(ref startedCount);
+                    try
+                    {
+                        if (started <= 2)
+                        {
+                            if (firstWave.Signal())
+                                releaseFirstWave.Set();
+                            if (!releaseFirstWave.Wait(2000))
+                                throw new TimeoutException("Parallel workers did not overlap.");
+                        }
+
+                        if (correction.TargetIndex == 3)
+                            throw new InvalidOperationException("expected parallel failure");
+
+                        return new RunnerTestItem
+                        {
+                            IsOk = true,
+                            Value = correction.TargetIndex * 10.0
+                        };
+                    }
+                    finally
+                    {
+                        Interlocked.Decrement(ref activeCount);
+                    }
+                },
+                (correction, exception) => new RunnerTestItem
+                {
+                    IsOk = false,
+                    Value = 0.0,
+                    ErrorMessage = exception.Message
+                },
+                2);
+
+            Assert(maximumActiveCount == 2, "Parallel execution must overlap without exceeding the configured limit.");
+            Assert(items.Count == 5, "Parallel output count must equal the correction count.");
+            for (int i = 0; i < items.Count; i++)
+                Assert(items[i].TargetIndex == i + 1, "Parallel output order must match correction order.");
+            Assert(!items[2].IsOk && items[2].Value == 0.0, "The failed parallel target must retain a zero-valued item.");
+            Assert(items[4].IsOk && items[4].Value == 50.0, "A later target must complete after another target fails.");
+
+            int callerThreadId = Thread.CurrentThread.ManagedThreadId;
+            int singleWorkerThreadId = 0;
+            List<RunnerTestItem> single = MultiTargetMeasurementRunner.RunParallel(
+                new List<PositionCorrectionInfo> { new PositionCorrectionInfo { TargetIndex = 1 } },
+                CancellationToken.None,
+                correction =>
+                {
+                    singleWorkerThreadId = Thread.CurrentThread.ManagedThreadId;
+                    return new RunnerTestItem { IsOk = true, Value = 1.0 };
+                },
+                (correction, exception) => new RunnerTestItem(),
+                4);
+            Assert(single.Count == 1 && singleWorkerThreadId == callerThreadId, "A single target must execute directly on the caller thread.");
+
+            var cancellation = new CancellationTokenSource();
+            cancellation.Cancel();
+            bool cancellationThrown = false;
+            try
+            {
+                MultiTargetMeasurementRunner.RunParallel(
+                    corrections,
+                    cancellation.Token,
+                    correction => new RunnerTestItem(),
+                    (correction, exception) => new RunnerTestItem(),
+                    2);
+            }
+            catch (OperationCanceledException)
+            {
+                cancellationThrown = true;
+            }
+            Assert(cancellationThrown, "Parallel cancellation must propagate instead of becoming a failure item.");
+        }
+
+        private static void UpdateMaximum(ref int maximum, int candidate)
+        {
+            int snapshot;
+            do
+            {
+                snapshot = maximum;
+                if (candidate <= snapshot)
+                    return;
+            }
+            while (Interlocked.CompareExchange(ref maximum, candidate, snapshot) != snapshot);
         }
 
         private static void Assert(bool condition, string message)

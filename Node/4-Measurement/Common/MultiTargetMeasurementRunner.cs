@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace TDJS_Vision.Node._4_Measurement.Common
 {
@@ -85,44 +86,128 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             Func<PositionCorrectionInfo, Exception, TItem> createFailure)
             where TItem : IMultiTargetMeasurementItem
         {
+            ValidateArguments(corrections, execute, createFailure);
+
+            var items = new List<TItem>(corrections.Count);
+            for (int i = 0; i < corrections.Count; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                items.Add(ExecuteTarget(corrections[i], i, execute, createFailure));
+            }
+
+            return items;
+        }
+
+        /// <summary>
+        /// 使用受限并发逐目标执行测量，并在全部目标完成后按输入位置统一返回结果。
+        /// </summary>
+        /// <typeparam name="TItem">具体测量工具的目标结果项类型。</typeparam>
+        /// <param name="corrections">按模板目标顺序排列的位置修正集合。</param>
+        /// <param name="token">用于取消尚未开始或正在调度的目标测量的令牌。</param>
+        /// <param name="execute">执行单个目标测量的委托。</param>
+        /// <param name="createFailure">创建保留列表位置的失败结果项委托。</param>
+        /// <param name="maxDegreeOfParallelism">最大并发度；小于等于零时根据 CPU 核心数自动计算。</param>
+        /// <returns>数量和顺序均与输入修正集合一致的测量结果项。</returns>
+        public static List<TItem> RunParallel<TItem>(
+            IReadOnlyList<PositionCorrectionInfo> corrections,
+            CancellationToken token,
+            Func<PositionCorrectionInfo, TItem> execute,
+            Func<PositionCorrectionInfo, Exception, TItem> createFailure,
+            int maxDegreeOfParallelism = 0)
+            where TItem : IMultiTargetMeasurementItem
+        {
+            ValidateArguments(corrections, execute, createFailure);
+            token.ThrowIfCancellationRequested();
+
+            // 单目标直接走原串行热路径，避免并发调度成本破坏亚毫秒级测量性能。
+            if (corrections.Count <= 1)
+                return Run(corrections, token, execute, createFailure);
+
+            int automaticDegree = Math.Max(1, Environment.ProcessorCount - 1);
+            int requestedDegree = maxDegreeOfParallelism > 0
+                ? maxDegreeOfParallelism
+                : automaticDegree;
+            int degree = Math.Min(corrections.Count, Math.Max(1, requestedDegree));
+            if (degree <= 1)
+                return Run(corrections, token, execute, createFailure);
+
+            // 固定下标写入保证并发完成顺序不会改变最终目标顺序。
+            var items = new TItem[corrections.Count];
+            var options = new ParallelOptions
+            {
+                CancellationToken = token,
+                MaxDegreeOfParallelism = degree
+            };
+
+            Parallel.For(0, corrections.Count, options, index =>
+            {
+                options.CancellationToken.ThrowIfCancellationRequested();
+                items[index] = ExecuteTarget(corrections[index], index, execute, createFailure);
+            });
+
+            return new List<TItem>(items);
+        }
+
+        /// <summary>
+        /// 校验公共执行入口的必需参数。
+        /// </summary>
+        /// <typeparam name="TItem">具体测量工具的目标结果项类型。</typeparam>
+        /// <param name="corrections">位置修正集合。</param>
+        /// <param name="execute">单目标执行委托。</param>
+        /// <param name="createFailure">单目标失败结果工厂。</param>
+        private static void ValidateArguments<TItem>(
+            IReadOnlyList<PositionCorrectionInfo> corrections,
+            Func<PositionCorrectionInfo, TItem> execute,
+            Func<PositionCorrectionInfo, Exception, TItem> createFailure)
+            where TItem : IMultiTargetMeasurementItem
+        {
             if (corrections == null)
                 throw new ArgumentNullException("corrections");
             if (execute == null)
                 throw new ArgumentNullException("execute");
             if (createFailure == null)
                 throw new ArgumentNullException("createFailure");
+        }
 
-            var items = new List<TItem>(corrections.Count);
-            for (int i = 0; i < corrections.Count; i++)
+        /// <summary>
+        /// 执行一个目标，隔离普通异常，并统一回填目标序号和位置修正信息。
+        /// </summary>
+        /// <typeparam name="TItem">具体测量工具的目标结果项类型。</typeparam>
+        /// <param name="correction">当前目标的位置修正信息。</param>
+        /// <param name="index">当前目标在输入集合中的下标。</param>
+        /// <param name="execute">单目标执行委托。</param>
+        /// <param name="createFailure">单目标失败结果工厂。</param>
+        /// <returns>当前目标对应的成功或失败结果项。</returns>
+        private static TItem ExecuteTarget<TItem>(
+            PositionCorrectionInfo correction,
+            int index,
+            Func<PositionCorrectionInfo, TItem> execute,
+            Func<PositionCorrectionInfo, Exception, TItem> createFailure)
+            where TItem : IMultiTargetMeasurementItem
+        {
+            TItem item;
+            try
             {
-                token.ThrowIfCancellationRequested();
-                PositionCorrectionInfo correction = corrections[i];
-                TItem item;
-                try
-                {
-                    item = execute(correction);
-                    if (item == null)
-                        throw new InvalidOperationException("单目标测量没有返回结果项。");
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    item = createFailure(correction, ex);
-                    if (item == null)
-                        throw new InvalidOperationException("单目标失败工厂没有返回结果项。", ex);
-                }
-
-                item.TargetIndex = correction != null && correction.TargetIndex > 0
-                    ? correction.TargetIndex
-                    : i + 1;
-                item.Correction = correction;
-                items.Add(item);
+                item = execute(correction);
+                if (item == null)
+                    throw new InvalidOperationException("单目标测量没有返回结果项。");
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                item = createFailure(correction, ex);
+                if (item == null)
+                    throw new InvalidOperationException("单目标失败工厂没有返回结果项。", ex);
             }
 
-            return items;
+            item.TargetIndex = correction != null && correction.TargetIndex > 0
+                ? correction.TargetIndex
+                : index + 1;
+            item.Correction = correction;
+            return item;
         }
     }
 }
