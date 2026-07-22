@@ -61,8 +61,9 @@ $circleNodePath = Join-Path $projectRoot 'Node\4-Measurement\CaliperCircle\NodeC
 $circleForm = Get-Content -LiteralPath $circleFormPath -Raw -Encoding UTF8
 $circleNode = Get-Content -LiteralPath $circleNodePath -Raw -Encoding UTF8
 
-Assert-ContainsText $circleForm 'MultiTargetMeasurementRunner.RunParallel(' 'CaliperCircle must use target-level parallel execution.'
-Assert-NotContainsText $circleForm 'Parallel.For' 'CaliperCircle must delegate concurrency to the common runner.'
+Assert-ContainsText $circleForm 'MultiTargetMeasurementRunner.Run(' 'CaliperCircle must use serial target execution.'
+Assert-NotContainsText $circleForm 'MultiTargetMeasurementRunner.RunParallel(' 'CaliperCircle must not use target-level parallel execution.'
+Assert-NotContainsText $circleForm 'Parallel.For' 'CaliperCircle must delegate target ordering to the common serial runner.'
 
 $executeMarker = 'internal List<CaliperCircleTargetResult> ExecuteMeasures(NodeParamCaliperCircle param, CancellationToken token)'
 $executeStart = $circleForm.IndexOf($executeMarker)
@@ -70,7 +71,7 @@ $executeEnd = $circleForm.IndexOf('private ', $executeStart + $executeMarker.Len
 $executeBody = $circleForm.Substring($executeStart, $executeEnd - $executeStart)
 $grayReadCount = ([regex]::Matches($executeBody, 'GetInputGrayMat\(')).Count
 if ($grayReadCount -ne 1) {
-    throw 'CaliperCircle must acquire exactly one gray image outside parallel target execution.'
+    throw 'CaliperCircle must acquire exactly one gray image outside serial target execution.'
 }
 
 Assert-ContainsText $circleNode 'Stopwatch.StartNew()' 'CaliperCircle node runtime must use a high-resolution stopwatch.'

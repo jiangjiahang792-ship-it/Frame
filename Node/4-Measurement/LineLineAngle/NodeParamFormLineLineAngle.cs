@@ -57,6 +57,8 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             public CaliperEdgeFindMode FindMode { get; set; }
             public int Direction { get; set; }
             public int BlurSize { get; set; }
+            /// <summary>获取或设置当前运行 ROI 的灰度剖面采样模式。</summary>
+            public CaliperSamplingMode SamplingMode { get; set; } = CaliperSamplingMode.Fast;
         }
 
         /// <summary>
@@ -306,6 +308,10 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             comboBoxDirection.Items.Add("垂直主轴");
             comboBoxDirection.Items.Add("沿主轴");
             comboBoxDirection.SelectedIndex = 0;
+
+            comboBoxSamplingMode.Items.Add("快速采样");
+            comboBoxSamplingMode.Items.Add("抗干扰采样");
+            comboBoxSamplingMode.SelectedIndex = 0;
         }
 
         private void InitializeRunRoiTargets()
@@ -343,6 +349,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             _roiRunSettings[0].FindMode = param.Line1FindMode ?? param.FindMode;
             _roiRunSettings[0].Direction = param.Line1Direction ?? param.Direction;
             _roiRunSettings[0].BlurSize = param.Line1BlurSize ?? param.BlurSize;
+            _roiRunSettings[0].SamplingMode = param.Line1SamplingMode;
 
             _roiRunSettings[1].CaliperWidth = param.Line2CaliperWidth ?? param.CaliperWidth;
             _roiRunSettings[1].CaliperHeight = param.Line2CaliperHeight ?? param.CaliperHeight;
@@ -352,6 +359,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             _roiRunSettings[1].FindMode = param.Line2FindMode ?? param.FindMode;
             _roiRunSettings[1].Direction = param.Line2Direction ?? param.Direction;
             _roiRunSettings[1].BlurSize = param.Line2BlurSize ?? param.BlurSize;
+            _roiRunSettings[1].SamplingMode = param.Line2SamplingMode;
         }
 
         private void LoadRunSettingsToControls(RoiRunSettings settings)
@@ -367,6 +375,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             comboBoxPolarity.SelectedItem = settings.Polarity;
             comboBoxFindMode.SelectedItem = settings.FindMode;
             comboBoxDirection.SelectedIndex = settings.Direction == 1 ? 1 : 0;
+            comboBoxSamplingMode.SelectedIndex = settings.SamplingMode == CaliperSamplingMode.AntiInterference ? 1 : 0;
         }
 
         private void SaveCurrentRunSettingsFromControls()
@@ -383,6 +392,9 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             settings.Polarity = (CaliperEdgePolarity)comboBoxPolarity.SelectedItem;
             settings.FindMode = (CaliperEdgeFindMode)comboBoxFindMode.SelectedItem;
             settings.Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0;
+            settings.SamplingMode = comboBoxSamplingMode.SelectedIndex == 1
+                ? CaliperSamplingMode.AntiInterference
+                : CaliperSamplingMode.Fast;
         }
 
         private void SaveRunSettingsFromRoi(RoiRunSettings settings, TDJS_Vision.Forms.DispShowImage.ShowImageControl.RoiCaliper roi)
@@ -804,6 +816,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 Line1FindMode = param.Line1FindMode,
                 Line1Direction = param.Line1Direction,
                 Line1BlurSize = param.Line1BlurSize,
+                Line1SamplingMode = param.Line1SamplingMode,
                 Line2CaliperWidth = (float)(param.Line2CaliperWidth * scale),
                 Line2CaliperHeight = (float)(param.Line2CaliperHeight * scale),
                 Line2Count = param.Line2Count,
@@ -811,7 +824,8 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 Line2Polarity = param.Line2Polarity,
                 Line2FindMode = param.Line2FindMode,
                 Line2Direction = param.Line2Direction,
-                Line2BlurSize = param.Line2BlurSize
+                Line2BlurSize = param.Line2BlurSize,
+                Line2SamplingMode = param.Line2SamplingMode
             };
         }
 
@@ -840,6 +854,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 Polarity = param.GetPolarity(firstLine),
                 FindMode = param.GetFindMode(firstLine),
                 Direction = param.GetDirection(firstLine),
+                SamplingMode = param.GetSamplingMode(firstLine),
                 BlurSize = param.GetBlurSize(firstLine)
             };
         }
@@ -919,6 +934,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                     Line1Polarity = line1Settings.Polarity,
                     Line1FindMode = line1Settings.FindMode,
                     Line1Direction = line1Settings.Direction,
+                    Line1SamplingMode = line1Settings.SamplingMode,
                     Line2CaliperWidth = line2Settings.CaliperWidth,
                     Line2CaliperHeight = line2Settings.CaliperHeight,
                     Line2Count = line2Settings.Count,
@@ -926,7 +942,8 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                     Line2BlurSize = line2Settings.BlurSize,
                     Line2Polarity = line2Settings.Polarity,
                     Line2FindMode = line2Settings.FindMode,
-                    Line2Direction = line2Settings.Direction
+                    Line2Direction = line2Settings.Direction,
+                    Line2SamplingMode = line2Settings.SamplingMode
                 };
 
                 return true;

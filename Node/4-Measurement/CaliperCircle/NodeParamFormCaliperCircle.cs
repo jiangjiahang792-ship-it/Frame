@@ -86,7 +86,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             Mat gray = GetInputGrayMat(out disposeGrayAfterUse);
             try
             {
-                return MultiTargetMeasurementRunner.RunParallel(
+                // 多目标统一按模板顺序串行测量，避免业务工具之间出现不同调度语义。
+                return MultiTargetMeasurementRunner.Run(
                     corrections,
                     token,
                     correction => ExecuteOne(gray, BuildRuntimeParam(param, correction), correction),
