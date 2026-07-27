@@ -183,6 +183,11 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
         public int? PointBlurSize { get; set; }
 
         /// <summary>
+        /// 点圆卡尺的灰度剖面采样模式。
+        /// </summary>
+        public CaliperSamplingMode PointSamplingMode { get; set; } = CaliperSamplingMode.Fast;
+
+        /// <summary>
         /// 线卡尺宽度。
         /// </summary>
         public float? LineCaliperWidth { get; set; }
@@ -223,6 +228,11 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
         public int? LineBlurSize { get; set; }
 
         /// <summary>
+        /// 直线卡尺的灰度剖面采样模式。
+        /// </summary>
+        public CaliperSamplingMode LineSamplingMode { get; set; } = CaliperSamplingMode.Fast;
+
+        /// <summary>
         /// 获取指定对象的卡尺宽度。
         /// </summary>
         public float GetCaliperWidth(bool point) => (point ? PointCaliperWidth : LineCaliperWidth) ?? CaliperWidth;
@@ -261,5 +271,10 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
         /// 获取指定对象的平滑核大小。
         /// </summary>
         public int GetBlurSize(bool point) => (point ? PointBlurSize : LineBlurSize) ?? BlurSize;
+
+        /// <summary>
+        /// 获取指定卡尺的灰度剖面采样模式。
+        /// </summary>
+        public CaliperSamplingMode GetSamplingMode(bool point) => point ? PointSamplingMode : LineSamplingMode;
     }
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
@@ -20,8 +20,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
 
         void INodeParamForm.SetNodeBelong(NodeBase node)
         {
+            nodeSubscription1.SetExpectedValueType<OutputImage>();
             nodeSubscription1.Init(node);
+            nodeSubscription2.SetExpectedValueType<AlgorithmResult>();
             nodeSubscription2.Init(node);
+            nodeSubscription3.SetExpectedValueType<AlgorithmResult>();
             nodeSubscription3.Init(node);
         }
 

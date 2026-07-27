@@ -17,6 +17,11 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 
     public class MultiConditionItem
     {
+        /// <summary>
+        /// 当前条件是否参与检测。默认启用可兼容没有保存该字段的旧方案。
+        /// </summary>
+        public bool Enabled { get; set; } = true;
+
         public string Name { get; set; }
 
         public string Note { get; set; }
@@ -69,6 +74,11 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 
     public class NodeConditionEvaluation
     {
+        /// <summary>
+        /// 当前条件本次是否参与检测；禁用条件仍保留明细位置，避免界面行索引错位。
+        /// </summary>
+        public bool IsEnabled { get; set; }
+
         /// <summary>
         /// 条件显示名称。
         /// </summary>
@@ -155,15 +165,36 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             if (param == null || param.Conditions == null || param.Conditions.Count == 0)
                 throw new Exception("至少需要配置一个条件！");
 
+            int enabledConditionCount = 0;
             for (int index = 0; index < param.Conditions.Count; index++)
             {
                 MultiConditionItem condition = param.Conditions[index];
                 string conditionName = GetConditionName(condition, index);
+                if (condition == null || !condition.Enabled)
+                {
+                    evaluations.Add(new NodeConditionEvaluation
+                    {
+                        IsEnabled = false,
+                        Name = conditionName,
+                        SourceNodeText = condition == null ? string.Empty : condition.SourceNodeText,
+                        PropertyPath = condition == null ? string.Empty : condition.PropertyPath,
+                        PropertyDisplayName = condition == null ? string.Empty : condition.PropertyDisplayName,
+                        OperatorText = condition == null ? string.Empty : condition.Operator.ToString(),
+                        ExpectedValue = condition == null ? string.Empty : BuildExpectedText(condition),
+                        ActualValue = "已禁用",
+                        DiagnosticText = "当前条件已禁用，不参与本次判断。",
+                        IsMatched = true
+                    });
+                    continue;
+                }
+
+                enabledConditionCount++;
                 NodeBase sourceNode = FindSourceNode(currentNode, condition);
                 if (!sourceNode.Active)
                 {
                     evaluations.Add(new NodeConditionEvaluation
                     {
+                        IsEnabled = true,
                         Name = conditionName,
                         SourceNodeText = GetNodeText(sourceNode),
                         PropertyPath = condition.PropertyPath,
@@ -190,6 +221,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 ApplyJudgeWriteBack(sourceNode, matched, out judgeWriteBackApplied, out judgeWriteBackText);
                 NodeConditionEvaluation evaluation = new NodeConditionEvaluation
                 {
+                    IsEnabled = true,
                     Name = conditionName,
                     SourceNodeText = GetNodeText(sourceNode),
                     PropertyPath = condition.PropertyPath,
@@ -209,11 +241,15 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 LogNullConditionIfNeeded(currentNode, evaluation);
             }
 
+            // 工艺约定：全部条件禁用表示当前没有需要拦截的检测项，因此总体判定为 OK。
+            if (enabledConditionCount == 0)
+                return true;
+
             if (param.MatchMode == MultiConditionMatchMode.Any)
             {
                 foreach (NodeConditionEvaluation evaluation in evaluations)
                 {
-                    if (evaluation.IsMatched)
+                    if (evaluation.IsEnabled && evaluation.IsMatched)
                         return true;
                 }
 
@@ -222,7 +258,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 
             foreach (NodeConditionEvaluation evaluation in evaluations)
             {
-                if (!evaluation.IsMatched)
+                if (evaluation.IsEnabled && !evaluation.IsMatched)
                     return false;
             }
 
@@ -243,7 +279,9 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 if (evaluation == null)
                     continue;
 
-                string stateText = evaluation.IsMatched ? "通过" : "不通过";
+                string stateText = !evaluation.IsEnabled
+                    ? "已禁用"
+                    : evaluation.IsMatched ? "通过" : "不通过";
                 string valueText = string.IsNullOrEmpty(evaluation.ActualValue) ? "空" : evaluation.ActualValue;
                 string reasonText = string.IsNullOrWhiteSpace(evaluation.NullReason)
                     ? string.Empty

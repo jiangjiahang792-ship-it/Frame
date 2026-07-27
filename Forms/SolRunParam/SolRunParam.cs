@@ -524,7 +524,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                     DisplayName = GetMultiConditionDisplayName(node, condition, index),
                     Info = new DetectItemInfo
                     {
-                        Enable = condition.EnableRunParamAdjust,
+                        Enable = condition.Enabled,
                         Name = BuildMultiConditionGridName(node, index),
                         MinValue = GetRunParamMinValue(condition),
                         CurValue = GetRunParamCurrentValue(details, index),
@@ -798,6 +798,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         }
         public void SaveConfigs()
         {
+            string saveStage = "读取运行参数表格";
             try
             {
                 List<RunParamGridItem> runParamItems = myDataGridViewForm1.GetRunParamItems();
@@ -806,6 +807,7 @@ namespace TDJS_Vision.Forms.SolRunParam
 
                 if(_nodeSource != null)
                 {
+                    saveStage = "保存相机曝光和增益";
                     if (_nodeSource.ParamForm.Params is NodeParamImageSoucre imageSrcParams && textBoxExposureTime.Enabled)
                     {
                         imageSrcParams.ExposureTime = double.Parse(textBoxExposureTime.Text);
@@ -814,6 +816,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 }
                 if (_nodeCrop != null)
                 {
+                    saveStage = "保存ROI开关";
                     if (_nodeCrop.ParamForm.Params is NodeParamImageCrop imageCropParams && uiSwitchROI.Enabled)
                     {
                         imageCropParams.RoiEnable = uiSwitchROI.Active;
@@ -821,6 +824,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 }
                 if (_nodeTDAI != null)
                 {
+                    saveStage = "保存AI阈值和检测项";
                     if (_nodeTDAI.ParamForm.Params is NodeParamTDAI aiParams && textBoxScoreThreshold.Enabled)
                     {
                         ApplyAiScoreThresholdsFromTextBoxes(aiParams);
@@ -841,9 +845,11 @@ namespace TDJS_Vision.Forms.SolRunParam
                         }
                         var jsonStr = JsonConvert.SerializeObject(aiParams.AIInputInfo, Formatting.Indented);
                         jsonStr = StringCipher.Encrypt(jsonStr); // 加密AI配置内容
+                        saveStage = "写入AI配置文件";
                         File.WriteAllText(aiParams.ConfigPath, jsonStr);
                     }
                 }
+                saveStage = "保存多条件上下限";
                 ApplyMultiConditionRunParamItems(runParamItems);
                 if (_nodeSource == null && _nodeTDAI == null && _nodeCrop == null &&
                     (_nodeMultiConditions == null || _nodeMultiConditions.Count == 0))
@@ -851,15 +857,57 @@ namespace TDJS_Vision.Forms.SolRunParam
                     return;
                 }
 
+                saveStage = "刷新运行参数表格";
                 RefreshRunParamGrid();
                 //2025年5月27日 节点参数有更新，应该触发节点参数界面刷新当前设置的值
+                saveStage = "刷新节点参数界面";
                 RefreshParamView?.Invoke(this, EventArgs.Empty);
+                saveStage = "保存方案文件";
                 Solution.Instance.Save(Solution.Instance.SolFileName);
+                saveStage = "记录保存成功日志";
                 LogHelper.AddLog(MsgLevel.Info, LanguageManager.Format("SolRunParam.ParamSavedToSolution", Solution.Instance.SolFileName), true);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                LogManualTuningSaveFailure(ex, saveStage);
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// 安全记录手动调参保存失败的完整上下文，日志组件异常不能覆盖原始保存异常。
+        /// </summary>
+        /// <param name="exception">保存过程中捕获的原始异常。</param>
+        /// <param name="saveStage">发生异常时正在执行的保存阶段。</param>
+        private void LogManualTuningSaveFailure(Exception exception, string saveStage)
+        {
+            try
+            {
+                string processName = process == null || string.IsNullOrWhiteSpace(process.ProcessName)
+                    ? "空"
+                    : process.ProcessName;
+                string aiNodeText = _nodeTDAI == null
+                    ? "空"
+                    : $"{_nodeTDAI.ID}.{_nodeTDAI.NodeName}";
+                string aiConfigPath = "空";
+                if (_nodeTDAI != null && _nodeTDAI.ParamForm != null &&
+                    _nodeTDAI.ParamForm.Params is NodeParamTDAI aiParams &&
+                    !string.IsNullOrWhiteSpace(aiParams.ConfigPath))
+                {
+                    aiConfigPath = aiParams.ConfigPath;
+                }
+
+                string solutionPath = string.IsNullOrWhiteSpace(Solution.Instance.SolFileName)
+                    ? "空"
+                    : Solution.Instance.SolFileName;
+                LogHelper.AddLog(
+                    MsgLevel.Exception,
+                    $"【手动调参保存异常】阶段={saveStage}，流程={processName}，AI节点={aiNodeText}，AI配置路径={aiConfigPath}，方案路径={solutionPath}。\r\n异常详情：{exception}",
+                    true);
+            }
+            catch
+            {
+                // 诊断日志写入失败时保留原始保存异常，由上层继续显示原有错误提示。
             }
         }
 
@@ -948,7 +996,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 if (condition == null)
                     continue;
 
-                condition.EnableRunParamAdjust = item.Info.Enable;
+                condition.Enabled = item.Info.Enable;
                 ApplyRunParamValueToCondition(condition, item.Info);
                 node.ParamForm.Params = param;
             }

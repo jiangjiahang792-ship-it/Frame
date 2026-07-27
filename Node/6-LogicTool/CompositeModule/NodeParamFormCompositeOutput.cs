@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using System.Reflection;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
 
@@ -37,6 +36,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                 _ports.Add(CreateDefaultPort(0));
 
             NodeBase.RefreshNodeSubControl += NodeBase_RefreshNodeSubControl;
+            NodeBase.OutputDefinitionChanged += NodeBase_OutputDefinitionChanged;
             NodeBase.NodeDeletedEvent += NodeBase_NodeDeletedEvent;
         }
 
@@ -91,6 +91,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                 _node.Process.ConnectionsChanged -= Process_ConnectionsChanged;
 
             NodeBase.RefreshNodeSubControl -= NodeBase_RefreshNodeSubControl;
+            NodeBase.OutputDefinitionChanged -= NodeBase_OutputDefinitionChanged;
             NodeBase.NodeDeletedEvent -= NodeBase_NodeDeletedEvent;
             base.OnFormClosed(e);
         }
@@ -220,6 +221,17 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         }
 
         /// <summary>
+        /// 同一流程的节点输出定义变化后刷新内部来源树。
+        /// </summary>
+        private void NodeBase_OutputDefinitionChanged(object sender, NodeBase sourceNode)
+        {
+            if (sourceNode == null || _node == null || sourceNode.Process != _node.Process)
+                return;
+
+            RefreshSourceTree();
+        }
+
+        /// <summary>
         /// 节点重命名后刷新来源树并同步显示文本。
         /// </summary>
         private void NodeBase_RefreshNodeSubControl(object sender, RenameResult e)
@@ -288,9 +300,9 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                 {
                     TreeNode sourceTreeNode = new TreeNode(CompositePortValueHelper.GetNodeText(sourceNode));
                     treeViewSources.Nodes.Add(sourceTreeNode);
-                    AddDynamicVariableNodes(sourceTreeNode, sourceNode);
-                    if (sourceNode.Result != null)
-                        AddMemberNodes(sourceTreeNode, sourceNode, sourceNode.Result.GetType(), string.Empty, string.Empty, 0);
+                    AddCatalogOutputNodes(sourceTreeNode, sourceNode);
+                    if (sourceTreeNode.Nodes.Count == 0)
+                        treeViewSources.Nodes.Remove(sourceTreeNode);
                 }
             }
 
@@ -299,75 +311,29 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         }
 
         /// <summary>
-        /// 添加动态变量选项。
+        /// 添加统一端口目录中的内部上游结果。
         /// </summary>
         /// <param name="sourceTreeNode">来源节点树节点。</param>
         /// <param name="sourceNode">来源节点。</param>
-        private void AddDynamicVariableNodes(TreeNode sourceTreeNode, NodeBase sourceNode)
+        private static void AddCatalogOutputNodes(TreeNode sourceTreeNode, NodeBase sourceNode)
         {
-            List<string> names = DynamicResultVariableResolver.GetVariableNames(sourceNode);
-            if (names.Count == 0)
-                return;
-
-            TreeNode variableGroup = new TreeNode("输出变量");
-            sourceTreeNode.Nodes.Add(variableGroup);
-            foreach (string name in names)
+            IReadOnlyList<SubscriptionOutputDescriptor> outputs = SubscriptionPortCatalog.GetOutputs(
+                sourceNode,
+                SubscriptionInputContract.AnyVisible(),
+                true,
+                string.Empty);
+            foreach (SubscriptionOutputDescriptor output in outputs)
             {
-                Type valueType = DynamicResultVariableResolver.GetVariableValueType(sourceNode, name);
-                TreeNode variableNode = new TreeNode(name);
-                variableNode.Tag = new ResultPropertyOption
+                TreeNode outputNode = new TreeNode(output.DisplayName);
+                outputNode.Tag = new ResultPropertyOption
                 {
                     SourceNodeId = sourceNode.ID,
                     SourceNodeText = CompositePortValueHelper.GetNodeText(sourceNode),
-                    PropertyPath = DynamicResultVariableResolver.ToPropertyPath(name),
-                    PropertyDisplayName = name,
-                    ValueType = valueType
+                    PropertyPath = output.PropertyPath,
+                    PropertyDisplayName = output.DisplayName,
+                    ValueType = output.ValueType
                 };
-                variableGroup.Nodes.Add(variableNode);
-            }
-        }
-
-        /// <summary>
-        /// 递归添加普通结果属性选项。
-        /// </summary>
-        private void AddMemberNodes(
-            TreeNode parentNode,
-            NodeBase sourceNode,
-            Type ownerType,
-            string pathPrefix,
-            string displayPrefix,
-            int depth)
-        {
-            foreach (MemberInfo member in CompositePortValueHelper.GetReadableMembers(ownerType))
-            {
-                Type memberType = CompositePortValueHelper.GetMemberType(member);
-                string displayName = CompositePortValueHelper.GetDisplayName(member);
-                string propertyPath = string.IsNullOrEmpty(pathPrefix) ? member.Name : pathPrefix + "." + member.Name;
-                string propertyDisplay = string.IsNullOrEmpty(displayPrefix) ? displayName : displayPrefix + "." + displayName;
-
-                if (CompositePortValueHelper.IsSelectableMemberType(memberType))
-                {
-                    TreeNode propertyNode = new TreeNode(displayName);
-                    propertyNode.Tag = new ResultPropertyOption
-                    {
-                        SourceNodeId = sourceNode.ID,
-                        SourceNodeText = CompositePortValueHelper.GetNodeText(sourceNode),
-                        PropertyPath = propertyPath,
-                        PropertyDisplayName = propertyDisplay,
-                        ValueType = memberType
-                    };
-                    parentNode.Nodes.Add(propertyNode);
-                    continue;
-                }
-
-                if (depth >= 2 || !CompositePortValueHelper.CanInspectMemberType(memberType))
-                    continue;
-
-                TreeNode groupNode = new TreeNode(displayName);
-                parentNode.Nodes.Add(groupNode);
-                AddMemberNodes(groupNode, sourceNode, memberType, propertyPath, propertyDisplay, depth + 1);
-                if (groupNode.Nodes.Count == 0)
-                    parentNode.Nodes.Remove(groupNode);
+                sourceTreeNode.Nodes.Add(outputNode);
             }
         }
 

@@ -10,6 +10,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
         /// <summary>
         /// 旋转后的图片
         /// </summary>
+        [SubscriptionOutput]
         [DisplayName("旋转后图像")]
         public OutputImage OutputImage { get; set; } = new OutputImage();
     }

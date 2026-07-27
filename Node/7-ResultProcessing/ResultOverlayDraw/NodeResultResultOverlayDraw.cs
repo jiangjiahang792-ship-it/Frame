@@ -8,9 +8,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
     {
         public int RunTime { get; set; }
 
+        [SubscriptionOutput]
         [DisplayName("输出图像")]
         public OutputImage OutputImage { get; set; } = new OutputImage();
 
+        [SubscriptionOutput]
         [DisplayName("绘制结果")]
         public AlgorithmResult Result { get; set; } = new AlgorithmResult();
     }

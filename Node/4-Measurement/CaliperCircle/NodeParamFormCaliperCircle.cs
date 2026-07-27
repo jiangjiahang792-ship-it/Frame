@@ -1,7 +1,9 @@
 using Logger;
 using OpenCvSharp;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Threading;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
@@ -12,6 +14,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
     public partial class NodeParamFormCaliperCircle : FormBase, INodeParamForm
     {
         private readonly NodeBase node;
+        /// <summary>唯一 ROI 的目标归属与坐标变换服务。</summary>
+        private readonly IMultiTargetTransformService _transformService = new MultiTargetTransformService();
         private bool _isSyncingRoi;
         private bool _roiVisible;
 
@@ -27,7 +31,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
 
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscription1.SetExpectedValueType<OutputImage>();
             nodeSubscription1.Init(node);
+            nodeSubscriptionPositionCorrection.SetExpectedValueType<List<PositionCorrectionInfo>>();
             nodeSubscriptionPositionCorrection.Init(node);
         }
 
@@ -58,6 +64,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 comboBoxPolarity.SelectedItem = param.Polarity;
                 comboBoxFindMode.SelectedItem = param.FindMode;
                 comboBoxDirection.SelectedIndex = param.Direction == 1 ? 1 : 0;
+                comboBoxSamplingMode.SelectedIndex = param.SamplingMode == CaliperSamplingMode.AntiInterference ? 1 : 0;
                 UpdatePositionCorrectionEnabled();
                 UpdateFitValidPointCountEnabled();
             }
@@ -69,40 +76,156 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             ClearEditingRoi();
         }
 
-        internal CaliperCircleMeasureResult ExecuteMeasure(NodeParamCaliperCircle param)
+        /// <summary>一次读取灰度图并按位置修正列表顺序执行全部目标的卡尺找圆。</summary>
+        internal List<CaliperCircleTargetResult> ExecuteMeasures(NodeParamCaliperCircle param, CancellationToken token)
         {
+            IReadOnlyList<PositionCorrectionInfo> corrections = ReadCorrections(param);
+            if (corrections.Count == 0)
+                return new List<CaliperCircleTargetResult>();
+
             bool disposeGrayAfterUse;
             Mat gray = GetInputGrayMat(out disposeGrayAfterUse);
             try
             {
-                NodeParamCaliperCircle runtimeParam = BuildRuntimeParam(param);
-                var algorithmParam = new CaliperCircleParams
-                {
-                    CenterX = runtimeParam.CenterX,
-                    CenterY = runtimeParam.CenterY,
-                    Radius = runtimeParam.Radius,
-                    StartAngle = runtimeParam.StartAngle,
-                    EndAngle = runtimeParam.EndAngle,
-                    CaliperWidth = runtimeParam.CaliperWidth,
-                    CaliperHeight = runtimeParam.CaliperHeight,
-                    Count = runtimeParam.Count,
-                    EnableFitValidPointCount = runtimeParam.EnableFitValidPointCount,
-                    FitValidPointCount = NormalizeFitValidPointCount(runtimeParam.FitValidPointCount),
-                    EdgeStrength = runtimeParam.EdgeStrength,
-                    Polarity = runtimeParam.Polarity,
-                    FindMode = runtimeParam.FindMode,
-                    Direction = runtimeParam.Direction,
-                    BlurSize = runtimeParam.BlurSize
-                };
-
-                CaliperCircleMeasureResult result = CaliperMeasurementAlgorithm.FindCircle(gray, algorithmParam);
-                return result;
+                // 多目标统一按模板顺序串行测量，避免业务工具之间出现不同调度语义。
+                return MultiTargetMeasurementRunner.Run(
+                    corrections,
+                    token,
+                    correction => ExecuteOne(gray, BuildRuntimeParam(param, correction), correction),
+                    CreateFailure);
             }
             finally
             {
                 if (disposeGrayAfterUse)
                     gray?.Dispose();
             }
+        }
+
+        /// <summary>读取全部位置修正信息；未启用修正时返回一个恒等项。</summary>
+        private IReadOnlyList<PositionCorrectionInfo> ReadCorrections(NodeParamCaliperCircle param)
+        {
+            if (param == null)
+                throw new Exception("卡尺找圆参数为空。");
+            if (!param.UsePositionCorrection)
+                return new List<PositionCorrectionInfo> { CreateIdentityCorrection() };
+            List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
+            corrections = corrections ?? new List<PositionCorrectionInfo>();
+            return corrections;
+        }
+
+        /// <summary>为单个模板目标构造已经仿射变换的运行参数。</summary>
+        private NodeParamCaliperCircle BuildRuntimeParam(NodeParamCaliperCircle param, PositionCorrectionInfo correction)
+        {
+            PointF center = new PointF(param.CenterX, param.CenterY);
+            double lengthScale = 1.0;
+            float deltaAngle = 0;
+            if (param.UsePositionCorrection)
+            {
+                PositionCorrectionHelper.EnsureValid(correction);
+                center = _transformService.TransformPoint(center, correction);
+                lengthScale = GetAverageScale(correction);
+                deltaAngle = (float)correction.DeltaAngle;
+            }
+            bool fullCircle = Math.Abs(Math.Abs(param.EndAngle - param.StartAngle) - 360.0f) < 0.1f;
+            float startAngle = param.StartAngle + deltaAngle;
+            float endAngle = fullCircle ? startAngle + 360.0f : param.EndAngle + deltaAngle;
+            return new NodeParamCaliperCircle
+            {
+                Text1 = param.Text1,
+                Text2 = param.Text2,
+                UsePositionCorrection = param.UsePositionCorrection,
+                CorrectionText1 = param.CorrectionText1,
+                CorrectionText2 = param.CorrectionText2,
+                CenterX = center.X,
+                CenterY = center.Y,
+                Radius = (float)(param.Radius * lengthScale),
+                StartAngle = startAngle,
+                EndAngle = endAngle,
+                CaliperWidth = (float)(param.CaliperWidth * lengthScale),
+                CaliperHeight = (float)(param.CaliperHeight * lengthScale),
+                Count = param.Count,
+                EnableFitValidPointCount = param.EnableFitValidPointCount,
+                FitValidPointCount = NormalizeFitValidPointCount(param.FitValidPointCount),
+                EdgeStrength = param.EdgeStrength,
+                BlurSize = param.BlurSize,
+                Polarity = param.Polarity,
+                FindMode = param.FindMode,
+                SamplingMode = param.SamplingMode,
+                Direction = param.Direction
+            };
+        }
+
+        /// <summary>执行单个目标并把算法结果转换为强类型目标项。</summary>
+        private CaliperCircleTargetResult ExecuteOne(Mat gray, NodeParamCaliperCircle runtimeParam, PositionCorrectionInfo correction)
+        {
+            var algorithmParam = new CaliperCircleParams
+            {
+                CenterX = runtimeParam.CenterX,
+                CenterY = runtimeParam.CenterY,
+                Radius = runtimeParam.Radius,
+                StartAngle = runtimeParam.StartAngle,
+                EndAngle = runtimeParam.EndAngle,
+                CaliperWidth = runtimeParam.CaliperWidth,
+                CaliperHeight = runtimeParam.CaliperHeight,
+                Count = runtimeParam.Count,
+                EnableFitValidPointCount = runtimeParam.EnableFitValidPointCount,
+                FitValidPointCount = NormalizeFitValidPointCount(runtimeParam.FitValidPointCount),
+                EdgeStrength = runtimeParam.EdgeStrength,
+                Polarity = runtimeParam.Polarity,
+                FindMode = runtimeParam.FindMode,
+                SamplingMode = runtimeParam.SamplingMode,
+                Direction = runtimeParam.Direction,
+                BlurSize = runtimeParam.BlurSize
+            };
+            CaliperCircleMeasureResult measure = CaliperMeasurementAlgorithm.FindCircle(gray, algorithmParam);
+            if (measure == null)
+                throw new Exception("卡尺找圆算法没有返回结果。");
+            var item = new CaliperCircleTargetResult
+            {
+                IsOk = measure.Success,
+                ErrorMessage = measure.Success ? string.Empty : (string.IsNullOrWhiteSpace(measure.ErrorMessage) ? "未找到有效圆。" : measure.ErrorMessage),
+                EdgePointCount = measure.Success ? measure.PointCount : 0,
+                EdgePoints = MeasurementResultRounder.RoundPoints(measure.EdgePoints),
+                AlgorithmMs = measure.Success ? MeasurementResultRounder.Round(measure.AlgorithmMs) : 0
+            };
+            if (measure.Success)
+            {
+                item.CenterX = MeasurementResultRounder.Round(measure.Center.X);
+                item.CenterY = MeasurementResultRounder.Round(measure.Center.Y);
+                item.Radius = MeasurementResultRounder.Round(measure.Radius);
+                item.Diameter = MeasurementResultRounder.Round(measure.Radius * 2.0);
+            }
+            return item;
+        }
+
+        /// <summary>创建保留目标顺序且所有数值为零的失败项。</summary>
+        private CaliperCircleTargetResult CreateFailure(PositionCorrectionInfo correction, Exception exception)
+        {
+            return new CaliperCircleTargetResult
+            {
+                IsOk = false,
+                ErrorMessage = exception == null ? "卡尺找圆失败。" : exception.Message,
+                EdgePointCount = 0,
+                CenterX = 0,
+                CenterY = 0,
+                Radius = 0,
+                Diameter = 0,
+                AlgorithmMs = 0
+            };
+        }
+
+        /// <summary>创建不改变坐标的单目标修正项。</summary>
+        private static PositionCorrectionInfo CreateIdentityCorrection()
+        {
+            return new PositionCorrectionInfo { TargetIndex = 1, IsValid = true, BaseScaleX = 1, BaseScaleY = 1, CurrentScaleX = 1, CurrentScaleY = 1 };
+        }
+
+        /// <summary>计算各向尺度平均值，用于圆半径和卡尺尺寸。</summary>
+        private static double GetAverageScale(PositionCorrectionInfo correction)
+        {
+            double scaleX = PositionCorrectionInfo.NormalizeScale(correction.CurrentScaleX) / PositionCorrectionInfo.NormalizeScale(correction.BaseScaleX);
+            double scaleY = PositionCorrectionInfo.NormalizeScale(correction.CurrentScaleY) / PositionCorrectionInfo.NormalizeScale(correction.BaseScaleY);
+            return (scaleX + scaleY) * 0.5;
         }
 
         private void InitializeCombos()
@@ -120,6 +243,10 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             comboBoxDirection.Items.Add("由内向外");
             comboBoxDirection.Items.Add("由外向内");
             comboBoxDirection.SelectedIndex = 0;
+
+            comboBoxSamplingMode.Items.Add("快速采样");
+            comboBoxSamplingMode.Items.Add("抗干扰采样");
+            comboBoxSamplingMode.SelectedIndex = 0;
         }
 
         private void BindRoiRefreshEvents()
@@ -153,13 +280,20 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
 
             var roi = rois[0];
             PointF center = new PointF(roi.CX, roi.CY);
+            float radius = roi.Radius;
+            float caliperWidth = roi.CaliperWidth;
+            float caliperHeight = roi.CaliperHeight;
             float startAngle = roi.StartAngle;
             float endAngle = roi.EndAngle;
-            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+            PositionCorrectionInfo correctionInfo = ResolveEditingCorrection(center, false);
             if (correctionInfo != null)
             {
                 center = correctionInfo.InverseTransformPoint(center.X, center.Y);
                 ApplyInverseAngleCorrection(ref startAngle, ref endAngle, correctionInfo);
+                double scale = GetAverageScale(correctionInfo);
+                radius = (float)(radius / scale);
+                caliperWidth = (float)(caliperWidth / scale);
+                caliperHeight = (float)(caliperHeight / scale);
             }
 
             _isSyncingRoi = true;
@@ -167,11 +301,11 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             {
                 if (!ReferenceEquals(source, textBoxCenterX)) textBoxCenterX.Text = center.X.ToString("F2");
                 if (!ReferenceEquals(source, textBoxCenterY)) textBoxCenterY.Text = center.Y.ToString("F2");
-                if (!ReferenceEquals(source, textBoxRadius)) textBoxRadius.Text = roi.Radius.ToString("F2");
+                if (!ReferenceEquals(source, textBoxRadius)) textBoxRadius.Text = radius.ToString("F2");
                 if (!ReferenceEquals(source, textBoxStartAngle)) textBoxStartAngle.Text = startAngle.ToString("F2");
                 if (!ReferenceEquals(source, textBoxEndAngle)) textBoxEndAngle.Text = endAngle.ToString("F2");
-                if (!ReferenceEquals(source, textBoxCaliperWidth)) textBoxCaliperWidth.Text = roi.CaliperWidth.ToString("F2");
-                if (!ReferenceEquals(source, textBoxCaliperHeight)) textBoxCaliperHeight.Text = roi.CaliperHeight.ToString("F2");
+                if (!ReferenceEquals(source, textBoxCaliperWidth)) textBoxCaliperWidth.Text = caliperWidth.ToString("F2");
+                if (!ReferenceEquals(source, textBoxCaliperHeight)) textBoxCaliperHeight.Text = caliperHeight.ToString("F2");
                 if (!ReferenceEquals(source, textBoxCount)) textBoxCount.Text = roi.Count.ToString();
                 if (!ReferenceEquals(source, comboBoxDirection)) comboBoxDirection.SelectedIndex = roi.Direction == 1 ? 1 : 0;
             }
@@ -196,45 +330,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             return MeasurementNodeHelper.GetReadOnlyPreviewMat(outputImage);
         }
 
-        private NodeParamCaliperCircle BuildRuntimeParam(NodeParamCaliperCircle param)
-        {
-            if (param == null || !param.UsePositionCorrection)
-                return param;
-
-            PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
-            PositionCorrectionHelper.EnsureValid(correctionInfo);
-            PointF center = correctionInfo.TransformPoint(param.CenterX, param.CenterY);
-            float deltaAngle = (float)correctionInfo.DeltaAngle;
-            bool fullCircle = Math.Abs(Math.Abs(param.EndAngle - param.StartAngle) - 360.0f) < 0.1f;
-            float startAngle = param.StartAngle + deltaAngle;
-            float endAngle = fullCircle ? startAngle + 360.0f : param.EndAngle + deltaAngle;
-
-            return new NodeParamCaliperCircle
-            {
-                Text1 = param.Text1,
-                Text2 = param.Text2,
-                UsePositionCorrection = param.UsePositionCorrection,
-                CorrectionText1 = param.CorrectionText1,
-                CorrectionText2 = param.CorrectionText2,
-                CenterX = center.X,
-                CenterY = center.Y,
-                Radius = param.Radius,
-                StartAngle = startAngle,
-                EndAngle = endAngle,
-                CaliperWidth = param.CaliperWidth,
-                CaliperHeight = param.CaliperHeight,
-                Count = param.Count,
-                EnableFitValidPointCount = param.EnableFitValidPointCount,
-                FitValidPointCount = NormalizeFitValidPointCount(param.FitValidPointCount),
-                EdgeStrength = param.EdgeStrength,
-                BlurSize = param.BlurSize,
-                Polarity = param.Polarity,
-                FindMode = param.FindMode,
-                Direction = param.Direction
-            };
-        }
-
-        private PositionCorrectionInfo GetEditingCorrectionInfo(bool require)
+        /// <summary>读取编辑状态使用的全部位置修正信息。</summary>
+        private IReadOnlyList<PositionCorrectionInfo> GetEditingCorrections(bool require)
         {
             if (!checkBoxUsePositionCorrection.Checked)
                 return null;
@@ -243,15 +340,18 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText2()))
             {
                 if (require)
-                    throw new Exception("Position correction subscription is empty.");
+                    throw new Exception("位置修正信息列表订阅为空。");
                 return null;
             }
 
             try
             {
-                PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
-                PositionCorrectionHelper.EnsureValid(correctionInfo);
-                return correctionInfo;
+                List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
+                if (corrections == null || corrections.Count == 0)
+                    throw new Exception("位置修正信息列表为空。");
+                for (int i = 0; i < corrections.Count; i++)
+                    PositionCorrectionHelper.EnsureValid(corrections[i]);
+                return corrections;
             }
             catch
             {
@@ -259,6 +359,23 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                     throw;
                 return null;
             }
+        }
+
+        /// <summary>获取默认显示唯一 ROI 的第一目标修正信息。</summary>
+        private PositionCorrectionInfo GetDefaultEditingCorrectionInfo(bool require)
+        {
+            IReadOnlyList<PositionCorrectionInfo> corrections = GetEditingCorrections(require);
+            return corrections == null || corrections.Count == 0 ? null : corrections[0];
+        }
+
+        /// <summary>按唯一圆 ROI 中心解析其所属模板目标。</summary>
+        private PositionCorrectionInfo ResolveEditingCorrection(PointF roiCenter, bool require)
+        {
+            IReadOnlyList<PositionCorrectionInfo> corrections = GetEditingCorrections(require);
+            if (corrections == null || corrections.Count == 0)
+                return null;
+            int index = _transformService.ResolveAnchorIndex(roiCenter, corrections);
+            return corrections[index];
         }
 
         private static void ApplyInverseAngleCorrection(ref float startAngle, ref float endAngle, PositionCorrectionInfo correctionInfo)
@@ -308,6 +425,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                     BlurSize = ParseInt(textBoxBlurSize, "平滑核"),
                     Polarity = (CaliperEdgePolarity)comboBoxPolarity.SelectedItem,
                     FindMode = (CaliperEdgeFindMode)comboBoxFindMode.SelectedItem,
+                    SamplingMode = comboBoxSamplingMode.SelectedIndex == 1
+                        ? CaliperSamplingMode.AntiInterference
+                        : CaliperSamplingMode.Fast,
                     Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0
                 };
                 return true;
@@ -375,12 +495,12 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
 
             try
             {
-                CaliperCircleMeasureResult result = ExecuteMeasure((NodeParamCaliperCircle)Params);
+                List<CaliperCircleTargetResult> items = ExecuteMeasures((NodeParamCaliperCircle)Params, CancellationToken.None);
                 SetPreview(GetPreviewMat());
-                showImageControl1.SetDisplayResult(NodeCaliperCircle.BuildDisplayResult(result));
+                showImageControl1.SetDisplayResult(NodeCaliperCircle.BuildDisplayResult(items));
 
-                if (!result.Success)
-                    MessageBoxTD.Show(string.IsNullOrWhiteSpace(result.ErrorMessage) ? $"卡尺找圆失败，边缘点数量：{result.PointCount}" : result.ErrorMessage);
+                if (items.Exists(item => !item.IsOk))
+                    MessageBoxTD.Show("部分模板目标卡尺找圆失败，失败目标结果已保留为0。");
             }
             catch (Exception ex)
             {
@@ -424,11 +544,15 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
                 float caliperHeight = ParseFloat(textBoxCaliperHeight, string.Empty);
                 int count = ParseInt(textBoxCount, string.Empty);
 
-                PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+                PositionCorrectionInfo correctionInfo = GetDefaultEditingCorrectionInfo(false);
                 PointF center = new PointF(centerX, centerY);
                 if (correctionInfo != null)
                 {
                     center = correctionInfo.TransformPoint(center.X, center.Y);
+                    double scale = GetAverageScale(correctionInfo);
+                    radius = (float)(radius * scale);
+                    caliperWidth = (float)(caliperWidth * scale);
+                    caliperHeight = (float)(caliperHeight * scale);
                     float deltaAngle = (float)correctionInfo.DeltaAngle;
                     startAngle += deltaAngle;
                     bool fullCircle = Math.Abs(Math.Abs(endAngle - originalStartAngle) - 360.0f) < 0.1f;
@@ -461,6 +585,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
 
         private void buttonDrawRoi_Click(object sender, EventArgs e)
         {
+            showImageControl1.SetDisplayResult(null);
             RefreshRoiFromFields();
         }
 
@@ -521,13 +646,20 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
 
             var roi = rois[0];
             PointF center = new PointF(roi.CX, roi.CY);
+            float radius = roi.Radius;
+            float caliperWidth = roi.CaliperWidth;
+            float caliperHeight = roi.CaliperHeight;
             float startAngle = roi.StartAngle;
             float endAngle = roi.EndAngle;
-            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(true);
+            PositionCorrectionInfo correctionInfo = ResolveEditingCorrection(center, true);
             if (correctionInfo != null)
             {
                 center = correctionInfo.InverseTransformPoint(center.X, center.Y);
                 ApplyInverseAngleCorrection(ref startAngle, ref endAngle, correctionInfo);
+                double scale = GetAverageScale(correctionInfo);
+                radius = (float)(radius / scale);
+                caliperWidth = (float)(caliperWidth / scale);
+                caliperHeight = (float)(caliperHeight / scale);
             }
 
             _isSyncingRoi = true;
@@ -535,11 +667,11 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
             {
                 textBoxCenterX.Text = center.X.ToString("F2");
                 textBoxCenterY.Text = center.Y.ToString("F2");
-                textBoxRadius.Text = roi.Radius.ToString("F2");
+                textBoxRadius.Text = radius.ToString("F2");
                 textBoxStartAngle.Text = startAngle.ToString("F2");
                 textBoxEndAngle.Text = endAngle.ToString("F2");
-                textBoxCaliperWidth.Text = roi.CaliperWidth.ToString("F2");
-                textBoxCaliperHeight.Text = roi.CaliperHeight.ToString("F2");
+                textBoxCaliperWidth.Text = caliperWidth.ToString("F2");
+                textBoxCaliperHeight.Text = caliperHeight.ToString("F2");
                 textBoxCount.Text = roi.Count.ToString();
                 comboBoxDirection.SelectedIndex = roi.Direction == 1 ? 1 : 0;
             }

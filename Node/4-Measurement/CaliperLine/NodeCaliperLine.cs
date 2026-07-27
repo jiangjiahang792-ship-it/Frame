@@ -3,6 +3,7 @@ using OpenCvSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -46,21 +47,16 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 if (form == null || param == null)
                     throw new Exception("卡尺找线参数异常！");
 
-                CaliperLineMeasureResult measureResult = form.ExecuteMeasure(param);
-                if (measureResult == null)
-                    throw new Exception("Caliper line measurement returned no result.");
-
-                NodeResultCaliperLine nodeResult = BuildResult(measureResult);
+                List<CaliperLineTargetResult> items = form.ExecuteMeasures(param, token);
+                NodeResultCaliperLine nodeResult = BuildResult(items);
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
 
-                if (showLog && measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，边缘点：{measureResult.PointCount})", true);
-
-                if (showLog && !measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Warn, $"Node({ID}.{NodeName}) caliper line found no valid line. ({time} ms, edge points: {measureResult.PointCount})", true);
+                if (showLog)
+                    LogHelper.AddLog(nodeResult.IsOk ? MsgLevel.Info : MsgLevel.Warn,
+                        $"节点({ID}.{NodeName})卡尺找线完成！({time} ms，目标：{items.Count}，总体：{(nodeResult.IsOk ? "OK" : "NG")})", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -80,44 +76,54 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             }
         }
 
-        internal static NodeResultCaliperLine BuildResult(CaliperLineMeasureResult measureResult)
+        /// <summary>根据全部目标项构建节点汇总结果。</summary>
+        internal static NodeResultCaliperLine BuildResult(List<CaliperLineTargetResult> items)
         {
             var result = new NodeResultCaliperLine();
-            result.IsOk = measureResult.Success;
-            result.JudgeOk = measureResult.Success;
-            result.EdgePointCount = measureResult.PointCount;
-            result.EdgePoints = MeasurementResultRounder.RoundPoints(measureResult.EdgePoints);
-            if (measureResult.Success)
+            result.Items = items ?? new List<CaliperLineTargetResult>();
+            result.IsOk = result.Items.Count > 0 && result.Items.All(item => item.IsOk);
+            result.JudgeOk = result.IsOk;
+            result.EdgePointCount = result.Items.Sum(item => item.EdgePointCount);
+            result.EdgePoints = result.Items.SelectMany(item => item.EdgePoints ?? new List<PointF>()).ToList();
+            CaliperLineTargetResult first = result.Items.FirstOrDefault();
+            if (first != null)
             {
-                result.StartX = MeasurementResultRounder.Round(measureResult.LineStart.X);
-                result.StartY = MeasurementResultRounder.Round(measureResult.LineStart.Y);
-                result.EndX = MeasurementResultRounder.Round(measureResult.LineEnd.X);
-                result.EndY = MeasurementResultRounder.Round(measureResult.LineEnd.Y);
-                result.Length = MeasurementResultRounder.Round(Distance(measureResult.LineStart, measureResult.LineEnd));
-                result.Angle = MeasurementResultRounder.Round(CalculateAbsoluteAngle(measureResult.LineStart, measureResult.LineEnd));
+                result.StartX = first.StartX;
+                result.StartY = first.StartY;
+                result.EndX = first.EndX;
+                result.EndY = first.EndY;
+                result.Length = first.Length;
+                result.Angle = first.Angle;
+                result.AlgorithmMs = result.Items.Sum(item => item.AlgorithmMs);
             }
-            result.AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs);
-            result.Result = BuildDisplayResult(measureResult);
+            result.Result = BuildDisplayResult(result.Items);
             result.OutputImage.DisplayResult = result.Result;
             return result;
         }
 
-        internal static AlgorithmResult BuildDisplayResult(CaliperLineMeasureResult measureResult)
+        /// <summary>合并全部模板目标的找线绘制结果。</summary>
+        internal static AlgorithmResult BuildDisplayResult(IReadOnlyList<CaliperLineTargetResult> items)
         {
             var result = new AlgorithmResult();
-            foreach (PointF point in measureResult.EdgePoints)
-                result.Circles.Add(new ColorCircle(point, 2, Color.Yellow));
+            result.IsAllOk = items != null && items.Count > 0 && items.All(item => item.IsOk);
+            if (items == null)
+                return result;
 
-            if (measureResult.Success)
+            foreach (CaliperLineTargetResult item in items)
             {
-                double length = Distance(measureResult.LineStart, measureResult.LineEnd);
-                double angle = CalculateAbsoluteAngle(measureResult.LineStart, measureResult.LineEnd);
-                result.Lines.Add(new ColorLine(measureResult.LineStart, measureResult.LineEnd, Color.Lime));
-                result.Texts.Add(new ColorText($"卡尺找线：点数 {measureResult.PointCount}，长度 {length:F3}px，角度 {angle:F3}°", Color.Lime));
-            }
-            else
-            {
-                result.Texts.Add(new ColorText($"卡尺找线失败：点数 {measureResult.PointCount}", Color.Red));
+                foreach (PointF point in item.EdgePoints ?? new List<PointF>())
+                    result.Circles.Add(new ColorCircle(point, 2, Color.Yellow));
+                if (item.IsOk)
+                {
+                    var start = new PointF((float)item.StartX, (float)item.StartY);
+                    var end = new PointF((float)item.EndX, (float)item.EndY);
+                    result.Lines.Add(new ColorLine(start, end, Color.Lime));
+                    result.Texts.Add(new ColorText($"目标{item.TargetIndex} 卡尺找线：点数 {item.EdgePointCount}，长度 {item.Length:F3}px，角度 {item.Angle:F3}°", Color.Lime));
+                }
+                else
+                {
+                    result.Texts.Add(new ColorText($"目标{item.TargetIndex} 卡尺找线失败：数值0，原因：{item.ErrorMessage}", Color.Red));
+                }
             }
 
             return result;

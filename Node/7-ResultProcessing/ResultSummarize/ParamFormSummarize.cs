@@ -16,6 +16,15 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSummarize
 
         public void SetNodeBelong(NodeBase node)
         {
+            SubscriptionInputContract resultContract = SubscriptionInputContract.ForCategories(new[]
+            {
+                SubscriptionDataCategory.AlgorithmResult,
+                SubscriptionDataCategory.StructuredObject
+            });
+            nodeSubscription1.SetInputContract(resultContract);
+            nodeSubscription2.SetInputContract(resultContract);
+            nodeSubscription3.SetInputContract(resultContract);
+            nodeSubscription4.SetInputContract(resultContract);
             nodeSubscription1.Init(node);
             nodeSubscription2.Init(node);
             nodeSubscription3.Init(node);

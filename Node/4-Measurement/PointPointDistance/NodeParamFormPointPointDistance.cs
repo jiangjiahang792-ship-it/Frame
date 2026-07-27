@@ -1,7 +1,9 @@
 using Logger;
 using OpenCvSharp;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Threading;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
@@ -13,6 +15,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
     public partial class NodeParamFormPointPointDistance : FormBase, INodeParamForm
     {
         private readonly NodeBase node;
+        /// <summary>唯一编辑ROI的目标归属与坐标变换服务。</summary>
+        private readonly IMultiTargetTransformService _transformService = new MultiTargetTransformService();
         private bool _isSyncingRoi;
         private bool _roiVisible;
         private int _selectedRunRoiIndex;
@@ -52,6 +56,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             public CaliperEdgeFindMode FindMode { get; set; }
             public int Direction { get; set; }
             public int BlurSize { get; set; }
+            /// <summary>获取或设置当前运行 ROI 的灰度剖面采样模式。</summary>
+            public CaliperSamplingMode SamplingMode { get; set; } = CaliperSamplingMode.Fast;
         }
 
         public NodeParamFormPointPointDistance(Process process, NodeBase node)
@@ -70,9 +76,11 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
 
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscriptionImage.SetExpectedValueType<OutputImage>();
             nodeSubscriptionImage.Init(node);
             nodeSubscriptionPoint1.Init(node);
             nodeSubscriptionPoint2.Init(node);
+            nodeSubscriptionPositionCorrection.SetExpectedValueType<List<PositionCorrectionInfo>>();
             nodeSubscriptionPositionCorrection.Init(node);
         }
 
@@ -115,7 +123,38 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             ClearEditingRoi();
         }
 
-        internal PointPointDistanceMeasureResult ExecuteMeasure(NodeParamPointPointDistance param)
+        /// <summary>按目标顺序执行全部点到点距离测量，订阅模式保持单结果。</summary>
+        internal List<PointPointDistanceTargetResult> ExecuteMeasures(NodeParamPointPointDistance param, CancellationToken token)
+        {
+            if (param == null)
+                throw new Exception("点到点距离参数为空。");
+
+            IReadOnlyList<PositionCorrectionInfo> corrections = ReadCorrections(param);
+            if (corrections.Count == 0)
+                return new List<PointPointDistanceTargetResult>();
+
+            Mat sharedGray = null;
+            bool disposeGrayAfterUse = false;
+            if (param.SourceMode == MeasurementDataSourceMode.Draw)
+                sharedGray = GetInputGrayMat(out disposeGrayAfterUse);
+
+            try
+            {
+                return MultiTargetMeasurementRunner.Run(
+                    corrections,
+                    token,
+                    correction => CreateTargetResult(ExecuteSingleMeasure(BuildRuntimeParam(param, correction), sharedGray)),
+                    CreateFailure);
+            }
+            finally
+            {
+                if (disposeGrayAfterUse)
+                    sharedGray?.Dispose();
+            }
+        }
+
+        /// <summary>执行一次已经完成坐标变换的点到点距离测量。</summary>
+        private PointPointDistanceMeasureResult ExecuteSingleMeasure(NodeParamPointPointDistance param, Mat sharedGray)
         {
             var stopwatch = Stopwatch.StartNew();
             var result = new PointPointDistanceMeasureResult();
@@ -129,13 +168,14 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             }
             else
             {
-                bool disposeGrayAfterUse;
-                Mat gray = GetInputGrayMat(out disposeGrayAfterUse);
+                Mat gray = sharedGray;
+                bool disposeGrayAfterUse = false;
+                if (gray == null)
+                    gray = GetInputGrayMat(out disposeGrayAfterUse);
                 try
                 {
-                    NodeParamPointPointDistance runtimeParam = BuildRuntimeParam(param);
-                    CaliperCircleMeasureResult point1Result = CaliperMeasurementAlgorithm.FindCircle(gray, BuildCircleParams(runtimeParam, true));
-                    CaliperCircleMeasureResult point2Result = CaliperMeasurementAlgorithm.FindCircle(gray, BuildCircleParams(runtimeParam, false));
+                    CaliperCircleMeasureResult point1Result = CaliperMeasurementAlgorithm.FindCircle(gray, BuildCircleParams(param, true));
+                    CaliperCircleMeasureResult point2Result = CaliperMeasurementAlgorithm.FindCircle(gray, BuildCircleParams(param, false));
                     result.Point1EdgePoints.AddRange(point1Result.EdgePoints);
                     result.Point2EdgePoints.AddRange(point2Result.EdgePoints);
 
@@ -199,6 +239,10 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             comboBoxDirection.Items.Add("由内向外");
             comboBoxDirection.Items.Add("由外向内");
             comboBoxDirection.SelectedIndex = 0;
+
+            comboBoxSamplingMode.Items.Add("快速采样");
+            comboBoxSamplingMode.Items.Add("抗干扰采样");
+            comboBoxSamplingMode.SelectedIndex = 0;
         }
 
         private void InitializeRunRoiTargets()
@@ -236,6 +280,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             _roiRunSettings[0].FindMode = param.Point1FindMode ?? param.FindMode;
             _roiRunSettings[0].Direction = param.Point1Direction ?? param.Direction;
             _roiRunSettings[0].BlurSize = param.Point1BlurSize ?? param.BlurSize;
+            _roiRunSettings[0].SamplingMode = param.Point1SamplingMode;
 
             _roiRunSettings[1].CaliperWidth = param.Point2CaliperWidth ?? param.CaliperWidth;
             _roiRunSettings[1].CaliperHeight = param.Point2CaliperHeight ?? param.CaliperHeight;
@@ -245,6 +290,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             _roiRunSettings[1].FindMode = param.Point2FindMode ?? param.FindMode;
             _roiRunSettings[1].Direction = param.Point2Direction ?? param.Direction;
             _roiRunSettings[1].BlurSize = param.Point2BlurSize ?? param.BlurSize;
+            _roiRunSettings[1].SamplingMode = param.Point2SamplingMode;
         }
 
         private void LoadRunSettingsToControls(RoiRunSettings settings)
@@ -260,6 +306,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             comboBoxPolarity.SelectedItem = settings.Polarity;
             comboBoxFindMode.SelectedItem = settings.FindMode;
             comboBoxDirection.SelectedIndex = settings.Direction == 1 ? 1 : 0;
+            comboBoxSamplingMode.SelectedIndex = settings.SamplingMode == CaliperSamplingMode.AntiInterference ? 1 : 0;
         }
 
         private void SaveCurrentRunSettingsFromControls()
@@ -276,6 +323,9 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             settings.Polarity = (CaliperEdgePolarity)comboBoxPolarity.SelectedItem;
             settings.FindMode = (CaliperEdgeFindMode)comboBoxFindMode.SelectedItem;
             settings.Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0;
+            settings.SamplingMode = comboBoxSamplingMode.SelectedIndex == 1
+                ? CaliperSamplingMode.AntiInterference
+                : CaliperSamplingMode.Fast;
         }
 
         private void SaveRunSettingsFromRoi(RoiRunSettings settings, TDJS_Vision.Forms.DispShowImage.ShowImageControl.RoiCircleCaliper roi)
@@ -376,15 +426,77 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             return point;
         }
 
-        private NodeParamPointPointDistance BuildRuntimeParam(NodeParamPointPointDistance param)
+        /// <summary>读取全部位置修正；仅绘制模式启用修正时展开多目标。</summary>
+        private IReadOnlyList<PositionCorrectionInfo> ReadCorrections(NodeParamPointPointDistance param)
+        {
+            if (param.SourceMode != MeasurementDataSourceMode.Draw || !param.UsePositionCorrection)
+                return new List<PositionCorrectionInfo> { CreateIdentityCorrection() };
+
+            List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
+            corrections = corrections ?? new List<PositionCorrectionInfo>();
+            return corrections;
+        }
+
+        /// <summary>把单次算法结果转换为强类型目标结果。</summary>
+        private static PointPointDistanceTargetResult CreateTargetResult(PointPointDistanceMeasureResult measure)
+        {
+            if (measure == null)
+                throw new Exception("点到点距离算法没有返回结果。");
+
+            var item = new PointPointDistanceTargetResult
+            {
+                IsOk = measure.Success,
+                ErrorMessage = measure.Success ? string.Empty : measure.Message,
+                AlgorithmMs = measure.Success ? MeasurementResultRounder.Round(measure.AlgorithmMs) : 0,
+                RawResult = measure
+            };
+            if (measure.Success)
+            {
+                item.Distance = MeasurementResultRounder.Round(measure.Distance);
+                item.Point1X = MeasurementResultRounder.Round(measure.Point1.X);
+                item.Point1Y = MeasurementResultRounder.Round(measure.Point1.Y);
+                item.Point2X = MeasurementResultRounder.Round(measure.Point2.X);
+                item.Point2Y = MeasurementResultRounder.Round(measure.Point2.Y);
+            }
+            return item;
+        }
+
+        /// <summary>创建保留目标顺序且数值为零的失败项。</summary>
+        private static PointPointDistanceTargetResult CreateFailure(PositionCorrectionInfo correction, Exception exception)
+        {
+            string message = exception == null ? "点到点距离失败。" : exception.Message;
+            return new PointPointDistanceTargetResult
+            {
+                IsOk = false,
+                ErrorMessage = message,
+                RawResult = new PointPointDistanceMeasureResult { Success = false, Message = message }
+            };
+        }
+
+        /// <summary>创建不改变坐标的单目标修正项。</summary>
+        private static PositionCorrectionInfo CreateIdentityCorrection()
+        {
+            return new PositionCorrectionInfo
+            {
+                TargetIndex = 1,
+                IsValid = true,
+                BaseScaleX = 1,
+                BaseScaleY = 1,
+                CurrentScaleX = 1,
+                CurrentScaleY = 1
+            };
+        }
+
+        /// <summary>为单个模板目标构造已经仿射变换的运行参数。</summary>
+        private NodeParamPointPointDistance BuildRuntimeParam(NodeParamPointPointDistance param, PositionCorrectionInfo correction)
         {
             if (param == null || !param.UsePositionCorrection || param.SourceMode != MeasurementDataSourceMode.Draw)
                 return param;
 
-            PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
-            PositionCorrectionHelper.EnsureValid(correctionInfo);
-            PointF p1 = correctionInfo.TransformPoint(param.Point1CenterX, param.Point1CenterY);
-            PointF p2 = correctionInfo.TransformPoint(param.Point2CenterX, param.Point2CenterY);
+            PositionCorrectionHelper.EnsureValid(correction);
+            PointF p1 = _transformService.TransformPoint(new PointF(param.Point1CenterX, param.Point1CenterY), correction);
+            PointF p2 = _transformService.TransformPoint(new PointF(param.Point2CenterX, param.Point2CenterY), correction);
+            double scale = GetAverageScale(correction);
 
             return new NodeParamPointPointDistance
             {
@@ -397,35 +509,47 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                 MeasureMode = param.MeasureMode,
                 Point1CenterX = p1.X,
                 Point1CenterY = p1.Y,
-                Point1Radius = param.Point1Radius,
+                Point1Radius = (float)(param.Point1Radius * scale),
                 Point2CenterX = p2.X,
                 Point2CenterY = p2.Y,
-                Point2Radius = param.Point2Radius,
-                CaliperWidth = param.CaliperWidth,
-                CaliperHeight = param.CaliperHeight,
+                Point2Radius = (float)(param.Point2Radius * scale),
+                CaliperWidth = (float)(param.CaliperWidth * scale),
+                CaliperHeight = (float)(param.CaliperHeight * scale),
                 Count = param.Count,
                 EdgeStrength = param.EdgeStrength,
                 Polarity = param.Polarity,
                 FindMode = param.FindMode,
                 Direction = param.Direction,
                 BlurSize = param.BlurSize,
-                Point1CaliperWidth = param.Point1CaliperWidth,
-                Point1CaliperHeight = param.Point1CaliperHeight,
+                Point1CaliperWidth = (float)(param.Point1CaliperWidth * scale),
+                Point1CaliperHeight = (float)(param.Point1CaliperHeight * scale),
                 Point1Count = param.Point1Count,
                 Point1EdgeStrength = param.Point1EdgeStrength,
                 Point1Polarity = param.Point1Polarity,
                 Point1FindMode = param.Point1FindMode,
                 Point1Direction = param.Point1Direction,
                 Point1BlurSize = param.Point1BlurSize,
-                Point2CaliperWidth = param.Point2CaliperWidth,
-                Point2CaliperHeight = param.Point2CaliperHeight,
+                Point1SamplingMode = param.Point1SamplingMode,
+                Point2CaliperWidth = (float)(param.Point2CaliperWidth * scale),
+                Point2CaliperHeight = (float)(param.Point2CaliperHeight * scale),
                 Point2Count = param.Point2Count,
                 Point2EdgeStrength = param.Point2EdgeStrength,
                 Point2Polarity = param.Point2Polarity,
                 Point2FindMode = param.Point2FindMode,
                 Point2Direction = param.Point2Direction,
-                Point2BlurSize = param.Point2BlurSize
+                Point2BlurSize = param.Point2BlurSize,
+                Point2SamplingMode = param.Point2SamplingMode
             };
+        }
+
+        /// <summary>计算各向缩放的平均值，供圆半径和卡尺尺寸使用。</summary>
+        private static double GetAverageScale(PositionCorrectionInfo correction)
+        {
+            double scaleX = PositionCorrectionInfo.NormalizeScale(correction.CurrentScaleX) /
+                PositionCorrectionInfo.NormalizeScale(correction.BaseScaleX);
+            double scaleY = PositionCorrectionInfo.NormalizeScale(correction.CurrentScaleY) /
+                PositionCorrectionInfo.NormalizeScale(correction.BaseScaleY);
+            return (scaleX + scaleY) * 0.5;
         }
 
         private static CaliperCircleParams BuildCircleParams(NodeParamPointPointDistance param, bool firstPoint)
@@ -444,6 +568,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                 Polarity = param.GetPolarity(firstPoint),
                 FindMode = param.GetFindMode(firstPoint),
                 Direction = param.GetDirection(firstPoint),
+                SamplingMode = param.GetSamplingMode(firstPoint),
                 BlurSize = param.GetBlurSize(firstPoint)
             };
         }
@@ -523,6 +648,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                     Point1Polarity = point1Settings.Polarity,
                     Point1FindMode = point1Settings.FindMode,
                     Point1Direction = point1Settings.Direction,
+                    Point1SamplingMode = point1Settings.SamplingMode,
                     Point2CaliperWidth = point2Settings.CaliperWidth,
                     Point2CaliperHeight = point2Settings.CaliperHeight,
                     Point2Count = point2Settings.Count,
@@ -530,7 +656,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                     Point2BlurSize = point2Settings.BlurSize,
                     Point2Polarity = point2Settings.Polarity,
                     Point2FindMode = point2Settings.FindMode,
-                    Point2Direction = point2Settings.Direction
+                    Point2Direction = point2Settings.Direction,
+                    Point2SamplingMode = point2Settings.SamplingMode
                 };
 
                 return true;
@@ -556,7 +683,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             return value;
         }
 
-        private PositionCorrectionInfo GetEditingCorrectionInfo(bool require)
+        /// <summary>读取编辑阶段全部位置修正信息。</summary>
+        private List<PositionCorrectionInfo> GetEditingCorrections(bool require)
         {
             if (!checkBoxUsePositionCorrection.Checked || !radioButtonDraw.Checked)
                 return null;
@@ -571,9 +699,12 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
 
             try
             {
-                PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
-                PositionCorrectionHelper.EnsureValid(correctionInfo);
-                return correctionInfo;
+                List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
+                if (corrections == null || corrections.Count == 0)
+                    throw new Exception("位置修正信息列表为空。");
+                foreach (PositionCorrectionInfo correction in corrections)
+                    PositionCorrectionHelper.EnsureValid(correction);
+                return corrections;
             }
             catch
             {
@@ -581,6 +712,23 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                     throw;
                 return null;
             }
+        }
+
+        /// <summary>返回第一个模板目标，作为参数回显时的默认基准。</summary>
+        private PositionCorrectionInfo GetDefaultEditingCorrectionInfo(bool require)
+        {
+            List<PositionCorrectionInfo> corrections = GetEditingCorrections(require);
+            return corrections == null || corrections.Count == 0 ? null : corrections[0];
+        }
+
+        /// <summary>根据唯一编辑ROI中心确定它属于哪个模板目标。</summary>
+        private PositionCorrectionInfo ResolveEditingCorrection(PointF roiCenter, bool require)
+        {
+            List<PositionCorrectionInfo> corrections = GetEditingCorrections(require);
+            if (corrections == null || corrections.Count == 0)
+                return null;
+            int index = _transformService.ResolveAnchorIndex(roiCenter, corrections);
+            return corrections[index];
         }
 
         private void SetPreview(Mat image)
@@ -596,7 +744,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             try
             {
                 SaveCurrentRunSettingsFromControls();
-                PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+                PositionCorrectionInfo correctionInfo = GetDefaultEditingCorrectionInfo(false);
                 PointF p1 = new PointF(ParseFloat(textBoxP1CenterX, string.Empty), ParseFloat(textBoxP1CenterY, string.Empty));
                 PointF p2 = new PointF(ParseFloat(textBoxP2CenterX, string.Empty), ParseFloat(textBoxP2CenterY, string.Empty));
                 if (correctionInfo != null)
@@ -607,10 +755,13 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
 
                 float p1Radius = ParseFloat(textBoxP1Radius, string.Empty);
                 float p2Radius = ParseFloat(textBoxP2Radius, string.Empty);
+                double displayScale = correctionInfo == null ? 1.0 : GetAverageScale(correctionInfo);
+                p1Radius = (float)(p1Radius * displayScale);
+                p2Radius = (float)(p2Radius * displayScale);
 
                 showImageControl1.ClearDynamicRoi();
-                showImageControl1.AddDynamicCircleCaliper(p1.X, p1.Y, p1Radius, 0, 360, _roiRunSettings[0].CaliperWidth, _roiRunSettings[0].CaliperHeight, _roiRunSettings[0].Count, Color.Lime, "P1");
-                showImageControl1.AddDynamicCircleCaliper(p2.X, p2.Y, p2Radius, 0, 360, _roiRunSettings[1].CaliperWidth, _roiRunSettings[1].CaliperHeight, _roiRunSettings[1].Count, Color.DeepSkyBlue, "P2");
+                showImageControl1.AddDynamicCircleCaliper(p1.X, p1.Y, p1Radius, 0, 360, (float)(_roiRunSettings[0].CaliperWidth * displayScale), (float)(_roiRunSettings[0].CaliperHeight * displayScale), _roiRunSettings[0].Count, Color.Lime, "P1");
+                showImageControl1.AddDynamicCircleCaliper(p2.X, p2.Y, p2Radius, 0, 360, (float)(_roiRunSettings[1].CaliperWidth * displayScale), (float)(_roiRunSettings[1].CaliperHeight * displayScale), _roiRunSettings[1].Count, Color.DeepSkyBlue, "P2");
                 var rois = showImageControl1.GetAllDynamicCircleCalipers();
                 if (rois.Count > 0)
                     rois[0].Direction = _roiRunSettings[0].Direction;
@@ -636,13 +787,15 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             if (rois.Count < 2)
                 return;
 
-            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(requireCorrection);
             PointF p1 = new PointF(rois[0].CX, rois[0].CY);
             PointF p2 = new PointF(rois[1].CX, rois[1].CY);
+            PointF roiCenter = new PointF((p1.X + p2.X) * 0.5f, (p1.Y + p2.Y) * 0.5f);
+            PositionCorrectionInfo correctionInfo = ResolveEditingCorrection(roiCenter, requireCorrection);
+            double scale = correctionInfo == null ? 1.0 : GetAverageScale(correctionInfo);
             if (correctionInfo != null)
             {
-                p1 = correctionInfo.InverseTransformPoint(p1.X, p1.Y);
-                p2 = correctionInfo.InverseTransformPoint(p2.X, p2.Y);
+                p1 = _transformService.InverseTransformPoint(p1, correctionInfo);
+                p2 = _transformService.InverseTransformPoint(p2, correctionInfo);
             }
 
             _isSyncingRoi = true;
@@ -650,12 +803,16 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             {
                 textBoxP1CenterX.Text = p1.X.ToString("F2");
                 textBoxP1CenterY.Text = p1.Y.ToString("F2");
-                textBoxP1Radius.Text = rois[0].Radius.ToString("F2");
+                textBoxP1Radius.Text = (rois[0].Radius / scale).ToString("F2");
                 textBoxP2CenterX.Text = p2.X.ToString("F2");
                 textBoxP2CenterY.Text = p2.Y.ToString("F2");
-                textBoxP2Radius.Text = rois[1].Radius.ToString("F2");
+                textBoxP2Radius.Text = (rois[1].Radius / scale).ToString("F2");
                 SaveRunSettingsFromRoi(_roiRunSettings[0], rois[0]);
                 SaveRunSettingsFromRoi(_roiRunSettings[1], rois[1]);
+                _roiRunSettings[0].CaliperWidth = (float)(_roiRunSettings[0].CaliperWidth / scale);
+                _roiRunSettings[0].CaliperHeight = (float)(_roiRunSettings[0].CaliperHeight / scale);
+                _roiRunSettings[1].CaliperWidth = (float)(_roiRunSettings[1].CaliperWidth / scale);
+                _roiRunSettings[1].CaliperHeight = (float)(_roiRunSettings[1].CaliperHeight / scale);
                 LoadRunSettingsToControls(_roiRunSettings[_selectedRunRoiIndex]);
             }
             finally
@@ -670,13 +827,15 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             if (rois.Count < 2)
                 return;
 
-            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
             PointF p1 = new PointF(rois[0].CX, rois[0].CY);
             PointF p2 = new PointF(rois[1].CX, rois[1].CY);
+            PointF roiCenter = new PointF((p1.X + p2.X) * 0.5f, (p1.Y + p2.Y) * 0.5f);
+            PositionCorrectionInfo correctionInfo = ResolveEditingCorrection(roiCenter, false);
+            double scale = correctionInfo == null ? 1.0 : GetAverageScale(correctionInfo);
             if (correctionInfo != null)
             {
-                p1 = correctionInfo.InverseTransformPoint(p1.X, p1.Y);
-                p2 = correctionInfo.InverseTransformPoint(p2.X, p2.Y);
+                p1 = _transformService.InverseTransformPoint(p1, correctionInfo);
+                p2 = _transformService.InverseTransformPoint(p2, correctionInfo);
             }
 
             _isSyncingRoi = true;
@@ -684,10 +843,10 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             {
                 if (!ReferenceEquals(source, textBoxP1CenterX)) textBoxP1CenterX.Text = p1.X.ToString("F2");
                 if (!ReferenceEquals(source, textBoxP1CenterY)) textBoxP1CenterY.Text = p1.Y.ToString("F2");
-                if (!ReferenceEquals(source, textBoxP1Radius)) textBoxP1Radius.Text = rois[0].Radius.ToString("F2");
+                if (!ReferenceEquals(source, textBoxP1Radius)) textBoxP1Radius.Text = (rois[0].Radius / scale).ToString("F2");
                 if (!ReferenceEquals(source, textBoxP2CenterX)) textBoxP2CenterX.Text = p2.X.ToString("F2");
                 if (!ReferenceEquals(source, textBoxP2CenterY)) textBoxP2CenterY.Text = p2.Y.ToString("F2");
-                if (!ReferenceEquals(source, textBoxP2Radius)) textBoxP2Radius.Text = rois[1].Radius.ToString("F2");
+                if (!ReferenceEquals(source, textBoxP2Radius)) textBoxP2Radius.Text = (rois[1].Radius / scale).ToString("F2");
             }
             finally
             {
@@ -760,6 +919,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
 
         private void buttonDrawRoi_Click(object sender, EventArgs e)
         {
+            showImageControl1.SetDisplayResult(null);
             RefreshRoiFromFields();
         }
 
@@ -783,12 +943,12 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
 
             try
             {
-                PointPointDistanceMeasureResult result = ExecuteMeasure((NodeParamPointPointDistance)Params);
+                List<PointPointDistanceTargetResult> items = ExecuteMeasures((NodeParamPointPointDistance)Params, CancellationToken.None);
                 SetPreview(GetPreviewMat());
-                showImageControl1.SetDisplayResult(NodePointPointDistance.BuildDisplayResult(result));
+                showImageControl1.SetDisplayResult(NodePointPointDistance.BuildDisplayResult(items));
 
-                if (!result.Success)
-                    MessageBoxTD.Show($"点到点距离失败：{result.Message}");
+                if (items.Exists(item => !item.IsOk))
+                    MessageBoxTD.Show("部分模板目标点到点距离失败，失败目标结果已保留为0。");
             }
             catch (Exception ex)
             {

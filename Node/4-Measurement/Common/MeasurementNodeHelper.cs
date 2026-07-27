@@ -1,8 +1,10 @@
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
+using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._4_Measurement.Common
 {
@@ -91,6 +93,57 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         {
             foreach (PointF point in points)
                 Cv2.Circle(image, new OpenCvSharp.Point((int)Math.Round(point.X), (int)Math.Round(point.Y)), 2, color, -1);
+        }
+
+        /// <summary>
+        /// 把单个模板目标的叠加图形追加到节点总叠加结果中。
+        /// </summary>
+        public static void AppendAlgorithmResult(AlgorithmResult target, AlgorithmResult source)
+        {
+            if (target == null || source == null)
+                return;
+
+            target.Rects.AddRange(source.Rects);
+            target.Texts.AddRange(source.Texts);
+            target.Lines.AddRange(source.Lines);
+            target.Circles.AddRange(source.Circles);
+            target.Arcs.AddRange(source.Arcs);
+            target.Ellipses.AddRange(source.Ellipses);
+            target.Contours.AddRange(source.Contours);
+        }
+
+        /// <summary>
+        /// 计算一组测量几何点的轴对齐包围盒中心，用于判断唯一ROI属于哪个模板目标。
+        /// </summary>
+        public static PointF CalculateBoundsCenter(IEnumerable<PointF> points)
+        {
+            if (points == null)
+                throw new ArgumentNullException("points");
+
+            bool hasPoint = false;
+            float minX = 0;
+            float minY = 0;
+            float maxX = 0;
+            float maxY = 0;
+            foreach (PointF point in points)
+            {
+                if (!hasPoint)
+                {
+                    minX = maxX = point.X;
+                    minY = maxY = point.Y;
+                    hasPoint = true;
+                    continue;
+                }
+
+                minX = Math.Min(minX, point.X);
+                minY = Math.Min(minY, point.Y);
+                maxX = Math.Max(maxX, point.X);
+                maxY = Math.Max(maxY, point.Y);
+            }
+
+            if (!hasPoint)
+                throw new InvalidOperationException("测量几何为空，无法计算ROI包围盒中心。");
+            return new PointF((minX + maxX) * 0.5f, (minY + maxY) * 0.5f);
         }
     }
 }

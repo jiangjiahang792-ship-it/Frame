@@ -3,6 +3,7 @@ using OpenCvSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -104,17 +105,15 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 if (form == null || param == null)
                     throw new Exception("线到线夹角参数异常！");
 
-                LineLineAngleMeasureResult measureResult = form.ExecuteMeasure(param);
-                NodeResultLineLineAngle nodeResult = BuildResult(measureResult);
+                List<LineLineAngleTargetResult> items = form.ExecuteMeasures(param, token);
+                NodeResultLineLineAngle nodeResult = BuildResult(items);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
 
-                if (showLog && measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！{time} ms，夹角：{measureResult.Angle:F3}°", true);
-
-                if (showLog && !measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})线到线夹角失败：{measureResult.Message}（{time} ms）", true);
+                if (showLog)
+                    LogHelper.AddLog(nodeResult.IsOk ? MsgLevel.Info : MsgLevel.Warn,
+                        $"节点({ID}.{NodeName})线到线夹角完成！({time} ms，目标：{items.Count}，总体：{(nodeResult.IsOk ? "OK" : "NG")})", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -134,36 +133,56 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             }
         }
 
-        internal static NodeResultLineLineAngle BuildResult(LineLineAngleMeasureResult measureResult)
+        /// <summary>根据全部模板目标结果构建节点汇总结果。</summary>
+        internal static NodeResultLineLineAngle BuildResult(List<LineLineAngleTargetResult> items)
         {
             var result = new NodeResultLineLineAngle();
-            result.IsOk = measureResult.Success;
-            result.AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs);
-            if (measureResult.Success)
+            result.Items = items ?? new List<LineLineAngleTargetResult>();
+            result.IsOk = result.Items.Count > 0 && result.Items.All(item => item.IsOk);
+            result.JudgeOk = result.IsOk;
+            result.AlgorithmMs = MeasurementResultRounder.Round(result.Items.Sum(item => item.AlgorithmMs));
+            LineLineAngleTargetResult first = result.Items.FirstOrDefault();
+            if (first != null)
             {
-                result.Angle = MeasurementResultRounder.Round(measureResult.Angle);
-                result.Line1StartX = MeasurementResultRounder.Round(measureResult.Line1.Start.X);
-                result.Line1StartY = MeasurementResultRounder.Round(measureResult.Line1.Start.Y);
-                result.Line1EndX = MeasurementResultRounder.Round(measureResult.Line1.End.X);
-                result.Line1EndY = MeasurementResultRounder.Round(measureResult.Line1.End.Y);
-                result.Line2StartX = MeasurementResultRounder.Round(measureResult.Line2.Start.X);
-                result.Line2StartY = MeasurementResultRounder.Round(measureResult.Line2.Start.Y);
-                result.Line2EndX = MeasurementResultRounder.Round(measureResult.Line2.End.X);
-                result.Line2EndY = MeasurementResultRounder.Round(measureResult.Line2.End.Y);
-                if (measureResult.IntersectionPoint.HasValue)
-                {
-                    result.IntersectionX = MeasurementResultRounder.Round(measureResult.IntersectionPoint.Value.X);
-                    result.IntersectionY = MeasurementResultRounder.Round(measureResult.IntersectionPoint.Value.Y);
-                }
-
-                result.AverageDistance = MeasurementResultRounder.Round(measureResult.AverageDistance);
-                result.MinDistance = MeasurementResultRounder.Round(measureResult.MinDistance);
-                result.MaxDistance = MeasurementResultRounder.Round(measureResult.MaxDistance);
-                result.DistancePointCount = measureResult.DistancePointCount;
+                result.Angle = first.Angle;
+                result.IntersectionX = first.IntersectionX;
+                result.IntersectionY = first.IntersectionY;
+                result.Line1StartX = first.Line1StartX;
+                result.Line1StartY = first.Line1StartY;
+                result.Line1EndX = first.Line1EndX;
+                result.Line1EndY = first.Line1EndY;
+                result.Line2StartX = first.Line2StartX;
+                result.Line2StartY = first.Line2StartY;
+                result.Line2EndX = first.Line2EndX;
+                result.Line2EndY = first.Line2EndY;
+                result.AverageDistance = first.AverageDistance;
+                result.MinDistance = first.MinDistance;
+                result.MaxDistance = first.MaxDistance;
+                result.DistancePointCount = first.DistancePointCount;
             }
 
-            result.Result = BuildDisplayResult(measureResult);
+            result.Result = BuildDisplayResult(result.Items);
             result.OutputImage.DisplayResult = result.Result;
+            return result;
+        }
+
+        /// <summary>合并全部模板目标的夹角叠加结果。</summary>
+        internal static AlgorithmResult BuildDisplayResult(IReadOnlyList<LineLineAngleTargetResult> items)
+        {
+            var result = new AlgorithmResult();
+            result.IsAllOk = items != null && items.Count > 0 && items.All(item => item.IsOk);
+            if (items == null)
+                return result;
+
+            foreach (LineLineAngleTargetResult item in items)
+            {
+                MeasurementNodeHelper.AppendAlgorithmResult(result, BuildDisplayResult(item.RawResult));
+                result.Texts.Add(new ColorText(
+                    item.IsOk
+                        ? $"目标{item.TargetIndex} 线到线夹角：{item.Angle:F3}°"
+                        : $"目标{item.TargetIndex} 线到线夹角失败：数值0，原因：{item.ErrorMessage}",
+                    item.IsOk ? Color.Lime : Color.Red));
+            }
             return result;
         }
 

@@ -35,6 +35,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
         public CaliperEdgePolarity Polarity { get; set; } = CaliperEdgePolarity.Both;
         public CaliperEdgeFindMode FindMode { get; set; } = CaliperEdgeFindMode.Best;
         public int Direction { get; set; }
+        /// <summary>获取或设置点圆卡尺的灰度剖面采样模式。</summary>
+        public CaliperSamplingMode SamplingMode { get; set; } = CaliperSamplingMode.Fast;
         public int BlurSize { get; set; } = 3;
     }
 }

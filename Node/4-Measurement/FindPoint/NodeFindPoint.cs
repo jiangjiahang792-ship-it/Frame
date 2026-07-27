@@ -50,13 +50,11 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
                     throw new Exception("找点参数异常。");
 
                 Stopwatch executeMeasureWatch = Stopwatch.StartNew();
-                FindPointMeasureResult measureResult = form.ExecuteMeasure(param, token);
+                List<FindPointTargetResult> items = form.ExecuteMeasures(param, token);
                 executeMeasureWatch.Stop();
-                if (measureResult == null)
-                    throw new Exception("找点算法没有返回结果。");
 
                 Stopwatch buildResultWatch = Stopwatch.StartNew();
-                NodeResultFindPoint nodeResult = BuildResult(measureResult);
+                NodeResultFindPoint nodeResult = BuildResult(items);
                 buildResultWatch.Stop();
 
                 Stopwatch resultPublishWatch = Stopwatch.StartNew();
@@ -76,11 +74,9 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
                         nodeRunWatch.Elapsed.TotalMilliseconds,
                         time);
 
-                if (showLog && measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！耗时：{time} ms，边缘点：{measureResult.PointCount}", true);
-
-                if (showLog && !measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})未找到有效边缘点。耗时：{time} ms", true);
+                if (showLog)
+                    LogHelper.AddLog(nodeResult.IsOk ? MsgLevel.Info : MsgLevel.Warn,
+                        $"节点({ID}.{NodeName})找点完成！耗时：{time} ms，目标：{items.Count}，总体：{(nodeResult.IsOk ? "OK" : "NG")}", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -132,57 +128,70 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
                 true);
         }
 
-        internal static NodeResultFindPoint BuildResult(FindPointMeasureResult measureResult)
+        /// <summary>根据全部目标项构建找点节点汇总结果。</summary>
+        internal static NodeResultFindPoint BuildResult(List<FindPointTargetResult> items)
         {
+            List<FindPointTargetResult> safeItems = items ?? new List<FindPointTargetResult>();
             var result = new NodeResultFindPoint
             {
-                IsOk = measureResult.Success,
-                PointCount = measureResult.PointCount,
-                ContourCount = measureResult.ContourCount,
-                Points = MeasurementResultRounder.RoundPoints(measureResult.Points),
-                RegionPoints = MeasurementResultRounder.RoundPoints(measureResult.PrimaryContour),
-                Contours = MeasurementResultRounder.RoundPointGroups(measureResult.Contours),
-                Message = measureResult.Message,
-                AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs)
+                Items = safeItems,
+                IsOk = safeItems.Count > 0 && safeItems.All(item => item.IsOk),
+                PointCount = safeItems.Sum(item => item.PointCount),
+                ContourCount = safeItems.Sum(item => item.ContourCount),
+                Points = safeItems.SelectMany(item => item.Points ?? new List<PointF>()).ToList(),
+                RegionPoints = safeItems.SelectMany(item => item.RegionPoints ?? new List<PointF>()).ToList(),
+                Contours = safeItems.SelectMany(item => item.Contours ?? new List<List<PointF>>()).ToList(),
+                Message = string.Join("；", safeItems.Select(item => $"目标{item.TargetIndex}:{(item.IsOk ? "OK" : item.ErrorMessage)}")),
+                AlgorithmMs = MeasurementResultRounder.Round(safeItems.Sum(item => item.AlgorithmMs))
             };
+            result.JudgeOk = result.IsOk;
 
-            if (result.Points.Count > 0)
+            FindPointTargetResult first = safeItems.FirstOrDefault();
+            if (first != null)
             {
-                result.CenterX = MeasurementResultRounder.Round(result.Points.Average(point => point.X));
-                result.CenterY = MeasurementResultRounder.Round(result.Points.Average(point => point.Y));
+                result.CenterX = first.CenterX;
+                result.CenterY = first.CenterY;
             }
 
-            result.Result = BuildDisplayResult(measureResult);
+            result.Result = BuildDisplayResult(safeItems);
             result.OutputImage.DisplayResult = result.Result;
             return result;
         }
 
-        internal static AlgorithmResult BuildDisplayResult(FindPointMeasureResult measureResult)
+        /// <summary>合并全部模板目标的找点区域、轮廓和状态文本。</summary>
+        internal static AlgorithmResult BuildDisplayResult(IReadOnlyList<FindPointTargetResult> items)
         {
             var result = new AlgorithmResult();
-            foreach (List<PointF> region in measureResult.Regions)
+            result.IsAllOk = items != null && items.Count > 0 && items.All(item => item.IsOk);
+            if (items == null)
+                return result;
+            foreach (FindPointTargetResult item in items)
             {
-                result.Contours.Add(new ColorContour(region, Color.DodgerBlue)
+                foreach (List<PointF> region in item.Regions ?? new List<List<PointF>>())
                 {
-                    LineWidth = 1.2F
+                    result.Contours.Add(new ColorContour(region, Color.DodgerBlue)
+                    {
+                        LineWidth = 1.2F
+                    });
+                }
+                foreach (List<PointF> contour in item.Contours ?? new List<List<PointF>>())
+                {
+                    result.Contours.Add(new ColorContour(contour, Color.Lime)
+                    {
+                        LineWidth = 1.8F
+                    });
+                }
+                Color textColor = item.IsOk ? Color.Lime : Color.Red;
+                string text = item.IsOk
+                    ? $"目标{item.TargetIndex} 找点：{item.PointCount}点 / {item.ContourCount}组"
+                    : $"目标{item.TargetIndex} 找点失败：数值0，原因：{item.ErrorMessage}";
+                result.Texts.Add(new ColorText(text, textColor)
+                {
+                    FontSize = 14,
+                    Position = DisplayTextPosition.TopLeft,
+                    Title = $"FindPoint{item.TargetIndex}"
                 });
             }
-
-            foreach (List<PointF> contour in measureResult.Contours)
-            {
-                result.Contours.Add(new ColorContour(contour, Color.Lime)
-                {
-                    LineWidth = 1.8F
-                });
-            }
-
-            Color textColor = measureResult.Success ? Color.Lime : Color.Red;
-            result.Texts.Add(new ColorText($"找点：{measureResult.PointCount} 点 / {measureResult.ContourCount} 组", textColor)
-            {
-                FontSize = 14,
-                Position = DisplayTextPosition.TopLeft,
-                Title = "FindPoint"
-            });
             return result;
         }
     }

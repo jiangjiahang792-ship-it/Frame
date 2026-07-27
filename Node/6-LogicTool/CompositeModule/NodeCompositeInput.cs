@@ -62,13 +62,6 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                 }
             }
 
-            NodeResultCompositeInput result = Result as NodeResultCompositeInput;
-            if (result != null)
-            {
-                foreach (string name in result.GetDynamicVariableNames())
-                    names.Add(name);
-            }
-
             return names.OrderBy(item => item, StringComparer.OrdinalIgnoreCase).ToList();
         }
 

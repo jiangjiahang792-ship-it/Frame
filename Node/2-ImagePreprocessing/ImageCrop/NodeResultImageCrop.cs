@@ -7,6 +7,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
     {
         public int RunTime { get; set; }
 
+        [SubscriptionOutput]
         [DisplayName("输出图像")]
         public OutputImage OutputImage { get; set; } = new OutputImage();
     }

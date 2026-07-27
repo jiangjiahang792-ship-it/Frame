@@ -1,14 +1,23 @@
 using Logger;
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Node._3_Detection.MatchTemplate;
 using TDJS_Vision.Node._4_Measurement.Common;
 
 namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
 {
+    /// <summary>
+    /// 把模板匹配的全部目标位姿转换为相对于第一目标基准的位置修正集合。
+    /// </summary>
     public class NodePositionCorrection : NodeBase
     {
-        public NodePositionCorrection(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
+        /// <summary>
+        /// 初始化位置修正节点。
+        /// </summary>
+        public NodePositionCorrection(int nodeId, string nodeName, Process process, NodeType nodeType)
+            : base(nodeId, nodeName, process, nodeType)
         {
             var form = new NodeParamFormPositionCorrection();
             form.SetNodeBelong(this);
@@ -16,6 +25,9 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
             Result = new NodeResultPositionCorrection();
         }
 
+        /// <summary>
+        /// 运行位置修正并输出与当前模板目标一一对应的修正集合。
+        /// </summary>
         public override Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
@@ -42,8 +54,8 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
                 if (form == null || param == null)
                     throw new Exception("位置修正参数异常。");
 
-                PositionCorrectionInfo correctionInfo = form.BuildCorrectionInfo(param);
-                NodeResultPositionCorrection nodeResult = BuildResult(correctionInfo);
+                List<PositionCorrectionInfo> items = form.BuildCorrectionItems(param);
+                NodeResultPositionCorrection nodeResult = BuildResult(items);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
@@ -52,7 +64,7 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
                 {
                     LogHelper.AddLog(
                         MsgLevel.Info,
-                        $"节点({ID}.{NodeName})运行成功！({time} ms，X偏移:{nodeResult.DeltaX:F3}，Y偏移:{nodeResult.DeltaY:F3}，角度偏移:{nodeResult.DeltaAngle:F3})",
+                        $"节点({ID}.{NodeName})运行成功！({time} ms，修正目标数量：{nodeResult.TargetCount})",
                         true);
                 }
 
@@ -74,24 +86,99 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
             }
         }
 
-        internal void PublishPreviewResult(PositionCorrectionInfo correctionInfo)
+        /// <summary>
+        /// 默认复制当前位姿列表中的第一目标作为固定基准。
+        /// </summary>
+        /// <param name="poses">当前模板匹配目标位姿。</param>
+        /// <returns>独立保存的第一目标基准位姿。</returns>
+        internal static TemplateMatchPose CreateBaseline(IReadOnlyList<TemplateMatchPose> poses)
         {
-            Result = BuildResult(correctionInfo);
+            if (poses == null || poses.Count == 0 || poses[0] == null || !poses[0].IsValid)
+                throw new Exception("模板位姿列表没有有效的第一目标，无法创建基准。");
+
+            return poses[0].Clone();
         }
 
-        internal static NodeResultPositionCorrection BuildResult(PositionCorrectionInfo correctionInfo)
+        /// <summary>
+        /// 根据固定基准和本次全部目标位姿创建修正集合。
+        /// </summary>
+        /// <param name="basePose">创建基准时保存的第一目标位姿。</param>
+        /// <param name="poses">本次模板匹配的全部目标位姿。</param>
+        /// <returns>与有效位姿一一对应的位置修正集合。</returns>
+        internal static List<PositionCorrectionInfo> BuildCorrectionItems(
+            TemplateMatchPose basePose,
+            IReadOnlyList<TemplateMatchPose> poses)
         {
-            PositionCorrectionHelper.EnsureValid(correctionInfo);
+            if (basePose == null || !basePose.IsValid)
+                throw new Exception("位置修正基准无效，请重新创建基准。");
+            if (poses == null || poses.Count == 0)
+                throw new Exception("模板位姿列表为空，请先运行模板匹配节点。");
+
+            var items = new List<PositionCorrectionInfo>(poses.Count);
+            for (int i = 0; i < poses.Count; i++)
+            {
+                TemplateMatchPose pose = poses[i];
+                if (pose == null || !pose.IsValid)
+                    continue;
+
+                items.Add(PositionCorrectionInfo.FromPoses(basePose, pose));
+            }
+
+            if (items.Count == 0)
+                throw new Exception("模板位姿列表中没有有效目标。");
+
+            return items;
+        }
+
+        /// <summary>
+        /// 发布参数窗口的预览结果。
+        /// </summary>
+        internal void PublishPreviewResult(IReadOnlyList<PositionCorrectionInfo> items)
+        {
+            Result = BuildResult(items);
+        }
+
+        /// <summary>
+        /// 创建位置修正节点结果，并保留第一目标摘要以兼容旧工具。
+        /// </summary>
+        internal static NodeResultPositionCorrection BuildResult(IReadOnlyList<PositionCorrectionInfo> items)
+        {
+            if (items == null || items.Count == 0)
+                throw new Exception("位置修正结果为空。");
+
+            var resultItems = new List<PositionCorrectionInfo>(items.Count);
+            for (int i = 0; i < items.Count; i++)
+            {
+                PositionCorrectionHelper.EnsureValid(items[i]);
+                resultItems.Add(items[i]);
+            }
+
+            PositionCorrectionInfo first = resultItems[0];
             return new NodeResultPositionCorrection
             {
-                CorrectionInfo = correctionInfo,
+                Items = resultItems,
+                BasePose = new TemplateMatchPose
+                {
+                    TargetIndex = 1,
+                    CenterX = first.BaseX,
+                    CenterY = first.BaseY,
+                    Angle = first.BaseAngle,
+                    ScaleX = first.BaseScaleX,
+                    ScaleY = first.BaseScaleY,
+                    Width = first.TargetWidth,
+                    Height = first.TargetHeight,
+                    IsValid = true
+                },
+                IsValid = true,
+                CorrectionInfo = first,
+                TargetCount = resultItems.Count,
                 IsOk = true,
-                CurrentX = MeasurementResultRounder.Round(correctionInfo.CurrentX),
-                CurrentY = MeasurementResultRounder.Round(correctionInfo.CurrentY),
-                CurrentAngle = MeasurementResultRounder.Round(correctionInfo.CurrentAngle),
-                DeltaX = MeasurementResultRounder.Round(correctionInfo.DeltaX),
-                DeltaY = MeasurementResultRounder.Round(correctionInfo.DeltaY),
-                DeltaAngle = MeasurementResultRounder.Round(correctionInfo.DeltaAngle)
+                CurrentX = MeasurementResultRounder.Round(first.CurrentX),
+                CurrentY = MeasurementResultRounder.Round(first.CurrentY),
+                CurrentAngle = MeasurementResultRounder.Round(first.CurrentAngle),
+                DeltaX = MeasurementResultRounder.Round(first.DeltaX),
+                DeltaY = MeasurementResultRounder.Round(first.DeltaY),
+                DeltaAngle = MeasurementResultRounder.Round(first.DeltaAngle)
             };
         }
     }

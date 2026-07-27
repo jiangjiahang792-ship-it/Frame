@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -16,6 +16,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.DataShow
 
         void INodeParamForm.SetNodeBelong(NodeBase node)
         {
+            nodeSubscription1.SetExpectedValueType<AlgorithmResult>();
             nodeSubscription1.Init(node);
         }
 

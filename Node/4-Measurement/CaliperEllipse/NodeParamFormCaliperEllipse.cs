@@ -1,7 +1,9 @@
 using Logger;
 using OpenCvSharp;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Threading;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
@@ -12,6 +14,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
     public partial class NodeParamFormCaliperEllipse : FormBase, INodeParamForm
     {
         private readonly NodeBase node;
+        /// <summary>唯一 ROI 的目标归属与坐标变换服务。</summary>
+        private readonly IMultiTargetTransformService _transformService = new MultiTargetTransformService();
         private bool _isSyncingRoi;
         private bool _roiVisible;
 
@@ -27,7 +31,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
 
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscription1.SetExpectedValueType<OutputImage>();
             nodeSubscription1.Init(node);
+            nodeSubscriptionPositionCorrection.SetExpectedValueType<List<PositionCorrectionInfo>>();
             nodeSubscriptionPositionCorrection.Init(node);
         }
 
@@ -58,6 +64,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 comboBoxPolarity.SelectedItem = param.Polarity;
                 comboBoxFindMode.SelectedItem = param.FindMode;
                 comboBoxDirection.SelectedIndex = param.Direction == 1 ? 1 : 0;
+                comboBoxSamplingMode.SelectedIndex = param.SamplingMode == CaliperSamplingMode.AntiInterference ? 1 : 0;
                 UpdatePositionCorrectionEnabled();
                 UpdateFitValidPointCountEnabled();
             }
@@ -69,40 +76,174 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             ClearEditingRoi();
         }
 
-        internal CaliperEllipseMeasureResult ExecuteMeasure(NodeParamCaliperEllipse param)
+        /// <summary>一次读取灰度图并按位置修正列表顺序执行全部目标的卡尺找椭圆。</summary>
+        internal List<CaliperEllipseTargetResult> ExecuteMeasures(NodeParamCaliperEllipse param, CancellationToken token)
         {
+            IReadOnlyList<PositionCorrectionInfo> corrections = ReadCorrections(param);
+            if (corrections.Count == 0)
+                return new List<CaliperEllipseTargetResult>();
+
             bool disposeGrayAfterUse;
             Mat gray = GetInputGrayMat(out disposeGrayAfterUse);
             try
             {
-                NodeParamCaliperEllipse runtimeParam = BuildRuntimeParam(param);
-                var algorithmParam = new CaliperEllipseParams
-                {
-                    CenterX = runtimeParam.CenterX,
-                    CenterY = runtimeParam.CenterY,
-                    Width = runtimeParam.Width,
-                    Height = runtimeParam.Height,
-                    Angle = runtimeParam.Angle,
-                    CaliperWidth = runtimeParam.CaliperWidth,
-                    CaliperHeight = runtimeParam.CaliperHeight,
-                    Count = runtimeParam.Count,
-                    EnableFitValidPointCount = runtimeParam.EnableFitValidPointCount,
-                    FitValidPointCount = NormalizeFitValidPointCount(runtimeParam.FitValidPointCount),
-                    EdgeStrength = runtimeParam.EdgeStrength,
-                    Polarity = runtimeParam.Polarity,
-                    FindMode = runtimeParam.FindMode,
-                    Direction = runtimeParam.Direction,
-                    BlurSize = runtimeParam.BlurSize
-                };
-
-                CaliperEllipseMeasureResult result = CaliperMeasurementAlgorithm.FindEllipse(gray, algorithmParam);
-                return result;
+                return MultiTargetMeasurementRunner.Run(
+                    corrections,
+                    token,
+                    correction => ExecuteOne(gray, BuildRuntimeParam(param, correction), correction),
+                    CreateFailure);
             }
             finally
             {
                 if (disposeGrayAfterUse)
                     gray?.Dispose();
             }
+        }
+
+        /// <summary>读取全部位置修正信息；未启用修正时返回一个恒等项。</summary>
+        private IReadOnlyList<PositionCorrectionInfo> ReadCorrections(NodeParamCaliperEllipse param)
+        {
+            if (param == null)
+                throw new Exception("卡尺找椭圆参数为空。");
+            if (!param.UsePositionCorrection)
+                return new List<PositionCorrectionInfo> { CreateIdentityCorrection() };
+            List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
+            corrections = corrections ?? new List<PositionCorrectionInfo>();
+            return corrections;
+        }
+
+        /// <summary>为单个模板目标构造已经仿射变换的运行参数。</summary>
+        private NodeParamCaliperEllipse BuildRuntimeParam(NodeParamCaliperEllipse param, PositionCorrectionInfo correction)
+        {
+            PointF center = new PointF(param.CenterX, param.CenterY);
+            double scaleX = 1.0;
+            double scaleY = 1.0;
+            float deltaAngle = 0;
+            if (param.UsePositionCorrection)
+            {
+                PositionCorrectionHelper.EnsureValid(correction);
+                center = _transformService.TransformPoint(center, correction);
+                scaleX = PositionCorrectionInfo.NormalizeScale(correction.CurrentScaleX) / PositionCorrectionInfo.NormalizeScale(correction.BaseScaleX);
+                scaleY = PositionCorrectionInfo.NormalizeScale(correction.CurrentScaleY) / PositionCorrectionInfo.NormalizeScale(correction.BaseScaleY);
+                deltaAngle = (float)correction.DeltaAngle;
+            }
+            double averageScale = (scaleX + scaleY) * 0.5;
+            return new NodeParamCaliperEllipse
+            {
+                Text1 = param.Text1,
+                Text2 = param.Text2,
+                UsePositionCorrection = param.UsePositionCorrection,
+                CorrectionText1 = param.CorrectionText1,
+                CorrectionText2 = param.CorrectionText2,
+                CenterX = center.X,
+                CenterY = center.Y,
+                Width = (float)(param.Width * scaleX),
+                Height = (float)(param.Height * scaleY),
+                Angle = param.Angle + deltaAngle,
+                CaliperWidth = (float)(param.CaliperWidth * averageScale),
+                CaliperHeight = (float)(param.CaliperHeight * averageScale),
+                Count = param.Count,
+                EnableFitValidPointCount = param.EnableFitValidPointCount,
+                FitValidPointCount = NormalizeFitValidPointCount(param.FitValidPointCount),
+                EdgeStrength = param.EdgeStrength,
+                BlurSize = param.BlurSize,
+                Polarity = param.Polarity,
+                FindMode = param.FindMode,
+                SamplingMode = param.SamplingMode,
+                Direction = param.Direction
+            };
+        }
+
+        /// <summary>执行单个目标并把算法结果转换为强类型目标项。</summary>
+        private CaliperEllipseTargetResult ExecuteOne(Mat gray, NodeParamCaliperEllipse runtimeParam, PositionCorrectionInfo correction)
+        {
+            var algorithmParam = new CaliperEllipseParams
+            {
+                CenterX = runtimeParam.CenterX,
+                CenterY = runtimeParam.CenterY,
+                Width = runtimeParam.Width,
+                Height = runtimeParam.Height,
+                Angle = runtimeParam.Angle,
+                CaliperWidth = runtimeParam.CaliperWidth,
+                CaliperHeight = runtimeParam.CaliperHeight,
+                Count = runtimeParam.Count,
+                EnableFitValidPointCount = runtimeParam.EnableFitValidPointCount,
+                FitValidPointCount = NormalizeFitValidPointCount(runtimeParam.FitValidPointCount),
+                EdgeStrength = runtimeParam.EdgeStrength,
+                Polarity = runtimeParam.Polarity,
+                FindMode = runtimeParam.FindMode,
+                SamplingMode = runtimeParam.SamplingMode,
+                Direction = runtimeParam.Direction,
+                BlurSize = runtimeParam.BlurSize
+            };
+            CaliperEllipseMeasureResult measure = CaliperMeasurementAlgorithm.FindEllipse(gray, algorithmParam);
+            if (measure == null)
+                throw new Exception("卡尺找椭圆算法没有返回结果。");
+            var item = new CaliperEllipseTargetResult
+            {
+                IsOk = measure.Success,
+                ErrorMessage = measure.Success ? string.Empty : (string.IsNullOrWhiteSpace(measure.ErrorMessage) ? "未找到有效椭圆。" : measure.ErrorMessage),
+                EdgePointCount = measure.Success ? measure.PointCount : 0,
+                EdgePoints = MeasurementResultRounder.RoundPoints(measure.EdgePoints),
+                FailedPoints = MeasurementResultRounder.RoundPoints(measure.FailedPoints),
+                AlgorithmMs = measure.Success ? MeasurementResultRounder.Round(measure.AlgorithmMs) : 0
+            };
+            if (measure.Success)
+            {
+                item.CenterX = MeasurementResultRounder.Round(measure.Center.X);
+                item.CenterY = MeasurementResultRounder.Round(measure.Center.Y);
+                item.Width = MeasurementResultRounder.Round(measure.Size.Width);
+                item.Height = MeasurementResultRounder.Round(measure.Size.Height);
+                item.MajorAxis = MeasurementResultRounder.Round(Math.Max(measure.Size.Width, measure.Size.Height));
+                item.MinorAxis = MeasurementResultRounder.Round(Math.Min(measure.Size.Width, measure.Size.Height));
+                item.Angle = MeasurementResultRounder.Round(measure.Angle);
+            }
+            return item;
+        }
+
+        /// <summary>创建保留目标顺序且所有数值为零的失败项。</summary>
+        private CaliperEllipseTargetResult CreateFailure(PositionCorrectionInfo correction, Exception exception)
+        {
+            return new CaliperEllipseTargetResult
+            {
+                IsOk = false,
+                ErrorMessage = exception == null ? "卡尺找椭圆失败。" : exception.Message,
+                EdgePointCount = 0,
+                CenterX = 0,
+                CenterY = 0,
+                Width = 0,
+                Height = 0,
+                MajorAxis = 0,
+                MinorAxis = 0,
+                Angle = 0,
+                AlgorithmMs = 0
+            };
+        }
+
+        /// <summary>创建不改变坐标的单目标修正项。</summary>
+        private static PositionCorrectionInfo CreateIdentityCorrection()
+        {
+            return new PositionCorrectionInfo { TargetIndex = 1, IsValid = true, BaseScaleX = 1, BaseScaleY = 1, CurrentScaleX = 1, CurrentScaleY = 1 };
+        }
+
+        /// <summary>获取 X 方向当前尺度与基准尺度的比值。</summary>
+        private static double GetScaleX(PositionCorrectionInfo correction)
+        {
+            return PositionCorrectionInfo.NormalizeScale(correction.CurrentScaleX) /
+                PositionCorrectionInfo.NormalizeScale(correction.BaseScaleX);
+        }
+
+        /// <summary>获取 Y 方向当前尺度与基准尺度的比值。</summary>
+        private static double GetScaleY(PositionCorrectionInfo correction)
+        {
+            return PositionCorrectionInfo.NormalizeScale(correction.CurrentScaleY) /
+                PositionCorrectionInfo.NormalizeScale(correction.BaseScaleY);
+        }
+
+        /// <summary>获取各向尺度平均值，用于卡尺宽高等标量尺寸。</summary>
+        private static double GetAverageScale(PositionCorrectionInfo correction)
+        {
+            return (GetScaleX(correction) + GetScaleY(correction)) * 0.5;
         }
 
         private void InitializeCombos()
@@ -120,6 +261,10 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             comboBoxDirection.Items.Add("由内向外");
             comboBoxDirection.Items.Add("由外向内");
             comboBoxDirection.SelectedIndex = 0;
+
+            comboBoxSamplingMode.Items.Add("快速采样");
+            comboBoxSamplingMode.Items.Add("抗干扰采样");
+            comboBoxSamplingMode.SelectedIndex = 0;
         }
 
         private void BindRoiRefreshEvents()
@@ -154,11 +299,20 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             var roi = rois[0];
             PointF center = new PointF(roi.CX, roi.CY);
             float angle = roi.Phi;
-            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+            float width = roi.W;
+            float height = roi.H;
+            float caliperWidth = roi.CaliperWidth;
+            float caliperHeight = roi.CaliperHeight;
+            PositionCorrectionInfo correctionInfo = ResolveEditingCorrection(center, false);
             if (correctionInfo != null)
             {
                 center = correctionInfo.InverseTransformPoint(center.X, center.Y);
                 angle = (float)PositionCorrectionHelper.NormalizeAngle(angle - correctionInfo.DeltaAngle);
+                width = (float)(width / GetScaleX(correctionInfo));
+                height = (float)(height / GetScaleY(correctionInfo));
+                double averageScale = GetAverageScale(correctionInfo);
+                caliperWidth = (float)(caliperWidth / averageScale);
+                caliperHeight = (float)(caliperHeight / averageScale);
             }
 
             _isSyncingRoi = true;
@@ -166,11 +320,11 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             {
                 if (!ReferenceEquals(source, textBoxCenterX)) textBoxCenterX.Text = center.X.ToString("F2");
                 if (!ReferenceEquals(source, textBoxCenterY)) textBoxCenterY.Text = center.Y.ToString("F2");
-                if (!ReferenceEquals(source, textBoxWidth)) textBoxWidth.Text = roi.W.ToString("F2");
-                if (!ReferenceEquals(source, textBoxHeight)) textBoxHeight.Text = roi.H.ToString("F2");
+                if (!ReferenceEquals(source, textBoxWidth)) textBoxWidth.Text = width.ToString("F2");
+                if (!ReferenceEquals(source, textBoxHeight)) textBoxHeight.Text = height.ToString("F2");
                 if (!ReferenceEquals(source, textBoxAngle)) textBoxAngle.Text = angle.ToString("F2");
-                if (!ReferenceEquals(source, textBoxCaliperWidth)) textBoxCaliperWidth.Text = roi.CaliperWidth.ToString("F2");
-                if (!ReferenceEquals(source, textBoxCaliperHeight)) textBoxCaliperHeight.Text = roi.CaliperHeight.ToString("F2");
+                if (!ReferenceEquals(source, textBoxCaliperWidth)) textBoxCaliperWidth.Text = caliperWidth.ToString("F2");
+                if (!ReferenceEquals(source, textBoxCaliperHeight)) textBoxCaliperHeight.Text = caliperHeight.ToString("F2");
                 if (!ReferenceEquals(source, textBoxCount)) textBoxCount.Text = roi.Count.ToString();
                 if (!ReferenceEquals(source, comboBoxDirection)) comboBoxDirection.SelectedIndex = roi.Direction == 1 ? 1 : 0;
             }
@@ -195,41 +349,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             return MeasurementNodeHelper.GetReadOnlyPreviewMat(outputImage);
         }
 
-        private NodeParamCaliperEllipse BuildRuntimeParam(NodeParamCaliperEllipse param)
-        {
-            if (param == null || !param.UsePositionCorrection)
-                return param;
-
-            PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
-            PositionCorrectionHelper.EnsureValid(correctionInfo);
-            PointF center = correctionInfo.TransformPoint(param.CenterX, param.CenterY);
-
-            return new NodeParamCaliperEllipse
-            {
-                Text1 = param.Text1,
-                Text2 = param.Text2,
-                UsePositionCorrection = param.UsePositionCorrection,
-                CorrectionText1 = param.CorrectionText1,
-                CorrectionText2 = param.CorrectionText2,
-                CenterX = center.X,
-                CenterY = center.Y,
-                Width = param.Width,
-                Height = param.Height,
-                Angle = param.Angle + (float)correctionInfo.DeltaAngle,
-                CaliperWidth = param.CaliperWidth,
-                CaliperHeight = param.CaliperHeight,
-                Count = param.Count,
-                EnableFitValidPointCount = param.EnableFitValidPointCount,
-                FitValidPointCount = NormalizeFitValidPointCount(param.FitValidPointCount),
-                EdgeStrength = param.EdgeStrength,
-                BlurSize = param.BlurSize,
-                Polarity = param.Polarity,
-                FindMode = param.FindMode,
-                Direction = param.Direction
-            };
-        }
-
-        private PositionCorrectionInfo GetEditingCorrectionInfo(bool require)
+        /// <summary>读取编辑状态使用的全部位置修正信息。</summary>
+        private IReadOnlyList<PositionCorrectionInfo> GetEditingCorrections(bool require)
         {
             if (!checkBoxUsePositionCorrection.Checked)
                 return null;
@@ -238,15 +359,18 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText2()))
             {
                 if (require)
-                    throw new Exception("Position correction subscription is empty.");
+                    throw new Exception("位置修正信息列表订阅为空。");
                 return null;
             }
 
             try
             {
-                PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
-                PositionCorrectionHelper.EnsureValid(correctionInfo);
-                return correctionInfo;
+                List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
+                if (corrections == null || corrections.Count == 0)
+                    throw new Exception("位置修正信息列表为空。");
+                for (int i = 0; i < corrections.Count; i++)
+                    PositionCorrectionHelper.EnsureValid(corrections[i]);
+                return corrections;
             }
             catch
             {
@@ -254,6 +378,23 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                     throw;
                 return null;
             }
+        }
+
+        /// <summary>获取默认显示唯一 ROI 的第一目标修正信息。</summary>
+        private PositionCorrectionInfo GetDefaultEditingCorrectionInfo(bool require)
+        {
+            IReadOnlyList<PositionCorrectionInfo> corrections = GetEditingCorrections(require);
+            return corrections == null || corrections.Count == 0 ? null : corrections[0];
+        }
+
+        /// <summary>按唯一椭圆 ROI 中心解析其所属模板目标。</summary>
+        private PositionCorrectionInfo ResolveEditingCorrection(PointF roiCenter, bool require)
+        {
+            IReadOnlyList<PositionCorrectionInfo> corrections = GetEditingCorrections(require);
+            if (corrections == null || corrections.Count == 0)
+                return null;
+            int index = _transformService.ResolveAnchorIndex(roiCenter, corrections);
+            return corrections[index];
         }
 
         private bool SaveParams()
@@ -289,6 +430,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                     BlurSize = ParseInt(textBoxBlurSize, "平滑核"),
                     Polarity = (CaliperEdgePolarity)comboBoxPolarity.SelectedItem,
                     FindMode = (CaliperEdgeFindMode)comboBoxFindMode.SelectedItem,
+                    SamplingMode = comboBoxSamplingMode.SelectedIndex == 1
+                        ? CaliperSamplingMode.AntiInterference
+                        : CaliperSamplingMode.Fast,
                     Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0
                 };
                 return true;
@@ -351,12 +495,12 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
 
             try
             {
-                CaliperEllipseMeasureResult result = ExecuteMeasure((NodeParamCaliperEllipse)Params);
+                List<CaliperEllipseTargetResult> items = ExecuteMeasures((NodeParamCaliperEllipse)Params, CancellationToken.None);
                 SetPreview(GetPreviewMat());
-                showImageControl1.SetDisplayResult(NodeCaliperEllipse.BuildDisplayResult(result));
+                showImageControl1.SetDisplayResult(NodeCaliperEllipse.BuildDisplayResult(items));
 
-                if (!result.Success)
-                    MessageBoxTD.Show(string.IsNullOrWhiteSpace(result.ErrorMessage) ? $"卡尺找椭圆失败，边缘点数量：{result.PointCount}" : result.ErrorMessage);
+                if (items.Exists(item => !item.IsOk))
+                    MessageBoxTD.Show("部分模板目标卡尺找椭圆失败，失败目标结果已保留为0。");
             }
             catch (Exception ex)
             {
@@ -399,12 +543,17 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
                 float caliperHeight = ParseFloat(textBoxCaliperHeight, string.Empty);
                 int count = ParseInt(textBoxCount, string.Empty);
 
-                PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+                PositionCorrectionInfo correctionInfo = GetDefaultEditingCorrectionInfo(false);
                 PointF center = new PointF(centerX, centerY);
                 if (correctionInfo != null)
                 {
                     center = correctionInfo.TransformPoint(center.X, center.Y);
                     angle += (float)correctionInfo.DeltaAngle;
+                    width = (float)(width * GetScaleX(correctionInfo));
+                    height = (float)(height * GetScaleY(correctionInfo));
+                    double averageScale = GetAverageScale(correctionInfo);
+                    caliperWidth = (float)(caliperWidth * averageScale);
+                    caliperHeight = (float)(caliperHeight * averageScale);
                 }
 
                 showImageControl1.ClearDynamicRoi();
@@ -433,6 +582,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
 
         private void buttonDrawRoi_Click(object sender, EventArgs e)
         {
+            showImageControl1.SetDisplayResult(null);
             RefreshRoiFromFields();
         }
 
@@ -494,11 +644,20 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             var roi = rois[0];
             PointF center = new PointF(roi.CX, roi.CY);
             float angle = roi.Phi;
-            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(true);
+            float width = roi.W;
+            float height = roi.H;
+            float caliperWidth = roi.CaliperWidth;
+            float caliperHeight = roi.CaliperHeight;
+            PositionCorrectionInfo correctionInfo = ResolveEditingCorrection(center, true);
             if (correctionInfo != null)
             {
                 center = correctionInfo.InverseTransformPoint(center.X, center.Y);
                 angle = (float)PositionCorrectionHelper.NormalizeAngle(angle - correctionInfo.DeltaAngle);
+                width = (float)(width / GetScaleX(correctionInfo));
+                height = (float)(height / GetScaleY(correctionInfo));
+                double averageScale = GetAverageScale(correctionInfo);
+                caliperWidth = (float)(caliperWidth / averageScale);
+                caliperHeight = (float)(caliperHeight / averageScale);
             }
 
             _isSyncingRoi = true;
@@ -506,11 +665,11 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperEllipse
             {
                 textBoxCenterX.Text = center.X.ToString("F2");
                 textBoxCenterY.Text = center.Y.ToString("F2");
-                textBoxWidth.Text = roi.W.ToString("F2");
-                textBoxHeight.Text = roi.H.ToString("F2");
+                textBoxWidth.Text = width.ToString("F2");
+                textBoxHeight.Text = height.ToString("F2");
                 textBoxAngle.Text = angle.ToString("F2");
-                textBoxCaliperWidth.Text = roi.CaliperWidth.ToString("F2");
-                textBoxCaliperHeight.Text = roi.CaliperHeight.ToString("F2");
+                textBoxCaliperWidth.Text = caliperWidth.ToString("F2");
+                textBoxCaliperHeight.Text = caliperHeight.ToString("F2");
                 textBoxCount.Text = roi.Count.ToString();
                 comboBoxDirection.SelectedIndex = roi.Direction == 1 ? 1 : 0;
             }

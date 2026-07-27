@@ -34,6 +34,11 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
         /// <param name="node">所属节点。</param>
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscription1.SetInputContract(SubscriptionInputContract.ForCategories(new[]
+            {
+                SubscriptionDataCategory.Image,
+                SubscriptionDataCategory.StructuredObject
+            }));
             nodeSubscription1.Init(node);
         }
 

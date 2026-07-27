@@ -20,7 +20,7 @@ using TDJS_Vision.Node._6_LogicTool.MultiCondition;
 namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
 {
     /// <summary>
-    /// ROI结果绘制2节点，保持原绘制逻辑并用多条布尔订阅规则统一决定绘制颜色。
+    /// ROI结果绘制2节点，使用文本和自动ROI两类绘制项，并兼容旧版颜色规则。
     /// </summary>
     public class NodeResultOverlayDraw2 : NodeBase, INodeSubscriptionDependencyProvider
     {
@@ -51,6 +51,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 return nodeIds;
 
             AddNodeId(nodeIds, param.ImageText1);
+            if (param.HasNewJudgeSubscription)
+                AddNodeId(nodeIds, param.JudgeText1);
 
             if (param.Items != null)
             {
@@ -65,7 +67,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 }
             }
 
-            if (param.ColorRules != null)
+            if (!param.HasNewJudgeSubscription && param.ColorRules != null)
             {
                 foreach (ResultOverlayDraw2ColorRule rule in param.ColorRules)
                 {
@@ -221,14 +223,15 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             if (inputImage == null)
                 throw new Exception("订阅的图像类型不是 OutputImage！");
 
-            isOk = ResolveColorState(owner, param, out diagnostics);
+            ResultOverlayDrawColorState colorState = ResolveColorState(owner, param);
+            isOk = colorState.IsOk;
+            diagnostics = colorState.Diagnostics;
             long afterResolveColor = stopwatch.ElapsedMilliseconds;
             performanceDiagnostics.ColorRuleMs = afterResolveColor - performanceDiagnostics.ImageSubscriptionMs;
-            Color drawColor = isOk ? param.OkColor : param.NgColor;
             Mat cleanImage = MeasurementNodeHelper.GetFirstMat(inputImage);
             long afterGetCleanImage = stopwatch.ElapsedMilliseconds;
             performanceDiagnostics.GetCleanImageMs = afterGetCleanImage - afterResolveColor;
-            displayResult = BuildDisplayResult(owner, param, drawColor, performanceDiagnostics);
+            displayResult = BuildDisplayResult(owner, param, colorState, performanceDiagnostics);
             long afterBuildDisplay = stopwatch.ElapsedMilliseconds;
             performanceDiagnostics.BuildDisplayResultMs = afterBuildDisplay - afterGetCleanImage;
             outputImage = new OutputImage
@@ -287,22 +290,48 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         }
 
         /// <summary>
-        /// 解析多条颜色规则的最终OK/NG状态。
+        /// 解析新版单个布尔判定或旧版多条颜色规则，并明确是否覆盖来源颜色。
         /// </summary>
         /// <param name="owner">当前节点。</param>
         /// <param name="param">节点参数。</param>
-        /// <param name="diagnostics">诊断文本。</param>
-        /// <returns>最终颜色判定结果。</returns>
-        private static bool ResolveColorState(NodeBase owner, NodeParamResultOverlayDraw2 param, out string diagnostics)
+        /// <returns>本轮绘制颜色状态。</returns>
+        private static ResultOverlayDrawColorState ResolveColorState(NodeBase owner, NodeParamResultOverlayDraw2 param)
         {
+            if (param.HasNewJudgeSubscription)
+            {
+                object rawValue = ReadSubscribedValue(owner, param.JudgeText1, param.JudgeText2, out NodeBase sourceNode);
+                if (!(rawValue is bool))
+                {
+                    string actualType = rawValue == null ? "空值" : rawValue.GetType().Name;
+                    string sourceText = sourceNode == null ? param.JudgeText1 : GetNodeText(sourceNode);
+                    throw new Exception($"颜色判定“{sourceText}/{param.JudgeText2}”必须是布尔类型，实际为{actualType}！");
+                }
+
+                bool judgeOk = (bool)rawValue;
+                return new ResultOverlayDrawColorState
+                {
+                    IsOk = judgeOk,
+                    OverrideSourceColor = true,
+                    UseLegacyColorRules = false,
+                    DisplayColor = judgeOk ? param.OkColor : param.NgColor,
+                    Diagnostics = $"颜色判定：{param.JudgeText1}/{param.JudgeText2} = {(judgeOk ? "OK" : "NG")}"
+                };
+            }
+
             List<ResultOverlayDraw2ColorRule> rules = param.ColorRules == null
                 ? new List<ResultOverlayDraw2ColorRule>()
                 : param.ColorRules.Where(rule => rule != null && rule.Enabled && !string.IsNullOrWhiteSpace(rule.SourceText1)).ToList();
 
             if (rules.Count == 0)
             {
-                diagnostics = "未配置颜色判定规则，默认使用OK颜色。";
-                return true;
+                return new ResultOverlayDrawColorState
+                {
+                    IsOk = true,
+                    OverrideSourceColor = false,
+                    UseLegacyColorRules = false,
+                    DisplayColor = param.OkColor,
+                    Diagnostics = "未配置颜色判定，保留来源颜色。"
+                };
             }
 
             int trueCount = 0;
@@ -324,11 +353,17 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                     .Append(" = ").Append(value ? "OK" : "NG");
             }
 
-            diagnostics = builder.ToString();
-            if (param.RuleMode == ResultOverlayColorRuleMode.AnyTrue)
-                return trueCount > 0;
-
-            return trueCount == rules.Count;
+            bool legacyOk = param.RuleMode == ResultOverlayColorRuleMode.AnyTrue
+                ? trueCount > 0
+                : trueCount == rules.Count;
+            return new ResultOverlayDrawColorState
+            {
+                IsOk = legacyOk,
+                OverrideSourceColor = true,
+                UseLegacyColorRules = true,
+                DisplayColor = legacyOk ? param.OkColor : param.NgColor,
+                Diagnostics = builder.ToString()
+            };
         }
 
         /// <summary>
@@ -686,11 +721,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         /// </summary>
         /// <param name="owner">当前节点。</param>
         /// <param name="param">节点参数。</param>
-        /// <param name="drawColor">最终绘制颜色。</param>
+        /// <param name="colorState">当前颜色判定和覆盖策略。</param>
         /// <returns>显示结果。</returns>
-        private static AlgorithmResult BuildDisplayResult(NodeBase owner, NodeParamResultOverlayDraw2 param, Color drawColor)
+        private static AlgorithmResult BuildDisplayResult(
+            NodeBase owner,
+            NodeParamResultOverlayDraw2 param,
+            ResultOverlayDrawColorState colorState)
         {
-            return BuildDisplayResult(owner, param, drawColor, null);
+            return BuildDisplayResult(owner, param, colorState, null);
         }
 
         /// <summary>
@@ -698,10 +736,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         /// </summary>
         /// <param name="owner">当前节点。</param>
         /// <param name="param">节点参数。</param>
-        /// <param name="drawColor">最终绘制颜色。</param>
+        /// <param name="colorState">当前颜色判定和覆盖策略。</param>
         /// <param name="performanceDiagnostics">可选的性能诊断对象。</param>
         /// <returns>显示结果。</returns>
-        private static AlgorithmResult BuildDisplayResult(NodeBase owner, NodeParamResultOverlayDraw2 param, Color drawColor, ResultOverlayDraw2PerformanceDiagnostics performanceDiagnostics)
+        private static AlgorithmResult BuildDisplayResult(
+            NodeBase owner,
+            NodeParamResultOverlayDraw2 param,
+            ResultOverlayDrawColorState colorState,
+            ResultOverlayDraw2PerformanceDiagnostics performanceDiagnostics)
         {
             AlgorithmResult displayResult = new AlgorithmResult();
             if (param.Items == null)
@@ -717,7 +759,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 switch (item.ItemType)
                 {
                     case ResultOverlayDraw2ItemType.Text:
-                        AppendText(owner, displayResult, item, drawColor);
+                        AppendText(owner, displayResult, item, colorState);
                         if (performanceDiagnostics != null)
                         {
                             performanceDiagnostics.TextItemCount++;
@@ -725,7 +767,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                         }
                         break;
                     case ResultOverlayDraw2ItemType.Line:
-                        AppendLines(owner, displayResult, item, drawColor);
+                        AppendLines(owner, displayResult, item, colorState.DisplayColor);
                         if (performanceDiagnostics != null)
                         {
                             performanceDiagnostics.LineItemCount++;
@@ -733,7 +775,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                         }
                         break;
                     case ResultOverlayDraw2ItemType.Rectangle:
-                        AppendRectangles(owner, displayResult, item, drawColor);
+                        AppendRectangles(owner, displayResult, item, colorState.DisplayColor);
                         if (performanceDiagnostics != null)
                         {
                             performanceDiagnostics.RectangleItemCount++;
@@ -741,11 +783,19 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                         }
                         break;
                     case ResultOverlayDraw2ItemType.Region:
-                        AppendRegions(owner, displayResult, item, drawColor);
+                        AppendRegions(owner, displayResult, item, colorState.DisplayColor);
                         if (performanceDiagnostics != null)
                         {
                             performanceDiagnostics.RegionItemCount++;
                             performanceDiagnostics.RegionItemsMs += itemWatch.ElapsedMilliseconds;
+                        }
+                        break;
+                    case ResultOverlayDraw2ItemType.Roi:
+                        AppendAutomaticRoi(owner, displayResult, item, colorState);
+                        if (performanceDiagnostics != null)
+                        {
+                            performanceDiagnostics.RoiItemCount++;
+                            performanceDiagnostics.RoiItemsMs += itemWatch.ElapsedMilliseconds;
                         }
                         break;
                 }
@@ -760,8 +810,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         /// <param name="owner">当前节点。</param>
         /// <param name="displayResult">显示结果。</param>
         /// <param name="item">绘制项。</param>
-        /// <param name="drawColor">绘制颜色。</param>
-        private static void AppendText(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDraw2Item item, Color drawColor)
+        /// <param name="colorState">颜色判定和来源颜色保留策略。</param>
+        private static void AppendText(
+            NodeBase owner,
+            AlgorithmResult displayResult,
+            ResultOverlayDraw2Item item,
+            ResultOverlayDrawColorState colorState)
         {
             List<string> texts = new List<string>();
             bool usePrefix = false;
@@ -780,7 +834,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 }
 
                 AlgorithmResult sourceAlgorithmResult = TryGetAlgorithmResult(sourceValue) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
-                if (ShouldPreserveAlgorithmResultElementColor(sourceAlgorithmResult))
+                bool preserveSourceTextColor = sourceAlgorithmResult != null &&
+                    (!colorState.OverrideSourceColor ||
+                        (colorState.UseLegacyColorRules && ShouldPreserveAlgorithmResultElementColor(sourceAlgorithmResult)));
+                if (preserveSourceTextColor)
                 {
                     AppendAlgorithmResultTexts(displayResult, sourceAlgorithmResult, item);
                     return;
@@ -802,7 +859,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             foreach (string text in texts.Where(t => !string.IsNullOrWhiteSpace(t)))
             {
                 string displayText = usePrefix ? item.TextPrefix + text : text;
-                AddDisplayText(displayResult, new ColorText(displayText, drawColor)
+                AddDisplayText(displayResult, new ColorText(displayText, colorState.DisplayColor)
                 {
                     FontSize = Math.Max(1, item.FontSize),
                     Position = item.TextPosition,
@@ -811,6 +868,87 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                     Title = string.Empty
                 }, IsMissingPromptText(displayText));
             }
+        }
+
+        /// <summary>
+        /// 按订阅值实际类型自动追加ROI几何内容。
+        /// </summary>
+        /// <param name="owner">当前节点。</param>
+        /// <param name="displayResult">目标显示结果。</param>
+        /// <param name="item">自动ROI绘制项。</param>
+        /// <param name="colorState">颜色判定和覆盖策略。</param>
+        private static void AppendAutomaticRoi(
+            NodeBase owner,
+            AlgorithmResult displayResult,
+            ResultOverlayDraw2Item item,
+            ResultOverlayDrawColorState colorState)
+        {
+            if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
+            {
+                AppendMissingResultText(displayResult, item, sourceNode);
+                return;
+            }
+
+            SubscriptionDataCategory category = ResolveSubscriptionCategory(sourceNode, item.SourceText2, value);
+            OverlayGeometryRenderContext context = new OverlayGeometryRenderContext
+            {
+                FallbackColor = colorState.DisplayColor,
+                OverrideColor = colorState.OverrideSourceColor ? colorState.DisplayColor : (Color?)null,
+                LineWidth = Math.Max(1, item.LineWidth)
+            };
+
+            int addedCount;
+            bool recognized = OverlayGeometryAdapterRegistry.TryAppend(
+                displayResult,
+                value,
+                sourceNode == null ? null : sourceNode.Result,
+                category,
+                context,
+                out addedCount);
+            if (!recognized || (addedCount == 0 && !IsSuccessfulEmptyRoiResult(category)))
+                AppendMissingResultText(displayResult, item, sourceNode);
+        }
+
+        /// <summary>
+        /// 判断零几何数量是否表示一次正常完成但没有检出目标的结果。
+        /// </summary>
+        /// <param name="category">订阅输出数据类别。</param>
+        /// <returns>算法结果或测量结果为空时返回 true。</returns>
+        private static bool IsSuccessfulEmptyRoiResult(SubscriptionDataCategory category)
+        {
+            return category == SubscriptionDataCategory.AlgorithmResult ||
+                category == SubscriptionDataCategory.MeasurementResult;
+        }
+
+        /// <summary>
+        /// 从统一订阅目录读取绘制项的明确数据类别，读取不到时按实际CLR类型回退。
+        /// </summary>
+        /// <param name="sourceNode">订阅来源节点。</param>
+        /// <param name="resultText">订阅结果显示名或属性路径。</param>
+        /// <param name="value">已读取一次的订阅值。</param>
+        /// <returns>统一订阅数据类别。</returns>
+        private static SubscriptionDataCategory ResolveSubscriptionCategory(
+            NodeBase sourceNode,
+            string resultText,
+            object value)
+        {
+            if (sourceNode != null)
+            {
+                IReadOnlyList<SubscriptionOutputDescriptor> outputs = SubscriptionPortCatalog.GetOutputs(
+                    sourceNode,
+                    SubscriptionInputContract.AnyVisible(),
+                    true,
+                    resultText);
+                SubscriptionOutputDescriptor descriptor = outputs.FirstOrDefault(output =>
+                    string.Equals(output.DisplayName, resultText, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(output.PropertyPath, resultText, StringComparison.OrdinalIgnoreCase));
+                if (descriptor != null && !descriptor.IsMissing)
+                    return descriptor.Category;
+            }
+
+            return value == null
+                ? SubscriptionDataCategory.Unknown
+                : SubscriptionTypeCompatibility.ResolveCategory(value.GetType());
         }
 
         /// <summary>
@@ -1288,6 +1426,27 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
     }
 
     /// <summary>
+    /// 保存本轮ROI结果绘制使用的判定状态和颜色覆盖策略。
+    /// </summary>
+    internal sealed class ResultOverlayDrawColorState
+    {
+        /// <summary>获取或设置最终OK/NG判定。</summary>
+        public bool IsOk { get; set; }
+
+        /// <summary>获取或设置是否用判定颜色覆盖来源元素颜色。</summary>
+        public bool OverrideSourceColor { get; set; }
+
+        /// <summary>获取或设置当前是否正在执行旧版多规则兼容路径。</summary>
+        public bool UseLegacyColorRules { get; set; }
+
+        /// <summary>获取或设置无来源颜色或需要覆盖时使用的显示颜色。</summary>
+        public Color DisplayColor { get; set; }
+
+        /// <summary>获取或设置颜色判定诊断文本。</summary>
+        public string Diagnostics { get; set; } = string.Empty;
+    }
+
+    /// <summary>
     /// ROI结果绘制2节点构建显示层时的性能诊断数据。
     /// </summary>
     internal sealed class ResultOverlayDraw2PerformanceDiagnostics
@@ -1314,6 +1473,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         public int RectangleItemCount { get; set; }
         /// <summary>区域绘制项数量。</summary>
         public int RegionItemCount { get; set; }
+        /// <summary>自动ROI绘制项数量。</summary>
+        public int RoiItemCount { get; set; }
         /// <summary>文本绘制项构建耗时。</summary>
         public long TextItemsMs { get; set; }
         /// <summary>线段绘制项构建耗时。</summary>
@@ -1322,6 +1483,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         public long RectangleItemsMs { get; set; }
         /// <summary>区域绘制项构建耗时。</summary>
         public long RegionItemsMs { get; set; }
+        /// <summary>自动ROI绘制项构建耗时。</summary>
+        public long RoiItemsMs { get; set; }
         /// <summary>输出矩形数量。</summary>
         public int OutputRectCount { get; private set; }
         /// <summary>输出NG矩形数量。</summary>
@@ -1354,7 +1517,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         /// </summary>
         public string ToLogText()
         {
-            return $"订阅图像={ImageSubscriptionMs}ms；颜色规则={ColorRuleMs}ms；取图引用={GetCleanImageMs}ms；绘制项构建={BuildDisplayResultMs}ms；输出对象={BuildOutputImageMs}ms；总构建={TotalMs}ms；绘制项=启用{EnabledItemCount}/文本{TextItemCount}({TextItemsMs}ms)/线{LineItemCount}({LineItemsMs}ms)/矩形{RectangleItemCount}({RectangleItemsMs}ms)/区域{RegionItemCount}({RegionItemsMs}ms)；输出=矩形{OutputRectCount}/NG矩形{OutputNgRectCount}/线{OutputLineCount}/轮廓{OutputContourCount}/文本{OutputTextCount}";
+            return $"订阅图像={ImageSubscriptionMs}ms；颜色判定={ColorRuleMs}ms；取图引用={GetCleanImageMs}ms；绘制项构建={BuildDisplayResultMs}ms；输出对象={BuildOutputImageMs}ms；总构建={TotalMs}ms；绘制项=启用{EnabledItemCount}/文本{TextItemCount}({TextItemsMs}ms)/自动ROI{RoiItemCount}({RoiItemsMs}ms)/旧线{LineItemCount}({LineItemsMs}ms)/旧矩形{RectangleItemCount}({RectangleItemsMs}ms)/旧区域{RegionItemCount}({RegionItemsMs}ms)；输出=矩形{OutputRectCount}/NG矩形{OutputNgRectCount}/线{OutputLineCount}/轮廓{OutputContourCount}/文本{OutputTextCount}";
         }
     }
 }

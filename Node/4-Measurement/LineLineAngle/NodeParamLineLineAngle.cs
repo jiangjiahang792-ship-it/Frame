@@ -40,6 +40,8 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         public CaliperEdgeFindMode? Line1FindMode { get; set; }
         public int? Line1Direction { get; set; }
         public int? Line1BlurSize { get; set; }
+        /// <summary>获取或设置直线1卡尺的灰度剖面采样模式。</summary>
+        public CaliperSamplingMode Line1SamplingMode { get; set; } = CaliperSamplingMode.Fast;
 
         public float? Line2CaliperWidth { get; set; }
         public float? Line2CaliperHeight { get; set; }
@@ -49,6 +51,8 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         public CaliperEdgeFindMode? Line2FindMode { get; set; }
         public int? Line2Direction { get; set; }
         public int? Line2BlurSize { get; set; }
+        /// <summary>获取或设置直线2卡尺的灰度剖面采样模式。</summary>
+        public CaliperSamplingMode Line2SamplingMode { get; set; } = CaliperSamplingMode.Fast;
 
         public float GetCaliperWidth(bool firstLine) => (firstLine ? Line1CaliperWidth : Line2CaliperWidth) ?? CaliperWidth;
         public float GetCaliperHeight(bool firstLine) => (firstLine ? Line1CaliperHeight : Line2CaliperHeight) ?? CaliperHeight;
@@ -58,5 +62,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         public CaliperEdgeFindMode GetFindMode(bool firstLine) => (firstLine ? Line1FindMode : Line2FindMode) ?? FindMode;
         public int GetDirection(bool firstLine) => (firstLine ? Line1Direction : Line2Direction) ?? Direction;
         public int GetBlurSize(bool firstLine) => (firstLine ? Line1BlurSize : Line2BlurSize) ?? BlurSize;
+        /// <summary>获取指定直线卡尺的灰度剖面采样模式。</summary>
+        public CaliperSamplingMode GetSamplingMode(bool firstLine) => firstLine ? Line1SamplingMode : Line2SamplingMode;
     }
 }

@@ -51,6 +51,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
         /// <param name="node">所属节点。</param>
         void INodeParamForm.SetNodeBelong(NodeBase node)
         {
+            nodeSubscription1.SetExpectedValueType<OutputImage>();
             nodeSubscription1.Init(node);
         }
 

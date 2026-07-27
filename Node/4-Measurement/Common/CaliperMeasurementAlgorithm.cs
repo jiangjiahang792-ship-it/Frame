@@ -20,6 +20,22 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         Last
     }
 
+    /// <summary>
+    /// 指定卡尺灰度剖面的采样方式。
+    /// </summary>
+    public enum CaliperSamplingMode
+    {
+        /// <summary>
+        /// 只读取扫描中心线的单个最近邻像素，优先保证运行速度。
+        /// </summary>
+        Fast = 0,
+
+        /// <summary>
+        /// 沿卡尺宽度进行多点双线性采样并求平均，优先保证抗干扰能力。
+        /// </summary>
+        AntiInterference = 1
+    }
+
     public class CaliperLineParams
     {
         public float StartX { get; set; }
@@ -33,6 +49,8 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         public CaliperEdgePolarity Polarity { get; set; } = CaliperEdgePolarity.Both;
         public CaliperEdgeFindMode FindMode { get; set; } = CaliperEdgeFindMode.Best;
         public int Direction { get; set; }
+        /// <summary>获取或设置灰度剖面采样模式。</summary>
+        public CaliperSamplingMode SamplingMode { get; set; } = CaliperSamplingMode.Fast;
         public int BlurSize { get; set; } = 3;
     }
 
@@ -68,6 +86,8 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         public CaliperEdgePolarity Polarity { get; set; } = CaliperEdgePolarity.Both;
         public CaliperEdgeFindMode FindMode { get; set; } = CaliperEdgeFindMode.Best;
         public int Direction { get; set; }
+        /// <summary>获取或设置灰度剖面采样模式。</summary>
+        public CaliperSamplingMode SamplingMode { get; set; } = CaliperSamplingMode.Fast;
         public int BlurSize { get; set; } = 3;
     }
 
@@ -107,6 +127,8 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         public CaliperEdgePolarity Polarity { get; set; } = CaliperEdgePolarity.Both;
         public CaliperEdgeFindMode FindMode { get; set; } = CaliperEdgeFindMode.Best;
         public int Direction { get; set; }
+        /// <summary>获取或设置灰度剖面采样模式。</summary>
+        public CaliperSamplingMode SamplingMode { get; set; } = CaliperSamplingMode.Fast;
         public int BlurSize { get; set; } = 3;
     }
 
@@ -169,7 +191,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 float t = count == 1 ? 0.5f : (float)i / (count - 1);
                 float cx = p.StartX + axisX * t;
                 float cy = p.StartY + axisY * t;
-                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, scanRange, averageDirX, averageDirY, averageWidth, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
+                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, scanRange, averageDirX, averageDirY, averageWidth, p.SamplingMode, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
                 if (edgePoint.HasValue)
                     result.EdgePoints.Add(edgePoint.Value);
             }
@@ -211,7 +233,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 float averageDirX = -scanDirY;
                 float averageDirY = scanDirX;
 
-                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, averageDirX, averageDirY, p.CaliperWidth, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
+                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, averageDirX, averageDirY, p.CaliperWidth, p.SamplingMode, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
                 if (edgePoint.HasValue)
                     result.EdgePoints.Add(edgePoint.Value);
             }
@@ -282,7 +304,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 float averageDirX = -scanDirY;
                 float averageDirY = scanDirX;
 
-                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, averageDirX, averageDirY, p.CaliperWidth, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
+                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, averageDirX, averageDirY, p.CaliperWidth, p.SamplingMode, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
                 if (edgePoint.HasValue)
                     result.EdgePoints.Add(edgePoint.Value);
                 else
@@ -322,6 +344,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             float averageDirX,
             float averageDirY,
             float averageWidth,
+            CaliperSamplingMode samplingMode,
             int blurSize,
             int edgeStrength,
             CaliperEdgePolarity polarity,
@@ -341,7 +364,10 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 posX[j] = px;
                 posY[j] = py;
 
-                profile[j] = SampleAveragedPixel(gray, px, py, averageDirX, averageDirY, averageWidth);
+                // 只有明确选择抗干扰模式才执行高成本宽度平均；未知枚举值安全回落到快速模式。
+                profile[j] = samplingMode == CaliperSamplingMode.AntiInterference
+                    ? SampleAveragedPixel(gray, px, py, averageDirX, averageDirY, averageWidth)
+                    : SampleFastPixel(gray, px, py);
             }
 
             if (blurSize > 1)
@@ -352,6 +378,16 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 gradient[j] = (profile[j + 1] - profile[j - 1]) / 2f;
 
             return FindEdgeInProfile(gradient, posX, posY, edgeStrength, polarity, findMode);
+        }
+
+        /// <summary>
+        /// 使用旧版最近邻方式读取扫描中心线像素，避免宽度平均和双线性插值开销。
+        /// </summary>
+        private static float SampleFastPixel(Mat gray, float x, float y)
+        {
+            int ix = (int)(x + 0.5f);
+            int iy = (int)(y + 0.5f);
+            return IsInside(gray, ix, iy) ? gray.At<byte>(iy, ix) : 0;
         }
 
         /// <summary>

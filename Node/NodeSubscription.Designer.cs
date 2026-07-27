@@ -2,12 +2,12 @@
 {
     partial class NodeSubscription
     {
-        /// <summary> 
+        /// <summary>
         /// 必需的设计器变量。
         /// </summary>
         private System.ComponentModel.IContainer components = null;
 
-        /// <summary> 
+        /// <summary>
         /// 清理所有正在使用的资源。
         /// </summary>
         /// <param name="disposing">如果应释放托管资源，为 true；否则为 false。</param>
@@ -22,22 +22,26 @@
 
         #region 组件设计器生成的代码
 
-        /// <summary> 
+        /// <summary>
         /// 设计器支持所需的方法 - 不要修改
         /// 使用代码编辑器修改此方法的内容。
         /// </summary>
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.label1 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.comboBox1 = new System.Windows.Forms.ComboBox();
             this.comboBox2 = new System.Windows.Forms.ComboBox();
+            this.contextMenuStripResults = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.toolStripMenuItemShowAdvancedResults = new System.Windows.Forms.ToolStripMenuItem();
             this.tableLayoutPanel1.SuspendLayout();
+            this.contextMenuStripResults.SuspendLayout();
             this.SuspendLayout();
-            // 
+            //
             // tableLayoutPanel1
-            // 
+            //
             this.tableLayoutPanel1.ColumnCount = 2;
             this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
@@ -54,9 +58,9 @@
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 60F));
             this.tableLayoutPanel1.Size = new System.Drawing.Size(235, 52);
             this.tableLayoutPanel1.TabIndex = 0;
-            // 
+            //
             // label1
-            // 
+            //
             this.label1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label1.AutoSize = true;
             this.label1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
@@ -65,9 +69,9 @@
             this.label1.Size = new System.Drawing.Size(80, 18);
             this.label1.TabIndex = 0;
             this.label1.Text = "选择节点";
-            // 
+            //
             // label2
-            // 
+            //
             this.label2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label2.AutoSize = true;
             this.label2.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
@@ -76,9 +80,9 @@
             this.label2.Size = new System.Drawing.Size(80, 18);
             this.label2.TabIndex = 0;
             this.label2.Text = "节点结果";
-            // 
+            //
             // comboBox1
-            // 
+            //
             this.comboBox1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.comboBox1.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBox1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
@@ -89,9 +93,10 @@
             this.comboBox1.Size = new System.Drawing.Size(111, 25);
             this.comboBox1.TabIndex = 1;
             this.comboBox1.SelectedIndexChanged += new System.EventHandler(this.comboBox1_SelectedIndexChanged);
-            // 
+            //
             // comboBox2
-            // 
+            //
+            this.comboBox2.ContextMenuStrip = this.contextMenuStripResults;
             this.comboBox2.Dock = System.Windows.Forms.DockStyle.Fill;
             this.comboBox2.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBox2.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
@@ -102,9 +107,25 @@
             this.comboBox2.Size = new System.Drawing.Size(112, 25);
             this.comboBox2.TabIndex = 1;
             this.comboBox2.SelectedIndexChanged += new System.EventHandler(this.comboBox2_SelectedIndexChanged);
-            // 
+            //
+            // contextMenuStripResults
+            //
+            this.contextMenuStripResults.ImageScalingSize = new System.Drawing.Size(20, 20);
+            this.contextMenuStripResults.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.toolStripMenuItemShowAdvancedResults});
+            this.contextMenuStripResults.Name = "contextMenuStripResults";
+            this.contextMenuStripResults.Size = new System.Drawing.Size(173, 28);
+            //
+            // toolStripMenuItemShowAdvancedResults
+            //
+            this.toolStripMenuItemShowAdvancedResults.CheckOnClick = true;
+            this.toolStripMenuItemShowAdvancedResults.Name = "toolStripMenuItemShowAdvancedResults";
+            this.toolStripMenuItemShowAdvancedResults.Size = new System.Drawing.Size(172, 24);
+            this.toolStripMenuItemShowAdvancedResults.Text = "显示高级结果";
+            this.toolStripMenuItemShowAdvancedResults.CheckedChanged += new System.EventHandler(this.toolStripMenuItemShowAdvancedResults_CheckedChanged);
+            //
             // NodeSubscription
-            // 
+            //
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.Controls.Add(this.tableLayoutPanel1);
@@ -114,6 +135,7 @@
             this.Size = new System.Drawing.Size(235, 52);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();
+            this.contextMenuStripResults.ResumeLayout(false);
             this.ResumeLayout(false);
 
         }
@@ -125,5 +147,9 @@
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.ComboBox comboBox1;
         private System.Windows.Forms.ComboBox comboBox2;
+        /// <summary>结果下拉框右键菜单。</summary>
+        private System.Windows.Forms.ContextMenuStrip contextMenuStripResults;
+        /// <summary>控制是否显示高级订阅结果的可勾选菜单项。</summary>
+        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemShowAdvancedResults;
     }
 }

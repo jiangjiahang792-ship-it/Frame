@@ -1,72 +1,82 @@
 using Logger;
 using System;
-using System.Globalization;
+using System.Collections.Generic;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
+using TDJS_Vision.Node._3_Detection.MatchTemplate;
 using TDJS_Vision.Node._4_Measurement.Common;
 
 namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
 {
+    /// <summary>
+    /// 配置模板位姿列表订阅、创建第一目标基准并预览全部目标修正结果。
+    /// </summary>
     public partial class NodeParamFormPositionCorrection : FormBase, INodeParamForm
     {
+        /// <summary>
+        /// 当前参数窗口所属的位置修正节点。
+        /// </summary>
         private NodeBase node;
 
+        /// <summary>
+        /// 初始化位置修正参数窗口。
+        /// </summary>
         public NodeParamFormPositionCorrection()
         {
             InitializeComponent();
             UpdateBaselineStatus();
         }
 
+        /// <summary>
+        /// 获取或设置位置修正参数。
+        /// </summary>
         public INodeParam Params { get; set; }
 
+        /// <summary>
+        /// 绑定所属节点并初始化模板位姿列表订阅控件。
+        /// </summary>
         public void SetNodeBelong(NodeBase node)
         {
             this.node = node;
-            nodeSubscriptionX.Init(node);
-            nodeSubscriptionY.Init(node);
-            nodeSubscriptionAngle.Init(node);
+            nodeSubscriptionPoses.SetExpectedValueType<List<TemplateMatchPose>>();
+            nodeSubscriptionPoses.Init(node);
         }
 
+        /// <summary>
+        /// 把已保存参数恢复到窗口控件。
+        /// </summary>
         public void SetParam2Form()
         {
             var param = Params as NodeParamPositionCorrection;
             if (param == null)
                 return;
 
-            nodeSubscriptionX.SetText(param.TextX1, param.TextX2);
-            nodeSubscriptionY.SetText(param.TextY1, param.TextY2);
-            nodeSubscriptionAngle.SetText(param.TextAngle1, param.TextAngle2);
+            nodeSubscriptionPoses.SetText(param.PoseText1, param.PoseText2);
             UpdateBaselineStatus();
         }
 
-        internal PositionCorrectionInfo BuildCorrectionInfo(NodeParamPositionCorrection param)
+        /// <summary>
+        /// 根据固定基准和当前模板位姿列表生成全部位置修正信息。
+        /// </summary>
+        internal List<PositionCorrectionInfo> BuildCorrectionItems(NodeParamPositionCorrection param)
         {
             if (param == null)
                 throw new Exception("位置修正参数异常。");
-            if (!param.HasBaseline)
-                throw new Exception("请先点击“创建基准”记录模板基准位置。");
+            if (!param.HasBaseline || param.BasePose == null)
+                throw new Exception("请先点击“创建基准”记录模板列表中的第一目标。");
 
-            double currentX = ReadDouble(nodeSubscriptionX, "X");
-            double currentY = ReadDouble(nodeSubscriptionY, "Y");
-            double currentAngle = ReadDouble(nodeSubscriptionAngle, "角度");
-
-            return new PositionCorrectionInfo
-            {
-                IsValid = true,
-                BaseX = param.BaseX,
-                BaseY = param.BaseY,
-                BaseAngle = param.BaseAngle,
-                CurrentX = currentX,
-                CurrentY = currentY,
-                CurrentAngle = currentAngle
-            };
+            List<TemplateMatchPose> poses = ReadPoses();
+            return NodePositionCorrection.BuildCorrectionItems(param.BasePose, poses);
         }
 
+        /// <summary>
+        /// 校验并保存当前窗口参数。
+        /// </summary>
         private bool SaveParams()
         {
             try
             {
-                ValidateSubscriptions();
+                ValidateSubscription();
                 var oldParam = Params as NodeParamPositionCorrection;
                 Params = BuildParamFromForm(oldParam);
                 UpdateBaselineStatus();
@@ -79,95 +89,90 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
             }
         }
 
+        /// <summary>
+        /// 从订阅控件构建参数；订阅源改变时自动废弃旧基准。
+        /// </summary>
         private NodeParamPositionCorrection BuildParamFromForm(NodeParamPositionCorrection oldParam)
         {
-            string textX1 = nodeSubscriptionX.GetText1();
-            string textX2 = nodeSubscriptionX.GetText2();
-            string textY1 = nodeSubscriptionY.GetText1();
-            string textY2 = nodeSubscriptionY.GetText2();
-            string textAngle1 = nodeSubscriptionAngle.GetText1();
-            string textAngle2 = nodeSubscriptionAngle.GetText2();
+            string poseText1 = nodeSubscriptionPoses.GetText1();
+            string poseText2 = nodeSubscriptionPoses.GetText2();
             bool keepBaseline = oldParam != null &&
                 oldParam.HasBaseline &&
-                string.Equals(oldParam.TextX1, textX1, StringComparison.Ordinal) &&
-                string.Equals(oldParam.TextX2, textX2, StringComparison.Ordinal) &&
-                string.Equals(oldParam.TextY1, textY1, StringComparison.Ordinal) &&
-                string.Equals(oldParam.TextY2, textY2, StringComparison.Ordinal) &&
-                string.Equals(oldParam.TextAngle1, textAngle1, StringComparison.Ordinal) &&
-                string.Equals(oldParam.TextAngle2, textAngle2, StringComparison.Ordinal);
+                oldParam.BasePose != null &&
+                string.Equals(oldParam.PoseText1, poseText1, StringComparison.Ordinal) &&
+                string.Equals(oldParam.PoseText2, poseText2, StringComparison.Ordinal);
 
             return new NodeParamPositionCorrection
             {
-                TextX1 = textX1,
-                TextX2 = textX2,
-                TextY1 = textY1,
-                TextY2 = textY2,
-                TextAngle1 = textAngle1,
-                TextAngle2 = textAngle2,
+                PoseText1 = poseText1,
+                PoseText2 = poseText2,
                 HasBaseline = keepBaseline,
-                BaseX = keepBaseline ? oldParam.BaseX : 0,
-                BaseY = keepBaseline ? oldParam.BaseY : 0,
-                BaseAngle = keepBaseline ? oldParam.BaseAngle : 0
+                BasePose = keepBaseline ? oldParam.BasePose.Clone() : null
             };
         }
 
-        private void ValidateSubscriptions()
+        /// <summary>
+        /// 检查模板位姿列表订阅是否完整。
+        /// </summary>
+        private void ValidateSubscription()
         {
-            if (string.IsNullOrWhiteSpace(nodeSubscriptionX.GetText1()) || string.IsNullOrWhiteSpace(nodeSubscriptionX.GetText2()))
-                throw new Exception("请选择X位置信息。");
-            if (string.IsNullOrWhiteSpace(nodeSubscriptionY.GetText1()) || string.IsNullOrWhiteSpace(nodeSubscriptionY.GetText2()))
-                throw new Exception("请选择Y位置信息。");
-            if (string.IsNullOrWhiteSpace(nodeSubscriptionAngle.GetText1()) || string.IsNullOrWhiteSpace(nodeSubscriptionAngle.GetText2()))
-                throw new Exception("请选择角度信息。");
-        }
-
-        private static double ReadDouble(NodeSubscription subscription, string name)
-        {
-            object value = subscription.GetValue<object>();
-            if (value == null)
-                throw new Exception($"{name}订阅值为空。");
-
-            try
+            if (string.IsNullOrWhiteSpace(nodeSubscriptionPoses.GetText1()) ||
+                string.IsNullOrWhiteSpace(nodeSubscriptionPoses.GetText2()))
             {
-                return Convert.ToDouble(value, CultureInfo.InvariantCulture);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"{name}订阅值不是有效数字：{ex.Message}");
+                throw new Exception("请选择模板匹配位姿列表。");
             }
         }
 
+        /// <summary>
+        /// 读取模板匹配节点输出的全部目标位姿。
+        /// </summary>
+        private List<TemplateMatchPose> ReadPoses()
+        {
+            List<TemplateMatchPose> poses = nodeSubscriptionPoses.GetValue<List<TemplateMatchPose>>();
+            if (poses == null || poses.Count == 0)
+                throw new Exception("模板匹配位姿列表为空，请先运行模板匹配节点。");
+
+            return poses;
+        }
+
+        /// <summary>
+        /// 刷新第一目标基准状态文本。
+        /// </summary>
         private void UpdateBaselineStatus()
         {
             var param = Params as NodeParamPositionCorrection;
-            if (param != null && param.HasBaseline)
+            TemplateMatchPose pose = param == null ? null : param.BasePose;
+            if (param != null && param.HasBaseline && pose != null)
             {
-                labelBaselineStatus.Text = $"基准：X {param.BaseX:F3}, Y {param.BaseY:F3}, 角度 {param.BaseAngle:F3}°";
+                labelBaselineStatus.Text =
+                    $"基准：第1目标，X {pose.CenterX:F3}, Y {pose.CenterY:F3}, 角度 {pose.Angle:F3}°，缩放 {pose.ScaleX:F3}/{pose.ScaleY:F3}";
             }
             else
             {
-                labelBaselineStatus.Text = "基准：未创建";
+                labelBaselineStatus.Text = "基准：未创建（默认取位姿列表第1目标）";
             }
         }
 
+        /// <summary>
+        /// 保存当前模板位姿列表中的第一目标为基准。
+        /// </summary>
         private void buttonCreateBaseline_Click(object sender, EventArgs e)
         {
             try
             {
-                ValidateSubscriptions();
-                double baseX = ReadDouble(nodeSubscriptionX, "X");
-                double baseY = ReadDouble(nodeSubscriptionY, "Y");
-                double baseAngle = ReadDouble(nodeSubscriptionAngle, "角度");
+                ValidateSubscription();
+                List<TemplateMatchPose> poses = ReadPoses();
                 var oldParam = Params as NodeParamPositionCorrection;
                 var param = BuildParamFromForm(oldParam);
                 param.HasBaseline = true;
-                param.BaseX = baseX;
-                param.BaseY = baseY;
-                param.BaseAngle = baseAngle;
+                param.BasePose = NodePositionCorrection.CreateBaseline(poses);
                 Params = param;
-                PublishCorrectionInfo(BuildCorrectionInfo(param));
+
+                List<PositionCorrectionInfo> items = BuildCorrectionItems(param);
+                PublishCorrectionItems(items);
                 UpdateBaselineStatus();
-                MessageBoxTD.Show("位置修正基准创建成功。");
+                labelRuntimeStatus.Text = $"已创建基准，当前有效目标：{items.Count}个。";
+                MessageBoxTD.Show("位置修正基准创建成功，已默认使用模板位姿列表中的第一目标。");
             }
             catch (Exception ex)
             {
@@ -177,6 +182,9 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
             }
         }
 
+        /// <summary>
+        /// 预览全部目标的位置修正结果。
+        /// </summary>
         private void buttonRun_Click(object sender, EventArgs e)
         {
             if (!SaveParams())
@@ -184,9 +192,11 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
 
             try
             {
-                var info = BuildCorrectionInfo((NodeParamPositionCorrection)Params);
-                PublishCorrectionInfo(info);
-                labelRuntimeStatus.Text = $"当前：X {info.CurrentX:F3}, Y {info.CurrentY:F3}, 角度 {info.CurrentAngle:F3}°；偏移：X {info.DeltaX:F3}, Y {info.DeltaY:F3}, 角度 {info.DeltaAngle:F3}°";
+                List<PositionCorrectionInfo> items = BuildCorrectionItems((NodeParamPositionCorrection)Params);
+                PublishCorrectionItems(items);
+                PositionCorrectionInfo first = items[0];
+                labelRuntimeStatus.Text =
+                    $"当前有效目标：{items.Count}个；第1目标偏移：X {first.DeltaX:F3}, Y {first.DeltaY:F3}, 角度 {first.DeltaAngle:F3}°。";
             }
             catch (Exception ex)
             {
@@ -194,16 +204,23 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
             }
         }
 
+        /// <summary>
+        /// 保存位置修正参数并关闭窗口。
+        /// </summary>
         private void buttonSave_Click(object sender, EventArgs e)
         {
             if (SaveParams())
                 Hide();
         }
 
-        private void PublishCorrectionInfo(PositionCorrectionInfo info)
+        /// <summary>
+        /// 把预览修正集合发布到所属节点。
+        /// </summary>
+        private void PublishCorrectionItems(IReadOnlyList<PositionCorrectionInfo> items)
         {
-            if (node is NodePositionCorrection positionNode)
-                positionNode.PublishPreviewResult(info);
+            var positionNode = node as NodePositionCorrection;
+            if (positionNode != null)
+                positionNode.PublishPreviewResult(items);
         }
     }
 }

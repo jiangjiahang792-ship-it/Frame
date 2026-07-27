@@ -38,11 +38,41 @@ namespace TDJS_Vision.Node
         /// 正在由代码刷新节点下拉框，避免 SelectedIndexChanged 反复触发订阅恢复逻辑。
         /// </summary>
         private bool _isUpdatingNodeCombo;
+        /// <summary>
+        /// 调用方声明的统一输入契约，用于按数据类别、数量形态和 CLR 类型筛选结果。
+        /// </summary>
+        private SubscriptionInputContract _inputContract = SubscriptionInputContract.AnyVisible();
+
+        /// <summary>
+        /// 正在由代码刷新结果下拉框，避免刷新过程覆盖旧方案保存路径。
+        /// </summary>
+        private bool _isUpdatingResultCombo;
+
+        /// <summary>
+        /// 当前结果下拉项对应的端口描述。
+        /// </summary>
+        private SubscriptionOutputDescriptor _selectedOutput;
 
         public NodeSubscription()
         {
             InitializeComponent();
             NodeBase.RefreshNodeSubControl += RenameChangeEvent;
+            NodeBase.OutputDefinitionChanged += NodeBase_OutputDefinitionChanged;
+        }
+
+        /// <summary>
+        /// 上游节点输出定义变化后立即刷新结果下拉框，不等待节点再次运行。
+        /// </summary>
+        /// <param name="sender">事件发送者。</param>
+        /// <param name="sourceNode">输出定义发生变化的节点。</param>
+        private void NodeBase_OutputDefinitionChanged(object sender, NodeBase sourceNode)
+        {
+            if (sourceNode == null || _selectedNode == null || sourceNode.ID != _selectedNode.ID)
+                return;
+            if (sourceNode.Process != _selectedNode.Process || sourceNode.Result == null)
+                return;
+
+            InitProperties(_selectedNode, _text2);
         }
 
         /// <summary>
@@ -114,6 +144,35 @@ namespace TDJS_Vision.Node
 
             NodeBase.NodeDeletedEvent -= NodeBase_NodeDeletedEvent;
             NodeBase.NodeDeletedEvent += NodeBase_NodeDeletedEvent;
+        }
+
+        /// <summary>
+        /// 声明此订阅控件期望读取的结果值类型，并刷新当前结果属性列表。
+        /// </summary>
+        /// <typeparam name="T">期望读取的结果值类型。</typeparam>
+        public void SetExpectedValueType<T>()
+        {
+            SetExpectedValueType(typeof(T));
+        }
+
+        /// <summary>
+        /// 声明此订阅控件期望读取的结果值类型，并刷新当前结果属性列表。
+        /// </summary>
+        /// <param name="expectedValueType">期望读取的结果值类型；为空时取消类型筛选。</param>
+        public void SetExpectedValueType(Type expectedValueType)
+        {
+            SetInputContract(SubscriptionInputContract.ForType(expectedValueType));
+        }
+
+        /// <summary>
+        /// 声明此订阅控件接受的统一输入契约，并刷新当前结果属性列表。
+        /// </summary>
+        /// <param name="inputContract">输入契约；为空时使用通用可见结果契约。</param>
+        public void SetInputContract(SubscriptionInputContract inputContract)
+        {
+            _inputContract = inputContract ?? SubscriptionInputContract.AnyVisible();
+            if (_selectedNode != null)
+                InitProperties(_selectedNode, _text2);
         }
 
         private void Process_ConnectionsChanged(object sender, EventArgs e)
@@ -211,42 +270,56 @@ namespace TDJS_Vision.Node
         /// <param name="nodeBase"></param>
         private void InitProperties(NodeBase nodeBase, string text2 = null, bool needRefresh = false)
         {
-            comboBox2.Items.Clear();
-            Type nodeResult = nodeBase.Result.GetType();
-            var properties = nodeResult.GetProperties();
+            if (nodeBase == null)
+                return;
 
-            foreach (var property in properties) //遍历属性
+            IReadOnlyList<SubscriptionOutputDescriptor> outputs = SubscriptionPortCatalog.GetOutputs(
+                nodeBase,
+                _inputContract,
+                toolStripMenuItemShowAdvancedResults.Checked,
+                text2);
+
+            _isUpdatingResultCombo = true;
+            comboBox2.BeginUpdate();
+            try
             {
-                var displayNameAttribute = property.GetCustomAttribute<DisplayNameAttribute>();
-                if (displayNameAttribute != null)
+                comboBox2.Items.Clear();
+                foreach (SubscriptionOutputDescriptor output in outputs)
+                    comboBox2.Items.Add(new SubscriptionSelectionItem(output));
+
+                if (comboBox2.Items.Count == 0)
                 {
-                    comboBox2.Items.Add(displayNameAttribute.DisplayName);
+                    comboBox2.SelectedIndex = -1;
+                    comboBox2.Text = string.Empty;
+                    _selectedOutput = null;
+                    if (needRefresh || text2 == null)
+                        _text2 = string.Empty;
+                    return;
                 }
-            }
 
-            foreach (string variableName in DynamicResultVariableResolver.GetVariableNames(nodeBase))
-            {
-                string displayName = DynamicResultVariableResolver.ToDisplayName(variableName);
-                if (!comboBox2.Items.Contains(displayName))
-                    comboBox2.Items.Add(displayName);
-            }
+                int selectedIndex = -1;
+                if (!needRefresh && text2 != null)
+                    selectedIndex = FindResultItemIndex(text2);
+                if (selectedIndex < 0 && (needRefresh || text2 == null))
+                    selectedIndex = 0;
 
-            if (comboBox2.Items.Count > 0)
-            {
-                if (needRefresh || text2 == null)
+                if (selectedIndex >= 0)
                 {
-                    comboBox2.SelectedIndex = 0;
-                    _text2 = comboBox2.Text;
+                    comboBox2.SelectedIndex = selectedIndex;
+                    ApplySelectedResultItem();
                 }
                 else
                 {
-                    int index1 = comboBox2.Items.IndexOf(text2);
-                    if (index1 == -1 && !string.IsNullOrWhiteSpace(text2))
-                        index1 = comboBox2.Items.IndexOf(DynamicResultVariableResolver.ToDisplayName(text2));
-                    // 旧方案可能保存了当前节点结果中已经不存在的显示名，回落到界面实际选中的有效结果。
-                    comboBox2.SelectedIndex = index1 == -1 ? 0 : index1;
-                    _text2 = comboBox2.Text;
+                    // 已保存路径无法匹配时保持原文本，绝不能静默跳到第一项。
+                    _text2 = text2 ?? string.Empty;
+                    _selectedOutput = null;
+                    comboBox2.SelectedIndex = -1;
                 }
+            }
+            finally
+            {
+                comboBox2.EndUpdate();
+                _isUpdatingResultCombo = false;
             }
         }
         /// <summary>
@@ -364,6 +437,7 @@ namespace TDJS_Vision.Node
         private void ClearSelectedNode()
         {
             _selectedNode = null;
+            _selectedOutput = null;
             _text1 = string.Empty;
             _text2 = string.Empty;
             SetNodeComboSelectedIndex(-1);
@@ -393,7 +467,16 @@ namespace TDJS_Vision.Node
             comboBox2.Text = string.Empty;
             if (!string.IsNullOrWhiteSpace(_text2))
             {
-                comboBox2.Items.Add(_text2);
+                comboBox2.Items.Add(new SubscriptionSelectionItem(new SubscriptionOutputDescriptor
+                {
+                    PropertyPath = _text2,
+                    DisplayName = _text2,
+                    ValueType = typeof(object),
+                    Category = SubscriptionDataCategory.Unknown,
+                    Multiplicity = SubscriptionValueMultiplicity.Single,
+                    Visibility = SubscriptionOutputVisibility.Hidden,
+                    IsMissing = true
+                }));
                 comboBox2.SelectedIndex = 0;
             }
         }
@@ -453,31 +536,65 @@ namespace TDJS_Vision.Node
 
         private void comboBox2_SelectedIndexChanged(object sender, EventArgs e)
         {
-            _text2 = comboBox2.Text;
+            if (_isUpdatingResultCombo)
+                return;
+
+            ApplySelectedResultItem();
+        }
+
+        /// <summary>
+        /// 用户勾选或取消“显示高级结果”后刷新结果候选并保持当前订阅路径。
+        /// </summary>
+        /// <param name="sender">事件发送者。</param>
+        /// <param name="e">事件参数。</param>
+        private void toolStripMenuItemShowAdvancedResults_CheckedChanged(object sender, EventArgs e)
+        {
+            if (_selectedNode != null)
+                InitProperties(_selectedNode, _text2);
         }
 
         /// <summary>
         /// 将订阅值转换为调用方期望类型。
         /// </summary>
-        private static T ConvertSubscriptionValue<T>(object value)
+        private T ConvertSubscriptionValue<T>(object value)
         {
-            if (value == null)
-                return default(T);
-            if (value is T)
-                return (T)value;
+            object converted = SubscriptionTypeCompatibility.ConvertValue(
+                value,
+                typeof(T),
+                _inputContract == null
+                    ? NumericConversionMode.Checked
+                    : _inputContract.NumericConversionMode);
+            return converted == null ? default(T) : (T)converted;
+        }
 
-            Type targetType = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
-            if (targetType == typeof(object))
-                return (T)value;
+        /// <summary>
+        /// 在结果下拉框中查找与已保存路径对应的项目。
+        /// </summary>
+        /// <param name="persistedText">旧方案保存的结果显示名或动态变量路径。</param>
+        /// <returns>对应下拉项索引；找不到时返回 -1。</returns>
+        private int FindResultItemIndex(string persistedText)
+        {
+            for (int index = 0; index < comboBox2.Items.Count; index++)
+            {
+                SubscriptionSelectionItem item = comboBox2.Items[index] as SubscriptionSelectionItem;
+                if (item != null && item.Matches(persistedText))
+                    return index;
+            }
 
-            try
-            {
-                return (T)Convert.ChangeType(value, targetType);
-            }
-            catch
-            {
-                throw new InvalidCastException($"订阅值类型不匹配，期望类型为{typeof(T).Name}，实际类型为{value.GetType().Name}!");
-            }
+            return -1;
+        }
+
+        /// <summary>
+        /// 把当前界面结果项写回稳定持久化文本和端口描述。
+        /// </summary>
+        private void ApplySelectedResultItem()
+        {
+            SubscriptionSelectionItem item = comboBox2.SelectedItem as SubscriptionSelectionItem;
+            if (item == null)
+                return;
+
+            _text2 = item.PersistedText;
+            _selectedOutput = item.Descriptor;
         }
 
         private void EnsureSelectedNodeFresh()
@@ -491,6 +608,60 @@ namespace TDJS_Vision.Node
                 !_selectedNode.HasSuccessfulResultForRun(_node.Process.CurrentRunId))
             {
                 throw new Exception($"节点({_selectedNode.ID}.{_selectedNode.NodeName})本次流程未成功运行，不能使用上次运行结果!");
+            }
+        }
+
+        /// <summary>
+        /// 把端口持久化文本与带兼容状态的界面显示文字分离。
+        /// </summary>
+        private sealed class SubscriptionSelectionItem
+        {
+            /// <summary>
+            /// 初始化结果下拉项。
+            /// </summary>
+            /// <param name="descriptor">输出端口描述。</param>
+            public SubscriptionSelectionItem(SubscriptionOutputDescriptor descriptor)
+            {
+                Descriptor = descriptor ?? throw new ArgumentNullException("descriptor");
+                PersistedText = descriptor.DisplayName ?? descriptor.PropertyPath ?? string.Empty;
+            }
+
+            /// <summary>获取输出端口描述。</summary>
+            public SubscriptionOutputDescriptor Descriptor { get; private set; }
+
+            /// <summary>获取写入旧方案兼容字段的原始文本。</summary>
+            public string PersistedText { get; private set; }
+
+            /// <summary>
+            /// 判断下拉项是否对应指定的旧方案文本。
+            /// </summary>
+            /// <param name="text">保存的显示名、属性路径或动态变量路径。</param>
+            /// <returns>对应时返回 true。</returns>
+            public bool Matches(string text)
+            {
+                if (string.Equals(PersistedText, text, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(Descriptor.PropertyPath, text, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                return Descriptor.IsDynamic && string.Equals(
+                    DynamicResultVariableResolver.ExtractVariableName(PersistedText),
+                    DynamicResultVariableResolver.ExtractVariableName(text),
+                    StringComparison.OrdinalIgnoreCase);
+            }
+
+            /// <summary>
+            /// 返回带兼容或缺失状态的用户界面文本。
+            /// </summary>
+            /// <returns>结果下拉框显示文本。</returns>
+            public override string ToString()
+            {
+                if (Descriptor.IsMissing)
+                    return PersistedText + "（结果不存在）";
+                if (Descriptor.IsLegacySelection)
+                    return PersistedText + "（兼容订阅）";
+                return PersistedText;
             }
         }
     }

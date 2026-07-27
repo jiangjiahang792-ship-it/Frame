@@ -647,6 +647,7 @@ namespace TDJS_Vision
         }
         private void OnLogoutEvent(object sender, EventArgs e)
         {
+            UserPermissionContext.UpdateRole(UserRole.Unknown);
             文件ToolStripMenuItem.Enabled = false;
             设置ToolStripMenuItem.Enabled = false;
             toolStrip1.Enabled = false;
@@ -668,6 +669,7 @@ namespace TDJS_Vision
         /// </summary>
         private void SetLockStatus(UserRole role)
         {
+            UserPermissionContext.UpdateRole(role);
             Role = role;
             toolStrip1.Enabled = true;
             switch (role)
@@ -702,7 +704,7 @@ namespace TDJS_Vision
                     tsbt_ModbusManager.Enabled = false;
                     tsbt_TCPManager.Enabled = false;
                     tsbt_ComManager.Enabled = false;
-                    tsbt_RunParamSetting.Enabled = true;
+                    tsbt_RunParamSetting.Enabled = false;
                     break;
                 case UserRole.Low:
                     文件ToolStripMenuItem.Enabled = false;
@@ -1038,7 +1040,7 @@ namespace TDJS_Vision
                     break;
 
                 case UserRole.Medium:
-                    tsbt_RunParamSetting.Enabled = !isRun;
+                    tsbt_RunParamSetting.Enabled = false;
                     break;
 
                 case UserRole.Low:
@@ -1076,6 +1078,12 @@ namespace TDJS_Vision
 
         private void 运行参数ToolStripMenuItem_Click(object value1, object value2)
         {
+            if (!UserPermissionContext.CanUseManualTuning)
+            {
+                MessageBoxTD.Show("当前用户没有权限使用手动调参，请登录最高权限账号！");
+                return;
+            }
+
             FrmSolRunParam.ShowDialog();
         }
 

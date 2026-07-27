@@ -46,6 +46,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             this.comboBoxFindMode = new System.Windows.Forms.ComboBox();
             this.labelDirection = new System.Windows.Forms.Label();
             this.comboBoxDirection = new System.Windows.Forms.ComboBox();
+            this.labelSamplingMode = new System.Windows.Forms.Label();
+            this.comboBoxSamplingMode = new System.Windows.Forms.ComboBox();
             this.showImageControl1 = new TDJS_Vision.Forms.DispShowImage.ShowImageControl();
             this.buttonDrawRoi = new System.Windows.Forms.Button();
             this.buttonConfirmRoi = new System.Windows.Forms.Button();
@@ -210,6 +212,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             this.groupBoxCaliper.Controls.Add(this.comboBoxFindMode);
             this.groupBoxCaliper.Controls.Add(this.labelDirection);
             this.groupBoxCaliper.Controls.Add(this.comboBoxDirection);
+            this.groupBoxCaliper.Controls.Add(this.labelSamplingMode);
+            this.groupBoxCaliper.Controls.Add(this.comboBoxSamplingMode);
             this.groupBoxCaliper.Location = new System.Drawing.Point(18, 336);
             this.groupBoxCaliper.Name = "groupBoxCaliper";
             this.groupBoxCaliper.Size = new System.Drawing.Size(390, 246);
@@ -355,6 +359,24 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             this.comboBoxDirection.Name = "comboBoxDirection";
             this.comboBoxDirection.Size = new System.Drawing.Size(100, 23);
             this.comboBoxDirection.TabIndex = 15;
+            //
+            // labelSamplingMode
+            //
+            this.labelSamplingMode.AutoSize = true;
+            this.labelSamplingMode.Location = new System.Drawing.Point(16, 200);
+            this.labelSamplingMode.Name = "labelSamplingMode";
+            this.labelSamplingMode.Size = new System.Drawing.Size(67, 15);
+            this.labelSamplingMode.TabIndex = 16;
+            this.labelSamplingMode.Text = "采样模式";
+            //
+            // comboBoxSamplingMode
+            //
+            this.comboBoxSamplingMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxSamplingMode.FormattingEnabled = true;
+            this.comboBoxSamplingMode.Location = new System.Drawing.Point(88, 196);
+            this.comboBoxSamplingMode.Name = "comboBoxSamplingMode";
+            this.comboBoxSamplingMode.Size = new System.Drawing.Size(120, 23);
+            this.comboBoxSamplingMode.TabIndex = 17;
             // 
             // showImageControl1
             // 
@@ -481,6 +503,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
         private System.Windows.Forms.ComboBox comboBoxFindMode;
         private System.Windows.Forms.Label labelDirection;
         private System.Windows.Forms.ComboBox comboBoxDirection;
+        private System.Windows.Forms.Label labelSamplingMode;
+        private System.Windows.Forms.ComboBox comboBoxSamplingMode;
         private TDJS_Vision.Forms.DispShowImage.ShowImageControl showImageControl1;
         private System.Windows.Forms.Button buttonDrawRoi;
         private System.Windows.Forms.Button buttonConfirmRoi;

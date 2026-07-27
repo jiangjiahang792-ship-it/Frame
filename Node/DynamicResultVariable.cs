@@ -85,23 +85,23 @@ namespace TDJS_Vision.Node
         }
 
         /// <summary>
-        /// 从节点配置和最近一次结果中收集动态变量名。
+        /// 从节点配置或最近一次结果中收集动态变量名。节点提供配置定义时以配置为准，
+        /// 避免已经删除的变量被上一次运行结果重新加入订阅列表。
         /// </summary>
         public static List<string> GetVariableNames(NodeBase node)
         {
-            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (node == null)
                 return new List<string>();
 
             IDynamicResultVariableProvider provider = node as IDynamicResultVariableProvider;
             if (provider != null)
-                AddNames(names, provider.GetDynamicResultVariableNames());
+                return NormalizeNames(provider.GetDynamicResultVariableNames());
 
             IDynamicResultVariables resultVariables = node.Result as IDynamicResultVariables;
             if (resultVariables != null)
-                AddNames(names, resultVariables.GetDynamicVariableNames());
+                return NormalizeNames(resultVariables.GetDynamicVariableNames());
 
-            return names.OrderBy(item => item, StringComparer.OrdinalIgnoreCase).ToList();
+            return new List<string>();
         }
 
         /// <summary>
@@ -129,6 +129,36 @@ namespace TDJS_Vision.Node
             }
 
             return typeof(double);
+        }
+
+        /// <summary>
+        /// 获取节点当前声明的全部动态输出端口描述。
+        /// </summary>
+        /// <param name="node">动态变量来源节点。</param>
+        /// <returns>带真实 CLR 类型和统一数据类别的动态输出集合。</returns>
+        public static IReadOnlyList<SubscriptionOutputDescriptor> GetDescriptors(NodeBase node)
+        {
+            var descriptors = new List<SubscriptionOutputDescriptor>();
+            foreach (string variableName in GetVariableNames(node))
+            {
+                Type valueType = GetVariableValueType(node, variableName);
+                SubscriptionDataCategory category = SubscriptionTypeCompatibility.ResolveCategory(valueType);
+                descriptors.Add(new SubscriptionOutputDescriptor
+                {
+                    SourceNode = node,
+                    PropertyPath = ToPropertyPath(variableName),
+                    DisplayName = ToDisplayName(variableName),
+                    ValueType = valueType,
+                    Category = category,
+                    Multiplicity = SubscriptionValueMultiplicity.Single,
+                    Visibility = IsCoreCategory(category)
+                        ? SubscriptionOutputVisibility.Core
+                        : SubscriptionOutputVisibility.Advanced,
+                    IsDynamic = true
+                });
+            }
+
+            return descriptors;
         }
 
         /// <summary>
@@ -210,11 +240,35 @@ namespace TDJS_Vision.Node
         }
 
         /// <summary>
+        /// 规范化、去重并排序动态变量名称。
+        /// </summary>
+        /// <param name="sourceNames">待整理的变量名称。</param>
+        /// <returns>可稳定显示和持久化的变量名称列表。</returns>
+        private static List<string> NormalizeNames(IEnumerable<string> sourceNames)
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            AddNames(names, sourceNames);
+            return names.OrderBy(item => item, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        /// <summary>
         /// 清理变量名首尾空白。
         /// </summary>
         private static string NormalizeName(string variableName)
         {
             return variableName == null ? string.Empty : variableName.Trim();
+        }
+
+        /// <summary>
+        /// 判断动态输出类别是否属于默认显示的基础值。
+        /// </summary>
+        /// <param name="category">动态输出数据类别。</param>
+        /// <returns>布尔、数值或文本类别返回 true。</returns>
+        private static bool IsCoreCategory(SubscriptionDataCategory category)
+        {
+            return category == SubscriptionDataCategory.Boolean ||
+                category == SubscriptionDataCategory.Number ||
+                category == SubscriptionDataCategory.Text;
         }
     }
 }

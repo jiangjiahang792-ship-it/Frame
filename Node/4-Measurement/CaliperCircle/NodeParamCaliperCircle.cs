@@ -28,6 +28,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperCircle
         public int EdgeStrength { get; set; } = 20;
         public CaliperEdgePolarity Polarity { get; set; } = CaliperEdgePolarity.Both;
         public CaliperEdgeFindMode FindMode { get; set; } = CaliperEdgeFindMode.Best;
+        /// <summary>获取或设置卡尺灰度剖面采样模式。</summary>
+        public CaliperSamplingMode SamplingMode { get; set; } = CaliperSamplingMode.Fast;
         public int Direction { get; set; }
         public int BlurSize { get; set; } = 3;
     }

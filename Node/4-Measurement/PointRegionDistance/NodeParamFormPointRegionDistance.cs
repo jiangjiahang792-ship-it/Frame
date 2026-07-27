@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
@@ -16,6 +17,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
     public partial class NodeParamFormPointRegionDistance : FormBase, INodeParamForm
     {
         private readonly NodeBase node;
+        /// <summary>唯一编辑ROI的目标归属与坐标变换服务。</summary>
+        private readonly IMultiTargetTransformService _transformService = new MultiTargetTransformService();
         private bool _isSyncingRoi;
         private bool _roiVisible;
 
@@ -34,9 +37,11 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
 
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscriptionImage.SetExpectedValueType<OutputImage>();
             nodeSubscriptionImage.Init(node);
             nodeSubscriptionPoint.Init(node);
             nodeSubscriptionRegion.Init(node);
+            nodeSubscriptionPositionCorrection.SetExpectedValueType<List<PositionCorrectionInfo>>();
             nodeSubscriptionPositionCorrection.Init(node);
         }
 
@@ -70,6 +75,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
                 comboBoxPolarity.SelectedItem = param.Polarity;
                 comboBoxFindMode.SelectedItem = param.FindMode;
                 comboBoxDirection.SelectedIndex = param.Direction == 1 ? 1 : 0;
+                comboBoxSamplingMode.SelectedIndex = param.SamplingMode == CaliperSamplingMode.AntiInterference ? 1 : 0;
             }
             finally
             {
@@ -80,7 +86,38 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
             ClearEditingRoi();
         }
 
-        internal PointRegionDistanceMeasureResult ExecuteMeasure(NodeParamPointRegionDistance param)
+        /// <summary>按目标顺序执行全部点到区域距离测量，订阅模式保持单结果。</summary>
+        internal List<PointRegionDistanceTargetResult> ExecuteMeasures(NodeParamPointRegionDistance param, CancellationToken token)
+        {
+            if (param == null)
+                throw new Exception("点到区域距离参数为空。");
+
+            IReadOnlyList<PositionCorrectionInfo> corrections = ReadCorrections(param);
+            if (corrections.Count == 0)
+                return new List<PointRegionDistanceTargetResult>();
+
+            Mat sharedGray = null;
+            bool disposeGrayAfterUse = false;
+            if (param.SourceMode == MeasurementDataSourceMode.Draw)
+                sharedGray = GetInputGrayMat(out disposeGrayAfterUse);
+
+            try
+            {
+                return MultiTargetMeasurementRunner.Run(
+                    corrections,
+                    token,
+                    correction => CreateTargetResult(ExecuteSingleMeasure(BuildRuntimeParam(param, correction), sharedGray)),
+                    CreateFailure);
+            }
+            finally
+            {
+                if (disposeGrayAfterUse)
+                    sharedGray?.Dispose();
+            }
+        }
+
+        /// <summary>执行一次已经完成坐标变换的点到区域距离测量。</summary>
+        private PointRegionDistanceMeasureResult ExecuteSingleMeasure(NodeParamPointRegionDistance param, Mat sharedGray)
         {
             var stopwatch = Stopwatch.StartNew();
             var result = new PointRegionDistanceMeasureResult();
@@ -94,18 +131,19 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
             }
             else
             {
-                bool disposeGrayAfterUse;
-                Mat gray = GetInputGrayMat(out disposeGrayAfterUse);
+                Mat gray = sharedGray;
+                bool disposeGrayAfterUse = false;
+                if (gray == null)
+                    gray = GetInputGrayMat(out disposeGrayAfterUse);
                 try
                 {
-                    NodeParamPointRegionDistance runtimeParam = BuildRuntimeParam(param);
-                    CaliperCircleMeasureResult pointResult = CaliperMeasurementAlgorithm.FindCircle(gray, BuildCircleParams(runtimeParam));
+                    CaliperCircleMeasureResult pointResult = CaliperMeasurementAlgorithm.FindCircle(gray, BuildCircleParams(param));
                     result.PointEdgePoints.AddRange(pointResult.EdgePoints);
                     if (!pointResult.Success)
                         return FinishFailed(result, stopwatch, "目标点圆卡尺找圆失败");
 
                     targetPoint = pointResult.Center;
-                    regionPoints = runtimeParam.RegionPoints == null ? new List<PointF>() : runtimeParam.RegionPoints.ToList();
+                    regionPoints = param.RegionPoints == null ? new List<PointF>() : param.RegionPoints.ToList();
                 }
                 finally
                 {
@@ -149,6 +187,10 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
             comboBoxDirection.Items.Add("由内向外");
             comboBoxDirection.Items.Add("由外向内");
             comboBoxDirection.SelectedIndex = 0;
+
+            comboBoxSamplingMode.Items.Add("快速采样");
+            comboBoxSamplingMode.Items.Add("抗干扰采样");
+            comboBoxSamplingMode.SelectedIndex = 0;
         }
 
         private void BindRoiRefreshEvents()
@@ -214,14 +256,83 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
             return regionPoints;
         }
 
-        private NodeParamPointRegionDistance BuildRuntimeParam(NodeParamPointRegionDistance param)
+        /// <summary>读取全部位置修正；仅绘制模式启用修正时展开多目标。</summary>
+        private IReadOnlyList<PositionCorrectionInfo> ReadCorrections(NodeParamPointRegionDistance param)
+        {
+            if (param.SourceMode != MeasurementDataSourceMode.Draw || !param.UsePositionCorrection)
+                return new List<PositionCorrectionInfo> { CreateIdentityCorrection() };
+
+            List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
+            corrections = corrections ?? new List<PositionCorrectionInfo>();
+            return corrections;
+        }
+
+        /// <summary>把单次算法结果转换为强类型目标结果。</summary>
+        private static PointRegionDistanceTargetResult CreateTargetResult(PointRegionDistanceMeasureResult measure)
+        {
+            if (measure == null)
+                throw new Exception("点到区域距离算法没有返回结果。");
+
+            bool success = measure.Success && measure.DistanceResult != null;
+            var item = new PointRegionDistanceTargetResult
+            {
+                IsOk = success,
+                ErrorMessage = success ? string.Empty : (string.IsNullOrWhiteSpace(measure.Message) ? "点到区域距离结果为空。" : measure.Message),
+                AlgorithmMs = success ? MeasurementResultRounder.Round(measure.AlgorithmMs) : 0,
+                RawResult = measure
+            };
+            if (!success)
+                return item;
+
+            PointRegionDistanceResult distance = measure.DistanceResult;
+            item.MinDistance = MeasurementResultRounder.Round(distance.MinDistance);
+            item.MaxDistance = MeasurementResultRounder.Round(distance.MaxDistance);
+            item.IsInsideRegion = distance.IsInsideRegion;
+            item.TargetX = MeasurementResultRounder.Round(distance.TargetPoint.X);
+            item.TargetY = MeasurementResultRounder.Round(distance.TargetPoint.Y);
+            item.NearestX = MeasurementResultRounder.Round(distance.NearestPoint.X);
+            item.NearestY = MeasurementResultRounder.Round(distance.NearestPoint.Y);
+            item.FarthestX = MeasurementResultRounder.Round(distance.FarthestPoint.X);
+            item.FarthestY = MeasurementResultRounder.Round(distance.FarthestPoint.Y);
+            item.RegionPointCount = distance.RegionPoints == null ? 0 : distance.RegionPoints.Count;
+            return item;
+        }
+
+        /// <summary>创建保留目标顺序且数值为零的失败项。</summary>
+        private static PointRegionDistanceTargetResult CreateFailure(PositionCorrectionInfo correction, Exception exception)
+        {
+            string message = exception == null ? "点到区域距离失败。" : exception.Message;
+            return new PointRegionDistanceTargetResult
+            {
+                IsOk = false,
+                ErrorMessage = message,
+                RawResult = new PointRegionDistanceMeasureResult { Success = false, Message = message }
+            };
+        }
+
+        /// <summary>创建不改变坐标的单目标修正项。</summary>
+        private static PositionCorrectionInfo CreateIdentityCorrection()
+        {
+            return new PositionCorrectionInfo
+            {
+                TargetIndex = 1,
+                IsValid = true,
+                BaseScaleX = 1,
+                BaseScaleY = 1,
+                CurrentScaleX = 1,
+                CurrentScaleY = 1
+            };
+        }
+
+        /// <summary>为单个模板目标构造已经仿射变换的运行参数。</summary>
+        private NodeParamPointRegionDistance BuildRuntimeParam(NodeParamPointRegionDistance param, PositionCorrectionInfo correction)
         {
             if (param == null || !param.UsePositionCorrection || param.SourceMode != MeasurementDataSourceMode.Draw)
                 return param;
 
-            PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
-            PositionCorrectionHelper.EnsureValid(correctionInfo);
-            PointF point = correctionInfo.TransformPoint(param.PointCenterX, param.PointCenterY);
+            PositionCorrectionHelper.EnsureValid(correction);
+            PointF point = _transformService.TransformPoint(new PointF(param.PointCenterX, param.PointCenterY), correction);
+            double scale = GetAverageScale(correction);
 
             return new NodeParamPointRegionDistance
             {
@@ -234,17 +345,28 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
                 MeasureMode = param.MeasureMode,
                 PointCenterX = point.X,
                 PointCenterY = point.Y,
-                PointRadius = param.PointRadius,
-                RegionPoints = GeometryMeasurementAlgorithm.TransformPoints(param.RegionPoints, correctionInfo),
-                CaliperWidth = param.CaliperWidth,
-                CaliperHeight = param.CaliperHeight,
+                PointRadius = (float)(param.PointRadius * scale),
+                RegionPoints = _transformService.TransformPoints(param.RegionPoints, correction),
+                CaliperWidth = (float)(param.CaliperWidth * scale),
+                CaliperHeight = (float)(param.CaliperHeight * scale),
                 Count = param.Count,
                 EdgeStrength = param.EdgeStrength,
                 Polarity = param.Polarity,
                 FindMode = param.FindMode,
                 Direction = param.Direction,
+                SamplingMode = param.SamplingMode,
                 BlurSize = param.BlurSize
             };
+        }
+
+        /// <summary>计算各向缩放的平均值，供圆半径和卡尺尺寸使用。</summary>
+        private static double GetAverageScale(PositionCorrectionInfo correction)
+        {
+            double scaleX = PositionCorrectionInfo.NormalizeScale(correction.CurrentScaleX) /
+                PositionCorrectionInfo.NormalizeScale(correction.BaseScaleX);
+            double scaleY = PositionCorrectionInfo.NormalizeScale(correction.CurrentScaleY) /
+                PositionCorrectionInfo.NormalizeScale(correction.BaseScaleY);
+            return (scaleX + scaleY) * 0.5;
         }
 
         private static CaliperCircleParams BuildCircleParams(NodeParamPointRegionDistance param)
@@ -263,6 +385,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
                 Polarity = param.Polarity,
                 FindMode = param.FindMode,
                 Direction = param.Direction,
+                SamplingMode = param.SamplingMode,
                 BlurSize = param.BlurSize
             };
         }
@@ -331,7 +454,10 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
                     BlurSize = ParseInt(textBoxBlurSize, "平滑核"),
                     Polarity = (CaliperEdgePolarity)comboBoxPolarity.SelectedItem,
                     FindMode = (CaliperEdgeFindMode)comboBoxFindMode.SelectedItem,
-                    Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0
+                    Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0,
+                    SamplingMode = comboBoxSamplingMode.SelectedIndex == 1
+                        ? CaliperSamplingMode.AntiInterference
+                        : CaliperSamplingMode.Fast
                 };
 
                 return true;
@@ -392,7 +518,8 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
             return string.Join("; ", points.Select(point => $"{point.X:F2},{point.Y:F2}"));
         }
 
-        private PositionCorrectionInfo GetEditingCorrectionInfo(bool require)
+        /// <summary>读取编辑阶段全部位置修正信息。</summary>
+        private List<PositionCorrectionInfo> GetEditingCorrections(bool require)
         {
             if (!checkBoxUsePositionCorrection.Checked || !radioButtonDraw.Checked)
                 return null;
@@ -407,9 +534,12 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
 
             try
             {
-                PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
-                PositionCorrectionHelper.EnsureValid(correctionInfo);
-                return correctionInfo;
+                List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
+                if (corrections == null || corrections.Count == 0)
+                    throw new Exception("位置修正信息列表为空。");
+                foreach (PositionCorrectionInfo correction in corrections)
+                    PositionCorrectionHelper.EnsureValid(correction);
+                return corrections;
             }
             catch
             {
@@ -417,6 +547,29 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
                     throw;
                 return null;
             }
+        }
+
+        /// <summary>返回第一个模板目标，作为参数回显时的默认基准。</summary>
+        private PositionCorrectionInfo GetDefaultEditingCorrectionInfo(bool require)
+        {
+            List<PositionCorrectionInfo> corrections = GetEditingCorrections(require);
+            return corrections == null || corrections.Count == 0 ? null : corrections[0];
+        }
+
+        /// <summary>根据唯一编辑ROI中心确定它属于哪个模板目标。</summary>
+        private PositionCorrectionInfo ResolveEditingCorrection(PointF roiCenter, bool require)
+        {
+            List<PositionCorrectionInfo> corrections = GetEditingCorrections(require);
+            if (corrections == null || corrections.Count == 0)
+                return null;
+            int index = _transformService.ResolveAnchorIndex(roiCenter, corrections);
+            return corrections[index];
+        }
+
+        /// <summary>计算圆卡尺与多边形组成的整套测量几何中心。</summary>
+        private static PointF CalculateGeometryCenter(IEnumerable<PointF> points)
+        {
+            return MeasurementNodeHelper.CalculateBoundsCenter(points);
         }
 
         private void SetPreview(Mat image)
@@ -431,19 +584,23 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
 
             try
             {
-                PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+                PositionCorrectionInfo correctionInfo = GetDefaultEditingCorrectionInfo(false);
                 PointF target = new PointF(ParseFloat(textBoxPointCenterX, string.Empty), ParseFloat(textBoxPointCenterY, string.Empty));
                 List<PointF> region = ParseRegionPoints(textBoxRegionPoints.Text);
                 if (correctionInfo != null)
                 {
-                    target = correctionInfo.TransformPoint(target.X, target.Y);
-                    region = GeometryMeasurementAlgorithm.TransformPoints(region, correctionInfo);
+                    target = _transformService.TransformPoint(target, correctionInfo);
+                    region = _transformService.TransformPoints(region, correctionInfo);
                 }
 
                 float radius = ParseFloat(textBoxPointRadius, string.Empty);
                 float caliperWidth = ParseFloat(textBoxCaliperWidth, string.Empty);
                 float caliperHeight = ParseFloat(textBoxCaliperHeight, string.Empty);
                 int count = ParseInt(textBoxCount, string.Empty);
+                double displayScale = correctionInfo == null ? 1.0 : GetAverageScale(correctionInfo);
+                radius = (float)(radius * displayScale);
+                caliperWidth = (float)(caliperWidth * displayScale);
+                caliperHeight = (float)(caliperHeight * displayScale);
 
                 showImageControl1.ClearDynamicRoi();
                 showImageControl1.AddDynamicCircleCaliper(target.X, target.Y, radius, 0, 360, caliperWidth, caliperHeight, count, Color.Red, "Target");
@@ -472,7 +629,13 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
             CaliperEdgePolarity polarity = (CaliperEdgePolarity)comboBoxPolarity.SelectedItem;
             CaliperEdgeFindMode findMode = (CaliperEdgeFindMode)comboBoxFindMode.SelectedItem;
             int directionIndex = comboBoxDirection.SelectedIndex;
-            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(true);
+            var ownershipPoints = new List<PointF>();
+            if (circleRois.Count > 0)
+                ownershipPoints.Add(new PointF(circleRois[0].CX, circleRois[0].CY));
+            if (polygonRois.Count > 0)
+                ownershipPoints.AddRange(polygonRois[0].Points);
+            PositionCorrectionInfo correctionInfo = ResolveEditingCorrection(CalculateGeometryCenter(ownershipPoints), true);
+            double scale = correctionInfo == null ? 1.0 : GetAverageScale(correctionInfo);
             _isSyncingRoi = true;
             try
             {
@@ -480,12 +643,12 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
                 {
                     PointF target = new PointF(circleRois[0].CX, circleRois[0].CY);
                     if (correctionInfo != null)
-                        target = correctionInfo.InverseTransformPoint(target.X, target.Y);
+                        target = _transformService.InverseTransformPoint(target, correctionInfo);
                     textBoxPointCenterX.Text = target.X.ToString("F2");
                     textBoxPointCenterY.Text = target.Y.ToString("F2");
-                    textBoxPointRadius.Text = circleRois[0].Radius.ToString("F2");
-                    textBoxCaliperWidth.Text = circleRois[0].CaliperWidth.ToString("F2");
-                    textBoxCaliperHeight.Text = circleRois[0].CaliperHeight.ToString("F2");
+                    textBoxPointRadius.Text = (circleRois[0].Radius / scale).ToString("F2");
+                    textBoxCaliperWidth.Text = (circleRois[0].CaliperWidth / scale).ToString("F2");
+                    textBoxCaliperHeight.Text = (circleRois[0].CaliperHeight / scale).ToString("F2");
                     textBoxCount.Text = circleRois[0].Count.ToString();
                 }
 
@@ -493,7 +656,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
                 {
                     List<PointF> region = polygonRois[0].Points.ToList();
                     if (correctionInfo != null)
-                        region = GeometryMeasurementAlgorithm.InverseTransformPoints(region, correctionInfo);
+                        region = _transformService.InverseTransformPoints(region, correctionInfo);
                     textBoxRegionPoints.Text = FormatRegionPoints(region);
                 }
 
@@ -515,17 +678,22 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
             if (circleRois.Count == 0)
                 return;
 
-            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
             PointF target = new PointF(circleRois[0].CX, circleRois[0].CY);
+            var ownershipPoints = new List<PointF> { target };
+            var polygonRois = showImageControl1.GetAllDynamicPolygons();
+            if (polygonRois.Count > 0)
+                ownershipPoints.AddRange(polygonRois[0].Points);
+            PositionCorrectionInfo correctionInfo = ResolveEditingCorrection(CalculateGeometryCenter(ownershipPoints), false);
+            double scale = correctionInfo == null ? 1.0 : GetAverageScale(correctionInfo);
             if (correctionInfo != null)
-                target = correctionInfo.InverseTransformPoint(target.X, target.Y);
+                target = _transformService.InverseTransformPoint(target, correctionInfo);
 
             _isSyncingRoi = true;
             try
             {
                 if (!ReferenceEquals(source, textBoxPointCenterX)) textBoxPointCenterX.Text = target.X.ToString("F2");
                 if (!ReferenceEquals(source, textBoxPointCenterY)) textBoxPointCenterY.Text = target.Y.ToString("F2");
-                if (!ReferenceEquals(source, textBoxPointRadius)) textBoxPointRadius.Text = circleRois[0].Radius.ToString("F2");
+                if (!ReferenceEquals(source, textBoxPointRadius)) textBoxPointRadius.Text = (circleRois[0].Radius / scale).ToString("F2");
             }
             finally
             {
@@ -582,6 +750,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
 
         private void buttonDrawRoi_Click(object sender, EventArgs e)
         {
+            showImageControl1.SetDisplayResult(null);
             RefreshRoiFromFields();
         }
 
@@ -605,12 +774,12 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
 
             try
             {
-                PointRegionDistanceMeasureResult result = ExecuteMeasure((NodeParamPointRegionDistance)Params);
+                List<PointRegionDistanceTargetResult> items = ExecuteMeasures((NodeParamPointRegionDistance)Params, CancellationToken.None);
                 SetPreview(GetPreviewMat());
-                showImageControl1.SetDisplayResult(NodePointRegionDistance.BuildDisplayResult(result));
+                showImageControl1.SetDisplayResult(NodePointRegionDistance.BuildDisplayResult(items));
 
-                if (!result.Success)
-                    MessageBoxTD.Show($"点到区域距离失败：{result.Message}");
+                if (items.Exists(item => !item.IsOk))
+                    MessageBoxTD.Show("部分模板目标点到区域距离失败，失败目标结果已保留为0。");
             }
             catch (Exception ex)
             {

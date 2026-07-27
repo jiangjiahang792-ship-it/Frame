@@ -26,6 +26,11 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
         private readonly NodeBase node;
 
         /// <summary>
+        /// 负责搜索区域逐点变换和编辑区域目标归属判断。
+        /// </summary>
+        private readonly IMultiTargetTransformService _transformService = new MultiTargetTransformService();
+
+        /// <summary>
         /// Cached confirmed ROI regions. Runtime reads a copy through <see cref="SaveParams"/>.
         /// </summary>
         private readonly List<List<PointF>> confirmedRegions = new List<List<PointF>>();
@@ -58,7 +63,9 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
         /// <param name="node">Node that owns this parameter form.</param>
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscriptionImage.SetExpectedValueType<OutputImage>();
             nodeSubscriptionImage.Init(node);
+            nodeSubscriptionPositionCorrection.SetExpectedValueType<List<PositionCorrectionInfo>>();
             nodeSubscriptionPositionCorrection.Init(node);
         }
 
@@ -96,7 +103,7 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
         /// <param name="param">Runtime parameters.</param>
         /// <param name="token">Cancellation token from process runtime.</param>
         /// <returns>Measurement result containing ordered contours and flattened points.</returns>
-        internal FindPointMeasureResult ExecuteMeasure(NodeParamFindPoint param, CancellationToken token)
+        internal List<FindPointTargetResult> ExecuteMeasures(NodeParamFindPoint param, CancellationToken token)
         {
             Stopwatch executeMeasureWatch = Stopwatch.StartNew();
             LastTimingInfo = new FindPointTimingInfo();
@@ -104,25 +111,28 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
             Mat gray = null;
             try
             {
+                IReadOnlyList<PositionCorrectionInfo> corrections = ReadCorrections(param);
+                if (corrections.Count == 0)
+                    return new List<FindPointTargetResult>();
+
                 gray = GetInputGrayMat(out disposeGrayAfterUse);
-                Stopwatch runtimeParamWatch = Stopwatch.StartNew();
-                NodeParamFindPoint runtimeParam = BuildRuntimeParam(param);
-                runtimeParamWatch.Stop();
-                LastTimingInfo.RuntimeParamMs = runtimeParamWatch.Elapsed.TotalMilliseconds;
+                List<FindPointTargetResult> items = MultiTargetMeasurementRunner.Run(
+                    corrections,
+                    token,
+                    correction =>
+                    {
+                        Stopwatch runtimeParamWatch = Stopwatch.StartNew();
+                        NodeParamFindPoint runtimeParam = BuildRuntimeParam(param, correction);
+                        runtimeParamWatch.Stop();
+                        LastTimingInfo.RuntimeParamMs += runtimeParamWatch.Elapsed.TotalMilliseconds;
+                        return ExecuteOne(gray, runtimeParam, correction, token);
+                    },
+                    CreateFailure);
 
-                Stopwatch algorithmWatch = Stopwatch.StartNew();
-                FindPointMeasureResult result = FindPointAlgorithm.Execute(gray, runtimeParam, token);
-                algorithmWatch.Stop();
-                LastTimingInfo.AlgorithmMs = result == null || result.AlgorithmMs <= 0
-                    ? algorithmWatch.Elapsed.TotalMilliseconds
-                    : result.AlgorithmMs;
-                if (result != null)
-                {
-                    LastTimingInfo.ProcessedRegionCount = result.ProcessedRegionCount;
-                    LastTimingInfo.ProcessedPixelCount = result.ProcessedPixelCount;
-                }
-
-                return result;
+                LastTimingInfo.AlgorithmMs = items.Sum(item => item.AlgorithmMs);
+                LastTimingInfo.ProcessedRegionCount = items.Sum(item => item.ProcessedRegionCount);
+                LastTimingInfo.ProcessedPixelCount = items.Sum(item => item.ProcessedPixelCount);
+                return items;
             }
             finally
             {
@@ -133,6 +143,114 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
                 if (disposeGrayAfterUse)
                     gray?.Dispose();
             }
+        }
+
+        /// <summary>读取全部位置修正信息；未启用修正时返回一个恒等项。</summary>
+        private IReadOnlyList<PositionCorrectionInfo> ReadCorrections(NodeParamFindPoint param)
+        {
+            if (param == null)
+                throw new Exception("找点参数为空。");
+            if (!param.UsePositionCorrection)
+                return new List<PositionCorrectionInfo> { CreateIdentityCorrection() };
+            List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
+            corrections = corrections ?? new List<PositionCorrectionInfo>();
+            return corrections;
+        }
+
+        /// <summary>为单个模板目标构造逐点仿射变换后的找点参数。</summary>
+        private NodeParamFindPoint BuildRuntimeParam(NodeParamFindPoint param, PositionCorrectionInfo correction)
+        {
+            List<List<PointF>> regions = param.Regions == null
+                ? new List<List<PointF>>()
+                : param.Regions
+                    .Where(region => region != null && region.Count >= 3)
+                    .Select(region => param.UsePositionCorrection
+                        ? _transformService.TransformPoints(region, correction)
+                        : region.Select(point => new PointF(point.X, point.Y)).ToList())
+                    .ToList();
+            return new NodeParamFindPoint
+            {
+                ImageText1 = param.ImageText1,
+                ImageText2 = param.ImageText2,
+                UsePositionCorrection = param.UsePositionCorrection,
+                CorrectionText1 = param.CorrectionText1,
+                CorrectionText2 = param.CorrectionText2,
+                Regions = regions,
+                LowThreshold = param.LowThreshold,
+                HighThreshold = param.HighThreshold,
+                BlurSize = param.BlurSize,
+                MinContourPoints = param.MinContourPoints,
+                SampleStep = param.SampleStep,
+                MaxPointCount = param.MaxPointCount
+            };
+        }
+
+        /// <summary>执行单个模板目标的找点算法并构造强类型目标项。</summary>
+        private FindPointTargetResult ExecuteOne(Mat gray, NodeParamFindPoint runtimeParam, PositionCorrectionInfo correction, CancellationToken token)
+        {
+            FindPointMeasureResult measure = FindPointAlgorithm.Execute(gray, runtimeParam, token);
+            if (measure == null)
+                throw new Exception("找点算法没有返回结果。");
+            if (!measure.Success)
+            {
+                return new FindPointTargetResult
+                {
+                    IsOk = false,
+                    ErrorMessage = string.IsNullOrWhiteSpace(measure.Message) ? "未找到有效边缘点。" : measure.Message,
+                    Message = string.IsNullOrWhiteSpace(measure.Message) ? "未找到有效边缘点。" : measure.Message,
+                    Regions = CloneRegions(runtimeParam.Regions),
+                    PointCount = 0,
+                    ContourCount = 0,
+                    CenterX = 0,
+                    CenterY = 0,
+                    AlgorithmMs = 0,
+                    ProcessedRegionCount = 0,
+                    ProcessedPixelCount = 0
+                };
+            }
+
+            List<PointF> points = MeasurementResultRounder.RoundPoints(measure.Points);
+            return new FindPointTargetResult
+            {
+                IsOk = true,
+                PointCount = measure.PointCount,
+                ContourCount = measure.ContourCount,
+                CenterX = points.Count == 0 ? 0 : MeasurementResultRounder.Round(points.Average(point => point.X)),
+                CenterY = points.Count == 0 ? 0 : MeasurementResultRounder.Round(points.Average(point => point.Y)),
+                Points = points,
+                RegionPoints = MeasurementResultRounder.RoundPoints(measure.PrimaryContour),
+                Contours = MeasurementResultRounder.RoundPointGroups(measure.Contours),
+                Regions = CloneRegions(measure.Regions),
+                Message = measure.Message,
+                AlgorithmMs = MeasurementResultRounder.Round(measure.AlgorithmMs),
+                ProcessedRegionCount = measure.ProcessedRegionCount,
+                ProcessedPixelCount = measure.ProcessedPixelCount
+            };
+        }
+
+        /// <summary>创建保留目标顺序且所有数值为零的找点失败项。</summary>
+        private FindPointTargetResult CreateFailure(PositionCorrectionInfo correction, Exception exception)
+        {
+            string message = exception == null ? "找点失败。" : exception.Message;
+            return new FindPointTargetResult
+            {
+                IsOk = false,
+                ErrorMessage = message,
+                Message = message,
+                PointCount = 0,
+                ContourCount = 0,
+                CenterX = 0,
+                CenterY = 0,
+                AlgorithmMs = 0,
+                ProcessedRegionCount = 0,
+                ProcessedPixelCount = 0
+            };
+        }
+
+        /// <summary>创建不改变坐标的单目标修正项。</summary>
+        private static PositionCorrectionInfo CreateIdentityCorrection()
+        {
+            return new PositionCorrectionInfo { TargetIndex = 1, IsValid = true, BaseScaleX = 1, BaseScaleY = 1, CurrentScaleX = 1, CurrentScaleY = 1 };
         }
 
         /// <summary>
@@ -312,6 +430,7 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
         {
             try
             {
+                showImageControlPreview.SetDisplayResult(null);
                 if (showImageControlPreview.Image == null)
                 {
                     SetPreview(GetPreviewMat());
@@ -392,16 +511,16 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
 
             try
             {
-                FindPointMeasureResult result = ExecuteMeasure((NodeParamFindPoint)Params, CancellationToken.None);
+                List<FindPointTargetResult> items = ExecuteMeasures((NodeParamFindPoint)Params, CancellationToken.None);
                 SetPreview(GetPreviewMat());
-                showImageControlPreview.SetDisplayResult(NodeFindPoint.BuildDisplayResult(result));
+                showImageControlPreview.SetDisplayResult(NodeFindPoint.BuildDisplayResult(items));
 
                 labelStatus.Text = string.Format(
                     CultureInfo.InvariantCulture,
-                    "点数：{0}，轮廓：{1}，耗时：{2:F1} ms",
-                    result.PointCount,
-                    result.ContourCount,
-                    result.AlgorithmMs);
+                    "目标：{0}，总点数：{1}，总体：{2}",
+                    items.Count,
+                    items.Sum(item => item.PointCount),
+                    items.All(item => item.IsOk) ? "OK" : "NG");
             }
             catch (Exception ex)
             {
@@ -441,17 +560,17 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
             if (polygons.Count == 0)
                 return;
 
-            foreach (ShowImageControl.RoiPolygon polygon in polygons)
+            List<List<PointF>> regions = polygons
+                .Where(polygon => polygon.Points != null && polygon.Points.Count >= 3)
+                .Select(polygon => polygon.Points.Select(point => new PointF(point.X, point.Y)).ToList())
+                .ToList();
+            PositionCorrectionInfo correctionInfo = ResolveEditingCorrection(regions, true);
+            foreach (List<PointF> region in regions)
             {
-                if (polygon.Points == null || polygon.Points.Count < 3)
-                    continue;
-
-                List<PointF> region = polygon.Points.Select(point => new PointF(point.X, point.Y)).ToList();
-                PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(true);
-                if (correctionInfo != null)
-                    region = GeometryMeasurementAlgorithm.InverseTransformPoints(region, correctionInfo);
-
-                confirmedRegions.Add(region);
+                List<PointF> normalized = correctionInfo == null
+                    ? region
+                    : _transformService.InverseTransformPoints(region, correctionInfo);
+                confirmedRegions.Add(normalized);
             }
 
             ClearEditingRoi();
@@ -479,7 +598,7 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
         private void RedrawConfirmedRegions()
         {
             var display = new TDJS_Vision.Node._3_Detection.TDAI.AlgorithmResult();
-            PositionCorrectionInfo correctionInfo = GetEditingCorrectionInfo(false);
+            PositionCorrectionInfo correctionInfo = GetDefaultEditingCorrectionInfo(false);
             foreach (List<PointF> region in confirmedRegions)
             {
                 List<PointF> displayRegion = TransformRegion(region, correctionInfo);
@@ -492,42 +611,8 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
             showImageControlPreview.SetDisplayResult(display);
         }
 
-        /// <summary>
-        /// Builds runtime parameters and applies current position correction to saved baseline ROI regions.
-        /// </summary>
-        /// <param name="param">Saved baseline parameters.</param>
-        /// <returns>Runtime parameters in current image coordinates.</returns>
-        private NodeParamFindPoint BuildRuntimeParam(NodeParamFindPoint param)
-        {
-            if (param == null || !param.UsePositionCorrection)
-                return param;
-
-            PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
-            PositionCorrectionHelper.EnsureValid(correctionInfo);
-
-            return new NodeParamFindPoint
-            {
-                ImageText1 = param.ImageText1,
-                ImageText2 = param.ImageText2,
-                UsePositionCorrection = param.UsePositionCorrection,
-                CorrectionText1 = param.CorrectionText1,
-                CorrectionText2 = param.CorrectionText2,
-                Regions = TransformRegions(param.Regions, correctionInfo),
-                LowThreshold = param.LowThreshold,
-                HighThreshold = param.HighThreshold,
-                BlurSize = param.BlurSize,
-                MinContourPoints = param.MinContourPoints,
-                SampleStep = param.SampleStep,
-                MaxPointCount = param.MaxPointCount
-            };
-        }
-
-        /// <summary>
-        /// Reads current editing correction information from the position-correction subscription.
-        /// </summary>
-        /// <param name="require">Whether invalid correction should throw.</param>
-        /// <returns>Valid correction info, or null when correction is disabled or optional.</returns>
-        private PositionCorrectionInfo GetEditingCorrectionInfo(bool require)
+        /// <summary>读取编辑状态使用的全部位置修正信息。</summary>
+        private IReadOnlyList<PositionCorrectionInfo> GetEditingCorrections(bool require)
         {
             if (!checkBoxUsePositionCorrection.Checked)
                 return null;
@@ -536,15 +621,18 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
                 string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText2()))
             {
                 if (require)
-                    throw new Exception("位置修正订阅为空。");
+                    throw new Exception("位置修正信息列表订阅为空。");
                 return null;
             }
 
             try
             {
-                PositionCorrectionInfo correctionInfo = nodeSubscriptionPositionCorrection.GetValue<PositionCorrectionInfo>();
-                PositionCorrectionHelper.EnsureValid(correctionInfo);
-                return correctionInfo;
+                List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
+                if (corrections == null || corrections.Count == 0)
+                    throw new Exception("位置修正信息列表为空。");
+                for (int i = 0; i < corrections.Count; i++)
+                    PositionCorrectionHelper.EnsureValid(corrections[i]);
+                return corrections;
             }
             catch
             {
@@ -552,6 +640,33 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
                     throw;
                 return null;
             }
+        }
+
+        /// <summary>获取默认用于静态预览的第一目标修正信息。</summary>
+        private PositionCorrectionInfo GetDefaultEditingCorrectionInfo(bool require)
+        {
+            IReadOnlyList<PositionCorrectionInfo> corrections = GetEditingCorrections(require);
+            return corrections == null || corrections.Count == 0 ? null : corrections[0];
+        }
+
+        /// <summary>根据整组编辑区域包围盒中心解析所属模板目标。</summary>
+        private PositionCorrectionInfo ResolveEditingCorrection(IEnumerable<List<PointF>> regions, bool require)
+        {
+            IReadOnlyList<PositionCorrectionInfo> corrections = GetEditingCorrections(require);
+            if (corrections == null || corrections.Count == 0)
+                return null;
+            List<PointF> points = regions == null
+                ? new List<PointF>()
+                : regions.Where(region => region != null).SelectMany(region => region).ToList();
+            if (points.Count == 0)
+                throw new Exception("编辑区域没有有效顶点。");
+            float minX = points.Min(point => point.X);
+            float maxX = points.Max(point => point.X);
+            float minY = points.Min(point => point.Y);
+            float maxY = points.Max(point => point.Y);
+            var center = new PointF((minX + maxX) * 0.5f, (minY + maxY) * 0.5f);
+            int index = _transformService.ResolveAnchorIndex(center, corrections);
+            return corrections[index];
         }
 
         /// <summary>

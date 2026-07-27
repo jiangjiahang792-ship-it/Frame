@@ -1,4 +1,4 @@
-﻿using OpenCvSharp;
+using OpenCvSharp;
 using System.ComponentModel;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -18,12 +18,14 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         /// <summary>
         /// 输出图像，图像像素保持干净，ROI 和文本通过 DisplayResult 叠加显示。
         /// </summary>
+        [SubscriptionOutput]
         [DisplayName("输出图像")]
         public OutputImage OutputImage { get; set; } = new OutputImage();
 
         /// <summary>
         /// 颜色识别结构化结果，供显示控件、结果汇总和通信模块订阅。
         /// </summary>
+        [SubscriptionOutput]
         [DisplayName("算法结果")]
         public NodetColorResult Result { get; set; } = new NodetColorResult();
     }

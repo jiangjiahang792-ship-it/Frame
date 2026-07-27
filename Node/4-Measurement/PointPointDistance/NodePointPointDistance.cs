@@ -3,6 +3,7 @@ using OpenCvSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -46,17 +47,15 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                 if (form == null || param == null)
                     throw new Exception("点到点距离参数异常！");
 
-                PointPointDistanceMeasureResult measureResult = form.ExecuteMeasure(param);
-                NodeResultPointPointDistance nodeResult = BuildResult(measureResult);
+                List<PointPointDistanceTargetResult> items = form.ExecuteMeasures(param, token);
+                NodeResultPointPointDistance nodeResult = BuildResult(items);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
 
-                if (showLog && measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！{time} ms，距离：{measureResult.Distance:F3}px", true);
-
-                if (showLog && !measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})点到点距离失败：{measureResult.Message}（{time} ms）", true);
+                if (showLog)
+                    LogHelper.AddLog(nodeResult.IsOk ? MsgLevel.Info : MsgLevel.Warn,
+                        $"节点({ID}.{NodeName})点到点距离完成！({time} ms，目标：{items.Count}，总体：{(nodeResult.IsOk ? "OK" : "NG")})", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -76,22 +75,46 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             }
         }
 
-        internal static NodeResultPointPointDistance BuildResult(PointPointDistanceMeasureResult measureResult)
+        /// <summary>根据全部模板目标结果构建节点汇总结果。</summary>
+        internal static NodeResultPointPointDistance BuildResult(List<PointPointDistanceTargetResult> items)
         {
             var result = new NodeResultPointPointDistance();
-            result.IsOk = measureResult.Success;
-            result.AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs);
-            if (measureResult.Success)
+            result.Items = items ?? new List<PointPointDistanceTargetResult>();
+            result.IsOk = result.Items.Count > 0 && result.Items.All(item => item.IsOk);
+            result.JudgeOk = result.IsOk;
+            result.AlgorithmMs = MeasurementResultRounder.Round(result.Items.Sum(item => item.AlgorithmMs));
+            PointPointDistanceTargetResult first = result.Items.FirstOrDefault();
+            if (first != null)
             {
-                result.Distance = MeasurementResultRounder.Round(measureResult.Distance);
-                result.Point1X = MeasurementResultRounder.Round(measureResult.Point1.X);
-                result.Point1Y = MeasurementResultRounder.Round(measureResult.Point1.Y);
-                result.Point2X = MeasurementResultRounder.Round(measureResult.Point2.X);
-                result.Point2Y = MeasurementResultRounder.Round(measureResult.Point2.Y);
+                result.Distance = first.Distance;
+                result.Point1X = first.Point1X;
+                result.Point1Y = first.Point1Y;
+                result.Point2X = first.Point2X;
+                result.Point2Y = first.Point2Y;
             }
 
-            result.Result = BuildDisplayResult(measureResult);
+            result.Result = BuildDisplayResult(result.Items);
             result.OutputImage.DisplayResult = result.Result;
+            return result;
+        }
+
+        /// <summary>合并全部模板目标的点到点距离叠加结果。</summary>
+        internal static AlgorithmResult BuildDisplayResult(IReadOnlyList<PointPointDistanceTargetResult> items)
+        {
+            var result = new AlgorithmResult();
+            result.IsAllOk = items != null && items.Count > 0 && items.All(item => item.IsOk);
+            if (items == null)
+                return result;
+
+            foreach (PointPointDistanceTargetResult item in items)
+            {
+                MeasurementNodeHelper.AppendAlgorithmResult(result, BuildDisplayResult(item.RawResult));
+                result.Texts.Add(new ColorText(
+                    item.IsOk
+                        ? $"目标{item.TargetIndex} 点到点距离：{item.Distance:F3}px"
+                        : $"目标{item.TargetIndex} 点到点距离失败：数值0，原因：{item.ErrorMessage}",
+                    item.IsOk ? Color.Lime : Color.Red));
+            }
             return result;
         }
 

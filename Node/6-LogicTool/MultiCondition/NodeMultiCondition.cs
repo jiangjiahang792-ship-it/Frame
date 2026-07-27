@@ -33,7 +33,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 
             foreach (MultiConditionItem condition in param.Conditions)
             {
-                if (condition == null || condition.SourceNodeId <= 0 || condition.SourceNodeId == ID)
+                if (condition == null || !condition.Enabled || condition.SourceNodeId <= 0 || condition.SourceNodeId == ID)
                     continue;
 
                 nodeIds.Add(condition.SourceNodeId);

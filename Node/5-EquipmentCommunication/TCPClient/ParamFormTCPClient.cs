@@ -1,4 +1,4 @@
-﻿using Logger;
+using Logger;
 using Sunny.UI;
 using System;
 using System.Threading.Tasks;
@@ -22,6 +22,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.TcpClient
 
         public void SetNodeBelong(NodeBase node) 
         {
+            nodeSubscription1.SetExpectedValueType<bool>();
             nodeSubscription1.Init(node);
         }
         /// <summary>

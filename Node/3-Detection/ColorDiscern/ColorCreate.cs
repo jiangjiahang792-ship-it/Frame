@@ -67,7 +67,11 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         }
 
         private void Form_Shown(object sender, EventArgs e) { UpdataImage(); }
-        public void SetNodeBelong(NodeBase node) { nodeSubscription1.Init(node); }
+        public void SetNodeBelong(NodeBase node)
+        {
+            nodeSubscription1.SetExpectedValueType<OutputImage>();
+            nodeSubscription1.Init(node);
+        }
 
         public void UpdataImage()
         {

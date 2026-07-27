@@ -13,18 +13,21 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
         /// <summary>
         /// 多条件最终判断结果。
         /// </summary>
+        [SubscriptionOutput]
         [DisplayName("条件结果")]
         public bool ConditionResult { get; set; }
 
         /// <summary>
         /// 多条件每一行的运行明细。
         /// </summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
         [DisplayName("条件明细")]
         public List<NodeConditionEvaluation> Details { get; set; } = new List<NodeConditionEvaluation>();
 
         /// <summary>
         /// 多条件运行诊断文本，用于定位空值、未运行和动态变量缺失等问题。
         /// </summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
         [DisplayName("诊断信息")]
         public string DiagnosticsText { get; set; }
     }

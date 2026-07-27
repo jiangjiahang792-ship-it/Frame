@@ -3,6 +3,7 @@ using OpenCvSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -46,17 +47,15 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
                 if (form == null || param == null)
                     throw new Exception("点到区域距离参数异常！");
 
-                PointRegionDistanceMeasureResult measureResult = form.ExecuteMeasure(param);
-                NodeResultPointRegionDistance nodeResult = BuildResult(measureResult);
+                List<PointRegionDistanceTargetResult> items = form.ExecuteMeasures(param, token);
+                NodeResultPointRegionDistance nodeResult = BuildResult(items);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
 
-                if (showLog && measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！{time} ms，最小距离：{measureResult.DistanceResult.MinDistance:F3}px", true);
-
-                if (showLog && !measureResult.Success)
-                    LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})点到区域距离失败：{measureResult.Message}（{time} ms）", true);
+                if (showLog)
+                    LogHelper.AddLog(nodeResult.IsOk ? MsgLevel.Info : MsgLevel.Warn,
+                        $"节点({ID}.{NodeName})点到区域距离完成！({time} ms，目标：{items.Count}，总体：{(nodeResult.IsOk ? "OK" : "NG")})", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -76,28 +75,51 @@ namespace TDJS_Vision.Node._4_Measurement.PointRegionDistance
             }
         }
 
-        internal static NodeResultPointRegionDistance BuildResult(PointRegionDistanceMeasureResult measureResult)
+        /// <summary>根据全部模板目标结果构建节点汇总结果。</summary>
+        internal static NodeResultPointRegionDistance BuildResult(List<PointRegionDistanceTargetResult> items)
         {
             var result = new NodeResultPointRegionDistance();
-            result.IsOk = measureResult.Success;
-            result.AlgorithmMs = MeasurementResultRounder.Round(measureResult.AlgorithmMs);
-            if (measureResult.Success && measureResult.DistanceResult != null)
+            result.Items = items ?? new List<PointRegionDistanceTargetResult>();
+            result.IsOk = result.Items.Count > 0 && result.Items.All(item => item.IsOk);
+            result.JudgeOk = result.IsOk;
+            result.AlgorithmMs = MeasurementResultRounder.Round(result.Items.Sum(item => item.AlgorithmMs));
+            PointRegionDistanceTargetResult first = result.Items.FirstOrDefault();
+            if (first != null)
             {
-                PointRegionDistanceResult distanceResult = measureResult.DistanceResult;
-                result.MinDistance = MeasurementResultRounder.Round(distanceResult.MinDistance);
-                result.MaxDistance = MeasurementResultRounder.Round(distanceResult.MaxDistance);
-                result.IsInsideRegion = distanceResult.IsInsideRegion;
-                result.TargetX = MeasurementResultRounder.Round(distanceResult.TargetPoint.X);
-                result.TargetY = MeasurementResultRounder.Round(distanceResult.TargetPoint.Y);
-                result.NearestX = MeasurementResultRounder.Round(distanceResult.NearestPoint.X);
-                result.NearestY = MeasurementResultRounder.Round(distanceResult.NearestPoint.Y);
-                result.FarthestX = MeasurementResultRounder.Round(distanceResult.FarthestPoint.X);
-                result.FarthestY = MeasurementResultRounder.Round(distanceResult.FarthestPoint.Y);
-                result.RegionPointCount = distanceResult.RegionPoints.Count;
+                result.MinDistance = first.MinDistance;
+                result.MaxDistance = first.MaxDistance;
+                result.IsInsideRegion = first.IsInsideRegion;
+                result.TargetX = first.TargetX;
+                result.TargetY = first.TargetY;
+                result.NearestX = first.NearestX;
+                result.NearestY = first.NearestY;
+                result.FarthestX = first.FarthestX;
+                result.FarthestY = first.FarthestY;
+                result.RegionPointCount = first.RegionPointCount;
             }
 
-            result.Result = BuildDisplayResult(measureResult);
+            result.Result = BuildDisplayResult(result.Items);
             result.OutputImage.DisplayResult = result.Result;
+            return result;
+        }
+
+        /// <summary>合并全部模板目标的点到区域距离叠加结果。</summary>
+        internal static AlgorithmResult BuildDisplayResult(IReadOnlyList<PointRegionDistanceTargetResult> items)
+        {
+            var result = new AlgorithmResult();
+            result.IsAllOk = items != null && items.Count > 0 && items.All(item => item.IsOk);
+            if (items == null)
+                return result;
+
+            foreach (PointRegionDistanceTargetResult item in items)
+            {
+                MeasurementNodeHelper.AppendAlgorithmResult(result, BuildDisplayResult(item.RawResult));
+                result.Texts.Add(new ColorText(
+                    item.IsOk
+                        ? $"目标{item.TargetIndex} 点到区域：最小 {item.MinDistance:F3}px，最大 {item.MaxDistance:F3}px"
+                        : $"目标{item.TargetIndex} 点到区域失败：数值0，原因：{item.ErrorMessage}",
+                    item.IsOk ? Color.Lime : Color.Red));
+            }
             return result;
         }
 

@@ -6,6 +6,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSummarize
     public class NodeResultSummarize : INodeResult
     {
         public int RunTime { get; set; }
+        [SubscriptionOutput]
         [DisplayName("算法汇总结果")]
         public AlgorithmResult SummaryResult { get; set; }
     }
