@@ -11,6 +11,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
         /// <summary>
         /// 拆分图片集合
         /// </summary>
+        [SubscriptionOutput]
         [DisplayName("输出图像")]
         public OutputImage OutputImage { get; set; } = new OutputImage();
     }

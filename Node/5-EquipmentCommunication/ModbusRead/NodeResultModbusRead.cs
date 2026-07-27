@@ -19,12 +19,14 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
         /// <summary>
         /// Modbus 原始读取结果。
         /// </summary>
+        [SubscriptionOutput]
         [DisplayName("读取结果")]
         public ModbusReadResult ReadData { get; set; }
 
         /// <summary>
         /// 读取到的值数量。
         /// </summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
         [DisplayName("读取数量")]
         public int ValueCount
         {

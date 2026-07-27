@@ -19,18 +19,21 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// <summary>
         /// 输出发布是否成功。
         /// </summary>
+        [SubscriptionOutput]
         [DisplayName("是否OK")]
         public bool IsOk { get; set; }
 
         /// <summary>
         /// 运行信息。
         /// </summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
         [DisplayName("信息")]
         public string Message { get; set; }
 
         /// <summary>
         /// 输出变量值表。
         /// </summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
         [DisplayName("变量表")]
         public Dictionary<string, object> Values { get; set; } = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
@@ -42,6 +45,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// <summary>
         /// 输出变量文本摘要。
         /// </summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
         [DisplayName("变量表文本")]
         public string ValuesText { get; set; }
 

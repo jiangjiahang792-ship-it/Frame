@@ -94,6 +94,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <param name="node"></param>
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscription1.SetExpectedValueType<OutputImage>();
             nodeSubscription1.Init(node);
         }
 

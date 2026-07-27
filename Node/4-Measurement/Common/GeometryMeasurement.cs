@@ -297,26 +297,82 @@ namespace TDJS_Vision.Node._4_Measurement.Common
 
     public static class MeasurementResultReader
     {
-        public static bool TryReadLine(INodeResult result, out MeasuredLine line)
+        /// <summary>
+        /// 读取节点结果中按模板目标顺序保存的测量明细。
+        /// </summary>
+        /// <param name="result">上游节点完整结果。</param>
+        /// <param name="items">读取到的多目标测量项；空集合表示上游明确输出了零个目标。</param>
+        /// <returns>结果类型是否声明了有效的多目标测量明细集合。</returns>
+        public static bool TryReadMultiTargetItems(INodeResult result, out List<IMultiTargetMeasurementItem> items)
         {
-            line = null;
+            items = new List<IMultiTargetMeasurementItem>();
             if (result == null)
                 return false;
-            if (IsExplicitNgResult(result))
+
+            PropertyInfo property = result.GetType().GetProperty("Items", BindingFlags.Instance | BindingFlags.Public);
+            if (property == null || !property.CanRead || property.GetIndexParameters().Length > 0)
                 return false;
 
-            if (TryReadPointPair(result, "StartX", "StartY", out PointF start) &&
-                TryReadPointPair(result, "EndX", "EndY", out PointF end))
+            object rawValue = property.GetValue(result, null);
+            if (rawValue == null)
+                return true;
+
+            IEnumerable enumerable = rawValue as IEnumerable;
+            if (enumerable == null)
+                return false;
+
+            foreach (object item in enumerable)
             {
-                line = new MeasuredLine { Start = start, End = end, Source = result.GetType().Name };
+                if (item == null)
+                {
+                    items.Add(null);
+                    continue;
+                }
+
+                IMultiTargetMeasurementItem measurementItem = item as IMultiTargetMeasurementItem;
+                if (measurementItem == null)
+                {
+                    items.Clear();
+                    return false;
+                }
+
+                items.Add(measurementItem);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 从节点完整结果中读取一条直线。
+        /// </summary>
+        public static bool TryReadLine(INodeResult result, out MeasuredLine line)
+        {
+            return TryReadLine((object)result, out line);
+        }
+
+        /// <summary>
+        /// 从节点完整结果或单个多目标明细中读取一条直线。
+        /// </summary>
+        public static bool TryReadLine(object source, out MeasuredLine line)
+        {
+            line = null;
+            if (source == null)
+                return false;
+            if (IsExplicitNgResult(source))
+                return false;
+
+            if (TryReadPointPair(source, "StartX", "StartY", out PointF start) &&
+                TryReadPointPair(source, "EndX", "EndY", out PointF end))
+            {
+                line = new MeasuredLine { Start = start, End = end, Source = source.GetType().Name };
                 return line.IsValid;
             }
 
-            AlgorithmResult algorithmResult = TryGetAlgorithmResult(result);
+            AlgorithmResult algorithmResult = TryGetAlgorithmResult(source);
             if (algorithmResult != null && algorithmResult.Lines.Count > 0)
             {
                 ColorLine colorLine = algorithmResult.Lines[0];
-                line = new MeasuredLine { Start = colorLine.P1, End = colorLine.P2, Source = result.GetType().Name };
+                line = new MeasuredLine { Start = colorLine.P1, End = colorLine.P2, Source = source.GetType().Name };
                 return line.IsValid;
             }
 
@@ -343,43 +399,54 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             return false;
         }
 
+        /// <summary>
+        /// 从节点完整结果中读取一个点。
+        /// </summary>
         public static bool TryReadPoint(INodeResult result, MeasurementPointRole role, out PointF point)
         {
+            return TryReadPoint((object)result, role, out point);
+        }
+
+        /// <summary>
+        /// 从节点完整结果或单个多目标明细中读取一个点。
+        /// </summary>
+        public static bool TryReadPoint(object source, MeasurementPointRole role, out PointF point)
+        {
             point = PointF.Empty;
-            if (result == null)
+            if (source == null)
                 return false;
-            if (IsExplicitNgResult(result))
+            if (IsExplicitNgResult(source))
                 return false;
 
             if ((role == MeasurementPointRole.Center || role == MeasurementPointRole.Auto) &&
-                (TryReadPointPair(result, "CenterX", "CenterY", out point) ||
-                 TryReadPointPair(result, "MatchX", "MatchY", out point) ||
-                 TryReadPointPair(result, "PointX", "PointY", out point) ||
-                 TryReadPointPair(result, "X", "Y", out point)))
+                (TryReadPointPair(source, "CenterX", "CenterY", out point) ||
+                 TryReadPointPair(source, "MatchX", "MatchY", out point) ||
+                 TryReadPointPair(source, "PointX", "PointY", out point) ||
+                 TryReadPointPair(source, "X", "Y", out point)))
             {
                 return true;
             }
 
             if ((role == MeasurementPointRole.StartPoint || role == MeasurementPointRole.Auto) &&
-                TryReadPointPair(result, "StartX", "StartY", out point))
+                TryReadPointPair(source, "StartX", "StartY", out point))
             {
                 return true;
             }
 
             if ((role == MeasurementPointRole.EndPoint || role == MeasurementPointRole.Auto) &&
-                TryReadPointPair(result, "EndX", "EndY", out point))
+                TryReadPointPair(source, "EndX", "EndY", out point))
             {
                 return true;
             }
 
             // FindPoint 等点集型结果会输出 Points，订阅为点时按角色读取首点、末点或中心。
-            if (TryReadPointListProperty(result, "Points", out List<PointF> resultPoints) &&
+            if (TryReadPointListProperty(source, "Points", out List<PointF> resultPoints) &&
                 TryPickPointFromList(resultPoints, role, out point))
             {
                 return true;
             }
 
-            AlgorithmResult algorithmResult = TryGetAlgorithmResult(result);
+            AlgorithmResult algorithmResult = TryGetAlgorithmResult(source);
             if (algorithmResult != null)
             {
                 if (algorithmResult.Circles.Count > 0)
@@ -492,7 +559,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         /// <summary>
         /// 测量节点显式输出 NG 时，下游不再从显示图形里回退读取几何点，避免把边缘点误当作有效测量值。
         /// </summary>
-        private static bool IsExplicitNgResult(INodeResult result)
+        private static bool IsExplicitNgResult(object result)
         {
             if (TryReadBoolean(result, "IsOk", out bool isOk))
                 return !isOk;

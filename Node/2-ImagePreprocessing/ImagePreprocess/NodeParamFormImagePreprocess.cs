@@ -54,6 +54,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImagePreprocess
         /// <param name="node">所属节点。</param>
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscriptionImage.SetExpectedValueType<OutputImage>();
             nodeSubscriptionImage.Init(node);
         }
 

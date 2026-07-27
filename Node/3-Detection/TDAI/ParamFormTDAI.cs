@@ -143,6 +143,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <param name="node"></param>
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscription1.SetInputContract(SubscriptionInputContract.ForCategories(new[]
+            {
+                SubscriptionDataCategory.Image,
+                SubscriptionDataCategory.StructuredObject
+            }));
             nodeSubscription1.Init(node);
             _node = node;
         }

@@ -28,14 +28,17 @@ namespace TDJS_Vision.Forms.Login
             //高级
             if (comboBox1.SelectedIndex == 0 && textBoxPassword.Text == "1111")
             {
+                UserPermissionContext.UpdateRole(UserRole.Hight);
                 LoginEvent?.Invoke(this, UserRole.Hight);
             }//中级
             else if (comboBox1.SelectedIndex == 1 && textBoxPassword.Text == "888")
             {
+                UserPermissionContext.UpdateRole(UserRole.Medium);
                 LoginEvent?.Invoke(this, UserRole.Medium);
             }//初级
             else if (comboBox1.SelectedIndex == 2 && textBoxPassword.Text == "666")
             {
+                UserPermissionContext.UpdateRole(UserRole.Low);
                 LoginEvent?.Invoke(this, UserRole.Low);
             }//密码错误
             else
@@ -56,6 +59,7 @@ namespace TDJS_Vision.Forms.Login
         /// <param name="role"></param>
         public static void LoginTest(UserRole role)
         {
+            UserPermissionContext.UpdateRole(role);
             LoginEvent?.Invoke(null, role);
         }
         /// <summary>
@@ -65,6 +69,7 @@ namespace TDJS_Vision.Forms.Login
         /// <param name="e"></param>
         private void buttonQuit_Click(object sender, EventArgs e)
         {
+            UserPermissionContext.UpdateRole(UserRole.Unknown);
             LogoutEvent?.Invoke(this, EventArgs.Empty);
             comboBox1.Enabled = true;
             textBoxPassword.Enabled = true;

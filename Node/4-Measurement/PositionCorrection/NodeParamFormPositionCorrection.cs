@@ -38,6 +38,7 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
         public void SetNodeBelong(NodeBase node)
         {
             this.node = node;
+            nodeSubscriptionPoses.SetExpectedValueType<List<TemplateMatchPose>>();
             nodeSubscriptionPoses.Init(node);
         }
 

@@ -240,6 +240,9 @@
     <Compile Include="Forms\Workspace\ExclusiveWorkspacePresenter.cs" />
     <Compile Include="Startup\IStartupProgressReporter.cs" />
     <Compile Include="Startup\ISolutionLoadingCoordinator.cs" />
+    <Compile Include="Startup\IDeviceLicenseSynchronizer.cs" />
+    <Compile Include="Startup\DeviceLicenseSynchronizationResult.cs" />
+    <Compile Include="Startup\DeviceLicenseSynchronizer.cs" />
     <Compile Include="Startup\SolutionLoadingCoordinator.cs" />
     <Compile Include="Startup\SolutionAiRuntimePreloader.cs" />
     <Compile Include="Startup\StartupApplicationContext.cs" />
@@ -392,6 +395,7 @@
     <Compile Include="Node\4-Measurement\Common\MultiTargetTransformService.cs" />
     <Compile Include="Node\4-Measurement\Common\MultiTargetPositionCorrectionResult.cs" />
     <Compile Include="Node\4-Measurement\Common\MultiTargetMeasurementRunner.cs" />
+    <Compile Include="Node\4-Measurement\Common\MultiTargetMeasurementPairer.cs" />
     <Compile Include="Node\4-Measurement\CaliperLine\NodeCaliperLine.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -946,6 +950,7 @@
     <Compile Include="Forms\Login\FormLogin.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="Forms\Login\UserPermissionContext.cs" />
     <Compile Include="Forms\Login\FormLogin.Designer.cs">
       <DependentUpon>FormLogin.cs</DependentUpon>
     </Compile>
@@ -1395,6 +1400,7 @@
     <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw2\NodeResultOverlayDraw2.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw2\OverlayGeometryAdapterRegistry.cs" />
     <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw2\NodeParamResultOverlayDraw2.cs" />
     <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw2\NodeParamFormResultOverlayDraw2.cs">
       <SubType>Form</SubType>
@@ -1444,6 +1450,9 @@
       <DependentUpon>ImageROIEditControl.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\DynamicResultVariable.cs" />
+    <Compile Include="Node\SubscriptionPortContracts.cs" />
+    <Compile Include="Node\SubscriptionPortCatalog.cs" />
+    <Compile Include="Node\SubscriptionTypeCompatibility.cs" />
     <Compile Include="Node\INode.cs" />
     <Compile Include="Node\NodeFactory.cs" />
     <Compile Include="Forms\ProcessNew\ProcessFlowCanvas.cs">
@@ -2050,9 +2059,7 @@
   </Target>
   <Target Name="CopyRuntimeDependencies" AfterTargets="Build">
     <!-- 公共运行库由唯一模板目录维护，生成所有配置后统一复制到程序输出目录根部。 -->
-    <Copy SourceFiles="@(RuntimeDependency)"
-          DestinationFolder="$(TargetDir)"
-          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(RuntimeDependency)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
   </Target>
   <PropertyGroup>
     <PostBuildEvent>rem 复制 model目录及其所有内容到输出目录

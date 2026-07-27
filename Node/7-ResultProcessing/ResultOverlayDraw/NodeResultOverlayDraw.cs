@@ -2,6 +2,7 @@ using Logger;
 using OpenCvSharp;
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -14,6 +15,7 @@ using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._4_Measurement.Common;
+using TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
 {
@@ -140,6 +142,18 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
 
     internal static class ResultOverlayDrawBuilder
     {
+        /// <summary>
+        /// 按来源结果类型缓存自动判定读取器，避免连续运行时每个绘制项重复反射。
+        /// </summary>
+        private static readonly ConcurrentDictionary<Type, Func<object, bool?>> AutomaticJudgeReaderCache =
+            new ConcurrentDictionary<Type, Func<object, bool?>>();
+
+        /// <summary>
+        /// 按来源结果类型和订阅结果名称缓存多目标文本访问器，避免连续运行时重复扫描属性。
+        /// </summary>
+        private static readonly ConcurrentDictionary<Tuple<Type, string>, MultiTargetTextAccessor> MultiTargetTextAccessorCache =
+            new ConcurrentDictionary<Tuple<Type, string>, MultiTargetTextAccessor>();
+
         public static void Build(
             NodeBase owner,
             NodeParamResultOverlayDraw param,
@@ -290,11 +304,6 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             return false;
         }
 
-        private static AlgorithmResult BuildDisplayResult(NodeBase owner, NodeParamResultOverlayDraw param)
-        {
-            return BuildDisplayResult(owner, param, null);
-        }
-
         /// <summary>
         /// 生成显示结果，并按绘制项类型统计耗时。
         /// </summary>
@@ -302,7 +311,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// <param name="param">节点参数。</param>
         /// <param name="performanceDiagnostics">可选的性能诊断对象。</param>
         /// <returns>显示结果。</returns>
-        private static AlgorithmResult BuildDisplayResult(NodeBase owner, NodeParamResultOverlayDraw param, ResultOverlayDrawPerformanceDiagnostics performanceDiagnostics)
+        private static AlgorithmResult BuildDisplayResult(
+            NodeBase owner,
+            NodeParamResultOverlayDraw param,
+            ResultOverlayDrawPerformanceDiagnostics performanceDiagnostics)
         {
             var displayResult = new AlgorithmResult();
             if (param.Items == null)
@@ -318,7 +330,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 switch (item.ItemType)
                 {
                     case ResultOverlayDrawItemType.Text:
-                        AppendText(owner, displayResult, item);
+                        AppendText(owner, displayResult, item, param);
                         if (performanceDiagnostics != null)
                         {
                             performanceDiagnostics.TextItemCount++;
@@ -349,13 +361,25 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                             performanceDiagnostics.RegionItemsMs += itemWatch.ElapsedMilliseconds;
                         }
                         break;
+                    case ResultOverlayDrawItemType.Roi:
+                        AppendAutomaticRoi(owner, displayResult, item, param);
+                        if (performanceDiagnostics != null)
+                        {
+                            performanceDiagnostics.RoiItemCount++;
+                            performanceDiagnostics.RoiItemsMs += itemWatch.ElapsedMilliseconds;
+                        }
+                        break;
                 }
             }
 
             return displayResult;
         }
 
-        private static void AppendText(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
+        private static void AppendText(
+            NodeBase owner,
+            AlgorithmResult displayResult,
+            ResultOverlayDrawItem item,
+            NodeParamResultOverlayDraw param)
         {
             List<string> texts = new List<string>();
             bool usePrefix = false;
@@ -373,14 +397,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     return;
                 }
 
-                AlgorithmResult sourceAlgorithmResult = TryGetAlgorithmResult(sourceValue) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
-                if (ShouldPreserveAlgorithmResultElementColor(item, sourceAlgorithmResult))
-                {
-                    AppendAlgorithmResultTexts(displayResult, sourceAlgorithmResult, item);
-                    return;
-                }
-
-                AddTextFromValue(texts, sourceValue);
+                texts.AddRange(BuildTextValueLines(
+                    sourceNode == null ? null : sourceNode.Result,
+                    item.SourceText2,
+                    sourceValue));
                 if (texts.Count == 0 && sourceNode != null)
                     AddTextFromValue(texts, sourceNode.Result);
 
@@ -393,7 +413,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 usePrefix = !string.IsNullOrEmpty(item.TextPrefix);
             }
 
-            Color drawColor = ResolveItemColor(item, sourceValue, sourceNode);
+            bool isOk = ResolveAutomaticJudgeOk(sourceValue, sourceNode == null ? null : sourceNode.Result);
+            displayResult.IsAllOk = displayResult.IsAllOk && isOk;
+            Color drawColor = isOk ? param.OkColor : param.NgColor;
             foreach (string text in texts.Where(t => !string.IsNullOrWhiteSpace(t)))
             {
                 string displayText = usePrefix ? item.TextPrefix + text : text;
@@ -406,6 +428,81 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     Title = string.Empty
                 }, IsMissingPromptText(displayText));
             }
+        }
+
+        /// <summary>
+        /// 按订阅值实际类型自动追加全部ROI几何内容。
+        /// </summary>
+        /// <param name="owner">当前ROI结果绘制节点。</param>
+        /// <param name="displayResult">目标显示结果。</param>
+        /// <param name="item">自动ROI绘制项。</param>
+        /// <param name="param">包含统一OK/NG颜色的节点参数。</param>
+        private static void AppendAutomaticRoi(
+            NodeBase owner,
+            AlgorithmResult displayResult,
+            ResultOverlayDrawItem item,
+            NodeParamResultOverlayDraw param)
+        {
+            if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
+            {
+                AppendMissingResultText(displayResult, item, sourceNode);
+                return;
+            }
+
+            SubscriptionDataCategory category = ResolveSubscriptionCategory(
+                sourceNode,
+                item.SourceText2,
+                value);
+            bool isOk = ResolveAutomaticJudgeOk(value, sourceNode == null ? null : sourceNode.Result);
+            displayResult.IsAllOk = displayResult.IsAllOk && isOk;
+            Color displayColor = isOk ? param.OkColor : param.NgColor;
+            OverlayGeometryRenderContext context = new OverlayGeometryRenderContext
+            {
+                FallbackColor = displayColor,
+                OverrideColor = displayColor,
+                LineWidth = Math.Max(1, item.LineWidth)
+            };
+
+            bool recognized = OverlayGeometryAdapterRegistry.TryAppend(
+                displayResult,
+                value,
+                sourceNode == null ? null : sourceNode.Result,
+                category,
+                context,
+                out int addedCount);
+            if (!recognized || addedCount == 0)
+                AppendMissingResultText(displayResult, item, sourceNode);
+        }
+
+        /// <summary>
+        /// 从统一订阅目录读取输出类别，找不到描述时按实际CLR类型回退。
+        /// </summary>
+        /// <param name="sourceNode">订阅来源节点。</param>
+        /// <param name="resultText">结果显示名或属性路径。</param>
+        /// <param name="value">已经读取一次的订阅值。</param>
+        /// <returns>统一订阅数据类别。</returns>
+        private static SubscriptionDataCategory ResolveSubscriptionCategory(
+            NodeBase sourceNode,
+            string resultText,
+            object value)
+        {
+            if (sourceNode != null)
+            {
+                IReadOnlyList<SubscriptionOutputDescriptor> outputs = SubscriptionPortCatalog.GetOutputs(
+                    sourceNode,
+                    SubscriptionInputContract.AnyVisible(),
+                    true,
+                    resultText);
+                SubscriptionOutputDescriptor descriptor = outputs.FirstOrDefault(output =>
+                    string.Equals(output.DisplayName, resultText, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(output.PropertyPath, resultText, StringComparison.OrdinalIgnoreCase));
+                if (descriptor != null && !descriptor.IsMissing)
+                    return descriptor.Category;
+            }
+
+            return value == null
+                ? SubscriptionDataCategory.Unknown
+                : SubscriptionTypeCompatibility.ResolveCategory(value.GetType());
         }
 
         private static void AppendLines(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
@@ -756,6 +853,88 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         }
 
         /// <summary>
+        /// 从当前绘制项的来源结果自动解析OK/NG状态；来源没有判定字段时按OK处理。
+        /// 来源节点完整结果优先于单个订阅值，确保多条件回写的JudgeOk能够立即控制颜色。
+        /// </summary>
+        /// <param name="sourceValue">绘制项订阅读取到的实际值。</param>
+        /// <param name="sourceResult">绘制项来源节点的完整结果。</param>
+        /// <returns>自动判定状态；没有任何判定信息时返回true。</returns>
+        internal static bool ResolveAutomaticJudgeOk(object sourceValue, INodeResult sourceResult)
+        {
+            if (TryReadAutomaticJudgeOk(sourceResult, out bool sourceResultOk))
+                return sourceResultOk;
+            if (TryReadAutomaticJudgeOk(sourceValue, out bool sourceValueOk))
+                return sourceValueOk;
+            return true;
+        }
+
+        /// <summary>
+        /// 只读取明确的布尔判定字段，不把普通数字或文本误当成OK/NG状态。
+        /// </summary>
+        /// <param name="source">待检查的来源对象。</param>
+        /// <param name="judgeOk">读取到的判定状态。</param>
+        /// <returns>找到明确判定状态时返回true。</returns>
+        private static bool TryReadAutomaticJudgeOk(object source, out bool judgeOk)
+        {
+            judgeOk = true;
+            if (source == null)
+                return false;
+
+            IJudgmentResult judgmentResult = source as IJudgmentResult;
+            if (judgmentResult != null)
+            {
+                judgeOk = judgmentResult.JudgeOk;
+                return true;
+            }
+
+            if (source is bool)
+            {
+                judgeOk = (bool)source;
+                return true;
+            }
+
+            Func<object, bool?> reader = AutomaticJudgeReaderCache.GetOrAdd(
+                source.GetType(),
+                CreateAutomaticJudgeReader);
+            bool? result = reader(source);
+            if (!result.HasValue)
+                return false;
+
+            judgeOk = result.Value;
+            return true;
+        }
+
+        /// <summary>
+        /// 为一种来源结果类型创建可复用的明确布尔判定读取器。
+        /// </summary>
+        /// <param name="sourceType">来源结果实际类型。</param>
+        /// <returns>读取到判定时返回布尔值，没有判定字段时返回null。</returns>
+        private static Func<object, bool?> CreateAutomaticJudgeReader(Type sourceType)
+        {
+            string[] propertyNames = { "JudgeOk", "JudgmentOk", "DisplayOk", "ConditionResult", "IsAllOk", "IsOk" };
+            PropertyInfo property = sourceType
+                .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .FirstOrDefault(item =>
+                {
+                    if (!item.CanRead || item.GetIndexParameters().Length > 0 || item.PropertyType != typeof(bool))
+                        return false;
+
+                    string displayName = GetDisplayName(item);
+                    return propertyNames.Contains(item.Name) ||
+                        string.Equals(displayName, "判定OK", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(displayName, "条件结果", StringComparison.OrdinalIgnoreCase);
+                });
+            if (property != null)
+                return source => (bool)property.GetValue(source, null);
+
+            return source =>
+            {
+                AlgorithmResult algorithmResult = OverlayGeometryAdapterRegistry.TryExtractAlgorithmResult(source);
+                return algorithmResult == null ? (bool?)null : algorithmResult.IsAllOk;
+            };
+        }
+
+        /// <summary>
         /// 从结果对象或常见布尔属性中读取判定OK状态。
         /// </summary>
         private static bool TryReadJudgeOk(object source, out bool judgeOk)
@@ -892,6 +1071,115 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             texts.Add(Convert.ToString(value));
         }
 
+        /// <summary>
+        /// 为文本绘制项生成显示行；多目标结果的第一目标摘要会自动合并为全部目标的同名值数组。
+        /// </summary>
+        /// <param name="sourceResult">订阅来源节点的完整结果。</param>
+        /// <param name="selectedResultText">用户选择的结果显示名或属性名。</param>
+        /// <param name="selectedValue">普通订阅读取到的摘要值。</param>
+        /// <returns>多目标值返回单行方括号数组；非多目标结果返回普通文本行。</returns>
+        internal static List<string> BuildTextValueLines(
+            object sourceResult,
+            string selectedResultText,
+            object selectedValue)
+        {
+            var texts = new List<string>();
+            if (TryAddMultiTargetTextLines(texts, sourceResult, selectedResultText))
+                return texts;
+
+            AddTextFromValue(texts, selectedValue);
+            return texts;
+        }
+
+        /// <summary>
+        /// 把多目标结果Items中与摘要属性同名的字段按顺序合并为“[值1,值2,值3]”。
+        /// </summary>
+        /// <param name="texts">目标文本集合。</param>
+        /// <param name="sourceResult">来源节点完整结果。</param>
+        /// <param name="selectedResultText">已选择的结果显示名或属性名。</param>
+        /// <returns>成功展开至少一个目标时返回true。</returns>
+        private static bool TryAddMultiTargetTextLines(
+            ICollection<string> texts,
+            object sourceResult,
+            string selectedResultText)
+        {
+            if (texts == null || sourceResult == null || string.IsNullOrWhiteSpace(selectedResultText))
+                return false;
+
+            Tuple<Type, string> cacheKey = Tuple.Create(
+                sourceResult.GetType(),
+                selectedResultText.Trim().ToUpperInvariant());
+            MultiTargetTextAccessor accessor = MultiTargetTextAccessorCache.GetOrAdd(
+                cacheKey,
+                key => CreateMultiTargetTextAccessor(key.Item1, selectedResultText));
+            if (!accessor.IsAvailable)
+                return false;
+
+            IEnumerable targetItems = accessor.ItemsProperty.GetValue(sourceResult, null) as IEnumerable;
+            if (targetItems == null)
+                return false;
+
+            var targetValues = new List<string>();
+            foreach (object targetItem in targetItems)
+            {
+                if (targetItem == null)
+                    continue;
+
+                if (!accessor.TargetProperty.DeclaringType.IsAssignableFrom(targetItem.GetType()))
+                    return false;
+
+                object targetValue = accessor.TargetProperty.GetValue(targetItem, null);
+                targetValues.Add(Convert.ToString(targetValue));
+            }
+
+            if (targetValues.Count == 0)
+                return false;
+
+            texts.Add("[" + string.Join(",", targetValues) + "]");
+            return true;
+        }
+
+        /// <summary>
+        /// 创建多目标结果中“摘要属性→Items同名属性”的快速访问器。
+        /// </summary>
+        /// <param name="sourceResultType">来源节点完整结果类型。</param>
+        /// <param name="selectedResultText">订阅结果显示名或属性名。</param>
+        /// <returns>可用访问器；结构不符合多目标约定时返回不可用访问器。</returns>
+        private static MultiTargetTextAccessor CreateMultiTargetTextAccessor(
+            Type sourceResultType,
+            string selectedResultText)
+        {
+            PropertyInfo selectedProperty = sourceResultType
+                .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .FirstOrDefault(property =>
+                    property.CanRead &&
+                    (string.Equals(GetDisplayName(property), selectedResultText, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(property.Name, selectedResultText, StringComparison.OrdinalIgnoreCase)));
+            PropertyInfo itemsProperty = sourceResultType.GetProperty(
+                "Items",
+                BindingFlags.Instance | BindingFlags.Public);
+            SubscriptionOutputAttribute itemsOutput = itemsProperty == null
+                ? null
+                : itemsProperty.GetCustomAttribute<SubscriptionOutputAttribute>(true);
+            if (selectedProperty == null || itemsProperty == null || !itemsProperty.CanRead ||
+                itemsOutput == null || itemsOutput.Multiplicity != SubscriptionValueMultiplicity.MultiTarget)
+            {
+                return MultiTargetTextAccessor.Unavailable;
+            }
+
+            Type itemType = itemsProperty.PropertyType.IsGenericType
+                ? itemsProperty.PropertyType.GetGenericArguments().FirstOrDefault()
+                : null;
+            PropertyInfo targetProperty = itemType == null
+                ? null
+                : itemType.GetProperty(
+                    selectedProperty.Name,
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
+            return targetProperty == null || !targetProperty.CanRead
+                ? MultiTargetTextAccessor.Unavailable
+                : new MultiTargetTextAccessor(itemsProperty, targetProperty);
+        }
+
         private static void AddManualTextLines(List<string> texts, string text)
         {
             if (string.IsNullOrWhiteSpace(text))
@@ -934,6 +1222,39 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             return null;
         }
 
+        /// <summary>
+        /// 保存多目标Items集合属性与目标同名结果属性的缓存访问器。
+        /// </summary>
+        private sealed class MultiTargetTextAccessor
+        {
+            /// <summary>表示当前结果结构无法进行多目标同名字段展开。</summary>
+            internal static readonly MultiTargetTextAccessor Unavailable =
+                new MultiTargetTextAccessor(null, null);
+
+            /// <summary>
+            /// 初始化多目标文本访问器。
+            /// </summary>
+            /// <param name="itemsProperty">来源结果的Items属性。</param>
+            /// <param name="targetProperty">单目标结果的同名属性。</param>
+            internal MultiTargetTextAccessor(PropertyInfo itemsProperty, PropertyInfo targetProperty)
+            {
+                ItemsProperty = itemsProperty;
+                TargetProperty = targetProperty;
+            }
+
+            /// <summary>获取来源结果的Items集合属性。</summary>
+            internal PropertyInfo ItemsProperty { get; private set; }
+
+            /// <summary>获取单目标结果的同名值属性。</summary>
+            internal PropertyInfo TargetProperty { get; private set; }
+
+            /// <summary>获取当前访问器是否可以执行多目标展开。</summary>
+            internal bool IsAvailable
+            {
+                get { return ItemsProperty != null && TargetProperty != null; }
+            }
+        }
+
         private static string GetNodeText(NodeBase node)
         {
             return $"{node.ID}.{node.NodeName}";
@@ -971,6 +1292,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         public int RectangleItemCount { get; set; }
         /// <summary>区域绘制项数量。</summary>
         public int RegionItemCount { get; set; }
+        /// <summary>自动ROI绘制项数量。</summary>
+        public int RoiItemCount { get; set; }
         /// <summary>文本绘制项构建耗时。</summary>
         public long TextItemsMs { get; set; }
         /// <summary>线段绘制项构建耗时。</summary>
@@ -979,6 +1302,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         public long RectangleItemsMs { get; set; }
         /// <summary>区域绘制项构建耗时。</summary>
         public long RegionItemsMs { get; set; }
+        /// <summary>自动ROI绘制项构建耗时。</summary>
+        public long RoiItemsMs { get; set; }
         /// <summary>输出矩形数量。</summary>
         public int OutputRectCount { get; private set; }
         /// <summary>输出NG矩形数量。</summary>
@@ -1028,7 +1353,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 TextItemsMs,
                 LineItemsMs,
                 RectangleItemsMs,
-                RegionItemsMs);
+                RegionItemsMs,
+                RoiItemsMs);
         }
 
         /// <summary>
@@ -1036,7 +1362,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// </summary>
         public string ToLogText()
         {
-            return $"订阅图像={ImageSubscriptionMs}ms；取图引用={GetCleanImageMs}ms；绘制项构建={BuildDisplayResultMs}ms；输出对象={BuildOutputImageMs}ms；总构建={TotalMs}ms；绘制项=启用{EnabledItemCount}/文本{TextItemCount}({TextItemsMs}ms)/线{LineItemCount}({LineItemsMs}ms)/矩形{RectangleItemCount}({RectangleItemsMs}ms)/区域{RegionItemCount}({RegionItemsMs}ms)；输出=矩形{OutputRectCount}/NG矩形{OutputNgRectCount}/线{OutputLineCount}/轮廓{OutputContourCount}/文本{OutputTextCount}";
+            return $"订阅图像={ImageSubscriptionMs}ms；取图引用={GetCleanImageMs}ms；绘制项构建={BuildDisplayResultMs}ms（含自动判定）；输出对象={BuildOutputImageMs}ms；总构建={TotalMs}ms；绘制项=启用{EnabledItemCount}/文本{TextItemCount}({TextItemsMs}ms)/自动ROI{RoiItemCount}({RoiItemsMs}ms)/旧线{LineItemCount}({LineItemsMs}ms)/旧矩形{RectangleItemCount}({RectangleItemsMs}ms)/旧区域{RegionItemCount}({RegionItemsMs}ms)；输出=矩形{OutputRectCount}/NG矩形{OutputNgRectCount}/线{OutputLineCount}/轮廓{OutputContourCount}/文本{OutputTextCount}";
         }
     }
 }

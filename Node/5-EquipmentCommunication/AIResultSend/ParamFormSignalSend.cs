@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
@@ -151,7 +151,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSend
 
         void INodeParamForm.SetNodeBelong(NodeBase node)
         {
-            nodeSubscription1.Init(node);
+            nodeSubscription1.SetExpectedValueType<AlgorithmResult>();
             nodeSubscription1.Init(node);
             nodeBase = node;
         }

@@ -1,4 +1,4 @@
-﻿using Logger;
+using Logger;
 using System;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
@@ -50,6 +50,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
 
         public void SetNodeBelong(NodeBase node) 
         {
+            nodeSubscription1.SetExpectedValueType<AlgorithmResult>();
             nodeSubscription1.Init(node);
         }
 

@@ -105,6 +105,7 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         /// </summary>
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscription1.SetExpectedValueType<OutputImage>();
             nodeSubscription1.Init(node);
         }
 

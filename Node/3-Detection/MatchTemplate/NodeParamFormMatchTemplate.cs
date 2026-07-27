@@ -119,6 +119,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// </summary>
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscription1.SetExpectedValueType<OutputImage>();
             nodeSubscription1.Init(node);
         }
 

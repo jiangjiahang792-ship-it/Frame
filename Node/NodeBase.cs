@@ -54,6 +54,11 @@ namespace TDJS_Vision.Node
         public static EventHandler<RenameResult> RefreshNodeSubControl;
 
         /// <summary>
+        /// 节点参数定义的输出项变化事件，供所有下游订阅界面立即刷新候选变量。
+        /// </summary>
+        public static event EventHandler<NodeBase> OutputDefinitionChanged;
+
+        /// <summary>
         /// 节点运行状态变化后通知自由画布刷新对应节点。
         /// </summary>
         public static event EventHandler<NodeBase> NodeStatusChanged;
@@ -133,6 +138,14 @@ namespace TDJS_Vision.Node
         public virtual Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             return Task.FromResult(new NodeReturn());
+        }
+
+        /// <summary>
+        /// 通知下游控件当前节点的输出定义已经变化。该通知只刷新配置候选项，不执行节点算法。
+        /// </summary>
+        public void NotifyOutputDefinitionChanged()
+        {
+            OutputDefinitionChanged?.Invoke(this, this);
         }
 
         /// <summary>

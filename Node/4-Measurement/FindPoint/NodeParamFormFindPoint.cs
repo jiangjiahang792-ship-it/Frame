@@ -63,6 +63,7 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
         /// <param name="node">Node that owns this parameter form.</param>
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscriptionImage.SetExpectedValueType<OutputImage>();
             nodeSubscriptionImage.Init(node);
             nodeSubscriptionPositionCorrection.SetExpectedValueType<List<PositionCorrectionInfo>>();
             nodeSubscriptionPositionCorrection.Init(node);

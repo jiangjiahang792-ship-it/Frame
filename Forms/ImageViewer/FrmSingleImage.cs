@@ -17,6 +17,7 @@ using TDJS_Vision.Node;
 using TDJS_Vision.Node._7_ResultProcessing.ImageDraw;
 using TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw;
 using TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2;
+using TDJS_Vision.Forms.Login;
 
 namespace TDJS_Vision.Forms.ImageViewer
 {
@@ -42,7 +43,51 @@ namespace TDJS_Vision.Forms.ImageViewer
             button1.Click += button1_Click;
             button2.Click += button2_Click;
             LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
-            FormClosed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+            UserPermissionContext.RoleChanged += UserPermissionContext_RoleChanged;
+            ApplyManualTuningPermission();
+            FormClosed += FrmSingleImage_FormClosed;
+        }
+
+        /// <summary>
+        /// 窗口释放时解除全局事件，避免关闭后的窗口被静态事件长期引用。
+        /// </summary>
+        private void FrmSingleImage_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+            UserPermissionContext.RoleChanged -= UserPermissionContext_RoleChanged;
+        }
+
+        /// <summary>
+        /// 登录角色变化后立即刷新手动调参与一键学习按钮。
+        /// </summary>
+        private void UserPermissionContext_RoleChanged(object sender, UserRole role)
+        {
+            ApplyManualTuningPermission();
+        }
+
+        /// <summary>
+        /// 按当前权限设置工艺调试按钮的可用状态，按钮保持可见便于操作员理解权限限制。
+        /// </summary>
+        private void ApplyManualTuningPermission()
+        {
+            bool canUseManualTuning = UserPermissionContext.CanUseManualTuning;
+            button1.Enabled = canUseManualTuning;
+            button2.Enabled = canUseManualTuning;
+        }
+
+        /// <summary>
+        /// 对按钮事件执行权限兜底，防止通过代码或快捷入口绕过控件禁用状态。
+        /// </summary>
+        /// <returns>当前用户具有最高权限时返回 true。</returns>
+        private static bool EnsureManualTuningPermission()
+        {
+            if (!UserPermissionContext.CanUseManualTuning)
+            {
+                MessageBoxTD.Show("当前用户没有权限使用手动调参与一键学习，请登录最高权限账号！");
+                return false;
+            }
+
+            return true;
         }
 
         private void BindLanguage()
@@ -520,22 +565,26 @@ namespace TDJS_Vision.Forms.ImageViewer
                 return;
 
             filter.AddOverlayDrawNodeId(overlayNodeId);
-            if (param == null || param.Items == null)
+            if (param == null)
                 return;
 
-            foreach (ResultOverlayDrawItem item in param.Items)
+            if (param.Items != null)
             {
-                if (item == null || !item.Enabled)
-                    continue;
+                foreach (ResultOverlayDrawItem item in param.Items)
+                {
+                    if (item == null || !item.Enabled)
+                        continue;
 
-                bool needSource = item.ItemType != ResultOverlayDrawItemType.Text || !item.UseManualText;
-                if (needSource)
-                    AddSourceNodeTextToFilter(filter, item.SourceText1);
+                    bool needSource = item.ItemType != ResultOverlayDrawItemType.Text || !item.UseManualText;
+                    if (needSource)
+                        AddSourceNodeTextToFilter(filter, item.SourceText1);
+                }
             }
+
         }
 
         /// <summary>
-        /// 收集新版ROI结果绘制节点中绘制项和颜色规则订阅的来源节点。
+        /// 收集新版ROI结果绘制节点中绘制项、单布尔判定或旧颜色规则订阅的来源节点。
         /// </summary>
         /// <param name="filter">待补充的过滤范围。</param>
         /// <param name="overlayNodeId">ROI绘制节点ID。</param>
@@ -565,13 +614,16 @@ namespace TDJS_Vision.Forms.ImageViewer
                 }
             }
 
-            if (param.ColorRules == null)
-                return;
+            if (param.HasNewJudgeSubscription)
+                AddSourceNodeTextToFilter(filter, param.JudgeText1);
 
-            foreach (ResultOverlayDraw2ColorRule rule in param.ColorRules)
+            if (!param.HasNewJudgeSubscription && param.ColorRules != null)
             {
-                if (rule != null && rule.Enabled)
-                    AddSourceNodeTextToFilter(filter, rule.SourceText1);
+                foreach (ResultOverlayDraw2ColorRule rule in param.ColorRules)
+                {
+                    if (rule != null && rule.Enabled)
+                        AddSourceNodeTextToFilter(filter, rule.SourceText1);
+                }
             }
         }
 
@@ -695,6 +747,9 @@ namespace TDJS_Vision.Forms.ImageViewer
 
         private void button1_Click(object sender, EventArgs e)
         {
+            if (!EnsureManualTuningPermission())
+                return;
+
             var process = GetCurrentProcess();
             if (process == null)
             {
@@ -731,6 +786,9 @@ namespace TDJS_Vision.Forms.ImageViewer
 
         private void button2_Click(object sender, EventArgs e)
         {
+            if (!EnsureManualTuningPermission())
+                return;
+
             Stopwatch stopwatch = Stopwatch.StartNew();
             LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】点击手动调参按钮，窗口={FormName}。", true);
             try

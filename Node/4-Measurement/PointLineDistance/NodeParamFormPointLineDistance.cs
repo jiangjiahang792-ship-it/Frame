@@ -181,6 +181,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
         /// </summary>
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscriptionImage.SetExpectedValueType<OutputImage>();
             nodeSubscriptionImage.Init(node);
             nodeSubscriptionPoint.Init(node);
             nodeSubscriptionLine.Init(node);
@@ -231,12 +232,15 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
         }
 
         /// <summary>
-        /// 按目标顺序执行全部点到线距离测量，订阅模式保持单结果。
+        /// 按目标顺序执行全部点到线距离测量；订阅模式按目标编号配对点和直线。
         /// </summary>
         internal List<PointLineDistanceTargetResult> ExecuteMeasures(NodeParamPointLineDistance param, CancellationToken token)
         {
             if (param == null)
                 throw new Exception("点到线距离参数为空。");
+
+            if (param.SourceMode == MeasurementDataSourceMode.Subscribe)
+                return ExecuteSubscribedMeasures(param, token);
 
             IReadOnlyList<PositionCorrectionInfo> corrections = ReadCorrections(param);
             if (corrections.Count == 0)
@@ -260,6 +264,87 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
                 if (disposeGrayAfterUse)
                     sharedGray?.Dispose();
             }
+        }
+
+        /// <summary>
+        /// 一次读取订阅点和直线的全部目标明细，按目标编号配对后串行计算距离。
+        /// </summary>
+        private List<PointLineDistanceTargetResult> ExecuteSubscribedMeasures(
+            NodeParamPointLineDistance param,
+            CancellationToken token)
+        {
+            List<IndexedMeasurementValue<PointF>> points = ReadSubscribedPointTargets(
+                nodeSubscriptionPoint,
+                param.PointRole,
+                "点");
+            List<IndexedMeasurementValue<MeasuredLine>> lines = ReadSubscribedLineTargets(
+                nodeSubscriptionLine,
+                "直线");
+            List<IndexedMeasurementPair<PointF, MeasuredLine>> pairs =
+                MultiTargetMeasurementPairer.PairByTargetIndex(points, lines, "点结果", "直线结果");
+            if (pairs.Count == 0)
+                return new List<PointLineDistanceTargetResult>();
+
+            var pairMap = new Dictionary<int, IndexedMeasurementPair<PointF, MeasuredLine>>(pairs.Count);
+            var corrections = new List<PositionCorrectionInfo>(pairs.Count);
+            foreach (IndexedMeasurementPair<PointF, MeasuredLine> pair in pairs)
+            {
+                pairMap.Add(pair.TargetIndex, pair);
+                corrections.Add(ResolvePairCorrection(pair));
+            }
+
+            return MultiTargetMeasurementRunner.Run(
+                corrections,
+                token,
+                correction =>
+                {
+                    IndexedMeasurementPair<PointF, MeasuredLine> pair = pairMap[correction.TargetIndex];
+                    if (!pair.IsOk)
+                    {
+                        string reason = string.IsNullOrWhiteSpace(pair.ErrorMessage)
+                            ? $"目标{pair.TargetIndex}的点或直线结果无效。"
+                            : pair.ErrorMessage;
+                        throw new Exception(reason);
+                    }
+
+                    return CreateTargetResult(ExecuteSubscribedMeasure(
+                        param,
+                        pair.First.Value,
+                        pair.Second.Value));
+                },
+                CreateFailure);
+        }
+
+        /// <summary>
+        /// 使用已经完成目标配对的点和直线计算一次距离，不再重复读取上游节点结果。
+        /// </summary>
+        private static PointLineDistanceMeasureResult ExecuteSubscribedMeasure(
+            NodeParamPointLineDistance param,
+            PointF targetPoint,
+            MeasuredLine line)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var result = new PointLineDistanceMeasureResult();
+            if (line == null || !line.IsValid)
+                return FinishFailed(result, stopwatch, "直线结果无效");
+
+            try
+            {
+                result.DistanceResult = GeometryMeasurementAlgorithm.CalculatePointLineDistance(
+                    targetPoint,
+                    line.Start,
+                    line.End,
+                    param.MeasureMode);
+                result.Success = true;
+            }
+            catch (Exception ex)
+            {
+                return FinishFailed(result, stopwatch, ex.Message);
+            }
+
+            stopwatch.Stop();
+            result.AlgorithmMs = stopwatch.Elapsed.TotalMilliseconds;
+            return result;
         }
 
         /// <summary>执行一次已经完成坐标变换的点到线距离测量。</summary>
@@ -594,6 +679,51 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
         }
 
         /// <summary>
+        /// 读取订阅节点的全部目标点；没有多目标明细时回退为目标1摘要点。
+        /// </summary>
+        private List<IndexedMeasurementValue<PointF>> ReadSubscribedPointTargets(
+            NodeSubscription subscription,
+            MeasurementPointRole role,
+            string name)
+        {
+            NodeBase sourceNode = subscription.GetSelectedNode();
+            if (!MeasurementResultReader.TryReadMultiTargetItems(
+                sourceNode.Result,
+                out List<IMultiTargetMeasurementItem> sourceItems))
+            {
+                PointF point = ReadSubscribedPoint(subscription, role, name);
+                return new List<IndexedMeasurementValue<PointF>>
+                {
+                    new IndexedMeasurementValue<PointF>(1, true, point, string.Empty)
+                };
+            }
+
+            var targets = new List<IndexedMeasurementValue<PointF>>(sourceItems.Count);
+            for (int i = 0; i < sourceItems.Count; i++)
+            {
+                IMultiTargetMeasurementItem item = sourceItems[i];
+                int targetIndex = item == null ? i + 1 : item.TargetIndex;
+                string error = item == null
+                    ? $"{name}订阅节点({sourceNode.ID}.{sourceNode.NodeName})的目标{targetIndex}结果为空。"
+                    : item.ErrorMessage;
+                PointF point = PointF.Empty;
+                bool isOk = item != null && item.IsOk &&
+                    MeasurementResultReader.TryReadPoint((object)item, role, out point);
+                if (!isOk && string.IsNullOrWhiteSpace(error))
+                    error = $"{name}订阅节点({sourceNode.ID}.{sourceNode.NodeName})的目标{targetIndex}没有可用点结果。";
+
+                targets.Add(new IndexedMeasurementValue<PointF>(
+                    targetIndex,
+                    isOk,
+                    isOk ? point : PointF.Empty,
+                    error,
+                    item == null ? null : item.Correction));
+            }
+
+            return targets;
+        }
+
+        /// <summary>
         /// 读取订阅直线结果。
         /// </summary>
         private MeasuredLine ReadSubscribedLine(NodeSubscription subscription, string name)
@@ -603,6 +733,50 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
                 throw new Exception($"{name}订阅节点({sourceNode.ID}.{sourceNode.NodeName})没有可用直线结果。");
 
             return line;
+        }
+
+        /// <summary>
+        /// 读取订阅节点的全部目标直线；没有多目标明细时回退为目标1摘要直线。
+        /// </summary>
+        private List<IndexedMeasurementValue<MeasuredLine>> ReadSubscribedLineTargets(
+            NodeSubscription subscription,
+            string name)
+        {
+            NodeBase sourceNode = subscription.GetSelectedNode();
+            if (!MeasurementResultReader.TryReadMultiTargetItems(
+                sourceNode.Result,
+                out List<IMultiTargetMeasurementItem> sourceItems))
+            {
+                MeasuredLine line = ReadSubscribedLine(subscription, name);
+                return new List<IndexedMeasurementValue<MeasuredLine>>
+                {
+                    new IndexedMeasurementValue<MeasuredLine>(1, true, line, string.Empty)
+                };
+            }
+
+            var targets = new List<IndexedMeasurementValue<MeasuredLine>>(sourceItems.Count);
+            for (int i = 0; i < sourceItems.Count; i++)
+            {
+                IMultiTargetMeasurementItem item = sourceItems[i];
+                int targetIndex = item == null ? i + 1 : item.TargetIndex;
+                string error = item == null
+                    ? $"{name}订阅节点({sourceNode.ID}.{sourceNode.NodeName})的目标{targetIndex}结果为空。"
+                    : item.ErrorMessage;
+                MeasuredLine line = null;
+                bool isOk = item != null && item.IsOk &&
+                    MeasurementResultReader.TryReadLine((object)item, out line);
+                if (!isOk && string.IsNullOrWhiteSpace(error))
+                    error = $"{name}订阅节点({sourceNode.ID}.{sourceNode.NodeName})的目标{targetIndex}没有可用直线结果。";
+
+                targets.Add(new IndexedMeasurementValue<MeasuredLine>(
+                    targetIndex,
+                    isOk,
+                    isOk ? line : null,
+                    error,
+                    item == null ? null : item.Correction));
+            }
+
+            return targets;
         }
 
         /// <summary>
@@ -661,17 +835,34 @@ namespace TDJS_Vision.Node._4_Measurement.PointLineDistance
         }
 
         /// <summary>创建不改变坐标的单目标修正项。</summary>
-        private static PositionCorrectionInfo CreateIdentityCorrection()
+        private static PositionCorrectionInfo CreateIdentityCorrection(int targetIndex = 1)
         {
             return new PositionCorrectionInfo
             {
-                TargetIndex = 1,
+                TargetIndex = targetIndex,
                 IsValid = true,
                 BaseScaleX = 1,
                 BaseScaleY = 1,
                 CurrentScaleX = 1,
                 CurrentScaleY = 1
             };
+        }
+
+        /// <summary>
+        /// 优先沿用上游目标携带的位置修正信息；缺失时创建只保留目标编号的恒等修正。
+        /// </summary>
+        private static PositionCorrectionInfo ResolvePairCorrection(
+            IndexedMeasurementPair<PointF, MeasuredLine> pair)
+        {
+            PositionCorrectionInfo pointCorrection = pair.First.Context as PositionCorrectionInfo;
+            if (pointCorrection != null && pointCorrection.TargetIndex == pair.TargetIndex)
+                return pointCorrection;
+
+            PositionCorrectionInfo lineCorrection = pair.Second.Context as PositionCorrectionInfo;
+            if (lineCorrection != null && lineCorrection.TargetIndex == pair.TargetIndex)
+                return lineCorrection;
+
+            return CreateIdentityCorrection(pair.TargetIndex);
         }
 
         /// <summary>根据位置修正结果构造运行时参数，让绘制ROI跟随当前模板目标。</summary>

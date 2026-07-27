@@ -19,6 +19,19 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ERUIIO
         /// <param name="node"></param>
         public void Init(NodeBase node)
         {
+            SubscriptionInputContract inputContract = SubscriptionInputContract.ForCategories(new[]
+            {
+                SubscriptionDataCategory.AlgorithmResult,
+                SubscriptionDataCategory.StructuredObject
+            });
+            nodeSubscription1.SetInputContract(inputContract);
+            nodeSubscription2.SetInputContract(inputContract);
+            nodeSubscription3.SetInputContract(inputContract);
+            nodeSubscription4.SetInputContract(inputContract);
+            nodeSubscription5.SetInputContract(inputContract);
+            nodeSubscription6.SetInputContract(inputContract);
+            nodeSubscription7.SetInputContract(inputContract);
+            nodeSubscription8.SetInputContract(inputContract);
             nodeSubscription1.Init(node);
             nodeSubscription2.Init(node);
             nodeSubscription3.Init(node);

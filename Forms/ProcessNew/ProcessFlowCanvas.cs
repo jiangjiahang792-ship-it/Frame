@@ -4171,6 +4171,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 return false;
 
             form.ShowDialog();
+            // 参数保存或取消后统一重读当前定义；刷新是轻量操作且不运行算法，
+            // 可覆盖所有节点参数窗口而无需各窗体重复维护通知代码。
+            node.NotifyOutputDefinitionChanged();
             InvalidateNode(node);
             RequestOverlayInvalidate(false, true);
             return true;

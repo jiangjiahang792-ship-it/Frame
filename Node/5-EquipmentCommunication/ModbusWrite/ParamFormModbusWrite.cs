@@ -1,6 +1,9 @@
 ﻿using Logger;
 using Sunny.UI;
 using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Device.Modbus;
@@ -24,26 +27,115 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
             InitializeComponent();
             InitModbusComboBox();
             comboBoxType.SelectedIndex = 0;
+            RefreshSubscriptionContract();
         }
 
         public void SetNodeBelong(NodeBase node) 
         {
+            RefreshSubscriptionContract();
             nodeSubscription1.Init(node);
         }
 
         /// <summary>
-        /// 获取订阅的bool值
+        /// 获取订阅值，并按当前 Modbus 寄存器类型格式化为写入文本。
         /// </summary>
         public string GetSubValue()
         {
-            try
+            object value = nodeSubscription1.GetValue<object>();
+            NodeParamModbusWrite param = Params as NodeParamModbusWrite;
+            RegistersType dataType = param == null ? GetSelectedDataType() : param.DataType;
+            return FormatSubscribedValue(value, dataType);
+        }
+
+        /// <summary>
+        /// 按目标寄存器类型格式化订阅值，保留 Short 等数值的真实内容。
+        /// </summary>
+        /// <param name="value">订阅读取到的真实值。</param>
+        /// <param name="dataType">目标 Modbus 寄存器类型。</param>
+        /// <returns>可由现有写入逻辑解析的逗号分隔文本。</returns>
+        internal static string FormatSubscribedValue(object value, RegistersType dataType)
+        {
+            Array array = value as Array;
+            if (array == null)
+                return FormatSingleSubscribedValue(value, dataType);
+
+            var values = new List<string>(array.Length);
+            foreach (object item in array)
+                values.Add(FormatSingleSubscribedValue(item, dataType));
+            return string.Join(",", values);
+        }
+
+        /// <summary>
+        /// 格式化一个订阅值，并对数值缩窄执行范围检查。
+        /// </summary>
+        /// <param name="value">单个订阅值。</param>
+        /// <param name="dataType">目标寄存器类型。</param>
+        /// <returns>使用固定区域格式的写入文本。</returns>
+        private static string FormatSingleSubscribedValue(object value, RegistersType dataType)
+        {
+            Type targetType = ModbusReadDynamicVariable.GetValueType(dataType);
+            object converted = SubscriptionTypeCompatibility.ConvertValue(
+                value,
+                targetType,
+                NumericConversionMode.Checked);
+            if (converted is bool)
+                return (bool)converted ? "1" : "0";
+
+            IFormattable formattable = converted as IFormattable;
+            return formattable == null
+                ? Convert.ToString(converted, CultureInfo.InvariantCulture)
+                : formattable.ToString(null, CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>
+        /// 根据当前写入类型刷新订阅输入契约。
+        /// </summary>
+        private void RefreshSubscriptionContract()
+        {
+            RegistersType dataType = GetSelectedDataType();
+            Type targetType = ModbusReadDynamicVariable.GetValueType(dataType);
+            SubscriptionDataCategory category = targetType == typeof(bool)
+                ? SubscriptionDataCategory.Boolean
+                : SubscriptionDataCategory.Number;
+            nodeSubscription1.SetInputContract(new SubscriptionInputContract(
+                new[] { category },
+                targetType,
+                new[] { SubscriptionValueMultiplicity.Single },
+                targetType == typeof(bool)
+                    ? NumericConversionMode.None
+                    : NumericConversionMode.Checked));
+        }
+
+        /// <summary>
+        /// 获取界面当前选择的 Modbus 数据类型。
+        /// </summary>
+        /// <returns>当前寄存器数据类型。</returns>
+        private RegistersType GetSelectedDataType()
+        {
+            switch (comboBoxType.Text)
             {
-                return nodeSubscription1.GetValue<bool>() ? "1" : "0";
+                case "Bool": return RegistersType.Bool;
+                case "Short": return RegistersType.Short;
+                case "UShort": return RegistersType.UShort;
+                case "Int": return RegistersType.Int;
+                case "UInt": return RegistersType.UInt;
+                case "Float": return RegistersType.Float;
+                case "Double": return RegistersType.Double;
+                case "Long": return RegistersType.Long;
+                case "ULong": return RegistersType.ULong;
+                case "线圈": return RegistersType.线圈;
+                default: return RegistersType.Bool;
             }
-            catch (Exception)
-            {
-                throw;
-            }
+        }
+
+        /// <summary>
+        /// Modbus 数据类型变化后立即刷新可订阅结果范围。
+        /// </summary>
+        /// <param name="sender">事件发送者。</param>
+        /// <param name="e">事件参数。</param>
+        private void comboBoxType_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            RefreshSubscriptionContract();
         }
 
         /// <summary>
@@ -114,41 +206,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
             nodeParamWrite.Device = modbus;
             nodeParamWrite.DeviceName = modbus.UserDefinedName;
             nodeParamWrite.StartAddress = adress.ToString();
-            switch (this.comboBoxType.Text)
-            {
-                case "Bool":
-                    nodeParamWrite.DataType = RegistersType.Bool;
-                    break;
-                case "Short":
-                    nodeParamWrite.DataType = RegistersType.Short;
-                    break;
-                case "UShort":
-                    nodeParamWrite.DataType = RegistersType.UShort;
-                    break;
-                case "Int":
-                    nodeParamWrite.DataType = RegistersType.Int;
-                    break;
-                case "UInt":
-                    nodeParamWrite.DataType = RegistersType.UInt;
-                    break;
-                case "Float":
-                    nodeParamWrite.DataType = RegistersType.Float;
-                    break;
-                case "Double":
-                    nodeParamWrite.DataType = RegistersType.Double;
-                    break;
-                case "Long":
-                    nodeParamWrite.DataType = RegistersType.Long;
-                    break;
-                case "ULong":
-                    nodeParamWrite.DataType = RegistersType.ULong;
-                    break;
-                case "线圈":
-                    nodeParamWrite.DataType = RegistersType.线圈;
-                    break;
-                default:
-                    break;
-            }
+            nodeParamWrite.DataType = GetSelectedDataType();
             
             if (radioButton2.Checked)
             {

@@ -16,12 +16,14 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImagePreprocess
         /// <summary>
         /// 预处理后的输出图像。
         /// </summary>
+        [SubscriptionOutput]
         [DisplayName("预处理图像")]
         public OutputImage OutputImage { get; set; } = new OutputImage();
 
         /// <summary>
         /// 本次运行使用的预处理模式。
         /// </summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
         [DisplayName("处理模式")]
         public string ModeName { get; set; }
     }

@@ -76,6 +76,7 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
 
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscriptionImage.SetExpectedValueType<OutputImage>();
             nodeSubscriptionImage.Init(node);
             nodeSubscriptionPoint1.Init(node);
             nodeSubscriptionPoint2.Init(node);

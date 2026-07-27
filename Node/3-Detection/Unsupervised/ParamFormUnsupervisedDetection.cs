@@ -39,6 +39,11 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         public void SetNodeBelong(NodeBase node)
         {
             _node = node;
+            nodeSubscription1.SetInputContract(SubscriptionInputContract.ForCategories(new[]
+            {
+                SubscriptionDataCategory.Image,
+                SubscriptionDataCategory.StructuredObject
+            }));
             nodeSubscription1.Init(node);
         }
 

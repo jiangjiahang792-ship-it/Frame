@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -10,6 +10,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.TcpClient
     public class NodeResultTCPClient : INodeResult
     {
         public int RunTime { get; set; }
+        [SubscriptionOutput]
         [DisplayName("请求结果")]
         public object ResponseData { get; set; }
     }

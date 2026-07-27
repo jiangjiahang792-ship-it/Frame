@@ -7,7 +7,8 @@ using TDJS_Vision.Node._3_Detection.TDAI;
 namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
 {
     /// <summary>
-    /// ROI结果绘制2节点参数，保存输入图像、绘制项和多条布尔颜色判定规则。
+    /// ROI结果绘制2节点参数，保存输入图像、文本/ROI绘制项和单个布尔颜色判定。
+    /// 旧版多规则字段继续保留，仅用于已有方案兼容。
     /// </summary>
     public class NodeParamResultOverlayDraw2 : INodeParam
     {
@@ -20,6 +21,29 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         /// 输入图像订阅结果显示名。
         /// </summary>
         public string ImageText2 { get; set; }
+
+        /// <summary>
+        /// 新版单个颜色判定订阅的节点文本，格式为“节点ID.节点名”。
+        /// </summary>
+        public string JudgeText1 { get; set; }
+
+        /// <summary>
+        /// 新版单个颜色判定订阅的结果显示名。
+        /// </summary>
+        public string JudgeText2 { get; set; }
+
+        /// <summary>
+        /// 获取是否已经配置新版单个颜色判定订阅。
+        /// </summary>
+        [JsonIgnore]
+        public bool HasNewJudgeSubscription
+        {
+            get
+            {
+                return !string.IsNullOrWhiteSpace(JudgeText1) &&
+                    !string.IsNullOrWhiteSpace(JudgeText2);
+            }
+        }
 
         /// <summary>
         /// 全部规则为真时使用的OK颜色ARGB值。
@@ -279,6 +303,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         /// <summary>
         /// 绘制区域或轮廓。
         /// </summary>
-        Region
+        Region,
+
+        /// <summary>
+        /// 按订阅值实际类型自动识别并绘制全部几何结果。
+        /// </summary>
+        Roi
     }
 }

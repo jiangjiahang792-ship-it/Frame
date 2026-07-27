@@ -28,6 +28,17 @@ namespace TDJS_Vision.Node._7_ResultProcessing.GenerateExcelSpreadsheet
 
         public void SetNodeBelong(NodeBase node)
         {
+            SubscriptionInputContract inputContract = SubscriptionInputContract.AnyVisible();
+            nodeSubscription1.SetInputContract(inputContract);
+            nodeSubscription2.SetInputContract(inputContract);
+            nodeSubscription3.SetInputContract(inputContract);
+            nodeSubscription4.SetInputContract(inputContract);
+            nodeSubscription5.SetInputContract(inputContract);
+            nodeSubscription6.SetInputContract(inputContract);
+            nodeSubscription7.SetInputContract(inputContract);
+            nodeSubscription8.SetInputContract(inputContract);
+            nodeSubscription9.SetInputContract(inputContract);
+            nodeSubscription10.SetInputContract(inputContract);
             nodeSubscription1.Init(node);
             nodeSubscription2.Init(node);
             nodeSubscription3.Init(node);

@@ -7,15 +7,42 @@ using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
-using TDJS_Vision.Node._6_LogicTool.MultiCondition;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
 {
     /// <summary>
-    /// ROI结果绘制2参数窗体，提供输入图像、颜色规则和绘制项的简化配置界面。
+    /// ROI结果绘制2参数窗体，只向用户提供文本和自动ROI两种绘制项。
     /// </summary>
     public partial class NodeParamFormResultOverlayDraw2 : FormBase, INodeParamForm
     {
+        /// <summary>
+        /// ROI订阅允许接收的统一数据类别。
+        /// </summary>
+        private static readonly SubscriptionDataCategory[] RoiCategories =
+        {
+            SubscriptionDataCategory.Point,
+            SubscriptionDataCategory.PointCollection,
+            SubscriptionDataCategory.Line,
+            SubscriptionDataCategory.Circle,
+            SubscriptionDataCategory.Ellipse,
+            SubscriptionDataCategory.Rectangle,
+            SubscriptionDataCategory.Contour,
+            SubscriptionDataCategory.Region,
+            SubscriptionDataCategory.MeasurementResult,
+            SubscriptionDataCategory.AlgorithmResult
+        };
+
+        /// <summary>
+        /// 文本订阅允许接收的统一数据类别。
+        /// </summary>
+        private static readonly SubscriptionDataCategory[] TextCategories =
+        {
+            SubscriptionDataCategory.Boolean,
+            SubscriptionDataCategory.Number,
+            SubscriptionDataCategory.Text,
+            SubscriptionDataCategory.AlgorithmResult
+        };
+
         /// <summary>
         /// 当前参数窗体所属节点。
         /// </summary>
@@ -27,9 +54,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         private readonly List<ResultOverlayDraw2Item> _items = new List<ResultOverlayDraw2Item>();
 
         /// <summary>
-        /// 当前编辑中的颜色判定规则集合。
+        /// 旧方案中的多条颜色规则，只做兼容保存和运行，不再提供新增编辑入口。
         /// </summary>
-        private readonly List<ResultOverlayDraw2ColorRule> _rules = new List<ResultOverlayDraw2ColorRule>();
+        private readonly List<ResultOverlayDraw2ColorRule> _legacyRules = new List<ResultOverlayDraw2ColorRule>();
+
+        /// <summary>
+        /// 旧方案颜色规则的组合方式。
+        /// </summary>
+        private ResultOverlayColorRuleMode _legacyRuleMode = ResultOverlayColorRuleMode.AllTrue;
 
         /// <summary>
         /// 当前选中的绘制项索引。
@@ -37,9 +69,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         private int _selectedItemIndex = -1;
 
         /// <summary>
-        /// 控件同步标志，避免加载界面时触发保存。
+        /// 控件同步标志，避免加载界面时反向修改参数。
         /// </summary>
         private bool _syncing;
+
+        /// <summary>
+        /// 高级文本设置是否展开。
+        /// </summary>
+        private bool _advancedExpanded;
 
         /// <summary>
         /// 初始化ROI结果绘制2参数窗体。
@@ -47,27 +84,32 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         public NodeParamFormResultOverlayDraw2()
         {
             InitializeComponent();
-            InitCombos();
+            InitializeOptions();
+            SetAdvancedExpanded(false);
             RefreshItemsGrid();
-            RefreshRulesGrid();
         }
 
         /// <summary>
-        /// 当前窗体保存的节点参数。
+        /// 获取或设置当前窗体保存的节点参数。
         /// </summary>
         public INodeParam Params { get; set; }
 
         /// <summary>
-        /// 设置当前参数窗体所属节点并初始化订阅控件。
+        /// 设置当前参数窗体所属节点并初始化三个订阅控件。
         /// </summary>
         /// <param name="node">所属节点。</param>
         void INodeParamForm.SetNodeBelong(NodeBase node)
         {
             _node = node;
+
+            nodeSubscriptionImage.SetExpectedValueType<OutputImage>();
             nodeSubscriptionImage.Init(node);
+
+            nodeSubscriptionJudge.SetExpectedValueType<bool>();
+            nodeSubscriptionJudge.Init(node);
+
+            nodeSubscriptionSource.SetInputContract(CreateTextInputContract());
             nodeSubscriptionSource.Init(node);
-            nodeSubscriptionRule.Init(node);
-            RefreshRuleConditionItems("整体结果");
         }
 
         /// <summary>
@@ -81,55 +123,42 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
 
             _syncing = true;
             nodeSubscriptionImage.SetText(param.ImageText1, param.ImageText2);
+            if (param.HasNewJudgeSubscription)
+                nodeSubscriptionJudge.SetText(param.JudgeText1, param.JudgeText2);
+            else
+                nodeSubscriptionJudge.ClearText();
             panelOkColor.BackColor = param.OkColor;
             panelNgColor.BackColor = param.NgColor;
-            SetRuleMode(param.RuleMode);
             _syncing = false;
 
             _items.Clear();
             if (param.Items != null)
-                _items.AddRange(param.Items.Select(item => item.Clone()));
+                _items.AddRange(param.Items.Where(item => item != null).Select(item => item.Clone()));
 
-            _rules.Clear();
+            _legacyRules.Clear();
             if (param.ColorRules != null)
-                _rules.AddRange(param.ColorRules.Select(rule => rule.Clone()));
+                _legacyRules.AddRange(param.ColorRules.Where(rule => rule != null).Select(rule => rule.Clone()));
+            _legacyRuleMode = param.RuleMode;
 
-            if (_rules.Count > 0)
-            {
-                ResultOverlayDraw2ColorRule firstRule = _rules[0];
-                nodeSubscriptionRule.SetText(firstRule.SourceText1, firstRule.SourceText2);
-                RefreshRuleConditionItems(firstRule.ConditionName);
-            }
-
+            UpdateLegacyRulesNotice(param.HasNewJudgeSubscription);
             RefreshItemsGrid();
-            RefreshRulesGrid();
             SelectItem(_items.Count > 0 ? 0 : -1);
         }
 
         /// <summary>
-        /// 初始化绘制类型和判定方式下拉框。
+        /// 初始化文本位置和坐标系选项。
         /// </summary>
-        private void InitCombos()
+        private void InitializeOptions()
         {
-            comboBoxItemType.DisplayMember = "Text";
-            comboBoxItemType.ValueMember = "Value";
-            comboBoxItemType.DataSource = new List<EnumOption<ResultOverlayDraw2ItemType>>
+            comboBoxTextPosition.DisplayMember = "Text";
+            comboBoxTextPosition.ValueMember = "Value";
+            comboBoxTextPosition.DataSource = new List<EnumOption<DisplayTextPosition>>
             {
-                new EnumOption<ResultOverlayDraw2ItemType>("文本", ResultOverlayDraw2ItemType.Text),
-                new EnumOption<ResultOverlayDraw2ItemType>("线", ResultOverlayDraw2ItemType.Line),
-                new EnumOption<ResultOverlayDraw2ItemType>("矩形", ResultOverlayDraw2ItemType.Rectangle),
-                new EnumOption<ResultOverlayDraw2ItemType>("区域/轮廓", ResultOverlayDraw2ItemType.Region)
+                new EnumOption<DisplayTextPosition>("左上角", DisplayTextPosition.TopLeft),
+                new EnumOption<DisplayTextPosition>("右上角", DisplayTextPosition.TopRight),
+                new EnumOption<DisplayTextPosition>("左下角", DisplayTextPosition.BottomLeft),
+                new EnumOption<DisplayTextPosition>("右下角", DisplayTextPosition.BottomRight)
             };
-
-            comboBoxRuleMode.DisplayMember = "Text";
-            comboBoxRuleMode.ValueMember = "Value";
-            comboBoxRuleMode.DataSource = new List<EnumOption<ResultOverlayColorRuleMode>>
-            {
-                new EnumOption<ResultOverlayColorRuleMode>("全部为真=OK", ResultOverlayColorRuleMode.AllTrue),
-                new EnumOption<ResultOverlayColorRuleMode>("任一为真=OK", ResultOverlayColorRuleMode.AnyTrue)
-            };
-
-            comboBoxTextPosition.DataSource = Enum.GetValues(typeof(DisplayTextPosition));
             comboBoxTextCoordinateMode.DisplayMember = "Text";
             comboBoxTextCoordinateMode.ValueMember = "Value";
             comboBoxTextCoordinateMode.DataSource = new List<EnumOption<DisplayTextCoordinateMode>>
@@ -137,13 +166,28 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 new EnumOption<DisplayTextCoordinateMode>("图像坐标系", DisplayTextCoordinateMode.Image),
                 new EnumOption<DisplayTextCoordinateMode>("控件坐标系", DisplayTextCoordinateMode.Control)
             };
-            comboBoxRuleCondition.Items.Clear();
-            comboBoxRuleCondition.Items.Add("整体结果");
-            comboBoxRuleCondition.SelectedIndex = 0;
         }
 
         /// <summary>
-        /// 添加文本绘制项。
+        /// 创建文本项订阅输入契约。
+        /// </summary>
+        /// <returns>文本可显示数据契约。</returns>
+        private static SubscriptionInputContract CreateTextInputContract()
+        {
+            return SubscriptionInputContract.ForCategories(TextCategories);
+        }
+
+        /// <summary>
+        /// 创建自动ROI项订阅输入契约。
+        /// </summary>
+        /// <returns>全部受支持几何数据契约。</returns>
+        private static SubscriptionInputContract CreateRoiInputContract()
+        {
+            return SubscriptionInputContract.ForCategories(RoiCategories);
+        }
+
+        /// <summary>
+        /// 添加一个文本绘制项。
         /// </summary>
         /// <param name="sender">事件发送者。</param>
         /// <param name="e">事件参数。</param>
@@ -153,33 +197,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         }
 
         /// <summary>
-        /// 添加线段绘制项。
+        /// 添加一个按实际订阅类型自动识别的ROI绘制项。
         /// </summary>
         /// <param name="sender">事件发送者。</param>
         /// <param name="e">事件参数。</param>
-        private void buttonAddLine_Click(object sender, EventArgs e)
+        private void buttonAddRoi_Click(object sender, EventArgs e)
         {
-            AddItem(ResultOverlayDraw2ItemType.Line);
-        }
-
-        /// <summary>
-        /// 添加矩形绘制项。
-        /// </summary>
-        /// <param name="sender">事件发送者。</param>
-        /// <param name="e">事件参数。</param>
-        private void buttonAddRectangle_Click(object sender, EventArgs e)
-        {
-            AddItem(ResultOverlayDraw2ItemType.Rectangle);
-        }
-
-        /// <summary>
-        /// 添加区域绘制项。
-        /// </summary>
-        /// <param name="sender">事件发送者。</param>
-        /// <param name="e">事件参数。</param>
-        private void buttonAddRegion_Click(object sender, EventArgs e)
-        {
-            AddItem(ResultOverlayDraw2ItemType.Region);
+            AddItem(ResultOverlayDraw2ItemType.Roi);
         }
 
         /// <summary>
@@ -189,7 +213,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         /// <param name="e">事件参数。</param>
         private void buttonDeleteItem_Click(object sender, EventArgs e)
         {
-            int index = GetItemSelectedIndex();
+            int index = GetSelectedItemIndex();
             if (index < 0 || index >= _items.Count)
                 return;
 
@@ -199,7 +223,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         }
 
         /// <summary>
-        /// 选择OK显示颜色。
+        /// 打开OK颜色选择器。
         /// </summary>
         /// <param name="sender">事件发送者。</param>
         /// <param name="e">事件参数。</param>
@@ -209,7 +233,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         }
 
         /// <summary>
-        /// 选择NG显示颜色。
+        /// 打开NG颜色选择器。
         /// </summary>
         /// <param name="sender">事件发送者。</param>
         /// <param name="e">事件参数。</param>
@@ -219,58 +243,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         }
 
         /// <summary>
-        /// 刷新当前颜色规则订阅源中的多条件项列表。
-        /// </summary>
-        /// <param name="sender">事件发送者。</param>
-        /// <param name="e">事件参数。</param>
-        private void buttonRefreshRuleCondition_Click(object sender, EventArgs e)
-        {
-            RefreshRuleConditionItems(GetRuleConditionName());
-        }
-
-        /// <summary>
-        /// 将当前订阅选择添加为颜色判定规则。
-        /// </summary>
-        /// <param name="sender">事件发送者。</param>
-        /// <param name="e">事件参数。</param>
-        private void buttonAddRule_Click(object sender, EventArgs e)
-        {
-            string sourceText1 = nodeSubscriptionRule.GetText1();
-            string sourceText2 = nodeSubscriptionRule.GetText2();
-            if (string.IsNullOrWhiteSpace(sourceText1) || string.IsNullOrWhiteSpace(sourceText2))
-            {
-                MessageBoxTD.Show("请先选择一个布尔订阅结果！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            _rules.Add(new ResultOverlayDraw2ColorRule
-            {
-                Enabled = true,
-                SourceText1 = sourceText1,
-                SourceText2 = sourceText2,
-                ConditionName = GetRuleConditionName()
-            });
-
-            RefreshRulesGrid();
-        }
-
-        /// <summary>
-        /// 删除当前选中的颜色判定规则。
-        /// </summary>
-        /// <param name="sender">事件发送者。</param>
-        /// <param name="e">事件参数。</param>
-        private void buttonDeleteRule_Click(object sender, EventArgs e)
-        {
-            int index = GetRuleSelectedIndex();
-            if (index < 0 || index >= _rules.Count)
-                return;
-
-            _rules.RemoveAt(index);
-            RefreshRulesGrid();
-        }
-
-        /// <summary>
-        /// 预览当前绘制效果。
+        /// 预览当前输入图像和绘制结果。
         /// </summary>
         /// <param name="sender">事件发送者。</param>
         /// <param name="e">事件参数。</param>
@@ -285,11 +258,18 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 AlgorithmResult displayResult;
                 bool isOk;
                 string diagnostics;
-                ResultOverlayDraw2Builder.Build(_node, (NodeParamResultOverlayDraw2)Params, out outputImage, out displayResult, out isOk, out diagnostics);
+                ResultOverlayDraw2Builder.Build(
+                    _node,
+                    (NodeParamResultOverlayDraw2)Params,
+                    out outputImage,
+                    out displayResult,
+                    out isOk,
+                    out diagnostics);
+
                 if (outputImage.Bitmaps == null || outputImage.Bitmaps.Count == 0 || outputImage.Bitmaps[0] == null)
                     throw new Exception("预览图像为空！");
 
-                labelPreviewState.Text = isOk ? "当前颜色：OK" : "当前颜色：NG";
+                labelPreviewState.Text = diagnostics;
                 labelPreviewState.ForeColor = isOk ? panelOkColor.BackColor : panelNgColor.BackColor;
                 showImageControl1.SetImage(BitmapConverter.ToBitmap(outputImage.Bitmaps[0]), displayResult);
                 showImageControl1.ShowFit();
@@ -301,7 +281,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         }
 
         /// <summary>
-        /// 保存参数并关闭窗口。
+        /// 保存参数并隐藏窗体。
         /// </summary>
         /// <param name="sender">事件发送者。</param>
         /// <param name="e">事件参数。</param>
@@ -312,7 +292,17 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         }
 
         /// <summary>
-        /// 绘制项表格选中项变化时同步右侧编辑区域。
+        /// 切换高级设置的展开状态。
+        /// </summary>
+        /// <param name="sender">事件发送者。</param>
+        /// <param name="e">事件参数。</param>
+        private void buttonToggleAdvanced_Click(object sender, EventArgs e)
+        {
+            SetAdvancedExpanded(!_advancedExpanded);
+        }
+
+        /// <summary>
+        /// 绘制项列表选择变化时保存旧项并载入新项。
         /// </summary>
         /// <param name="sender">事件发送者。</param>
         /// <param name="e">事件参数。</param>
@@ -322,11 +312,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 return;
 
             SaveCurrentItemFromControls();
-            SelectItem(GetItemSelectedIndex());
+            SelectItem(GetSelectedItemIndex());
         }
 
         /// <summary>
-        /// 绘制项编辑控件变化时保存到当前绘制项。
+        /// 绘制项编辑控件变化时同步当前数据。
         /// </summary>
         /// <param name="sender">事件发送者。</param>
         /// <param name="e">事件参数。</param>
@@ -341,30 +331,28 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         }
 
         /// <summary>
-        /// 创建并添加指定类型的绘制项。
+        /// 创建并添加指定用户可见类型的绘制项。
         /// </summary>
-        /// <param name="type">绘制项类型。</param>
+        /// <param name="type">文本或自动ROI类型。</param>
         private void AddItem(ResultOverlayDraw2ItemType type)
         {
             SaveCurrentItemFromControls();
-
             ResultOverlayDraw2Item item = new ResultOverlayDraw2Item
             {
                 ItemType = type,
-                Name = GetItemTypeText(type),
+                Name = type == ResultOverlayDraw2ItemType.Text ? "文本" : "ROI",
                 UseManualText = type == ResultOverlayDraw2ItemType.Text,
                 ManualText = type == ResultOverlayDraw2ItemType.Text ? "OK" : string.Empty
             };
-
             _items.Add(item);
             RefreshItemsGrid();
             SelectItem(_items.Count - 1);
         }
 
         /// <summary>
-        /// 保存界面参数。
+        /// 校验并生成节点参数。
         /// </summary>
-        /// <param name="showMessage">校验失败时是否弹窗提示。</param>
+        /// <param name="showMessage">校验失败时是否弹出提示。</param>
         /// <returns>保存成功返回 true。</returns>
         private bool SaveParams(bool showMessage)
         {
@@ -373,128 +361,135 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             if (string.IsNullOrWhiteSpace(nodeSubscriptionImage.GetText1()) ||
                 string.IsNullOrWhiteSpace(nodeSubscriptionImage.GetText2()))
             {
-                if (showMessage)
-                    MessageBoxTD.Show("请先订阅输入图像！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowValidationMessage(showMessage, "请先订阅输入图像！");
                 return false;
             }
 
-            foreach (ResultOverlayDraw2Item item in _items.Where(i => i.Enabled))
+            for (int index = 0; index < _items.Count; index++)
             {
+                ResultOverlayDraw2Item item = _items[index];
+                if (item == null || !item.Enabled)
+                    continue;
+
                 bool needSource = item.ItemType != ResultOverlayDraw2ItemType.Text || !item.UseManualText;
-                if (needSource && string.IsNullOrWhiteSpace(item.SourceText1))
+                if (needSource &&
+                    (string.IsNullOrWhiteSpace(item.SourceText1) || string.IsNullOrWhiteSpace(item.SourceText2)))
                 {
-                    if (showMessage)
-                        MessageBoxTD.Show($"绘制项“{item.Name}”还没有选择订阅源！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    ShowValidationMessage(showMessage, $"第{index + 1}个绘制项还没有选择订阅结果！");
                     return false;
                 }
             }
 
-            foreach (ResultOverlayDraw2ColorRule rule in _rules.Where(i => i.Enabled))
+            string judgeText1 = nodeSubscriptionJudge.GetText1();
+            string judgeText2 = nodeSubscriptionJudge.GetText2();
+            bool hasJudgeNode = !string.IsNullOrWhiteSpace(judgeText1);
+            bool hasJudgeResult = !string.IsNullOrWhiteSpace(judgeText2);
+            if (hasJudgeNode != hasJudgeResult)
             {
-                if (string.IsNullOrWhiteSpace(rule.SourceText1) || string.IsNullOrWhiteSpace(rule.SourceText2))
-                {
-                    if (showMessage)
-                        MessageBoxTD.Show("颜色判定规则中存在空订阅，请删除后重新添加！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return false;
-                }
+                ShowValidationMessage(showMessage, "颜色判定订阅不完整，请重新选择布尔结果或清空订阅！");
+                return false;
             }
+
+            bool hasNewJudge = hasJudgeNode && hasJudgeResult;
+            List<ResultOverlayDraw2ColorRule> rulesToSave = hasNewJudge
+                ? new List<ResultOverlayDraw2ColorRule>()
+                : _legacyRules.Select(rule => rule.Clone()).ToList();
 
             Params = new NodeParamResultOverlayDraw2
             {
                 ImageText1 = nodeSubscriptionImage.GetText1(),
                 ImageText2 = nodeSubscriptionImage.GetText2(),
+                JudgeText1 = hasNewJudge ? judgeText1 : null,
+                JudgeText2 = hasNewJudge ? judgeText2 : null,
                 OkColor = panelOkColor.BackColor,
                 NgColor = panelNgColor.BackColor,
-                RuleMode = GetRuleMode(),
+                RuleMode = _legacyRuleMode,
                 Items = _items.Select(item => item.Clone()).ToList(),
-                ColorRules = _rules.Select(rule => rule.Clone()).ToList()
+                ColorRules = rulesToSave
             };
+
+            if (hasNewJudge)
+                _legacyRules.Clear();
+            UpdateLegacyRulesNotice(hasNewJudge);
             return true;
         }
 
         /// <summary>
-        /// 刷新绘制项列表。
+        /// 按需显示参数校验提示。
+        /// </summary>
+        /// <param name="showMessage">是否弹出提示。</param>
+        /// <param name="message">简体中文提示内容。</param>
+        private static void ShowValidationMessage(bool showMessage, string message)
+        {
+            if (showMessage)
+                MessageBoxTD.Show(message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        /// <summary>
+        /// 刷新绘制项列表并恢复原选择。
         /// </summary>
         private void RefreshItemsGrid()
         {
+            int selectedIndex = _selectedItemIndex;
             _syncing = true;
-            int selected = GetItemSelectedIndex();
             dataGridViewItems.Rows.Clear();
-
             foreach (ResultOverlayDraw2Item item in _items)
             {
                 dataGridViewItems.Rows.Add(
                     item.Enabled ? "是" : "否",
                     GetItemTypeText(item.ItemType),
-                    item.Name,
-                    item.SourceDisplay);
+                    GetItemSummary(item));
             }
 
-            if (selected >= 0 && selected < dataGridViewItems.Rows.Count)
-                dataGridViewItems.Rows[selected].Selected = true;
-
+            if (selectedIndex >= 0 && selectedIndex < dataGridViewItems.Rows.Count)
+            {
+                dataGridViewItems.ClearSelection();
+                dataGridViewItems.Rows[selectedIndex].Selected = true;
+            }
             _syncing = false;
         }
 
         /// <summary>
-        /// 刷新颜色判定规则列表。
-        /// </summary>
-        private void RefreshRulesGrid()
-        {
-            dataGridViewRules.Rows.Clear();
-            foreach (ResultOverlayDraw2ColorRule rule in _rules)
-            {
-                dataGridViewRules.Rows.Add(
-                    rule.Enabled ? "是" : "否",
-                    string.IsNullOrWhiteSpace(rule.SourceText2) ? rule.SourceText1 : rule.SourceText1 + " / " + rule.SourceText2,
-                    string.IsNullOrWhiteSpace(rule.ConditionName) ? "整体结果" : rule.ConditionName);
-            }
-        }
-
-        /// <summary>
-        /// 选中指定绘制项并加载到编辑区。
+        /// 选中指定绘制项并加载其设置。
         /// </summary>
         /// <param name="index">绘制项索引。</param>
         private void SelectItem(int index)
         {
             _syncing = true;
             _selectedItemIndex = index;
-
             if (index >= 0 && index < _items.Count)
             {
-                if (dataGridViewItems.Rows.Count > index)
+                if (index < dataGridViewItems.Rows.Count)
                 {
                     dataGridViewItems.ClearSelection();
                     dataGridViewItems.Rows[index].Selected = true;
                 }
-
                 LoadItemToControls(_items[index]);
             }
             else
             {
                 ClearItemControls();
             }
-
             _syncing = false;
             UpdateControlState();
         }
 
         /// <summary>
-        /// 将绘制项加载到编辑控件。
+        /// 把一个绘制项加载到设置控件。
         /// </summary>
-        /// <param name="item">绘制项。</param>
+        /// <param name="item">待编辑绘制项。</param>
         private void LoadItemToControls(ResultOverlayDraw2Item item)
         {
+            ApplySourceContract(item.ItemType);
             checkBoxEnabled.Checked = item.Enabled;
-            SetItemType(item.ItemType);
-            textBoxName.Text = item.Name ?? string.Empty;
+            labelCurrentTypeValue.Text = GetItemTypeText(item.ItemType);
             checkBoxManualText.Checked = item.UseManualText;
             textBoxManualText.Text = item.ManualText ?? string.Empty;
             textBoxTextPrefix.Text = item.TextPrefix ?? string.Empty;
             numericFontSize.Value = ClampNumeric(numericFontSize, item.FontSize);
             numericLineWidth.Value = ClampNumeric(numericLineWidth, item.LineWidth);
             numericMargin.Value = ClampNumeric(numericMargin, item.TextMargin);
-            comboBoxTextPosition.SelectedItem = item.TextPosition;
+            SetTextPosition(item.TextPosition);
             SetTextCoordinateMode(item.TextCoordinateMode);
 
             if (string.IsNullOrWhiteSpace(item.SourceText1))
@@ -504,26 +499,26 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         }
 
         /// <summary>
-        /// 清空绘制项编辑控件。
+        /// 清空绘制项设置控件。
         /// </summary>
         private void ClearItemControls()
         {
+            ApplySourceContract(ResultOverlayDraw2ItemType.Text);
             checkBoxEnabled.Checked = false;
-            SetItemType(ResultOverlayDraw2ItemType.Text);
-            textBoxName.Text = string.Empty;
+            labelCurrentTypeValue.Text = "未选择";
             checkBoxManualText.Checked = true;
             textBoxManualText.Text = string.Empty;
             textBoxTextPrefix.Text = string.Empty;
             numericFontSize.Value = 18;
             numericLineWidth.Value = 2;
             numericMargin.Value = 10;
-            comboBoxTextPosition.SelectedItem = DisplayTextPosition.TopLeft;
+            SetTextPosition(DisplayTextPosition.TopLeft);
             SetTextCoordinateMode(DisplayTextCoordinateMode.Image);
             nodeSubscriptionSource.ClearText();
         }
 
         /// <summary>
-        /// 将当前编辑控件保存到选中绘制项。
+        /// 将当前设置控件写回选中的绘制项。
         /// </summary>
         private void SaveCurrentItemFromControls()
         {
@@ -532,24 +527,32 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
 
             ResultOverlayDraw2Item item = _items[_selectedItemIndex];
             item.Enabled = checkBoxEnabled.Checked;
-            item.ItemType = GetSelectedItemType();
-            item.Name = string.IsNullOrWhiteSpace(textBoxName.Text) ? GetItemTypeText(item.ItemType) : textBoxName.Text.Trim();
             item.SourceText1 = nodeSubscriptionSource.GetText1();
             item.SourceText2 = nodeSubscriptionSource.GetText2();
-            item.UseManualText = checkBoxManualText.Checked;
+            item.UseManualText = item.ItemType == ResultOverlayDraw2ItemType.Text && checkBoxManualText.Checked;
             item.ManualText = textBoxManualText.Text;
             item.TextPrefix = textBoxTextPrefix.Text;
             item.FontSize = (int)numericFontSize.Value;
             item.LineWidth = (int)numericLineWidth.Value;
             item.TextMargin = (int)numericMargin.Value;
-            item.TextPosition = comboBoxTextPosition.SelectedItem is DisplayTextPosition
-                ? (DisplayTextPosition)comboBoxTextPosition.SelectedItem
-                : item.TextPosition;
+            item.TextPosition = GetTextPosition();
             item.TextCoordinateMode = GetTextCoordinateMode();
+            item.Name = BuildAutomaticItemName(item);
         }
 
         /// <summary>
-        /// 根据当前绘制类型更新编辑控件可用状态。
+        /// 根据绘制项类型切换来源订阅契约。
+        /// </summary>
+        /// <param name="type">绘制项类型。</param>
+        private void ApplySourceContract(ResultOverlayDraw2ItemType type)
+        {
+            nodeSubscriptionSource.SetInputContract(type == ResultOverlayDraw2ItemType.Text
+                ? CreateTextInputContract()
+                : CreateRoiInputContract());
+        }
+
+        /// <summary>
+        /// 根据当前绘制项类型更新设置控件的显示与可用状态。
         /// </summary>
         private void UpdateControlState()
         {
@@ -559,154 +562,47 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             if (!hasItem)
                 return;
 
-            ResultOverlayDraw2ItemType type = GetSelectedItemType();
-            bool isText = type == ResultOverlayDraw2ItemType.Text;
+            ResultOverlayDraw2Item item = _items[_selectedItemIndex];
+            bool isText = item.ItemType == ResultOverlayDraw2ItemType.Text;
+            panelManualText.Visible = isText;
+            panelTextPrefix.Visible = isText;
+            panelTextStyle.Visible = isText;
+            panelRoiStyle.Visible = !isText;
             checkBoxManualText.Enabled = isText;
             textBoxManualText.Enabled = isText && checkBoxManualText.Checked;
-            labelTextPrefix.Enabled = isText && !checkBoxManualText.Checked;
             textBoxTextPrefix.Enabled = isText && !checkBoxManualText.Checked;
-            // 几何项查找失败时也会绘制红色“未查到”文本，所以提示样式对全部绘制项开放。
-            labelFontSize.Enabled = true;
-            numericFontSize.Enabled = true;
-            labelTextPosition.Enabled = true;
-            comboBoxTextPosition.Enabled = true;
-            labelTextCoordinateMode.Enabled = true;
-            comboBoxTextCoordinateMode.Enabled = true;
-            labelMargin.Enabled = true;
-            numericMargin.Enabled = true;
             nodeSubscriptionSource.Enabled = !isText || !checkBoxManualText.Checked;
+            panelAdvanced.Visible = _advancedExpanded;
         }
 
         /// <summary>
-        /// 刷新多条件项下拉框。
+        /// 设置高级设置展开状态并同步按钮文字。
         /// </summary>
-        /// <param name="selectedName">期望选中的条件名称。</param>
-        private void RefreshRuleConditionItems(string selectedName)
+        /// <param name="expanded">是否展开。</param>
+        private void SetAdvancedExpanded(bool expanded)
         {
-            comboBoxRuleCondition.Items.Clear();
-            comboBoxRuleCondition.Items.Add("整体结果");
-
-            NodeBase sourceNode = FindUpstreamNode(nodeSubscriptionRule.GetText1());
-            AddConditionNamesFromParam(sourceNode);
-            AddConditionNamesFromResult(sourceNode);
-
-            SetRuleConditionName(selectedName);
+            _advancedExpanded = expanded;
+            panelAdvanced.Visible = expanded;
+            buttonToggleAdvanced.Text = expanded ? "收起高级设置" : "展开高级设置";
         }
 
         /// <summary>
-        /// 从多条件节点参数添加条件名称。
+        /// 更新旧版颜色规则兼容提示。
         /// </summary>
-        /// <param name="sourceNode">源节点。</param>
-        private void AddConditionNamesFromParam(NodeBase sourceNode)
+        /// <param name="hasNewJudge">是否已经配置新版单布尔判定。</param>
+        private void UpdateLegacyRulesNotice(bool hasNewJudge)
         {
-            if (sourceNode == null || sourceNode.NodeType != NodeType.MultiCondition)
-                return;
-
-            NodeParamMultiCondition param = sourceNode.ParamForm == null ? null : sourceNode.ParamForm.Params as NodeParamMultiCondition;
-            if (param == null || param.Conditions == null)
-                return;
-
-            for (int i = 0; i < param.Conditions.Count; i++)
-                AddRuleConditionName(GetConditionDisplayName(param.Conditions[i], i));
+            labelLegacyRules.Visible = !hasNewJudge && _legacyRules.Count > 0;
+            labelLegacyRules.Text = labelLegacyRules.Visible
+                ? $"当前兼容运行旧版颜色规则（{_legacyRules.Count}条），选择新的颜色判定后将替换旧规则。"
+                : string.Empty;
         }
 
         /// <summary>
-        /// 从多条件节点运行明细添加条件名称。
+        /// 获取当前列表选择的绘制项索引。
         /// </summary>
-        /// <param name="sourceNode">源节点。</param>
-        private void AddConditionNamesFromResult(NodeBase sourceNode)
-        {
-            NodeResultMultiCondition result = sourceNode == null ? null : sourceNode.Result as NodeResultMultiCondition;
-            if (result == null || result.Details == null)
-                return;
-
-            for (int i = 0; i < result.Details.Count; i++)
-            {
-                NodeConditionEvaluation detail = result.Details[i];
-                AddRuleConditionName(string.IsNullOrWhiteSpace(detail == null ? null : detail.Name) ? "条件" + (i + 1) : detail.Name);
-            }
-        }
-
-        /// <summary>
-        /// 添加条件名称并避免重复项。
-        /// </summary>
-        /// <param name="name">条件名称。</param>
-        private void AddRuleConditionName(string name)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-                return;
-
-            foreach (object item in comboBoxRuleCondition.Items)
-                if (string.Equals(Convert.ToString(item), name, StringComparison.OrdinalIgnoreCase))
-                    return;
-
-            comboBoxRuleCondition.Items.Add(name);
-        }
-
-        /// <summary>
-        /// 获取当前颜色规则条件名称。
-        /// </summary>
-        /// <returns>条件名称。</returns>
-        private string GetRuleConditionName()
-        {
-            return comboBoxRuleCondition.SelectedItem == null
-                ? "整体结果"
-                : Convert.ToString(comboBoxRuleCondition.SelectedItem);
-        }
-
-        /// <summary>
-        /// 设置颜色规则条件名称。
-        /// </summary>
-        /// <param name="name">条件名称。</param>
-        private void SetRuleConditionName(string name)
-        {
-            string target = string.IsNullOrWhiteSpace(name) ? "整体结果" : name;
-            int index = comboBoxRuleCondition.Items.IndexOf(target);
-            comboBoxRuleCondition.SelectedIndex = index >= 0 ? index : 0;
-        }
-
-        /// <summary>
-        /// 查找当前节点的上游节点。
-        /// </summary>
-        /// <param name="nodeText">订阅节点文本。</param>
-        /// <returns>匹配的上游节点。</returns>
-        private NodeBase FindUpstreamNode(string nodeText)
-        {
-            if (_node == null || _node.Process == null || string.IsNullOrWhiteSpace(nodeText))
-                return null;
-
-            return _node.Process.GetUpstreamNodes(_node).FirstOrDefault(node => GetNodeText(node) == nodeText);
-        }
-
-        /// <summary>
-        /// 获取节点订阅文本。
-        /// </summary>
-        /// <param name="node">节点。</param>
-        /// <returns>订阅文本。</returns>
-        private static string GetNodeText(NodeBase node)
-        {
-            return $"{node.ID}.{node.NodeName}";
-        }
-
-        /// <summary>
-        /// 获取条件参数显示名称。
-        /// </summary>
-        /// <param name="condition">条件参数。</param>
-        /// <param name="index">条件索引。</param>
-        /// <returns>显示名称。</returns>
-        private static string GetConditionDisplayName(MultiConditionItem condition, int index)
-        {
-            if (condition != null && !string.IsNullOrWhiteSpace(condition.Name))
-                return condition.Name;
-
-            return "条件" + (index + 1);
-        }
-
-        /// <summary>
-        /// 获取当前选中的绘制项行索引。
-        /// </summary>
-        /// <returns>绘制项索引。</returns>
-        private int GetItemSelectedIndex()
+        /// <returns>没有选择时返回-1。</returns>
+        private int GetSelectedItemIndex()
         {
             if (dataGridViewItems.SelectedRows.Count == 0)
                 return -1;
@@ -714,84 +610,93 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         }
 
         /// <summary>
-        /// 获取当前选中的颜色规则行索引。
+        /// 获取用户可见的绘制项类型文本。
         /// </summary>
-        /// <returns>规则索引。</returns>
-        private int GetRuleSelectedIndex()
+        /// <param name="type">内部绘制项类型。</param>
+        /// <returns>文本、ROI或ROI旧配置。</returns>
+        private static string GetItemTypeText(ResultOverlayDraw2ItemType type)
         {
-            if (dataGridViewRules.SelectedRows.Count == 0)
-                return -1;
-            return dataGridViewRules.SelectedRows[0].Index;
+            if (type == ResultOverlayDraw2ItemType.Text)
+                return "文本";
+            if (type == ResultOverlayDraw2ItemType.Roi)
+                return "ROI";
+            return "ROI（旧配置）";
         }
 
         /// <summary>
-        /// 获取当前绘制项类型。
+        /// 生成列表使用的绘制内容摘要。
         /// </summary>
-        /// <returns>绘制项类型。</returns>
-        private ResultOverlayDraw2ItemType GetSelectedItemType()
+        /// <param name="item">绘制项。</param>
+        /// <returns>手动文本或订阅来源摘要。</returns>
+        private static string GetItemSummary(ResultOverlayDraw2Item item)
         {
-            EnumOption<ResultOverlayDraw2ItemType> option = comboBoxItemType.SelectedItem as EnumOption<ResultOverlayDraw2ItemType>;
-            return option == null ? ResultOverlayDraw2ItemType.Text : option.Value;
+            if (item == null)
+                return string.Empty;
+            if (item.ItemType == ResultOverlayDraw2ItemType.Text && item.UseManualText)
+                return string.IsNullOrWhiteSpace(item.ManualText) ? "手动文本" : item.ManualText;
+            return string.IsNullOrWhiteSpace(item.SourceDisplay) ? "未选择订阅" : item.SourceDisplay;
         }
 
         /// <summary>
-        /// 设置当前绘制项类型。
+        /// 根据类型和订阅来源生成稳定名称，用户无需手动维护名称字段。
         /// </summary>
-        /// <param name="type">绘制项类型。</param>
-        private void SetItemType(ResultOverlayDraw2ItemType type)
+        /// <param name="item">绘制项。</param>
+        /// <returns>自动名称。</returns>
+        private static string BuildAutomaticItemName(ResultOverlayDraw2Item item)
         {
-            foreach (object item in comboBoxItemType.Items)
-            {
-                EnumOption<ResultOverlayDraw2ItemType> option = item as EnumOption<ResultOverlayDraw2ItemType>;
-                if (option != null && option.Value == type)
-                {
-                    comboBoxItemType.SelectedItem = option;
-                    return;
-                }
-            }
-        }
-
-        /// <summary>
-        /// 获取当前规则聚合方式。
-        /// </summary>
-        /// <returns>规则聚合方式。</returns>
-        private ResultOverlayColorRuleMode GetRuleMode()
-        {
-            EnumOption<ResultOverlayColorRuleMode> option = comboBoxRuleMode.SelectedItem as EnumOption<ResultOverlayColorRuleMode>;
-            return option == null ? ResultOverlayColorRuleMode.AllTrue : option.Value;
-        }
-
-        /// <summary>
-        /// 设置规则聚合方式。
-        /// </summary>
-        /// <param name="mode">规则聚合方式。</param>
-        private void SetRuleMode(ResultOverlayColorRuleMode mode)
-        {
-            foreach (object item in comboBoxRuleMode.Items)
-            {
-                EnumOption<ResultOverlayColorRuleMode> option = item as EnumOption<ResultOverlayColorRuleMode>;
-                if (option != null && option.Value == mode)
-                {
-                    comboBoxRuleMode.SelectedItem = option;
-                    return;
-                }
-            }
+            string typeText = item.ItemType == ResultOverlayDraw2ItemType.Text ? "文本" : "ROI";
+            string summary = GetItemSummary(item);
+            if (string.IsNullOrWhiteSpace(summary) || summary == "未选择订阅")
+                return typeText;
+            return typeText + "－" + summary;
         }
 
         /// <summary>
         /// 获取当前文本坐标系。
         /// </summary>
-        /// <returns>文本四角定位坐标系。</returns>
+        /// <returns>图像或控件坐标系。</returns>
         private DisplayTextCoordinateMode GetTextCoordinateMode()
         {
-            EnumOption<DisplayTextCoordinateMode> option = comboBoxTextCoordinateMode.SelectedItem as EnumOption<DisplayTextCoordinateMode>;
+            EnumOption<DisplayTextCoordinateMode> option =
+                comboBoxTextCoordinateMode.SelectedItem as EnumOption<DisplayTextCoordinateMode>;
             return option == null ? DisplayTextCoordinateMode.Image : option.Value;
+        }
+
+        /// <summary>
+        /// 获取当前文本四角位置。
+        /// </summary>
+        /// <returns>当前选择的文本位置。</returns>
+        private DisplayTextPosition GetTextPosition()
+        {
+            EnumOption<DisplayTextPosition> option =
+                comboBoxTextPosition.SelectedItem as EnumOption<DisplayTextPosition>;
+            return option == null ? DisplayTextPosition.TopLeft : option.Value;
+        }
+
+        /// <summary>
+        /// 根据枚举值选中对应的简体中文文本位置。
+        /// </summary>
+        /// <param name="position">文本四角位置。</param>
+        private void SetTextPosition(DisplayTextPosition position)
+        {
+            foreach (object item in comboBoxTextPosition.Items)
+            {
+                EnumOption<DisplayTextPosition> option = item as EnumOption<DisplayTextPosition>;
+                if (option != null && option.Value == position)
+                {
+                    comboBoxTextPosition.SelectedItem = option;
+                    return;
+                }
+            }
+
+            if (comboBoxTextPosition.Items.Count > 0)
+                comboBoxTextPosition.SelectedIndex = 0;
         }
 
         /// <summary>
         /// 设置当前文本坐标系。
         /// </summary>
-        /// <param name="mode">文本四角定位坐标系。</param>
+        /// <param name="mode">文本坐标系。</param>
         private void SetTextCoordinateMode(DisplayTextCoordinateMode mode)
         {
             foreach (object item in comboBoxTextCoordinateMode.Items)
@@ -809,63 +714,41 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         }
 
         /// <summary>
-        /// 打开颜色选择器并写回指定面板。
+        /// 打开颜色选择器并写回颜色面板。
         /// </summary>
-        /// <param name="panel">颜色面板。</param>
-        private void ChoosePanelColor(Panel panel)
+        /// <param name="panel">目标颜色面板。</param>
+        private static void ChoosePanelColor(Panel panel)
         {
             using (ColorDialog dialog = new ColorDialog())
             {
                 dialog.Color = panel.BackColor;
                 dialog.FullOpen = true;
-                if (dialog.ShowDialog(this) == DialogResult.OK)
+                if (dialog.ShowDialog() == DialogResult.OK)
                     panel.BackColor = dialog.Color;
             }
         }
 
         /// <summary>
-        /// 将整数值限制到数值控件允许范围内。
+        /// 把整数值限制到数字控件的有效范围。
         /// </summary>
-        /// <param name="control">数值控件。</param>
-        /// <param name="value">目标值。</param>
-        /// <returns>修正后的值。</returns>
+        /// <param name="control">数字控件。</param>
+        /// <param name="value">待限制值。</param>
+        /// <returns>有效范围内的十进制值。</returns>
         private static decimal ClampNumeric(NumericUpDown control, int value)
         {
-            return Math.Min(control.Maximum, Math.Max(control.Minimum, value));
+            return Math.Max(control.Minimum, Math.Min(control.Maximum, value));
         }
 
         /// <summary>
-        /// 获取绘制项类型中文显示文本。
-        /// </summary>
-        /// <param name="type">绘制项类型。</param>
-        /// <returns>中文显示文本。</returns>
-        private static string GetItemTypeText(ResultOverlayDraw2ItemType type)
-        {
-            switch (type)
-            {
-                case ResultOverlayDraw2ItemType.Text:
-                    return "文本";
-                case ResultOverlayDraw2ItemType.Line:
-                    return "线";
-                case ResultOverlayDraw2ItemType.Rectangle:
-                    return "矩形";
-                case ResultOverlayDraw2ItemType.Region:
-                    return "区域/轮廓";
-                default:
-                    return type.ToString();
-            }
-        }
-
-        /// <summary>
-        /// 枚举下拉框显示项。
+        /// 为下拉框提供简体中文文字和枚举值。
         /// </summary>
         /// <typeparam name="T">枚举类型。</typeparam>
         private sealed class EnumOption<T>
         {
             /// <summary>
-            /// 初始化枚举显示项。
+            /// 初始化枚举显示选项。
             /// </summary>
-            /// <param name="text">显示文本。</param>
+            /// <param name="text">简体中文显示文本。</param>
             /// <param name="value">枚举值。</param>
             public EnumOption(string text, T value)
             {
@@ -873,24 +756,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 Value = value;
             }
 
-            /// <summary>
-            /// 下拉框显示文本。
-            /// </summary>
+            /// <summary>获取显示文本。</summary>
             public string Text { get; private set; }
 
-            /// <summary>
-            /// 对应的枚举值。
-            /// </summary>
+            /// <summary>获取枚举值。</summary>
             public T Value { get; private set; }
-
-            /// <summary>
-            /// 返回显示文本，兼容没有绑定显示成员的场景。
-            /// </summary>
-            /// <returns>显示文本。</returns>
-            public override string ToString()
-            {
-                return Text;
-            }
         }
     }
 }

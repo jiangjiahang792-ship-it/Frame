@@ -11,6 +11,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <summary>
         /// 相机采集到的图像
         /// </summary>
+        [SubscriptionOutput]
         [DisplayName("输出图像")]
         public OutputImage OutputImage { get; set; } = new OutputImage();
 

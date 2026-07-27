@@ -99,6 +99,11 @@ namespace TDJS_Vision.Node._6_LogicTool.ConditionRun
 
         void INodeParamForm.SetNodeBelong(NodeBase node)
         {
+            nodeSubscription1.SetInputContract(SubscriptionInputContract.ForCategories(new[]
+            {
+                SubscriptionDataCategory.AlgorithmResult,
+                SubscriptionDataCategory.StructuredObject
+            }));
             nodeSubscription1.Init(node);
         }
         /// <summary>

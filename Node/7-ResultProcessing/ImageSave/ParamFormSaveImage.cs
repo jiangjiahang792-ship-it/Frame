@@ -1,4 +1,4 @@
-﻿using Logger;
+using Logger;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -53,7 +53,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <param name="node"></param>
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscriptionAiRes.SetInputContract(SubscriptionInputContract.ForCategories(new[]
+            {
+                SubscriptionDataCategory.AlgorithmResult,
+                SubscriptionDataCategory.Boolean
+            }));
+            nodeSubscriptionImg2Save.SetExpectedValueType<OutputImage>();
             nodeSubscriptionImg2Save.Init(node);
+            nodeSubscriptionBarCode.SetExpectedValueType<string>();
             nodeSubscriptionBarCode.Init(node);
             nodeSubscriptionAiRes.Init(node);
         }

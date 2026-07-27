@@ -23,6 +23,11 @@ namespace TDJS_Vision
         private const string SingleInstanceMutexName = @"Local\TDJS_Vision_SingleInstance_20260713";
 
         /// <summary>
+        /// 设备许可证启动同步器，负责把根目录许可证分发到已部署的 AI 运行环境。
+        /// </summary>
+        private static readonly IDeviceLicenseSynchronizer DeviceLicenseSynchronizer = new DeviceLicenseSynchronizer();
+
+        /// <summary>
         /// 当前进程正在运行的主窗体实例。
         /// </summary>
         public static FormMain MainForm { get; internal set; } = null;
@@ -82,6 +87,7 @@ namespace TDJS_Vision
         {
             ConfigureThreadPoolMinimums();
             LogHelper.AddLog(MsgLevel.Warn, $"【启动诊断-程序身份】{PerformanceSpikeDiagnostics.GetExecutableIdentityText()}；命令行={Environment.CommandLine}", true);
+            SynchronizeDeviceLicense();
 
             // HslCommunication通信库授权
             if (!HslCommunication.Authorization.SetAuthorizationCode("d8868ab9-4494-4056-98c6-b669e2434e25"))
@@ -96,6 +102,28 @@ namespace TDJS_Vision
             using (StartupApplicationContext startupContext = new StartupApplicationContext(solutionPath))
             {
                 Application.Run(startupContext);
+            }
+        }
+
+        /// <summary>
+        /// 同步设备许可证并写入逐目标日志，任何异常都不得阻止主程序继续启动。
+        /// </summary>
+        private static void SynchronizeDeviceLicense()
+        {
+            try
+            {
+                foreach (DeviceLicenseSynchronizationResult result in DeviceLicenseSynchronizer.Synchronize(AppDomain.CurrentDomain.BaseDirectory))
+                {
+                    MsgLevel logLevel = result.Status == DeviceLicenseSynchronizationStatus.Failed
+                        ? MsgLevel.Warn
+                        : MsgLevel.Info;
+                    LogHelper.AddLog(logLevel, result.Message, true);
+                }
+            }
+            catch (Exception ex)
+            {
+                // 同步器最外层兜底也只记录日志，许可证问题不能中断软件其它功能。
+                LogHelper.AddLog(MsgLevel.Exception, $"设备许可证自动同步发生未处理异常：{ex}", true);
             }
         }
 

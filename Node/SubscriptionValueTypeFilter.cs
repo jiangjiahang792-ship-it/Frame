@@ -43,9 +43,10 @@ namespace TDJS_Vision.Node
             if (valueType == null)
                 return false;
 
-            Type normalizedValueType = Nullable.GetUnderlyingType(valueType) ?? valueType;
-            Type normalizedExpectedType = Nullable.GetUnderlyingType(expectedValueType) ?? expectedValueType;
-            return normalizedExpectedType.IsAssignableFrom(normalizedValueType);
+            return SubscriptionTypeCompatibility.CanAssign(
+                valueType,
+                expectedValueType,
+                NumericConversionMode.SafeWidening);
         }
     }
 }

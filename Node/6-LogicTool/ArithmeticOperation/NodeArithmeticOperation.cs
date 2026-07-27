@@ -151,16 +151,6 @@ namespace TDJS_Vision.Node._6_LogicTool.ArithmeticOperation
                 }
             }
 
-            NodeResultArithmeticOperation result = Result as NodeResultArithmeticOperation;
-            if (result != null && result.Variables != null)
-            {
-                foreach (string name in result.Variables.Keys)
-                {
-                    if (!string.IsNullOrWhiteSpace(name))
-                        names.Add(name.Trim());
-                }
-            }
-
             return names.OrderBy(item => item, StringComparer.OrdinalIgnoreCase).ToList();
         }
 

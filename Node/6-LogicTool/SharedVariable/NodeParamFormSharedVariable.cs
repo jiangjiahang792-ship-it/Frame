@@ -94,6 +94,7 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
         /// <param name="node"></param>
         void INodeParamForm.SetNodeBelong(NodeBase node) 
         {
+            nodeSubscription1.SetInputContract(SubscriptionInputContract.AnyVisible());
             nodeSubscription1.Init(node);
         }
 

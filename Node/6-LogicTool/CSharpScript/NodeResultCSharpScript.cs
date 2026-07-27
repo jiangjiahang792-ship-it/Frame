@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 
 namespace TDJS_Vision.Node._6_LogicTool.CSharpScript
@@ -6,6 +6,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CSharpScript
     public class NodeResultCSharpScript : INodeResult
     {
         public int RunTime { get; set; }
+        [SubscriptionOutput]
         [DisplayName("读到的共享变量")]
         public SharedVarValue Value { get; set; }
     }

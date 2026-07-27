@@ -36,6 +36,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
 
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscription1.SetExpectedValueType<OutputImage>();
             nodeSubscription1.Init(node);
         }
 

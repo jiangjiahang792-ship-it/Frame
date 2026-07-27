@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Reflection;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
 
@@ -21,6 +20,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             comboBoxMatchMode.SelectedIndex = 0;
             dataGridViewConditions.DataSource = _conditionRows;
             NodeBase.RefreshNodeSubControl += NodeBase_RefreshNodeSubControl;
+            NodeBase.OutputDefinitionChanged += NodeBase_OutputDefinitionChanged;
             NodeBase.NodeDeletedEvent += NodeBase_NodeDeletedEvent;
         }
 
@@ -62,6 +62,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 _node.Process.ConnectionsChanged -= Process_ConnectionsChanged;
 
             NodeBase.RefreshNodeSubControl -= NodeBase_RefreshNodeSubControl;
+            NodeBase.OutputDefinitionChanged -= NodeBase_OutputDefinitionChanged;
             NodeBase.NodeDeletedEvent -= NodeBase_NodeDeletedEvent;
             base.OnFormClosed(e);
         }
@@ -367,6 +368,17 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             RefreshSourceTree();
         }
 
+        /// <summary>
+        /// 同一流程的节点输出定义变化后刷新可选条件来源。
+        /// </summary>
+        private void NodeBase_OutputDefinitionChanged(object sender, NodeBase sourceNode)
+        {
+            if (sourceNode == null || _node == null || sourceNode.Process != _node.Process)
+                return;
+
+            RefreshSourceTree();
+        }
+
         private void NodeBase_RefreshNodeSubControl(object sender, RenameResult e)
         {
             if (_node == null || _node.Process == null)
@@ -395,6 +407,17 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             treeViewSources.BeginUpdate();
             treeViewSources.Nodes.Clear();
 
+            SubscriptionInputContract inputContract = new SubscriptionInputContract(
+                new[]
+                {
+                    SubscriptionDataCategory.Boolean,
+                    SubscriptionDataCategory.Number,
+                    SubscriptionDataCategory.Text
+                },
+                null,
+                new[] { SubscriptionValueMultiplicity.Single },
+                NumericConversionMode.SafeWidening);
+
             TreeNode noneNode = new TreeNode("无");
             treeViewSources.Nodes.Add(noneNode);
 
@@ -405,10 +428,9 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 {
                     TreeNode sourceTreeNode = new TreeNode(GetNodeText(sourceNode));
                     treeViewSources.Nodes.Add(sourceTreeNode);
-
-                    AddDynamicVariableNodes(sourceTreeNode, sourceNode);
-                    if (sourceNode.Result != null)
-                        AddMemberNodes(sourceTreeNode, sourceNode, sourceNode.Result.GetType(), string.Empty, string.Empty, 0);
+                    AddCatalogOutputNodes(sourceTreeNode, sourceNode, inputContract);
+                    if (sourceTreeNode.Nodes.Count == 0)
+                        treeViewSources.Nodes.Remove(sourceTreeNode);
                 }
             }
 
@@ -417,76 +439,33 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
         }
 
         /// <summary>
-        /// 添加支持动态订阅的输出变量节点。
+        /// 添加统一目录中与多条件基础值输入兼容的输出节点。
         /// </summary>
-        private void AddDynamicVariableNodes(TreeNode sourceTreeNode, NodeBase sourceNode)
+        /// <param name="sourceTreeNode">来源节点树项。</param>
+        /// <param name="sourceNode">来源节点。</param>
+        /// <param name="inputContract">布尔、数值和文本输入契约。</param>
+        private static void AddCatalogOutputNodes(
+            TreeNode sourceTreeNode,
+            NodeBase sourceNode,
+            SubscriptionInputContract inputContract)
         {
-            List<string> names = DynamicResultVariableResolver.GetVariableNames(sourceNode);
-            if (names.Count == 0)
-                return;
-
-            TreeNode variableGroup = new TreeNode("输出变量");
-            sourceTreeNode.Nodes.Add(variableGroup);
-            foreach (string name in names)
+            IReadOnlyList<SubscriptionOutputDescriptor> outputs = SubscriptionPortCatalog.GetOutputs(
+                sourceNode,
+                inputContract,
+                false,
+                string.Empty);
+            foreach (SubscriptionOutputDescriptor output in outputs)
             {
-                TreeNode propertyNode = new TreeNode(name);
-                propertyNode.Tag = new ResultPropertyOption
+                TreeNode outputNode = new TreeNode(output.DisplayName);
+                outputNode.Tag = new ResultPropertyOption
                 {
                     SourceNodeId = sourceNode.ID,
                     SourceNodeText = GetNodeText(sourceNode),
-                    PropertyPath = DynamicResultVariableResolver.ToPropertyPath(name),
-                    PropertyDisplayName = name,
-                    ValueType = DynamicResultVariableResolver.GetVariableValueType(sourceNode, name)
+                    PropertyPath = output.PropertyPath,
+                    PropertyDisplayName = output.DisplayName,
+                    ValueType = output.ValueType
                 };
-                variableGroup.Nodes.Add(propertyNode);
-            }
-        }
-
-        private void AddMemberNodes(
-            TreeNode parentNode,
-            NodeBase sourceNode,
-            Type ownerType,
-            string pathPrefix,
-            string displayPrefix,
-            int depth)
-        {
-            foreach (MemberInfo member in MultiConditionReflection.GetReadableMembers(ownerType))
-            {
-                Type memberType = MultiConditionReflection.GetMemberType(member);
-                if (MultiConditionReflection.IsIgnoredMemberType(memberType))
-                    continue;
-
-                string displayName = MultiConditionReflection.GetDisplayName(member);
-                string propertyPath = string.IsNullOrEmpty(pathPrefix)
-                    ? member.Name
-                    : pathPrefix + "." + member.Name;
-                string propertyDisplay = string.IsNullOrEmpty(displayPrefix)
-                    ? displayName
-                    : displayPrefix + "." + displayName;
-
-                if (MultiConditionReflection.IsSelectableMemberType(memberType))
-                {
-                    TreeNode propertyNode = new TreeNode(displayName);
-                    propertyNode.Tag = new ResultPropertyOption
-                    {
-                        SourceNodeId = sourceNode.ID,
-                        SourceNodeText = GetNodeText(sourceNode),
-                        PropertyPath = propertyPath,
-                        PropertyDisplayName = propertyDisplay,
-                        ValueType = memberType
-                    };
-                    parentNode.Nodes.Add(propertyNode);
-                    continue;
-                }
-
-                if (depth >= 2 || !MultiConditionReflection.CanInspectMemberType(memberType))
-                    continue;
-
-                TreeNode groupNode = new TreeNode(displayName);
-                parentNode.Nodes.Add(groupNode);
-                AddMemberNodes(groupNode, sourceNode, memberType, propertyPath, propertyDisplay, depth + 1);
-                if (groupNode.Nodes.Count == 0)
-                    parentNode.Nodes.Remove(groupNode);
+                sourceTreeNode.Nodes.Add(outputNode);
             }
         }
 
@@ -523,6 +502,11 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 
         private sealed class ConditionRowViewModel
         {
+            /// <summary>
+            /// 当前条件是否参与检测。该状态与是否加入手动调参表相互独立。
+            /// </summary>
+            public bool Enabled { get; set; } = true;
+
             public string Name { get; set; }
 
             public string SourceNodeText { get; set; }
@@ -555,6 +539,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 
                 return new ConditionRowViewModel
                 {
+                    Enabled = condition.Enabled,
                     Name = string.IsNullOrWhiteSpace(condition.Name) ? "条件" + (index + 1) : condition.Name,
                     SourceNodeText = condition.SourceNodeText,
                     PropertyDisplayName = condition.PropertyDisplayName,
@@ -618,6 +603,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             {
                 return new MultiConditionItem
                 {
+                    Enabled = Enabled,
                     Name = string.IsNullOrWhiteSpace(Name) ? "条件" + (index + 1) : Name.Trim(),
                     Note = Note,
                     SourceNodeId = SourceNodeId,

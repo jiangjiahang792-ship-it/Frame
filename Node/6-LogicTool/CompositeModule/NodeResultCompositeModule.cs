@@ -19,36 +19,42 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// <summary>
         /// 本次运行的模块名称。
         /// </summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
         [DisplayName("模块名称")]
         public string ModuleName { get; set; }
 
         /// <summary>
         /// 内部流程累计运行耗时。
         /// </summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
         [DisplayName("内部耗时")]
         public long InternalRunTime { get; set; }
 
         /// <summary>
         /// 内部快照节点数量。
         /// </summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
         [DisplayName("内部节点数")]
         public int InternalNodeCount { get; set; }
 
         /// <summary>
         /// 内部流程是否运行成功。
         /// </summary>
+        [SubscriptionOutput]
         [DisplayName("内部是否成功")]
         public bool InternalSuccess { get; set; }
 
         /// <summary>
         /// 运行失败时记录的错误信息。
         /// </summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
         [DisplayName("信息")]
         public string Message { get; set; }
 
         /// <summary>
         /// 对外发布的组合模块输出变量。
         /// </summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
         [DisplayName("输出变量表")]
         public Dictionary<string, object> OutputValues { get; set; } = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
@@ -60,6 +66,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// <summary>
         /// 输出变量文本摘要。
         /// </summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
         [DisplayName("输出变量文本")]
         public string OutputValuesText { get; set; }
 

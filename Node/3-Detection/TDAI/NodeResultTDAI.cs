@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Drawing;
 using System.ComponentModel;
 using OpenCvSharp;
@@ -12,6 +12,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     {
         public int RunTime { get; set; }
 
+        [SubscriptionOutput]
         [DisplayName("AI输出结果")]
         public AlgorithmResult AlgorithmResult { get; set; } = new AlgorithmResult();
     }

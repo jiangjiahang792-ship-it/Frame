@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 function Assert-True {
     param([bool]$Condition, [string]$Message)
@@ -14,8 +14,15 @@ function Assert-ContainsText {
     }
 }
 
-$projectRoot = Split-Path -Parent $PSScriptRoot
+$projectRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    (Get-Location).Path
+}
+else {
+    Split-Path -Parent $PSScriptRoot
+}
 $filterPath = Join-Path $projectRoot 'Node\SubscriptionValueTypeFilter.cs'
+$contractsPath = Join-Path $projectRoot 'Node\SubscriptionPortContracts.cs'
+$compatibilityPath = Join-Path $projectRoot 'Node\SubscriptionTypeCompatibility.cs'
 $subscriptionPath = Join-Path $projectRoot 'Node\NodeSubscription.cs'
 
 if (-not (Test-Path -LiteralPath $filterPath)) {
@@ -23,6 +30,8 @@ if (-not (Test-Path -LiteralPath $filterPath)) {
 }
 
 $filterSource = Get-Content -LiteralPath $filterPath -Raw -Encoding UTF8
+$contractsSource = Get-Content -LiteralPath $contractsPath -Raw -Encoding UTF8
+$compatibilitySource = Get-Content -LiteralPath $compatibilityPath -Raw -Encoding UTF8
 $fixtureSource = @'
 namespace TDJS_Vision.Tests
 {
@@ -44,7 +53,21 @@ namespace TDJS_Vision.Tests
 }
 '@
 
-Add-Type -TypeDefinition ($filterSource + [Environment]::NewLine + $fixtureSource) -Language CSharp
+$allUsings = @'
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Globalization;
+using System.Linq;
+using System.Reflection;
+'@
+$combinedSource = $allUsings + [Environment]::NewLine +
+    ($contractsSource -replace '(?m)^using\s+[^;]+;\s*$', '') + [Environment]::NewLine +
+    ($compatibilitySource -replace '(?m)^using\s+[^;]+;\s*$', '') + [Environment]::NewLine +
+    ($filterSource -replace '(?m)^using\s+[^;]+;\s*$', '') + [Environment]::NewLine +
+    $fixtureSource
+Add-Type -TypeDefinition $combinedSource -Language CSharp
 
 $resultType = [TDJS_Vision.Tests.LegacyAndMultiResult]
 $listType = [System.Collections.Generic.List[TDJS_Vision.Tests.PositionCorrectionInfo]]
@@ -63,8 +86,8 @@ Assert-True ($allProperties.Count -eq 2) 'Subscriptions without a declared value
 
 $subscriptionSource = Get-Content -LiteralPath $subscriptionPath -Raw -Encoding UTF8
 Assert-ContainsText $subscriptionSource 'SetExpectedValueType<T>()' 'NodeSubscription must let callers declare the expected result type.'
-Assert-ContainsText $subscriptionSource 'SubscriptionValueTypeFilter.GetDisplayProperties' 'NodeSubscription must filter result properties by the declared type.'
-Assert-ContainsText $subscriptionSource 'comboBox2.SelectedIndex = index1 == -1 ? 0 : index1;' 'A legacy single-value display name must fall back to the first compatible list property.'
+Assert-ContainsText $subscriptionSource 'SubscriptionPortCatalog.GetOutputs' 'NodeSubscription must filter result properties through the unified port catalog.'
+Assert-True (-not $subscriptionSource.Contains('comboBox2.SelectedIndex = index1 == -1 ? 0 : index1;')) 'A missing legacy result must not silently fall back to the first compatible property.'
 
 $toolNames = @(
     'CaliperLine',

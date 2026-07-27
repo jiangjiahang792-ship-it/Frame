@@ -124,6 +124,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
 
         public void SetNodeBelong(NodeBase node)
         {
+            nodeSubscriptionImage.SetExpectedValueType<OutputImage>();
             nodeSubscriptionImage.Init(node);
             nodeSubscriptionLine1.Init(node);
             nodeSubscriptionLine2.Init(node);
