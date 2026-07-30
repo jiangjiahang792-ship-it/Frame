@@ -123,11 +123,14 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             ClearEditingRoi();
         }
 
-        /// <summary>按目标顺序执行全部点到点距离测量，订阅模式保持单结果。</summary>
+        /// <summary>按目标顺序执行全部点到点距离测量，订阅模式按目标编号配对两侧点。</summary>
         internal List<PointPointDistanceTargetResult> ExecuteMeasures(NodeParamPointPointDistance param, CancellationToken token)
         {
             if (param == null)
                 throw new Exception("点到点距离参数为空。");
+
+            if (param.SourceMode == MeasurementDataSourceMode.Subscribe)
+                return ExecuteSubscribedMeasures(param, token);
 
             IReadOnlyList<PositionCorrectionInfo> corrections = ReadCorrections(param);
             if (corrections.Count == 0)
@@ -151,6 +154,76 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
                 if (disposeGrayAfterUse)
                     sharedGray?.Dispose();
             }
+        }
+
+        /// <summary>一次读取两侧订阅点的全部目标明细，按目标编号配对后串行计算距离。</summary>
+        private List<PointPointDistanceTargetResult> ExecuteSubscribedMeasures(
+            NodeParamPointPointDistance param,
+            CancellationToken token)
+        {
+            List<IndexedMeasurementValue<PointF>> points1 = ReadSubscribedPointTargets(
+                nodeSubscriptionPoint1,
+                param.Point1Role,
+                "点1");
+            List<IndexedMeasurementValue<PointF>> points2 = ReadSubscribedPointTargets(
+                nodeSubscriptionPoint2,
+                param.Point2Role,
+                "点2");
+            List<IndexedMeasurementPair<PointF, PointF>> pairs =
+                MultiTargetMeasurementPairer.PairByTargetIndex(points1, points2, "点1结果", "点2结果");
+            if (pairs.Count == 0)
+                return new List<PointPointDistanceTargetResult>();
+
+            var pairMap = new Dictionary<int, IndexedMeasurementPair<PointF, PointF>>(pairs.Count);
+            var corrections = new List<PositionCorrectionInfo>(pairs.Count);
+            foreach (IndexedMeasurementPair<PointF, PointF> pair in pairs)
+            {
+                pairMap.Add(pair.TargetIndex, pair);
+                corrections.Add(ResolvePairCorrection(pair));
+            }
+
+            return MultiTargetMeasurementRunner.Run(
+                corrections,
+                token,
+                correction =>
+                {
+                    IndexedMeasurementPair<PointF, PointF> pair = pairMap[correction.TargetIndex];
+                    if (!pair.IsOk)
+                    {
+                        string reason = string.IsNullOrWhiteSpace(pair.ErrorMessage)
+                            ? $"目标{pair.TargetIndex}的两个点结果无效。"
+                            : pair.ErrorMessage;
+                        throw new Exception(reason);
+                    }
+
+                    return CreateTargetResult(ExecuteSubscribedMeasure(param, pair.First.Value, pair.Second.Value));
+                },
+                CreateFailure);
+        }
+
+        /// <summary>使用已经完成目标配对的两个点计算一次距离，不再重复读取上游结果。</summary>
+        private static PointPointDistanceMeasureResult ExecuteSubscribedMeasure(
+            NodeParamPointPointDistance param,
+            PointF point1,
+            PointF point2)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            double distance = GeometryMeasurementAlgorithm.CalculatePointDistance(
+                point1,
+                point2,
+                param.MeasureMode,
+                out PointF usedPoint1,
+                out PointF usedPoint2);
+            var result = new PointPointDistanceMeasureResult
+            {
+                Distance = distance,
+                Point1 = usedPoint1,
+                Point2 = usedPoint2,
+                Success = true
+            };
+            stopwatch.Stop();
+            result.AlgorithmMs = stopwatch.Elapsed.TotalMilliseconds;
+            return result;
         }
 
         /// <summary>执行一次已经完成坐标变换的点到点距离测量。</summary>
@@ -426,6 +499,50 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
             return point;
         }
 
+        /// <summary>读取订阅节点的全部目标点；没有多目标明细时回退为目标1摘要点。</summary>
+        private List<IndexedMeasurementValue<PointF>> ReadSubscribedPointTargets(
+            NodeSubscription subscription,
+            MeasurementPointRole role,
+            string name)
+        {
+            NodeBase sourceNode = subscription.GetSelectedNode();
+            if (!MeasurementResultReader.TryReadMultiTargetItems(
+                sourceNode.Result,
+                out List<IMultiTargetMeasurementItem> sourceItems))
+            {
+                PointF point = ReadSubscribedPoint(subscription, role, name);
+                return new List<IndexedMeasurementValue<PointF>>
+                {
+                    new IndexedMeasurementValue<PointF>(1, true, point, string.Empty)
+                };
+            }
+
+            string sourceName = $"{sourceNode.ID}.{sourceNode.NodeName}";
+            var targets = new List<IndexedMeasurementValue<PointF>>(sourceItems.Count);
+            for (int i = 0; i < sourceItems.Count; i++)
+            {
+                IMultiTargetMeasurementItem item = sourceItems[i];
+                int targetIndex = item == null ? i + 1 : item.TargetIndex;
+                string error = item == null
+                    ? $"{name}订阅节点({sourceName})的目标{targetIndex}结果为空。"
+                    : item.ErrorMessage;
+                PointF point = PointF.Empty;
+                bool isOk = item != null && item.IsOk &&
+                    MeasurementResultReader.TryReadPoint((object)item, role, out point);
+                if (!isOk && string.IsNullOrWhiteSpace(error))
+                    error = $"{name}订阅节点({sourceName})的目标{targetIndex}没有可用点结果。";
+
+                targets.Add(new IndexedMeasurementValue<PointF>(
+                    targetIndex,
+                    isOk,
+                    isOk ? point : PointF.Empty,
+                    error,
+                    item == null ? null : item.Correction));
+            }
+
+            return targets;
+        }
+
         /// <summary>读取全部位置修正；仅绘制模式启用修正时展开多目标。</summary>
         private IReadOnlyList<PositionCorrectionInfo> ReadCorrections(NodeParamPointPointDistance param)
         {
@@ -474,17 +591,32 @@ namespace TDJS_Vision.Node._4_Measurement.PointPointDistance
         }
 
         /// <summary>创建不改变坐标的单目标修正项。</summary>
-        private static PositionCorrectionInfo CreateIdentityCorrection()
+        private static PositionCorrectionInfo CreateIdentityCorrection(int targetIndex = 1)
         {
             return new PositionCorrectionInfo
             {
-                TargetIndex = 1,
+                TargetIndex = targetIndex,
                 IsValid = true,
                 BaseScaleX = 1,
                 BaseScaleY = 1,
                 CurrentScaleX = 1,
                 CurrentScaleY = 1
             };
+        }
+
+        /// <summary>优先沿用两侧上游目标的位置修正信息，否则创建对应编号的恒等修正。</summary>
+        private static PositionCorrectionInfo ResolvePairCorrection(
+            IndexedMeasurementPair<PointF, PointF> pair)
+        {
+            PositionCorrectionInfo firstCorrection = pair.First.Context as PositionCorrectionInfo;
+            if (firstCorrection != null && firstCorrection.TargetIndex == pair.TargetIndex)
+                return firstCorrection;
+
+            PositionCorrectionInfo secondCorrection = pair.Second.Context as PositionCorrectionInfo;
+            if (secondCorrection != null && secondCorrection.TargetIndex == pair.TargetIndex)
+                return secondCorrection;
+
+            return CreateIdentityCorrection(pair.TargetIndex);
         }
 
         /// <summary>为单个模板目标构造已经仿射变换的运行参数。</summary>

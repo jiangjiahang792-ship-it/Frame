@@ -384,14 +384,25 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         /// </summary>
         public static bool TryReadLinePoints(INodeResult result, out List<PointF> points)
         {
+            return TryReadLinePoints((object)result, out points);
+        }
+
+        /// <summary>
+        /// 从节点完整结果或单个多目标明细中读取直线边缘点。
+        /// </summary>
+        /// <param name="source">节点完整结果或单个多目标明细。</param>
+        /// <param name="points">读取到的直线边缘点。</param>
+        /// <returns>是否读取到至少两个有效点。</returns>
+        public static bool TryReadLinePoints(object source, out List<PointF> points)
+        {
             points = null;
-            if (result == null)
+            if (source == null)
                 return false;
-            if (IsExplicitNgResult(result))
+            if (IsExplicitNgResult(source))
                 return false;
 
-            if (TryReadPointListProperty(result, "EdgePoints", 2, out points) ||
-                TryReadPointListProperty(result, "Points", 2, out points))
+            if (TryReadPointListProperty(source, "EdgePoints", 2, out points) ||
+                TryReadPointListProperty(source, "Points", 2, out points))
             {
                 return true;
             }
@@ -481,19 +492,30 @@ namespace TDJS_Vision.Node._4_Measurement.Common
 
         public static bool TryReadRegion(INodeResult result, out List<PointF> regionPoints)
         {
+            return TryReadRegion((object)result, out regionPoints);
+        }
+
+        /// <summary>
+        /// 从节点完整结果或单个多目标明细中读取区域或轮廓点。
+        /// </summary>
+        /// <param name="source">节点完整结果或单个多目标明细。</param>
+        /// <param name="regionPoints">读取到的区域点。</param>
+        /// <returns>是否读取到至少三个有效区域点。</returns>
+        public static bool TryReadRegion(object source, out List<PointF> regionPoints)
+        {
             regionPoints = null;
-            if (result == null)
+            if (source == null)
                 return false;
-            if (IsExplicitNgResult(result))
+            if (IsExplicitNgResult(source))
                 return false;
 
-            if (TryReadPointListProperty(result, "RegionPoints", out regionPoints) ||
-                TryReadPointListProperty(result, "Points", out regionPoints))
+            if (TryReadPointListProperty(source, "RegionPoints", out regionPoints) ||
+                TryReadPointListProperty(source, "Points", out regionPoints))
             {
                 return regionPoints.Count >= 3;
             }
 
-            AlgorithmResult algorithmResult = TryGetAlgorithmResult(result);
+            AlgorithmResult algorithmResult = TryGetAlgorithmResult(source);
             if (algorithmResult != null && algorithmResult.Contours.Count > 0)
             {
                 regionPoints = algorithmResult.Contours[0].Points.ToList();

@@ -48,15 +48,13 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             node = nodeBase;
             Shown += NodeParamFormQRCodeIdentification_Shown;
 
-            toolTip1.SetToolTip(label2, "模板旋转搜索范围，单位度。");
+            toolTip1.SetToolTip(labelToleranceAngle, "模板旋转搜索范围，单位度。");
             toolTip1.SetToolTip(label4, "匹配可靠性阈值，支持 0~1 或 0~100。");
             toolTip1.SetToolTip(labelAngleStep, "旋转搜索步长，0 表示由算法自动选择。");
             toolTip1.SetToolTip(labelMaxOverlap, "多个目标之间允许的最大重叠率，支持 0~100。");
             toolTip1.SetToolTip(showImageControlSource, "用于绘制搜索区域，也用于查看执行预览。");
             toolTip1.SetToolTip(pictureBoxTemplate, "青色轮廓为当前模板参与匹配的边缘。");
 
-            comboBoxPolarity.SelectedIndex = 0;
-            comboBoxScaleMode.SelectedIndex = 0;
             checkBoxAllSearch.Checked = true;
             continuousRunTimer = new Timer { Interval = 500 };
             continuousRunTimer.Tick += continuousRunTimer_Tick;
@@ -102,7 +100,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             searchRegionAngle = param.SearchRegionAngle;
             searchRegionConfirmed = allSearch || (searchRegionWidth > 0 && searchRegionHeight > 0);
 
-            textBoxScale.Text = toleranceAngle.ToString("G");
+            textBoxToleranceAngle.Text = toleranceAngle.ToString("G");
             textBoxAngleStep.Text = angleStep.ToString("G");
             textBoxMaxOverlap.Text = maxOverlap.ToString("G");
             textBoxMinScore.Text = score.ToString("G");
@@ -722,7 +720,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             if (score > 100 || score < 0)
                 throw new Exception("最小匹配分数区间为 [0,1] 或 [0,100]。");
 
-            toleranceAngle = double.Parse(textBoxScale.Text);
+            toleranceAngle = double.Parse(textBoxToleranceAngle.Text);
             if (toleranceAngle < 0 || toleranceAngle > 360)
                 throw new Exception("角度范围设置区间为 [0,360]。");
 
@@ -1080,11 +1078,11 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         {
             try
             {
-                toleranceAngle = double.Parse(textBoxScale.Text);
+                toleranceAngle = double.Parse(textBoxToleranceAngle.Text);
             }
             catch (Exception)
             {
-                if (textBoxScale.Text.Length != 0)
+                if (textBoxToleranceAngle.Text.Length != 0)
                     MessageBoxTD.Show("角度范围参数不合法！");
             }
         }

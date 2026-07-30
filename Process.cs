@@ -464,6 +464,12 @@ namespace TDJS_Vision
                         continue;
                     }
 
+                    if (HasPendingIncomingConnection(node, visitedNodeIds, failedNodeIds, pendingNodes))
+                    {
+                        pendingNodes.AddLast(node);
+                        continue;
+                    }
+
                     if (!visitedNodeIds.Add(node.ID))
                         continue;
 
@@ -1266,6 +1272,63 @@ namespace TDJS_Vision
 
                 if (ContainsPendingNode(pendingNodes, dependencyNodeId))
                     return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 判断顺序运行队列中是否还有未完成的入线来源，避免多入线节点提前执行。
+        /// </summary>
+        private bool HasPendingIncomingConnection(
+            NodeBase node,
+            HashSet<int> visitedNodeIds,
+            HashSet<int> failedNodeIds,
+            LinkedList<NodeBase> pendingNodes)
+        {
+            if (node == null || visitedNodeIds == null || pendingNodes == null || pendingNodes.Count == 0)
+                return false;
+
+            foreach (ProcessConnection connection in _connections)
+            {
+                if (connection == null || connection.ToNodeId != node.ID)
+                    continue;
+
+                int upstreamNodeId = connection.FromNodeId;
+                if (upstreamNodeId <= 0 ||
+                    upstreamNodeId == node.ID ||
+                    visitedNodeIds.Contains(upstreamNodeId) ||
+                    IsReachableThroughConnections(node.ID, upstreamNodeId) ||
+                    (failedNodeIds != null && failedNodeIds.Contains(upstreamNodeId)))
+                {
+                    continue;
+                }
+
+                if (IsPendingOrReachableFromPendingNodes(pendingNodes, upstreamNodeId))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 判断目标节点是否已经在待执行队列中，或能从队列内节点继续沿连线到达。
+        /// </summary>
+        private bool IsPendingOrReachableFromPendingNodes(LinkedList<NodeBase> pendingNodes, int targetNodeId)
+        {
+            if (pendingNodes == null || targetNodeId <= 0)
+                return false;
+
+            foreach (NodeBase pendingNode in pendingNodes)
+            {
+                if (pendingNode == null)
+                    continue;
+
+                if (pendingNode.ID == targetNodeId ||
+                    IsReachableThroughConnections(pendingNode.ID, targetNodeId))
+                {
+                    return true;
+                }
             }
 
             return false;

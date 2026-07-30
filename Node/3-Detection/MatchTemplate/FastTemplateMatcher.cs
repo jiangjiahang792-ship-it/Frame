@@ -18,6 +18,11 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
     /// </summary>
     internal static class FastTemplateMatcher
     {
+        /// <summary>
+        /// 新模板匹配 native API 版本，1.1 表示支持稳定错误码、错误文本和模板学习结果持久化。
+        /// </summary>
+        private const uint RequiredNativeApiVersion = 0x00010001U;
+
         public static Bitmap CreateTemplateImage(Bitmap source, float centerX, float centerY, float width, float height, float angle)
         {
             if (source == null)
@@ -653,15 +658,21 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
         private sealed class FastMatchEngineHandle : IDisposable
         {
+            /// <summary>
+            /// MatchTool.dll 持有的模板匹配引擎指针。
+            /// </summary>
             private IntPtr _engine;
 
             public FastMatchEngineHandle()
             {
                 _engine = FastMatchNative.CreateMatchEngine();
                 if (_engine == IntPtr.Zero)
-                    throw new InvalidOperationException("CreateMatchEngine failed.");
+                    throw new InvalidOperationException("模板匹配引擎创建失败。");
             }
 
+            /// <summary>
+            /// 学习当前模板图像，并缓存 native 金字塔与归一化统计量。
+            /// </summary>
             public void Learn(Bitmap template)
             {
                 var data = template.LockBits(new Rectangle(0, 0, template.Width, template.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
@@ -669,7 +680,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 {
                     int code = FastMatchNative.LearnPatternMem(_engine, data.Scan0, template.Width, template.Height, data.Stride, 3);
                     if (code != 0)
-                        throw new InvalidOperationException("LearnPatternMem failed: " + code);
+                        throw CreateNativeException("模板学习失败", code);
                 }
                 finally
                 {
@@ -677,6 +688,9 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 }
             }
 
+            /// <summary>
+            /// 执行模板匹配，native 返回错误码时抛出明确异常，避免被误判为零结果。
+            /// </summary>
             public int Match(
                 Bitmap source,
                 double expectedScore,
@@ -710,7 +724,10 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         scores,
                         maxResults,
                         coarseMatch ? 1 : 0);
-                    return Math.Max(0, Math.Min(count, maxResults));
+                    if (count < 0)
+                        throw CreateNativeException("模板匹配执行失败", count);
+
+                    return Math.Min(count, maxResults);
                 }
                 finally
                 {
@@ -718,6 +735,38 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 }
             }
 
+            /// <summary>
+            /// 把 native 已学习的模板状态保存到文件，供后续冷启动快速加载。
+            /// </summary>
+            public void SavePattern(string filePath)
+            {
+                int code = FastMatchNative.SavePatternFile(_engine, filePath);
+                if (code != 0)
+                    throw CreateNativeException("模板学习结果保存失败", code);
+            }
+
+            /// <summary>
+            /// 从文件加载 native 已学习模板状态，避免重新学习模板。
+            /// </summary>
+            public void LoadPattern(string filePath)
+            {
+                int code = FastMatchNative.LoadPatternFile(_engine, filePath);
+                if (code != 0)
+                    throw CreateNativeException("模板学习结果加载失败", code);
+            }
+
+            /// <summary>
+            /// 创建带 native 错误文本的异常，方便低配电脑现场定位卡死或失败原因。
+            /// </summary>
+            private static InvalidOperationException CreateNativeException(string actionName, int status)
+            {
+                string message = FastMatchNative.GetStatusMessage(status);
+                return new InvalidOperationException(string.Format("{0}：{1}（错误码 {2}）。", actionName, message, status));
+            }
+
+            /// <summary>
+            /// 释放 native 引擎。
+            /// </summary>
             public void Dispose()
             {
                 if (_engine == IntPtr.Zero)
@@ -730,15 +779,28 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
         private static class FastMatchNative
         {
+            /// <summary>
+            /// 初始化 native DLL 搜索目录，并验证当前 DLL 已经升级到新模板匹配 API。
+            /// </summary>
             static FastMatchNative()
             {
                 string nativeDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Native");
                 if (Directory.Exists(nativeDirectory))
                     SetDllDirectory(nativeDirectory);
+
+                uint apiVersion = GetMatchApiVersion();
+                if (apiVersion < RequiredNativeApiVersion)
+                    throw new InvalidOperationException(string.Format("模板匹配 DLL 版本过旧，当前版本 0x{0:X8}，要求版本 0x{1:X8}。", apiVersion, RequiredNativeApiVersion));
             }
 
             [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
             private static extern bool SetDllDirectory(string lpPathName);
+
+            [DllImport("MatchTool.dll", CallingConvention = CallingConvention.Cdecl)]
+            public static extern uint GetMatchApiVersion();
+
+            [DllImport("MatchTool.dll", CallingConvention = CallingConvention.Cdecl)]
+            private static extern IntPtr GetMatchStatusMessage(int status);
 
             [DllImport("MatchTool.dll", CallingConvention = CallingConvention.Cdecl)]
             public static extern IntPtr CreateMatchEngine();
@@ -767,6 +829,25 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 double[] outScore,
                 int maxResults,
                 int bCoarseMatch);
+
+            [DllImport("MatchTool.dll", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            public static extern int SavePatternFile(IntPtr engine, [MarshalAs(UnmanagedType.LPStr)] string filePath);
+
+            [DllImport("MatchTool.dll", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            public static extern int LoadPatternFile(IntPtr engine, [MarshalAs(UnmanagedType.LPStr)] string filePath);
+
+            /// <summary>
+            /// 获取 native 错误码对应的稳定英文诊断文本，获取失败时返回通用描述。
+            /// </summary>
+            public static string GetStatusMessage(int status)
+            {
+                IntPtr pointer = GetMatchStatusMessage(status);
+                if (pointer == IntPtr.Zero)
+                    return "未知 native 错误";
+
+                string message = Marshal.PtrToStringAnsi(pointer);
+                return string.IsNullOrWhiteSpace(message) ? "未知 native 错误" : message;
+            }
         }
     }
 
