@@ -555,6 +555,9 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                     using (var template = To24Bpp(templateImage))
                     {
                         WriteDiagnosticLog("MatchSession.Match：图像已转24位，" + MatchTemplateDiagnosticLog.DescribeBitmap("source24", source) + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("template24", template));
+                        if (ShouldUseManagedCpuFallback())
+                            return MatchWithManagedCpuFallback(param, source, template, contourMask, sw);
+
                         WriteDiagnosticLog("MatchSession.Match：开始确保模板已学习，templateVersion=" + templateVersion + "，learnedVersion=" + learnedTemplateVersion);
                         EnsureTemplateLearned(template);
                         WriteDiagnosticLog("MatchSession.Match：模板学习状态确认完成。");
@@ -622,6 +625,210 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                     WriteDiagnosticLog(string.Format("MatchSession.Match出口：成功，matches={0}，elapsed={1:F2}ms。", result.Matches.Count, result.AlgorithmMs));
                     return result;
                 }
+            }
+
+            /// <summary>
+            /// 当前发布的 native DLL 需要 AVX2 且本机不支持时，自动切换到 OpenCvSharp CPU 后备算法。
+            /// </summary>
+            private static bool ShouldUseManagedCpuFallback()
+            {
+                string nativeDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Native");
+                bool requiresAvx2 = MatchToolRuntimeProfile.RequiresAvx2(nativeDirectory, "MatchTool.runtime.txt");
+                bool supportsAvx2 = CpuInstructionSet.SupportsAvx2;
+                bool useFallback = requiresAvx2 && !supportsAvx2;
+                WriteDiagnosticLog("MatchSession.Match：CPU后备判断，RequiresAvx2=" + requiresAvx2 + "，CpuSupportsAvx2=" + supportsAvx2 + "，UseFallback=" + useFallback + "。");
+                return useFallback;
+            }
+
+            /// <summary>
+            /// OpenCvSharp CPU 后备模板匹配，避免低配电脑进入 AVX2 native DLL 后进程级闪退。
+            /// </summary>
+            private FastTemplateMatchResult MatchWithManagedCpuFallback(
+                NodeParamMatchTemplate param,
+                Bitmap source,
+                Bitmap template,
+                Bitmap contourMask,
+                Stopwatch stopwatch)
+            {
+                WriteDiagnosticLog("ManagedCpuFallback入口：" + MatchTemplateDiagnosticLog.DescribeParam(param));
+                var result = new FastTemplateMatchResult();
+                int maxResults = Math.Max(1, Math.Min(1000, param.ResultNum));
+                double expectedScore = NormalizeScore(param.MinScore);
+                double maxOverlap = NormalizeRatio(param.MaxOverlap);
+                List<FastTemplateMatchInfo> candidates = FindManagedCpuCandidates(param, source, template, expectedScore, maxResults);
+
+                foreach (var candidate in candidates.OrderByDescending(item => item.Score))
+                {
+                    if (result.Matches.Count >= maxResults)
+                        break;
+                    if (result.Matches.Any(item => CalculateOverlapRatio(item.Box, candidate.Box) > maxOverlap))
+                        continue;
+
+                    result.Matches.Add(candidate);
+                }
+
+                if (param.ShowOutlineStatus && result.Matches.Count > 0)
+                {
+                    List<PointF> contour = GetTemplateContour(template, contourMask);
+                    foreach (var match in result.Matches)
+                        result.Outlines.Add(TransformContour(contour, match.Box.CenterX, match.Box.CenterY, match.Box.Angle));
+                }
+
+                stopwatch.Stop();
+                result.ExpectedCount = maxResults;
+                result.ExpectedScore = expectedScore;
+                result.IsOk = result.Matches.Count > 0 && result.Matches.All(m => m.Score >= expectedScore);
+                result.AlgorithmMs = stopwatch.Elapsed.TotalMilliseconds;
+                WriteDiagnosticLog(string.Format("ManagedCpuFallback出口：matches={0}，elapsed={1:F2}ms。", result.Matches.Count, result.AlgorithmMs));
+                return result;
+            }
+
+            /// <summary>
+            /// 按角度扫描收集候选结果，后续再统一做重叠抑制。
+            /// </summary>
+            private static List<FastTemplateMatchInfo> FindManagedCpuCandidates(
+                NodeParamMatchTemplate param,
+                Bitmap source,
+                Bitmap template,
+                double expectedScore,
+                int maxResults)
+            {
+                var candidates = new List<FastTemplateMatchInfo>();
+                using (var sourceMat = BitmapConverter.ToMat(source))
+                using (var sourceGray = ToGrayMat(sourceMat))
+                using (var templateMat = BitmapConverter.ToMat(template))
+                using (var templateGray = ToGrayMat(templateMat))
+                {
+                    foreach (double angle in BuildFallbackAngles(param))
+                    {
+                        using (var rotated = RotateMat(templateGray, angle, InterpolationFlags.Linear))
+                        using (var maskSeed = new Mat(templateGray.Rows, templateGray.Cols, MatType.CV_8UC1, Scalar.All(255)))
+                        using (var rotatedMask = RotateMat(maskSeed, angle, InterpolationFlags.Nearest))
+                        {
+                            if (rotated.Width <= 0 || rotated.Height <= 0 || rotated.Width > sourceGray.Width || rotated.Height > sourceGray.Height)
+                                continue;
+
+                            using (var response = new Mat())
+                            {
+                                Cv2.MatchTemplate(sourceGray, rotated, response, TemplateMatchModes.CCorrNormed, rotatedMask);
+                                int perAngleLimit = Math.Max(3, Math.Min(30, maxResults * 4));
+                                for (int index = 0; index < perAngleLimit; index++)
+                                {
+                                    double minValue;
+                                    double maxValue;
+                                    OpenCvSharp.Point minLocation;
+                                    OpenCvSharp.Point maxLocation;
+                                    Cv2.MinMaxLoc(response, out minValue, out maxValue, out minLocation, out maxLocation);
+                                    if (double.IsNaN(maxValue) || maxValue < expectedScore)
+                                        break;
+
+                                    candidates.Add(new FastTemplateMatchInfo
+                                    {
+                                        Box = new FastTemplateMatchBox
+                                        {
+                                            CenterX = maxLocation.X + rotated.Width / 2f,
+                                            CenterY = maxLocation.Y + rotated.Height / 2f,
+                                            Width = template.Width,
+                                            Height = template.Height,
+                                            Angle = (float)angle
+                                        },
+                                        Score = maxValue
+                                    });
+
+                                    SuppressResponsePeak(response, maxLocation, rotated.Width, rotated.Height);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return candidates;
+            }
+
+            /// <summary>
+            /// 生成后备算法角度列表，0度优先，随后按正负方向扩展。
+            /// </summary>
+            private static List<double> BuildFallbackAngles(NodeParamMatchTemplate param)
+            {
+                double tolerance = Math.Min(180.0, Math.Abs(param.ToleranceAngle));
+                double step = param.AngleStep > 0 ? param.AngleStep : (param.CoarseMatch ? 8.0 : 5.0);
+                step = Math.Max(1.0, Math.Min(30.0, step));
+                var angles = new List<double> { 0.0 };
+                for (double angle = step; angle <= tolerance + 0.001; angle += step)
+                {
+                    angles.Add(angle);
+                    angles.Add(-angle);
+                }
+
+                WriteDiagnosticLog("ManagedCpuFallback：角度数量=" + angles.Count + "，step=" + step + "。");
+                return angles;
+            }
+
+            /// <summary>
+            /// 转灰度 Mat，降低后备匹配计算量。
+            /// </summary>
+            private static Mat ToGrayMat(Mat source)
+            {
+                var gray = new Mat();
+                if (source.Channels() >= 3)
+                    Cv2.CvtColor(source, gray, ColorConversionCodes.BGR2GRAY);
+                else
+                    source.CopyTo(gray);
+                return gray;
+            }
+
+            /// <summary>
+            /// 旋转 Mat 并扩展画布，保证旋转后的模板不被裁剪。
+            /// </summary>
+            private static Mat RotateMat(Mat source, double angle, InterpolationFlags interpolation)
+            {
+                var center = new Point2f(source.Width / 2f, source.Height / 2f);
+                using (var matrix = Cv2.GetRotationMatrix2D(center, angle, 1.0))
+                {
+                    double cos = Math.Abs(matrix.At<double>(0, 0));
+                    double sin = Math.Abs(matrix.At<double>(0, 1));
+                    int newWidth = Math.Max(1, (int)Math.Round(source.Height * sin + source.Width * cos));
+                    int newHeight = Math.Max(1, (int)Math.Round(source.Height * cos + source.Width * sin));
+                    matrix.Set(0, 2, matrix.At<double>(0, 2) + newWidth / 2.0 - center.X);
+                    matrix.Set(1, 2, matrix.At<double>(1, 2) + newHeight / 2.0 - center.Y);
+
+                    var rotated = new Mat();
+                    Cv2.WarpAffine(source, rotated, matrix, new OpenCvSharp.Size(newWidth, newHeight), interpolation, BorderTypes.Constant, Scalar.All(0));
+                    return rotated;
+                }
+            }
+
+            /// <summary>
+            /// 清除当前响应图峰值附近区域，避免同一个目标被重复取出。
+            /// </summary>
+            private static void SuppressResponsePeak(Mat response, OpenCvSharp.Point location, int templateWidth, int templateHeight)
+            {
+                int radiusX = Math.Max(4, templateWidth / 2);
+                int radiusY = Math.Max(4, templateHeight / 2);
+                int left = Math.Max(0, location.X - radiusX);
+                int top = Math.Max(0, location.Y - radiusY);
+                int right = Math.Min(response.Width, location.X + radiusX);
+                int bottom = Math.Min(response.Height, location.Y + radiusY);
+                if (right > left && bottom > top)
+                    Cv2.Rectangle(response, new CvRect(left, top, right - left, bottom - top), Scalar.All(0), -1);
+            }
+
+            /// <summary>
+            /// 计算两个匹配框的轴对齐包围盒重叠率，用于后备算法去重。
+            /// </summary>
+            private static double CalculateOverlapRatio(FastTemplateMatchBox first, FastTemplateMatchBox second)
+            {
+                CvRect a = first.ToBoundingRect();
+                CvRect b = second.ToBoundingRect();
+                int left = Math.Max(a.X, b.X);
+                int top = Math.Max(a.Y, b.Y);
+                int right = Math.Min(a.X + a.Width, b.X + b.Width);
+                int bottom = Math.Min(a.Y + a.Height, b.Y + b.Height);
+                int width = Math.Max(0, right - left);
+                int height = Math.Max(0, bottom - top);
+                double intersection = width * height;
+                double minArea = Math.Max(1, Math.Min(a.Width * a.Height, b.Width * b.Height));
+                return intersection / minArea;
             }
 
             /// <summary>
