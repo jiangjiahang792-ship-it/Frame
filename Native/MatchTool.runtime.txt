@@ -1,4 +1,4 @@
-instruction_set=AVX2
-requires_avx2=true
+﻿instruction_set=x64-generic
+requires_avx2=false
 api_version=0x00010001
-note=当前随包模板匹配库为AVX2编译版本；低配电脑不支持AVX2时，程序自动切换OpenCvSharp CPU后备匹配，避免点击执行后闪退。
+note=当前随包模板匹配库为通用x64 CPU版本；低配电脑不需要AVX2也会走native高速匹配。

@@ -43,8 +43,8 @@ Assert-Contains $matcherSource 'AVX2' 'Unsupported CPU errors must explain the A
 Assert-Contains $matcherSource 'CpuSupportsAvx2' 'Diagnostics must log the detected CPU AVX2 capability.'
 
 Assert-True -Condition (Test-Path -LiteralPath $runtimeProfilePath -PathType Leaf) -Message 'MatchTool runtime profile must be shipped with the native DLL.'
-Assert-Contains $runtimeProfile 'instruction_set=AVX2' 'The current runtime profile must identify the shipped native DLL as AVX2.'
-Assert-Contains $runtimeProfile 'requires_avx2=true' 'The current runtime profile must mark AVX2 as required.'
+Assert-Contains $runtimeProfile 'instruction_set=x64-generic' 'The current runtime profile must identify the shipped native DLL as generic x64.'
+Assert-Contains $runtimeProfile 'requires_avx2=false' 'The current runtime profile must mark AVX2 as optional.'
 Assert-Contains $runtimeProfile 'CPU' 'The runtime profile must document the CPU fallback behavior.'
 Assert-Contains $projectSource '<Content Include="Native\MatchTool.runtime.txt">' 'Project file must copy the MatchTool runtime profile to the output directory.'
 
