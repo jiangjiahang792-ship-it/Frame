@@ -77,6 +77,8 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             this.textBoxMinScore = new System.Windows.Forms.TextBox();
             this.label5 = new System.Windows.Forms.Label();
             this.textBoxResultNum = new System.Windows.Forms.TextBox();
+            this.labelSortMode = new System.Windows.Forms.Label();
+            this.comboBoxSortMode = new System.Windows.Forms.ComboBox();
             this.labelToleranceAngle = new System.Windows.Forms.Label();
             this.textBoxToleranceAngle = new System.Windows.Forms.TextBox();
             this.labelAngleStep = new System.Windows.Forms.Label();
@@ -649,18 +651,21 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             this.tableRun.Controls.Add(this.textBoxMinScore, 1, 1);
             this.tableRun.Controls.Add(this.label5, 0, 2);
             this.tableRun.Controls.Add(this.textBoxResultNum, 1, 2);
-            this.tableRun.Controls.Add(this.labelToleranceAngle, 0, 3);
-            this.tableRun.Controls.Add(this.textBoxToleranceAngle, 1, 3);
-            this.tableRun.Controls.Add(this.labelAngleStep, 0, 4);
-            this.tableRun.Controls.Add(this.textBoxAngleStep, 1, 4);
-            this.tableRun.Controls.Add(this.labelMaxOverlap, 0, 5);
-            this.tableRun.Controls.Add(this.textBoxMaxOverlap, 1, 5);
-            this.tableRun.Controls.Add(this.checkBoxCoarseMatch, 1, 6);
+            this.tableRun.Controls.Add(this.labelSortMode, 0, 3);
+            this.tableRun.Controls.Add(this.comboBoxSortMode, 1, 3);
+            this.tableRun.Controls.Add(this.labelToleranceAngle, 0, 4);
+            this.tableRun.Controls.Add(this.textBoxToleranceAngle, 1, 4);
+            this.tableRun.Controls.Add(this.labelAngleStep, 0, 5);
+            this.tableRun.Controls.Add(this.textBoxAngleStep, 1, 5);
+            this.tableRun.Controls.Add(this.labelMaxOverlap, 0, 6);
+            this.tableRun.Controls.Add(this.textBoxMaxOverlap, 1, 6);
+            this.tableRun.Controls.Add(this.checkBoxCoarseMatch, 1, 7);
             this.tableRun.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableRun.Location = new System.Drawing.Point(46, 28);
             this.tableRun.Name = "tableRun";
-            this.tableRun.RowCount = 8;
+            this.tableRun.RowCount = 9;
             this.tableRun.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 56F));
+            this.tableRun.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 52F));
             this.tableRun.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 52F));
             this.tableRun.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 52F));
             this.tableRun.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 52F));
@@ -724,24 +729,48 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             this.textBoxResultNum.TabIndex = 4;
             this.textBoxResultNum.Text = "1";
             // 
+            // labelSortMode
+            // 
+            this.labelSortMode.Anchor = System.Windows.Forms.AnchorStyles.Left;
+            this.labelSortMode.AutoSize = true;
+            this.labelSortMode.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(68)))), ((int)(((byte)(76)))), ((int)(((byte)(89)))));
+            this.labelSortMode.Location = new System.Drawing.Point(3, 174);
+            this.labelSortMode.Name = "labelSortMode";
+            this.labelSortMode.Size = new System.Drawing.Size(136, 24);
+            this.labelSortMode.TabIndex = 5;
+            this.labelSortMode.Text = "多目标排序方式";
+            // 
+            // comboBoxSortMode
+            // 
+            this.comboBoxSortMode.Anchor = System.Windows.Forms.AnchorStyles.Left;
+            this.comboBoxSortMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxSortMode.FormattingEnabled = true;
+            this.comboBoxSortMode.Items.AddRange(new object[] {
+            "列排序输出",
+            "行排序输出"});
+            this.comboBoxSortMode.Location = new System.Drawing.Point(153, 170);
+            this.comboBoxSortMode.Name = "comboBoxSortMode";
+            this.comboBoxSortMode.Size = new System.Drawing.Size(210, 32);
+            this.comboBoxSortMode.TabIndex = 6;
+            // 
             // labelToleranceAngle
             // 
             this.labelToleranceAngle.Anchor = System.Windows.Forms.AnchorStyles.Left;
             this.labelToleranceAngle.AutoSize = true;
             this.labelToleranceAngle.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(68)))), ((int)(((byte)(76)))), ((int)(((byte)(89)))));
-            this.labelToleranceAngle.Location = new System.Drawing.Point(3, 174);
+            this.labelToleranceAngle.Location = new System.Drawing.Point(3, 226);
             this.labelToleranceAngle.Name = "labelToleranceAngle";
             this.labelToleranceAngle.Size = new System.Drawing.Size(82, 24);
-            this.labelToleranceAngle.TabIndex = 5;
+            this.labelToleranceAngle.TabIndex = 7;
             this.labelToleranceAngle.Text = "角度范围";
             // 
             // textBoxToleranceAngle
             // 
             this.textBoxToleranceAngle.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.textBoxToleranceAngle.Location = new System.Drawing.Point(153, 170);
+            this.textBoxToleranceAngle.Location = new System.Drawing.Point(153, 222);
             this.textBoxToleranceAngle.Name = "textBoxToleranceAngle";
             this.textBoxToleranceAngle.Size = new System.Drawing.Size(210, 31);
-            this.textBoxToleranceAngle.TabIndex = 6;
+            this.textBoxToleranceAngle.TabIndex = 8;
             this.textBoxToleranceAngle.Text = "80";
             this.textBoxToleranceAngle.TextChanged += new System.EventHandler(this.textBox2_TextChanged);
             // 
@@ -750,19 +779,19 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             this.labelAngleStep.Anchor = System.Windows.Forms.AnchorStyles.Left;
             this.labelAngleStep.AutoSize = true;
             this.labelAngleStep.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(68)))), ((int)(((byte)(76)))), ((int)(((byte)(89)))));
-            this.labelAngleStep.Location = new System.Drawing.Point(3, 226);
+            this.labelAngleStep.Location = new System.Drawing.Point(3, 278);
             this.labelAngleStep.Name = "labelAngleStep";
             this.labelAngleStep.Size = new System.Drawing.Size(82, 24);
-            this.labelAngleStep.TabIndex = 7;
+            this.labelAngleStep.TabIndex = 9;
             this.labelAngleStep.Text = "角度步长";
             // 
             // textBoxAngleStep
             // 
             this.textBoxAngleStep.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.textBoxAngleStep.Location = new System.Drawing.Point(153, 222);
+            this.textBoxAngleStep.Location = new System.Drawing.Point(153, 274);
             this.textBoxAngleStep.Name = "textBoxAngleStep";
             this.textBoxAngleStep.Size = new System.Drawing.Size(210, 31);
-            this.textBoxAngleStep.TabIndex = 8;
+            this.textBoxAngleStep.TabIndex = 10;
             this.textBoxAngleStep.Text = "0";
             // 
             // labelMaxOverlap
@@ -770,29 +799,29 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             this.labelMaxOverlap.Anchor = System.Windows.Forms.AnchorStyles.Left;
             this.labelMaxOverlap.AutoSize = true;
             this.labelMaxOverlap.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(68)))), ((int)(((byte)(76)))), ((int)(((byte)(89)))));
-            this.labelMaxOverlap.Location = new System.Drawing.Point(3, 278);
+            this.labelMaxOverlap.Location = new System.Drawing.Point(3, 330);
             this.labelMaxOverlap.Name = "labelMaxOverlap";
             this.labelMaxOverlap.Size = new System.Drawing.Size(100, 24);
-            this.labelMaxOverlap.TabIndex = 9;
+            this.labelMaxOverlap.TabIndex = 11;
             this.labelMaxOverlap.Text = "最大重叠率";
             // 
             // textBoxMaxOverlap
             // 
             this.textBoxMaxOverlap.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.textBoxMaxOverlap.Location = new System.Drawing.Point(153, 274);
+            this.textBoxMaxOverlap.Location = new System.Drawing.Point(153, 326);
             this.textBoxMaxOverlap.Name = "textBoxMaxOverlap";
             this.textBoxMaxOverlap.Size = new System.Drawing.Size(210, 31);
-            this.textBoxMaxOverlap.TabIndex = 10;
+            this.textBoxMaxOverlap.TabIndex = 12;
             this.textBoxMaxOverlap.Text = "40";
             // 
             // checkBoxCoarseMatch
             // 
             this.checkBoxCoarseMatch.Anchor = System.Windows.Forms.AnchorStyles.Left;
             this.checkBoxCoarseMatch.AutoSize = true;
-            this.checkBoxCoarseMatch.Location = new System.Drawing.Point(153, 329);
+            this.checkBoxCoarseMatch.Location = new System.Drawing.Point(153, 381);
             this.checkBoxCoarseMatch.Name = "checkBoxCoarseMatch";
             this.checkBoxCoarseMatch.Size = new System.Drawing.Size(126, 28);
-            this.checkBoxCoarseMatch.TabIndex = 11;
+            this.checkBoxCoarseMatch.TabIndex = 13;
             this.checkBoxCoarseMatch.Text = "极速粗匹配";
             this.checkBoxCoarseMatch.UseVisualStyleBackColor = true;
             // 
@@ -946,6 +975,8 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         private System.Windows.Forms.TextBox textBoxMinScore;
         private System.Windows.Forms.Label label5;
         private System.Windows.Forms.TextBox textBoxResultNum;
+        private System.Windows.Forms.Label labelSortMode;
+        private System.Windows.Forms.ComboBox comboBoxSortMode;
         private System.Windows.Forms.Label labelToleranceAngle;
         private System.Windows.Forms.TextBox textBoxToleranceAngle;
         private System.Windows.Forms.Label labelAngleStep;

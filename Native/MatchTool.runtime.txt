@@ -1,0 +1,4 @@
+instruction_set=AVX2
+requires_avx2=true
+api_version=0x00010001
+note=当前随包模板匹配库为AVX2编译版本；低配电脑不支持AVX2时，程序会在进入native前拦截，避免点击执行后闪退。

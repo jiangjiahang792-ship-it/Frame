@@ -1,5 +1,24 @@
 ﻿namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 {
+    /// <summary>
+    /// 模板匹配多目标输出排序方式。
+    /// </summary>
+    public enum MatchTemplateSortMode
+    {
+        /// <summary>
+        /// 按目标中心 X 从小到大排序，适合从左到右取列目标。
+        /// </summary>
+        ColumnAscending,
+
+        /// <summary>
+        /// 按目标中心 Y 从小到大排序，适合从上到下取行目标。
+        /// </summary>
+        RowAscending
+    }
+
+    /// <summary>
+    /// 模板匹配节点参数。
+    /// </summary>
     public class NodeParamMatchTemplate : INodeParam
     {
         /// <summary>
@@ -38,6 +57,10 @@
         /// 输出结果的数量
         /// </summary>
         public int ResultNum { get; set; }
+        /// <summary>
+        /// 多目标结果输出排序方式，排序后目标编号会用于位姿列表、首目标摘要和动态变量。
+        /// </summary>
+        public MatchTemplateSortMode SortMode { get; set; } = MatchTemplateSortMode.ColumnAscending;
         /// <summary>
         /// 是否在整幅图中搜索。为 false 时使用搜索区域。
         /// </summary>

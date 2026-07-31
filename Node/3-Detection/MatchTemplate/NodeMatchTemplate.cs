@@ -11,7 +11,10 @@ using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 {
-    public class NodeMatchTemplate : NodeBase
+    /// <summary>
+    /// 模板匹配节点。
+    /// </summary>
+    public class NodeMatchTemplate : NodeBase, IDynamicResultVariableProvider, IDynamicResultVariableTypeProvider
     {
         public NodeMatchTemplate(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
         {
@@ -104,14 +107,18 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             if (matchResult == null)
                 return nodeResult;
 
+            List<FastTemplateMatchInfo> orderedMatches = OrderMatches(matchResult.Matches, param == null
+                ? MatchTemplateSortMode.ColumnAscending
+                : param.SortMode);
+
             if (matchResult.OutputBitmap != null)
                 nodeResult.OutputImage.Bitmaps = new List<Mat>() { matchResult.OutputBitmap.ToMat() };
-            nodeResult.OutputImage.Rectangles = matchResult.Matches.Select(m => m.Box.ToBoundingRect()).ToList();
+            nodeResult.OutputImage.Rectangles = orderedMatches.Select(m => m.Box.ToBoundingRect()).ToList();
             nodeResult.Result.Clear();
             nodeResult.Result.IsAllOk = matchResult.IsOk;
             nodeResult.IsOk = matchResult.IsOk;
-            nodeResult.MatchCount = matchResult.Matches.Count;
-            nodeResult.Poses = matchResult.Matches.Select((match, index) => new TemplateMatchPose
+            nodeResult.MatchCount = orderedMatches.Count;
+            nodeResult.Poses = orderedMatches.Select((match, index) => new TemplateMatchPose
             {
                 TargetIndex = index + 1,
                 CenterX = match.Box.CenterX,
@@ -124,19 +131,19 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 Height = match.Box.Height,
                 IsValid = true
             }).ToList();
-            if (matchResult.Matches.Count > 0)
+            if (orderedMatches.Count > 0)
             {
-                var firstMatch = matchResult.Matches[0];
+                var firstMatch = orderedMatches[0];
                 nodeResult.MatchX = firstMatch.Box.CenterX;
                 nodeResult.MatchY = firstMatch.Box.CenterY;
                 nodeResult.Angle = firstMatch.Box.Angle;
                 nodeResult.Score = firstMatch.Score * 100.0;
             }
 
-            nodeResult.Result.Texts.Add(new ColorText($"模版匹配结果个数：{matchResult.Matches.Count}个，耗时 {matchResult.AlgorithmMs:F2} ms", matchResult.IsOk ? Color.Green : Color.Red));
-            for (int i = 0; i < matchResult.Matches.Count; i++)
+            nodeResult.Result.Texts.Add(new ColorText($"模版匹配结果个数：{orderedMatches.Count}个，耗时 {matchResult.AlgorithmMs:F2} ms", matchResult.IsOk ? Color.Green : Color.Red));
+            for (int i = 0; i < orderedMatches.Count; i++)
             {
-                var match = matchResult.Matches[i];
+                var match = orderedMatches[i];
                 if (param == null || param.ShowOutRegionStatus)
                 {
                     nodeResult.Result.Rects.Add(new ColorRotatedRect(
@@ -160,6 +167,55 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             }
             nodeResult.OutputImage.DisplayResult = nodeResult.Result;
             return nodeResult;
+        }
+
+        /// <summary>
+        /// 获取当前参数声明的排序目标中心变量名，供四则运算配置阶段选择。
+        /// </summary>
+        public IEnumerable<string> GetDynamicResultVariableNames()
+        {
+            NodeParamMatchTemplate param = ParamForm == null ? null : ParamForm.Params as NodeParamMatchTemplate;
+            int targetCount = param == null || param.ResultNum <= 0 ? 1 : param.ResultNum;
+            return MatchTemplateTargetVariableNames.BuildTargetVariableNames(targetCount);
+        }
+
+        /// <summary>
+        /// 获取模板目标中心动态变量的真实类型。
+        /// </summary>
+        public bool TryGetDynamicResultVariableType(string variableName, out Type valueType)
+        {
+            valueType = null;
+            int targetIndex;
+            MatchTemplateTargetCoordinate coordinate;
+            if (!MatchTemplateTargetVariableNames.TryParse(variableName, out targetIndex, out coordinate))
+                return false;
+
+            valueType = typeof(double);
+            return true;
+        }
+
+        /// <summary>
+        /// 根据配置对 native 返回的匹配结果排序，让目标编号在下游订阅中保持稳定。
+        /// </summary>
+        private static List<FastTemplateMatchInfo> OrderMatches(
+            IEnumerable<FastTemplateMatchInfo> matches,
+            MatchTemplateSortMode sortMode)
+        {
+            IEnumerable<FastTemplateMatchInfo> safeMatches = matches ?? Enumerable.Empty<FastTemplateMatchInfo>();
+            switch (sortMode)
+            {
+                case MatchTemplateSortMode.RowAscending:
+                    return safeMatches
+                        .OrderBy(m => m.Box.CenterY)
+                        .ThenBy(m => m.Box.CenterX)
+                        .ToList();
+                case MatchTemplateSortMode.ColumnAscending:
+                default:
+                    return safeMatches
+                        .OrderBy(m => m.Box.CenterX)
+                        .ThenBy(m => m.Box.CenterY)
+                        .ToList();
+            }
         }
     }
 }

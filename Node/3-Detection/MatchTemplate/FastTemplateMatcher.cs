@@ -9,6 +9,8 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
 using CvRect = OpenCvSharp.Rect;
 
 namespace TDJS_Vision.Node._3_Detection.MatchTemplate
@@ -22,6 +24,14 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// 新模板匹配 native API 版本，1.1 表示支持稳定错误码、错误文本和模板学习结果持久化。
         /// </summary>
         private const uint RequiredNativeApiVersion = 0x00010001U;
+
+        /// <summary>
+        /// 写入模板匹配专用诊断日志，native 崩溃时通过最后一行定位执行阶段。
+        /// </summary>
+        public static void WriteDiagnosticLog(string message)
+        {
+            MatchTemplateDiagnosticLog.Write(message);
+        }
 
         public static Bitmap CreateTemplateImage(Bitmap source, float centerX, float centerY, float width, float height, float angle)
         {
@@ -501,16 +511,22 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             /// </summary>
             public FastTemplateMatchResult Match(NodeParamMatchTemplate param, Bitmap sourceImage, Bitmap templateImage)
             {
+                WriteDiagnosticLog("MatchSession.Match入口：使用参数内蒙版，" + MatchTemplateDiagnosticLog.DescribeBitmap("source", sourceImage) + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("template", templateImage));
                 Bitmap contourMask = null;
                 try
                 {
                     if (param != null && param.TemplateEraseMaskBytes != null && param.TemplateEraseMaskBytes.Length > 0)
+                    {
+                        WriteDiagnosticLog("MatchSession.Match：开始从参数还原模板涂抹蒙版，字节数=" + param.TemplateEraseMaskBytes.Length);
                         contourMask = PngBytesToBitmap(param.TemplateEraseMaskBytes);
+                        WriteDiagnosticLog("MatchSession.Match：参数蒙版还原完成，" + MatchTemplateDiagnosticLog.DescribeBitmap("mask", contourMask));
+                    }
                     return Match(param, sourceImage, templateImage, contourMask);
                 }
                 finally
                 {
                     contourMask?.Dispose();
+                    WriteDiagnosticLog("MatchSession.Match出口：参数内蒙版已释放。");
                 }
             }
 
@@ -519,6 +535,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             /// </summary>
             public FastTemplateMatchResult Match(NodeParamMatchTemplate param, Bitmap sourceImage, Bitmap templateImage, Bitmap contourMask)
             {
+                WriteDiagnosticLog("MatchSession.Match入口：外部蒙版，" + MatchTemplateDiagnosticLog.DescribeParam(param) + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("source", sourceImage) + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("template", templateImage) + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("mask", contourMask));
                 if (param == null)
                     throw new ArgumentNullException(nameof(param));
                 if (sourceImage == null)
@@ -528,6 +545,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
                 lock (syncRoot)
                 {
+                    WriteDiagnosticLog("MatchSession.Match：已进入会话锁。");
                     ThrowIfDisposed();
 
                     var result = new FastTemplateMatchResult();
@@ -536,7 +554,10 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                     using (var source = To24Bpp(sourceImage))
                     using (var template = To24Bpp(templateImage))
                     {
+                        WriteDiagnosticLog("MatchSession.Match：图像已转24位，" + MatchTemplateDiagnosticLog.DescribeBitmap("source24", source) + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("template24", template));
+                        WriteDiagnosticLog("MatchSession.Match：开始确保模板已学习，templateVersion=" + templateVersion + "，learnedVersion=" + learnedTemplateVersion);
                         EnsureTemplateLearned(template);
+                        WriteDiagnosticLog("MatchSession.Match：模板学习状态确认完成。");
 
                         int maxResults = Math.Max(1, Math.Min(1000, param.ResultNum));
                         double[] xs = new double[maxResults];
@@ -548,6 +569,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         double maxOverlap = NormalizeRatio(param.MaxOverlap);
                         double toleranceAngle = Math.Abs(param.ToleranceAngle);
 
+                        WriteDiagnosticLog(string.Format("MatchSession.Match：准备调用native匹配，maxResults={0}，expectedScore={1:F4}，toleranceAngle={2:F4}，maxOverlap={3:F4}，angleStep={4:F4}，coarse={5}。", maxResults, expectedScore, toleranceAngle, maxOverlap, Math.Max(0, param.AngleStep), param.CoarseMatch));
                         int count = engine.Match(
                             source,
                             expectedScore,
@@ -560,10 +582,15 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                             angles,
                             scores,
                             maxResults);
+                        WriteDiagnosticLog("MatchSession.Match：native匹配返回，count=" + count);
 
                         List<PointF> contour = null;
                         if (param.ShowOutlineStatus)
+                        {
+                            WriteDiagnosticLog("MatchSession.Match：开始获取模板轮廓。");
                             contour = GetTemplateContour(template, contourMask);
+                            WriteDiagnosticLog("MatchSession.Match：模板轮廓完成，点数=" + (contour == null ? 0 : contour.Count));
+                        }
 
                         for (int i = 0; i < count; i++)
                         {
@@ -592,6 +619,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
                     sw.Stop();
                     result.AlgorithmMs = sw.Elapsed.TotalMilliseconds;
+                    WriteDiagnosticLog(string.Format("MatchSession.Match出口：成功，matches={0}，elapsed={1:F2}ms。", result.Matches.Count, result.AlgorithmMs));
                     return result;
                 }
             }
@@ -618,17 +646,26 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             private void EnsureTemplateLearned(Bitmap template)
             {
                 if (engine == null)
+                {
+                    WriteDiagnosticLog("EnsureTemplateLearned：native引擎为空，开始创建。");
                     engine = new FastMatchEngineHandle();
+                    WriteDiagnosticLog("EnsureTemplateLearned：native引擎创建完成。");
+                }
 
                 bool sizeChanged = template.Width != learnedTemplateWidth || template.Height != learnedTemplateHeight;
                 if (templateLearned && learnedTemplateVersion == templateVersion && !sizeChanged)
+                {
+                    WriteDiagnosticLog("EnsureTemplateLearned：复用已学习模板。");
                     return;
+                }
 
+                WriteDiagnosticLog(string.Format("EnsureTemplateLearned：开始学习模板，sizeChanged={0}，oldSize={1}x{2}，newSize={3}x{4}。", sizeChanged, learnedTemplateWidth, learnedTemplateHeight, template.Width, template.Height));
                 engine.Learn(template);
                 templateLearned = true;
                 learnedTemplateVersion = templateVersion;
                 learnedTemplateWidth = template.Width;
                 learnedTemplateHeight = template.Height;
+                WriteDiagnosticLog("EnsureTemplateLearned：模板学习完成。");
             }
 
             /// <summary>
@@ -665,7 +702,9 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
             public FastMatchEngineHandle()
             {
+                MatchTemplateDiagnosticLog.Write("FastMatchEngineHandle：准备调用CreateMatchEngine。");
                 _engine = FastMatchNative.CreateMatchEngine();
+                MatchTemplateDiagnosticLog.Write("FastMatchEngineHandle：CreateMatchEngine返回，handle=" + _engine);
                 if (_engine == IntPtr.Zero)
                     throw new InvalidOperationException("模板匹配引擎创建失败。");
             }
@@ -675,16 +714,20 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             /// </summary>
             public void Learn(Bitmap template)
             {
+                MatchTemplateDiagnosticLog.Write("FastMatchEngineHandle.Learn入口：" + MatchTemplateDiagnosticLog.DescribeBitmap("template", template));
                 var data = template.LockBits(new Rectangle(0, 0, template.Width, template.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
                 try
                 {
+                    MatchTemplateDiagnosticLog.Write(string.Format("FastMatchEngineHandle.Learn：准备调用LearnPatternMem，width={0}，height={1}，stride={2}，scan0={3}。", template.Width, template.Height, data.Stride, data.Scan0));
                     int code = FastMatchNative.LearnPatternMem(_engine, data.Scan0, template.Width, template.Height, data.Stride, 3);
+                    MatchTemplateDiagnosticLog.Write("FastMatchEngineHandle.Learn：LearnPatternMem返回，code=" + code);
                     if (code != 0)
                         throw CreateNativeException("模板学习失败", code);
                 }
                 finally
                 {
                     template.UnlockBits(data);
+                    MatchTemplateDiagnosticLog.Write("FastMatchEngineHandle.Learn出口：模板位图已解锁。");
                 }
             }
 
@@ -704,9 +747,11 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 double[] scores,
                 int maxResults)
             {
+                MatchTemplateDiagnosticLog.Write(string.Format("FastMatchEngineHandle.Match入口：{0}，score={1:F4}，angle={2:F4}，overlap={3:F4}，step={4:F4}，coarse={5}，max={6}。", MatchTemplateDiagnosticLog.DescribeBitmap("source", source), expectedScore, toleranceAngle, maxOverlap, angleStep, coarseMatch, maxResults));
                 var data = source.LockBits(new Rectangle(0, 0, source.Width, source.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
                 try
                 {
+                    MatchTemplateDiagnosticLog.Write(string.Format("FastMatchEngineHandle.Match：准备调用MatchMem，width={0}，height={1}，stride={2}，scan0={3}。", source.Width, source.Height, data.Stride, data.Scan0));
                     int count = FastMatchNative.MatchMem(
                         _engine,
                         data.Scan0,
@@ -724,6 +769,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         scores,
                         maxResults,
                         coarseMatch ? 1 : 0);
+                    MatchTemplateDiagnosticLog.Write("FastMatchEngineHandle.Match：MatchMem返回，count=" + count);
                     if (count < 0)
                         throw CreateNativeException("模板匹配执行失败", count);
 
@@ -732,6 +778,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 finally
                 {
                     source.UnlockBits(data);
+                    MatchTemplateDiagnosticLog.Write("FastMatchEngineHandle.Match出口：源图位图已解锁。");
                 }
             }
 
@@ -780,17 +827,41 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         private static class FastMatchNative
         {
             /// <summary>
-            /// 初始化 native DLL 搜索目录，并验证当前 DLL 已经升级到新模板匹配 API。
+            /// 随 native DLL 一起发布的运行配置文件，用于说明当前 DLL 是否依赖特殊 CPU 指令集。
+            /// </summary>
+            private const string RuntimeProfileFileName = "MatchTool.runtime.txt";
+
+            /// <summary>
+            /// 初始化 native DLL 搜索目录，并验证 CPU 指令集和模板匹配 native API 版本。
             /// </summary>
             static FastMatchNative()
             {
                 string nativeDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Native");
+                MatchTemplateDiagnosticLog.Write("FastMatchNative初始化：BaseDirectory=" + AppDomain.CurrentDomain.BaseDirectory + "，NativeDirectory=" + nativeDirectory + "，Exists=" + Directory.Exists(nativeDirectory));
                 if (Directory.Exists(nativeDirectory))
                     SetDllDirectory(nativeDirectory);
 
+                EnsureCpuInstructionSetSupported(nativeDirectory);
+
+                MatchTemplateDiagnosticLog.Write("FastMatchNative初始化：准备调用GetMatchApiVersion。");
                 uint apiVersion = GetMatchApiVersion();
+                MatchTemplateDiagnosticLog.Write(string.Format("FastMatchNative初始化：GetMatchApiVersion返回0x{0:X8}。", apiVersion));
                 if (apiVersion < RequiredNativeApiVersion)
                     throw new InvalidOperationException(string.Format("模板匹配 DLL 版本过旧，当前版本 0x{0:X8}，要求版本 0x{1:X8}。", apiVersion, RequiredNativeApiVersion));
+            }
+
+            /// <summary>
+            /// 当前发布的 MatchTool.dll 为 AVX2 编译版本时，提前拦截不支持 AVX2 的电脑，避免进入 native 后触发进程级闪退。
+            /// </summary>
+            private static void EnsureCpuInstructionSetSupported(string nativeDirectory)
+            {
+                bool requiresAvx2 = MatchToolRuntimeProfile.RequiresAvx2(nativeDirectory, RuntimeProfileFileName);
+                bool supportsAvx2 = CpuInstructionSet.SupportsAvx2;
+                MatchTemplateDiagnosticLog.Write("FastMatchNative初始化：RequiresAvx2=" + requiresAvx2 + "，CpuSupportsAvx2=" + supportsAvx2 + "。");
+                if (!requiresAvx2 || supportsAvx2)
+                    return;
+
+                throw new InvalidOperationException("当前电脑CPU不支持AVX2指令，随软件发布的模板匹配库为AVX2版本，已停止执行以避免软件闪退。请更新为通用CPU版MatchTool.dll后再运行模板匹配。");
             }
 
             [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
@@ -848,6 +919,142 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 string message = Marshal.PtrToStringAnsi(pointer);
                 return string.IsNullOrWhiteSpace(message) ? "未知 native 错误" : message;
             }
+        }
+    }
+
+    /// <summary>
+    /// 模板匹配 native DLL 的运行环境说明读取器，缺少说明文件时按当前已发布的 AVX2 版本保守处理。
+    /// </summary>
+    internal static class MatchToolRuntimeProfile
+    {
+        /// <summary>
+        /// 判断当前 native DLL 是否需要 AVX2 指令集。
+        /// </summary>
+        public static bool RequiresAvx2(string nativeDirectory, string profileFileName)
+        {
+            try
+            {
+                string profilePath = Path.Combine(nativeDirectory ?? string.Empty, profileFileName ?? string.Empty);
+                if (!File.Exists(profilePath))
+                    return true;
+
+                string profile = File.ReadAllText(profilePath, Encoding.UTF8);
+                return profile.IndexOf("instruction_set=x64-generic", StringComparison.OrdinalIgnoreCase) < 0
+                    && profile.IndexOf("requires_avx2=false", StringComparison.OrdinalIgnoreCase) < 0;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Windows CPU 指令集能力检测，避免 AVX2-only native DLL 在低配电脑上触发不可捕获的非法指令。
+    /// </summary>
+    internal static class CpuInstructionSet
+    {
+        /// <summary>
+        /// Windows 公开的 AVX2 支持特征编号。
+        /// </summary>
+        private const int PfAvx2InstructionsAvailable = 40;
+
+        /// <summary>
+        /// 当前操作系统和 CPU 是否同时支持 AVX2 指令。
+        /// </summary>
+        public static bool SupportsAvx2
+        {
+            get
+            {
+                try
+                {
+                    return IsProcessorFeaturePresent(PfAvx2InstructionsAvailable);
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+        }
+
+        [DllImport("kernel32.dll")]
+        private static extern bool IsProcessorFeaturePresent(int processorFeature);
+    }
+
+    /// <summary>
+    /// 模板匹配崩溃定位专用日志，直接写文件并吞掉自身异常，避免影响主流程。
+    /// </summary>
+    internal static class MatchTemplateDiagnosticLog
+    {
+        /// <summary>
+        /// 多线程写诊断日志时的文件锁。
+        /// </summary>
+        private static readonly object SyncRoot = new object();
+
+        /// <summary>
+        /// 追加一行诊断日志。
+        /// </summary>
+        public static void Write(string message)
+        {
+            try
+            {
+                string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+                string logDirectory = Path.Combine(baseDirectory, "Logs");
+                Directory.CreateDirectory(logDirectory);
+                string filePath = Path.Combine(logDirectory, DateTime.Now.ToString("yyyyMMdd") + "_模板匹配诊断.log");
+                string line = string.Format(
+                    "{0:yyyy-MM-dd HH:mm:ss.fff} [PID:{1}] [TID:{2}] {3}{4}",
+                    DateTime.Now,
+                    System.Diagnostics.Process.GetCurrentProcess().Id,
+                    Thread.CurrentThread.ManagedThreadId,
+                    message ?? string.Empty,
+                    Environment.NewLine);
+
+                lock (SyncRoot)
+                    File.AppendAllText(filePath, line, Encoding.UTF8);
+            }
+            catch
+            {
+            }
+        }
+
+        /// <summary>
+        /// 生成位图关键信息文本。
+        /// </summary>
+        public static string DescribeBitmap(string name, Bitmap bitmap)
+        {
+            if (bitmap == null)
+                return name + "=null";
+
+            return string.Format(
+                "{0}={1}x{2},format={3},raw={4}",
+                name,
+                bitmap.Width,
+                bitmap.Height,
+                bitmap.PixelFormat,
+                Image.GetPixelFormatSize(bitmap.PixelFormat));
+        }
+
+        /// <summary>
+        /// 生成模板匹配运行参数文本。
+        /// </summary>
+        public static string DescribeParam(NodeParamMatchTemplate param)
+        {
+            if (param == null)
+                return "param=null";
+
+            return string.Format(
+                "param=resultNum:{0},score:{1},angle:{2},step:{3},overlap:{4},coarse:{5},sort:{6},allSearch:{7},showBox:{8},showOutline:{9}",
+                param.ResultNum,
+                param.MinScore,
+                param.ToleranceAngle,
+                param.AngleStep,
+                param.MaxOverlap,
+                param.CoarseMatch,
+                param.SortMode,
+                param.AllSearch,
+                param.ShowOutRegionStatus,
+                param.ShowOutlineStatus);
         }
     }
 

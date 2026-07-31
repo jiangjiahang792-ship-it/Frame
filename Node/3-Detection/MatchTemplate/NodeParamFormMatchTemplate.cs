@@ -25,6 +25,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         private double maxOverlap = 40.0;
         private float score = 0.5f;
         private int resultNum = 1;
+        private MatchTemplateSortMode sortMode = MatchTemplateSortMode.ColumnAscending;
         private bool coarseMatch = false;
         private bool showOutlineStatus = true;
         private bool showOutRegionStatus = true;
@@ -52,10 +53,12 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             toolTip1.SetToolTip(label4, "匹配可靠性阈值，支持 0~1 或 0~100。");
             toolTip1.SetToolTip(labelAngleStep, "旋转搜索步长，0 表示由算法自动选择。");
             toolTip1.SetToolTip(labelMaxOverlap, "多个目标之间允许的最大重叠率，支持 0~100。");
+            toolTip1.SetToolTip(labelSortMode, "多个匹配目标输出前先排序，排序后的目标编号可被四则运算订阅。");
             toolTip1.SetToolTip(showImageControlSource, "用于绘制搜索区域，也用于查看执行预览。");
             toolTip1.SetToolTip(pictureBoxTemplate, "青色轮廓为当前模板参与匹配的边缘。");
 
             checkBoxAllSearch.Checked = true;
+            SetSortModeControl(sortMode);
             continuousRunTimer = new Timer { Interval = 500 };
             continuousRunTimer.Tick += continuousRunTimer_Tick;
 
@@ -89,6 +92,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             maxOverlap = param.MaxOverlap <= 0 ? 40.0 : param.MaxOverlap;
             score = param.MinScore <= 0 ? 0.5f : param.MinScore;
             resultNum = param.ResultNum <= 0 ? 1 : param.ResultNum;
+            sortMode = param.SortMode;
             coarseMatch = param.CoarseMatch;
             showOutlineStatus = param.ShowOutlineStatus;
             showOutRegionStatus = param.ShowOutRegionStatus;
@@ -105,6 +109,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             textBoxMaxOverlap.Text = maxOverlap.ToString("G");
             textBoxMinScore.Text = score.ToString("G");
             textBoxResultNum.Text = resultNum.ToString();
+            SetSortModeControl(sortMode);
             checkBoxCoarseMatch.Checked = coarseMatch;
             checkBoxShowOutline.Checked = showOutlineStatus;
             checkBoxShowMatchBox.Checked = showOutRegionStatus;
@@ -296,8 +301,10 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         {
             try
             {
+                FastTemplateMatcher.WriteDiagnosticLog("手动执行按钮：点击开始。");
                 SetSingleRunBusy(true);
                 var result = await MatchTemplateAsync();
+                FastTemplateMatcher.WriteDiagnosticLog("手动执行按钮：MatchTemplateAsync返回，matches=" + (result == null ? -1 : result.Matches.Count));
                 PublishMatchResult(result);
                 UpdateRunStatus(result);
                 if (result.Matches.Count == 0)
@@ -305,11 +312,13 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             }
             catch (Exception ex)
             {
+                FastTemplateMatcher.WriteDiagnosticLog("手动执行按钮：捕获异常，" + ex);
                 MessageBoxTD.Show($"模板匹配异常，原因：{GetDisplayExceptionMessage(ex)}");
             }
             finally
             {
                 SetSingleRunBusy(false);
+                FastTemplateMatcher.WriteDiagnosticLog("手动执行按钮：执行结束。");
             }
         }
 
@@ -321,18 +330,22 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             MatchTemplateExecutionContext context = null;
             try
             {
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate同步入口：show=" + show);
                 context = CreateMatchTemplateContext(show);
                 var result = ExecuteMatchTemplateContext(context);
                 ApplyMatchTemplateResult(result, show);
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate同步出口：成功。");
                 return result;
             }
             catch (Exception ex)
             {
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate同步异常：" + ex);
                 throw new InvalidOperationException("模板匹配失败。", ex);
             }
             finally
             {
                 context?.Dispose();
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate同步finally：上下文已释放。");
             }
         }
 
@@ -344,18 +357,24 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             MatchTemplateExecutionContext context = null;
             try
             {
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate异步入口：show=" + show);
                 context = CreateMatchTemplateContext(show);
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate异步：上下文创建完成，准备进入后台线程。");
                 var result = await Task.Run(() => ExecuteMatchTemplateContext(context));
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate异步：后台线程返回，准备显示结果。");
                 ApplyMatchTemplateResult(result, show);
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate异步出口：成功。");
                 return result;
             }
             catch (Exception ex)
             {
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate异步异常：" + ex);
                 throw new InvalidOperationException("模板匹配失败。", ex);
             }
             finally
             {
                 context?.Dispose();
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate异步finally：上下文已释放。");
             }
         }
 
@@ -364,12 +383,15 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// </summary>
         private MatchTemplateExecutionContext CreateMatchTemplateContext(bool show)
         {
+            FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext入口：show=" + show);
             ReadFormValues();
+            FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext：参数读取完成，resultNum=" + resultNum + "，score=" + score + "，sortMode=" + sortMode + "，allSearch=" + allSearch);
             EnsureTemplateLoaded();
             if (src == null)
                 throw new ArgumentException("源图像不能为空。");
             if (templateImage == null)
                 throw new ArgumentException("模板图像不能为空。");
+            FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext：源图和模板确认完成，" + MatchTemplateDiagnosticLog.DescribeBitmap("src", src) + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("template", templateImage) + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("mask", templateEraseMask));
 
             Bitmap sourceImage = null;
             Bitmap templateSnapshot = null;
@@ -381,9 +403,11 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 templateSnapshot = (Bitmap)templateImage.Clone();
                 eraseMaskSnapshot = templateEraseMask == null ? null : (Bitmap)templateEraseMask.Clone();
                 Rectangle searchBounds = GetSearchBounds(sourceImage.Size);
+                FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext：搜索区域=" + searchBounds + "，allSearch=" + allSearch);
                 matchImage = allSearch
                     ? (Bitmap)sourceImage.Clone()
                     : sourceImage.Clone(searchBounds, PixelFormat.Format24bppRgb);
+                FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext：匹配图创建完成，" + MatchTemplateDiagnosticLog.DescribeBitmap("matchImage", matchImage));
 
                 var context = new MatchTemplateExecutionContext
                 {
@@ -403,7 +427,13 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 templateSnapshot = null;
                 eraseMaskSnapshot = null;
                 matchImage = null;
+                FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext出口：上下文创建成功。");
                 return context;
+            }
+            catch (Exception ex)
+            {
+                FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext异常：" + ex);
+                throw;
             }
             finally
             {
@@ -411,6 +441,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 sourceImage?.Dispose();
                 templateSnapshot?.Dispose();
                 eraseMaskSnapshot?.Dispose();
+                FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext finally：临时对象释放完成。");
             }
         }
 
@@ -419,13 +450,21 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// </summary>
         private FastTemplateMatchResult ExecuteMatchTemplateContext(MatchTemplateExecutionContext context)
         {
+            FastTemplateMatcher.WriteDiagnosticLog("ExecuteMatchTemplateContext入口：" + MatchTemplateDiagnosticLog.DescribeParam(context == null ? null : context.RuntimeParam));
             var result = templateMatchSession.Match(context.RuntimeParam, context.MatchImage, context.TemplateImage, context.TemplateEraseMask);
+            FastTemplateMatcher.WriteDiagnosticLog("ExecuteMatchTemplateContext：native会话返回，matches=" + (result == null ? -1 : result.Matches.Count));
             if (!context.IsAllSearch)
+            {
+                FastTemplateMatcher.WriteDiagnosticLog("ExecuteMatchTemplateContext：开始偏移非整图搜索结果，offsetX=" + context.SearchBounds.X + "，offsetY=" + context.SearchBounds.Y);
                 OffsetResult(result, context.SearchBounds.X, context.SearchBounds.Y);
+                FastTemplateMatcher.WriteDiagnosticLog("ExecuteMatchTemplateContext：非整图搜索结果偏移完成。");
+            }
 
+            FastTemplateMatcher.WriteDiagnosticLog("ExecuteMatchTemplateContext：准备生成输出预览，showPreview=" + context.ShowPreview + "，showBox=" + context.ShowMatchBox + "，showOutline=" + context.ShowOutline);
             result.OutputBitmap = context.ShowPreview
                 ? FastTemplateMatcher.DrawPreview(context.SourceImage, result, context.ShowMatchBox, context.ShowOutline)
                 : (Bitmap)context.SourceImage.Clone();
+            FastTemplateMatcher.WriteDiagnosticLog("ExecuteMatchTemplateContext出口：预览图生成完成，" + MatchTemplateDiagnosticLog.DescribeBitmap("output", result.OutputBitmap));
             return result;
         }
 
@@ -434,8 +473,10 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// </summary>
         private void ApplyMatchTemplateResult(FastTemplateMatchResult result, bool show)
         {
+            FastTemplateMatcher.WriteDiagnosticLog("ApplyMatchTemplateResult入口：show=" + show + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("output", result == null ? null : result.OutputBitmap));
             if (show)
                 showImageControlSource.SetImage(result.OutputBitmap);
+            FastTemplateMatcher.WriteDiagnosticLog("ApplyMatchTemplateResult出口。");
         }
 
         /// <summary>
@@ -616,6 +657,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 Scale = 1,
                 MinScore = score,
                 ResultNum = resultNum,
+                SortMode = sortMode,
                 AllSearch = allSearch,
                 SearchRegionCenterX = searchRegionCenterX,
                 SearchRegionCenterY = searchRegionCenterY,
@@ -732,6 +774,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             if (maxOverlap < 0 || maxOverlap > 100)
                 throw new Exception("最大重叠率设置区间为 [0,100]。");
 
+            sortMode = GetSelectedSortMode();
             coarseMatch = checkBoxCoarseMatch.Checked;
             showOutlineStatus = checkBoxShowOutline.Checked;
             showOutRegionStatus = checkBoxShowMatchBox.Checked;
@@ -885,10 +928,29 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 var displayParam = new NodeParamMatchTemplate
                 {
                     ShowOutRegionStatus = showOutRegionStatus,
-                    ShowOutlineStatus = showOutlineStatus
+                    ShowOutlineStatus = showOutlineStatus,
+                    SortMode = sortMode
                 };
                 matchNode.PublishPreviewResult(result, displayParam);
             }
+        }
+
+        /// <summary>
+        /// 将排序模式写入界面下拉框。
+        /// </summary>
+        private void SetSortModeControl(MatchTemplateSortMode mode)
+        {
+            comboBoxSortMode.SelectedIndex = mode == MatchTemplateSortMode.RowAscending ? 1 : 0;
+        }
+
+        /// <summary>
+        /// 读取当前界面选择的排序模式。
+        /// </summary>
+        private MatchTemplateSortMode GetSelectedSortMode()
+        {
+            return comboBoxSortMode.SelectedIndex == 1
+                ? MatchTemplateSortMode.RowAscending
+                : MatchTemplateSortMode.ColumnAscending;
         }
 
         private void buttonRestoreTemplate_Click(object sender, EventArgs e)
