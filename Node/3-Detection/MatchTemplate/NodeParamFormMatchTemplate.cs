@@ -494,7 +494,11 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// </summary>
         private static string GetDisplayExceptionMessage(Exception ex)
         {
-            return ex.InnerException == null ? ex.Message : ex.InnerException.Message;
+            Exception displayException = ex;
+            while (displayException.InnerException != null)
+                displayException = displayException.InnerException;
+
+            return displayException.Message;
         }
 
         /// <summary>

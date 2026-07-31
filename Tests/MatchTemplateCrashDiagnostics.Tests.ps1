@@ -42,5 +42,6 @@ Assert-Contains $formSource 'WriteDiagnosticLog' 'Manual run path must call diag
 Assert-Contains $formSource 'CreateMatchTemplateContext' 'Context creation must remain a logged boundary before native matching.'
 Assert-Contains $formSource 'ExecuteMatchTemplateContext' 'Native execution wrapper must remain a logged boundary.'
 Assert-Contains $formSource 'ApplyMatchTemplateResult' 'Preview rendering must remain a logged boundary after native matching.'
+Assert-Contains $formSource 'while (displayException.InnerException != null)' 'Template matching UI must unwrap nested native initialization errors for readable customer prompts.'
 
 Write-Host 'Match template crash diagnostics checks passed.'
