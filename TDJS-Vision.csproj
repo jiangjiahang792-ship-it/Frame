@@ -584,6 +584,10 @@
     <Compile Include="Node\3-Detection\TDAI\Yolo8\IYolo8.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\ModelHandleManager.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\YoloGpuRuntimeBootstrapper.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Yolo8\YoloIsolatedMessages.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Yolo8\YoloIsolatedRuntimeContext.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Yolo8\YoloIsolatedWorkerClient.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Yolo8\YoloIsolatedWorkerProgram.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\YoloOpenVinoCpuSession.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Obb.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Pose.cs" />

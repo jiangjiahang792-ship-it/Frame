@@ -20,6 +20,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         private YoloOpenVinoCpuSession _gpuSession;
 
         /// <summary>
+        /// 当前 DET 隔离worker模型会话。
+        /// </summary>
+        private YoloIsolatedWorkerClient _isolatedSession;
+
+        /// <summary>
         /// 模型类型：普通目标检测（DET）
         /// </summary>
         public ModelType ModelType { get; } = ModelType.DET;
@@ -44,6 +49,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             DeviceType = deviceType;
             ScoreThreshold = score_threshold;
             NMSThreshold = nms_threshold;
+
+            if (!YoloIsolatedRuntimeContext.IsWorkerProcess)
+            {
+                _isolatedSession = YoloIsolatedWorkerClient.Open(
+                    model_path,
+                    ModelType,
+                    deviceType,
+                    class_names,
+                    input_size,
+                    score_threshold,
+                    nms_threshold,
+                    key_point_num);
+                return;
+            }
 
             switch (DeviceType)
             {
@@ -85,6 +104,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <returns>检测结果集合。</returns>
         private List<DetResult> DetectCore(Mat image, int deltaX, int deltaY)
         {
+            if (_isolatedSession != null)
+                return _isolatedSession.DetectDet(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
+
             switch (DeviceType)
             {
                 case DeviceType.CPU:
@@ -101,6 +123,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public void Destroy()
         {
+            if (_isolatedSession != null)
+            {
+                _isolatedSession.Dispose();
+                _isolatedSession = null;
+                return;
+            }
+
             switch (DeviceType)
             {
                 case DeviceType.CPU:

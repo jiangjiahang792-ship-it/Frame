@@ -21,6 +21,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         private YoloOpenVinoCpuSession _gpuSession;
 
         /// <summary>
+        /// 当前 SEG 隔离worker模型会话。
+        /// </summary>
+        private YoloIsolatedWorkerClient _isolatedSession;
+
+        /// <summary>
         /// 模型类型
         /// </summary>
         public ModelType ModelType { get; } = ModelType.SEG;
@@ -45,6 +50,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             DeviceType = deviceType;
             ScoreThreshold = score_threshold;
             NMSThreshold = nms_threshold;
+
+            if (!YoloIsolatedRuntimeContext.IsWorkerProcess)
+            {
+                _isolatedSession = YoloIsolatedWorkerClient.Open(
+                    model_path,
+                    ModelType,
+                    deviceType,
+                    class_names,
+                    input_size,
+                    score_threshold,
+                    nms_threshold,
+                    key_point_num);
+                return;
+            }
 
             switch (DeviceType)
             {
@@ -79,6 +98,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <returns>分割结果列表。</returns>
         public List<SegResult> Detect(Mat image, int deltaX = 0, int deltaY = 0, bool needMaskBox = true)
         {
+            if (_isolatedSession != null)
+                return _isolatedSession.DetectSeg(image, ScoreThreshold, NMSThreshold, deltaX, deltaY, needMaskBox);
+
             switch (DeviceType)
             {
                 case DeviceType.CPU:
@@ -96,6 +118,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public void Destroy()
         {
+            if (_isolatedSession != null)
+            {
+                _isolatedSession.Dispose();
+                _isolatedSession = null;
+                return;
+            }
+
             switch (DeviceType)
             {
                 case DeviceType.CPU:

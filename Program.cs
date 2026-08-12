@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using Logger;
 using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Forms.YTMessageBox;
+using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 using TDJS_Vision.Startup;
 
 namespace TDJS_Vision
@@ -38,6 +39,9 @@ namespace TDJS_Vision
         [STAThread]
         static void Main(string[] args)
         {
+            if (YoloIsolatedWorkerProgram.TryRun(args))
+                return;
+
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 

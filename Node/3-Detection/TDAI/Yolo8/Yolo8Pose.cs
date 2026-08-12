@@ -19,6 +19,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         private YoloOpenVinoCpuSession _gpuSession;
 
         /// <summary>
+        /// 当前POSE隔离worker模型会话。
+        /// </summary>
+        private YoloIsolatedWorkerClient _isolatedSession;
+
+        /// <summary>
         /// 模型类型。
         /// </summary>
         public ModelType ModelType { get; } = ModelType.POSE;
@@ -54,6 +59,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             ScoreThreshold = score_threshold;
             NMSThreshold = nms_threshold;
 
+            if (!YoloIsolatedRuntimeContext.IsWorkerProcess)
+            {
+                _isolatedSession = YoloIsolatedWorkerClient.Open(
+                    model_path,
+                    ModelType,
+                    deviceType,
+                    class_names,
+                    input_size,
+                    score_threshold,
+                    nms_threshold,
+                    key_point_num);
+                return;
+            }
+
             switch (DeviceType)
             {
                 case DeviceType.CPU:
@@ -82,6 +101,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <returns>姿态检测结果。</returns>
         public PoseResult Detect(Mat image, int deltaX = 0, int deltaY = 0)
         {
+            if (_isolatedSession != null)
+                return _isolatedSession.DetectPose(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
+
             switch (DeviceType)
             {
                 case DeviceType.CPU:
@@ -98,6 +120,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public void Destroy()
         {
+            if (_isolatedSession != null)
+            {
+                _isolatedSession.Dispose();
+                _isolatedSession = null;
+                return;
+            }
+
             switch (DeviceType)
             {
                 case DeviceType.CPU:
