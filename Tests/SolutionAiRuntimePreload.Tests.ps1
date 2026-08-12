@@ -3,8 +3,10 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $interfacePath = Join-Path $root "Node\INodeRuntimePreloader.cs"
 $coordinatorPath = Join-Path $root "Startup\SolutionAiRuntimePreloader.cs"
+$loadGatePath = Join-Path $root "Startup\StartupAiRuntimeLoadGate.cs"
 $largeNodePath = Join-Path $root "Node\3-Detection\LargeModel\NodeLargeModelDetection.cs"
 $unsupervisedNodePath = Join-Path $root "Node\3-Detection\Unsupervised\NodeUnsupervisedDetection.cs"
+$tdaiParamFormPath = Join-Path $root "Node\3-Detection\TDAI\ParamFormTDAI.cs"
 $configPath = Join-Path $root "ConfigHelper.cs"
 $projectPath = Join-Path $root "TDJS-Vision.csproj"
 
@@ -28,11 +30,16 @@ if (-not (Test-Path -LiteralPath $interfacePath)) {
 if (-not (Test-Path -LiteralPath $coordinatorPath)) {
     throw "Missing solution AI runtime preload coordinator."
 }
+if (-not (Test-Path -LiteralPath $loadGatePath)) {
+    throw "Missing startup AI runtime load gate."
+}
 
 $interface = Get-Content -LiteralPath $interfacePath -Encoding UTF8 -Raw
 $coordinator = Get-Content -LiteralPath $coordinatorPath -Encoding UTF8 -Raw
+$loadGate = Get-Content -LiteralPath $loadGatePath -Encoding UTF8 -Raw
 $largeNode = Get-Content -LiteralPath $largeNodePath -Encoding UTF8 -Raw
 $unsupervisedNode = Get-Content -LiteralPath $unsupervisedNodePath -Encoding UTF8 -Raw
+$tdaiParamForm = Get-Content -LiteralPath $tdaiParamFormPath -Encoding UTF8 -Raw
 $config = Get-Content -LiteralPath $configPath -Encoding UTF8 -Raw
 $project = Get-Content -LiteralPath $projectPath -Encoding UTF8 -Raw
 
@@ -51,6 +58,11 @@ Assert-Contains $coordinator "StartupProgressContext.ReportItem" "Coordinator mu
 Assert-Contains $coordinator "StartupProgressContext.ReportFailure" "Coordinator must aggregate node preload failures."
 Assert-Contains $coordinator "catch (Exception ex)" "Coordinator must isolate failures per node."
 
+Assert-Contains $loadGate "Queue<DeferredRuntimeLoad>" "Startup load gate must queue delayed TDAI loads."
+Assert-Contains $loadGate "BeginTDAIDeferral()" "Startup load gate must expose a deferral scope."
+Assert-Contains $loadGate "FlushDeferredTDAILoads()" "Startup load gate must release delayed TDAI loads after preload."
+Assert-Contains $tdaiParamForm "StartupAiRuntimeLoadGate.RunOrDeferTDAILoad" "TDAI restored parameters must defer auto loading during solution restore."
+
 Assert-Contains $largeNode "NodeLargeModelDetection : NodeBase, INodeRuntimePreloader" "Large-model node must implement the shared preload contract."
 Assert-Contains $largeNode "public Task PreloadSavedRuntimeAsync()" "Large-model node must preload restored parameters."
 Assert-Contains $largeNode "return PreloadRuntimeAsync(param);" "Large-model restored preload must reuse save-time preload."
@@ -60,11 +72,16 @@ Assert-Contains $unsupervisedNode "return PreloadRuntimeAsync(param);" "Unsuperv
 
 $eventIndex = $config.IndexOf("DeserializationCompletionEvent?.Invoke(null, flag);", [System.StringComparison]::Ordinal)
 $preloadIndex = $config.IndexOf("SolutionAiRuntimePreloader.PreloadEnabledNodes();", [System.StringComparison]::Ordinal)
+$flushIndex = $config.IndexOf("StartupAiRuntimeLoadGate.FlushDeferredTDAILoads();", [System.StringComparison]::Ordinal)
 if ($eventIndex -lt 0 -or $preloadIndex -le $eventIndex) {
     throw "Solution load must preload AI runtimes after all nodes are restored."
+}
+if ($flushIndex -le $preloadIndex) {
+    throw "Solution load must release TDAI model loading after AI runtime preload."
 }
 
 Assert-Contains $project '<Compile Include="Node\INodeRuntimePreloader.cs" />' "Project must compile the preload contract."
 Assert-Contains $project '<Compile Include="Startup\SolutionAiRuntimePreloader.cs" />' "Project must compile the preload coordinator."
+Assert-Contains $project '<Compile Include="Startup\StartupAiRuntimeLoadGate.cs" />' "Project must compile the startup load gate."
 
 Write-Host "Solution AI runtime preload checks passed."

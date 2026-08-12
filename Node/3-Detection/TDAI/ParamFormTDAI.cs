@@ -15,6 +15,7 @@ using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI.Parse;
 using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 using TDJS_Vision.Node._6_LogicTool.SharedVariable;
+using TDJS_Vision.Startup;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
@@ -237,7 +238,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         LogHelper.AddLog(MsgLevel.Exception, $"AI配置文件解析失败！原因：{ex.Message}", true);
                     }
                 }
-                StartLoadModel(param);
+                StartupAiRuntimeLoadGate.RunOrDeferTDAILoad(BuildStartupLoadDescription(param), () => StartLoadModel(param));
                 
             }
         }
@@ -372,6 +373,23 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
             int modelLoadVersion = param.NextModelLoadVersion();
             param.ModelLoadTask = Task.Run(() => LoadModel(param, modelLoadVersion));
+        }
+
+        /// <summary>
+        /// 生成启动期 TDAI 延迟加载日志描述。
+        /// </summary>
+        /// <param name="param">TDAI 节点参数。</param>
+        /// <returns>用于日志显示的模型描述。</returns>
+        private static string BuildStartupLoadDescription(NodeParamTDAI param)
+        {
+            if (param == null)
+                return "未设置TDAI参数";
+
+            string nodeName = string.IsNullOrWhiteSpace(param.NodeName) ? "未命名TDAI节点" : param.NodeName;
+            string modelPath = param.AIInputInfo == null
+                ? "未设置模型路径"
+                : param.AIInputInfo.ModelInfo.ModelPath;
+            return $"{nodeName} / {modelPath}";
         }
         /// <summary>
         /// 加载模型

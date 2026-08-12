@@ -154,15 +154,20 @@ namespace TDJS_Vision
                 Solution.Instance.GlobalSignal = SolConfig.GlobalSignal;
                 Solution.Instance.DetectItemDic = SolConfig.DetectItemDic;
 
-                // 发送反序列化完成事件
-                // 目的：
-                // 1.先触发光源管理窗口还原所有光源，还原完成触发光源完成事件
-                // 2.相机管理窗口订阅光源完成事件进行相机还原，完成后触发相机完成事件 移除旧方案的设备管理窗口的设备控件
-                // 3.PLC管理窗口订阅相机完成事件进行PLC还原 完成后触发PLC完成事件，Modbus-》TCP也是如此
-                // 4.流程管理窗口订阅PLC完成事件进行流程还原，因为流程还原需要用到设备，这样保证了在还原流程时设备可用
-                DeserializationCompletionEvent?.Invoke(null, flag);
-                // 所有流程节点和参数恢复完成后顺序预加载 AI 运行时，覆盖软件启动和手动打开方案入口。
-                SolutionAiRuntimePreloader.PreloadEnabledNodes();
+                using (StartupAiRuntimeLoadGate.BeginTDAIDeferral())
+                {
+                    // 发送反序列化完成事件
+                    // 目的：
+                    // 1.先触发光源管理窗口还原所有光源，还原完成触发光源完成事件
+                    // 2.相机管理窗口订阅光源完成事件进行相机还原，完成后触发相机完成事件 移除旧方案的设备管理窗口的设备控件
+                    // 3.PLC管理窗口订阅相机完成事件进行PLC还原 完成后触发PLC完成事件，Modbus-》TCP也是如此
+                    // 4.流程管理窗口订阅PLC完成事件进行流程还原，因为流程还原需要用到设备，这样保证了在还原流程时设备可用
+                    DeserializationCompletionEvent?.Invoke(null, flag);
+                    // 所有流程节点和参数恢复完成后顺序预加载 AI 运行时，覆盖软件启动和手动打开方案入口。
+                    SolutionAiRuntimePreloader.PreloadEnabledNodes();
+                    // TDAI/YOLO 会加载另一套 native 依赖，必须等无监督和大模型预加载完成后再启动。
+                    StartupAiRuntimeLoadGate.FlushDeferredTDAILoads();
+                }
                 Solution.Instance.NodeCount = SolConfig.NodeCount;
 
             }
