@@ -42,5 +42,12 @@ Assert-Contains $client "RedirectStandardInput = true" "Worker client must commu
 Assert-Contains $client "RedirectStandardOutput = true" "Worker client must communicate through redirected stdout."
 Assert-Contains $worker "YoloIsolatedRuntimeContext.MarkAsWorkerProcess()" "Worker process must mark itself to avoid recursive worker creation."
 Assert-Contains $worker "JsonConvert.DeserializeObject<YoloIsolatedRequest>" "Worker must use structured JSON requests."
+Assert-Contains $worker "Console.OpenStandardInput()" "Worker must read the redirected input handle without configuring a nonexistent WinExe console."
+Assert-Contains $worker 'case "ping":' "Worker must provide a model-independent process handshake."
+Assert-Contains $client "BuildWorkerExitMessage" "Worker failures must include process exit diagnostics."
+
+if ($worker.IndexOf("Console.InputEncoding", [System.StringComparison]::Ordinal) -ge 0) {
+    throw "WinExe workers must not set Console.InputEncoding because no console is attached."
+}
 
 Write-Host "YOLO runtime isolation checks passed."

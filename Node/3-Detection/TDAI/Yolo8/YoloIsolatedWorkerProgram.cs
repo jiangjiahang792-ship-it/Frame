@@ -3,6 +3,7 @@ using OpenCvSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using Point = OpenCvSharp.Point;
@@ -30,19 +31,34 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                 return false;
 
             YoloIsolatedRuntimeContext.MarkAsWorkerProcess();
-            Console.InputEncoding = Encoding.UTF8;
-            Console.OutputEncoding = Encoding.UTF8;
-            RunLoop();
+            // WinForms 的 WinExe 子进程没有控制台，直接设置 Console 编码会抛 IOException。
+            // 此处只包装父进程传入的重定向句柄，协议仍固定使用无 BOM 的 UTF-8。
+            using (StreamReader input = new StreamReader(
+                Console.OpenStandardInput(),
+                new UTF8Encoding(false),
+                false,
+                4096))
+            using (StreamWriter output = new StreamWriter(
+                Console.OpenStandardOutput(),
+                new UTF8Encoding(false),
+                4096))
+            {
+                output.AutoFlush = true;
+                RunLoop(input, output);
+            }
+
             return true;
         }
 
         /// <summary>
         /// 运行标准输入输出JSON消息循环。
         /// </summary>
-        private static void RunLoop()
+        /// <param name="input">父进程请求输入流。</param>
+        /// <param name="output">worker响应输出流。</param>
+        private static void RunLoop(TextReader input, TextWriter output)
         {
             string line;
-            while ((line = Console.ReadLine()) != null)
+            while ((line = input.ReadLine()) != null)
             {
                 YoloIsolatedResponse response;
                 try
@@ -59,8 +75,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                     };
                 }
 
-                Console.WriteLine(JsonConvert.SerializeObject(response, Formatting.None));
-                Console.Out.Flush();
+                output.WriteLine(JsonConvert.SerializeObject(response, Formatting.None));
+                output.Flush();
             }
 
             DestroyCurrentModel();
@@ -78,6 +94,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 
             switch (request.Command)
             {
+                case "ping":
+                    return Success();
                 case "init":
                     InitializeModel(request);
                     return Success();

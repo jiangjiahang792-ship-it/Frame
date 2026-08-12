@@ -40,6 +40,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         private StreamReader output;
 
         /// <summary>
+        /// worker标准错误输出，用于在子进程异常退出时返回真实原因。
+        /// </summary>
+        private StreamReader errorOutput;
+
+        /// <summary>
         /// 当前模型路径。
         /// </summary>
         private string modelPath;
@@ -281,6 +286,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                     input.Dispose();
                 if (output != null)
                     output.Dispose();
+                if (errorOutput != null)
+                    errorOutput.Dispose();
                 if (process != null && !process.HasExited)
                     process.Kill();
                 if (process != null)
@@ -319,6 +326,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 
             input = new StreamWriter(process.StandardInput.BaseStream, new UTF8Encoding(false)) { AutoFlush = true };
             output = process.StandardOutput;
+            errorOutput = process.StandardError;
         }
 
         /// <summary>
@@ -414,7 +422,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 
                 string responseJson = output.ReadLine();
                 if (responseJson == null)
-                    throw new InvalidOperationException("YOLO隔离worker已退出，无法读取响应。");
+                    throw new InvalidOperationException(BuildWorkerExitMessage("YOLO隔离worker已退出，无法读取响应。"));
 
                 YoloIsolatedResponse response = JsonConvert.DeserializeObject<YoloIsolatedResponse>(responseJson);
                 if (response == null)
@@ -434,7 +442,37 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             if (process == null)
                 throw new ObjectDisposedException(nameof(YoloIsolatedWorkerClient));
             if (process.HasExited)
-                throw new InvalidOperationException("YOLO隔离worker已退出，退出码：" + process.ExitCode);
+                throw new InvalidOperationException(BuildWorkerExitMessage("YOLO隔离worker已退出。"));
+        }
+
+        /// <summary>
+        /// 组合worker退出码和标准错误，避免子进程故障被折叠成无原因的空响应。
+        /// </summary>
+        /// <param name="message">调用方错误摘要。</param>
+        /// <returns>包含worker诊断信息的错误文本。</returns>
+        private string BuildWorkerExitMessage(string message)
+        {
+            if (process == null)
+                return message;
+
+            try
+            {
+                if (!process.HasExited)
+                    process.WaitForExit(1000);
+
+                if (!process.HasExited)
+                    return message + " worker进程尚未结束。";
+
+                string standardError = errorOutput == null ? string.Empty : errorOutput.ReadToEnd();
+                if (string.IsNullOrWhiteSpace(standardError))
+                    return message + " 退出码：" + process.ExitCode + "。";
+
+                return message + " 退出码：" + process.ExitCode + "；错误输出：" + standardError.Trim();
+            }
+            catch (Exception ex)
+            {
+                return message + " 读取worker诊断失败：" + ex.Message;
+            }
         }
     }
 }
