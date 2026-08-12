@@ -64,9 +64,27 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         {
             if(Params is NodeParamImageSoucre paramSrc)
             {
-                numericUpDownExposureTime.Value = (decimal)paramSrc.ExposureTime;
-                numericUpDownGain.Value = (decimal)paramSrc.Gain;
+                SetNumericUpDownValueInRange(numericUpDownExposureTime, (decimal)paramSrc.ExposureTime);
+                SetNumericUpDownValueInRange(numericUpDownGain, (decimal)paramSrc.Gain);
             }
+        }
+
+        /// <summary>
+        /// 按控件当前相机范围安全回填数值，避免运行参数保存刷新时写入越界值导致弹窗报错。
+        /// </summary>
+        /// <param name="control">需要回填的数值控件。</param>
+        /// <param name="value">待回填的节点参数值。</param>
+        private static void SetNumericUpDownValueInRange(NumericUpDown control, decimal value)
+        {
+            if (control == null)
+                return;
+
+            if (value < control.Minimum)
+                value = control.Minimum;
+            else if (value > control.Maximum)
+                value = control.Maximum;
+
+            control.Value = value;
         }
 
         /// <summary>

@@ -7,6 +7,7 @@ using System.Drawing;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._3_Detection.MatchTemplate
@@ -16,9 +17,32 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
     /// </summary>
     public class NodeMatchTemplate : NodeBase, IDynamicResultVariableProvider, IDynamicResultVariableTypeProvider
     {
-        public NodeMatchTemplate(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
+        /// <summary>
+        /// 结果显示名称，原模板匹配和NCC模板匹配共用结果结构时用于区分界面文案。
+        /// </summary>
+        private readonly string resultDisplayName;
+
+        /// <summary>
+        /// 创建原模板匹配节点，保留既有参数界面、结果文案和算法路径。
+        /// </summary>
+        public NodeMatchTemplate(int nodeId, string nodeName, Process process, NodeType nodeType)
+            : this(nodeId, nodeName, process, nodeType, false, "模版匹配")
         {
-            var form = new NodeParamFormMatchTemplate(process, this);
+        }
+
+        /// <summary>
+        /// 创建模板匹配节点基类实例，可由NCC节点指定native demo算法路径和显示名称。
+        /// </summary>
+        protected NodeMatchTemplate(
+            int nodeId,
+            string nodeName,
+            Process process,
+            NodeType nodeType,
+            bool forceNativeDemoAlgorithm,
+            string resultDisplayName) : base(nodeId, nodeName, process, nodeType)
+        {
+            this.resultDisplayName = string.IsNullOrWhiteSpace(resultDisplayName) ? "模版匹配" : resultDisplayName;
+            var form = new NodeParamFormMatchTemplate(process, this, forceNativeDemoAlgorithm);
             form.SetNodeBelong(this);
             ParamForm = form;
             Result = new NodeResultMatchTemplate();
@@ -59,7 +83,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         // 执行模版匹配
                         var matchResult = form.MatchTemplate(false);
                         // 输出结果
-                        var nodeResult = BuildResult(matchResult, param);
+                        var nodeResult = BuildResult(matchResult, param, resultDisplayName);
                         Result = nodeResult;
 
                         var time = SetRunResult(startTime, NodeStatus.Successful);
@@ -96,12 +120,25 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
         internal void PublishPreviewResult(FastTemplateMatchResult matchResult, NodeParamMatchTemplate param)
         {
-            var nodeResult = BuildResult(matchResult, param);
+            var nodeResult = BuildResult(matchResult, param, resultDisplayName);
             nodeResult.RunTime = matchResult == null ? 0 : (int)Math.Round(matchResult.AlgorithmMs);
             Result = nodeResult;
         }
 
         internal static NodeResultMatchTemplate BuildResult(FastTemplateMatchResult matchResult, NodeParamMatchTemplate param)
+        {
+            return BuildResult(matchResult, param, "模版匹配");
+        }
+
+        internal static NodeResultMatchTemplate BuildResult(FastTemplateMatchResult matchResult, NodeParamMatchTemplate param, string displayName)
+        {
+            return BuildResult(matchResult, param, displayName, null, null);
+        }
+
+        /// <summary>
+        /// 构建模板匹配节点结果，可由NCC快路径直接复用上游Mat输出，避免整图Bitmap往返。
+        /// </summary>
+        internal static NodeResultMatchTemplate BuildResult(FastTemplateMatchResult matchResult, NodeParamMatchTemplate param, string displayName, Mat outputMat, Mat grayMat)
         {
             var nodeResult = new NodeResultMatchTemplate();
             if (matchResult == null)
@@ -111,36 +148,50 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 ? MatchTemplateSortMode.ColumnAscending
                 : param.SortMode);
 
-            if (matchResult.OutputBitmap != null)
+            if (OutputImage.HasValidImage(outputMat))
+            {
+                nodeResult.OutputImage.SrcImg = outputMat;
+                nodeResult.OutputImage.Bitmaps = new List<Mat>() { outputMat };
+                if (OutputImage.HasValidImage(grayMat))
+                    nodeResult.OutputImage.GrayImg = grayMat;
+            }
+            else if (matchResult.OutputBitmap != null)
+            {
                 nodeResult.OutputImage.Bitmaps = new List<Mat>() { matchResult.OutputBitmap.ToMat() };
+            }
             nodeResult.OutputImage.Rectangles = orderedMatches.Select(m => m.Box.ToBoundingRect()).ToList();
             nodeResult.Result.Clear();
             nodeResult.Result.IsAllOk = matchResult.IsOk;
             nodeResult.IsOk = matchResult.IsOk;
             nodeResult.MatchCount = orderedMatches.Count;
-            nodeResult.Poses = orderedMatches.Select((match, index) => new TemplateMatchPose
+            nodeResult.Poses = orderedMatches.Select((match, index) =>
             {
-                TargetIndex = index + 1,
-                CenterX = match.Box.CenterX,
-                CenterY = match.Box.CenterY,
-                Angle = match.Box.Angle,
-                ScaleX = 1.0,
-                ScaleY = 1.0,
-                Score = match.Score * 100.0,
-                Width = match.Box.Width,
-                Height = match.Box.Height,
-                IsValid = true
+                double angleOffset = NormalizeAngleOffset(match.Box.Angle);
+                return new TemplateMatchPose
+                {
+                    TargetIndex = index + 1,
+                    CenterX = match.Box.CenterX,
+                    CenterY = match.Box.CenterY,
+                    Angle = angleOffset,
+                    ScaleX = 1.0,
+                    ScaleY = 1.0,
+                    Score = match.Score * 100.0,
+                    Width = match.Box.Width,
+                    Height = match.Box.Height,
+                    IsValid = true
+                };
             }).ToList();
             if (orderedMatches.Count > 0)
             {
                 var firstMatch = orderedMatches[0];
                 nodeResult.MatchX = firstMatch.Box.CenterX;
                 nodeResult.MatchY = firstMatch.Box.CenterY;
-                nodeResult.Angle = firstMatch.Box.Angle;
+                nodeResult.Angle = NormalizeAngleOffset(firstMatch.Box.Angle);
                 nodeResult.Score = firstMatch.Score * 100.0;
             }
 
-            nodeResult.Result.Texts.Add(new ColorText($"模版匹配结果个数：{orderedMatches.Count}个，耗时 {matchResult.AlgorithmMs:F2} ms", matchResult.IsOk ? Color.Green : Color.Red));
+            string safeDisplayName = string.IsNullOrWhiteSpace(displayName) ? "模版匹配" : displayName;
+            nodeResult.Result.Texts.Add(new ColorText($"{safeDisplayName}结果个数：{orderedMatches.Count}个，耗时 {matchResult.AlgorithmMs:F2} ms", matchResult.IsOk ? Color.Green : Color.Red));
             for (int i = 0; i < orderedMatches.Count; i++)
             {
                 var match = orderedMatches[i];
@@ -155,8 +206,9 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         matchResult.IsOk ? Color.Lime : Color.Red));
                 }
 
+                double angleOffset = NormalizeAngleOffset(match.Box.Angle);
                 nodeResult.Result.Texts.Add(new ColorText(
-                    $"模版匹配结果{i + 1}：中心（{match.Box.CenterX:F1}, {match.Box.CenterY:F1}） 角度{match.Box.Angle:F2}° 得分{match.Score * 100.0:F2}",
+                    $"{safeDisplayName}结果{i + 1}：中心（{match.Box.CenterX:F1}, {match.Box.CenterY:F1}） 角度偏差{angleOffset:F2}° 得分{match.Score * 100.0:F2}",
                     matchResult.IsOk ? Color.Green : Color.Red));
             }
 
@@ -216,6 +268,18 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         .ThenBy(m => m.Box.CenterY)
                         .ToList();
             }
+        }
+
+        /// <summary>
+        /// 把模板匹配返回的旋转量规范到负一百八十度到一百八十度，作为相对基准模板的角度偏差输出。
+        /// </summary>
+        private static double NormalizeAngleOffset(double angle)
+        {
+            while (angle > 180.0)
+                angle -= 360.0;
+            while (angle <= -180.0)
+                angle += 360.0;
+            return angle;
         }
     }
 }

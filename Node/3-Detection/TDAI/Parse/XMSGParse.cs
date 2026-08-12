@@ -165,28 +165,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         _autoStudyDatas[itemName].Add(count);
                     }
 
-                    List<string> ngCountItems = new List<string>()
-                    {
-                        "DetectItem.InjectionDetached",
-                        "DetectItem.GlueMissing",
-                        "DetectItem.Dirty"
-                    };
-
                     #region 判断检测项是否OK
 
-                    if (count > 0)
-                    {
-                        // 有结果时才判断上下限
-                        bool minOk = float.TryParse(item.MinValue, out float min) && count >= min;
-                        bool maxOk = float.TryParse(item.MaxValue, out float max) && count <= max;
-                        isOk = minOk && maxOk;
-                    }
-                    else
-                    {
-                        // 没有结果时，默认值 0，直接标记为 NG
-                        valueStr = "0";
-                        isOk = ngCountItems.Contains(itemName) ? false : true; // NG型检测项有结果时标记为OK
-                    }
+                    // 数量型检测项没有检出时按0参与上下限判断，支持0~0直接判OK。
+                    valueStr = count.ToString();
+                    isOk = ParseCommon.IsValueWithinLimits(item, count);
 
                     #endregion
 
@@ -221,7 +204,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                     {
                         texts.Add(new ColorText(
-                            $"{ParseCommon.GetDisplayName(itemName)}: {((param.IsAutoStudy ? true : isOk) ? "OK" : "NG")}",
+                            $"{ParseCommon.GetDisplayName(itemName)}: {valueStr} " +
+                            $"设定值: [{item.MinValue}, {item.MaxValue}]",
                             (param.IsAutoStudy ? true : isOk) ? Color.Green : Color.Red
                         ));
                     }
@@ -242,7 +226,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     {
                         string rawValue = extractValueFunc(result);
                         if (!float.TryParse(rawValue, out float value))
-                            continue;
+                            value = 0;
 
                         if (itemName == "DetectItem.BiteGlueLength")
                         {
@@ -284,9 +268,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
 
 
-                        bool minOk = float.TryParse(item.MinValue, out float min) && value >= min;
-                        bool maxOk = float.TryParse(item.MaxValue, out float max) && value <= max;
-                        bool isOk = minOk && maxOk;
+                        bool isOk = ParseCommon.IsValueWithinLimits(item, value);
 
                         // 一旦有一个 false，则整体不是 OK
                         if (!isOk)
@@ -338,8 +320,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                 if (!matchedResults.Any() && item.Enable && !isCountItem)
                 {
-                    string defaultValue = null;
-                    bool isSpecialCaseOk = false;
+                    bool zeroIsOk = ParseCommon.IsValueWithinLimits(item, 0F);
 
                     #region 对于“存在”即NG的非数量型检测项要这样设置
                     
@@ -353,7 +334,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         {
                             Name = itemName,
                             Value = "0",
-                            IsOk = false
+                            IsOk = param.IsAutoStudy ? true : zeroIsOk
                         };
                         singleResults.Add(singleResult);
 
@@ -362,11 +343,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                         {
                             texts.Add(new ColorText(
-                                $"{ParseCommon.GetDisplayName(itemName)}: 0",
-                                isSpecialCaseOk ? Color.Green : Color.Red
+                                $"{ParseCommon.GetDisplayName(itemName)}: 0 " +
+                                $"设定值: [{item.MinValue}, {item.MaxValue}]",
+                                (param.IsAutoStudy ? true : zeroIsOk) ? Color.Green : Color.Red
                             ));
                         }
 
+                        ParseCommon.SetDetectItemCurValue(ref param, itemName, "0");
                         hasData = true;
                     }
 

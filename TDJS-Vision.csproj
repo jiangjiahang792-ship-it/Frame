@@ -396,6 +396,17 @@
     <Compile Include="Node\4-Measurement\Common\MultiTargetPositionCorrectionResult.cs" />
     <Compile Include="Node\4-Measurement\Common\MultiTargetMeasurementRunner.cs" />
     <Compile Include="Node\4-Measurement\Common\MultiTargetMeasurementPairer.cs" />
+    <Compile Include="Node\4-Measurement\BlobAnalysis\NodeBlobAnalysis.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\BlobAnalysis\NodeParamBlobAnalysis.cs" />
+    <Compile Include="Node\4-Measurement\BlobAnalysis\NodeParamFormBlobAnalysis.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\BlobAnalysis\NodeParamFormBlobAnalysis.Designer.cs">
+      <DependentUpon>NodeParamFormBlobAnalysis.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\4-Measurement\BlobAnalysis\NodeResultBlobAnalysis.cs" />
     <Compile Include="Node\4-Measurement\CaliperLine\NodeCaliperLine.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -1157,6 +1168,9 @@
       <DependentUpon>TemplateCreateForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\3-Detection\MatchTemplate\NodeParamMatchTemplate.cs" />
+    <Compile Include="Node\3-Detection\MatchTemplate\NodeNccMatchTemplate.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="Node\3-Detection\MatchTemplate\NodeMatchTemplate.cs">
       <SubType>UserControl</SubType>
     </Compile>

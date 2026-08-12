@@ -488,9 +488,22 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             private bool cachedContourUsesMask;
 
             /// <summary>
+            /// 是否强制走demo一致的native算法路径，NCC节点使用该开关避免进入原模板匹配CPU后备算法。
+            /// </summary>
+            private readonly bool forceNativeDemoAlgorithm;
+
+            /// <summary>
             /// 会话是否已经释放。
             /// </summary>
             private bool disposed;
+
+            /// <summary>
+            /// 创建模板匹配会话。
+            /// </summary>
+            public MatchSession(bool forceNativeDemoAlgorithm = false)
+            {
+                this.forceNativeDemoAlgorithm = forceNativeDemoAlgorithm;
+            }
 
             /// <summary>
             /// 使已学习模板和轮廓缓存失效，下一次匹配会重新学习模板。
@@ -555,7 +568,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                     using (var template = To24Bpp(templateImage))
                     {
                         WriteDiagnosticLog("MatchSession.Match：图像已转24位，" + MatchTemplateDiagnosticLog.DescribeBitmap("source24", source) + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("template24", template));
-                        if (ShouldUseManagedCpuFallback())
+                        if (!forceNativeDemoAlgorithm && ShouldUseManagedCpuFallback())
                             return MatchWithManagedCpuFallback(param, source, template, contourMask, sw);
 
                         WriteDiagnosticLog("MatchSession.Match：开始确保模板已学习，templateVersion=" + templateVersion + "，learnedVersion=" + learnedTemplateVersion);
@@ -625,6 +638,131 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                     WriteDiagnosticLog(string.Format("MatchSession.Match出口：成功，matches={0}，elapsed={1:F2}ms。", result.Matches.Count, result.AlgorithmMs));
                     return result;
                 }
+            }
+
+            /// <summary>
+            /// 使用订阅输出的 Mat 直接执行 native NCC 匹配，避免节点运行时整图 Bitmap 转换。
+            /// </summary>
+            public FastTemplateMatchResult Match(NodeParamMatchTemplate param, Mat sourceImage, Bitmap templateImage, Bitmap contourMask)
+            {
+                WriteDiagnosticLog("MatchSession.MatchMat入口：" + MatchTemplateDiagnosticLog.DescribeParam(param) + "，source=" + DescribeMat(sourceImage) + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("template", templateImage) + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("mask", contourMask));
+                if (param == null)
+                    throw new ArgumentNullException(nameof(param));
+                if (sourceImage == null || sourceImage.Empty())
+                    throw new ArgumentNullException(nameof(sourceImage));
+                if (templateImage == null)
+                    throw new ArgumentNullException(nameof(templateImage));
+
+                lock (syncRoot)
+                {
+                    WriteDiagnosticLog("MatchSession.MatchMat：已进入会话锁。");
+                    ThrowIfDisposed();
+
+                    var result = new FastTemplateMatchResult();
+                    var sw = Stopwatch.StartNew();
+                    bool disposeTemplate = false;
+                    Bitmap template = null;
+                    try
+                    {
+                        template = PrepareNativeTemplate(templateImage, out disposeTemplate);
+                        WriteDiagnosticLog("MatchSession.MatchMat：图像已准备，sourceNative=" + DescribeMat(sourceImage) + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("templateNative", template));
+                        WriteDiagnosticLog("MatchSession.MatchMat：开始确保模板已学习，templateVersion=" + templateVersion + "，learnedVersion=" + learnedTemplateVersion);
+                        EnsureTemplateLearned(template);
+                        WriteDiagnosticLog("MatchSession.MatchMat：模板学习状态确认完成。");
+
+                        int maxResults = Math.Max(1, Math.Min(1000, param.ResultNum));
+                        double[] xs = new double[maxResults];
+                        double[] ys = new double[maxResults];
+                        double[] angles = new double[maxResults];
+                        double[] scores = new double[maxResults];
+
+                        double expectedScore = NormalizeScore(param.MinScore);
+                        double maxOverlap = NormalizeRatio(param.MaxOverlap);
+                        double toleranceAngle = Math.Abs(param.ToleranceAngle);
+
+                        WriteDiagnosticLog(string.Format("MatchSession.MatchMat：准备调用native匹配，maxResults={0}，expectedScore={1:F4}，toleranceAngle={2:F4}，maxOverlap={3:F4}，angleStep={4:F4}，coarse={5}。", maxResults, expectedScore, toleranceAngle, maxOverlap, Math.Max(0, param.AngleStep), param.CoarseMatch));
+                        int count = engine.Match(
+                            sourceImage,
+                            expectedScore,
+                            toleranceAngle,
+                            maxOverlap,
+                            Math.Max(0, param.AngleStep),
+                            param.CoarseMatch,
+                            xs,
+                            ys,
+                            angles,
+                            scores,
+                            maxResults);
+                        WriteDiagnosticLog("MatchSession.MatchMat：native匹配返回，count=" + count);
+
+                        List<PointF> contour = null;
+                        if (param.ShowOutlineStatus)
+                        {
+                            WriteDiagnosticLog("MatchSession.MatchMat：开始获取模板轮廓。");
+                            contour = GetTemplateContour(template, contourMask);
+                            WriteDiagnosticLog("MatchSession.MatchMat：模板轮廓完成，点数=" + (contour == null ? 0 : contour.Count));
+                        }
+
+                        for (int i = 0; i < count; i++)
+                        {
+                            var match = new FastTemplateMatchInfo
+                            {
+                                Box = new FastTemplateMatchBox
+                                {
+                                    CenterX = (float)xs[i],
+                                    CenterY = (float)ys[i],
+                                    Width = template.Width,
+                                    Height = template.Height,
+                                    Angle = (float)-angles[i]
+                                },
+                                Score = scores[i]
+                            };
+                            result.Matches.Add(match);
+
+                            if (contour != null && contour.Count > 0)
+                                result.Outlines.Add(TransformContour(contour, match.Box.CenterX, match.Box.CenterY, match.Box.Angle));
+                        }
+
+                        result.ExpectedCount = maxResults;
+                        result.ExpectedScore = expectedScore;
+                        result.IsOk = result.Matches.Count > 0 && result.Matches.All(m => m.Score >= expectedScore);
+                    }
+                    finally
+                    {
+                        if (disposeTemplate)
+                            template?.Dispose();
+                    }
+
+                    sw.Stop();
+                    result.AlgorithmMs = sw.Elapsed.TotalMilliseconds;
+                    WriteDiagnosticLog(string.Format("MatchSession.MatchMat出口：成功，matches={0}，elapsed={1:F2}ms。", result.Matches.Count, result.AlgorithmMs));
+                    return result;
+                }
+            }
+
+            /// <summary>
+            /// 获取 native 学习使用的模板；模板已是24位时直接复用，避免每次运行复制模板。
+            /// </summary>
+            private static Bitmap PrepareNativeTemplate(Bitmap template, out bool disposeAfterUse)
+            {
+                disposeAfterUse = false;
+                if (template.PixelFormat == PixelFormat.Format24bppRgb)
+                    return template;
+
+                disposeAfterUse = true;
+                return To24Bpp(template);
+            }
+
+            /// <summary>
+            /// 生成 Mat 的简短诊断描述，避免为日志把图像转成 Bitmap。
+            /// </summary>
+            private static string DescribeMat(Mat image)
+            {
+                if (image == null)
+                    return "null";
+                if (image.Empty())
+                    return "empty";
+                return string.Format("{0}x{1}, channels={2}, step={3}, data={4}", image.Width, image.Height, image.Channels(), image.Step(), image.Data);
             }
 
             /// <summary>
@@ -987,6 +1125,54 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                     source.UnlockBits(data);
                     MatchTemplateDiagnosticLog.Write("FastMatchEngineHandle.Match出口：源图位图已解锁。");
                 }
+            }
+
+            /// <summary>
+            /// 使用 Mat 内存直接执行模板匹配，通道转换由 demo DLL 按原逻辑处理。
+            /// </summary>
+            public int Match(
+                Mat source,
+                double expectedScore,
+                double toleranceAngle,
+                double maxOverlap,
+                double angleStep,
+                bool coarseMatch,
+                double[] xs,
+                double[] ys,
+                double[] angles,
+                double[] scores,
+                int maxResults)
+            {
+                if (source == null || source.Empty())
+                    throw new ArgumentNullException(nameof(source));
+                int channels = source.Channels();
+                if (source.Depth() != MatType.CV_8U || (channels != 1 && channels != 3 && channels != 4))
+                    throw new InvalidOperationException("NCC模板匹配native输入只支持8位1通道、3通道或4通道图像。");
+
+                int stride = checked((int)source.Step());
+                MatchTemplateDiagnosticLog.Write(string.Format("FastMatchEngineHandle.MatchMat入口：width={0}，height={1}，stride={2}，data={3}，score={4:F4}，angle={5:F4}，overlap={6:F4}，step={7:F4}，coarse={8}，max={9}。", source.Width, source.Height, stride, source.Data, expectedScore, toleranceAngle, maxOverlap, angleStep, coarseMatch, maxResults));
+                int count = FastMatchNative.MatchMem(
+                    _engine,
+                    source.Data,
+                    source.Width,
+                    source.Height,
+                    stride,
+                    channels,
+                    expectedScore,
+                    toleranceAngle,
+                    maxOverlap,
+                    angleStep,
+                    xs,
+                    ys,
+                    angles,
+                    scores,
+                    maxResults,
+                    coarseMatch ? 1 : 0);
+                MatchTemplateDiagnosticLog.Write("FastMatchEngineHandle.MatchMat：MatchMem返回，count=" + count);
+                if (count < 0)
+                    throw CreateNativeException("模板匹配执行失败", count);
+
+                return Math.Min(count, maxResults);
             }
 
             /// <summary>

@@ -163,28 +163,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         _autoStudyDatas[itemName].Add(count);
                     }
 
-                    List<string> ngCountItems = new List<string>()
-                    {
-                        "DetectItem.InjectionDetached",
-                        "DetectItem.GlueMissing",
-                        "DetectItem.Dirty"
-                    };
-
                     #region 判断检测项是否OK
 
-                    if (count > 0)
-                    {
-                        // 有结果时才判断上下限
-                        bool minOk = float.TryParse(item.MinValue, out float min) && count >= min;
-                        bool maxOk = float.TryParse(item.MaxValue, out float max) && count <= max;
-                        isOk = minOk && maxOk;
-                    }
-                    else
-                    {
-                        // 没有结果时，默认值 0，直接标记为 NG
-                        valueStr = "0";
-                        isOk = ngCountItems.Contains(itemName) ? false : true; // NG型检测项有结果时标记为OK
-                    }
+                    // 数量型检测项没有检出时按0参与上下限判断，支持0~0直接判OK。
+                    valueStr = count.ToString();
+                    isOk = ParseCommon.IsValueWithinLimits(item, count);
 
                     #endregion
 
@@ -219,7 +202,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                     {
                         texts.Add(new ColorText(
-                            $"{ParseCommon.GetDisplayName(itemName)}: {((param.IsAutoStudy ? true : isOk) ? "OK" : "NG")}",
+                            $"{ParseCommon.GetDisplayName(itemName)}: {valueStr} " +
+                            $"设定值: [{item.MinValue}, {item.MaxValue}]",
                             (param.IsAutoStudy ? true : isOk) ? Color.Green : Color.Red
                         ));
                     }
@@ -236,8 +220,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     bool allOk = true;
                     var valueStr = "";
 
-                    //数量如果少于2直接报缺失
-                    if (matchedResults.Count<2)
+                    // 有部分结果但数量不足时按缺失处理；完全未检出交给后面的0值兜底。
+                    if (matchedResults.Count > 0 && matchedResults.Count < 2)
                     {
                         var singleResult = new SingleDetectResult
                         {
@@ -257,9 +241,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                             ));
 
                             // 设置当前检测项的值到结果中
-                            ParseCommon.SetDetectItemCurValue(ref param, itemName, (matchedResults.Count > 0 ? valueStr.TrimEnd(',') : "0"));
+                            ParseCommon.SetDetectItemCurValue(ref param, itemName, "0");
                         }
 
+                        hasData = true;
+                        detectResults[itemName] = singleResults;
                         continue;
                     }
 
@@ -307,9 +293,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                             rawValue = value.ToString("F2"); // 保留两位小数
                         }
 
-                        bool minOk = float.TryParse(item.MinValue, out float min) && value >= min;
-                        bool maxOk = float.TryParse(item.MaxValue, out float max) && value <= max;
-                        bool isOk = minOk && maxOk;
+                        bool isOk = ParseCommon.IsValueWithinLimits(item, value);
                         // 一旦有一个 false，则整体不是 OK
                         if (!isOk|| matchedResults.Count<2)
                             allOk = false;
@@ -360,8 +344,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                 if (!matchedResults.Any() && item.Enable && !isCountItem)
                 {
-                    string defaultValue = null;
-                    bool isSpecialCaseOk = false;
+                    bool zeroIsOk = ParseCommon.IsValueWithinLimits(item, 0F);
 
                     #region 对于“存在”即NG的非数量型检测项要这样设置
                     
@@ -375,7 +358,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         {
                             Name = itemName,
                             Value = "0",
-                            IsOk = false
+                            IsOk = param.IsAutoStudy ? true : zeroIsOk
                         };
                         singleResults.Add(singleResult);
 
@@ -384,11 +367,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                         {
                             texts.Add(new ColorText(
-                                $"{ParseCommon.GetDisplayName(itemName)}: 0",
-                                isSpecialCaseOk ? Color.Green : Color.Red
+                                $"{ParseCommon.GetDisplayName(itemName)}: 0 " +
+                                $"设定值: [{item.MinValue}, {item.MaxValue}]",
+                                (param.IsAutoStudy ? true : zeroIsOk) ? Color.Green : Color.Red
                             ));
                         }
 
+                        ParseCommon.SetDetectItemCurValue(ref param, itemName, "0");
                         hasData = true;
                     }
 

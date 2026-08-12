@@ -16,6 +16,7 @@ using TDJS_Vision.Node._3_Detection.MatchTemplate;
 using TDJS_Vision.Node._3_Detection.QRScan;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._3_Detection.Unsupervised;
+using TDJS_Vision.Node._4_Measurement.BlobAnalysis;
 using TDJS_Vision.Node._4_Measurement.CaliperCircle;
 using TDJS_Vision.Node._4_Measurement.CaliperEllipse;
 using TDJS_Vision.Node._4_Measurement.CaliperLine;
@@ -116,6 +117,8 @@ namespace TDJS_Vision.Node
                     return new NodeCaliperEllipse(nodeId, nodeName, process, nodeType);
                 case NodeType.FindPoint:
                     return new NodeFindPoint(nodeId, nodeName, process, nodeType);
+                case NodeType.BlobAnalysis:
+                    return new NodeBlobAnalysis(nodeId, nodeName, process, nodeType);
                 case NodeType.PositionCorrection:
                     return new NodePositionCorrection(nodeId, nodeName, process, nodeType);
                 case NodeType.LineLineAngle:
@@ -162,6 +165,8 @@ namespace TDJS_Vision.Node
                     return new NodeQRScan(nodeId, nodeName, process, nodeType);
                 case NodeType.MatchTemplate:
                     return new NodeMatchTemplate(nodeId, nodeName, process, nodeType);
+                case NodeType.NccMatchTemplate:
+                    return new NodeNccMatchTemplate(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageFileDelete:
                     return new NodeImageDelete(nodeId, nodeName, process, nodeType);
                 case NodeType.SharedVariable:

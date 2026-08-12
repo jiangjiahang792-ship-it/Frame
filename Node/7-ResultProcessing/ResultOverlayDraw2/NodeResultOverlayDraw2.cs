@@ -1021,6 +1021,19 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 return;
             }
 
+            if (algorithmResult != null && algorithmResult.Rects.Count > 0)
+            {
+                foreach (ColorRotatedRect rect in algorithmResult.Rects)
+                {
+                    displayResult.Rects.Add(new ColorRotatedRect(rect.RotatedRect)
+                    {
+                        Color = drawColor,
+                        LineWidth = Math.Max(1, item.LineWidth)
+                    });
+                }
+                return;
+            }
+
             INodeResult nodeResult = value as INodeResult;
             List<PointF> points;
             if ((nodeResult != null && MeasurementResultReader.TryReadRegion(nodeResult, out points)) ||

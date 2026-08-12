@@ -397,6 +397,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     return;
                 }
 
+                AlgorithmResult sourceAlgorithmResult = TryGetAlgorithmResult(sourceValue);
+                if (sourceAlgorithmResult != null)
+                {
+                    displayResult.IsAllOk = displayResult.IsAllOk && sourceAlgorithmResult.IsAllOk;
+                    AppendAlgorithmResultTexts(displayResult, sourceAlgorithmResult, item);
+                    return;
+                }
+
                 texts.AddRange(BuildTextValueLines(
                     sourceNode == null ? null : sourceNode.Result,
                     item.SourceText2,
@@ -558,6 +566,19 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 {
                     displayResult.Contours.Add(new ColorContour(contour.Points == null ? new List<PointF>() : contour.Points.ToList(), drawColor)
                     {
+                        LineWidth = Math.Max(1, item.LineWidth)
+                    });
+                }
+                return;
+            }
+
+            if (algorithmResult != null && algorithmResult.Rects.Count > 0)
+            {
+                foreach (ColorRotatedRect rect in algorithmResult.Rects)
+                {
+                    displayResult.Rects.Add(new ColorRotatedRect(rect.RotatedRect)
+                    {
+                        Color = drawColor,
                         LineWidth = Math.Max(1, item.LineWidth)
                     });
                 }

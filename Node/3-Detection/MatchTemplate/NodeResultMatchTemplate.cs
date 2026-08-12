@@ -44,8 +44,11 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         [DisplayName("匹配点Y")]
         public double? MatchY { get; set; }
 
+        /// <summary>
+        /// 获取或设置首个匹配目标相对基准模板的角度偏差，单位为度。
+        /// </summary>
         [SubscriptionOutput]
-        [DisplayName("角度")]
+        [DisplayName("角度偏差")]
         public double? Angle { get; set; }
 
         [SubscriptionOutput]

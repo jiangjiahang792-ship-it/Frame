@@ -338,6 +338,10 @@ namespace TDJS_Vision.Node
         /// </summary>
         MatchTemplate,
         /// <summary>
+        /// NCC模板匹配
+        /// </summary>
+        NccMatchTemplate,
+        /// <summary>
         /// 图片定时删除
         /// </summary>
         ImageFileDelete,

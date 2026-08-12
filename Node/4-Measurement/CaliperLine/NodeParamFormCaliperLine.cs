@@ -188,6 +188,10 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 item.EndY = MeasurementResultRounder.Round(measure.LineEnd.Y);
                 item.Length = MeasurementResultRounder.Round(CalculateDistance(measure.LineStart, measure.LineEnd));
                 item.Angle = MeasurementResultRounder.Round(CalculateAbsoluteAngle(measure.LineStart, measure.LineEnd));
+                item.WarpageDifference = MeasurementResultRounder.Round(CalculateWarpageDifference(
+                    measure.EdgePoints,
+                    measure.LineStart,
+                    measure.LineEnd));
             }
             return item;
         }
@@ -206,6 +210,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 EndY = 0,
                 Length = 0,
                 Angle = 0,
+                WarpageDifference = 0,
                 AlgorithmMs = 0
             };
         }
@@ -246,6 +251,38 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
         private static double CalculateAbsoluteAngle(PointF start, PointF end)
         {
             return Math.Abs(Math.Atan2(end.Y - start.Y, end.X - start.X) * 180.0 / Math.PI);
+        }
+
+        /// <summary>计算边缘点到拟合线距离的最大值与最小值差，作为翘曲度差值输出。</summary>
+        private static double CalculateWarpageDifference(IReadOnlyList<PointF> edgePoints, PointF lineStart, PointF lineEnd)
+        {
+            if (edgePoints == null || edgePoints.Count == 0)
+                return 0;
+
+            double minDistance = double.MaxValue;
+            double maxDistance = 0;
+            foreach (PointF point in edgePoints)
+            {
+                double distance = CalculatePointLineDistance(point, lineStart, lineEnd);
+                if (distance < minDistance)
+                    minDistance = distance;
+                if (distance > maxDistance)
+                    maxDistance = distance;
+            }
+
+            return minDistance == double.MaxValue ? 0 : maxDistance - minDistance;
+        }
+
+        /// <summary>计算点到拟合直线的垂直距离。</summary>
+        private static double CalculatePointLineDistance(PointF point, PointF lineStart, PointF lineEnd)
+        {
+            double dx = lineEnd.X - lineStart.X;
+            double dy = lineEnd.Y - lineStart.Y;
+            double length = Math.Sqrt(dx * dx + dy * dy);
+            if (length < 1e-8)
+                return 0;
+
+            return Math.Abs((point.X - lineStart.X) * dy - (point.Y - lineStart.Y) * dx) / length;
         }
 
         private void InitializeCombos()

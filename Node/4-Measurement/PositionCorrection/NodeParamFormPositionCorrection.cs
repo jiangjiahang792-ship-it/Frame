@@ -129,10 +129,7 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
         private List<TemplateMatchPose> ReadPoses()
         {
             List<TemplateMatchPose> poses = nodeSubscriptionPoses.GetValue<List<TemplateMatchPose>>();
-            if (poses == null || poses.Count == 0)
-                throw new Exception("模板匹配位姿列表为空，请先运行模板匹配节点。");
-
-            return poses;
+            return poses ?? new List<TemplateMatchPose>();
         }
 
         /// <summary>

@@ -36,6 +36,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
         /// <summary>获取或设置拟合线绝对角度。</summary>
         public double Angle { get; set; }
 
+        /// <summary>获取或设置边缘点到拟合线的最大距离与最小距离差值。</summary>
+        public double WarpageDifference { get; set; }
+
         /// <summary>获取或设置单目标算法耗时。</summary>
         public double AlgorithmMs { get; set; }
     }
@@ -94,6 +97,13 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
         [SubscriptionOutput]
         [DisplayName("角度")]
         public double? Angle { get; set; }
+
+        /// <summary>
+        /// 卡尺边缘点到拟合线的最大垂直距离减最小垂直距离，用于表示翘曲度差值。
+        /// </summary>
+        [SubscriptionOutput]
+        [DisplayName("翘曲度差值")]
+        public double? WarpageDifference { get; set; }
 
         [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
         [DisplayName("算法耗时")]

@@ -63,8 +63,8 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
                 if (showLog)
                 {
                     LogHelper.AddLog(
-                        MsgLevel.Info,
-                        $"节点({ID}.{NodeName})运行成功！({time} ms，修正目标数量：{nodeResult.TargetCount})",
+                        nodeResult.IsOk ? MsgLevel.Info : MsgLevel.Warn,
+                        $"节点({ID}.{NodeName})运行成功！({time} ms，修正目标数量：{nodeResult.TargetCount}，总体：{(nodeResult.IsOk ? "OK" : "NG")})",
                         true);
                 }
 
@@ -112,7 +112,7 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
             if (basePose == null || !basePose.IsValid)
                 throw new Exception("位置修正基准无效，请重新创建基准。");
             if (poses == null || poses.Count == 0)
-                throw new Exception("模板位姿列表为空，请先运行模板匹配节点。");
+                return new List<PositionCorrectionInfo>();
 
             var items = new List<PositionCorrectionInfo>(poses.Count);
             for (int i = 0; i < poses.Count; i++)
@@ -123,9 +123,6 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
 
                 items.Add(PositionCorrectionInfo.FromPoses(basePose, pose));
             }
-
-            if (items.Count == 0)
-                throw new Exception("模板位姿列表中没有有效目标。");
 
             return items;
         }
@@ -143,14 +140,37 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
         /// </summary>
         internal static NodeResultPositionCorrection BuildResult(IReadOnlyList<PositionCorrectionInfo> items)
         {
+            var resultItems = new List<PositionCorrectionInfo>(items == null ? 0 : items.Count);
             if (items == null || items.Count == 0)
-                throw new Exception("位置修正结果为空。");
+            {
+                return new NodeResultPositionCorrection
+                {
+                    Items = resultItems,
+                    IsValid = false,
+                    CorrectionInfo = new PositionCorrectionInfo(),
+                    TargetCount = 0,
+                    IsOk = false,
+                    JudgeOk = false
+                };
+            }
 
-            var resultItems = new List<PositionCorrectionInfo>(items.Count);
             for (int i = 0; i < items.Count; i++)
             {
                 PositionCorrectionHelper.EnsureValid(items[i]);
                 resultItems.Add(items[i]);
+            }
+
+            if (resultItems.Count == 0)
+            {
+                return new NodeResultPositionCorrection
+                {
+                    Items = resultItems,
+                    IsValid = false,
+                    CorrectionInfo = new PositionCorrectionInfo(),
+                    TargetCount = 0,
+                    IsOk = false,
+                    JudgeOk = false
+                };
             }
 
             PositionCorrectionInfo first = resultItems[0];
@@ -173,6 +193,7 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
                 CorrectionInfo = first,
                 TargetCount = resultItems.Count,
                 IsOk = true,
+                JudgeOk = true,
                 CurrentX = MeasurementResultRounder.Round(first.CurrentX),
                 CurrentY = MeasurementResultRounder.Round(first.CurrentY),
                 CurrentAngle = MeasurementResultRounder.Round(first.CurrentAngle),

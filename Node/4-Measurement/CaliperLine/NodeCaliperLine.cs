@@ -94,6 +94,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 result.EndY = first.EndY;
                 result.Length = first.Length;
                 result.Angle = first.Angle;
+                result.WarpageDifference = first.WarpageDifference;
                 result.AlgorithmMs = result.Items.Sum(item => item.AlgorithmMs);
             }
             result.Result = BuildDisplayResult(result.Items);
@@ -118,7 +119,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                     var start = new PointF((float)item.StartX, (float)item.StartY);
                     var end = new PointF((float)item.EndX, (float)item.EndY);
                     result.Lines.Add(new ColorLine(start, end, Color.Lime));
-                    result.Texts.Add(new ColorText($"目标{item.TargetIndex} 卡尺找线：点数 {item.EdgePointCount}，长度 {item.Length:F3}px，角度 {item.Angle:F3}°", Color.Lime));
+                    result.Texts.Add(new ColorText($"目标{item.TargetIndex} 卡尺找线：点数 {item.EdgePointCount}，长度 {item.Length:F3}px，角度 {item.Angle:F3}°，翘曲度差值 {item.WarpageDifference:F3}px", Color.Lime));
                 }
                 else
                 {
