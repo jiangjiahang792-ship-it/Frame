@@ -67,6 +67,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测开始{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                             // 清空上次检测结果
                             res.AlgorithmResult.Clear();
+                            res.ResetJudgeOk();
 
                             // 获取图像
                             inputImage = form.GetOutputImage();
@@ -178,6 +179,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                             break;
                                         case ModelName.XM_Fakra模型:
                                             XMSGParse.Parse(det_results, result_count, param, Process,ref res);
+                                            break;
+                                        case ModelName.多端子模型:
+                                            MultiTerminalParse.Parse(det_results, result_count, param, Process,ref res);
                                             break;
                                         default:
                                             throw new Exception("不存在的模型名称！");

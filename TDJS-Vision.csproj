@@ -238,6 +238,7 @@
     <Compile Include="ExternalProgramLauncher.cs" />
     <Compile Include="Forms\Workspace\IExclusiveWorkspacePresenter.cs" />
     <Compile Include="Forms\Workspace\ExclusiveWorkspacePresenter.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\MultiTerminalParse.cs" />
     <Compile Include="Startup\IStartupProgressReporter.cs" />
     <Compile Include="Startup\ISolutionLoadingCoordinator.cs" />
     <Compile Include="Startup\IDeviceLicenseSynchronizer.cs" />

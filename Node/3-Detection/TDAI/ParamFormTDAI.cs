@@ -348,6 +348,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     case "XM_Fakra模型":
                         nodeParamTDAI.ModelName = ModelName.XM_Fakra模型;
                         break;
+                    case "多端子模型":
+                        nodeParamTDAI.ModelName = ModelName.多端子模型;
+                        break;
                     default:
                         throw new Exception($"未知的模型名称：{comboBoxModelName.Text}");
                 }

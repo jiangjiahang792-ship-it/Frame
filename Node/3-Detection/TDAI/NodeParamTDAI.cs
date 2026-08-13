@@ -148,5 +148,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         RL_线芯截面,
         合压模型,
         XM_Fakra模型,
+        多端子模型,
     }
 }
