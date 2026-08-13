@@ -30,7 +30,8 @@ foreach ($type in @('CaliperLineParams', 'CaliperCircleParams', 'CaliperEllipseP
 }
 
 Assert-ContainsText $algorithm 'p.SamplingMode' 'Every caliper algorithm must pass its sampling mode to profile generation.'
-Assert-ContainsText $algorithm 'SampleFastPixel(gray, px, py)' 'Profile generation must expose the legacy fast center-line path.'
+Assert-ContainsText $algorithm 'SampleFastPixel(gray, px, py, averageDirX, averageDirY, averageWidth)' 'Fast sampling must receive the caliper width direction for lightweight anti-jitter sampling.'
+Assert-ContainsText $algorithm 'for (int sampleIndex = -1; sampleIndex <= 1; sampleIndex++)' 'Fast sampling must average exactly three representative bilinear samples.'
 Assert-ContainsText $algorithm 'samplingMode == CaliperSamplingMode.AntiInterference' 'Only the explicit anti-interference value may use averaged sampling.'
 Assert-ContainsText $algorithm 'SampleAveragedPixel(gray, px, py, averageDirX, averageDirY, averageWidth)' 'Anti-interference mode must retain averaged bilinear sampling.'
 

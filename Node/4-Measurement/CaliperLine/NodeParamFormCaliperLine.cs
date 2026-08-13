@@ -62,6 +62,12 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 comboBoxFindMode.SelectedItem = param.FindMode;
                 comboBoxDirection.SelectedIndex = param.Direction == 1 ? 1 : 0;
                 comboBoxSamplingMode.SelectedIndex = param.SamplingMode == CaliperSamplingMode.AntiInterference ? 1 : 0;
+                checkBoxEnableQualityValidation.Checked = param.EnableQualityValidation;
+                textBoxMinimumValidPointRatio.Text = param.MinimumValidPointRatio.ToString();
+                textBoxMaximumAverageResidual.Text = param.MaximumAverageResidual.ToString();
+                textBoxMaximumResidual.Text = param.MaximumResidual.ToString();
+                textBoxMinimumCoverageRatio.Text = param.MinimumCoverageRatio.ToString();
+                textBoxMaximumAngleDeviation.Text = param.MaximumAngleDeviationDegrees.ToString();
                 UpdatePositionCorrectionEnabled();
             }
             finally
@@ -145,7 +151,13 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 Polarity = param.Polarity,
                 FindMode = param.FindMode,
                 SamplingMode = param.SamplingMode,
-                Direction = param.Direction
+                Direction = param.Direction,
+                EnableQualityValidation = param.EnableQualityValidation,
+                MinimumValidPointRatio = param.MinimumValidPointRatio,
+                MaximumAverageResidual = param.MaximumAverageResidual,
+                MaximumResidual = param.MaximumResidual,
+                MinimumCoverageRatio = param.MinimumCoverageRatio,
+                MaximumAngleDeviationDegrees = param.MaximumAngleDeviationDegrees
             };
         }
 
@@ -166,7 +178,13 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 FindMode = runtimeParam.FindMode,
                 SamplingMode = runtimeParam.SamplingMode,
                 Direction = runtimeParam.Direction,
-                BlurSize = runtimeParam.BlurSize
+                BlurSize = runtimeParam.BlurSize,
+                EnableQualityValidation = runtimeParam.EnableQualityValidation,
+                MinimumValidPointRatio = runtimeParam.MinimumValidPointRatio,
+                MaximumAverageResidual = runtimeParam.MaximumAverageResidual,
+                MaximumResidual = runtimeParam.MaximumResidual,
+                MinimumCoverageRatio = runtimeParam.MinimumCoverageRatio,
+                MaximumAngleDeviationDegrees = runtimeParam.MaximumAngleDeviationDegrees
             };
             CaliperLineMeasureResult measure = CaliperMeasurementAlgorithm.FindLine(gray, algorithmParam);
             if (measure == null)
@@ -175,10 +193,16 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             var item = new CaliperLineTargetResult
             {
                 IsOk = measure.Success,
-                ErrorMessage = measure.Success ? string.Empty : "未找到有效直线。",
-                EdgePointCount = measure.Success ? measure.PointCount : 0,
+                ErrorMessage = measure.Success ? string.Empty : measure.ErrorMessage,
+                CandidatePointCount = measure.Quality.CandidatePointCount,
+                EdgePointCount = measure.PointCount,
                 EdgePoints = MeasurementResultRounder.RoundPoints(measure.EdgePoints),
-                AlgorithmMs = measure.Success ? MeasurementResultRounder.Round(measure.AlgorithmMs) : 0
+                ValidPointRatio = MeasurementResultRounder.Round(measure.Quality.ValidPointRatio),
+                AverageResidual = MeasurementResultRounder.Round(measure.Quality.AverageResidual),
+                MaximumResidual = MeasurementResultRounder.Round(measure.Quality.MaximumResidual),
+                CoverageRatio = MeasurementResultRounder.Round(measure.Quality.CoverageRatio),
+                AngleDeviation = MeasurementResultRounder.Round(measure.Quality.AngleDeviationDegrees),
+                AlgorithmMs = MeasurementResultRounder.Round(measure.AlgorithmMs)
             };
             if (measure.Success)
             {
@@ -203,6 +227,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             {
                 IsOk = false,
                 ErrorMessage = exception == null ? "卡尺找线失败。" : exception.Message,
+                CandidatePointCount = 0,
                 EdgePointCount = 0,
                 StartX = 0,
                 StartY = 0,
@@ -211,6 +236,11 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 Length = 0,
                 Angle = 0,
                 WarpageDifference = 0,
+                ValidPointRatio = 0,
+                AverageResidual = 0,
+                MaximumResidual = 0,
+                CoverageRatio = 0,
+                AngleDeviation = 0,
                 AlgorithmMs = 0
             };
         }
@@ -464,7 +494,13 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                     SamplingMode = comboBoxSamplingMode.SelectedIndex == 1
                         ? CaliperSamplingMode.AntiInterference
                         : CaliperSamplingMode.Fast,
-                    Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0
+                    Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0,
+                    EnableQualityValidation = checkBoxEnableQualityValidation.Checked,
+                    MinimumValidPointRatio = ParseRatio(textBoxMinimumValidPointRatio, "最低有效点比例"),
+                    MaximumAverageResidual = ParsePositiveFloat(textBoxMaximumAverageResidual, "平均残差上限"),
+                    MaximumResidual = ParsePositiveFloat(textBoxMaximumResidual, "最大残差上限"),
+                    MinimumCoverageRatio = ParseRatio(textBoxMinimumCoverageRatio, "最低覆盖率"),
+                    MaximumAngleDeviationDegrees = ParsePositiveFloat(textBoxMaximumAngleDeviation, "方向偏差上限")
                 };
                 return true;
             }
@@ -488,6 +524,24 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             int value;
             if (!int.TryParse(textBox.Text, out value))
                 throw new Exception($"{name}不是有效整数！");
+            return value;
+        }
+
+        /// <summary>读取大于零且不超过一的比例参数。</summary>
+        private static float ParseRatio(TextBox textBox, string name)
+        {
+            float value = ParseFloat(textBox, name);
+            if (value <= 0 || value > 1)
+                throw new Exception($"{name}必须大于0且不超过1！");
+            return value;
+        }
+
+        /// <summary>读取严格大于零的浮点参数。</summary>
+        private static float ParsePositiveFloat(TextBox textBox, string name)
+        {
+            float value = ParseFloat(textBox, name);
+            if (value <= 0)
+                throw new Exception($"{name}必须大于0！");
             return value;
         }
 

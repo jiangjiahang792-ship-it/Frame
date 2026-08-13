@@ -46,7 +46,7 @@ foreach ($file in $files) {
     }
 }
 
-Assert-True ($displayCount -eq 244) "当前静态公开结果数量应为 244，实际为 $displayCount。"
+Assert-True ($displayCount -eq 251) "当前静态公开结果数量应为 251，实际为 $displayCount。"
 Assert-True ($classifiedCount -eq $displayCount) ("存在未分类输出：" + ($unclassified -join ', '))
 Assert-True ($hiddenCount -eq 48) "隐藏结果数量应为 48，实际为 $hiddenCount。"
 
