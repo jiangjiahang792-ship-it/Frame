@@ -63,6 +63,8 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         public int Direction { get; set; }
         /// <summary>获取或设置灰度剖面采样模式。</summary>
         public CaliperSamplingMode SamplingMode { get; set; } = CaliperSamplingMode.Fast;
+        /// <summary>获取或设置边缘定位精度，默认使用亚像素插值。</summary>
+        public GeometryMeasureMode MeasureMode { get; set; } = GeometryMeasureMode.SubPixel;
         /// <summary>获取或设置一维灰度剖面平滑核大小。</summary>
         public int BlurSize { get; set; } = 3;
         /// <summary>获取或设置是否启用直线拟合质量判定。</summary>
@@ -251,7 +253,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 float t = count == 1 ? 0.5f : (float)i / (count - 1);
                 float cx = p.StartX + axisX * t;
                 float cy = p.StartY + axisY * t;
-                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, scanRange, averageDirX, averageDirY, averageWidth, p.SamplingMode, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
+                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, scanRange, averageDirX, averageDirY, averageWidth, p.SamplingMode, p.MeasureMode, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
                 if (edgePoint.HasValue)
                     result.EdgePoints.Add(edgePoint.Value);
             }
@@ -298,7 +300,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 float averageDirX = -scanDirY;
                 float averageDirY = scanDirX;
 
-                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, averageDirX, averageDirY, p.CaliperWidth, p.SamplingMode, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
+                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, averageDirX, averageDirY, p.CaliperWidth, p.SamplingMode, GeometryMeasureMode.SubPixel, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
                 if (edgePoint.HasValue)
                     result.EdgePoints.Add(edgePoint.Value);
             }
@@ -369,7 +371,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 float averageDirX = -scanDirY;
                 float averageDirY = scanDirX;
 
-                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, averageDirX, averageDirY, p.CaliperWidth, p.SamplingMode, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
+                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, averageDirX, averageDirY, p.CaliperWidth, p.SamplingMode, GeometryMeasureMode.SubPixel, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
                 if (edgePoint.HasValue)
                     result.EdgePoints.Add(edgePoint.Value);
                 else
@@ -410,6 +412,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             float averageDirY,
             float averageWidth,
             CaliperSamplingMode samplingMode,
+            GeometryMeasureMode measureMode,
             int blurSize,
             int edgeStrength,
             CaliperEdgePolarity polarity,
@@ -442,7 +445,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             for (int j = 1; j < profileLen - 1; j++)
                 gradient[j] = (profile[j + 1] - profile[j - 1]) / 2f;
 
-            return FindEdgeInProfile(gradient, posX, posY, edgeStrength, polarity, findMode);
+            return FindEdgeInProfile(gradient, posX, posY, measureMode, edgeStrength, polarity, findMode);
         }
 
         /// <summary>
@@ -565,6 +568,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             float[] gradient,
             float[] px,
             float[] py,
+            GeometryMeasureMode measureMode,
             int threshold,
             CaliperEdgePolarity polarity,
             CaliperEdgeFindMode mode)
@@ -607,7 +611,8 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                     break;
             }
 
-            if (bestIdx > 0 && bestIdx < gradient.Length - 1)
+            // 像素模式直接采用梯度峰值所在的整步采样位置；亚像素模式才执行抛物线峰值插值。
+            if (measureMode != GeometryMeasureMode.Pixel && bestIdx > 0 && bestIdx < gradient.Length - 1)
             {
                 float gPrev = Math.Abs(gradient[bestIdx - 1]);
                 float gCurr = Math.Abs(gradient[bestIdx]);

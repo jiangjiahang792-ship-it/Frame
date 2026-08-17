@@ -48,6 +48,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             this.comboBoxDirection = new System.Windows.Forms.ComboBox();
             this.labelSamplingMode = new System.Windows.Forms.Label();
             this.comboBoxSamplingMode = new System.Windows.Forms.ComboBox();
+            this.labelMeasureMode = new System.Windows.Forms.Label();
+            this.comboBoxMeasureMode = new System.Windows.Forms.ComboBox();
             this.groupBoxQuality = new System.Windows.Forms.GroupBox();
             this.checkBoxEnableQualityValidation = new System.Windows.Forms.CheckBox();
             this.labelMinimumValidPointRatio = new System.Windows.Forms.Label();
@@ -227,6 +229,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             this.groupBoxCaliper.Controls.Add(this.comboBoxDirection);
             this.groupBoxCaliper.Controls.Add(this.labelSamplingMode);
             this.groupBoxCaliper.Controls.Add(this.comboBoxSamplingMode);
+            this.groupBoxCaliper.Controls.Add(this.labelMeasureMode);
+            this.groupBoxCaliper.Controls.Add(this.comboBoxMeasureMode);
             this.groupBoxCaliper.Location = new System.Drawing.Point(18, 336);
             this.groupBoxCaliper.Name = "groupBoxCaliper";
             this.groupBoxCaliper.Size = new System.Drawing.Size(390, 246);
@@ -390,6 +394,24 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             this.comboBoxSamplingMode.Name = "comboBoxSamplingMode";
             this.comboBoxSamplingMode.Size = new System.Drawing.Size(120, 23);
             this.comboBoxSamplingMode.TabIndex = 17;
+            //
+            // labelMeasureMode
+            //
+            this.labelMeasureMode.AutoSize = true;
+            this.labelMeasureMode.Location = new System.Drawing.Point(220, 200);
+            this.labelMeasureMode.Name = "labelMeasureMode";
+            this.labelMeasureMode.Size = new System.Drawing.Size(67, 15);
+            this.labelMeasureMode.TabIndex = 18;
+            this.labelMeasureMode.Text = "测量精度";
+            //
+            // comboBoxMeasureMode
+            //
+            this.comboBoxMeasureMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxMeasureMode.FormattingEnabled = true;
+            this.comboBoxMeasureMode.Location = new System.Drawing.Point(292, 196);
+            this.comboBoxMeasureMode.Name = "comboBoxMeasureMode";
+            this.comboBoxMeasureMode.Size = new System.Drawing.Size(70, 23);
+            this.comboBoxMeasureMode.TabIndex = 19;
             //
             // groupBoxQuality
             //
@@ -638,6 +660,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
         private System.Windows.Forms.ComboBox comboBoxDirection;
         private System.Windows.Forms.Label labelSamplingMode;
         private System.Windows.Forms.ComboBox comboBoxSamplingMode;
+        private System.Windows.Forms.Label labelMeasureMode;
+        private System.Windows.Forms.ComboBox comboBoxMeasureMode;
         private System.Windows.Forms.GroupBox groupBoxQuality;
         private System.Windows.Forms.CheckBox checkBoxEnableQualityValidation;
         private System.Windows.Forms.Label labelMinimumValidPointRatio;

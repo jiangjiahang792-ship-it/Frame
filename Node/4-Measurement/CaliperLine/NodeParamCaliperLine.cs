@@ -37,6 +37,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
         public CaliperEdgeFindMode FindMode { get; set; } = CaliperEdgeFindMode.Best;
         /// <summary>获取或设置卡尺灰度剖面采样模式。</summary>
         public CaliperSamplingMode SamplingMode { get; set; } = CaliperSamplingMode.Fast;
+        /// <summary>获取或设置边缘定位精度，默认使用亚像素插值。</summary>
+        public GeometryMeasureMode MeasureMode { get; set; } = GeometryMeasureMode.SubPixel;
         /// <summary>获取或设置扫描方向，零表示垂直主轴。</summary>
         public int Direction { get; set; }
         /// <summary>获取或设置一维灰度剖面平滑核大小。</summary>

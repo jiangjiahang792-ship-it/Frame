@@ -62,6 +62,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 comboBoxFindMode.SelectedItem = param.FindMode;
                 comboBoxDirection.SelectedIndex = param.Direction == 1 ? 1 : 0;
                 comboBoxSamplingMode.SelectedIndex = param.SamplingMode == CaliperSamplingMode.AntiInterference ? 1 : 0;
+                comboBoxMeasureMode.SelectedIndex = param.MeasureMode == GeometryMeasureMode.Pixel ? 1 : 0;
                 checkBoxEnableQualityValidation.Checked = param.EnableQualityValidation;
                 textBoxMinimumValidPointRatio.Text = param.MinimumValidPointRatio.ToString();
                 textBoxMaximumAverageResidual.Text = param.MaximumAverageResidual.ToString();
@@ -151,6 +152,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 Polarity = param.Polarity,
                 FindMode = param.FindMode,
                 SamplingMode = param.SamplingMode,
+                MeasureMode = param.MeasureMode,
                 Direction = param.Direction,
                 EnableQualityValidation = param.EnableQualityValidation,
                 MinimumValidPointRatio = param.MinimumValidPointRatio,
@@ -177,6 +179,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 Polarity = runtimeParam.Polarity,
                 FindMode = runtimeParam.FindMode,
                 SamplingMode = runtimeParam.SamplingMode,
+                MeasureMode = runtimeParam.MeasureMode,
                 Direction = runtimeParam.Direction,
                 BlurSize = runtimeParam.BlurSize,
                 EnableQualityValidation = runtimeParam.EnableQualityValidation,
@@ -334,6 +337,10 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             comboBoxSamplingMode.Items.Add("快速采样");
             comboBoxSamplingMode.Items.Add("抗干扰采样");
             comboBoxSamplingMode.SelectedIndex = 0;
+
+            comboBoxMeasureMode.Items.Add("亚像素");
+            comboBoxMeasureMode.Items.Add("像素");
+            comboBoxMeasureMode.SelectedIndex = 0;
         }
 
         private void BindRoiRefreshEvents()
@@ -494,6 +501,9 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                     SamplingMode = comboBoxSamplingMode.SelectedIndex == 1
                         ? CaliperSamplingMode.AntiInterference
                         : CaliperSamplingMode.Fast,
+                    MeasureMode = comboBoxMeasureMode.SelectedIndex == 1
+                        ? GeometryMeasureMode.Pixel
+                        : GeometryMeasureMode.SubPixel,
                     Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0,
                     EnableQualityValidation = checkBoxEnableQualityValidation.Checked,
                     MinimumValidPointRatio = ParseRatio(textBoxMinimumValidPointRatio, "最低有效点比例"),
