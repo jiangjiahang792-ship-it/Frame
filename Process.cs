@@ -99,6 +99,16 @@ namespace TDJS_Vision
         public int CurrentRunId { get; private set; }
 
         /// <summary>
+        /// 当前运行批次的Debug完整耗时追踪；Debug关闭时始终为空。
+        /// </summary>
+        private ProcessPerformanceTrace _performanceTrace;
+
+        /// <summary>
+        /// 获取当前运行批次的跨线程诊断关联号，Debug关闭时返回空字符串。
+        /// </summary>
+        public string CurrentPerformanceTraceId => _performanceTrace == null ? string.Empty : _performanceTrace.TraceId;
+
+        /// <summary>
         /// 流程运行优先级
         /// </summary>
         public ProcessLvEnum RunLv { get; set; } = ProcessLvEnum.Lv5;
@@ -176,7 +186,11 @@ namespace TDJS_Vision
         /// </summary>
         private static void WriteProcessEndLog(Process process, ref bool startLogWritten, MsgLevel level, string statusText)
         {
-            if (process == null || !process.ShowLog)
+            if (process == null)
+                return;
+
+            process.CompletePerformanceTrace(statusText);
+            if (!process.ShowLog)
                 return;
 
             EnsureProcessStartLog(process, ref startLogWritten);
@@ -188,7 +202,11 @@ namespace TDJS_Vision
         /// </summary>
         private static void WriteFinalProcessEndLog(Process process, bool isCyclical, bool succeeded, ref bool startLogWritten)
         {
-            if (process == null || !process.ShowLog)
+            if (process == null)
+                return;
+
+            process.CompletePerformanceTrace(succeeded ? "成功" : "失败");
+            if (!process.ShowLog)
                 return;
 
             if (!ShouldWriteFinalProcessLog(process, isCyclical, succeeded))
@@ -867,6 +885,7 @@ namespace TDJS_Vision
             }
             catch (OperationCanceledException)
             {
+                TraceNodeFaulted(node, "节点运行取消");
                 throw;
             }
             catch (Exception ex)
@@ -1956,7 +1975,10 @@ namespace TDJS_Vision
         private static void MarkNodeRunning(NodeBase node)
         {
             if (node != null)
+            {
                 node.SetStatus(NodeStatus.Running, "*");
+                node.Process?.TraceNodeStarted(node);
+            }
         }
 
         private static void MarkNodeFailed(NodeBase node)
@@ -1968,6 +1990,7 @@ namespace TDJS_Vision
                 ? "0"
                 : node.Result.RunTime.ToString();
             node.SetStatus(NodeStatus.Failed, runTime);
+            node.Process?.TraceNodeFaulted(node, "节点执行器捕获到未处理异常");
         }
 
         private static void FinalizeNodeRun(NodeBase node)
@@ -2066,6 +2089,52 @@ namespace TDJS_Vision
             CurrentRunId = CurrentRunId == int.MaxValue ? 1 : CurrentRunId + 1;
             foreach (var node in Nodes)
                 node.BeginProcessRun(CurrentRunId);
+
+            _performanceTrace = ProcessPerformanceTrace.CreateIfEnabled(
+                ID,
+                ProcessName,
+                CurrentRunId,
+                Nodes.Count,
+                ShouldRunByConnections());
+        }
+
+        /// <summary>
+        /// 记录节点进入执行状态。
+        /// </summary>
+        /// <param name="node">当前节点。</param>
+        internal void TraceNodeStarted(NodeBase node)
+        {
+            _performanceTrace?.NodeStarted(node);
+        }
+
+        /// <summary>
+        /// 记录节点通过统一结果入口完成。
+        /// </summary>
+        /// <param name="node">当前节点。</param>
+        /// <param name="status">节点状态。</param>
+        /// <param name="elapsedMilliseconds">节点报告耗时。</param>
+        internal void TraceNodeCompleted(NodeBase node, NodeStatus status, int elapsedMilliseconds)
+        {
+            _performanceTrace?.NodeCompleted(node, status, elapsedMilliseconds);
+        }
+
+        /// <summary>
+        /// 记录节点在统一结果入口之外发生的异常或中断。
+        /// </summary>
+        /// <param name="node">当前节点。</param>
+        /// <param name="reason">异常或中断原因。</param>
+        internal void TraceNodeFaulted(NodeBase node, string reason)
+        {
+            _performanceTrace?.NodeFaulted(node, reason);
+        }
+
+        /// <summary>
+        /// 结束本轮Debug完整耗时追踪；重复调用不会重复写日志。
+        /// </summary>
+        /// <param name="statusText">流程结束状态。</param>
+        private void CompletePerformanceTrace(string statusText)
+        {
+            _performanceTrace?.Complete(statusText, RunTime);
         }
 
         /// <summary>
@@ -2719,6 +2788,7 @@ namespace TDJS_Vision
 
                         if (ShowLog)
                             LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（提前完成）  ---------------------------------", true);
+                        CompletePerformanceTrace("提前完成");
                         UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
                         return;
                     }
@@ -2729,6 +2799,7 @@ namespace TDJS_Vision
                     IsRuning = false;
                     if (ShowLog)
                         LogHelper.AddLog(MsgLevel.Warn, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（运行中断）  ---------------------------------", true);
+                    CompletePerformanceTrace("运行中断");
                     UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                     throw ex;
                 }
@@ -2738,6 +2809,7 @@ namespace TDJS_Vision
                     IsRuning = false;
                     if (ShowLog)
                         LogHelper.AddLog(MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（失败）  ---------------------------------", true);
+                    CompletePerformanceTrace("失败");
                     UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                     throw ex;
                 }
@@ -2771,6 +2843,7 @@ namespace TDJS_Vision
 
                             if (ShowLog)
                                 LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（提前完成）  ---------------------------------", true);
+                            CompletePerformanceTrace("提前完成");
                             UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
                             return; // 提前退出整个流程
                         }
@@ -2799,6 +2872,7 @@ namespace TDJS_Vision
                         RunTime += node.Result.RunTime;
                         if (ShowLog)
                             LogHelper.AddLog(MsgLevel.Warn, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（运行中断）  ---------------------------------", true);
+                        CompletePerformanceTrace("运行中断");
                         UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                         throw ex;
                     }
@@ -2809,6 +2883,7 @@ namespace TDJS_Vision
                         RunTime += node.Result.RunTime;
                         if (ShowLog)
                             LogHelper.AddLog(MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（失败）  ---------------------------------", true);
+                        CompletePerformanceTrace("失败");
                         UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                         throw ex;
                     }
@@ -2820,6 +2895,7 @@ namespace TDJS_Vision
             IsRuning = false;
             if (ShowLog)
                 LogHelper.AddLog(updateSucceeded ? MsgLevel.Info : MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（{(updateSucceeded ? "成功" : "失败")}）  ---------------------------------", true);
+            CompletePerformanceTrace(updateSucceeded ? "成功" : "失败");
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, updateSucceeded, ProcessName));
         }
     }

@@ -18,13 +18,22 @@ namespace TDJS_Vision.Diagnostics
     public static class PerformanceSpikeDiagnostics
     {
         /// <summary>链路诊断编译标记，用于从现场日志确认当前运行程序是否包含本轮诊断代码。</summary>
-        public const string DiagnosticBuildMark = "2026-07-02-链路诊断V2";
+        public const string DiagnosticBuildMark = "2026-08-19-完整链路诊断V3";
 
         /// <summary>通用慢耗时阈值，超过该值时输出额外慢诊断日志。</summary>
         public const long CommonSlowMs = 20;
 
         /// <summary>UI排队慢耗时阈值，超过该值时输出窗口消息队列现场。</summary>
         public const long UiQueueSlowMs = 20;
+
+        /// <summary>相机图像转换慢耗时阈值，单位毫秒。</summary>
+        public const long FrameConvertSlowMs = 100;
+
+        /// <summary>整轮流程慢耗时阈值，单位毫秒。</summary>
+        public const long FlowSlowMs = 1000;
+
+        /// <summary>需要记录完整运行时现场的严重停顿阈值，单位毫秒。</summary>
+        public const long CriticalStallMs = 3000;
 
         /// <summary>私有内存水位日志步长，超过该增长量时记录当前节点。</summary>
         private const double MemoryGrowthLogStepMb = 256D;
@@ -109,7 +118,14 @@ namespace TDJS_Vision.Diagnostics
             if (!IsDiagnosticLogEnabled(level) || messageFactory == null)
                 return;
 
-            LogHelper.AddLog(level, messageFactory(), isDisplay);
+            string message = messageFactory();
+            if (level == MsgLevel.Debug)
+            {
+                LogHelper.TryAddDiagnosticLog(message, isDisplay);
+                return;
+            }
+
+            LogHelper.AddLog(level, message, isDisplay);
         }
 
         /// <summary>
@@ -125,7 +141,7 @@ namespace TDJS_Vision.Diagnostics
             if (!IsDiagnosticLogEnabled(level) || !ShouldLog(thresholdMs, elapsedItems) || messageFactory == null)
                 return;
 
-            LogHelper.AddLog(level, messageFactory(), isDisplay);
+            LogIfEnabled(level, messageFactory, isDisplay);
         }
 
         /// <summary>

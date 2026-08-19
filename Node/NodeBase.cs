@@ -567,6 +567,7 @@ namespace TDJS_Vision.Node
             }
 
             SetStatus(status, elapsedMilliseconds.ToString());
+            Process?.TraceNodeCompleted(this, status, elapsedMilliseconds);
             PerformanceSpikeDiagnostics.LogNodeMemoryIfNeeded(Process == null ? "未知" : Process.ProcessName, ID, NodeName, GetNodeStatusText(status), elapsedMilliseconds);
             return elapsedMilliseconds;
         }

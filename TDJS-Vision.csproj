@@ -233,6 +233,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ConfigHelper.cs" />
+    <Compile Include="Diagnostics\ProcessPerformanceTrace.cs" />
     <Compile Include="Diagnostics\PerformanceSpikeDiagnostics.cs" />
     <Compile Include="DetectItemLanguage.cs" />
     <Compile Include="ExternalProgramLauncher.cs" />
