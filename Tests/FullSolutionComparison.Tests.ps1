@@ -64,10 +64,50 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 Add-Type -TypeDefinition @"
 using System;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 
 public static class FullSolutionGuiResourceProbe
 {
+    /// <summary>Windows为单个进程累计的I/O操作和传输字节。</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ProcessIoCounters
+    {
+        /// <summary>累计读操作次数。</summary>
+        public ulong ReadOperationCount;
+
+        /// <summary>累计写操作次数。</summary>
+        public ulong WriteOperationCount;
+
+        /// <summary>累计其他I/O操作次数。</summary>
+        public ulong OtherOperationCount;
+
+        /// <summary>累计读取传输字节。</summary>
+        public ulong ReadTransferCount;
+
+        /// <summary>累计写入传输字节。</summary>
+        public ulong WriteTransferCount;
+
+        /// <summary>累计其他I/O传输字节。</summary>
+        public ulong OtherTransferCount;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetProcessIoCounters(IntPtr processHandle, out ProcessIoCounters ioCounters);
+
+    /// <summary>读取指定进程句柄的累计I/O计数，失败时保留Windows错误码。</summary>
+    public static ProcessIoCounters QueryProcessIoCounters(IntPtr processHandle)
+    {
+        ProcessIoCounters counters;
+        if (!GetProcessIoCounters(processHandle, out counters))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+
+        return counters;
+    }
+
     [DllImport("user32.dll")]
     public static extern int GetGuiResources(IntPtr processHandle, int resourceType);
 
@@ -114,6 +154,31 @@ function Get-Percentile {
 
     $weight = $rank - $lower
     return ([double]$sorted[$lower] * (1.0 - $weight)) + ([double]$sorted[$upper] * $weight)
+}
+
+function Get-UnsignedCounterDelta {
+    param(
+        [UInt64]$Current,
+        [UInt64]$Previous
+    )
+
+    if ($Current -ge $Previous) {
+        return [UInt64]($Current - $Previous)
+    }
+
+    # 正式同比会额外校验进程ID稳定；此回退仅避免计数器复位时发生无符号下溢。
+    return $Current
+}
+
+function Test-StableProcessIds {
+    param(
+        [int[]]$InitialProcessIds,
+        [int[]]$FinalProcessIds
+    )
+
+    $initial = @($InitialProcessIds | Sort-Object)
+    $final = @($FinalProcessIds | Sort-Object)
+    return (($initial -join ',') -eq ($final -join ','))
 }
 
 function Restore-ImmutableScheme {
@@ -320,6 +385,13 @@ function Get-ResourceSnapshot {
     [int]$gdiObjects = 0
     [int]$userObjects = 0
     [int]$handles = 0
+    [int]$ioCounterProcessCount = 0
+    [UInt64]$readOperationCount = 0
+    [UInt64]$writeOperationCount = 0
+    [UInt64]$otherOperationCount = 0
+    [UInt64]$readTransferBytes = 0
+    [UInt64]$writeTransferBytes = 0
+    [UInt64]$otherTransferBytes = 0
     foreach ($process in $processes) {
         try {
             $process.Refresh()
@@ -330,6 +402,19 @@ function Get-ResourceSnapshot {
             $userObjects += [FullSolutionGuiResourceProbe]::GetGuiResources($process.Handle, 1)
             if ($process.Id -eq $MainProcessId) {
                 $mainPrivateBytes = $process.PrivateMemorySize64
+            }
+            try {
+                $ioCounters = [FullSolutionGuiResourceProbe]::QueryProcessIoCounters($process.Handle)
+                $readOperationCount += $ioCounters.ReadOperationCount
+                $writeOperationCount += $ioCounters.WriteOperationCount
+                $otherOperationCount += $ioCounters.OtherOperationCount
+                $readTransferBytes += $ioCounters.ReadTransferCount
+                $writeTransferBytes += $ioCounters.WriteTransferCount
+                $otherTransferBytes += $ioCounters.OtherTransferCount
+                $ioCounterProcessCount++
+            }
+            catch {
+                # 资源快照仍然有效；结果会用计数器覆盖进程数明确标记I/O采集是否完整。
             }
         }
         catch {
@@ -355,6 +440,13 @@ function Get-ResourceSnapshot {
         UserObjects = $userObjects
         Handles = $handles
         TotalCpuMilliseconds = $totalCpuMilliseconds
+        IoCounterProcessCount = $ioCounterProcessCount
+        ReadOperationCount = $readOperationCount
+        WriteOperationCount = $writeOperationCount
+        OtherOperationCount = $otherOperationCount
+        ReadTransferBytes = $readTransferBytes
+        WriteTransferBytes = $writeTransferBytes
+        OtherTransferBytes = $otherTransferBytes
     }
 }
 
@@ -944,6 +1036,9 @@ try {
     $mainStartTime = $mainProcess.StartTime
     $logicalProcessorCount = [Math]::Max(1, [Environment]::ProcessorCount)
     $initial = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $true
+    if ($initial.IoCounterProcessCount -ne $initial.ProcessCount) {
+        throw "正式测试前进程I/O计数器采集不完整：进程=$($initial.ProcessCount)，I/O计数器=$($initial.IoCounterProcessCount)。"
+    }
     $peak = $initial.PSObject.Copy()
     $lastSnapshot = $initial
     $peakCpuPercent = 0.0
@@ -967,6 +1062,12 @@ try {
         $cpuDeltaMilliseconds = [Math]::Max(0.0, $snapshot.TotalCpuMilliseconds - $lastSnapshot.TotalCpuMilliseconds)
         $cpuPercent = ($cpuDeltaMilliseconds / $sampleWallMilliseconds) * (100.0 / $logicalProcessorCount)
         $peakCpuPercent = [Math]::Max($peakCpuPercent, $cpuPercent)
+        $readOperationDelta = Get-UnsignedCounterDelta -Current $snapshot.ReadOperationCount -Previous $lastSnapshot.ReadOperationCount
+        $writeOperationDelta = Get-UnsignedCounterDelta -Current $snapshot.WriteOperationCount -Previous $lastSnapshot.WriteOperationCount
+        $otherOperationDelta = Get-UnsignedCounterDelta -Current $snapshot.OtherOperationCount -Previous $lastSnapshot.OtherOperationCount
+        $readTransferDelta = Get-UnsignedCounterDelta -Current $snapshot.ReadTransferBytes -Previous $lastSnapshot.ReadTransferBytes
+        $writeTransferDelta = Get-UnsignedCounterDelta -Current $snapshot.WriteTransferBytes -Previous $lastSnapshot.WriteTransferBytes
+        $otherTransferDelta = Get-UnsignedCounterDelta -Current $snapshot.OtherTransferBytes -Previous $lastSnapshot.OtherTransferBytes
 
         foreach ($property in @("ProcessCount", "PrivateBytes", "MainPrivateBytes", "GdiObjects", "UserObjects", "Handles")) {
             if ($snapshot.$property -gt $peak.$property) {
@@ -988,6 +1089,12 @@ try {
             GdiObjects = $snapshot.GdiObjects
             UserObjects = $snapshot.UserObjects
             Handles = $snapshot.Handles
+            ReadOperations = $readOperationDelta
+            WriteOperations = $writeOperationDelta
+            OtherIoOperations = $otherOperationDelta
+            ReadTransferKilobytes = [Math]::Round($readTransferDelta / 1KB, 3)
+            WriteTransferKilobytes = [Math]::Round($writeTransferDelta / 1KB, 3)
+            OtherIoTransferKilobytes = [Math]::Round($otherTransferDelta / 1KB, 3)
         })
 
         $lastSnapshot = $snapshot
@@ -1024,6 +1131,15 @@ try {
     }
 
     $formalStopwatch.Stop()
+    $formalWallMilliseconds = $formalStopwatch.Elapsed.TotalMilliseconds
+    $ioEndSnapshot = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $false
+    $processIdsStable = Test-StableProcessIds -InitialProcessIds $initial.ProcessIds -FinalProcessIds $ioEndSnapshot.ProcessIds
+    if (-not $processIdsStable) {
+        throw "正式测试期间进程树发生重启，进程I/O累计值不能作为有效同比。"
+    }
+    if ($ioEndSnapshot.IoCounterProcessCount -ne $ioEndSnapshot.ProcessCount) {
+        throw "正式测试结束时进程I/O计数器采集不完整：进程=$($ioEndSnapshot.ProcessCount)，I/O计数器=$($ioEndSnapshot.IoCounterProcessCount)。"
+    }
     Start-Sleep -Milliseconds 500
     $final = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $true
     $appendedLogText = Get-AppendedLogText -LogDirectory $logDirectory -Offsets $logOffsets
@@ -1052,7 +1168,15 @@ try {
     $durationArray = $durations.ToArray()
     $sumExecutionMilliseconds = ($durationArray | Measure-Object -Sum).Sum
     $averageCpuPercent = (($final.TotalCpuMilliseconds - $initial.TotalCpuMilliseconds) /
-        [Math]::Max(1.0, $formalStopwatch.Elapsed.TotalMilliseconds)) * (100.0 / $logicalProcessorCount)
+        [Math]::Max(1.0, $formalWallMilliseconds)) * (100.0 / $logicalProcessorCount)
+    $readOperationCount = Get-UnsignedCounterDelta -Current $ioEndSnapshot.ReadOperationCount -Previous $initial.ReadOperationCount
+    $writeOperationCount = Get-UnsignedCounterDelta -Current $ioEndSnapshot.WriteOperationCount -Previous $initial.WriteOperationCount
+    $otherOperationCount = Get-UnsignedCounterDelta -Current $ioEndSnapshot.OtherOperationCount -Previous $initial.OtherOperationCount
+    $readTransferBytes = Get-UnsignedCounterDelta -Current $ioEndSnapshot.ReadTransferBytes -Previous $initial.ReadTransferBytes
+    $writeTransferBytes = Get-UnsignedCounterDelta -Current $ioEndSnapshot.WriteTransferBytes -Previous $initial.WriteTransferBytes
+    $otherTransferBytes = Get-UnsignedCounterDelta -Current $ioEndSnapshot.OtherTransferBytes -Previous $initial.OtherTransferBytes
+    $readTransferPerRound = [double[]]@($csvRows | ForEach-Object { [double]$_.ReadTransferKilobytes })
+    $writeTransferPerRound = [double[]]@($csvRows | ForEach-Object { [double]$_.WriteTransferKilobytes })
     $result = [ordered]@{
         VersionLabel = $VersionLabel
         ExecutablePath = $resolvedExecutablePath
@@ -1073,7 +1197,7 @@ try {
         ExceptionLogCount = $exceptionCount
         Timing = [ordered]@{
             ExecutionTotalMilliseconds = [Math]::Round($sumExecutionMilliseconds, 3)
-            HarnessWallMilliseconds = [Math]::Round($formalStopwatch.Elapsed.TotalMilliseconds, 3)
+            HarnessWallMilliseconds = [Math]::Round($formalWallMilliseconds, 3)
             ThroughputRoundsPerSecond = [Math]::Round($Rounds / [Math]::Max(0.001, $sumExecutionMilliseconds / 1000.0), 6)
             P50Milliseconds = [Math]::Round((Get-Percentile -Values $durationArray -Percentile 50), 3)
             P95Milliseconds = [Math]::Round((Get-Percentile -Values $durationArray -Percentile 95), 3)
@@ -1093,6 +1217,38 @@ try {
             GdiObjects = [ordered]@{ Start = $initial.GdiObjects; Peak = $peak.GdiObjects; End = $final.GdiObjects }
             UserObjects = [ordered]@{ Start = $initial.UserObjects; Peak = $peak.UserObjects; End = $final.UserObjects }
             Handles = [ordered]@{ Start = $initial.Handles; Peak = $peak.Handles; End = $final.Handles }
+        }
+        ProcessIo = [ordered]@{
+            MeasurementScope = "Windows进程I/O累计值，覆盖主程序和同路径AI工作进程；包含文件、设备和管道等进程I/O，不等同于物理磁盘独占流量"
+            AllProcessCountersCaptured = ($initial.IoCounterProcessCount -eq $initial.ProcessCount -and $ioEndSnapshot.IoCounterProcessCount -eq $ioEndSnapshot.ProcessCount)
+            ProcessIdsStable = $processIdsStable
+            Read = [ordered]@{
+                Operations = $readOperationCount
+                TransferBytes = $readTransferBytes
+                TransferMegabytes = [Math]::Round($readTransferBytes / 1MB, 3)
+                MegabytesPerSecond = [Math]::Round(($readTransferBytes / 1MB) / [Math]::Max(0.001, $formalWallMilliseconds / 1000.0), 3)
+                KilobytesPerRound = [Math]::Round(($readTransferBytes / 1KB) / $Rounds, 3)
+                PerRoundP50Kilobytes = [Math]::Round((Get-Percentile -Values $readTransferPerRound -Percentile 50), 3)
+                PerRoundP95Kilobytes = [Math]::Round((Get-Percentile -Values $readTransferPerRound -Percentile 95), 3)
+                PerRoundP99Kilobytes = [Math]::Round((Get-Percentile -Values $readTransferPerRound -Percentile 99), 3)
+                PerRoundMaxKilobytes = [Math]::Round(($readTransferPerRound | Measure-Object -Maximum).Maximum, 3)
+            }
+            Write = [ordered]@{
+                Operations = $writeOperationCount
+                TransferBytes = $writeTransferBytes
+                TransferMegabytes = [Math]::Round($writeTransferBytes / 1MB, 3)
+                MegabytesPerSecond = [Math]::Round(($writeTransferBytes / 1MB) / [Math]::Max(0.001, $formalWallMilliseconds / 1000.0), 3)
+                KilobytesPerRound = [Math]::Round(($writeTransferBytes / 1KB) / $Rounds, 3)
+                PerRoundP50Kilobytes = [Math]::Round((Get-Percentile -Values $writeTransferPerRound -Percentile 50), 3)
+                PerRoundP95Kilobytes = [Math]::Round((Get-Percentile -Values $writeTransferPerRound -Percentile 95), 3)
+                PerRoundP99Kilobytes = [Math]::Round((Get-Percentile -Values $writeTransferPerRound -Percentile 99), 3)
+                PerRoundMaxKilobytes = [Math]::Round(($writeTransferPerRound | Measure-Object -Maximum).Maximum, 3)
+            }
+            Other = [ordered]@{
+                Operations = $otherOperationCount
+                TransferBytes = $otherTransferBytes
+                TransferMegabytes = [Math]::Round($otherTransferBytes / 1MB, 3)
+            }
         }
         ProcessResults = $processSummaries
         Modbus = [ordered]@{ SuccessLogCount = $modbusSuccessCount; FailureLogCount = $modbusFailureCount }
