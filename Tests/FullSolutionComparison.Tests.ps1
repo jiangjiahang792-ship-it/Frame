@@ -396,8 +396,8 @@ $workingDirectory = Split-Path -Parent $resolvedExecutablePath
 $logDirectory = Join-Path $workingDirectory "Logs"
 $startedByScript = $false
 $executionStateWasSet = $false
-$keepSystemAwake = 0x80000001
-$continuousOnly = 0x80000000
+$keepSystemAwake = [uint32]2147483649
+$continuousOnly = [uint32]2147483648
 
 if ([FullSolutionGuiResourceProbe]::SetThreadExecutionState($keepSystemAwake) -eq 0) {
     throw "设置长测期间系统保持唤醒失败。"
