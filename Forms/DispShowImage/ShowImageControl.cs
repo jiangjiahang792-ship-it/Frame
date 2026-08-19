@@ -31,6 +31,11 @@ namespace TDJS_Vision.Forms.DispShowImage
         private bool _isInteracting = false;
         private readonly Timer _interactionTimer;
 
+        /// <summary>
+        /// 控件自有图像和交互资源是否已经释放，保证重复Dispose不会重复回收。
+        /// </summary>
+        private int _ownedResourcesReleased;
+
         private PointF _currentImgPt = new PointF(-1, -1);
         private Color _currentPixelColor = Color.Black;
         private int _currentGrayValue = 0;
@@ -241,7 +246,16 @@ namespace TDJS_Vision.Forms.DispShowImage
             });
         }
 
-        public void ClearAll() { lock (_roiLock) { _dynamicRois.Clear(); _staticRois.Clear(); _textElements.Clear(); } SafeInvalidate(); }
+        public void ClearAll()
+        {
+            lock (_roiLock)
+            {
+                ClearRoiShapes(_dynamicRois);
+                ClearRoiShapes(_staticRois);
+                _textElements.Clear();
+            }
+            SafeInvalidate();
+        }
         public void ClearDisplay() 
         { 
             SafeInvoke(() =>
@@ -277,14 +291,14 @@ namespace TDJS_Vision.Forms.DispShowImage
         public void ClearAllRoi() => ClearAll();
         
         /// <summary>兼容旧版名称</summary>
-        public void ClearStaticShapes() { lock (_roiLock) _staticRois.Clear(); SafeInvalidate(); }
+        public void ClearStaticShapes() { lock (_roiLock) ClearRoiShapes(_staticRois); SafeInvalidate(); }
 
         /// <summary>兼容旧版名称</summary>
-        public void ClearRois() { lock (_roiLock) _dynamicRois.Clear(); SafeInvalidate(); }
+        public void ClearRois() { lock (_roiLock) ClearRoiShapes(_dynamicRois); SafeInvalidate(); }
 
-        public void ClearDynamicRoi() { lock (_roiLock) _dynamicRois.Clear(); SafeInvalidate(); }
+        public void ClearDynamicRoi() { lock (_roiLock) ClearRoiShapes(_dynamicRois); SafeInvalidate(); }
 
-        public void ClearStaticRoi() { lock (_roiLock) _staticRois.Clear(); SafeInvalidate(); }
+        public void ClearStaticRoi() { lock (_roiLock) ClearRoiShapes(_staticRois); SafeInvalidate(); }
 
         public int DynamicRoiCount { get { lock (_roiLock) return _dynamicRois.Count; } }
 
@@ -320,6 +334,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                     return false;
 
                 _dynamicRois.Remove(selected);
+                DisposeRoiShape(selected);
                 if (ReferenceEquals(_activeRoi, selected))
                     _activeRoi = null;
                 if (ReferenceEquals(_drawingRectangleRoi, selected))
@@ -422,7 +437,7 @@ namespace TDJS_Vision.Forms.DispShowImage
         {
             lock (_roiLock)
             {
-                _staticRois.Clear();
+                ClearRoiShapes(_staticRois);
                 int imageWidth = _image == null ? 0 : _image.Width;
                 int imageHeight = _image == null ? 0 : _image.Height;
                 List<IRoiShape> rois = BuildStaticRois(displayResult, imageWidth, imageHeight, out diagnostics);
@@ -959,9 +974,17 @@ namespace TDJS_Vision.Forms.DispShowImage
         private void DrawCheckerBoard(Graphics g)
         {
             int sz = 30;
-            for (int y = 0; y < Height; y += sz)
-                for (int x = 0; x < Width; x += sz)
-                    g.FillRectangle(((x / sz) + (y / sz)) % 2 == 0 ? Brushes.Black : new SolidBrush(Color.FromArgb(20, 20, 20)), x, y, sz, sz);
+            using (Brush darkBrush = new SolidBrush(Color.FromArgb(20, 20, 20)))
+            {
+                for (int y = 0; y < Height; y += sz)
+                {
+                    for (int x = 0; x < Width; x += sz)
+                    {
+                        Brush brush = ((x / sz) + (y / sz)) % 2 == 0 ? Brushes.Black : darkBrush;
+                        g.FillRectangle(brush, x, y, sz, sz);
+                    }
+                }
+            }
         }
 
         private void DrawStatusBar(Graphics g)
@@ -971,7 +994,8 @@ namespace TDJS_Vision.Forms.DispShowImage
             {
                 txt = _image == null ? "No Image" : $"{_image.Width}x{_image.Height} | R:{_currentPixelColor.R:D3} G:{_currentPixelColor.G:D3} B:{_currentPixelColor.B:D3} | Gray:{_currentGrayValue:D3} | X:{(int)_currentImgPt.X} Y:{(int)_currentImgPt.Y} | Zoom:{_scale * 100:F1}%";
             }
-            g.FillRectangle(new SolidBrush(Color.FromArgb(180, 10, 10, 10)), 0, Height - 22, Width, 22);
+            using (Brush statusBrush = new SolidBrush(Color.FromArgb(180, 10, 10, 10)))
+                g.FillRectangle(statusBrush, 0, Height - 22, Width, 22);
             g.DrawString(txt, SystemFonts.DefaultFont, Brushes.LightGray, 8, Height - 18);
         }
 
@@ -1190,7 +1214,10 @@ namespace TDJS_Vision.Forms.DispShowImage
             if (roi.W < 5F || roi.H < 5F)
             {
                 lock (_roiLock)
+                {
                     _dynamicRois.Remove(roi);
+                    DisposeRoiShape(roi);
+                }
             }
         }
 
@@ -1259,10 +1286,11 @@ namespace TDJS_Vision.Forms.DispShowImage
         {
             if (string.IsNullOrEmpty(label)) return;
             using (Font f = new Font("SimSun", 10f, FontStyle.Bold))
+            using (Brush backgroundBrush = new SolidBrush(Color.FromArgb(150, 0, 0, 0)))
             {
                 var sz = g.MeasureString(label, f);
                 var r = new RectangleF(center.X - sz.Width / 2, center.Y - sz.Height / 2, sz.Width, sz.Height);
-                g.FillRectangle(new SolidBrush(Color.FromArgb(150, 0, 0, 0)), r);
+                g.FillRectangle(backgroundBrush, r);
                 g.DrawString(label, f, Brushes.Yellow, r.X, r.Y);
             }
         }
@@ -1303,10 +1331,11 @@ namespace TDJS_Vision.Forms.DispShowImage
                 if (!IsStatic && IsSelected)
                 {
                     using (Brush orb = new SolidBrush(Color.Orange))
+                    using (Pen rotatePen = new Pen(Color.Orange, 2f))
                     {
                         g.FillRectangle(orb, -sw / 2 - 4, -sh / 2 - 4, 8, 8); g.FillRectangle(orb, sw / 2 - 4, -sh / 2 - 4, 8, 8);
                         g.FillRectangle(orb, sw / 2 - 4, sh / 2 - 4, 8, 8); g.FillRectangle(orb, -sw / 2 - 4, sh / 2 - 4, 8, 8);
-                        g.DrawArc(new Pen(Color.Orange, 2f), sw / 2 + 5, -sh / 2 - 15, 15, 15, -90, 180);
+                        g.DrawArc(rotatePen, sw / 2 + 5, -sh / 2 - 15, 15, 15, -90, 180);
                     }
                 }
                 g.Restore(st); DrawCross(g, sc); DrawLabel(g, Label, sc);
@@ -1512,8 +1541,8 @@ namespace TDJS_Vision.Forms.DispShowImage
                 using (Pen ap = new Pen(mainCol, 2f))
                 {
                     float arrowSize = Math.Min(12, sh / 4 + 4);
-                    if (Direction == 0) { ap.DashStyle = DashStyle.Dash; g.DrawLine(ap, 0, -sh / 2, 0, sh / 2); ap.DashStyle = DashStyle.Solid; PointF[] arrowHead = { new PointF(-arrowSize * 0.8f, sh / 2 - arrowSize), new PointF(arrowSize * 0.8f, sh / 2 - arrowSize), new PointF(0, sh / 2) }; g.FillPolygon(new SolidBrush(mainCol), arrowHead); }
-                    else { ap.DashStyle = DashStyle.Dash; g.DrawLine(ap, -halfSeg, 0, halfSeg, 0); ap.DashStyle = DashStyle.Solid; PointF[] arrowHead = { new PointF(halfSeg - arrowSize, -arrowSize * 0.8f), new PointF(halfSeg - arrowSize, arrowSize * 0.8f), new PointF(halfSeg, 0) }; g.FillPolygon(new SolidBrush(mainCol), arrowHead); }
+                    if (Direction == 0) { ap.DashStyle = DashStyle.Dash; g.DrawLine(ap, 0, -sh / 2, 0, sh / 2); ap.DashStyle = DashStyle.Solid; PointF[] arrowHead = { new PointF(-arrowSize * 0.8f, sh / 2 - arrowSize), new PointF(arrowSize * 0.8f, sh / 2 - arrowSize), new PointF(0, sh / 2) }; g.FillPolygon(b, arrowHead); }
+                    else { ap.DashStyle = DashStyle.Dash; g.DrawLine(ap, -halfSeg, 0, halfSeg, 0); ap.DashStyle = DashStyle.Solid; PointF[] arrowHead = { new PointF(halfSeg - arrowSize, -arrowSize * 0.8f), new PointF(halfSeg - arrowSize, arrowSize * 0.8f), new PointF(halfSeg, 0) }; g.FillPolygon(b, arrowHead); }
                 }
                 if (!IsStatic && IsSelected) { using (Brush wb = new SolidBrush(Color.White)) using (Pen bp = new Pen(mainCol, 2f)) { g.FillEllipse(wb, -halfSeg - 7, -7, 14, 14); g.DrawEllipse(bp, -halfSeg - 7, -7, 14, 14); g.FillEllipse(wb, halfSeg - 7, -7, 14, 14); g.DrawEllipse(bp, halfSeg - 7, -7, 14, 14); g.FillEllipse(wb, -7, -7, 14, 14); g.DrawEllipse(bp, -7, -7, 14, 14); } using (Brush orb = new SolidBrush(Color.Orange)) { g.FillRectangle(orb, -6, -sh / 2 - 6, 12, 12); } }
                 g.Restore(st); if (IsSelected) DrawLabel(g, Label, sc);
@@ -2156,7 +2185,7 @@ namespace TDJS_Vision.Forms.DispShowImage
         /// <summary>
         /// Mask 区域半透明叠加层（用于可视化颜色匹配检测区域）
         /// </summary>
-        public class RoiMaskOverlay : IRoiShape
+        public class RoiMaskOverlay : IRoiShape, IDisposable
         {
             private readonly Bitmap _overlayBitmap;
             private readonly int _offsetX, _offsetY;
@@ -2215,7 +2244,65 @@ namespace TDJS_Vision.Forms.DispShowImage
             public int HitTest(Point p, float s, PointF o) => -1;
             public void BeginDrag(PointF p) { }
             public void DragTo(PointF p, int h) { }
+
+            /// <summary>
+            /// 释放Mask可视化创建的内部GDI位图。
+            /// </summary>
+            public void Dispose()
+            {
+                _overlayBitmap?.Dispose();
+            }
         }
         #endregion
+
+        /// <summary>
+        /// 清空ROI集合，并释放其中实现了IDisposable的图像型ROI。
+        /// </summary>
+        /// <param name="rois">需要清空的ROI集合。</param>
+        private static void ClearRoiShapes(ICollection<IRoiShape> rois)
+        {
+            if (rois == null)
+                return;
+
+            foreach (IRoiShape roi in rois)
+                DisposeRoiShape(roi);
+            rois.Clear();
+        }
+
+        /// <summary>
+        /// 释放单个可释放ROI，普通几何ROI不执行额外操作。
+        /// </summary>
+        /// <param name="roi">待释放的ROI。</param>
+        private static void DisposeRoiShape(IRoiShape roi)
+        {
+            (roi as IDisposable)?.Dispose();
+        }
+
+        /// <summary>
+        /// 控件销毁时释放当前显示图、ROI内部图像和交互定时器。
+        /// </summary>
+        private void ReleaseOwnedResources()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _ownedResourcesReleased, 1) != 0)
+                return;
+
+            _interactionTimer?.Stop();
+            _interactionTimer?.Dispose();
+
+            Bitmap imageToDispose;
+            lock (_imageLock)
+            {
+                imageToDispose = _image;
+                _image = null;
+            }
+            imageToDispose?.Dispose();
+
+            lock (_roiLock)
+            {
+                ClearRoiShapes(_dynamicRois);
+                ClearRoiShapes(_staticRois);
+                _textElements.Clear();
+            }
+        }
     }
 }
