@@ -69,19 +69,27 @@ namespace TDJS_Vision.Forms.ImageViewer
             get => pictureBox1.Image;
             set
             {
-                try
-                {
-                    if (pictureBox1.Image != null)
-                        pictureBox1.Image.Dispose();
-                    pictureBox1.Image = value;
-                    _srcResizeLoc = pictureBox1.Location;
-                    _srcResizeSize = pictureBox1.Size;
-                    SetLocationCenter();
-                }
-                catch (Exception)
-                {
-                }
+                Image previous = pictureBox1.Image;
+                if (ReferenceEquals(previous, value))
+                    return;
+
+                pictureBox1.Image = value;
+                previous?.Dispose();
+                _srcResizeLoc = pictureBox1.Location;
+                _srcResizeSize = pictureBox1.Size;
+                SetLocationCenter();
             }
+        }
+
+        /// <summary>
+        /// 控件销毁时释放最后一张由控件接管的图像并解除语言事件。
+        /// </summary>
+        private void ReleaseImageResources()
+        {
+            LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+            Image image = pictureBox1.Image;
+            pictureBox1.Image = null;
+            image?.Dispose();
         }
 
         /// <summary>
@@ -338,11 +346,7 @@ namespace TDJS_Vision.Forms.ImageViewer
 
         private void 清空图像ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (pictureBox1.Image != null)
-            {
-                pictureBox1.Image.Dispose();
-                pictureBox1.Image = null;
-            }
+            Image = null;
         }
     }
 }

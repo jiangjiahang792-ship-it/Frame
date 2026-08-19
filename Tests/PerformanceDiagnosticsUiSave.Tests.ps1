@@ -53,7 +53,7 @@ Assert-Contains $imageShow 'sender is NodeBase sourceNode' 'Shared image-show pu
 Assert-Contains $imageShow 'PublishImageShowChanged(this, param.WindowName, image, outputImage.DisplayResult, traceContext)' 'The image-show event must carry its context.'
 Assert-NotContains $imageShow 'Stopwatch performanceStopwatch = Stopwatch.StartNew();' 'The image-show node must not time work while Debug is off.'
 Assert-Contains $singleImage 'SetViewerImage(e.Bitmap, e.DisplayResult, e.TraceContext);' 'The UI window must receive the originating flow context.'
-Assert-Contains $singleImage 'traceContext?.GetElapsedMilliseconds(Stopwatch.GetTimestamp())' 'The UI must report node-to-UI elapsed time.'
+Assert-Contains $singleImage 'frame.TraceContext?.GetElapsedMilliseconds(Stopwatch.GetTimestamp())' 'The UI must report node-to-UI elapsed time from the frame-coupled context.'
 Assert-NotContains $showControl 'Stopwatch queueStopwatch = Stopwatch.StartNew();' 'The display control must not allocate queue timers while Debug is off.'
 
 Assert-Contains $saveNode 'public PerformanceTraceContext TraceContext { get; set; }' 'Background save tasks must carry their flow context.'
