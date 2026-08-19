@@ -18,7 +18,7 @@ namespace TDJS_Vision.Diagnostics
     public static class PerformanceSpikeDiagnostics
     {
         /// <summary>链路诊断编译标记，用于从现场日志确认当前运行程序是否包含本轮诊断代码。</summary>
-        public const string DiagnosticBuildMark = "2026-08-19-完整链路诊断V4";
+        public const string DiagnosticBuildMark = "2026-08-19-完整链路诊断V5";
 
         /// <summary>通用慢耗时阈值，超过该值时输出额外慢诊断日志。</summary>
         public const long CommonSlowMs = 20;

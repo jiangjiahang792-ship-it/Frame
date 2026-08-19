@@ -15,8 +15,9 @@ namespace TDJS_Vision.Diagnostics
         /// <summary>所有流程共享的诊断序号，用于避免流程重载后RunId重复。</summary>
         private static long _globalTraceSequence;
 
-        /// <summary>保存各节点进入运行态时相对流程开始的毫秒数。</summary>
-        private readonly ConcurrentDictionary<int, long> _nodeStartMilliseconds = new ConcurrentDictionary<int, long>();
+        /// <summary>保存各节点进入运行态时的流程经过时间和线程信息。</summary>
+        private readonly ConcurrentDictionary<int, NodeTraceStartInfo> _nodeStartInfo =
+            new ConcurrentDictionary<int, NodeTraceStartInfo>();
 
         /// <summary>本轮流程使用的高精度计时器。</summary>
         private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
@@ -32,6 +33,29 @@ namespace TDJS_Vision.Diagnostics
 
         /// <summary>流程内部运行批次。</summary>
         private readonly int _runId;
+
+        /// <summary>
+        /// 节点进入运行态时的只读诊断现场。
+        /// </summary>
+        private struct NodeTraceStartInfo
+        {
+            /// <summary>节点开始时相对流程开始的毫秒数。</summary>
+            public long FlowElapsedMilliseconds { get; }
+
+            /// <summary>节点开始时的托管线程编号。</summary>
+            public int ManagedThreadId { get; }
+
+            /// <summary>
+            /// 创建节点开始现场。
+            /// </summary>
+            /// <param name="flowElapsedMilliseconds">相对流程开始的毫秒数。</param>
+            /// <param name="managedThreadId">当前托管线程编号。</param>
+            public NodeTraceStartInfo(long flowElapsedMilliseconds, int managedThreadId)
+            {
+                FlowElapsedMilliseconds = flowElapsedMilliseconds;
+                ManagedThreadId = managedThreadId;
+            }
+        }
 
         /// <summary>本轮跨线程关联编号。</summary>
         public string TraceId { get; }
@@ -79,8 +103,14 @@ namespace TDJS_Vision.Diagnostics
                 return;
 
             long flowElapsed = _stopwatch.ElapsedMilliseconds;
-            _nodeStartMilliseconds[node.ID] = flowElapsed;
-            LogStage("节点开始", () => $"节点=({node.ID}.{node.NodeName})；节点类型={node.NodeType}");
+            _nodeStartInfo[node.ID] = new NodeTraceStartInfo(flowElapsed, Thread.CurrentThread.ManagedThreadId);
+            bool communicationNode = IsCommunicationNodeType(node.NodeType);
+            string stage = communicationNode ? "通信节点开始" : "节点开始";
+            LogStage(
+                stage,
+                () => communicationNode
+                    ? $"节点=({node.ID}.{node.NodeName})；节点类型={node.NodeType}；通信类型={GetCommunicationTypeText(node.NodeType)}"
+                    : $"节点=({node.ID}.{node.NodeName})；节点类型={node.NodeType}");
         }
 
         /// <summary>
@@ -94,11 +124,21 @@ namespace TDJS_Vision.Diagnostics
             if (node == null || Volatile.Read(ref _completed) != 0)
                 return;
 
-            long nodeStart;
-            if (!_nodeStartMilliseconds.TryRemove(node.ID, out nodeStart))
+            NodeTraceStartInfo startInfo;
+            if (!_nodeStartInfo.TryRemove(node.ID, out startInfo))
                 return;
 
-            long actualElapsed = Math.Max(0, _stopwatch.ElapsedMilliseconds - nodeStart);
+            long actualElapsed = Math.Max(0, _stopwatch.ElapsedMilliseconds - startInfo.FlowElapsedMilliseconds);
+            int completionThreadId = Thread.CurrentThread.ManagedThreadId;
+            bool communicationNode = IsCommunicationNodeType(node.NodeType);
+            if (communicationNode)
+            {
+                LogStage(
+                    "通信节点结束",
+                    () => $"节点=({node.ID}.{node.NodeName})；节点类型={node.NodeType}；通信类型={GetCommunicationTypeText(node.NodeType)}；状态={GetNodeStatusText(status)}；通信实际耗时={FormatElapsed(actualElapsed)}；节点报告={reportedElapsedMilliseconds}ms；开始线程={startInfo.ManagedThreadId}；结束线程={completionThreadId}；异步换线程={(startInfo.ManagedThreadId == completionThreadId ? "否" : "是")}；慢耗时={(actualElapsed >= PerformanceSpikeDiagnostics.CommonSlowMs ? "是" : "否")}；{GetCommunicationRuntimeText(actualElapsed)}");
+                return;
+            }
+
             LogStage(
                 "节点结束",
                 () => $"节点=({node.ID}.{node.NodeName})；状态={GetNodeStatusText(status)}；实际经过={FormatElapsed(actualElapsed)}；节点报告={reportedElapsedMilliseconds}ms");
@@ -114,12 +154,19 @@ namespace TDJS_Vision.Diagnostics
             if (node == null || Volatile.Read(ref _completed) != 0)
                 return;
 
-            long nodeStart;
-            if (!_nodeStartMilliseconds.TryRemove(node.ID, out nodeStart))
+            NodeTraceStartInfo startInfo;
+            if (!_nodeStartInfo.TryRemove(node.ID, out startInfo))
                 return;
 
-            long actualElapsed = Math.Max(0, _stopwatch.ElapsedMilliseconds - nodeStart);
-            LogStage("节点异常", () => $"节点=({node.ID}.{node.NodeName})；实际经过={FormatElapsed(actualElapsed)}；原因={FormatText(reason)}；{PerformanceSpikeDiagnostics.GetRuntimeText()}");
+            long actualElapsed = Math.Max(0, _stopwatch.ElapsedMilliseconds - startInfo.FlowElapsedMilliseconds);
+            int completionThreadId = Thread.CurrentThread.ManagedThreadId;
+            bool communicationNode = IsCommunicationNodeType(node.NodeType);
+            string stage = communicationNode ? "通信节点异常" : "节点异常";
+            LogStage(
+                stage,
+                () => communicationNode
+                    ? $"节点=({node.ID}.{node.NodeName})；节点类型={node.NodeType}；通信类型={GetCommunicationTypeText(node.NodeType)}；通信实际耗时={FormatElapsed(actualElapsed)}；开始线程={startInfo.ManagedThreadId}；结束线程={completionThreadId}；异步换线程={(startInfo.ManagedThreadId == completionThreadId ? "否" : "是")}；原因={FormatText(reason)}；{PerformanceSpikeDiagnostics.GetRuntimeText()}"
+                    : $"节点=({node.ID}.{node.NodeName})；实际经过={FormatElapsed(actualElapsed)}；原因={FormatText(reason)}；{PerformanceSpikeDiagnostics.GetRuntimeText()}");
         }
 
         /// <summary>
@@ -152,7 +199,7 @@ namespace TDJS_Vision.Diagnostics
 
             _stopwatch.Stop();
             long wallElapsed = _stopwatch.ElapsedMilliseconds;
-            int unfinishedNodeCount = _nodeStartMilliseconds.Count;
+            int unfinishedNodeCount = _nodeStartInfo.Count;
             int threadId = Thread.CurrentThread.ManagedThreadId;
             PerformanceSpikeDiagnostics.LogIfEnabled(
                 MsgLevel.Debug,
@@ -194,6 +241,98 @@ namespace TDJS_Vision.Diagnostics
         private static string FormatText(string value)
         {
             return string.IsNullOrWhiteSpace(value) ? "无" : value.Replace("\r", " ").Replace("\n", " ");
+        }
+
+        /// <summary>
+        /// 判断节点类型是否属于设备通信、协议通信或外部信号等待。
+        /// </summary>
+        /// <param name="nodeType">待判断的节点类型。</param>
+        /// <returns>属于通信阶段时返回true。</returns>
+        private static bool IsCommunicationNodeType(NodeType nodeType)
+        {
+            switch (nodeType)
+            {
+                case NodeType.LightSourceControl:
+                case NodeType.WaitSoftTrigger:
+                case NodeType.CameraShot:
+                case NodeType.PLCRead:
+                case NodeType.PLCWrite:
+                case NodeType.ModbusRead:
+                case NodeType.ModbusWrite:
+                case NodeType.TCPClientRequest:
+                case NodeType.TCPServerResponse:
+                case NodeType.ModbusSoftTrigger:
+                case NodeType.AIResultSend:
+                case NodeType.CameraIO:
+                case NodeType.ComSend:
+                case NodeType.ERUIIO:
+                case NodeType.CameraIOManual:
+                case NodeType.ReadFlag:
+                case NodeType.CameraExposureGain:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// 获取通信节点类型对应的简体中文协议或设备名称。
+        /// </summary>
+        /// <param name="nodeType">通信节点类型。</param>
+        /// <returns>用于现场检索的通信类型文本。</returns>
+        private static string GetCommunicationTypeText(NodeType nodeType)
+        {
+            switch (nodeType)
+            {
+                case NodeType.LightSourceControl:
+                    return "光源控制";
+                case NodeType.WaitSoftTrigger:
+                    return "PLC软触发等待";
+                case NodeType.CameraShot:
+                    return "相机拍照";
+                case NodeType.PLCRead:
+                    return "PLC读取";
+                case NodeType.PLCWrite:
+                    return "PLC写入";
+                case NodeType.ModbusRead:
+                    return "Modbus读取";
+                case NodeType.ModbusWrite:
+                    return "Modbus写入";
+                case NodeType.TCPClientRequest:
+                    return "TCP客户端请求";
+                case NodeType.TCPServerResponse:
+                    return "TCP服务器响应";
+                case NodeType.ModbusSoftTrigger:
+                    return "Modbus软触发等待";
+                case NodeType.AIResultSend:
+                    return "检测结果信号发送";
+                case NodeType.CameraIO:
+                    return "相机IO";
+                case NodeType.ComSend:
+                    return "串口发送";
+                case NodeType.ERUIIO:
+                    return "ERUI IO";
+                case NodeType.CameraIOManual:
+                    return "相机IO手动控制";
+                case NodeType.ReadFlag:
+                    return "内部信号等待";
+                case NodeType.CameraExposureGain:
+                    return "相机参数通信";
+                default:
+                    return nodeType.ToString();
+            }
+        }
+
+        /// <summary>
+        /// 仅在通信耗时超过普通慢阈值时采集运行时现场。
+        /// </summary>
+        /// <param name="actualElapsed">通信节点实际墙钟耗时，单位毫秒。</param>
+        /// <returns>慢耗时运行时现场或未触发说明。</returns>
+        private static string GetCommunicationRuntimeText(long actualElapsed)
+        {
+            return actualElapsed >= PerformanceSpikeDiagnostics.CommonSlowMs
+                ? "慢耗时现场=" + PerformanceSpikeDiagnostics.GetRuntimeText()
+                : "慢耗时现场=未触发";
         }
     }
 }

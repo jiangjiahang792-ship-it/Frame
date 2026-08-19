@@ -37,6 +37,12 @@ Assert-Contains $trace 'PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLe
 Assert-Contains $trace '【完整耗时】TraceId=' '完整耗时日志必须包含跨线程TraceId。'
 Assert-Contains $trace '阶段=流程结束' '完整耗时必须输出流程结束阶段。'
 Assert-Contains $trace '未闭合节点=' '流程结束时必须暴露未闭合节点数量。'
+Assert-Contains $trace '"通信节点开始"' '通信节点必须使用独立的开始阶段标记。'
+Assert-Contains $trace '"通信节点结束"' '通信节点必须使用独立的结束阶段标记。'
+Assert-Contains $trace '"通信节点异常"' '通信节点必须使用独立的异常阶段标记。'
+Assert-Contains $trace '通信实际耗时=' '通信节点结束必须记录实际墙钟耗时。'
+Assert-Contains $trace '开始线程=' '通信节点必须记录异步调用开始线程。'
+Assert-Contains $trace '结束线程=' '通信节点必须记录异步调用结束线程。'
 
 Assert-Contains $process 'ProcessPerformanceTrace.CreateIfEnabled(' '每轮流程开始必须按Debug开关创建追踪。'
 Assert-Contains $process 'node.Process?.TraceNodeStarted(node);' '所有公共节点运行入口必须记录节点开始。'

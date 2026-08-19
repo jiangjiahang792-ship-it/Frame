@@ -30,7 +30,7 @@ $findPointNodeSource = Get-ProjectSource 'Node\4-Measurement\FindPoint\NodeFindP
 $findPointFormSource = Get-ProjectSource 'Node\4-Measurement\FindPoint\NodeParamFormFindPoint.cs'
 $findPointAlgorithmSource = Get-ProjectSource 'Node\4-Measurement\FindPoint\FindPointAlgorithm.cs'
 
-Assert-Contains $diagnosticsSource 'DiagnosticBuildMark = "2026-08-19-完整链路诊断V4"' '第四轮现场诊断必须带可辨认的构建标记。'
+Assert-Contains $diagnosticsSource 'DiagnosticBuildMark = "2026-08-19-完整链路诊断V5"' '当前现场诊断必须带第五轮可辨认构建标记。'
 Assert-Contains $processSource 'Stopwatch fastPathWatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);' '相机回调快速路径必须只在Debug开启时创建诊断计时器。'
 Assert-Contains $processSource 'Stopwatch prepareWatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);' '跳过节点结果准备必须只在Debug开启时创建诊断计时器。'
 Assert-Contains $processSource 'Stopwatch stopwatch = Stopwatch.StartNew();' '并行图运行时用于计算RunTime的业务计时器必须保留。'
