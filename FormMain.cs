@@ -775,7 +775,13 @@ namespace TDJS_Vision
                 }
 
                 // 释放方案资源
-                Solution.Instance.SolReset();
+                if (!Solution.Instance.SolReset())
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Exception,
+                        "软件退出时仍有运行流程或图像保存任务未在期限内退出。",
+                        true);
+                }
             }
             catch (Exception)
             {

@@ -1000,12 +1000,13 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (!ValidateCameraConfigurationBeforeRun())
                 return;
 
+            if (!Solution.Instance.TryBeginExternalRunSession())
+                return;
+
             bool listenStarted = false;
             List<ICamera> startedCallbackCameras = null;
             try
             {
-                // 重置运行取消令牌
-                Solution.Instance.ResetTokenSource();
                 startedCallbackCameras = Solution.Instance.StartCameraCallbackGrabbingForProcess(_process);
                 FormGlobalSignal.StartListenSignals();
                 listenStarted = true;
@@ -1015,12 +1016,19 @@ namespace TDJS_Vision.Forms.ProcessNew
             catch (Exception) { }
             finally
             {
-                Solution.Instance.StopStartedCameraCallbackGrabbing(startedCallbackCameras);
-                _process.IsHandRun = false;
-                if (listenStarted)
-                    FormGlobalSignal.StopListenSignals();
+                try
+                {
+                    Solution.Instance.StopStartedCameraCallbackGrabbing(startedCallbackCameras);
+                    _process.IsHandRun = false;
+                    if (listenStarted)
+                        FormGlobalSignal.StopListenSignals();
 
-                RefreshRuntimeCanvasState();
+                    RefreshRuntimeCanvasState();
+                }
+                finally
+                {
+                    Solution.Instance.EndExternalRunSession();
+                }
             }
         }
 
@@ -1035,12 +1043,13 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (!ValidateCameraConfigurationBeforeRun())
                 return;
 
+            if (!Solution.Instance.TryBeginExternalRunSession())
+                return;
+
             _isLoopRunRequested = true;
             buttonRun.Enabled = false;
             buttonLoop.Enabled = false;
             buttonStop.Enabled = true;
-            Solution.Instance.ResetTokenSource();
-
             bool listenStarted = false;
             List<ICamera> startedCallbackCameras = null;
             try
@@ -1068,16 +1077,23 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
             finally
             {
-                Solution.Instance.StopStartedCameraCallbackGrabbing(startedCallbackCameras);
-                _process.IsHandRun = false;
-                if (listenStarted)
-                    FormGlobalSignal.StopListenSignals();
+                try
+                {
+                    Solution.Instance.StopStartedCameraCallbackGrabbing(startedCallbackCameras);
+                    _process.IsHandRun = false;
+                    if (listenStarted)
+                        FormGlobalSignal.StopListenSignals();
 
-                _isLoopRunRequested = false;
-                buttonRun.Enabled = true;
-                buttonLoop.Enabled = true;
-                buttonStop.Enabled = false;
-                RefreshRuntimeCanvasState();
+                    _isLoopRunRequested = false;
+                    buttonRun.Enabled = true;
+                    buttonLoop.Enabled = true;
+                    buttonStop.Enabled = false;
+                    RefreshRuntimeCanvasState();
+                }
+                finally
+                {
+                    Solution.Instance.EndExternalRunSession();
+                }
             }
         }
 
@@ -1627,7 +1643,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     foreach (NodeBase pastedNode in new List<NodeBase>(pastedNodes))
                     {
                         if (pastedNode != null && _process.Nodes.Contains(pastedNode))
-                            pastedNode.DeleteFromProcess(false);
+                            pastedNode.DeleteFromProcess(true);
                     }
 
                     UpdateNode();

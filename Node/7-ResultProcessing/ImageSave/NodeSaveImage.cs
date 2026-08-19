@@ -15,23 +15,35 @@ using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Forms.DispShowImage;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.ResourceManagement;
 using static TDJS_Vision.Node._7_ResultProcessing.ImageSave.ImageQueueProcessor;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 {
     public class NodeImageSave : NodeBase
     {
-        /// <summary>保存图像后台队列处理器。</summary>
-        private readonly ImageQueueProcessor processor;
+        /// <summary>保护节点停止与任务投递之间的所有权边界。</summary>
+        private readonly object _queueOwnershipSync = new object();
 
+        /// <summary>共享保存队列中用于定向取消当前节点任务的唯一标识。</summary>
+        private readonly string _queueOwnerKey;
+
+        /// <summary>当前保存节点是否已经释放。</summary>
+        private int _disposed;
+
+        /// <summary>
+        /// 初始化保存图像节点；后台工作池延迟到首次运行时按本机资源档案创建。
+        /// </summary>
+        /// <param name="nodeId">节点编号。</param>
+        /// <param name="nodeName">节点名称。</param>
+        /// <param name="process">节点所属可编辑流程。</param>
+        /// <param name="nodeType">节点类型。</param>
         public NodeImageSave(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType) 
         {
             ParamForm = new ParamFormImageSave();
             ParamForm.SetNodeBelong(this);
             Result = new NodeResultImageSave();;
-            processor = new ImageQueueProcessor(4, $"{nodeId}.{nodeName}");
-            // 开始处理队列
-            processor.StartProcessing();
+            _queueOwnerKey = $"{process?.ID ?? 0}.{nodeId}.{nodeName}";
         }
 
         /// <summary>
@@ -40,8 +52,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <param name="disposing">是否释放托管资源。</param>
         protected override void Dispose(bool disposing)
         {
-            if (disposing)
-                processor?.StopProcessing();
+            if (disposing && Interlocked.Exchange(ref _disposed, 1) == 0)
+            {
+                lock (_queueOwnershipSync)
+                    Solution.Instance.CancelPendingImageSaveTasks(_queueOwnerKey);
+            }
 
             base.Dispose(disposing);
         }
@@ -105,7 +120,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                         {
                             PerformanceSpikeDiagnostics.LogIfEnabled(
                                 MsgLevel.Debug,
-                                () => $"【性能诊断-保存图像快速入队】【完整耗时】{traceContext.ToLogText()}；阶段=后台任务入队；节点计时={time}ms；快速入队={enqueueElapsed}ms；路径决策={enqueueResult.PathDecisionMs}ms；队列投递={enqueueResult.EnqueueMs}ms；目标路径={enqueueResult.TargetPathCount}；入队任务={enqueueResult.EnqueuedTaskCount}；已跳过={enqueueResult.Skipped}；当前队列={processor.QueuedCount}；图像={PerformanceSpikeDiagnostics.GetOutputImageText(outputImage)}",
+                                () => $"【性能诊断-保存图像快速入队】【完整耗时】{traceContext.ToLogText()}；阶段=后台任务入队；节点计时={time}ms；快速入队={enqueueElapsed}ms；路径决策={enqueueResult.PathDecisionMs}ms；队列投递={enqueueResult.EnqueueMs}ms；目标路径={enqueueResult.TargetPathCount}；入队任务={enqueueResult.EnqueuedTaskCount}；已跳过={enqueueResult.Skipped}；队列状态={enqueueResult.AdmissionStatus}；淘汰普通任务={enqueueResult.EvictedNormalTaskCount}；当前队列={enqueueResult.QueuedCount}；排队字节={enqueueResult.QueuedBytes}；图像={PerformanceSpikeDiagnostics.GetOutputImageText(outputImage)}",
                                 true);
                         }
                         if (showLog)
@@ -145,6 +160,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             public long EnqueueMs;
             /// <summary>当前图片是否因保存规则未命中而跳过。</summary>
             public bool Skipped;
+            /// <summary>有界队列的入队状态。</summary>
+            public BoundedQueueAdmissionStatus AdmissionStatus;
+            /// <summary>为保留当前NG图而淘汰的普通任务数量。</summary>
+            public int EvictedNormalTaskCount;
+            /// <summary>本次投递结束后的共享等待任务数量。</summary>
+            public int QueuedCount;
+            /// <summary>本次投递结束后的共享等待任务估算字节数。</summary>
+            public long QueuedBytes;
         }
 
         /// <summary>
@@ -233,35 +256,67 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                     TargetPathCount = 0,
                     PathDecisionMs = afterPathDecision,
                     EnqueueMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch) - afterPathDecision,
-                    Skipped = true
+                    Skipped = true,
+                    AdmissionStatus = BoundedQueueAdmissionStatus.Accepted
                 };
             }
 
-            SaveImageTask saveImageTask = QueueImageForSave(
-                outputImage,
-                outputImage.DisplayResult,
-                paths,
-                imageName,
-                param.NeedCompress,
-                traceContext,
-                param.CompressValue);
+            bool isHighPriority = param.NeedOkNg && imageSaveJudgment != null && !imageSaveJudgment.IsOk;
+            IImageResourceLease candidateLease = outputImage.AcquireLease();
+            SaveImageTask saveImageTask = null;
+            BoundedQueueAdmissionResult admissionResult;
+            ImageQueueProcessor queueProcessor;
             try
             {
-                processor.EnqueueImage(saveImageTask);
-                saveImageTask = null;
+                saveImageTask = CreateSaveImageTask(
+                    outputImage,
+                    outputImage.DisplayResult,
+                    paths,
+                    imageName,
+                    param.NeedCompress,
+                    traceContext,
+                    isHighPriority,
+                    param.CompressValue);
+
+                lock (_queueOwnershipSync)
+                {
+                    if (Volatile.Read(ref _disposed) == 1)
+                        throw new ObjectDisposedException(nameof(NodeImageSave), "保存图像节点已经释放，不能继续投递任务。");
+
+                    Solution.Instance.RecordImageSaveResourceSample(saveImageTask.EstimatedBytes);
+                    queueProcessor = Solution.Instance.GetOrCreateImageSaveQueueProcessor();
+                    admissionResult = queueProcessor.EnqueueImage(
+                        saveImageTask,
+                        () =>
+                        {
+                            IImageResourceLease acceptedLease = candidateLease;
+                            if (acceptedLease == null)
+                                throw new InvalidOperationException("保存候选图像租约已经释放，不能重复转移。");
+
+                            candidateLease = null;
+                            return acceptedLease;
+                        });
+                    if (admissionResult.Accepted)
+                        saveImageTask = null;
+                }
             }
             finally
             {
                 saveImageTask?.Dispose();
+                candidateLease?.Dispose();
             }
 
             return new SaveImageEnqueueResult
             {
-                EnqueuedTaskCount = 1,
+                EnqueuedTaskCount = admissionResult.Accepted ? 1 : 0,
                 TargetPathCount = paths.Count,
                 PathDecisionMs = afterPathDecision,
                 EnqueueMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch) - afterPathDecision,
-                Skipped = false
+                Skipped = !admissionResult.Accepted,
+                AdmissionStatus = admissionResult.Status,
+                EvictedNormalTaskCount = admissionResult.EvictedLowPriorityCount,
+                QueuedCount = queueProcessor.QueuedCount,
+                QueuedBytes = queueProcessor.QueuedBytes
             };
         }
 
@@ -289,7 +344,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         }
 
         /// <summary>
-        /// 生成后台保存任务，任务只持有图像引用和保存元数据，不在主流程转 Bitmap。
+        /// 从已由候选租约保护的输出图像生成后台保存任务。
         /// </summary>
         /// <param name="outputImage">待保存的输出图像，后台任务会持有其资源租约。</param>
         /// <param name="displayResult">需要写入保存图的显示结果。</param>
@@ -297,15 +352,17 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <param name="imageName">图片名称，不含扩展名。</param>
         /// <param name="needCompress">是否压缩。</param>
         /// <param name="traceContext">跨线程流程诊断上下文。</param>
+        /// <param name="isHighPriority">当前任务是否为优先保留的NG图。</param>
         /// <param name="compressValue">压缩质量。</param>
         /// <returns>后台保存任务。</returns>
-        private SaveImageTask QueueImageForSave(
+        private SaveImageTask CreateSaveImageTask(
             OutputImage outputImage,
             AlgorithmResult displayResult,
             List<string> targetDirectories,
             string imageName,
             bool needCompress,
             PerformanceTraceContext traceContext,
+            bool isHighPriority,
             long compressValue = 100)
         {
             if (outputImage == null ||
@@ -316,26 +373,19 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                 throw new ArgumentException("待保存的输出图像为空。", nameof(outputImage));
             }
 
-            IImageResourceLease imageLease = outputImage.AcquireLease();
-            try
+            return new SaveImageTask
             {
-                return new SaveImageTask
-                {
-                    SourceImage = outputImage.Bitmaps[0],
-                    DisplayResult = displayResult,
-                    TargetDirectories = targetDirectories == null ? new List<string>() : new List<string>(targetDirectories),
-                    ImageName = imageName,
-                    NeedCompress = needCompress,
-                    TraceContext = traceContext,
-                    CompressValue = compressValue,
-                    ImageLease = imageLease
-                };
-            }
-            catch
-            {
-                imageLease.Dispose();
-                throw;
-            }
+                SourceImage = outputImage.Bitmaps[0],
+                DisplayResult = displayResult,
+                TargetDirectories = targetDirectories == null ? new List<string>() : new List<string>(targetDirectories),
+                ImageName = imageName,
+                NeedCompress = needCompress,
+                TraceContext = traceContext,
+                CompressValue = compressValue,
+                IsHighPriority = isHighPriority,
+                EstimatedBytes = Math.Max(1L, outputImage.EstimateRetainedImageBytes()),
+                OwnerKey = _queueOwnerKey
+            };
         }
 
         /// <summary>
@@ -374,25 +424,158 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 
     }
 
+    /// <summary>
+    /// 全方案共享的图像保存工作池，统一限制后台并发、排队数量和图像持有字节数。
+    /// </summary>
     public class ImageQueueProcessor
     {
-        private readonly BlockingCollection<SaveImageTask> _imageQueue = new BlockingCollection<SaveImageTask>();
-        private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
-        private readonly int _workerCount; // 工作线程的数量
+        /// <summary>保存任务使用的容量与字节双重有界队列。</summary>
+        private readonly BoundedPriorityWorkQueue<SaveImageTask> _imageQueue;
+
+        /// <summary>保存队列淘汰后等待专用线程释放的任务集合。</summary>
+        private readonly ConcurrentQueue<RetiredSaveImageTask> _retiredTasks = new ConcurrentQueue<RetiredSaveImageTask>();
+
+        /// <summary>保护淘汰回收通道任务数、字节数与峰值的一致性。</summary>
+        private readonly object _retiredTaskSync = new object();
+
+        /// <summary>唤醒淘汰任务专用释放线程的信号。</summary>
+        private readonly AutoResetEvent _retiredTaskSignal = new AutoResetEvent(false);
+
+        /// <summary>后台保存工作线程数量。</summary>
+        private readonly int _workerCount;
+
+        /// <summary>工作池停止时等待正在写盘任务的最长毫秒数。</summary>
+        private readonly int _shutdownTimeoutMs;
+
+        /// <summary>空闲重配时仅用于唤醒并退出固定工作线程的最小保护时间。</summary>
+        private const int IdleWorkerShutdownGraceMilliseconds = 1000;
+
+        /// <summary>工作池诊断日志中的所有者文本。</summary>
         private readonly string _ownerText;
+
+        /// <summary>串行化停止与重复停止，确保等待句柄只在全部线程退出后释放一次。</summary>
+        private readonly object _stopSync = new object();
+
+        /// <summary>保存工作任务句柄，停止时用于确定全部消费者已经退出。</summary>
+        private Task[] _workerTasks = new Task[0];
+
+        /// <summary>淘汰任务专用释放线程的任务句柄。</summary>
+        private Task _retiredTaskWorker;
+
+        /// <summary>淘汰任务专用释放线程是否继续等待新任务。</summary>
+        private int _retiredTaskWorkerAccepting = 1;
+
+        /// <summary>淘汰任务回收通道允许持有的最大任务数，防止回收速度落后时形成第二个无界队列。</summary>
+        private readonly int _retiredTaskCapacity;
+
+        /// <summary>淘汰任务回收通道允许持有的最大估算字节数。</summary>
+        private readonly long _retiredTaskMemoryBudgetBytes;
+
+        /// <summary>正在排队或释放中的淘汰任务数量。</summary>
+        private int _retiredTaskBacklogCount;
+
+        /// <summary>正在排队或释放中的淘汰任务估算字节数。</summary>
+        private long _retiredTaskBacklogBytes;
+
+        /// <summary>淘汰回收通道观察到的任务数量峰值。</summary>
+        private int _peakRetiredTaskCount;
+
+        /// <summary>淘汰回收通道观察到的估算字节峰值。</summary>
+        private long _peakRetiredTaskBytes;
+
+        /// <summary>淘汰回收通道已满时在投递线程直接释放的任务累计数量。</summary>
+        private long _synchronousRetiredReleaseCount;
+
+        /// <summary>当前正在转换、绘制或写盘的任务数量。</summary>
+        private int _activeWorkerCount;
+
+        /// <summary>工作池本次生命周期内观察到的实际保存并发峰值。</summary>
+        private int _peakActiveWorkerCount;
+
+        /// <summary>因队列达到边界而拒绝的任务累计数量。</summary>
+        private long _rejectedTaskCount;
+
+        /// <summary>为保留NG任务而淘汰的普通任务累计数量。</summary>
+        private long _evictedNormalTaskCount;
+
+        /// <summary>已经成功处理全部目标路径的保存任务累计数量。</summary>
+        private long _completedTaskCount;
+
+        /// <summary>转换、绘制或写盘失败的保存任务累计数量。</summary>
+        private long _failedTaskCount;
+
+        /// <summary>保证工作池只启动一次。</summary>
         private int _started;
+
+        /// <summary>保证工作池只停止一次。</summary>
         private int _stopped;
+
+        /// <summary>停止完成后底层队列与等待句柄是否已经释放。</summary>
+        private int _infrastructureDisposed;
 
         /// <summary>当前等待保存的图像数量。</summary>
         public int QueuedCount => _imageQueue.Count;
 
+        /// <summary>当前等待保存任务累计持有的估算字节数。</summary>
+        public long QueuedBytes => _imageQueue.QueuedBytes;
+
+        /// <summary>有界保存队列允许等待的最大任务数量。</summary>
+        public int Capacity => _imageQueue.Capacity;
+
+        /// <summary>有界保存队列允许等待任务累计持有的最大字节数。</summary>
+        public long MemoryBudgetBytes => _imageQueue.MemoryBudgetBytes;
+
+        /// <summary>工作池本次生命周期内观察到的等待任务峰值。</summary>
+        public int PeakQueuedCount => _imageQueue.PeakCount;
+
+        /// <summary>工作池本次生命周期内观察到的等待字节峰值。</summary>
+        public long PeakQueuedBytes => _imageQueue.PeakQueuedBytes;
+
         /// <summary>后台保存工作线程数量。</summary>
         public int WorkerCount => _workerCount;
+
+        /// <summary>当前正在转换、绘制或写盘的任务数量。</summary>
+        public int ActiveWorkerCount => Volatile.Read(ref _activeWorkerCount);
+
+        /// <summary>工作池本次生命周期内观察到的实际保存并发峰值。</summary>
+        public int PeakActiveWorkerCount => Volatile.Read(ref _peakActiveWorkerCount);
+
+        /// <summary>工作池是否已经停止接收任务。</summary>
+        public bool IsStopped => Volatile.Read(ref _stopped) == 1;
+
+        /// <summary>保存消费者和淘汰资源回收线程是否都已经退出。</summary>
+        public bool IsFullyStopped => IsStopped && AreAllWorkersCompleted();
+
+        /// <summary>因达到队列边界而被拒绝的任务累计数量。</summary>
+        public long RejectedTaskCount => Interlocked.Read(ref _rejectedTaskCount);
+
+        /// <summary>为接收NG任务而淘汰的普通任务累计数量。</summary>
+        public long EvictedNormalTaskCount => Interlocked.Read(ref _evictedNormalTaskCount);
+
+        /// <summary>已经成功处理全部目标路径的保存任务累计数量。</summary>
+        public long CompletedTaskCount => Interlocked.Read(ref _completedTaskCount);
+
+        /// <summary>转换、绘制或写盘失败的保存任务累计数量。</summary>
+        public long FailedTaskCount => Interlocked.Read(ref _failedTaskCount);
+
+        /// <summary>淘汰回收通道已满后在投递线程直接释放的累计数量。</summary>
+        public long SynchronousRetiredReleaseCount => Interlocked.Read(ref _synchronousRetiredReleaseCount);
+
+        /// <summary>淘汰回收通道观察到的任务数量峰值。</summary>
+        public int PeakRetiredTaskCount => Volatile.Read(ref _peakRetiredTaskCount);
+
+        /// <summary>淘汰回收通道观察到的估算字节峰值。</summary>
+        public long PeakRetiredTaskBytes => Interlocked.Read(ref _peakRetiredTaskBytes);
+
+        /// <summary>工作池当前是否没有等待、活动或淘汰回收任务。</summary>
+        public bool IsIdle => QueuedCount == 0 &&
+            ActiveWorkerCount == 0 &&
+            Volatile.Read(ref _retiredTaskBacklogCount) == 0;
 
         /// <summary>
         /// 后台保存任务；通过租约借用流程输出Mat，后台线程负责释放租约和生成的Bitmap。
         /// </summary>
-        public sealed class SaveImageTask : IDisposable
+        public sealed class SaveImageTask : IPrioritizedResourceWorkItem
         {
             /// <summary>待保存的源图像引用，生命周期由ImageLease保护。</summary>
             public Mat SourceImage { get; set; }
@@ -408,6 +591,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             public PerformanceTraceContext TraceContext { get; set; }
             /// <summary>压缩质量。</summary>
             public long CompressValue { get; set; }
+            /// <summary>当前任务是否为队列满时优先保留的NG图。</summary>
+            public bool IsHighPriority { get; set; }
+            /// <summary>当前任务继续排队会持有的源Mat估算字节数。</summary>
+            public long EstimatedBytes { get; set; }
+            /// <summary>当前任务所属保存节点的唯一标识。</summary>
+            public string OwnerKey { get; set; }
 
             /// <summary>
             /// 实际保存的图像租约字段，用于原子保证只释放一次。
@@ -432,67 +621,266 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 
         }
 
-        public ImageQueueProcessor(int workerCount, string ownerText)
+        /// <summary>
+        /// 淘汰回收通道内部的不可变条目，冻结原主队列任务的资源字节数。
+        /// </summary>
+        private sealed class RetiredSaveImageTask
         {
-            if (workerCount <= 0) throw new ArgumentOutOfRangeException(nameof(workerCount), "Worker count must be greater than zero.");
-            _workerCount = workerCount;
-            _ownerText = ownerText;
+            /// <summary>需要在专用回收线程释放的保存任务。</summary>
+            public SaveImageTask Task { get; private set; }
+
+            /// <summary>进入回收通道时冻结的资源估算字节数。</summary>
+            public long EstimatedBytes { get; private set; }
+
+            /// <summary>
+            /// 创建淘汰回收条目。
+            /// </summary>
+            /// <param name="task">待释放任务。</param>
+            /// <param name="estimatedBytes">规范化后的估算字节数。</param>
+            public RetiredSaveImageTask(SaveImageTask task, long estimatedBytes)
+            {
+                Task = task;
+                EstimatedBytes = estimatedBytes;
+            }
         }
 
-        //开始存图
+        /// <summary>
+        /// 使用自动资源档案给出的全局参数初始化保存工作池。
+        /// </summary>
+        /// <param name="workerCount">全方案保存工作线程数量。</param>
+        /// <param name="capacity">允许等待的最大任务数量。</param>
+        /// <param name="memoryBudgetBytes">允许等待任务累计持有的最大字节数。</param>
+        /// <param name="shutdownTimeoutMs">停止时等待活动任务的最长毫秒数。</param>
+        /// <param name="ownerText">工作池诊断名称。</param>
+        public ImageQueueProcessor(
+            int workerCount,
+            int capacity,
+            long memoryBudgetBytes,
+            int shutdownTimeoutMs,
+            string ownerText)
+        {
+            if (workerCount <= 0)
+                throw new ArgumentOutOfRangeException(nameof(workerCount), "保存工作线程数量必须大于零。");
+            if (shutdownTimeoutMs < 0)
+                throw new ArgumentOutOfRangeException(nameof(shutdownTimeoutMs), "停止等待时间不能小于零。");
+
+            _workerCount = workerCount;
+            _shutdownTimeoutMs = shutdownTimeoutMs;
+            _ownerText = ownerText;
+            _retiredTaskCapacity = Math.Max(1, capacity);
+            _retiredTaskMemoryBudgetBytes = Math.Max(1L, memoryBudgetBytes);
+            _imageQueue = new BoundedPriorityWorkQueue<SaveImageTask>(
+                capacity,
+                memoryBudgetBytes,
+                ex => TryWriteLog(MsgLevel.Exception, $"释放保存排队任务失败：{ex.Message}", true),
+                QueueRetiredTaskForRelease);
+        }
+
+        /// <summary>
+        /// 启动固定数量的后台保存消费者，并保留任务句柄供停止等待。
+        /// </summary>
         public void StartProcessing()
         {
             if (Interlocked.Exchange(ref _started, 1) == 1)
                 return;
 
+            _retiredTaskWorker = Task.Factory.StartNew(
+                ProcessRetiredTasks,
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
+            _workerTasks = new Task[_workerCount];
             for (int i = 0; i < _workerCount; i++)
             {
-                Task.Run(() => ProcessImages(_cancellationTokenSource.Token));
+                _workerTasks[i] = Task.Factory.StartNew(
+                    ProcessImages,
+                    CancellationToken.None,
+                    TaskCreationOptions.LongRunning,
+                    TaskScheduler.Default);
             }
 
             if (PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug))
             {
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    () => $"【内存诊断-保存队列启动】节点({_ownerText}) 工作线程={_workerCount}；内存={PerformanceSpikeDiagnostics.GetMemoryText()}",
+                    () => $"【内存诊断-保存队列启动】工作池({_ownerText}) 工作线程={_workerCount}；容量={Capacity}；字节预算={MemoryBudgetBytes}；内存={PerformanceSpikeDiagnostics.GetMemoryText()}",
                     true);
             }
         }
 
-        //添加任务
-        public void EnqueueImage(SaveImageTask saveImagedata)
+        /// <summary>
+        /// 零等待尝试投递保存任务；只有成功时工作池才接管任务所有权。
+        /// </summary>
+        /// <param name="saveImagedata">待保存任务。</param>
+        /// <returns>有界队列入队结果。</returns>
+        public BoundedQueueAdmissionResult EnqueueImage(SaveImageTask saveImagedata)
+        {
+            return EnqueueImage(saveImagedata, null);
+        }
+
+        /// <summary>
+        /// 零等待尝试投递保存任务，确定队列可接收后才取得图像资源租约。
+        /// </summary>
+        /// <param name="saveImagedata">尚未发布给消费者的保存任务。</param>
+        /// <param name="leaseFactory">确定可接收后调用的图像租约工厂；已有租约的测试任务可传null。</param>
+        /// <returns>有界队列入队结果。</returns>
+        public BoundedQueueAdmissionResult EnqueueImage(
+            SaveImageTask saveImagedata,
+            Func<IImageResourceLease> leaseFactory)
         {
             if (saveImagedata == null) throw new ArgumentNullException(nameof(saveImagedata), "保存任务不能为空。");
             if (!OutputImage.HasValidImage(saveImagedata.SourceImage)) throw new ArgumentException("保存任务的源图像为空。", nameof(saveImagedata));
             if (saveImagedata.TargetDirectories == null || saveImagedata.TargetDirectories.Count == 0) throw new ArgumentException("保存任务的目标目录为空。", nameof(saveImagedata));
-            if (_imageQueue.IsAddingCompleted || _stopped == 1)
-                throw new InvalidOperationException("保存队列已停止，不能继续入队。");
 
-            //添加任务(生产者生产数据)
-            _imageQueue.Add(saveImagedata);
+            BoundedQueueAdmissionResult result = _imageQueue.TryEnqueue(
+                saveImagedata,
+                leaseFactory == null
+                    ? (Action)null
+                    : () =>
+                    {
+                        IImageResourceLease imageLease = leaseFactory();
+                        if (imageLease == null)
+                            throw new InvalidOperationException("保存任务租约工厂返回了空租约。");
+                        saveImagedata.ImageLease = imageLease;
+                    });
+            if (result.EvictedLowPriorityCount > 0)
+            {
+                long evictedCount = Interlocked.Add(ref _evictedNormalTaskCount, result.EvictedLowPriorityCount);
+                if (evictedCount == result.EvictedLowPriorityCount || evictedCount % 100 == 0)
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Warn,
+                        $"保存队列达到边界，为保留NG图已淘汰普通图片；本次={result.EvictedLowPriorityCount}；累计={evictedCount}；队列={QueuedCount}/{Capacity}；字节={QueuedBytes}/{MemoryBudgetBytes}。",
+                        true);
+                }
+            }
+
+            if (!result.Accepted)
+            {
+                long rejectedCount = Interlocked.Increment(ref _rejectedTaskCount);
+                if (rejectedCount == 1 || rejectedCount % 100 == 0)
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Warn,
+                        $"保存队列拒绝当前图片；状态={result.Status}；NG={saveImagedata.IsHighPriority}；累计拒绝={rejectedCount}；队列={QueuedCount}/{Capacity}；字节={QueuedBytes}/{MemoryBudgetBytes}。",
+                        true);
+                }
+            }
+
+            return result;
         }
 
         /// <summary>
-        /// 线程处理图片
+        /// 将被NG任务淘汰的普通任务转交给专用回收线程，避免检测流程同步释放整条Mat链。
         /// </summary>
-        /// <param name="cancellationToken">令牌，标记线程是否取消执行</param>
-        private void ProcessImages(CancellationToken cancellationToken)
+        /// <param name="retiredTask">队列已经移除并仍拥有的任务。</param>
+        /// <param name="estimatedBytes">主队列入队时冻结的资源估算字节数。</param>
+        private void QueueRetiredTaskForRelease(SaveImageTask retiredTask, long estimatedBytes)
         {
-            //_imageQueue.GetConsumingEnumerable(cancellationToken):按顺序消费数据，并且可以在取消请求时停止消费。(消费者消费数据)
-            foreach (var saveImagedata in _imageQueue.GetConsumingEnumerable(cancellationToken))
+            if (retiredTask == null)
+                return;
+
+            if (Volatile.Read(ref _retiredTaskWorkerAccepting) == 0)
             {
-                bool diagnosticEnabled = saveImagedata.TraceContext != null &&
-                    PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
-                string imageInfo = diagnosticEnabled
-                    ? PerformanceSpikeDiagnostics.GetMatText(saveImagedata.SourceImage)
-                    : string.Empty;
+                DisposeSaveTaskNoThrow(retiredTask, "停止后的淘汰任务");
+                return;
+            }
+
+            estimatedBytes = Math.Max(1L, estimatedBytes);
+            RetiredSaveImageTask retiredEntry = new RetiredSaveImageTask(retiredTask, estimatedBytes);
+            bool acceptedForBackgroundRelease;
+            lock (_retiredTaskSync)
+            {
+                acceptedForBackgroundRelease = Volatile.Read(ref _retiredTaskWorkerAccepting) == 1 &&
+                    _retiredTaskBacklogCount < _retiredTaskCapacity &&
+                    estimatedBytes <= _retiredTaskMemoryBudgetBytes - _retiredTaskBacklogBytes;
+                if (acceptedForBackgroundRelease)
+                {
+                    _retiredTaskBacklogCount++;
+                    _retiredTaskBacklogBytes += estimatedBytes;
+                    UpdateMaximum(ref _peakRetiredTaskCount, _retiredTaskBacklogCount);
+                    UpdateMaximum(ref _peakRetiredTaskBytes, _retiredTaskBacklogBytes);
+                }
+            }
+
+            if (!acceptedForBackgroundRelease)
+            {
+                long synchronousReleaseCount = Interlocked.Increment(ref _synchronousRetiredReleaseCount);
+                if (synchronousReleaseCount == 1 || synchronousReleaseCount % 100 == 0)
+                {
+                    TryWriteLog(
+                        MsgLevel.Warn,
+                        $"淘汰任务回收通道达到边界，当前任务改由投递线程同步释放；累计={synchronousReleaseCount}；回收队列={Volatile.Read(ref _retiredTaskBacklogCount)}/{_retiredTaskCapacity}；回收字节={Interlocked.Read(ref _retiredTaskBacklogBytes)}/{_retiredTaskMemoryBudgetBytes}。",
+                        true);
+                }
+                DisposeSaveTaskNoThrow(retiredTask, "回收通道已满的淘汰任务");
+                return;
+            }
+
+            _retiredTasks.Enqueue(retiredEntry);
+            _retiredTaskSignal.Set();
+        }
+
+        /// <summary>
+        /// 在独立长期线程中释放被淘汰任务，不占用检测流程或通用线程池。
+        /// </summary>
+        private void ProcessRetiredTasks()
+        {
+            while (Volatile.Read(ref _retiredTaskWorkerAccepting) == 1 ||
+                Volatile.Read(ref _retiredTaskBacklogCount) > 0 ||
+                !_retiredTasks.IsEmpty)
+            {
+                if (_retiredTasks.TryDequeue(out RetiredSaveImageTask retiredTask))
+                {
+                    try
+                    {
+                        DisposeSaveTaskNoThrow(retiredTask.Task, "被NG淘汰的普通任务");
+                    }
+                    finally
+                    {
+                        lock (_retiredTaskSync)
+                        {
+                            _retiredTaskBacklogCount--;
+                            _retiredTaskBacklogBytes -= retiredTask.EstimatedBytes;
+                            if (_retiredTaskBacklogCount < 0)
+                                _retiredTaskBacklogCount = 0;
+                            if (_retiredTaskBacklogBytes < 0)
+                                _retiredTaskBacklogBytes = 0;
+                        }
+                    }
+                    continue;
+                }
+
+                _retiredTaskSignal.WaitOne(100);
+            }
+        }
+
+        /// <summary>
+        /// 持续消费保存任务，直到工作池停止并排空等待队列。
+        /// </summary>
+        private void ProcessImages()
+        {
+            while (_imageQueue.TryTake(out SaveImageTask saveImagedata, RegisterActiveWorker))
+            {
+                bool saveCompleted = false;
+                bool taskFailed = false;
+                bool diagnosticEnabled = false;
+                string imageInfo = string.Empty;
                 Bitmap bitmap = null;
-                MemorySnapshot beforeSaveSnapshot = diagnosticEnabled
-                    ? PerformanceSpikeDiagnostics.CaptureMemorySnapshot()
-                    : null;
-                Stopwatch stopwatch = diagnosticEnabled ? Stopwatch.StartNew() : null;
+                List<string> committedImagePaths = new List<string>();
+                MemorySnapshot beforeSaveSnapshot = null;
+                Stopwatch stopwatch = null;
                 try
                 {
+                    diagnosticEnabled = saveImagedata.TraceContext != null &&
+                        PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
+                    if (diagnosticEnabled)
+                    {
+                        imageInfo = PerformanceSpikeDiagnostics.GetMatText(saveImagedata.SourceImage);
+                        beforeSaveSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
+                        stopwatch = Stopwatch.StartNew();
+                    }
+
                     bitmap = CreateBitmapForSave(saveImagedata, stopwatch, out SaveImageRenderTiming renderTiming);
                     if (diagnosticEnabled)
                     {
@@ -508,11 +896,15 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                     {
                         long beforePath = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
                         Directory.CreateDirectory(targetDirectory);
-                        string fileName = GetFileName(targetDirectory, saveImagedata.ImageName);
                         long afterPath = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
 
-                        //处理图片(压缩图片)
-                        SaveWithCompress(bitmap, fileName, saveImagedata.NeedCompress, saveImagedata.CompressValue);
+                        string fileName = SaveWithCompress(
+                            bitmap,
+                            targetDirectory,
+                            saveImagedata.ImageName,
+                            saveImagedata.NeedCompress,
+                            saveImagedata.CompressValue);
+                        committedImagePaths.Add(fileName);
                         long afterSave = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
                         if (diagnosticEnabled)
                         {
@@ -524,31 +916,85 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                                 true);
                         }
                     }
-                }
-                catch (OperationCanceledException)
-                {
-                    // 如果取消了任务，则忽略这个异常
+
+                    saveCompleted = true;
                 }
                 catch (Exception ex)
                 {
-                    LogHelper.AddLog(
+                    taskFailed = true;
+                    foreach (string committedImagePath in committedImagePaths)
+                    {
+                        if (!TryDeleteIncompleteFile(committedImagePath))
+                        {
+                            TryWriteLog(
+                                MsgLevel.Warn,
+                                $"保存任务回滚文件失败，磁盘上可能残留不完整结果：{committedImagePath}",
+                                true);
+                        }
+                    }
+                    TryWriteLog(
                         MsgLevel.Exception,
-                        $"压缩图像失败：{saveImagedata.TraceContext?.ToLogText() ?? $"节点={_ownerText}"}；{ex.Message}");
+                        $"保存图像失败：{saveImagedata.TraceContext?.ToLogText() ?? $"节点={_ownerText}"}；{ex.Message}",
+                        true);
                 }
                 finally
                 {
-                    MemorySnapshot beforeDisposeSnapshot = diagnosticEnabled
-                        ? PerformanceSpikeDiagnostics.CaptureMemorySnapshot()
-                        : null;
-                    bitmap?.Dispose();
-                    saveImagedata.Dispose();
-                    if (diagnosticEnabled)
+                    try
                     {
-                        MemorySnapshot afterDisposeSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
-                        PerformanceSpikeDiagnostics.LogIfEnabled(
-                            MsgLevel.Debug,
-                            () => $"【内存诊断-保存队列释放】{saveImagedata.TraceContext.ToLogText()}；已释放后台生成Bitmap；源图={imageInfo}；释放后队列={QueuedCount}；私有内存变化={afterDisposeSnapshot.PrivateMemoryMb - beforeDisposeSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterDisposeSnapshot.GdiObjectCount - beforeDisposeSnapshot.GdiObjectCount}；前={beforeDisposeSnapshot.ToLogText()}；后={afterDisposeSnapshot.ToLogText()}",
-                            true);
+                        MemorySnapshot beforeDisposeSnapshot = null;
+                        if (diagnosticEnabled)
+                        {
+                            try
+                            {
+                                beforeDisposeSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
+                            }
+                            catch (Exception diagnosticEx)
+                            {
+                                TryWriteLog(MsgLevel.Warn, $"保存释放前诊断采集失败：{diagnosticEx.Message}", true);
+                            }
+                        }
+
+                        try
+                        {
+                            bitmap?.Dispose();
+                        }
+                        catch (Exception bitmapDisposeEx)
+                        {
+                            taskFailed = true;
+                            TryWriteLog(MsgLevel.Exception, $"释放保存Bitmap失败：{bitmapDisposeEx.Message}", true);
+                        }
+
+                        if (!DisposeSaveTaskNoThrow(saveImagedata, "保存工作任务"))
+                            taskFailed = true;
+
+                        if (diagnosticEnabled && beforeDisposeSnapshot != null)
+                        {
+                            try
+                            {
+                                MemorySnapshot afterDisposeSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
+                                PerformanceSpikeDiagnostics.LogIfEnabled(
+                                    MsgLevel.Debug,
+                                    () => $"【内存诊断-保存队列释放】{saveImagedata.TraceContext.ToLogText()}；已释放后台生成Bitmap；源图={imageInfo}；释放后队列={QueuedCount}；私有内存变化={afterDisposeSnapshot.PrivateMemoryMb - beforeDisposeSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterDisposeSnapshot.GdiObjectCount - beforeDisposeSnapshot.GdiObjectCount}；前={beforeDisposeSnapshot.ToLogText()}；后={afterDisposeSnapshot.ToLogText()}",
+                                    true);
+                            }
+                            catch (Exception diagnosticEx)
+                            {
+                                TryWriteLog(MsgLevel.Warn, $"保存释放后诊断记录失败：{diagnosticEx.Message}", true);
+                            }
+                        }
+                    }
+                    catch (Exception cleanupEx)
+                    {
+                        taskFailed = true;
+                        TryWriteLog(MsgLevel.Exception, $"保存任务清理出现未预期异常：{cleanupEx.Message}", true);
+                    }
+                    finally
+                    {
+                        if (saveCompleted && !taskFailed)
+                            Interlocked.Increment(ref _completedTaskCount);
+                        else
+                            Interlocked.Increment(ref _failedTaskCount);
+                        Interlocked.Decrement(ref _activeWorkerCount);
                     }
                 }
             }
@@ -581,73 +1027,189 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         private static Bitmap CreateBitmapForSave(SaveImageTask task, Stopwatch stopwatch, out SaveImageRenderTiming timing)
         {
             timing = new SaveImageRenderTiming();
-            long beforeToBitmap = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
-            Bitmap bitmap = task.SourceImage.ToBitmap();
-            long afterToBitmap = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
-            timing.ToBitmapMs = afterToBitmap - beforeToBitmap;
-
-            timing.HasDrawableDisplayResult = ParamFormImageSave.HasDrawableDisplayResult(task.DisplayResult);
-            if (timing.HasDrawableDisplayResult)
+            Bitmap bitmap = null;
+            try
             {
-                bitmap = ParamFormImageSave.EnsureDrawableBitmap(bitmap);
-                long afterEnsureDrawable = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
-                timing.EnsureDrawableMs = afterEnsureDrawable - afterToBitmap;
-                ShowImageControl.DrawDisplayResultToBitmap(bitmap, task.DisplayResult);
-                long afterDrawDisplayResult = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
-                timing.DrawDisplayResultMs = afterDrawDisplayResult - afterEnsureDrawable;
-                timing.TotalMs = afterDrawDisplayResult;
-            }
-            else
-            {
-                timing.TotalMs = afterToBitmap;
-            }
+                long beforeToBitmap = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+                bitmap = task.SourceImage.ToBitmap();
+                long afterToBitmap = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+                timing.ToBitmapMs = afterToBitmap - beforeToBitmap;
 
-            return bitmap;
-        }
-
-        // 保存图片并压缩
-        private void SaveWithCompress(Bitmap bitmap, string imagePath, bool isCompress, long compressValue = 100)
-        {
-            if (isCompress)
-            {
-                using (EncoderParameters encoderParams = new EncoderParameters(1))
-                using (EncoderParameter qualityParameter = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, compressValue))
+                timing.HasDrawableDisplayResult = ParamFormImageSave.HasDrawableDisplayResult(task.DisplayResult);
+                if (timing.HasDrawableDisplayResult)
                 {
-                    encoderParams.Param[0] = qualityParameter;
-                    ImageCodecInfo jpegCodec = GetEncoderInfo("image/jpeg");
-                    bitmap.Save(imagePath, jpegCodec, encoderParams);
+                    bitmap = ParamFormImageSave.EnsureDrawableBitmap(bitmap);
+                    long afterEnsureDrawable = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+                    timing.EnsureDrawableMs = afterEnsureDrawable - afterToBitmap;
+                    ShowImageControl.DrawDisplayResultToBitmap(bitmap, task.DisplayResult);
+                    long afterDrawDisplayResult = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+                    timing.DrawDisplayResultMs = afterDrawDisplayResult - afterEnsureDrawable;
+                    timing.TotalMs = afterDrawDisplayResult;
                 }
+                else
+                {
+                    timing.TotalMs = afterToBitmap;
+                }
+
+                Bitmap result = bitmap;
+                bitmap = null;
+                return result;
             }
-            else
+            finally
             {
-                bitmap.Save(imagePath);
+                bitmap?.Dispose();
             }
         }
 
         /// <summary>
-        /// 生成不覆盖已有文件的保存路径。
+        /// 在保存任务离开主队列前登记活动消费者，关闭空闲判断的认领竞态窗口。
         /// </summary>
-        /// <param name="filePath">保存目录。</param>
-        /// <param name="fileName">图片名称，不含扩展名。</param>
-        /// <returns>最终保存文件路径。</returns>
-        private static string GetFileName(string filePath, string fileName)
+        private void RegisterActiveWorker()
         {
-            string newFileName = fileName;
-            string fullPath = Path.Combine(filePath, newFileName + ".jpg");
-            if (File.Exists(fullPath))
-            {
-                int suffix = 1;
-                do
-                {
-                    newFileName = $"{fileName}_{suffix}";
-                    fullPath = Path.Combine(filePath, newFileName + ".jpg");
-                    suffix++;
-                }
-                while (File.Exists(fullPath));
-            }
-            return fullPath;
+            int activeWorkerCount = Interlocked.Increment(ref _activeWorkerCount);
+            UpdateMaximum(ref _peakActiveWorkerCount, activeWorkerCount);
         }
 
+        /// <summary>
+        /// 先写入独占临时文件，再原子移动到唯一文件名，避免并行覆盖或暴露半张图片。
+        /// </summary>
+        /// <param name="bitmap">待保存位图。</param>
+        /// <param name="targetDirectory">目标目录。</param>
+        /// <param name="imageName">不含扩展名的基础图片名。</param>
+        /// <param name="isCompress">是否按指定质量压缩。</param>
+        /// <param name="compressValue">JPEG压缩质量。</param>
+        /// <returns>实际写入的完整文件路径。</returns>
+        private string SaveWithCompress(
+            Bitmap bitmap,
+            string targetDirectory,
+            string imageName,
+            bool isCompress,
+            long compressValue = 100)
+        {
+            string temporaryPath = Path.Combine(
+                targetDirectory,
+                $".{Guid.NewGuid():N}.saving");
+            try
+            {
+                using (FileStream outputStream = new FileStream(
+                    temporaryPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None))
+                {
+                    if (isCompress)
+                    {
+                        using (EncoderParameters encoderParams = new EncoderParameters(1))
+                        using (EncoderParameter qualityParameter = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, compressValue))
+                        {
+                            encoderParams.Param[0] = qualityParameter;
+                            ImageCodecInfo jpegCodec = GetEncoderInfo("image/jpeg");
+                            if (jpegCodec == null)
+                                throw new InvalidOperationException("当前系统没有可用的JPEG编码器。");
+                            bitmap.Save(outputStream, jpegCodec, encoderParams);
+                        }
+                    }
+                    else
+                    {
+                        bitmap.Save(outputStream, ImageFormat.Jpeg);
+                    }
+                }
+
+                for (int suffix = 0; suffix < int.MaxValue; suffix++)
+                {
+                    string candidateName = suffix == 0 ? imageName : $"{imageName}_{suffix}";
+                    string imagePath = Path.Combine(targetDirectory, candidateName + ".jpg");
+                    try
+                    {
+                        File.Move(temporaryPath, imagePath);
+                        temporaryPath = null;
+                        return imagePath;
+                    }
+                    catch (IOException)
+                    {
+                        if (File.Exists(imagePath))
+                            continue;
+                        throw;
+                    }
+                }
+
+                throw new IOException("无法为保存图片生成唯一文件名。");
+            }
+            finally
+            {
+                if (!TryDeleteIncompleteFile(temporaryPath))
+                {
+                    TryWriteLog(
+                        MsgLevel.Warn,
+                        $"清理图像保存临时文件失败，磁盘上可能残留.saving文件：{temporaryPath}",
+                        true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 尽力删除保存失败后留下的不完整文件，清理失败不覆盖原始写盘异常。
+        /// </summary>
+        /// <param name="imagePath">不完整文件路径。</param>
+        private static bool TryDeleteIncompleteFile(string imagePath)
+        {
+            if (string.IsNullOrWhiteSpace(imagePath))
+                return true;
+
+            try
+            {
+                if (File.Exists(imagePath))
+                    File.Delete(imagePath);
+                return !File.Exists(imagePath);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 释放保存任务并隔离第三方租约释放异常，保证后台消费者继续工作。
+        /// </summary>
+        /// <param name="task">需要释放的保存任务。</param>
+        /// <param name="stage">用于日志定位的释放阶段。</param>
+        /// <returns>释放过程没有抛出异常返回true。</returns>
+        private static bool DisposeSaveTaskNoThrow(SaveImageTask task, string stage)
+        {
+            try
+            {
+                task?.Dispose();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                TryWriteLog(MsgLevel.Exception, $"{stage}释放图像租约失败：{ex.Message}", true);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 尽力写入日志，日志系统异常不得终止保存消费者或资源回收线程。
+        /// </summary>
+        /// <param name="level">日志级别。</param>
+        /// <param name="message">日志正文。</param>
+        /// <param name="showLog">是否同步到界面日志。</param>
+        private static void TryWriteLog(MsgLevel level, string message, bool showLog)
+        {
+            try
+            {
+                LogHelper.AddLog(level, message, showLog);
+            }
+            catch
+            {
+            }
+        }
+
+        /// <summary>
+        /// 查找指定MIME类型的系统图像编码器。
+        /// </summary>
+        /// <param name="mimeType">编码器MIME类型。</param>
+        /// <returns>找到的编码器；不存在时返回null。</returns>
         private ImageCodecInfo GetEncoderInfo(string mimeType)
         {
             int j;
@@ -661,40 +1223,224 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             return null;
         }
 
-        public void StopProcessing()
+        /// <summary>
+        /// 取消全部待处理任务并等待正在写盘的任务在限定时间内退出。
+        /// </summary>
+        /// <returns>全部工作任务已退出返回 true；等待超时返回 false。</returns>
+        public bool StopProcessing()
         {
-            if (Interlocked.Exchange(ref _stopped, 1) == 1)
-                return;
-
-            _imageQueue.CompleteAdding(); // 标记不再添加新的元素
-            _cancellationTokenSource.Cancel(); // 取消所有任务
-            int disposedPendingCount = DisposePendingImages();
-            if (PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug))
+            lock (_stopSync)
             {
-                PerformanceSpikeDiagnostics.LogIfEnabled(
-                    MsgLevel.Debug,
-                    () => $"【内存诊断-保存队列停止】节点({_ownerText}) 停止保存队列；已释放待保存图片={disposedPendingCount}；剩余队列={QueuedCount}；内存={PerformanceSpikeDiagnostics.GetMemoryText()}",
-                    true);
+                if (IsFullyStopped)
+                {
+                    DisposeInfrastructureNoThrow();
+                    return true;
+                }
+
+                Stopwatch shutdownStopwatch = Stopwatch.StartNew();
+                int shutdownTimeoutMilliseconds = IsIdle
+                    ? Math.Max(_shutdownTimeoutMs, IdleWorkerShutdownGraceMilliseconds)
+                    : _shutdownTimeoutMs;
+                if (Interlocked.Exchange(ref _stopped, 1) == 0)
+                    _imageQueue.CompleteAdding();
+                bool saveWorkersStopped = WaitForWorkers(
+                    GetRemainingShutdownMilliseconds(shutdownStopwatch, shutdownTimeoutMilliseconds));
+                int disposedPendingCount = saveWorkersStopped ? 0 : _imageQueue.CompleteAndDisposePending();
+                Volatile.Write(ref _retiredTaskWorkerAccepting, 0);
+                _retiredTaskSignal.Set();
+                bool releaseWorkerStopped = WaitForRetiredTaskWorker(
+                    GetRemainingShutdownMilliseconds(shutdownStopwatch, shutdownTimeoutMilliseconds));
+                bool allWorkersStopped = saveWorkersStopped && releaseWorkerStopped;
+                if (PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug))
+                {
+                    PerformanceSpikeDiagnostics.LogIfEnabled(
+                        MsgLevel.Debug,
+                        () => $"【内存诊断-保存队列停止】工作池({_ownerText}) 停止保存队列；已释放待保存图片={disposedPendingCount}；活动任务={ActiveWorkerCount}；工作任务已退出={allWorkersStopped}；内存={PerformanceSpikeDiagnostics.GetMemoryText()}",
+                        true);
+                }
+
+                if (!allWorkersStopped)
+                {
+                    TryWriteLog(
+                        MsgLevel.Warn,
+                        $"保存工作池停止等待超过{_shutdownTimeoutMs}ms；仍在写盘的任务={ActiveWorkerCount}；待回收淘汰任务={Volatile.Read(ref _retiredTaskBacklogCount)}，任务完成后会自行释放图像资源。",
+                        true);
+                }
+                else
+                {
+                    DisposeInfrastructureNoThrow();
+                }
+
+                return allWorkersStopped;
             }
         }
 
         /// <summary>
-        /// 停止队列时释放尚未被消费线程取走的Bitmap，避免关闭或重开方案时遗留待保存图。
+        /// 在全部后台线程退出后释放队列和等待句柄；重复调用安全。
         /// </summary>
-        /// <returns>已释放的待保存图片数量。</returns>
-        private int DisposePendingImages()
+        private void DisposeInfrastructureNoThrow()
         {
-            int disposedCount = 0;
-            while (_imageQueue.TryTake(out SaveImageTask pendingTask))
+            if (Interlocked.Exchange(ref _infrastructureDisposed, 1) == 1)
+                return;
+
+            try
             {
-                if (pendingTask != null)
+                _imageQueue.Dispose();
+            }
+            catch (Exception ex)
+            {
+                TryWriteLog(MsgLevel.Warn, $"释放保存队列基础资源失败：{ex.Message}", true);
+            }
+
+            try
+            {
+                _retiredTaskSignal.Dispose();
+            }
+            catch (Exception ex)
+            {
+                TryWriteLog(MsgLevel.Warn, $"释放保存回收线程等待句柄失败：{ex.Message}", true);
+            }
+        }
+
+        /// <summary>
+        /// 取消指定保存节点尚未开始处理的任务，并释放相应图像租约。
+        /// </summary>
+        /// <param name="ownerKey">保存节点唯一标识。</param>
+        /// <returns>取消并释放的任务数量。</returns>
+        public int CancelOwner(string ownerKey)
+        {
+            return _imageQueue.CancelOwner(ownerKey);
+        }
+
+        /// <summary>
+        /// 判断现有工作池参数是否与新的自动资源档案一致。
+        /// </summary>
+        /// <param name="workerCount">保存工作线程数量。</param>
+        /// <param name="capacity">队列任务容量。</param>
+        /// <param name="memoryBudgetBytes">队列字节预算。</param>
+        /// <returns>三个关键边界均一致返回 true。</returns>
+        public bool ConfigurationMatches(int workerCount, int capacity, long memoryBudgetBytes)
+        {
+            return WorkerCount == workerCount &&
+                Capacity == capacity &&
+                MemoryBudgetBytes == memoryBudgetBytes;
+        }
+
+        /// <summary>
+        /// 在限定时间内等待全部后台工作任务退出。
+        /// </summary>
+        /// <returns>全部退出返回 true；等待超时或任务异常返回 false。</returns>
+        private bool WaitForWorkers(int timeoutMilliseconds)
+        {
+            Task[] workers = _workerTasks;
+            if (workers == null || workers.Length == 0)
+                return true;
+
+            try
+            {
+                return Task.WaitAll(workers, timeoutMilliseconds);
+            }
+            catch (AggregateException ex)
+            {
+                TryWriteLog(
+                    MsgLevel.Exception,
+                    $"保存工作池退出异常：{ex.Flatten().InnerException?.Message ?? ex.Message}",
+                    true);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 在剩余停止预算内等待淘汰任务专用回收线程退出。
+        /// </summary>
+        /// <param name="timeoutMilliseconds">剩余等待毫秒数。</param>
+        /// <returns>回收线程已经退出返回true。</returns>
+        private bool WaitForRetiredTaskWorker(int timeoutMilliseconds)
+        {
+            Task worker = _retiredTaskWorker;
+            if (worker == null)
+                return true;
+
+            try
+            {
+                return worker.Wait(timeoutMilliseconds);
+            }
+            catch (AggregateException ex)
+            {
+                TryWriteLog(
+                    MsgLevel.Exception,
+                    $"保存淘汰资源回收线程退出异常：{ex.Flatten().InnerException?.Message ?? ex.Message}",
+                    true);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 计算本次停止时限扣除已用时间后的剩余毫秒数。
+        /// </summary>
+        /// <param name="stopwatch">停止阶段计时器。</param>
+        /// <param name="shutdownTimeoutMilliseconds">本次停止允许使用的总毫秒数。</param>
+        /// <returns>不小于零的剩余等待毫秒数。</returns>
+        private static int GetRemainingShutdownMilliseconds(
+            Stopwatch stopwatch,
+            int shutdownTimeoutMilliseconds)
+        {
+            return Math.Max(
+                0,
+                shutdownTimeoutMilliseconds - (int)Math.Min(int.MaxValue, stopwatch.ElapsedMilliseconds));
+        }
+
+        /// <summary>
+        /// 判断全部保存消费者与淘汰资源回收线程是否已经完成。
+        /// </summary>
+        /// <returns>全部后台任务均完成返回true。</returns>
+        private bool AreAllWorkersCompleted()
+        {
+            Task[] workers = _workerTasks;
+            if (workers != null)
+            {
+                foreach (Task worker in workers)
                 {
-                    pendingTask.Dispose();
-                    disposedCount++;
+                    if (worker != null && !worker.IsCompleted)
+                        return false;
                 }
             }
 
-            return disposedCount;
+            return _retiredTaskWorker == null || _retiredTaskWorker.IsCompleted;
+        }
+
+        /// <summary>
+        /// 以无锁方式更新整数峰值。
+        /// </summary>
+        /// <param name="target">需要更新的峰值字段。</param>
+        /// <param name="value">本次观察值。</param>
+        private static void UpdateMaximum(ref int target, int value)
+        {
+            int current;
+            do
+            {
+                current = Volatile.Read(ref target);
+                if (value <= current)
+                    return;
+            }
+            while (Interlocked.CompareExchange(ref target, value, current) != current);
+        }
+
+        /// <summary>
+        /// 以无锁方式更新长整型峰值。
+        /// </summary>
+        /// <param name="target">需要更新的峰值字段。</param>
+        /// <param name="value">本次观察值。</param>
+        private static void UpdateMaximum(ref long target, long value)
+        {
+            long current;
+            do
+            {
+                current = Interlocked.Read(ref target);
+                if (value <= current)
+                    return;
+            }
+            while (Interlocked.CompareExchange(ref target, value, current) != current);
         }
     }
 }

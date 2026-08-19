@@ -30,6 +30,7 @@ using System.Windows.Forms;
 using ServiceStack;
 using System.Diagnostics;
 using TDJS_Vision.Diagnostics;
+using TDJS_Vision.Node._7_ResultProcessing.ImageSave;
 using TDJS_Vision.ResourceManagement;
 using TDJS_Vision.Startup;
 
@@ -56,6 +57,31 @@ namespace TDJS_Vision
         /// 方案运行取消源，通过它控制方案的停止
         /// </summary>
         private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+
+        /// <summary>保护全方案共享保存工作池创建、重配与停止的一致性锁。</summary>
+        private readonly object _imageSaveQueueSync = new object();
+
+        /// <summary>全方案共享的有界图像保存工作池。</summary>
+        private ImageQueueProcessor _imageSaveQueueProcessor;
+
+        /// <summary>保护方案运行会话开始、结束与重置之间的状态一致性。</summary>
+        private readonly object _runLifecycleSync = new object();
+
+        /// <summary>全部方案运行会话退出时保持有信号。</summary>
+        private readonly ManualResetEventSlim _allRunsStopped = new ManualResetEventSlim(true);
+
+        /// <summary>当前尚未退出的方案运行会话数量。</summary>
+        private int _activeRunSessionCount;
+
+        /// <summary>方案重置期间禁止启动新的运行会话。</summary>
+        private bool _isResetting;
+
+        /// <summary>串行化方案重置以及“重置后恢复新方案”的完整变更过程。</summary>
+        private readonly object _solutionMutationSync = new object();
+
+        /// <summary>当前方案保存任务完整图像资源字节数的滚动采样器。</summary>
+        private IImageResourceSizeSampler _imageSaveSizeSampler =
+            new RollingImageResourceSizeSampler(RollingImageResourceSizeSampler.DefaultCapacity);
 
         #endregion
 
@@ -184,7 +210,14 @@ namespace TDJS_Vision
         /// <summary>
         /// 方案运行取消令牌，嵌入到流程和节点中，实现对它们的控制
         /// </summary>
-        public CancellationToken CancellationToken => _cancellationTokenSource.Token;
+        public CancellationToken CancellationToken
+        {
+            get
+            {
+                lock (_runLifecycleSync)
+                    return _cancellationTokenSource.Token;
+            }
+        }
 
         /// <summary>
         /// 流程运行完更新流程界面和主界面的运行按钮Enable
@@ -239,6 +272,7 @@ namespace TDJS_Vision
             node.ReleaseResultResources();
             ReleaseAiNodeModel(node);
             DisposeNodeParamForm(node);
+            DisposeNodeControl(node);
         }
 
         /// <summary>
@@ -376,22 +410,25 @@ namespace TDJS_Vision
             if (AllProcesses == null || AllProcesses.Count == 0)
                 return;
 
-            string validationMessage;
-            if (!TryValidateCameraConfiguration(AllProcesses, out validationMessage))
+            if (!TryBeginRunSession())
             {
-                LogHelper.AddLog(MsgLevel.Exception, validationMessage, true);
+                LogHelper.AddLog(MsgLevel.Warn, "方案正在重置，已拒绝启动新的运行任务。", true);
                 return;
             }
 
-            RefreshRuntimeResourceProfile();
-
-            IsRunning = true;
-            Solution.Instance.ResetTokenSource();
-            var _cts = CancellationTokenSource.CreateLinkedTokenSource(Solution.Instance.CancellationToken);
+            CancellationTokenSource _cts = null;
             List<ICamera> startedCallbackCameras = new List<ICamera>();
 
             try
             {
+                string validationMessage;
+                if (!TryValidateCameraConfiguration(AllProcesses, out validationMessage))
+                {
+                    LogHelper.AddLog(MsgLevel.Exception, validationMessage, true);
+                    return;
+                }
+
+                _cts = CancellationTokenSource.CreateLinkedTokenSource(Solution.Instance.CancellationToken);
                 startedCallbackCameras = StartCameraCallbackGrabbingForProcesses(AllProcesses);
                 var groupTasks = new List<Task>();
 
@@ -501,7 +538,8 @@ namespace TDJS_Vision
             finally
             {
                 StopStartedCameraCallbackGrabbing(startedCallbackCameras);
-                IsRunning = false;
+                _cts?.Dispose();
+                EndRunSession();
             }
         }
 
@@ -682,12 +720,14 @@ namespace TDJS_Vision
             if (AllProcesses == null || AllProcesses.Count == 0)
                 return;
 
-            IsRunning = true;
-            Solution.Instance.ResetTokenSource();
-            var _cts = CancellationTokenSource.CreateLinkedTokenSource(Solution.Instance.CancellationToken);
+            if (!TryBeginRunSession())
+                return;
+
+            CancellationTokenSource _cts = null;
 
             try
             {
+                _cts = CancellationTokenSource.CreateLinkedTokenSource(Solution.Instance.CancellationToken);
                 await Task.Run(() =>
                 {
                     while (!_cts.IsCancellationRequested) { }
@@ -703,17 +743,211 @@ namespace TDJS_Vision
             }
             finally
             {
-                IsRunning = false;
+                _cts?.Dispose();
+                EndRunSession();
             }
         }
 
         /// <summary>
-        /// 方案运行停止
+        /// 尝试登记一个方案运行会话，重置期间拒绝新会话。
+        /// </summary>
+        /// <returns>成功登记返回true。</returns>
+        private bool TryBeginRunSession()
+        {
+            bool isFirstSession;
+            return TryBeginRunSession(out isFirstSession);
+        }
+
+        /// <summary>
+        /// 尝试登记方案运行会话，并原子返回当前会话是否为第一条活动会话。
+        /// </summary>
+        /// <param name="isFirstSession">登记成功且此前没有活动会话时返回true。</param>
+        /// <returns>成功登记返回true。</returns>
+        private bool TryBeginRunSession(out bool isFirstSession)
+        {
+            CancellationTokenSource retiredTokenSource = null;
+            isFirstSession = false;
+            lock (_runLifecycleSync)
+            {
+                if (_isResetting)
+                    return false;
+
+                isFirstSession = _activeRunSessionCount == 0;
+                if (_activeRunSessionCount == 0 && _cancellationTokenSource.IsCancellationRequested)
+                {
+                    retiredTokenSource = _cancellationTokenSource;
+                    _cancellationTokenSource = new CancellationTokenSource();
+                }
+                _activeRunSessionCount++;
+                _allRunsStopped.Reset();
+                IsRunning = true;
+
+                // 所有运行入口共用首会话初始化；刷新完成前生命周期锁阻止第二条会话登记。
+                if (isFirstSession)
+                    RefreshRuntimeResourceProfile();
+            }
+
+            retiredTokenSource?.Dispose();
+            return true;
+        }
+
+        /// <summary>
+        /// 结束一个方案运行会话，并在最后一个会话退出时通知重置线程。
+        /// </summary>
+        private void EndRunSession()
+        {
+            lock (_runLifecycleSync)
+            {
+                if (_activeRunSessionCount > 0)
+                    _activeRunSessionCount--;
+                if (_activeRunSessionCount != 0)
+                    return;
+
+                IsRunning = false;
+                _allRunsStopped.Set();
+            }
+        }
+
+        /// <summary>
+        /// 为手动流程运行、脚本运行和参数页预览登记统一运行会话。
+        /// </summary>
+        /// <returns>当前不处于方案重置阶段时返回true。</returns>
+        internal bool TryBeginExternalRunSession()
+        {
+            bool isFirstSession;
+            return TryBeginRunSession(out isFirstSession);
+        }
+
+        /// <summary>
+        /// 结束手动流程运行、脚本运行或参数页预览登记的运行会话。
+        /// </summary>
+        internal void EndExternalRunSession()
+        {
+            EndRunSession();
+        }
+
+        /// <summary>
+        /// 进入独占方案变更作用域，供加载逻辑覆盖从旧方案清理到新方案恢复的完整过程。
+        /// </summary>
+        /// <returns>释放时退出方案变更锁的作用域。</returns>
+        internal IDisposable EnterSolutionMutationScope()
+        {
+            return new SolutionMutationScope(_solutionMutationSync);
+        }
+
+        /// <summary>
+        /// 在方案文件读取前关闭运行入口，使门禁覆盖读取、旧方案清理和新方案恢复全过程。
+        /// </summary>
+        /// <returns>本次调用前运行入口处于开放状态时返回true。</returns>
+        internal bool BeginSolutionLoadRunGate()
+        {
+            lock (_runLifecycleSync)
+            {
+                bool acquiredOpenGate = !_isResetting;
+                _isResetting = true;
+                return acquiredOpenGate;
+            }
+        }
+
+        /// <summary>
+        /// 方案读取失败但尚未清理旧方案，或新方案恢复已经结束时重新开放运行入口。
+        /// </summary>
+        internal void EndSolutionLoadRunGate()
+        {
+            EndSolutionReset();
+        }
+
+        /// <summary>
+        /// 使用可释放作用域管理Monitor，避免异常路径遗留方案变更锁。
+        /// </summary>
+        private sealed class SolutionMutationScope : IDisposable
+        {
+            /// <summary>当前作用域持有的同步对象；释放后原子置空。</summary>
+            private object _syncRoot;
+
+            /// <summary>
+            /// 进入指定方案变更锁。
+            /// </summary>
+            /// <param name="syncRoot">方案变更同步对象。</param>
+            public SolutionMutationScope(object syncRoot)
+            {
+                _syncRoot = syncRoot ?? throw new ArgumentNullException(nameof(syncRoot));
+                Monitor.Enter(_syncRoot);
+            }
+
+            /// <summary>退出当前作用域持有的方案变更锁；重复调用安全。</summary>
+            public void Dispose()
+            {
+                object syncRoot = Interlocked.Exchange(ref _syncRoot, null);
+                if (syncRoot != null)
+                    Monitor.Exit(syncRoot);
+            }
+        }
+
+        /// <summary>
+        /// 禁止新运行会话、取消当前流程，并等待全部运行线程退出。
+        /// </summary>
+        /// <param name="timeoutMilliseconds">最长等待毫秒数。</param>
+        /// <returns>全部运行会话已经退出返回true。</returns>
+        private bool TryStopRunsForReset(int timeoutMilliseconds)
+        {
+            CancellationTokenSource tokenSource;
+            lock (_runLifecycleSync)
+            {
+                _isResetting = true;
+                if (_activeRunSessionCount == 0)
+                    _allRunsStopped.Set();
+                tokenSource = _cancellationTokenSource;
+            }
+
+            CancelTokenSourceNoThrow(tokenSource, "方案重置");
+            return _allRunsStopped.Wait(Math.Max(0, timeoutMilliseconds));
+        }
+
+        /// <summary>
+        /// 结束方案重置状态，允许后续启动新运行会话。
+        /// </summary>
+        private void EndSolutionReset()
+        {
+            lock (_runLifecycleSync)
+                _isResetting = false;
+        }
+
+        /// <summary>
+        /// 请求取消指定令牌源，并隔离第三方取消回调异常，避免停止或重置流程被回调打断。
+        /// </summary>
+        /// <param name="tokenSource">需要取消的令牌源。</param>
+        /// <param name="stage">用于日志定位的停止阶段。</param>
+        private static void CancelTokenSourceNoThrow(CancellationTokenSource tokenSource, string stage)
+        {
+            if (tokenSource == null || tokenSource.IsCancellationRequested)
+                return;
+
+            try
+            {
+                tokenSource.Cancel();
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    LogHelper.AddLog(MsgLevel.Exception, $"{stage}触发取消回调时出现异常：{ex.Message}", true);
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        /// <summary>
+        /// 方案运行停止；IsRunning会在真实运行任务退出后由运行会话统一更新。
         /// </summary>
         public void Stop()
         {
-            _cancellationTokenSource.Cancel();
-            IsRunning = false;
+            CancellationTokenSource tokenSource;
+            lock (_runLifecycleSync)
+                tokenSource = _cancellationTokenSource;
+            CancelTokenSourceNoThrow(tokenSource, "方案停止");
         }
 
         /// <summary>
@@ -766,6 +1000,192 @@ namespace TDJS_Vision
         }
 
         /// <summary>
+        /// 释放节点控件自身资源，使保存节点等派生节点能够停止专属后台状态。
+        /// </summary>
+        /// <param name="node">需要释放的节点控件。</param>
+        private void DisposeNodeControl(NodeBase node)
+        {
+            try
+            {
+                node.Dispose();
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, $"释放节点({node.ID}.{node.NodeName})控件资源失败：{ex.Message}", true);
+            }
+        }
+
+        /// <summary>
+        /// 获取或创建全方案共享的图像保存工作池。
+        /// </summary>
+        /// <returns>已经按当前资源档案启动的保存工作池。</returns>
+        internal ImageQueueProcessor GetOrCreateImageSaveQueueProcessor()
+        {
+            lock (_imageSaveQueueSync)
+            {
+                if (_imageSaveQueueProcessor != null)
+                {
+                    if (!_imageSaveQueueProcessor.IsStopped)
+                        return _imageSaveQueueProcessor;
+
+                    if (!_imageSaveQueueProcessor.IsFullyStopped)
+                    {
+                        throw new InvalidOperationException(
+                            "上一保存工作池仍在停止中，禁止创建重叠工作池。请等待当前保存任务退出后重试。");
+                    }
+
+                    _imageSaveQueueProcessor.StopProcessing();
+                    _imageSaveQueueProcessor = null;
+                }
+
+                _imageSaveQueueProcessor = CreateImageSaveQueueProcessor(CurrentResourceProfile);
+                _imageSaveQueueProcessor.StartProcessing();
+                return _imageSaveQueueProcessor;
+            }
+        }
+
+        /// <summary>
+        /// 取消指定保存节点仍在共享队列中等待的任务。
+        /// </summary>
+        /// <param name="ownerKey">保存节点唯一标识。</param>
+        /// <returns>取消并释放的等待任务数量。</returns>
+        internal int CancelPendingImageSaveTasks(string ownerKey)
+        {
+            ImageQueueProcessor processor;
+            lock (_imageSaveQueueSync)
+                processor = _imageSaveQueueProcessor;
+
+            return processor?.CancelOwner(ownerKey) ?? 0;
+        }
+
+        /// <summary>
+        /// 记录保存任务将持有的完整图像资源字节数，供后续运行自动计算队列容量。
+        /// </summary>
+        /// <param name="estimatedBytes">完整OutputImage租约的估算字节数。</param>
+        internal void RecordImageSaveResourceSample(long estimatedBytes)
+        {
+            _imageSaveSizeSampler.Record(estimatedBytes);
+        }
+
+        /// <summary>
+        /// 使用当前资源档案重配空闲保存工作池；存在活动任务时保持原边界直至下一次重置。
+        /// </summary>
+        /// <param name="profile">最新自动资源档案。</param>
+        private void ReconfigureIdleImageSaveQueueProcessor(AutomaticResourceProfile profile)
+        {
+            lock (_runLifecycleSync)
+            {
+                // 仅允许当前唯一、尚未开始节点执行的方案会话重配，避免并发手动流程拿到即将停止的旧池。
+                if (_isResetting || _activeRunSessionCount != 1)
+                    return;
+
+                lock (_imageSaveQueueSync)
+                {
+                    if (_imageSaveQueueProcessor == null)
+                        return;
+
+                    int workerCount = GetImageSaveWorkerCount(profile);
+                    int capacity = GetImageSaveQueueCapacity(profile);
+                    long memoryBudgetBytes = GetImageSaveQueueMemoryBudgetBytes(profile);
+                    if (_imageSaveQueueProcessor.ConfigurationMatches(workerCount, capacity, memoryBudgetBytes))
+                        return;
+
+                    if (!_imageSaveQueueProcessor.IsIdle)
+                    {
+                        LogHelper.AddLog(
+                            MsgLevel.Warn,
+                            "保存工作池仍有待处理任务，本轮继续沿用原资源边界；方案重置后应用最新档案。",
+                            true);
+                        return;
+                    }
+
+                    if (!_imageSaveQueueProcessor.StopProcessing() || !_imageSaveQueueProcessor.IsFullyStopped)
+                    {
+                        LogHelper.AddLog(
+                            MsgLevel.Warn,
+                            "保存工作池在资源重配期限内未完全退出，本轮保留旧工作池并拒绝创建重叠工作池。",
+                            true);
+                        return;
+                    }
+
+                    _imageSaveQueueProcessor = CreateImageSaveQueueProcessor(profile);
+                    _imageSaveQueueProcessor.StartProcessing();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 停止并清空全方案共享保存工作池。
+        /// </summary>
+        private bool StopImageSaveQueueProcessor()
+        {
+            ImageQueueProcessor processor;
+            lock (_imageSaveQueueSync)
+                processor = _imageSaveQueueProcessor;
+
+            if (processor == null)
+                return true;
+
+            bool stopped = processor.StopProcessing() && processor.IsFullyStopped;
+            if (!stopped)
+                return false;
+
+            lock (_imageSaveQueueSync)
+            {
+                if (ReferenceEquals(_imageSaveQueueProcessor, processor))
+                    _imageSaveQueueProcessor = null;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 根据自动资源档案创建尚未启动的保存工作池。
+        /// </summary>
+        /// <param name="profile">自动资源档案；为空时使用保守值。</param>
+        /// <returns>尚未启动的保存工作池。</returns>
+        private static ImageQueueProcessor CreateImageSaveQueueProcessor(AutomaticResourceProfile profile)
+        {
+            return new ImageQueueProcessor(
+                GetImageSaveWorkerCount(profile),
+                GetImageSaveQueueCapacity(profile),
+                GetImageSaveQueueMemoryBudgetBytes(profile),
+                Math.Max(0, Math.Min(60000, profile?.ShutdownResourceDrainTimeoutMs ?? 5000)),
+                "全方案共享");
+        }
+
+        /// <summary>
+        /// 取得自动档案中的保存工作线程数量。
+        /// </summary>
+        /// <param name="profile">自动资源档案。</param>
+        /// <returns>至少为1的保存线程数。</returns>
+        private static int GetImageSaveWorkerCount(AutomaticResourceProfile profile)
+        {
+            return Math.Max(1, profile?.ImageSaveWorkerCount ?? 1);
+        }
+
+        /// <summary>
+        /// 取得自动档案中的保存队列任务容量。
+        /// </summary>
+        /// <param name="profile">自动资源档案。</param>
+        /// <returns>至少为1的任务容量。</returns>
+        private static int GetImageSaveQueueCapacity(AutomaticResourceProfile profile)
+        {
+            return Math.Max(1, profile?.SaveQueueCalculatedCapacity ?? 8);
+        }
+
+        /// <summary>
+        /// 取得自动档案中的保存队列字节预算。
+        /// </summary>
+        /// <param name="profile">自动资源档案。</param>
+        /// <returns>至少为1MB的字节预算。</returns>
+        private static long GetImageSaveQueueMemoryBudgetBytes(AutomaticResourceProfile profile)
+        {
+            int budgetMb = Math.Max(1, profile?.SaveQueueMemoryBudgetMb ?? 128);
+            return (long)budgetMb * 1024L * 1024L;
+        }
+
+        /// <summary>
         /// 按当前启用流程和相机规模刷新自动资源建议；失败只告警，不阻止方案运行。
         /// </summary>
         private void RefreshRuntimeResourceProfile()
@@ -778,7 +1198,7 @@ namespace TDJS_Vision
                 {
                     EnabledProcessCount = AllProcesses == null ? 0 : AllProcesses.Count(process => process != null && process.Enable),
                     CameraCount = CameraDevices.Count + Camera3DDevices.Count,
-                    AverageImageBytes = 0
+                    AverageImageBytes = _imageSaveSizeSampler.AverageBytes
                 };
                 CurrentResourceProfile = provider.BuildProfile(workload);
                 if (CurrentResourceProfile == null)
@@ -786,6 +1206,8 @@ namespace TDJS_Vision
                     LogHelper.AddLog(MsgLevel.Warn, "自动资源档案提供器返回空结果，本次继续按现有运行策略执行。", true);
                     return;
                 }
+
+                EnsureImageResourceSizeSamplerCapacity(CurrentResourceProfile.ImageSizeSampleCount);
 
                 HardwareResourceSnapshot hardware = CurrentResourceProfile.Hardware;
                 if (hardware != null && hardware.ProbeWarnings != null)
@@ -796,14 +1218,28 @@ namespace TDJS_Vision
 
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    () => $"【资源档案】硬件={CurrentResourceProfile.Hardware?.ToLogText()}；建议={CurrentResourceProfile.ToLogText()}；说明=本轮只计算建议值，尚未修改线程池、CPU亲和性或AI并发",
+                    () => $"【资源档案】硬件={CurrentResourceProfile.Hardware?.ToLogText()}；建议={CurrentResourceProfile.ToLogText()}；说明=保存工作池应用档案边界，不修改线程池、CPU亲和性或AI并发",
                     true);
+                ReconfigureIdleImageSaveQueueProcessor(CurrentResourceProfile);
             }
             catch (Exception ex)
             {
                 CurrentResourceProfile = null;
                 LogHelper.AddLog(MsgLevel.Warn, "自动资源档案生成失败，本次继续按现有运行策略执行。原因：" + ex.Message, true);
             }
+        }
+
+        /// <summary>
+        /// 当机器级采样参数变化时替换滚动采样器；参数不变时保留当前方案已采集样本。
+        /// </summary>
+        /// <param name="capacity">新的滚动样本容量。</param>
+        private void EnsureImageResourceSizeSamplerCapacity(int capacity)
+        {
+            int normalizedCapacity = Math.Max(1, Math.Min(500, capacity));
+            if (_imageSaveSizeSampler.Capacity == normalizedCapacity)
+                return;
+
+            _imageSaveSizeSampler = new RollingImageResourceSizeSampler(normalizedCapacity);
         }
 
         /// <summary>
@@ -891,8 +1327,21 @@ namespace TDJS_Vision
         /// </summary>
         public void ResetTokenSource()
         {
-            if(_cancellationTokenSource.IsCancellationRequested)
+            CancellationTokenSource retiredTokenSource = null;
+            lock (_runLifecycleSync)
+            {
+                if (_isResetting ||
+                    _activeRunSessionCount != 0 ||
+                    !_cancellationTokenSource.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                retiredTokenSource = _cancellationTokenSource;
                 _cancellationTokenSource = new CancellationTokenSource();
+            }
+
+            retiredTokenSource.Dispose();
         }
 
 
@@ -901,72 +1350,135 @@ namespace TDJS_Vision
         /// </summary>
         public void CancelToken()
         {
-            if (_cancellationTokenSource != null && !_cancellationTokenSource.IsCancellationRequested)
-            {
-                _cancellationTokenSource.Cancel();
-            }
+            Stop();
         }
 
         #endregion
 
         /// <summary>
-        /// 重置方案
+        /// 停止当前运行和共享后台任务后重置方案。
         /// </summary>
-        public void SolReset()
+        /// <returns>全部运行与后台任务均在期限内退出并完成重置时返回true。</returns>
+        public bool SolReset()
         {
-            ReleaseAllProcessResources();
+            lock (_solutionMutationSync)
+                return SolResetCore(true);
+        }
 
+        /// <summary>
+        /// 为方案加载清理旧方案，成功后继续保持运行门禁直到新方案恢复结束。
+        /// </summary>
+        /// <returns>旧方案资源已经安全清理返回true。</returns>
+        internal bool SolResetForSolutionLoad()
+        {
+            lock (_solutionMutationSync)
+                return SolResetCore(false);
+        }
+
+        /// <summary>
+        /// 在调用方持有方案变更锁时执行真实重置过程。
+        /// </summary>
+        /// <param name="releaseRunGateOnSuccess">成功后是否立即重新开放运行入口。</param>
+        /// <returns>全部运行与后台任务均退出并完成资源清理时返回true。</returns>
+        private bool SolResetCore(bool releaseRunGateOnSuccess)
+        {
+            int drainTimeoutMilliseconds = Math.Max(
+                0,
+                Math.Min(60000, CurrentResourceProfile?.ShutdownResourceDrainTimeoutMs ?? 5000));
+            if (!TryStopRunsForReset(drainTimeoutMilliseconds))
+            {
+                LogHelper.AddLog(
+                    MsgLevel.Exception,
+                    $"方案重置等待运行流程退出超时（{drainTimeoutMilliseconds}ms），已中止资源释放并继续禁止新流程启动。",
+                    true);
+                return false;
+            }
+
+            if (!StopImageSaveQueueProcessor())
+            {
+                LogHelper.AddLog(
+                    MsgLevel.Exception,
+                    $"方案重置等待图像保存工作池退出超时（{drainTimeoutMilliseconds}ms），已中止资源释放并保留原工作池。",
+                    true);
+                return false;
+            }
+
+            bool resetCompleted = false;
             try
             {
-                // 释放旧方案的硬件资源（光源、相机、PLC、Modbus、TCP）
-                foreach (var dev in Solution.Instance.AllDevices)
+                try
                 {
-                    if (dev is ILight light)
-                        light.Disconnect();
-                    if (dev is I3DCamera camera3D)
-                        camera3D.Dispose();
-                    if (dev is ICamera camera)
-                        camera.Dispose();
-                    if (dev is IPlc plc)
-                        plc.Disconnect();
-                    if (dev is IModbus modbus)
-                        modbus.Disconnect();
-                    if (dev is ITcpDevice tcpDev)
-                        tcpDev.Disconnect();
-                    if (dev is ComDevice com)
-                        com.Close();
+                    ReleaseAllProcessResources();
+
+                    // 释放旧方案的硬件资源（光源、相机、PLC、Modbus、TCP）
+                    foreach (var dev in Solution.Instance.AllDevices)
+                    {
+                        if (dev is ILight light)
+                            light.Disconnect();
+                        if (dev is I3DCamera camera3D)
+                            camera3D.Dispose();
+                        if (dev is ICamera camera)
+                            camera.Dispose();
+                        if (dev is IPlc plc)
+                            plc.Disconnect();
+                        if (dev is IModbus modbus)
+                            modbus.Disconnect();
+                        if (dev is ITcpDevice tcpDev)
+                            tcpDev.Disconnect();
+                        if (dev is ComDevice com)
+                            com.Close();
+                    }
                 }
+                catch (Exception ex)
+                {
+                    LogHelper.AddLog(MsgLevel.Exception, ex.Message, true);
+                }
+
+                // 清空设备
+                SingleLight.SingleLights.Clear();
+                SingleCamera.SingleCameraList.Clear();
+                SingleCamera3D.SingleCamera3DList.Clear();
+                SinglePLC.SinglePLCs.Clear();
+                SingleModbus.SingleModbuss.Clear();
+                SingleTcp.SingleTCPs.Clear();
+                SingleCOM.SingleComs.Clear();
+                Solution.Instance.AllDevices.Clear();
+
+                // 释放AI节点的模型句柄
+                ModelHandleManager.DestroyAllModel();
+
+                // 清空方案共享变量、流程信号
+                Solution.Instance.SharedVariable.ClearAll();
+                Solution.Instance.ProcessSignalDic.Clear();
+                _imageSaveSizeSampler.Reset();
+
+                // 清空流程和节点
+                Solution.Instance.ProcessCount = 0;
+                Solution.Instance.AllProcesses.Clear();
+                Solution.Instance.NodeCount = 0;
+                Solution.Instance.Nodes.Clear();
+
+                // 发送清除结果窗口事件
+                RemoveResultData?.Invoke(this, new EventArgs());
+                resetCompleted = true;
+                return true;
             }
             catch (Exception ex)
             {
-                LogHelper.AddLog(MsgLevel.Exception, ex.Message, true);
+                try
+                {
+                    LogHelper.AddLog(MsgLevel.Exception, $"方案资源重置失败：{ex.Message}", true);
+                }
+                catch
+                {
+                }
+                return false;
             }
-
-            // 清空设备
-            SingleLight.SingleLights.Clear();
-            SingleCamera.SingleCameraList.Clear();
-            SingleCamera3D.SingleCamera3DList.Clear();
-            SinglePLC.SinglePLCs.Clear();
-            SingleModbus.SingleModbuss.Clear();
-            SingleTcp.SingleTCPs.Clear();
-            SingleCOM.SingleComs.Clear();
-            Solution.Instance.AllDevices.Clear();
-
-            // 释放AI节点的模型句柄
-            ModelHandleManager.DestroyAllModel();
-
-            // 清空方案共享变量、流程信号
-            Solution.Instance.SharedVariable.ClearAll();
-            Solution.Instance.ProcessSignalDic.Clear();
-
-            // 清空流程和节点
-            Solution.Instance.ProcessCount = 0;
-            Solution.Instance.AllProcesses.Clear();
-            Solution.Instance.NodeCount = 0;
-            Solution.Instance.Nodes.Clear();
-
-            // 发送清除结果窗口事件
-            RemoveResultData?.Invoke(this, new EventArgs());
+            finally
+            {
+                if (resetCompleted && releaseRunGateOnSuccess)
+                    EndSolutionReset();
+            }
         }
 
         #endregion

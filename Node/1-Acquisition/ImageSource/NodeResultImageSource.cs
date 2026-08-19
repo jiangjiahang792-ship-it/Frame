@@ -325,6 +325,82 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         }
 
         /// <summary>
+        /// 估算当前输出租约会固定在内存中的全部Mat字节数，包括灰度图、多图输出和父级依赖链。
+        /// </summary>
+        /// <returns>按Mat实际行跨度去重累计的估算字节数。</returns>
+        public long EstimateRetainedImageBytes()
+        {
+            HashSet<OutputImage> visitedOutputs = new HashSet<OutputImage>(OutputImageReferenceComparer.Instance);
+            HashSet<Mat> visitedImages = new HashSet<Mat>(MatReferenceComparer.Instance);
+            return CollectRetainedImageBytes(this, visitedOutputs, visitedImages);
+        }
+
+        /// <summary>
+        /// 递归收集当前输出及父级依赖链中的Mat，并按托管引用去重。
+        /// </summary>
+        /// <param name="output">当前需要统计的输出对象。</param>
+        /// <param name="visitedOutputs">已经统计过的输出对象集合。</param>
+        /// <param name="visitedImages">已经统计过的Mat集合。</param>
+        /// <returns>当前分支新增的估算字节数。</returns>
+        private static long CollectRetainedImageBytes(
+            OutputImage output,
+            HashSet<OutputImage> visitedOutputs,
+            HashSet<Mat> visitedImages)
+        {
+            if (output == null || !visitedOutputs.Add(output))
+                return 0L;
+
+            List<Mat> images = new List<Mat>();
+            List<OutputImage> dependencies = new List<OutputImage>();
+            lock (output._resourceLock)
+            {
+                images.AddRange(output._ownedImages);
+                images.Add(output.SrcImg);
+                images.Add(output.GrayImg);
+                if (output.Bitmaps != null)
+                    images.AddRange(output.Bitmaps);
+
+                foreach (IImageResourceLease dependency in output._ownedDependencies)
+                {
+                    OutputImage dependencyImage = dependency?.Image;
+                    if (dependencyImage != null)
+                        dependencies.Add(dependencyImage);
+                }
+            }
+
+            long totalBytes = 0L;
+            foreach (Mat image in images)
+            {
+                if (!HasValidImage(image) || !visitedImages.Add(image))
+                    continue;
+
+                long imageBytes;
+                try
+                {
+                    imageBytes = Math.Max(1L, checked((long)image.Rows * (long)image.Step()));
+                }
+                catch (OverflowException)
+                {
+                    return long.MaxValue;
+                }
+
+                if (imageBytes > long.MaxValue - totalBytes)
+                    return long.MaxValue;
+                totalBytes += imageBytes;
+            }
+
+            foreach (OutputImage dependency in dependencies)
+            {
+                long dependencyBytes = CollectRetainedImageBytes(dependency, visitedOutputs, visitedImages);
+                if (dependencyBytes > long.MaxValue - totalBytes)
+                    return long.MaxValue;
+                totalBytes += dependencyBytes;
+            }
+
+            return totalBytes;
+        }
+
+        /// <summary>
         /// 请求释放当前输出拥有的资源；存在租约时延迟到最后一个租约释放。
         /// </summary>
         public void Dispose()
@@ -518,6 +594,36 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             /// 获取Mat包装对象的引用哈希值。
             /// </summary>
             public int GetHashCode(Mat obj)
+            {
+                return obj == null ? 0 : RuntimeHelpers.GetHashCode(obj);
+            }
+        }
+
+        /// <summary>
+        /// 输出图像引用比较器，避免父级依赖链出现共享节点时重复统计。
+        /// </summary>
+        private sealed class OutputImageReferenceComparer : IEqualityComparer<OutputImage>
+        {
+            /// <summary>输出图像引用比较器单例。</summary>
+            public static readonly OutputImageReferenceComparer Instance = new OutputImageReferenceComparer();
+
+            /// <summary>
+            /// 判断两个输出对象是否为同一个托管实例。
+            /// </summary>
+            /// <param name="x">第一个输出对象。</param>
+            /// <param name="y">第二个输出对象。</param>
+            /// <returns>两个参数引用相同时返回true。</returns>
+            public bool Equals(OutputImage x, OutputImage y)
+            {
+                return ReferenceEquals(x, y);
+            }
+
+            /// <summary>
+            /// 获取输出对象的引用哈希值。
+            /// </summary>
+            /// <param name="obj">输出对象。</param>
+            /// <returns>引用哈希值。</returns>
+            public int GetHashCode(OutputImage obj)
             {
                 return obj == null ? 0 : RuntimeHelpers.GetHashCode(obj);
             }

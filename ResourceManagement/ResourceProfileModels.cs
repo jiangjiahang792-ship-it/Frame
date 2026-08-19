@@ -165,6 +165,12 @@ namespace TDJS_Vision.ResourceManagement
 
         /// <summary>每个图像窗口允许的最大显示帧率。</summary>
         public int UiMaxRefreshFps { get; set; } = PerWindowUiFrameRateLimiter.DefaultMaximumFramesPerSecond;
+
+        /// <summary>停止后台工作池时等待活动资源任务退出的最长毫秒数。</summary>
+        public int ShutdownResourceDrainTimeoutMs { get; set; } = 5000;
+
+        /// <summary>保存任务完整图像资源字节数的滚动采样数量。</summary>
+        public int ImageSizeSampleCount { get; set; } = RollingImageResourceSizeSampler.DefaultCapacity;
     }
 
     /// <summary>
@@ -217,6 +223,12 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>当前是否因为没有图像采样而使用初始保存队列容量。</summary>
         public bool UsesInitialSaveQueueCapacity { get; set; }
 
+        /// <summary>停止后台工作池时等待活动资源任务退出的最长毫秒数。</summary>
+        public int ShutdownResourceDrainTimeoutMs { get; set; }
+
+        /// <summary>保存任务完整图像资源字节数的滚动采样数量。</summary>
+        public int ImageSizeSampleCount { get; set; }
+
         /// <summary>
         /// 生成现场可检索的自动资源建议摘要。
         /// </summary>
@@ -224,7 +236,7 @@ namespace TDJS_Vision.ResourceManagement
         public string ToLogText()
         {
             ResourceWorkloadSnapshot workload = Workload ?? new ResourceWorkloadSnapshot();
-            return $"启用流程={workload.EnabledProcessCount}；相机={workload.CameraCount}；平均图像={workload.AverageImageBytes}字节；CPU保留核心={CpuReserveCoreCount}；CPU重任务并发={CpuHeavyMaxConcurrency}；图像转换并发={ImageConvertMaxConcurrency}；保存线程={ImageSaveWorkerCount}；流程图像预算={FlowImageMemoryBudgetMb}MB；保存队列预算={SaveQueueMemoryBudgetMb}MB；内存低水位={MemoryLowWatermarkMb}MB；严重水位={MemoryCriticalWatermarkMb}MB；保存队列容量={SaveQueueCalculatedCapacity}；UI最大帧率={UiMaxRefreshFps}；使用初始容量={UsesInitialSaveQueueCapacity}；AI策略={AiConcurrencyPolicy}";
+            return $"启用流程={workload.EnabledProcessCount}；相机={workload.CameraCount}；平均图像={workload.AverageImageBytes}字节；图像样本={ImageSizeSampleCount}；CPU保留核心={CpuReserveCoreCount}；CPU重任务并发={CpuHeavyMaxConcurrency}；图像转换并发={ImageConvertMaxConcurrency}；保存线程={ImageSaveWorkerCount}；流程图像预算={FlowImageMemoryBudgetMb}MB；保存队列预算={SaveQueueMemoryBudgetMb}MB；内存低水位={MemoryLowWatermarkMb}MB；严重水位={MemoryCriticalWatermarkMb}MB；保存队列容量={SaveQueueCalculatedCapacity}；UI最大帧率={UiMaxRefreshFps}；停止等待={ShutdownResourceDrainTimeoutMs}ms；使用初始容量={UsesInitialSaveQueueCapacity}；AI策略={AiConcurrencyPolicy}";
         }
     }
 }

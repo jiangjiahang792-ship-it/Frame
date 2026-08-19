@@ -701,6 +701,15 @@ namespace TDJS_Vision.Node
 
             // 移除的节点如果包含了加载的检测项也需要从静态全局检测项中移除
             TDAI.DetectItemMap.Remove($"{this.ID}.{this.NodeName}");
+            try
+            {
+                (ParamForm as IDisposable)?.Dispose();
+            }
+            finally
+            {
+                // 参数窗体释放失败时也必须释放节点控件及其后台资源。
+                Dispose();
+            }
             return true;
         }
 

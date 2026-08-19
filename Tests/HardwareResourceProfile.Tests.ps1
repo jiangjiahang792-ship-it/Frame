@@ -57,8 +57,9 @@ Assert-Contains $provider 'HardwareResourceSnapshot.CreateFallback' '硬件探�
 Assert-Contains $calculator 'AiConcurrencyPolicy = "FollowEditableFlow"' '自动资源档案不能增加全局AI并发限制。'
 Assert-Contains $calculator 'UiMaxRefreshFps = Clamp(' 'UI最大刷新帧率必须经过安全范围限制。'
 Assert-Contains $solution 'RefreshRuntimeResourceProfile();' '方案运行前必须刷新资源建议档案。'
-Assert-Contains $solution 'AverageImageBytes = 0' '尚未采样图像时必须明确使用初始保存队列容量。'
-Assert-Contains $solution '尚未修改线程池、CPU亲和性或AI并发' '步骤3不能提前改变运行策略。'
+Assert-Contains $solution 'AverageImageBytes = _imageSaveSizeSampler.AverageBytes' '运行资源档案必须读取真实滚动图像字节样本。'
+Assert-Contains $solution '_imageSaveSizeSampler.Reset();' '切换方案时必须清空旧方案图像大小样本。'
+Assert-Contains $solution '不修改线程池、CPU亲和性或AI并发' '保存工作池接入后仍不能修改线程池、CPU亲和性或AI并发。'
 Assert-Contains $project '<Compile Include="ResourceManagement\ResourceProfileCalculator.cs" />' '项目必须编译资源档案计算器。'
 Assert-NotContains $solution 'ThreadPool.Set' '步骤3不能修改全局线程池。'
 Assert-NotContains $probe 'ProcessorAffinity =' '步骤3只能读取CPU亲和性，不能修改CPU亲和性。'
@@ -116,6 +117,8 @@ Assert-Equal $standard.SaveQueueMemoryBudgetMb 512 '保存队列预算应受512M
 Assert-Equal $standard.SaveQueueCalculatedCapacity 42 '12MB平均任务对应512MB预算时队列容量应为42。'
 Assert-Equal $standard.AiConcurrencyPolicy 'FollowEditableFlow' 'AI策略必须跟随可编辑流程。'
 Assert-Equal $standard.UiMaxRefreshFps 30 '每个图像窗口默认最大刷新帧率应为30。'
+Assert-Equal $standard.ShutdownResourceDrainTimeoutMs 5000 '后台资源停止排空默认必须等待5000ms。'
+Assert-Equal $standard.ImageSizeSampleCount 20 '图像资源滚动采样默认必须保留20个样本。'
 
 $small = New-Profile 2 2 2 4096 1024 4 4 (50MB)
 Assert-Equal $small.CpuReserveCoreCount 1 '双核电脑最多只能保留1个核心。'

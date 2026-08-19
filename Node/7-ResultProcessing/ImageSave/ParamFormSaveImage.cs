@@ -220,12 +220,22 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             if (!isIndexed)
                 return source;
 
-            Bitmap drawable = new Bitmap(source.Width, source.Height, PixelFormat.Format24bppRgb);
-            using (Graphics graphics = Graphics.FromImage(drawable))
-                graphics.DrawImage(source, 0, 0, source.Width, source.Height);
+            Bitmap drawable = null;
+            try
+            {
+                drawable = new Bitmap(source.Width, source.Height, PixelFormat.Format24bppRgb);
+                using (Graphics graphics = Graphics.FromImage(drawable))
+                    graphics.DrawImage(source, 0, 0, source.Width, source.Height);
 
-            source.Dispose();
-            return drawable;
+                source.Dispose();
+                Bitmap result = drawable;
+                drawable = null;
+                return result;
+            }
+            finally
+            {
+                drawable?.Dispose();
+            }
         }
 
         /// <summary>

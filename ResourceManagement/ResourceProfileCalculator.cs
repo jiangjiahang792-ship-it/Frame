@@ -90,6 +90,8 @@ namespace TDJS_Vision.ResourceManagement
                     options.UiMaxRefreshFps,
                     PerWindowUiFrameRateLimiter.MinimumFramesPerSecond,
                     PerWindowUiFrameRateLimiter.MaximumFramesPerSecond),
+                ShutdownResourceDrainTimeoutMs = Clamp(options.ShutdownResourceDrainTimeoutMs, 0, 60000),
+                ImageSizeSampleCount = Clamp(options.ImageSizeSampleCount, 1, 500),
                 UsesInitialSaveQueueCapacity = useInitialQueueCapacity,
                 AiConcurrencyPolicy = "FollowEditableFlow"
             };

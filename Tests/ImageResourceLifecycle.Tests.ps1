@@ -68,9 +68,12 @@ Assert-Contains $splitNode '.TakeOwnership(imgs)' '分割节点必须拥有自�
 Assert-Contains $splitNode '.TakeOwnership(firstGraySplit)' '分割节点必须拥有自产灰度缓存。'
 Assert-Contains $splitNode '.TakeDependency(inputImage)' '分割节点必须把借用源图的租约传回上游。'
 Assert-Contains $rotateNode 'TakeOwnership(rotatedImage)' '旋转节点必须在创建彩图后立即登记所有权。'
-Assert-Contains $saveNode 'IImageResourceLease imageLease = outputImage.AcquireLease();' '保存任务入队前必须取得图像租约。'
-Assert-Contains $saveNode 'saveImagedata.Dispose();' '保存后台完成或异常后必须释放任务租约。'
-Assert-Contains $saveNode 'pendingTask.Dispose();' '保存队列停止排空时必须释放待处理任务租约。'
+Assert-Contains $saveNode 'outputImage.EstimateRetainedImageBytes()' '保存任务必须按完整图像依赖链估算排队字节。'
+Assert-Contains $saveNode 'IImageResourceLease candidateLease = outputImage.AcquireLease();' '保存节点读取源图和估算资源前必须持有短候选租约。'
+Assert-Contains $saveNode 'candidateLease = null;' '队列确认接收后必须把候选租约所有权转交保存任务。'
+Assert-Contains $saveNode 'candidateLease?.Dispose();' '队列拒绝或任务构造失败时必须立即释放候选租约。'
+Assert-Contains $saveNode 'DisposeSaveTaskNoThrow(saveImagedata, "保存工作任务")' '保存后台完成或异常后必须隔离异常并释放任务租约。'
+Assert-Contains $saveNode '_imageQueue.CompleteAndDisposePending();' '保存队列停止超时后必须释放全部待处理任务租约。'
 Assert-Contains $batteryEarNode 'pendingOutputImage.TakeOwnership(generatedImage);' '电池耳节点必须接管自产结果图。'
 Assert-Contains $batteryEarNode 'Result = nodeResult;' '电池耳节点必须发布新的完整结果对象。'
 Assert-Contains $binaryAnalysisNode 'pendingOutputImage.TakeOwnership(outputMat);' '二值分析节点必须接管Bitmap转出的Mat。'
@@ -136,9 +139,13 @@ namespace OpenCvSharp
         public Mat()
         {
             ChannelCount = 3;
+            Rows = 10;
+            StepBytes = 30;
         }
 
         public int ChannelCount { get; set; }
+        public int Rows { get; set; }
+        public long StepBytes { get; set; }
         public bool IsEmpty { get; set; }
         public int DisposeCount { get; private set; }
 
@@ -150,6 +157,11 @@ namespace OpenCvSharp
         public int Channels()
         {
             return ChannelCount;
+        }
+
+        public long Step()
+        {
+            return StepBytes;
         }
 
         public void Dispose()
@@ -166,6 +178,8 @@ namespace OpenCvSharp
                 throw new ArgumentNullException();
 
             destination.ChannelCount = 1;
+            destination.Rows = source.Rows;
+            destination.StepBytes = Math.Max(1, source.StepBytes / Math.Max(1, source.ChannelCount));
             destination.IsEmpty = false;
         }
     }
@@ -294,15 +308,34 @@ Assert-True ($borrowedColor.DisposeCount -eq 0 -and $localGray.DisposeCount -eq 
 
 $parentMat = New-Object OpenCvSharp.Mat
 $parentMat.ChannelCount = 1
+$parentMat.Rows = 4
+$parentMat.StepBytes = 10
 $parentOutput = [TDJS_Vision.Node._1_Acquisition.ImageSource.OutputImage]::FromOwnedSingleImage($parentMat, $parentMat)
 $childOutput = [TDJS_Vision.Node._1_Acquisition.ImageSource.OutputImage]::FromBorrowedSingleImage($parentOutput, $parentMat, $parentMat)
 $childLease = $childOutput.AcquireLease()
 Assert-True ($parentOutput.ActiveLeaseCount -eq 1 -and $childOutput.OwnedDependencyCount -eq 1) '借用输出必须持有一份父级资源租约。'
+Assert-True ($childOutput.EstimateRetainedImageBytes() -eq 40) '完整租约字节估算必须沿父级依赖链统计，并对重复Mat引用去重。'
 $parentOutput.Dispose()
 $childOutput.Dispose()
 Assert-True ($parentMat.DisposeCount -eq 0) '下游租约未释放时，父级自产Mat不能提前释放。'
 $childLease.Dispose()
 Assert-True ($parentMat.DisposeCount -eq 1) '下游最后一个租约释放后，父级租约链必须完成回收。'
+
+$estimateParentMat = New-Object OpenCvSharp.Mat
+$estimateParentMat.ChannelCount = 1
+$estimateParentMat.Rows = 4
+$estimateParentMat.StepBytes = 10
+$estimateChildMat = New-Object OpenCvSharp.Mat
+$estimateChildMat.ChannelCount = 1
+$estimateChildMat.Rows = 3
+$estimateChildMat.StepBytes = 7
+$estimateParentOutput = [TDJS_Vision.Node._1_Acquisition.ImageSource.OutputImage]::FromOwnedSingleImage($estimateParentMat, $estimateParentMat)
+$estimateChildOutput = [TDJS_Vision.Node._1_Acquisition.ImageSource.OutputImage]::FromOwnedSingleImage($estimateChildMat, $estimateChildMat)
+$null = $estimateChildOutput.TakeDependency($estimateParentOutput)
+Assert-True ($estimateChildOutput.EstimateRetainedImageBytes() -eq 61) '字节估算必须同时包含当前输出自产Mat与父级依赖Mat。'
+$estimateParentOutput.Dispose()
+$estimateChildOutput.Dispose()
+Assert-True ($estimateParentMat.DisposeCount -eq 1 -and $estimateChildMat.DisposeCount -eq 1) '估算依赖链测试结束后上下游Mat必须各释放一次。'
 
 $managerMat = New-Object OpenCvSharp.Mat
 $managerMat.ChannelCount = 1

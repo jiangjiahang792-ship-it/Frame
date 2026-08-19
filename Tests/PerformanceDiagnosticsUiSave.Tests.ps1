@@ -61,8 +61,9 @@ Assert-Contains $singleImage 'frame.TraceContext?.GetElapsedMilliseconds(Stopwat
 Assert-NotContains $showControl 'Stopwatch queueStopwatch = Stopwatch.StartNew();' 'The display control must not allocate queue timers while Debug is off.'
 
 Assert-Contains $saveNode 'public PerformanceTraceContext TraceContext { get; set; }' 'Background save tasks must carry their flow context.'
-Assert-Contains $saveNode 'bool diagnosticEnabled = saveImagedata.TraceContext != null &' 'Save workers must gate diagnostics using the captured context and current Debug setting.'
-Assert-Contains $saveNode '? PerformanceSpikeDiagnostics.CaptureMemorySnapshot()' 'Save memory snapshots must be conditional.'
+Assert-Contains $saveNode 'diagnosticEnabled = saveImagedata.TraceContext != null &' 'Save workers must gate diagnostics using the captured context and current Debug setting.'
+Assert-Contains $saveNode 'if (diagnosticEnabled)' 'Save memory snapshots must be conditional.'
+Assert-Contains $saveNode 'beforeSaveSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();' 'Save memory snapshots must only be captured inside the Debug gate.'
 Assert-NotContains $saveNode 'string imageInfo = PerformanceSpikeDiagnostics.GetMatText(saveImagedata.SourceImage);' 'Save workers must not build image summaries while Debug is off.'
 Assert-Contains $saveForm 'MemorySnapshot beforeSnapshot = stopwatch == null' 'Manual save rendering snapshots must be Debug-gated.'
 Assert-Contains $saveForm 'if (beforeSnapshot == null || !PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug))' 'Manual save diagnostics must exit before taking the second snapshot.'

@@ -243,6 +243,8 @@
     <Compile Include="ResourceManagement\ResourceProfileCalculator.cs" />
     <Compile Include="ResourceManagement\RuntimeResourceProfileProvider.cs" />
     <Compile Include="ResourceManagement\PerWindowUiFrameRateLimiter.cs" />
+    <Compile Include="ResourceManagement\BoundedPriorityWorkQueue.cs" />
+    <Compile Include="ResourceManagement\ImageResourceSizeSampler.cs" />
     <Compile Include="DetectItemLanguage.cs" />
     <Compile Include="ExternalProgramLauncher.cs" />
     <Compile Include="Forms\Workspace\IExclusiveWorkspacePresenter.cs" />

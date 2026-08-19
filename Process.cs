@@ -88,10 +88,17 @@ namespace TDJS_Vision
         /// </summary>
         private int _runStartNGNumber;
 
+        /// <summary>跨线程可见的流程运行状态，1表示正在运行。</summary>
+        private int _isRunning;
+
         /// <summary>
-        /// 流程是否正在运行
+        /// 获取或设置流程是否正在运行；重置线程可立即观察到后台线程的状态变化。
         /// </summary>
-        public bool IsRuning { get; set; } = false;
+        public bool IsRuning
+        {
+            get { return Volatile.Read(ref _isRunning) == 1; }
+            set { Volatile.Write(ref _isRunning, value ? 1 : 0); }
+        }
 
         /// <summary>
         /// 当前流程运行批次，用于判断节点结果是否来自本次运行。
@@ -2347,6 +2354,12 @@ namespace TDJS_Vision
                 if (process.Nodes.Count == 0 || !process.Enable)
                     return;
 
+                if (!Solution.Instance.TryBeginExternalRunSession())
+                    return;
+
+                try
+                {
+
                 process.BeginProcessRun();
 
                 process.RunTime = 0;
@@ -2467,6 +2480,11 @@ namespace TDJS_Vision
                 WriteFinalProcessEndLog(process, isCyclical, processSucceeded, ref processStartLogWritten);
                 UpdateRunStatus?.Invoke(process, new ProcessRunResult(false, processSucceeded, process.ProcessName));
                 ProcessEvents.OnProcessEnded(process.ID, processSucceeded ? ProcessEndStatus.Completed : ProcessEndStatus.Failed);
+                }
+                finally
+                {
+                    Solution.Instance.EndExternalRunSession();
+                }
             }
         }
 
@@ -2477,6 +2495,12 @@ namespace TDJS_Vision
         {
             if (Nodes.Count == 0 || !Enable)
                 return;
+
+            if (!Solution.Instance.TryBeginExternalRunSession())
+                return;
+
+            try
+            {
 
             BeginProcessRun();
 
@@ -2598,6 +2622,11 @@ namespace TDJS_Vision
             WriteFinalProcessEndLog(this, isCyclical, runSucceeded, ref processStartLogWritten);
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, runSucceeded, ProcessName));
             ProcessEvents.OnProcessEnded(ID, runSucceeded ? ProcessEndStatus.Completed : ProcessEndStatus.Failed);
+            }
+            finally
+            {
+                Solution.Instance.EndExternalRunSession();
+            }
         }
 
 
@@ -2608,6 +2637,12 @@ namespace TDJS_Vision
         {
             if (Nodes.Count == 0 || !Enable)
                 return;
+
+            if (!Solution.Instance.TryBeginExternalRunSession())
+                return;
+
+            try
+            {
 
             BeginProcessRun();
 
@@ -2753,6 +2788,11 @@ namespace TDJS_Vision
             WriteFinalProcessEndLog(this, isCyclical, runSucceeded, ref processStartLogWritten);
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, runSucceeded, ProcessName));
             ProcessEvents.OnProcessEnded(ID, runSucceeded ? ProcessEndStatus.Completed : ProcessEndStatus.Failed);
+            }
+            finally
+            {
+                Solution.Instance.EndExternalRunSession();
+            }
         }
 
 
@@ -2762,8 +2802,11 @@ namespace TDJS_Vision
         /// </summary>
         public async Task RunForUpdateImages(NodeBase node2Stop)
         {
-            // 重置运行取消令牌
-            Solution.Instance.ResetTokenSource();
+            if (!Solution.Instance.TryBeginExternalRunSession())
+                return;
+
+            try
+            {
 
             // 节点数为0或流程不启用则不运行
             if (Nodes.Count == 0 || !Enable)
@@ -2899,6 +2942,11 @@ namespace TDJS_Vision
                 LogHelper.AddLog(updateSucceeded ? MsgLevel.Info : MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（{(updateSucceeded ? "成功" : "失败")}）  ---------------------------------", true);
             CompletePerformanceTrace(updateSucceeded ? "成功" : "失败");
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, updateSucceeded, ProcessName));
+            }
+            finally
+            {
+                Solution.Instance.EndExternalRunSession();
+            }
         }
     }
 
