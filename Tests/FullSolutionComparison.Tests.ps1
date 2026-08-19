@@ -26,6 +26,9 @@ param(
     [ValidateRange(10, 3600)]
     [int]$RoundTimeoutSeconds = 600,
 
+    [ValidateRange(1, 1000)]
+    [int]$UiPollMilliseconds = 50,
+
     [string]$OutputDirectory = (Join-Path $PSScriptRoot "Results\FullSolutionComparison"),
 
     [string]$ImmutableSchemeSourcePath = "",
@@ -260,12 +263,19 @@ function Get-ResourceSnapshot {
 }
 
 function Find-RunOnceButton {
-    param([System.Diagnostics.Process]$MainProcess)
+    param(
+        [System.Diagnostics.Process]$MainProcess,
+        [string]$WindowMode
+    )
 
     for ($attempt = 0; $attempt -lt 90; $attempt++) {
         $MainProcess.Refresh()
         if ($MainProcess.HasExited) {
             throw "程序在主界面就绪前退出。"
+        }
+
+        if ($WindowMode -eq "Minimized" -and $MainProcess.MainWindowHandle -ne [IntPtr]::Zero) {
+            [void][FullSolutionGuiResourceProbe]::ShowWindowAsync($MainProcess.MainWindowHandle, 6)
         }
 
         if ($MainProcess.MainWindowHandle -ne [IntPtr]::Zero -and
@@ -332,7 +342,8 @@ function Close-TestProcess {
 function Invoke-SolutionRound {
     param(
         [Windows.Automation.AutomationElement]$RunOnceButton,
-        [int]$TimeoutSeconds
+        [int]$TimeoutSeconds,
+        [int]$PollMilliseconds
     )
 
     if (-not $RunOnceButton.Current.IsEnabled) {
@@ -349,7 +360,7 @@ function Invoke-SolutionRound {
     $sawDisabled = $false
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     while ($true) {
-        Start-Sleep -Milliseconds 5
+        Start-Sleep -Milliseconds $PollMilliseconds
         $enabled = $RunOnceButton.Current.IsEnabled
         if (-not $enabled) {
             $sawDisabled = $true
@@ -505,12 +516,12 @@ else {
 }
 
 try {
-    $runOnceButton = Find-RunOnceButton -MainProcess $mainProcess
+    $runOnceButton = Find-RunOnceButton -MainProcess $mainProcess -WindowMode $WindowMode
     $mainProcess.Refresh()
     Set-TestProcessPriority -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainProcess.StartTime -PriorityName $ProcessPriority
     Set-TestWindowMode -MainProcess $mainProcess -Mode $WindowMode
     for ($warmup = 1; $warmup -le $WarmupRounds; $warmup++) {
-        $warmupElapsed = Invoke-SolutionRound -RunOnceButton $runOnceButton -TimeoutSeconds $RoundTimeoutSeconds
+        $warmupElapsed = Invoke-SolutionRound -RunOnceButton $runOnceButton -TimeoutSeconds $RoundTimeoutSeconds -PollMilliseconds $UiPollMilliseconds
         Write-Output ("WARMUP {0}/{1} elapsed_ms={2:N3}" -f $warmup, $WarmupRounds, $warmupElapsed)
     }
 
@@ -533,7 +544,7 @@ try {
     $formalStopwatch = [Diagnostics.Stopwatch]::StartNew()
 
     for ($round = 1; $round -le $Rounds; $round++) {
-        $roundElapsed = Invoke-SolutionRound -RunOnceButton $runOnceButton -TimeoutSeconds $RoundTimeoutSeconds
+        $roundElapsed = Invoke-SolutionRound -RunOnceButton $runOnceButton -TimeoutSeconds $RoundTimeoutSeconds -PollMilliseconds $UiPollMilliseconds
         $durations.Add($roundElapsed)
 
         $includeManaged = ($round % $ResourceSampleInterval -eq 0) -or ($round -eq $Rounds)
@@ -638,6 +649,7 @@ try {
         ImmutableSchemeSha256 = $immutableSchemeSha256
         WindowMode = $WindowMode
         ProcessPriority = $ProcessPriority
+        UiPollMilliseconds = $UiPollMilliseconds
         DebugSwitch = "使用程序当前用户设置；本轮未通过自动化修改"
         UiMode = "单次运行按钮串行调用，确保四流程每轮各执行一次"
         WarmupRounds = $WarmupRounds
