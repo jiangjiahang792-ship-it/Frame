@@ -33,6 +33,7 @@ $application = Get-Item -LiteralPath (Join-Path $debugDirectory ($assemblyName +
 Assert-True ($null -ne $application) '图像保存工作池压力测试需要最新Debug程序。'
 $productionSources = @(
     'ResourceManagement\BoundedPriorityWorkQueue.cs',
+    'ResourceManagement\ImageSaveStorageGuard.cs',
     'Node\1-Acquisition\ImageSource\NodeResultImageSource.cs',
     'Node\7-ResultProcessing\ImageSave\NodeSaveImage.cs',
     'Solution.cs'
@@ -139,6 +140,54 @@ public sealed class ImageSaveWorkerStressResult
     public long SynchronousRetiredReleaseCount { get; set; }
     public int PeakRetiredTaskCount { get; set; }
     public long PeakRetiredTaskBytes { get; set; }
+    public long LowSpaceSkippedNormalCount { get; set; }
+    public long CriticalSpaceSkippedCount { get; set; }
+    public long LowSpaceAllowedHighPriorityCount { get; set; }
+    public long StorageProbeFailureCount { get; set; }
+    public long SlowWriteCount { get; set; }
+    public long MaximumWriteElapsedMilliseconds { get; set; }
+}
+
+public sealed class DeterministicStorageGuard : IImageSaveStorageGuard
+{
+    public ImageSaveStorageStatus Status { get; set; }
+    public int WriteDelayMilliseconds { get; set; }
+    public int LowSpaceThresholdMb { get; set; }
+    public int CriticalSpaceThresholdMb { get; set; }
+    public int SlowWriteThresholdMs { get; set; }
+    public int ProbeIntervalMs { get; set; }
+
+    public DeterministicStorageGuard(ImageSaveStorageStatus status, int writeDelayMilliseconds, int slowWriteThresholdMs)
+    {
+        Status = status;
+        WriteDelayMilliseconds = Math.Max(0, writeDelayMilliseconds);
+        LowSpaceThresholdMb = 2048;
+        CriticalSpaceThresholdMb = 512;
+        SlowWriteThresholdMs = Math.Max(1, slowWriteThresholdMs);
+        ProbeIntervalMs = 1000;
+    }
+
+    public ImageSaveStorageDecision Evaluate(IReadOnlyList<string> targetDirectories, bool isHighPriority)
+    {
+        return new ImageSaveStorageDecision
+        {
+            Status = Status,
+            StorageRoot = "测试磁盘",
+            AvailableSpaceMb = Status == ImageSaveStorageStatus.SkippedCriticalSpace ? 128 : 1024,
+            Reason = "确定性保存磁盘压力测试"
+        };
+    }
+
+    public void PrepareWrite(string targetDirectory)
+    {
+        if (WriteDelayMilliseconds > 0)
+            Thread.Sleep(WriteDelayMilliseconds);
+    }
+
+    public bool IsSlowWrite(long elapsedMilliseconds)
+    {
+        return elapsedMilliseconds >= SlowWriteThresholdMs;
+    }
 }
 
 public sealed class ThrowingStressMatLease : IImageResourceLease
@@ -170,6 +219,88 @@ public sealed class ThrowingStressMatLease : IImageResourceLease
 
 public static class ImageSaveWorkerStressHarness
 {
+    public static ImageSaveWorkerStressResult RunStorageScenario(
+        string outputDirectory,
+        ImageSaveStorageStatus status,
+        bool isHighPriority,
+        int writeDelayMilliseconds,
+        int slowWriteThresholdMs,
+        int attemptedCount)
+    {
+        Directory.CreateDirectory(outputDirectory);
+        StressMatLease.Reset();
+        DeterministicStorageGuard storageGuard = new DeterministicStorageGuard(
+            status,
+            writeDelayMilliseconds,
+            slowWriteThresholdMs);
+        ImageQueueProcessor processor = new ImageQueueProcessor(
+            1,
+            4,
+            16L * 1024L * 1024L,
+            5000,
+            "保存磁盘保护测试",
+            storageGuard);
+        processor.StartProcessing();
+        int accepted = 0;
+        int rejected = 0;
+        int evicted = 0;
+        for (int index = 0; index < attemptedCount; index++)
+        {
+            Mat image = new Mat(128, 128, MatType.CV_8UC3, Scalar.All(index % 251));
+            SaveImageTask task = new SaveImageTask
+            {
+                SourceImage = image,
+                TargetDirectories = new List<string> { outputDirectory },
+                ImageName = "磁盘保护",
+                NeedCompress = true,
+                CompressValue = 90,
+                IsHighPriority = isHighPriority,
+                EstimatedBytes = checked((long)image.Rows * (long)image.Step()),
+                OwnerKey = "磁盘保护流程",
+                ImageLease = new StressMatLease(image)
+            };
+            BoundedQueueAdmissionResult admission = processor.EnqueueImage(task);
+            if (admission.Accepted)
+            {
+                accepted++;
+                evicted += admission.EvictedLowPriorityCount;
+            }
+            else
+            {
+                rejected++;
+                task.Dispose();
+            }
+        }
+
+        bool stopped = processor.StopProcessing();
+        ImageSaveQueueDiagnosticsSnapshot snapshot = processor.GetDiagnosticsSnapshot();
+        FileInfo[] files = new DirectoryInfo(outputDirectory).GetFiles("*.jpg", SearchOption.TopDirectoryOnly);
+        return new ImageSaveWorkerStressResult
+        {
+            AttemptedCount = attemptedCount,
+            AcceptedCount = accepted,
+            RejectedCount = rejected,
+            EvictedNormalCount = evicted,
+            CompletedCount = processor.CompletedTaskCount,
+            FailedCount = processor.FailedTaskCount,
+            FileCount = files.Length,
+            LeaseDisposeCount = StressMatLease.DisposeCount,
+            LeaseDoubleDisposeCount = StressMatLease.DoubleDisposeCount,
+            PeakQueueCount = processor.PeakQueuedCount,
+            PeakQueueBytes = processor.PeakQueuedBytes,
+            PeakActiveWorkers = processor.PeakActiveWorkerCount,
+            GracefullyStopped = stopped,
+            FinalQueuedCount = processor.QueuedCount,
+            FullyStopped = processor.IsFullyStopped,
+            LowSpaceSkippedNormalCount = snapshot.LowSpaceSkippedNormalTaskCount,
+            CriticalSpaceSkippedCount = snapshot.CriticalSpaceSkippedTaskCount,
+            LowSpaceAllowedHighPriorityCount = snapshot.LowSpaceAllowedHighPriorityTaskCount,
+            StorageProbeFailureCount = snapshot.StorageProbeFailureCount,
+            SlowWriteCount = snapshot.SlowWriteCount,
+            MaximumWriteElapsedMilliseconds = snapshot.MaximumWriteElapsedMilliseconds
+        };
+    }
+
     public static ImageSaveWorkerStressResult Run(string outputDirectory, int attemptedCount)
     {
         Directory.CreateDirectory(outputDirectory);
@@ -491,6 +622,65 @@ try {
     $warmupDirectory = Join-Path $testOutputRoot 'warmup'
     $warmup = [ImageSaveWorkerStressHarness]::Run($warmupDirectory, 12)
     Assert-True ($warmup.FailedCount -eq 0) '保存工作池预热不允许写盘失败。'
+
+    $lowNormalDirectory = Join-Path $testOutputRoot 'low_normal'
+    $lowNormal = [ImageSaveWorkerStressHarness]::RunStorageScenario(
+        $lowNormalDirectory,
+        [TDJS_Vision.ResourceManagement.ImageSaveStorageStatus]::SkippedLowSpace,
+        $false,
+        0,
+        500,
+        1)
+    Assert-True ($lowNormal.AcceptedCount -eq 1 -and $lowNormal.LowSpaceSkippedNormalCount -eq 1) '低空间普通图必须被队列接收后明确降级跳过。'
+    Assert-True ($lowNormal.CompletedCount -eq 0 -and $lowNormal.FailedCount -eq 0 -and $lowNormal.FileCount -eq 0) '低空间跳过普通图不能误记成功、失败或产生文件。'
+    Assert-True ($lowNormal.LeaseDisposeCount -eq 1 -and $lowNormal.LeaseDoubleDisposeCount -eq 0) '低空间跳过普通图后Mat租约必须恰好释放一次。'
+
+    $lowNgDirectory = Join-Path $testOutputRoot 'low_ng'
+    $lowNg = [ImageSaveWorkerStressHarness]::RunStorageScenario(
+        $lowNgDirectory,
+        [TDJS_Vision.ResourceManagement.ImageSaveStorageStatus]::AllowedHighPriorityUnderLowSpace,
+        $true,
+        0,
+        500,
+        1)
+    Assert-True ($lowNg.LowSpaceAllowedHighPriorityCount -eq 1 -and $lowNg.CompletedCount -eq 1 -and $lowNg.FileCount -eq 1) '低空间下NG图必须继续完成保存并留下诊断计数。'
+    Assert-True ($lowNg.LeaseDisposeCount -eq 1 -and $lowNg.LeaseDoubleDisposeCount -eq 0) '低空间NG图保存后Mat租约必须恰好释放一次。'
+
+    $criticalDirectory = Join-Path $testOutputRoot 'critical'
+    $critical = [ImageSaveWorkerStressHarness]::RunStorageScenario(
+        $criticalDirectory,
+        [TDJS_Vision.ResourceManagement.ImageSaveStorageStatus]::SkippedCriticalSpace,
+        $true,
+        0,
+        500,
+        1)
+    Assert-True ($critical.CriticalSpaceSkippedCount -eq 1 -and $critical.CompletedCount -eq 0 -and $critical.FileCount -eq 0) '严重低空间必须连NG图也停止保存。'
+    Assert-True ($critical.LeaseDisposeCount -eq 1 -and $critical.LeaseDoubleDisposeCount -eq 0) '严重低空间跳过后Mat租约必须恰好释放一次。'
+
+    $probeFailureDirectory = Join-Path $testOutputRoot 'probe_failure'
+    $probeFailure = [ImageSaveWorkerStressHarness]::RunStorageScenario(
+        $probeFailureDirectory,
+        [TDJS_Vision.ResourceManagement.ImageSaveStorageStatus]::ProbeFailedAllowed,
+        $false,
+        0,
+        500,
+        1)
+    Assert-True ($probeFailure.StorageProbeFailureCount -eq 1 -and $probeFailure.CompletedCount -eq 1 -and $probeFailure.FileCount -eq 1) '空间探测失败必须告警但不能误停产。'
+
+    $slowDirectory = Join-Path $testOutputRoot 'slow_disk'
+    $slow = [ImageSaveWorkerStressHarness]::RunStorageScenario(
+        $slowDirectory,
+        [TDJS_Vision.ResourceManagement.ImageSaveStorageStatus]::Allowed,
+        $false,
+        100,
+        50,
+        20)
+    Assert-True ($slow.PeakQueueCount -le 4 -and $slow.PeakActiveWorkers -le 1) '慢盘压力不得突破队列容量4或保存并发1。'
+    Assert-True ($slow.RejectedCount -gt 0) '固定100ms慢盘和容量4下必须出现明确拒绝，证明投递线程没有无界堆积。'
+    Assert-True ($slow.SlowWriteCount -eq $slow.CompletedCount -and $slow.MaximumWriteElapsedMilliseconds -ge 100) '每个完成的100ms慢写都必须被阈值诊断捕获。'
+    Assert-True (($slow.CompletedCount + $slow.EvictedNormalCount) -eq $slow.AcceptedCount) '慢盘场景全部接收任务必须有明确最终去向。'
+    Assert-True ($slow.LeaseDisposeCount -eq 20 -and $slow.LeaseDoubleDisposeCount -eq 0) '慢盘压力中全部尝试任务的Mat租约必须恰好释放一次。'
+    Assert-True ($slow.FailedCount -eq 0 -and $slow.FullyStopped) '慢盘降速不能形成写盘失败或遗留工作线程。'
 
     $failureDirectory = Join-Path $testOutputRoot 'failure'
     $failure = [ImageSaveWorkerStressHarness]::RunWriteFailure($failureDirectory)

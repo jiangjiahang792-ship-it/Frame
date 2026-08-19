@@ -71,6 +71,11 @@ namespace TDJS_Vision.ResourceManagement
             int saveQueueCapacity = useInitialQueueCapacity
                 ? Clamp(options.SaveQueueInitialCapacity, 1, Math.Max(1, options.SaveQueueMaximumCapacity))
                 : CalculateSaveQueueCapacity(saveQueueBudgetMb, workload.AverageImageBytes, options);
+            int saveDiskLowSpaceMb = Clamp(options.SaveDiskLowSpaceMb, 256, 102400);
+            int saveDiskCriticalSpaceMb = Clamp(
+                options.SaveDiskCriticalSpaceMb,
+                64,
+                Math.Max(64, saveDiskLowSpaceMb - 1));
 
             return new AutomaticResourceProfile
             {
@@ -92,6 +97,10 @@ namespace TDJS_Vision.ResourceManagement
                     PerWindowUiFrameRateLimiter.MaximumFramesPerSecond),
                 ShutdownResourceDrainTimeoutMs = Clamp(options.ShutdownResourceDrainTimeoutMs, 0, 60000),
                 ImageSizeSampleCount = Clamp(options.ImageSizeSampleCount, 1, 500),
+                SaveDiskLowSpaceMb = saveDiskLowSpaceMb,
+                SaveDiskCriticalSpaceMb = saveDiskCriticalSpaceMb,
+                SaveSlowThresholdMs = Clamp(options.SaveSlowThresholdMs, 10, 60000),
+                SaveDiskProbeIntervalMs = Clamp(options.SaveDiskProbeIntervalMs, 100, 60000),
                 UsesInitialSaveQueueCapacity = useInitialQueueCapacity,
                 AiConcurrencyPolicy = "FollowEditableFlow"
             };

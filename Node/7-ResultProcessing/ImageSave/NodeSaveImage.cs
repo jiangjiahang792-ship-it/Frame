@@ -453,6 +453,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <summary>工作池诊断日志中的所有者文本。</summary>
         private readonly string _ownerText;
 
+        /// <summary>在保存消费者线程执行磁盘空间准入和慢写阈值判断的保护器。</summary>
+        private readonly IImageSaveStorageGuard _storageGuard;
+
         /// <summary>串行化停止与重复停止，确保等待句柄只在全部线程退出后释放一次。</summary>
         private readonly object _stopSync = new object();
 
@@ -504,6 +507,24 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <summary>转换、绘制或写盘失败的保存任务累计数量。</summary>
         private long _failedTaskCount;
 
+        /// <summary>磁盘低空间时跳过的普通图片累计数量。</summary>
+        private long _lowSpaceSkippedNormalTaskCount;
+
+        /// <summary>磁盘严重低空间时跳过的全部图片累计数量。</summary>
+        private long _criticalSpaceSkippedTaskCount;
+
+        /// <summary>磁盘低空间时继续保留的NG图片累计数量。</summary>
+        private long _lowSpaceAllowedHighPriorityTaskCount;
+
+        /// <summary>磁盘空间探测失败但继续执行保存的累计数量。</summary>
+        private long _storageProbeFailureCount;
+
+        /// <summary>达到慢写阈值的目标路径累计数量。</summary>
+        private long _slowWriteCount;
+
+        /// <summary>观察到的单个目标路径最大写盘耗时。</summary>
+        private long _maximumWriteElapsedMilliseconds;
+
         /// <summary>保证工作池只启动一次。</summary>
         private int _started;
 
@@ -512,6 +533,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 
         /// <summary>停止完成后底层队列与等待句柄是否已经释放。</summary>
         private int _infrastructureDisposed;
+
+        /// <summary>保证每个工作池生命周期只写一次停止汇总。</summary>
+        private int _summaryLogged;
 
         /// <summary>当前等待保存的图像数量。</summary>
         public int QueuedCount => _imageQueue.Count;
@@ -558,6 +582,24 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <summary>转换、绘制或写盘失败的保存任务累计数量。</summary>
         public long FailedTaskCount => Interlocked.Read(ref _failedTaskCount);
 
+        /// <summary>磁盘低空间时跳过的普通图片累计数量。</summary>
+        public long LowSpaceSkippedNormalTaskCount => Interlocked.Read(ref _lowSpaceSkippedNormalTaskCount);
+
+        /// <summary>磁盘严重低空间时跳过的全部图片累计数量。</summary>
+        public long CriticalSpaceSkippedTaskCount => Interlocked.Read(ref _criticalSpaceSkippedTaskCount);
+
+        /// <summary>磁盘低空间时继续保留的NG图片累计数量。</summary>
+        public long LowSpaceAllowedHighPriorityTaskCount => Interlocked.Read(ref _lowSpaceAllowedHighPriorityTaskCount);
+
+        /// <summary>磁盘空间探测失败但继续保存的累计数量。</summary>
+        public long StorageProbeFailureCount => Interlocked.Read(ref _storageProbeFailureCount);
+
+        /// <summary>达到慢写阈值的目标路径写入累计数量。</summary>
+        public long SlowWriteCount => Interlocked.Read(ref _slowWriteCount);
+
+        /// <summary>观察到的单个目标路径最大写盘耗时。</summary>
+        public long MaximumWriteElapsedMilliseconds => Interlocked.Read(ref _maximumWriteElapsedMilliseconds);
+
         /// <summary>淘汰回收通道已满后在投递线程直接释放的累计数量。</summary>
         public long SynchronousRetiredReleaseCount => Interlocked.Read(ref _synchronousRetiredReleaseCount);
 
@@ -571,6 +613,37 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         public bool IsIdle => QueuedCount == 0 &&
             ActiveWorkerCount == 0 &&
             Volatile.Read(ref _retiredTaskBacklogCount) == 0;
+
+        /// <summary>
+        /// 获取当前保存队列、资源边界和磁盘保护计数的不可变快照。
+        /// </summary>
+        /// <returns>可供Debug智能体和压力测试读取的诊断快照。</returns>
+        public ImageSaveQueueDiagnosticsSnapshot GetDiagnosticsSnapshot()
+        {
+            return new ImageSaveQueueDiagnosticsSnapshot
+            {
+                Timestamp = DateTime.Now,
+                QueuedCount = QueuedCount,
+                Capacity = Capacity,
+                PeakQueuedCount = PeakQueuedCount,
+                QueuedBytes = QueuedBytes,
+                MemoryBudgetBytes = MemoryBudgetBytes,
+                PeakQueuedBytes = PeakQueuedBytes,
+                ActiveWorkerCount = ActiveWorkerCount,
+                WorkerCount = WorkerCount,
+                PeakActiveWorkerCount = PeakActiveWorkerCount,
+                RejectedTaskCount = RejectedTaskCount,
+                EvictedNormalTaskCount = EvictedNormalTaskCount,
+                CompletedTaskCount = CompletedTaskCount,
+                FailedTaskCount = FailedTaskCount,
+                LowSpaceSkippedNormalTaskCount = LowSpaceSkippedNormalTaskCount,
+                CriticalSpaceSkippedTaskCount = CriticalSpaceSkippedTaskCount,
+                LowSpaceAllowedHighPriorityTaskCount = LowSpaceAllowedHighPriorityTaskCount,
+                StorageProbeFailureCount = StorageProbeFailureCount,
+                SlowWriteCount = SlowWriteCount,
+                MaximumWriteElapsedMilliseconds = MaximumWriteElapsedMilliseconds
+            };
+        }
 
         /// <summary>
         /// 后台保存任务；通过租约借用流程输出Mat，后台线程负责释放租约和生成的Bitmap。
@@ -658,6 +731,32 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             long memoryBudgetBytes,
             int shutdownTimeoutMs,
             string ownerText)
+            : this(
+                workerCount,
+                capacity,
+                memoryBudgetBytes,
+                shutdownTimeoutMs,
+                ownerText,
+                CachedImageSaveStorageGuard.CreateDefault())
+        {
+        }
+
+        /// <summary>
+        /// 使用自动资源档案和可替换磁盘保护器初始化保存工作池。
+        /// </summary>
+        /// <param name="workerCount">全方案保存工作线程数量。</param>
+        /// <param name="capacity">允许等待的最大任务数量。</param>
+        /// <param name="memoryBudgetBytes">允许等待任务累计持有的最大字节数。</param>
+        /// <param name="shutdownTimeoutMs">停止时等待活动任务的最长毫秒数。</param>
+        /// <param name="ownerText">工作池诊断名称。</param>
+        /// <param name="storageGuard">磁盘空间与慢写保护器。</param>
+        public ImageQueueProcessor(
+            int workerCount,
+            int capacity,
+            long memoryBudgetBytes,
+            int shutdownTimeoutMs,
+            string ownerText,
+            IImageSaveStorageGuard storageGuard)
         {
             if (workerCount <= 0)
                 throw new ArgumentOutOfRangeException(nameof(workerCount), "保存工作线程数量必须大于零。");
@@ -667,6 +766,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             _workerCount = workerCount;
             _shutdownTimeoutMs = shutdownTimeoutMs;
             _ownerText = ownerText;
+            _storageGuard = storageGuard ?? throw new ArgumentNullException(nameof(storageGuard));
             _retiredTaskCapacity = Math.Max(1, capacity);
             _retiredTaskMemoryBudgetBytes = Math.Max(1L, memoryBudgetBytes);
             _imageQueue = new BoundedPriorityWorkQueue<SaveImageTask>(
@@ -864,6 +964,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             {
                 bool saveCompleted = false;
                 bool taskFailed = false;
+                bool storageSkipped = false;
                 bool diagnosticEnabled = false;
                 string imageInfo = string.Empty;
                 Bitmap bitmap = null;
@@ -881,6 +982,43 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                         stopwatch = Stopwatch.StartNew();
                     }
 
+                    ImageSaveStorageDecision storageDecision = _storageGuard.Evaluate(
+                        saveImagedata.TargetDirectories,
+                        saveImagedata.IsHighPriority);
+                    if (storageDecision.Status == ImageSaveStorageStatus.ProbeFailedAllowed)
+                    {
+                        long probeFailureCount = Interlocked.Increment(ref _storageProbeFailureCount);
+                        LogStorageGuardEvent(
+                            probeFailureCount,
+                            $"保存磁盘空间探测失败，本任务继续保存；根目录={storageDecision.StorageRoot}；原因={storageDecision.Reason}");
+                    }
+                    else if (storageDecision.Status == ImageSaveStorageStatus.AllowedHighPriorityUnderLowSpace)
+                    {
+                        long allowedHighPriorityCount = Interlocked.Increment(ref _lowSpaceAllowedHighPriorityTaskCount);
+                        LogStorageGuardEvent(
+                            allowedHighPriorityCount,
+                            $"保存磁盘空间不足但继续保留NG图片；根目录={storageDecision.StorageRoot}；可用={storageDecision.AvailableSpaceMb}MB；低水位={_storageGuard.LowSpaceThresholdMb}MB");
+                    }
+                    else if (storageDecision.Status == ImageSaveStorageStatus.SkippedLowSpace)
+                    {
+                        storageSkipped = true;
+                        long skippedCount = Interlocked.Increment(ref _lowSpaceSkippedNormalTaskCount);
+                        LogStorageGuardEvent(
+                            skippedCount,
+                            $"保存磁盘空间不足，已跳过普通图片；根目录={storageDecision.StorageRoot}；可用={storageDecision.AvailableSpaceMb}MB；低水位={_storageGuard.LowSpaceThresholdMb}MB");
+                    }
+                    else if (storageDecision.Status == ImageSaveStorageStatus.SkippedCriticalSpace)
+                    {
+                        storageSkipped = true;
+                        long skippedCount = Interlocked.Increment(ref _criticalSpaceSkippedTaskCount);
+                        LogStorageGuardEvent(
+                            skippedCount,
+                            $"保存磁盘达到严重低空间，已跳过当前图片；根目录={storageDecision.StorageRoot}；可用={storageDecision.AvailableSpaceMb}MB；严重水位={_storageGuard.CriticalSpaceThresholdMb}MB；NG={saveImagedata.IsHighPriority}");
+                    }
+
+                    if (storageDecision.ShouldSkip)
+                        continue;
+
                     bitmap = CreateBitmapForSave(saveImagedata, stopwatch, out SaveImageRenderTiming renderTiming);
                     if (diagnosticEnabled)
                     {
@@ -895,6 +1033,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                     foreach (string targetDirectory in saveImagedata.TargetDirectories)
                     {
                         long beforePath = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+                        long writeStartedTimestamp = Stopwatch.GetTimestamp();
+                        _storageGuard.PrepareWrite(targetDirectory);
                         Directory.CreateDirectory(targetDirectory);
                         long afterPath = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
 
@@ -905,6 +1045,15 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                             saveImagedata.NeedCompress,
                             saveImagedata.CompressValue);
                         committedImagePaths.Add(fileName);
+                        long writeElapsedMilliseconds = GetElapsedMilliseconds(writeStartedTimestamp);
+                        UpdateMaximum(ref _maximumWriteElapsedMilliseconds, writeElapsedMilliseconds);
+                        if (_storageGuard.IsSlowWrite(writeElapsedMilliseconds))
+                        {
+                            long slowWriteCount = Interlocked.Increment(ref _slowWriteCount);
+                            LogStorageGuardEvent(
+                                slowWriteCount,
+                                $"保存目标路径写入缓慢；目录={targetDirectory}；耗时={writeElapsedMilliseconds}ms；阈值={_storageGuard.SlowWriteThresholdMs}ms；队列={QueuedCount}/{Capacity}");
+                        }
                         long afterSave = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
                         if (diagnosticEnabled)
                         {
@@ -990,7 +1139,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                     }
                     finally
                     {
-                        if (saveCompleted && !taskFailed)
+                        if (storageSkipped)
+                        {
+                            // 低空间跳过属于明确降级，不计入成功写盘或写盘失败。
+                        }
+                        else if (saveCompleted && !taskFailed)
                             Interlocked.Increment(ref _completedTaskCount);
                         else
                             Interlocked.Increment(ref _failedTaskCount);
@@ -1068,6 +1221,29 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         {
             int activeWorkerCount = Interlocked.Increment(ref _activeWorkerCount);
             UpdateMaximum(ref _peakActiveWorkerCount, activeWorkerCount);
+        }
+
+        /// <summary>
+        /// 低频记录磁盘保护事件，首条和每累计100条保留一次，避免磁盘故障反向刷爆日志。
+        /// </summary>
+        /// <param name="eventCount">当前事件累计数量。</param>
+        /// <param name="message">不包含累计次数的日志正文。</param>
+        private static void LogStorageGuardEvent(long eventCount, string message)
+        {
+            if (eventCount == 1 || eventCount % 100 == 0)
+                TryWriteLog(MsgLevel.Warn, $"{message}；累计={eventCount}。", true);
+        }
+
+        /// <summary>
+        /// 将高精度计时器时间戳转换为向上取整的毫秒数，确保亚毫秒写入不会误记为负数。
+        /// </summary>
+        /// <param name="startedTimestamp">操作开始时的Stopwatch时间戳。</param>
+        /// <returns>非负的经过毫秒数。</returns>
+        private static long GetElapsedMilliseconds(long startedTimestamp)
+        {
+            long elapsedTicks = Math.Max(0L, Stopwatch.GetTimestamp() - startedTimestamp);
+            double elapsedMilliseconds = elapsedTicks * 1000D / Stopwatch.Frequency;
+            return Math.Max(0L, (long)Math.Ceiling(elapsedMilliseconds));
         }
 
         /// <summary>
@@ -1251,6 +1427,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                 bool releaseWorkerStopped = WaitForRetiredTaskWorker(
                     GetRemainingShutdownMilliseconds(shutdownStopwatch, shutdownTimeoutMilliseconds));
                 bool allWorkersStopped = saveWorkersStopped && releaseWorkerStopped;
+                LogDiagnosticsSummaryOnce(disposedPendingCount, allWorkersStopped);
                 if (PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug))
                 {
                     PerformanceSpikeDiagnostics.LogIfEnabled(
@@ -1273,6 +1450,23 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 
                 return allWorkersStopped;
             }
+        }
+
+        /// <summary>
+        /// 每个工作池生命周期只写一次文件级汇总，Debug关闭时也保留低频验收证据但不刷新日志窗口。
+        /// </summary>
+        /// <param name="disposedPendingCount">停止超时后直接释放的等待任务数。</param>
+        /// <param name="allWorkersStopped">保存和淘汰回收线程是否全部退出。</param>
+        private void LogDiagnosticsSummaryOnce(int disposedPendingCount, bool allWorkersStopped)
+        {
+            if (Interlocked.Exchange(ref _summaryLogged, 1) == 1)
+                return;
+
+            ImageSaveQueueDiagnosticsSnapshot snapshot = GetDiagnosticsSnapshot();
+            TryWriteLog(
+                MsgLevel.Info,
+                $"【保存队列汇总】工作池={_ownerText}；{snapshot.ToLogText()}；停止释放等待={disposedPendingCount}；全部线程退出={allWorkersStopped}",
+                false);
         }
 
         /// <summary>
@@ -1318,12 +1512,27 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <param name="workerCount">保存工作线程数量。</param>
         /// <param name="capacity">队列任务容量。</param>
         /// <param name="memoryBudgetBytes">队列字节预算。</param>
-        /// <returns>三个关键边界均一致返回 true。</returns>
-        public bool ConfigurationMatches(int workerCount, int capacity, long memoryBudgetBytes)
+        /// <param name="lowSpaceThresholdMb">普通图片停止保存水位。</param>
+        /// <param name="criticalSpaceThresholdMb">全部图片停止保存水位。</param>
+        /// <param name="slowWriteThresholdMs">单路径慢写阈值。</param>
+        /// <param name="probeIntervalMs">磁盘空间探测缓存时间。</param>
+        /// <returns>工作池和磁盘保护关键边界均一致返回 true。</returns>
+        public bool ConfigurationMatches(
+            int workerCount,
+            int capacity,
+            long memoryBudgetBytes,
+            int lowSpaceThresholdMb,
+            int criticalSpaceThresholdMb,
+            int slowWriteThresholdMs,
+            int probeIntervalMs)
         {
             return WorkerCount == workerCount &&
                 Capacity == capacity &&
-                MemoryBudgetBytes == memoryBudgetBytes;
+                MemoryBudgetBytes == memoryBudgetBytes &&
+                _storageGuard.LowSpaceThresholdMb == lowSpaceThresholdMb &&
+                _storageGuard.CriticalSpaceThresholdMb == criticalSpaceThresholdMb &&
+                _storageGuard.SlowWriteThresholdMs == slowWriteThresholdMs &&
+                _storageGuard.ProbeIntervalMs == probeIntervalMs;
         }
 
         /// <summary>

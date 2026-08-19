@@ -1059,6 +1059,16 @@ namespace TDJS_Vision
         }
 
         /// <summary>
+        /// 获取当前共享保存工作池的只读诊断快照；工作池尚未创建时返回空。
+        /// </summary>
+        /// <returns>保存队列与磁盘保护快照，或空。</returns>
+        internal ImageSaveQueueDiagnosticsSnapshot GetImageSaveQueueDiagnosticsSnapshot()
+        {
+            lock (_imageSaveQueueSync)
+                return _imageSaveQueueProcessor?.GetDiagnosticsSnapshot();
+        }
+
+        /// <summary>
         /// 记录保存任务将持有的完整图像资源字节数，供后续运行自动计算队列容量。
         /// </summary>
         /// <param name="estimatedBytes">完整OutputImage租约的估算字节数。</param>
@@ -1087,7 +1097,18 @@ namespace TDJS_Vision
                     int workerCount = GetImageSaveWorkerCount(profile);
                     int capacity = GetImageSaveQueueCapacity(profile);
                     long memoryBudgetBytes = GetImageSaveQueueMemoryBudgetBytes(profile);
-                    if (_imageSaveQueueProcessor.ConfigurationMatches(workerCount, capacity, memoryBudgetBytes))
+                    int lowSpaceThresholdMb = GetSaveDiskLowSpaceMb(profile);
+                    int criticalSpaceThresholdMb = GetSaveDiskCriticalSpaceMb(profile, lowSpaceThresholdMb);
+                    int slowWriteThresholdMs = GetSaveSlowThresholdMs(profile);
+                    int probeIntervalMs = GetSaveDiskProbeIntervalMs(profile);
+                    if (_imageSaveQueueProcessor.ConfigurationMatches(
+                        workerCount,
+                        capacity,
+                        memoryBudgetBytes,
+                        lowSpaceThresholdMb,
+                        criticalSpaceThresholdMb,
+                        slowWriteThresholdMs,
+                        probeIntervalMs))
                         return;
 
                     if (!_imageSaveQueueProcessor.IsIdle)
@@ -1146,12 +1167,20 @@ namespace TDJS_Vision
         /// <returns>尚未启动的保存工作池。</returns>
         private static ImageQueueProcessor CreateImageSaveQueueProcessor(AutomaticResourceProfile profile)
         {
+            int lowSpaceThresholdMb = GetSaveDiskLowSpaceMb(profile);
+            IImageSaveStorageGuard storageGuard = new CachedImageSaveStorageGuard(
+                new DriveImageSaveDiskSpaceProbe(),
+                lowSpaceThresholdMb,
+                GetSaveDiskCriticalSpaceMb(profile, lowSpaceThresholdMb),
+                GetSaveSlowThresholdMs(profile),
+                GetSaveDiskProbeIntervalMs(profile));
             return new ImageQueueProcessor(
                 GetImageSaveWorkerCount(profile),
                 GetImageSaveQueueCapacity(profile),
                 GetImageSaveQueueMemoryBudgetBytes(profile),
                 Math.Max(0, Math.Min(60000, profile?.ShutdownResourceDrainTimeoutMs ?? 5000)),
-                "全方案共享");
+                "全方案共享",
+                storageGuard);
         }
 
         /// <summary>
@@ -1183,6 +1212,48 @@ namespace TDJS_Vision
         {
             int budgetMb = Math.Max(1, profile?.SaveQueueMemoryBudgetMb ?? 128);
             return (long)budgetMb * 1024L * 1024L;
+        }
+
+        /// <summary>
+        /// 取得普通图片停止保存的磁盘低空间水位。
+        /// </summary>
+        /// <param name="profile">自动资源档案。</param>
+        /// <returns>至少为2MB的低空间水位。</returns>
+        private static int GetSaveDiskLowSpaceMb(AutomaticResourceProfile profile)
+        {
+            return Math.Max(2, profile?.SaveDiskLowSpaceMb ?? CachedImageSaveStorageGuard.DefaultLowSpaceThresholdMb);
+        }
+
+        /// <summary>
+        /// 取得全部图片停止保存的磁盘严重空间水位。
+        /// </summary>
+        /// <param name="profile">自动资源档案。</param>
+        /// <param name="lowSpaceThresholdMb">已经规范化的低空间水位。</param>
+        /// <returns>至少为1MB且低于低空间水位的严重水位。</returns>
+        private static int GetSaveDiskCriticalSpaceMb(AutomaticResourceProfile profile, int lowSpaceThresholdMb)
+        {
+            int configuredValue = profile?.SaveDiskCriticalSpaceMb ?? CachedImageSaveStorageGuard.DefaultCriticalSpaceThresholdMb;
+            return Math.Max(1, Math.Min(configuredValue, lowSpaceThresholdMb - 1));
+        }
+
+        /// <summary>
+        /// 取得单个目标路径慢写阈值。
+        /// </summary>
+        /// <param name="profile">自动资源档案。</param>
+        /// <returns>至少为1ms的慢写阈值。</returns>
+        private static int GetSaveSlowThresholdMs(AutomaticResourceProfile profile)
+        {
+            return Math.Max(1, profile?.SaveSlowThresholdMs ?? CachedImageSaveStorageGuard.DefaultSlowWriteThresholdMs);
+        }
+
+        /// <summary>
+        /// 取得磁盘空间探测缓存时间。
+        /// </summary>
+        /// <param name="profile">自动资源档案。</param>
+        /// <returns>非负的缓存毫秒数。</returns>
+        private static int GetSaveDiskProbeIntervalMs(AutomaticResourceProfile profile)
+        {
+            return Math.Max(0, profile?.SaveDiskProbeIntervalMs ?? CachedImageSaveStorageGuard.DefaultProbeIntervalMs);
         }
 
         /// <summary>

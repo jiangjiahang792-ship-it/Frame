@@ -21,6 +21,7 @@ function Assert-NotContains {
 
 $queue = Get-ProjectSource 'ResourceManagement\BoundedPriorityWorkQueue.cs'
 $saveNode = Get-ProjectSource 'Node\7-ResultProcessing\ImageSave\NodeSaveImage.cs'
+$storageGuard = Get-ProjectSource 'ResourceManagement\ImageSaveStorageGuard.cs'
 $outputImage = Get-ProjectSource 'Node\1-Acquisition\ImageSource\NodeResultImageSource.cs'
 $sampler = Get-ProjectSource 'ResourceManagement\ImageResourceSizeSampler.cs'
 $solution = Get-ProjectSource 'Solution.cs'
@@ -41,6 +42,12 @@ Assert-Contains $queue 'CompleteAndDisposePending()' '停止超时必须能释�
 Assert-NotContains $saveNode 'BlockingCollection<SaveImageTask>' '保存节点不得继续使用无界BlockingCollection。'
 Assert-NotContains $saveNode 'new ImageQueueProcessor(4' '保存节点不得继续为每个节点硬编码4个消费者。'
 Assert-Contains $saveNode 'Solution.Instance.GetOrCreateImageSaveQueueProcessor()' '所有保存节点必须接入全方案共享工作池。'
+Assert-Contains $saveNode '_storageGuard.Evaluate(' '保存消费者必须在Mat转Bitmap前执行磁盘准入。'
+Assert-Contains $saveNode 'ImageSaveQueueDiagnosticsSnapshot GetDiagnosticsSnapshot()' '保存工作池必须公开不可变诊断快照。'
+Assert-Contains $saveNode '【保存队列汇总】' '工作池停止时必须写一次低频保存队列汇总。'
+Assert-Contains $storageGuard 'interface IImageSaveDiskSpaceProbe' '磁盘空间探测必须可替换以支持故障压力注入。'
+Assert-Contains $storageGuard 'SkippedCriticalSpace' '磁盘保护必须区分严重低空间。'
+Assert-Contains $storageGuard 'AllowedHighPriorityUnderLowSpace' '低空间策略必须允许优先保留NG图片。'
 Assert-Contains $saveNode 'Solution.Instance.RecordImageSaveResourceSample(saveImageTask.EstimatedBytes);' '保存节点必须记录完整图像租约字节样本。'
 Assert-Contains $saveNode 'IImageResourceLease candidateLease = outputImage.AcquireLease();' '读取源图和估算资源前必须先持有候选租约。'
 Assert-Contains $saveNode 'candidateLease = null;' '成功接纳保存任务时必须把候选租约所有权转交工作池。'
@@ -61,6 +68,7 @@ Assert-Contains $saveNode 'bitmap?.Dispose();' '转换或叠加异常必须释�
 
 Assert-Contains $solution 'private ImageQueueProcessor _imageSaveQueueProcessor;' 'Solution必须持有唯一共享保存工作池。'
 Assert-Contains $solution 'CreateImageSaveQueueProcessor(CurrentResourceProfile)' '共享工作池必须按当前资源档案延迟创建。'
+Assert-Contains $solution 'new CachedImageSaveStorageGuard(' '共享工作池创建时必须应用磁盘保护参数。'
 Assert-Contains $solution 'profile?.ImageSaveWorkerCount ?? 1' '保存工作线程数必须读取自动资源档案并提供保守降级值。'
 Assert-Contains $solution 'AverageImageBytes = _imageSaveSizeSampler.AverageBytes' '资源档案必须使用运行时滚动图像字节样本。'
 Assert-Contains $solution 'if (!StopImageSaveQueueProcessor())' '方案重置必须确认共享保存工作池已经完全退出。'
@@ -74,5 +82,6 @@ Assert-Contains $nodeBase 'Dispose();' '单独删除节点必须触发派生节�
 Assert-Contains $sampler 'while (_samples.Count > _capacity)' '图像资源采样器必须保持固定滚动窗口。'
 Assert-Contains $project '<Compile Include="ResourceManagement\BoundedPriorityWorkQueue.cs" />' '项目必须编译有界优先资源队列。'
 Assert-Contains $project '<Compile Include="ResourceManagement\ImageResourceSizeSampler.cs" />' '项目必须编译图像资源滚动采样器。'
+Assert-Contains $project '<Compile Include="ResourceManagement\ImageSaveStorageGuard.cs" />' '项目必须编译磁盘保护和保存诊断模型。'
 
 Write-Host '保存队列共享架构、双重边界、停止排空和原子写盘结构检查通过。'

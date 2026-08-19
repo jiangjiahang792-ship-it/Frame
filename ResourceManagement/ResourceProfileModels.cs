@@ -171,6 +171,18 @@ namespace TDJS_Vision.ResourceManagement
 
         /// <summary>保存任务完整图像资源字节数的滚动采样数量。</summary>
         public int ImageSizeSampleCount { get; set; } = RollingImageResourceSizeSampler.DefaultCapacity;
+
+        /// <summary>普通图片停止保存的磁盘低空间水位，单位MB。</summary>
+        public int SaveDiskLowSpaceMb { get; set; } = CachedImageSaveStorageGuard.DefaultLowSpaceThresholdMb;
+
+        /// <summary>全部图片停止保存的磁盘严重空间水位，单位MB。</summary>
+        public int SaveDiskCriticalSpaceMb { get; set; } = CachedImageSaveStorageGuard.DefaultCriticalSpaceThresholdMb;
+
+        /// <summary>单个目标目录写盘慢耗时阈值，单位ms。</summary>
+        public int SaveSlowThresholdMs { get; set; } = CachedImageSaveStorageGuard.DefaultSlowWriteThresholdMs;
+
+        /// <summary>磁盘空间探测结果缓存时间，单位ms。</summary>
+        public int SaveDiskProbeIntervalMs { get; set; } = CachedImageSaveStorageGuard.DefaultProbeIntervalMs;
     }
 
     /// <summary>
@@ -229,6 +241,18 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>保存任务完整图像资源字节数的滚动采样数量。</summary>
         public int ImageSizeSampleCount { get; set; }
 
+        /// <summary>普通图片停止保存的磁盘低空间水位，单位MB。</summary>
+        public int SaveDiskLowSpaceMb { get; set; }
+
+        /// <summary>全部图片停止保存的磁盘严重空间水位，单位MB。</summary>
+        public int SaveDiskCriticalSpaceMb { get; set; }
+
+        /// <summary>单个目标目录写盘慢耗时阈值，单位ms。</summary>
+        public int SaveSlowThresholdMs { get; set; }
+
+        /// <summary>磁盘空间探测结果缓存时间，单位ms。</summary>
+        public int SaveDiskProbeIntervalMs { get; set; }
+
         /// <summary>
         /// 生成现场可检索的自动资源建议摘要。
         /// </summary>
@@ -236,7 +260,7 @@ namespace TDJS_Vision.ResourceManagement
         public string ToLogText()
         {
             ResourceWorkloadSnapshot workload = Workload ?? new ResourceWorkloadSnapshot();
-            return $"启用流程={workload.EnabledProcessCount}；相机={workload.CameraCount}；平均图像={workload.AverageImageBytes}字节；图像样本={ImageSizeSampleCount}；CPU保留核心={CpuReserveCoreCount}；CPU重任务并发={CpuHeavyMaxConcurrency}；图像转换并发={ImageConvertMaxConcurrency}；保存线程={ImageSaveWorkerCount}；流程图像预算={FlowImageMemoryBudgetMb}MB；保存队列预算={SaveQueueMemoryBudgetMb}MB；内存低水位={MemoryLowWatermarkMb}MB；严重水位={MemoryCriticalWatermarkMb}MB；保存队列容量={SaveQueueCalculatedCapacity}；UI最大帧率={UiMaxRefreshFps}；停止等待={ShutdownResourceDrainTimeoutMs}ms；使用初始容量={UsesInitialSaveQueueCapacity}；AI策略={AiConcurrencyPolicy}";
+            return $"启用流程={workload.EnabledProcessCount}；相机={workload.CameraCount}；平均图像={workload.AverageImageBytes}字节；图像样本={ImageSizeSampleCount}；CPU保留核心={CpuReserveCoreCount}；CPU重任务并发={CpuHeavyMaxConcurrency}；图像转换并发={ImageConvertMaxConcurrency}；保存线程={ImageSaveWorkerCount}；流程图像预算={FlowImageMemoryBudgetMb}MB；保存队列预算={SaveQueueMemoryBudgetMb}MB；内存低水位={MemoryLowWatermarkMb}MB；严重水位={MemoryCriticalWatermarkMb}MB；保存队列容量={SaveQueueCalculatedCapacity}；磁盘低水位={SaveDiskLowSpaceMb}MB；磁盘严重水位={SaveDiskCriticalSpaceMb}MB；慢写阈值={SaveSlowThresholdMs}ms；磁盘采样={SaveDiskProbeIntervalMs}ms；UI最大帧率={UiMaxRefreshFps}；停止等待={ShutdownResourceDrainTimeoutMs}ms；使用初始容量={UsesInitialSaveQueueCapacity}；AI策略={AiConcurrencyPolicy}";
         }
     }
 }
