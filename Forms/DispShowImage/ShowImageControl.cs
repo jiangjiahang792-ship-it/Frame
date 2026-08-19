@@ -395,6 +395,21 @@ namespace TDJS_Vision.Forms.DispShowImage
             });
         }
 
+        /// <summary>
+        /// 仅在当前UI线程和有效句柄上接管图像，供有明确Bitmap所有权的调用方使用。
+        /// </summary>
+        /// <param name="bmp">准备移交给显示控件的Bitmap。</param>
+        /// <param name="displayResult">与Bitmap同帧的叠加结果。</param>
+        /// <returns>控件已经接管Bitmap返回 true；调用方仍需释放返回 false。</returns>
+        public bool TrySetImage(Bitmap bmp, AlgorithmResult displayResult)
+        {
+            if (IsDisposed || !IsHandleCreated || InvokeRequired)
+                return false;
+
+            SetImage(bmp, displayResult);
+            return true;
+        }
+
         public void SetDisplayResult(AlgorithmResult displayResult)
         {
             bool diagnosticEnabled = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);

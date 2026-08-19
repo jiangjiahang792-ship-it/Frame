@@ -210,6 +210,9 @@ namespace TDJS_Vision.Forms.ImageViewer
             if (FormName != NormalizeWindowKey(e.WinName))
                 return;
 
+            if (!e.TryTakeBitmap(out Bitmap bitmap))
+                return;
+
             // 同一个窗口可能被多个图像显示节点复用，这里记录真正刷新当前画面的节点。
             if (sender is NodeImageShow nodeShow)
             {
@@ -218,7 +221,8 @@ namespace TDJS_Vision.Forms.ImageViewer
                 _isBoundToProcess = true;
             }
 
-            SetViewerImage(e.Bitmap, e.DisplayResult, e.TraceContext);
+            SetViewerImage(bitmap, e.DisplayResult, e.TraceContext);
+            e.ConfirmBitmapOwnershipTransfer(bitmap);
         }
 
         private void SetViewerImage(
@@ -350,7 +354,9 @@ namespace TDJS_Vision.Forms.ImageViewer
             long queueDelay = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(frame.ScheduleStopwatch);
             Bitmap bitmap = frame.Bitmap;
             Stopwatch uiStopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
-            showImageControl1.SetImage(bitmap, frame.DisplayResult);
+            if (!showImageControl1.TrySetImage(bitmap, frame.DisplayResult))
+                return;
+
             frame.TransferBitmapOwnership();
             long setImageMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(uiStopwatch);
             if (frame.DiagnosticEnabled)
@@ -395,6 +401,7 @@ namespace TDJS_Vision.Forms.ImageViewer
             UserPermissionContext.RoleChanged -= UserPermissionContext_RoleChanged;
             DisposePendingViewerFrame();
             Interlocked.Exchange(ref _viewerDispatchScheduled, 0);
+            NodeImageShow.ResetWindowRefreshState(FormName);
         }
 
         /// <summary>
@@ -1091,14 +1098,29 @@ namespace TDJS_Vision.Forms.ImageViewer
     /// </summary>
     public class ImageShowPamra
     {
+        /// <summary>尚未被目标窗口认领的位图。</summary>
+        private Bitmap _bitmap;
+
+        /// <summary>位图是否已经被一个目标窗口认领。</summary>
+        private int _bitmapClaimed;
+
+        /// <summary>位图是否已经由认领窗口确认接管。</summary>
+        private int _bitmapOwnershipTransferred;
+
         /// <summary>目标图像窗口名称。</summary>
         public string WinName;
-        /// <summary>由图像窗口接管生命周期的位图。</summary>
-        public Bitmap Bitmap;
         /// <summary>需要叠加到图像窗口的算法显示结果。</summary>
         public AlgorithmResult DisplayResult;
         /// <summary>跨线程流程诊断上下文，Debug关闭时为空。</summary>
         public PerformanceTraceContext TraceContext;
+
+        /// <summary>当前位图是否已经由一个目标窗口确认接管。</summary>
+        public bool IsBitmapClaimed => Volatile.Read(ref _bitmapOwnershipTransferred) != 0;
+
+        /// <summary>当前是否存在尚未确认转交的位图认领。</summary>
+        public bool HasUnconfirmedBitmapClaim =>
+            Volatile.Read(ref _bitmapClaimed) != 0 &&
+            Volatile.Read(ref _bitmapOwnershipTransferred) == 0;
 
         /// <summary>
         /// 创建图像显示事件参数。
@@ -1114,9 +1136,54 @@ namespace TDJS_Vision.Forms.ImageViewer
             PerformanceTraceContext traceContext = null)
         {
             WinName = FrmSingleImage.NormalizeWindowKey(winname);
-            Bitmap = bitmap;
+            _bitmap = bitmap;
             DisplayResult = displayResult;
             TraceContext = traceContext;
+        }
+
+        /// <summary>
+        /// 由匹配的目标窗口原子预认领位图，同一位图最多成功预认领一次。
+        /// </summary>
+        /// <param name="bitmap">成功时返回由调用窗口负责释放的位图。</param>
+        /// <returns>成功预认领位图返回 true；窗口接管后还需确认转交。</returns>
+        public bool TryTakeBitmap(out Bitmap bitmap)
+        {
+            bitmap = null;
+            if (Interlocked.CompareExchange(ref _bitmapClaimed, 1, 0) != 0)
+                return false;
+
+            bitmap = Volatile.Read(ref _bitmap);
+            if (bitmap == null)
+                return false;
+
+            return true;
+        }
+
+        /// <summary>
+        /// 在目标窗口已经接管Bitmap后确认转交，发布器随后不再负责释放。
+        /// </summary>
+        /// <param name="bitmap">由本次认领取得并已交给窗口的Bitmap。</param>
+        /// <returns>成功确认本次转交返回 true。</returns>
+        public bool ConfirmBitmapOwnershipTransfer(Bitmap bitmap)
+        {
+            if (bitmap == null || Volatile.Read(ref _bitmapClaimed) == 0)
+                return false;
+
+            Bitmap transferred = Interlocked.CompareExchange(ref _bitmap, null, bitmap);
+            if (!ReferenceEquals(transferred, bitmap))
+                return false;
+
+            Volatile.Write(ref _bitmapOwnershipTransferred, 1);
+            return true;
+        }
+
+        /// <summary>
+        /// 发布结束后释放未认领或认领后尚未确认转交的位图。
+        /// </summary>
+        public void DisposeUnclaimedBitmap()
+        {
+            Bitmap bitmap = Interlocked.Exchange(ref _bitmap, null);
+            bitmap?.Dispose();
         }
     }
 }

@@ -162,6 +162,9 @@ namespace TDJS_Vision.ResourceManagement
 
         /// <summary>保存队列计算容量上限。</summary>
         public int SaveQueueMaximumCapacity { get; set; } = 50;
+
+        /// <summary>每个图像窗口允许的最大显示帧率。</summary>
+        public int UiMaxRefreshFps { get; set; } = PerWindowUiFrameRateLimiter.DefaultMaximumFramesPerSecond;
     }
 
     /// <summary>
@@ -208,6 +211,9 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>AI并发策略；固定跟随可编辑流程。</summary>
         public string AiConcurrencyPolicy { get; set; } = "FollowEditableFlow";
 
+        /// <summary>每个图像窗口独立执行的最大显示帧率。</summary>
+        public int UiMaxRefreshFps { get; set; }
+
         /// <summary>当前是否因为没有图像采样而使用初始保存队列容量。</summary>
         public bool UsesInitialSaveQueueCapacity { get; set; }
 
@@ -218,7 +224,7 @@ namespace TDJS_Vision.ResourceManagement
         public string ToLogText()
         {
             ResourceWorkloadSnapshot workload = Workload ?? new ResourceWorkloadSnapshot();
-            return $"启用流程={workload.EnabledProcessCount}；相机={workload.CameraCount}；平均图像={workload.AverageImageBytes}字节；CPU保留核心={CpuReserveCoreCount}；CPU重任务并发={CpuHeavyMaxConcurrency}；图像转换并发={ImageConvertMaxConcurrency}；保存线程={ImageSaveWorkerCount}；流程图像预算={FlowImageMemoryBudgetMb}MB；保存队列预算={SaveQueueMemoryBudgetMb}MB；内存低水位={MemoryLowWatermarkMb}MB；严重水位={MemoryCriticalWatermarkMb}MB；保存队列容量={SaveQueueCalculatedCapacity}；使用初始容量={UsesInitialSaveQueueCapacity}；AI策略={AiConcurrencyPolicy}";
+            return $"启用流程={workload.EnabledProcessCount}；相机={workload.CameraCount}；平均图像={workload.AverageImageBytes}字节；CPU保留核心={CpuReserveCoreCount}；CPU重任务并发={CpuHeavyMaxConcurrency}；图像转换并发={ImageConvertMaxConcurrency}；保存线程={ImageSaveWorkerCount}；流程图像预算={FlowImageMemoryBudgetMb}MB；保存队列预算={SaveQueueMemoryBudgetMb}MB；内存低水位={MemoryLowWatermarkMb}MB；严重水位={MemoryCriticalWatermarkMb}MB；保存队列容量={SaveQueueCalculatedCapacity}；UI最大帧率={UiMaxRefreshFps}；使用初始容量={UsesInitialSaveQueueCapacity}；AI策略={AiConcurrencyPolicy}";
         }
     }
 }

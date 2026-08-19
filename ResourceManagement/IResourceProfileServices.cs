@@ -47,4 +47,29 @@ namespace TDJS_Vision.ResourceManagement
         /// </summary>
         void ResetHardwareCache();
     }
+
+    /// <summary>
+    /// 按图像窗口限制显示帧率的可替换策略。
+    /// </summary>
+    public interface IUiFrameRateLimiter
+    {
+        /// <summary>
+        /// 尝试取得指定窗口本次图像转换与显示许可。
+        /// </summary>
+        /// <param name="windowName">标准化后的图像窗口名称。</param>
+        /// <param name="maximumFramesPerSecond">每秒最大显示帧数。</param>
+        /// <returns>允许本次显示返回 true；应跳过本次显示返回 false。</returns>
+        bool TryAcquire(string windowName, int maximumFramesPerSecond);
+
+        /// <summary>
+        /// 清除指定窗口的限速状态，使重新打开后的第一帧立即显示。
+        /// </summary>
+        /// <param name="windowName">图像窗口名称。</param>
+        void Reset(string windowName);
+
+        /// <summary>
+        /// 清除全部窗口的限速状态。
+        /// </summary>
+        void ResetAll();
+    }
 }

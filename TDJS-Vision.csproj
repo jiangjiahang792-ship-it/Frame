@@ -242,6 +242,7 @@
     <Compile Include="ResourceManagement\WindowsHardwareResourceProbe.cs" />
     <Compile Include="ResourceManagement\ResourceProfileCalculator.cs" />
     <Compile Include="ResourceManagement\RuntimeResourceProfileProvider.cs" />
+    <Compile Include="ResourceManagement\PerWindowUiFrameRateLimiter.cs" />
     <Compile Include="DetectItemLanguage.cs" />
     <Compile Include="ExternalProgramLauncher.cs" />
     <Compile Include="Forms\Workspace\IExclusiveWorkspacePresenter.cs" />

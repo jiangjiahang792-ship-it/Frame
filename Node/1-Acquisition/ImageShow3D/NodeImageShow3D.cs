@@ -79,14 +79,31 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
                 if (firstMat == null || firstMat.Empty())
                     throw new Exception("未获取到可显示的深度预览图！");
 
-                Bitmap image = firstMat.ToBitmap();
-                NodeImageShow.PublishImageShowChanged(this, param.WindowName, image, outputImage.DisplayResult);
-                NodeImageShow.PublishImageShowWindowNameChanged(Process, param.WindowName);
+                bool refreshGranted = NodeImageShow.TryAcquireWindowRefresh(
+                    param.WindowName,
+                    out int maximumFramesPerSecond);
+                string displayStrategy;
+                if (refreshGranted)
+                {
+                    Bitmap image = firstMat.ToBitmap();
+                    bool bitmapClaimed = NodeImageShow.PublishImageShowChanged(
+                        this,
+                        param.WindowName,
+                        image,
+                        outputImage.DisplayResult);
+                    if (bitmapClaimed)
+                        NodeImageShow.PublishImageShowWindowNameChanged(Process, param.WindowName);
+                    displayStrategy = bitmapClaimed ? "已发布" : "无人接管并释放";
+                }
+                else
+                {
+                    displayStrategy = $"刷新限速跳过({maximumFramesPerSecond}FPS)";
+                }
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 ((NodeResultImageShow3D)Result).RunTime = time;
                 if (showLog)
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！图像窗口={FrmSingleImage.GetWindowDisplayName(param.WindowName)}，深度图={GetMatDiagnosticText(firstMat)}，耗时={time} ms", true);
+                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！图像窗口={FrmSingleImage.GetWindowDisplayName(param.WindowName)}，显示策略={displayStrategy}，深度图={GetMatDiagnosticText(firstMat)}，耗时={time} ms", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }

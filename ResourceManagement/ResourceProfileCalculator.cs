@@ -86,6 +86,10 @@ namespace TDJS_Vision.ResourceManagement
                 MemoryLowWatermarkMb = lowWatermarkMb,
                 MemoryCriticalWatermarkMb = criticalWatermarkMb,
                 SaveQueueCalculatedCapacity = saveQueueCapacity,
+                UiMaxRefreshFps = Clamp(
+                    options.UiMaxRefreshFps,
+                    PerWindowUiFrameRateLimiter.MinimumFramesPerSecond,
+                    PerWindowUiFrameRateLimiter.MaximumFramesPerSecond),
                 UsesInitialSaveQueueCapacity = useInitialQueueCapacity,
                 AiConcurrencyPolicy = "FollowEditableFlow"
             };

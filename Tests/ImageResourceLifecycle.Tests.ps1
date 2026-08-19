@@ -254,7 +254,7 @@ $resourceManagerBody = [System.Text.RegularExpressions.Regex]::Replace($resource
 Add-Type -TypeDefinition ($commonUsings + [Environment]::NewLine + $outputImageBody + [Environment]::NewLine + $resourceManagerBody + [Environment]::NewLine + $stubs) -Language CSharp
 
 $colorSource = New-Object OpenCvSharp.Mat
-$ownedOutput = [TDJS_Vision.Node._1_Acquisition.ImageSource.OutputImage]::FromOwnedSingleImage($colorSource)
+$ownedOutput = [TDJS_Vision.Node._1_Acquisition.ImageSource.OutputImage]::FromOwnedSingleImage($colorSource, $null)
 $generatedGray = $ownedOutput.GrayImg
 Assert-True ($ownedOutput.OwnedImageCount -eq 2) '彩色自产图应拥有源图和生成的灰度图。'
 
@@ -286,7 +286,7 @@ $borrowedOutput.Dispose()
 Assert-True ($borrowedSource.DisposeCount -eq 0 -and $borrowedGray.DisposeCount -eq 0) '释放借用输出不能释放上游Mat。'
 
 $borrowedColor = New-Object OpenCvSharp.Mat
-$borrowedWithLocalGray = [TDJS_Vision.Node._1_Acquisition.ImageSource.OutputImage]::FromBorrowedSingleImage($borrowedColor)
+$borrowedWithLocalGray = [TDJS_Vision.Node._1_Acquisition.ImageSource.OutputImage]::FromBorrowedSingleImage($borrowedColor, $null)
 $localGray = $borrowedWithLocalGray.GrayImg
 Assert-True ($borrowedWithLocalGray.OwnedImageCount -eq 1) '借用彩图按需生成的灰度缓存应由当前输出拥有。'
 $borrowedWithLocalGray.Dispose()

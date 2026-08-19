@@ -1097,7 +1097,16 @@ namespace TDJS_Vision.Forms.SolRunParam
                             tokenSource.Token.ThrowIfCancellationRequested();
                             //var img = (await _camera.GetOneFrameImage()).Bitmap;
                             var img = _camera.GetOneFrameImage();
-                            ImageShowChanged?.Invoke(this, new ImageShowPamra(_windowsName, img));
+                            var eventArgs = new ImageShowPamra(_windowsName, img);
+                            try
+                            {
+                                ImageShowChanged?.Invoke(this, eventArgs);
+                            }
+                            finally
+                            {
+                                // 连续采图功能即使重新启用，也不能遗留无人接管的Bitmap。
+                                eventArgs.DisposeUnclaimedBitmap();
+                            }
                             // 可以加个短暂延时避免 CPU 占用过高（可选）
                             await Task.Delay(5, tokenSource.Token);
                         }

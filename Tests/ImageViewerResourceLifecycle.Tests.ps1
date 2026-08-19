@@ -51,6 +51,7 @@ Assert-ContainsText $singleImageSource 'superseded.Dispose();' 'Superseded proce
 Assert-ContainsText $singleImageSource 'Interlocked.CompareExchange(ref _viewerDispatchScheduled, 1, 0)' 'Every image window must allow at most one queued UI refresh.'
 Assert-ContainsText $singleImageSource 'private sealed class PendingViewerFrame : IDisposable' 'Bitmap, overlay data, and diagnostics must travel through the slot as one frame.'
 Assert-ContainsText $singleImageSource 'frame.TransferBitmapOwnership();' 'Displayed Bitmaps must transfer from the slot to ShowImageControl.'
+Assert-ContainsText $singleImageSource 'if (!showImageControl1.TrySetImage(bitmap, frame.DisplayResult))' 'The frame slot must retain ownership when the child display handle rejects an image.'
 Assert-ContainsText $singleImageSource 'BitmapDiagnosticText = diagnosticEnabled ? GetBitmapDiagnosticText(bitmap) : string.Empty;' 'Debug frame diagnostics must be captured before a superseded Bitmap can be disposed.'
 Assert-NotContainsText $singleImageSource 'GetBitmapDiagnosticText(submittedFrame.Bitmap)' 'Queued-dispatch diagnostics must not inspect a Bitmap that another producer may already have released.'
 Assert-NotContainsText $singleImageSource 'GetBitmapDiagnosticText(superseded.Bitmap)' 'Superseded-frame diagnostics must use the immutable snapshot instead of the releasable Bitmap.'

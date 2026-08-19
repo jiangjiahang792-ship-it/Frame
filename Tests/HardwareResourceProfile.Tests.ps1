@@ -55,6 +55,7 @@ Assert-Contains $probe 'Win32_VideoController' 'Windows探针必须读取GPU诊�
 Assert-Contains $probe 'AvailableFreeSpace' 'Windows探针必须读取程序磁盘空间。'
 Assert-Contains $provider 'HardwareResourceSnapshot.CreateFallback' '硬件探针失败不能阻止软件启动。'
 Assert-Contains $calculator 'AiConcurrencyPolicy = "FollowEditableFlow"' '自动资源档案不能增加全局AI并发限制。'
+Assert-Contains $calculator 'UiMaxRefreshFps = Clamp(' 'UI最大刷新帧率必须经过安全范围限制。'
 Assert-Contains $solution 'RefreshRuntimeResourceProfile();' '方案运行前必须刷新资源建议档案。'
 Assert-Contains $solution 'AverageImageBytes = 0' '尚未采样图像时必须明确使用初始保存队列容量。'
 Assert-Contains $solution '尚未修改线程池、CPU亲和性或AI并发' '步骤3不能提前改变运行策略。'
@@ -114,6 +115,7 @@ Assert-Equal $standard.FlowImageMemoryBudgetMb 2048 '流程图像预算应受204
 Assert-Equal $standard.SaveQueueMemoryBudgetMb 512 '保存队列预算应受512MB上限约束。'
 Assert-Equal $standard.SaveQueueCalculatedCapacity 42 '12MB平均任务对应512MB预算时队列容量应为42。'
 Assert-Equal $standard.AiConcurrencyPolicy 'FollowEditableFlow' 'AI策略必须跟随可编辑流程。'
+Assert-Equal $standard.UiMaxRefreshFps 30 '每个图像窗口默认最大刷新帧率应为30。'
 
 $small = New-Profile 2 2 2 4096 1024 4 4 (50MB)
 Assert-Equal $small.CpuReserveCoreCount 1 '双核电脑最多只能保留1个核心。'
