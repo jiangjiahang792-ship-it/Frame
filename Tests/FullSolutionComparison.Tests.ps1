@@ -28,6 +28,8 @@ param(
 
     [string]$OutputDirectory = (Join-Path $PSScriptRoot "Results\FullSolutionComparison"),
 
+    [string]$ImmutableSchemeSourcePath = "",
+
     [switch]$KeepProcess
 )
 
@@ -72,6 +74,24 @@ function Get-Percentile {
 
     $weight = $rank - $lower
     return ([double]$sorted[$lower] * (1.0 - $weight)) + ([double]$sorted[$upper] * $weight)
+}
+
+function Restore-ImmutableScheme {
+    param(
+        [string]$SourcePath,
+        [string]$TargetPath,
+        [string]$ExpectedSha256
+    )
+
+    if ([string]::IsNullOrWhiteSpace($SourcePath)) {
+        return
+    }
+
+    Copy-Item -LiteralPath $SourcePath -Destination $TargetPath -Force
+    $actualSha256 = (Get-FileHash -LiteralPath $TargetPath -Algorithm SHA256).Hash
+    if (-not [string]::Equals($actualSha256, $ExpectedSha256, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "恢复固定方案母本后SHA256校验失败。"
+    }
 }
 
 function Get-TestProcesses {
@@ -392,6 +412,19 @@ function Get-ProcessLogSummary {
 
 $resolvedExecutablePath = (Resolve-Path -LiteralPath $ExecutablePath).Path
 $resolvedSchemePath = (Resolve-Path -LiteralPath $SchemePath).Path
+$resolvedImmutableSchemeSourcePath = if ([string]::IsNullOrWhiteSpace($ImmutableSchemeSourcePath)) {
+    ""
+}
+else {
+    (Resolve-Path -LiteralPath $ImmutableSchemeSourcePath).Path
+}
+$immutableSchemeSha256 = if ([string]::IsNullOrWhiteSpace($resolvedImmutableSchemeSourcePath)) {
+    ""
+}
+else {
+    (Get-FileHash -LiteralPath $resolvedImmutableSchemeSourcePath -Algorithm SHA256).Hash
+}
+Restore-ImmutableScheme -SourcePath $resolvedImmutableSchemeSourcePath -TargetPath $resolvedSchemePath -ExpectedSha256 $immutableSchemeSha256
 $workingDirectory = Split-Path -Parent $resolvedExecutablePath
 $logDirectory = Join-Path $workingDirectory "Logs"
 $startedByScript = $false
@@ -540,6 +573,8 @@ try {
         ExecutableSha256 = (Get-FileHash -LiteralPath $resolvedExecutablePath -Algorithm SHA256).Hash
         SchemePath = $resolvedSchemePath
         SchemeSha256 = (Get-FileHash -LiteralPath $resolvedSchemePath -Algorithm SHA256).Hash
+        ImmutableSchemeSourcePath = $resolvedImmutableSchemeSourcePath
+        ImmutableSchemeSha256 = $immutableSchemeSha256
         DebugSwitch = "使用程序当前用户设置；本轮未通过自动化修改"
         UiMode = "单次运行按钮串行调用，确保四流程每轮各执行一次"
         WarmupRounds = $WarmupRounds
@@ -599,6 +634,14 @@ try {
 finally {
     if (-not $KeepProcess -and $null -ne $mainProcess -and -not $mainProcess.HasExited) {
         [void](Close-TestProcess -MainProcess $mainProcess)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($resolvedImmutableSchemeSourcePath)) {
+        if ($null -eq $mainProcess -or $mainProcess.HasExited) {
+            Restore-ImmutableScheme -SourcePath $resolvedImmutableSchemeSourcePath -TargetPath $resolvedSchemePath -ExpectedSha256 $immutableSchemeSha256
+        }
+        else {
+            Write-Warning "视觉程序尚未退出，暂不覆盖其正在使用的固定方案文件。"
+        }
     }
     if ($executionStateWasSet) {
         [void][FullSolutionGuiResourceProbe]::SetThreadExecutionState($continuousOnly)
