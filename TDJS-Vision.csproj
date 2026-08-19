@@ -237,6 +237,11 @@
     <Compile Include="Diagnostics\PerformanceTraceContext.cs" />
     <Compile Include="Diagnostics\ProcessPerformanceTrace.cs" />
     <Compile Include="Diagnostics\PerformanceSpikeDiagnostics.cs" />
+    <Compile Include="ResourceManagement\ResourceProfileModels.cs" />
+    <Compile Include="ResourceManagement\IResourceProfileServices.cs" />
+    <Compile Include="ResourceManagement\WindowsHardwareResourceProbe.cs" />
+    <Compile Include="ResourceManagement\ResourceProfileCalculator.cs" />
+    <Compile Include="ResourceManagement\RuntimeResourceProfileProvider.cs" />
     <Compile Include="DetectItemLanguage.cs" />
     <Compile Include="ExternalProgramLauncher.cs" />
     <Compile Include="Forms\Workspace\IExclusiveWorkspacePresenter.cs" />

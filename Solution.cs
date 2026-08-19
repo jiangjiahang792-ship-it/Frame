@@ -29,6 +29,8 @@ using TDJS_Vision.Node._3_Detection.TDAI;
 using System.Windows.Forms;
 using ServiceStack;
 using System.Diagnostics;
+using TDJS_Vision.Diagnostics;
+using TDJS_Vision.ResourceManagement;
 using TDJS_Vision.Startup;
 
 namespace TDJS_Vision
@@ -112,6 +114,16 @@ namespace TDJS_Vision
         /// 3D 相机设备
         /// </summary>
         public List<I3DCamera> Camera3DDevices => AllDevices.OfType<I3DCamera>().ToList();
+
+        /// <summary>
+        /// 运行资源档案提供器，测试或扩展模块可以替换硬件探针和计算策略。
+        /// </summary>
+        public IRuntimeResourceProfileProvider ResourceProfileProvider { get; set; } = RuntimeResourceProfileProvider.CreateDefault();
+
+        /// <summary>
+        /// 最近一次方案运行前生成的自动资源建议档案。
+        /// </summary>
+        public AutomaticResourceProfile CurrentResourceProfile { get; private set; }
 
         /// <summary>
         /// Plc设备
@@ -369,6 +381,8 @@ namespace TDJS_Vision
                 LogHelper.AddLog(MsgLevel.Exception, validationMessage, true);
                 return;
             }
+
+            RefreshRuntimeResourceProfile();
 
             IsRunning = true;
             Solution.Instance.ResetTokenSource();
@@ -747,6 +761,47 @@ namespace TDJS_Vision
             {
                 WriteSolutionLoadLogSafely($"方案加载上下文异常，已忽略：{ex}");
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// 按当前启用流程和相机规模刷新自动资源建议；失败只告警，不阻止方案运行。
+        /// </summary>
+        private void RefreshRuntimeResourceProfile()
+        {
+            try
+            {
+                IRuntimeResourceProfileProvider provider = ResourceProfileProvider ?? RuntimeResourceProfileProvider.CreateDefault();
+                ResourceProfileProvider = provider;
+                ResourceWorkloadSnapshot workload = new ResourceWorkloadSnapshot
+                {
+                    EnabledProcessCount = AllProcesses == null ? 0 : AllProcesses.Count(process => process != null && process.Enable),
+                    CameraCount = CameraDevices.Count + Camera3DDevices.Count,
+                    AverageImageBytes = 0
+                };
+                CurrentResourceProfile = provider.BuildProfile(workload);
+                if (CurrentResourceProfile == null)
+                {
+                    LogHelper.AddLog(MsgLevel.Warn, "自动资源档案提供器返回空结果，本次继续按现有运行策略执行。", true);
+                    return;
+                }
+
+                HardwareResourceSnapshot hardware = CurrentResourceProfile.Hardware;
+                if (hardware != null && hardware.ProbeWarnings != null)
+                {
+                    foreach (string warning in hardware.ProbeWarnings.Where(value => !string.IsNullOrWhiteSpace(value)))
+                        LogHelper.AddLog(MsgLevel.Warn, "自动资源档案采用降级值：" + warning, true);
+                }
+
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【资源档案】硬件={CurrentResourceProfile.Hardware?.ToLogText()}；建议={CurrentResourceProfile.ToLogText()}；说明=本轮只计算建议值，尚未修改线程池、CPU亲和性或AI并发",
+                    true);
+            }
+            catch (Exception ex)
+            {
+                CurrentResourceProfile = null;
+                LogHelper.AddLog(MsgLevel.Warn, "自动资源档案生成失败，本次继续按现有运行策略执行。原因：" + ex.Message, true);
             }
         }
 
