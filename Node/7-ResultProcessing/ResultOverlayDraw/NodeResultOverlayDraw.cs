@@ -78,6 +78,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         public override Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+            OutputImage pendingOutputImage = null;
 
             if (!Active)
             {
@@ -98,17 +99,20 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 CheckTokenCancel(token);
 
                 var param = (NodeParamResultOverlayDraw)ParamForm.Params;
-                OutputImage outputImage;
                 AlgorithmResult displayResult;
                 ResultOverlayDrawPerformanceDiagnostics performanceDiagnostics;
-                ResultOverlayDrawBuilder.Build(this, param, out outputImage, out displayResult, out performanceDiagnostics);
+                ResultOverlayDrawBuilder.Build(this, param, out pendingOutputImage, out displayResult, out performanceDiagnostics);
 
-                var nodeResult = (NodeResultResultOverlayDraw)Result;
-                nodeResult.OutputImage = outputImage;
-                nodeResult.Result = displayResult;
+                var nodeResult = new NodeResultResultOverlayDraw
+                {
+                    OutputImage = pendingOutputImage,
+                    Result = displayResult
+                };
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
-                Result.RunTime = time;
+                nodeResult.RunTime = time;
+                Result = nodeResult;
+                pendingOutputImage = null;
                 if (performanceDiagnostics != null)
                 {
                     PerformanceSpikeDiagnostics.LogIfEnabled(
@@ -139,6 +143,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
                 SetRunResult(startTime, NodeStatus.Failed);
                 throw new Exception($"节点({ID}.{NodeName})运行失败！原因:{ex.Message}");
+            }
+            finally
+            {
+                pendingOutputImage?.Dispose();
             }
         }
     }
@@ -212,19 +220,29 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             long afterBuildDisplay = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
             if (performanceDiagnostics != null)
                 performanceDiagnostics.BuildDisplayResultMs = afterBuildDisplay - afterGetCleanImage;
-            outputImage = new OutputImage
+            OutputImage borrowedOutput = new OutputImage
             {
                 Bitmaps = new List<Mat> { cleanImage },
                 Rectangles = inputImage.Rectangles == null ? new List<Rect>() : inputImage.Rectangles.ToList(),
                 DisplayResult = displayResult
             };
-            long afterBuildOutput = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
-            if (performanceDiagnostics != null)
+            try
             {
-                performanceDiagnostics.BuildOutputImageMs = afterBuildOutput - afterBuildDisplay;
-                performanceDiagnostics.TotalMs = afterBuildOutput;
-                performanceDiagnostics.CaptureDisplayResultCounts(displayResult);
-                performanceDiagnostics.OutputImageText = PerformanceSpikeDiagnostics.GetOutputImageText(outputImage);
+                borrowedOutput.TakeDependency(inputImage);
+                long afterBuildOutput = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+                if (performanceDiagnostics != null)
+                {
+                    performanceDiagnostics.BuildOutputImageMs = afterBuildOutput - afterBuildDisplay;
+                    performanceDiagnostics.TotalMs = afterBuildOutput;
+                    performanceDiagnostics.CaptureDisplayResultCounts(displayResult);
+                    performanceDiagnostics.OutputImageText = PerformanceSpikeDiagnostics.GetOutputImageText(borrowedOutput);
+                }
+                outputImage = borrowedOutput;
+            }
+            catch
+            {
+                borrowedOutput.Dispose();
+                throw;
             }
         }
 

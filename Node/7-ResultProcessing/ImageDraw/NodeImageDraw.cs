@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Forms.DispShowImage;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
@@ -31,6 +32,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
         public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+            IImageResourceLease inputLease = null;
+            OutputImage pendingOutputImage = null;
 
             if (!Active)
             {
@@ -56,7 +59,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
 
                     Stopwatch performanceStopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
                     //执行绘制
-                    Mat image = form.GetImage();
+                    Mat image = form.GetImage(out OutputImage inputOwner);
+                    inputLease = inputOwner.AcquireLease();
                     long afterGetImage = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                     AlgorithmResult aiResult = null;
                     AlgorithmResult colorResult=null;
@@ -77,7 +81,20 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                         long afterDraw = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
 
                         // 输出绘制后的图像
-                        ((NodeResultImageDraw)Result).OutputImage.Bitmaps = new List<Mat>() { BitmapConverter.ToMat(imageBitmap) };
+                        Mat outputMat = BitmapConverter.ToMat(imageBitmap);
+                        try
+                        {
+                            pendingOutputImage = new OutputImage
+                            {
+                                Bitmaps = new List<Mat> { outputMat }
+                            };
+                            pendingOutputImage.TakeOwnership(outputMat);
+                            outputMat = null;
+                        }
+                        finally
+                        {
+                            outputMat?.Dispose();
+                        }
                         long afterToMat = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                         PerformanceSpikeDiagnostics.LogIfEnabled(
                             MsgLevel.Debug,
@@ -86,7 +103,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                     }
 
                     var time = SetRunResult(startTime, NodeStatus.Successful);
-                    Result.RunTime = time;
+                    var nodeResult = new NodeResultImageDraw
+                    {
+                        RunTime = time,
+                        OutputImage = pendingOutputImage
+                    };
+                    Result = nodeResult;
+                    pendingOutputImage = null;
                     if (showLog)
                         LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
                     return new NodeReturn(NodeRunFlag.ContinueRun);
@@ -102,6 +125,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                     LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
                     SetRunResult(startTime, NodeStatus.Failed);
                     throw new Exception($"节点({ID}.{NodeName})运行失败！原因:{ex.Message}");
+                }
+                finally
+                {
+                    pendingOutputImage?.Dispose();
+                    inputLease?.Dispose();
                 }
             }
             return new NodeReturn(NodeRunFlag.StopRun);

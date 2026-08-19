@@ -366,10 +366,17 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// <summary>
         /// NCC节点运行时快速匹配入口，直接复用订阅输出 Mat，避免 UpdataImage 和整图 Bitmap 往返。
         /// </summary>
-        internal FastTemplateMatchResult MatchTemplateFromSubscribedMat(bool show, out OpenCvSharp.Mat outputMat, out OpenCvSharp.Mat outputGrayMat)
+        internal FastTemplateMatchResult MatchTemplateFromSubscribedMat(
+            bool show,
+            out OpenCvSharp.Mat outputMat,
+            out OpenCvSharp.Mat outputGrayMat,
+            out OutputImage outputOwner,
+            out IImageResourceLease outputLease)
         {
             outputMat = null;
             outputGrayMat = null;
+            outputOwner = null;
+            outputLease = null;
             OpenCvSharp.Mat matchMat = null;
             bool disposeMatchMat = false;
             try
@@ -382,9 +389,10 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 if (templateImage == null)
                     throw new ArgumentException("模板图像不能为空。");
 
-                OutputImage inputImage = nodeSubscription1.GetValue<OutputImage>();
-                outputMat = GetReadOnlySourceMat(inputImage);
-                outputGrayMat = OutputImage.HasValidImage(inputImage?.GrayImg) ? inputImage.GrayImg : null;
+                outputOwner = nodeSubscription1.GetValue<OutputImage>();
+                outputLease = outputOwner.AcquireLease();
+                outputMat = GetReadOnlySourceMat(outputOwner);
+                outputGrayMat = OutputImage.HasValidImage(outputOwner?.GrayImg) ? outputOwner.GrayImg : null;
                 OpenCvSharp.Mat nativeInputMat = OutputImage.HasValidImage(outputGrayMat) &&
                                                 outputGrayMat.Width == outputMat.Width &&
                                                 outputGrayMat.Height == outputMat.Height
@@ -417,6 +425,8 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             }
             catch (Exception ex)
             {
+                outputLease?.Dispose();
+                outputLease = null;
                 FastTemplateMatcher.WriteDiagnosticLog("MatchTemplateMat同步异常：" + ex);
                 throw new InvalidOperationException("NCC模板匹配失败。", ex);
             }

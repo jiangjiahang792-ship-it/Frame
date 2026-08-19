@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
 
 namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 {
@@ -25,6 +26,9 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         public override Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+            FastTemplateMatchResult matchResult = null;
+            NodeResultMatchTemplate pendingResult = null;
+            IImageResourceLease inputLease = null;
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
@@ -50,12 +54,14 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
                 OpenCvSharp.Mat outputMat;
                 OpenCvSharp.Mat outputGrayMat;
-                FastTemplateMatchResult matchResult = form.MatchTemplateFromSubscribedMat(false, out outputMat, out outputGrayMat);
-                NodeResultMatchTemplate nodeResult = BuildResult(matchResult, param, "NCC模板匹配", outputMat, outputGrayMat);
-                Result = nodeResult;
+                OutputImage outputOwner;
+                matchResult = form.MatchTemplateFromSubscribedMat(false, out outputMat, out outputGrayMat, out outputOwner, out inputLease);
+                pendingResult = BuildResult(matchResult, param, "NCC模板匹配", outputMat, outputGrayMat, outputOwner);
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
-                Result.RunTime = time;
+                pendingResult.RunTime = time;
+                Result = pendingResult;
+                pendingResult = null;
                 if (showLog && matchResult != null && matchResult.IsOk)
                 {
                     double minScore = matchResult.Matches.Count == 0 ? 0 : matchResult.Matches.Min(m => m.Score) * 100.0;
@@ -82,6 +88,14 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 int time = SetRunResult(startTime, NodeStatus.Failed);
                 Result.RunTime = time;
                 throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
+            }
+            finally
+            {
+                NodeResultResourceManager.Release(pendingResult);
+                inputLease?.Dispose();
+                matchResult?.OutputBitmap?.Dispose();
+                if (matchResult != null)
+                    matchResult.OutputBitmap = null;
             }
         }
     }

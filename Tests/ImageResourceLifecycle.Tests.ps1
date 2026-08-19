@@ -45,6 +45,15 @@ $findCircleForm = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\Fi
 $tdaiNode = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\TDAI\NodeTDAI.cs') -Raw -Encoding UTF8
 $blobNode = Get-Content -LiteralPath (Join-Path $root 'Node\4-Measurement\BlobAnalysis\NodeBlobAnalysis.cs') -Raw -Encoding UTF8
 $blobForm = Get-Content -LiteralPath (Join-Path $root 'Node\4-Measurement\BlobAnalysis\NodeParamFormBlobAnalysis.cs') -Raw -Encoding UTF8
+$imageDrawNode = Get-Content -LiteralPath (Join-Path $root 'Node\7-ResultProcessing\ImageDraw\NodeImageDraw.cs') -Raw -Encoding UTF8
+$imageDrawForm = Get-Content -LiteralPath (Join-Path $root 'Node\7-ResultProcessing\ImageDraw\NodeParamFormImageDraw.cs') -Raw -Encoding UTF8
+$overlayDrawNode = Get-Content -LiteralPath (Join-Path $root 'Node\7-ResultProcessing\ResultOverlayDraw\NodeResultOverlayDraw.cs') -Raw -Encoding UTF8
+$overlayDraw2Node = Get-Content -LiteralPath (Join-Path $root 'Node\7-ResultProcessing\ResultOverlayDraw2\NodeResultOverlayDraw2.cs') -Raw -Encoding UTF8
+$lineMergeNode = Get-Content -LiteralPath (Join-Path $root 'Node\8-GeometryCreation\LineMergeFit\NodeLineMergeFit.cs') -Raw -Encoding UTF8
+$lineMergeForm = Get-Content -LiteralPath (Join-Path $root 'Node\8-GeometryCreation\LineMergeFit\NodeParamFormLineMergeFit.cs') -Raw -Encoding UTF8
+$matchTemplateNode = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\MatchTemplate\NodeMatchTemplate.cs') -Raw -Encoding UTF8
+$nccMatchTemplateNode = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\MatchTemplate\NodeNccMatchTemplate.cs') -Raw -Encoding UTF8
+$matchTemplateForm = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\MatchTemplate\NodeParamFormMatchTemplate.cs') -Raw -Encoding UTF8
 
 Assert-Contains $nodeBaseSource 'Interlocked.Exchange(ref _result, value)' 'NodeBase.Result必须通过原子替换发布新结果。'
 Assert-Contains $nodeBaseSource 'NodeResultResourceManager.Release(previousResult);' 'NodeBase.Result替换后必须释放旧结果资源。'
@@ -88,6 +97,26 @@ Assert-Contains $tdaiNode 'using (Mat img = inputImage.Bitmaps[i].Clone())' 'OBB
 Assert-Contains $blobNode 'GetGrayImage(OutputImage inputImage, out bool ownsImage)' 'Blob取灰度图必须明确返回释放责任。'
 Assert-Contains $blobNode 'temporaryGray?.Dispose();' 'Blob正式运行必须释放本轮临时灰度图。'
 Assert-Contains $blobForm 'NodeResultResourceManager.Release(result);' 'Blob参数预览必须回收未发布的结果图。'
+Assert-Contains $imageDrawForm 'GetImage(out OutputImage owner)' '图像绘制取上游Mat时必须同时返回资源拥有者。'
+Assert-Contains $imageDrawNode 'inputLease = inputOwner.AcquireLease();' '图像绘制使用上游Mat期间必须持有短租约。'
+Assert-Contains $imageDrawNode 'pendingOutputImage.TakeOwnership(outputMat);' '图像绘制生成的输出Mat必须登记自产所有权。'
+Assert-Contains $imageDrawNode 'Result = nodeResult;' '图像绘制必须以新结果对象原子发布本轮输出。'
+Assert-Contains $overlayDrawNode 'borrowedOutput.TakeDependency(inputImage);' '结果绘制借用上游Mat时必须持有父级租约。'
+Assert-Contains $overlayDraw2Node 'borrowedOutput.TakeDependency(inputImage);' '结果绘制2借用上游Mat时必须持有父级租约。'
+Assert-Contains $overlayDrawNode 'var nodeResult = new NodeResultResultOverlayDraw' '结果绘制每轮必须发布新的完整结果对象。'
+Assert-Contains $overlayDraw2Node 'NodeResultResultOverlayDraw2 nodeResult = new NodeResultResultOverlayDraw2' '结果绘制2每轮必须发布新的完整结果对象。'
+Assert-Contains $lineMergeForm 'output = needPreviewImage ? CloneFirstAvailableOutputImage() : null;' '线组合拟合正式运行不得创建无意义的空Mat。'
+Assert-Contains $lineMergeForm 'output?.Dispose();' '线组合拟合预览输出必须在异常路径释放。'
+Assert-Contains $lineMergeNode 'image.TakeOwnership(output);' '线组合拟合存在预览输出时必须登记Mat所有权。'
+Assert-Contains $lineMergeNode 'NodeResultResourceManager.Release(pendingResult);' '线组合拟合发布失败时必须回收待发布结果。'
+Assert-Contains $matchTemplateNode 'borrowedOutput.TakeDependency(borrowedOwner);' 'NCC模板匹配借用上游Mat时必须持有父级租约。'
+Assert-Contains $matchTemplateNode 'ownedOutput.TakeOwnership(convertedMat);' '普通模板匹配Bitmap转Mat后必须登记自产所有权。'
+Assert-Contains $matchTemplateNode 'matchResult?.OutputBitmap?.Dispose();' '模板匹配正式运行必须释放算法返回的临时Bitmap。'
+Assert-Contains $matchTemplateNode 'NodeResultResourceManager.Release(pendingResult);' '模板匹配发布失败时必须回收待发布结果。'
+Assert-Contains $matchTemplateForm 'outputLease = outputOwner.AcquireLease();' 'NCC计算读取上游Mat期间必须先取得短租约。'
+Assert-Contains $matchTemplateForm 'outputLease?.Dispose();' 'NCC取图失败时必须释放已经取得的短租约。'
+Assert-Contains $nccMatchTemplateNode 'inputLease?.Dispose();' 'NCC结果接管父级依赖后必须释放计算阶段短租约。'
+Assert-Contains $nccMatchTemplateNode 'outputMat, outputGrayMat, outputOwner' 'NCC构建结果时必须传递真实上游资源拥有者。'
 
 $stubs = @'
 namespace OpenCvSharp

@@ -54,6 +54,8 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+            FastTemplateMatchResult matchResult = null;
+            NodeResultMatchTemplate pendingResult = null;
             // 参数合法性校验
             if (!Active)
             {
@@ -81,13 +83,14 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         form.UpdataImage();
 
                         // 执行模版匹配
-                        var matchResult = form.MatchTemplate(false);
+                        matchResult = form.MatchTemplate(false);
                         // 输出结果
-                        var nodeResult = BuildResult(matchResult, param, resultDisplayName);
-                        Result = nodeResult;
+                        pendingResult = BuildResult(matchResult, param, resultDisplayName);
 
                         var time = SetRunResult(startTime, NodeStatus.Successful);
-                        Result.RunTime = time;
+                        pendingResult.RunTime = time;
+                        Result = pendingResult;
+                        pendingResult = null;
                         if (showLog && matchResult != null && matchResult.IsOk)
                         {
                             double minScore = matchResult.Matches.Count == 0 ? 0 : matchResult.Matches.Min(m => m.Score) * 100.0;
@@ -112,6 +115,13 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         SetRunResult(startTime, NodeStatus.Failed);
                         throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
                     }
+                    finally
+                    {
+                        NodeResultResourceManager.Release(pendingResult);
+                        matchResult?.OutputBitmap?.Dispose();
+                        if (matchResult != null)
+                            matchResult.OutputBitmap = null;
+                    }
                 }
             }
             return new NodeReturn(NodeRunFlag.StopRun);
@@ -120,9 +130,18 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
         internal void PublishPreviewResult(FastTemplateMatchResult matchResult, NodeParamMatchTemplate param)
         {
-            var nodeResult = BuildResult(matchResult, param, resultDisplayName);
-            nodeResult.RunTime = matchResult == null ? 0 : (int)Math.Round(matchResult.AlgorithmMs);
-            Result = nodeResult;
+            NodeResultMatchTemplate pendingResult = null;
+            try
+            {
+                pendingResult = BuildResult(matchResult, param, resultDisplayName);
+                pendingResult.RunTime = matchResult == null ? 0 : (int)Math.Round(matchResult.AlgorithmMs);
+                Result = pendingResult;
+                pendingResult = null;
+            }
+            finally
+            {
+                NodeResultResourceManager.Release(pendingResult);
+            }
         }
 
         internal static NodeResultMatchTemplate BuildResult(FastTemplateMatchResult matchResult, NodeParamMatchTemplate param)
@@ -132,93 +151,155 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
         internal static NodeResultMatchTemplate BuildResult(FastTemplateMatchResult matchResult, NodeParamMatchTemplate param, string displayName)
         {
-            return BuildResult(matchResult, param, displayName, null, null);
+            return BuildResult(matchResult, param, displayName, null, null, null);
         }
 
         /// <summary>
         /// 构建模板匹配节点结果，可由NCC快路径直接复用上游Mat输出，避免整图Bitmap往返。
         /// </summary>
-        internal static NodeResultMatchTemplate BuildResult(FastTemplateMatchResult matchResult, NodeParamMatchTemplate param, string displayName, Mat outputMat, Mat grayMat)
+        internal static NodeResultMatchTemplate BuildResult(
+            FastTemplateMatchResult matchResult,
+            NodeParamMatchTemplate param,
+            string displayName,
+            Mat outputMat,
+            Mat grayMat,
+            OutputImage borrowedOwner)
         {
             var nodeResult = new NodeResultMatchTemplate();
             if (matchResult == null)
                 return nodeResult;
 
-            List<FastTemplateMatchInfo> orderedMatches = OrderMatches(matchResult.Matches, param == null
-                ? MatchTemplateSortMode.ColumnAscending
-                : param.SortMode);
+            try
+            {
+                List<FastTemplateMatchInfo> orderedMatches = OrderMatches(matchResult.Matches, param == null
+                    ? MatchTemplateSortMode.ColumnAscending
+                    : param.SortMode);
 
-            if (OutputImage.HasValidImage(outputMat))
-            {
-                nodeResult.OutputImage.SrcImg = outputMat;
-                nodeResult.OutputImage.Bitmaps = new List<Mat>() { outputMat };
-                if (OutputImage.HasValidImage(grayMat))
-                    nodeResult.OutputImage.GrayImg = grayMat;
-            }
-            else if (matchResult.OutputBitmap != null)
-            {
-                nodeResult.OutputImage.Bitmaps = new List<Mat>() { matchResult.OutputBitmap.ToMat() };
-            }
-            nodeResult.OutputImage.Rectangles = orderedMatches.Select(m => m.Box.ToBoundingRect()).ToList();
-            nodeResult.Result.Clear();
-            nodeResult.Result.IsAllOk = matchResult.IsOk;
-            nodeResult.IsOk = matchResult.IsOk;
-            nodeResult.MatchCount = orderedMatches.Count;
-            nodeResult.Poses = orderedMatches.Select((match, index) =>
-            {
-                double angleOffset = NormalizeAngleOffset(match.Box.Angle);
-                return new TemplateMatchPose
+                nodeResult.OutputImage = BuildOutputImage(matchResult, outputMat, grayMat, borrowedOwner);
+                nodeResult.OutputImage.Rectangles = orderedMatches.Select(m => m.Box.ToBoundingRect()).ToList();
+                nodeResult.Result.Clear();
+                nodeResult.Result.IsAllOk = matchResult.IsOk;
+                nodeResult.IsOk = matchResult.IsOk;
+                nodeResult.MatchCount = orderedMatches.Count;
+                nodeResult.Poses = orderedMatches.Select((match, index) =>
                 {
-                    TargetIndex = index + 1,
-                    CenterX = match.Box.CenterX,
-                    CenterY = match.Box.CenterY,
-                    Angle = angleOffset,
-                    ScaleX = 1.0,
-                    ScaleY = 1.0,
-                    Score = match.Score * 100.0,
-                    Width = match.Box.Width,
-                    Height = match.Box.Height,
-                    IsValid = true
-                };
-            }).ToList();
-            if (orderedMatches.Count > 0)
-            {
-                var firstMatch = orderedMatches[0];
-                nodeResult.MatchX = firstMatch.Box.CenterX;
-                nodeResult.MatchY = firstMatch.Box.CenterY;
-                nodeResult.Angle = NormalizeAngleOffset(firstMatch.Box.Angle);
-                nodeResult.Score = firstMatch.Score * 100.0;
-            }
-
-            string safeDisplayName = string.IsNullOrWhiteSpace(displayName) ? "模版匹配" : displayName;
-            nodeResult.Result.Texts.Add(new ColorText($"{safeDisplayName}结果个数：{orderedMatches.Count}个，耗时 {matchResult.AlgorithmMs:F2} ms", matchResult.IsOk ? Color.Green : Color.Red));
-            for (int i = 0; i < orderedMatches.Count; i++)
-            {
-                var match = orderedMatches[i];
-                if (param == null || param.ShowOutRegionStatus)
+                    double angleOffset = NormalizeAngleOffset(match.Box.Angle);
+                    return new TemplateMatchPose
+                    {
+                        TargetIndex = index + 1,
+                        CenterX = match.Box.CenterX,
+                        CenterY = match.Box.CenterY,
+                        Angle = angleOffset,
+                        ScaleX = 1.0,
+                        ScaleY = 1.0,
+                        Score = match.Score * 100.0,
+                        Width = match.Box.Width,
+                        Height = match.Box.Height,
+                        IsValid = true
+                    };
+                }).ToList();
+                if (orderedMatches.Count > 0)
                 {
-                    nodeResult.Result.Rects.Add(new ColorRotatedRect(
-                        match.Box.CenterX,
-                        match.Box.CenterY,
-                        match.Box.Width,
-                        match.Box.Height,
-                        match.Box.Angle,
-                        matchResult.IsOk ? Color.Lime : Color.Red));
+                    var firstMatch = orderedMatches[0];
+                    nodeResult.MatchX = firstMatch.Box.CenterX;
+                    nodeResult.MatchY = firstMatch.Box.CenterY;
+                    nodeResult.Angle = NormalizeAngleOffset(firstMatch.Box.Angle);
+                    nodeResult.Score = firstMatch.Score * 100.0;
                 }
 
-                double angleOffset = NormalizeAngleOffset(match.Box.Angle);
-                nodeResult.Result.Texts.Add(new ColorText(
-                    $"{safeDisplayName}结果{i + 1}：中心（{match.Box.CenterX:F1}, {match.Box.CenterY:F1}） 角度偏差{angleOffset:F2}° 得分{match.Score * 100.0:F2}",
-                    matchResult.IsOk ? Color.Green : Color.Red));
+                string safeDisplayName = string.IsNullOrWhiteSpace(displayName) ? "模版匹配" : displayName;
+                nodeResult.Result.Texts.Add(new ColorText($"{safeDisplayName}结果个数：{orderedMatches.Count}个，耗时 {matchResult.AlgorithmMs:F2} ms", matchResult.IsOk ? Color.Green : Color.Red));
+                for (int i = 0; i < orderedMatches.Count; i++)
+                {
+                    var match = orderedMatches[i];
+                    if (param == null || param.ShowOutRegionStatus)
+                    {
+                        nodeResult.Result.Rects.Add(new ColorRotatedRect(
+                            match.Box.CenterX,
+                            match.Box.CenterY,
+                            match.Box.Width,
+                            match.Box.Height,
+                            match.Box.Angle,
+                            matchResult.IsOk ? Color.Lime : Color.Red));
+                    }
+
+                    double angleOffset = NormalizeAngleOffset(match.Box.Angle);
+                    nodeResult.Result.Texts.Add(new ColorText(
+                        $"{safeDisplayName}结果{i + 1}：中心（{match.Box.CenterX:F1}, {match.Box.CenterY:F1}） 角度偏差{angleOffset:F2}° 得分{match.Score * 100.0:F2}",
+                        matchResult.IsOk ? Color.Green : Color.Red));
+                }
+
+                if (param == null || param.ShowOutlineStatus)
+                {
+                    foreach (var outline in matchResult.Outlines)
+                        nodeResult.Result.Contours.Add(new ColorContour(outline.Points, Color.Cyan));
+                }
+                nodeResult.OutputImage.DisplayResult = nodeResult.Result;
+                return nodeResult;
+            }
+            catch
+            {
+                NodeResultResourceManager.Release(nodeResult);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 根据普通Bitmap路径或NCC Mat快路径构建图像输出并登记对应所有权。
+        /// </summary>
+        /// <param name="matchResult">模板匹配算法结果。</param>
+        /// <param name="outputMat">NCC路径借用的上游彩图。</param>
+        /// <param name="grayMat">NCC路径借用的上游灰度图。</param>
+        /// <param name="borrowedOwner">真正拥有NCC输入Mat的上游输出。</param>
+        /// <returns>已登记自产资源或父级租约的图像输出。</returns>
+        private static OutputImage BuildOutputImage(
+            FastTemplateMatchResult matchResult,
+            Mat outputMat,
+            Mat grayMat,
+            OutputImage borrowedOwner)
+        {
+            if (OutputImage.HasValidImage(outputMat))
+            {
+                var borrowedOutput = new OutputImage
+                {
+                    SrcImg = outputMat,
+                    Bitmaps = new List<Mat> { outputMat },
+                    GrayImg = OutputImage.HasValidImage(grayMat) ? grayMat : null
+                };
+                try
+                {
+                    borrowedOutput.TakeDependency(borrowedOwner);
+                    return borrowedOutput;
+                }
+                catch
+                {
+                    borrowedOutput.Dispose();
+                    throw;
+                }
             }
 
-            if (param == null || param.ShowOutlineStatus)
+            if (matchResult?.OutputBitmap == null)
+                return new OutputImage();
+
+            Mat convertedMat = null;
+            OutputImage ownedOutput = null;
+            try
             {
-                foreach (var outline in matchResult.Outlines)
-                    nodeResult.Result.Contours.Add(new ColorContour(outline.Points, Color.Cyan));
+                convertedMat = matchResult.OutputBitmap.ToMat();
+                ownedOutput = new OutputImage
+                {
+                    Bitmaps = new List<Mat> { convertedMat }
+                };
+                ownedOutput.TakeOwnership(convertedMat);
+                convertedMat = null;
+                return ownedOutput;
             }
-            nodeResult.OutputImage.DisplayResult = nodeResult.Result;
-            return nodeResult;
+            catch
+            {
+                ownedOutput?.Dispose();
+                convertedMat?.Dispose();
+                throw;
+            }
         }
 
         /// <summary>

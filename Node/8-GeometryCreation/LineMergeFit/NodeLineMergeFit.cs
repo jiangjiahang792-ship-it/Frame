@@ -34,6 +34,7 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
         public override Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+            NodeResultLineMergeFit pendingResult = null;
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
@@ -58,10 +59,12 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
                     throw new Exception("线组合拟合参数异常！");
 
                 LineMergeFitMeasureResult measureResult = form.ExecuteMeasure(param, token, false, out Mat output);
-                NodeResultLineMergeFit nodeResult = BuildResult(measureResult, output);
+                pendingResult = BuildResult(measureResult, output);
                 int time = SetRunResult(startTime, NodeStatus.Successful);
-                nodeResult.RunTime = time;
-                Result = nodeResult;
+                pendingResult.RunTime = time;
+                Result = pendingResult;
+                NodeResultLineMergeFit nodeResult = pendingResult;
+                pendingResult = null;
 
                 if (showLog && measureResult.Success)
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！{time} ms，线长：{nodeResult.Length:F3}px，角度：{nodeResult.Angle:F3}°", true);
@@ -85,6 +88,10 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
                 Result.RunTime = time;
                 throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
             }
+            finally
+            {
+                NodeResultResourceManager.Release(pendingResult);
+            }
         }
 
         /// <summary>
@@ -92,34 +99,42 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
         /// </summary>
         internal static NodeResultLineMergeFit BuildResult(LineMergeFitMeasureResult measureResult, Mat output)
         {
-            var result = new NodeResultLineMergeFit
+            var result = new NodeResultLineMergeFit();
+            try
             {
-                IsOk = measureResult.Success,
-                Message = measureResult.Message,
-                AlgorithmMs = measureResult.AlgorithmMs,
-                AngleDifference = measureResult.AngleDifference,
-                LineDistance = measureResult.LineDistance,
-                FitError = measureResult.FitError,
-                SourcePoints = MeasurementResultRounder.RoundPoints(measureResult.SourcePoints)
-            };
+                result.OutputImage = BuildOutputImage(output);
+                output = null;
+                result.IsOk = measureResult.Success;
+                result.Message = measureResult.Message;
+                result.AlgorithmMs = measureResult.AlgorithmMs;
+                result.AngleDifference = measureResult.AngleDifference;
+                result.LineDistance = measureResult.LineDistance;
+                result.FitError = measureResult.FitError;
+                result.SourcePoints = MeasurementResultRounder.RoundPoints(measureResult.SourcePoints);
 
-            if (measureResult.Success && measureResult.OutputLine != null)
-            {
-                MeasuredLine line = measureResult.OutputLine;
-                result.StartX = line.Start.X;
-                result.StartY = line.Start.Y;
-                result.EndX = line.End.X;
-                result.EndY = line.End.Y;
-                result.CenterX = (line.Start.X + line.End.X) / 2.0;
-                result.CenterY = (line.Start.Y + line.End.Y) / 2.0;
-                result.Length = Distance(line.Start, line.End);
-                result.Angle = Math.Atan2(line.End.Y - line.Start.Y, line.End.X - line.Start.X) * 180.0 / Math.PI;
+                if (measureResult.Success && measureResult.OutputLine != null)
+                {
+                    MeasuredLine line = measureResult.OutputLine;
+                    result.StartX = line.Start.X;
+                    result.StartY = line.Start.Y;
+                    result.EndX = line.End.X;
+                    result.EndY = line.End.Y;
+                    result.CenterX = (line.Start.X + line.End.X) / 2.0;
+                    result.CenterY = (line.Start.Y + line.End.Y) / 2.0;
+                    result.Length = Distance(line.Start, line.End);
+                    result.Angle = Math.Atan2(line.End.Y - line.Start.Y, line.End.X - line.Start.X) * 180.0 / Math.PI;
+                }
+
+                result.Result = BuildDisplayResult(measureResult);
+                result.OutputImage.DisplayResult = result.Result;
+                return result;
             }
-
-            result.OutputImage = BuildOutputImage(output);
-            result.Result = BuildDisplayResult(measureResult);
-            result.OutputImage.DisplayResult = result.Result;
-            return result;
+            catch
+            {
+                NodeResultResourceManager.Release(result);
+                output?.Dispose();
+                throw;
+            }
         }
 
         /// <summary>
@@ -178,8 +193,12 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
         private static OutputImage BuildOutputImage(Mat output)
         {
             var image = new OutputImage();
-            if (output != null && !output.Empty())
-                image.Bitmaps = new List<Mat> { output };
+            if (output != null)
+            {
+                if (!output.Empty())
+                    image.Bitmaps = new List<Mat> { output };
+                image.TakeOwnership(output);
+            }
             return image;
         }
 
