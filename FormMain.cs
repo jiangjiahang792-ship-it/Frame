@@ -27,6 +27,7 @@ using TDJS_Vision.Forms.TCPAdd;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Forms.Workspace;
 using TDJS_Vision.Properties;
+using TDJS_Vision.ResourceManagement;
 using TDJS_Vision.Startup;
 using WeifenLuo.WinFormsUI.Docking;
 
@@ -34,6 +35,28 @@ namespace TDJS_Vision
 {
     public partial class FormMain : FormBase
     {
+        /// <summary>Debug固定节拍压力使用的单次运行窗口消息。</summary>
+        private const int FixedTriggerStressMessage = 0x8451;
+
+        /// <summary>Debug固定节拍压力用于清除预热计数的窗口消息。</summary>
+        private const int FixedTriggerStressResetMessage = 0x8452;
+
+        /// <summary>控制同一方案只允许一轮单次运行并记录忙碌触发。</summary>
+        private readonly SolutionRunAdmissionController _singleRunAdmissionController =
+            new SolutionRunAdmissionController();
+
+        /// <summary>当前Debug进程是否显式开放固定节拍测试入口。</summary>
+        private readonly bool _fixedTriggerStressEnabled = IsFixedTriggerStressEnabled();
+
+        /// <summary>固定节拍测试预期接收的正式触发请求数量。</summary>
+        private readonly int _fixedTriggerStressExpectedAttempts = GetFixedTriggerStressExpectedAttempts();
+
+        /// <summary>固定节拍测试声明的请求间隔，单位ms。</summary>
+        private readonly int _fixedTriggerStressIntervalMilliseconds = GetFixedTriggerStressIntervalMilliseconds();
+
+        /// <summary>保证每轮固定节拍测试只输出一次最终汇总。</summary>
+        private bool _fixedTriggerStressSummaryLogged;
+
         private static readonly bool LanguageInitialized = InitializeLanguageManager();
 
         private static bool InitializeLanguageManager()
@@ -958,19 +981,158 @@ namespace TDJS_Vision
             if (!ValidateCameraConfigurationBeforeRun())
                 return;
 
-            await FormGlobalSignal.SendGlobalSignals(this, true);
-            FormGlobalSignal.StartListenSignals();
-            SetRunStatus(true);
+            if (TryStartSingleSolutionRun(out Task runTask))
+                await runTask;
+        }
+
+        /// <summary>
+        /// 尝试启动一轮完整方案；忙碌时立即拒绝并保留诊断计数。
+        /// </summary>
+        /// <param name="runTask">准入成功时返回完整执行任务。</param>
+        /// <returns>成功取得本轮运行权返回true。</returns>
+        private bool TryStartSingleSolutionRun(out Task runTask)
+        {
+            if (!_singleRunAdmissionController.TryAcquire(out SolutionRunAdmissionLease lease))
+            {
+                SolutionRunAdmissionSnapshot rejectedSnapshot = _singleRunAdmissionController.GetSnapshot();
+                if (rejectedSnapshot.BusyRejectedCount == 1 || rejectedSnapshot.BusyRejectedCount % 100 == 0)
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Warn,
+                        $"【固定触发准入】方案仍在执行，本次触发已拒绝；{rejectedSnapshot.ToLogText()}",
+                        false);
+                }
+
+                runTask = Task.CompletedTask;
+                TryLogFixedTriggerStressSummary();
+                return false;
+            }
+
+            runTask = ExecuteSingleSolutionRunAsync(lease);
+            return true;
+        }
+
+        /// <summary>
+        /// 执行一轮与主界面按钮相同的全局信号、完整方案和结束信号链路。
+        /// </summary>
+        /// <param name="lease">本轮唯一方案运行权。</param>
+        /// <returns>完整运行任务。</returns>
+        private async Task ExecuteSingleSolutionRunAsync(SolutionRunAdmissionLease lease)
+        {
+            bool succeeded = false;
             try
             {
+                await FormGlobalSignal.SendGlobalSignals(this, true);
+                FormGlobalSignal.StartListenSignals();
+                SetRunStatus(true);
                 await Solution.Instance.Run(false);
+                succeeded = true;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, $"单次方案运行失败：{ex}", true);
             }
             finally
             {
                 FormGlobalSignal.StopListenSignals();
                 SetRunStatus(false);
+                try
+                {
+                    await FormGlobalSignal.SendGlobalSignals(this, false);
+                }
+                catch (Exception ex)
+                {
+                    succeeded = false;
+                    LogHelper.AddLog(MsgLevel.Exception, $"单次方案结束信号发送失败：{ex}", true);
+                }
+
+                lease.Complete(succeeded);
+                TryLogFixedTriggerStressSummary();
             }
-            await FormGlobalSignal.SendGlobalSignals(this, false);
+        }
+
+        /// <summary>
+        /// 处理Debug压力工具发出的固定节拍触发和预热计数重置消息。
+        /// </summary>
+        /// <param name="m">Windows窗口消息。</param>
+        protected override void WndProc(ref Message m)
+        {
+#if DEBUG
+            if (_fixedTriggerStressEnabled && m.Msg == FixedTriggerStressMessage)
+            {
+                m.Result = TryStartSingleSolutionRun(out _) ? new IntPtr(1) : IntPtr.Zero;
+                return;
+            }
+
+            if (_fixedTriggerStressEnabled && m.Msg == FixedTriggerStressResetMessage)
+            {
+                bool reset = _singleRunAdmissionController.TryReset();
+                if (reset)
+                    _fixedTriggerStressSummaryLogged = false;
+                m.Result = reset ? new IntPtr(1) : IntPtr.Zero;
+                return;
+            }
+#endif
+            base.WndProc(ref m);
+        }
+
+        /// <summary>
+        /// 在全部预期请求到达且最后一轮退出后写一次固定节拍压力汇总。
+        /// </summary>
+        private void TryLogFixedTriggerStressSummary()
+        {
+            if (!_fixedTriggerStressEnabled ||
+                _fixedTriggerStressSummaryLogged ||
+                _fixedTriggerStressExpectedAttempts <= 0)
+            {
+                return;
+            }
+
+            SolutionRunAdmissionSnapshot snapshot = _singleRunAdmissionController.GetSnapshot();
+            if (snapshot.RequestedCount < _fixedTriggerStressExpectedAttempts || snapshot.IsActive)
+                return;
+
+            _fixedTriggerStressSummaryLogged = true;
+            LogHelper.AddLog(
+                MsgLevel.Info,
+                $"【固定触发汇总】间隔={_fixedTriggerStressIntervalMilliseconds}ms；{snapshot.ToLogText()}",
+                false);
+        }
+
+        /// <summary>
+        /// 判断当前Debug进程是否由固定节拍压力工具显式启动。
+        /// </summary>
+        /// <returns>仅环境变量值为1时返回true。</returns>
+        private static bool IsFixedTriggerStressEnabled()
+        {
+#if DEBUG
+            return string.Equals(
+                Environment.GetEnvironmentVariable("TDJS_VISION_FIXED_TRIGGER_STRESS"),
+                "1",
+                StringComparison.Ordinal);
+#else
+            return false;
+#endif
+        }
+
+        /// <summary>
+        /// 读取固定节拍压力预期请求数，非法或缺失时返回0。
+        /// </summary>
+        /// <returns>大于零的预期请求数，或0。</returns>
+        private static int GetFixedTriggerStressExpectedAttempts()
+        {
+            string rawValue = Environment.GetEnvironmentVariable("TDJS_VISION_FIXED_TRIGGER_EXPECTED_ATTEMPTS");
+            return int.TryParse(rawValue, out int value) && value > 0 ? value : 0;
+        }
+
+        /// <summary>
+        /// 读取固定节拍压力声明的请求间隔，非法或缺失时使用50ms。
+        /// </summary>
+        /// <returns>大于零的触发间隔。</returns>
+        private static int GetFixedTriggerStressIntervalMilliseconds()
+        {
+            string rawValue = Environment.GetEnvironmentVariable("TDJS_VISION_FIXED_TRIGGER_INTERVAL_MS");
+            return int.TryParse(rawValue, out int value) && value > 0 ? value : 50;
         }
 
         /// <summary>

@@ -29,9 +29,26 @@ param(
     [ValidateRange(1, 1000)]
     [int]$UiPollMilliseconds = 50,
 
+    [ValidateSet("SerialRounds", "FixedIntervalTriggers")]
+    [string]$RunMode = "SerialRounds",
+
+    [ValidateRange(1, 60000)]
+    [int]$TriggerIntervalMilliseconds = 50,
+
+    [ValidateRange(10, 30000)]
+    [int]$TriggerMessageTimeoutMilliseconds = 5000,
+
     [string]$OutputDirectory = (Join-Path $PSScriptRoot "Results\FullSolutionComparison"),
 
     [string]$ImmutableSchemeSourcePath = "",
+
+    [string]$RuntimeReferenceDirectory = "",
+
+    [ValidateRange(1, 16)]
+    [int]$ExpectedVisibleImageWindows = 6,
+
+    [ValidateRange(1, 16)]
+    [int]$ExpectedProcessTreeCount = 3,
 
     [ValidateSet("Normal", "Minimized")]
     [string]$WindowMode = "Minimized",
@@ -56,6 +73,16 @@ public static class FullSolutionGuiResourceProbe
 
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     public static extern IntPtr SendMessage(IntPtr windowHandle, uint message, IntPtr wordParameter, IntPtr longParameter);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr SendMessageTimeout(
+        IntPtr windowHandle,
+        uint message,
+        IntPtr wordParameter,
+        IntPtr longParameter,
+        uint flags,
+        uint timeoutMilliseconds,
+        out IntPtr messageResult);
 
     [DllImport("kernel32.dll")]
     public static extern uint SetThreadExecutionState(uint executionState);
@@ -105,6 +132,75 @@ function Restore-ImmutableScheme {
     if (-not [string]::Equals($actualSha256, $ExpectedSha256, [StringComparison]::OrdinalIgnoreCase)) {
         throw "恢复固定方案母本后SHA256校验失败。"
     }
+}
+
+function Sync-TestRuntimeConfiguration {
+    param(
+        [string]$WorkingDirectory,
+        [string]$ReferenceDirectory,
+        [int]$VisibleImageWindows
+    )
+
+    $requiredFiles = @('device.license', 'DockPanel.config', 'DockPanelImageWindows.config')
+    $resolvedReferenceDirectory = ""
+    if (-not [string]::IsNullOrWhiteSpace($ReferenceDirectory)) {
+        $resolvedReferenceDirectory = (Resolve-Path -LiteralPath $ReferenceDirectory).Path
+        foreach ($fileName in $requiredFiles) {
+            $sourcePath = Join-Path $resolvedReferenceDirectory $fileName
+            if (-not (Test-Path -LiteralPath $sourcePath)) {
+                throw "参考运行目录缺少$fileName。"
+            }
+            Copy-Item -LiteralPath $sourcePath -Destination (Join-Path $WorkingDirectory $fileName) -Force
+        }
+    }
+
+    $hashes = [ordered]@{}
+    foreach ($fileName in $requiredFiles) {
+        $targetPath = Join-Path $WorkingDirectory $fileName
+        if (-not (Test-Path -LiteralPath $targetPath)) {
+            throw "测试运行目录缺少$fileName。"
+        }
+        $hashes[$fileName] = (Get-FileHash -LiteralPath $targetPath -Algorithm SHA256).Hash
+        if (-not [string]::IsNullOrWhiteSpace($ReferenceDirectory)) {
+            $referenceHash = (Get-FileHash -LiteralPath (Join-Path $resolvedReferenceDirectory $fileName) -Algorithm SHA256).Hash
+            if (-not [string]::Equals($hashes[$fileName], $referenceHash, [StringComparison]::OrdinalIgnoreCase)) {
+                throw "$fileName复制后SHA256与参考运行目录不一致。"
+            }
+        }
+    }
+
+    $dockPanel = [xml](Get-Content -LiteralPath (Join-Path $WorkingDirectory 'DockPanel.config') -Raw)
+    $mainContents = @($dockPanel.DockPanel.Contents.Content)
+    $imageView = @($mainContents | Where-Object { $_.PersistString -eq 'TDJS_Vision.Forms.ImageViewer.FrmImageViewer' })
+    $resultView = @($mainContents | Where-Object { $_.PersistString -eq 'TDJS_Vision.Forms.ResultView.FrmResultView' })
+    $logoView = @($mainContents | Where-Object { $_.PersistString -eq 'TDJS_Vision.Forms.LogoView.FrmLogo' })
+    if ($imageView.Count -ne 1 -or [string]$imageView[0].IsHidden -ne 'False') {
+        throw '主布局必须显示图像视图。'
+    }
+    if ($resultView.Count -ne 1 -or [string]$resultView[0].IsHidden -ne 'True') {
+        throw '主布局必须隐藏检测结果视图。'
+    }
+    if ($logoView.Count -ne 1 -or [string]$logoView[0].IsHidden -ne 'True') {
+        throw '主布局必须隐藏Logo视图。'
+    }
+    $loggerView = @($mainContents | Where-Object { $_.PersistString -eq 'Logger.FrmLogger' })
+    $autoHideLoggerPanes = @(
+        $dockPanel.DockPanel.Panes.Pane |
+            Where-Object {
+                [string]$_.DockState -eq 'DockRightAutoHide' -and
+                @($_.Contents.Content | Where-Object { [string]$_.RefID -eq [string]$loggerView[0].ID }).Count -gt 0
+            })
+    if ($loggerView.Count -ne 1 -or $autoHideLoggerPanes.Count -eq 0) {
+        throw '运行日志必须保持旧版右侧自动折叠布局。'
+    }
+
+    $imageDockPanel = [xml](Get-Content -LiteralPath (Join-Path $WorkingDirectory 'DockPanelImageWindows.config') -Raw)
+    $visibleCount = @($imageDockPanel.DockPanel.Contents.Content | Where-Object { [string]$_.IsHidden -eq 'False' }).Count
+    if ($visibleCount -ne $VisibleImageWindows) {
+        throw "图像窗口布局必须恰好显示${VisibleImageWindows}个窗体，实际为${visibleCount}个。"
+    }
+
+    return $hashes
 }
 
 function Get-TestProcesses {
@@ -386,6 +482,28 @@ function Invoke-SolutionRound {
     return [double]$stopwatch.Elapsed.TotalMilliseconds
 }
 
+function Send-FixedTriggerMessage {
+    param(
+        [IntPtr]$WindowHandle,
+        [uint32]$Message,
+        [int]$TimeoutMilliseconds
+    )
+
+    $messageResult = [IntPtr]::Zero
+    $sendResult = [FullSolutionGuiResourceProbe]::SendMessageTimeout(
+        $WindowHandle,
+        $Message,
+        [IntPtr]::Zero,
+        [IntPtr]::Zero,
+        2,
+        [uint32]$TimeoutMilliseconds,
+        [ref]$messageResult)
+    return [pscustomobject]@{
+        Delivered = $sendResult -ne [IntPtr]::Zero
+        Result = $messageResult.ToInt64()
+    }
+}
+
 function Get-LogOffsets {
     param([string]$LogDirectory)
 
@@ -491,6 +609,13 @@ else {
 }
 Restore-ImmutableScheme -SourcePath $resolvedImmutableSchemeSourcePath -TargetPath $resolvedSchemePath -ExpectedSha256 $immutableSchemeSha256
 $workingDirectory = Split-Path -Parent $resolvedExecutablePath
+if ($RunMode -eq "FixedIntervalTriggers" -and [string]::IsNullOrWhiteSpace($RuntimeReferenceDirectory)) {
+    throw "固定节拍触发必须提供RuntimeReferenceDirectory，自动同步旧版许可证和界面布局后才能运行。"
+}
+$runtimeInputHashes = Sync-TestRuntimeConfiguration `
+    -WorkingDirectory $workingDirectory `
+    -ReferenceDirectory $RuntimeReferenceDirectory `
+    -VisibleImageWindows $ExpectedVisibleImageWindows
 $logDirectory = Join-Path $workingDirectory "Logs"
 $startedByScript = $false
 $executionStateWasSet = $false
@@ -503,6 +628,9 @@ if ([FullSolutionGuiResourceProbe]::SetThreadExecutionState($keepSystemAwake) -e
 $executionStateWasSet = $true
 
 if ($ExistingProcessId -gt 0) {
+    if ($RunMode -eq "FixedIntervalTriggers") {
+        throw "固定节拍触发必须由本工具启动Debug程序，不能复用未开放测试消息的既有进程。"
+    }
     $mainProcess = Get-Process -Id $ExistingProcessId
     if (-not [string]::Equals($mainProcess.Path, $resolvedExecutablePath, [StringComparison]::OrdinalIgnoreCase)) {
         throw "ExistingProcessId对应的程序路径与ExecutablePath不一致。"
@@ -518,8 +646,22 @@ else {
     if ($WindowMode -eq "Minimized") {
         $startProcessArguments.WindowStyle = "Minimized"
     }
-    $mainProcess = Start-Process @startProcessArguments
-    $startedByScript = $true
+    try {
+        if ($RunMode -eq "FixedIntervalTriggers") {
+            $env:TDJS_VISION_FIXED_TRIGGER_STRESS = "1"
+            $env:TDJS_VISION_FIXED_TRIGGER_EXPECTED_ATTEMPTS = [string]$Rounds
+            $env:TDJS_VISION_FIXED_TRIGGER_INTERVAL_MS = [string]$TriggerIntervalMilliseconds
+        }
+        $mainProcess = Start-Process @startProcessArguments
+        $startedByScript = $true
+    }
+    finally {
+        if ($RunMode -eq "FixedIntervalTriggers") {
+            Remove-Item Env:TDJS_VISION_FIXED_TRIGGER_STRESS -ErrorAction SilentlyContinue
+            Remove-Item Env:TDJS_VISION_FIXED_TRIGGER_EXPECTED_ATTEMPTS -ErrorAction SilentlyContinue
+            Remove-Item Env:TDJS_VISION_FIXED_TRIGGER_INTERVAL_MS -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 try {
@@ -530,6 +672,271 @@ try {
     for ($warmup = 1; $warmup -le $WarmupRounds; $warmup++) {
         $warmupElapsed = Invoke-SolutionRound -RunOnceButton $runOnceButton -TimeoutSeconds $RoundTimeoutSeconds -PollMilliseconds $UiPollMilliseconds
         Write-Output ("WARMUP {0}/{1} elapsed_ms={2:N3}" -f $warmup, $WarmupRounds, $warmupElapsed)
+    }
+
+    if ($RunMode -eq "FixedIntervalTriggers") {
+        $fixedTriggerMessage = [uint32]0x8451
+        $fixedTriggerResetMessage = [uint32]0x8452
+        $mainProcess.Refresh()
+        $resetResult = Send-FixedTriggerMessage `
+            -WindowHandle $mainProcess.MainWindowHandle `
+            -Message $fixedTriggerResetMessage `
+            -TimeoutMilliseconds $TriggerMessageTimeoutMilliseconds
+        if (-not $resetResult.Delivered -or $resetResult.Result -ne 1) {
+            throw "固定触发正式测试前无法清除预热计数，活动方案可能尚未退出。"
+        }
+
+        $logOffsets = Get-LogOffsets -LogDirectory $logDirectory
+        $mainProcess.Refresh()
+        $mainStartTime = $mainProcess.StartTime
+        $logicalProcessorCount = [Math]::Max(1, [Environment]::ProcessorCount)
+        $initial = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $true
+        if ($initial.ProcessCount -ne $ExpectedProcessTreeCount) {
+            throw "固定触发压力要求进程树为${ExpectedProcessTreeCount}个进程，实际为$($initial.ProcessCount)个。"
+        }
+
+        $peak = $initial.PSObject.Copy()
+        $lastSnapshot = $initial
+        $peakCpuPercent = 0.0
+        $acceptedByHarness = 0
+        $busyByHarness = 0
+        $messageTimeoutCount = 0
+        $csvRows = New-Object System.Collections.Generic.List[object]
+        $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+        New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
+        $safeLabel = $VersionLabel -replace '[^0-9A-Za-z\u4e00-\u9fa5_-]', '_'
+        $jsonPath = Join-Path $OutputDirectory "${timestamp}-${safeLabel}-${Rounds}次固定触发.json"
+        $csvPath = Join-Path $OutputDirectory "${timestamp}-${safeLabel}-${Rounds}次固定触发.csv"
+        $checkpointPath = Join-Path $OutputDirectory "${timestamp}-${safeLabel}-${Rounds}次固定触发-checkpoint.json"
+        $formalStopwatch = [Diagnostics.Stopwatch]::StartNew()
+
+        for ($attempt = 1; $attempt -le $Rounds; $attempt++) {
+            $scheduledMilliseconds = [double](($attempt - 1) * $TriggerIntervalMilliseconds)
+            while ($formalStopwatch.Elapsed.TotalMilliseconds -lt $scheduledMilliseconds) {
+                $remainingMilliseconds = $scheduledMilliseconds - $formalStopwatch.Elapsed.TotalMilliseconds
+                if ($remainingMilliseconds -gt 2.0) {
+                    Start-Sleep -Milliseconds ([Math]::Max(1, [int][Math]::Floor($remainingMilliseconds - 1.0)))
+                }
+                else {
+                    [Threading.Thread]::SpinWait(64)
+                }
+            }
+
+            $actualMilliseconds = $formalStopwatch.Elapsed.TotalMilliseconds
+            $dispatchStopwatch = [Diagnostics.Stopwatch]::StartNew()
+            $triggerResult = Send-FixedTriggerMessage `
+                -WindowHandle $mainProcess.MainWindowHandle `
+                -Message $fixedTriggerMessage `
+                -TimeoutMilliseconds $TriggerMessageTimeoutMilliseconds
+            $dispatchStopwatch.Stop()
+
+            if (-not $triggerResult.Delivered) {
+                $outcome = "消息超时"
+                $messageTimeoutCount++
+            }
+            elseif ($triggerResult.Result -eq 1) {
+                $outcome = "准入"
+                $acceptedByHarness++
+            }
+            else {
+                $outcome = "忙碌拒绝"
+                $busyByHarness++
+            }
+
+            $includeManaged = ($attempt % [Math]::Max(1, $ResourceSampleInterval * 10) -eq 0) -or ($attempt -eq $Rounds)
+            if (($attempt % $ResourceSampleInterval -eq 0) -or $attempt -eq 1 -or $attempt -eq $Rounds) {
+                $snapshot = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $includeManaged
+                $sampleWallMilliseconds = [Math]::Max(1.0, ($snapshot.TimestampUtc - $lastSnapshot.TimestampUtc).TotalMilliseconds)
+                $cpuDeltaMilliseconds = [Math]::Max(0.0, $snapshot.TotalCpuMilliseconds - $lastSnapshot.TotalCpuMilliseconds)
+                $cpuPercent = ($cpuDeltaMilliseconds / $sampleWallMilliseconds) * (100.0 / $logicalProcessorCount)
+                $peakCpuPercent = [Math]::Max($peakCpuPercent, $cpuPercent)
+                foreach ($property in @("ProcessCount", "PrivateBytes", "MainPrivateBytes", "GdiObjects", "UserObjects", "Handles")) {
+                    if ($snapshot.$property -gt $peak.$property) {
+                        $peak.$property = $snapshot.$property
+                    }
+                }
+                if ($snapshot.ManagedHeapBytes -ge 0 -and $snapshot.ManagedHeapBytes -gt $peak.ManagedHeapBytes) {
+                    $peak.ManagedHeapBytes = $snapshot.ManagedHeapBytes
+                }
+                $lastSnapshot = $snapshot
+            }
+            else {
+                $snapshot = $lastSnapshot
+                $cpuPercent = 0.0
+            }
+
+            $csvRows.Add([pscustomobject]@{
+                Attempt = $attempt
+                ScheduledMilliseconds = [Math]::Round($scheduledMilliseconds, 3)
+                ActualDispatchMilliseconds = [Math]::Round($actualMilliseconds, 3)
+                ScheduleDriftMilliseconds = [Math]::Round($actualMilliseconds - $scheduledMilliseconds, 3)
+                MessageDispatchMilliseconds = [Math]::Round($dispatchStopwatch.Elapsed.TotalMilliseconds, 3)
+                Outcome = $outcome
+                ProcessCount = $snapshot.ProcessCount
+                PrivateMemoryMegabytes = [Math]::Round($snapshot.PrivateBytes / 1MB, 3)
+                ManagedHeapMegabytes = if ($snapshot.ManagedHeapBytes -ge 0) { [Math]::Round($snapshot.ManagedHeapBytes / 1MB, 3) } else { $null }
+                GdiObjects = $snapshot.GdiObjects
+                Handles = $snapshot.Handles
+                CpuPercent = [Math]::Round($cpuPercent, 3)
+            })
+
+            if (($attempt % $ProgressInterval -eq 0) -or ($attempt -eq $Rounds)) {
+                Set-TestProcessPriority -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -PriorityName $ProcessPriority
+                Set-TestWindowMode -MainProcess $mainProcess -Mode $WindowMode
+                $csvRows | Export-Csv -LiteralPath $csvPath -NoTypeInformation -Encoding UTF8
+                [ordered]@{
+                    VersionLabel = $VersionLabel
+                    RunMode = $RunMode
+                    CompletedAttempts = $attempt
+                    TargetAttempts = $Rounds
+                    Accepted = $acceptedByHarness
+                    BusyRejected = $busyByHarness
+                    MessageTimeouts = $messageTimeoutCount
+                    LastScheduleDriftMilliseconds = [Math]::Round($actualMilliseconds - $scheduledMilliseconds, 3)
+                    UpdatedAt = Get-Date -Format "yyyy-MM-dd HH:mm:ss.fff"
+                } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $checkpointPath -Encoding UTF8
+                Write-Output ("TRIGGER_PROGRESS {0}/{1} accepted={2} busy={3} timeout={4} drift_ms={5:N3}" -f $attempt, $Rounds, $acceptedByHarness, $busyByHarness, $messageTimeoutCount, ($actualMilliseconds - $scheduledMilliseconds))
+            }
+        }
+
+        $injectionWallMilliseconds = $formalStopwatch.Elapsed.TotalMilliseconds
+        $summaryMatch = $null
+        $summaryDeadline = [DateTime]::UtcNow.AddSeconds($RoundTimeoutSeconds)
+        while ([DateTime]::UtcNow -lt $summaryDeadline) {
+            Start-Sleep -Milliseconds $UiPollMilliseconds
+            $appendedLogText = Get-AppendedLogText -LogDirectory $logDirectory -Offsets $logOffsets
+            $summaryMatches = [regex]::Matches(
+                $appendedLogText,
+                "【固定触发汇总】间隔=(?<interval>\d+)ms；请求=(?<requested>\d+)；准入=(?<accepted>\d+)；忙碌拒绝=(?<busy>\d+)；完成=(?<completed>\d+)；异常=(?<failed>\d+)；活动=(?<active>True|False)；耗时样本=(?<samples>\d+)；P50=(?<p50>\d+)ms；P95=(?<p95>\d+)ms；P99=(?<p99>\d+)ms；最大=(?<max>\d+)ms")
+            if ($summaryMatches.Count -gt 0) {
+                $summaryMatch = $summaryMatches[$summaryMatches.Count - 1]
+                break
+            }
+
+            $drainSnapshot = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $false
+            foreach ($property in @("ProcessCount", "PrivateBytes", "MainPrivateBytes", "GdiObjects", "UserObjects", "Handles")) {
+                if ($drainSnapshot.$property -gt $peak.$property) {
+                    $peak.$property = $drainSnapshot.$property
+                }
+            }
+        }
+        $formalStopwatch.Stop()
+
+        if ($null -eq $summaryMatch) {
+            throw "500次固定触发发出后等待最终方案退出和汇总超过${RoundTimeoutSeconds}秒。"
+        }
+
+        $controllerRequested = [long]$summaryMatch.Groups['requested'].Value
+        $controllerAccepted = [long]$summaryMatch.Groups['accepted'].Value
+        $controllerBusy = [long]$summaryMatch.Groups['busy'].Value
+        $controllerCompleted = [long]$summaryMatch.Groups['completed'].Value
+        $controllerFailed = [long]$summaryMatch.Groups['failed'].Value
+        if ($messageTimeoutCount -ne 0) {
+            throw "固定触发存在${messageTimeoutCount}次窗口消息投递超时，本轮不能作为有效压力数据。"
+        }
+        if ($controllerRequested -ne $Rounds -or $controllerAccepted -ne $acceptedByHarness -or $controllerBusy -ne $busyByHarness) {
+            throw "外部投递计数与程序准入汇总不一致：外部=$Rounds/$acceptedByHarness/$busyByHarness，程序=$controllerRequested/$controllerAccepted/$controllerBusy。"
+        }
+        if ($controllerCompleted -ne $controllerAccepted -or $controllerFailed -ne 0) {
+            throw "准入轮次没有全部正常退出：准入=$controllerAccepted，完成=$controllerCompleted，异常=$controllerFailed。"
+        }
+
+        $final = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $true
+        $appendedLogText = Get-AppendedLogText -LogDirectory $logDirectory -Offsets $logOffsets
+        $processSummaries = @(
+            Get-ProcessLogSummary -LogText $appendedLogText -ProcessName "中心端子正面检测"
+            Get-ProcessLogSummary -LogText $appendedLogText -ProcessName "同心度检测"
+            Get-ProcessLogSummary -LogText $appendedLogText -ProcessName "中心端子侧面左检测"
+            Get-ProcessLogSummary -LogText $appendedLogText -ProcessName "中心端子侧面右检测"
+        )
+        $invalidProcessSummaries = @($processSummaries | Where-Object { $_.Success -ne $controllerAccepted -or $_.Failed -ne 0 })
+        if ($invalidProcessSummaries.Count -ne 0) {
+            throw "固定触发准入轮次没有让四个流程各成功一次，请检查结果JSON中的ProcessResults。"
+        }
+
+        $exceptionCount = [regex]::Matches($appendedLogText, "(?m)^.*\sException\s.*$").Count
+        $modbusSuccessCount = [regex]::Matches($appendedLogText, "Modbus发送信号完毕").Count
+        $modbusFailureCount = [regex]::Matches($appendedLogText, "(?mi)^.*Exception.*Modbus.*$").Count +
+            [regex]::Matches($appendedLogText, "(?mi)^.*Modbus.*(失败|超时).*$").Count
+        if ($exceptionCount -ne 0 -or $modbusFailureCount -ne 0 -or $modbusSuccessCount -ne ($controllerAccepted * 4)) {
+            throw "固定触发业务校验失败：异常=$exceptionCount，Modbus成功=$modbusSuccessCount，期望=$($controllerAccepted * 4)，Modbus失败=$modbusFailureCount。"
+        }
+
+        $driftValues = @($csvRows | ForEach-Object { [double]$_.ScheduleDriftMilliseconds })
+        $dispatchValues = @($csvRows | ForEach-Object { [double]$_.MessageDispatchMilliseconds })
+        $averageCpuPercent = (($final.TotalCpuMilliseconds - $initial.TotalCpuMilliseconds) /
+            [Math]::Max(1.0, $formalStopwatch.Elapsed.TotalMilliseconds)) * (100.0 / $logicalProcessorCount)
+        $result = [ordered]@{
+            VersionLabel = $VersionLabel
+            RunMode = $RunMode
+            ExecutablePath = $resolvedExecutablePath
+            ExecutableSha256 = (Get-FileHash -LiteralPath $resolvedExecutablePath -Algorithm SHA256).Hash
+            SchemePath = $resolvedSchemePath
+            SchemeSha256 = (Get-FileHash -LiteralPath $resolvedSchemePath -Algorithm SHA256).Hash
+            RuntimeInputHashes = $runtimeInputHashes
+            WindowMode = $WindowMode
+            ProcessPriority = $ProcessPriority
+            WarmupRounds = $WarmupRounds
+            Trigger = [ordered]@{
+                Attempted = $Rounds
+                IntervalMilliseconds = $TriggerIntervalMilliseconds
+                InjectionWallMilliseconds = [Math]::Round($injectionWallMilliseconds, 3)
+                Accepted = $controllerAccepted
+                BusyRejected = $controllerBusy
+                MessageTimeouts = $messageTimeoutCount
+                AdmissionPercent = [Math]::Round(($controllerAccepted * 100.0 / $Rounds), 3)
+            }
+            Scheduling = [ordered]@{
+                DriftP50Milliseconds = [Math]::Round((Get-Percentile -Values $driftValues -Percentile 50), 3)
+                DriftP95Milliseconds = [Math]::Round((Get-Percentile -Values $driftValues -Percentile 95), 3)
+                DriftP99Milliseconds = [Math]::Round((Get-Percentile -Values $driftValues -Percentile 99), 3)
+                DriftMaxMilliseconds = [Math]::Round(($driftValues | Measure-Object -Maximum).Maximum, 3)
+                DispatchP95Milliseconds = [Math]::Round((Get-Percentile -Values $dispatchValues -Percentile 95), 3)
+                DispatchMaxMilliseconds = [Math]::Round(($dispatchValues | Measure-Object -Maximum).Maximum, 3)
+            }
+            AcceptedRunTiming = [ordered]@{
+                Samples = [long]$summaryMatch.Groups['samples'].Value
+                P50Milliseconds = [long]$summaryMatch.Groups['p50'].Value
+                P95Milliseconds = [long]$summaryMatch.Groups['p95'].Value
+                P99Milliseconds = [long]$summaryMatch.Groups['p99'].Value
+                MaxMilliseconds = [long]$summaryMatch.Groups['max'].Value
+            }
+            Cpu = [ordered]@{
+                LogicalProcessorCount = $logicalProcessorCount
+                AveragePercent = [Math]::Round($averageCpuPercent, 3)
+                PeakSamplePercent = [Math]::Round($peakCpuPercent, 3)
+            }
+            Resources = [ordered]@{
+                ProcessTreeCount = [ordered]@{ Start = $initial.ProcessCount; Peak = $peak.ProcessCount; End = $final.ProcessCount }
+                MainPrivateMemoryMegabytes = [ordered]@{ Start = [Math]::Round($initial.MainPrivateBytes / 1MB, 3); Peak = [Math]::Round($peak.MainPrivateBytes / 1MB, 3); End = [Math]::Round($final.MainPrivateBytes / 1MB, 3) }
+                ProcessTreePrivateMemoryMegabytes = [ordered]@{ Start = [Math]::Round($initial.PrivateBytes / 1MB, 3); Peak = [Math]::Round($peak.PrivateBytes / 1MB, 3); End = [Math]::Round($final.PrivateBytes / 1MB, 3) }
+                ProcessTreeManagedHeapMegabytes = [ordered]@{ Start = [Math]::Round($initial.ManagedHeapBytes / 1MB, 3); Peak = [Math]::Round($peak.ManagedHeapBytes / 1MB, 3); End = [Math]::Round($final.ManagedHeapBytes / 1MB, 3) }
+                GdiObjects = [ordered]@{ Start = $initial.GdiObjects; Peak = $peak.GdiObjects; End = $final.GdiObjects }
+                UserObjects = [ordered]@{ Start = $initial.UserObjects; Peak = $peak.UserObjects; End = $final.UserObjects }
+                Handles = [ordered]@{ Start = $initial.Handles; Peak = $peak.Handles; End = $final.Handles }
+            }
+            ProcessResults = $processSummaries
+            ExceptionLogCount = $exceptionCount
+            Modbus = [ordered]@{ SuccessLogCount = $modbusSuccessCount; FailureLogCount = $modbusFailureCount }
+            ResultFiles = [ordered]@{ Json = $jsonPath; Csv = $csvPath; Checkpoint = $checkpointPath }
+        }
+
+        $csvRows | Export-Csv -LiteralPath $csvPath -NoTypeInformation -Encoding UTF8
+        $result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
+        [ordered]@{
+            VersionLabel = $VersionLabel
+            RunMode = $RunMode
+            CompletedAttempts = $Rounds
+            TargetAttempts = $Rounds
+            Completed = $true
+            ResultJson = $jsonPath
+            ResultCsv = $csvPath
+            UpdatedAt = Get-Date -Format "yyyy-MM-dd HH:mm:ss.fff"
+        } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $checkpointPath -Encoding UTF8
+        Write-Output ("RESULT_JSON={0}" -f $jsonPath)
+        Write-Output ("RESULT_CSV={0}" -f $csvPath)
+        Write-Output ($result | ConvertTo-Json -Depth 10)
+        return
     }
 
     $logOffsets = Get-LogOffsets -LogDirectory $logDirectory
