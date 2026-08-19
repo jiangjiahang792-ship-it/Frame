@@ -30,6 +30,12 @@ param(
 
     [string]$ImmutableSchemeSourcePath = "",
 
+    [ValidateSet("Normal", "Minimized")]
+    [string]$WindowMode = "Minimized",
+
+    [ValidateSet("Normal", "BelowNormal")]
+    [string]$ProcessPriority = "BelowNormal",
+
     [switch]$KeepProcess
 )
 
@@ -50,6 +56,10 @@ public static class FullSolutionGuiResourceProbe
 
     [DllImport("kernel32.dll")]
     public static extern uint SetThreadExecutionState(uint executionState);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ShowWindowAsync(IntPtr windowHandle, int command);
 }
 "@ -Language CSharp
 
@@ -115,6 +125,43 @@ function Get-TestProcesses {
     }
 
     return @($matches)
+}
+
+function Set-TestProcessPriority {
+    param(
+        [string]$ResolvedExecutablePath,
+        [datetime]$MainProcessStartTime,
+        [string]$PriorityName
+    )
+
+    $priorityClass = [Diagnostics.ProcessPriorityClass]::$PriorityName
+    foreach ($process in @(Get-TestProcesses -ResolvedExecutablePath $ResolvedExecutablePath -MainProcessStartTime $MainProcessStartTime)) {
+        try {
+            if ($process.PriorityClass -ne $priorityClass) {
+                $process.PriorityClass = $priorityClass
+            }
+        }
+        catch {
+            # AI工作进程若恰好重启，下一次进度采样会再次应用测试优先级。
+        }
+    }
+}
+
+function Set-TestWindowMode {
+    param(
+        [System.Diagnostics.Process]$MainProcess,
+        [string]$Mode
+    )
+
+    if ($Mode -ne "Minimized") {
+        return
+    }
+
+    $MainProcess.Refresh()
+    if ($MainProcess.MainWindowHandle -ne [IntPtr]::Zero) {
+        # SW_MINIMIZE=6；保留真实窗口和UI线程，只避免测试窗口抢占用户桌面。
+        [void][FullSolutionGuiResourceProbe]::ShowWindowAsync($MainProcess.MainWindowHandle, 6)
+    }
 }
 
 function Get-ManagedHeapBytes {
@@ -444,12 +491,24 @@ if ($ExistingProcessId -gt 0) {
     }
 }
 else {
-    $mainProcess = Start-Process -FilePath $resolvedExecutablePath -WorkingDirectory $workingDirectory -ArgumentList @("`"$resolvedSchemePath`"") -PassThru
+    $startProcessArguments = @{
+        FilePath = $resolvedExecutablePath
+        WorkingDirectory = $workingDirectory
+        ArgumentList = @("`"$resolvedSchemePath`"")
+        PassThru = $true
+    }
+    if ($WindowMode -eq "Minimized") {
+        $startProcessArguments.WindowStyle = "Minimized"
+    }
+    $mainProcess = Start-Process @startProcessArguments
     $startedByScript = $true
 }
 
 try {
     $runOnceButton = Find-RunOnceButton -MainProcess $mainProcess
+    $mainProcess.Refresh()
+    Set-TestProcessPriority -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainProcess.StartTime -PriorityName $ProcessPriority
+    Set-TestWindowMode -MainProcess $mainProcess -Mode $WindowMode
     for ($warmup = 1; $warmup -le $WarmupRounds; $warmup++) {
         $warmupElapsed = Invoke-SolutionRound -RunOnceButton $runOnceButton -TimeoutSeconds $RoundTimeoutSeconds
         Write-Output ("WARMUP {0}/{1} elapsed_ms={2:N3}" -f $warmup, $WarmupRounds, $warmupElapsed)
@@ -508,6 +567,8 @@ try {
 
         $lastSnapshot = $snapshot
         if (($round % $ProgressInterval -eq 0) -or ($round -eq $Rounds)) {
+            Set-TestProcessPriority -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -PriorityName $ProcessPriority
+            Set-TestWindowMode -MainProcess $mainProcess -Mode $WindowMode
             $currentP95 = Get-Percentile -Values $durations.ToArray() -Percentile 95
             $csvRows | Export-Csv -LiteralPath $csvPath -NoTypeInformation -Encoding UTF8
             [ordered]@{
@@ -575,6 +636,8 @@ try {
         SchemeSha256 = (Get-FileHash -LiteralPath $resolvedSchemePath -Algorithm SHA256).Hash
         ImmutableSchemeSourcePath = $resolvedImmutableSchemeSourcePath
         ImmutableSchemeSha256 = $immutableSchemeSha256
+        WindowMode = $WindowMode
+        ProcessPriority = $ProcessPriority
         DebugSwitch = "使用程序当前用户设置；本轮未通过自动化修改"
         UiMode = "单次运行按钮串行调用，确保四流程每轮各执行一次"
         WarmupRounds = $WarmupRounds
