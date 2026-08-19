@@ -1,8 +1,28 @@
-﻿$ErrorActionPreference = 'Stop'
+﻿param(
+    [ValidateRange(1, 100)]
+    [int]$FormalRoundCount = 3,
+
+    [ValidateRange(1, 10000)]
+    [int]$AttemptsPerRound = 60,
+
+    [string]$ResultPath = ''
+)
+
+$ErrorActionPreference = 'Stop'
 # 生产程序基于.NET Framework 4.8，PowerShell 7会加载不兼容的System.Web类型转发。
 if ($PSVersionTable.PSEdition -eq 'Core') {
     $windowsPowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    & $windowsPowerShell -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath
+    $relayArguments = @(
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', $PSCommandPath,
+        '-FormalRoundCount', $FormalRoundCount,
+        '-AttemptsPerRound', $AttemptsPerRound
+    )
+    if (-not [string]::IsNullOrWhiteSpace($ResultPath)) {
+        $relayArguments += @('-ResultPath', $ResultPath)
+    }
+    & $windowsPowerShell @relayArguments
     exit $LASTEXITCODE
 }
 
@@ -122,6 +142,7 @@ public sealed class ImageSaveWorkerStressResult
     public long CompletedCount { get; set; }
     public long FailedCount { get; set; }
     public int FileCount { get; set; }
+    public long TotalFileBytes { get; set; }
     public int EmptyFileCount { get; set; }
     public int TemporaryFileCount { get; set; }
     public int LeaseDisposeCount { get; set; }
@@ -284,6 +305,7 @@ public static class ImageSaveWorkerStressHarness
             CompletedCount = processor.CompletedTaskCount,
             FailedCount = processor.FailedTaskCount,
             FileCount = files.Length,
+            TotalFileBytes = files.Sum(file => file.Length),
             LeaseDisposeCount = StressMatLease.DisposeCount,
             LeaseDoubleDisposeCount = StressMatLease.DoubleDisposeCount,
             PeakQueueCount = processor.PeakQueuedCount,
@@ -391,6 +413,7 @@ public static class ImageSaveWorkerStressHarness
             CompletedCount = processor.CompletedTaskCount,
             FailedCount = processor.FailedTaskCount,
             FileCount = files.Length,
+            TotalFileBytes = files.Sum(file => file.Length),
             EmptyFileCount = files.Count(file => file.Length == 0),
             TemporaryFileCount = temporaryFileCount,
             LeaseDisposeCount = StressMatLease.DisposeCount,
@@ -714,11 +737,14 @@ try {
     $baselinePrivateMb = $process.PrivateMemorySize64 / 1MB
     $baselineManagedMb = [GC]::GetTotalMemory($false) / 1MB
     $baselineHandleCount = $process.HandleCount
+    $cpuStart = $process.TotalProcessorTime
+    $stressStopwatch = [Diagnostics.Stopwatch]::StartNew()
     $roundResults = @()
+    $roundResourceSnapshots = @()
 
-    for ($round = 1; $round -le 3; $round++) {
+    for ($round = 1; $round -le $FormalRoundCount; $round++) {
         $roundDirectory = Join-Path $testOutputRoot ("round_{0}" -f $round)
-        $result = [ImageSaveWorkerStressHarness]::Run($roundDirectory, 60)
+        $result = [ImageSaveWorkerStressHarness]::Run($roundDirectory, $AttemptsPerRound)
         Assert-True $result.GracefullyStopped "第${round}轮必须在5000ms内排空并停止。"
         Assert-True ($result.PeakQueueCount -le 8) "第${round}轮队列峰值超过容量8。"
         Assert-True ($result.PeakQueueBytes -le (128MB)) "第${round}轮队列字节峰值超过128MB。"
@@ -737,16 +763,26 @@ try {
         Assert-True ($result.EnqueueP99Milliseconds -lt 50) "第${round}轮入队P99超过50ms。"
         Assert-True ($result.EnqueueMaxMilliseconds -lt 500) "第${round}轮存在超过500ms的入队停顿。"
         $roundResults += $result
+
+        Invoke-FullCollection
+        $process.Refresh()
+        $roundResourceSnapshots += [pscustomobject]@{
+            Round = $round
+            PrivateMemoryMb = [Math]::Round(($process.PrivateMemorySize64 / 1MB), 3)
+            ManagedMemoryMb = [Math]::Round(([GC]::GetTotalMemory($false) / 1MB), 3)
+            HandleCount = $process.HandleCount
+        }
     }
 
+    $stressStopwatch.Stop()
     Invoke-FullCollection
     $process.Refresh()
     $finalPrivateMb = $process.PrivateMemorySize64 / 1MB
     $finalManagedMb = [GC]::GetTotalMemory($false) / 1MB
     $finalHandleCount = $process.HandleCount
-    Assert-True (($finalPrivateMb - $baselinePrivateMb) -lt 64) '三轮正式压力后私有内存增长不得达到64MB。'
-    Assert-True (($finalManagedMb - $baselineManagedMb) -lt 16) '三轮正式压力后托管内存增长不得达到16MB。'
-    Assert-True (($finalHandleCount - $baselineHandleCount) -le 16) '三轮正式压力后进程句柄增长不得超过16个。'
+    Assert-True (($finalPrivateMb - $baselinePrivateMb) -lt 64) "${FormalRoundCount}轮正式压力后私有内存增长不得达到64MB。"
+    Assert-True (($finalManagedMb - $baselineManagedMb) -lt 16) "${FormalRoundCount}轮正式压力后托管内存增长不得达到16MB。"
+    Assert-True (($finalHandleCount - $baselineHandleCount) -le 16) "${FormalRoundCount}轮正式压力后进程句柄增长不得超过16个。"
     foreach ($result in $roundResults) {
         Write-Host ("保存工作池正式轮：四流程并发尝试={0}；接收={1}；拒绝={2}；淘汰普通={3}；完成={4}；文件={5}；队列峰值={6}/8；字节峰值={7:N2}MB/128MB；并发峰值={8}/2；投递阶段={9}ms；入队P95={10:N3}ms；P99={11:N3}ms；最大={12:N3}ms；停止排空={13}ms；失败={14}；租约释放={15}；重复释放={16}；同步淘汰释放={17}" -f `
             $result.AttemptedCount,
@@ -778,6 +814,53 @@ try {
         $baselineHandleCount,
         $finalHandleCount,
         ($finalHandleCount - $baselineHandleCount))
+
+    $process.Refresh()
+    $cpuMilliseconds = ($process.TotalProcessorTime - $cpuStart).TotalMilliseconds
+    $averageCpuPercent = $cpuMilliseconds / [Math]::Max(1.0, $stressStopwatch.Elapsed.TotalMilliseconds) / [Math]::Max(1, [Environment]::ProcessorCount) * 100.0
+    $summary = [ordered]@{
+        TestName = '当前版保存工作池同进程长稳'
+        FormalRoundCount = $FormalRoundCount
+        AttemptsPerRound = $AttemptsPerRound
+        TotalAttemptedCount = [int](($roundResults | Measure-Object -Property AttemptedCount -Sum).Sum)
+        TotalAcceptedCount = [int](($roundResults | Measure-Object -Property AcceptedCount -Sum).Sum)
+        TotalRejectedCount = [int](($roundResults | Measure-Object -Property RejectedCount -Sum).Sum)
+        TotalEvictedNormalCount = [int](($roundResults | Measure-Object -Property EvictedNormalCount -Sum).Sum)
+        TotalCompletedCount = [long](($roundResults | Measure-Object -Property CompletedCount -Sum).Sum)
+        TotalFailedCount = [long](($roundResults | Measure-Object -Property FailedCount -Sum).Sum)
+        TotalFileCount = [int](($roundResults | Measure-Object -Property FileCount -Sum).Sum)
+        TotalFileBytes = [long](($roundResults | Measure-Object -Property TotalFileBytes -Sum).Sum)
+        TotalLeaseDisposeCount = [int](($roundResults | Measure-Object -Property LeaseDisposeCount -Sum).Sum)
+        TotalLeaseDoubleDisposeCount = [int](($roundResults | Measure-Object -Property LeaseDoubleDisposeCount -Sum).Sum)
+        PeakQueueCount = [int](($roundResults | Measure-Object -Property PeakQueueCount -Maximum).Maximum)
+        PeakQueueBytes = [long](($roundResults | Measure-Object -Property PeakQueueBytes -Maximum).Maximum)
+        PeakActiveWorkers = [int](($roundResults | Measure-Object -Property PeakActiveWorkers -Maximum).Maximum)
+        EnqueueP99MaximumMilliseconds = [double](($roundResults | Measure-Object -Property EnqueueP99Milliseconds -Maximum).Maximum)
+        EnqueueAbsoluteMaximumMilliseconds = [double](($roundResults | Measure-Object -Property EnqueueMaxMilliseconds -Maximum).Maximum)
+        StressWallMilliseconds = $stressStopwatch.ElapsedMilliseconds
+        CpuLogicalProcessorCount = [Environment]::ProcessorCount
+        AverageCpuPercent = [Math]::Round($averageCpuPercent, 3)
+        PrivateMemoryBaselineMb = [Math]::Round($baselinePrivateMb, 3)
+        PrivateMemoryFinalMb = [Math]::Round($finalPrivateMb, 3)
+        PrivateMemoryDeltaMb = [Math]::Round(($finalPrivateMb - $baselinePrivateMb), 3)
+        ManagedMemoryBaselineMb = [Math]::Round($baselineManagedMb, 3)
+        ManagedMemoryFinalMb = [Math]::Round($finalManagedMb, 3)
+        ManagedMemoryDeltaMb = [Math]::Round(($finalManagedMb - $baselineManagedMb), 3)
+        HandleBaseline = $baselineHandleCount
+        HandleFinal = $finalHandleCount
+        HandleDelta = $finalHandleCount - $baselineHandleCount
+        RoundResourceSnapshots = $roundResourceSnapshots
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ResultPath)) {
+        $resolvedResultPath = [IO.Path]::GetFullPath($ResultPath)
+        $allowedResultRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot 'Tests\Results\ImageSaveComparison')).TrimEnd('\') + '\'
+        Assert-True ($resolvedResultPath.StartsWith($allowedResultRoot, [StringComparison]::OrdinalIgnoreCase)) '长稳结果必须写入Tests\Results\ImageSaveComparison目录。'
+        [IO.Directory]::CreateDirectory((Split-Path -Parent $resolvedResultPath)) | Out-Null
+        $summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $resolvedResultPath -Encoding UTF8
+        Write-Host "RESULT_JSON=$resolvedResultPath"
+    }
+    $summary | ConvertTo-Json -Depth 8 | Write-Host
 }
 finally {
     [AppDomain]::CurrentDomain.remove_AssemblyResolve($assemblyResolver)
