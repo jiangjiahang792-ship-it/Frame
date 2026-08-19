@@ -231,6 +231,12 @@ public sealed class ImageSaveComparisonResult
     public double FileMegabytesPerSecond { get; set; }
     /// <summary>文件解码和哈希校验耗时毫秒。</summary>
     public long ValidationMilliseconds { get; set; }
+    /// <summary>测试期间按全机逻辑线程归一化的平均CPU占用百分比。</summary>
+    public double AverageCpuPercent { get; set; }
+    /// <summary>测试期间按全机逻辑线程归一化的采样峰值CPU占用百分比。</summary>
+    public double PeakCpuPercent { get; set; }
+    /// <summary>CPU占用归一化使用的逻辑线程数。</summary>
+    public int CpuLogicalProcessorCount { get; set; }
     /// <summary>进程写操作增量。</summary>
     public ulong ProcessWriteOperations { get; set; }
     /// <summary>进程写传输字节增量。</summary>
@@ -305,6 +311,10 @@ internal sealed class SaveComparisonResourceSampler : IDisposable
     private readonly Process _process = Process.GetCurrentProcess();
     private readonly Thread _thread;
     private volatile bool _stopping;
+    private TimeSpan _previousCpuTime;
+    private long _previousTimestamp;
+    private double _cpuPercentTotal;
+    private int _cpuSampleCount;
 
     /// <summary>私有内存采样峰值字节。</summary>
     public long PeakPrivateBytes { get; private set; }
@@ -314,6 +324,10 @@ internal sealed class SaveComparisonResourceSampler : IDisposable
     public int PeakHandles { get; private set; }
     /// <summary>GDI对象采样峰值。</summary>
     public int PeakGdi { get; private set; }
+    /// <summary>按全机逻辑线程归一化的平均CPU占用百分比。</summary>
+    public double AverageCpuPercent { get { return _cpuSampleCount == 0 ? 0.0 : _cpuPercentTotal / _cpuSampleCount; } }
+    /// <summary>按全机逻辑线程归一化的采样峰值CPU占用百分比。</summary>
+    public double PeakCpuPercent { get; private set; }
 
     /// <summary>创建10ms资源采样线程。</summary>
     public SaveComparisonResourceSampler()
@@ -326,6 +340,10 @@ internal sealed class SaveComparisonResourceSampler : IDisposable
     /// <summary>启动资源采样。</summary>
     public void Start()
     {
+        _process.Refresh();
+        _previousCpuTime = _process.TotalProcessorTime;
+        _previousTimestamp = Stopwatch.GetTimestamp();
+        SampleResourcePeaks();
         _thread.Start();
     }
 
@@ -334,6 +352,7 @@ internal sealed class SaveComparisonResourceSampler : IDisposable
     {
         _stopping = true;
         _thread.Join(5000);
+        SampleResourcePeaks();
         _process.Dispose();
     }
 
@@ -342,21 +361,42 @@ internal sealed class SaveComparisonResourceSampler : IDisposable
     {
         while (!_stopping)
         {
+            Thread.Sleep(10);
             try
             {
-                _process.Refresh();
-                PeakPrivateBytes = Math.Max(PeakPrivateBytes, _process.PrivateMemorySize64);
-                PeakManagedBytes = Math.Max(PeakManagedBytes, GC.GetTotalMemory(false));
-                PeakHandles = Math.Max(PeakHandles, _process.HandleCount);
-                PeakGdi = Math.Max(PeakGdi, ImageSaveComparisonHarness.GetGuiResources(_process.Handle, 0));
+                SampleResourcePeaks();
             }
             catch
             {
                 // 下一采样周期继续，单次资源读取失败不能影响真实保存任务。
             }
-
-            Thread.Sleep(10);
         }
+    }
+
+    /// <summary>更新内存、句柄、GDI和归一化CPU采样值。</summary>
+    private void SampleResourcePeaks()
+    {
+        long currentTimestamp = Stopwatch.GetTimestamp();
+        _process.Refresh();
+        TimeSpan currentCpuTime = _process.TotalProcessorTime;
+        long elapsedTicks = currentTimestamp - _previousTimestamp;
+        if (_previousTimestamp != 0L && elapsedTicks > 0L)
+        {
+            double elapsedMilliseconds = elapsedTicks * 1000.0 / Stopwatch.Frequency;
+            double cpuMilliseconds = (currentCpuTime - _previousCpuTime).TotalMilliseconds;
+            double cpuPercent = cpuMilliseconds / elapsedMilliseconds / Math.Max(1, Environment.ProcessorCount) * 100.0;
+            cpuPercent = Math.Max(0.0, Math.Min(100.0, cpuPercent));
+            _cpuPercentTotal += cpuPercent;
+            _cpuSampleCount++;
+            PeakCpuPercent = Math.Max(PeakCpuPercent, cpuPercent);
+        }
+
+        _previousCpuTime = currentCpuTime;
+        _previousTimestamp = currentTimestamp;
+        PeakPrivateBytes = Math.Max(PeakPrivateBytes, _process.PrivateMemorySize64);
+        PeakManagedBytes = Math.Max(PeakManagedBytes, GC.GetTotalMemory(false));
+        PeakHandles = Math.Max(PeakHandles, _process.HandleCount);
+        PeakGdi = Math.Max(PeakGdi, ImageSaveComparisonHarness.GetGuiResources(_process.Handle, 0));
     }
 }
 
@@ -547,6 +587,9 @@ public static class ImageSaveComparisonHarness
             SaveWallMilliseconds = saveStopwatch.ElapsedMilliseconds,
             FileMegabytesPerSecond = (totalFileBytes / 1024.0 / 1024.0) / Math.Max(0.001, saveStopwatch.Elapsed.TotalSeconds),
             ValidationMilliseconds = validationStopwatch.ElapsedMilliseconds,
+            AverageCpuPercent = sampler.AverageCpuPercent,
+            PeakCpuPercent = sampler.PeakCpuPercent,
+            CpuLogicalProcessorCount = Environment.ProcessorCount,
             ProcessWriteOperations = Delta(ioEnd.WriteOperationCount, ioStart.WriteOperationCount),
             ProcessWriteTransferBytes = Delta(ioEnd.WriteTransferCount, ioStart.WriteTransferCount),
             ProcessReadOperations = Delta(ioEnd.ReadOperationCount, ioStart.ReadOperationCount),
