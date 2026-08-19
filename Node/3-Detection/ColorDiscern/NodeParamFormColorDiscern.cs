@@ -22,8 +22,12 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
     {
         private Process process;//所属流程
         private NodeBase node;//所属节点
-        private static ColorCreate colorCreate = null; // 模版创建对象
         private Mat srcMat = null;  // 原图
+
+        /// <summary>
+        /// 参数窗体自有图像是否已经释放，避免重复Dispose。
+        /// </summary>
+        private int _imageResourcesReleased;
 
         private bool isOpenGeiGround;  //是否开启通信检测项
         private IDevice device;   //通信设备
@@ -127,18 +131,45 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         /// </summary>
         public void UpdataImage(bool isShow = true)
         {
+            Mat nextSource = null;
+            Bitmap nextDisplay = null;
             try
             {
                 OutputImage outputImage = nodeSubscription1.GetValue<OutputImage>();
-                srcMat?.Dispose();
-                srcMat = outputImage.Bitmaps[0]?.Clone();
+                nextSource = outputImage.Bitmaps[0]?.Clone();
+                if (nextSource == null || nextSource.Empty())
+                    throw new InvalidOperationException("订阅图像为空。");
+
+                if (isShow)
+                    nextDisplay = BitmapConverter.ToBitmap(nextSource);
+
+                ReplaceSourceImage(nextSource);
+                nextSource = null;
+                if (isShow)
+                {
+                    showImageControl1.ImageBitmap = nextDisplay;
+                    nextDisplay = null;
+                }
             }
             catch (Exception)
             {
-                srcMat = null;
+                nextSource?.Dispose();
+                nextDisplay?.Dispose();
+                ReplaceSourceImage(null);
+                if (isShow)
+                    showImageControl1.ImageBitmap = null;
             }
-            //imageROIEditControl1.SetImage(src);
-            if (isShow) showImageControl1.ImageBitmap = (srcMat != null && !srcMat.Empty()) ? BitmapConverter.ToBitmap(srcMat) : null;
+        }
+
+        /// <summary>
+        /// 原子替换参数窗体拥有的源Mat，并释放上一张图。
+        /// </summary>
+        /// <param name="nextSource">由参数窗体接管的新源图，可为空。</param>
+        private void ReplaceSourceImage(Mat nextSource)
+        {
+            Mat previous = srcMat;
+            srcMat = nextSource;
+            previous?.Dispose();
         }
 
         /// <summary>
@@ -168,33 +199,6 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
             }
         }
 
-
-        /// <summary>
-        /// Bitmap转灰度Mat
-        /// </summary>
-        /// <param name="bitmap"></param>
-        /// <returns></returns>
-        private static Mat BitmapToGrayMat(Bitmap bitmap)
-        {
-            using (Mat mat = BitmapConverter.ToMat(bitmap))
-            {
-                if (mat.Channels() == 1)
-                    return mat.Clone();
-                Mat grayMat = new Mat();
-                Cv2.CvtColor(mat, grayMat, ColorConversionCodes.BGR2GRAY);
-                return grayMat;
-            }
-        }
-
-        /// <summary>
-        /// Bitmap转彩色Mat
-        /// </summary>
-        /// <param name="bitmap"></param>
-        /// <returns></returns>
-        private static Mat BitmapToColorMat(Bitmap bitmap)
-        {
-            return BitmapConverter.ToMat(bitmap);
-        }
 
         /// <summary>
         /// 点击保存参数
@@ -261,9 +265,22 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         /// <param name="e"></param>
         private void label1_Click(object sender, EventArgs e)
         {
-            colorCreate = new ColorCreate();
-            colorCreate.SetNodeBelong(node);
-            colorCreate.ShowDialog();
+            using (var colorCreate = new ColorCreate())
+            {
+                colorCreate.SetNodeBelong(node);
+                colorCreate.ShowDialog(this);
+            }
+        }
+
+        /// <summary>
+        /// 释放参数窗体最后持有的源Mat。
+        /// </summary>
+        private void ReleaseImageResources()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _imageResourcesReleased, 1) != 0)
+                return;
+
+            ReplaceSourceImage(null);
         }
 
         private void radioButton2_CheckedChanged(object sender, EventArgs e)
@@ -341,58 +358,66 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                 if (sourceImage == null || sourceImage.Empty())
                     throw new ArgumentException("源图像或模板图像不能为空");
 
-                var (allMatchResults, allOk) = await MatchColorResultsAsync(sourceImage);
-                if (!show)
-                    return (null, allMatchResults, allOk);
-
-                using (Mat sourceMat = sourceImage.Clone())
+                using (Mat sourceSnapshot = sourceImage.Clone())
                 {
-                    // 显示识别结果
-                    foreach (var r in allMatchResults)
+                    var (allMatchResults, allOk) = await MatchColorResultsAsync(sourceSnapshot);
+                    if (!show)
+                        return (null, allMatchResults, allOk);
+
+                    using (Mat sourceMat = sourceSnapshot.Clone())
                     {
-                        Scalar rectColor = r.IsOk ? Scalar.Lime : Scalar.Red;
-                        // 参数界面预览保留烧图显示，运行节点不走此分支。
-                        Cv2.Rectangle(sourceMat, r.Region, rectColor, 3);
-                    }
-
-                    // 转换为 Bitmap 进行文字绘制 (解决中文乱码和堆叠问题)
-                    Bitmap resultBitmap = BitmapConverter.ToBitmap(sourceMat);
-
-                    using (Graphics g = Graphics.FromImage(resultBitmap))
-                    using (Font font = new Font("Microsoft YaHei", 9, FontStyle.Bold))
-                    using (Brush backgroundBrush = new SolidBrush(Color.FromArgb(160, 0, 0, 0)))
-                    {
-                        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-
-                        // 在左侧绘制半透明背景列
-                        int lineHeight = 20;
-                        int boxWidth = 260;
-                        int boxHeight = (allMatchResults.Count * lineHeight) + 30;
-
-                        // 绘制半透明背景
-                        g.FillRectangle(backgroundBrush, 0, 0, boxWidth, boxHeight);
-                        g.DrawString("检测结果 (左侧列表):", font, Brushes.White, 5, 5);
-
-                        for (int i = 0; i < allMatchResults.Count; i++)
+                        // 显示识别结果
+                        foreach (var r in allMatchResults)
                         {
-                            var r = allMatchResults[i];
-                            string status = r.IsOk ? "OK" : "NG";
-                            Brush brush = r.IsOk ? Brushes.Lime : Brushes.Red;
+                            Scalar rectColor = r.IsOk ? Scalar.Lime : Scalar.Red;
+                            // 参数界面预览保留烧图显示，运行节点不走此分支。
+                            Cv2.Rectangle(sourceMat, r.Region, rectColor, 3);
+                        }
 
-                            string text = $"{i + 1}. {r.Name} [{status}]";
-                            if (r.ShowArea) text += $" Area:{r.Area}";
-                            if (r.ShowRatio) text += $" Ratio:{r.AreaB:F1}%";
+                        // 转换为 Bitmap 进行文字绘制 (解决中文乱码和堆叠问题)
+                        Bitmap resultBitmap = BitmapConverter.ToBitmap(sourceMat);
+                        try
+                        {
+                            using (Graphics g = Graphics.FromImage(resultBitmap))
+                            using (Font font = new Font("Microsoft YaHei", 9, FontStyle.Bold))
+                            using (Brush backgroundBrush = new SolidBrush(Color.FromArgb(160, 0, 0, 0)))
+                            {
+                                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
 
-                            g.DrawString(text, font, brush, 5, 25 + (i * lineHeight));
+                                // 在左侧绘制半透明背景列
+                                int lineHeight = 20;
+                                int boxWidth = 260;
+                                int boxHeight = (allMatchResults.Count * lineHeight) + 30;
+
+                                // 绘制半透明背景
+                                g.FillRectangle(backgroundBrush, 0, 0, boxWidth, boxHeight);
+                                g.DrawString("检测结果 (左侧列表):", font, Brushes.White, 5, 5);
+
+                                for (int i = 0; i < allMatchResults.Count; i++)
+                                {
+                                    var r = allMatchResults[i];
+                                    string status = r.IsOk ? "OK" : "NG";
+                                    Brush brush = r.IsOk ? Brushes.Lime : Brushes.Red;
+
+                                    string text = $"{i + 1}. {r.Name} [{status}]";
+                                    if (r.ShowArea) text += $" Area:{r.Area}";
+                                    if (r.ShowRatio) text += $" Ratio:{r.AreaB:F1}%";
+
+                                    g.DrawString(text, font, brush, 5, 25 + (i * lineHeight));
+                                }
+                            }
+
+                            showImageControl1.ClearAllRoi();
+                            showImageControl1.ImageBitmap = resultBitmap;
+                            return (resultBitmap, allMatchResults, allOk);
+                        }
+                        catch
+                        {
+                            if (!ReferenceEquals(showImageControl1.ImageBitmap, resultBitmap))
+                                resultBitmap.Dispose();
+                            throw;
                         }
                     }
-
-                    if (show)
-                    {
-                        showImageControl1.ClearAllRoi();
-                        showImageControl1.ImageBitmap = resultBitmap;
-                    }
-                    return (resultBitmap, allMatchResults, allOk);
 
                 }
             }
@@ -848,7 +873,6 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                         Cv2.BitwiseAnd(maskL, maskA, mask);
                         Cv2.BitwiseAnd(mask, maskB, mask);
                     }
-                    foreach (var c in channels) c.Dispose();
                 }
 
                 if (profile.UseStructure && !structureMask.Empty())
