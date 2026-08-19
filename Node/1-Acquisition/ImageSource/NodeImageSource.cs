@@ -117,11 +117,20 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             if (bitmap == null)
                 return;
 
+            bool diagnosticEnabled = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
+            long conversionStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
             Mat callbackMat = null;
             try
             {
                 callbackMat = bitmap.ToMat();
-                LogHelper.AddLog(MsgLevel.Debug, $"流程【{Process?.ProcessName}】Bitmap转Mat完毕, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+                long conversionCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
+                long conversionMilliseconds = CameraFrameTraceInfo.GetElapsedMilliseconds(
+                    conversionStartedTimestamp,
+                    conversionCompletedTimestamp);
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=兼容Bitmap转Mat完毕；耗时={conversionMilliseconds}ms；尺寸={bitmap.Width}x{bitmap.Height}",
+                    true);
                 HandleCameraCallbackFrame(callbackMat);
                 callbackMat = null;
             }
@@ -147,11 +156,14 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 return;
             }
 
+            CameraFrameTraceInfo frameTrace;
+            CameraFrameTraceRegistry.TryGet(mat, out frameTrace);
+            long nodeReceivedTimestamp = frameTrace == null ? 0L : Stopwatch.GetTimestamp();
             if (_cameraFrameAwaiter.TrySupplyFrame(mat))
             {
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    () => $"流程【{Process?.ProcessName}】图像源节点({ID}.{NodeName})已接收当前 RunId={Process?.CurrentRunId} 的相机回调帧。",
+                    () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=回调帧交付等待器；{GetCameraFrameTraceText(frameTrace, nodeReceivedTimestamp)}",
                     true);
                 return;
             }
@@ -159,8 +171,22 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             mat.Dispose();
             PerformanceSpikeDiagnostics.LogIfEnabled(
                 MsgLevel.Debug,
-                () => $"流程【{Process?.ProcessName}】图像源节点({ID}.{NodeName})没有有效等待者，已丢弃迟到回调帧。",
+                () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=丢弃迟到回调帧；{GetCameraFrameTraceText(frameTrace, nodeReceivedTimestamp)}",
                 true);
+        }
+
+        /// <summary>
+        /// 生成相机帧编号和回调阶段耗时文本。
+        /// </summary>
+        /// <param name="frameTrace">相机帧诊断元数据。</param>
+        /// <param name="currentTimestamp">当前阶段的高精度计时器刻度。</param>
+        /// <returns>可直接追加到完整耗时日志的帧关联文本。</returns>
+        private static string GetCameraFrameTraceText(CameraFrameTraceInfo frameTrace, long currentTimestamp)
+        {
+            if (frameTrace == null)
+                return "相机=未知；FrameId=无；回调耗时=无";
+
+            return $"相机={frameTrace.CameraName}；FrameId={frameTrace.FrameId}；回调到当前={frameTrace.GetElapsedFromCallbackStartMilliseconds(currentTimestamp)}ms；转换到当前={frameTrace.GetElapsedFromConversionMilliseconds(currentTimestamp)}ms；尺寸={frameTrace.Width}x{frameTrace.Height}；PixelType={frameTrace.SourcePixelType}";
         }
 
         /// <summary>
@@ -365,7 +391,13 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             if (!param.Camera.IsOpen)
                 throw new Exception("相机尚未连接！");
 
+            bool diagnosticEnabled = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
+            long waitStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
             Task<Mat> frameTask = _cameraFrameAwaiter.BeginWaitAsync(token);
+            PerformanceSpikeDiagnostics.LogIfEnabled(
+                MsgLevel.Debug,
+                () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=等待器就绪；相机={param.Camera.DevName}；触发源={param.TriggerSource}",
+                true);
             Mat callbackMat = null;
             try
             {
@@ -373,7 +405,27 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     param.Camera.GrabOne();
 
                 callbackMat = await frameTask.ConfigureAwait(false);
+                long waitCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
+                long waitMilliseconds = CameraFrameTraceInfo.GetElapsedMilliseconds(
+                    waitStartedTimestamp,
+                    waitCompletedTimestamp);
+                CameraFrameTraceInfo frameTrace;
+                CameraFrameTraceRegistry.TryGet(callbackMat, out frameTrace);
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=等待恢复；等待耗时={waitMilliseconds}ms；{GetCameraFrameTraceText(frameTrace, waitCompletedTimestamp)}",
+                    true);
+
+                long outputBuildStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
                 OutputImage outputImage = BuildOutputImage(callbackMat);
+                long outputBuildCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
+                long outputBuildMilliseconds = CameraFrameTraceInfo.GetElapsedMilliseconds(
+                    outputBuildStartedTimestamp,
+                    outputBuildCompletedTimestamp);
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=图像源输出构建完成；耗时={outputBuildMilliseconds}ms；FrameId={frameTrace?.FrameId.ToString() ?? "无"}",
+                    true);
                 callbackMat = null;
                 return outputImage;
             }

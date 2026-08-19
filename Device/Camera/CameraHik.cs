@@ -13,6 +13,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Net;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using TDJS_Vision.Diagnostics;
@@ -310,7 +311,10 @@ namespace TDJS_Vision.Device.Camera
             return true;
         }
 
-        int count = 0;
+        /// <summary>
+        /// 当前相机实例的回调帧序号，用于跨线程诊断关联。
+        /// </summary>
+        private long _callbackFrameSequence;
 
         /// <summary>
         /// 注册需要相机帧回调的拥有者。
@@ -371,29 +375,63 @@ namespace TDJS_Vision.Device.Camera
         /// </summary>
         private void GetImageCallBack(object sender, FrameGrabbedEventArgs e)
         {
-            Stopwatch callbackWatch = Stopwatch.StartNew();
+            long frameId = Interlocked.Increment(ref _callbackFrameSequence);
+            bool diagnosticEnabled = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
+            long callbackStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
             Mat image = null;
-            LogHelper.AddLog(MsgLevel.Info, $"进入到回调函数{DevName} , 触发次数:{count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+            CameraFrameTraceInfo frameTrace = null;
+            PerformanceSpikeDiagnostics.LogIfEnabled(
+                MsgLevel.Debug,
+                () => $"【完整耗时-相机帧】相机={DevName}；FrameId={frameId}；阶段=SDK回调开始；线程={Thread.CurrentThread.ManagedThreadId}",
+                true);
             if (OnImageReceived != null)
                 LogHelper.AddLog(MsgLevel.Warn, $"相机{DevName} 仍存在旧Bitmap回调订阅，硬触发主链路已切换为Mat事件。", true);
             try
             {
                 // 硬触发流程直接进入 Mat 链路，避开 SDK ToBitmap 在现场偶发阻塞 9 秒的问题。
-                image = ConvertImageFormatToMat(e.FrameOut.Image, device.PixelTypeConverter, DevName);
-                LogHelper.AddLog(MsgLevel.Info, $"回调函数{DevName} 转换Mat成功, 总转换耗时:{callbackWatch.ElapsedMilliseconds}ms, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
-                count++;
-                RaiseMatImageReceived(image);
+                IImage sourceImage = e.FrameOut.Image;
+                image = ConvertImageFormatToMat(sourceImage, device.PixelTypeConverter, DevName, frameId);
+                long conversionCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
+                if (diagnosticEnabled)
+                {
+                    frameTrace = new CameraFrameTraceInfo(
+                        DevName,
+                        frameId,
+                        callbackStartedTimestamp,
+                        conversionCompletedTimestamp,
+                        checked((int)sourceImage.Width),
+                        checked((int)sourceImage.Height),
+                        sourceImage.PixelType.ToString());
+                }
+
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【完整耗时-相机帧】相机={DevName}；FrameId={frameId}；阶段=Mat转换完成；回调到转换={frameTrace?.CallbackToConversionMilliseconds ?? 0}ms；尺寸={sourceImage.Width}x{sourceImage.Height}；PixelType={sourceImage.PixelType}",
+                    true);
+                RaiseMatImageReceived(image, frameTrace);
                 image = null;
             }
             catch (Exception ex)
             {
                 image?.Dispose();
-                LogHelper.AddLog(MsgLevel.Exception, $"回调函数{DevName} 转换Mat失败：{ex.Message}, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+                LogHelper.AddLog(MsgLevel.Exception, $"回调函数{DevName}转换Mat失败：FrameId={frameId}；{ex.Message}", true);
             }
             finally
             {
-                callbackWatch.Stop();
-                LogHelper.AddLog(MsgLevel.Info, $"回调函数{DevName} 执行完毕, 总耗时:{callbackWatch.ElapsedMilliseconds}ms, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
+                long callbackCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
+                long callbackElapsedMilliseconds = CameraFrameTraceInfo.GetElapsedMilliseconds(
+                    callbackStartedTimestamp,
+                    callbackCompletedTimestamp);
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【完整耗时-相机帧】相机={DevName}；FrameId={frameId}；阶段=SDK回调结束；回调总耗时={callbackElapsedMilliseconds}ms；线程={Thread.CurrentThread.ManagedThreadId}",
+                    true);
+                PerformanceSpikeDiagnostics.LogSlowIfEnabled(
+                    MsgLevel.Debug,
+                    PerformanceSpikeDiagnostics.FrameConvertSlowMs,
+                    () => $"【慢诊断-相机回调】相机={DevName}；FrameId={frameId}；回调总耗时={callbackElapsedMilliseconds}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                    true,
+                    callbackElapsedMilliseconds);
             }
         }
 
@@ -472,8 +510,9 @@ namespace TDJS_Vision.Device.Camera
         /// <param name="image">相机 SDK 输出图像。</param>
         /// <param name="pixelType">相机 SDK 像素格式转换器。</param>
         /// <param name="devName">设备名称，用于诊断日志。</param>
+        /// <param name="frameId">当前相机回调帧编号。</param>
         /// <returns>调用方接管生命周期的 Mat 图像。</returns>
-        private static Mat ConvertImageFormatToMat(IImage image, IPixelTypeConverter pixelType, string devName)
+        private static Mat ConvertImageFormatToMat(IImage image, IPixelTypeConverter pixelType, string devName, long frameId)
         {
             if (image == null)
                 return null;
@@ -498,7 +537,8 @@ namespace TDJS_Vision.Device.Camera
                 throw new NotSupportedException($"不支持的相机像素格式：{image.PixelType}");
             }
 
-            Stopwatch convertWatch = Stopwatch.StartNew();
+            bool diagnosticEnabled = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
+            long conversionStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
             IImage convertedImage;
             int ret = pixelType.ConvertPixelType(image, out convertedImage, dstPixelType);
             if (ret != MvError.MV_OK && dstPixelType == MvGvspPixelType.PixelType_Gvsp_BGR8_Packed)
@@ -508,38 +548,58 @@ namespace TDJS_Vision.Device.Camera
                 needRgbToBgr = true;
                 ret = pixelType.ConvertPixelType(image, out convertedImage, dstPixelType);
             }
-            convertWatch.Stop();
+            long pixelConversionCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
 
             if (ret != MvError.MV_OK || convertedImage == null)
                 throw new InvalidOperationException($"ConvertPixelType失败，错误码：{ret}");
 
-            Stopwatch copyWatch = Stopwatch.StartNew();
             Mat mat = CopyConvertedImageToMat(convertedImage, channelCount);
-            copyWatch.Stop();
+            long copyCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
 
             long rgbToBgrMs = 0;
             if (needRgbToBgr)
             {
-                Stopwatch rgbWatch = Stopwatch.StartNew();
+                long rgbStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
                 Mat bgrMat = new Mat();
                 Cv2.CvtColor(mat, bgrMat, ColorConversionCodes.RGB2BGR);
                 mat.Dispose();
                 mat = bgrMat;
-                rgbWatch.Stop();
-                rgbToBgrMs = rgbWatch.ElapsedMilliseconds;
+                long rgbCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
+                rgbToBgrMs = CameraFrameTraceInfo.GetElapsedMilliseconds(rgbStartedTimestamp, rgbCompletedTimestamp);
             }
 
-            long convertMs = convertWatch.ElapsedMilliseconds;
-            long copyMs = copyWatch.ElapsedMilliseconds;
+            long convertMs = CameraFrameTraceInfo.GetElapsedMilliseconds(
+                conversionStartedTimestamp,
+                pixelConversionCompletedTimestamp);
+            long copyMs = CameraFrameTraceInfo.GetElapsedMilliseconds(
+                pixelConversionCompletedTimestamp,
+                copyCompletedTimestamp);
+            long totalMilliseconds = convertMs + copyMs + rgbToBgrMs;
+            PerformanceSpikeDiagnostics.LogIfEnabled(
+                MsgLevel.Debug,
+                () => $"【完整耗时-相机帧】相机={devName}；FrameId={frameId}；阶段=ConvertPixelType完成；耗时={convertMs}ms；PixelType={image.PixelType}->{dstPixelType}",
+                true);
+            PerformanceSpikeDiagnostics.LogIfEnabled(
+                MsgLevel.Debug,
+                () => $"【完整耗时-相机帧】相机={devName}；FrameId={frameId}；阶段=CopyToMat完成；耗时={copyMs}ms；尺寸={image.Width}x{image.Height}",
+                true);
+            if (needRgbToBgr)
+            {
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【完整耗时-相机帧】相机={devName}；FrameId={frameId}；阶段=RGB转BGR完成；耗时={rgbToBgrMs}ms",
+                    true);
+            }
+
             PerformanceSpikeDiagnostics.LogSlowIfEnabled(
                 MsgLevel.Debug,
-                PerformanceSpikeDiagnostics.CommonSlowMs,
-                () => $"相机{devName} 回调Mat转换分段：ConvertPixelType={convertMs}ms, CopyToMat={copyMs}ms, RGB转BGR={rgbToBgrMs}ms, PixelType={image.PixelType}->{dstPixelType}, 尺寸={image.Width}x{image.Height}",
+                PerformanceSpikeDiagnostics.FrameConvertSlowMs,
+                () => $"【慢诊断-相机Mat转换】相机={devName}；FrameId={frameId}；ConvertPixelType={convertMs}ms；CopyToMat={copyMs}ms；RGB转BGR={rgbToBgrMs}ms；总耗时={totalMilliseconds}ms；PixelType={image.PixelType}->{dstPixelType}；尺寸={image.Width}x{image.Height}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
                 true,
                 convertMs,
                 copyMs,
                 rgbToBgrMs,
-                convertMs + copyMs + rgbToBgrMs);
+                totalMilliseconds);
             return mat;
         }
 
@@ -593,7 +653,8 @@ namespace TDJS_Vision.Device.Camera
         /// 触发 Mat 图像事件；多订阅者时克隆图像，保证每个订阅者独立接管生命周期。
         /// </summary>
         /// <param name="image">待分发的 Mat 图像。</param>
-        private void RaiseMatImageReceived(Mat image)
+        /// <param name="frameTrace">需要随每个Mat包装对象传递的相机帧诊断元数据。</param>
+        private void RaiseMatImageReceived(Mat image, CameraFrameTraceInfo frameTrace)
         {
             Action<Mat> handlers = OnMatReceived;
             if (handlers == null)
@@ -608,6 +669,7 @@ namespace TDJS_Vision.Device.Camera
                 Mat subscriberImage = i == invocationList.Length - 1 ? image : image?.Clone();
                 try
                 {
+                    CameraFrameTraceRegistry.Attach(subscriberImage, frameTrace);
                     ((Action<Mat>)invocationList[i]).Invoke(subscriberImage);
                     subscriberImage = null;
                 }

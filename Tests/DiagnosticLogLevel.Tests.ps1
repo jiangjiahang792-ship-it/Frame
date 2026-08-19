@@ -26,11 +26,13 @@ function Assert-DiagnosticMarkerUsesDebug {
         }
 
         $found = $true
-        $callStart = $source.LastIndexOf('LogHelper.AddLog(', $markerIndex)
+        $directCallStart = $source.LastIndexOf('LogHelper.AddLog(', $markerIndex)
+        $lazyCallStart = $source.LastIndexOf('PerformanceSpikeDiagnostics.LogIfEnabled(', $markerIndex)
+        $callStart = [Math]::Max($directCallStart, $lazyCallStart)
         $callEnd = $source.IndexOf(');', $markerIndex)
 
         if ($callStart -lt 0 -or $callEnd -lt 0) {
-            throw "$RelativePath marker '$Marker' is not inside a LogHelper.AddLog call."
+            throw "$RelativePath marker '$Marker' is not inside a supported diagnostic log call."
         }
 
         $callText = $source.Substring($callStart, $callEnd - $callStart + 2)
