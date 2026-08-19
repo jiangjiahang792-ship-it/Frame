@@ -23,8 +23,8 @@ param(
     [ValidateRange(1, 1000)]
     [int]$ResourceSampleInterval = 5,
 
-    [ValidateRange(10, 600)]
-    [int]$RoundTimeoutSeconds = 120,
+    [ValidateRange(10, 3600)]
+    [int]$RoundTimeoutSeconds = 600,
 
     [string]$OutputDirectory = (Join-Path $PSScriptRoot "Results\FullSolutionComparison"),
 
@@ -45,6 +45,9 @@ public static class FullSolutionGuiResourceProbe
 
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     public static extern IntPtr SendMessage(IntPtr windowHandle, uint message, IntPtr wordParameter, IntPtr longParameter);
+
+    [DllImport("kernel32.dll")]
+    public static extern uint SetThreadExecutionState(uint executionState);
 }
 "@ -Language CSharp
 
@@ -104,6 +107,7 @@ function Get-ManagedHeapBytes {
     try {
         $category = New-Object System.Diagnostics.PerformanceCounterCategory(".NET CLR Memory")
         $total = 0L
+        $matchedInstanceCount = 0
         foreach ($instance in $category.GetInstanceNames()) {
             $pidCounter = $null
             $heapCounter = $null
@@ -116,6 +120,7 @@ function Get-ManagedHeapBytes {
 
                 $heapCounter = New-Object System.Diagnostics.PerformanceCounter(".NET CLR Memory", "# Bytes in all Heaps", $instance, $true)
                 $total += [long]$heapCounter.NextValue()
+                $matchedInstanceCount++
             }
             finally {
                 if ($null -ne $pidCounter) { $pidCounter.Dispose() }
@@ -123,7 +128,7 @@ function Get-ManagedHeapBytes {
             }
         }
 
-        return $total
+        return $(if ($matchedInstanceCount -gt 0) { $total } else { -1L })
     }
     catch {
         return -1L
@@ -250,8 +255,11 @@ function Close-TestProcess {
     }
 
     if (-not $MainProcess.HasExited) {
-        throw "程序在点击关闭确认后30秒内仍未正常退出。"
+        Write-Warning "程序在点击关闭确认后30秒内仍未正常退出，请检查当前运行轮次或关闭提示。"
+        return $false
     }
+
+    return $true
 }
 
 function Invoke-SolutionRound {
@@ -387,6 +395,14 @@ $resolvedSchemePath = (Resolve-Path -LiteralPath $SchemePath).Path
 $workingDirectory = Split-Path -Parent $resolvedExecutablePath
 $logDirectory = Join-Path $workingDirectory "Logs"
 $startedByScript = $false
+$executionStateWasSet = $false
+$keepSystemAwake = 0x80000001
+$continuousOnly = 0x80000000
+
+if ([FullSolutionGuiResourceProbe]::SetThreadExecutionState($keepSystemAwake) -eq 0) {
+    throw "设置长测期间系统保持唤醒失败。"
+}
+$executionStateWasSet = $true
 
 if ($ExistingProcessId -gt 0) {
     $mainProcess = Get-Process -Id $ExistingProcessId
@@ -416,6 +432,12 @@ try {
     $peakCpuPercent = 0.0
     $durations = New-Object System.Collections.Generic.List[double]
     $csvRows = New-Object System.Collections.Generic.List[object]
+    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
+    $safeLabel = $VersionLabel -replace '[^0-9A-Za-z\u4e00-\u9fa5_-]', '_'
+    $jsonPath = Join-Path $OutputDirectory "${timestamp}-${safeLabel}-${Rounds}轮.json"
+    $csvPath = Join-Path $OutputDirectory "${timestamp}-${safeLabel}-${Rounds}轮.csv"
+    $checkpointPath = Join-Path $OutputDirectory "${timestamp}-${safeLabel}-${Rounds}轮-checkpoint.json"
     $formalStopwatch = [Diagnostics.Stopwatch]::StartNew()
 
     for ($round = 1; $round -le $Rounds; $round++) {
@@ -454,6 +476,21 @@ try {
         $lastSnapshot = $snapshot
         if (($round % $ProgressInterval -eq 0) -or ($round -eq $Rounds)) {
             $currentP95 = Get-Percentile -Values $durations.ToArray() -Percentile 95
+            $csvRows | Export-Csv -LiteralPath $csvPath -NoTypeInformation -Encoding UTF8
+            [ordered]@{
+                VersionLabel = $VersionLabel
+                ExecutablePath = $resolvedExecutablePath
+                SchemePath = $resolvedSchemePath
+                CompletedRounds = $round
+                TargetRounds = $Rounds
+                LastRoundMilliseconds = [Math]::Round($roundElapsed, 3)
+                CurrentP95Milliseconds = [Math]::Round($currentP95, 3)
+                ProcessTreePrivateMemoryMegabytes = [Math]::Round($snapshot.PrivateBytes / 1MB, 3)
+                ManagedHeapMegabytes = if ($snapshot.ManagedHeapBytes -ge 0) { [Math]::Round($snapshot.ManagedHeapBytes / 1MB, 3) } else { $null }
+                GdiObjects = $snapshot.GdiObjects
+                Handles = $snapshot.Handles
+                UpdatedAt = Get-Date -Format "yyyy-MM-dd HH:mm:ss.fff"
+            } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $checkpointPath -Encoding UTF8
             Write-Output ("PROGRESS {0}/{1} last_ms={2:N3} p95_ms={3:N3} private_mb={4:N2} managed_mb={5:N2} gdi={6} handles={7} cpu={8:N2}%" -f
                 $round,
                 $Rounds,
@@ -497,12 +534,6 @@ try {
     $sumExecutionMilliseconds = ($durationArray | Measure-Object -Sum).Sum
     $averageCpuPercent = (($final.TotalCpuMilliseconds - $initial.TotalCpuMilliseconds) /
         [Math]::Max(1.0, $formalStopwatch.Elapsed.TotalMilliseconds)) * (100.0 / $logicalProcessorCount)
-    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-    New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
-    $safeLabel = $VersionLabel -replace '[^0-9A-Za-z\u4e00-\u9fa5_-]', '_'
-    $jsonPath = Join-Path $OutputDirectory "${timestamp}-${safeLabel}-${Rounds}轮.json"
-    $csvPath = Join-Path $OutputDirectory "${timestamp}-${safeLabel}-${Rounds}轮.csv"
-
     $result = [ordered]@{
         VersionLabel = $VersionLabel
         ExecutablePath = $resolvedExecutablePath
@@ -547,17 +578,29 @@ try {
         else {
             "日志未暴露队列采集能力"
         }
-        ResultFiles = [ordered]@{ Json = $jsonPath; Csv = $csvPath }
+        ResultFiles = [ordered]@{ Json = $jsonPath; Csv = $csvPath; Checkpoint = $checkpointPath }
     }
 
     $csvRows | Export-Csv -LiteralPath $csvPath -NoTypeInformation -Encoding UTF8
     $result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
+    [ordered]@{
+        VersionLabel = $VersionLabel
+        CompletedRounds = $Rounds
+        TargetRounds = $Rounds
+        Completed = $true
+        ResultJson = $jsonPath
+        ResultCsv = $csvPath
+        UpdatedAt = Get-Date -Format "yyyy-MM-dd HH:mm:ss.fff"
+    } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $checkpointPath -Encoding UTF8
     Write-Output ("RESULT_JSON={0}" -f $jsonPath)
     Write-Output ("RESULT_CSV={0}" -f $csvPath)
     Write-Output ($result | ConvertTo-Json -Depth 10)
 }
 finally {
     if (-not $KeepProcess -and $null -ne $mainProcess -and -not $mainProcess.HasExited) {
-        Close-TestProcess -MainProcess $mainProcess
+        [void](Close-TestProcess -MainProcess $mainProcess)
+    }
+    if ($executionStateWasSet) {
+        [void][FullSolutionGuiResourceProbe]::SetThreadExecutionState($continuousOnly)
     }
 }
