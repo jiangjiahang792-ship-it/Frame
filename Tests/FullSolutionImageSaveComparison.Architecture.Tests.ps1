@@ -23,6 +23,8 @@ Assert-Contains $tool 'Image.FromFile(file.FullName)' '每个输出JPEG必须执
 Assert-Contains $tool 'ComputeFileHash(file.FullName)' '每个输出JPEG必须执行内容哈希校验。'
 Assert-Contains $tool 'GetFiles("*.saving"' '当前版原子发布必须检查临时文件残留。'
 Assert-Contains $tool 'GetProcessIoCounters' '真实落盘必须记录目标进程写操作和传输字节。'
+Assert-Contains $tool 'FilesCompletedWallMilliseconds = filesCompletedWallMilliseconds' '真实落盘必须把文件完成耗时与工作池停止耗时分开。'
+Assert-Contains $tool 'ShutdownWallMilliseconds = shutdownStopwatch.ElapsedMilliseconds' '真实落盘必须单独记录工作池停止等待。'
 Assert-Contains $tool 'AverageCpuPercent = sampler.AverageCpuPercent' '真实落盘必须记录按逻辑线程归一化的平均CPU占用。'
 Assert-Contains $tool 'PeakCpuPercent = sampler.PeakCpuPercent' '真实落盘必须记录按逻辑线程归一化的CPU峰值。'
 Assert-Contains $tool 'CpuLogicalProcessorCount = Environment.ProcessorCount' 'CPU占用必须记录归一化使用的逻辑线程数。'

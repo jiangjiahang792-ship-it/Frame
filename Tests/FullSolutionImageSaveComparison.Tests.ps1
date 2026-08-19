@@ -225,9 +225,13 @@ public sealed class ImageSaveComparisonResult
     public double EnqueueP99Milliseconds { get; set; }
     /// <summary>入队最大毫秒。</summary>
     public double EnqueueMaximumMilliseconds { get; set; }
-    /// <summary>从首个入队到全部目标文件完成的墙钟毫秒。</summary>
+    /// <summary>从首个入队到全部目标文件完成并停止工作池的总墙钟毫秒。</summary>
     public long SaveWallMilliseconds { get; set; }
-    /// <summary>按最终JPEG字节计算的保存吞吐MB/s。</summary>
+    /// <summary>从首个入队到全部目标文件完成的墙钟毫秒，不包含工作池停止等待。</summary>
+    public long FilesCompletedWallMilliseconds { get; set; }
+    /// <summary>全部目标文件完成后停止工作池的墙钟毫秒。</summary>
+    public long ShutdownWallMilliseconds { get; set; }
+    /// <summary>按最终JPEG字节和文件完成墙钟计算的保存吞吐MB/s。</summary>
     public double FileMegabytesPerSecond { get; set; }
     /// <summary>文件解码和哈希校验耗时毫秒。</summary>
     public long ValidationMilliseconds { get; set; }
@@ -439,6 +443,7 @@ public static class ImageSaveComparisonHarness
         int rejected = 0;
         int evicted = 0;
         bool gracefullyStopped = true;
+        long filesCompletedWallMilliseconds = 0L;
         List<long> enqueueTicks = new List<long>(imageCount);
 
 #if BOUNDED
@@ -457,6 +462,7 @@ public static class ImageSaveComparisonHarness
         SaveComparisonResourceSampler sampler = new SaveComparisonResourceSampler();
         Stopwatch saveStopwatch = Stopwatch.StartNew();
         Stopwatch enqueueStopwatch = Stopwatch.StartNew();
+        Stopwatch shutdownStopwatch = new Stopwatch();
         try
         {
             processor.StartProcessing();
@@ -498,13 +504,15 @@ public static class ImageSaveComparisonHarness
             }
             enqueueStopwatch.Stop();
 
+            WaitForCompletedFiles(outputDirectory, accepted - evicted, timeoutMilliseconds);
+            filesCompletedWallMilliseconds = saveStopwatch.ElapsedMilliseconds;
+            shutdownStopwatch.Start();
 #if BOUNDED
             gracefullyStopped = processor.StopProcessing();
-            WaitForCompletedFiles(outputDirectory, accepted - evicted, timeoutMilliseconds);
 #else
-            WaitForCompletedFiles(outputDirectory, accepted, timeoutMilliseconds);
             processor.StopProcessing();
 #endif
+            shutdownStopwatch.Stop();
             saveStopwatch.Stop();
         }
         finally
@@ -513,6 +521,8 @@ public static class ImageSaveComparisonHarness
                 enqueueStopwatch.Stop();
             if (saveStopwatch.IsRunning)
                 saveStopwatch.Stop();
+            if (shutdownStopwatch.IsRunning)
+                shutdownStopwatch.Stop();
             sampler.Dispose();
             sourceImage.Dispose();
         }
@@ -585,7 +595,9 @@ public static class ImageSaveComparisonHarness
             EnqueueP99Milliseconds = Percentile(enqueueMilliseconds, 0.99),
             EnqueueMaximumMilliseconds = enqueueMilliseconds.Length == 0 ? 0.0 : enqueueMilliseconds[enqueueMilliseconds.Length - 1],
             SaveWallMilliseconds = saveStopwatch.ElapsedMilliseconds,
-            FileMegabytesPerSecond = (totalFileBytes / 1024.0 / 1024.0) / Math.Max(0.001, saveStopwatch.Elapsed.TotalSeconds),
+            FilesCompletedWallMilliseconds = filesCompletedWallMilliseconds,
+            ShutdownWallMilliseconds = shutdownStopwatch.ElapsedMilliseconds,
+            FileMegabytesPerSecond = (totalFileBytes / 1024.0 / 1024.0) / Math.Max(0.001, filesCompletedWallMilliseconds / 1000.0),
             ValidationMilliseconds = validationStopwatch.ElapsedMilliseconds,
             AverageCpuPercent = sampler.AverageCpuPercent,
             PeakCpuPercent = sampler.PeakCpuPercent,
@@ -821,7 +833,7 @@ public static class ImageSaveComparisonHarness
         Result = $result
         SampleFile = $samplePath
         RawFilesKept = $KeepRawFiles.IsPresent
-        MeasurementBoundary = '直接调用对应版本生产ImageQueueProcessor；保存墙钟包含Mat转Bitmap、JPEG编码和操作系统缓存写入，不代表断电安全的物理介质刷盘时延。'
+        MeasurementBoundary = '直接调用对应版本生产ImageQueueProcessor；文件完成墙钟包含Mat转Bitmap、JPEG编码和操作系统缓存写入，线程停止另行计时；两者都不代表断电安全的物理介质刷盘时延。'
     }
     $record | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $resultPath -Encoding UTF8
 
