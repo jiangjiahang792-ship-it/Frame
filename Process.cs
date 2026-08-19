@@ -370,9 +370,9 @@ namespace TDJS_Vision
             if (!CanUseCameraCallbackFastPath(nodeImage, out fastStartNode))
                 return CameraCallbackFastPathResult.NotHandled;
 
-            Stopwatch fastPathWatch = Stopwatch.StartNew();
+            Stopwatch fastPathWatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
             ConnectedNodeRunResult fastResult = await RunConnectedNode(fastStartNode, null);
-            long afterFirstNode = fastPathWatch.ElapsedMilliseconds;
+            long afterFirstNode = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(fastPathWatch);
             if (fastResult == null)
                 return CameraCallbackFastPathResult.HandledContinue;
 
@@ -415,7 +415,7 @@ namespace TDJS_Vision
             }
 
             bool stoppedEarly = await RunConnectedNodes(null, null, resumeNode);
-            long afterRemainder = fastPathWatch.ElapsedMilliseconds;
+            long afterRemainder = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(fastPathWatch);
             RunTime += prefixRunTime;
             PerformanceSpikeDiagnostics.LogIfEnabled(
                 MsgLevel.Debug,
@@ -2142,7 +2142,7 @@ namespace TDJS_Vision
         /// </summary>
         private bool TryPrepareSkippedNodeRunResult(NodeBase nodeToSkip)
         {
-            Stopwatch prepareWatch = Stopwatch.StartNew();
+            Stopwatch prepareWatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
             ISkippedNodeRunResultProvider provider = nodeToSkip as ISkippedNodeRunResultProvider;
             if (provider == null)
             {
@@ -2164,24 +2164,26 @@ namespace TDJS_Vision
             }
             catch (Exception ex)
             {
-                prepareWatch.Stop();
+                prepareWatch?.Stop();
+                long prepareElapsedMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(prepareWatch);
                 PerformanceSpikeDiagnostics.LogIfEnabled(MsgLevel.Exception,
-                    () => $"【链路诊断-跳过节点准备异常】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider耗时={prepareWatch.ElapsedMilliseconds}ms；异常={ex.GetType().Name}:{ex.Message}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                    () => $"【链路诊断-跳过节点准备异常】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider耗时={prepareElapsedMs}ms；异常={ex.GetType().Name}:{ex.Message}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
                     true);
                 throw;
             }
 
-            prepareWatch.Stop();
+            prepareWatch?.Stop();
+            long prepareElapsed = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(prepareWatch);
             int appendedRunTime = nodeToSkip.Result == null ? 0 : nodeToSkip.Result.RunTime;
             PerformanceSpikeDiagnostics.LogIfEnabled(MsgLevel.Debug,
-                () => $"【链路诊断-跳过节点准备结束】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；成功={prepared}；Provider耗时={prepareWatch.ElapsedMilliseconds}ms；消息={FormatDiagnosticMessage(message)}；结果后={GetNodeResultText(nodeToSkip.Result)}；RunTime追加={appendedRunTime}ms",
+                () => $"【链路诊断-跳过节点准备结束】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；成功={prepared}；Provider耗时={prepareElapsed}ms；消息={FormatDiagnosticMessage(message)}；结果后={GetNodeResultText(nodeToSkip.Result)}；RunTime追加={appendedRunTime}ms",
                 true);
             PerformanceSpikeDiagnostics.LogSlowIfEnabled(
                 MsgLevel.Debug,
                 PerformanceSpikeDiagnostics.CommonSlowMs,
-                () => $"【慢诊断-跳过节点准备】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider耗时={prepareWatch.ElapsedMilliseconds}ms；结果后={GetNodeResultText(nodeToSkip.Result)}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                () => $"【慢诊断-跳过节点准备】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider耗时={prepareElapsed}ms；结果后={GetNodeResultText(nodeToSkip.Result)}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
                 true,
-                prepareWatch.ElapsedMilliseconds);
+                prepareElapsed);
 
             if (prepared)
             {

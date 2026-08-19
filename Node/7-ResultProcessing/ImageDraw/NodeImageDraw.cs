@@ -8,6 +8,7 @@ using System.Drawing;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Forms.DispShowImage;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
@@ -53,10 +54,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                     SetStatus(NodeStatus.Unexecuted, "*");
                     base.CheckTokenCancel(token);
 
-                    Stopwatch performanceStopwatch = Stopwatch.StartNew();
+                    Stopwatch performanceStopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
                     //执行绘制
                     Mat image = form.GetImage();
-                    long afterGetImage = performanceStopwatch.ElapsedMilliseconds;
+                    long afterGetImage = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                     AlgorithmResult aiResult = null;
                     AlgorithmResult colorResult=null;
                     try
@@ -67,24 +68,21 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                     catch { 
                         
                     }
-                    long afterGetResults = performanceStopwatch.ElapsedMilliseconds;
+                    long afterGetResults = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
 
                     using (Bitmap imageBitmap = BitmapConverter.ToBitmap(image))
                     {
-                        long afterToBitmap = performanceStopwatch.ElapsedMilliseconds;
+                        long afterToBitmap = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                         ImageDrawer.DrawDetectionRectangles(imageBitmap, aiResult, param, colorResult);
-                        long afterDraw = performanceStopwatch.ElapsedMilliseconds;
+                        long afterDraw = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
 
                         // 输出绘制后的图像
                         ((NodeResultImageDraw)Result).OutputImage.Bitmaps = new List<Mat>() { BitmapConverter.ToMat(imageBitmap) };
-                        long afterToMat = performanceStopwatch.ElapsedMilliseconds;
-                        if (showLog)
-                        {
-                            LogHelper.AddLog(
-                                MsgLevel.Info,
-                                $"【性能诊断-AI结果绘制】节点({ID}.{NodeName}) 图像={GetMatDiagnosticText(image)}；AI结果={GetAlgorithmResultDiagnosticText(aiResult)}；颜色结果={GetAlgorithmResultDiagnosticText(colorResult)}；取图={afterGetImage}ms；取结果={afterGetResults - afterGetImage}ms；ToBitmap={afterToBitmap - afterGetResults}ms；绘制={afterDraw - afterToBitmap}ms；ToMat={afterToMat - afterDraw}ms；绘制总耗时={afterToMat}ms",
-                                true);
-                        }
+                        long afterToMat = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
+                        PerformanceSpikeDiagnostics.LogIfEnabled(
+                            MsgLevel.Debug,
+                            () => $"【性能诊断-AI结果绘制】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；图像={GetMatDiagnosticText(image)}；AI结果={GetAlgorithmResultDiagnosticText(aiResult)}；颜色结果={GetAlgorithmResultDiagnosticText(colorResult)}；取图={afterGetImage}ms；取结果={afterGetResults - afterGetImage}ms；ToBitmap={afterToBitmap - afterGetResults}ms；绘制={afterDraw - afterToBitmap}ms；ToMat={afterToMat - afterDraw}ms；绘制总耗时={afterToMat}ms",
+                            true);
                     }
 
                     var time = SetRunResult(startTime, NodeStatus.Successful);

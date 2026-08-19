@@ -81,6 +81,15 @@ $diagnosticMarkers = @(
     @{ Path = 'Node\2-ImagePreprocessing\ImageRotate\NodeImageRotate.cs'; Markers = @(
         '【慢诊断-图像旋转】'
     ) },
+    @{ Path = 'Node\4-Measurement\FindPoint\NodeFindPoint.cs'; Markers = @(
+        '【性能诊断-找点】'
+    ) },
+    @{ Path = 'Node\7-ResultProcessing\ImageDraw\NodeImageDraw.cs'; Markers = @(
+        '【性能诊断-AI结果绘制】'
+    ) },
+    @{ Path = 'Node\7-ResultProcessing\ResultOverlayDraw2\NodeResultOverlayDraw2.cs'; Markers = @(
+        '【性能诊断-ROI结果绘制2】'
+    ) },
     @{ Path = 'Node\7-ResultProcessing\ImageSave\NodeSaveImage.cs'; Markers = @(
         '【性能诊断-保存图像快速入队】',
         '【内存诊断-保存队列启动】',

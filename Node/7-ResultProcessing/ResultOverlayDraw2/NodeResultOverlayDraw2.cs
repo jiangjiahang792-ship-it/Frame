@@ -12,6 +12,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._4_Measurement.Common;
@@ -124,11 +125,15 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 Result.RunTime = time;
-                if (showLog)
+                if (performanceDiagnostics != null)
                 {
-                    LogHelper.AddLog(MsgLevel.Info, $"【性能诊断-ROI结果绘制2】节点({ID}.{NodeName}) {performanceDiagnostics.ToLogText()}；颜色判定={(isOk ? "OK" : "NG")}；状态耗时={time}ms", true);
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                    PerformanceSpikeDiagnostics.LogIfEnabled(
+                        MsgLevel.Debug,
+                        () => $"【性能诊断-ROI结果绘制2】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；{performanceDiagnostics.ToLogText()}；颜色判定={(isOk ? "OK" : "NG")}；状态耗时={time}ms",
+                        true);
                 }
+                if (showLog)
+                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -214,11 +219,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             if (param == null)
                 throw new Exception("ROI结果绘制2参数为空！");
 
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            performanceDiagnostics = new ResultOverlayDraw2PerformanceDiagnostics();
+            Stopwatch stopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
+            performanceDiagnostics = stopwatch == null ? null : new ResultOverlayDraw2PerformanceDiagnostics();
 
             object imageValue = ReadSubscribedValue(owner, param.ImageText1, param.ImageText2, out NodeBase _);
-            performanceDiagnostics.ImageSubscriptionMs = stopwatch.ElapsedMilliseconds;
+            long imageSubscriptionMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+            if (performanceDiagnostics != null)
+                performanceDiagnostics.ImageSubscriptionMs = imageSubscriptionMs;
             OutputImage inputImage = imageValue as OutputImage;
             if (inputImage == null)
                 throw new Exception("订阅的图像类型不是 OutputImage！");
@@ -226,24 +233,30 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             ResultOverlayDrawColorState colorState = ResolveColorState(owner, param);
             isOk = colorState.IsOk;
             diagnostics = colorState.Diagnostics;
-            long afterResolveColor = stopwatch.ElapsedMilliseconds;
-            performanceDiagnostics.ColorRuleMs = afterResolveColor - performanceDiagnostics.ImageSubscriptionMs;
+            long afterResolveColor = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+            if (performanceDiagnostics != null)
+                performanceDiagnostics.ColorRuleMs = afterResolveColor - imageSubscriptionMs;
             Mat cleanImage = MeasurementNodeHelper.GetFirstMat(inputImage);
-            long afterGetCleanImage = stopwatch.ElapsedMilliseconds;
-            performanceDiagnostics.GetCleanImageMs = afterGetCleanImage - afterResolveColor;
+            long afterGetCleanImage = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+            if (performanceDiagnostics != null)
+                performanceDiagnostics.GetCleanImageMs = afterGetCleanImage - afterResolveColor;
             displayResult = BuildDisplayResult(owner, param, colorState, performanceDiagnostics);
-            long afterBuildDisplay = stopwatch.ElapsedMilliseconds;
-            performanceDiagnostics.BuildDisplayResultMs = afterBuildDisplay - afterGetCleanImage;
+            long afterBuildDisplay = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+            if (performanceDiagnostics != null)
+                performanceDiagnostics.BuildDisplayResultMs = afterBuildDisplay - afterGetCleanImage;
             outputImage = new OutputImage
             {
                 Bitmaps = new List<Mat> { cleanImage },
                 Rectangles = inputImage.Rectangles == null ? new List<Rect>() : inputImage.Rectangles.ToList(),
                 DisplayResult = displayResult
             };
-            long afterBuildOutput = stopwatch.ElapsedMilliseconds;
-            performanceDiagnostics.BuildOutputImageMs = afterBuildOutput - afterBuildDisplay;
-            performanceDiagnostics.TotalMs = afterBuildOutput;
-            performanceDiagnostics.CaptureDisplayResultCounts(displayResult);
+            long afterBuildOutput = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+            if (performanceDiagnostics != null)
+            {
+                performanceDiagnostics.BuildOutputImageMs = afterBuildOutput - afterBuildDisplay;
+                performanceDiagnostics.TotalMs = afterBuildOutput;
+                performanceDiagnostics.CaptureDisplayResultCounts(displayResult);
+            }
         }
 
         /// <summary>
@@ -755,7 +768,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
 
             foreach (ResultOverlayDraw2Item item in enabledItems)
             {
-                Stopwatch itemWatch = Stopwatch.StartNew();
+                Stopwatch itemWatch = performanceDiagnostics == null ? null : Stopwatch.StartNew();
                 switch (item.ItemType)
                 {
                     case ResultOverlayDraw2ItemType.Text:

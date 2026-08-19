@@ -7,6 +7,7 @@ using System.Drawing;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._4_Measurement.Common;
 
@@ -40,7 +41,7 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
 
             try
             {
-                Stopwatch nodeRunWatch = Stopwatch.StartNew();
+                Stopwatch nodeRunWatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
                 SetStatus(NodeStatus.Unexecuted, "*");
                 base.CheckTokenCancel(token);
 
@@ -49,28 +50,28 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
                 if (form == null || param == null)
                     throw new Exception("找点参数异常。");
 
-                Stopwatch executeMeasureWatch = Stopwatch.StartNew();
+                Stopwatch executeMeasureWatch = nodeRunWatch == null ? null : Stopwatch.StartNew();
                 List<FindPointTargetResult> items = form.ExecuteMeasures(param, token);
-                executeMeasureWatch.Stop();
+                executeMeasureWatch?.Stop();
 
-                Stopwatch buildResultWatch = Stopwatch.StartNew();
+                Stopwatch buildResultWatch = nodeRunWatch == null ? null : Stopwatch.StartNew();
                 NodeResultFindPoint nodeResult = BuildResult(items);
-                buildResultWatch.Stop();
+                buildResultWatch?.Stop();
 
-                Stopwatch resultPublishWatch = Stopwatch.StartNew();
+                Stopwatch resultPublishWatch = nodeRunWatch == null ? null : Stopwatch.StartNew();
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
                 Result = nodeResult;
-                resultPublishWatch.Stop();
-                nodeRunWatch.Stop();
+                resultPublishWatch?.Stop();
+                nodeRunWatch?.Stop();
 
-                if (showLog)
+                if (nodeRunWatch != null)
                     WritePerformanceLog(
                         this,
                         form.LastTimingInfo,
-                        executeMeasureWatch.Elapsed.TotalMilliseconds,
-                        buildResultWatch.Elapsed.TotalMilliseconds,
-                        resultPublishWatch.Elapsed.TotalMilliseconds,
+                        executeMeasureWatch?.Elapsed.TotalMilliseconds ?? 0D,
+                        buildResultWatch?.Elapsed.TotalMilliseconds ?? 0D,
+                        resultPublishWatch?.Elapsed.TotalMilliseconds ?? 0D,
                         nodeRunWatch.Elapsed.TotalMilliseconds,
                         time);
 
@@ -103,7 +104,10 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
         {
             if (timing == null)
             {
-                LogHelper.AddLog(MsgLevel.Info, $"【性能诊断-找点】节点({node.ID}.{node.NodeName}) 图像=未知；ExecuteMeasure={executeMeasureMs:F2}ms；结果组装={buildResultMs:F2}ms；结果发布={resultPublishMs:F2}ms；节点总耗时={nodeRunMs:F2}ms；状态耗时={reportedRunTime}ms", true);
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【性能诊断-找点】流程={node.Process?.ProcessName}；TraceId={node.Process?.CurrentPerformanceTraceId}；RunId={node.Process?.CurrentRunId}；节点={node.ID}.{node.NodeName}；图像=未知；ExecuteMeasure={executeMeasureMs:F2}ms；结果组装={buildResultMs:F2}ms；结果发布={resultPublishMs:F2}ms；节点总耗时={nodeRunMs:F2}ms；状态耗时={reportedRunTime}ms",
+                    true);
                 return;
             }
 
@@ -122,9 +126,9 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
                 : $"未知，来源={inputSource}";
             string temporaryGray = timing.TemporaryGrayCreated ? "是" : "否";
 
-            LogHelper.AddLog(
-                MsgLevel.Info,
-                $"【性能诊断-找点】节点({node.ID}.{node.NodeName}) 图像={imageInfo}；订阅读取={timing.SubscriptionReadMs:F2}ms；深拷贝图=0.00ms；灰度取图={timing.GrayAcquireMs:F2}ms；临时灰度={temporaryGray}；ROI区域={timing.ProcessedRegionCount}个；ROI像素约={timing.ProcessedMegaPixels:F2}MP；位置修正/参数准备={timing.RuntimeParamMs:F2}ms；算法={timing.AlgorithmMs:F2}ms；输出图准备=0.00ms；执行其它={executeOtherMs:F2}ms；结果组装={buildResultMs:F2}ms；结果发布={resultPublishMs:F2}ms；ExecuteMeasure={measuredExecuteMeasureMs:F2}ms；节点总耗时={nodeRunMs:F2}ms；状态耗时={reportedRunTime}ms",
+            PerformanceSpikeDiagnostics.LogIfEnabled(
+                MsgLevel.Debug,
+                () => $"【性能诊断-找点】流程={node.Process?.ProcessName}；TraceId={node.Process?.CurrentPerformanceTraceId}；RunId={node.Process?.CurrentRunId}；节点={node.ID}.{node.NodeName}；图像={imageInfo}；订阅读取={timing.SubscriptionReadMs:F2}ms；深拷贝图=0.00ms；灰度取图={timing.GrayAcquireMs:F2}ms；临时灰度={temporaryGray}；ROI区域={timing.ProcessedRegionCount}个；ROI像素约={timing.ProcessedMegaPixels:F2}MP；位置修正/参数准备={timing.RuntimeParamMs:F2}ms；算法={timing.AlgorithmMs:F2}ms；输出图准备=0.00ms；执行其它={executeOtherMs:F2}ms；结果组装={buildResultMs:F2}ms；结果发布={resultPublishMs:F2}ms；ExecuteMeasure={measuredExecuteMeasureMs:F2}ms；节点总耗时={nodeRunMs:F2}ms；状态耗时={reportedRunTime}ms",
                 true);
         }
 
