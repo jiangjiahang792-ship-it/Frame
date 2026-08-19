@@ -11,15 +11,35 @@ using System.Linq;
 using TDJS_Vision.Forms.ImageViewer;
 using HslCommunication.Profinet.Delta;
 using System.IO;
+using System.Drawing;
 namespace TDJS_Vision.Node._3_Detection.BatteryEar
 {
     public partial class NodeParamFormBatteryEar : FormBase, INodeParamForm
     {
-        private Process process;//所属流程
-        private NodeBase node;//所属节点
-        private OutputImage outputImage; // 订阅的图像数据
-        private Mat src; // 原图
-        private static FormNewTemplate _formNewTemplate = new FormNewTemplate(); // 模版创建窗口
+        /// <summary>
+        /// 所属流程。
+        /// </summary>
+        private readonly Process process;
+
+        /// <summary>
+        /// 所属节点。
+        /// </summary>
+        private readonly NodeBase node;
+
+        /// <summary>
+        /// 当前借用的上游原图，不由参数窗体释放。
+        /// </summary>
+        private Mat src;
+
+        /// <summary>
+        /// 当前节点独占的模板管理窗体，随参数窗体一起释放。
+        /// </summary>
+        private readonly FormNewTemplate _formNewTemplate;
+
+        /// <summary>
+        /// 参数窗体自有资源是否已经释放。
+        /// </summary>
+        private int _resourcesReleased;
 
 
         public NodeParamFormBatteryEar(Process process, NodeBase nodeBase)
@@ -27,6 +47,7 @@ namespace TDJS_Vision.Node._3_Detection.BatteryEar
             InitializeComponent();
             this.process = process;
             this.node = nodeBase;
+            _formNewTemplate = new FormNewTemplate();
             imageROIEditControl1.SetROIType2Draw(ROIType.Rectangle);
             Shown += NodeParamFormBatteryEar_Shown;
         }
@@ -122,18 +143,28 @@ namespace TDJS_Vision.Node._3_Detection.BatteryEar
         /// </summary>
         public void UpdataImage()
         {
-            OutputImage ret = new OutputImage();
+            OutputImage currentOutput = nodeSubscription1.GetValue<OutputImage>();
+            if (currentOutput == null ||
+                currentOutput.Bitmaps == null ||
+                currentOutput.Bitmaps.Count == 0 ||
+                currentOutput.Bitmaps[0] == null ||
+                currentOutput.Bitmaps[0].Empty())
+            {
+                throw new Exception("订阅的图像为null！");
+            }
+
+            src = currentOutput.Bitmaps[0];
+            Bitmap roiPreview = null;
             try
             {
-                outputImage = nodeSubscription1.GetValue<OutputImage>();
+                roiPreview = src.ToBitmap();
+                imageROIEditControl1.SetImage(roiPreview);
+                roiPreview = null;
             }
-            catch (Exception)
+            finally
             {
-                outputImage = new OutputImage();
+                roiPreview?.Dispose();
             }
-            src = outputImage.Bitmaps[0] == null ? src : outputImage.Bitmaps[0];
-            _formNewTemplate.LoadImages(outputImage.Bitmaps[0].ToBitmap());
-            imageROIEditControl1.SetImage(src.ToBitmap());
         }
 
         /// <summary>
@@ -257,10 +288,14 @@ namespace TDJS_Vision.Node._3_Detection.BatteryEar
             List<LineSegmentPoint> lines = new List<LineSegmentPoint>();
             Mat resultImage = src.Clone(); // 在原图副本上绘制
             List<Mat> roiImagesToDispose = null;
-            SaveMatToD(textBoxImgSavePath.Text); // 存图
+            List<Mat> jiErTemplateSnapshots = null;
+            List<Mat> markTemplateSnapshots = null;
             try
             {
+                SaveMatToD(textBoxImgSavePath.Text); // 存图
                 var matchThreshold = double.Parse(textBoxScore.Text);
+                jiErTemplateSnapshots = _formNewTemplate.GetJiErTemplate();
+                markTemplateSnapshots = _formNewTemplate.GetMarkTemplate();
                 var roiImages = imageROIEditControl1.GetROIImages();
                 roiImagesToDispose = roiImages == null ? new List<Mat>() : roiImages.ToList();
                 var roiLocations = imageROIEditControl1.GetImageROIRects();
@@ -272,27 +307,38 @@ namespace TDJS_Vision.Node._3_Detection.BatteryEar
                 // 解析出左右的极耳和Mark点
                 var (leftRois, rightRois) = ParseROI(roiImages, roiLocations);
 
-                Mat templateJier;
-                Mat templateMark;
+                OpenCvSharp.Size templateJierSize;
+                OpenCvSharp.Size templateMarkSize;
 
                 foreach (var (side, isLeft) in new[] { (leftRois, true), (rightRois, false) })
                 {
                     if (side.Count != 3) continue; // 每边应有3个元素：mark点、上极耳、下极耳
 
                     // 获取mark点的位置
-                    Point markCenter = GetTemplateCenter(false, resultImage, side[0].Item2, matchThreshold, out templateMark);
-                    rects.Add(new Rect(markCenter.X - templateMark.Width / 2, markCenter.Y - templateMark.Height / 2, templateMark.Width, templateMark.Height));
+                    Point markCenter = GetTemplateCenter(markTemplateSnapshots, resultImage, side[0].Item2, matchThreshold, out templateMarkSize);
+                    if (markCenter.X == -1)
+                        continue;
+
+                    rects.Add(new Rect(
+                        markCenter.X - templateMarkSize.Width / 2,
+                        markCenter.Y - templateMarkSize.Height / 2,
+                        templateMarkSize.Width,
+                        templateMarkSize.Height));
 
                     for (int i = 1; i < side.Count; i++)
                     {
-                        Point jierCenter = GetTemplateCenter(true, resultImage, side[i].Item2, matchThreshold, out templateJier);
+                        Point jierCenter = GetTemplateCenter(jiErTemplateSnapshots, resultImage, side[i].Item2, matchThreshold, out templateJierSize);
 
-                        if (jierCenter.X == -1 || markCenter.X == -1) continue; // 如果未能成功找到中心点
+                        if (jierCenter.X == -1) continue; // 如果未能成功找到中心点
 
                         // 计算极耳中心于Mark点中心的垂直距离并保存
                         distances[(isLeft ? 0 : 2) + (i - 1)] = Math.Abs(jierCenter.Y - markCenter.Y);
 
-                        rects.Add(new Rect(jierCenter.X - templateJier.Width / 2, jierCenter.Y - templateJier.Height / 2, templateJier.Width, templateJier.Height));
+                        rects.Add(new Rect(
+                            jierCenter.X - templateJierSize.Width / 2,
+                            jierCenter.Y - templateJierSize.Height / 2,
+                            templateJierSize.Width,
+                            templateJierSize.Height));
                         lines.Add(new LineSegmentPoint(jierCenter, markCenter));
 
                     }
@@ -310,6 +356,16 @@ namespace TDJS_Vision.Node._3_Detection.BatteryEar
                     foreach (Mat roiImage in roiImagesToDispose)
                         roiImage?.Dispose();
                 }
+                if (jiErTemplateSnapshots != null)
+                {
+                    foreach (Mat template in jiErTemplateSnapshots)
+                        template?.Dispose();
+                }
+                if (markTemplateSnapshots != null)
+                {
+                    foreach (Mat template in markTemplateSnapshots)
+                        template?.Dispose();
+                }
             }
 
             return (distances, rects, lines, resultImage);
@@ -318,23 +374,21 @@ namespace TDJS_Vision.Node._3_Detection.BatteryEar
         /// <summary>
         /// 在指定区域执行模板匹配并返回模板中心。
         /// </summary>
-        /// <param name="isJiEr">是否使用极耳模板。</param>
+        /// <param name="templates">本轮检测持有的模板快照。</param>
         /// <param name="originalImage">只读源图。</param>
         /// <param name="roiRect">匹配区域。</param>
         /// <param name="matchThreshold">最低匹配阈值。</param>
-        /// <param name="template">命中的共享模板，不转移所有权。</param>
+        /// <param name="templateSize">命中模板的宽高，未命中时为空尺寸。</param>
         /// <returns>模板中心；未达到阈值时返回(-1,-1)。</returns>
-        private Point GetTemplateCenter(bool isJiEr, Mat originalImage, Rect roiRect, double matchThreshold, out Mat template)
+        private Point GetTemplateCenter(List<Mat> templates, Mat originalImage, Rect roiRect, double matchThreshold, out OpenCvSharp.Size templateSize)
         {
-            template = null;
+            templateSize = new OpenCvSharp.Size();
             using (Mat roiImage = new Mat(originalImage, roiRect))
             using (Mat result = new Mat())
             {
                 double minVal, maxVal, targetV = double.MinValue;
                 Point minLoc, maxLoc, targetPoint = new Point();
-                List<Mat> templates = isJiEr
-                    ? _formNewTemplate.GetJiErTemplate()
-                    : _formNewTemplate.GetMarkTemplate();
+                Mat matchedTemplate = null;
                 foreach (Mat candidateTemplate in templates)
                 {
                     Cv2.MatchTemplate(roiImage, candidateTemplate, result, TemplateMatchModes.CCoeffNormed);
@@ -343,11 +397,18 @@ namespace TDJS_Vision.Node._3_Detection.BatteryEar
                     {
                         targetV = maxVal;
                         targetPoint = maxLoc;
-                        template = candidateTemplate;
+                        matchedTemplate = candidateTemplate;
                     }
                 }
-                if (targetV >= matchThreshold)
-                    return new Point(targetPoint.X + template.Width / 2 + roiRect.X, targetPoint.Y + template.Height / 2 + roiRect.Y);
+
+                if (targetV >= matchThreshold && matchedTemplate != null)
+                {
+                    templateSize = new OpenCvSharp.Size(matchedTemplate.Width, matchedTemplate.Height);
+                    return new Point(
+                        targetPoint.X + matchedTemplate.Width / 2 + roiRect.X,
+                        targetPoint.Y + matchedTemplate.Height / 2 + roiRect.Y);
+                }
+
                 return new Point(-1, -1); // 表示未找到
             }
         }
@@ -641,7 +702,36 @@ namespace TDJS_Vision.Node._3_Detection.BatteryEar
         /// <param name="e"></param>
         private void buttonNewTemplate_Click(object sender, EventArgs e)
         {
-            _formNewTemplate.ShowDialog();
+            Bitmap preview = null;
+            try
+            {
+                if (src != null && !src.Empty())
+                {
+                    preview = src.ToBitmap();
+                    _formNewTemplate.LoadImages(preview);
+                    preview = null;
+                }
+
+                _formNewTemplate.ShowDialog();
+            }
+            finally
+            {
+                preview?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// 释放当前节点独占的模板窗体和预览资源。
+        /// </summary>
+        private void ReleaseImageResources()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _resourcesReleased, 1) != 0)
+                return;
+
+            Shown -= NodeParamFormBatteryEar_Shown;
+            imageROIEditControl1.SetImage(null);
+            _formNewTemplate.Dispose();
+            src = null;
         }
         /// <summary>
         /// 选择图像保存路径

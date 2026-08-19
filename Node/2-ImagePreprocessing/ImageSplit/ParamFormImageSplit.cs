@@ -11,9 +11,24 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
 {
     public partial class ParamFormImageSplit : FormBase, INodeParamForm
     {
-        private readonly Process _process;//所属流程
-        private readonly NodeBase _node;//所属节点
+        /// <summary>
+        /// 所属流程。
+        /// </summary>
+        private readonly Process _process;
+
+        /// <summary>
+        /// 所属节点。
+        /// </summary>
+        private readonly NodeBase _node;
+
+        /// <summary>
+        /// 当前原始预览图，由参数窗体持有并在刷新或销毁时释放。
+        /// </summary>
         private Bitmap _image;
+
+        /// <summary>
+        /// 当前窗体保存的节点参数。
+        /// </summary>
         public INodeParam Params { get; set; }
 
         public ParamFormImageSplit(Process process, NodeBase nodeBase)
@@ -104,18 +119,21 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
         /// <param name="e"></param>
         private async void buttonRefresh_Click(object sender, EventArgs e)
         {
+            Bitmap refreshedImage = null;
             try
             {
                 await _process.RunForUpdateImages(_node);
-                _image = GetImage();
-                if (_image != null)
-                {
-                    pictureBoxShowImage.Image = _image;
-                }
+                refreshedImage = GetImage();
+                SetSourceImage(refreshedImage);
+                refreshedImage = null;
             }
             catch (Exception)
             {
                 MessageBoxTD.Show("刷新图像失败！请检查是否订阅正确的结果或前面节点运行存在异常！");
+            }
+            finally
+            {
+                refreshedImage?.Dispose();
             }
         }
 
@@ -144,14 +162,20 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
         /// <param name="e"></param>
         private void buttonImplement_Click(object sender, EventArgs e)
         {
+            Bitmap previewImage = null;
             try
             {
-                Bitmap tmp = DrawSplitLines(_image, (int)numericUpDownRows.Value, (int)numericUpDownCols.Value);
-                pictureBoxShowImage.Image = tmp;
+                previewImage = DrawSplitLines(_image, (int)numericUpDownRows.Value, (int)numericUpDownCols.Value);
+                SetSplitPreviewImage(previewImage);
+                previewImage = null;
             }
             catch (Exception)
             {
                 MessageBoxTD.Show("预览失败，请检查参数！");
+            }
+            finally
+            {
+                previewImage?.Dispose();
             }
         }
 
@@ -199,6 +223,60 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
             }
 
             return newImage;
+        }
+
+        /// <summary>
+        /// 接管新的原始预览图，并释放上一张原图和上一张分割线预览图。
+        /// </summary>
+        /// <param name="image">由参数窗体接管的新原始图。</param>
+        private void SetSourceImage(Bitmap image)
+        {
+            Bitmap previousSource = _image;
+            Image previousDisplay = pictureBoxShowImage.Image;
+            if (ReferenceEquals(previousSource, image))
+            {
+                pictureBoxShowImage.Image = image;
+                if (!ReferenceEquals(previousDisplay, image))
+                    previousDisplay?.Dispose();
+                return;
+            }
+
+            _image = image;
+            pictureBoxShowImage.Image = image;
+
+            if (!ReferenceEquals(previousDisplay, previousSource))
+                previousDisplay?.Dispose();
+            previousSource?.Dispose();
+        }
+
+        /// <summary>
+        /// 显示带分割线的临时图，保留当前原始图供再次调整参数。
+        /// </summary>
+        /// <param name="image">由PictureBox接管的分割线预览图。</param>
+        private void SetSplitPreviewImage(Bitmap image)
+        {
+            Image previousDisplay = pictureBoxShowImage.Image;
+            if (ReferenceEquals(previousDisplay, image))
+                return;
+
+            pictureBoxShowImage.Image = image;
+            if (!ReferenceEquals(previousDisplay, _image))
+                previousDisplay?.Dispose();
+        }
+
+        /// <summary>
+        /// 释放原始图和当前显示图，两个字段引用同一Bitmap时只释放一次。
+        /// </summary>
+        private void ReleaseImageResources()
+        {
+            Bitmap sourceImage = _image;
+            Image displayImage = pictureBoxShowImage.Image;
+            _image = null;
+            pictureBoxShowImage.Image = null;
+
+            if (!ReferenceEquals(displayImage, sourceImage))
+                displayImage?.Dispose();
+            sourceImage?.Dispose();
         }
     }
    
