@@ -1500,6 +1500,7 @@
     <Compile Include="Node\SubscriptionPortCatalog.cs" />
     <Compile Include="Node\SubscriptionTypeCompatibility.cs" />
     <Compile Include="Node\INode.cs" />
+    <Compile Include="Node\NodeResultResourceManager.cs" />
     <Compile Include="Node\NodeFactory.cs" />
     <Compile Include="Forms\ProcessNew\ProcessFlowCanvas.cs">
       <SubType>Component</SubType>

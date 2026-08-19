@@ -215,7 +215,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// </summary>
         private static OutputImage BuildOutputImage(Mat source)
         {
-            return OutputImage.FromSingleImage(source);
+            return OutputImage.FromOwnedSingleImage(source);
         }
 
         /// <summary>
@@ -265,13 +265,13 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 return NormalizeOutputImage(outputImage);
 
             if (data is Mat mat)
-                return BuildOutputImage(mat);
+                return OutputImage.FromBorrowedSingleImage(mat);
 
             if (data is Bitmap bitmap)
-                return BuildOutputImage(bitmap.ToMat());
+                return OutputImage.FromOwnedSingleImage(bitmap.ToMat());
 
             if (data is IEnumerable<Mat> matList)
-                return BuildOutputImageList(matList);
+                return BuildOutputImageList(matList, false);
 
             if (data is IEnumerable<Bitmap> bitmapList)
                 return BuildOutputImageList(bitmapList);
@@ -281,7 +281,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         }
 
         /// <summary>
-        /// 修正共享变量中已有的图像源输出，保证原图、图像列表和灰度缓存可用。
+        /// 复制共享变量中已有图像的借用视图，保证原图、图像列表和灰度缓存可用。
         /// </summary>
         /// <param name="outputImage">共享变量中的图像源输出。</param>
         /// <returns>归一化后的图像源输出。</returns>
@@ -290,29 +290,30 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             if (outputImage == null)
                 return new OutputImage();
 
-            if (outputImage.Bitmaps == null)
-                outputImage.Bitmaps = new List<Mat>();
-
-            if (outputImage.Bitmaps.Count == 0)
+            List<Mat> borrowedImages = new List<Mat>();
+            if (outputImage.Bitmaps != null)
             {
-                if (OutputImage.HasValidImage(outputImage.SrcImg))
-                    outputImage.Bitmaps.Add(outputImage.SrcImg);
-            }
-            else if (!OutputImage.HasValidImage(outputImage.Bitmaps[0]) && OutputImage.HasValidImage(outputImage.SrcImg))
-            {
-                outputImage.Bitmaps[0] = outputImage.SrcImg;
+                foreach (Mat image in outputImage.Bitmaps)
+                {
+                    if (OutputImage.HasValidImage(image))
+                        borrowedImages.Add(image);
+                }
             }
 
-            if (!OutputImage.HasValidImage(outputImage.SrcImg) && outputImage.Bitmaps.Count > 0)
-                outputImage.SrcImg = outputImage.Bitmaps[0];
+            Mat source = OutputImage.HasValidImage(outputImage.SrcImg)
+                ? outputImage.SrcImg
+                : borrowedImages.Count > 0 ? borrowedImages[0] : null;
+            if (borrowedImages.Count == 0 && OutputImage.HasValidImage(source))
+                borrowedImages.Add(source);
 
-            if (!OutputImage.HasValidImage(outputImage.GrayImg))
-                outputImage.GrayImg = OutputImage.BuildGrayImage(outputImage.SrcImg);
-
-            if (outputImage.Rectangles == null)
-                outputImage.Rectangles = new List<Rect>();
-
-            return outputImage;
+            Mat borrowedGray = OutputImage.HasValidImage(outputImage.GrayImg) ? outputImage.GrayImg : null;
+            OutputImage normalized = OutputImage.FromBorrowedSingleImage(outputImage, source, borrowedGray);
+            normalized.Bitmaps = borrowedImages;
+            normalized.Rectangles = outputImage.Rectangles == null
+                ? new List<Rect>()
+                : new List<Rect>(outputImage.Rectangles);
+            normalized.DisplayResult = outputImage.DisplayResult;
+            return normalized;
         }
 
         /// <summary>
@@ -320,7 +321,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// </summary>
         /// <param name="images">Mat 图像列表。</param>
         /// <returns>图像源输出对象。</returns>
-        private static OutputImage BuildOutputImageList(IEnumerable<Mat> images)
+        private static OutputImage BuildOutputImageList(IEnumerable<Mat> images, bool takeOwnership)
         {
             List<Mat> mats = new List<Mat>();
             if (images != null)
@@ -335,12 +336,41 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             if (mats.Count == 0)
                 return new OutputImage();
 
-            return new OutputImage
+            Mat grayImage = null;
+            try
             {
-                SrcImg = mats[0],
-                Bitmaps = mats,
-                GrayImg = OutputImage.BuildGrayImage(mats[0])
-            };
+                grayImage = OutputImage.BuildGrayImage(mats[0]);
+                OutputImage outputImage = new OutputImage
+                {
+                    SrcImg = mats[0],
+                    Bitmaps = mats,
+                    GrayImg = grayImage
+                };
+                if (takeOwnership)
+                {
+                    outputImage.TakeOwnership(mats).TakeOwnership(grayImage);
+                }
+                else if (!ReferenceEquals(grayImage, mats[0]))
+                {
+                    outputImage.TakeOwnership(grayImage);
+                }
+
+                return outputImage;
+            }
+            catch
+            {
+                if (takeOwnership)
+                {
+                    foreach (Mat image in mats)
+                        image?.Dispose();
+                }
+                else if (!ReferenceEquals(grayImage, mats[0]))
+                {
+                    grayImage?.Dispose();
+                }
+
+                throw;
+            }
         }
 
         /// <summary>
@@ -351,16 +381,31 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         private static OutputImage BuildOutputImageList(IEnumerable<Bitmap> images)
         {
             List<Mat> mats = new List<Mat>();
-            if (images != null)
+            try
             {
-                foreach (Bitmap image in images)
+                if (images != null)
                 {
-                    if (image != null)
-                        mats.Add(image.ToMat());
+                    foreach (Bitmap image in images)
+                    {
+                        if (image != null)
+                            mats.Add(image.ToMat());
+                    }
                 }
-            }
 
-            return BuildOutputImageList(mats);
+                List<Mat> ownedMats = mats;
+                mats = null;
+                return BuildOutputImageList(ownedMats, true);
+            }
+            catch
+            {
+                if (mats != null)
+                {
+                    foreach (Mat mat in mats)
+                        mat?.Dispose();
+                }
+
+                throw;
+            }
         }
 
         /// <summary>
@@ -417,7 +462,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     true);
 
                 long outputBuildStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
-                OutputImage outputImage = BuildOutputImage(callbackMat);
+                Mat outputMat = callbackMat;
+                callbackMat = null;
+                OutputImage outputImage = BuildOutputImage(outputMat);
                 long outputBuildCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
                 long outputBuildMilliseconds = CameraFrameTraceInfo.GetElapsedMilliseconds(
                     outputBuildStartedTimestamp,
@@ -426,7 +473,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     MsgLevel.Debug,
                     () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=图像源输出构建完成；耗时={outputBuildMilliseconds}ms；FrameId={frameTrace?.FrameId.ToString() ?? "无"}",
                     true);
-                callbackMat = null;
                 return outputImage;
             }
             catch
@@ -457,6 +503,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
             if (ParamForm.Params is NodeParamImageSoucre param)
             {
+                Result = new NodeResultImageSource();
                 if (Result is NodeResultImageSource res)
                 {
                     try
@@ -514,12 +561,14 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     {
                         LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})运行取消！", true);
                         SetRunResult(startTime, NodeStatus.Unexecuted);
+                        Result = new NodeResultImageSource();
                         throw new OperationCanceledException($"节点({ID}.{NodeName})运行取消！");
                     }
                     catch (Exception e)
                     {
                         LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因：{e.Message}", true);
                         SetRunResult(startTime, NodeStatus.Failed);
+                        Result = new NodeResultImageSource();
                         throw new Exception($"节点({ID}.{NodeName})运行失败！");
                     }
                 }

@@ -51,6 +51,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         // 初始化状态
                         SetStatus(NodeStatus.Unexecuted, "*");
                         await base.CheckTokenCancel(token);
+                        Result = new NodeResultColorDiscern();
                         // 获取干净原图并执行颜色识别，运行链路不再生成烧录标注图。
                         LogRuntimeStep(showLog, "开始获取输入图像");
                         OutputImage inputImage = form.GetInputOutputImage();
@@ -61,7 +62,8 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         LogRuntimeStep(showLog, $"颜色匹配完毕，结果数量:{(resultList == null ? 0 : resultList.Count)}");
 
                         NodeResultColorDiscern nodeResult = new NodeResultColorDiscern();
-                        nodeResult.OutputImage = OutputImage.FromSingleImage(sourceImage, inputImage?.GrayImg);
+                        nodeResult.OutputImage = OutputImage.FromBorrowedSingleImage(inputImage, sourceImage, inputImage?.GrayImg);
+                        Result = nodeResult;
                         nodeResult.OutputImage.Rectangles = BuildRectangleList(resultList);
                         nodeResult.Result = BuildDisplayResult(resultList, isOk);
                         nodeResult.OutputImage.DisplayResult = nodeResult.Result;
@@ -79,12 +81,14 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                     {
                         LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})运行取消！", true);
                         SetRunResult(startTime, NodeStatus.Unexecuted);
+                        Result = new NodeResultColorDiscern();
                         throw new OperationCanceledException($"节点({ID}.{NodeName})运行取消！");
                     }
                     catch (Exception ex)
                     {
                         LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
                         SetRunResult(startTime, NodeStatus.Failed);
+                        Result = new NodeResultColorDiscern();
                         throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
                     }
                 }

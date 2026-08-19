@@ -56,6 +56,8 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
                         // 初始化状态
                         SetStatus(NodeStatus.Unexecuted, "*");
                         base.CheckTokenCancel(token);
+                        NodeResultImageRotate nodeResultImageRotate = new NodeResultImageRotate();
+                        Result = nodeResultImageRotate;
 
                         Stopwatch performanceStopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
                         OutputImage inputImage = form.GetInputOutputImage();
@@ -63,6 +65,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
                         Mat srcImg = form.GetInputMat(inputImage); 
                         long afterGetSource = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                         Mat rotatedImage = form.ImageRotateForRun(srcImg, param.Angle);
+                        nodeResultImageRotate.OutputImage.TakeOwnership(rotatedImage);
                         long afterRotateColor = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                         Mat inputGrayImage = form.GetInputGrayMat(inputImage);
                         long afterGetGray = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
@@ -71,9 +74,11 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
                             : OutputImage.HasValidImage(inputGrayImage)
                                 ? form.ImageRotateForRun(inputGrayImage, param.Angle)
                                 : OutputImage.BuildGrayImage(rotatedImage);
+                        nodeResultImageRotate.OutputImage.TakeOwnership(rotatedGrayImage);
                         long afterRotateGray = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
-                        NodeResultImageRotate nodeResultImageRotate = new NodeResultImageRotate();
-                        nodeResultImageRotate.OutputImage = OutputImage.FromSingleImage(rotatedImage, rotatedGrayImage);
+                        nodeResultImageRotate.OutputImage.SrcImg = rotatedImage;
+                        nodeResultImageRotate.OutputImage.Bitmaps = new System.Collections.Generic.List<Mat> { rotatedImage };
+                        nodeResultImageRotate.OutputImage.GrayImg = rotatedGrayImage;
                         long afterBuildOutput = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         nodeResultImageRotate.RunTime = time;
@@ -101,12 +106,14 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
                     {
                         LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})运行取消！", true);
                         SetRunResult(startTime, NodeStatus.Unexecuted);
+                        Result = new NodeResultImageRotate();
                         throw new OperationCanceledException($"节点({ID}.{NodeName})运行取消！");
                     }
                     catch (Exception ex)
                     {
                         LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
                         SetRunResult(startTime, NodeStatus.Failed);
+                        Result = new NodeResultImageRotate();
                         throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
                     }
                 }

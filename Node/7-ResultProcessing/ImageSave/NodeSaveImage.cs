@@ -237,16 +237,23 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                 };
             }
 
-            Mat sourceImage = outputImage.Bitmaps[0];
             SaveImageTask saveImageTask = QueueImageForSave(
-                sourceImage,
+                outputImage,
                 outputImage.DisplayResult,
                 paths,
                 imageName,
                 param.NeedCompress,
                 traceContext,
                 param.CompressValue);
-            processor.EnqueueImage(saveImageTask);
+            try
+            {
+                processor.EnqueueImage(saveImageTask);
+                saveImageTask = null;
+            }
+            finally
+            {
+                saveImageTask?.Dispose();
+            }
 
             return new SaveImageEnqueueResult
             {
@@ -284,7 +291,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <summary>
         /// 生成后台保存任务，任务只持有图像引用和保存元数据，不在主流程转 Bitmap。
         /// </summary>
-        /// <param name="sourceImage">待保存的源 Mat 引用。</param>
+        /// <param name="outputImage">待保存的输出图像，后台任务会持有其资源租约。</param>
         /// <param name="displayResult">需要写入保存图的显示结果。</param>
         /// <param name="targetDirectories">保存目标目录集合。</param>
         /// <param name="imageName">图片名称，不含扩展名。</param>
@@ -293,7 +300,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <param name="compressValue">压缩质量。</param>
         /// <returns>后台保存任务。</returns>
         private SaveImageTask QueueImageForSave(
-            Mat sourceImage,
+            OutputImage outputImage,
             AlgorithmResult displayResult,
             List<string> targetDirectories,
             string imageName,
@@ -301,19 +308,34 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             PerformanceTraceContext traceContext,
             long compressValue = 100)
         {
-            // 创建保存任务
-            SaveImageTask saveTask = new SaveImageTask
+            if (outputImage == null ||
+                outputImage.Bitmaps == null ||
+                outputImage.Bitmaps.Count == 0 ||
+                !OutputImage.HasValidImage(outputImage.Bitmaps[0]))
             {
-                SourceImage = sourceImage,
-                DisplayResult = displayResult,
-                TargetDirectories = targetDirectories == null ? new List<string>() : new List<string>(targetDirectories),
-                ImageName = imageName,
-                NeedCompress = needCompress,
-                TraceContext = traceContext,
-                CompressValue = compressValue
-            };
+                throw new ArgumentException("待保存的输出图像为空。", nameof(outputImage));
+            }
 
-            return saveTask;
+            IImageResourceLease imageLease = outputImage.AcquireLease();
+            try
+            {
+                return new SaveImageTask
+                {
+                    SourceImage = outputImage.Bitmaps[0],
+                    DisplayResult = displayResult,
+                    TargetDirectories = targetDirectories == null ? new List<string>() : new List<string>(targetDirectories),
+                    ImageName = imageName,
+                    NeedCompress = needCompress,
+                    TraceContext = traceContext,
+                    CompressValue = compressValue,
+                    ImageLease = imageLease
+                };
+            }
+            catch
+            {
+                imageLease.Dispose();
+                throw;
+            }
         }
 
         /// <summary>
@@ -368,11 +390,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         public int WorkerCount => _workerCount;
 
         /// <summary>
-        /// 后台保存任务；只借用流程输出 Mat 引用，后台线程自行转换 Bitmap 并负责释放生成的 Bitmap。
+        /// 后台保存任务；通过租约借用流程输出Mat，后台线程负责释放租约和生成的Bitmap。
         /// </summary>
-        public sealed class SaveImageTask
+        public sealed class SaveImageTask : IDisposable
         {
-            /// <summary>待保存的源图像引用，保存队列不接管该 Mat 的释放权。</summary>
+            /// <summary>待保存的源图像引用，生命周期由ImageLease保护。</summary>
             public Mat SourceImage { get; set; }
             /// <summary>需要写入保存图的显示叠加结果。</summary>
             public AlgorithmResult DisplayResult { get; set; }
@@ -386,6 +408,28 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             public PerformanceTraceContext TraceContext { get; set; }
             /// <summary>压缩质量。</summary>
             public long CompressValue { get; set; }
+
+            /// <summary>
+            /// 实际保存的图像租约字段，用于原子保证只释放一次。
+            /// </summary>
+            private IImageResourceLease _imageLease;
+
+            /// <summary>保护SourceImage所属输出图像的资源租约。</summary>
+            public IImageResourceLease ImageLease
+            {
+                get { return Volatile.Read(ref _imageLease); }
+                set { _imageLease = value; }
+            }
+
+            /// <summary>
+            /// 释放保存任务持有的图像租约；重复调用安全。
+            /// </summary>
+            public void Dispose()
+            {
+                IImageResourceLease imageLease = Interlocked.Exchange(ref _imageLease, null);
+                imageLease?.Dispose();
+            }
+
         }
 
         public ImageQueueProcessor(int workerCount, string ownerText)
@@ -497,6 +541,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                         ? PerformanceSpikeDiagnostics.CaptureMemorySnapshot()
                         : null;
                     bitmap?.Dispose();
+                    saveImagedata.Dispose();
                     if (diagnosticEnabled)
                     {
                         MemorySnapshot afterDisposeSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
@@ -642,9 +687,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             int disposedCount = 0;
             while (_imageQueue.TryTake(out SaveImageTask pendingTask))
             {
-                // 保存任务只借用上游 Mat 引用，停止队列时不能在这里释放上游图像。
                 if (pendingTask != null)
+                {
+                    pendingTask.Dispose();
                     disposedCount++;
+                }
             }
 
             return disposedCount;

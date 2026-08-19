@@ -50,6 +50,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
                         OutputImage inputImage = form.GetInputOutputImage();
                         Mat src = form.GetInputMat(inputImage);
                         NodeResultImageCrop nodeResultImageCrop = new NodeResultImageCrop();
+                        Result = nodeResultImageCrop;
                         if (param.RoiEnable)
                         {
                             var rects = form.GetImageROIRects(src);
@@ -59,14 +60,25 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
                                 throw new Exception("裁切的图像为空，请检查是否超出图像区域！");
                             }
 
-                            nodeResultImageCrop.OutputImage.SrcImg = src;
-                            nodeResultImageCrop.OutputImage.Bitmaps = roiImg;
-                            nodeResultImageCrop.OutputImage.Rectangles = rects;
-                            nodeResultImageCrop.OutputImage.GrayImg = BuildFirstGrayCrop(inputImage, rects, roiImg);
+                            nodeResultImageCrop.OutputImage = new OutputImage
+                            {
+                                SrcImg = src,
+                                Bitmaps = roiImg,
+                                Rectangles = rects
+                            };
+                            nodeResultImageCrop.OutputImage
+                                .TakeOwnership(roiImg)
+                                .TakeDependency(inputImage);
+                            Mat firstGrayCrop = BuildFirstGrayCrop(inputImage, rects, roiImg);
+                            nodeResultImageCrop.OutputImage.GrayImg = firstGrayCrop;
+                            nodeResultImageCrop.OutputImage.TakeOwnership(firstGrayCrop);
                         }
                         else
                         {
-                            nodeResultImageCrop.OutputImage = OutputImage.FromSingleImage(src, form.GetInputGrayMat(inputImage));
+                            nodeResultImageCrop.OutputImage = OutputImage.FromBorrowedSingleImage(
+                                inputImage,
+                                src,
+                                form.GetInputGrayMat(inputImage));
                             nodeResultImageCrop.OutputImage.Rectangles = new List<Rect>();
                         }
                         var time = SetRunResult(startTime, NodeStatus.Successful);
@@ -80,12 +92,14 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
                     {
                         LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})运行取消！", true);
                         SetRunResult(startTime, NodeStatus.Unexecuted);
+                        Result = new NodeResultImageCrop();
                         throw new OperationCanceledException($"节点({ID}.{NodeName})运行取消！");
                     }
                     catch (Exception ex)
                     {
                         LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
                         SetRunResult(startTime, NodeStatus.Failed);
+                        Result = new NodeResultImageCrop();
                         throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
                     }
                 }
@@ -108,13 +122,23 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
                 throw new Exception("裁切的ROI为空！");
 
             var images = new List<Mat>();
-            foreach (Rect rect in rects)
+            try
             {
-                EnsureRoiInsideImage(rect, source);
-                using (Mat roi = new Mat(source, rect))
+                foreach (Rect rect in rects)
                 {
-                    images.Add(roi.Clone());
+                    EnsureRoiInsideImage(rect, source);
+                    using (Mat roi = new Mat(source, rect))
+                    {
+                        images.Add(roi.Clone());
+                    }
                 }
+            }
+            catch
+            {
+                foreach (Mat image in images)
+                    image?.Dispose();
+
+                throw;
             }
 
             return images;

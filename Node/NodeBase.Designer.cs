@@ -15,6 +15,7 @@
         {
             if (disposing)
             {
+                ReleaseResultResources();
                 FrmNodeRename.RenameChangeEvent -= RenameChangeEvent;
                 if (_frmNodeRename != null)
                 {

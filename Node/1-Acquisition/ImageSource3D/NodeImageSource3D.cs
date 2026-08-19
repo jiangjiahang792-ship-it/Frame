@@ -55,6 +55,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource3D
             {
                 SetStatus(NodeStatus.Unexecuted, "*");
                 CheckTokenCancel(token);
+                NodeResultImageSource3D result = new NodeResultImageSource3D();
+                Result = result;
 
                 I3DCamera camera = ResolveCamera(param);
                 ApplyCameraConfig(camera, param);
@@ -62,13 +64,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource3D
 
                 Camera3DFrameData frameData = await Task.Run(() => camera.GetOneFrameData(), token);
                 CheckTokenCancel(token);
-
-                NodeResultImageSource3D result = Result as NodeResultImageSource3D;
-                if (result == null)
-                {
-                    result = new NodeResultImageSource3D();
-                    Result = result;
-                }
 
                 result.FrameData = frameData ?? new Camera3DFrameData();
                 result.DepthImage = BuildDepthPreviewImage(result.FrameData);
@@ -93,12 +88,14 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource3D
             {
                 LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})运行取消！", true);
                 SetRunResult(startTime, NodeStatus.Unexecuted);
+                Result = new NodeResultImageSource3D();
                 throw;
             }
             catch (Exception ex)
             {
                 LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因：{ex.Message}", true);
                 SetRunResult(startTime, NodeStatus.Failed);
+                Result = new NodeResultImageSource3D();
                 throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
             }
         }
@@ -229,22 +226,36 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource3D
                 out byte[] invalidMaskPixels,
                 out bool hasInvalidPixel);
 
-            Mat grayPreview = new Mat(frameData.Height, frameData.Width, MatType.CV_8UC1);
-            Marshal.Copy(pixels, 0, grayPreview.Data, pixels.Length);
-
-            Mat colorPreview = new Mat();
-            Cv2.ApplyColorMap(grayPreview, colorPreview, ColormapTypes.Jet);
-
-            if (hasInvalidPixel)
+            Mat grayPreview = null;
+            Mat colorPreview = null;
+            try
             {
-                using (Mat invalidMask = new Mat(frameData.Height, frameData.Width, MatType.CV_8UC1))
-                {
-                    Marshal.Copy(invalidMaskPixels, 0, invalidMask.Data, invalidMaskPixels.Length);
-                    colorPreview.SetTo(new Scalar(0, 0, 0), invalidMask);
-                }
-            }
+                grayPreview = new Mat(frameData.Height, frameData.Width, MatType.CV_8UC1);
+                Marshal.Copy(pixels, 0, grayPreview.Data, pixels.Length);
 
-            return OutputImage.FromSingleImage(colorPreview, grayPreview);
+                colorPreview = new Mat();
+                Cv2.ApplyColorMap(grayPreview, colorPreview, ColormapTypes.Jet);
+
+                if (hasInvalidPixel)
+                {
+                    using (Mat invalidMask = new Mat(frameData.Height, frameData.Width, MatType.CV_8UC1))
+                    {
+                        Marshal.Copy(invalidMaskPixels, 0, invalidMask.Data, invalidMaskPixels.Length);
+                        colorPreview.SetTo(new Scalar(0, 0, 0), invalidMask);
+                    }
+                }
+
+                Mat ownedColorPreview = colorPreview;
+                Mat ownedGrayPreview = grayPreview;
+                colorPreview = null;
+                grayPreview = null;
+                return OutputImage.FromOwnedSingleImage(ownedColorPreview, ownedGrayPreview);
+            }
+            finally
+            {
+                colorPreview?.Dispose();
+                grayPreview?.Dispose();
+            }
         }
 
         /// <summary>

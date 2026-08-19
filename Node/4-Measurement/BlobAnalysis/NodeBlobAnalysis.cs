@@ -59,6 +59,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             {
                 SetStatus(NodeStatus.Unexecuted, "*");
                 base.CheckTokenCancel(token);
+                Result = new NodeResultBlobAnalysis();
 
                 NodeParamFormBlobAnalysis form = ParamForm as NodeParamFormBlobAnalysis;
                 NodeParamBlobAnalysis param = ParamForm.Params as NodeParamBlobAnalysis;
@@ -70,6 +71,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                     throw new Exception("输入图像为空，请检查图像订阅。");
 
                 NodeResultBlobAnalysis nodeResult = ExecuteAnalysis(gray, param, form.GetPositionCorrections());
+                Result = nodeResult;
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 nodeResult.RunTime = time;
@@ -89,14 +91,14 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             {
                 LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})运行取消！", true);
                 int time = SetRunResult(startTime, NodeStatus.Unexecuted);
-                Result.RunTime = time;
+                Result = new NodeResultBlobAnalysis { RunTime = time };
                 throw new OperationCanceledException($"节点({ID}.{NodeName})运行取消！");
             }
             catch (Exception ex)
             {
                 LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因：{ex.Message}", true);
                 int time = SetRunResult(startTime, NodeStatus.Failed);
-                Result.RunTime = time;
+                Result = new NodeResultBlobAnalysis { RunTime = time };
                 throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
             }
         }
@@ -166,7 +168,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 Mat outputBinary = binary.Clone();
                 ColorRotatedRect detectionRegion = BuildDetectionRegionRect(regionPoints);
                 AlgorithmResult displayResult = BuildDisplayResult(area, foregroundBounds.Width, foregroundBounds.Height, param, detectionRegion);
-                OutputImage outputImage = OutputImage.FromSingleImage(outputBinary, outputBinary);
+                OutputImage outputImage = OutputImage.FromOwnedSingleImage(outputBinary, outputBinary);
                 outputImage.DisplayResult = displayResult;
 
                 return new NodeResultBlobAnalysis

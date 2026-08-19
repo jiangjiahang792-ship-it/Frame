@@ -46,13 +46,22 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
                         base.CheckTokenCancel(token);
 
                         NodeResultImageSplit res = new NodeResultImageSplit();
+                        Result = res;
                         OutputImage inputImage = paramForm.GetInputOutputImage();
                         Mat img = paramForm.GetInputMat(inputImage);
                         var imgs = SplitImage(img, param.Rows, param.Cols, out List<Rect> rects);
-                        res.OutputImage.SrcImg = img;
-                        res.OutputImage.Bitmaps = new List<Mat>(imgs);
-                        res.OutputImage.Rectangles = rects;
-                        res.OutputImage.GrayImg = BuildFirstSplitGray(inputImage, rects, imgs);
+                        res.OutputImage = new OutputImage
+                        {
+                            SrcImg = img,
+                            Bitmaps = new List<Mat>(imgs),
+                            Rectangles = rects
+                        };
+                        res.OutputImage
+                            .TakeOwnership(imgs)
+                            .TakeDependency(inputImage);
+                        Mat firstGraySplit = BuildFirstSplitGray(inputImage, rects, imgs);
+                        res.OutputImage.GrayImg = firstGraySplit;
+                        res.OutputImage.TakeOwnership(firstGraySplit);
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         res.RunTime = time;
                         Result = res;
@@ -64,12 +73,14 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
                     {
                         LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})运行取消！", true);
                         SetRunResult(startTime, NodeStatus.Unexecuted);
+                        Result = new NodeResultImageSplit();
                         throw new OperationCanceledException($"节点({ID}.{NodeName})运行取消！");
                     }
                     catch (Exception ex)
                     {
                         LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
                         SetRunResult(startTime, NodeStatus.Failed);
+                        Result = new NodeResultImageSplit();
                         throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
                     }
                 }
@@ -107,22 +118,33 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageSplit
 
             List<Mat> subImages = new List<Mat>();
 
-            // 遍历行和列来提取子图像。
-            for (int row = 0; row < rows; row++)
+            try
             {
-                for (int col = 0; col < cols; col++)
+                // 遍历行和列来提取子图像。
+                for (int row = 0; row < rows; row++)
                 {
-                    int y = row * subHeight;
-                    int x = col * subWidth;
-                    Rect roi = new Rect(x, y, subWidth, subHeight);
-
-                    // 输出独立小图，避免下游写入影响源图。
-                    using (Mat subMat = new Mat(originalImage, roi))
+                    for (int col = 0; col < cols; col++)
                     {
-                        subImages.Add(subMat.Clone());
+                        int y = row * subHeight;
+                        int x = col * subWidth;
+                        Rect roi = new Rect(x, y, subWidth, subHeight);
+
+                        // 输出独立小图，避免下游写入影响源图。
+                        using (Mat subMat = new Mat(originalImage, roi))
+                        {
+                            subImages.Add(subMat.Clone());
+                        }
+                        rectangles.Add(roi);
                     }
-                    rectangles.Add(roi);
                 }
+            }
+            catch
+            {
+                foreach (Mat subImage in subImages)
+                    subImage?.Dispose();
+
+                rectangles.Clear();
+                throw;
             }
 
             return subImages;

@@ -236,6 +236,7 @@ namespace TDJS_Vision
             if (node == null)
                 return;
 
+            node.ReleaseResultResources();
             ReleaseAiNodeModel(node);
             DisposeNodeParamForm(node);
         }
