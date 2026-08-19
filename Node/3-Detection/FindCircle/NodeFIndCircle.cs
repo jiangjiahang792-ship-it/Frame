@@ -30,7 +30,6 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
         public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
-            Bitmap detectionBitmap = null;
             OutputImage pendingOutputImage = null;
             // 参数合法性校验
             if (!Active)
@@ -56,9 +55,8 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
                         base.CheckTokenCancel(token);
 
                         string res = string.Empty;
-                        var (Circle, image) = form.DetectCircle();
-                        detectionBitmap = image;
-                        if (Circle == null || detectionBitmap == null) { throw new Exception("圆查找失败！"); }
+                        var (Circle, detectionSucceeded) = form.DetectCircle();
+                        if (!detectionSucceeded) { throw new Exception("圆查找失败！"); }
 
                         if (!param.OKEnable)
                             res = "未启用";
@@ -110,7 +108,6 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
                     finally
                     {
                         pendingOutputImage?.Dispose();
-                        detectionBitmap?.Dispose();
                     }
                 }
             }

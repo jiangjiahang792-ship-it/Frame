@@ -225,10 +225,15 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             if (!SaveParams())
                 return;
 
+            Mat temporaryGray = null;
+            NodeResultBlobAnalysis result = null;
             try
             {
-                NodeResultBlobAnalysis result = NodeBlobAnalysis.ExecuteAnalysis(
-                    NodeBlobAnalysis.GetGrayImage(GetInputImage()),
+                Mat gray = NodeBlobAnalysis.GetGrayImage(GetInputImage(), out bool ownsGray);
+                if (ownsGray)
+                    temporaryGray = gray;
+                result = NodeBlobAnalysis.ExecuteAnalysis(
+                    gray,
                     (NodeParamBlobAnalysis)Params,
                     GetPositionCorrections());
                 showImageControl1.SetImage(MeasurementNodeHelper.ToPreviewBitmap(result.OutputImage.SrcImg));
@@ -239,6 +244,11 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 MessageBoxTD.Show("执行异常：" + ex.Message);
                 if (_node != null)
                     LogHelper.AddLog(MsgLevel.Exception, $"节点({_node.ID}.{_node.NodeName})Blob分析预览异常，原因：{ex.Message}", true);
+            }
+            finally
+            {
+                temporaryGray?.Dispose();
+                NodeResultResourceManager.Release(result);
             }
         }
 
@@ -416,6 +426,8 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         /// </summary>
         private void RefreshPreviewQuietly()
         {
+            Mat temporaryGray = null;
+            NodeResultBlobAnalysis result = null;
             try
             {
                 if (string.IsNullOrWhiteSpace(nodeSubscriptionImage.GetText1()) ||
@@ -423,8 +435,11 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                     return;
 
                 NodeParamBlobAnalysis param = BuildParamFromControls(false);
-                NodeResultBlobAnalysis result = NodeBlobAnalysis.ExecuteAnalysis(
-                    NodeBlobAnalysis.GetGrayImage(GetInputImage()),
+                Mat gray = NodeBlobAnalysis.GetGrayImage(GetInputImage(), out bool ownsGray);
+                if (ownsGray)
+                    temporaryGray = gray;
+                result = NodeBlobAnalysis.ExecuteAnalysis(
+                    gray,
                     param,
                     GetPositionCorrections());
                 showImageControl1.SetImage(MeasurementNodeHelper.ToPreviewBitmap(result.OutputImage.SrcImg));
@@ -432,6 +447,11 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             }
             catch
             {
+            }
+            finally
+            {
+                temporaryGray?.Dispose();
+                NodeResultResourceManager.Release(result);
             }
         }
 

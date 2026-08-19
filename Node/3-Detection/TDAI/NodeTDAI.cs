@@ -59,6 +59,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 {
                     if (Result is NodeResultTDAI res)
                     {
+                        OutputImage subscribedInputImage = null;
                         OutputImage inputImage = null;
                         try
                         {
@@ -71,7 +72,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             res.ResetJudgeOk();
 
                             // 获取图像
-                            inputImage = form.GetOutputImage();
+                            subscribedInputImage = form.GetOutputImage();
+                            inputImage = subscribedInputImage;
 
                             LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测,图像获取完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                             LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测输入图像摘要：订阅({param.Text1}-{param.Text2})，{BuildOutputImageSummary(inputImage)}", true);
@@ -206,14 +208,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                         var handle = param.Yolo8 as Yolo8Obb;
                                         if (handle == null)
                                             throw new Exception("AI模型句柄类型与OBB模型不匹配，请重新加载模型！");
-                                        var img = inputImage.Bitmaps[i].Clone();
-                                        if (inputImage.Rectangles.Count != 0)
+                                        using (Mat img = inputImage.Bitmaps[i].Clone())
                                         {
-                                            tmp = handle.Detect(img, inputImage.Rectangles[i].Location.X, inputImage.Rectangles[i].Location.Y);
-                                        }
-                                        else
-                                        {
-                                            tmp = handle.Detect(img);
+                                            if (inputImage.Rectangles.Count != 0)
+                                            {
+                                                tmp = handle.Detect(img, inputImage.Rectangles[i].Location.X, inputImage.Rectangles[i].Location.Y);
+                                            }
+                                            else
+                                            {
+                                                tmp = handle.Detect(img);
+                                            }
                                         }
                                         obb_results.AddRange(tmp);
                                     }
@@ -320,6 +324,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             Result.RunTime = time;
                             throw new Exception($"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", ex);
                         }
+                        finally
+                        {
+                            if (inputImage != null && !ReferenceEquals(inputImage, subscribedInputImage))
+                                inputImage.Dispose();
+                        }
                     }
                 }
             }
@@ -378,18 +387,45 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 throw new Exception("AI检测ROI裁剪失败，输入图像为空。");
 
             List<Rect> localRoiRects = BuildRoiRects(param.RoiRegions, sourceImage.Width, sourceImage.Height);
-            List<Mat> roiImages = CropImages(sourceImage, localRoiRects);
-            if (roiImages.Count == 0)
-                throw new Exception("AI检测ROI裁剪失败，没有得到有效ROI图像。");
-
-            return new OutputImage
+            List<Mat> roiImages = null;
+            Mat grayImage = null;
+            OutputImage roiOutput = null;
+            try
             {
-                SrcImg = sourceImage,
-                Bitmaps = roiImages,
-                Rectangles = BuildOutputRoiRects(localRoiRects, GetBaseOffsetRect(inputImage)),
-                GrayImg = BuildFirstGrayCrop(inputImage, localRoiRects, roiImages),
-                DisplayResult = inputImage.DisplayResult
-            };
+                roiImages = CropImages(sourceImage, localRoiRects);
+                if (roiImages.Count == 0)
+                    throw new Exception("AI检测ROI裁剪失败，没有得到有效ROI图像。");
+
+                grayImage = BuildFirstGrayCrop(inputImage, localRoiRects, roiImages);
+                roiOutput = new OutputImage();
+                roiOutput.TakeOwnership(roiImages);
+                roiOutput.TakeOwnership(grayImage);
+                roiOutput.TakeDependency(inputImage);
+                roiOutput.SrcImg = sourceImage;
+                roiOutput.Bitmaps = roiImages;
+                roiOutput.Rectangles = BuildOutputRoiRects(localRoiRects, GetBaseOffsetRect(inputImage));
+                roiOutput.GrayImg = grayImage;
+                roiOutput.DisplayResult = inputImage.DisplayResult;
+                return roiOutput;
+            }
+            catch
+            {
+                if (roiOutput != null)
+                {
+                    roiOutput.Dispose();
+                }
+                else
+                {
+                    if (roiImages != null)
+                    {
+                        foreach (Mat roiImage in roiImages)
+                            roiImage?.Dispose();
+                    }
+                    if (grayImage != null && (roiImages == null || !roiImages.Any(image => ReferenceEquals(image, grayImage))))
+                        grayImage.Dispose();
+                }
+                throw;
+            }
         }
 
         /// <summary>
@@ -451,15 +487,24 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         private static List<Mat> CropImages(Mat sourceImage, IEnumerable<Rect> rects)
         {
             var images = new List<Mat>();
-            foreach (Rect rect in rects)
+            try
             {
-                using (Mat roi = new Mat(sourceImage, rect))
+                foreach (Rect rect in rects)
                 {
-                    images.Add(roi.Clone());
+                    using (Mat roi = new Mat(sourceImage, rect))
+                    {
+                        images.Add(roi.Clone());
+                    }
                 }
-            }
 
-            return images;
+                return images;
+            }
+            catch
+            {
+                foreach (Mat image in images)
+                    image?.Dispose();
+                throw;
+            }
         }
 
         /// <summary>
@@ -525,7 +570,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             if (roiImages != null && roiImages.Count > 0)
                 return OutputImage.BuildGrayImage(roiImages[0]);
 
-            return new Mat();
+            return null;
         }
 
         /// <summary>

@@ -42,6 +42,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         public override Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+            Mat temporaryGray = null;
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
@@ -66,7 +67,9 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 if (form == null || param == null)
                     throw new Exception("Blob分析工具参数异常。");
 
-                Mat gray = GetGrayImage(form.GetInputImage());
+                Mat gray = GetGrayImage(form.GetInputImage(), out bool ownsGray);
+                if (ownsGray)
+                    temporaryGray = gray;
                 if (!OutputImage.HasValidImage(gray))
                     throw new Exception("输入图像为空，请检查图像订阅。");
 
@@ -101,24 +104,43 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 Result = new NodeResultBlobAnalysis { RunTime = time };
                 throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
             }
+            finally
+            {
+                temporaryGray?.Dispose();
+            }
         }
 
         /// <summary>
         /// 获取可复用的灰度图，优先使用上游灰度缓存。
         /// </summary>
         /// <param name="inputImage">上游输出图像。</param>
-        /// <returns>灰度图。</returns>
-        internal static Mat GetGrayImage(OutputImage inputImage)
+        /// <param name="ownsImage">返回的灰度图是否由当前调用方负责释放。</param>
+        /// <returns>灰度图；没有有效输入时返回null。</returns>
+        internal static Mat GetGrayImage(OutputImage inputImage, out bool ownsImage)
         {
+            ownsImage = false;
             if (inputImage == null)
-                return new Mat();
+                return null;
             if (OutputImage.HasValidImage(inputImage.GrayImg))
                 return inputImage.GrayImg;
             if (OutputImage.HasValidImage(inputImage.SrcImg))
-                return OutputImage.BuildGrayImage(inputImage.SrcImg);
+                return BuildGrayImage(inputImage.SrcImg, out ownsImage);
             if (inputImage.Bitmaps != null && inputImage.Bitmaps.Count > 0 && OutputImage.HasValidImage(inputImage.Bitmaps[0]))
-                return OutputImage.BuildGrayImage(inputImage.Bitmaps[0]);
-            return new Mat();
+                return BuildGrayImage(inputImage.Bitmaps[0], out ownsImage);
+            return null;
+        }
+
+        /// <summary>
+        /// 按需构建灰度图并标明调用方是否取得释放责任。
+        /// </summary>
+        /// <param name="source">上游只读源图。</param>
+        /// <param name="ownsImage">返回值不是源图引用时为true。</param>
+        /// <returns>可用于本轮分析的灰度图。</returns>
+        private static Mat BuildGrayImage(Mat source, out bool ownsImage)
+        {
+            Mat gray = OutputImage.BuildGrayImage(source);
+            ownsImage = gray != null && !ReferenceEquals(gray, source);
+            return gray;
         }
 
         /// <summary>
@@ -166,22 +188,30 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 double area = Cv2.CountNonZero(binary);
                 Rect foregroundBounds = CalculateForegroundBounds(binary);
                 Mat outputBinary = binary.Clone();
-                ColorRotatedRect detectionRegion = BuildDetectionRegionRect(regionPoints);
-                AlgorithmResult displayResult = BuildDisplayResult(area, foregroundBounds.Width, foregroundBounds.Height, param, detectionRegion);
                 OutputImage outputImage = OutputImage.FromOwnedSingleImage(outputBinary, outputBinary);
-                outputImage.DisplayResult = displayResult;
-
-                return new NodeResultBlobAnalysis
+                try
                 {
-                    IsOk = true,
-                    JudgeOk = true,
-                    Area = area,
-                    Width = foregroundBounds.Width,
-                    Height = foregroundBounds.Height,
-                    DetectionRegion = detectionRegion,
-                    OutputImage = outputImage,
-                    Result = displayResult
-                };
+                    ColorRotatedRect detectionRegion = BuildDetectionRegionRect(regionPoints);
+                    AlgorithmResult displayResult = BuildDisplayResult(area, foregroundBounds.Width, foregroundBounds.Height, param, detectionRegion);
+                    outputImage.DisplayResult = displayResult;
+
+                    return new NodeResultBlobAnalysis
+                    {
+                        IsOk = true,
+                        JudgeOk = true,
+                        Area = area,
+                        Width = foregroundBounds.Width,
+                        Height = foregroundBounds.Height,
+                        DetectionRegion = detectionRegion,
+                        OutputImage = outputImage,
+                        Result = displayResult
+                    };
+                }
+                catch
+                {
+                    outputImage.Dispose();
+                    throw;
+                }
             }
         }
 

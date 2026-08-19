@@ -143,7 +143,8 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         {
             try
             {
-                await RunAnalysisAsync();
+                var (bitmap, _, _) = await RunAnalysisAsync();
+                bitmap?.Dispose();
             }
             catch (Exception ex)
             {
@@ -477,7 +478,7 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         /// 点击 "添加区域" 按钮
         /// 逻辑：自动获取区域 -> 自动计算阈值(Otsu) -> 测量 -> 设置公差(+/-50) -> 形态学默认关闭
         /// </summary>
-        private void toolStripButton2_Click(object sender, EventArgs e)
+        private async void toolStripButton2_Click(object sender, EventArgs e)
         {
             // 1. 获取 UI 上的 ROI 数据
             var rois = showImageControl1.GetAllRotatedRectInfos();
@@ -612,8 +613,13 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                     {
                         //MessageBoxTD.Show($"成功添加 {addedCount} 个区域！\r\n已自动计算阈值并设置判定参数(±50)。");
                         showImageControl1.ClearAllRoi();
-                        RunAnalysisAsync(false);
                     }
+                }
+
+                if (addedCount > 0)
+                {
+                    var (bitmap, _, _) = await RunAnalysisAsync(false);
+                    bitmap?.Dispose();
                 }
             }
             catch (Exception ex)

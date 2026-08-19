@@ -38,6 +38,13 @@ $batteryEarNode = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\Ba
 $binaryAnalysisNode = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\BinaryAnalysis\NodeBinaryAnalysis.cs') -Raw -Encoding UTF8
 $findLineNode = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\FindLine\NodeFIndLine.cs') -Raw -Encoding UTF8
 $findCircleNode = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\FindCircle\NodeFIndCircle.cs') -Raw -Encoding UTF8
+$batteryEarForm = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\BatteryEar\NodeParamFormBatteryEar.cs') -Raw -Encoding UTF8
+$binaryAnalysisForm = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\BinaryAnalysis\NodeParamFormBinaryAnalysis.cs') -Raw -Encoding UTF8
+$findLineForm = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\FindLine\NodeParamFormFindLine.cs') -Raw -Encoding UTF8
+$findCircleForm = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\FindCircle\NodeParamFormFindCircle.cs') -Raw -Encoding UTF8
+$tdaiNode = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\TDAI\NodeTDAI.cs') -Raw -Encoding UTF8
+$blobNode = Get-Content -LiteralPath (Join-Path $root 'Node\4-Measurement\BlobAnalysis\NodeBlobAnalysis.cs') -Raw -Encoding UTF8
+$blobForm = Get-Content -LiteralPath (Join-Path $root 'Node\4-Measurement\BlobAnalysis\NodeParamFormBlobAnalysis.cs') -Raw -Encoding UTF8
 
 Assert-Contains $nodeBaseSource 'Interlocked.Exchange(ref _result, value)' 'NodeBase.Result必须通过原子替换发布新结果。'
 Assert-Contains $nodeBaseSource 'NodeResultResourceManager.Release(previousResult);' 'NodeBase.Result替换后必须释放旧结果资源。'
@@ -63,6 +70,24 @@ Assert-Contains $findLineNode 'pendingOutputImage.TakeDependency(outputImage);' 
 Assert-Contains $findCircleNode 'pendingOutputImage.TakeDependency(outputImage);' '找圆节点借用上游Mat时必须持有父级租约。'
 Assert-True (-not $findLineNode.Contains('outputImage.Bitmaps[0].Clone()')) '找线节点不得继续为显示结果克隆整张上游图。'
 Assert-True (-not $findCircleNode.Contains('outputImage.Bitmaps[0].Clone()')) '找圆节点不得继续为显示结果克隆整张上游图。'
+Assert-Contains $batteryEarForm 'foreach (Mat roiImage in roiImagesToDispose)' '电池耳算法必须释放ROI控件返回的全部临时Mat。'
+Assert-Contains $batteryEarForm 'using (Mat result = new Mat())' '电池耳模板匹配结果Mat必须按方法作用域释放。'
+Assert-Contains $binaryAnalysisForm 'bitmap?.Dispose();' '二值分析的执行与添加区域预览必须释放返回Bitmap。'
+Assert-Contains $findLineForm 'foreach (Mat roiImage in roiImages)' '找线参数窗体必须释放全部临时ROI Mat。'
+Assert-Contains $findCircleForm 'foreach (Mat roiImage in roiImages)' '找圆参数窗体必须释放全部临时ROI Mat。'
+Assert-Contains $findLineForm 'ReplacePictureBoxImage(pictureBoxCanny, BitmapConverter.ToBitmap(edges));' '找线预览替换时必须释放旧GDI图像。'
+Assert-Contains $findCircleForm 'ReplacePictureBoxImage(pictureBoxCanny, BitmapConverter.ToBitmap(edges));' '找圆预览替换时必须释放旧GDI图像。'
+Assert-Contains $findLineForm 'public (LineSegmentPoint line, bool succeeded) DetectLine()' '找线检测必须使用轻量成功标志，不能为未使用返回值生成Bitmap。'
+Assert-Contains $findCircleForm 'public (CircleSegment circle, bool succeeded) DetectCircle()' '找圆检测必须使用轻量成功标志，不能为未使用返回值生成Bitmap。'
+Assert-True (-not $findLineForm.Contains('BitmapConverter.ToBitmap(cleanOutput)')) '找线检测不得恢复未使用的Mat转Bitmap。'
+Assert-True (-not $findCircleForm.Contains('BitmapConverter.ToBitmap(cleanOutput)')) '找圆检测不得恢复未使用的Mat转Bitmap。'
+Assert-Contains $tdaiNode 'roiOutput.TakeOwnership(roiImages);' 'AI多ROI临时输出必须接管全部裁剪Mat。'
+Assert-Contains $tdaiNode 'roiOutput.TakeDependency(inputImage);' 'AI多ROI临时输出必须持有上游父级租约。'
+Assert-Contains $tdaiNode '!ReferenceEquals(inputImage, subscribedInputImage)' 'AI推理退出时只能释放本轮创建的临时ROI输出。'
+Assert-Contains $tdaiNode 'using (Mat img = inputImage.Bitmaps[i].Clone())' 'OBB推理克隆图必须在单张推理结束后释放。'
+Assert-Contains $blobNode 'GetGrayImage(OutputImage inputImage, out bool ownsImage)' 'Blob取灰度图必须明确返回释放责任。'
+Assert-Contains $blobNode 'temporaryGray?.Dispose();' 'Blob正式运行必须释放本轮临时灰度图。'
+Assert-Contains $blobForm 'NodeResultResourceManager.Release(result);' 'Blob参数预览必须回收未发布的结果图。'
 
 $stubs = @'
 namespace OpenCvSharp

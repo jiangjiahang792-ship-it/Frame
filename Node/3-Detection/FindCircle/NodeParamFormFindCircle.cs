@@ -212,34 +212,32 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
         /// <summary>
         /// 检测圆
         /// </summary>
-        public (CircleSegment, Bitmap) DetectCircle()
+        public (CircleSegment circle, bool succeeded) DetectCircle()
         {
             CircleSegment Circle = new CircleSegment();
-            Mat cleanOutput = null;
+            List<Mat> roiImages = null;
             try
             {
                 // 更新输入图像和获取ROI图像
-                pictureBoxCanny.Image = null;
-                pictureBoxResult1.Image = null;
-                pictureBoxResult2.Image = null;
+                ReplacePictureBoxImage(pictureBoxCanny, null);
+                ReplacePictureBoxImage(pictureBoxResult1, null);
+                ReplacePictureBoxImage(pictureBoxResult2, null);
                 UpdataImage();
-                Mat bitmap = imageROIEditControl1.GetROIImages()[0];
-                cleanOutput = bitmap.Clone();
+                roiImages = imageROIEditControl1.GetROIImages();
+                if (roiImages == null || roiImages.Count == 0 || !OutputImage.HasValidImage(roiImages[0]))
+                    throw new Exception("圆查找没有取得有效ROI图像！");
 
+                Mat bitmap = roiImages[0];
                 if (bitmap.Channels() != 1)
                     Cv2.CvtColor(bitmap, bitmap, ColorConversionCodes.BGR2GRAY);
 
-                // 应用高斯模糊减少噪点
-                Mat blurred = new Mat();
-                Cv2.GaussianBlur(bitmap, blurred, new OpenCvSharp.Size(int.Parse(textBoxBlurSize.Text), int.Parse(textBoxBlurSize.Text)), 0);
+                using (Mat blurred = new Mat())
+                using (Mat edges = new Mat())
+                {
+                    Cv2.GaussianBlur(bitmap, blurred, new OpenCvSharp.Size(int.Parse(textBoxBlurSize.Text), int.Parse(textBoxBlurSize.Text)), 0);
+                    Cv2.Canny(blurred, edges, double.Parse(textBoxThreshold1.Text), double.Parse(textBoxThreshold2.Text), 3, checkBoxUseL2.Checked);
+                    ReplacePictureBoxImage(pictureBoxCanny, BitmapConverter.ToBitmap(edges));
 
-                // 使用 Canny 边缘检测
-                Mat edges = new Mat();
-                Cv2.Canny(blurred, edges, double.Parse(textBoxThreshold1.Text), double.Parse(textBoxThreshold2.Text), 3, checkBoxUseL2.Checked);
-                pictureBoxCanny.Image = BitmapConverter.ToBitmap(edges);
-
-                //霍夫圆检测
-                // 检测圆
                 /*
                  * 使用霍夫圆变换检测图像中的圆。参数解释：
                     image：输入图像，通常是灰度图像。
@@ -251,115 +249,112 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
                     minRadius：检测圆的最小半径。
                     maxRadius：检测圆的最大半径。
                  */
-                var circles = Cv2.HoughCircles(edges, HoughModes.Gradient, 1, int.Parse(textBoxCount.Text), param1: int.Parse(textBox1.Text), param2: int.Parse(textBox2.Text),
-                                            minRadius: int.Parse(textBoxMinR.Text), maxRadius: int.Parse(textBoxMaxR.Text));
+                    var circles = Cv2.HoughCircles(edges, HoughModes.Gradient, 1, int.Parse(textBoxCount.Text), param1: int.Parse(textBox1.Text), param2: int.Parse(textBox2.Text),
+                                                minRadius: int.Parse(textBoxMinR.Text), maxRadius: int.Parse(textBoxMaxR.Text));
 
-                #region 绘制霍夫圆检测出来的所有圆
+                    Random random = new Random();
+                    int index = 1;
+                    HashSet<Scalar> usedColors = new HashSet<Scalar>();
+                    double minColorDistance = 5;
+                    Dictionary<CircleSegment, Scalar> keyValuePairs1 = new Dictionary<CircleSegment, Scalar>();
+                    Dictionary<int, CircleSegment> keyValuePairs2 = new Dictionary<int, CircleSegment>();
 
-                // 绘制检测到的直线
-                Mat result = bitmap.Clone();
-                Cv2.CvtColor(result, result, ColorConversionCodes.BayerBG2BGR);
+                    for (int i = comboBox1.Items.Count - 1; i >= 6; i--)
+                        comboBox1.Items.RemoveAt(i);
 
-                Random random = new Random();
-                int index = 1;  // 圆id从 1 开始
-                HashSet<Scalar> usedColors = new HashSet<Scalar>();  // 用于记录已使用过的颜色
-                double minColorDistance = 5;  // 颜色差异的阈值，可以根据需要调整
-                Dictionary<CircleSegment, Scalar> keyValuePairs1 = new Dictionary<CircleSegment, Scalar>(); //key 圆   value 颜色
-                Dictionary<int, CircleSegment> keyValuePairs2 = new Dictionary<int, CircleSegment>(); //key 圆id    value 圆
-
-                //删除上次执行生成的id项
-                for (int i = comboBox1.Items.Count - 1; i >= 6; i--)
-                {
-                    comboBox1.Items.RemoveAt(i);
-                }
-
-                foreach (var circle in circles)
-                {
-                    var center = new Point((int)circle.Center.X, (int)circle.Center.Y);
-                    var radius = (int)circle.Radius;
-
-                    // 生成差异较大并且不重复的随机颜色
-                    Scalar randomColor;
-                    do
+                    using (Mat result = bitmap.Clone())
                     {
-                        randomColor = new Scalar(GetDarkColorValue(random), GetDarkColorValue(random), GetDarkColorValue(random));
-                    } while (randomColor == Scalar.Red || usedColors.Any(usedColor => GetColorDistance(randomColor, usedColor) < minColorDistance));
+                        Cv2.CvtColor(result, result, ColorConversionCodes.BayerBG2BGR);
+                        foreach (var circle in circles)
+                        {
+                            var center = new Point((int)circle.Center.X, (int)circle.Center.Y);
+                            var radius = (int)circle.Radius;
+                            Scalar randomColor;
+                            do
+                            {
+                                randomColor = new Scalar(GetDarkColorValue(random), GetDarkColorValue(random), GetDarkColorValue(random));
+                            } while (randomColor == Scalar.Red || usedColors.Any(usedColor => GetColorDistance(randomColor, usedColor) < minColorDistance));
 
-                    usedColors.Add(randomColor);
-
-                    // 绘制圆
-                    Cv2.Circle(result, center, radius, randomColor, 1);
-
-                    // 绘制圆心
-                    Cv2.Circle(result, center, 3, randomColor, -1);
-
-                    // 绘制序号
-                    Cv2.PutText(result, index.ToString(), new Point(center.X + 1, center.Y), HersheyFonts.Italic, 0.5, randomColor);
-
-                    keyValuePairs1.Add(circle, randomColor);
-                    keyValuePairs2.Add(index, circle);
-                    comboBox1.Items.Add($"选择ID为：{index++}的圆");
-                }
-
-                Cv2.PutText(result, $"Count:{circles.Count()}", new Point(40, 40), HersheyFonts.Italic, 0.5, Scalar.Red);
-                pictureBoxResult1.Image = BitmapConverter.ToBitmap(result);
-                #endregion
-
-                #region 绘制筛选后的图像
-
-                // 加上在原图的偏差值
-                var point = imageROIEditControl1.GetImageROIRects()[0].Location;
-
-                // 克隆图像
-                Mat result1 = bitmap.Clone();
-
-                // 转换颜色空间
-                Cv2.CvtColor(result1, result1, ColorConversionCodes.BayerBG2BGR);
-                // 筛选对应输出的圆
-                var singleCircle = new CircleSegment();
-
-                if (curLineSelectionID > 6) //按照ID筛选圆
-                {
-                    this.comboBox1.SelectedIndexChanged -= comboBox1_SelectedIndexChanged;
-                    if (curLineSelectionID > this.comboBox1.Items.Count) //假设上一次id为20，下一次执行完没找到20个圆，最大的id为5
-                    {
-                        this.comboBox1.SelectedIndex = 0;
-                        singleCircle = CircleMerger.MergeCircles(circles.ToList(), curLineSelection);
+                            usedColors.Add(randomColor);
+                            Cv2.Circle(result, center, radius, randomColor, 1);
+                            Cv2.Circle(result, center, 3, randomColor, -1);
+                            Cv2.PutText(result, index.ToString(), new Point(center.X + 1, center.Y), HersheyFonts.Italic, 0.5, randomColor);
+                            keyValuePairs1.Add(circle, randomColor);
+                            keyValuePairs2.Add(index, circle);
+                            comboBox1.Items.Add($"选择ID为：{index++}的圆");
+                        }
+                        Cv2.PutText(result, $"Count:{circles.Count()}", new Point(40, 40), HersheyFonts.Italic, 0.5, Scalar.Red);
+                        ReplacePictureBoxImage(pictureBoxResult1, BitmapConverter.ToBitmap(result));
                     }
-                    else
-                    {
-                        this.comboBox1.SelectedIndex = curLineSelectionID - 1;
-                        singleCircle = keyValuePairs2[curLineSelectionID - 6];
-                    }
-                    this.comboBox1.SelectedIndexChanged += comboBox1_SelectedIndexChanged;
-                }
-                else
-                    singleCircle = CircleMerger.MergeCircles(circles.ToList(), curLineSelection);
 
-                // 绘制圆
-                Cv2.Circle(result1, (Point)singleCircle.Center, (int)singleCircle.Radius, keyValuePairs1[singleCircle], 2); // 绘制圆，线条宽度为2
-                // 绘制圆心
-                Cv2.Circle(result1, (Point)singleCircle.Center, 3, keyValuePairs1[singleCircle], -1); // 绘制圆心，半径为5
-                // 绘制序号
-                Cv2.PutText(result1, (keyValuePairs2.FirstOrDefault(x => x.Value == singleCircle).Key).ToString(), new Point((int)singleCircle.Center.X + 1, singleCircle.Center.Y), HersheyFonts.Italic, 0.5, keyValuePairs1[singleCircle]);
-                // 显示圆的半径
-                Cv2.PutText(result1, $"Radius: {singleCircle.Radius.ToString("F2")} px", new Point(40, 40), HersheyFonts.Italic, 0.5, Scalar.Red);
-                // 更新PictureBox的图像
-                pictureBoxResult2.Image = BitmapConverter.ToBitmap(result1);
-                // 返回合并后的圆
-                Circle = singleCircle;
-                #endregion
+                    var point = imageROIEditControl1.GetImageROIRects()[0].Location;
+                    using (Mat selectedResult = bitmap.Clone())
+                    {
+                        Cv2.CvtColor(selectedResult, selectedResult, ColorConversionCodes.BayerBG2BGR);
+                        var singleCircle = new CircleSegment();
+                        if (curLineSelectionID > 6)
+                        {
+                            comboBox1.SelectedIndexChanged -= comboBox1_SelectedIndexChanged;
+                            try
+                            {
+                                if (curLineSelectionID > comboBox1.Items.Count)
+                                {
+                                    comboBox1.SelectedIndex = 0;
+                                    singleCircle = CircleMerger.MergeCircles(circles.ToList(), curLineSelection);
+                                }
+                                else
+                                {
+                                    comboBox1.SelectedIndex = curLineSelectionID - 1;
+                                    singleCircle = keyValuePairs2[curLineSelectionID - 6];
+                                }
+                            }
+                            finally
+                            {
+                                comboBox1.SelectedIndexChanged += comboBox1_SelectedIndexChanged;
+                            }
+                        }
+                        else
+                        {
+                            singleCircle = CircleMerger.MergeCircles(circles.ToList(), curLineSelection);
+                        }
+
+                        Cv2.Circle(selectedResult, (Point)singleCircle.Center, (int)singleCircle.Radius, keyValuePairs1[singleCircle], 2);
+                        Cv2.Circle(selectedResult, (Point)singleCircle.Center, 3, keyValuePairs1[singleCircle], -1);
+                        Cv2.PutText(selectedResult, keyValuePairs2.FirstOrDefault(x => x.Value == singleCircle).Key.ToString(), new Point((int)singleCircle.Center.X + 1, singleCircle.Center.Y), HersheyFonts.Italic, 0.5, keyValuePairs1[singleCircle]);
+                        Cv2.PutText(selectedResult, $"Radius: {singleCircle.Radius.ToString("F2")} px", new Point(40, 40), HersheyFonts.Italic, 0.5, Scalar.Red);
+                        ReplacePictureBoxImage(pictureBoxResult2, BitmapConverter.ToBitmap(selectedResult));
+                        Circle = singleCircle;
+                    }
+                }
             }
             catch (Exception ex)
             {
                 LogHelper.AddLog(MsgLevel.Exception, $"检测圆失败，原因：{ex.Message}", true);
-                cleanOutput?.Dispose();
-                return (Circle, null);
+                return (Circle, false);
+            }
+            finally
+            {
+                if (roiImages != null)
+                {
+                    foreach (Mat roiImage in roiImages)
+                        roiImage?.Dispose();
+                }
             }
 
-            Bitmap outputBitmap = cleanOutput == null ? (Bitmap)pictureBoxResult2.Image : BitmapConverter.ToBitmap(cleanOutput);
-            cleanOutput?.Dispose();
-            return (Circle, outputBitmap);
+            return (Circle, true);
+        }
+
+        /// <summary>
+        /// 替换预览框图像并释放上一张位图，避免重复执行时累积GDI资源。
+        /// </summary>
+        /// <param name="pictureBox">目标预览框。</param>
+        /// <param name="image">由预览框接管的新图像。</param>
+        private static void ReplacePictureBoxImage(PictureBox pictureBox, Image image)
+        {
+            Image oldImage = pictureBox.Image;
+            pictureBox.Image = image;
+            if (!ReferenceEquals(oldImage, image))
+                oldImage?.Dispose();
         }
         private static byte GetDarkColorValue(Random rand)
         {

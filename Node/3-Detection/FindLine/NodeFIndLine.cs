@@ -31,7 +31,6 @@ namespace TDJS_Vision.Node._3_Detection.FindLine
         public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
-            Bitmap detectionBitmap = null;
             OutputImage pendingOutputImage = null;
             // 参数合法性校验
             if (!Active)
@@ -56,9 +55,8 @@ namespace TDJS_Vision.Node._3_Detection.FindLine
                         SetStatus(NodeStatus.Unexecuted, "*");
                         base.CheckTokenCancel(token);
 
-                        var (line, image) = form.DetectLine();
-                        detectionBitmap = image;
-                        if (line == null || detectionBitmap == null) { throw new Exception("直线查找失败！"); }
+                        var (line, detectionSucceeded) = form.DetectLine();
+                        if (!detectionSucceeded) { throw new Exception("直线查找失败！"); }
 
                         var outputImage = form.GetOutputImage();
                         if (outputImage == null || outputImage.Bitmaps == null || outputImage.Bitmaps.Count == 0 || !OutputImage.HasValidImage(outputImage.Bitmaps[0]))
@@ -99,7 +97,6 @@ namespace TDJS_Vision.Node._3_Detection.FindLine
                     finally
                     {
                         pendingOutputImage?.Dispose();
-                        detectionBitmap?.Dispose();
                     }
                 }
             }
