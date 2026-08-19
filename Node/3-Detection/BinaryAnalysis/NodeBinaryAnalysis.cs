@@ -29,6 +29,8 @@ namespace TDJS_Vision.Node._3_Detection.BinaryAnalysis
         public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+            Bitmap analysisBitmap = null;
+            OutputImage pendingOutputImage = null;
             // 参数合法性校验
             if (!Active)
             {
@@ -57,38 +59,51 @@ namespace TDJS_Vision.Node._3_Detection.BinaryAnalysis
 
                         // 执行模版匹配
                         var (bitmap, resultList, isOk) = await form.RunAnalysisAsync(false);
+                        analysisBitmap = bitmap;
+                        if (analysisBitmap == null)
+                            throw new Exception("二值分析没有生成有效输出图像！");
 
                         List<Rect> rectList = new List<Rect>();
 
-                        // 输出结果
-                        ((NodeResultBinaryAnalysis)Result).OutputImage.Bitmaps = new List<Mat>() { bitmap.ToMat() };
+                        Mat outputMat = analysisBitmap.ToMat();
+                        pendingOutputImage = new OutputImage
+                        {
+                            Bitmaps = new List<Mat> { outputMat }
+                        };
+                        pendingOutputImage.TakeOwnership(outputMat);
+                        var nodeResult = new NodeResultBinaryAnalysis
+                        {
+                            OutputImage = pendingOutputImage
+                        };
 
                         int count = 0;
 
-                        ((NodeResultBinaryAnalysis)Result).Result.Clear();
+                        nodeResult.Result.Clear();
 
                         if (resultList.Count==0)
                         {
-                            ((NodeResultBinaryAnalysis)Result).Result.Texts.Add(new ColorText($"未识别到任务区域", Color.Red));
+                            nodeResult.Result.Texts.Add(new ColorText($"未识别到任务区域", Color.Red));
                         }
 
                         foreach (var sr in resultList)
                         {
                             rectList.Add(sr.DetectedRect);
                             ColorRotatedRect roiRect = new ColorRotatedRect(sr.DetectedRect);
-                            ((NodeResultBinaryAnalysis)Result).Result.Rects.Add(roiRect);
+                            nodeResult.Result.Rects.Add(roiRect);
 
-                            ((NodeResultBinaryAnalysis)Result).Result.Texts.Add(new ColorText($"区域:{sr.Name} 面积:{sr.Area}", sr.IsPass == false ? Color.Red : Color.Green));
+                            nodeResult.Result.Texts.Add(new ColorText($"区域:{sr.Name} 面积:{sr.Area}", sr.IsPass == false ? Color.Red : Color.Green));
                         }
 
-                        ((NodeResultBinaryAnalysis)Result).OutputImage.Rectangles = rectList;
+                        nodeResult.OutputImage.Rectangles = rectList;
 
-                        ((NodeResultBinaryAnalysis)Result).Result.Texts.Add(new ColorText($"区域匹配结果个数：{rectList.Count}个", isOk == false ? Color.Red : Color.Green));
-                        ((NodeResultBinaryAnalysis)Result).OutputImage.DisplayResult = ((NodeResultBinaryAnalysis)Result).Result;
+                        nodeResult.Result.Texts.Add(new ColorText($"区域匹配结果个数：{rectList.Count}个", isOk == false ? Color.Red : Color.Green));
+                        nodeResult.OutputImage.DisplayResult = nodeResult.Result;
 
                         var time = SetRunResult(startTime, NodeStatus.Successful);
-                        Result.RunTime = time;
-                       ((NodeResultBinaryAnalysis)Result).Result.IsAllOk = isOk;
+                        nodeResult.RunTime = time;
+                        nodeResult.Result.IsAllOk = isOk;
+                        Result = nodeResult;
+                        pendingOutputImage = null;
 
                         if (showLog)
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms, 匹配是否成功: {isOk}", true);
@@ -106,6 +121,11 @@ namespace TDJS_Vision.Node._3_Detection.BinaryAnalysis
                         LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
                         SetRunResult(startTime, NodeStatus.Failed);
                         throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
+                    }
+                    finally
+                    {
+                        pendingOutputImage?.Dispose();
+                        analysisBitmap?.Dispose();
                     }
                 }
             }

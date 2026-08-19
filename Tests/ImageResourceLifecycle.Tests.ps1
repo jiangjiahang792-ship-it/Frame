@@ -34,6 +34,10 @@ $cropNode = Get-Content -LiteralPath (Join-Path $root 'Node\2-ImagePreprocessing
 $splitNode = Get-Content -LiteralPath (Join-Path $root 'Node\2-ImagePreprocessing\ImageSplit\NodeImageSplit.cs') -Raw -Encoding UTF8
 $rotateNode = Get-Content -LiteralPath (Join-Path $root 'Node\2-ImagePreprocessing\ImageRotate\NodeImageRotate.cs') -Raw -Encoding UTF8
 $saveNode = Get-Content -LiteralPath (Join-Path $root 'Node\7-ResultProcessing\ImageSave\NodeSaveImage.cs') -Raw -Encoding UTF8
+$batteryEarNode = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\BatteryEar\NodeBatteryEar.cs') -Raw -Encoding UTF8
+$binaryAnalysisNode = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\BinaryAnalysis\NodeBinaryAnalysis.cs') -Raw -Encoding UTF8
+$findLineNode = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\FindLine\NodeFIndLine.cs') -Raw -Encoding UTF8
+$findCircleNode = Get-Content -LiteralPath (Join-Path $root 'Node\3-Detection\FindCircle\NodeFIndCircle.cs') -Raw -Encoding UTF8
 
 Assert-Contains $nodeBaseSource 'Interlocked.Exchange(ref _result, value)' 'NodeBase.Result必须通过原子替换发布新结果。'
 Assert-Contains $nodeBaseSource 'NodeResultResourceManager.Release(previousResult);' 'NodeBase.Result替换后必须释放旧结果资源。'
@@ -51,6 +55,14 @@ Assert-Contains $rotateNode 'TakeOwnership(rotatedImage)' '旋转节点必须在
 Assert-Contains $saveNode 'IImageResourceLease imageLease = outputImage.AcquireLease();' '保存任务入队前必须取得图像租约。'
 Assert-Contains $saveNode 'saveImagedata.Dispose();' '保存后台完成或异常后必须释放任务租约。'
 Assert-Contains $saveNode 'pendingTask.Dispose();' '保存队列停止排空时必须释放待处理任务租约。'
+Assert-Contains $batteryEarNode 'pendingOutputImage.TakeOwnership(generatedImage);' '电池耳节点必须接管自产结果图。'
+Assert-Contains $batteryEarNode 'Result = nodeResult;' '电池耳节点必须发布新的完整结果对象。'
+Assert-Contains $binaryAnalysisNode 'pendingOutputImage.TakeOwnership(outputMat);' '二值分析节点必须接管Bitmap转出的Mat。'
+Assert-Contains $binaryAnalysisNode 'analysisBitmap?.Dispose();' '二值分析返回的临时Bitmap必须在所有路径释放。'
+Assert-Contains $findLineNode 'pendingOutputImage.TakeDependency(outputImage);' '找线节点借用上游Mat时必须持有父级租约。'
+Assert-Contains $findCircleNode 'pendingOutputImage.TakeDependency(outputImage);' '找圆节点借用上游Mat时必须持有父级租约。'
+Assert-True (-not $findLineNode.Contains('outputImage.Bitmaps[0].Clone()')) '找线节点不得继续为显示结果克隆整张上游图。'
+Assert-True (-not $findCircleNode.Contains('outputImage.Bitmaps[0].Clone()')) '找圆节点不得继续为显示结果克隆整张上游图。'
 
 $stubs = @'
 namespace OpenCvSharp
