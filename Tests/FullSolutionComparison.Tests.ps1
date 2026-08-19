@@ -42,6 +42,9 @@ public static class FullSolutionGuiResourceProbe
 {
     [DllImport("user32.dll")]
     public static extern int GetGuiResources(IntPtr processHandle, int resourceType);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern IntPtr SendMessage(IntPtr windowHandle, uint message, IntPtr wordParameter, IntPtr longParameter);
 }
 "@ -Language CSharp
 
@@ -209,6 +212,46 @@ function Find-RunOnceButton {
     }
 
     throw "等待主界面和单次运行按钮超时。"
+}
+
+function Close-TestProcess {
+    param([System.Diagnostics.Process]$MainProcess)
+
+    if ($null -eq $MainProcess -or $MainProcess.HasExited) {
+        return
+    }
+
+    [void]$MainProcess.CloseMainWindow()
+    $deadline = [DateTime]::UtcNow.AddSeconds(30)
+    while (-not $MainProcess.HasExited -and [DateTime]::UtcNow -lt $deadline) {
+        $MainProcess.Refresh()
+        if ($MainProcess.MainWindowHandle -ne [IntPtr]::Zero) {
+            try {
+                $root = [Windows.Automation.AutomationElement]::FromHandle($MainProcess.MainWindowHandle)
+                $condition = New-Object Windows.Automation.PropertyCondition(
+                    [Windows.Automation.AutomationElement]::NameProperty,
+                    "确定")
+                $confirmButton = $root.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+                if ($null -ne $confirmButton -and $confirmButton.Current.NativeWindowHandle -ne 0) {
+                    # WinForms自定义确认按钮没有暴露InvokePattern，使用标准BM_CLICK消息执行正常关闭。
+                    [void][FullSolutionGuiResourceProbe]::SendMessage(
+                        [IntPtr]$confirmButton.Current.NativeWindowHandle,
+                        0x00F5,
+                        [IntPtr]::Zero,
+                        [IntPtr]::Zero)
+                }
+            }
+            catch {
+                # 关闭过程中窗口树可能随时销毁，继续等待进程正常退出。
+            }
+        }
+
+        Start-Sleep -Milliseconds 100
+    }
+
+    if (-not $MainProcess.HasExited) {
+        throw "程序在点击关闭确认后30秒内仍未正常退出。"
+    }
 }
 
 function Invoke-SolutionRound {
@@ -515,7 +558,6 @@ try {
 }
 finally {
     if (-not $KeepProcess -and $null -ne $mainProcess -and -not $mainProcess.HasExited) {
-        [void]$mainProcess.CloseMainWindow()
-        [void]$mainProcess.WaitForExit(30000)
+        Close-TestProcess -MainProcess $mainProcess
     }
 }
