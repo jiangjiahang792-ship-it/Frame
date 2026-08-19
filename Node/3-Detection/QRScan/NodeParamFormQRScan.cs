@@ -2,6 +2,7 @@
 using OpenCvSharp;
 using System;
 using System.Drawing;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Size = OpenCvSharp.Size;
@@ -14,7 +15,16 @@ namespace TDJS_Vision.Node._3_Detection.QRScan
     {
         private Process process;//所属流程
         private NodeBase node;//所属节点
-        private WeChatQRCode weChatQRCode = null;
+
+        /// <summary>
+        /// 二维码模型后台加载任务，所有检测共用同一个模型实例。
+        /// </summary>
+        private readonly Task<WeChatQRCode> _modelLoadTask;
+
+        /// <summary>
+        /// 参数窗体自有模型和预览资源是否已经释放。
+        /// </summary>
+        private int _resourcesReleased;
 
         public NodeParamFormQRScan(Process process, NodeBase nodeBase)
         {
@@ -27,21 +37,25 @@ namespace TDJS_Vision.Node._3_Detection.QRScan
             toolTip1.SetToolTip(label2, "较小的值会导致较少的对比度增强，而较大的值会允许更多的对比度增强但是噪声提高。通常，在 1.0 到 4.0 之间是常见的选择");
             toolTip1.SetToolTip(label3, "适用于光照不均的图像");
             toolTip1.SetToolTip(label4, "较小的块会导致更细致的对比度调整，而较大的块则会导致更平滑的结果");
-            // 加载模型
-            Task.Run(() =>
-            {
-                string detect_caffe_model = ".\\QRCodeModel\\detect.caffemodel";
-                string detect_prototxt = ".\\QRCodeModel\\detect.prototxt";
-                string sr_caffe_model = ".\\QRCodeModel\\sr.caffemodel";
-                string sr_prototxt = ".\\QRCodeModel\\sr.prototxt";
+            _modelLoadTask = Task.Run(LoadQrCodeModel);
+        }
 
-                weChatQRCode = WeChatQRCode.Create(
-                    detect_prototxt,
-                    detect_caffe_model,
-                    sr_prototxt,
-                    sr_caffe_model
-                );
-            });
+        /// <summary>
+        /// 创建二维码模型实例，模型路径保持原有相对目录规则。
+        /// </summary>
+        /// <returns>加载完成的二维码模型。</returns>
+        private static WeChatQRCode LoadQrCodeModel()
+        {
+            string detectCaffeModel = ".\\QRCodeModel\\detect.caffemodel";
+            string detectPrototxt = ".\\QRCodeModel\\detect.prototxt";
+            string srCaffeModel = ".\\QRCodeModel\\sr.caffemodel";
+            string srPrototxt = ".\\QRCodeModel\\sr.prototxt";
+
+            return WeChatQRCode.Create(
+                detectPrototxt,
+                detectCaffeModel,
+                srPrototxt,
+                srCaffeModel);
         }
 
         private void NodeParamFormQRCodeIdentification_Shown(object sender, EventArgs e)
@@ -106,31 +120,45 @@ namespace TDJS_Vision.Node._3_Detection.QRScan
 
         public async Task<string[]> QRCodeDetect(bool show = true)
         {
+            List<Mat> roiImages = null;
+            Mat blurred = null;
             try
             {
-                if (weChatQRCode == null)
-                    throw new Exception("模型未加载完成！");
+                WeChatQRCode qrCode = await _modelLoadTask;
+                if (qrCode == null)
+                    throw new Exception("模型加载失败！");
 
                 // 更新输入图像和获取ROI图像
-                pictureBoxCanny.Image = null;
+                ReplacePictureBoxImage(pictureBoxCanny, null);
                 UpdataImage();
-                Mat image = imageROIEditControl1.GetROIImages()[0];
+                roiImages = imageROIEditControl1.GetROIImages();
+                if (roiImages == null || roiImages.Count == 0)
+                    throw new Exception("请先绘制有效的二维码检测区域！");
 
                 // 处理图像
-                Mat blurred = await ImageProcessingasync(image);
+                blurred = await ImageProcessingasync(roiImages[0]);
 
                 // 设置参数界面点击运行才需要刷新，节点正常运行调用时不需要刷新，降低耗时
                 if (show)
-                    pictureBoxCanny.Image = blurred.ToBitmap();
+                    ReplacePictureBoxImage(pictureBoxCanny, blurred.ToBitmap());
 
                 // 检测二维码
-                string[] Information = IdentifyQRCodesAndBarcodes(blurred, weChatQRCode);
+                string[] Information = IdentifyQRCodesAndBarcodes(blurred, qrCode);
 
                 return Information;
             }
             catch (Exception ex)
             {
                 throw new Exception($"检测二维码失败，原因：{ex.Message}");
+            }
+            finally
+            {
+                blurred?.Dispose();
+                if (roiImages != null)
+                {
+                    foreach (Mat roiImage in roiImages)
+                        roiImage?.Dispose();
+                }
             }
         }
 
@@ -174,18 +202,22 @@ namespace TDJS_Vision.Node._3_Detection.QRScan
         /// <returns></returns>
         private string[] IdentifyQRCodesAndBarcodes(Mat map, WeChatQRCode QRCode)
         {
+            Mat[] bbox = null;
             try
             {
-                Mat[] bbox;  // 存放二维码检测矩形
                 string[] results;  // 存放二维码解码内容
 
                 QRCode.DetectAndDecode(map, out bbox, out results);
 
                 return results;
             }
-            catch (Exception ex)
+            finally
             {
-                throw ex;
+                if (bbox != null)
+                {
+                    foreach (Mat box in bbox)
+                        box?.Dispose();
+                }
             }
         }
 
@@ -196,26 +228,74 @@ namespace TDJS_Vision.Node._3_Detection.QRScan
 
         public async Task<Mat> ImageProcessingasync(Mat image)
         {
+            bool histogramEqualization = checkBox1.Checked;
+            double clipLimit = double.Parse(textBox2.Text);
+            int tileGridSize = int.Parse(textBox3.Text);
+            int blurSize = int.Parse(textBoxBlurSize.Text);
             return await Task.Run(() =>
             {
-                // 图像格式转换
-                Cv2.CvtColor(image, image, ColorConversionCodes.BGR2GRAY);
-
-                //直方图均衡化               
-                if (this.checkBox1.Checked)
+                Mat blurred = null;
+                try
                 {
-                    var claheLimited = Cv2.CreateCLAHE(double.Parse(this.textBox2.Text), new Size(int.Parse(this.textBox3.Text), int.Parse(this.textBox3.Text)));
-                    var claheEq = new Mat();
-                    claheLimited.Apply(image, image);
+                    // 图像格式转换
+                    Cv2.CvtColor(image, image, ColorConversionCodes.BGR2GRAY);
+
+                    //直方图均衡化
+                    if (histogramEqualization)
+                    {
+                        using (CLAHE claheLimited = Cv2.CreateCLAHE(clipLimit, new Size(tileGridSize, tileGridSize)))
+                            claheLimited.Apply(image, image);
+                    }
+
+                    // 应用高斯模糊减少噪点
+                    blurred = new Mat();
+                    Cv2.GaussianBlur(image, blurred, new Size(blurSize, blurSize), 0);
+                    Mat result = blurred;
+                    blurred = null;
+                    return result;
                 }
-
-                // 应用高斯模糊减少噪点
-                Mat blurred = new Mat();
-                Cv2.GaussianBlur(image, blurred, new Size(int.Parse(textBoxBlurSize.Text), int.Parse(textBoxBlurSize.Text)), 0);
-
-                return blurred;
+                finally
+                {
+                    blurred?.Dispose();
+                }
             });
 
+        }
+
+        /// <summary>
+        /// 替换PictureBox图像并释放上一张GDI图像。
+        /// </summary>
+        /// <param name="pictureBox">需要更新的预览控件。</param>
+        /// <param name="image">由预览控件接管的新图像。</param>
+        private static void ReplacePictureBoxImage(PictureBox pictureBox, Image image)
+        {
+            Image previous = pictureBox.Image;
+            if (ReferenceEquals(previous, image))
+                return;
+
+            pictureBox.Image = image;
+            previous?.Dispose();
+        }
+
+        /// <summary>
+        /// 释放二维码模型、ROI底图和最后一张边缘预览图。
+        /// </summary>
+        private void ReleaseImageResources()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _resourcesReleased, 1) != 0)
+                return;
+
+            imageROIEditControl1.SetImage(null);
+            ReplacePictureBoxImage(pictureBoxCanny, null);
+            _modelLoadTask?.ContinueWith(
+                task =>
+                {
+                    if (task.Status == TaskStatus.RanToCompletion)
+                        task.Result?.Dispose();
+                    else if (task.IsFaulted)
+                        GC.KeepAlive(task.Exception);
+                },
+                TaskScheduler.Default);
         }
     }
 }

@@ -1211,7 +1211,10 @@ namespace TDJS_Vision.Forms.AiTrainForm
             Bitmap old = _previewBitmap;
             _previewBitmap = bitmap;
             if (imageROIEditControlPreview != null && !imageROIEditControlPreview.IsDisposed)
+            {
                 imageROIEditControlPreview.SetImage(bitmap);
+                old = null;
+            }
             old?.Dispose();
         }
 

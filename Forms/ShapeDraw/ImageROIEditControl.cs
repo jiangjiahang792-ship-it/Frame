@@ -31,10 +31,25 @@ namespace TDJS_Vision.Forms.ShapeDraw
         /// <summary>
         /// 设置图像
         /// </summary>
-        /// <param name="bitmap"></param>
+        /// <param name="bitmap">由控件接管并在替换或销毁时释放的位图。</param>
         public void SetImage(Bitmap bitmap)
         {
+            Image previous = pictureBox1.Image;
+            if (ReferenceEquals(previous, bitmap))
+                return;
+
             pictureBox1.Image = bitmap;
+            previous?.Dispose();
+        }
+
+        /// <summary>
+        /// 控件销毁时释放最后一张由控件接管的Bitmap。
+        /// </summary>
+        private void ReleaseImageResources()
+        {
+            Image image = pictureBox1.Image;
+            pictureBox1.Image = null;
+            image?.Dispose();
         }
 
         /// <summary>
