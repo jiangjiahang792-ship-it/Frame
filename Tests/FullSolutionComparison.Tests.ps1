@@ -268,14 +268,21 @@ function Find-RunOnceButton {
         [string]$WindowMode
     )
 
+    $shownWithoutActivation = $false
     for ($attempt = 0; $attempt -lt 90; $attempt++) {
         $MainProcess.Refresh()
         if ($MainProcess.HasExited) {
             throw "程序在主界面就绪前退出。"
         }
 
-        if ($WindowMode -eq "Minimized" -and $MainProcess.MainWindowHandle -ne [IntPtr]::Zero) {
-            [void][FullSolutionGuiResourceProbe]::ShowWindowAsync($MainProcess.MainWindowHandle, 6)
+        if ($WindowMode -eq "Minimized" -and
+            -not $shownWithoutActivation -and
+            $MainProcess.MainWindowHandle -ne [IntPtr]::Zero -and
+            $MainProcess.MainWindowTitle -notlike "*正在启动*") {
+            # SW_SHOWNA=8：让WinForms创建可访问控件树，但不激活窗口、不抢键盘焦点。
+            [void][FullSolutionGuiResourceProbe]::ShowWindowAsync($MainProcess.MainWindowHandle, 8)
+            $shownWithoutActivation = $true
+            Start-Sleep -Milliseconds 200
         }
 
         if ($MainProcess.MainWindowHandle -ne [IntPtr]::Zero -and
