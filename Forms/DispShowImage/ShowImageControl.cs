@@ -39,12 +39,18 @@ namespace TDJS_Vision.Forms.DispShowImage
         private readonly List<IRoiShape> _dynamicRois = new List<IRoiShape>();
         private readonly List<IRoiShape> _staticRois = new List<IRoiShape>();
         private readonly List<ToolStripItem> _builtInMenuItems = new List<ToolStripItem>();
+        private bool _rectangleRoiDrawingEnabled;
+        private bool _isDrawingRectangleRoi;
+        private PointF _drawingStartImagePoint;
+        private RoiRotatedRect _drawingRectangleRoi;
 
         public ShowImageControl()
         {
             InitializeComponent();
             this.DoubleBuffered = true;
+            this.TabStop = true;
             this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.ResizeRedraw | ControlStyles.OptimizedDoubleBuffer, true);
+            this.SetStyle(ControlStyles.Selectable, true);
             this.BackColor = Color.FromArgb(20, 20, 20);
 
             this.MouseWheel += (s, e) => {
@@ -279,12 +285,46 @@ namespace TDJS_Vision.Forms.DispShowImage
 
         public int DynamicRoiCount { get { lock (_roiLock) return _dynamicRois.Count; } }
 
+        /// <summary>
+        /// 获取或设置是否允许在空白图像区域拖拽绘制矩形 ROI。
+        /// </summary>
+        [Category("Behavior")]
+        [Description("是否允许在空白图像区域拖拽绘制矩形ROI")]
+        public bool EnableRectangleRoiDrawing
+        {
+            get { return _rectangleRoiDrawingEnabled; }
+            set { _rectangleRoiDrawingEnabled = value; }
+        }
+
         public IRoiShape GetDynamicRoi(int index)
         {
             lock (_roiLock)
             {
                 return index >= 0 && index < _dynamicRois.Count ? _dynamicRois[index] : null;
             }
+        }
+
+        /// <summary>
+        /// 删除当前选中的动态 ROI。
+        /// </summary>
+        /// <returns>成功删除时返回 true。</returns>
+        public bool DeleteSelectedDynamicRoi()
+        {
+            lock (_roiLock)
+            {
+                IRoiShape selected = _dynamicRois.LastOrDefault(roi => roi.IsSelected);
+                if (selected == null)
+                    return false;
+
+                _dynamicRois.Remove(selected);
+                if (ReferenceEquals(_activeRoi, selected))
+                    _activeRoi = null;
+                if (ReferenceEquals(_drawingRectangleRoi, selected))
+                    _drawingRectangleRoi = null;
+            }
+
+            SafeInvalidate();
+            return true;
         }
          
         /// <summary>安全设置图像（线程安全）</summary>
@@ -959,6 +999,7 @@ namespace TDJS_Vision.Forms.DispShowImage
 
         protected override void OnMouseDown(MouseEventArgs e)
         {
+            Focus();
             _lastMouse = e.Location; 
             _mouseDownLocation = e.Location;
             PointF imgPt = ScreenToImage(e.Location);
@@ -968,13 +1009,20 @@ namespace TDJS_Vision.Forms.DispShowImage
                 _isPanning = false; // 初始不将其视为拖拽（除非移动超过阈值）
                 lock (_roiLock)
                 {
+                    _activeRoi = null;
+                    _handleIdx = -1;
                     for (int i = _dynamicRois.Count - 1; i >= 0; i--)
                     {
                         int h = _dynamicRois[i].HitTest(e.Location, _scale, _offset);
                         if (h != -1) { _activeRoi = _dynamicRois[i]; _handleIdx = h; break; }
                     }
                     if (_activeRoi != null) { foreach (var r in _dynamicRois) r.IsSelected = (r == _activeRoi); _activeRoi.BeginDrag(imgPt); }
-                    else { foreach (var r in _dynamicRois) r.IsSelected = false; }
+                    else
+                    {
+                        foreach (var r in _dynamicRois) r.IsSelected = false;
+                        if (_rectangleRoiDrawingEnabled && IsImagePointInside(imgPt))
+                            BeginRectangleRoiDrawing(imgPt);
+                    }
                 }
                 Invalidate();
             }
@@ -1001,6 +1049,13 @@ namespace TDJS_Vision.Forms.DispShowImage
                         }
                     }
                 }
+            }
+
+            if (_isDrawingRectangleRoi && e.Button == MouseButtons.Left)
+            {
+                UpdateDrawingRectangleRoi(imgPt);
+                Invalidate();
+                return;
             }
 
             // 判断是否转为拖拽（平移）图像模式
@@ -1030,6 +1085,14 @@ namespace TDJS_Vision.Forms.DispShowImage
         protected override void OnMouseUp(MouseEventArgs e) 
         { 
             base.OnMouseUp(e);
+
+            if (_isDrawingRectangleRoi)
+            {
+                FinishRectangleRoiDrawing();
+                if (Cursor == Cursors.SizeAll) Cursor = Cursors.Default;
+                Invalidate();
+                return;
+            }
             
             if (e.Button == MouseButtons.Left && !_isPanning && _activeRoi == null && _handleIdx == -1)
             {
@@ -1041,6 +1104,111 @@ namespace TDJS_Vision.Forms.DispShowImage
             _handleIdx = -1; 
             if (Cursor == Cursors.SizeAll) Cursor = Cursors.Default;
             Invalidate(); 
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+
+            if (e.KeyCode == Keys.Delete && DeleteSelectedDynamicRoi())
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+        }
+
+        /// <summary>
+        /// 开始拖拽创建矩形 ROI。
+        /// </summary>
+        /// <param name="imagePoint">鼠标按下时的图像坐标。</param>
+        private void BeginRectangleRoiDrawing(PointF imagePoint)
+        {
+            _isDrawingRectangleRoi = true;
+            _drawingStartImagePoint = ClampImagePoint(imagePoint);
+            _drawingRectangleRoi = new RoiRotatedRect(_drawingStartImagePoint.X, _drawingStartImagePoint.Y, 1F, 1F, 0F)
+            {
+                IsSelected = true,
+                ShapeColor = RoiColor,
+                Label = "ROI" + (_dynamicRois.Count + 1)
+            };
+            _dynamicRois.Add(_drawingRectangleRoi);
+        }
+
+        /// <summary>
+        /// 根据当前拖拽点更新正在创建的矩形 ROI。
+        /// </summary>
+        /// <param name="imagePoint">当前鼠标图像坐标。</param>
+        private void UpdateDrawingRectangleRoi(PointF imagePoint)
+        {
+            if (_drawingRectangleRoi == null)
+                return;
+
+            PointF current = ClampImagePoint(imagePoint);
+            float left = Math.Min(_drawingStartImagePoint.X, current.X);
+            float top = Math.Min(_drawingStartImagePoint.Y, current.Y);
+            float right = Math.Max(_drawingStartImagePoint.X, current.X);
+            float bottom = Math.Max(_drawingStartImagePoint.Y, current.Y);
+            _drawingRectangleRoi.CX = (left + right) / 2F;
+            _drawingRectangleRoi.CY = (top + bottom) / 2F;
+            _drawingRectangleRoi.W = Math.Max(1F, right - left);
+            _drawingRectangleRoi.H = Math.Max(1F, bottom - top);
+            _drawingRectangleRoi.Phi = 0F;
+        }
+
+        /// <summary>
+        /// 完成矩形 ROI 创建，过小的误操作区域会被丢弃。
+        /// </summary>
+        private void FinishRectangleRoiDrawing()
+        {
+            RoiRotatedRect roi = _drawingRectangleRoi;
+            _isDrawingRectangleRoi = false;
+            _drawingRectangleRoi = null;
+            _activeRoi = null;
+            _handleIdx = -1;
+
+            if (roi == null)
+                return;
+
+            if (roi.W < 5F || roi.H < 5F)
+            {
+                lock (_roiLock)
+                    _dynamicRois.Remove(roi);
+            }
+        }
+
+        /// <summary>
+        /// 判断图像坐标点是否位于当前图像范围内。
+        /// </summary>
+        /// <param name="imagePoint">图像坐标点。</param>
+        /// <returns>在图像内返回 true。</returns>
+        private bool IsImagePointInside(PointF imagePoint)
+        {
+            lock (_imageLock)
+            {
+                return _image != null &&
+                    imagePoint.X >= 0F &&
+                    imagePoint.Y >= 0F &&
+                    imagePoint.X < _image.Width &&
+                    imagePoint.Y < _image.Height;
+            }
+        }
+
+        /// <summary>
+        /// 将图像坐标限制到当前图像范围内，避免拖拽到图像外生成非法 ROI。
+        /// </summary>
+        /// <param name="imagePoint">原始图像坐标。</param>
+        /// <returns>限制后的图像坐标。</returns>
+        private PointF ClampImagePoint(PointF imagePoint)
+        {
+            lock (_imageLock)
+            {
+                if (_image == null)
+                    return imagePoint;
+
+                float x = Math.Max(0F, Math.Min(_image.Width - 1F, imagePoint.X));
+                float y = Math.Max(0F, Math.Min(_image.Height - 1F, imagePoint.Y));
+                return new PointF(x, y);
+            }
         }
         #endregion
 

@@ -270,6 +270,7 @@
   "ProcessNew.NodeType.ModbusSoftTrigger": "Modbus Soft Trigger Listener",
   "ProcessNew.NodeType.AIResultSend": "Send AI Result",
   "ProcessNew.NodeType.CameraIO": "Camera IO",
+  "ProcessNew.NodeType.CameraExposureGain": "Camera Exposure/Gain",
   "ProcessNew.NodeType.ImageSource": "Image Source",
   "ProcessNew.NodeType.ImageSource3D": "3D Image Source",
   "ProcessNew.NodeType.ImageSplit": "Image Split",

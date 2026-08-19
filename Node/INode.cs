@@ -481,5 +481,9 @@ namespace TDJS_Vision.Node
         /// 大模型调用
         /// </summary>
         LargeModelDetection,
+        /// <summary>
+        /// 相机曝光增益
+        /// </summary>
+        CameraExposureGain,
     }
 }

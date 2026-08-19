@@ -1136,6 +1136,12 @@
     <Compile Include="Node\3-Detection\TDAI\ParamFormTDAI.Designer.cs">
       <DependentUpon>ParamFormTDAI.cs</DependentUpon>
     </Compile>
+    <Compile Include="Node\3-Detection\TDAI\ParamFormTDAIRoiEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\TDAI\ParamFormTDAIRoiEditor.Designer.cs">
+      <DependentUpon>ParamFormTDAIRoiEditor.cs</DependentUpon>
+    </Compile>
     <Compile Include="Node\3-Detection\Unsupervised\NodeParamUnsupervisedDetection.cs" />
     <Compile Include="Node\3-Detection\Unsupervised\NodeResultUnsupervisedDetection.cs" />
     <Compile Include="Node\3-Detection\Unsupervised\NodeUnsupervisedDetection.cs">
@@ -1237,6 +1243,17 @@
     </Compile>
     <Compile Include="Node\5-EquipmentCommunication\CameraIO\ParamFormCameraIO.Designer.cs">
       <DependentUpon>ParamFormCameraIO.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\1-Acquisition\CameraExposureGain\NodeCameraExposureGain.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\1-Acquisition\CameraExposureGain\NodeParamCameraExposureGain.cs" />
+    <Compile Include="Node\1-Acquisition\CameraExposureGain\NodeResultCameraExposureGain.cs" />
+    <Compile Include="Node\1-Acquisition\CameraExposureGain\ParamFormCameraExposureGain.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\1-Acquisition\CameraExposureGain\ParamFormCameraExposureGain.Designer.cs">
+      <DependentUpon>ParamFormCameraExposureGain.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\1-Acquisition\ImageSource\CameraFrameAwaiter.cs" />
     <Compile Include="Node\1-Acquisition\ImageSource\NodeImageSource.cs">

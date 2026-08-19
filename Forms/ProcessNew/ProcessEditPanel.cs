@@ -8,6 +8,7 @@ using System.Windows.Forms;
 using TDJS_Vision.Device.Camera;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node;
+using TDJS_Vision.Node._1_Acquisition.CameraExposureGain;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._1_Acquisition.ImageSource3D;
 using TDJS_Vision.Node._1_Acquisition.ImageShow3D;
@@ -728,6 +729,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.CameraIO:
                     node = new NodeCameraIO(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.CameraExposureGain:
+                    node = new NodeCameraExposureGain(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.ImageSource:
                     node = new NodeImageSource(nodeId, nodeName, _process, nodeType);

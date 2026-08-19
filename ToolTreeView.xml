@@ -4,6 +4,7 @@
     <Node Text="图像采集" ImageName="图像采集" Tag="UNKNOWN" SelectedImageName="图像采集">
       <Nodes>
         <Node Text="图像源" ImageName="图像源" Tag="ImageSource" SelectedImageName="图像源" />
+        <Node Text="相机曝光增益" ImageName="相机拍照" Tag="CameraExposureGain" SelectedImageName="相机拍照" />
         <Node Text="3D图像源" ImageName="图像源" Tag="ImageSource3D" SelectedImageName="图像源" />
         <Node Text="图像显示" ImageName="图像显示" Tag="ImageShow" SelectedImageName="图像显示" />
       </Nodes>

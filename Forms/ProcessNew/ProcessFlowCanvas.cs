@@ -4486,6 +4486,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             switch (nodeType)
             {
                 case NodeType.ImageSource:
+                case NodeType.CameraExposureGain:
                 case NodeType.ImageSource3D:
                 case NodeType.ImageShow:
                 case NodeType.ImageShow3D:

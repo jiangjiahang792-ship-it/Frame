@@ -1,4 +1,5 @@
 using System;
+using TDJS_Vision.Node._1_Acquisition.CameraExposureGain;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._1_Acquisition.ImageSource3D;
 using TDJS_Vision.Node._1_Acquisition.ImageShow3D;
@@ -153,6 +154,8 @@ namespace TDJS_Vision.Node
                     return new NodeSignalSend(nodeId, nodeName, process, nodeType);
                 case NodeType.CameraIO:
                     return new NodeCameraIO(nodeId, nodeName, process, nodeType);
+                case NodeType.CameraExposureGain:
+                    return new NodeCameraExposureGain(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageSource:
                     return new NodeImageSource(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageSource3D:

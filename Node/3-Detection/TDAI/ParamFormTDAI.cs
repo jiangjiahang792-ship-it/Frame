@@ -5,9 +5,12 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using OpenCvSharp;
+using OpenCvSharp.Extensions;
 using TDJS_Vision.Device;
 using TDJS_Vision.Forms.SolRunParam;
 using TDJS_Vision.Forms.YTMessageBox;
@@ -42,6 +45,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// 节点参数
         /// </summary>
         public INodeParam Params { get; set; }
+
+        /// <summary>
+        /// 当前界面暂存的 ROI 检测区域，保存参数时写入节点参数。
+        /// </summary>
+        private List<TDAIRoiRegion> _roiRegions = new List<TDAIRoiRegion>();
+
         /// <summary>
         /// 原生AI模型初始化锁，避免多个节点同时加载同一个加密模型导致底层DLL失败。
         /// </summary>
@@ -218,6 +227,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 comboBoxDetectConfig2.Text = param.DetectItemName2;
                 uiSwitch_Convert.Active = param.NeedConvert;
                 textBox_Scale.Text = param.Scale+"";
+                uiSwitch_RoiEnable.Active = param.RoiEnable;
+                _roiRegions = CloneRoiRegions(param.RoiRegions);
+                RefreshRoiEditLinkText();
 
                 SetComboBoxToEnumValue<ModelName>(comboBoxModelName, param.ModelName);
                 uiSwitch_Learning.Active = param.IsAutoStudy;
@@ -331,6 +343,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 nodeParamTDAI.NodeName = _node.NodeName;
                 nodeParamTDAI.Adress = Adress;
                 nodeParamTDAI.TDAICommuntionParams = TDAICommuntionParams;
+                nodeParamTDAI.RoiEnable = uiSwitch_RoiEnable.Active;
+                nodeParamTDAI.RoiRegions = CloneRoiRegions(_roiRegions);
+
+                if (nodeParamTDAI.RoiEnable && (nodeParamTDAI.RoiRegions == null || nodeParamTDAI.RoiRegions.Count == 0))
+                    throw new Exception("启用ROI后请先点击“绘制检测区域”并至少绘制一个ROI。");
 
                 // 设置模型解析的名称
                 switch (comboBoxModelName.Text)
@@ -572,6 +589,98 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             label_studyPercentage.Enabled = value;
             textBox_studyPercentage.Enabled = value;
         }
+
+        /// <summary>
+        /// ROI 启用开关变化后刷新绘制链接提示。
+        /// </summary>
+        /// <param name="sender">事件源。</param>
+        /// <param name="value">当前开关值。</param>
+        private void uiSwitch_RoiEnable_ValueChanged(object sender, bool value)
+        {
+            RefreshRoiEditLinkText();
+        }
+
+        /// <summary>
+        /// 打开 ROI 绘制窗口。
+        /// </summary>
+        /// <param name="sender">事件源。</param>
+        /// <param name="e">事件参数。</param>
+        private async void linkLabelRoiEdit_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        {
+            try
+            {
+                using (Bitmap bitmap = await GetCurrentRoiBitmapAsync())
+                using (ParamFormTDAIRoiEditor editor = new ParamFormTDAIRoiEditor(bitmap, _roiRegions, GetCurrentRoiBitmapAsync))
+                {
+                    if (editor.ShowDialog(this) == DialogResult.OK)
+                    {
+                        _roiRegions = CloneRoiRegions(editor.RoiRegions);
+                        RefreshRoiEditLinkText();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show("打开ROI绘制窗口失败，原因：" + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// 刷新上游节点并获取当前可用于 ROI 绘制的图像。
+        /// </summary>
+        /// <returns>最新订阅图像对应的位图，调用方负责释放。</returns>
+        private async Task<Bitmap> GetCurrentRoiBitmapAsync()
+        {
+            if (_node == null)
+                throw new Exception("当前节点为空，无法绘制ROI。");
+            if (string.IsNullOrWhiteSpace(nodeSubscription1.GetText1()) || string.IsNullOrWhiteSpace(nodeSubscription1.GetText2()))
+                throw new Exception("请先选择输入图像。");
+
+            await _node.Process.RunForUpdateImages(_node);
+            OutputImage outputImage = GetOutputImage();
+            Mat sourceImage = GetFirstValidImage(outputImage);
+            if (sourceImage == null || sourceImage.Empty())
+                throw new Exception("订阅的图像为空，无法绘制ROI。");
+
+            return BitmapConverter.ToBitmap(sourceImage);
+        }
+
+        /// <summary>
+        /// 刷新 ROI 绘制链接文本，显示当前启用状态和区域数量。
+        /// </summary>
+        private void RefreshRoiEditLinkText()
+        {
+            int count = _roiRegions == null ? 0 : _roiRegions.Count;
+            string stateText = uiSwitch_RoiEnable.Active ? "已启用" : "未启用";
+            linkLabelRoiEdit.Text = $"绘制检测区域({stateText}/{count})";
+        }
+
+        /// <summary>
+        /// 从订阅图像中获取用于 ROI 绘制的第一张有效图像。
+        /// </summary>
+        /// <param name="outputImage">订阅图像输出。</param>
+        /// <returns>有效图像；没有有效图像时返回 null。</returns>
+        private static Mat GetFirstValidImage(OutputImage outputImage)
+        {
+            if (outputImage == null)
+                return null;
+            if (outputImage.Bitmaps != null && outputImage.Bitmaps.Count > 0 && OutputImage.HasValidImage(outputImage.Bitmaps[0]))
+                return outputImage.Bitmaps[0];
+            return OutputImage.HasValidImage(outputImage.SrcImg) ? outputImage.SrcImg : null;
+        }
+
+        /// <summary>
+        /// 复制 ROI 参数列表，避免窗体和节点参数共用同一个集合实例。
+        /// </summary>
+        /// <param name="regions">原始 ROI 参数集合。</param>
+        /// <returns>复制后的 ROI 参数集合。</returns>
+        private static List<TDAIRoiRegion> CloneRoiRegions(IEnumerable<TDAIRoiRegion> regions)
+        {
+            return regions == null
+                ? new List<TDAIRoiRegion>()
+                : regions.Where(region => region != null).Select(region => region.Clone()).ToList();
+        }
+
         /// <summary>
         /// 单选按钮切换处理
         /// </summary>

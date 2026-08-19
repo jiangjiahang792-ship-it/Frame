@@ -270,6 +270,7 @@
   "ProcessNew.NodeType.ModbusSoftTrigger": "监听Modbus软触发信号",
   "ProcessNew.NodeType.AIResultSend": "发送AI结果",
   "ProcessNew.NodeType.CameraIO": "相机IO",
+  "ProcessNew.NodeType.CameraExposureGain": "相机曝光增益",
   "ProcessNew.NodeType.ImageSource": "图像源",
   "ProcessNew.NodeType.ImageSource3D": "3D图像源",
   "ProcessNew.NodeType.ImageSplit": "图像分割",
