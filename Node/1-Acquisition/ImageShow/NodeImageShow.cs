@@ -24,9 +24,18 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <param name="windowName">图像窗口名称。</param>
         /// <param name="bitmap">待显示图像。</param>
         /// <param name="displayResult">可选的显示叠加结果。</param>
-        public static void PublishImageShowChanged(object sender, string windowName, Bitmap bitmap, AlgorithmResult displayResult = null)
+        /// <param name="traceContext">可选的跨线程流程诊断上下文。</param>
+        public static void PublishImageShowChanged(
+            object sender,
+            string windowName,
+            Bitmap bitmap,
+            AlgorithmResult displayResult = null,
+            PerformanceTraceContext traceContext = null)
         {
-            ImageShowChanged?.Invoke(sender, new ImageShowPamra(windowName, bitmap, displayResult));
+            if (traceContext == null && sender is NodeBase sourceNode)
+                traceContext = PerformanceTraceContext.CreateIfEnabled(sourceNode.Process, sourceNode.ID, sourceNode.NodeName);
+
+            ImageShowChanged?.Invoke(sender, new ImageShowPamra(windowName, bitmap, displayResult, traceContext));
         }
 
         /// <summary>
@@ -85,43 +94,40 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         SetStatus(NodeStatus.Unexecuted, "*");
                         base.CheckTokenCancel(token);
 
-                        Stopwatch performanceStopwatch = Stopwatch.StartNew();
+                        Stopwatch performanceStopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
                         OutputImage outputImage = form.GetOutputImage();
-                        long afterGetOutput = performanceStopwatch.ElapsedMilliseconds;
+                        long afterGetOutput = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                         OpenCvSharp.Mat firstMat = outputImage?.Bitmaps != null && outputImage.Bitmaps.Count > 0 ? outputImage.Bitmaps[0] : null;
-                        string imageInfo = GetMatDiagnosticText(firstMat);
+                        PerformanceTraceContext traceContext = PerformanceTraceContext.CreateIfEnabled(Process, ID, NodeName);
                         Bitmap image = firstMat.ToBitmap();
-                        long afterToBitmap = performanceStopwatch.ElapsedMilliseconds;
-                        PublishImageShowChanged(this, param.WindowName, image, outputImage.DisplayResult);
-                        long afterImageEvent = performanceStopwatch.ElapsedMilliseconds;
+                        long afterToBitmap = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
+                        PublishImageShowChanged(this, param.WindowName, image, outputImage.DisplayResult, traceContext);
+                        long afterImageEvent = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                         PublishImageShowWindowNameChanged(Process, param.WindowName);
-                        long afterWindowEvent = performanceStopwatch.ElapsedMilliseconds;
+                        long afterWindowEvent = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                         var time = SetRunResult(startTime, NodeStatus.Successful);
-                        long afterSetResult = performanceStopwatch.ElapsedMilliseconds;
+                        long afterSetResult = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                         ((NodeResultImageShow)Result).RunTime = time;
-                        if (showLog)
+                        if (traceContext != null)
                         {
-                            LogHelper.AddLog(
+                            PerformanceSpikeDiagnostics.LogIfEnabled(
                                 MsgLevel.Debug,
-                                $"【性能诊断-图像显示】节点({ID}.{NodeName}) 图像={imageInfo}；订阅读取={afterGetOutput}ms；ToBitmap={afterToBitmap - afterGetOutput}ms；图像事件={afterImageEvent - afterToBitmap}ms；窗口事件={afterWindowEvent - afterImageEvent}ms；状态={afterSetResult - afterWindowEvent}ms；节点总耗时={afterSetResult}ms；状态耗时={time}ms",
+                                () => $"【性能诊断-图像显示】【完整耗时】{traceContext.ToLogText()}；阶段=显示节点投递完成；图像={GetMatDiagnosticText(firstMat)}；订阅读取={afterGetOutput}ms；ToBitmap={afterToBitmap - afterGetOutput}ms；图像事件={afterImageEvent - afterToBitmap}ms；窗口事件={afterWindowEvent - afterImageEvent}ms；状态={afterSetResult - afterWindowEvent}ms；节点总耗时={afterSetResult}ms；状态耗时={time}ms",
                                 true);
-                            if (PerformanceSpikeDiagnostics.ShouldLog(
+                            PerformanceSpikeDiagnostics.LogSlowIfEnabled(
+                                MsgLevel.Debug,
                                 PerformanceSpikeDiagnostics.CommonSlowMs,
+                                () => $"【慢诊断-图像显示】{traceContext.ToLogText()}；窗口={param.WindowName}；输出图像={PerformanceSpikeDiagnostics.GetOutputImageText(outputImage)}；ToBitmap图像={PerformanceSpikeDiagnostics.GetMatText(firstMat)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(outputImage.DisplayResult)}；订阅读取={afterGetOutput}ms；ToBitmap={afterToBitmap - afterGetOutput}ms；图像事件={afterImageEvent - afterToBitmap}ms；窗口事件={afterWindowEvent - afterImageEvent}ms；状态={afterSetResult - afterWindowEvent}ms；节点总耗时={afterSetResult}ms；状态耗时={time}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                                true,
                                 afterSetResult,
                                 afterGetOutput,
                                 afterToBitmap - afterGetOutput,
                                 afterImageEvent - afterToBitmap,
                                 afterWindowEvent - afterImageEvent,
-                                afterSetResult - afterWindowEvent))
-                            {
-                                LogHelper.AddLog(
-                                    MsgLevel.Debug,
-                                    $"【慢诊断-图像显示】节点({ID}.{NodeName}) 窗口={param.WindowName}；输出图像={PerformanceSpikeDiagnostics.GetOutputImageText(outputImage)}；ToBitmap图像={PerformanceSpikeDiagnostics.GetMatText(firstMat)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(outputImage.DisplayResult)}；订阅读取={afterGetOutput}ms；ToBitmap={afterToBitmap - afterGetOutput}ms；图像事件={afterImageEvent - afterToBitmap}ms；窗口事件={afterWindowEvent - afterImageEvent}ms；状态={afterSetResult - afterWindowEvent}ms；节点总耗时={afterSetResult}ms；状态耗时={time}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
-                                    true);
-                            }
-
-                            LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                                afterSetResult - afterWindowEvent);
                         }
+                        if (showLog)
+                            LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
                         return new NodeReturn(NodeRunFlag.ContinueRun);
                     }
                     catch (OperationCanceledException)

@@ -234,6 +234,7 @@
   <ItemGroup>
     <Compile Include="ConfigHelper.cs" />
     <Compile Include="Diagnostics\CameraFrameTraceRegistry.cs" />
+    <Compile Include="Diagnostics\PerformanceTraceContext.cs" />
     <Compile Include="Diagnostics\ProcessPerformanceTrace.cs" />
     <Compile Include="Diagnostics\PerformanceSpikeDiagnostics.cs" />
     <Compile Include="DetectItemLanguage.cs" />

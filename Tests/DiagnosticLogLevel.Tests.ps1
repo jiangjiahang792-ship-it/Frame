@@ -78,6 +78,9 @@ $diagnosticMarkers = @(
         '【性能诊断-图像显示】',
         '【慢诊断-图像显示】'
     ) },
+    @{ Path = 'Node\2-ImagePreprocessing\ImageRotate\NodeImageRotate.cs'; Markers = @(
+        '【慢诊断-图像旋转】'
+    ) },
     @{ Path = 'Node\7-ResultProcessing\ImageSave\NodeSaveImage.cs'; Markers = @(
         '【性能诊断-保存图像快速入队】',
         '【内存诊断-保存队列启动】',

@@ -75,7 +75,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                         SetStatus(NodeStatus.Unexecuted, "*");
                         await base.CheckTokenCancel(token);
 
-                        Stopwatch enqueueStopwatch = Stopwatch.StartNew();
+                        Stopwatch enqueueStopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
                         string barcode = string.Empty;
                         ImageSaveJudgment imageSaveJudgment = null;
                         OutputImage outputImage;
@@ -90,20 +90,24 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                         if (param.NeedOkNg)
                             imageSaveJudgment = form.GetImageSaveJudgment();
                         outputImage = form.GetOutputImageForSave();
+                        PerformanceTraceContext traceContext = PerformanceTraceContext.CreateIfEnabled(Process, ID, NodeName);
 
                         // 参数合法性判断
                         if (param.SavePath.IsNullOrEmpty())
                             throw new Exception($"存图路径未设置！");
 
                         // 保存图像节点只做轻量任务投递，耗时的 ToBitmap、标注绘制、压缩和写盘都由后台队列处理。
-                        SaveImageEnqueueResult enqueueResult = EnqueueSaveImage(param, outputImage, imageSaveJudgment, barcode);
-                        long enqueueElapsed = enqueueStopwatch.ElapsedMilliseconds;
+                        SaveImageEnqueueResult enqueueResult = EnqueueSaveImage(param, outputImage, imageSaveJudgment, barcode, traceContext);
+                        long enqueueElapsed = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(enqueueStopwatch);
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         Result.RunTime = time;
-                        LogHelper.AddLog(
-                            MsgLevel.Debug,
-                            $"【性能诊断-保存图像快速入队】节点({ID}.{NodeName}) 节点计时={time}ms；快速入队={enqueueElapsed}ms；路径决策={enqueueResult.PathDecisionMs}ms；队列投递={enqueueResult.EnqueueMs}ms；目标路径={enqueueResult.TargetPathCount}；入队任务={enqueueResult.EnqueuedTaskCount}；已跳过={enqueueResult.Skipped}；当前队列={processor.QueuedCount}；图像={PerformanceSpikeDiagnostics.GetOutputImageText(outputImage)}",
-                            true);
+                        if (traceContext != null)
+                        {
+                            PerformanceSpikeDiagnostics.LogIfEnabled(
+                                MsgLevel.Debug,
+                                () => $"【性能诊断-保存图像快速入队】【完整耗时】{traceContext.ToLogText()}；阶段=后台任务入队；节点计时={time}ms；快速入队={enqueueElapsed}ms；路径决策={enqueueResult.PathDecisionMs}ms；队列投递={enqueueResult.EnqueueMs}ms；目标路径={enqueueResult.TargetPathCount}；入队任务={enqueueResult.EnqueuedTaskCount}；已跳过={enqueueResult.Skipped}；当前队列={processor.QueuedCount}；图像={PerformanceSpikeDiagnostics.GetOutputImageText(outputImage)}",
+                                true);
+                        }
                         if (showLog)
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
                         return new NodeReturn(NodeRunFlag.ContinueRun);
@@ -150,10 +154,16 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <param name="outputImage">订阅得到的输出图像。</param>
         /// <param name="imageSaveJudgment">用于 OK/NG 目录判断的统一判定结果。</param>
         /// <param name="barcode">条码命名值。</param>
+        /// <param name="traceContext">跨线程流程诊断上下文。</param>
         /// <returns>主流程入队诊断结果。</returns>
-        private SaveImageEnqueueResult EnqueueSaveImage(NodeParamSaveImage param, OutputImage outputImage, ImageSaveJudgment imageSaveJudgment, string barcode)
+        private SaveImageEnqueueResult EnqueueSaveImage(
+            NodeParamSaveImage param,
+            OutputImage outputImage,
+            ImageSaveJudgment imageSaveJudgment,
+            string barcode,
+            PerformanceTraceContext traceContext)
         {
-            Stopwatch stopwatch = Stopwatch.StartNew();
+            Stopwatch stopwatch = traceContext == null ? null : Stopwatch.StartNew();
             DateTime time = DateTime.Now;
             // 1.存图路径（不包含图片名称）
             string imageSavePath;
@@ -214,7 +224,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                 paths.Add(imageSavePath);
             }
 
-            long afterPathDecision = stopwatch.ElapsedMilliseconds;
+            long afterPathDecision = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
             if (paths.Count == 0)
             {
                 return new SaveImageEnqueueResult
@@ -222,13 +232,20 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                     EnqueuedTaskCount = 0,
                     TargetPathCount = 0,
                     PathDecisionMs = afterPathDecision,
-                    EnqueueMs = stopwatch.ElapsedMilliseconds - afterPathDecision,
+                    EnqueueMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch) - afterPathDecision,
                     Skipped = true
                 };
             }
 
             Mat sourceImage = outputImage.Bitmaps[0];
-            SaveImageTask saveImageTask = QueueImageForSave(sourceImage, outputImage.DisplayResult, paths, imageName, param.NeedCompress, param.CompressValue);
+            SaveImageTask saveImageTask = QueueImageForSave(
+                sourceImage,
+                outputImage.DisplayResult,
+                paths,
+                imageName,
+                param.NeedCompress,
+                traceContext,
+                param.CompressValue);
             processor.EnqueueImage(saveImageTask);
 
             return new SaveImageEnqueueResult
@@ -236,7 +253,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                 EnqueuedTaskCount = 1,
                 TargetPathCount = paths.Count,
                 PathDecisionMs = afterPathDecision,
-                EnqueueMs = stopwatch.ElapsedMilliseconds - afterPathDecision,
+                EnqueueMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch) - afterPathDecision,
                 Skipped = false
             };
         }
@@ -272,9 +289,17 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <param name="targetDirectories">保存目标目录集合。</param>
         /// <param name="imageName">图片名称，不含扩展名。</param>
         /// <param name="needCompress">是否压缩。</param>
+        /// <param name="traceContext">跨线程流程诊断上下文。</param>
         /// <param name="compressValue">压缩质量。</param>
         /// <returns>后台保存任务。</returns>
-        private SaveImageTask QueueImageForSave(Mat sourceImage, AlgorithmResult displayResult, List<string> targetDirectories, string imageName, bool needCompress, long compressValue = 100)
+        private SaveImageTask QueueImageForSave(
+            Mat sourceImage,
+            AlgorithmResult displayResult,
+            List<string> targetDirectories,
+            string imageName,
+            bool needCompress,
+            PerformanceTraceContext traceContext,
+            long compressValue = 100)
         {
             // 创建保存任务
             SaveImageTask saveTask = new SaveImageTask
@@ -284,6 +309,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                 TargetDirectories = targetDirectories == null ? new List<string>() : new List<string>(targetDirectories),
                 ImageName = imageName,
                 NeedCompress = needCompress,
+                TraceContext = traceContext,
                 CompressValue = compressValue
             };
 
@@ -356,6 +382,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             public string ImageName { get; set; }
             /// <summary>是否需要压缩。</summary>
             public bool NeedCompress { get; set; }
+            /// <summary>跨线程流程诊断上下文，Debug关闭时为空。</summary>
+            public PerformanceTraceContext TraceContext { get; set; }
             /// <summary>压缩质量。</summary>
             public long CompressValue { get; set; }
         }
@@ -378,10 +406,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                 Task.Run(() => ProcessImages(_cancellationTokenSource.Token));
             }
 
-            LogHelper.AddLog(
-                MsgLevel.Debug,
-                $"【内存诊断-保存队列启动】节点({_ownerText}) 工作线程={_workerCount}；内存={PerformanceSpikeDiagnostics.GetMemoryText()}",
-                true);
+            if (PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug))
+            {
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【内存诊断-保存队列启动】节点({_ownerText}) 工作线程={_workerCount}；内存={PerformanceSpikeDiagnostics.GetMemoryText()}",
+                    true);
+            }
         }
 
         //添加任务
@@ -406,34 +437,48 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             //_imageQueue.GetConsumingEnumerable(cancellationToken):按顺序消费数据，并且可以在取消请求时停止消费。(消费者消费数据)
             foreach (var saveImagedata in _imageQueue.GetConsumingEnumerable(cancellationToken))
             {
-                string imageInfo = PerformanceSpikeDiagnostics.GetMatText(saveImagedata.SourceImage);
+                bool diagnosticEnabled = saveImagedata.TraceContext != null &&
+                    PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
+                string imageInfo = diagnosticEnabled
+                    ? PerformanceSpikeDiagnostics.GetMatText(saveImagedata.SourceImage)
+                    : string.Empty;
                 Bitmap bitmap = null;
-                MemorySnapshot beforeSaveSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
-                Stopwatch stopwatch = Stopwatch.StartNew();
+                MemorySnapshot beforeSaveSnapshot = diagnosticEnabled
+                    ? PerformanceSpikeDiagnostics.CaptureMemorySnapshot()
+                    : null;
+                Stopwatch stopwatch = diagnosticEnabled ? Stopwatch.StartNew() : null;
                 try
                 {
                     bitmap = CreateBitmapForSave(saveImagedata, stopwatch, out SaveImageRenderTiming renderTiming);
-                    MemorySnapshot afterRenderSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
-                    LogHelper.AddLog(
-                        MsgLevel.Debug,
-                        $"【内存诊断-保存图像后台取图】节点({_ownerText}) 源图={imageInfo}；待保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；有标注={renderTiming.HasDrawableDisplayResult}；ToBitmap={renderTiming.ToBitmapMs}ms；确保可绘制={renderTiming.EnsureDrawableMs}ms；写入标注={renderTiming.DrawDisplayResultMs}ms；后台取图总耗时={renderTiming.TotalMs}ms；目标路径={saveImagedata.TargetDirectories.Count}；私有内存变化={afterRenderSnapshot.PrivateMemoryMb - beforeSaveSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterRenderSnapshot.GdiObjectCount - beforeSaveSnapshot.GdiObjectCount}；前={beforeSaveSnapshot.ToLogText()}；后={afterRenderSnapshot.ToLogText()}",
-                        true);
+                    if (diagnosticEnabled)
+                    {
+                        MemorySnapshot afterRenderSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
+                        long traceToRenderMilliseconds = saveImagedata.TraceContext.GetElapsedMilliseconds(Stopwatch.GetTimestamp());
+                        PerformanceSpikeDiagnostics.LogIfEnabled(
+                            MsgLevel.Debug,
+                            () => $"【内存诊断-保存图像后台取图】【完整耗时】{saveImagedata.TraceContext.ToLogText()}；阶段=后台取图完成；源图={imageInfo}；待保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；有标注={renderTiming.HasDrawableDisplayResult}；ToBitmap={renderTiming.ToBitmapMs}ms；确保可绘制={renderTiming.EnsureDrawableMs}ms；写入标注={renderTiming.DrawDisplayResultMs}ms；后台取图总耗时={renderTiming.TotalMs}ms；节点到后台取图={traceToRenderMilliseconds}ms；目标路径={saveImagedata.TargetDirectories.Count}；私有内存变化={afterRenderSnapshot.PrivateMemoryMb - beforeSaveSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterRenderSnapshot.GdiObjectCount - beforeSaveSnapshot.GdiObjectCount}；前={beforeSaveSnapshot.ToLogText()}；后={afterRenderSnapshot.ToLogText()}",
+                            true);
+                    }
 
                     foreach (string targetDirectory in saveImagedata.TargetDirectories)
                     {
-                        long beforePath = stopwatch.ElapsedMilliseconds;
+                        long beforePath = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
                         Directory.CreateDirectory(targetDirectory);
                         string fileName = GetFileName(targetDirectory, saveImagedata.ImageName);
-                        long afterPath = stopwatch.ElapsedMilliseconds;
+                        long afterPath = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
 
                         //处理图片(压缩图片)
                         SaveWithCompress(bitmap, fileName, saveImagedata.NeedCompress, saveImagedata.CompressValue);
-                        long afterSave = stopwatch.ElapsedMilliseconds;
-                        MemorySnapshot afterSaveSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
-                        LogHelper.AddLog(
-                            MsgLevel.Debug,
-                            $"【内存诊断-保存队列消费】节点({_ownerText}) 保存完成；路径={fileName}；源图={imageInfo}；保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；压缩={saveImagedata.NeedCompress}；路径准备={afterPath - beforePath}ms；保存耗时={afterSave - afterPath}ms；后台总耗时={afterSave}ms；队列剩余={QueuedCount}；私有内存变化={afterSaveSnapshot.PrivateMemoryMb - beforeSaveSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterSaveSnapshot.GdiObjectCount - beforeSaveSnapshot.GdiObjectCount}；前={beforeSaveSnapshot.ToLogText()}；后={afterSaveSnapshot.ToLogText()}",
-                            true);
+                        long afterSave = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+                        if (diagnosticEnabled)
+                        {
+                            MemorySnapshot afterSaveSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
+                            long traceToSaveMilliseconds = saveImagedata.TraceContext.GetElapsedMilliseconds(Stopwatch.GetTimestamp());
+                            PerformanceSpikeDiagnostics.LogIfEnabled(
+                                MsgLevel.Debug,
+                                () => $"【内存诊断-保存队列消费】【完整耗时】{saveImagedata.TraceContext.ToLogText()}；阶段=文件保存完成；路径={fileName}；源图={imageInfo}；保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；压缩={saveImagedata.NeedCompress}；路径准备={afterPath - beforePath}ms；保存耗时={afterSave - afterPath}ms；后台总耗时={afterSave}ms；节点到保存完成={traceToSaveMilliseconds}ms；队列剩余={QueuedCount}；私有内存变化={afterSaveSnapshot.PrivateMemoryMb - beforeSaveSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterSaveSnapshot.GdiObjectCount - beforeSaveSnapshot.GdiObjectCount}；前={beforeSaveSnapshot.ToLogText()}；后={afterSaveSnapshot.ToLogText()}",
+                                true);
+                        }
                     }
                 }
                 catch (OperationCanceledException)
@@ -442,17 +487,24 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                 }
                 catch (Exception ex)
                 {
-                    LogHelper.AddLog(MsgLevel.Exception, $"压缩图像失败: {ex.Message}");
+                    LogHelper.AddLog(
+                        MsgLevel.Exception,
+                        $"压缩图像失败：{saveImagedata.TraceContext?.ToLogText() ?? $"节点={_ownerText}"}；{ex.Message}");
                 }
                 finally
                 {
-                    MemorySnapshot beforeDisposeSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
+                    MemorySnapshot beforeDisposeSnapshot = diagnosticEnabled
+                        ? PerformanceSpikeDiagnostics.CaptureMemorySnapshot()
+                        : null;
                     bitmap?.Dispose();
-                    MemorySnapshot afterDisposeSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
-                    LogHelper.AddLog(
-                        MsgLevel.Debug,
-                        $"【内存诊断-保存队列释放】节点({_ownerText}) 已释放后台生成Bitmap；源图={imageInfo}；释放后队列={QueuedCount}；私有内存变化={afterDisposeSnapshot.PrivateMemoryMb - beforeDisposeSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterDisposeSnapshot.GdiObjectCount - beforeDisposeSnapshot.GdiObjectCount}；前={beforeDisposeSnapshot.ToLogText()}；后={afterDisposeSnapshot.ToLogText()}",
-                        true);
+                    if (diagnosticEnabled)
+                    {
+                        MemorySnapshot afterDisposeSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
+                        PerformanceSpikeDiagnostics.LogIfEnabled(
+                            MsgLevel.Debug,
+                            () => $"【内存诊断-保存队列释放】{saveImagedata.TraceContext.ToLogText()}；已释放后台生成Bitmap；源图={imageInfo}；释放后队列={QueuedCount}；私有内存变化={afterDisposeSnapshot.PrivateMemoryMb - beforeDisposeSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterDisposeSnapshot.GdiObjectCount - beforeDisposeSnapshot.GdiObjectCount}；前={beforeDisposeSnapshot.ToLogText()}；后={afterDisposeSnapshot.ToLogText()}",
+                            true);
+                    }
                 }
             }
         }
@@ -484,19 +536,19 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         private static Bitmap CreateBitmapForSave(SaveImageTask task, Stopwatch stopwatch, out SaveImageRenderTiming timing)
         {
             timing = new SaveImageRenderTiming();
-            long beforeToBitmap = stopwatch.ElapsedMilliseconds;
+            long beforeToBitmap = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
             Bitmap bitmap = task.SourceImage.ToBitmap();
-            long afterToBitmap = stopwatch.ElapsedMilliseconds;
+            long afterToBitmap = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
             timing.ToBitmapMs = afterToBitmap - beforeToBitmap;
 
             timing.HasDrawableDisplayResult = ParamFormImageSave.HasDrawableDisplayResult(task.DisplayResult);
             if (timing.HasDrawableDisplayResult)
             {
                 bitmap = ParamFormImageSave.EnsureDrawableBitmap(bitmap);
-                long afterEnsureDrawable = stopwatch.ElapsedMilliseconds;
+                long afterEnsureDrawable = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
                 timing.EnsureDrawableMs = afterEnsureDrawable - afterToBitmap;
                 ShowImageControl.DrawDisplayResultToBitmap(bitmap, task.DisplayResult);
-                long afterDrawDisplayResult = stopwatch.ElapsedMilliseconds;
+                long afterDrawDisplayResult = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
                 timing.DrawDisplayResultMs = afterDrawDisplayResult - afterEnsureDrawable;
                 timing.TotalMs = afterDrawDisplayResult;
             }
@@ -572,10 +624,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             _imageQueue.CompleteAdding(); // 标记不再添加新的元素
             _cancellationTokenSource.Cancel(); // 取消所有任务
             int disposedPendingCount = DisposePendingImages();
-            LogHelper.AddLog(
-                MsgLevel.Debug,
-                $"【内存诊断-保存队列停止】节点({_ownerText}) 停止保存队列；已释放待保存图片={disposedPendingCount}；剩余队列={QueuedCount}；内存={PerformanceSpikeDiagnostics.GetMemoryText()}",
-                true);
+            if (PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug))
+            {
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【内存诊断-保存队列停止】节点({_ownerText}) 停止保存队列；已释放待保存图片={disposedPendingCount}；剩余队列={QueuedCount}；内存={PerformanceSpikeDiagnostics.GetMemoryText()}",
+                    true);
+            }
         }
 
         /// <summary>

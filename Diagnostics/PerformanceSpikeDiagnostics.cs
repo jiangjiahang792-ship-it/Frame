@@ -108,6 +108,26 @@ namespace TDJS_Vision.Diagnostics
         }
 
         /// <summary>
+        /// 仅在指定诊断等级开启时创建高精度计时器，关闭时避免分配Stopwatch对象。
+        /// </summary>
+        /// <param name="level">需要记录的日志等级。</param>
+        /// <returns>诊断开启时返回已启动计时器，否则返回null。</returns>
+        public static Stopwatch StartStopwatchIfEnabled(MsgLevel level)
+        {
+            return IsDiagnosticLogEnabled(level) ? Stopwatch.StartNew() : null;
+        }
+
+        /// <summary>
+        /// 安全读取可选诊断计时器的经过毫秒数。
+        /// </summary>
+        /// <param name="stopwatch">按诊断开关创建的计时器。</param>
+        /// <returns>计时器不存在时返回0。</returns>
+        public static long GetElapsedMilliseconds(Stopwatch stopwatch)
+        {
+            return stopwatch?.ElapsedMilliseconds ?? 0L;
+        }
+
+        /// <summary>
         /// 仅在日志等级开启后才生成并记录诊断文本，避免关闭 Debug 时仍采集运行时现场。
         /// </summary>
         /// <param name="level">需要记录的日志等级。</param>

@@ -109,19 +109,22 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 Result.RunTime = time;
-                if (showLog)
+                if (performanceDiagnostics != null)
                 {
-                    LogHelper.AddLog(MsgLevel.Debug, $"【性能诊断-ROI结果绘制】节点({ID}.{NodeName}) {performanceDiagnostics.ToLogText()}；状态耗时={time}ms", true);
+                    PerformanceSpikeDiagnostics.LogIfEnabled(
+                        MsgLevel.Debug,
+                        () => $"【性能诊断-ROI结果绘制】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；{performanceDiagnostics.ToLogText()}；状态耗时={time}ms",
+                        true);
                     if (performanceDiagnostics.ShouldLogSlow())
                     {
-                        LogHelper.AddLog(
+                        PerformanceSpikeDiagnostics.LogIfEnabled(
                             MsgLevel.Debug,
-                            $"【慢诊断-ROI结果绘制】节点({ID}.{NodeName}) {performanceDiagnostics.ToLogText()}；图像源={performanceDiagnostics.ImageSourceNodeText}；输入图像={performanceDiagnostics.InputImageText}；输出图像={performanceDiagnostics.OutputImageText}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；状态耗时={time}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                            () => $"【慢诊断-ROI结果绘制】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；{performanceDiagnostics.ToLogText()}；图像源={performanceDiagnostics.ImageSourceNodeText}；输入图像={performanceDiagnostics.InputImageText}；输出图像={performanceDiagnostics.OutputImageText}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；状态耗时={time}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
                             true);
                     }
-
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
                 }
+                if (showLog)
+                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -184,35 +187,45 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             if (param == null)
                 throw new Exception("结果绘制参数为空！");
 
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            performanceDiagnostics = new ResultOverlayDrawPerformanceDiagnostics();
+            Stopwatch stopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
+            performanceDiagnostics = stopwatch == null ? null : new ResultOverlayDrawPerformanceDiagnostics();
 
             object imageValue = ReadSubscribedValue(owner, param.ImageText1, param.ImageText2, out NodeBase imageSourceNode);
-            performanceDiagnostics.ImageSubscriptionMs = stopwatch.ElapsedMilliseconds;
-            performanceDiagnostics.ImageSourceNodeText = imageSourceNode == null ? "空" : GetNodeText(imageSourceNode);
+            long imageSubscriptionMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+            if (performanceDiagnostics != null)
+            {
+                performanceDiagnostics.ImageSubscriptionMs = imageSubscriptionMs;
+                performanceDiagnostics.ImageSourceNodeText = imageSourceNode == null ? "空" : GetNodeText(imageSourceNode);
+            }
             OutputImage inputImage = imageValue as OutputImage;
             if (inputImage == null)
                 throw new Exception("订阅的图像类型不是 OutputImage！");
-            performanceDiagnostics.InputImageText = PerformanceSpikeDiagnostics.GetOutputImageText(inputImage);
+            if (performanceDiagnostics != null)
+                performanceDiagnostics.InputImageText = PerformanceSpikeDiagnostics.GetOutputImageText(inputImage);
 
             Mat cleanImage = MeasurementNodeHelper.GetFirstMat(inputImage);
-            long afterGetCleanImage = stopwatch.ElapsedMilliseconds;
-            performanceDiagnostics.GetCleanImageMs = afterGetCleanImage - performanceDiagnostics.ImageSubscriptionMs;
+            long afterGetCleanImage = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+            if (performanceDiagnostics != null)
+                performanceDiagnostics.GetCleanImageMs = afterGetCleanImage - imageSubscriptionMs;
 
             displayResult = BuildDisplayResult(owner, param, performanceDiagnostics);
-            long afterBuildDisplay = stopwatch.ElapsedMilliseconds;
-            performanceDiagnostics.BuildDisplayResultMs = afterBuildDisplay - afterGetCleanImage;
+            long afterBuildDisplay = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+            if (performanceDiagnostics != null)
+                performanceDiagnostics.BuildDisplayResultMs = afterBuildDisplay - afterGetCleanImage;
             outputImage = new OutputImage
             {
                 Bitmaps = new List<Mat> { cleanImage },
                 Rectangles = inputImage.Rectangles == null ? new List<Rect>() : inputImage.Rectangles.ToList(),
                 DisplayResult = displayResult
             };
-            long afterBuildOutput = stopwatch.ElapsedMilliseconds;
-            performanceDiagnostics.BuildOutputImageMs = afterBuildOutput - afterBuildDisplay;
-            performanceDiagnostics.TotalMs = afterBuildOutput;
-            performanceDiagnostics.CaptureDisplayResultCounts(displayResult);
-            performanceDiagnostics.OutputImageText = PerformanceSpikeDiagnostics.GetOutputImageText(outputImage);
+            long afterBuildOutput = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+            if (performanceDiagnostics != null)
+            {
+                performanceDiagnostics.BuildOutputImageMs = afterBuildOutput - afterBuildDisplay;
+                performanceDiagnostics.TotalMs = afterBuildOutput;
+                performanceDiagnostics.CaptureDisplayResultCounts(displayResult);
+                performanceDiagnostics.OutputImageText = PerformanceSpikeDiagnostics.GetOutputImageText(outputImage);
+            }
         }
 
         public static object ReadSubscribedValue(NodeBase owner, string nodeText, string resultText, out NodeBase sourceNode)
@@ -326,7 +339,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
 
             foreach (ResultOverlayDrawItem item in enabledItems)
             {
-                Stopwatch itemWatch = Stopwatch.StartNew();
+                Stopwatch itemWatch = performanceDiagnostics == null ? null : Stopwatch.StartNew();
                 switch (item.ItemType)
                 {
                     case ResultOverlayDrawItemType.Text:

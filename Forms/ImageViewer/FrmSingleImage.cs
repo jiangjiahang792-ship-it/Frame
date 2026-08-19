@@ -203,10 +203,13 @@ namespace TDJS_Vision.Forms.ImageViewer
                 _isBoundToProcess = true;
             }
 
-            SetViewerImage(e.Bitmap, e.DisplayResult);
+            SetViewerImage(e.Bitmap, e.DisplayResult, e.TraceContext);
         }
 
-        private void SetViewerImage(Bitmap bitmap, AlgorithmResult displayResult = null)
+        private void SetViewerImage(
+            Bitmap bitmap,
+            AlgorithmResult displayResult = null,
+            PerformanceTraceContext traceContext = null)
         {
             if (IsDisposed)
             {
@@ -214,30 +217,36 @@ namespace TDJS_Vision.Forms.ImageViewer
                 return;
             }
 
-            Stopwatch scheduleStopwatch = Stopwatch.StartNew();
+            bool diagnosticEnabled = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
+            Stopwatch scheduleStopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
             Action updateImage = () =>
             {
-                long queueDelay = scheduleStopwatch.ElapsedMilliseconds;
+                long queueDelay = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(scheduleStopwatch);
                 if (showImageControl1.IsDisposed)
                 {
                     bitmap?.Dispose();
                     return;
                 }
 
-                Stopwatch uiStopwatch = Stopwatch.StartNew();
+                Stopwatch uiStopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
                 showImageControl1.SetImage(bitmap, displayResult);
-                long setImageMs = uiStopwatch.ElapsedMilliseconds;
-                PerformanceSpikeDiagnostics.LogIfEnabled(
-                    MsgLevel.Debug,
-                    () => $"【性能诊断-图像显示】窗口({FormName}) UI刷新完成，图像={GetBitmapDiagnosticText(bitmap)}；显示结果={GetDisplayResultDiagnosticText(displayResult)}；排队等待={queueDelay}ms；SetImage={setImageMs}ms。",
-                    true);
-                PerformanceSpikeDiagnostics.LogSlowIfEnabled(
-                    MsgLevel.Debug,
-                    PerformanceSpikeDiagnostics.UiQueueSlowMs,
-                    () => $"【慢诊断-窗口图像显示】窗口({FormName}) 图像={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；排队等待={queueDelay}ms；SetImage={setImageMs}ms；窗体可见={Visible}；句柄已创建={IsHandleCreated}；InvokeRequired={InvokeRequired}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
-                    true,
-                    queueDelay,
-                    setImageMs);
+                long setImageMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(uiStopwatch);
+                if (diagnosticEnabled)
+                {
+                    long traceToUiMilliseconds = traceContext?.GetElapsedMilliseconds(Stopwatch.GetTimestamp()) ?? 0L;
+                    PerformanceSpikeDiagnostics.LogIfEnabled(
+                        MsgLevel.Debug,
+                        () => $"【完整耗时-图像显示】{GetTraceContextText(traceContext)}；阶段=UI刷新完成；窗口={FormName}；图像={GetBitmapDiagnosticText(bitmap)}；显示结果={GetDisplayResultDiagnosticText(displayResult)}；节点投递到UI={traceToUiMilliseconds}ms；UI排队={queueDelay}ms；SetImage={setImageMs}ms",
+                        true);
+                    PerformanceSpikeDiagnostics.LogSlowIfEnabled(
+                        MsgLevel.Debug,
+                        PerformanceSpikeDiagnostics.UiQueueSlowMs,
+                        () => $"【慢诊断-窗口图像显示】{GetTraceContextText(traceContext)}；窗口={FormName}；图像={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；节点投递到UI={traceToUiMilliseconds}ms；排队等待={queueDelay}ms；SetImage={setImageMs}ms；窗体可见={Visible}；句柄已创建={IsHandleCreated}；InvokeRequired={InvokeRequired}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                        true,
+                        traceToUiMilliseconds,
+                        queueDelay,
+                        setImageMs);
+                }
             };
 
             if (InvokeRequired)
@@ -251,17 +260,20 @@ namespace TDJS_Vision.Forms.ImageViewer
                 try
                 {
                     BeginInvoke(updateImage);
-                    long postMs = scheduleStopwatch.ElapsedMilliseconds;
-                    PerformanceSpikeDiagnostics.LogIfEnabled(
-                        MsgLevel.Debug,
-                        () => $"【性能诊断-图像显示】窗口({FormName}) 已投递UI刷新，图像={GetBitmapDiagnosticText(bitmap)}；显示结果={GetDisplayResultDiagnosticText(displayResult)}；投递耗时={postMs}ms。",
-                        true);
-                    PerformanceSpikeDiagnostics.LogSlowIfEnabled(
-                        MsgLevel.Debug,
-                        PerformanceSpikeDiagnostics.CommonSlowMs,
-                        () => $"【慢诊断-窗口投递】窗口({FormName}) 图像={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；投递耗时={postMs}ms；句柄已创建={IsHandleCreated}；InvokeRequired={InvokeRequired}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
-                        true,
-                        postMs);
+                    long postMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(scheduleStopwatch);
+                    if (diagnosticEnabled)
+                    {
+                        PerformanceSpikeDiagnostics.LogIfEnabled(
+                            MsgLevel.Debug,
+                            () => $"【完整耗时-图像显示】{GetTraceContextText(traceContext)}；阶段=已投递UI；窗口={FormName}；图像={GetBitmapDiagnosticText(bitmap)}；显示结果={GetDisplayResultDiagnosticText(displayResult)}；投递耗时={postMs}ms",
+                            true);
+                        PerformanceSpikeDiagnostics.LogSlowIfEnabled(
+                            MsgLevel.Debug,
+                            PerformanceSpikeDiagnostics.CommonSlowMs,
+                            () => $"【慢诊断-窗口投递】{GetTraceContextText(traceContext)}；窗口={FormName}；图像={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；投递耗时={postMs}ms；句柄已创建={IsHandleCreated}；InvokeRequired={InvokeRequired}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                            true,
+                            postMs);
+                    }
                 }
                 catch
                 {
@@ -584,6 +596,16 @@ namespace TDJS_Vision.Forms.ImageViewer
         }
 
         /// <summary>
+        /// 获取UI刷新日志使用的跨线程流程关联文本。
+        /// </summary>
+        /// <param name="traceContext">图像显示节点创建的诊断上下文。</param>
+        /// <returns>上下文不存在时返回手动或非流程来源标记。</returns>
+        private static string GetTraceContextText(PerformanceTraceContext traceContext)
+        {
+            return traceContext?.ToLogText() ?? "流程=非流程来源；TraceId=无；RunId=0；来源节点=无";
+        }
+
+        /// <summary>
         /// 收集新版ROI结果绘制节点中绘制项、单布尔判定或旧颜色规则订阅的来源节点。
         /// </summary>
         /// <param name="filter">待补充的过滤范围。</param>
@@ -870,16 +892,37 @@ namespace TDJS_Vision.Forms.ImageViewer
             }
         }
     }
+    /// <summary>
+    /// 图像显示事件参数，包含显示内容和可选的跨线程流程诊断上下文。
+    /// </summary>
     public class ImageShowPamra
     {
+        /// <summary>目标图像窗口名称。</summary>
         public string WinName;
+        /// <summary>由图像窗口接管生命周期的位图。</summary>
         public Bitmap Bitmap;
+        /// <summary>需要叠加到图像窗口的算法显示结果。</summary>
         public AlgorithmResult DisplayResult;
-        public ImageShowPamra(string winname, Bitmap bitmap, AlgorithmResult displayResult = null)
+        /// <summary>跨线程流程诊断上下文，Debug关闭时为空。</summary>
+        public PerformanceTraceContext TraceContext;
+
+        /// <summary>
+        /// 创建图像显示事件参数。
+        /// </summary>
+        /// <param name="winname">目标窗口名称。</param>
+        /// <param name="bitmap">待显示位图。</param>
+        /// <param name="displayResult">显示叠加结果。</param>
+        /// <param name="traceContext">跨线程流程诊断上下文。</param>
+        public ImageShowPamra(
+            string winname,
+            Bitmap bitmap,
+            AlgorithmResult displayResult = null,
+            PerformanceTraceContext traceContext = null)
         {
             WinName = FrmSingleImage.NormalizeWindowKey(winname);
             Bitmap = bitmap;
             DisplayResult = displayResult;
+            TraceContext = traceContext;
         }
     }
 }
