@@ -359,6 +359,14 @@ namespace TDJS_Vision.ResourceManagement
 
         /// <summary>参与本次计算的机器配置快照。</summary>
         public MachinePerformanceResourceSettings Settings { get; set; }
+
+        /// <summary>按稳定配置键保存的自动参数值，供系统设置界面直接显示。</summary>
+        public Dictionary<string, string> AutomaticParameterValues { get; set; } =
+            new Dictionary<string, string>(StringComparer.Ordinal);
+
+        /// <summary>按稳定配置键保存的最终参数值，已经完成范围和关联边界收敛。</summary>
+        public Dictionary<string, string> EffectiveParameterValues { get; set; } =
+            new Dictionary<string, string>(StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -416,8 +424,56 @@ namespace TDJS_Vision.ResourceManagement
             {
                 AutomaticProfile = automaticProfile,
                 EffectiveProfile = effectiveProfile,
-                Settings = settings
+                Settings = settings,
+                AutomaticParameterValues = CreateParameterValues(automaticOptions, automaticProfile),
+                EffectiveParameterValues = CreateParameterValues(effectiveOptions, effectiveProfile)
             };
+        }
+
+        /// <summary>把计算输入和档案输出映射为系统设置界面使用的稳定参数值。</summary>
+        private static Dictionary<string, string> CreateParameterValues(
+            ResourceProfileCalculationOptions options,
+            AutomaticResourceProfile profile)
+        {
+            options = options ?? new ResourceProfileCalculationOptions();
+            profile = profile ?? new AutomaticResourceProfile();
+            return new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [PerformanceResourceSettingKeys.AdaptiveResourceManagementEnabled] =
+                    profile.AdaptiveResourceManagementEnabled ? bool.TrueString : bool.FalseString,
+                [PerformanceResourceSettingKeys.CpuReserveCoreCount] = FormatNumber(profile.CpuReserveCoreCount),
+                [PerformanceResourceSettingKeys.CpuHeavyMaxConcurrency] = FormatNumber(profile.CpuHeavyMaxConcurrency),
+                [PerformanceResourceSettingKeys.ImageConvertMaxConcurrency] = FormatNumber(profile.ImageConvertMaxConcurrency),
+                [PerformanceResourceSettingKeys.ImageSaveWorkerCount] = FormatNumber(profile.ImageSaveWorkerCount),
+                [PerformanceResourceSettingKeys.CpuHighWatermarkPercent] = FormatNumber(profile.CpuHighWatermarkPercent),
+                [PerformanceResourceSettingKeys.CpuRecoveryWatermarkPercent] = FormatNumber(profile.CpuRecoveryWatermarkPercent),
+                [PerformanceResourceSettingKeys.CpuHighDurationSeconds] = FormatNumber(profile.CpuHighDurationMs / 1000D),
+                [PerformanceResourceSettingKeys.CpuRecoveryDurationSeconds] = FormatNumber(profile.CpuRecoveryDurationMs / 1000D),
+                [PerformanceResourceSettingKeys.ResourceAdjustmentIntervalMs] = FormatNumber(profile.ResourceAdjustmentIntervalMs),
+                [PerformanceResourceSettingKeys.ResourceAdjustmentCooldownSeconds] = FormatNumber(profile.ResourceAdjustmentCooldownMs / 1000D),
+                [PerformanceResourceSettingKeys.ConcurrencyAdjustmentStep] = FormatNumber(profile.ConcurrencyAdjustmentStep),
+                [PerformanceResourceSettingKeys.FlowImageMemoryBudgetPercent] = FormatNumber(options.FlowImageTotalMemoryPercent * 100D),
+                [PerformanceResourceSettingKeys.SaveQueueMemoryBudgetPercent] = FormatNumber(options.SaveQueueTotalMemoryPercent * 100D),
+                [PerformanceResourceSettingKeys.MemoryLowWatermarkPercent] = FormatNumber(options.MemoryLowWatermarkPercent * 100D),
+                [PerformanceResourceSettingKeys.MemoryCriticalWatermarkPercent] = FormatNumber(options.MemoryCriticalWatermarkPercent * 100D),
+                [PerformanceResourceSettingKeys.MemoryLowWatermarkMinimumMb] = FormatNumber(options.MemoryLowWatermarkMinimumMb),
+                [PerformanceResourceSettingKeys.MemoryCriticalMinimumMb] = FormatNumber(options.MemoryCriticalWatermarkMinimumMb),
+                [PerformanceResourceSettingKeys.ImageSizeSampleCount] = FormatNumber(profile.ImageSizeSampleCount),
+                [PerformanceResourceSettingKeys.ShutdownResourceDrainTimeoutMs] = FormatNumber(profile.ShutdownResourceDrainTimeoutMs),
+                [PerformanceResourceSettingKeys.UiMaxRefreshFps] = FormatNumber(profile.UiMaxRefreshFps),
+                [PerformanceResourceSettingKeys.SaveQueueInitialCapacity] = FormatNumber(options.SaveQueueInitialCapacity),
+                [PerformanceResourceSettingKeys.SaveQueueMaximumCapacity] = FormatNumber(options.SaveQueueMaximumCapacity),
+                [PerformanceResourceSettingKeys.SaveDiskLowSpaceMb] = FormatNumber(profile.SaveDiskLowSpaceMb),
+                [PerformanceResourceSettingKeys.SaveDiskCriticalSpaceMb] = FormatNumber(profile.SaveDiskCriticalSpaceMb),
+                [PerformanceResourceSettingKeys.SaveSlowThresholdMs] = FormatNumber(profile.SaveSlowThresholdMs),
+                [PerformanceResourceSettingKeys.SaveDiskProbeIntervalMs] = FormatNumber(profile.SaveDiskProbeIntervalMs)
+            };
+        }
+
+        /// <summary>使用不受系统区域设置影响的紧凑数字格式。</summary>
+        private static string FormatNumber(double value)
+        {
+            return value.ToString("0.###", CultureInfo.InvariantCulture);
         }
 
         /// <summary>把影响计算公式的百分比、容量和阈值覆盖到计算参数副本。</summary>

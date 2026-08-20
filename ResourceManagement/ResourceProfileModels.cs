@@ -308,4 +308,43 @@ namespace TDJS_Vision.ResourceManagement
             return $"自适应资源={AdaptiveResourceManagementEnabled}；启用流程={workload.EnabledProcessCount}；相机={workload.CameraCount}；平均图像={workload.AverageImageBytes}字节；图像样本={ImageSizeSampleCount}；CPU保留核心={CpuReserveCoreCount}；CPU重任务并发={CpuHeavyMaxConcurrency}；CPU高/恢复水位={CpuHighWatermarkPercent:F0}%/{CpuRecoveryWatermarkPercent:F0}%；CPU高/恢复持续={CpuHighDurationMs}/{CpuRecoveryDurationMs}ms；资源评估={ResourceAdjustmentIntervalMs}ms；调整冷却={ResourceAdjustmentCooldownMs}ms；调整步长={ConcurrencyAdjustmentStep}；图像转换并发={ImageConvertMaxConcurrency}；保存线程={ImageSaveWorkerCount}；流程图像预算={FlowImageMemoryBudgetMb}MB；保存队列预算={SaveQueueMemoryBudgetMb}MB；内存低水位={MemoryLowWatermarkMb}MB；严重水位={MemoryCriticalWatermarkMb}MB；保存队列容量={SaveQueueCalculatedCapacity}；磁盘低水位={SaveDiskLowSpaceMb}MB；磁盘严重水位={SaveDiskCriticalSpaceMb}MB；慢写阈值={SaveSlowThresholdMs}ms；磁盘采样={SaveDiskProbeIntervalMs}ms；UI最大帧率={UiMaxRefreshFps}；停止等待={ShutdownResourceDrainTimeoutMs}ms；使用初始容量={UsesInitialSaveQueueCapacity}；AI策略={AiConcurrencyPolicy}";
         }
     }
+
+    /// <summary>
+    /// 图片保存工作池对最新机器资源档案的应用状态。
+    /// </summary>
+    public enum ImageSaveProfileApplyState
+    {
+        /// <summary>工作池尚未创建，创建时会直接使用最新档案。</summary>
+        UseLatestWhenCreated = 0,
+
+        /// <summary>现有工作池已经使用最新档案。</summary>
+        Applied = 1,
+
+        /// <summary>现有工作池仍在运行，等待下一轮空闲启动或方案重置后应用。</summary>
+        Pending = 2
+    }
+
+    /// <summary>
+    /// 系统设置保存后对当前运行框架的资源参数应用结果。
+    /// </summary>
+    public sealed class RuntimeResourceProfileApplyResult
+    {
+        /// <summary>资源档案是否成功生成并应用到允许热更新的组件。</summary>
+        public bool Success { get; set; }
+
+        /// <summary>本次生成的最终运行档案。</summary>
+        public AutomaticResourceProfile EffectiveProfile { get; set; }
+
+        /// <summary>CPU调度、CPU采样和显示参数是否已经更新。</summary>
+        public bool CpuAndDisplayApplied { get; set; }
+
+        /// <summary>图像大小滚动采样容量是否已经更新。</summary>
+        public bool ImageSampleApplied { get; set; }
+
+        /// <summary>图片保存工作池对最新档案的应用状态。</summary>
+        public ImageSaveProfileApplyState ImageSaveState { get; set; }
+
+        /// <summary>供系统设置界面展示的简体中文结果。</summary>
+        public string Message { get; set; } = string.Empty;
+    }
 }

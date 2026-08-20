@@ -1082,6 +1082,7 @@
     </Compile>
     <Compile Include="Forms\ProcessNew\SerializableTreeNode.cs" />
     <Compile Include="Forms\ResultView\SingleResultViewData.cs" />
+    <Compile Include="Forms\SystemSetting\PerformanceSettingDefinition.cs" />
     <Compile Include="Forms\SystemSetting\FrmSystemSetting.cs">
       <SubType>Form</SubType>
     </Compile>

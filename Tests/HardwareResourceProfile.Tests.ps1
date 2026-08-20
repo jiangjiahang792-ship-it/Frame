@@ -62,7 +62,7 @@ Assert-Contains $calculator 'UiMaxRefreshFps = Clamp(' 'UI最大刷新帧率必�
 Assert-Contains $calculator 'SaveDiskLowSpaceMb = saveDiskLowSpaceMb' '资源档案必须输出普通图片磁盘低水位。'
 Assert-Contains $calculator 'SaveDiskCriticalSpaceMb = saveDiskCriticalSpaceMb' '资源档案必须输出全部图片磁盘严重水位。'
 Assert-Contains $calculator 'SaveSlowThresholdMs = Clamp(' '资源档案必须限制慢写阈值范围。'
-Assert-Contains $solution 'RefreshRuntimeResourceProfile();' '方案运行前必须刷新资源建议档案。'
+Assert-Contains $solution 'RefreshRuntimeResourceProfile(true);' '首个方案运行会话必须在节点执行前刷新资源档案。'
 Assert-Contains $solution 'AverageImageBytes = _imageSaveSizeSampler.AverageBytes' '运行资源档案必须读取真实滚动图像字节样本。'
 Assert-Contains $solution '_imageSaveSizeSampler.Reset();' '切换方案时必须清空旧方案图像大小样本。'
 Assert-Contains $solution '不修改线程池、CPU亲和性或AI并发' '保存工作池接入后仍不能修改线程池、CPU亲和性或AI并发。'

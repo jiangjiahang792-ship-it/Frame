@@ -1695,6 +1695,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <param name="criticalSpaceThresholdMb">全部图片停止保存水位。</param>
         /// <param name="slowWriteThresholdMs">单路径慢写阈值。</param>
         /// <param name="probeIntervalMs">磁盘空间探测缓存时间。</param>
+        /// <param name="shutdownTimeoutMs">工作池停止排空等待毫秒数。</param>
         /// <returns>工作池和磁盘保护关键边界均一致返回 true。</returns>
         public bool ConfigurationMatches(
             int workerCount,
@@ -1703,11 +1704,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             int lowSpaceThresholdMb,
             int criticalSpaceThresholdMb,
             int slowWriteThresholdMs,
-            int probeIntervalMs)
+            int probeIntervalMs,
+            int shutdownTimeoutMs)
         {
             return WorkerCount == workerCount &&
                 Capacity == capacity &&
                 MemoryBudgetBytes == memoryBudgetBytes &&
+                _shutdownTimeoutMs == shutdownTimeoutMs &&
                 _storageGuard.LowSpaceThresholdMb == lowSpaceThresholdMb &&
                 _storageGuard.CriticalSpaceThresholdMb == criticalSpaceThresholdMb &&
                 _storageGuard.SlowWriteThresholdMs == slowWriteThresholdMs &&

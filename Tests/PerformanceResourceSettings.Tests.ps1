@@ -123,6 +123,9 @@ Assert-Equal $effective.SaveQueueCalculatedCapacity 3 '初始容量和最大容�
 Assert-Equal $effective.SaveDiskLowSpaceMb 256 '磁盘低水位必须应用安全下限。'
 Assert-Equal $effective.SaveDiskCriticalSpaceMb 255 '磁盘严重水位必须严格低于低水位。'
 Assert-Equal $effective.AdaptiveResourceManagementEnabled $false '自适应关闭必须进入最终档案。'
+Assert-Equal $buildResult.AutomaticParameterValues['CpuHeavyMaxConcurrency'] '4' '界面自动参数字典必须使用稳定配置键。'
+Assert-Equal $buildResult.EffectiveParameterValues['CpuHeavyMaxConcurrency'] '6' '界面最终参数字典必须反映安全收敛后的值。'
+Assert-Equal $buildResult.EffectiveParameterValues['MemoryCriticalWatermarkPercent'] '8' '界面最终参数值必须反映关联百分比收敛。'
 
 $emptySettings = [Activator]::CreateInstance($settingsType)
 $customOptions = [Activator]::CreateInstance($optionsType)

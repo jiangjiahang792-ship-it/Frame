@@ -92,10 +92,23 @@ namespace TDJS_Vision.ResourceManagement
         /// <returns>可直接供系统设置界面对照显示的同批结果。</returns>
         public ResourceProfileBuildResult BuildProfileResult(ResourceWorkloadSnapshot workload)
         {
-            HardwareResourceSnapshot hardware = GetHardwareSnapshot();
             MachinePerformanceResourceSettings settings = _settingsProvider == null
                 ? new MachinePerformanceResourceSettings()
                 : _settingsProvider.GetSnapshot();
+            return BuildProfileResult(workload, settings);
+        }
+
+        /// <summary>
+        /// 使用指定机器设置草稿生成自动推荐与最终档案，不保存草稿。
+        /// </summary>
+        /// <param name="workload">当前方案工作负载。</param>
+        /// <param name="settings">待预览的机器设置草稿。</param>
+        /// <returns>自动值、草稿手动值和最终值的同批结果。</returns>
+        public ResourceProfileBuildResult BuildProfileResult(
+            ResourceWorkloadSnapshot workload,
+            MachinePerformanceResourceSettings settings)
+        {
+            HardwareResourceSnapshot hardware = GetHardwareSnapshot();
             return _overrideResolver.Build(hardware, workload, _options, settings);
         }
 

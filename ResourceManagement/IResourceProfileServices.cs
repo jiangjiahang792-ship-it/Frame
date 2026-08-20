@@ -55,6 +55,16 @@ namespace TDJS_Vision.ResourceManagement
         ResourceProfileBuildResult BuildProfileResult(ResourceWorkloadSnapshot workload);
 
         /// <summary>
+        /// 使用指定的机器设置草稿生成预览，不保存也不修改运行组件。
+        /// </summary>
+        /// <param name="workload">当前方案工作负载。</param>
+        /// <param name="settings">待预览的机器设置草稿。</param>
+        /// <returns>自动值、草稿手动值和最终值的同批结果。</returns>
+        ResourceProfileBuildResult BuildProfileResult(
+            ResourceWorkloadSnapshot workload,
+            MachinePerformanceResourceSettings settings);
+
+        /// <summary>
         /// 清除硬件快照缓存，供硬件环境变化或测试时重新读取。
         /// </summary>
         void ResetHardwareCache();

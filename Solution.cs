@@ -800,7 +800,7 @@ namespace TDJS_Vision
 
                 // 所有运行入口共用首会话初始化；刷新完成前生命周期锁阻止第二条会话登记。
                 if (isFirstSession)
-                    RefreshRuntimeResourceProfile();
+                    RefreshRuntimeResourceProfile(true);
             }
 
             retiredTokenSource?.Dispose();
@@ -1119,18 +1119,23 @@ namespace TDJS_Vision
         /// 使用当前资源档案重配空闲保存工作池；存在活动任务时保持原边界直至下一次重置。
         /// </summary>
         /// <param name="profile">最新自动资源档案。</param>
-        private void ReconfigureIdleImageSaveQueueProcessor(AutomaticResourceProfile profile)
+        /// <param name="allowFirstRunSession">当前是否处于首个会话开始节点执行前的安全初始化阶段。</param>
+        /// <returns>保存工作池应用最新档案的状态。</returns>
+        private ImageSaveProfileApplyState ReconfigureIdleImageSaveQueueProcessor(
+            AutomaticResourceProfile profile,
+            bool allowFirstRunSession)
         {
             lock (_runLifecycleSync)
             {
-                // 仅允许当前唯一、尚未开始节点执行的方案会话重配，避免并发手动流程拿到即将停止的旧池。
-                if (_isResetting || _activeRunSessionCount != 1)
-                    return;
+                bool canReconfigure = _activeRunSessionCount == 0 ||
+                    (allowFirstRunSession && _activeRunSessionCount == 1);
+                if (_isResetting || !canReconfigure)
+                    return ImageSaveProfileApplyState.Pending;
 
                 lock (_imageSaveQueueSync)
                 {
                     if (_imageSaveQueueProcessor == null)
-                        return;
+                        return ImageSaveProfileApplyState.UseLatestWhenCreated;
 
                     int workerCount = GetImageSaveWorkerCount(profile);
                     int capacity = GetImageSaveQueueCapacity(profile);
@@ -1139,6 +1144,7 @@ namespace TDJS_Vision
                     int criticalSpaceThresholdMb = GetSaveDiskCriticalSpaceMb(profile, lowSpaceThresholdMb);
                     int slowWriteThresholdMs = GetSaveSlowThresholdMs(profile);
                     int probeIntervalMs = GetSaveDiskProbeIntervalMs(profile);
+                    int shutdownTimeoutMs = GetShutdownResourceDrainTimeoutMs(profile);
                     if (_imageSaveQueueProcessor.ConfigurationMatches(
                         workerCount,
                         capacity,
@@ -1146,8 +1152,9 @@ namespace TDJS_Vision
                         lowSpaceThresholdMb,
                         criticalSpaceThresholdMb,
                         slowWriteThresholdMs,
-                        probeIntervalMs))
-                        return;
+                        probeIntervalMs,
+                        shutdownTimeoutMs))
+                        return ImageSaveProfileApplyState.Applied;
 
                     if (!_imageSaveQueueProcessor.IsIdle)
                     {
@@ -1155,7 +1162,7 @@ namespace TDJS_Vision
                             MsgLevel.Warn,
                             "保存工作池仍有待处理任务，本轮继续沿用原资源边界；方案重置后应用最新档案。",
                             true);
-                        return;
+                        return ImageSaveProfileApplyState.Pending;
                     }
 
                     if (!_imageSaveQueueProcessor.StopProcessing() || !_imageSaveQueueProcessor.IsFullyStopped)
@@ -1164,11 +1171,12 @@ namespace TDJS_Vision
                             MsgLevel.Warn,
                             "保存工作池在资源重配期限内未完全退出，本轮保留旧工作池并拒绝创建重叠工作池。",
                             true);
-                        return;
+                        return ImageSaveProfileApplyState.Pending;
                     }
 
                     _imageSaveQueueProcessor = CreateImageSaveQueueProcessor(profile);
                     _imageSaveQueueProcessor.StartProcessing();
+                    return ImageSaveProfileApplyState.Applied;
                 }
             }
         }
@@ -1216,7 +1224,7 @@ namespace TDJS_Vision
                 GetImageSaveWorkerCount(profile),
                 GetImageSaveQueueCapacity(profile),
                 GetImageSaveQueueMemoryBudgetBytes(profile),
-                Math.Max(0, Math.Min(60000, profile?.ShutdownResourceDrainTimeoutMs ?? 5000)),
+                GetShutdownResourceDrainTimeoutMs(profile),
                 "全方案共享",
                 storageGuard,
                 _cpuWorkScheduler);
@@ -1230,6 +1238,12 @@ namespace TDJS_Vision
         private static int GetImageSaveWorkerCount(AutomaticResourceProfile profile)
         {
             return Math.Max(1, profile?.ImageSaveWorkerCount ?? 1);
+        }
+
+        /// <summary>取得停止运行和保存工作池时使用的资源排空等待毫秒数。</summary>
+        private static int GetShutdownResourceDrainTimeoutMs(AutomaticResourceProfile profile)
+        {
+            return Math.Max(0, Math.Min(60000, profile?.ShutdownResourceDrainTimeoutMs ?? 5000));
         }
 
         /// <summary>
@@ -1296,32 +1310,102 @@ namespace TDJS_Vision
         }
 
         /// <summary>
-        /// 按当前启用流程和相机规模刷新自动资源建议；失败只告警，不阻止方案运行。
+        /// 生成系统设置界面使用的自动推荐与最终档案预览，不修改当前运行组件。
         /// </summary>
-        private void RefreshRuntimeResourceProfile()
+        /// <param name="resetHardwareCache">是否重新读取本机硬件信息。</param>
+        /// <returns>自动值、机器设置和最终值的同批快照。</returns>
+        public ResourceProfileBuildResult BuildRuntimeResourceProfilePreview(
+            MachinePerformanceResourceSettings settings,
+            bool resetHardwareCache)
+        {
+            IRuntimeResourceProfileProvider provider;
+            ResourceWorkloadSnapshot workload;
+            lock (_runLifecycleSync)
+            {
+                provider = ResourceProfileProvider ?? RuntimeResourceProfileProvider.CreateDefault();
+                ResourceProfileProvider = provider;
+                workload = CreateResourceWorkloadSnapshot();
+            }
+
+            if (resetHardwareCache)
+                provider.ResetHardwareCache();
+            return provider.BuildProfileResult(workload, settings);
+        }
+
+        /// <summary>
+        /// 把已经保存的机器性能设置应用到允许安全热更新的运行组件。
+        /// </summary>
+        /// <returns>CPU、显示、采样和保存工作池各自的应用状态。</returns>
+        public RuntimeResourceProfileApplyResult ApplyMachinePerformanceResourceSettings(
+            MachinePerformanceResourceSettings settings)
+        {
+            lock (_runLifecycleSync)
+            {
+                if (_isResetting)
+                {
+                    return new RuntimeResourceProfileApplyResult
+                    {
+                        Success = true,
+                        EffectiveProfile = CurrentResourceProfile,
+                        CpuAndDisplayApplied = false,
+                        ImageSampleApplied = false,
+                        ImageSaveState = ImageSaveProfileApplyState.Pending,
+                        Message = "机器设置已保存；方案正在重置，全部运行参数将在下一轮安全应用。"
+                    };
+                }
+
+                RuntimeResourceProfileApplyResult result =
+                    ApplyRuntimeResourceProfileCore(false, settings);
+                if (!result.Success)
+                    LogHelper.AddLog(MsgLevel.Warn, result.Message, true);
+                return result;
+            }
+        }
+
+        /// <summary>
+        /// 按当前启用流程和相机规模刷新运行资源档案；失败只告警，不阻止方案运行。
+        /// </summary>
+        /// <param name="allowFirstRunSession">是否处于首个会话执行节点前的安全初始化阶段。</param>
+        private void RefreshRuntimeResourceProfile(bool allowFirstRunSession)
+        {
+            RuntimeResourceProfileApplyResult result =
+                ApplyRuntimeResourceProfileCore(allowFirstRunSession, null);
+            if (!result.Success)
+                LogHelper.AddLog(MsgLevel.Warn, result.Message, true);
+        }
+
+        /// <summary>生成最终档案并更新运行组件；调用方必须持有运行生命周期锁。</summary>
+        private RuntimeResourceProfileApplyResult ApplyRuntimeResourceProfileCore(
+            bool allowFirstRunSession,
+            MachinePerformanceResourceSettings settings)
         {
             try
             {
                 IRuntimeResourceProfileProvider provider = ResourceProfileProvider ?? RuntimeResourceProfileProvider.CreateDefault();
                 ResourceProfileProvider = provider;
-                ResourceWorkloadSnapshot workload = new ResourceWorkloadSnapshot
+                ResourceWorkloadSnapshot workload = CreateResourceWorkloadSnapshot();
+                ResourceProfileBuildResult buildResult = settings == null
+                    ? provider.BuildProfileResult(workload)
+                    : provider.BuildProfileResult(workload, settings);
+                AutomaticResourceProfile profile = buildResult?.EffectiveProfile;
+                if (profile == null)
                 {
-                    EnabledProcessCount = AllProcesses == null ? 0 : AllProcesses.Count(process => process != null && process.Enable),
-                    CameraCount = CameraDevices.Count + Camera3DDevices.Count,
-                    AverageImageBytes = _imageSaveSizeSampler.AverageBytes
-                };
-                CurrentResourceProfile = provider.BuildProfile(workload);
-                if (CurrentResourceProfile == null)
-                {
-                    LogHelper.AddLog(MsgLevel.Warn, "自动资源档案提供器返回空结果，本次继续按现有运行策略执行。", true);
-                    return;
+                    return new RuntimeResourceProfileApplyResult
+                    {
+                        Success = false,
+                        Message = "自动资源档案提供器返回空结果，本次继续按现有运行策略执行。"
+                    };
                 }
 
-                EnsureImageResourceSizeSamplerCapacity(CurrentResourceProfile.ImageSizeSampleCount);
-                _cpuWorkScheduler.Reconfigure(CpuWorkSchedulerOptions.FromProfile(CurrentResourceProfile));
-                _cpuResourceMonitor.Reconfigure(CurrentResourceProfile.ResourceAdjustmentIntervalMs);
+                CurrentResourceProfile = profile;
+                bool imageSampleApplied = _activeRunSessionCount == 0 || allowFirstRunSession;
+                if (imageSampleApplied)
+                    EnsureImageResourceSizeSamplerCapacity(profile.ImageSizeSampleCount);
 
-                HardwareResourceSnapshot hardware = CurrentResourceProfile.Hardware;
+                _cpuWorkScheduler.Reconfigure(CpuWorkSchedulerOptions.FromProfile(profile));
+                _cpuResourceMonitor.Reconfigure(profile.ResourceAdjustmentIntervalMs);
+
+                HardwareResourceSnapshot hardware = profile.Hardware;
                 if (hardware != null && hardware.ProbeWarnings != null)
                 {
                     foreach (string warning in hardware.ProbeWarnings.Where(value => !string.IsNullOrWhiteSpace(value)))
@@ -1330,15 +1414,46 @@ namespace TDJS_Vision
 
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    () => $"【资源档案】硬件={CurrentResourceProfile.Hardware?.ToLogText()}；建议={CurrentResourceProfile.ToLogText()}；CPU调度={_cpuWorkScheduler.GetSnapshot().ToLogText()}；说明=CPU重任务与保存工作池应用档案边界，不修改线程池、CPU亲和性或AI并发",
+                    () => $"【资源档案】硬件={profile.Hardware?.ToLogText()}；建议={profile.ToLogText()}；CPU调度={_cpuWorkScheduler.GetSnapshot().ToLogText()}；说明=CPU重任务与保存工作池应用档案边界，不修改线程池、CPU亲和性或AI并发",
                     true);
-                ReconfigureIdleImageSaveQueueProcessor(CurrentResourceProfile);
+                ImageSaveProfileApplyState saveState =
+                    ReconfigureIdleImageSaveQueueProcessor(profile, allowFirstRunSession);
+                string message = saveState == ImageSaveProfileApplyState.Pending || !imageSampleApplied
+                    ? "CPU与显示参数已应用；图像采样或保存工作池参数将在当前任务结束后的下一轮安全应用。"
+                    : "性能与资源设置已应用。";
+                return new RuntimeResourceProfileApplyResult
+                {
+                    Success = true,
+                    EffectiveProfile = profile,
+                    CpuAndDisplayApplied = true,
+                    ImageSampleApplied = imageSampleApplied,
+                    ImageSaveState = saveState,
+                    Message = message
+                };
             }
             catch (Exception ex)
             {
-                CurrentResourceProfile = null;
-                LogHelper.AddLog(MsgLevel.Warn, "自动资源档案生成失败，本次继续按现有运行策略执行。原因：" + ex.Message, true);
+                if (allowFirstRunSession)
+                    CurrentResourceProfile = null;
+                return new RuntimeResourceProfileApplyResult
+                {
+                    Success = false,
+                    Message = "自动资源档案生成失败，本次继续按现有运行策略执行。原因：" + ex.Message
+                };
             }
+        }
+
+        /// <summary>读取当前方案规模和图像样本，形成一次资源计算工作负载。</summary>
+        private ResourceWorkloadSnapshot CreateResourceWorkloadSnapshot()
+        {
+            return new ResourceWorkloadSnapshot
+            {
+                EnabledProcessCount = AllProcesses == null
+                    ? 0
+                    : AllProcesses.Count(process => process != null && process.Enable),
+                CameraCount = CameraDevices.Count + Camera3DDevices.Count,
+                AverageImageBytes = _imageSaveSizeSampler.AverageBytes
+            };
         }
 
         /// <summary>

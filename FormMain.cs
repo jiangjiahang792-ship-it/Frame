@@ -136,10 +136,6 @@ namespace TDJS_Vision
         /// </summary>
         static FormLogin frmLogin = new FormLogin();
         /// <summary>
-        /// 系统设置窗口
-        /// </summary>
-        private FrmSystemSetting frmSystemSetting = new FrmSystemSetting();
-        /// <summary>
         /// 全局信号设置窗口
         /// </summary>
         static FormGlobalSignal formGlobalSignal = new FormGlobalSignal();
@@ -1497,7 +1493,8 @@ namespace TDJS_Vision
 
         private void 系统设置ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            frmSystemSetting.ShowDialog();
+            using (FrmSystemSetting systemSettingForm = new FrmSystemSetting())
+                systemSettingForm.ShowDialog(this);
         }
 
         private void 全局信号设置ToolStripMenuItem_Click(object sender, EventArgs e)
