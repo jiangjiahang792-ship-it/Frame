@@ -653,7 +653,8 @@ function Stop-TestProcessTree {
 function Assert-BackgroundFocusSafe {
     param(
         [System.Diagnostics.Process]$MainProcess,
-        [string]$TestEnvironmentMode
+        [string]$TestEnvironmentMode,
+        [string]$Stage
     )
 
     if ($TestEnvironmentMode -ne "SharedDesktopBackground") {
@@ -678,7 +679,7 @@ function Assert-BackgroundFocusSafe {
     }
 
     if ($ownedForegroundProcess) {
-        throw ("视觉测试主进程或工作进程取得了Windows前台焦点，已停止共享办公环境测试。前台窗口={0}" -f $foregroundWindow)
+        throw ("视觉测试主进程或工作进程取得了Windows前台焦点，已停止共享办公环境测试。阶段={0}；前台窗口={1}" -f $Stage, $foregroundWindow)
     }
 }
 
@@ -835,7 +836,7 @@ function Find-RunOnceButton {
         if ($MainProcess.HasExited) {
             throw "程序在主界面就绪前退出。"
         }
-        Assert-BackgroundFocusSafe -MainProcess $MainProcess -TestEnvironmentMode $TestEnvironmentMode
+        Assert-BackgroundFocusSafe -MainProcess $MainProcess -TestEnvironmentMode $TestEnvironmentMode -Stage "等待主界面"
         [void](Assert-SharedDesktopResourceHeadroom `
             -TestEnvironmentMode $TestEnvironmentMode `
             -MinimumAvailableMemoryMb $MinimumAvailableMemoryMb)
@@ -884,7 +885,7 @@ function Close-TestProcess {
     $nextCloseRequestUtc = [DateTime]::MinValue
     while (-not $MainProcess.HasExited -and [DateTime]::UtcNow -lt $deadline) {
         $MainProcess.Refresh()
-        Assert-BackgroundFocusSafe -MainProcess $MainProcess -TestEnvironmentMode $TestEnvironmentMode
+        Assert-BackgroundFocusSafe -MainProcess $MainProcess -TestEnvironmentMode $TestEnvironmentMode -Stage "退出清理"
         try {
             if ([DateTime]::UtcNow -ge $nextCloseRequestUtc) {
                 [void]$MainProcess.CloseMainWindow()
@@ -972,7 +973,7 @@ function Invoke-SolutionRound {
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     while ($true) {
         Start-Sleep -Milliseconds $PollMilliseconds
-        Assert-BackgroundFocusSafe -MainProcess $MainProcess -TestEnvironmentMode $TestEnvironmentMode
+        Assert-BackgroundFocusSafe -MainProcess $MainProcess -TestEnvironmentMode $TestEnvironmentMode -Stage "流程运行"
         [void](Assert-SharedDesktopResourceHeadroom `
             -TestEnvironmentMode $TestEnvironmentMode `
             -MinimumAvailableMemoryMb $MinimumAvailableMemoryMb)
@@ -1251,6 +1252,7 @@ else {
     }
 }
 $testBodyCompleted = $false
+$testBodyFailure = $null
 try {
     $runOnceButton = Find-RunOnceButton `
         -MainProcess $mainProcess `
@@ -1326,7 +1328,7 @@ try {
                 -Message $fixedTriggerMessage `
                 -TimeoutMilliseconds $TriggerMessageTimeoutMilliseconds
             $dispatchStopwatch.Stop()
-            Assert-BackgroundFocusSafe -MainProcess $mainProcess -TestEnvironmentMode $TestEnvironmentMode
+            Assert-BackgroundFocusSafe -MainProcess $mainProcess -TestEnvironmentMode $TestEnvironmentMode -Stage "固定触发投递"
 
             if (-not $triggerResult.Delivered) {
                 $outcome = "消息超时"
@@ -1406,7 +1408,7 @@ try {
         $summaryDeadline = [DateTime]::UtcNow.AddSeconds($RoundTimeoutSeconds)
         while ([DateTime]::UtcNow -lt $summaryDeadline) {
             Start-Sleep -Milliseconds $UiPollMilliseconds
-            Assert-BackgroundFocusSafe -MainProcess $mainProcess -TestEnvironmentMode $TestEnvironmentMode
+            Assert-BackgroundFocusSafe -MainProcess $mainProcess -TestEnvironmentMode $TestEnvironmentMode -Stage "固定触发排空"
             [void](Assert-SharedDesktopResourceHeadroom `
                 -TestEnvironmentMode $TestEnvironmentMode `
                 -MinimumAvailableMemoryMb $MinimumSharedDesktopAvailableMemoryMb)
@@ -1827,6 +1829,10 @@ try {
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $checkpointPath -Encoding UTF8
     $testBodyCompleted = $true
 }
+catch {
+    $testBodyFailure = $_.Exception
+    throw
+}
 finally {
     $cleanupFailure = $null
     if (-not $KeepProcess -and $startedByScript -and $null -ne $mainProcess) {
@@ -1910,7 +1916,10 @@ finally {
     if ($executionStateWasSet) {
         [void][FullSolutionGuiResourceProbe]::SetThreadExecutionState($continuousOnly)
     }
-    if (-not [string]::IsNullOrWhiteSpace($cleanupFailure)) {
+    if (-not [string]::IsNullOrWhiteSpace($cleanupFailure) -and $null -eq $testBodyFailure) {
         throw $cleanupFailure
+    }
+    if (-not [string]::IsNullOrWhiteSpace($cleanupFailure)) {
+        Write-Warning ("测试主体原始失败已保留；退出清理附加异常：{0}" -f $cleanupFailure)
     }
 }
