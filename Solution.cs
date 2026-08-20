@@ -1203,7 +1203,7 @@ namespace TDJS_Vision
         /// </summary>
         /// <param name="profile">自动资源档案；为空时使用保守值。</param>
         /// <returns>尚未启动的保存工作池。</returns>
-        private static ImageQueueProcessor CreateImageSaveQueueProcessor(AutomaticResourceProfile profile)
+        private ImageQueueProcessor CreateImageSaveQueueProcessor(AutomaticResourceProfile profile)
         {
             int lowSpaceThresholdMb = GetSaveDiskLowSpaceMb(profile);
             IImageSaveStorageGuard storageGuard = new CachedImageSaveStorageGuard(
@@ -1218,7 +1218,8 @@ namespace TDJS_Vision
                 GetImageSaveQueueMemoryBudgetBytes(profile),
                 Math.Max(0, Math.Min(60000, profile?.ShutdownResourceDrainTimeoutMs ?? 5000)),
                 "全方案共享",
-                storageGuard);
+                storageGuard,
+                _cpuWorkScheduler);
         }
 
         /// <summary>

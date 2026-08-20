@@ -456,6 +456,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <summary>在保存消费者线程执行磁盘空间准入和慢写阈值判断的保护器。</summary>
         private readonly IImageSaveStorageGuard _storageGuard;
 
+        /// <summary>保存转换和JPEG编码共享的全方案CPU重任务调度器；空表示兼容独立测试宿主。</summary>
+        private readonly ICpuWorkScheduler _cpuWorkScheduler;
+
         /// <summary>串行化停止与重复停止，确保等待句柄只在全部线程退出后释放一次。</summary>
         private readonly object _stopSync = new object();
 
@@ -737,7 +740,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                 memoryBudgetBytes,
                 shutdownTimeoutMs,
                 ownerText,
-                CachedImageSaveStorageGuard.CreateDefault())
+                CachedImageSaveStorageGuard.CreateDefault(),
+                null)
         {
         }
 
@@ -757,6 +761,35 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             int shutdownTimeoutMs,
             string ownerText,
             IImageSaveStorageGuard storageGuard)
+            : this(
+                workerCount,
+                capacity,
+                memoryBudgetBytes,
+                shutdownTimeoutMs,
+                ownerText,
+                storageGuard,
+                null)
+        {
+        }
+
+        /// <summary>
+        /// 使用自动资源档案、磁盘保护器和共享CPU调度器初始化保存工作池。
+        /// </summary>
+        /// <param name="workerCount">全方案保存工作线程数量。</param>
+        /// <param name="capacity">允许等待的最大任务数量。</param>
+        /// <param name="memoryBudgetBytes">允许等待任务累计持有的最大字节数。</param>
+        /// <param name="shutdownTimeoutMs">停止时等待活动任务的最长毫秒数。</param>
+        /// <param name="ownerText">工作池诊断名称。</param>
+        /// <param name="storageGuard">磁盘空间与慢写保护器。</param>
+        /// <param name="cpuWorkScheduler">保存转换和编码使用的共享CPU调度器。</param>
+        public ImageQueueProcessor(
+            int workerCount,
+            int capacity,
+            long memoryBudgetBytes,
+            int shutdownTimeoutMs,
+            string ownerText,
+            IImageSaveStorageGuard storageGuard,
+            ICpuWorkScheduler cpuWorkScheduler)
         {
             if (workerCount <= 0)
                 throw new ArgumentOutOfRangeException(nameof(workerCount), "保存工作线程数量必须大于零。");
@@ -767,6 +800,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             _shutdownTimeoutMs = shutdownTimeoutMs;
             _ownerText = ownerText;
             _storageGuard = storageGuard ?? throw new ArgumentNullException(nameof(storageGuard));
+            _cpuWorkScheduler = cpuWorkScheduler;
             _retiredTaskCapacity = Math.Max(1, capacity);
             _retiredTaskMemoryBudgetBytes = Math.Max(1L, memoryBudgetBytes);
             _imageQueue = new BoundedPriorityWorkQueue<SaveImageTask>(
@@ -960,6 +994,18 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// </summary>
         private void ProcessImages()
         {
+            using (MemoryStream encodingStream = new MemoryStream())
+            {
+                ProcessImages(encodingStream);
+            }
+        }
+
+        /// <summary>
+        /// 使用当前工作线程独占的编码缓冲区逐项处理保存任务。
+        /// </summary>
+        /// <param name="encodingStream">当前工作线程复用的JPEG编码缓冲区。</param>
+        private void ProcessImages(MemoryStream encodingStream)
+        {
             while (_imageQueue.TryTake(out SaveImageTask saveImagedata, RegisterActiveWorker))
             {
                 bool saveCompleted = false;
@@ -968,6 +1014,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                 bool diagnosticEnabled = false;
                 string imageInfo = string.Empty;
                 Bitmap bitmap = null;
+                EncodedImageBuffer encodedImage = null;
+                double conversionPermitWaitMilliseconds = 0D;
+                double encodingPermitWaitMilliseconds = 0D;
                 List<string> committedImagePaths = new List<string>();
                 MemorySnapshot beforeSaveSnapshot = null;
                 Stopwatch stopwatch = null;
@@ -1019,16 +1068,33 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                     if (storageDecision.ShouldSkip)
                         continue;
 
-                    bitmap = CreateBitmapForSave(saveImagedata, stopwatch, out SaveImageRenderTiming renderTiming);
-                    if (diagnosticEnabled)
+                    using (ICpuWorkLease conversionLease = AcquireCpuWorkLease(CpuWorkloadKind.ImageConversion))
                     {
-                        MemorySnapshot afterRenderSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
-                        long traceToRenderMilliseconds = saveImagedata.TraceContext.GetElapsedMilliseconds(Stopwatch.GetTimestamp());
-                        PerformanceSpikeDiagnostics.LogIfEnabled(
-                            MsgLevel.Debug,
-                            () => $"【内存诊断-保存图像后台取图】【完整耗时】{saveImagedata.TraceContext.ToLogText()}；阶段=后台取图完成；源图={imageInfo}；待保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；有标注={renderTiming.HasDrawableDisplayResult}；ToBitmap={renderTiming.ToBitmapMs}ms；确保可绘制={renderTiming.EnsureDrawableMs}ms；写入标注={renderTiming.DrawDisplayResultMs}ms；后台取图总耗时={renderTiming.TotalMs}ms；节点到后台取图={traceToRenderMilliseconds}ms；目标路径={saveImagedata.TargetDirectories.Count}；私有内存变化={afterRenderSnapshot.PrivateMemoryMb - beforeSaveSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterRenderSnapshot.GdiObjectCount - beforeSaveSnapshot.GdiObjectCount}；前={beforeSaveSnapshot.ToLogText()}；后={afterRenderSnapshot.ToLogText()}",
-                            true);
+                        conversionPermitWaitMilliseconds = conversionLease?.WaitElapsedMilliseconds ?? 0D;
+                        bitmap = CreateBitmapForSave(saveImagedata, stopwatch, out SaveImageRenderTiming renderTiming);
+                        renderTiming.CpuPermitWaitMilliseconds = conversionPermitWaitMilliseconds;
+                        if (diagnosticEnabled)
+                        {
+                            MemorySnapshot afterRenderSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
+                            long traceToRenderMilliseconds = saveImagedata.TraceContext.GetElapsedMilliseconds(Stopwatch.GetTimestamp());
+                            PerformanceSpikeDiagnostics.LogIfEnabled(
+                                MsgLevel.Debug,
+                                () => $"【内存诊断-保存图像后台取图】【完整耗时】{saveImagedata.TraceContext.ToLogText()}；阶段=后台取图完成；源图={imageInfo}；待保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；有标注={renderTiming.HasDrawableDisplayResult}；CPU许可等待={renderTiming.CpuPermitWaitMilliseconds:F3}ms；ToBitmap={renderTiming.ToBitmapMs}ms；确保可绘制={renderTiming.EnsureDrawableMs}ms；写入标注={renderTiming.DrawDisplayResultMs}ms；后台取图总耗时={renderTiming.TotalMs}ms；节点到后台取图={traceToRenderMilliseconds}ms；目标路径={saveImagedata.TargetDirectories.Count}；私有内存变化={afterRenderSnapshot.PrivateMemoryMb - beforeSaveSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterRenderSnapshot.GdiObjectCount - beforeSaveSnapshot.GdiObjectCount}；前={beforeSaveSnapshot.ToLogText()}；后={afterRenderSnapshot.ToLogText()}",
+                                true);
+                        }
                     }
+
+                    long beforeEncode = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+                    using (ICpuWorkLease encodingLease = AcquireCpuWorkLease(CpuWorkloadKind.ImageEncoding))
+                    {
+                        encodingPermitWaitMilliseconds = encodingLease?.WaitElapsedMilliseconds ?? 0D;
+                        encodedImage = EncodeBitmapToJpeg(
+                            bitmap,
+                            saveImagedata.NeedCompress,
+                            saveImagedata.CompressValue,
+                            encodingStream);
+                    }
+                    long afterEncode = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
 
                     foreach (string targetDirectory in saveImagedata.TargetDirectories)
                     {
@@ -1038,12 +1104,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                         Directory.CreateDirectory(targetDirectory);
                         long afterPath = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
 
-                        string fileName = SaveWithCompress(
-                            bitmap,
+                        string fileName = SaveEncodedImage(
+                            encodedImage,
                             targetDirectory,
-                            saveImagedata.ImageName,
-                            saveImagedata.NeedCompress,
-                            saveImagedata.CompressValue);
+                            saveImagedata.ImageName);
                         committedImagePaths.Add(fileName);
                         long writeElapsedMilliseconds = GetElapsedMilliseconds(writeStartedTimestamp);
                         UpdateMaximum(ref _maximumWriteElapsedMilliseconds, writeElapsedMilliseconds);
@@ -1061,7 +1125,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                             long traceToSaveMilliseconds = saveImagedata.TraceContext.GetElapsedMilliseconds(Stopwatch.GetTimestamp());
                             PerformanceSpikeDiagnostics.LogIfEnabled(
                                 MsgLevel.Debug,
-                                () => $"【内存诊断-保存队列消费】【完整耗时】{saveImagedata.TraceContext.ToLogText()}；阶段=文件保存完成；路径={fileName}；源图={imageInfo}；保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；压缩={saveImagedata.NeedCompress}；路径准备={afterPath - beforePath}ms；保存耗时={afterSave - afterPath}ms；后台总耗时={afterSave}ms；节点到保存完成={traceToSaveMilliseconds}ms；队列剩余={QueuedCount}；私有内存变化={afterSaveSnapshot.PrivateMemoryMb - beforeSaveSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterSaveSnapshot.GdiObjectCount - beforeSaveSnapshot.GdiObjectCount}；前={beforeSaveSnapshot.ToLogText()}；后={afterSaveSnapshot.ToLogText()}",
+                                () => $"【内存诊断-保存队列消费】【完整耗时】{saveImagedata.TraceContext.ToLogText()}；阶段=文件保存完成；路径={fileName}；源图={imageInfo}；保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；压缩={saveImagedata.NeedCompress}；编码许可等待={encodingPermitWaitMilliseconds:F3}ms；JPEG编码={afterEncode - beforeEncode}ms；编码字节={encodedImage.Length}；路径准备={afterPath - beforePath}ms；文件写入={afterSave - afterPath}ms；后台总耗时={afterSave}ms；节点到保存完成={traceToSaveMilliseconds}ms；队列剩余={QueuedCount}；私有内存变化={afterSaveSnapshot.PrivateMemoryMb - beforeSaveSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterSaveSnapshot.GdiObjectCount - beforeSaveSnapshot.GdiObjectCount}；前={beforeSaveSnapshot.ToLogText()}；后={afterSaveSnapshot.ToLogText()}",
                                 true);
                         }
                     }
@@ -1158,6 +1222,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// </summary>
         private struct SaveImageRenderTiming
         {
+            /// <summary>取得图像转换CPU许可前的等待毫秒数。</summary>
+            public double CpuPermitWaitMilliseconds;
+
             /// <summary>Mat 转 Bitmap 耗时。</summary>
             public long ToBitmapMs;
             /// <summary>确保 Bitmap 可绘制耗时。</summary>
@@ -1247,21 +1314,98 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         }
 
         /// <summary>
-        /// 先写入独占临时文件，再原子移动到唯一文件名，避免并行覆盖或暴露半张图片。
+        /// 在保存专用工作线程上同步等待CPU许可；独立测试宿主未提供调度器时保持旧行为。
         /// </summary>
-        /// <param name="bitmap">待保存位图。</param>
+        /// <param name="workloadKind">图像转换或JPEG编码类型。</param>
+        /// <returns>需要释放的CPU许可；未配置调度器时返回null。</returns>
+        private ICpuWorkLease AcquireCpuWorkLease(CpuWorkloadKind workloadKind)
+        {
+            return _cpuWorkScheduler == null
+                ? null
+                : _cpuWorkScheduler.AcquireAsync(workloadKind, CancellationToken.None).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// JPEG编码后的托管缓冲区；同一图片保存到多个目录时复用同一份编码结果。
+        /// </summary>
+        private sealed class EncodedImageBuffer
+        {
+            /// <summary>包含JPEG内容的缓冲区。</summary>
+            public byte[] Buffer { get; private set; }
+
+            /// <summary>缓冲区中的有效JPEG字节数。</summary>
+            public int Length { get; private set; }
+
+            /// <summary>创建编码结果。</summary>
+            public EncodedImageBuffer(byte[] buffer, int length)
+            {
+                Buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
+                if (length <= 0 || length > buffer.Length)
+                    throw new ArgumentOutOfRangeException(nameof(length), "JPEG有效字节数必须位于缓冲区范围内。");
+                Length = length;
+            }
+        }
+
+        /// <summary>
+        /// 把Bitmap编码到内存JPEG；调用方只在持有图片编码CPU许可时调用。
+        /// </summary>
+        /// <param name="bitmap">待编码位图。</param>
+        /// <param name="isCompress">是否使用指定JPEG质量。</param>
+        /// <param name="compressValue">JPEG质量。</param>
+        /// <param name="memoryStream">当前固定保存线程独占并复用的编码缓冲区。</param>
+        /// <returns>可供多个保存目录复用的JPEG字节。</returns>
+        private EncodedImageBuffer EncodeBitmapToJpeg(
+            Bitmap bitmap,
+            bool isCompress,
+            long compressValue,
+            MemoryStream memoryStream)
+        {
+            if (bitmap == null)
+                throw new ArgumentNullException(nameof(bitmap));
+            if (memoryStream == null)
+                throw new ArgumentNullException(nameof(memoryStream));
+
+            memoryStream.Position = 0L;
+            memoryStream.SetLength(0L);
+            if (isCompress)
+            {
+                using (EncoderParameters encoderParams = new EncoderParameters(1))
+                using (EncoderParameter qualityParameter = new EncoderParameter(
+                    System.Drawing.Imaging.Encoder.Quality,
+                    compressValue))
+                {
+                    encoderParams.Param[0] = qualityParameter;
+                    ImageCodecInfo jpegCodec = GetEncoderInfo("image/jpeg");
+                    if (jpegCodec == null)
+                        throw new InvalidOperationException("当前系统没有可用的JPEG编码器。");
+                    bitmap.Save(memoryStream, jpegCodec, encoderParams);
+                }
+            }
+            else
+            {
+                bitmap.Save(memoryStream, ImageFormat.Jpeg);
+            }
+
+            return new EncodedImageBuffer(
+                memoryStream.GetBuffer(),
+                checked((int)memoryStream.Length));
+        }
+
+        /// <summary>
+        /// 把已经编码的JPEG写入独占临时文件，再原子移动到唯一文件名。
+        /// </summary>
+        /// <param name="encodedImage">已经完成CPU编码的JPEG缓冲区。</param>
         /// <param name="targetDirectory">目标目录。</param>
         /// <param name="imageName">不含扩展名的基础图片名。</param>
-        /// <param name="isCompress">是否按指定质量压缩。</param>
-        /// <param name="compressValue">JPEG压缩质量。</param>
         /// <returns>实际写入的完整文件路径。</returns>
-        private string SaveWithCompress(
-            Bitmap bitmap,
+        private static string SaveEncodedImage(
+            EncodedImageBuffer encodedImage,
             string targetDirectory,
-            string imageName,
-            bool isCompress,
-            long compressValue = 100)
+            string imageName)
         {
+            if (encodedImage == null)
+                throw new ArgumentNullException(nameof(encodedImage));
+
             string temporaryPath = Path.Combine(
                 targetDirectory,
                 $".{Guid.NewGuid():N}.saving");
@@ -1273,22 +1417,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                     FileAccess.Write,
                     FileShare.None))
                 {
-                    if (isCompress)
-                    {
-                        using (EncoderParameters encoderParams = new EncoderParameters(1))
-                        using (EncoderParameter qualityParameter = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, compressValue))
-                        {
-                            encoderParams.Param[0] = qualityParameter;
-                            ImageCodecInfo jpegCodec = GetEncoderInfo("image/jpeg");
-                            if (jpegCodec == null)
-                                throw new InvalidOperationException("当前系统没有可用的JPEG编码器。");
-                            bitmap.Save(outputStream, jpegCodec, encoderParams);
-                        }
-                    }
-                    else
-                    {
-                        bitmap.Save(outputStream, ImageFormat.Jpeg);
-                    }
+                    outputStream.Write(encodedImage.Buffer, 0, encodedImage.Length);
                 }
 
                 for (int suffix = 0; suffix < int.MaxValue; suffix++)

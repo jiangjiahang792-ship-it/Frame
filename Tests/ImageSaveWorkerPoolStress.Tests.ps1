@@ -142,6 +142,7 @@ public sealed class ImageSaveWorkerStressResult
     public long CompletedCount { get; set; }
     public long FailedCount { get; set; }
     public int FileCount { get; set; }
+    public int InvalidJpegCount { get; set; }
     public long TotalFileBytes { get; set; }
     public int EmptyFileCount { get; set; }
     public int TemporaryFileCount { get; set; }
@@ -167,6 +168,16 @@ public sealed class ImageSaveWorkerStressResult
     public long StorageProbeFailureCount { get; set; }
     public long SlowWriteCount { get; set; }
     public long MaximumWriteElapsedMilliseconds { get; set; }
+    public long CpuGrantedCount { get; set; }
+    public long CpuCompletedCount { get; set; }
+    public int CpuPeakActiveCount { get; set; }
+    public int CpuPeakImageConversionCount { get; set; }
+    public int CpuFinalActiveCount { get; set; }
+    public int CpuFinalWaitingCount { get; set; }
+    public int CpuActiveCountDuringStoragePrepare { get; set; }
+    public int CpuImageConversionAcquireCount { get; set; }
+    public int CpuImageEncodingAcquireCount { get; set; }
+    public bool MultiTargetBytesIdentical { get; set; }
 }
 
 public sealed class DeterministicStorageGuard : IImageSaveStorageGuard
@@ -177,6 +188,8 @@ public sealed class DeterministicStorageGuard : IImageSaveStorageGuard
     public int CriticalSpaceThresholdMb { get; set; }
     public int SlowWriteThresholdMs { get; set; }
     public int ProbeIntervalMs { get; set; }
+    public Func<int> CpuActiveCountProvider { get; set; }
+    public int MaximumCpuActiveCountDuringPrepareWrite { get; private set; }
 
     public DeterministicStorageGuard(ImageSaveStorageStatus status, int writeDelayMilliseconds, int slowWriteThresholdMs)
     {
@@ -201,6 +214,10 @@ public sealed class DeterministicStorageGuard : IImageSaveStorageGuard
 
     public void PrepareWrite(string targetDirectory)
     {
+        if (CpuActiveCountProvider != null)
+            MaximumCpuActiveCountDuringPrepareWrite = Math.Max(
+                MaximumCpuActiveCountDuringPrepareWrite,
+                CpuActiveCountProvider());
         if (WriteDelayMilliseconds > 0)
             Thread.Sleep(WriteDelayMilliseconds);
     }
@@ -208,6 +225,81 @@ public sealed class DeterministicStorageGuard : IImageSaveStorageGuard
     public bool IsSlowWrite(long elapsedMilliseconds)
     {
         return elapsedMilliseconds >= SlowWriteThresholdMs;
+    }
+}
+
+public sealed class TrackingCpuWorkScheduler : ICpuWorkScheduler
+{
+    private int _activeCount;
+    private int _disposed;
+    private long _grantedCount;
+    private long _completedCount;
+
+    public int ActiveCount { get { return Volatile.Read(ref _activeCount); } }
+    public int ImageConversionAcquireCount { get; private set; }
+    public int ImageEncodingAcquireCount { get; private set; }
+
+    public Task<ICpuWorkLease> AcquireAsync(CpuWorkloadKind workloadKind, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (Volatile.Read(ref _disposed) == 1)
+            throw new ObjectDisposedException("TrackingCpuWorkScheduler");
+        Interlocked.Increment(ref _activeCount);
+        Interlocked.Increment(ref _grantedCount);
+        if (workloadKind == CpuWorkloadKind.ImageConversion)
+            ImageConversionAcquireCount++;
+        if (workloadKind == CpuWorkloadKind.ImageEncoding)
+            ImageEncodingAcquireCount++;
+        return Task.FromResult<ICpuWorkLease>(new TrackingCpuWorkLease(this, workloadKind));
+    }
+
+    public void ObserveCpuSample(double cpuPercent, long timestampMilliseconds)
+    {
+    }
+
+    public void Reconfigure(CpuWorkSchedulerOptions options)
+    {
+    }
+
+    public CpuWorkSchedulerSnapshot GetSnapshot()
+    {
+        return new CpuWorkSchedulerSnapshot
+        {
+            ActiveCount = ActiveCount,
+            GrantedCount = Interlocked.Read(ref _grantedCount),
+            CompletedCount = Interlocked.Read(ref _completedCount)
+        };
+    }
+
+    public void Dispose()
+    {
+        Volatile.Write(ref _disposed, 1);
+    }
+
+    private void Release()
+    {
+        Interlocked.Decrement(ref _activeCount);
+        Interlocked.Increment(ref _completedCount);
+    }
+
+    private sealed class TrackingCpuWorkLease : ICpuWorkLease
+    {
+        private TrackingCpuWorkScheduler _owner;
+        public CpuWorkloadKind WorkloadKind { get; private set; }
+        public double WaitElapsedMilliseconds { get { return 0D; } }
+
+        public TrackingCpuWorkLease(TrackingCpuWorkScheduler owner, CpuWorkloadKind workloadKind)
+        {
+            _owner = owner;
+            WorkloadKind = workloadKind;
+        }
+
+        public void Dispose()
+        {
+            TrackingCpuWorkScheduler owner = Interlocked.Exchange(ref _owner, null);
+            if (owner != null)
+                owner.Release();
+        }
     }
 }
 
@@ -240,6 +332,71 @@ public sealed class ThrowingStressMatLease : IImageResourceLease
 
 public static class ImageSaveWorkerStressHarness
 {
+    public static ImageSaveWorkerStressResult RunCpuStorageSeparationScenario(string outputDirectory)
+    {
+        Directory.CreateDirectory(outputDirectory);
+        string firstTargetDirectory = Path.Combine(outputDirectory, "目录一");
+        string secondTargetDirectory = Path.Combine(outputDirectory, "目录二");
+        Directory.CreateDirectory(firstTargetDirectory);
+        Directory.CreateDirectory(secondTargetDirectory);
+        StressMatLease.Reset();
+        TrackingCpuWorkScheduler cpuScheduler = new TrackingCpuWorkScheduler();
+        DeterministicStorageGuard storageGuard = new DeterministicStorageGuard(
+            ImageSaveStorageStatus.Allowed,
+            100,
+            50);
+        storageGuard.CpuActiveCountProvider = () => cpuScheduler.ActiveCount;
+        ImageQueueProcessor processor = new ImageQueueProcessor(
+            1,
+            4,
+            16L * 1024L * 1024L,
+            5000,
+            "CPU与慢盘分段测试",
+            storageGuard,
+            cpuScheduler);
+        processor.StartProcessing();
+        Mat image = new Mat(128, 128, MatType.CV_8UC3, Scalar.All(127));
+        SaveImageTask task = new SaveImageTask
+        {
+            SourceImage = image,
+            TargetDirectories = new List<string> { firstTargetDirectory, secondTargetDirectory },
+            ImageName = "CPU与慢盘分段",
+            NeedCompress = true,
+            CompressValue = 90,
+            EstimatedBytes = checked((long)image.Rows * (long)image.Step()),
+            OwnerKey = "CPU与慢盘分段流程",
+            ImageLease = new StressMatLease(image)
+        };
+        BoundedQueueAdmissionResult admission = processor.EnqueueImage(task);
+        if (!admission.Accepted)
+            task.Dispose();
+        bool stopped = processor.StopProcessing();
+        CpuWorkSchedulerSnapshot cpuSnapshot = cpuScheduler.GetSnapshot();
+        cpuScheduler.Dispose();
+        FileInfo[] files = new DirectoryInfo(outputDirectory).GetFiles("*.jpg", SearchOption.AllDirectories);
+        bool multiTargetBytesIdentical = files.Length == 2 &&
+            File.ReadAllBytes(files[0].FullName).SequenceEqual(File.ReadAllBytes(files[1].FullName));
+        return new ImageSaveWorkerStressResult
+        {
+            AttemptedCount = 1,
+            AcceptedCount = admission.Accepted ? 1 : 0,
+            CompletedCount = processor.CompletedTaskCount,
+            FailedCount = processor.FailedTaskCount,
+            FileCount = files.Length,
+            InvalidJpegCount = files.Count(file => !IsValidJpeg(file.FullName, 128, 128)),
+            LeaseDisposeCount = StressMatLease.DisposeCount,
+            GracefullyStopped = stopped,
+            FullyStopped = processor.IsFullyStopped,
+            CpuGrantedCount = cpuSnapshot.GrantedCount,
+            CpuCompletedCount = cpuSnapshot.CompletedCount,
+            CpuFinalActiveCount = cpuSnapshot.ActiveCount,
+            CpuActiveCountDuringStoragePrepare = storageGuard.MaximumCpuActiveCountDuringPrepareWrite,
+            CpuImageConversionAcquireCount = cpuScheduler.ImageConversionAcquireCount,
+            CpuImageEncodingAcquireCount = cpuScheduler.ImageEncodingAcquireCount,
+            MultiTargetBytesIdentical = multiTargetBytesIdentical
+        };
+    }
+
     public static ImageSaveWorkerStressResult RunStorageScenario(
         string outputDirectory,
         ImageSaveStorageStatus status,
@@ -305,6 +462,7 @@ public static class ImageSaveWorkerStressHarness
             CompletedCount = processor.CompletedTaskCount,
             FailedCount = processor.FailedTaskCount,
             FileCount = files.Length,
+            InvalidJpegCount = files.Count(file => !IsValidJpeg(file.FullName, 128, 128)),
             TotalFileBytes = files.Sum(file => file.Length),
             LeaseDisposeCount = StressMatLease.DisposeCount,
             LeaseDoubleDisposeCount = StressMatLease.DoubleDisposeCount,
@@ -327,12 +485,15 @@ public static class ImageSaveWorkerStressHarness
     {
         Directory.CreateDirectory(outputDirectory);
         StressMatLease.Reset();
+        CpuWorkScheduler cpuScheduler = new CpuWorkScheduler(CreateCpuSchedulerOptions());
         ImageQueueProcessor processor = new ImageQueueProcessor(
             2,
             8,
             128L * 1024L * 1024L,
             5000,
-            "保存压力测试");
+            "保存压力测试",
+            CachedImageSaveStorageGuard.CreateDefault(),
+            cpuScheduler);
         processor.StartProcessing();
         int accepted = 0;
         int rejected = 0;
@@ -404,6 +565,8 @@ public static class ImageSaveWorkerStressHarness
             .Select(ticks => ticks * 1000.0 / Stopwatch.Frequency)
             .OrderBy(value => value)
             .ToArray();
+        CpuWorkSchedulerSnapshot cpuSnapshot = cpuScheduler.GetSnapshot();
+        cpuScheduler.Dispose();
         return new ImageSaveWorkerStressResult
         {
             AttemptedCount = attemptedCount,
@@ -413,6 +576,7 @@ public static class ImageSaveWorkerStressHarness
             CompletedCount = processor.CompletedTaskCount,
             FailedCount = processor.FailedTaskCount,
             FileCount = files.Length,
+            InvalidJpegCount = files.Count(file => !IsValidJpeg(file.FullName, 1024, 768)),
             TotalFileBytes = files.Sum(file => file.Length),
             EmptyFileCount = files.Count(file => file.Length == 0),
             TemporaryFileCount = temporaryFileCount,
@@ -431,7 +595,31 @@ public static class ImageSaveWorkerStressHarness
             FullyStopped = processor.IsFullyStopped,
             SynchronousRetiredReleaseCount = processor.SynchronousRetiredReleaseCount,
             PeakRetiredTaskCount = processor.PeakRetiredTaskCount,
-            PeakRetiredTaskBytes = processor.PeakRetiredTaskBytes
+            PeakRetiredTaskBytes = processor.PeakRetiredTaskBytes,
+            CpuGrantedCount = cpuSnapshot.GrantedCount,
+            CpuCompletedCount = cpuSnapshot.CompletedCount,
+            CpuPeakActiveCount = cpuSnapshot.PeakActiveCount,
+            CpuPeakImageConversionCount = cpuSnapshot.PeakImageConversionCount,
+            CpuFinalActiveCount = cpuSnapshot.ActiveCount,
+            CpuFinalWaitingCount = cpuSnapshot.WaitingCount
+        };
+    }
+
+    private static CpuWorkSchedulerOptions CreateCpuSchedulerOptions()
+    {
+        return new CpuWorkSchedulerOptions
+        {
+            MaximumConcurrency = 4,
+            MinimumConcurrency = 1,
+            ImageConversionMaximumConcurrency = 4,
+            HighCpuPercent = 85D,
+            RecoveryCpuPercent = 65D,
+            HighCpuSustainMilliseconds = 5000,
+            RecoveryCpuSustainMilliseconds = 10000,
+            AdjustmentIntervalMilliseconds = 5000,
+            AdjustmentCooldownMilliseconds = 30000,
+            AdjustmentStep = 1,
+            WaitSampleCapacity = 2048
         };
     }
 
@@ -443,6 +631,19 @@ public static class ImageSaveWorkerStressHarness
         int index = (int)Math.Ceiling(sortedValues.Length * percentile) - 1;
         index = Math.Max(0, Math.Min(sortedValues.Length - 1, index));
         return sortedValues[index];
+    }
+
+    private static bool IsValidJpeg(string filePath, int expectedWidth, int expectedHeight)
+    {
+        try
+        {
+            using (System.Drawing.Image image = System.Drawing.Image.FromFile(filePath))
+                return image.Width == expectedWidth && image.Height == expectedHeight;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public static ImageSaveWorkerStressResult RunWriteFailure(string outputDirectory)
@@ -705,6 +906,15 @@ try {
     Assert-True ($slow.LeaseDisposeCount -eq 20 -and $slow.LeaseDoubleDisposeCount -eq 0) '慢盘压力中全部尝试任务的Mat租约必须恰好释放一次。'
     Assert-True ($slow.FailedCount -eq 0 -and $slow.FullyStopped) '慢盘降速不能形成写盘失败或遗留工作线程。'
 
+    $cpuSeparationDirectory = Join-Path $testOutputRoot 'cpu_storage_separation'
+    $cpuSeparation = [ImageSaveWorkerStressHarness]::RunCpuStorageSeparationScenario($cpuSeparationDirectory)
+    Assert-True ($cpuSeparation.CompletedCount -eq 1 -and $cpuSeparation.FailedCount -eq 0 -and $cpuSeparation.FileCount -eq 2 -and $cpuSeparation.InvalidJpegCount -eq 0) 'CPU与慢盘分段场景必须把同一张有效JPEG写入两个目录。'
+    Assert-True ($cpuSeparation.CpuImageConversionAcquireCount -eq 1 -and $cpuSeparation.CpuImageEncodingAcquireCount -eq 1) '单张保存必须分别取得一次转换许可和一次编码许可。'
+    Assert-True $cpuSeparation.MultiTargetBytesIdentical '同一张图片写入两个目录时必须复用完全一致的JPEG编码字节。'
+    Assert-True ($cpuSeparation.CpuGrantedCount -eq 2 -and $cpuSeparation.CpuCompletedCount -eq 2) '单张保存的两个CPU许可必须全部归还。'
+    Assert-True ($cpuSeparation.CpuActiveCountDuringStoragePrepare -eq 0) '100ms慢盘准备期间不得持有CPU重任务许可。'
+    Assert-True ($cpuSeparation.CpuFinalActiveCount -eq 0 -and $cpuSeparation.LeaseDisposeCount -eq 1 -and $cpuSeparation.FullyStopped) 'CPU与慢盘分段场景停止后CPU活动和Mat租约必须归零。'
+
     $failureDirectory = Join-Path $testOutputRoot 'failure'
     $failure = [ImageSaveWorkerStressHarness]::RunWriteFailure($failureDirectory)
     Assert-True $failure.GracefullyStopped '写盘失败任务也必须在5000ms内结束工作池。'
@@ -757,8 +967,13 @@ try {
         Assert-True ($result.FailedCount -eq 0) "第${round}轮不允许图片转换或写盘失败。"
         Assert-True ($result.FileCount -eq $result.CompletedCount) "第${round}轮完成任务数与唯一文件数不一致。"
         Assert-True ($result.EmptyFileCount -eq 0) "第${round}轮不允许产生空文件。"
+        Assert-True ($result.InvalidJpegCount -eq 0) "第${round}轮全部JPEG必须可解码且尺寸为1024x768。"
         Assert-True ($result.TemporaryFileCount -eq 0) "第${round}轮不允许残留.saving临时文件。"
         Assert-True ($result.LeaseDisposeCount -eq $result.AttemptedCount) "第${round}轮每份Mat租约必须恰好释放一次。"
+        Assert-True ($result.CpuGrantedCount -eq ($result.CompletedCount * 2)) "第${round}轮每张完成图片必须各取得一次转换许可和一次编码许可。"
+        Assert-True ($result.CpuCompletedCount -eq $result.CpuGrantedCount) "第${round}轮CPU许可必须全部释放。"
+        Assert-True ($result.CpuPeakActiveCount -le 2 -and $result.CpuPeakImageConversionCount -le 2) "第${round}轮保存CPU活动不得超过两个保存线程。"
+        Assert-True ($result.CpuFinalActiveCount -eq 0 -and $result.CpuFinalWaitingCount -eq 0) "第${round}轮停止后CPU活动和等待必须归零。"
         Assert-True ($result.LeaseDoubleDisposeCount -eq 0) "第${round}轮不允许重复释放租约。"
         Assert-True ($result.EnqueueP99Milliseconds -lt 50) "第${round}轮入队P99超过50ms。"
         Assert-True ($result.EnqueueMaxMilliseconds -lt 500) "第${round}轮存在超过500ms的入队停顿。"

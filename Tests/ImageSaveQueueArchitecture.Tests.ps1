@@ -19,6 +19,13 @@ function Assert-NotContains {
     }
 }
 
+function Assert-True {
+    param([bool]$Condition, [string]$Message)
+    if (-not $Condition) {
+        throw $Message
+    }
+}
+
 $queue = Get-ProjectSource 'ResourceManagement\BoundedPriorityWorkQueue.cs'
 $saveNode = Get-ProjectSource 'Node\7-ResultProcessing\ImageSave\NodeSaveImage.cs'
 $storageGuard = Get-ProjectSource 'ResourceManagement\ImageSaveStorageGuard.cs'
@@ -65,10 +72,21 @@ Assert-Contains $saveNode 'File.Move(temporaryPath, imagePath);' '完成JPEG编�
 Assert-Contains $saveNode 'TryDeleteIncompleteFile(temporaryPath)' '写盘失败必须清理临时文件。'
 Assert-Contains $saveNode 'TryDeleteIncompleteFile(committedImagePath)' '多目录保存中途失败必须回滚已经发布的文件。'
 Assert-Contains $saveNode 'bitmap?.Dispose();' '转换或叠加异常必须释放已创建Bitmap。'
+Assert-Contains $saveNode 'CpuWorkloadKind.ImageConversion' '保存Mat转Bitmap必须取得图像转换CPU许可。'
+Assert-Contains $saveNode 'CpuWorkloadKind.ImageEncoding' '保存JPEG编码必须取得图片编码CPU许可。'
+Assert-Contains $saveNode 'EncodeBitmapToJpeg(' '保存工作池必须把JPEG编码和磁盘写入拆分。'
+Assert-Contains $saveNode 'SaveEncodedImage(' '磁盘阶段必须写入已经编码的JPEG缓冲区。'
+Assert-Contains $saveNode 'outputStream.Write(encodedImage.Buffer, 0, encodedImage.Length);' '磁盘阶段只能写入编码结果，不得重新执行Bitmap编码。'
+Assert-NotContains $saveNode 'bitmap.Save(outputStream' 'JPEG编码不得覆盖慢盘文件写入时间。'
+$encodeCallIndex = $saveNode.IndexOf('encodedImage = EncodeBitmapToJpeg(')
+$diskCallIndex = $saveNode.IndexOf('string fileName = SaveEncodedImage(')
+Assert-True ($encodeCallIndex -ge 0 -and $diskCallIndex -gt $encodeCallIndex) '保存链必须先完成一次JPEG编码，再复用于全部目标目录。'
 
 Assert-Contains $solution 'private ImageQueueProcessor _imageSaveQueueProcessor;' 'Solution必须持有唯一共享保存工作池。'
 Assert-Contains $solution 'CreateImageSaveQueueProcessor(CurrentResourceProfile)' '共享工作池必须按当前资源档案延迟创建。'
 Assert-Contains $solution 'new CachedImageSaveStorageGuard(' '共享工作池创建时必须应用磁盘保护参数。'
+Assert-Contains $solution 'storageGuard,' '共享保存工作池必须接收磁盘保护器。'
+Assert-Contains $solution '_cpuWorkScheduler);' '共享保存工作池必须复用全方案CPU调度器。'
 Assert-Contains $solution 'profile?.ImageSaveWorkerCount ?? 1' '保存工作线程数必须读取自动资源档案并提供保守降级值。'
 Assert-Contains $solution 'AverageImageBytes = _imageSaveSizeSampler.AverageBytes' '资源档案必须使用运行时滚动图像字节样本。'
 Assert-Contains $solution 'if (!StopImageSaveQueueProcessor())' '方案重置必须确认共享保存工作池已经完全退出。'
@@ -84,4 +102,4 @@ Assert-Contains $project '<Compile Include="ResourceManagement\BoundedPriorityWo
 Assert-Contains $project '<Compile Include="ResourceManagement\ImageResourceSizeSampler.cs" />' '项目必须编译图像资源滚动采样器。'
 Assert-Contains $project '<Compile Include="ResourceManagement\ImageSaveStorageGuard.cs" />' '项目必须编译磁盘保护和保存诊断模型。'
 
-Write-Host '保存队列共享架构、双重边界、停止排空和原子写盘结构检查通过。'
+Write-Host '保存队列共享架构、双重边界、CPU转换与编码分段、停止排空和原子写盘结构检查通过。'
