@@ -149,6 +149,12 @@ public sealed class ImageSaveWorkerStressResult
     public int TemporaryFileCount { get; set; }
     public int LeaseDisposeCount { get; set; }
     public int LeaseDoubleDisposeCount { get; set; }
+    public int LeaseFactoryCallCount { get; set; }
+    public int ActiveLeaseCountAfterAdmission { get; set; }
+    public int RejectedOutputActiveLeaseCount { get; set; }
+    public int FinalActiveImageLeaseCount { get; set; }
+    public bool DisposedSnapshotRejected { get; set; }
+    public bool StaleSnapshotBudgetRejected { get; set; }
     public int PeakQueueCount { get; set; }
     public long PeakQueueBytes { get; set; }
     public int PeakActiveWorkers { get; set; }
@@ -334,6 +340,161 @@ public sealed class ThrowingStressMatLease : IImageResourceLease
 
 public static class ImageSaveWorkerStressHarness
 {
+    public static ImageSaveWorkerStressResult RunAdmissionLeaseFactoryScenario(string outputDirectory)
+    {
+        Directory.CreateDirectory(outputDirectory);
+        ImageQueueProcessor processor = new ImageQueueProcessor(
+            1,
+            1,
+            16L * 1024L * 1024L,
+            1000,
+            "接纳后租约测试");
+        int leaseFactoryCallCount = 0;
+        Mat firstImage = new Mat(128, 128, MatType.CV_8UC3, Scalar.All(63));
+        OutputImage firstOutput = OutputImage.FromOwnedSingleImage(firstImage);
+        SaveImageTask firstTask = new SaveImageTask
+        {
+            SourceImage = null,
+            TargetDirectories = new List<string> { outputDirectory },
+            ImageName = "接纳任务",
+            NeedCompress = true,
+            CompressValue = 90,
+            EstimatedBytes = firstOutput.GetRetainedImageBytesEstimateForAdmission(),
+            OwnerKey = "两阶段接纳流程"
+        };
+        BoundedQueueAdmissionResult firstAdmission = processor.EnqueueImage(
+            firstTask,
+            () =>
+            {
+                Interlocked.Increment(ref leaseFactoryCallCount);
+                return firstOutput.AcquireSaveSnapshot();
+            });
+        if (!firstAdmission.Accepted)
+            firstTask.Dispose();
+
+        Mat secondImage = new Mat(128, 128, MatType.CV_8UC3, Scalar.All(127));
+        OutputImage secondOutput = OutputImage.FromOwnedSingleImage(secondImage);
+        SaveImageTask secondTask = new SaveImageTask
+        {
+            SourceImage = null,
+            TargetDirectories = new List<string> { outputDirectory },
+            ImageName = "拒绝任务",
+            NeedCompress = true,
+            CompressValue = 90,
+            EstimatedBytes = secondOutput.GetRetainedImageBytesEstimateForAdmission(),
+            OwnerKey = "两阶段接纳流程"
+        };
+        BoundedQueueAdmissionResult secondAdmission = processor.EnqueueImage(
+            secondTask,
+            () =>
+            {
+                Interlocked.Increment(ref leaseFactoryCallCount);
+                return secondOutput.AcquireSaveSnapshot();
+            });
+        if (!secondAdmission.Accepted)
+            secondTask.Dispose();
+
+        int activeLeaseCountAfterAdmission = firstOutput.ActiveLeaseCount;
+        int rejectedOutputActiveLeaseCount = secondOutput.ActiveLeaseCount;
+        bool stopped = processor.StopProcessing();
+        int finalActiveImageLeaseCount = firstOutput.ActiveLeaseCount + secondOutput.ActiveLeaseCount;
+        firstOutput.Dispose();
+        secondOutput.Dispose();
+
+        ImageQueueProcessor disposedProcessor = new ImageQueueProcessor(
+            1,
+            1,
+            16L * 1024L * 1024L,
+            1000,
+            "释放竞态接纳测试");
+        Mat disposedImage = new Mat(128, 128, MatType.CV_8UC3, Scalar.All(191));
+        OutputImage disposedOutput = OutputImage.FromOwnedSingleImage(disposedImage);
+        SaveImageTask disposedTask = new SaveImageTask
+        {
+            SourceImage = null,
+            TargetDirectories = new List<string> { outputDirectory },
+            ImageName = "释放后任务",
+            NeedCompress = true,
+            CompressValue = 90,
+            EstimatedBytes = disposedOutput.GetRetainedImageBytesEstimateForAdmission(),
+            OwnerKey = "两阶段接纳流程"
+        };
+        disposedOutput.Dispose();
+        bool disposedSnapshotRejected = false;
+        try
+        {
+            disposedProcessor.EnqueueImage(
+                disposedTask,
+                () => disposedOutput.AcquireSaveSnapshot());
+        }
+        catch (ObjectDisposedException)
+        {
+            disposedSnapshotRejected = true;
+        }
+        finally
+        {
+            disposedTask.Dispose();
+            disposedProcessor.StopProcessing();
+        }
+
+        ImageQueueProcessor staleBudgetProcessor = new ImageQueueProcessor(
+            1,
+            1,
+            1L * 1024L * 1024L,
+            1000,
+            "缓存失真预算测试");
+        Mat staleOriginalImage = new Mat(16, 16, MatType.CV_8UC3, Scalar.All(31));
+        OutputImage staleOutput = OutputImage.FromOwnedSingleImage(staleOriginalImage);
+        SaveImageTask staleTask = new SaveImageTask
+        {
+            SourceImage = null,
+            TargetDirectories = new List<string> { outputDirectory },
+            ImageName = "缓存失真任务",
+            NeedCompress = true,
+            CompressValue = 90,
+            EstimatedBytes = staleOutput.GetRetainedImageBytesEstimateForAdmission(),
+            OwnerKey = "两阶段接纳流程"
+        };
+        Mat staleReplacementImage = new Mat(1024, 1024, MatType.CV_8UC3, Scalar.All(223));
+        staleOutput.Bitmaps[0] = staleReplacementImage;
+        bool staleSnapshotBudgetRejected = false;
+        try
+        {
+            BoundedQueueAdmissionResult staleAdmission = staleBudgetProcessor.EnqueueImage(
+                staleTask,
+                () => staleOutput.AcquireSaveSnapshot());
+            staleTask.Dispose();
+            staleSnapshotBudgetRejected = !staleAdmission.Accepted &&
+                staleAdmission.Status == BoundedQueueAdmissionStatus.RejectedItemExceedsBudget &&
+                staleBudgetProcessor.RejectedTaskCount == 1 &&
+                staleBudgetProcessor.QueuedCount == 0 &&
+                staleOutput.ActiveLeaseCount == 0;
+        }
+        finally
+        {
+            staleTask.Dispose();
+            staleBudgetProcessor.StopProcessing();
+            staleOutput.Dispose();
+            staleReplacementImage.Dispose();
+        }
+
+        return new ImageSaveWorkerStressResult
+        {
+            AttemptedCount = 2,
+            AcceptedCount = (firstAdmission.Accepted ? 1 : 0) + (secondAdmission.Accepted ? 1 : 0),
+            RejectedCount = (firstAdmission.Accepted ? 0 : 1) + (secondAdmission.Accepted ? 0 : 1),
+            LeaseFactoryCallCount = leaseFactoryCallCount,
+            ActiveLeaseCountAfterAdmission = activeLeaseCountAfterAdmission,
+            RejectedOutputActiveLeaseCount = rejectedOutputActiveLeaseCount,
+            FinalActiveImageLeaseCount = finalActiveImageLeaseCount,
+            DisposedSnapshotRejected = disposedSnapshotRejected && disposedProcessor.QueuedCount == 0,
+            StaleSnapshotBudgetRejected = staleSnapshotBudgetRejected,
+            GracefullyStopped = stopped,
+            FullyStopped = processor.IsFullyStopped,
+            FinalQueuedCount = processor.QueuedCount
+        };
+    }
+
     public static ImageSaveWorkerStressResult RunCpuPermitStopCancellationScenario(string outputDirectory)
     {
         Directory.CreateDirectory(outputDirectory);
@@ -917,6 +1078,16 @@ if (Test-Path -LiteralPath $testOutputRoot) {
 [IO.Directory]::CreateDirectory($testOutputRoot) | Out-Null
 
 try {
+    $admissionLeaseDirectory = Join-Path $testOutputRoot 'admission_lease_factory'
+    $admissionLease = [ImageSaveWorkerStressHarness]::RunAdmissionLeaseFactoryScenario($admissionLeaseDirectory)
+    Assert-True ($admissionLease.AcceptedCount -eq 1 -and $admissionLease.RejectedCount -eq 1) '容量1且消费者未启动时必须恰好接收1个、拒绝1个任务。'
+    Assert-True ($admissionLease.LeaseFactoryCallCount -eq $admissionLease.AcceptedCount) 'Mat租约工厂调用次数必须严格等于队列接收次数。'
+    Assert-True ($admissionLease.ActiveLeaseCountAfterAdmission -eq 1 -and $admissionLease.RejectedOutputActiveLeaseCount -eq 0) '只有已接收任务可以持有OutputImage租约，满队列拒绝不得取得租约。'
+    Assert-True ($admissionLease.FinalActiveImageLeaseCount -eq 0) '队列停止后已接收任务的OutputImage租约必须归零。'
+    Assert-True $admissionLease.DisposedSnapshotRejected '任务预判后若OutputImage并发释放，原子快照必须拒绝发布且队列保持为空。'
+    Assert-True $admissionLease.StaleSnapshotBudgetRejected 'Bitmaps原地变化导致缓存偏小时，接纳快照必须按实际资源拒绝发布且释放租约。'
+    Assert-True ($admissionLease.GracefullyStopped -and $admissionLease.FullyStopped -and $admissionLease.FinalQueuedCount -eq 0) '两阶段接纳测试结束后队列和基础资源必须完整释放。'
+
     # 首轮作为完整Mat转Bitmap、JPEG编码、原子同名写盘和租约释放预热，不计入正式数据。
     $warmupDirectory = Join-Path $testOutputRoot 'warmup'
     $warmup = [ImageSaveWorkerStressHarness]::Run($warmupDirectory, 12)

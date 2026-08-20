@@ -23,6 +23,18 @@ function Assert-Contains {
     }
 }
 
+function Assert-NotContains {
+    param(
+        [string]$Text,
+        [string]$Pattern,
+        [string]$Message
+    )
+
+    if ($Text.Contains($Pattern)) {
+        throw $Message
+    }
+}
+
 $root = Split-Path -Parent $PSScriptRoot
 $outputImageSource = Get-Content -LiteralPath (Join-Path $root 'Node\1-Acquisition\ImageSource\NodeResultImageSource.cs') -Raw -Encoding UTF8
 $resourceManagerSource = Get-Content -LiteralPath (Join-Path $root 'Node\NodeResultResourceManager.cs') -Raw -Encoding UTF8
@@ -68,10 +80,14 @@ Assert-Contains $splitNode '.TakeOwnership(imgs)' '分割节点必须拥有自�
 Assert-Contains $splitNode '.TakeOwnership(firstGraySplit)' '分割节点必须拥有自产灰度缓存。'
 Assert-Contains $splitNode '.TakeDependency(inputImage)' '分割节点必须把借用源图的租约传回上游。'
 Assert-Contains $rotateNode 'TakeOwnership(rotatedImage)' '旋转节点必须在创建彩图后立即登记所有权。'
-Assert-Contains $saveNode 'outputImage.EstimateRetainedImageBytes()' '保存任务必须按完整图像依赖链估算排队字节。'
-Assert-Contains $saveNode 'IImageResourceLease candidateLease = outputImage.AcquireLease();' '保存节点读取源图和估算资源前必须持有短候选租约。'
-Assert-Contains $saveNode 'candidateLease = null;' '队列确认接收后必须把候选租约所有权转交保存任务。'
-Assert-Contains $saveNode 'candidateLease?.Dispose();' '队列拒绝或任务构造失败时必须立即释放候选租约。'
+Assert-Contains $saveNode 'outputImage.GetRetainedImageBytesEstimateForAdmission()' '保存任务必须使用完整图像依赖链的缓存字节估算。'
+Assert-NotContains $saveNode 'IImageResourceLease candidateLease = outputImage.AcquireLease();' '保存节点不能在队列确认接收前取得Mat租约。'
+Assert-Contains $saveNode '() => outputImage.AcquireSaveSnapshot()' '队列确认接收后必须原子取得后台Mat与租约快照。'
+Assert-Contains $outputImageSource 'GetRetainedImageBytesEstimateForAdmission()' '保存预判必须使用输出构建阶段缓存的字节估算。'
+Assert-Contains $outputImageSource 'OutputImageSaveSnapshot AcquireSaveSnapshot()' 'OutputImage必须在同一资源锁内取得保存源图和租约。'
+Assert-Contains $outputImageSource 'CollectRetainedImageBytes(this, visitedOutputs, visitedImages)' '原子保存快照必须在租约保护下重算实际资源字节。'
+Assert-Contains $outputImageSource 'HasDependencyPath(owner, this)' '登记父级租约前必须拒绝直接或传递循环依赖。'
+Assert-Contains $outputImageSource 'Interlocked.Read(ref _retainedImageBytesEstimate)' '读取父级缓存不能在子级锁内继续取得父级资源锁。'
 Assert-Contains $saveNode 'DisposeSaveTaskNoThrow(saveImagedata, "保存工作任务")' '保存后台完成或异常后必须隔离异常并释放任务租约。'
 Assert-Contains $saveNode '_imageQueue.CompleteAndDisposePending();' '保存队列停止超时后必须释放全部待处理任务租约。'
 Assert-Contains $batteryEarNode 'pendingOutputImage.TakeOwnership(generatedImage);' '电池耳节点必须接管自产结果图。'
@@ -246,6 +262,129 @@ namespace TDJS_Vision.Tests
 
             return disposeCount;
         }
+
+        public static int RunSnapshotDisposeRace(int cycles)
+        {
+            int disposeCount = 0;
+            for (int i = 0; i < cycles; i++)
+            {
+                OpenCvSharp.Mat image = new OpenCvSharp.Mat { ChannelCount = 1 };
+                OutputImage output = OutputImage.FromOwnedSingleImage(image, image);
+                ManualResetEventSlim start = new ManualResetEventSlim(false);
+                Exception unexpectedException = null;
+                Task acquireTask = Task.Run(() =>
+                {
+                    start.Wait();
+                    try
+                    {
+                        using (OutputImage.OutputImageSaveSnapshot snapshot = output.AcquireSaveSnapshot())
+                        {
+                            if (!OutputImage.HasValidImage(snapshot.SourceImage))
+                                throw new InvalidOperationException("并发快照取得了无效图像。");
+                        }
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // Dispose先取得资源锁时，快照按契约拒绝即可。
+                    }
+                    catch (Exception ex)
+                    {
+                        unexpectedException = ex;
+                    }
+                });
+                Task disposeTask = Task.Run(() =>
+                {
+                    start.Wait();
+                    output.Dispose();
+                });
+
+                start.Set();
+                Task.WaitAll(acquireTask, disposeTask);
+                start.Dispose();
+                output.Dispose();
+                if (unexpectedException != null)
+                    throw new InvalidOperationException("快照与释放并发测试失败。", unexpectedException);
+                if (output.ActiveLeaseCount != 0 || !output.AreOwnedResourcesReleased || image.DisposeCount != 1)
+                    throw new InvalidOperationException("快照与释放竞争后资源未完整归零。");
+
+                disposeCount += image.DisposeCount;
+            }
+
+            return disposeCount;
+        }
+
+        public static int RunConcurrentReverseDependencyRace(int cycles)
+        {
+            int completedCycles = 0;
+            for (int i = 0; i < cycles; i++)
+            {
+                OpenCvSharp.Mat firstImage = new OpenCvSharp.Mat { ChannelCount = 1 };
+                OpenCvSharp.Mat secondImage = new OpenCvSharp.Mat { ChannelCount = 1 };
+                OutputImage firstOutput = OutputImage.FromOwnedSingleImage(firstImage, firstImage);
+                OutputImage secondOutput = OutputImage.FromOwnedSingleImage(secondImage, secondImage);
+                ManualResetEventSlim start = new ManualResetEventSlim(false);
+                int acceptedCount = 0;
+                int rejectedCount = 0;
+                Exception unexpectedException = null;
+
+                Task firstTask = Task.Run(() =>
+                {
+                    start.Wait();
+                    try
+                    {
+                        firstOutput.TakeDependency(secondOutput);
+                        Interlocked.Increment(ref acceptedCount);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        Interlocked.Increment(ref rejectedCount);
+                    }
+                    catch (Exception ex)
+                    {
+                        Interlocked.CompareExchange(ref unexpectedException, ex, null);
+                    }
+                });
+                Task secondTask = Task.Run(() =>
+                {
+                    start.Wait();
+                    try
+                    {
+                        secondOutput.TakeDependency(firstOutput);
+                        Interlocked.Increment(ref acceptedCount);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        Interlocked.Increment(ref rejectedCount);
+                    }
+                    catch (Exception ex)
+                    {
+                        Interlocked.CompareExchange(ref unexpectedException, ex, null);
+                    }
+                });
+
+                start.Set();
+                bool finished = Task.WaitAll(new[] { firstTask, secondTask }, 5000);
+                start.Dispose();
+                if (!finished)
+                    throw new TimeoutException("并发反向依赖检查发生死锁。");
+                if (unexpectedException != null)
+                    throw new InvalidOperationException("并发反向依赖检查发生非预期异常。", unexpectedException);
+                if (acceptedCount != 1 || rejectedCount != 1)
+                    throw new InvalidOperationException("并发反向依赖必须恰好接收一条边并拒绝一条边。");
+
+                firstOutput.Dispose();
+                secondOutput.Dispose();
+                if (firstOutput.ActiveLeaseCount != 0 || secondOutput.ActiveLeaseCount != 0 ||
+                    firstImage.DisposeCount != 1 || secondImage.DisposeCount != 1)
+                {
+                    throw new InvalidOperationException("并发反向依赖测试结束后资源未完整归零。");
+                }
+
+                completedCycles++;
+            }
+
+            return completedCycles;
+        }
     }
 }
 '@
@@ -259,6 +398,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 using OpenCvSharp;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -337,6 +477,54 @@ $estimateParentOutput.Dispose()
 $estimateChildOutput.Dispose()
 Assert-True ($estimateParentMat.DisposeCount -eq 1 -and $estimateChildMat.DisposeCount -eq 1) '估算依赖链测试结束后上下游Mat必须各释放一次。'
 
+$mutableOriginal = New-Object OpenCvSharp.Mat
+$mutableOriginal.ChannelCount = 1
+$mutableOriginal.Rows = 1
+$mutableOriginal.StepBytes = 10
+$mutableOutput = [TDJS_Vision.Node._1_Acquisition.ImageSource.OutputImage]::FromOwnedSingleImage($mutableOriginal, $mutableOriginal)
+$cachedBeforeMutation = $mutableOutput.GetRetainedImageBytesEstimateForAdmission()
+$mutableReplacement = New-Object OpenCvSharp.Mat
+$mutableReplacement.ChannelCount = 1
+$mutableReplacement.Rows = 1000
+$mutableReplacement.StepBytes = 10
+$mutableOutput.Bitmaps[0] = $mutableReplacement
+$mutableSnapshot = $mutableOutput.AcquireSaveSnapshot()
+try {
+    Assert-True ($cachedBeforeMutation -eq 10) '可变列表测试的初始缓存估算必须为10字节。'
+    Assert-True ($mutableSnapshot.EstimatedBytes -eq 10010) '原地替换Bitmaps后，接纳快照必须按租约保护下的实际Mat重新计量。'
+}
+finally {
+    $mutableSnapshot.Dispose()
+    $mutableOutput.Dispose()
+    $mutableReplacement.Dispose()
+}
+Assert-True ($mutableOriginal.DisposeCount -eq 1 -and $mutableReplacement.DisposeCount -eq 1) '可变列表预算测试结束后自产与外部Mat必须各释放一次。'
+
+$cycleMatA = New-Object OpenCvSharp.Mat
+$cycleMatA.ChannelCount = 1
+$cycleMatB = New-Object OpenCvSharp.Mat
+$cycleMatB.ChannelCount = 1
+$cycleMatC = New-Object OpenCvSharp.Mat
+$cycleMatC.ChannelCount = 1
+$cycleOutputA = [TDJS_Vision.Node._1_Acquisition.ImageSource.OutputImage]::FromOwnedSingleImage($cycleMatA, $cycleMatA)
+$cycleOutputB = [TDJS_Vision.Node._1_Acquisition.ImageSource.OutputImage]::FromOwnedSingleImage($cycleMatB, $cycleMatB)
+$cycleOutputC = [TDJS_Vision.Node._1_Acquisition.ImageSource.OutputImage]::FromOwnedSingleImage($cycleMatC, $cycleMatC)
+$null = $cycleOutputA.TakeDependency($cycleOutputB)
+$null = $cycleOutputB.TakeDependency($cycleOutputC)
+$cycleRejected = $false
+try {
+    $null = $cycleOutputC.TakeDependency($cycleOutputA)
+}
+catch [System.InvalidOperationException] {
+    $cycleRejected = $true
+}
+Assert-True $cycleRejected '三节点传递循环依赖必须在闭环边登记前被拒绝。'
+$cycleOutputC.Dispose()
+$cycleOutputB.Dispose()
+$cycleOutputA.Dispose()
+Assert-True ($cycleOutputA.ActiveLeaseCount -eq 0 -and $cycleOutputB.ActiveLeaseCount -eq 0 -and $cycleOutputC.ActiveLeaseCount -eq 0) '传递循环依赖拒绝后三方租约必须归零。'
+Assert-True ($cycleMatA.DisposeCount -eq 1 -and $cycleMatB.DisposeCount -eq 1 -and $cycleMatC.DisposeCount -eq 1) '传递循环依赖拒绝后三方Mat必须各释放一次。'
+
 $managerMat = New-Object OpenCvSharp.Mat
 $managerMat.ChannelCount = 1
 $managerOutput = [TDJS_Vision.Node._1_Acquisition.ImageSource.OutputImage]::FromOwnedSingleImage($managerMat, $managerMat)
@@ -356,4 +544,12 @@ $stressDisposeCount = [TDJS_Vision.Tests.ImageResourceStressRunner]::Run($cycles
 $stopwatch.Stop()
 Assert-True ($stressDisposeCount -eq $cycles) '生命周期压力测试中每轮必须恰好释放一次Mat。'
 
-Write-Host "Image resource lifecycle checks passed. Stress cycles=$cycles, elapsed=$($stopwatch.ElapsedMilliseconds)ms."
+$raceCycles = 1000
+$raceDisposeCount = [TDJS_Vision.Tests.ImageResourceStressRunner]::RunSnapshotDisposeRace($raceCycles)
+Assert-True ($raceDisposeCount -eq $raceCycles) '快照与Dispose并发争锁后每轮Mat必须恰好释放一次。'
+
+$dependencyRaceCycles = 1000
+$dependencyRaceCount = [TDJS_Vision.Tests.ImageResourceStressRunner]::RunConcurrentReverseDependencyRace($dependencyRaceCycles)
+Assert-True ($dependencyRaceCount -eq $dependencyRaceCycles) '双线程同时建立反向依赖时每轮必须只接收一条边且资源归零。'
+
+Write-Host "Image resource lifecycle checks passed. Stress cycles=$cycles, snapshot/dispose races=$raceCycles, dependency races=$dependencyRaceCycles, elapsed=$($stopwatch.ElapsedMilliseconds)ms."

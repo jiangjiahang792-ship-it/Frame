@@ -412,6 +412,98 @@ $callbackQueue.CompleteAndDisposePending() | Out-Null
 $callbackQueue.Dispose()
 
 [TDJS_Vision.Tests.FakeResourceItem]::ResetCounters()
+$updatedQueue = New-Object 'TDJS_Vision.ResourceManagement.BoundedPriorityWorkQueue[TDJS_Vision.Tests.FakeResourceItem]' -ArgumentList 2, 100
+$updatedAccepted = New-Object TDJS_Vision.Tests.FakeResourceItem
+$updatedAccepted.EstimatedBytes = 20; $updatedAccepted.OwnerKey = '实际字节流程'
+$updatedAcceptedResult = $updatedQueue.TryEnqueueWithUpdatedEstimate($updatedAccepted, [System.Func[long]]{ 80 })
+Assert-True $updatedAcceptedResult.Accepted '实际字节80未超预算时必须正常接收。'
+Assert-Equal 80 $updatedQueue.QueuedBytes '队列必须按回调返回的实际字节记账。'
+$updatedRejected = New-Object TDJS_Vision.Tests.FakeResourceItem
+$updatedRejected.EstimatedBytes = 10; $updatedRejected.OwnerKey = '实际字节流程'
+$updatedRejectedResult = $updatedQueue.TryEnqueueWithUpdatedEstimate($updatedRejected, [System.Func[long]]{ 30 })
+Assert-Equal ([TDJS_Vision.ResourceManagement.BoundedQueueAdmissionStatus]::RejectedFull) $updatedRejectedResult.Status '实际字节使累计预算超限时必须返回明确满队列拒绝。'
+Assert-Equal 80 $updatedQueue.QueuedBytes '实际字节拒绝不能改变已有队列记账。'
+$updatedRejected.Dispose()
+$updatedOversized = New-Object TDJS_Vision.Tests.FakeResourceItem
+$updatedOversized.EstimatedBytes = 10; $updatedOversized.OwnerKey = '实际字节流程'
+$updatedOversizedResult = $updatedQueue.TryEnqueueWithUpdatedEstimate($updatedOversized, [System.Func[long]]{ 101 })
+Assert-Equal ([TDJS_Vision.ResourceManagement.BoundedQueueAdmissionStatus]::RejectedItemExceedsBudget) $updatedOversizedResult.Status '实际单项字节超过总预算时必须返回明确超预算拒绝。'
+$updatedOversized.Dispose()
+$updatedQueue.CompleteAndDisposePending() | Out-Null
+$updatedQueue.Dispose()
+
+[TDJS_Vision.Tests.FakeResourceItem]::ResetCounters()
+$metadataQueue = New-Object 'TDJS_Vision.ResourceManagement.BoundedPriorityWorkQueue[TDJS_Vision.Tests.FakeResourceItem]' -ArgumentList 1, 100
+$metadataItem = New-Object TDJS_Vision.Tests.FakeResourceItem
+$metadataItem.EstimatedBytes = 20; $metadataItem.OwnerKey = '回调前所有者'
+$mutateMetadata = [Action]{ $metadataItem.OwnerKey = '回调后所有者'; $metadataItem.IsHighPriority = $true }
+Assert-True $metadataQueue.TryEnqueue($metadataItem, $mutateMetadata).Accepted '元数据冻结测试任务必须成功入队。'
+Assert-Equal 1 $metadataQueue.CancelOwner('回调前所有者') '旧Action回调不得改变入队前已经冻结的所有者。'
+$metadataQueue.Dispose()
+
+[TDJS_Vision.Tests.FakeResourceItem]::ResetCounters()
+$priorityMetadataQueue = New-Object 'TDJS_Vision.ResourceManagement.BoundedPriorityWorkQueue[TDJS_Vision.Tests.FakeResourceItem]' -ArgumentList 1, 100
+$priorityMetadataItem = New-Object TDJS_Vision.Tests.FakeResourceItem
+$priorityMetadataItem.EstimatedBytes = 20; $priorityMetadataItem.OwnerKey = '优先级冻结流程'
+$raisePriority = [Action]{ $priorityMetadataItem.IsHighPriority = $true }
+Assert-True $priorityMetadataQueue.TryEnqueue($priorityMetadataItem, $raisePriority).Accepted '优先级冻结测试任务必须成功入队。'
+$priorityReplacement = New-Object TDJS_Vision.Tests.FakeResourceItem
+$priorityReplacement.EstimatedBytes = 20; $priorityReplacement.OwnerKey = '优先级冻结流程'; $priorityReplacement.IsHighPriority = $true
+$priorityReplacementResult = $priorityMetadataQueue.TryEnqueue($priorityReplacement)
+Assert-True ($priorityReplacementResult.Accepted -and $priorityReplacementResult.EvictedLowPriorityCount -eq 1) '旧Action回调不得把入队前冻结的普通任务改成NG任务。'
+$priorityMetadataQueue.CompleteAndDisposePending() | Out-Null
+$priorityMetadataQueue.Dispose()
+
+[TDJS_Vision.Tests.FakeResourceItem]::ResetCounters()
+$updatedHighGrowQueue = New-Object 'TDJS_Vision.ResourceManagement.BoundedPriorityWorkQueue[TDJS_Vision.Tests.FakeResourceItem]' -ArgumentList 3, 100
+$growNormal1 = New-Object TDJS_Vision.Tests.FakeResourceItem
+$growNormal1.EstimatedBytes = 30; $growNormal1.OwnerKey = 'NG增大流程'
+$growNormal2 = New-Object TDJS_Vision.Tests.FakeResourceItem
+$growNormal2.EstimatedBytes = 30; $growNormal2.OwnerKey = 'NG增大流程'
+$updatedHighGrowQueue.TryEnqueue($growNormal1) | Out-Null
+$updatedHighGrowQueue.TryEnqueue($growNormal2) | Out-Null
+$growHigh = New-Object TDJS_Vision.Tests.FakeResourceItem
+$growHigh.EstimatedBytes = 10; $growHigh.OwnerKey = 'NG增大流程'; $growHigh.IsHighPriority = $true
+$growHighResult = $updatedHighGrowQueue.TryEnqueueWithUpdatedEstimate($growHigh, [System.Func[long]]{ 50 })
+Assert-True ($growHighResult.Accepted -and $growHighResult.EvictedLowPriorityCount -eq 1) 'NG实际字节增大后必须按最终值重新计算淘汰数量。'
+Assert-Equal 80 $updatedHighGrowQueue.QueuedBytes 'NG实际字节增大后的队列记账必须准确。'
+$updatedHighGrowQueue.CompleteAndDisposePending() | Out-Null
+$updatedHighGrowQueue.Dispose()
+
+[TDJS_Vision.Tests.FakeResourceItem]::ResetCounters()
+$updatedHighShrinkQueue = New-Object 'TDJS_Vision.ResourceManagement.BoundedPriorityWorkQueue[TDJS_Vision.Tests.FakeResourceItem]' -ArgumentList 3, 100
+$shrinkNormal1 = New-Object TDJS_Vision.Tests.FakeResourceItem
+$shrinkNormal1.EstimatedBytes = 40; $shrinkNormal1.OwnerKey = 'NG减小流程'
+$shrinkNormal2 = New-Object TDJS_Vision.Tests.FakeResourceItem
+$shrinkNormal2.EstimatedBytes = 40; $shrinkNormal2.OwnerKey = 'NG减小流程'
+$updatedHighShrinkQueue.TryEnqueue($shrinkNormal1) | Out-Null
+$updatedHighShrinkQueue.TryEnqueue($shrinkNormal2) | Out-Null
+$shrinkHigh = New-Object TDJS_Vision.Tests.FakeResourceItem
+$shrinkHigh.EstimatedBytes = 50; $shrinkHigh.OwnerKey = 'NG减小流程'; $shrinkHigh.IsHighPriority = $true
+$shrinkHighResult = $updatedHighShrinkQueue.TryEnqueueWithUpdatedEstimate($shrinkHigh, [System.Func[long]]{ 20 })
+Assert-True ($shrinkHighResult.Accepted -and $shrinkHighResult.EvictedLowPriorityCount -eq 0) 'NG实际字节减小时不得按旧缓存过度淘汰普通任务。'
+Assert-Equal 100 $updatedHighShrinkQueue.QueuedBytes 'NG实际字节减小后的队列记账必须准确。'
+$updatedHighShrinkQueue.CompleteAndDisposePending() | Out-Null
+$updatedHighShrinkQueue.Dispose()
+
+[TDJS_Vision.Tests.FakeResourceItem]::ResetCounters()
+$updatedHighInsufficientQueue = New-Object 'TDJS_Vision.ResourceManagement.BoundedPriorityWorkQueue[TDJS_Vision.Tests.FakeResourceItem]' -ArgumentList 3, 100
+$insufficientNormal = New-Object TDJS_Vision.Tests.FakeResourceItem
+$insufficientNormal.EstimatedBytes = 30; $insufficientNormal.OwnerKey = 'NG不足流程'
+$insufficientExistingHigh = New-Object TDJS_Vision.Tests.FakeResourceItem
+$insufficientExistingHigh.EstimatedBytes = 60; $insufficientExistingHigh.OwnerKey = 'NG不足流程'; $insufficientExistingHigh.IsHighPriority = $true
+$updatedHighInsufficientQueue.TryEnqueue($insufficientNormal) | Out-Null
+$updatedHighInsufficientQueue.TryEnqueue($insufficientExistingHigh) | Out-Null
+$insufficientIncomingHigh = New-Object TDJS_Vision.Tests.FakeResourceItem
+$insufficientIncomingHigh.EstimatedBytes = 10; $insufficientIncomingHigh.OwnerKey = 'NG不足流程'; $insufficientIncomingHigh.IsHighPriority = $true
+$insufficientHighResult = $updatedHighInsufficientQueue.TryEnqueueWithUpdatedEstimate($insufficientIncomingHigh, [System.Func[long]]{ 50 })
+Assert-Equal ([TDJS_Vision.ResourceManagement.BoundedQueueAdmissionStatus]::RejectedFull) $insufficientHighResult.Status '普通任务全部淘汰后仍不足时必须拒绝增大的NG任务。'
+Assert-Equal 90 $updatedHighInsufficientQueue.QueuedBytes 'NG淘汰不足拒绝不能部分移除已有普通任务。'
+$insufficientIncomingHigh.Dispose()
+$updatedHighInsufficientQueue.CompleteAndDisposePending() | Out-Null
+$updatedHighInsufficientQueue.Dispose()
+
+[TDJS_Vision.Tests.FakeResourceItem]::ResetCounters()
 $snapshotQueue = New-Object 'TDJS_Vision.ResourceManagement.BoundedPriorityWorkQueue[TDJS_Vision.Tests.FakeResourceItem]' -ArgumentList 2, 100
 $snapshotItem = New-Object TDJS_Vision.Tests.FakeResourceItem
 $snapshotItem.EstimatedBytes = 20; $snapshotItem.OwnerKey = '冻结所有者'

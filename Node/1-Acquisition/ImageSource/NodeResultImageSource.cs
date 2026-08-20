@@ -26,6 +26,11 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
     public class OutputImage : IDisposable
     {
         /// <summary>
+        /// 串行保护依赖边的检查与登记，确保并发构建输出时不会形成循环依赖。
+        /// </summary>
+        private static readonly object DependencyGraphLock = new object();
+
+        /// <summary>
         /// 图像所有权与租约计数同步锁。
         /// </summary>
         private readonly object _resourceLock = new object();
@@ -55,20 +60,80 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// </summary>
         private bool _ownedResourcesReleased;
 
+        /// <summary>原图像字段，写入时同步刷新保存队列使用的资源估算。</summary>
+        private Mat _srcImg;
+
+        /// <summary>灰度图缓存字段，写入时同步刷新保存队列使用的资源估算。</summary>
+        private Mat _grayImg;
+
+        /// <summary>多图输出字段，写入时同步刷新保存队列使用的资源估算。</summary>
+        private List<Mat> _bitmaps = new List<Mat>();
+
+        /// <summary>输出构建期间缓存的保守资源字节估算，保存队列预判时不再访问Mat。</summary>
+        private long _retainedImageBytesEstimate = 1L;
+
         /// <summary>
         /// 原图像
         /// </summary>
-        public Mat SrcImg { get; set; }
+        public Mat SrcImg
+        {
+            get
+            {
+                lock (_resourceLock)
+                    return _srcImg;
+            }
+            set
+            {
+                lock (_resourceLock)
+                {
+                    ThrowIfDisposeRequestedNoLock();
+                    _srcImg = value;
+                    RefreshRetainedImageBytesEstimateNoLock();
+                }
+            }
+        }
 
         /// <summary>
         /// 灰度图缓存，供卡尺、测量等只读灰度算法直接订阅，避免每个节点重复整图转灰度。
         /// </summary>
-        public Mat GrayImg { get; set; }
+        public Mat GrayImg
+        {
+            get
+            {
+                lock (_resourceLock)
+                    return _grayImg;
+            }
+            set
+            {
+                lock (_resourceLock)
+                {
+                    ThrowIfDisposeRequestedNoLock();
+                    _grayImg = value;
+                    RefreshRetainedImageBytesEstimateNoLock();
+                }
+            }
+        }
 
         /// <summary>
         /// 节点输出多张图像就存在图像列表；兼容旧节点时第一张通常也是原图。
         /// </summary>
-        public List<Mat> Bitmaps { get; set; } = new List<Mat>();
+        public List<Mat> Bitmaps
+        {
+            get
+            {
+                lock (_resourceLock)
+                    return _bitmaps;
+            }
+            set
+            {
+                lock (_resourceLock)
+                {
+                    ThrowIfDisposeRequestedNoLock();
+                    _bitmaps = value ?? new List<Mat>();
+                    RefreshRetainedImageBytesEstimateNoLock();
+                }
+            }
+        }
         /// <summary>
         /// 截图一类节点会输出裁剪的图像相对原图的偏移量列表
         /// </summary>
@@ -262,6 +327,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     throw new ObjectDisposedException(nameof(OutputImage), "图像输出已经进入释放阶段，不能再登记资源。");
 
                 _ownedImages.Add(image);
+                RefreshRetainedImageBytesEstimateNoLock();
             }
 
             return this;
@@ -294,15 +360,34 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 return this;
 
             IImageResourceLease dependency = owner.AcquireLease();
-            lock (_resourceLock)
+            try
             {
-                if (_disposeRequested)
+                lock (DependencyGraphLock)
                 {
-                    dependency.Dispose();
-                    throw new ObjectDisposedException(nameof(OutputImage), "图像输出已经进入释放阶段，不能再登记父级租约。");
-                }
+                    if (HasDependencyPath(owner, this))
+                        throw new InvalidOperationException("图像输出依赖不能形成循环。");
 
-                _ownedDependencies.Add(dependency);
+                    lock (_resourceLock)
+                    {
+                        ThrowIfDisposeRequestedNoLock();
+                        _ownedDependencies.Add(dependency);
+                        try
+                        {
+                            RefreshRetainedImageBytesEstimateNoLock();
+                        }
+                        catch
+                        {
+                            _ownedDependencies.RemoveAt(_ownedDependencies.Count - 1);
+                            throw;
+                        }
+
+                        dependency = null;
+                    }
+                }
+            }
+            finally
+            {
+                dependency?.Dispose();
             }
 
             return this;
@@ -325,14 +410,65 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         }
 
         /// <summary>
+        /// 读取保存队列预接纳使用的保守字节估算；该路径只读缓存，不访问可能并发释放的Mat。
+        /// </summary>
+        /// <returns>不小于1的资源字节估算。</returns>
+        public long GetRetainedImageBytesEstimateForAdmission()
+        {
+            lock (_resourceLock)
+            {
+                ThrowIfDisposeRequestedNoLock();
+                return Math.Max(1L, _retainedImageBytesEstimate);
+            }
+        }
+
+        /// <summary>
+        /// 在同一资源锁内取得后台保存租约和源图引用，再在租约保护下重算实际字节，避免释放与预算失真竞态。
+        /// </summary>
+        /// <returns>必须由调用方转移租约或释放的原子保存快照。</returns>
+        public OutputImageSaveSnapshot AcquireSaveSnapshot()
+        {
+            Mat sourceImage;
+            IImageResourceLease lease;
+            lock (_resourceLock)
+            {
+                ThrowIfDisposeRequestedNoLock();
+                sourceImage = _bitmaps == null || _bitmaps.Count == 0 ? null : _bitmaps[0];
+                if (!HasValidImage(sourceImage))
+                    throw new InvalidOperationException("待保存的输出图像为空。");
+
+                _activeLeaseCount++;
+                lease = new OutputImageLease(this);
+            }
+
+            try
+            {
+                HashSet<OutputImage> visitedOutputs = new HashSet<OutputImage>(OutputImageReferenceComparer.Instance);
+                HashSet<Mat> visitedImages = new HashSet<Mat>(MatReferenceComparer.Instance);
+                long exactEstimatedBytes = Math.Max(
+                    1L,
+                    CollectRetainedImageBytes(this, visitedOutputs, visitedImages));
+                return new OutputImageSaveSnapshot(sourceImage, exactEstimatedBytes, lease);
+            }
+            catch
+            {
+                lease.Dispose();
+                throw;
+            }
+        }
+
+        /// <summary>
         /// 估算当前输出租约会固定在内存中的全部Mat字节数，包括灰度图、多图输出和父级依赖链。
         /// </summary>
         /// <returns>按Mat实际行跨度去重累计的估算字节数。</returns>
         public long EstimateRetainedImageBytes()
         {
-            HashSet<OutputImage> visitedOutputs = new HashSet<OutputImage>(OutputImageReferenceComparer.Instance);
-            HashSet<Mat> visitedImages = new HashSet<Mat>(MatReferenceComparer.Instance);
-            return CollectRetainedImageBytes(this, visitedOutputs, visitedImages);
+            using (IImageResourceLease lease = AcquireLease())
+            {
+                HashSet<OutputImage> visitedOutputs = new HashSet<OutputImage>(OutputImageReferenceComparer.Instance);
+                HashSet<Mat> visitedImages = new HashSet<Mat>(MatReferenceComparer.Instance);
+                return CollectRetainedImageBytes(this, visitedOutputs, visitedImages);
+            }
         }
 
         /// <summary>
@@ -355,10 +491,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             lock (output._resourceLock)
             {
                 images.AddRange(output._ownedImages);
-                images.Add(output.SrcImg);
-                images.Add(output.GrayImg);
-                if (output.Bitmaps != null)
-                    images.AddRange(output.Bitmaps);
+                images.Add(output._srcImg);
+                images.Add(output._grayImg);
+                if (output._bitmaps != null)
+                    images.AddRange(output._bitmaps);
 
                 foreach (IImageResourceLease dependency in output._ownedDependencies)
                 {
@@ -454,7 +590,119 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             dependencies = new List<IImageResourceLease>(_ownedDependencies);
             _ownedImages.Clear();
             _ownedDependencies.Clear();
+            _srcImg = null;
+            _grayImg = null;
+            _bitmaps = new List<Mat>();
+            Interlocked.Exchange(ref _retainedImageBytesEstimate, 1L);
             return images;
+        }
+
+        /// <summary>在资源锁内检查输出尚未进入释放阶段。</summary>
+        private void ThrowIfDisposeRequestedNoLock()
+        {
+            if (_disposeRequested)
+                throw new ObjectDisposedException(nameof(OutputImage), "图像输出已经进入释放阶段。");
+        }
+
+        /// <summary>根据当前自产图和父级租约刷新保守字节估算；调用方必须持有资源锁。</summary>
+        private void RefreshRetainedImageBytesEstimateNoLock()
+        {
+            HashSet<Mat> directImages = new HashSet<Mat>(MatReferenceComparer.Instance);
+            foreach (Mat ownedImage in _ownedImages)
+                directImages.Add(ownedImage);
+
+            if (_ownedDependencies.Count == 0)
+            {
+                directImages.Add(_srcImg);
+                directImages.Add(_grayImg);
+                if (_bitmaps != null)
+                {
+                    foreach (Mat image in _bitmaps)
+                        directImages.Add(image);
+                }
+            }
+
+            long totalBytes = 0L;
+            foreach (Mat image in directImages)
+                totalBytes = AddEstimatedBytes(totalBytes, GetImageBytesNoThrow(image));
+
+            foreach (IImageResourceLease dependency in _ownedDependencies)
+            {
+                OutputImage dependencyImage = dependency?.Image;
+                if (dependencyImage != null)
+                    totalBytes = AddEstimatedBytes(totalBytes, dependencyImage.GetCachedEstimateEvenIfDisposeRequested());
+            }
+
+            Interlocked.Exchange(ref _retainedImageBytesEstimate, Math.Max(1L, totalBytes));
+        }
+
+        /// <summary>原子读取父级租约保护下的缓存估算，不在子级资源锁内继续获取父级锁。</summary>
+        private long GetCachedEstimateEvenIfDisposeRequested()
+        {
+            return Math.Max(1L, Interlocked.Read(ref _retainedImageBytesEstimate));
+        }
+
+        /// <summary>
+        /// 检查指定输出能否沿现有父级依赖到达目标输出；调用方必须持有依赖图锁。
+        /// </summary>
+        /// <param name="start">依赖路径起点。</param>
+        /// <param name="target">不能被路径到达的当前输出。</param>
+        /// <returns>存在直接或传递路径时返回true。</returns>
+        private static bool HasDependencyPath(OutputImage start, OutputImage target)
+        {
+            Stack<OutputImage> pending = new Stack<OutputImage>();
+            HashSet<OutputImage> visited = new HashSet<OutputImage>(OutputImageReferenceComparer.Instance);
+            pending.Push(start);
+
+            while (pending.Count > 0)
+            {
+                OutputImage current = pending.Pop();
+                if (current == null || !visited.Add(current))
+                    continue;
+                if (ReferenceEquals(current, target))
+                    return true;
+
+                List<OutputImage> dependencies = new List<OutputImage>();
+                lock (current._resourceLock)
+                {
+                    foreach (IImageResourceLease dependency in current._ownedDependencies)
+                    {
+                        OutputImage dependencyImage = dependency?.Image;
+                        if (dependencyImage != null)
+                            dependencies.Add(dependencyImage);
+                    }
+                }
+
+                foreach (OutputImage dependency in dependencies)
+                    pending.Push(dependency);
+            }
+
+            return false;
+        }
+
+        /// <summary>读取单张Mat的行跨度字节；输出构建异常时返回0并由后续原子快照再次校验。</summary>
+        private static long GetImageBytesNoThrow(Mat image)
+        {
+            try
+            {
+                return HasValidImage(image)
+                    ? Math.Max(1L, checked((long)image.Rows * (long)image.Step()))
+                    : 0L;
+            }
+            catch
+            {
+                return 0L;
+            }
+        }
+
+        /// <summary>以饱和方式累加估算字节，避免大图计算溢出。</summary>
+        private static long AddEstimatedBytes(long currentBytes, long additionalBytes)
+        {
+            if (additionalBytes <= 0L)
+                return currentBytes;
+            if (additionalBytes > long.MaxValue - currentBytes)
+                return long.MaxValue;
+            return currentBytes + additionalBytes;
         }
 
         /// <summary>
@@ -535,6 +783,45 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             {
                 gray.Dispose();
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// 保存队列接纳时原子取得的源图与租约快照。
+        /// </summary>
+        public sealed class OutputImageSaveSnapshot : IDisposable
+        {
+            /// <summary>快照拥有且尚未转移给后台任务的图像租约。</summary>
+            private IImageResourceLease _lease;
+
+            /// <summary>获取租约保护下的第一张待保存图像。</summary>
+            public Mat SourceImage { get; private set; }
+
+            /// <summary>获取原子快照时的保守资源字节估算。</summary>
+            public long EstimatedBytes { get; private set; }
+
+            /// <summary>创建一份原子保存快照。</summary>
+            internal OutputImageSaveSnapshot(Mat sourceImage, long estimatedBytes, IImageResourceLease lease)
+            {
+                SourceImage = sourceImage ?? throw new ArgumentNullException(nameof(sourceImage));
+                EstimatedBytes = Math.Max(1L, estimatedBytes);
+                _lease = lease ?? throw new ArgumentNullException(nameof(lease));
+            }
+
+            /// <summary>把快照持有的租约原子转移给后台任务；每份快照只能成功转移一次。</summary>
+            public IImageResourceLease TransferLease()
+            {
+                IImageResourceLease lease = Interlocked.Exchange(ref _lease, null);
+                if (lease == null)
+                    throw new InvalidOperationException("保存快照租约已经转移或释放。");
+                return lease;
+            }
+
+            /// <summary>释放尚未转移的快照租约；重复调用安全。</summary>
+            public void Dispose()
+            {
+                IImageResourceLease lease = Interlocked.Exchange(ref _lease, null);
+                lease?.Dispose();
             }
         }
 

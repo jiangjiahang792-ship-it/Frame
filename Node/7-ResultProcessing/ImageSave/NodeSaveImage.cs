@@ -262,7 +262,6 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             }
 
             bool isHighPriority = param.NeedOkNg && imageSaveJudgment != null && !imageSaveJudgment.IsOk;
-            IImageResourceLease candidateLease = outputImage.AcquireLease();
             SaveImageTask saveImageTask = null;
             BoundedQueueAdmissionResult admissionResult;
             ImageQueueProcessor queueProcessor;
@@ -287,15 +286,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                     queueProcessor = Solution.Instance.GetOrCreateImageSaveQueueProcessor();
                     admissionResult = queueProcessor.EnqueueImage(
                         saveImageTask,
-                        () =>
-                        {
-                            IImageResourceLease acceptedLease = candidateLease;
-                            if (acceptedLease == null)
-                                throw new InvalidOperationException("保存候选图像租约已经释放，不能重复转移。");
-
-                            candidateLease = null;
-                            return acceptedLease;
-                        });
+                        () => outputImage.AcquireSaveSnapshot());
                     if (admissionResult.Accepted)
                         saveImageTask = null;
                 }
@@ -303,7 +294,6 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             finally
             {
                 saveImageTask?.Dispose();
-                candidateLease?.Dispose();
             }
 
             return new SaveImageEnqueueResult
@@ -344,7 +334,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         }
 
         /// <summary>
-        /// 从已由候选租约保护的输出图像生成后台保存任务。
+        /// 从当前同步流程仍持有的输出图像生成待接纳任务；队列确认可接收后才取得后台租约。
         /// </summary>
         /// <param name="outputImage">待保存的输出图像，后台任务会持有其资源租约。</param>
         /// <param name="displayResult">需要写入保存图的显示结果。</param>
@@ -365,17 +355,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             bool isHighPriority,
             long compressValue = 100)
         {
-            if (outputImage == null ||
-                outputImage.Bitmaps == null ||
-                outputImage.Bitmaps.Count == 0 ||
-                !OutputImage.HasValidImage(outputImage.Bitmaps[0]))
-            {
+            if (outputImage == null)
                 throw new ArgumentException("待保存的输出图像为空。", nameof(outputImage));
-            }
+
+            long estimatedBytes = outputImage.GetRetainedImageBytesEstimateForAdmission();
 
             return new SaveImageTask
             {
-                SourceImage = outputImage.Bitmaps[0],
+                SourceImage = null,
                 DisplayResult = displayResult,
                 TargetDirectories = targetDirectories == null ? new List<string>() : new List<string>(targetDirectories),
                 ImageName = imageName,
@@ -383,7 +370,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                 TraceContext = traceContext,
                 CompressValue = compressValue,
                 IsHighPriority = isHighPriority,
-                EstimatedBytes = Math.Max(1L, outputImage.EstimateRetainedImageBytes()),
+                EstimatedBytes = estimatedBytes,
                 OwnerKey = _queueOwnerKey
             };
         }
@@ -866,26 +853,32 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// 零等待尝试投递保存任务，确定队列可接收后才取得图像资源租约。
         /// </summary>
         /// <param name="saveImagedata">尚未发布给消费者的保存任务。</param>
-        /// <param name="leaseFactory">确定可接收后调用的图像租约工厂；已有租约的测试任务可传null。</param>
+        /// <param name="snapshotFactory">确定可接收后调用的原子图像快照工厂；已有租约的测试任务可传null。</param>
         /// <returns>有界队列入队结果。</returns>
         public BoundedQueueAdmissionResult EnqueueImage(
             SaveImageTask saveImagedata,
-            Func<IImageResourceLease> leaseFactory)
+            Func<OutputImage.OutputImageSaveSnapshot> snapshotFactory)
         {
             if (saveImagedata == null) throw new ArgumentNullException(nameof(saveImagedata), "保存任务不能为空。");
-            if (!OutputImage.HasValidImage(saveImagedata.SourceImage)) throw new ArgumentException("保存任务的源图像为空。", nameof(saveImagedata));
+            if (snapshotFactory == null && !OutputImage.HasValidImage(saveImagedata.SourceImage)) throw new ArgumentException("保存任务的源图像为空。", nameof(saveImagedata));
             if (saveImagedata.TargetDirectories == null || saveImagedata.TargetDirectories.Count == 0) throw new ArgumentException("保存任务的目标目录为空。", nameof(saveImagedata));
 
-            BoundedQueueAdmissionResult result = _imageQueue.TryEnqueue(
-                saveImagedata,
-                leaseFactory == null
-                    ? (Action)null
-                    : () =>
+            BoundedQueueAdmissionResult result = snapshotFactory == null
+                ? _imageQueue.TryEnqueue(saveImagedata)
+                : _imageQueue.TryEnqueueWithUpdatedEstimate(
+                    saveImagedata,
+                    () =>
                     {
-                        IImageResourceLease imageLease = leaseFactory();
-                        if (imageLease == null)
-                            throw new InvalidOperationException("保存任务租约工厂返回了空租约。");
-                        saveImagedata.ImageLease = imageLease;
+                        using (OutputImage.OutputImageSaveSnapshot snapshot = snapshotFactory())
+                        {
+                            if (snapshot == null || !OutputImage.HasValidImage(snapshot.SourceImage))
+                                throw new InvalidOperationException("保存任务快照工厂返回了空图像。");
+
+                            saveImagedata.EstimatedBytes = snapshot.EstimatedBytes;
+                            saveImagedata.SourceImage = snapshot.SourceImage;
+                            saveImagedata.ImageLease = snapshot.TransferLease();
+                            return saveImagedata.EstimatedBytes;
+                        }
                     });
             if (result.EvictedLowPriorityCount > 0)
             {

@@ -230,6 +230,27 @@ namespace TDJS_Vision.ResourceManagement
                 EstimatedBytes = estimatedBytes;
                 OwnerKey = item.OwnerKey;
             }
+
+            /// <summary>
+            /// 复制已冻结的任务元数据，只替换两阶段接纳确认后的实际资源字节。
+            /// </summary>
+            /// <param name="estimatedBytes">最终确认的资源估算字节。</param>
+            /// <returns>保留原优先级和所有者的最终队列条目。</returns>
+            public QueueEntry WithEstimatedBytes(long estimatedBytes)
+            {
+                return new QueueEntry
+                {
+                    Item = Item,
+                    IsHighPriority = IsHighPriority,
+                    EstimatedBytes = estimatedBytes,
+                    OwnerKey = OwnerKey
+                };
+            }
+
+            /// <summary>仅供复制冻结元数据时初始化队列条目。</summary>
+            private QueueEntry()
+            {
+            }
         }
 
         /// <summary>
@@ -239,7 +260,7 @@ namespace TDJS_Vision.ResourceManagement
         /// <returns>入队状态以及已淘汰的普通任务数量。</returns>
         public BoundedQueueAdmissionResult TryEnqueue(T item)
         {
-            return TryEnqueue(item, null);
+            return TryEnqueueCore(item, null, false);
         }
 
         /// <summary>
@@ -250,11 +271,49 @@ namespace TDJS_Vision.ResourceManagement
         /// <returns>入队状态以及已淘汰的普通任务数量。</returns>
         public BoundedQueueAdmissionResult TryEnqueue(T item, Action beforeAccept)
         {
+            Func<long> admissionCallback = beforeAccept == null
+                ? null
+                : (Func<long>)(() =>
+                {
+                    beforeAccept();
+                    return 0L;
+                });
+            return TryEnqueueCore(item, admissionCallback, false);
+        }
+
+        /// <summary>
+        /// 立即尝试接管任务，并在初步确认可接收后取得受保护资源的实际字节，再按实际值完成最终判定。
+        /// </summary>
+        /// <param name="item">待入队任务；拒绝时仍由调用方负责释放。</param>
+        /// <param name="beforeAcceptAndGetEstimatedBytes">正式发布前取得资源并返回实际估算字节的回调。</param>
+        /// <returns>按最终实际字节计算的入队状态。</returns>
+        public BoundedQueueAdmissionResult TryEnqueueWithUpdatedEstimate(
+            T item,
+            Func<long> beforeAcceptAndGetEstimatedBytes)
+        {
+            if (beforeAcceptAndGetEstimatedBytes == null)
+                throw new ArgumentNullException(nameof(beforeAcceptAndGetEstimatedBytes));
+
+            return TryEnqueueCore(item, beforeAcceptAndGetEstimatedBytes, true);
+        }
+
+        /// <summary>
+        /// 执行两阶段零等待接纳；第一阶段用缓存值避免满队列时取得资源，第二阶段可按实际值重新判定。
+        /// </summary>
+        /// <param name="item">待入队任务。</param>
+        /// <param name="beforeAcceptAndGetEstimatedBytes">初步可接收后执行的资源取得回调。</param>
+        /// <param name="useUpdatedEstimate">是否使用回调返回值替换初始字节估算。</param>
+        /// <returns>最终入队状态。</returns>
+        private BoundedQueueAdmissionResult TryEnqueueCore(
+            T item,
+            Func<long> beforeAcceptAndGetEstimatedBytes,
+            bool useUpdatedEstimate)
+        {
             if (item == null)
                 throw new ArgumentNullException(nameof(item));
 
-            long itemBytes = NormalizeEstimatedBytes(item.EstimatedBytes);
-            QueueEntry incomingEntry = new QueueEntry(item, itemBytes);
+            long initialItemBytes = NormalizeEstimatedBytes(item.EstimatedBytes);
+            QueueEntry preliminaryEntry = new QueueEntry(item, initialItemBytes);
             List<QueueEntry> evictedItems = null;
             BoundedQueueAdmissionResult result;
 
@@ -263,24 +322,41 @@ namespace TDJS_Vision.ResourceManagement
                 if (!_accepting)
                     return new BoundedQueueAdmissionResult(BoundedQueueAdmissionStatus.RejectedStopped, 0);
 
-                if (itemBytes > _memoryBudgetBytes)
+                if (initialItemBytes > _memoryBudgetBytes)
                     return new BoundedQueueAdmissionResult(BoundedQueueAdmissionStatus.RejectedItemExceedsBudget, 0);
 
-                if (CanFit(1, itemBytes))
+                bool initiallyFits = CanFit(1, initialItemBytes);
+                if (!initiallyFits && !preliminaryEntry.IsHighPriority)
+                    return new BoundedQueueAdmissionResult(BoundedQueueAdmissionStatus.RejectedFull, 0);
+
+                if (!initiallyFits && FindLowPriorityEvictions(initialItemBytes) == null)
+                    return new BoundedQueueAdmissionResult(BoundedQueueAdmissionStatus.RejectedFull, 0);
+
+                long admittedItemBytes = initialItemBytes;
+                if (beforeAcceptAndGetEstimatedBytes != null)
                 {
-                    beforeAccept?.Invoke();
+                    long updatedEstimate = beforeAcceptAndGetEstimatedBytes();
+                    if (useUpdatedEstimate)
+                        admittedItemBytes = NormalizeEstimatedBytes(updatedEstimate);
+                }
+
+                if (admittedItemBytes > _memoryBudgetBytes)
+                    return new BoundedQueueAdmissionResult(BoundedQueueAdmissionStatus.RejectedItemExceedsBudget, 0);
+
+                QueueEntry incomingEntry = preliminaryEntry.WithEstimatedBytes(admittedItemBytes);
+                if (CanFit(1, admittedItemBytes))
+                {
                     AddEntry(incomingEntry);
                     return new BoundedQueueAdmissionResult(BoundedQueueAdmissionStatus.Accepted, 0);
                 }
 
-                if (!incomingEntry.IsHighPriority)
+                if (!preliminaryEntry.IsHighPriority)
                     return new BoundedQueueAdmissionResult(BoundedQueueAdmissionStatus.RejectedFull, 0);
 
-                List<LinkedListNode<QueueEntry>> evictedNodes = FindLowPriorityEvictions(itemBytes);
+                List<LinkedListNode<QueueEntry>> evictedNodes = FindLowPriorityEvictions(admittedItemBytes);
                 if (evictedNodes == null)
                     return new BoundedQueueAdmissionResult(BoundedQueueAdmissionStatus.RejectedFull, 0);
 
-                beforeAccept?.Invoke();
                 evictedItems = new List<QueueEntry>(evictedNodes.Count);
                 foreach (LinkedListNode<QueueEntry> evictedNode in evictedNodes)
                 {

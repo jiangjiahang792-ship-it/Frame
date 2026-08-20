@@ -128,7 +128,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         public OutputImage GetOutputImageForSave()
         {
             OutputImage outputImage = nodeSubscriptionImg2Save.GetValue<OutputImage>();
-            if (outputImage == null || outputImage.Bitmaps == null || outputImage.Bitmaps.Count == 0 || !OutputImage.HasValidImage(outputImage.Bitmaps[0]))
+            if (outputImage == null)
                 throw new Exception("订阅的图片对象为空！");
 
             return outputImage;
