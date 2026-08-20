@@ -502,25 +502,32 @@ function Close-TestProcess {
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
     while (-not $MainProcess.HasExited -and [DateTime]::UtcNow -lt $deadline) {
         $MainProcess.Refresh()
-        if ($MainProcess.MainWindowHandle -ne [IntPtr]::Zero) {
-            try {
-                $root = [Windows.Automation.AutomationElement]::FromHandle($MainProcess.MainWindowHandle)
-                $condition = New-Object Windows.Automation.PropertyCondition(
-                    [Windows.Automation.AutomationElement]::NameProperty,
-                    "确定")
-                $confirmButton = $root.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
-                if ($null -ne $confirmButton -and $confirmButton.Current.NativeWindowHandle -ne 0) {
-                    # WinForms自定义确认按钮没有暴露InvokePattern，使用标准BM_CLICK消息执行正常关闭。
-                    [void][FullSolutionGuiResourceProbe]::SendMessage(
-                        [IntPtr]$confirmButton.Current.NativeWindowHandle,
-                        0x00F5,
-                        [IntPtr]::Zero,
-                        [IntPtr]::Zero)
-                }
+        try {
+            # 关闭确认框是独立顶层窗体，必须按进程ID扫描桌面窗口树，不能只搜索已隐藏的主窗体。
+            $processCondition = New-Object Windows.Automation.PropertyCondition(
+                [Windows.Automation.AutomationElement]::ProcessIdProperty,
+                $MainProcess.Id)
+            $processElements = [Windows.Automation.AutomationElement]::RootElement.FindAll(
+                [Windows.Automation.TreeScope]::Descendants,
+                $processCondition)
+            $confirmButton = @($processElements | Where-Object {
+                    $_.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and
+                    $_.Current.Name -eq "确定" -and
+                    $_.Current.IsEnabled -and
+                    -not $_.Current.IsOffscreen -and
+                    $_.Current.NativeWindowHandle -ne 0
+                }) | Select-Object -First 1
+            if ($null -ne $confirmButton) {
+                # WinForms自定义确认按钮没有暴露InvokePattern，使用标准BM_CLICK消息执行正常关闭。
+                [void][FullSolutionGuiResourceProbe]::SendMessage(
+                    [IntPtr]$confirmButton.Current.NativeWindowHandle,
+                    0x00F5,
+                    [IntPtr]::Zero,
+                    [IntPtr]::Zero)
             }
-            catch {
-                # 关闭过程中窗口树可能随时销毁，继续等待进程正常退出。
-            }
+        }
+        catch {
+            # 关闭过程中窗口树可能随时销毁，继续等待进程正常退出。
         }
 
         Start-Sleep -Milliseconds 100
