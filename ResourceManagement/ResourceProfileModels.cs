@@ -211,6 +211,9 @@ namespace TDJS_Vision.ResourceManagement
     /// </summary>
     public sealed class AutomaticResourceProfile
     {
+        /// <summary>是否允许根据系统负载动态调整CPU重任务并发。</summary>
+        public bool AdaptiveResourceManagementEnabled { get; set; } = true;
+
         /// <summary>档案生成时间。</summary>
         public DateTime CreatedAt { get; set; }
 
@@ -302,7 +305,7 @@ namespace TDJS_Vision.ResourceManagement
         public string ToLogText()
         {
             ResourceWorkloadSnapshot workload = Workload ?? new ResourceWorkloadSnapshot();
-            return $"启用流程={workload.EnabledProcessCount}；相机={workload.CameraCount}；平均图像={workload.AverageImageBytes}字节；图像样本={ImageSizeSampleCount}；CPU保留核心={CpuReserveCoreCount}；CPU重任务并发={CpuHeavyMaxConcurrency}；CPU高/恢复水位={CpuHighWatermarkPercent:F0}%/{CpuRecoveryWatermarkPercent:F0}%；CPU高/恢复持续={CpuHighDurationMs}/{CpuRecoveryDurationMs}ms；资源评估={ResourceAdjustmentIntervalMs}ms；调整冷却={ResourceAdjustmentCooldownMs}ms；调整步长={ConcurrencyAdjustmentStep}；图像转换并发={ImageConvertMaxConcurrency}；保存线程={ImageSaveWorkerCount}；流程图像预算={FlowImageMemoryBudgetMb}MB；保存队列预算={SaveQueueMemoryBudgetMb}MB；内存低水位={MemoryLowWatermarkMb}MB；严重水位={MemoryCriticalWatermarkMb}MB；保存队列容量={SaveQueueCalculatedCapacity}；磁盘低水位={SaveDiskLowSpaceMb}MB；磁盘严重水位={SaveDiskCriticalSpaceMb}MB；慢写阈值={SaveSlowThresholdMs}ms；磁盘采样={SaveDiskProbeIntervalMs}ms；UI最大帧率={UiMaxRefreshFps}；停止等待={ShutdownResourceDrainTimeoutMs}ms；使用初始容量={UsesInitialSaveQueueCapacity}；AI策略={AiConcurrencyPolicy}";
+            return $"自适应资源={AdaptiveResourceManagementEnabled}；启用流程={workload.EnabledProcessCount}；相机={workload.CameraCount}；平均图像={workload.AverageImageBytes}字节；图像样本={ImageSizeSampleCount}；CPU保留核心={CpuReserveCoreCount}；CPU重任务并发={CpuHeavyMaxConcurrency}；CPU高/恢复水位={CpuHighWatermarkPercent:F0}%/{CpuRecoveryWatermarkPercent:F0}%；CPU高/恢复持续={CpuHighDurationMs}/{CpuRecoveryDurationMs}ms；资源评估={ResourceAdjustmentIntervalMs}ms；调整冷却={ResourceAdjustmentCooldownMs}ms；调整步长={ConcurrencyAdjustmentStep}；图像转换并发={ImageConvertMaxConcurrency}；保存线程={ImageSaveWorkerCount}；流程图像预算={FlowImageMemoryBudgetMb}MB；保存队列预算={SaveQueueMemoryBudgetMb}MB；内存低水位={MemoryLowWatermarkMb}MB；严重水位={MemoryCriticalWatermarkMb}MB；保存队列容量={SaveQueueCalculatedCapacity}；磁盘低水位={SaveDiskLowSpaceMb}MB；磁盘严重水位={SaveDiskCriticalSpaceMb}MB；慢写阈值={SaveSlowThresholdMs}ms；磁盘采样={SaveDiskProbeIntervalMs}ms；UI最大帧率={UiMaxRefreshFps}；停止等待={ShutdownResourceDrainTimeoutMs}ms；使用初始容量={UsesInitialSaveQueueCapacity}；AI策略={AiConcurrencyPolicy}";
         }
     }
 }

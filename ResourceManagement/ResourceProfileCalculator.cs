@@ -42,7 +42,9 @@ namespace TDJS_Vision.ResourceManagement
                 Math.Max(20D, cpuHighWatermarkPercent - 5D));
 
             int imageConvertByCore = Math.Max(1, effectiveCoreCount / Math.Max(1, options.ImageConvertCoreDivisor));
-            int imageConvertConcurrency = Math.Min(cameraCount, Math.Min(imageConvertByCore, Math.Max(1, options.ImageConvertConcurrencyMaximum)));
+            int imageConvertConcurrency = Math.Min(
+                cpuHeavyConcurrency,
+                Math.Min(cameraCount, Math.Min(imageConvertByCore, Math.Max(1, options.ImageConvertConcurrencyMaximum))));
             int imageSaveWorkers = Clamp(
                 effectiveCoreCount / Math.Max(1, options.ImageSaveWorkerCoreDivisor),
                 1,

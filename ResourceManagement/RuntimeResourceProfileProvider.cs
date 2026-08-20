@@ -19,6 +19,12 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>当前计算参数。</summary>
         private readonly ResourceProfileCalculationOptions _options;
 
+        /// <summary>机器性能设置快照提供器；为空时只生成自动推荐。</summary>
+        private readonly PerformanceResourceSettingsProvider _settingsProvider;
+
+        /// <summary>自动值与机器手动值合并器。</summary>
+        private readonly ResourceProfileOverrideResolver _overrideResolver;
+
         /// <summary>首次读取后缓存的硬件快照。</summary>
         private HardwareResourceSnapshot _hardwareSnapshot;
 
@@ -32,10 +38,28 @@ namespace TDJS_Vision.ResourceManagement
             IHardwareResourceProbe hardwareProbe,
             IResourceProfileCalculator calculator,
             ResourceProfileCalculationOptions options)
+            : this(hardwareProbe, calculator, options, null)
+        {
+        }
+
+        /// <summary>
+        /// 创建可读取机器性能手动覆盖的运行资源档案提供器。
+        /// </summary>
+        /// <param name="hardwareProbe">硬件资源探针。</param>
+        /// <param name="calculator">资源档案计算器。</param>
+        /// <param name="options">框架默认计算参数。</param>
+        /// <param name="settingsProvider">机器性能设置快照提供器；为空时保持纯自动模式。</param>
+        public RuntimeResourceProfileProvider(
+            IHardwareResourceProbe hardwareProbe,
+            IResourceProfileCalculator calculator,
+            ResourceProfileCalculationOptions options,
+            PerformanceResourceSettingsProvider settingsProvider)
         {
             _hardwareProbe = hardwareProbe ?? throw new ArgumentNullException(nameof(hardwareProbe));
             _calculator = calculator ?? throw new ArgumentNullException(nameof(calculator));
             _options = options ?? new ResourceProfileCalculationOptions();
+            _settingsProvider = settingsProvider;
+            _overrideResolver = new ResourceProfileOverrideResolver(_calculator);
         }
 
         /// <summary>
@@ -47,7 +71,8 @@ namespace TDJS_Vision.ResourceManagement
             return new RuntimeResourceProfileProvider(
                 new WindowsHardwareResourceProbe(),
                 new ResourceProfileCalculator(),
-                new ResourceProfileCalculationOptions());
+                new ResourceProfileCalculationOptions(),
+                PerformanceResourceSettingsProvider.Default);
         }
 
         /// <summary>
@@ -57,8 +82,21 @@ namespace TDJS_Vision.ResourceManagement
         /// <returns>自动资源档案。</returns>
         public AutomaticResourceProfile BuildProfile(ResourceWorkloadSnapshot workload)
         {
+            return BuildProfileResult(workload).EffectiveProfile;
+        }
+
+        /// <summary>
+        /// 在同一硬件和工作负载快照下生成自动推荐与最终生效档案。
+        /// </summary>
+        /// <param name="workload">当前方案工作负载。</param>
+        /// <returns>可直接供系统设置界面对照显示的同批结果。</returns>
+        public ResourceProfileBuildResult BuildProfileResult(ResourceWorkloadSnapshot workload)
+        {
             HardwareResourceSnapshot hardware = GetHardwareSnapshot();
-            return _calculator.Calculate(hardware, workload, _options);
+            MachinePerformanceResourceSettings settings = _settingsProvider == null
+                ? new MachinePerformanceResourceSettings()
+                : _settingsProvider.GetSnapshot();
+            return _overrideResolver.Build(hardware, workload, _options, settings);
         }
 
         /// <summary>

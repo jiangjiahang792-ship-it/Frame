@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 $projectRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
     (Get-Location).Path
@@ -44,6 +44,7 @@ $calculator = Get-ProjectSource 'ResourceManagement\ResourceProfileCalculator.cs
 $provider = Get-ProjectSource 'ResourceManagement\RuntimeResourceProfileProvider.cs'
 $solution = Get-ProjectSource 'Solution.cs'
 $project = Get-ProjectSource 'TDJS-Vision.csproj'
+$performanceSettings = Get-ProjectSource 'ResourceManagement\PerformanceResourceSettings.cs'
 
 Assert-Contains $interfaces 'interface IHardwareResourceProbe' '硬件读取必须通过可替换接口。'
 Assert-Contains $interfaces 'interface IResourceProfileCalculator' '资源公式必须通过可替换接口。'
@@ -54,6 +55,8 @@ Assert-Contains $probe 'Win32_OperatingSystem' 'Windows探针必须读取总内�
 Assert-Contains $probe 'Win32_VideoController' 'Windows探针必须读取GPU诊断信息。'
 Assert-Contains $probe 'AvailableFreeSpace' 'Windows探针必须读取程序磁盘空间。'
 Assert-Contains $provider 'HardwareResourceSnapshot.CreateFallback' '硬件探针失败不能阻止软件启动。'
+Assert-Contains $provider 'PerformanceResourceSettingsProvider.Default' '生产资源档案必须读取本机性能覆盖值。'
+Assert-Contains $performanceSettings 'ResourceProfileOverrideResolver' '自动档案和最终档案必须由独立覆盖合并器隔离。'
 Assert-Contains $calculator 'AiConcurrencyPolicy = "FollowEditableFlow"' '自动资源档案不能增加全局AI并发限制。'
 Assert-Contains $calculator 'UiMaxRefreshFps = Clamp(' 'UI最大刷新帧率必须经过安全范围限制。'
 Assert-Contains $calculator 'SaveDiskLowSpaceMb = saveDiskLowSpaceMb' '资源档案必须输出普通图片磁盘低水位。'
@@ -73,8 +76,7 @@ Assert-NotContains $calculator 'SemaphoreSlim' '步骤3不能给AI或节点增�
 $debugDirectory = Join-Path $projectRoot 'bin\x64\Debug'
 $application = Get-Item -LiteralPath (Join-Path $debugDirectory '机器视觉AI检测系统V1.0.exe') -ErrorAction SilentlyContinue
 if ($null -eq $application) {
-    Write-Host '硬件资源档案源码结构检查通过；编译后再执行公式运行检查。'
-    exit 0
+    throw '找不到Debug|x64编译产物，不能跳过硬件资源档案运行校验。'
 }
 
 [Environment]::CurrentDirectory = $debugDirectory
@@ -135,6 +137,10 @@ Assert-Equal $standard.SaveDiskLowSpaceMb 2048 '普通图片磁盘低水位默�
 Assert-Equal $standard.SaveDiskCriticalSpaceMb 512 '全部图片磁盘严重水位默认必须为512MB。'
 Assert-Equal $standard.SaveSlowThresholdMs 500 '单路径慢写阈值默认必须为500ms。'
 Assert-Equal $standard.SaveDiskProbeIntervalMs 1000 '磁盘空间探测默认必须缓存1000ms。'
+
+$singleProcess = New-Profile 16 24 24 16384 10000 1 4 (12MB)
+Assert-Equal $singleProcess.CpuHeavyMaxConcurrency 1 '单流程CPU重任务并发应为1。'
+Assert-Equal $singleProcess.ImageConvertMaxConcurrency 1 '图像转换自动并发不得超过共享CPU总并发。'
 
 $small = New-Profile 2 2 2 4096 1024 4 4 (50MB)
 Assert-Equal $small.CpuReserveCoreCount 1 '双核电脑最多只能保留1个核心。'

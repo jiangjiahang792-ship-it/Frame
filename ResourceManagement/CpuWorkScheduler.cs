@@ -27,6 +27,9 @@ namespace TDJS_Vision.ResourceManagement
     /// </summary>
     public sealed class CpuWorkSchedulerOptions
     {
+        /// <summary>是否允许根据全机CPU采样动态下降和恢复并发。</summary>
+        public bool DynamicAdjustmentEnabled { get; set; } = true;
+
         /// <summary>CPU重任务自动最大并发。</summary>
         public int MaximumConcurrency { get; set; } = 1;
 
@@ -72,6 +75,7 @@ namespace TDJS_Vision.ResourceManagement
 
             return new CpuWorkSchedulerOptions
             {
+                DynamicAdjustmentEnabled = profile.AdaptiveResourceManagementEnabled,
                 MaximumConcurrency = Math.Max(1, profile.CpuHeavyMaxConcurrency),
                 MinimumConcurrency = 1,
                 ImageConversionMaximumConcurrency = Math.Max(1, profile.ImageConvertMaxConcurrency),
@@ -97,6 +101,7 @@ namespace TDJS_Vision.ResourceManagement
             double recoveryCpuPercent = Clamp(RecoveryCpuPercent, 20D, Math.Max(20D, highCpuPercent - 5D));
             return new CpuWorkSchedulerOptions
             {
+                DynamicAdjustmentEnabled = DynamicAdjustmentEnabled,
                 MaximumConcurrency = maximumConcurrency,
                 MinimumConcurrency = minimumConcurrency,
                 ImageConversionMaximumConcurrency = Clamp(ImageConversionMaximumConcurrency, 1, maximumConcurrency),
@@ -176,6 +181,13 @@ namespace TDJS_Vision.ResourceManagement
             long observedAt = Math.Max(_lastObservedAt, Math.Max(0L, timestampMilliseconds));
             _lastObservedAt = observedAt;
             LastCpuPercent = Math.Max(0D, Math.Min(100D, double.IsNaN(cpuPercent) ? 0D : cpuPercent));
+
+            if (!_options.DynamicAdjustmentEnabled)
+            {
+                _highCpuStartedAt = -1L;
+                _recoveryCpuStartedAt = -1L;
+                return CurrentConcurrency;
+            }
 
             if (LastCpuPercent >= _options.HighCpuPercent)
             {
@@ -449,7 +461,8 @@ namespace TDJS_Vision.ResourceManagement
         /// </summary>
         private static bool OptionsEqual(CpuWorkSchedulerOptions left, CpuWorkSchedulerOptions right)
         {
-            return left.MaximumConcurrency == right.MaximumConcurrency &&
+            return left.DynamicAdjustmentEnabled == right.DynamicAdjustmentEnabled &&
+                left.MaximumConcurrency == right.MaximumConcurrency &&
                 left.MinimumConcurrency == right.MinimumConcurrency &&
                 left.ImageConversionMaximumConcurrency == right.ImageConversionMaximumConcurrency &&
                 left.HighCpuPercent.Equals(right.HighCpuPercent) &&

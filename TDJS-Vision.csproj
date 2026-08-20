@@ -238,6 +238,7 @@
     <Compile Include="Diagnostics\ProcessPerformanceTrace.cs" />
     <Compile Include="Diagnostics\PerformanceSpikeDiagnostics.cs" />
     <Compile Include="ResourceManagement\ResourceProfileModels.cs" />
+    <Compile Include="ResourceManagement\PerformanceResourceSettings.cs" />
     <Compile Include="ResourceManagement\IResourceProfileServices.cs" />
     <Compile Include="ResourceManagement\WindowsHardwareResourceProbe.cs" />
     <Compile Include="ResourceManagement\ResourceProfileCalculator.cs" />

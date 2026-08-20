@@ -48,6 +48,13 @@ namespace TDJS_Vision.ResourceManagement
         AutomaticResourceProfile BuildProfile(ResourceWorkloadSnapshot workload);
 
         /// <summary>
+        /// 在同一硬件和工作负载快照下生成自动推荐与最终生效档案。
+        /// </summary>
+        /// <param name="workload">当前方案工作负载。</param>
+        /// <returns>自动值、机器设置和最终值的同批结果。</returns>
+        ResourceProfileBuildResult BuildProfileResult(ResourceWorkloadSnapshot workload);
+
+        /// <summary>
         /// 清除硬件快照缓存，供硬件环境变化或测试时重新读取。
         /// </summary>
         void ResetHardwareCache();
