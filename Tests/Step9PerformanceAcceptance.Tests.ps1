@@ -152,6 +152,8 @@ Assert-Contains $startupApplication 'if (!StartupDisplayMode.IsBackgroundAccepta
 Assert-Contains $startupApplication 'if (StartupDisplayMode.IsBackgroundAcceptance)' "后台验收启动失败时必须静默退出，不能等待不可见的人工重试。"
 Assert-Contains $program 'if (!StartupDisplayMode.IsBackgroundAcceptance)' "后台验收重复实例不得弹出前台提示框。"
 Assert-Contains $formMain 'StartupDisplayMode.IsBackgroundAcceptance || base.ShowWithoutActivation' "后台验收主窗体必须使用不激活显示。"
+Assert-Contains $formMain 'createParams.ExStyle |= ExtendedWindowStyleNoActivate;' "后台验收主窗体必须使用系统级不激活窗口样式。"
+Assert-Contains $startupForm 'createParams.ExStyle |= ExtendedWindowStyleNoActivate;' "后台验收启动页必须使用系统级不激活窗口样式。"
 Assert-Contains $formMain 'if (!StartupDisplayMode.IsBackgroundAcceptance)' "后台验收关闭时不得显示确认框。"
 Assert-Contains $formMain 'Solution.Instance.Stop();' "后台验收在流程运行中退出时必须先请求正常取消，不能只等待强制清理。"
 Assert-Contains $startupForm 'WindowState = FormWindowState.Minimized;' "后台验收启动页必须保持最小化。"
@@ -223,16 +225,16 @@ finally {
 }
 
 Add-Type -AssemblyName System.Windows.Forms
-$debugDirectory = Join-Path $root 'bin\x64\Debug'
-$applicationPath = Join-Path $debugDirectory '机器视觉AI检测系统V1.0.exe'
+$releaseDirectory = Join-Path $root 'bin\x64\Release'
+$applicationPath = Join-Path $releaseDirectory '机器视觉AI检测系统V1.0.exe'
 $application = Get-Item -LiteralPath $applicationPath -ErrorAction SilentlyContinue
 if ($null -eq $application) {
-    throw "步骤9运行时行为检查需要最新Debug程序。"
+    throw "步骤9运行时行为检查需要最新Release程序。"
 }
-foreach ($sourcePath in @($startupDisplayModePath, $messageBoxPath)) {
+foreach ($sourcePath in @($startupDisplayModePath, $startupFormPath, $formMainPath, $messageBoxPath)) {
     $source = Get-Item -LiteralPath $sourcePath
     if ($application.LastWriteTimeUtc -lt $source.LastWriteTimeUtc) {
-        throw "Debug程序早于$($source.Name)，请先重新编译。"
+        throw "Release程序早于$($source.Name)，请先重新编译。"
     }
 }
 
@@ -242,7 +244,7 @@ $previousBackgroundAcceptance = [Environment]::GetEnvironmentVariable('TDJS_VISI
 $assemblyResolver = [ResolveEventHandler] {
     param($sender, $eventArgs)
     $requestedAssembly = New-Object Reflection.AssemblyName($eventArgs.Name)
-    $dependencyPath = Join-Path $debugDirectory ($requestedAssembly.Name + '.dll')
+    $dependencyPath = Join-Path $releaseDirectory ($requestedAssembly.Name + '.dll')
     if (Test-Path -LiteralPath $dependencyPath) {
         return [Reflection.Assembly]::LoadFrom($dependencyPath)
     }
@@ -250,7 +252,7 @@ $assemblyResolver = [ResolveEventHandler] {
 }
 
 try {
-    [Environment]::CurrentDirectory = $debugDirectory
+    [Environment]::CurrentDirectory = $releaseDirectory
     [AppDomain]::CurrentDomain.add_AssemblyResolve($assemblyResolver)
     $applicationAssembly = [Reflection.Assembly]::LoadFrom($application.FullName)
     $startupModeType = $applicationAssembly.GetType('TDJS_Vision.Startup.StartupDisplayMode', $true)
@@ -276,6 +278,28 @@ try {
     }
 
     [Environment]::SetEnvironmentVariable('TDJS_VISION_BACKGROUND_ACCEPTANCE', '1', 'Process')
+    $startupFormType = $applicationAssembly.GetType('TDJS_Vision.Forms.Startup.FormStartup', $true)
+    $startupFormInstance = $null
+    try {
+        $startupFormInstance = [Activator]::CreateInstance($startupFormType, $true)
+        $createParamsProperty = $startupFormType.GetProperty(
+            'CreateParams',
+            [Reflection.BindingFlags]'Instance,NonPublic')
+        if ($null -eq $createParamsProperty) {
+            throw "未找到启动页窗口样式属性。"
+        }
+
+        $createParams = [Windows.Forms.CreateParams]$createParamsProperty.GetValue($startupFormInstance, $null)
+        if (($createParams.ExStyle -band 0x08000000) -eq 0) {
+            throw "Release启动页没有启用系统级不激活窗口样式。"
+        }
+    }
+    finally {
+        if ($null -ne $startupFormInstance) {
+            $startupFormInstance.Dispose()
+        }
+    }
+
     $messageBoxType = $applicationAssembly.GetType('TDJS_Vision.Forms.YTMessageBox.MessageBoxTD', $true)
     $showMethod = $messageBoxType.GetMethod(
         'Show',
@@ -298,4 +322,4 @@ finally {
     [Environment]::CurrentDirectory = $previousCurrentDirectory
 }
 
-Write-Output "步骤9验收工具检查通过：默认最小化、低优先级、不使用键盘鼠标、全程焦点与内存门禁、Debug覆盖不落盘，办公环境结果不会冒充最终性能结论。"
+Write-Output "步骤9Release验收工具检查通过：默认最小化、系统级不激活、低优先级、不使用键盘鼠标、全程焦点与内存门禁、Debug覆盖不落盘，办公环境结果不会冒充最终性能结论。"

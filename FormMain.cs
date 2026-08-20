@@ -35,11 +35,29 @@ namespace TDJS_Vision
 {
     public partial class FormMain : FormBase
     {
+        /// <summary>禁止窗口取得前台激活状态的Windows扩展样式。</summary>
+        private const int ExtendedWindowStyleNoActivate = 0x08000000;
+
         /// <summary>
         /// 后台性能验收时创建真实主界面但不激活，正式运行仍保持原有前台显示行为。
         /// </summary>
         protected override bool ShowWithoutActivation =>
             StartupDisplayMode.IsBackgroundAcceptance || base.ShowWithoutActivation;
+
+        /// <summary>
+        /// 后台性能验收时从窗口句柄层禁止主窗体激活，正常用户启动仍使用原窗口样式。
+        /// </summary>
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams createParams = base.CreateParams;
+                if (StartupDisplayMode.IsBackgroundAcceptance)
+                    createParams.ExStyle |= ExtendedWindowStyleNoActivate;
+
+                return createParams;
+            }
+        }
 
         /// <summary>Debug固定节拍压力使用的单次运行窗口消息。</summary>
         private const int FixedTriggerStressMessage = 0x8451;
