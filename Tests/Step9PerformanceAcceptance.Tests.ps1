@@ -87,6 +87,7 @@ $comparisonPath = Join-Path $root "Tests\FullSolutionComparison.Tests.ps1"
 $logSettingsPath = Join-Path $root "Forms\Logger\LogLevelSettings.cs"
 $startupDisplayModePath = Join-Path $root "Startup\StartupDisplayMode.cs"
 $startupApplicationPath = Join-Path $root "Startup\StartupApplicationContext.cs"
+$backgroundActivationGuardPath = Join-Path $root "Startup\BackgroundWindowActivationGuard.cs"
 $programPath = Join-Path $root "Program.cs"
 $formMainPath = Join-Path $root "FormMain.cs"
 $startupFormPath = Join-Path $root "Forms\Startup\FormStartup.cs"
@@ -100,6 +101,7 @@ $comparison = Get-Content -LiteralPath $comparisonPath -Encoding UTF8 -Raw
 $logSettings = Get-Content -LiteralPath $logSettingsPath -Encoding UTF8 -Raw
 $startupDisplayMode = Get-Content -LiteralPath $startupDisplayModePath -Encoding UTF8 -Raw
 $startupApplication = Get-Content -LiteralPath $startupApplicationPath -Encoding UTF8 -Raw
+$backgroundActivationGuard = Get-Content -LiteralPath $backgroundActivationGuardPath -Encoding UTF8 -Raw
 $program = Get-Content -LiteralPath $programPath -Encoding UTF8 -Raw
 $formMain = Get-Content -LiteralPath $formMainPath -Encoding UTF8 -Raw
 $startupForm = Get-Content -LiteralPath $startupFormPath -Encoding UTF8 -Raw
@@ -180,6 +182,12 @@ Assert-Contains $startupApplication 'if (StartupDisplayMode.IsBackgroundAcceptan
 Assert-Matches $startupApplication 'if \(!StartupDisplayMode\.IsBackgroundAcceptance\)\s+splashController\.Start\(\);' "后台验收不得创建不可见启动动画线程和WinForms停车窗口。"
 Assert-Matches $startupApplication 'if \(!StartupDisplayMode\.IsBackgroundAcceptance\)\s+\{\s+TimeSpan remaining' "后台验收不得等待不可见启动动画的最短展示时长。"
 Assert-Contains $program 'if (!StartupDisplayMode.IsBackgroundAcceptance)' "后台验收重复实例不得弹出前台提示框。"
+Assert-Contains $program 'BackgroundWindowActivationGuard.CreateForCurrentThread()' "后台验收窗口激活守卫必须在任何主UI窗口创建前安装。"
+Assert-Contains $backgroundActivationGuard 'HookTypeComputerBasedTraining = 5' "窗口激活守卫必须使用线程级WH_CBT钩子。"
+Assert-Contains $backgroundActivationGuard 'HookCodeActivate = 5' "窗口激活守卫必须拦截HCBT_ACTIVATE事件。"
+Assert-Contains $backgroundActivationGuard 'if (!StartupDisplayMode.IsBackgroundAcceptance)' "普通启动不得安装后台验收窗口钩子。"
+Assert-Contains $backgroundActivationGuard 'return new IntPtr(1);' "后台验收必须拒绝本线程窗口激活。"
+Assert-Contains $backgroundActivationGuard 'UnhookWindowsHookEx(hookHandle)' "主消息循环退出时必须解除窗口激活钩子。"
 Assert-Contains $formMain 'StartupDisplayMode.IsBackgroundAcceptance || base.ShowWithoutActivation' "后台验收主窗体必须使用不激活显示。"
 Assert-Contains $formMain 'createParams.ExStyle |= ExtendedWindowStyleNoActivate;' "后台验收主窗体必须使用系统级不激活窗口样式。"
 Assert-Contains $startupForm 'createParams.ExStyle |= ExtendedWindowStyleNoActivate;' "后台验收启动页必须使用系统级不激活窗口样式。"

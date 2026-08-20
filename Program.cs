@@ -42,26 +42,30 @@ namespace TDJS_Vision
             if (YoloIsolatedWorkerProgram.TryRun(args))
                 return;
 
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-
-            using (Mutex singleInstanceMutex = new Mutex(false, SingleInstanceMutexName))
+            using (BackgroundWindowActivationGuard activationGuard =
+                BackgroundWindowActivationGuard.CreateForCurrentThread())
             {
-                bool hasSingleInstance = TryEnterSingleInstance(singleInstanceMutex);
-                if (!hasSingleInstance)
-                {
-                    if (!StartupDisplayMode.IsBackgroundAcceptance)
-                        MessageBoxTD.Show("软件已经运行，请勿重复启动！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
 
-                try
+                using (Mutex singleInstanceMutex = new Mutex(false, SingleInstanceMutexName))
                 {
-                    RunApplication(args);
-                }
-                finally
-                {
-                    singleInstanceMutex.ReleaseMutex();
+                    bool hasSingleInstance = TryEnterSingleInstance(singleInstanceMutex);
+                    if (!hasSingleInstance)
+                    {
+                        if (!StartupDisplayMode.IsBackgroundAcceptance)
+                            MessageBoxTD.Show("软件已经运行，请勿重复启动！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+
+                    try
+                    {
+                        RunApplication(args);
+                    }
+                    finally
+                    {
+                        singleInstanceMutex.ReleaseMutex();
+                    }
                 }
             }
         }

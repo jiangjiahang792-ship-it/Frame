@@ -265,6 +265,7 @@
     <Compile Include="Startup\SolutionAiRuntimePreloader.cs" />
     <Compile Include="Startup\StartupAiRuntimeLoadGate.cs" />
     <Compile Include="Startup\StartupApplicationContext.cs" />
+    <Compile Include="Startup\BackgroundWindowActivationGuard.cs" />
     <Compile Include="Startup\StartupDisplayMode.cs" />
     <Compile Include="Startup\StartupFailureAction.cs" />
     <Compile Include="Startup\StartupProgressContext.cs" />
