@@ -45,6 +45,11 @@ namespace TDJS_Vision
         private Solution() 
         {
             AllDevices = new List<IDevice>();
+            _cpuWorkScheduler = new CpuWorkScheduler(new CpuWorkSchedulerOptions());
+            _cpuResourceMonitor = new CpuResourceMonitor(
+                _cpuWorkScheduler,
+                new WindowsSystemCpuUsageSampler(),
+                5000);
         }
 
         public static Solution Instance => _lazy.Value;
@@ -63,6 +68,12 @@ namespace TDJS_Vision
 
         /// <summary>全方案共享的有界图像保存工作池。</summary>
         private ImageQueueProcessor _imageSaveQueueProcessor;
+
+        /// <summary>全方案共享的CPU重任务调度器。</summary>
+        private readonly ICpuWorkScheduler _cpuWorkScheduler;
+
+        /// <summary>不占用UI消息循环的全机CPU低频监控器。</summary>
+        private readonly CpuResourceMonitor _cpuResourceMonitor;
 
         /// <summary>保护方案运行会话开始、结束与重置之间的状态一致性。</summary>
         private readonly object _runLifecycleSync = new object();
@@ -150,6 +161,11 @@ namespace TDJS_Vision
         /// 最近一次方案运行前生成的自动资源建议档案。
         /// </summary>
         public AutomaticResourceProfile CurrentResourceProfile { get; private set; }
+
+        /// <summary>
+        /// 流程节点CPU工作分类器；插件可以替换分类策略，但AI和通信节点默认不受限。
+        /// </summary>
+        public ICpuWorkloadClassifier CpuWorkloadClassifier { get; set; } = new DefaultCpuWorkloadClassifier();
 
         /// <summary>
         /// Plc设备
@@ -1069,6 +1085,28 @@ namespace TDJS_Vision
         }
 
         /// <summary>
+        /// 为明确的CPU重任务取得全方案共享许可。
+        /// </summary>
+        /// <param name="workloadKind">CPU工作类型。</param>
+        /// <param name="cancellationToken">取消等待令牌。</param>
+        /// <returns>必须释放的CPU工作许可。</returns>
+        internal Task<ICpuWorkLease> AcquireCpuWorkAsync(
+            CpuWorkloadKind workloadKind,
+            CancellationToken cancellationToken)
+        {
+            return _cpuWorkScheduler.AcquireAsync(workloadKind, cancellationToken);
+        }
+
+        /// <summary>
+        /// 获取当前CPU调度诊断快照，供Debug智能体和专项测试读取。
+        /// </summary>
+        /// <returns>当前并发、排队、CPU和等待耗时快照。</returns>
+        internal CpuWorkSchedulerSnapshot GetCpuWorkSchedulerSnapshot()
+        {
+            return _cpuWorkScheduler.GetSnapshot();
+        }
+
+        /// <summary>
         /// 记录保存任务将持有的完整图像资源字节数，供后续运行自动计算队列容量。
         /// </summary>
         /// <param name="estimatedBytes">完整OutputImage租约的估算字节数。</param>
@@ -1279,6 +1317,8 @@ namespace TDJS_Vision
                 }
 
                 EnsureImageResourceSizeSamplerCapacity(CurrentResourceProfile.ImageSizeSampleCount);
+                _cpuWorkScheduler.Reconfigure(CpuWorkSchedulerOptions.FromProfile(CurrentResourceProfile));
+                _cpuResourceMonitor.Reconfigure(CurrentResourceProfile.ResourceAdjustmentIntervalMs);
 
                 HardwareResourceSnapshot hardware = CurrentResourceProfile.Hardware;
                 if (hardware != null && hardware.ProbeWarnings != null)
@@ -1289,7 +1329,7 @@ namespace TDJS_Vision
 
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    () => $"【资源档案】硬件={CurrentResourceProfile.Hardware?.ToLogText()}；建议={CurrentResourceProfile.ToLogText()}；说明=保存工作池应用档案边界，不修改线程池、CPU亲和性或AI并发",
+                    () => $"【资源档案】硬件={CurrentResourceProfile.Hardware?.ToLogText()}；建议={CurrentResourceProfile.ToLogText()}；CPU调度={_cpuWorkScheduler.GetSnapshot().ToLogText()}；说明=CPU重任务与保存工作池应用档案边界，不修改线程池、CPU亲和性或AI并发",
                     true);
                 ReconfigureIdleImageSaveQueueProcessor(CurrentResourceProfile);
             }

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using TDJS_Vision.Device._3D;
 using TDJS_Vision.Forms.ImageViewer;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
+using TDJS_Vision.ResourceManagement;
 
 namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
 {
@@ -48,13 +49,13 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
         /// <param name="token">流程取消令牌。</param>
         /// <param name="showLog">是否输出日志。</param>
         /// <returns>节点运行控制结果。</returns>
-        public override Task<NodeReturn> Run(CancellationToken token, bool showLog)
+        public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return Task.FromResult(new NodeReturn(NodeRunFlag.StopRun));
+                return new NodeReturn(NodeRunFlag.StopRun);
             }
 
             if (!(ParamForm.Params is NodeParamImageShow3D param))
@@ -67,7 +68,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
             try
             {
                 SetStatus(NodeStatus.Unexecuted, "*");
-                CheckTokenCancel(token);
+                await CheckTokenCancel(token);
 
                 ParamFormImageShow3D form = ParamForm as ParamFormImageShow3D;
                 if (form == null)
@@ -85,7 +86,13 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
                 string displayStrategy;
                 if (refreshGranted)
                 {
-                    Bitmap image = firstMat.ToBitmap();
+                    Bitmap image;
+                    using (ICpuWorkLease conversionLease = await Solution.Instance.AcquireCpuWorkAsync(
+                        CpuWorkloadKind.ImageConversion,
+                        token))
+                    {
+                        image = firstMat.ToBitmap();
+                    }
                     bool bitmapClaimed = NodeImageShow.PublishImageShowChanged(
                         this,
                         param.WindowName,
@@ -105,7 +112,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
                 if (showLog)
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！图像窗口={FrmSingleImage.GetWindowDisplayName(param.WindowName)}，显示策略={displayStrategy}，深度图={GetMatDiagnosticText(firstMat)}，耗时={time} ms", true);
 
-                return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
+                return new NodeReturn(NodeRunFlag.ContinueRun);
             }
             catch (OperationCanceledException)
             {

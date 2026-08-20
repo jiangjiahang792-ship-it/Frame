@@ -179,7 +179,13 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         long afterWindowEvent;
                         if (refreshGranted)
                         {
-                            Bitmap image = firstMat.ToBitmap();
+                            Bitmap image;
+                            using (ICpuWorkLease conversionLease = await Solution.Instance.AcquireCpuWorkAsync(
+                                CpuWorkloadKind.ImageConversion,
+                                token))
+                            {
+                                image = firstMat.ToBitmap();
+                            }
                             afterToBitmap = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                             bool bitmapClaimed = PublishImageShowChanged(
                                 this,

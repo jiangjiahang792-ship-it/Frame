@@ -248,6 +248,8 @@
     <Compile Include="ResourceManagement\ImageSaveStorageGuard.cs" />
     <Compile Include="ResourceManagement\SolutionRunAdmissionController.cs" />
     <Compile Include="ResourceManagement\CpuWorkScheduler.cs" />
+    <Compile Include="ResourceManagement\CpuWorkloadClassifier.cs" />
+    <Compile Include="ResourceManagement\CpuResourceMonitor.cs" />
     <Compile Include="DetectItemLanguage.cs" />
     <Compile Include="ExternalProgramLauncher.cs" />
     <Compile Include="Forms\Workspace\IExclusiveWorkspacePresenter.cs" />

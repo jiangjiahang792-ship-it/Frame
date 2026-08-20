@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Node;
 
 namespace TDJS_Vision.ResourceManagement
 {
@@ -95,6 +96,33 @@ namespace TDJS_Vision.ResourceManagement
         /// </summary>
         /// <returns>只读诊断快照。</returns>
         CpuWorkSchedulerSnapshot GetSnapshot();
+    }
+
+    /// <summary>
+    /// 把流程节点分类为需要受控的CPU重任务；未分类节点保持原执行方式。
+    /// </summary>
+    public interface ICpuWorkloadClassifier
+    {
+        /// <summary>
+        /// 尝试读取指定节点的CPU工作类型。
+        /// </summary>
+        /// <param name="node">待执行流程节点。</param>
+        /// <param name="workloadKind">分类成功时返回CPU工作类型。</param>
+        /// <returns>节点需要CPU许可返回true；否则返回false。</returns>
+        bool TryClassify(NodeBase node, out CpuWorkloadKind workloadKind);
+    }
+
+    /// <summary>
+    /// 可替换的全机CPU使用率采样器。
+    /// </summary>
+    public interface ISystemCpuUsageSampler
+    {
+        /// <summary>
+        /// 尝试读取0～100范围的全机CPU使用率。
+        /// </summary>
+        /// <param name="cpuPercent">采样成功时返回CPU使用率。</param>
+        /// <returns>已经具备有效前后采样点时返回true。</returns>
+        bool TrySample(out double cpuPercent);
     }
 
     /// <summary>

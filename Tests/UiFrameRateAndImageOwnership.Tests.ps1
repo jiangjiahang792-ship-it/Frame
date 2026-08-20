@@ -61,11 +61,13 @@ Assert-ContainsText $calculatorSource 'UiMaxRefreshFps = Clamp(' 'The resource p
 Assert-ContainsText $projectSource '<Compile Include="ResourceManagement\PerWindowUiFrameRateLimiter.cs" />' 'The production project must compile the frame-rate limiter.'
 
 $twoDimensionalGate = $imageShowSource.IndexOf('bool refreshGranted = TryAcquireWindowRefresh(', [StringComparison]::Ordinal)
-$twoDimensionalConvert = $imageShowSource.IndexOf('Bitmap image = firstMat.ToBitmap();', [StringComparison]::Ordinal)
-Assert-True ($twoDimensionalGate -ge 0 -and $twoDimensionalGate -lt $twoDimensionalConvert) 'The 2D display node must rate-limit before Mat-to-Bitmap conversion.'
+$twoDimensionalPermit = $imageShowSource.IndexOf('CpuWorkloadKind.ImageConversion', [StringComparison]::Ordinal)
+$twoDimensionalConvert = $imageShowSource.IndexOf('image = firstMat.ToBitmap();', [StringComparison]::Ordinal)
+Assert-True ($twoDimensionalGate -ge 0 -and $twoDimensionalGate -lt $twoDimensionalPermit -and $twoDimensionalPermit -lt $twoDimensionalConvert) '二维显示节点必须先执行帧率门控，再取得CPU转换许可，最后执行Mat转Bitmap。'
 $threeDimensionalGate = $imageShow3DSource.IndexOf('bool refreshGranted = NodeImageShow.TryAcquireWindowRefresh(', [StringComparison]::Ordinal)
-$threeDimensionalConvert = $imageShow3DSource.IndexOf('Bitmap image = firstMat.ToBitmap();', [StringComparison]::Ordinal)
-Assert-True ($threeDimensionalGate -ge 0 -and $threeDimensionalGate -lt $threeDimensionalConvert) 'The 3D display node must rate-limit before Mat-to-Bitmap conversion.'
+$threeDimensionalPermit = $imageShow3DSource.IndexOf('CpuWorkloadKind.ImageConversion', [StringComparison]::Ordinal)
+$threeDimensionalConvert = $imageShow3DSource.IndexOf('image = firstMat.ToBitmap();', [StringComparison]::Ordinal)
+Assert-True ($threeDimensionalGate -ge 0 -and $threeDimensionalGate -lt $threeDimensionalPermit -and $threeDimensionalPermit -lt $threeDimensionalConvert) '三维显示节点必须先执行帧率门控，再取得CPU转换许可，最后执行Mat转Bitmap。'
 Assert-ContainsText $imageShowSource 'eventArgs?.DisposeUnclaimedBitmap();' 'The publisher must release a Bitmap that no window claims.'
 Assert-ContainsText $imageShowSource 'return eventArgs.IsBitmapClaimed;' 'The publisher must report whether a target window claimed ownership.'
 Assert-ContainsText $singleImageSource 'if (!e.TryTakeBitmap(out Bitmap bitmap))' 'Only the matching window may claim a published Bitmap.'

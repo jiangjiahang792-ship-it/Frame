@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
+using TDJS_Vision.ResourceManagement;
 
 namespace TDJS_Vision
 {
@@ -518,7 +519,7 @@ namespace TDJS_Vision
                     try
                     {
                         MarkNodeRunning(node);
-                        result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(this, node));
+                        result = await RunNodeWithCpuResourcePolicy(this, node);
                         FinalizeNodeRun(node);
                         if (node.Result != null)
                             RunTime += node.Result.RunTime;
@@ -880,7 +881,7 @@ namespace TDJS_Vision
             MarkNodeRunning(node);
             try
             {
-                NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(this, node));
+                NodeReturn result = await RunNodeWithCpuResourcePolicy(this, node);
                 FinalizeNodeRun(node);
                 return new ConnectedNodeRunResult
                 {
@@ -1301,6 +1302,25 @@ namespace TDJS_Vision
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// 按节点资源分类取得CPU许可后执行节点；未分类节点保持原执行路径。
+        /// </summary>
+        /// <param name="process">当前流程。</param>
+        /// <param name="node">待执行节点。</param>
+        /// <returns>节点运行控制结果。</returns>
+        private static async Task<NodeReturn> RunNodeWithCpuResourcePolicy(Process process, NodeBase node)
+        {
+            Solution solution = Solution.Instance;
+            CancellationToken cancellationToken = solution.CancellationToken;
+            bool showLog = ShouldShowNodeLog(process, node);
+            ICpuWorkloadClassifier classifier = solution.CpuWorkloadClassifier;
+            if (classifier == null || !classifier.TryClassify(node, out CpuWorkloadKind workloadKind))
+                return await node.Run(cancellationToken, showLog);
+
+            using (ICpuWorkLease lease = await solution.AcquireCpuWorkAsync(workloadKind, cancellationToken))
+                return await node.Run(cancellationToken, showLog);
         }
 
         /// <summary>
@@ -2415,7 +2435,7 @@ namespace TDJS_Vision
                                 continue;
 
                             MarkNodeRunning(node);
-                            NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(process, node));
+                            NodeReturn result = await RunNodeWithCpuResourcePolicy(process, node);
                             FinalizeNodeRun(node);
                             process.RunTime += node.Result.RunTime;
 
@@ -2557,7 +2577,7 @@ namespace TDJS_Vision
                             continue;
 
                         MarkNodeRunning(node);
-                        NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(this, node));
+                        NodeReturn result = await RunNodeWithCpuResourcePolicy(this, node);
                         FinalizeNodeRun(node);
                         RunTime += node.Result.RunTime;
 
@@ -2722,7 +2742,7 @@ namespace TDJS_Vision
                             continue;
 
                         MarkNodeRunning(node);
-                        NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(this, node));
+                        NodeReturn result = await RunNodeWithCpuResourcePolicy(this, node);
                         FinalizeNodeRun(node);
                         RunTime += node.Result.RunTime;
 
@@ -2872,7 +2892,7 @@ namespace TDJS_Vision
                         }
 
                         MarkNodeRunning(node);
-                        NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(this, node));
+                        NodeReturn result = await RunNodeWithCpuResourcePolicy(this, node);
                         FinalizeNodeRun(node);
                         RunTime += node.Result.RunTime;
 

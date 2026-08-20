@@ -433,6 +433,8 @@ namespace TDJS_Vision.ResourceManagement
             lock (_syncRoot)
             {
                 ThrowIfDisposed();
+                if (OptionsEqual(_options, normalizedOptions))
+                    return;
                 _options = normalizedOptions;
                 _adjustmentPolicy = new CpuConcurrencyAdjustmentPolicy(_options, _options.MaximumConcurrency);
                 while (_waitSamples.Count > _options.WaitSampleCapacity)
@@ -440,6 +442,24 @@ namespace TDJS_Vision.ResourceManagement
                 grantedWaiters = GrantPendingWaiters();
             }
             CompleteGrantedWaiters(grantedWaiters);
+        }
+
+        /// <summary>
+        /// 判断两份规范化参数是否完全一致，避免每轮流程刷新硬件档案时重置动态额度。
+        /// </summary>
+        private static bool OptionsEqual(CpuWorkSchedulerOptions left, CpuWorkSchedulerOptions right)
+        {
+            return left.MaximumConcurrency == right.MaximumConcurrency &&
+                left.MinimumConcurrency == right.MinimumConcurrency &&
+                left.ImageConversionMaximumConcurrency == right.ImageConversionMaximumConcurrency &&
+                left.HighCpuPercent.Equals(right.HighCpuPercent) &&
+                left.RecoveryCpuPercent.Equals(right.RecoveryCpuPercent) &&
+                left.HighCpuSustainMilliseconds == right.HighCpuSustainMilliseconds &&
+                left.RecoveryCpuSustainMilliseconds == right.RecoveryCpuSustainMilliseconds &&
+                left.AdjustmentIntervalMilliseconds == right.AdjustmentIntervalMilliseconds &&
+                left.AdjustmentCooldownMilliseconds == right.AdjustmentCooldownMilliseconds &&
+                left.AdjustmentStep == right.AdjustmentStep &&
+                left.WaitSampleCapacity == right.WaitSampleCapacity;
         }
 
         /// <summary>
