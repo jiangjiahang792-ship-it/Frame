@@ -177,6 +177,8 @@ Assert-Contains $startupDisplayMode 'TDJS_VISION_PERFORMANCE_ACCEPTANCE' "后台
 Assert-Contains $startupDisplayMode 'return isPerformanceAcceptance && isBackgroundRequested;' "只有两个专用开关同时开启时才允许静默后台运行。"
 Assert-Contains $startupApplication 'if (!StartupDisplayMode.IsBackgroundAcceptance)' "后台验收启动不得激活并置前主窗体。"
 Assert-Contains $startupApplication 'if (StartupDisplayMode.IsBackgroundAcceptance)' "后台验收启动失败时必须静默退出，不能等待不可见的人工重试。"
+Assert-Matches $startupApplication 'if \(!StartupDisplayMode\.IsBackgroundAcceptance\)\s+splashController\.Start\(\);' "后台验收不得创建不可见启动动画线程和WinForms停车窗口。"
+Assert-Matches $startupApplication 'if \(!StartupDisplayMode\.IsBackgroundAcceptance\)\s+\{\s+TimeSpan remaining' "后台验收不得等待不可见启动动画的最短展示时长。"
 Assert-Contains $program 'if (!StartupDisplayMode.IsBackgroundAcceptance)' "后台验收重复实例不得弹出前台提示框。"
 Assert-Contains $formMain 'StartupDisplayMode.IsBackgroundAcceptance || base.ShowWithoutActivation' "后台验收主窗体必须使用不激活显示。"
 Assert-Contains $formMain 'createParams.ExStyle |= ExtendedWindowStyleNoActivate;' "后台验收主窗体必须使用系统级不激活窗口样式。"

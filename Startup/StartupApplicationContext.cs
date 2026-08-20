@@ -55,7 +55,9 @@ namespace TDJS_Vision.Startup
         {
             this.solutionPath = solutionPath ?? string.Empty;
             splashController = new StartupSplashController();
-            splashController.Start();
+            if (!StartupDisplayMode.IsBackgroundAcceptance)
+                splashController.Start();
+
             startupStopwatch = Stopwatch.StartNew();
             splashController.Report(new StartupProgressInfo("正在启动软件……", "正在准备运行环境", 0, 0, 2));
             Application.Idle += Application_Idle;
@@ -98,9 +100,12 @@ namespace TDJS_Vision.Startup
                     }
 
                     splashController.Report(new StartupProgressInfo("启动准备完成", "即将进入主页面", 0, 0, 100));
-                    TimeSpan remaining = MinimumSplashDuration - startupStopwatch.Elapsed;
-                    if (remaining > TimeSpan.Zero)
-                        await Task.Delay(remaining);
+                    if (!StartupDisplayMode.IsBackgroundAcceptance)
+                    {
+                        TimeSpan remaining = MinimumSplashDuration - startupStopwatch.Elapsed;
+                        if (remaining > TimeSpan.Zero)
+                            await Task.Delay(remaining);
+                    }
 
                     ShowMainForm();
                     return;
