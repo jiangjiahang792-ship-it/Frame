@@ -112,6 +112,27 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>CPU重任务自动并发上限。</summary>
         public int CpuHeavyConcurrencyMaximum { get; set; } = 8;
 
+        /// <summary>触发CPU重任务并发下降的CPU高水位百分比。</summary>
+        public double CpuHighWatermarkPercent { get; set; } = 85D;
+
+        /// <summary>允许CPU重任务并发恢复的CPU低水位百分比。</summary>
+        public double CpuRecoveryWatermarkPercent { get; set; } = 65D;
+
+        /// <summary>CPU高水位必须持续的毫秒数。</summary>
+        public int CpuHighDurationMs { get; set; } = 5000;
+
+        /// <summary>CPU低水位必须持续的毫秒数。</summary>
+        public int CpuRecoveryDurationMs { get; set; } = 10000;
+
+        /// <summary>运行时CPU资源策略采样和评估周期，单位毫秒。</summary>
+        public int ResourceAdjustmentIntervalMs { get; set; } = 5000;
+
+        /// <summary>两次CPU并发调整之间的冷却时间，单位毫秒。</summary>
+        public int ResourceAdjustmentCooldownMs { get; set; } = 30000;
+
+        /// <summary>每次CPU并发调整的许可数量。</summary>
+        public int ConcurrencyAdjustmentStep { get; set; } = 1;
+
         /// <summary>每多少个物理核心允许一个图像转换并发。</summary>
         public int ImageConvertCoreDivisor { get; set; } = 4;
 
@@ -205,6 +226,27 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>CPU重任务建议最大并发数。</summary>
         public int CpuHeavyMaxConcurrency { get; set; }
 
+        /// <summary>触发CPU重任务并发下降的CPU高水位百分比。</summary>
+        public double CpuHighWatermarkPercent { get; set; }
+
+        /// <summary>允许CPU重任务并发恢复的CPU低水位百分比。</summary>
+        public double CpuRecoveryWatermarkPercent { get; set; }
+
+        /// <summary>CPU高水位必须持续的毫秒数。</summary>
+        public int CpuHighDurationMs { get; set; }
+
+        /// <summary>CPU低水位必须持续的毫秒数。</summary>
+        public int CpuRecoveryDurationMs { get; set; }
+
+        /// <summary>运行时CPU资源策略采样和评估周期，单位毫秒。</summary>
+        public int ResourceAdjustmentIntervalMs { get; set; }
+
+        /// <summary>两次CPU并发调整之间的冷却时间，单位毫秒。</summary>
+        public int ResourceAdjustmentCooldownMs { get; set; }
+
+        /// <summary>每次CPU并发调整的许可数量。</summary>
+        public int ConcurrencyAdjustmentStep { get; set; }
+
         /// <summary>图像转换建议最大并发数。</summary>
         public int ImageConvertMaxConcurrency { get; set; }
 
@@ -260,7 +302,7 @@ namespace TDJS_Vision.ResourceManagement
         public string ToLogText()
         {
             ResourceWorkloadSnapshot workload = Workload ?? new ResourceWorkloadSnapshot();
-            return $"启用流程={workload.EnabledProcessCount}；相机={workload.CameraCount}；平均图像={workload.AverageImageBytes}字节；图像样本={ImageSizeSampleCount}；CPU保留核心={CpuReserveCoreCount}；CPU重任务并发={CpuHeavyMaxConcurrency}；图像转换并发={ImageConvertMaxConcurrency}；保存线程={ImageSaveWorkerCount}；流程图像预算={FlowImageMemoryBudgetMb}MB；保存队列预算={SaveQueueMemoryBudgetMb}MB；内存低水位={MemoryLowWatermarkMb}MB；严重水位={MemoryCriticalWatermarkMb}MB；保存队列容量={SaveQueueCalculatedCapacity}；磁盘低水位={SaveDiskLowSpaceMb}MB；磁盘严重水位={SaveDiskCriticalSpaceMb}MB；慢写阈值={SaveSlowThresholdMs}ms；磁盘采样={SaveDiskProbeIntervalMs}ms；UI最大帧率={UiMaxRefreshFps}；停止等待={ShutdownResourceDrainTimeoutMs}ms；使用初始容量={UsesInitialSaveQueueCapacity}；AI策略={AiConcurrencyPolicy}";
+            return $"启用流程={workload.EnabledProcessCount}；相机={workload.CameraCount}；平均图像={workload.AverageImageBytes}字节；图像样本={ImageSizeSampleCount}；CPU保留核心={CpuReserveCoreCount}；CPU重任务并发={CpuHeavyMaxConcurrency}；CPU高/恢复水位={CpuHighWatermarkPercent:F0}%/{CpuRecoveryWatermarkPercent:F0}%；CPU高/恢复持续={CpuHighDurationMs}/{CpuRecoveryDurationMs}ms；资源评估={ResourceAdjustmentIntervalMs}ms；调整冷却={ResourceAdjustmentCooldownMs}ms；调整步长={ConcurrencyAdjustmentStep}；图像转换并发={ImageConvertMaxConcurrency}；保存线程={ImageSaveWorkerCount}；流程图像预算={FlowImageMemoryBudgetMb}MB；保存队列预算={SaveQueueMemoryBudgetMb}MB；内存低水位={MemoryLowWatermarkMb}MB；严重水位={MemoryCriticalWatermarkMb}MB；保存队列容量={SaveQueueCalculatedCapacity}；磁盘低水位={SaveDiskLowSpaceMb}MB；磁盘严重水位={SaveDiskCriticalSpaceMb}MB；慢写阈值={SaveSlowThresholdMs}ms；磁盘采样={SaveDiskProbeIntervalMs}ms；UI最大帧率={UiMaxRefreshFps}；停止等待={ShutdownResourceDrainTimeoutMs}ms；使用初始容量={UsesInitialSaveQueueCapacity}；AI策略={AiConcurrencyPolicy}";
         }
     }
 }

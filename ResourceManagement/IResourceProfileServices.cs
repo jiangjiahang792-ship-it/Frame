@@ -1,3 +1,7 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace TDJS_Vision.ResourceManagement
 {
     /// <summary>
@@ -46,6 +50,51 @@ namespace TDJS_Vision.ResourceManagement
         /// 清除硬件快照缓存，供硬件环境变化或测试时重新读取。
         /// </summary>
         void ResetHardwareCache();
+    }
+
+    /// <summary>
+    /// CPU重任务许可；释放许可后，调度器才能启动下一项CPU重任务。
+    /// </summary>
+    public interface ICpuWorkLease : IDisposable
+    {
+        /// <summary>当前许可对应的CPU工作类型。</summary>
+        CpuWorkloadKind WorkloadKind { get; }
+
+        /// <summary>取得许可前的排队耗时，单位毫秒。</summary>
+        double WaitElapsedMilliseconds { get; }
+    }
+
+    /// <summary>
+    /// 全方案共享的可替换CPU重任务调度器；只控制开始时机，不改变流程节点顺序。
+    /// </summary>
+    public interface ICpuWorkScheduler : IDisposable
+    {
+        /// <summary>
+        /// 异步取得一项CPU重任务许可。
+        /// </summary>
+        /// <param name="workloadKind">CPU工作类型。</param>
+        /// <param name="cancellationToken">取消等待的令牌。</param>
+        /// <returns>必须释放的CPU工作许可。</returns>
+        Task<ICpuWorkLease> AcquireAsync(CpuWorkloadKind workloadKind, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// 输入一次已经按全机逻辑线程归一化的CPU采样。
+        /// </summary>
+        /// <param name="cpuPercent">CPU使用率，范围0～100。</param>
+        /// <param name="timestampMilliseconds">单调递增时间戳，单位毫秒。</param>
+        void ObserveCpuSample(double cpuPercent, long timestampMilliseconds);
+
+        /// <summary>
+        /// 使用新的硬件档案参数重新配置调度器；正在运行的许可不会被中断。
+        /// </summary>
+        /// <param name="options">CPU调度参数。</param>
+        void Reconfigure(CpuWorkSchedulerOptions options);
+
+        /// <summary>
+        /// 读取当前并发、排队和动态调整诊断快照。
+        /// </summary>
+        /// <returns>只读诊断快照。</returns>
+        CpuWorkSchedulerSnapshot GetSnapshot();
     }
 
     /// <summary>

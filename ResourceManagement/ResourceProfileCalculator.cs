@@ -35,6 +35,11 @@ namespace TDJS_Vision.ResourceManagement
             int reserveCores = Clamp(Math.Max(options.CpuReserveMinimum, reserveByPercent), 1, reserveMaximum);
             int cpuHeavyAvailable = Math.Max(1, Math.Min(physicalCores - reserveCores, effectiveCoreCount));
             int cpuHeavyConcurrency = Math.Min(enabledProcesses, Math.Min(cpuHeavyAvailable, Math.Max(1, options.CpuHeavyConcurrencyMaximum)));
+            double cpuHighWatermarkPercent = ClampDouble(options.CpuHighWatermarkPercent, 50D, 100D);
+            double cpuRecoveryWatermarkPercent = ClampDouble(
+                options.CpuRecoveryWatermarkPercent,
+                20D,
+                Math.Max(20D, cpuHighWatermarkPercent - 5D));
 
             int imageConvertByCore = Math.Max(1, effectiveCoreCount / Math.Max(1, options.ImageConvertCoreDivisor));
             int imageConvertConcurrency = Math.Min(cameraCount, Math.Min(imageConvertByCore, Math.Max(1, options.ImageConvertConcurrencyMaximum)));
@@ -84,6 +89,13 @@ namespace TDJS_Vision.ResourceManagement
                 Workload = workload,
                 CpuReserveCoreCount = reserveCores,
                 CpuHeavyMaxConcurrency = Math.Max(1, cpuHeavyConcurrency),
+                CpuHighWatermarkPercent = cpuHighWatermarkPercent,
+                CpuRecoveryWatermarkPercent = cpuRecoveryWatermarkPercent,
+                CpuHighDurationMs = Clamp(options.CpuHighDurationMs, 1000, 60000),
+                CpuRecoveryDurationMs = Clamp(options.CpuRecoveryDurationMs, 1000, 300000),
+                ResourceAdjustmentIntervalMs = Clamp(options.ResourceAdjustmentIntervalMs, 1000, 60000),
+                ResourceAdjustmentCooldownMs = Clamp(options.ResourceAdjustmentCooldownMs, 5000, 600000),
+                ConcurrencyAdjustmentStep = Clamp(options.ConcurrencyAdjustmentStep, 1, 4),
                 ImageConvertMaxConcurrency = Math.Max(1, imageConvertConcurrency),
                 ImageSaveWorkerCount = imageSaveWorkers,
                 FlowImageMemoryBudgetMb = flowImageBudgetMb,

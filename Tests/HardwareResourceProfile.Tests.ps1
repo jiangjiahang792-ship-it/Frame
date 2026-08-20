@@ -115,6 +115,13 @@ function New-Profile {
 $standard = New-Profile 16 24 24 16384 10000 4 4 (12MB)
 Assert-Equal $standard.CpuReserveCoreCount 4 '16核电脑应保留4个物理核心。'
 Assert-Equal $standard.CpuHeavyMaxConcurrency 4 '四流程CPU重任务并发应为4。'
+Assert-Equal $standard.CpuHighWatermarkPercent 85 'CPU高水位默认必须为85%。'
+Assert-Equal $standard.CpuRecoveryWatermarkPercent 65 'CPU恢复水位默认必须为65%。'
+Assert-Equal $standard.CpuHighDurationMs 5000 'CPU高水位默认必须持续5000ms。'
+Assert-Equal $standard.CpuRecoveryDurationMs 10000 'CPU恢复水位默认必须持续10000ms。'
+Assert-Equal $standard.ResourceAdjustmentIntervalMs 5000 'CPU资源评估默认周期必须为5000ms。'
+Assert-Equal $standard.ResourceAdjustmentCooldownMs 30000 'CPU并发调整默认必须冷却30000ms。'
+Assert-Equal $standard.ConcurrencyAdjustmentStep 1 'CPU并发每次默认只能调整1。'
 Assert-Equal $standard.ImageConvertMaxConcurrency 4 '四相机图像转换并发应为4。'
 Assert-Equal $standard.ImageSaveWorkerCount 2 '16核电脑保存线程建议应为2。'
 Assert-Equal $standard.FlowImageMemoryBudgetMb 2048 '流程图像预算应受2048MB上限约束。'
