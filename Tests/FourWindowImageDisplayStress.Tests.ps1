@@ -1,4 +1,12 @@
 $ErrorActionPreference = 'Stop'
+
+# Production binaries target .NET Framework 4.8, so keep the runtime probe on Windows PowerShell.
+if ($PSVersionTable.PSEdition -eq 'Core') {
+    $windowsPowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    & $windowsPowerShell -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath
+    exit $LASTEXITCODE
+}
+
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
 
@@ -393,6 +401,9 @@ public static class FourWindowDisplayNativeMethods
 }
 '@
 $references = @(
+    'mscorlib',
+    'System',
+    'System.Core',
     'System.Drawing',
     (Join-Path $debugDirectory 'OpenCvSharp.dll'),
     (Join-Path $debugDirectory 'OpenCvSharp.Extensions.dll')
