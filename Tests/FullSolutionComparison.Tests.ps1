@@ -149,6 +149,29 @@ public static class FullSolutionGuiResourceProbe
         public ulong OtherTransferCount;
     }
 
+    /// <summary>一次性保存前台窗口现场，避免诊断期间窗口切换造成PID与标题错配。</summary>
+    public sealed class ForegroundWindowInfo
+    {
+        public IntPtr Handle { get; set; }
+        public int ProcessId { get; set; }
+        public string Title { get; set; }
+        public string ClassName { get; set; }
+        public bool Visible { get; set; }
+        public bool Enabled { get; set; }
+
+        public override string ToString()
+        {
+            return String.Format(
+                "句柄=0x{0:X};PID={1};标题={2};窗口类={3};可见={4};启用={5}",
+                Handle.ToInt64(),
+                ProcessId,
+                Title,
+                ClassName,
+                Visible,
+                Enabled);
+        }
+    }
+
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetProcessIoCounters(IntPtr processHandle, out ProcessIoCounters ioCounters);
@@ -197,6 +220,9 @@ public static class FullSolutionGuiResourceProbe
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern int GetWindowText(IntPtr windowHandle, StringBuilder text, int maximumCount);
 
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern int GetClassName(IntPtr windowHandle, StringBuilder className, int maximumCount);
+
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindowVisible(IntPtr windowHandle);
@@ -229,18 +255,36 @@ public static class FullSolutionGuiResourceProbe
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
-    /// <summary>读取当前前台窗口所属进程，供共享办公环境检测焦点侵占。</summary>
-    public static int GetForegroundProcessId()
+    /// <summary>读取当前前台窗口完整现场，供共享办公环境检测和定位焦点侵占。</summary>
+    public static ForegroundWindowInfo GetForegroundWindowInfo()
     {
         IntPtr windowHandle = GetForegroundWindow();
         if (windowHandle == IntPtr.Zero)
         {
-            return 0;
+            return new ForegroundWindowInfo
+            {
+                Handle = IntPtr.Zero,
+                ProcessId = 0,
+                Title = String.Empty,
+                ClassName = String.Empty,
+                Visible = false,
+                Enabled = false
+            };
         }
 
         uint processId;
         GetWindowThreadProcessId(windowHandle, out processId);
-        return unchecked((int)processId);
+        StringBuilder className = new StringBuilder(256);
+        GetClassName(windowHandle, className, className.Capacity);
+        return new ForegroundWindowInfo
+        {
+            Handle = windowHandle,
+            ProcessId = unchecked((int)processId),
+            Title = ReadWindowText(windowHandle).Replace('\r', ' ').Replace('\n', ' '),
+            ClassName = className.ToString(),
+            Visible = IsWindowVisible(windowHandle),
+            Enabled = IsWindowEnabled(windowHandle)
+        };
     }
 
     /// <summary>按Windows父进程关系返回根进程及全部后代进程ID。</summary>
@@ -616,7 +660,8 @@ function Assert-BackgroundFocusSafe {
         return
     }
 
-    $foregroundProcessId = [FullSolutionGuiResourceProbe]::GetForegroundProcessId()
+    $foregroundWindow = [FullSolutionGuiResourceProbe]::GetForegroundWindowInfo()
+    $foregroundProcessId = $foregroundWindow.ProcessId
     $ownedForegroundProcess = $foregroundProcessId -eq $MainProcess.Id
     if (-not $ownedForegroundProcess) {
         try {
@@ -633,7 +678,7 @@ function Assert-BackgroundFocusSafe {
     }
 
     if ($ownedForegroundProcess) {
-        throw "视觉测试主进程或工作进程取得了Windows前台焦点，已停止共享办公环境测试。"
+        throw ("视觉测试主进程或工作进程取得了Windows前台焦点，已停止共享办公环境测试。前台窗口={0}" -f $foregroundWindow)
     }
 }
 

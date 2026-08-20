@@ -59,6 +59,29 @@ function Get-FunctionText {
     return $functionAst.Extent.Text
 }
 
+function Get-StartupCreateParams {
+    param([Reflection.Assembly]$ApplicationAssembly)
+
+    $startupFormType = $ApplicationAssembly.GetType('TDJS_Vision.Forms.Startup.FormStartup', $true)
+    $startupFormInstance = $null
+    try {
+        $startupFormInstance = [Activator]::CreateInstance($startupFormType, $true)
+        $createParamsProperty = $startupFormType.GetProperty(
+            'CreateParams',
+            [Reflection.BindingFlags]'Instance,NonPublic')
+        if ($null -eq $createParamsProperty) {
+            throw "未找到启动页窗口样式属性。"
+        }
+
+        return [Windows.Forms.CreateParams]$createParamsProperty.GetValue($startupFormInstance, $null)
+    }
+    finally {
+        if ($null -ne $startupFormInstance) {
+            $startupFormInstance.Dispose()
+        }
+    }
+}
+
 $root = Split-Path -Parent $PSScriptRoot
 $comparisonPath = Join-Path $root "Tests\FullSolutionComparison.Tests.ps1"
 $logSettingsPath = Join-Path $root "Forms\Logger\LogLevelSettings.cs"
@@ -117,6 +140,8 @@ Assert-Contains $comparison '步骤9安全验收不再支持复用既有视觉�
 Assert-Contains $comparison 'GetDescendantProcessIds' "测试进程树必须按Windows父子进程关系识别。"
 Assert-Contains $comparison 'Assert-BackgroundFocusSafe' "共享办公环境必须检测测试进程是否取得前台焦点。"
 Assert-Contains $comparison '视觉测试主进程或工作进程取得了Windows前台焦点' "焦点保护必须覆盖主程序和本轮工作进程。"
+Assert-Contains $comparison 'GetForegroundWindowInfo()' "焦点保护必须记录一次性的前台窗口现场。"
+Assert-Contains $comparison '前台窗口={0}' "焦点异常必须输出窗口句柄、PID、标题和窗口类现场。"
 Assert-Contains $comparison 'Assert-SharedDesktopResourceHeadroom' "共享办公环境必须在启动完整方案前检查可用内存。"
 Assert-MatchCountAtLeast $comparison 'Assert-BackgroundFocusSafe\s+-MainProcess' 5 "焦点保护必须覆盖启动、运行、排空和退出阶段。"
 Assert-MatchCountAtLeast $comparison 'Assert-SharedDesktopResourceHeadroom\s+`' 4 "内存保护必须覆盖启动、运行和结果排空阶段。"
@@ -276,28 +301,15 @@ try {
     if ([bool]$backgroundProperty.GetValue($null, $null)) {
         throw "关闭后台开关后不得继续处于后台验收模式。"
     }
+    $normalCreateParams = Get-StartupCreateParams -ApplicationAssembly $applicationAssembly
+    if (($normalCreateParams.ExStyle -band 0x08000000) -ne 0) {
+        throw "普通Release启动页不应携带系统级不激活窗口样式。"
+    }
 
     [Environment]::SetEnvironmentVariable('TDJS_VISION_BACKGROUND_ACCEPTANCE', '1', 'Process')
-    $startupFormType = $applicationAssembly.GetType('TDJS_Vision.Forms.Startup.FormStartup', $true)
-    $startupFormInstance = $null
-    try {
-        $startupFormInstance = [Activator]::CreateInstance($startupFormType, $true)
-        $createParamsProperty = $startupFormType.GetProperty(
-            'CreateParams',
-            [Reflection.BindingFlags]'Instance,NonPublic')
-        if ($null -eq $createParamsProperty) {
-            throw "未找到启动页窗口样式属性。"
-        }
-
-        $createParams = [Windows.Forms.CreateParams]$createParamsProperty.GetValue($startupFormInstance, $null)
-        if (($createParams.ExStyle -band 0x08000000) -eq 0) {
-            throw "Release启动页没有启用系统级不激活窗口样式。"
-        }
-    }
-    finally {
-        if ($null -ne $startupFormInstance) {
-            $startupFormInstance.Dispose()
-        }
+    $backgroundCreateParams = Get-StartupCreateParams -ApplicationAssembly $applicationAssembly
+    if (($backgroundCreateParams.ExStyle -band 0x08000000) -eq 0) {
+        throw "Release启动页没有启用系统级不激活窗口样式。"
     }
 
     $messageBoxType = $applicationAssembly.GetType('TDJS_Vision.Forms.YTMessageBox.MessageBoxTD', $true)
