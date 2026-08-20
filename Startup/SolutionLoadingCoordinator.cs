@@ -122,7 +122,7 @@ namespace TDJS_Vision.Startup
             {
                 try
                 {
-                    if (restoreMainForm && !mainForm.IsDisposed)
+                    if (restoreMainForm && !mainForm.IsDisposed && !StartupDisplayMode.IsBackgroundAcceptance)
                     {
                         mainForm.Activate();
                         mainForm.BringToFront();

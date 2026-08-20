@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 function Assert-True {
@@ -106,6 +106,10 @@ using System.Runtime.InteropServices;
 using System.Threading;
 public static class UiFrameRateNativeMethods
 {
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ShowWindow(IntPtr windowHandle, int command);
+
     [DllImport("gdi32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool DeleteObject(IntPtr handle);
@@ -260,7 +264,9 @@ $shownWindow = [Activator]::CreateInstance($windowType, @('ImageWindow4'))
 $shownWindow.ShowInTaskbar = $false
 $shownWindow.StartPosition = [Windows.Forms.FormStartPosition]::Manual
 $shownWindow.Location = New-Object Drawing.Point -10000, -10000
-$shownWindow.Show()
+$shownWindow.CreateControl()
+$shownWindowHandle = $shownWindow.Handle
+[void][UiFrameRateNativeMethods]::ShowWindow($shownWindowHandle, 4)
 [Windows.Forms.Application]::DoEvents()
 $displayedBitmap = (New-Object Drawing.Bitmap 64, 64).PSObject.BaseObject
 $shownWindowClaimed = $publishMethod.Invoke($null, @($null, 'ImageWindow4', $displayedBitmap, $null, $null))

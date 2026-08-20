@@ -50,7 +50,8 @@ namespace TDJS_Vision
                 bool hasSingleInstance = TryEnterSingleInstance(singleInstanceMutex);
                 if (!hasSingleInstance)
                 {
-                    MessageBoxTD.Show("软件已经运行，请勿重复启动！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    if (!StartupDisplayMode.IsBackgroundAcceptance)
+                        MessageBoxTD.Show("软件已经运行，请勿重复启动！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
 
@@ -96,6 +97,12 @@ namespace TDJS_Vision
             // HslCommunication通信库授权
             if (!HslCommunication.Authorization.SetAuthorizationCode("d8868ab9-4494-4056-98c6-b669e2434e25"))
             {
+                if (StartupDisplayMode.IsBackgroundAcceptance)
+                {
+                    LogHelper.AddLog(MsgLevel.Exception, "后台性能验收启动失败：HslCommunication通信库授权失败。", true);
+                    return;
+                }
+
                 MessageBoxTD.Show("HslCommunication通信库授权失败！", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             string solutionPath = null;

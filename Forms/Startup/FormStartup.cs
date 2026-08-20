@@ -12,6 +12,12 @@ namespace TDJS_Vision.Forms.Startup
     internal partial class FormStartup : Form
     {
         /// <summary>
+        /// 后台性能验收时显示启动页但不激活，避免占用用户正在办公的前台窗口。
+        /// </summary>
+        protected override bool ShowWithoutActivation =>
+            StartupDisplayMode.IsBackgroundAcceptance || base.ShowWithoutActivation;
+
+        /// <summary>
         /// 机器人图片初始纵向位置。
         /// </summary>
         private int mascotBaseTop;
@@ -37,6 +43,13 @@ namespace TDJS_Vision.Forms.Startup
         public FormStartup()
         {
             InitializeComponent();
+            if (StartupDisplayMode.IsBackgroundAcceptance)
+            {
+                TopMost = false;
+                ShowInTaskbar = false;
+                WindowState = FormWindowState.Minimized;
+                Opacity = 0D;
+            }
             ConfigureAnimationOverlays();
             DoubleBuffered = true;
             mascotBaseTop = pictureBoxMascot.Top;

@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 # Production binaries target .NET Framework 4.8, so keep the runtime probe on Windows PowerShell.
 if ($PSVersionTable.PSEdition -eq 'Core') {
@@ -76,6 +76,7 @@ public sealed class FourWindowDisplayStressResult
     public int[] ClaimedPerWindow { get; set; }
     public double[] AverageConversionMilliseconds { get; set; }
     public double[] P95ConversionMilliseconds { get; set; }
+    public double[] P99ConversionMilliseconds { get; set; }
     public double[] MaximumConversionMilliseconds { get; set; }
     public Exception[] Errors { get; set; }
     public long ElapsedMilliseconds { get; set; }
@@ -209,6 +210,7 @@ public static class FourWindowDisplayStressRunner
             ClaimedPerWindow = new int[windowCount],
             AverageConversionMilliseconds = new double[windowCount],
             P95ConversionMilliseconds = new double[windowCount],
+            P99ConversionMilliseconds = new double[windowCount],
             MaximumConversionMilliseconds = new double[windowCount],
             Errors = new Exception[windowCount]
         };
@@ -359,11 +361,16 @@ public static class FourWindowDisplayStressRunner
         int p95Index = Math.Min(
             conversionTicks.Count - 1,
             Math.Max(0, (int)Math.Ceiling(conversionTicks.Count * 0.95D) - 1));
+        int p99Index = Math.Min(
+            conversionTicks.Count - 1,
+            Math.Max(0, (int)Math.Ceiling(conversionTicks.Count * 0.99D) - 1));
         double millisecondsPerTick = 1000D / Stopwatch.Frequency;
         result.AverageConversionMilliseconds[windowIndex] =
             totalTicks * millisecondsPerTick / conversionTicks.Count;
         result.P95ConversionMilliseconds[windowIndex] =
             conversionTicks[p95Index] * millisecondsPerTick;
+        result.P99ConversionMilliseconds[windowIndex] =
+            conversionTicks[p99Index] * millisecondsPerTick;
         result.MaximumConversionMilliseconds[windowIndex] =
             conversionTicks[conversionTicks.Count - 1] * millisecondsPerTick;
     }
@@ -371,6 +378,10 @@ public static class FourWindowDisplayStressRunner
 
 public static class FourWindowDisplayNativeMethods
 {
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ShowWindow(IntPtr windowHandle, int command);
+
     [DllImport("user32.dll")]
     public static extern int GetGuiResources(IntPtr processHandle, int flag);
 
@@ -427,7 +438,9 @@ $warmupWindow = [Activator]::CreateInstance($windowType, @('ImageWindow1'))
 $warmupWindow.ShowInTaskbar = $false
 $warmupWindow.StartPosition = [Windows.Forms.FormStartPosition]::Manual
 $warmupWindow.Location = New-Object Drawing.Point -10000, -10000
-$warmupWindow.Show()
+$warmupWindow.CreateControl()
+$warmupWindowHandle = $warmupWindow.Handle
+[void][FourWindowDisplayNativeMethods]::ShowWindow($warmupWindowHandle, 4)
 [Windows.Forms.Application]::DoEvents()
 $warmupClaimed = [FourWindowDisplayStressRunner]::WarmUpPublish(
     $publishMethod,
@@ -457,7 +470,9 @@ try {
         $window.ShowInTaskbar = $false
         $window.StartPosition = [Windows.Forms.FormStartPosition]::Manual
         $window.Location = New-Object Drawing.Point (-10000 + ($windowIndex * 20)), (-10000 + ($windowIndex * 20))
-        $window.Show()
+        $window.CreateControl()
+        $windowHandle = $window.Handle
+        [void][FourWindowDisplayNativeMethods]::ShowWindow($windowHandle, 4)
         $windows.Add($window)
     }
     [Windows.Forms.Application]::DoEvents()
@@ -544,6 +559,7 @@ try {
             Assert-True ($result.AttemptedPerWindow[$windowIndex] -eq $framesPerWindow) "Round $round did not attempt every frame."
             Assert-True ($result.AllowedPerWindow[$windowIndex] -ge ($framesPerWindow - 1)) "Round $round rate-limited too many scheduled frames."
             Assert-True ($result.ClaimedPerWindow[$windowIndex] -eq $result.AllowedPerWindow[$windowIndex]) "Round $round lost a converted frame before window ownership transfer."
+            Assert-True ($result.P99ConversionMilliseconds[$windowIndex] -lt 500) "Round $round observed a Mat-to-Bitmap P99 conversion time of at least 500ms."
             Assert-True ($result.MaximumConversionMilliseconds[$windowIndex] -lt 3000) "Round $round observed a Mat-to-Bitmap conversion stall of at least three seconds."
         }
         Assert-True ($result.ElapsedMilliseconds -lt 10000) "Round $round exceeded the ten-second four-window time budget."
@@ -566,6 +582,7 @@ try {
             "allowed=$($result.AllowedPerWindow -join ',') claimed=$($result.ClaimedPerWindow -join ',') " +
             "avgMs=$(([string[]]($result.AverageConversionMilliseconds | ForEach-Object { $_.ToString('F2') })) -join ',') " +
             "p95Ms=$(([string[]]($result.P95ConversionMilliseconds | ForEach-Object { $_.ToString('F2') })) -join ',') " +
+            "p99Ms=$(([string[]]($result.P99ConversionMilliseconds | ForEach-Object { $_.ToString('F2') })) -join ',') " +
             "maxMs=$(([string[]]($result.MaximumConversionMilliseconds | ForEach-Object { $_.ToString('F2') })) -join ',')")
     }
 }
@@ -594,7 +611,7 @@ Assert-True ($privateGrowthMb -lt 256) "Private memory growth exceeded 256MB: $p
 Assert-True ($managedGrowthMb -lt 64) "Managed memory growth exceeded 64MB: $managedGrowthMb MB."
 Assert-True ($gdiGrowth -le 10) "Four-window stress leaked GDI resources: growth=$gdiGrowth."
 
-Write-Host ("Four-window Mat-to-Bitmap publish/refresh stress passed. " +
+Write-Host ("四窗口组件级Mat转Bitmap发布/刷新压力通过；该证据不包含完整节点执行链和生产CPU调度链。" +
     ($roundSummaries -join ' | ') +
     "; image=${width}x${height}; frames/window/round=$framesPerWindow; " +
     "cadence=${intervalMilliseconds}ms; forcedRefreshCycles=$forcedRefreshCycles; " +

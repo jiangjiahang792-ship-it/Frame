@@ -35,6 +35,12 @@ namespace TDJS_Vision
 {
     public partial class FormMain : FormBase
     {
+        /// <summary>
+        /// 后台性能验收时创建真实主界面但不激活，正式运行仍保持原有前台显示行为。
+        /// </summary>
+        protected override bool ShowWithoutActivation =>
+            StartupDisplayMode.IsBackgroundAcceptance || base.ShowWithoutActivation;
+
         /// <summary>Debug固定节拍压力使用的单次运行窗口消息。</summary>
         private const int FixedTriggerStressMessage = 0x8451;
 
@@ -290,6 +296,12 @@ namespace TDJS_Vision
             catch (Exception ex)
             {
                 LogHelper.AddLog(MsgLevel.Exception, $"主窗体兜底启动初始化失败：{ex}", true);
+                if (StartupDisplayMode.IsBackgroundAcceptance)
+                {
+                    Close();
+                    return;
+                }
+
                 MessageBoxTD.Show($"软件启动初始化失败：{ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -753,17 +765,27 @@ namespace TDJS_Vision
         /// <param name="e"></param>
         private void FormMain_FormClosing(object sender, FormClosingEventArgs e)
         {
-            // 主程序关闭提醒
-            var res = MessageBoxTD.Show(LanguageManager.T("Dialog.ConfirmClose"), LanguageManager.T("Common.Tip"), MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
-            if (res == DialogResult.Cancel || res == DialogResult.None)
+            // 后台验收子进程由测试工具负责关闭，不显示可能抢占用户桌面的确认框。
+            if (!StartupDisplayMode.IsBackgroundAcceptance)
             {
-                e.Cancel = true;
-                return;
+                var res = MessageBoxTD.Show(LanguageManager.T("Dialog.ConfirmClose"), LanguageManager.T("Common.Tip"), MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
+                if (res == DialogResult.Cancel || res == DialogResult.None)
+                {
+                    e.Cancel = true;
+                    return;
+                }
             }
 
             // 检测任务正在运行提示
             if (Solution.Instance.IsRunning)
             {
+                if (StartupDisplayMode.IsBackgroundAcceptance)
+                {
+                    Solution.Instance.Stop();
+                    e.Cancel = true;
+                    return;
+                }
+
                 var res1 = MessageBoxTD.Show(LanguageManager.T("Dialog.StopTaskBeforeClose"));
                 if (res1 == DialogResult.OK || res1 == DialogResult.None)
                 {
@@ -789,7 +811,14 @@ namespace TDJS_Vision
                     }
                     catch (Exception ex)
                     {
-                        MessageBoxTD.Show(string.Format(LanguageManager.T("Dialog.SaveSolutionFailed"), ex.Message));
+                        if (StartupDisplayMode.IsBackgroundAcceptance)
+                        {
+                            LogHelper.AddLog(MsgLevel.Exception, $"后台性能验收关闭时保存方案计数失败：{ex}", true);
+                        }
+                        else
+                        {
+                            MessageBoxTD.Show(string.Format(LanguageManager.T("Dialog.SaveSolutionFailed"), ex.Message));
+                        }
                     }
                 }
 

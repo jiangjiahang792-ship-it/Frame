@@ -81,7 +81,7 @@ public sealed class CpuProtectionPhaseResult
     public bool FlowOrderPreserved { get; set; }
 }
 
-/// <summary>不进入CPU许可池的周期性控制通道响应探针。</summary>
+/// <summary>不进入CPU许可池的线程池周期计时探针；仅衡量线程池调度响应，不代表真实UI、相机或PLC链路。</summary>
 public sealed class ControlLaneProbe : IDisposable
 {
     /// <summary>探针名称。</summary>
@@ -102,7 +102,7 @@ public sealed class ControlLaneProbe : IDisposable
     /// <summary>探针是否已停止。</summary>
     private int _disposed;
 
-    /// <summary>创建并立即启动控制通道探针。</summary>
+    /// <summary>创建并立即启动线程池周期计时探针。</summary>
     public ControlLaneProbe(string name, int intervalMilliseconds)
     {
         _name = name ?? string.Empty;
@@ -170,22 +170,22 @@ public sealed class CpuResourceProtectionStressResult
     /// <summary>最终调度器快照。</summary>
     public CpuWorkSchedulerSnapshot FinalSnapshot { get; set; }
 
-    /// <summary>UI发布控制通道回调次数。</summary>
+    /// <summary>线程池计时探针A回调次数。</summary>
     public int UiCallbackCount { get; set; }
 
-    /// <summary>相机回调控制通道回调次数。</summary>
+    /// <summary>线程池计时探针B回调次数。</summary>
     public int CameraCallbackCount { get; set; }
 
-    /// <summary>通信控制通道回调次数。</summary>
+    /// <summary>线程池计时探针C回调次数。</summary>
     public int CommunicationCallbackCount { get; set; }
 
-    /// <summary>UI发布控制通道最大回调间隔。</summary>
+    /// <summary>线程池计时探针A最大回调间隔。</summary>
     public double UiMaximumGapMilliseconds { get; set; }
 
-    /// <summary>相机回调控制通道最大回调间隔。</summary>
+    /// <summary>线程池计时探针B最大回调间隔。</summary>
     public double CameraMaximumGapMilliseconds { get; set; }
 
-    /// <summary>通信控制通道最大回调间隔。</summary>
+    /// <summary>线程池计时探针C最大回调间隔。</summary>
     public double CommunicationMaximumGapMilliseconds { get; set; }
 
     /// <summary>完整压力墙钟毫秒数。</summary>
@@ -230,9 +230,9 @@ public static class CpuResourceProtectionStressHarness
         double cameraGap;
         double communicationGap;
 
-        using (ControlLaneProbe uiProbe = new ControlLaneProbe("UI发布", 5))
-        using (ControlLaneProbe cameraProbe = new ControlLaneProbe("相机回调", 5))
-        using (ControlLaneProbe communicationProbe = new ControlLaneProbe("PLC与Modbus通信", 5))
+        using (ControlLaneProbe uiProbe = new ControlLaneProbe("线程池计时探针A", 5))
+        using (ControlLaneProbe cameraProbe = new ControlLaneProbe("线程池计时探针B", 5))
+        using (ControlLaneProbe communicationProbe = new ControlLaneProbe("线程池计时探针C", 5))
         using (CpuWorkScheduler scheduler = new CpuWorkScheduler(CreateOptions()))
         {
             ICpuWorkLease[] activeLeases = Enumerable.Range(0, 4)
@@ -445,14 +445,14 @@ public static class CpuResourceProtectionStressHarness
     Assert-True ($result.FinalSnapshot.GrantedCount -eq 804 -and $result.FinalSnapshot.CompletedCount -eq 804) '全部CPU许可必须恰好取得并归还一次。'
     Assert-True ($result.FinalSnapshot.ActiveCount -eq 0 -and $result.FinalSnapshot.WaitingCount -eq 0) '压力结束后CPU活动和等待必须归零。'
     Assert-True ($result.FinalSnapshot.ConcurrencyDecreaseCount -eq 2 -and $result.FinalSnapshot.ConcurrencyIncreaseCount -eq 2) '动态降额与恢复计数必须各为2次。'
-    Assert-True ($result.UiCallbackCount -ge 10 -and $result.UiMaximumGapMilliseconds -lt 250) 'UI发布控制通道在CPU压力期间响应不足。'
-    Assert-True ($result.CameraCallbackCount -ge 10 -and $result.CameraMaximumGapMilliseconds -lt 250) '相机回调控制通道在CPU压力期间响应不足。'
-    Assert-True ($result.CommunicationCallbackCount -ge 10 -and $result.CommunicationMaximumGapMilliseconds -lt 250) 'PLC与Modbus通信控制通道在CPU压力期间响应不足。'
+    Assert-True ($result.UiCallbackCount -ge 10 -and $result.UiMaximumGapMilliseconds -lt 250) '线程池计时探针A在CPU压力期间响应不足。'
+    Assert-True ($result.CameraCallbackCount -ge 10 -and $result.CameraMaximumGapMilliseconds -lt 250) '线程池计时探针B在CPU压力期间响应不足。'
+    Assert-True ($result.CommunicationCallbackCount -ge 10 -and $result.CommunicationMaximumGapMilliseconds -lt 250) '线程池计时探针C在CPU压力期间响应不足。'
     Assert-True ($result.PrivateMemoryDeltaMb -lt 32) '四流程CPU压力后私有内存增长不得达到32MB。'
     Assert-True ($result.ManagedMemoryDeltaMb -lt 8) '四流程CPU压力后托管内存增长不得达到8MB。'
     Assert-True ($result.HandleDelta -le 12) '四流程CPU压力后句柄增长不得超过12。'
 
-    Write-Host ('四流程CPU保护压力通过：额度={0}；阶段峰值={1}；完成许可={2}/{3}；UI/相机/通信最大间隔={4:N3}/{5:N3}/{6:N3}ms；墙钟={7}ms；私有/托管内存变化={8:N3}/{9:N3}MB；句柄变化={10}；{11}' -f `
+    Write-Host ('四流程CPU保护压力通过：额度={0}；阶段峰值={1}；完成许可={2}/{3}；线程池计时探针A/B/C最大间隔={4:N3}/{5:N3}/{6:N3}ms；墙钟={7}ms；私有/托管内存变化={8:N3}/{9:N3}MB；句柄变化={10}；{11}；该探针指标不代表真实UI消息循环、相机回调或PLC通信。' -f `
         ($result.ConcurrencyTrace -join '→'),
         (($result.Phases | ForEach-Object { $_.PeakActiveCount }) -join '/'),
         $result.FinalSnapshot.CompletedCount,

@@ -108,6 +108,12 @@ namespace TDJS_Vision.Startup
                 catch (Exception ex)
                 {
                     LogHelper.AddLog(MsgLevel.Exception, $"软件启动初始化失败：{ex}", true);
+                    if (StartupDisplayMode.IsBackgroundAcceptance)
+                    {
+                        ExitStartup();
+                        return;
+                    }
+
                     StartupFailureAction action = await splashController.ShowFailureAsync(CreateUserErrorMessage(ex));
                     if (action == StartupFailureAction.Exit)
                     {
@@ -128,8 +134,11 @@ namespace TDJS_Vision.Startup
             mainForm.FormClosed += MainForm_FormClosed;
             mainForm.Show();
             splashController.Close();
-            mainForm.Activate();
-            mainForm.BringToFront();
+            if (!StartupDisplayMode.IsBackgroundAcceptance)
+            {
+                mainForm.Activate();
+                mainForm.BringToFront();
+            }
         }
 
         /// <summary>

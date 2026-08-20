@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 function Assert-True {
     param(
@@ -20,7 +20,9 @@ Assert-True ($stressTool.Contains('WriteTransferKilobytes')) '逐轮CSV必须记
 Assert-True ($stressTool.Contains('ProcessIdsStable')) '正式同比必须校验进程树未重启。'
 Assert-True ($stressTool.Contains('串行同比第${round}轮进程树数量异常')) '串行同比必须逐轮校验主程序和AI进程数量。'
 Assert-True ($stressTool.Contains('FindVisibleConfirmButton')) '正常关闭必须按进程和确认文案定位原生按钮。'
-Assert-True ($stressTool.Contains('$cleanupFailure = "视觉程序或工作进程未正常退出，本轮结果不能作为有效同比。"')) '程序或工作进程残留必须使同比测试失败。'
+Assert-True ($stressTool.Contains('if (-not $KeepProcess -and $startedByScript -and $null -ne $mainProcess)')) '测试工具只能自动关闭自己启动的视觉进程。'
+Assert-True ($stressTool.Contains('Stop-TestProcessTree')) '程序正常关闭失败时必须清理本工具拥有的测试进程树。'
+Assert-True ($stressTool.Contains('本轮结果不能作为有效同比')) '程序或工作进程异常退出必须使同比测试失败。'
 Assert-True ($stressTool.Contains('MeasurementScope')) '结果必须说明进程I/O与物理磁盘流量的边界。'
 
 $nativeCodeMatch = [regex]::Match(

@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)]
     [string]$ExecutablePath,
 
@@ -38,7 +38,7 @@ param(
     [ValidateRange(10, 30000)]
     [int]$TriggerMessageTimeoutMilliseconds = 5000,
 
-    [string]$OutputDirectory = (Join-Path $PSScriptRoot "Results\FullSolutionComparison"),
+    [string]$OutputDirectory = "",
 
     [string]$ImmutableSchemeSourcePath = "",
 
@@ -56,20 +56,73 @@ param(
     [ValidateSet("Normal", "BelowNormal")]
     [string]$ProcessPriority = "BelowNormal",
 
+    [ValidateSet("Current", "Off", "On")]
+    [string]$DebugMode = "Current",
+
+    [ValidateSet("Dedicated", "SharedDesktopBackground")]
+    [string]$TestEnvironmentMode = "SharedDesktopBackground",
+
+    [ValidateRange(512, 65536)]
+    [int]$MinimumSharedDesktopAvailableMemoryMb = 4096,
+
     [switch]$KeepProcess
 )
 
 $ErrorActionPreference = "Stop"
 
+if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    $OutputDirectory = Join-Path $PSScriptRoot "Results\FullSolutionComparison"
+}
+
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 Add-Type -TypeDefinition @"
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
 
 public static class FullSolutionGuiResourceProbe
 {
+    /// <summary>Toolhelp进程快照标记。</summary>
+    private const uint ToolhelpProcessSnapshot = 0x00000002;
+
+    /// <summary>无效Windows句柄值。</summary>
+    private static readonly IntPtr InvalidHandleValue = new IntPtr(-1);
+
+    /// <summary>GlobalMemoryStatusEx使用的内存状态结构。</summary>
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MemoryStatusEx
+    {
+        public uint Length;
+        public uint MemoryLoad;
+        public ulong TotalPhysical;
+        public ulong AvailablePhysical;
+        public ulong TotalPageFile;
+        public ulong AvailablePageFile;
+        public ulong TotalVirtual;
+        public ulong AvailableVirtual;
+        public ulong AvailableExtendedVirtual;
+    }
+
+    /// <summary>Toolhelp进程快照中的单个进程条目。</summary>
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct ProcessEntry32
+    {
+        public uint Size;
+        public uint UsageCount;
+        public uint ProcessId;
+        public IntPtr DefaultHeapId;
+        public uint ModuleId;
+        public uint ThreadCount;
+        public uint ParentProcessId;
+        public int BasePriority;
+        public uint Flags;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string ExecutableFile;
+    }
+
     /// <summary>枚举Windows窗口时使用的回调。</summary>
     private delegate bool EnumWindowCallback(IntPtr windowHandle, IntPtr state);
 
@@ -99,6 +152,21 @@ public static class FullSolutionGuiResourceProbe
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetProcessIoCounters(IntPtr processHandle, out ProcessIoCounters ioCounters);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint processId);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool Process32First(IntPtr snapshotHandle, ref ProcessEntry32 processEntry);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool Process32Next(IntPtr snapshotHandle, ref ProcessEntry32 processEntry);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseHandle(IntPtr handle);
 
     /// <summary>读取指定进程句柄的累计I/O计数，失败时保留Windows错误码。</summary>
     public static ProcessIoCounters QueryProcessIoCounters(IntPtr processHandle)
@@ -150,9 +218,87 @@ public static class FullSolutionGuiResourceProbe
     [DllImport("kernel32.dll")]
     public static extern uint SetThreadExecutionState(uint executionState);
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx status);
+
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool ShowWindowAsync(IntPtr windowHandle, int command);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    /// <summary>读取当前前台窗口所属进程，供共享办公环境检测焦点侵占。</summary>
+    public static int GetForegroundProcessId()
+    {
+        IntPtr windowHandle = GetForegroundWindow();
+        if (windowHandle == IntPtr.Zero)
+        {
+            return 0;
+        }
+
+        uint processId;
+        GetWindowThreadProcessId(windowHandle, out processId);
+        return unchecked((int)processId);
+    }
+
+    /// <summary>按Windows父进程关系返回根进程及全部后代进程ID。</summary>
+    public static int[] GetDescendantProcessIds(int rootProcessId)
+    {
+        Dictionary<int, int> parentByProcessId = new Dictionary<int, int>();
+        IntPtr snapshotHandle = CreateToolhelp32Snapshot(ToolhelpProcessSnapshot, 0);
+        if (snapshotHandle == InvalidHandleValue)
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+
+        try
+        {
+            ProcessEntry32 entry = new ProcessEntry32();
+            entry.Size = unchecked((uint)Marshal.SizeOf(typeof(ProcessEntry32)));
+            if (Process32First(snapshotHandle, ref entry))
+            {
+                do
+                {
+                    parentByProcessId[unchecked((int)entry.ProcessId)] =
+                        unchecked((int)entry.ParentProcessId);
+                    entry.Size = unchecked((uint)Marshal.SizeOf(typeof(ProcessEntry32)));
+                }
+                while (Process32Next(snapshotHandle, ref entry));
+            }
+        }
+        finally
+        {
+            CloseHandle(snapshotHandle);
+        }
+
+        HashSet<int> descendants = new HashSet<int>();
+        descendants.Add(rootProcessId);
+        bool changed;
+        do
+        {
+            changed = false;
+            foreach (KeyValuePair<int, int> pair in parentByProcessId)
+            {
+                if (descendants.Contains(pair.Value) && descendants.Add(pair.Key))
+                {
+                    changed = true;
+                }
+            }
+        }
+        while (changed);
+
+        return new List<int>(descendants).ToArray();
+    }
+
+    /// <summary>读取当前系统可用物理内存字节数，失败时返回-1。</summary>
+    public static long GetAvailablePhysicalMemoryBytes()
+    {
+        MemoryStatusEx status = new MemoryStatusEx();
+        status.Length = unchecked((uint)Marshal.SizeOf(typeof(MemoryStatusEx)));
+        return GlobalMemoryStatusEx(ref status) ? unchecked((long)status.AvailablePhysical) : -1L;
+    }
 
     /// <summary>查找指定进程中带确认文案的可见对话框按钮，避免误点同名隐藏控件。</summary>
     public static IntPtr FindVisibleConfirmButton(
@@ -361,20 +507,29 @@ function Sync-TestRuntimeConfiguration {
 function Get-TestProcesses {
     param(
         [string]$ResolvedExecutablePath,
-        [datetime]$MainProcessStartTime
+        [int]$MainProcessId
     )
 
-    $processName = [IO.Path]::GetFileNameWithoutExtension($ResolvedExecutablePath)
     $matches = New-Object System.Collections.Generic.List[System.Diagnostics.Process]
-    foreach ($process in @(Get-Process -Name $processName -ErrorAction SilentlyContinue)) {
-        try {
-            if ([string]::Equals($process.Path, $ResolvedExecutablePath, [StringComparison]::OrdinalIgnoreCase) -and
-                $process.StartTime -ge $MainProcessStartTime.AddSeconds(-2)) {
+    $ownedProcessIds = [FullSolutionGuiResourceProbe]::GetDescendantProcessIds($MainProcessId)
+    foreach ($processId in $ownedProcessIds) {
+        foreach ($process in @(Get-Process -Id $processId -ErrorAction SilentlyContinue)) {
+            try {
+                if ($process.Id -eq $MainProcessId -and
+                    -not [string]::Equals($process.Path, $ResolvedExecutablePath, [StringComparison]::OrdinalIgnoreCase)) {
+                    throw "测试主进程路径发生变化，拒绝继续管理该进程树。"
+                }
+
+                # 后代进程由父子关系确定归属，允许AI工作进程使用独立可执行文件。
                 $matches.Add($process)
             }
-        }
-        catch {
-            # 进程可能恰好退出；下一次采样会重新发现当前进程树。
+            catch {
+                if ($process.Id -eq $MainProcessId -and -not $process.HasExited) {
+                    throw
+                }
+
+                # 进程可能恰好退出；下一次采样会重新发现当前进程树。
+            }
         }
     }
 
@@ -384,12 +539,12 @@ function Get-TestProcesses {
 function Set-TestProcessPriority {
     param(
         [string]$ResolvedExecutablePath,
-        [datetime]$MainProcessStartTime,
+        [int]$MainProcessId,
         [string]$PriorityName
     )
 
     $priorityClass = [Diagnostics.ProcessPriorityClass]::$PriorityName
-    foreach ($process in @(Get-TestProcesses -ResolvedExecutablePath $ResolvedExecutablePath -MainProcessStartTime $MainProcessStartTime)) {
+    foreach ($process in @(Get-TestProcesses -ResolvedExecutablePath $ResolvedExecutablePath -MainProcessId $MainProcessId)) {
         try {
             if ($process.PriorityClass -ne $priorityClass) {
                 $process.PriorityClass = $priorityClass
@@ -413,9 +568,91 @@ function Set-TestWindowMode {
 
     $MainProcess.Refresh()
     if ($MainProcess.MainWindowHandle -ne [IntPtr]::Zero) {
-        # SW_MINIMIZE=6；保留真实窗口和UI线程，只避免测试窗口抢占用户桌面。
-        [void][FullSolutionGuiResourceProbe]::ShowWindowAsync($MainProcess.MainWindowHandle, 6)
+        # SW_SHOWMINNOACTIVE=7；保留真实窗口和UI线程，同时明确禁止激活测试窗口。
+        [void][FullSolutionGuiResourceProbe]::ShowWindowAsync($MainProcess.MainWindowHandle, 7)
     }
+}
+
+function Assert-NoExistingVisionProcess {
+    param([string]$ResolvedExecutablePath)
+
+    $processName = [IO.Path]::GetFileNameWithoutExtension($ResolvedExecutablePath)
+    $existing = @(Get-Process -Name $processName -ErrorAction SilentlyContinue)
+    if ($existing.Count -gt 0) {
+        throw "检测到同名视觉程序正在运行，后台测试已拒绝启动，避免弹出重复运行提示或接管用户进程。PID=$(@($existing.Id) -join ',')"
+    }
+}
+
+function Stop-TestProcessTree {
+    param(
+        [string]$ResolvedExecutablePath,
+        [int]$MainProcessId
+    )
+
+    $ownedProcesses = @(Get-TestProcesses -ResolvedExecutablePath $ResolvedExecutablePath -MainProcessId $MainProcessId)
+    foreach ($process in $ownedProcesses) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    }
+
+    $deadline = [DateTime]::UtcNow.AddSeconds(10)
+    do {
+        $remaining = @(Get-TestProcesses -ResolvedExecutablePath $ResolvedExecutablePath -MainProcessId $MainProcessId)
+        if ($remaining.Count -eq 0) {
+            return $true
+        }
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    return $false
+}
+
+function Assert-BackgroundFocusSafe {
+    param(
+        [System.Diagnostics.Process]$MainProcess,
+        [string]$TestEnvironmentMode
+    )
+
+    if ($TestEnvironmentMode -ne "SharedDesktopBackground") {
+        return
+    }
+
+    $foregroundProcessId = [FullSolutionGuiResourceProbe]::GetForegroundProcessId()
+    $ownedForegroundProcess = $foregroundProcessId -eq $MainProcess.Id
+    if (-not $ownedForegroundProcess) {
+        try {
+            $ownedForegroundProcess = @(
+                Get-TestProcesses `
+                    -ResolvedExecutablePath $MainProcess.Path `
+                    -MainProcessId $MainProcess.Id |
+                    Where-Object { $_.Id -eq $foregroundProcessId }
+            ).Count -gt 0
+        }
+        catch {
+            # 主进程退出竞态由调用方的进程状态检查处理。
+        }
+    }
+
+    if ($ownedForegroundProcess) {
+        throw "视觉测试主进程或工作进程取得了Windows前台焦点，已停止共享办公环境测试。"
+    }
+}
+
+function Assert-SharedDesktopResourceHeadroom {
+    param(
+        [string]$TestEnvironmentMode,
+        [int]$MinimumAvailableMemoryMb
+    )
+
+    $availableBytes = [FullSolutionGuiResourceProbe]::GetAvailablePhysicalMemoryBytes()
+    if ($availableBytes -lt 0) {
+        throw "无法读取系统可用内存，共享办公环境测试已拒绝启动。"
+    }
+    if ($TestEnvironmentMode -eq "SharedDesktopBackground" -and
+        $availableBytes -lt ($MinimumAvailableMemoryMb * 1MB)) {
+        throw ("共享办公环境可用内存仅{0:N0}MB，低于测试保护线{1}MB，已拒绝启动完整方案压力。" -f ($availableBytes / 1MB), $MinimumAvailableMemoryMb)
+    }
+
+    return $availableBytes
 }
 
 function Get-ManagedHeapBytes {
@@ -459,12 +696,11 @@ function Get-ManagedHeapBytes {
 function Get-ResourceSnapshot {
     param(
         [string]$ResolvedExecutablePath,
-        [datetime]$MainProcessStartTime,
         [int]$MainProcessId,
         [bool]$IncludeManagedHeap
     )
 
-    $processes = @(Get-TestProcesses -ResolvedExecutablePath $ResolvedExecutablePath -MainProcessStartTime $MainProcessStartTime)
+    $processes = @(Get-TestProcesses -ResolvedExecutablePath $ResolvedExecutablePath -MainProcessId $MainProcessId)
     if ($processes.Count -eq 0) {
         throw "未找到正在测试的程序进程树。"
     }
@@ -543,15 +779,21 @@ function Get-ResourceSnapshot {
 function Find-RunOnceButton {
     param(
         [System.Diagnostics.Process]$MainProcess,
-        [string]$WindowMode
+        [string]$WindowMode,
+        [string]$TestEnvironmentMode,
+        [int]$MinimumAvailableMemoryMb
     )
 
     $shownWithoutActivation = $false
-    for ($attempt = 0; $attempt -lt 90; $attempt++) {
+    for ($attempt = 0; $attempt -lt 900; $attempt++) {
         $MainProcess.Refresh()
         if ($MainProcess.HasExited) {
             throw "程序在主界面就绪前退出。"
         }
+        Assert-BackgroundFocusSafe -MainProcess $MainProcess -TestEnvironmentMode $TestEnvironmentMode
+        [void](Assert-SharedDesktopResourceHeadroom `
+            -TestEnvironmentMode $TestEnvironmentMode `
+            -MinimumAvailableMemoryMb $MinimumAvailableMemoryMb)
 
         if ($WindowMode -eq "Minimized" -and
             -not $shownWithoutActivation -and
@@ -575,7 +817,7 @@ function Find-RunOnceButton {
             }
         }
 
-        Start-Sleep -Seconds 1
+        Start-Sleep -Milliseconds 100
     }
 
     throw "等待主界面和单次运行按钮超时。"
@@ -585,7 +827,8 @@ function Close-TestProcess {
     param(
         [System.Diagnostics.Process]$MainProcess,
         [string]$ResolvedExecutablePath,
-        [datetime]$MainProcessStartTime
+        [string]$TestEnvironmentMode,
+        [int]$MinimumAvailableMemoryMb
     )
 
     if ($null -eq $MainProcess) {
@@ -596,6 +839,7 @@ function Close-TestProcess {
     $nextCloseRequestUtc = [DateTime]::MinValue
     while (-not $MainProcess.HasExited -and [DateTime]::UtcNow -lt $deadline) {
         $MainProcess.Refresh()
+        Assert-BackgroundFocusSafe -MainProcess $MainProcess -TestEnvironmentMode $TestEnvironmentMode
         try {
             if ([DateTime]::UtcNow -ge $nextCloseRequestUtc) {
                 [void]$MainProcess.CloseMainWindow()
@@ -624,6 +868,10 @@ function Close-TestProcess {
             # 关闭过程中窗口树可能随时销毁，继续等待进程正常退出。
         }
 
+        [void](Assert-SharedDesktopResourceHeadroom `
+            -TestEnvironmentMode $TestEnvironmentMode `
+            -MinimumAvailableMemoryMb $MinimumAvailableMemoryMb)
+
         Start-Sleep -Milliseconds 100
     }
 
@@ -637,10 +885,14 @@ function Close-TestProcess {
         $remainingProcesses = @(
             Get-TestProcesses `
                 -ResolvedExecutablePath $ResolvedExecutablePath `
-                -MainProcessStartTime $MainProcessStartTime)
+                -MainProcessId $MainProcess.Id)
         if ($remainingProcesses.Count -eq 0) {
             return $true
         }
+
+        [void](Assert-SharedDesktopResourceHeadroom `
+            -TestEnvironmentMode $TestEnvironmentMode `
+            -MinimumAvailableMemoryMb $MinimumAvailableMemoryMb)
 
         Start-Sleep -Milliseconds 100
     }
@@ -654,7 +906,10 @@ function Invoke-SolutionRound {
     param(
         [Windows.Automation.AutomationElement]$RunOnceButton,
         [int]$TimeoutSeconds,
-        [int]$PollMilliseconds
+        [int]$PollMilliseconds,
+        [System.Diagnostics.Process]$MainProcess,
+        [string]$TestEnvironmentMode,
+        [int]$MinimumAvailableMemoryMb
     )
 
     if (-not $RunOnceButton.Current.IsEnabled) {
@@ -672,6 +927,10 @@ function Invoke-SolutionRound {
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     while ($true) {
         Start-Sleep -Milliseconds $PollMilliseconds
+        Assert-BackgroundFocusSafe -MainProcess $MainProcess -TestEnvironmentMode $TestEnvironmentMode
+        [void](Assert-SharedDesktopResourceHeadroom `
+            -TestEnvironmentMode $TestEnvironmentMode `
+            -MinimumAvailableMemoryMb $MinimumAvailableMemoryMb)
         $enabled = $RunOnceButton.Current.IsEnabled
         if (-not $enabled) {
             $sawDisabled = $true
@@ -801,6 +1060,37 @@ function Get-ProcessLogSummary {
     }
 }
 
+function Set-TestResultExitValidation {
+    param(
+        [string]$JsonPath,
+        [string]$CheckpointPath,
+        [bool]$ValidationCompleted,
+        [bool]$ValidationPassed,
+        [bool]$PerformanceConclusionEligible,
+        [string]$FailureReason
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($JsonPath) -and (Test-Path -LiteralPath $JsonPath)) {
+        $jsonResult = Get-Content -LiteralPath $JsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $jsonResult | Add-Member -NotePropertyName ExitValidationCompleted -NotePropertyValue $ValidationCompleted -Force
+        $jsonResult | Add-Member -NotePropertyName ExitValidationPassed -NotePropertyValue $ValidationPassed -Force
+        $jsonResult | Add-Member -NotePropertyName ExitValidationFailure -NotePropertyValue $FailureReason -Force
+        $jsonResult | Add-Member -NotePropertyName AwaitingExitValidation -NotePropertyValue (-not $ValidationCompleted) -Force
+        $jsonResult | Add-Member -NotePropertyName PerformanceConclusionEligible -NotePropertyValue $PerformanceConclusionEligible -Force
+        $jsonResult | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $JsonPath -Encoding UTF8
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($CheckpointPath) -and (Test-Path -LiteralPath $CheckpointPath)) {
+        $checkpoint = Get-Content -LiteralPath $CheckpointPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $checkpoint | Add-Member -NotePropertyName Completed -NotePropertyValue $ValidationPassed -Force
+        $checkpoint | Add-Member -NotePropertyName ExitValidationCompleted -NotePropertyValue $ValidationCompleted -Force
+        $checkpoint | Add-Member -NotePropertyName ExitValidationPassed -NotePropertyValue $ValidationPassed -Force
+        $checkpoint | Add-Member -NotePropertyName ExitValidationFailure -NotePropertyValue $FailureReason -Force
+        $checkpoint | Add-Member -NotePropertyName AwaitingExitValidation -NotePropertyValue (-not $ValidationCompleted) -Force
+        $checkpoint | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $CheckpointPath -Encoding UTF8
+    }
+}
+
 $resolvedExecutablePath = (Resolve-Path -LiteralPath $ExecutablePath).Path
 $resolvedSchemePath = (Resolve-Path -LiteralPath $SchemePath).Path
 $resolvedImmutableSchemeSourcePath = if ([string]::IsNullOrWhiteSpace($ImmutableSchemeSourcePath)) {
@@ -815,14 +1105,29 @@ $immutableSchemeSha256 = if ([string]::IsNullOrWhiteSpace($resolvedImmutableSche
 else {
     (Get-FileHash -LiteralPath $resolvedImmutableSchemeSourcePath -Algorithm SHA256).Hash
 }
-Restore-ImmutableScheme -SourcePath $resolvedImmutableSchemeSourcePath -TargetPath $resolvedSchemePath -ExpectedSha256 $immutableSchemeSha256
 $workingDirectory = Split-Path -Parent $resolvedExecutablePath
 if ($RunMode -eq "FixedIntervalTriggers" -and [string]::IsNullOrWhiteSpace($RuntimeReferenceDirectory)) {
     throw "固定节拍触发必须提供RuntimeReferenceDirectory，自动同步旧版许可证和界面布局后才能运行。"
 }
+$usesExistingProcess = $ExistingProcessId -gt 0
+if ($usesExistingProcess) {
+    throw "步骤9安全验收不再支持复用既有视觉进程，请由工具启动受隔离的测试子进程。"
+}
+if ($usesExistingProcess -and
+    (-not [string]::IsNullOrWhiteSpace($RuntimeReferenceDirectory) -or
+     -not [string]::IsNullOrWhiteSpace($resolvedImmutableSchemeSourcePath))) {
+    throw "复用既有进程时禁止同步运行配置或恢复方案文件，避免修改用户正在运行的软件现场。"
+}
+$availableMemoryBeforeStart = Assert-SharedDesktopResourceHeadroom `
+    -TestEnvironmentMode $TestEnvironmentMode `
+    -MinimumAvailableMemoryMb $MinimumSharedDesktopAvailableMemoryMb
+if (-not $usesExistingProcess) {
+    Assert-NoExistingVisionProcess -ResolvedExecutablePath $resolvedExecutablePath
+    Restore-ImmutableScheme -SourcePath $resolvedImmutableSchemeSourcePath -TargetPath $resolvedSchemePath -ExpectedSha256 $immutableSchemeSha256
+}
 $runtimeInputHashes = Sync-TestRuntimeConfiguration `
     -WorkingDirectory $workingDirectory `
-    -ReferenceDirectory $RuntimeReferenceDirectory `
+    -ReferenceDirectory $(if ($usesExistingProcess) { "" } else { $RuntimeReferenceDirectory }) `
     -VisibleImageWindows $ExpectedVisibleImageWindows
 $logDirectory = Join-Path $workingDirectory "Logs"
 $startedByScript = $false
@@ -839,6 +1144,9 @@ if ($ExistingProcessId -gt 0) {
     if ($RunMode -eq "FixedIntervalTriggers") {
         throw "固定节拍触发必须由本工具启动Debug程序，不能复用未开放测试消息的既有进程。"
     }
+    if ($DebugMode -ne "Current") {
+        throw "指定Debug模式必须由本工具启动独立子进程，不能覆盖既有进程的用户设置。"
+    }
     $mainProcess = Get-Process -Id $ExistingProcessId
     if (-not [string]::Equals($mainProcess.Path, $resolvedExecutablePath, [StringComparison]::OrdinalIgnoreCase)) {
         throw "ExistingProcessId对应的程序路径与ExecutablePath不一致。"
@@ -854,7 +1162,24 @@ else {
     if ($WindowMode -eq "Minimized") {
         $startProcessArguments.WindowStyle = "Minimized"
     }
+    $previousAcceptanceMode = [Environment]::GetEnvironmentVariable("TDJS_VISION_PERFORMANCE_ACCEPTANCE", "Process")
+    $previousDebugOverride = [Environment]::GetEnvironmentVariable("TDJS_VISION_TEST_LOG_DEBUG_ENABLED", "Process")
+    $previousBackgroundAcceptance = [Environment]::GetEnvironmentVariable("TDJS_VISION_BACKGROUND_ACCEPTANCE", "Process")
     try {
+        [Environment]::SetEnvironmentVariable("TDJS_VISION_PERFORMANCE_ACCEPTANCE", "1", "Process")
+        if ($DebugMode -eq "Current") {
+            [Environment]::SetEnvironmentVariable("TDJS_VISION_TEST_LOG_DEBUG_ENABLED", $null, "Process")
+        }
+        else {
+            [Environment]::SetEnvironmentVariable(
+                "TDJS_VISION_TEST_LOG_DEBUG_ENABLED",
+                $(if ($DebugMode -eq "On") { "1" } else { "0" }),
+                "Process")
+        }
+        [Environment]::SetEnvironmentVariable(
+            "TDJS_VISION_BACKGROUND_ACCEPTANCE",
+            $(if ($TestEnvironmentMode -eq "SharedDesktopBackground") { "1" } else { $null }),
+            "Process")
         if ($RunMode -eq "FixedIntervalTriggers") {
             $env:TDJS_VISION_FIXED_TRIGGER_STRESS = "1"
             $env:TDJS_VISION_FIXED_TRIGGER_EXPECTED_ATTEMPTS = [string]$Rounds
@@ -862,8 +1187,17 @@ else {
         }
         $mainProcess = Start-Process @startProcessArguments
         $startedByScript = $true
+        try {
+            $mainProcess.PriorityClass = [Diagnostics.ProcessPriorityClass]::$ProcessPriority
+        }
+        catch {
+            # 主进程刚启动时可能尚未接受优先级设置，界面就绪后会再次设置整个测试进程树。
+        }
     }
     finally {
+        [Environment]::SetEnvironmentVariable("TDJS_VISION_PERFORMANCE_ACCEPTANCE", $previousAcceptanceMode, "Process")
+        [Environment]::SetEnvironmentVariable("TDJS_VISION_TEST_LOG_DEBUG_ENABLED", $previousDebugOverride, "Process")
+        [Environment]::SetEnvironmentVariable("TDJS_VISION_BACKGROUND_ACCEPTANCE", $previousBackgroundAcceptance, "Process")
         if ($RunMode -eq "FixedIntervalTriggers") {
             Remove-Item Env:TDJS_VISION_FIXED_TRIGGER_STRESS -ErrorAction SilentlyContinue
             Remove-Item Env:TDJS_VISION_FIXED_TRIGGER_EXPECTED_ATTEMPTS -ErrorAction SilentlyContinue
@@ -871,15 +1205,24 @@ else {
         }
     }
 }
-$mainProcessStartTimeForCleanup = $mainProcess.StartTime
-
+$testBodyCompleted = $false
 try {
-    $runOnceButton = Find-RunOnceButton -MainProcess $mainProcess -WindowMode $WindowMode
+    $runOnceButton = Find-RunOnceButton `
+        -MainProcess $mainProcess `
+        -WindowMode $WindowMode `
+        -TestEnvironmentMode $TestEnvironmentMode `
+        -MinimumAvailableMemoryMb $MinimumSharedDesktopAvailableMemoryMb
     $mainProcess.Refresh()
-    Set-TestProcessPriority -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainProcess.StartTime -PriorityName $ProcessPriority
+    Set-TestProcessPriority -ResolvedExecutablePath $resolvedExecutablePath -MainProcessId $mainProcess.Id -PriorityName $ProcessPriority
     Set-TestWindowMode -MainProcess $mainProcess -Mode $WindowMode
     for ($warmup = 1; $warmup -le $WarmupRounds; $warmup++) {
-        $warmupElapsed = Invoke-SolutionRound -RunOnceButton $runOnceButton -TimeoutSeconds $RoundTimeoutSeconds -PollMilliseconds $UiPollMilliseconds
+        $warmupElapsed = Invoke-SolutionRound `
+            -RunOnceButton $runOnceButton `
+            -TimeoutSeconds $RoundTimeoutSeconds `
+            -PollMilliseconds $UiPollMilliseconds `
+            -MainProcess $mainProcess `
+            -TestEnvironmentMode $TestEnvironmentMode `
+            -MinimumAvailableMemoryMb $MinimumSharedDesktopAvailableMemoryMb
         Write-Output ("WARMUP {0}/{1} elapsed_ms={2:N3}" -f $warmup, $WarmupRounds, $warmupElapsed)
     }
 
@@ -899,7 +1242,7 @@ try {
         $mainProcess.Refresh()
         $mainStartTime = $mainProcess.StartTime
         $logicalProcessorCount = [Math]::Max(1, [Environment]::ProcessorCount)
-        $initial = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $true
+        $initial = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessId $mainProcess.Id -IncludeManagedHeap $true
         if ($initial.ProcessCount -ne $ExpectedProcessTreeCount) {
             throw "固定触发压力要求进程树为${ExpectedProcessTreeCount}个进程，实际为$($initial.ProcessCount)个。"
         }
@@ -938,6 +1281,7 @@ try {
                 -Message $fixedTriggerMessage `
                 -TimeoutMilliseconds $TriggerMessageTimeoutMilliseconds
             $dispatchStopwatch.Stop()
+            Assert-BackgroundFocusSafe -MainProcess $mainProcess -TestEnvironmentMode $TestEnvironmentMode
 
             if (-not $triggerResult.Delivered) {
                 $outcome = "消息超时"
@@ -954,7 +1298,10 @@ try {
 
             $includeManaged = ($attempt % [Math]::Max(1, $ResourceSampleInterval * 10) -eq 0) -or ($attempt -eq $Rounds)
             if (($attempt % $ResourceSampleInterval -eq 0) -or $attempt -eq 1 -or $attempt -eq $Rounds) {
-                $snapshot = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $includeManaged
+                [void](Assert-SharedDesktopResourceHeadroom `
+                    -TestEnvironmentMode $TestEnvironmentMode `
+                    -MinimumAvailableMemoryMb $MinimumSharedDesktopAvailableMemoryMb)
+                $snapshot = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessId $mainProcess.Id -IncludeManagedHeap $includeManaged
                 $sampleWallMilliseconds = [Math]::Max(1.0, ($snapshot.TimestampUtc - $lastSnapshot.TimestampUtc).TotalMilliseconds)
                 $cpuDeltaMilliseconds = [Math]::Max(0.0, $snapshot.TotalCpuMilliseconds - $lastSnapshot.TotalCpuMilliseconds)
                 $cpuPercent = ($cpuDeltaMilliseconds / $sampleWallMilliseconds) * (100.0 / $logicalProcessorCount)
@@ -971,7 +1318,7 @@ try {
             }
             else {
                 $snapshot = $lastSnapshot
-                $cpuPercent = 0.0
+                $cpuPercent = $null
             }
 
             $csvRows.Add([pscustomobject]@{
@@ -986,11 +1333,12 @@ try {
                 ManagedHeapMegabytes = if ($snapshot.ManagedHeapBytes -ge 0) { [Math]::Round($snapshot.ManagedHeapBytes / 1MB, 3) } else { $null }
                 GdiObjects = $snapshot.GdiObjects
                 Handles = $snapshot.Handles
-                CpuPercent = [Math]::Round($cpuPercent, 3)
+                CpuSampled = ($null -ne $cpuPercent)
+                CpuPercent = if ($null -ne $cpuPercent) { [Math]::Round($cpuPercent, 3) } else { $null }
             })
 
             if (($attempt % $ProgressInterval -eq 0) -or ($attempt -eq $Rounds)) {
-                Set-TestProcessPriority -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -PriorityName $ProcessPriority
+                Set-TestProcessPriority -ResolvedExecutablePath $resolvedExecutablePath -MainProcessId $mainProcess.Id -PriorityName $ProcessPriority
                 Set-TestWindowMode -MainProcess $mainProcess -Mode $WindowMode
                 $csvRows | Export-Csv -LiteralPath $csvPath -NoTypeInformation -Encoding UTF8
                 [ordered]@{
@@ -1013,6 +1361,10 @@ try {
         $summaryDeadline = [DateTime]::UtcNow.AddSeconds($RoundTimeoutSeconds)
         while ([DateTime]::UtcNow -lt $summaryDeadline) {
             Start-Sleep -Milliseconds $UiPollMilliseconds
+            Assert-BackgroundFocusSafe -MainProcess $mainProcess -TestEnvironmentMode $TestEnvironmentMode
+            [void](Assert-SharedDesktopResourceHeadroom `
+                -TestEnvironmentMode $TestEnvironmentMode `
+                -MinimumAvailableMemoryMb $MinimumSharedDesktopAvailableMemoryMb)
             $appendedLogText = Get-AppendedLogText -LogDirectory $logDirectory -Offsets $logOffsets
             $summaryMatches = [regex]::Matches(
                 $appendedLogText,
@@ -1022,7 +1374,7 @@ try {
                 break
             }
 
-            $drainSnapshot = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $false
+            $drainSnapshot = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessId $mainProcess.Id -IncludeManagedHeap $false
             foreach ($property in @("ProcessCount", "PrivateBytes", "MainPrivateBytes", "GdiObjects", "UserObjects", "Handles")) {
                 if ($drainSnapshot.$property -gt $peak.$property) {
                     $peak.$property = $drainSnapshot.$property
@@ -1050,7 +1402,11 @@ try {
             throw "准入轮次没有全部正常退出：准入=$controllerAccepted，完成=$controllerCompleted，异常=$controllerFailed。"
         }
 
-        $final = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $true
+        $final = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessId $mainProcess.Id -IncludeManagedHeap $true
+        $processIdsStable = Test-StableProcessIds -InitialProcessIds $initial.ProcessIds -FinalProcessIds $final.ProcessIds
+        if (-not $processIdsStable) {
+            throw "固定触发期间进程树发生重启，本轮资源与耗时数据无效。"
+        }
         $appendedLogText = Get-AppendedLogText -LogDirectory $logDirectory -Offsets $logOffsets
         $processSummaries = @(
             Get-ProcessLogSummary -LogText $appendedLogText -ProcessName "中心端子正面检测"
@@ -1085,6 +1441,14 @@ try {
             RuntimeInputHashes = $runtimeInputHashes
             WindowMode = $WindowMode
             ProcessPriority = $ProcessPriority
+            DebugSwitch = $DebugMode
+            TestEnvironmentMode = $TestEnvironmentMode
+            RequestedPerformanceConclusionEligibility = ($TestEnvironmentMode -eq "Dedicated")
+            PerformanceConclusionEligible = $false
+            ExitValidationCompleted = $false
+            ExitValidationPassed = $false
+            AvailableMemoryBeforeStartMegabytes = if ($availableMemoryBeforeStart -ge 0) { [Math]::Round($availableMemoryBeforeStart / 1MB, 3) } else { $null }
+            MinimumSharedDesktopAvailableMemoryMegabytes = $MinimumSharedDesktopAvailableMemoryMb
             WarmupRounds = $WarmupRounds
             Trigger = [ordered]@{
                 Attempted = $Rounds
@@ -1124,6 +1488,7 @@ try {
                 UserObjects = [ordered]@{ Start = $initial.UserObjects; Peak = $peak.UserObjects; End = $final.UserObjects }
                 Handles = [ordered]@{ Start = $initial.Handles; Peak = $peak.Handles; End = $final.Handles }
             }
+            ProcessIdsStable = $processIdsStable
             ProcessResults = $processSummaries
             ExceptionLogCount = $exceptionCount
             Modbus = [ordered]@{ SuccessLogCount = $modbusSuccessCount; FailureLogCount = $modbusFailureCount }
@@ -1137,14 +1502,13 @@ try {
             RunMode = $RunMode
             CompletedAttempts = $Rounds
             TargetAttempts = $Rounds
-            Completed = $true
+            Completed = $false
+            AwaitingExitValidation = $true
             ResultJson = $jsonPath
             ResultCsv = $csvPath
             UpdatedAt = Get-Date -Format "yyyy-MM-dd HH:mm:ss.fff"
         } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $checkpointPath -Encoding UTF8
-        Write-Output ("RESULT_JSON={0}" -f $jsonPath)
-        Write-Output ("RESULT_CSV={0}" -f $csvPath)
-        Write-Output ($result | ConvertTo-Json -Depth 10)
+        $testBodyCompleted = $true
         return
     }
 
@@ -1152,7 +1516,7 @@ try {
     $mainProcess.Refresh()
     $mainStartTime = $mainProcess.StartTime
     $logicalProcessorCount = [Math]::Max(1, [Environment]::ProcessorCount)
-    $initial = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $true
+    $initial = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessId $mainProcess.Id -IncludeManagedHeap $true
     if ($initial.ProcessCount -ne $ExpectedProcessTreeCount) {
         throw "串行同比要求进程树为${ExpectedProcessTreeCount}个进程，正式开始时实际为$($initial.ProcessCount)个。"
     }
@@ -1173,11 +1537,17 @@ try {
     $formalStopwatch = [Diagnostics.Stopwatch]::StartNew()
 
     for ($round = 1; $round -le $Rounds; $round++) {
-        $roundElapsed = Invoke-SolutionRound -RunOnceButton $runOnceButton -TimeoutSeconds $RoundTimeoutSeconds -PollMilliseconds $UiPollMilliseconds
+        $roundElapsed = Invoke-SolutionRound `
+            -RunOnceButton $runOnceButton `
+            -TimeoutSeconds $RoundTimeoutSeconds `
+            -PollMilliseconds $UiPollMilliseconds `
+            -MainProcess $mainProcess `
+            -TestEnvironmentMode $TestEnvironmentMode `
+            -MinimumAvailableMemoryMb $MinimumSharedDesktopAvailableMemoryMb
         $durations.Add($roundElapsed)
 
         $includeManaged = ($round % $ResourceSampleInterval -eq 0) -or ($round -eq $Rounds)
-        $snapshot = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $includeManaged
+        $snapshot = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessId $mainProcess.Id -IncludeManagedHeap $includeManaged
         if ($snapshot.ProcessCount -ne $ExpectedProcessTreeCount) {
             throw "串行同比第${round}轮进程树数量异常：期望=${ExpectedProcessTreeCount}，实际=$($snapshot.ProcessCount)。"
         }
@@ -1222,7 +1592,7 @@ try {
 
         $lastSnapshot = $snapshot
         if (($round % $ProgressInterval -eq 0) -or ($round -eq $Rounds)) {
-            Set-TestProcessPriority -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -PriorityName $ProcessPriority
+            Set-TestProcessPriority -ResolvedExecutablePath $resolvedExecutablePath -MainProcessId $mainProcess.Id -PriorityName $ProcessPriority
             Set-TestWindowMode -MainProcess $mainProcess -Mode $WindowMode
             $currentP95 = Get-Percentile -Values $durations.ToArray() -Percentile 95
             $csvRows | Export-Csv -LiteralPath $csvPath -NoTypeInformation -Encoding UTF8
@@ -1255,7 +1625,7 @@ try {
 
     $formalStopwatch.Stop()
     $formalWallMilliseconds = $formalStopwatch.Elapsed.TotalMilliseconds
-    $ioEndSnapshot = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $false
+    $ioEndSnapshot = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessId $mainProcess.Id -IncludeManagedHeap $false
     if ($ioEndSnapshot.ProcessCount -ne $ExpectedProcessTreeCount) {
         throw "串行同比正式结束时进程树数量异常：期望=${ExpectedProcessTreeCount}，实际=$($ioEndSnapshot.ProcessCount)。"
     }
@@ -1267,7 +1637,7 @@ try {
         throw "正式测试结束时进程I/O计数器采集不完整：进程=$($ioEndSnapshot.ProcessCount)，I/O计数器=$($ioEndSnapshot.IoCounterProcessCount)。"
     }
     Start-Sleep -Milliseconds 500
-    $final = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $true
+    $final = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessId $mainProcess.Id -IncludeManagedHeap $true
     if ($final.ProcessCount -ne $ExpectedProcessTreeCount) {
         throw "串行同比最终资源快照进程树数量异常：期望=${ExpectedProcessTreeCount}，实际=$($final.ProcessCount)。"
     }
@@ -1296,7 +1666,7 @@ try {
 
     $durationArray = $durations.ToArray()
     $sumExecutionMilliseconds = ($durationArray | Measure-Object -Sum).Sum
-    $averageCpuPercent = (($final.TotalCpuMilliseconds - $initial.TotalCpuMilliseconds) /
+    $averageCpuPercent = (($ioEndSnapshot.TotalCpuMilliseconds - $initial.TotalCpuMilliseconds) /
         [Math]::Max(1.0, $formalWallMilliseconds)) * (100.0 / $logicalProcessorCount)
     $readOperationCount = Get-UnsignedCounterDelta -Current $ioEndSnapshot.ReadOperationCount -Previous $initial.ReadOperationCount
     $writeOperationCount = Get-UnsignedCounterDelta -Current $ioEndSnapshot.WriteOperationCount -Previous $initial.WriteOperationCount
@@ -1317,7 +1687,14 @@ try {
         WindowMode = $WindowMode
         ProcessPriority = $ProcessPriority
         UiPollMilliseconds = $UiPollMilliseconds
-        DebugSwitch = "使用程序当前用户设置；本轮未通过自动化修改"
+        DebugSwitch = $DebugMode
+        TestEnvironmentMode = $TestEnvironmentMode
+        RequestedPerformanceConclusionEligibility = ($TestEnvironmentMode -eq "Dedicated")
+        PerformanceConclusionEligible = $false
+        ExitValidationCompleted = $false
+        ExitValidationPassed = $false
+        AvailableMemoryBeforeStartMegabytes = if ($availableMemoryBeforeStart -ge 0) { [Math]::Round($availableMemoryBeforeStart / 1MB, 3) } else { $null }
+        MinimumSharedDesktopAvailableMemoryMegabytes = $MinimumSharedDesktopAvailableMemoryMb
         UiMode = "单次运行按钮串行调用，确保四流程每轮各执行一次"
         WarmupRounds = $WarmupRounds
         FormalRounds = $Rounds
@@ -1327,7 +1704,8 @@ try {
         Timing = [ordered]@{
             ExecutionTotalMilliseconds = [Math]::Round($sumExecutionMilliseconds, 3)
             HarnessWallMilliseconds = [Math]::Round($formalWallMilliseconds, 3)
-            ThroughputRoundsPerSecond = [Math]::Round($Rounds / [Math]::Max(0.001, $sumExecutionMilliseconds / 1000.0), 6)
+            ThroughputRoundsPerSecond = [Math]::Round($Rounds / [Math]::Max(0.001, $formalWallMilliseconds / 1000.0), 6)
+            ExecutionDurationSumThroughputRoundsPerSecond = [Math]::Round($Rounds / [Math]::Max(0.001, $sumExecutionMilliseconds / 1000.0), 6)
             P50Milliseconds = [Math]::Round((Get-Percentile -Values $durationArray -Percentile 50), 3)
             P95Milliseconds = [Math]::Round((Get-Percentile -Values $durationArray -Percentile 95), 3)
             P99Milliseconds = [Math]::Round((Get-Percentile -Values $durationArray -Percentile 99), 3)
@@ -1396,40 +1774,92 @@ try {
         VersionLabel = $VersionLabel
         CompletedRounds = $Rounds
         TargetRounds = $Rounds
-        Completed = $true
+        Completed = $false
+        AwaitingExitValidation = $true
         ResultJson = $jsonPath
         ResultCsv = $csvPath
         UpdatedAt = Get-Date -Format "yyyy-MM-dd HH:mm:ss.fff"
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $checkpointPath -Encoding UTF8
-    Write-Output ("RESULT_JSON={0}" -f $jsonPath)
-    Write-Output ("RESULT_CSV={0}" -f $csvPath)
-    Write-Output ($result | ConvertTo-Json -Depth 10)
+    $testBodyCompleted = $true
 }
 finally {
     $cleanupFailure = $null
-    if (-not $KeepProcess -and $null -ne $mainProcess) {
+    if (-not $KeepProcess -and $startedByScript -and $null -ne $mainProcess) {
         try {
             $closedNormally = Close-TestProcess `
                 -MainProcess $mainProcess `
                 -ResolvedExecutablePath $resolvedExecutablePath `
-                -MainProcessStartTime $mainProcessStartTimeForCleanup
+                -TestEnvironmentMode $TestEnvironmentMode `
+                -MinimumAvailableMemoryMb $MinimumSharedDesktopAvailableMemoryMb
         }
         catch {
             $closedNormally = $false
             $cleanupFailure = "视觉程序关闭校验发生异常：$($_.Exception.Message)"
         }
         if (-not $closedNormally) {
+            $forcedCleanupSucceeded = Stop-TestProcessTree `
+                -ResolvedExecutablePath $resolvedExecutablePath `
+                -MainProcessId $mainProcess.Id
             if ([string]::IsNullOrWhiteSpace($cleanupFailure)) {
-                $cleanupFailure = "视觉程序或工作进程未正常退出，本轮结果不能作为有效同比。"
+                $cleanupFailure = if ($forcedCleanupSucceeded) {
+                    "视觉程序未正常退出，已强制清理本工具启动的进程树；本轮结果不能作为有效同比。"
+                }
+                else {
+                    "视觉程序未正常退出且测试进程树强制清理失败，本轮结果无效。"
+                }
             }
         }
     }
-    if (-not [string]::IsNullOrWhiteSpace($resolvedImmutableSchemeSourcePath)) {
-        if ($null -eq $mainProcess -or $mainProcess.HasExited) {
-            Restore-ImmutableScheme -SourcePath $resolvedImmutableSchemeSourcePath -TargetPath $resolvedSchemePath -ExpectedSha256 $immutableSchemeSha256
+    if ($startedByScript -and -not [string]::IsNullOrWhiteSpace($resolvedImmutableSchemeSourcePath)) {
+        try {
+            if ($null -eq $mainProcess -or $mainProcess.HasExited) {
+                Restore-ImmutableScheme -SourcePath $resolvedImmutableSchemeSourcePath -TargetPath $resolvedSchemePath -ExpectedSha256 $immutableSchemeSha256
+            }
+            else {
+                $cleanupFailure = "视觉程序尚未退出，无法恢复固定方案文件，本轮结果无效。"
+            }
+        }
+        catch {
+            if ([string]::IsNullOrWhiteSpace($cleanupFailure)) {
+                $cleanupFailure = "恢复固定方案文件失败，本轮结果无效：$($_.Exception.Message)"
+            }
+        }
+    }
+
+    if ($testBodyCompleted) {
+        $exitValidationCompleted = $startedByScript -and -not $KeepProcess
+        $exitValidationPassed = $exitValidationCompleted -and [string]::IsNullOrWhiteSpace($cleanupFailure)
+        $exitValidationFailure = if ($exitValidationPassed) {
+            ""
+        }
+        elseif ($KeepProcess) {
+            "KeepProcess保留了测试进程，未执行退出验证，结果不能作为性能结论。"
+        }
+        elseif (-not [string]::IsNullOrWhiteSpace($cleanupFailure)) {
+            $cleanupFailure
         }
         else {
-            Write-Warning "视觉程序尚未退出，暂不覆盖其正在使用的固定方案文件。"
+            "测试未完成退出验证。"
+        }
+        Set-TestResultExitValidation `
+            -JsonPath $jsonPath `
+            -CheckpointPath $checkpointPath `
+            -ValidationCompleted $exitValidationCompleted `
+            -ValidationPassed $exitValidationPassed `
+            -PerformanceConclusionEligible ($exitValidationPassed -and $TestEnvironmentMode -eq "Dedicated") `
+            -FailureReason $exitValidationFailure
+
+        if ($exitValidationPassed) {
+            Write-Output ("RESULT_JSON={0}" -f $jsonPath)
+            Write-Output ("RESULT_CSV={0}" -f $csvPath)
+            Write-Output (Get-Content -LiteralPath $jsonPath -Raw -Encoding UTF8)
+        }
+        elseif ($KeepProcess) {
+            Write-Output ("PRELIMINARY_RESULT_JSON={0}" -f $jsonPath)
+            Write-Output ("PRELIMINARY_RESULT_CSV={0}" -f $csvPath)
+        }
+        else {
+            Write-Output ("INVALID_RESULT_JSON={0}" -f $jsonPath)
         }
     }
     if ($executionStateWasSet) {

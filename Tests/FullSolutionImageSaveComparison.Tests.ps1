@@ -527,6 +527,8 @@ public static class ImageSaveComparisonHarness
             sourceImage.Dispose();
         }
 
+        SaveComparisonIoCounters ioSaveEnd = QueryIo(process.Handle);
+
         if (requireAllAccepted && (accepted != imageCount || rejected != 0 || evicted != 0))
             throw new InvalidOperationException("同工作量落盘要求全部任务被接收且不得淘汰。请求=" + imageCount + "，接收=" + accepted + "，拒绝=" + rejected + "，淘汰=" + evicted);
 
@@ -562,7 +564,6 @@ public static class ImageSaveComparisonHarness
         int temporaryFileCount = new DirectoryInfo(outputDirectory).GetFiles("*.saving", SearchOption.TopDirectoryOnly).Length;
         int emptyFileCount = files.Count(file => file.Length == 0);
         long totalFileBytes = files.Sum(file => file.Length);
-        SaveComparisonIoCounters ioEnd = QueryIo(process.Handle);
         ForceCollection();
         process.Refresh();
         double[] enqueueMilliseconds = enqueueTicks.Select(ticks => ticks * 1000.0 / Stopwatch.Frequency).OrderBy(value => value).ToArray();
@@ -602,10 +603,10 @@ public static class ImageSaveComparisonHarness
             AverageCpuPercent = sampler.AverageCpuPercent,
             PeakCpuPercent = sampler.PeakCpuPercent,
             CpuLogicalProcessorCount = Environment.ProcessorCount,
-            ProcessWriteOperations = Delta(ioEnd.WriteOperationCount, ioStart.WriteOperationCount),
-            ProcessWriteTransferBytes = Delta(ioEnd.WriteTransferCount, ioStart.WriteTransferCount),
-            ProcessReadOperations = Delta(ioEnd.ReadOperationCount, ioStart.ReadOperationCount),
-            ProcessReadTransferBytes = Delta(ioEnd.ReadTransferCount, ioStart.ReadTransferCount),
+            ProcessWriteOperations = Delta(ioSaveEnd.WriteOperationCount, ioStart.WriteOperationCount),
+            ProcessWriteTransferBytes = Delta(ioSaveEnd.WriteTransferCount, ioStart.WriteTransferCount),
+            ProcessReadOperations = Delta(ioSaveEnd.ReadOperationCount, ioStart.ReadOperationCount),
+            ProcessReadTransferBytes = Delta(ioSaveEnd.ReadTransferCount, ioStart.ReadTransferCount),
             PrivateMemoryStartMb = privateStart / 1024.0 / 1024.0,
             PrivateMemoryPeakMb = sampler.PeakPrivateBytes / 1024.0 / 1024.0,
             PrivateMemoryAfterCollectionMb = process.PrivateMemorySize64 / 1024.0 / 1024.0,

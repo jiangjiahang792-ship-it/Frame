@@ -10,7 +10,7 @@ namespace Logger
         /// <summary>
         /// 调试日志记录缓存开关，避免高频日志入口反复读取配置集合。
         /// </summary>
-        private static volatile bool _debugEnabled = Settings.Default.LogDebugEnabled;
+        private static volatile bool _debugEnabled = ResolveInitialDebugEnabled();
 
         /// <summary>
         /// 消息日志记录缓存开关，避免高频日志入口反复读取配置集合。
@@ -31,6 +31,34 @@ namespace Logger
         /// 致命日志记录缓存开关，避免高频日志入口反复读取配置集合。
         /// </summary>
         private static volatile bool _fatalEnabled = Settings.Default.LogFatalEnabled;
+
+        /// <summary>
+        /// 解析进程启动时的Debug记录开关；正式程序使用用户设置，性能验收子进程允许使用不落盘的环境覆盖值。
+        /// </summary>
+        /// <returns>当前进程应使用的Debug记录状态。</returns>
+        private static bool ResolveInitialDebugEnabled()
+        {
+            if (!string.Equals(
+                    System.Environment.GetEnvironmentVariable("TDJS_VISION_PERFORMANCE_ACCEPTANCE"),
+                    "1",
+                    System.StringComparison.Ordinal))
+            {
+                return Settings.Default.LogDebugEnabled;
+            }
+
+            string overrideValue = System.Environment.GetEnvironmentVariable("TDJS_VISION_TEST_LOG_DEBUG_ENABLED");
+            if (string.Equals(overrideValue, "1", System.StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (string.Equals(overrideValue, "0", System.StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return Settings.Default.LogDebugEnabled;
+        }
 
         /// <summary>
         /// 判断指定日志等级当前是否允许记录。

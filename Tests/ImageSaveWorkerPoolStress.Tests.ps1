@@ -1069,12 +1069,9 @@ finally {
     Remove-Item -LiteralPath $applicationReferencePath -Force -ErrorAction SilentlyContinue
 }
 
-$testOutputRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot 'Tests\_temp_image_save_worker_stress'))
+$testOutputRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot ('Tests\_temp_image_save_worker_stress_' + [Guid]::NewGuid().ToString('N'))))
 $expectedParent = [IO.Path]::GetFullPath((Join-Path $projectRoot 'Tests'))
 Assert-True ($testOutputRoot.StartsWith($expectedParent, [StringComparison]::OrdinalIgnoreCase)) '压力测试输出目录必须位于项目Tests目录内。'
-if (Test-Path -LiteralPath $testOutputRoot) {
-    Remove-Item -LiteralPath $testOutputRoot -Recurse -Force
-}
 [IO.Directory]::CreateDirectory($testOutputRoot) | Out-Null
 
 try {
