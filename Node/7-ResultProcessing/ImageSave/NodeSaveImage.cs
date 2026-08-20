@@ -459,6 +459,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <summary>保存转换和JPEG编码共享的全方案CPU重任务调度器；空表示兼容独立测试宿主。</summary>
         private readonly ICpuWorkScheduler _cpuWorkScheduler;
 
+        /// <summary>停止超时前用于取消CPU许可等待并释放已出队图像租约的独立令牌源。</summary>
+        private readonly CancellationTokenSource _shutdownCancellationSource = new CancellationTokenSource();
+
         /// <summary>串行化停止与重复停止，确保等待句柄只在全部线程退出后释放一次。</summary>
         private readonly object _stopSync = new object();
 
@@ -509,6 +512,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 
         /// <summary>转换、绘制或写盘失败的保存任务累计数量。</summary>
         private long _failedTaskCount;
+
+        /// <summary>工作池停止时取消CPU许可等待的保存任务累计数量。</summary>
+        private long _canceledTaskCount;
 
         /// <summary>磁盘低空间时跳过的普通图片累计数量。</summary>
         private long _lowSpaceSkippedNormalTaskCount;
@@ -585,6 +591,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <summary>转换、绘制或写盘失败的保存任务累计数量。</summary>
         public long FailedTaskCount => Interlocked.Read(ref _failedTaskCount);
 
+        /// <summary>工作池停止时取消CPU许可等待的保存任务累计数量。</summary>
+        public long CanceledTaskCount => Interlocked.Read(ref _canceledTaskCount);
+
         /// <summary>磁盘低空间时跳过的普通图片累计数量。</summary>
         public long LowSpaceSkippedNormalTaskCount => Interlocked.Read(ref _lowSpaceSkippedNormalTaskCount);
 
@@ -639,6 +648,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                 EvictedNormalTaskCount = EvictedNormalTaskCount,
                 CompletedTaskCount = CompletedTaskCount,
                 FailedTaskCount = FailedTaskCount,
+                CanceledTaskCount = CanceledTaskCount,
                 LowSpaceSkippedNormalTaskCount = LowSpaceSkippedNormalTaskCount,
                 CriticalSpaceSkippedTaskCount = CriticalSpaceSkippedTaskCount,
                 LowSpaceAllowedHighPriorityTaskCount = LowSpaceAllowedHighPriorityTaskCount,
@@ -1006,10 +1016,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <param name="encodingStream">当前工作线程复用的JPEG编码缓冲区。</param>
         private void ProcessImages(MemoryStream encodingStream)
         {
-            while (_imageQueue.TryTake(out SaveImageTask saveImagedata, RegisterActiveWorker))
+            while (!_shutdownCancellationSource.IsCancellationRequested &&
+                _imageQueue.TryTake(out SaveImageTask saveImagedata, RegisterActiveWorker))
             {
                 bool saveCompleted = false;
                 bool taskFailed = false;
+                bool taskCanceled = false;
                 bool storageSkipped = false;
                 bool diagnosticEnabled = false;
                 string imageInfo = string.Empty;
@@ -1132,6 +1144,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
 
                     saveCompleted = true;
                 }
+                catch (OperationCanceledException) when (_shutdownCancellationSource.IsCancellationRequested)
+                {
+                    taskCanceled = true;
+                }
                 catch (Exception ex)
                 {
                     taskFailed = true;
@@ -1207,6 +1223,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                         {
                             // 低空间跳过属于明确降级，不计入成功写盘或写盘失败。
                         }
+                        else if (taskCanceled)
+                            Interlocked.Increment(ref _canceledTaskCount);
                         else if (saveCompleted && !taskFailed)
                             Interlocked.Increment(ref _completedTaskCount);
                         else
@@ -1320,9 +1338,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <returns>需要释放的CPU许可；未配置调度器时返回null。</returns>
         private ICpuWorkLease AcquireCpuWorkLease(CpuWorkloadKind workloadKind)
         {
+            CancellationToken cancellationToken = _shutdownCancellationSource.Token;
+            cancellationToken.ThrowIfCancellationRequested();
             return _cpuWorkScheduler == null
                 ? null
-                : _cpuWorkScheduler.AcquireAsync(workloadKind, CancellationToken.None).GetAwaiter().GetResult();
+                : _cpuWorkScheduler.AcquireAsync(workloadKind, cancellationToken).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -1548,9 +1568,17 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                     : _shutdownTimeoutMs;
                 if (Interlocked.Exchange(ref _stopped, 1) == 0)
                     _imageQueue.CompleteAdding();
+                int cancellationGraceMilliseconds = Math.Min(500, shutdownTimeoutMilliseconds);
                 bool saveWorkersStopped = WaitForWorkers(
-                    GetRemainingShutdownMilliseconds(shutdownStopwatch, shutdownTimeoutMilliseconds));
-                int disposedPendingCount = saveWorkersStopped ? 0 : _imageQueue.CompleteAndDisposePending();
+                    Math.Max(0, shutdownTimeoutMilliseconds - cancellationGraceMilliseconds));
+                int disposedPendingCount = 0;
+                if (!saveWorkersStopped)
+                {
+                    TryCancelShutdownNoThrow();
+                    disposedPendingCount = _imageQueue.CompleteAndDisposePending();
+                    saveWorkersStopped = WaitForWorkers(
+                        GetRemainingShutdownMilliseconds(shutdownStopwatch, shutdownTimeoutMilliseconds));
+                }
                 Volatile.Write(ref _retiredTaskWorkerAccepting, 0);
                 _retiredTaskSignal.Set();
                 bool releaseWorkerStopped = WaitForRetiredTaskWorker(
@@ -1622,6 +1650,35 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             catch (Exception ex)
             {
                 TryWriteLog(MsgLevel.Warn, $"释放保存回收线程等待句柄失败：{ex.Message}", true);
+            }
+
+            TryCancelShutdownNoThrow();
+            try
+            {
+                _shutdownCancellationSource.Dispose();
+            }
+            catch (Exception ex)
+            {
+                TryWriteLog(MsgLevel.Warn, $"释放保存停止令牌失败：{ex.Message}", true);
+            }
+        }
+
+        /// <summary>取消保存工作线程的CPU许可等待；重复调用或释放竞态不向外抛出。</summary>
+        private void TryCancelShutdownNoThrow()
+        {
+            try
+            {
+                _shutdownCancellationSource.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (AggregateException ex)
+            {
+                TryWriteLog(
+                    MsgLevel.Warn,
+                    $"取消保存CPU许可等待时有回调异常：{ex.Flatten().InnerException?.Message ?? ex.Message}",
+                    true);
             }
         }
 

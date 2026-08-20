@@ -141,6 +141,7 @@ public sealed class ImageSaveWorkerStressResult
     public int EvictedNormalCount { get; set; }
     public long CompletedCount { get; set; }
     public long FailedCount { get; set; }
+    public long CanceledCount { get; set; }
     public int FileCount { get; set; }
     public int InvalidJpegCount { get; set; }
     public long TotalFileBytes { get; set; }
@@ -170,6 +171,7 @@ public sealed class ImageSaveWorkerStressResult
     public long MaximumWriteElapsedMilliseconds { get; set; }
     public long CpuGrantedCount { get; set; }
     public long CpuCompletedCount { get; set; }
+    public long CpuCanceledWaitCount { get; set; }
     public int CpuPeakActiveCount { get; set; }
     public int CpuPeakImageConversionCount { get; set; }
     public int CpuFinalActiveCount { get; set; }
@@ -332,6 +334,72 @@ public sealed class ThrowingStressMatLease : IImageResourceLease
 
 public static class ImageSaveWorkerStressHarness
 {
+    public static ImageSaveWorkerStressResult RunCpuPermitStopCancellationScenario(string outputDirectory)
+    {
+        Directory.CreateDirectory(outputDirectory);
+        StressMatLease.Reset();
+        CpuWorkScheduler cpuScheduler = new CpuWorkScheduler(CreateCpuSchedulerOptions(1, 1));
+        ICpuWorkLease blockingLease = cpuScheduler.AcquireAsync(
+            CpuWorkloadKind.TraditionalVisionAlgorithm,
+            CancellationToken.None).GetAwaiter().GetResult();
+        ImageQueueProcessor processor = new ImageQueueProcessor(
+            1,
+            4,
+            16L * 1024L * 1024L,
+            1000,
+            "CPU许可等待停止取消测试",
+            CachedImageSaveStorageGuard.CreateDefault(),
+            cpuScheduler);
+        processor.StartProcessing();
+        Mat image = new Mat(128, 128, MatType.CV_8UC3, Scalar.All(127));
+        SaveImageTask task = new SaveImageTask
+        {
+            SourceImage = image,
+            TargetDirectories = new List<string> { outputDirectory },
+            ImageName = "CPU许可等待停止取消",
+            NeedCompress = true,
+            CompressValue = 90,
+            EstimatedBytes = checked((long)image.Rows * (long)image.Step()),
+            OwnerKey = "CPU许可等待停止取消流程",
+            ImageLease = new StressMatLease(image)
+        };
+        BoundedQueueAdmissionResult admission = processor.EnqueueImage(task);
+        if (!admission.Accepted)
+            task.Dispose();
+        bool reachedCpuWait = SpinWait.SpinUntil(
+            () => processor.ActiveWorkerCount == 1 && cpuScheduler.GetSnapshot().WaitingCount == 1,
+            2000);
+        Stopwatch stopStopwatch = Stopwatch.StartNew();
+        bool stopped = processor.StopProcessing();
+        stopStopwatch.Stop();
+        CpuWorkSchedulerSnapshot beforeBlockerRelease = cpuScheduler.GetSnapshot();
+        blockingLease.Dispose();
+        CpuWorkSchedulerSnapshot finalCpuSnapshot = cpuScheduler.GetSnapshot();
+        cpuScheduler.Dispose();
+        FileInfo[] files = new DirectoryInfo(outputDirectory).GetFiles("*.jpg", SearchOption.AllDirectories);
+        return new ImageSaveWorkerStressResult
+        {
+            AttemptedCount = 1,
+            AcceptedCount = admission.Accepted ? 1 : 0,
+            CompletedCount = processor.CompletedTaskCount,
+            FailedCount = processor.FailedTaskCount,
+            CanceledCount = processor.CanceledTaskCount,
+            FileCount = files.Length,
+            LeaseDisposeCount = StressMatLease.DisposeCount,
+            LeaseDoubleDisposeCount = StressMatLease.DoubleDisposeCount,
+            StopElapsedMilliseconds = stopStopwatch.ElapsedMilliseconds,
+            GracefullyStopped = stopped,
+            FullyStopped = processor.IsFullyStopped,
+            FinalQueuedCount = processor.QueuedCount,
+            CpuGrantedCount = finalCpuSnapshot.GrantedCount,
+            CpuCompletedCount = finalCpuSnapshot.CompletedCount,
+            CpuCanceledWaitCount = finalCpuSnapshot.CanceledWaitCount,
+            CpuFinalActiveCount = finalCpuSnapshot.ActiveCount,
+            CpuFinalWaitingCount = beforeBlockerRelease.WaitingCount,
+            MultiTargetBytesIdentical = reachedCpuWait
+        };
+    }
+
     public static ImageSaveWorkerStressResult RunCpuStorageSeparationScenario(string outputDirectory)
     {
         Directory.CreateDirectory(outputDirectory);
@@ -607,11 +675,18 @@ public static class ImageSaveWorkerStressHarness
 
     private static CpuWorkSchedulerOptions CreateCpuSchedulerOptions()
     {
+        return CreateCpuSchedulerOptions(4, 4);
+    }
+
+    private static CpuWorkSchedulerOptions CreateCpuSchedulerOptions(
+        int maximumConcurrency,
+        int imageConversionMaximumConcurrency)
+    {
         return new CpuWorkSchedulerOptions
         {
-            MaximumConcurrency = 4,
+            MaximumConcurrency = maximumConcurrency,
             MinimumConcurrency = 1,
-            ImageConversionMaximumConcurrency = 4,
+            ImageConversionMaximumConcurrency = imageConversionMaximumConcurrency,
             HighCpuPercent = 85D,
             RecoveryCpuPercent = 65D,
             HighCpuSustainMilliseconds = 5000,
@@ -914,6 +989,26 @@ try {
     Assert-True ($cpuSeparation.CpuGrantedCount -eq 2 -and $cpuSeparation.CpuCompletedCount -eq 2) '单张保存的两个CPU许可必须全部归还。'
     Assert-True ($cpuSeparation.CpuActiveCountDuringStoragePrepare -eq 0) '100ms慢盘准备期间不得持有CPU重任务许可。'
     Assert-True ($cpuSeparation.CpuFinalActiveCount -eq 0 -and $cpuSeparation.LeaseDisposeCount -eq 1 -and $cpuSeparation.FullyStopped) 'CPU与慢盘分段场景停止后CPU活动和Mat租约必须归零。'
+
+    $cpuStopDirectory = Join-Path $testOutputRoot 'cpu_permit_stop_cancellation'
+    $cpuStop = [ImageSaveWorkerStressHarness]::RunCpuPermitStopCancellationScenario($cpuStopDirectory)
+    Assert-True $cpuStop.MultiTargetBytesIdentical '保存任务必须已经出队并真实等待被占满的CPU许可。'
+    Assert-True ($cpuStop.AcceptedCount -eq 1 -and $cpuStop.CompletedCount -eq 0 -and $cpuStop.FailedCount -eq 0 -and $cpuStop.CanceledCount -eq 1) '等待CPU许可的保存任务停止后必须形成一次明确取消，不能误报完成或失败。'
+    Assert-True ($cpuStop.GracefullyStopped -and $cpuStop.FullyStopped -and $cpuStop.StopElapsedMilliseconds -le 1100) 'CPU许可被占满时保存工作池必须在1000ms停止预算附近完整退出。'
+    Assert-True ($cpuStop.LeaseDisposeCount -eq 1 -and $cpuStop.LeaseDoubleDisposeCount -eq 0 -and $cpuStop.FinalQueuedCount -eq 0) '停止取消后已出队Mat租约必须恰好释放一次且队列归零。'
+    Assert-True ($cpuStop.FileCount -eq 0) '取得CPU许可前被停止的任务不得产生图片文件。'
+    Assert-True ($cpuStop.CpuGrantedCount -eq 1 -and $cpuStop.CpuCompletedCount -eq 1 -and $cpuStop.CpuCanceledWaitCount -eq 1) '外部占位许可必须正常归还，保存CPU等待必须只取消一次。'
+    Assert-True ($cpuStop.CpuFinalActiveCount -eq 0 -and $cpuStop.CpuFinalWaitingCount -eq 0) '停止回归结束后CPU活动和等待必须归零。'
+    Write-Host ("CPU许可饱和停止回归：停止={0}ms；完成/失败/取消={1}/{2}/{3}；CPU许可/归还/等待取消={4}/{5}/{6}；Mat释放={7}；全部线程退出={8}" -f `
+        $cpuStop.StopElapsedMilliseconds,
+        $cpuStop.CompletedCount,
+        $cpuStop.FailedCount,
+        $cpuStop.CanceledCount,
+        $cpuStop.CpuGrantedCount,
+        $cpuStop.CpuCompletedCount,
+        $cpuStop.CpuCanceledWaitCount,
+        $cpuStop.LeaseDisposeCount,
+        $cpuStop.FullyStopped)
 
     $failureDirectory = Join-Path $testOutputRoot 'failure'
     $failure = [ImageSaveWorkerStressHarness]::RunWriteFailure($failureDirectory)

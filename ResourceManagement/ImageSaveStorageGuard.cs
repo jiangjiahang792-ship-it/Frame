@@ -442,6 +442,9 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>转换、绘制或写盘失败的任务数。</summary>
         public long FailedTaskCount { get; set; }
 
+        /// <summary>工作池停止时取消CPU许可等待的任务数。</summary>
+        public long CanceledTaskCount { get; set; }
+
         /// <summary>低空间时跳过的普通图片数。</summary>
         public long LowSpaceSkippedNormalTaskCount { get; set; }
 
@@ -466,7 +469,7 @@ namespace TDJS_Vision.ResourceManagement
         /// <returns>队列、资源和磁盘保护摘要。</returns>
         public string ToLogText()
         {
-            return $"等待={QueuedCount}/{Capacity}；等待峰值={PeakQueuedCount}；字节={QueuedBytes}/{MemoryBudgetBytes}；字节峰值={PeakQueuedBytes}；活动={ActiveWorkerCount}/{WorkerCount}；活动峰值={PeakActiveWorkerCount}；完成={CompletedTaskCount}；失败={FailedTaskCount}；拒绝={RejectedTaskCount}；淘汰普通={EvictedNormalTaskCount}；低空间跳过普通={LowSpaceSkippedNormalTaskCount}；严重空间跳过={CriticalSpaceSkippedTaskCount}；低空间保留NG={LowSpaceAllowedHighPriorityTaskCount}；空间探测失败={StorageProbeFailureCount}；慢写={SlowWriteCount}；最慢写入={MaximumWriteElapsedMilliseconds}ms";
+            return $"等待={QueuedCount}/{Capacity}；等待峰值={PeakQueuedCount}；字节={QueuedBytes}/{MemoryBudgetBytes}；字节峰值={PeakQueuedBytes}；活动={ActiveWorkerCount}/{WorkerCount}；活动峰值={PeakActiveWorkerCount}；完成={CompletedTaskCount}；失败={FailedTaskCount}；停止取消={CanceledTaskCount}；拒绝={RejectedTaskCount}；淘汰普通={EvictedNormalTaskCount}；低空间跳过普通={LowSpaceSkippedNormalTaskCount}；严重空间跳过={CriticalSpaceSkippedTaskCount}；低空间保留NG={LowSpaceAllowedHighPriorityTaskCount}；空间探测失败={StorageProbeFailureCount}；慢写={SlowWriteCount}；最慢写入={MaximumWriteElapsedMilliseconds}ms";
         }
     }
 }
