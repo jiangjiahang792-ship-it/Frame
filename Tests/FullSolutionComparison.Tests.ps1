@@ -66,9 +66,13 @@ Add-Type -TypeDefinition @"
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Text;
 
 public static class FullSolutionGuiResourceProbe
 {
+    /// <summary>枚举Windows窗口时使用的回调。</summary>
+    private delegate bool EnumWindowCallback(IntPtr windowHandle, IntPtr state);
+
     /// <summary>Windows为单个进程累计的I/O操作和传输字节。</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct ProcessIoCounters
@@ -111,8 +115,27 @@ public static class FullSolutionGuiResourceProbe
     [DllImport("user32.dll")]
     public static extern int GetGuiResources(IntPtr processHandle, int resourceType);
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumWindows(EnumWindowCallback callback, IntPtr state);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumChildWindows(IntPtr parentWindowHandle, EnumWindowCallback callback, IntPtr state);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr windowHandle, out uint processId);
+
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
-    public static extern IntPtr SendMessage(IntPtr windowHandle, uint message, IntPtr wordParameter, IntPtr longParameter);
+    private static extern int GetWindowText(IntPtr windowHandle, StringBuilder text, int maximumCount);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindowVisible(IntPtr windowHandle);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindowEnabled(IntPtr windowHandle);
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern IntPtr SendMessageTimeout(
@@ -130,6 +153,73 @@ public static class FullSolutionGuiResourceProbe
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool ShowWindowAsync(IntPtr windowHandle, int command);
+
+    /// <summary>查找指定进程中带确认文案的可见对话框按钮，避免误点同名隐藏控件。</summary>
+    public static IntPtr FindVisibleConfirmButton(
+        int processId,
+        string dialogTitle,
+        string promptText,
+        string buttonText)
+    {
+        IntPtr result = IntPtr.Zero;
+        EnumWindows(
+            delegate(IntPtr topLevelWindowHandle, IntPtr state)
+            {
+                uint ownerProcessId;
+                GetWindowThreadProcessId(topLevelWindowHandle, out ownerProcessId);
+                if (ownerProcessId != (uint)processId ||
+                    !IsWindowVisible(topLevelWindowHandle) ||
+                    !IsWindowEnabled(topLevelWindowHandle) ||
+                    !String.Equals(ReadWindowText(topLevelWindowHandle), dialogTitle, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+
+                bool promptFound = false;
+                IntPtr buttonHandle = IntPtr.Zero;
+                EnumChildWindows(
+                    topLevelWindowHandle,
+                    delegate(IntPtr childWindowHandle, IntPtr childState)
+                    {
+                        if (!IsWindowVisible(childWindowHandle) || !IsWindowEnabled(childWindowHandle))
+                        {
+                            return true;
+                        }
+
+                        string text = ReadWindowText(childWindowHandle);
+                        if (String.Equals(text, promptText, StringComparison.Ordinal))
+                        {
+                            promptFound = true;
+                        }
+                        else if (String.Equals(text, buttonText, StringComparison.Ordinal))
+                        {
+                            buttonHandle = childWindowHandle;
+                        }
+
+                        return true;
+                    },
+                    IntPtr.Zero);
+
+                if (!promptFound || buttonHandle == IntPtr.Zero)
+                {
+                    return true;
+                }
+
+                result = buttonHandle;
+                return false;
+            },
+            IntPtr.Zero);
+
+        return result;
+    }
+
+    /// <summary>读取原生窗口标题或控件文字。</summary>
+    private static string ReadWindowText(IntPtr windowHandle)
+    {
+        StringBuilder text = new StringBuilder(512);
+        GetWindowText(windowHandle, text, text.Capacity);
+        return text.ToString();
+    }
 }
 "@ -Language CSharp
 
@@ -492,38 +582,42 @@ function Find-RunOnceButton {
 }
 
 function Close-TestProcess {
-    param([System.Diagnostics.Process]$MainProcess)
+    param(
+        [System.Diagnostics.Process]$MainProcess,
+        [string]$ResolvedExecutablePath,
+        [datetime]$MainProcessStartTime
+    )
 
-    if ($null -eq $MainProcess -or $MainProcess.HasExited) {
-        return
+    if ($null -eq $MainProcess) {
+        return $true
     }
 
-    [void]$MainProcess.CloseMainWindow()
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
+    $nextCloseRequestUtc = [DateTime]::MinValue
     while (-not $MainProcess.HasExited -and [DateTime]::UtcNow -lt $deadline) {
         $MainProcess.Refresh()
         try {
-            # 关闭确认框是独立顶层窗体，必须按进程ID扫描桌面窗口树，不能只搜索已隐藏的主窗体。
-            $processCondition = New-Object Windows.Automation.PropertyCondition(
-                [Windows.Automation.AutomationElement]::ProcessIdProperty,
-                $MainProcess.Id)
-            $processElements = [Windows.Automation.AutomationElement]::RootElement.FindAll(
-                [Windows.Automation.TreeScope]::Descendants,
-                $processCondition)
-            $confirmButton = @($processElements | Where-Object {
-                    $_.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and
-                    $_.Current.Name -eq "确定" -and
-                    $_.Current.IsEnabled -and
-                    -not $_.Current.IsOffscreen -and
-                    $_.Current.NativeWindowHandle -ne 0
-                }) | Select-Object -First 1
-            if ($null -ne $confirmButton) {
-                # WinForms自定义确认按钮没有暴露InvokePattern，使用标准BM_CLICK消息执行正常关闭。
-                [void][FullSolutionGuiResourceProbe]::SendMessage(
-                    [IntPtr]$confirmButton.Current.NativeWindowHandle,
+            if ([DateTime]::UtcNow -ge $nextCloseRequestUtc) {
+                [void]$MainProcess.CloseMainWindow()
+                $nextCloseRequestUtc = [DateTime]::UtcNow.AddSeconds(1)
+            }
+
+            # 确认框不进入UI Automation树，按进程、标题和确认文案锁定原生按钮。
+            $confirmButtonHandle = [FullSolutionGuiResourceProbe]::FindVisibleConfirmButton(
+                $MainProcess.Id,
+                "提示",
+                "确认关闭程序？",
+                "确定")
+            if ($confirmButtonHandle -ne [IntPtr]::Zero) {
+                $messageResult = [IntPtr]::Zero
+                [void][FullSolutionGuiResourceProbe]::SendMessageTimeout(
+                    $confirmButtonHandle,
                     0x00F5,
                     [IntPtr]::Zero,
-                    [IntPtr]::Zero)
+                    [IntPtr]::Zero,
+                    0x0002,
+                    1000,
+                    [ref]$messageResult)
             }
         }
         catch {
@@ -538,7 +632,22 @@ function Close-TestProcess {
         return $false
     }
 
-    return $true
+    $processTreeDeadline = [DateTime]::UtcNow.AddSeconds(10)
+    do {
+        $remainingProcesses = @(
+            Get-TestProcesses `
+                -ResolvedExecutablePath $ResolvedExecutablePath `
+                -MainProcessStartTime $MainProcessStartTime)
+        if ($remainingProcesses.Count -eq 0) {
+            return $true
+        }
+
+        Start-Sleep -Milliseconds 100
+    }
+    while ([DateTime]::UtcNow -lt $processTreeDeadline)
+
+    Write-Warning ("主程序退出后仍有测试进程残留：{0}。" -f (($remainingProcesses | ForEach-Object { $_.Id }) -join ','))
+    return $false
 }
 
 function Invoke-SolutionRound {
@@ -762,6 +871,7 @@ else {
         }
     }
 }
+$mainProcessStartTimeForCleanup = $mainProcess.StartTime
 
 try {
     $runOnceButton = Find-RunOnceButton -MainProcess $mainProcess -WindowMode $WindowMode
@@ -1043,6 +1153,9 @@ try {
     $mainStartTime = $mainProcess.StartTime
     $logicalProcessorCount = [Math]::Max(1, [Environment]::ProcessorCount)
     $initial = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $true
+    if ($initial.ProcessCount -ne $ExpectedProcessTreeCount) {
+        throw "串行同比要求进程树为${ExpectedProcessTreeCount}个进程，正式开始时实际为$($initial.ProcessCount)个。"
+    }
     if ($initial.IoCounterProcessCount -ne $initial.ProcessCount) {
         throw "正式测试前进程I/O计数器采集不完整：进程=$($initial.ProcessCount)，I/O计数器=$($initial.IoCounterProcessCount)。"
     }
@@ -1065,6 +1178,9 @@ try {
 
         $includeManaged = ($round % $ResourceSampleInterval -eq 0) -or ($round -eq $Rounds)
         $snapshot = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $includeManaged
+        if ($snapshot.ProcessCount -ne $ExpectedProcessTreeCount) {
+            throw "串行同比第${round}轮进程树数量异常：期望=${ExpectedProcessTreeCount}，实际=$($snapshot.ProcessCount)。"
+        }
         $sampleWallMilliseconds = [Math]::Max(1.0, ($snapshot.TimestampUtc - $lastSnapshot.TimestampUtc).TotalMilliseconds)
         $cpuDeltaMilliseconds = [Math]::Max(0.0, $snapshot.TotalCpuMilliseconds - $lastSnapshot.TotalCpuMilliseconds)
         $cpuPercent = ($cpuDeltaMilliseconds / $sampleWallMilliseconds) * (100.0 / $logicalProcessorCount)
@@ -1140,6 +1256,9 @@ try {
     $formalStopwatch.Stop()
     $formalWallMilliseconds = $formalStopwatch.Elapsed.TotalMilliseconds
     $ioEndSnapshot = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $false
+    if ($ioEndSnapshot.ProcessCount -ne $ExpectedProcessTreeCount) {
+        throw "串行同比正式结束时进程树数量异常：期望=${ExpectedProcessTreeCount}，实际=$($ioEndSnapshot.ProcessCount)。"
+    }
     $processIdsStable = Test-StableProcessIds -InitialProcessIds $initial.ProcessIds -FinalProcessIds $ioEndSnapshot.ProcessIds
     if (-not $processIdsStable) {
         throw "正式测试期间进程树发生重启，进程I/O累计值不能作为有效同比。"
@@ -1149,6 +1268,9 @@ try {
     }
     Start-Sleep -Milliseconds 500
     $final = Get-ResourceSnapshot -ResolvedExecutablePath $resolvedExecutablePath -MainProcessStartTime $mainStartTime -MainProcessId $mainProcess.Id -IncludeManagedHeap $true
+    if ($final.ProcessCount -ne $ExpectedProcessTreeCount) {
+        throw "串行同比最终资源快照进程树数量异常：期望=${ExpectedProcessTreeCount}，实际=$($final.ProcessCount)。"
+    }
     $appendedLogText = Get-AppendedLogText -LogDirectory $logDirectory -Offsets $logOffsets
     $processSummaries = @(
         Get-ProcessLogSummary -LogText $appendedLogText -ProcessName "中心端子正面检测"
@@ -1284,8 +1406,23 @@ try {
     Write-Output ($result | ConvertTo-Json -Depth 10)
 }
 finally {
-    if (-not $KeepProcess -and $null -ne $mainProcess -and -not $mainProcess.HasExited) {
-        [void](Close-TestProcess -MainProcess $mainProcess)
+    $cleanupFailure = $null
+    if (-not $KeepProcess -and $null -ne $mainProcess) {
+        try {
+            $closedNormally = Close-TestProcess `
+                -MainProcess $mainProcess `
+                -ResolvedExecutablePath $resolvedExecutablePath `
+                -MainProcessStartTime $mainProcessStartTimeForCleanup
+        }
+        catch {
+            $closedNormally = $false
+            $cleanupFailure = "视觉程序关闭校验发生异常：$($_.Exception.Message)"
+        }
+        if (-not $closedNormally) {
+            if ([string]::IsNullOrWhiteSpace($cleanupFailure)) {
+                $cleanupFailure = "视觉程序或工作进程未正常退出，本轮结果不能作为有效同比。"
+            }
+        }
     }
     if (-not [string]::IsNullOrWhiteSpace($resolvedImmutableSchemeSourcePath)) {
         if ($null -eq $mainProcess -or $mainProcess.HasExited) {
@@ -1297,5 +1434,8 @@ finally {
     }
     if ($executionStateWasSet) {
         [void][FullSolutionGuiResourceProbe]::SetThreadExecutionState($continuousOnly)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($cleanupFailure)) {
+        throw $cleanupFailure
     }
 }
