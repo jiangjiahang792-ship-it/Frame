@@ -858,7 +858,7 @@ function Find-RunOnceButton {
                 [Windows.Automation.AutomationElement]::NameProperty,
                 "单次运行")
             $button = $root.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
-            if ($null -ne $button) {
+            if ($null -ne $button -and $button.Current.IsEnabled) {
                 return $button
             }
         }

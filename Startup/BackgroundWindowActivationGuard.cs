@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using Logger;
 
 namespace TDJS_Vision.Startup
 {
@@ -82,7 +83,22 @@ namespace TDJS_Vision.Startup
             disposed = true;
             if (hookHandle != IntPtr.Zero)
             {
-                UnhookWindowsHookEx(hookHandle);
+                if (!UnhookWindowsHookEx(hookHandle))
+                {
+                    int errorCode = Marshal.GetLastWin32Error();
+                    try
+                    {
+                        LogHelper.AddLog(
+                            MsgLevel.Warn,
+                            $"后台性能验收窗口激活守卫解除失败，Windows错误码：{errorCode}。",
+                            true);
+                    }
+                    catch
+                    {
+                        // 程序退出阶段日志系统可能已经停止，Windows会在线程退出时回收线程钩子。
+                    }
+                }
+
                 hookHandle = IntPtr.Zero;
             }
         }

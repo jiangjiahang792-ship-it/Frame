@@ -89,6 +89,7 @@ $startupDisplayModePath = Join-Path $root "Startup\StartupDisplayMode.cs"
 $startupApplicationPath = Join-Path $root "Startup\StartupApplicationContext.cs"
 $backgroundActivationGuardPath = Join-Path $root "Startup\BackgroundWindowActivationGuard.cs"
 $programPath = Join-Path $root "Program.cs"
+$projectPath = Join-Path $root "TDJS-Vision.csproj"
 $formMainPath = Join-Path $root "FormMain.cs"
 $startupFormPath = Join-Path $root "Forms\Startup\FormStartup.cs"
 $messageBoxPath = Join-Path $root "Forms\YTMessageBox\MessageBoxTD.cs"
@@ -151,6 +152,7 @@ Assert-MatchCountAtLeast $comparison 'Assert-BackgroundFocusSafe\s+-MainProcess'
 Assert-MatchCountAtLeast $comparison 'Assert-SharedDesktopResourceHeadroom\s+`' 4 "内存保护必须覆盖启动、运行和结果排空阶段。"
 Assert-Contains $startupWaitFunction 'Assert-BackgroundFocusSafe' "等待主界面阶段必须持续检查前台焦点。"
 Assert-Contains $startupWaitFunction 'Assert-SharedDesktopResourceHeadroom' "等待主界面阶段必须持续检查可用内存。"
+Assert-Contains $startupWaitFunction '$null -ne $button -and $button.Current.IsEnabled' "主界面等待必须确认单次运行按钮已经启用。"
 Assert-Contains $roundFunction 'Assert-BackgroundFocusSafe' "每轮方案运行必须持续检查前台焦点。"
 Assert-Contains $roundFunction 'Assert-SharedDesktopResourceHeadroom' "每轮方案运行必须持续检查可用内存。"
 Assert-Contains $closeFunction 'Assert-BackgroundFocusSafe' "关闭排空阶段必须持续检查前台焦点。"
@@ -188,6 +190,7 @@ Assert-Contains $backgroundActivationGuard 'HookCodeActivate = 5' "窗口激活�
 Assert-Contains $backgroundActivationGuard 'if (!StartupDisplayMode.IsBackgroundAcceptance)' "普通启动不得安装后台验收窗口钩子。"
 Assert-Contains $backgroundActivationGuard 'return new IntPtr(1);' "后台验收必须拒绝本线程窗口激活。"
 Assert-Contains $backgroundActivationGuard 'UnhookWindowsHookEx(hookHandle)' "主消息循环退出时必须解除窗口激活钩子。"
+Assert-Contains $backgroundActivationGuard '后台性能验收窗口激活守卫解除失败' "窗口激活钩子解除失败必须写入诊断日志。"
 Assert-Contains $formMain 'StartupDisplayMode.IsBackgroundAcceptance || base.ShowWithoutActivation' "后台验收主窗体必须使用不激活显示。"
 Assert-Contains $formMain 'createParams.ExStyle |= ExtendedWindowStyleNoActivate;' "后台验收主窗体必须使用系统级不激活窗口样式。"
 Assert-Contains $startupForm 'createParams.ExStyle |= ExtendedWindowStyleNoActivate;' "后台验收启动页必须使用系统级不激活窗口样式。"
@@ -268,7 +271,7 @@ $application = Get-Item -LiteralPath $applicationPath -ErrorAction SilentlyConti
 if ($null -eq $application) {
     throw "步骤9运行时行为检查需要最新Release程序。"
 }
-foreach ($sourcePath in @($startupDisplayModePath, $startupFormPath, $formMainPath, $messageBoxPath)) {
+foreach ($sourcePath in @($startupDisplayModePath, $startupApplicationPath, $backgroundActivationGuardPath, $programPath, $projectPath, $startupFormPath, $formMainPath, $messageBoxPath)) {
     $source = Get-Item -LiteralPath $sourcePath
     if ($application.LastWriteTimeUtc -lt $source.LastWriteTimeUtc) {
         throw "Release程序早于$($source.Name)，请先重新编译。"
