@@ -812,12 +812,10 @@ namespace TDJS_Vision
                 }
             }
 
-            // 海康相机SDK反序列化
-            CameraHik.Finalize();
-
             // 保存主窗口布局
             this.dockPanel1.SaveAsXml(DockPanelConfig);
 
+            bool solutionResourcesReleased = false;
             try
             {
                 //保存OK总数量
@@ -841,7 +839,8 @@ namespace TDJS_Vision
                 }
 
                 // 释放方案资源
-                if (!Solution.Instance.SolReset())
+                solutionResourcesReleased = Solution.Instance.SolReset();
+                if (!solutionResourcesReleased)
                 {
                     LogHelper.AddLog(
                         MsgLevel.Exception,
@@ -849,8 +848,21 @@ namespace TDJS_Vision
                         true);
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                LogHelper.AddLog(MsgLevel.Exception, $"软件退出时释放方案资源异常：{ex}", true);
+            }
+            finally
+            {
+                if (solutionResourcesReleased)
+                {
+                    // 所有相机句柄和回调均已释放后，才能安全反初始化海康原生SDK。
+                    CameraHik.FinalizeSDK();
+                }
+                else
+                {
+                    LogHelper.AddLog(MsgLevel.Warn, "方案资源尚未完全释放，跳过海康原生SDK反初始化并交由进程退出回收。", true);
+                }
             }
         }
 

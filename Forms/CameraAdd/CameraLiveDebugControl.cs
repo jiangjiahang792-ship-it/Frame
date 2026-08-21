@@ -1,5 +1,4 @@
 using Logger;
-using MvCameraControl;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using System;
@@ -434,7 +433,7 @@ namespace TDJS_Vision.Forms.CameraAdd
 
             try
             {
-                IEnumValue lineSelectorOptions = _camera.GetLineSelector();
+                CameraEnumValue lineSelectorOptions = _camera.GetLineSelector();
                 SetComboBoxItems(comboTriggerSource, new[] { "连续采集" }.Concat(GetEnumDisplayItems(_camera.GetTriggerSourceOptions(), GetTriggerSourceDisplayText, new[] { "软件触发", "线路0", "线路1", "线路2", "线路3" })), comboTriggerSource.Text);
                 SetComboBoxItems(comboTriggerEdge, GetEnumDisplayItems(_camera.GetTriggerActivationOptions(), GetTriggerEdgeDisplayText, new[] { "上升沿", "下降沿", "高电平", "低电平", "任意沿" }), comboTriggerEdge.Text);
                 SetComboBoxItems(comboLineSelector, GetEnumDisplayItems(lineSelectorOptions, GetLineSelectorDisplayText, new[] { "线路0", "线路1", "线路2" }), GetCurrentEnumDisplayText(lineSelectorOptions, GetLineSelectorDisplayText, comboLineSelector.Text));
@@ -460,7 +459,7 @@ namespace TDJS_Vision.Forms.CameraAdd
             {
                 _isInitializingParameters = true;
                 _camera.SetLineSelector(GetLineName(comboLineSelector.Text));
-                IEnumValue lineModeOptions = _camera.GetLineMode();
+                CameraEnumValue lineModeOptions = _camera.GetLineMode();
                 SetComboBoxItems(comboLineMode, GetEnumDisplayItems(lineModeOptions, GetLineModeDisplayText, new[] { "输入", "输出" }), GetCurrentEnumDisplayText(lineModeOptions, GetLineModeDisplayText, comboLineMode.Text));
             }
             catch (Exception ex)
@@ -834,7 +833,7 @@ namespace TDJS_Vision.Forms.CameraAdd
         {
             try
             {
-                IEnumValue triggerEdgeOptions = _camera.GetTriggerActivationOptions();
+                CameraEnumValue triggerEdgeOptions = _camera.GetTriggerActivationOptions();
                 string triggerEdgeText = GetCurrentEnumDisplayText(triggerEdgeOptions, GetTriggerEdgeDisplayText, string.Empty);
                 return string.IsNullOrWhiteSpace(triggerEdgeText) ? (TriggerEdge?)null : Get2DTriggerEdge(triggerEdgeText);
             }
@@ -2259,14 +2258,14 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// <param name="mapper">枚举项中文转换器。</param>
         /// <param name="fallbackItems">读取失败时的兜底项。</param>
         /// <returns>中文显示项。</returns>
-        private static IEnumerable<string> GetEnumDisplayItems(IEnumValue enumValue, Func<IEnumEntry, string> mapper, IEnumerable<string> fallbackItems)
+        private static IEnumerable<string> GetEnumDisplayItems(CameraEnumValue enumValue, Func<CameraEnumEntry, string> mapper, IEnumerable<string> fallbackItems)
         {
             List<string> displayItems = new List<string>();
-            IEnumEntry[] entries = enumValue?.SupportEnumEntries;
+            CameraEnumEntry[] entries = enumValue?.SupportEnumEntries;
             if (entries != null && mapper != null)
             {
                 uint supportedCount = enumValue.SupportedNum;
-                foreach (IEnumEntry entry in entries.Take((int)Math.Min(supportedCount, (uint)entries.Length)))
+                foreach (CameraEnumEntry entry in entries.Take((int)Math.Min(supportedCount, (uint)entries.Length)))
                 {
                     string displayText = mapper(entry);
                     if (!string.IsNullOrWhiteSpace(displayText))
@@ -2287,7 +2286,7 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// <param name="mapper">枚举项中文转换器。</param>
         /// <param name="fallbackText">读取失败时的兜底文本。</param>
         /// <returns>当前项中文显示文本。</returns>
-        private static string GetCurrentEnumDisplayText(IEnumValue enumValue, Func<IEnumEntry, string> mapper, string fallbackText)
+        private static string GetCurrentEnumDisplayText(CameraEnumValue enumValue, Func<CameraEnumEntry, string> mapper, string fallbackText)
         {
             string displayText = mapper?.Invoke(enumValue?.CurEnumEntry);
             return string.IsNullOrWhiteSpace(displayText) ? fallbackText : displayText;
@@ -2402,7 +2401,7 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// </summary>
         /// <param name="entry">SDK 枚举项。</param>
         /// <returns>中文显示文本。</returns>
-        private static string GetTriggerSourceDisplayText(IEnumEntry entry)
+        private static string GetTriggerSourceDisplayText(CameraEnumEntry entry)
         {
             string symbolic = entry?.Symbolic ?? string.Empty;
             if (symbolic.Equals("Software", StringComparison.OrdinalIgnoreCase))
@@ -2424,7 +2423,7 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// </summary>
         /// <param name="entry">SDK 枚举项。</param>
         /// <returns>中文显示文本。</returns>
-        private static string GetTriggerEdgeDisplayText(IEnumEntry entry)
+        private static string GetTriggerEdgeDisplayText(CameraEnumEntry entry)
         {
             string symbolic = entry?.Symbolic ?? string.Empty;
             switch (symbolic)
@@ -2449,7 +2448,7 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// </summary>
         /// <param name="entry">SDK 枚举项。</param>
         /// <returns>中文显示文本。</returns>
-        private static string GetLineSelectorDisplayText(IEnumEntry entry)
+        private static string GetLineSelectorDisplayText(CameraEnumEntry entry)
         {
             string symbolic = entry?.Symbolic ?? string.Empty;
             if (symbolic.StartsWith("Line", StringComparison.OrdinalIgnoreCase))
@@ -2464,7 +2463,7 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// </summary>
         /// <param name="entry">SDK 枚举项。</param>
         /// <returns>中文显示文本。</returns>
-        private static string GetLineModeDisplayText(IEnumEntry entry)
+        private static string GetLineModeDisplayText(CameraEnumEntry entry)
         {
             string symbolic = entry?.Symbolic ?? string.Empty;
             if (symbolic.Equals("Input", StringComparison.OrdinalIgnoreCase))

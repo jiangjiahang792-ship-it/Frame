@@ -1,396 +1,735 @@
-﻿using Logger;
-using MvCameraControl;
+using Logger;
+using MvCamCtrl.NET;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
-using OfficeOpenXml.FormulaParsing.Excel.Functions.Math;
 using OpenCvSharp;
-using OpenCvSharp.Dnn;
-using Sunny.UI;
+using OpenCvSharp.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Imaging;
-using System.Net;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Controls;
 using TDJS_Vision.Diagnostics;
 
 namespace TDJS_Vision.Device.Camera
 {
     /// <summary>
-    /// 海康相机类
+    /// 使用海康官方MVCamera类直接访问原生SDK的二维相机实现。
     /// </summary>
     public class CameraHik : ICamera
     {
-        [DllImport("kernel32.dll", EntryPoint = "CopyMemory", SetLastError = false)]
-        public static extern void CopyMemory(IntPtr dest, IntPtr src, uint count);
+        /// <summary>SDK全局初始化状态，0表示未初始化，1表示已经初始化。</summary>
+        private static int _sdkInitialized;
 
-        /// <summary>
-        /// 连接状态改变事件
-        /// </summary>
-        public event EventHandler<bool> ConnectStatusEvent;
-        /// <summary>
-        /// 兼容旧的 Bitmap 图像事件，主动取图仍沿用 Bitmap 返回。
-        /// </summary>
-        public event Action<Bitmap> OnImageReceived;
-        /// <summary>
-        /// 硬触发流程使用的 Mat 图像事件，避免 SDK 回调线程卡在 ToBitmap。
-        /// </summary>
-        public event Action<Mat> OnMatReceived;
+        /// <summary>保护相机打开、关闭和销毁操作。</summary>
+        private readonly object _deviceLock = new object();
 
-        /// <summary>
-        /// 单个海康相机信息
-        /// </summary>
-        private MvCameraControl.IDevice device = null;
-
-        /// <summary>
-        /// 是否正在取流
-        /// </summary>
-        private bool _isGrabbing = false;
-
-        /// <summary>
-        /// 相机帧回调订阅锁，保护回调拥有者集合和 SDK 事件订阅状态。
-        /// </summary>
+        /// <summary>保护回调拥有者集合与原生回调注册状态。</summary>
         private readonly object _imageCallbackLock = new object();
 
-        /// <summary>
-        /// 需要相机帧回调的拥有者集合，集合为空时注销 SDK 帧回调。
-        /// </summary>
+        /// <summary>保护单台相机的预分配转换缓冲区和关闭过程。</summary>
+        private readonly object _callbackSyncRoot = new object();
+
+        /// <summary>保护线路选择与线路反转组成的原子IO设置。</summary>
+        private readonly object _ioLock = new object();
+
+        /// <summary>需要接收相机帧的业务拥有者集合。</summary>
         private readonly HashSet<object> _imageCallbackOwners = new HashSet<object>();
 
-        /// <summary>
-        /// 设备是否启用
-        /// </summary>
+        /// <summary>海康官方C#类实例。</summary>
+        private MyCamera _device;
+
+        /// <summary>当前相机枚举信息。</summary>
+        private HikNativeDeviceInfo _deviceInfo;
+
+        /// <summary>必须保持强引用的SDK图像回调委托。</summary>
+        private MyCamera.cbOutputExdelegate _nativeImageCallback;
+
+        /// <summary>预分配的像素格式转换缓冲区。</summary>
+        private IntPtr _conversionBuffer = IntPtr.Zero;
+
+        /// <summary>当前转换缓冲区容量，单位为字节。</summary>
+        private uint _conversionBufferSize;
+
+        /// <summary>当前原生设备句柄是否已经创建。</summary>
+        private bool _deviceCreated;
+
+        /// <summary>原生图像回调是否已经注册到当前句柄。</summary>
+        private bool _callbackRegistered;
+
+        /// <summary>当前相机是否正在取流。</summary>
+        private bool _isGrabbing;
+
+        /// <summary>当前相机回调帧序号，用于跨线程耗时诊断。</summary>
+        private long _callbackFrameSequence;
+
+        /// <summary>连接状态改变事件。</summary>
+        public event EventHandler<bool> ConnectStatusEvent;
+
+        /// <summary>兼容旧接口保留的Bitmap图像事件；当前主链路使用Mat事件。</summary>
+        public event Action<Bitmap> OnImageReceived;
+
+        /// <summary>硬触发流程使用的Mat图像事件。</summary>
+        public event Action<Mat> OnMatReceived;
+
+        /// <summary>获取或设置设备是否已经打开。</summary>
         public bool IsOpen { get; set; }
 
-        /// <summary>
-        /// 相机的触发模式
-        /// </summary>
+        /// <summary>获取或设置当前触发模式。</summary>
         public TriggerModel TriggerModel { get; set; }
 
-        /// <summary>
-        /// 相机的触发源
-        /// </summary>
+        /// <summary>获取或设置当前触发源。</summary>
         public TriggerSource TriggerSource { get; set; }
 
-        /// <summary>
-        /// 设备类型
-        /// </summary>
+        /// <summary>获取或设置设备类型。</summary>
         [JsonConverter(typeof(StringEnumConverter))]
         public DevType DevType { get; set; } = DevType.CAMERA;
 
-        /// <summary>
-        /// 相机SN
-        /// </summary>
+        /// <summary>获取或设置相机序列号。</summary>
         public string SN { get; set; }
 
-        /// <summary>
-        /// 相机IP
-        /// </summary>
+        /// <summary>获取或设置相机IP地址。</summary>
         public string IP { get; set; } = "无";
 
-        /// <summary>
-        /// 厂商名称
-        /// </summary>
+        /// <summary>获取或设置相机制造商名称。</summary>
         public string ManufacturerName { get; set; }
 
-        /// <summary>
-        /// 相机品牌
-        /// </summary>
+        /// <summary>获取或设置设备品牌。</summary>
         [JsonConverter(typeof(StringEnumConverter))]
         public DeviceBrand Brand { get; set; }
+
+        /// <summary>获取或设置用于反序列化的运行时类名。</summary>
         public string ClassName { get; set; } = typeof(CameraHik).FullName;
 
-        /// <summary>
-        /// 设备名称
-        /// </summary>
-        public string DevName {  get; set; }
+        /// <summary>获取或设置硬件设备名称。</summary>
+        public string DevName { get; set; }
 
-        /// <summary>
-        /// 用户定义名称
-        /// </summary>
+        /// <summary>获取或设置用户自定义设备名称。</summary>
         public string UserDefinedName { get; set; }
-        /// <summary>
-        /// 图像获取超时时间
-        /// </summary>
+
+        /// <summary>获取或设置主动取图超时时间，单位为毫秒。</summary>
         public uint GetImageTimeOut { get; set; } = 2000;
 
-        #region 反序列化相关函数
-
+        /// <summary>创建用于反序列化的空相机对象。</summary>
         [JsonConstructor]
-        /// <summary>
-        /// 无参构造提供给反序列化使用
-        /// 反序列化相机对象步骤：
-        /// 1.使用无参构造函数创建对象
-        /// 2.通过反序列化得到的SN对比找到对应IDevice类相机对象
-        /// 3.调用打开相机
-        /// </summary>
-        public CameraHik() { }
+        public CameraHik()
+        {
+        }
 
-        /// <summary>
-        /// 创建相机设备
-        /// </summary>
-        /// <param name="devIP"></param>
-        /// <returns></returns>
+        /// <summary>使用原生设备信息创建相机对象。</summary>
+        /// <param name="deviceInfo">相机枚举信息。</param>
+        /// <param name="userName">框架内的用户自定义名称。</param>
+        internal CameraHik(HikNativeDeviceInfo deviceInfo, string userName)
+        {
+            if (deviceInfo == null)
+                throw new ArgumentNullException(nameof(deviceInfo));
+
+            UserDefinedName = userName;
+            SetDeviceIdentity(deviceInfo);
+            CreateNativeDevice(deviceInfo);
+        }
+
+        /// <summary>初始化海康原生SDK；多次调用只执行一次。</summary>
+        public static void InitSDK()
+        {
+            if (Interlocked.CompareExchange(ref _sdkInitialized, 1, 0) != 0)
+                return;
+
+            int result = MyCamera.MV_CC_Initialize_NET();
+            if (result != MyCamera.MV_OK)
+            {
+                Interlocked.Exchange(ref _sdkInitialized, 0);
+                throw CreateSdkException("初始化海康SDK", result);
+            }
+        }
+
+        /// <summary>反初始化海康原生SDK。</summary>
+        public static void FinalizeSDK()
+        {
+            if (Interlocked.Exchange(ref _sdkInitialized, 0) == 0)
+                return;
+
+            int result = MyCamera.MV_CC_Finalize_NET();
+            if (result != MyCamera.MV_OK)
+                LogHelper.AddLog(MsgLevel.Warn, FormatSdkError("反初始化海康SDK", result), true);
+        }
+
+        /// <summary>枚举GigE和USB二维相机。</summary>
+        /// <returns>原生相机设备信息列表。</returns>
+        public static List<HikNativeDeviceInfo> FindCamera()
+        {
+            InitSDK();
+            MyCamera.MV_CC_DEVICE_INFO_LIST deviceList = new MyCamera.MV_CC_DEVICE_INFO_LIST();
+            int result = MyCamera.MV_CC_EnumDevices_NET(
+                MyCamera.MV_GIGE_DEVICE | MyCamera.MV_USB_DEVICE,
+                ref deviceList);
+            if (result != MyCamera.MV_OK)
+                throw CreateSdkException("枚举相机", result);
+
+            List<HikNativeDeviceInfo> devices = new List<HikNativeDeviceInfo>();
+            for (int index = 0; index < deviceList.nDeviceNum; index++)
+            {
+                MyCamera.MV_CC_DEVICE_INFO nativeInfo =
+                    (MyCamera.MV_CC_DEVICE_INFO)Marshal.PtrToStructure(
+                        deviceList.pDeviceInfo[index],
+                        typeof(MyCamera.MV_CC_DEVICE_INFO));
+                devices.Add(ParseDeviceInfo(index, nativeInfo));
+            }
+
+            return devices;
+        }
+
+        /// <summary>根据设备信息生成界面显示名称。</summary>
+        /// <param name="cameraDevInfo">原生相机设备信息。</param>
+        /// <returns>设备显示名称。</returns>
+        public static string GetDevNameByDevInfo(HikNativeDeviceInfo cameraDevInfo)
+        {
+            if (cameraDevInfo == null)
+                return string.Empty;
+            if (!string.IsNullOrWhiteSpace(cameraDevInfo.UserDefinedName))
+                return string.Format("{0}({1})", cameraDevInfo.UserDefinedName, cameraDevInfo.SerialNumber);
+            return string.Format("{0}{1} ({2})", cameraDevInfo.ManufacturerName, cameraDevInfo.ModelName, cameraDevInfo.SerialNumber);
+        }
+
+        /// <summary>反序列化后根据序列号重新枚举并创建原生设备句柄。</summary>
         public void CreateDevice()
         {
             try
             {
-                /*只枚举网口类型的相机*/
-                List<IDeviceInfo> devInfoList = null;
-                int ret = DeviceEnumerator.EnumDevices(DeviceTLayerType.MvGigEDevice | DeviceTLayerType.MvUsbDevice | DeviceTLayerType.MvGenTLCameraLinkDevice
-            | DeviceTLayerType.MvGenTLCXPDevice | DeviceTLayerType.MvGenTLXoFDevice, out devInfoList);
-                if (ret == MvError.MV_OK)
-                {
-                    foreach (IDeviceInfo devInfo in devInfoList)
-                    {
-                        if (devInfo.SerialNumber == SN)
-                        {
-                            device = DeviceFactory.CreateDevice(devInfo);
-                            if (devInfo is IGigEDeviceInfo gigeInfo)
-                                IP = ConvertUInt32ToIP(gigeInfo.CurrentIp); // 更新相机IP
-                            break;
-                        }
-                    }
-                }
+                HikNativeDeviceInfo deviceInfo = FindCamera()
+                    .FirstOrDefault(item => string.Equals(item.SerialNumber, SN, StringComparison.OrdinalIgnoreCase));
+                if (deviceInfo == null)
+                    throw new InvalidOperationException(string.Format("未找到序列号为{0}的相机。", SN));
+
+                SetDeviceIdentity(deviceInfo);
+                CreateNativeDevice(deviceInfo);
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                LogHelper.AddLog(MsgLevel.Exception, $"{ex.Message}", true);
+                LogHelper.AddLog(MsgLevel.Exception, exception.Message, true);
             }
         }
 
-
-        #endregion
-
-        /// <summary>
-        /// 使用相机信息构造相机对象
-        /// </summary>
-        /// <param name="DeviceInfo"></param>
-        internal CameraHik(IDeviceInfo devInfo, string userName)
-        {
-            try
-            {
-                device = DeviceFactory.CreateDevice(devInfo);
-                ManufacturerName = device.DeviceInfo.ManufacturerName;  // 获取相机厂商
-                //Brand = ManufacturerName == "Basler" ? DeviceBrand.Basler : ManufacturerName == "HikVision" ? DeviceBrand.HikVision : DeviceBrand.Unknow;
-                Brand = ManufacturerName == "Basler" ? DeviceBrand.Basler : ManufacturerName == "Huaray Technology" ? DeviceBrand.HuarayTechnology : ManufacturerName == "HikVision" ? DeviceBrand.HikVision : DeviceBrand.Unknow;
-                var a = device.DeviceInfo; // 无其他用意，调用一次仅为下面能获取到SN
-                DevName = GetDevNameByDevInfo(device.DeviceInfo);
-                UserDefinedName = userName;
-                Task.Run(() =>
-                {
-                    do
-                    {
-                        SN = devInfo.SerialNumber;
-                    } while (SN.IsNullOrEmpty());
-                });
-                if (devInfo is IGigEDeviceInfo info)
-                {
-                    IP = ConvertUInt32ToIP(info.CurrentIp); // 获取相机IP
-                }
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
-        }
-        private static string ConvertUInt32ToIP(uint ipValue)
-        {
-            byte[] bytes = BitConverter.GetBytes(ipValue);
-
-            // 如果是小端序（x86 或 x64 架构），需要反转字节顺序
-            if (BitConverter.IsLittleEndian)
-                Array.Reverse(bytes);
-
-            return new IPAddress(bytes).ToString();
-        }
-
-        /// <summary>
-        /// 初始化SDK
-        /// </summary>
-        public static void InitSDK()
-        {
-            SDKSystem.Initialize();
-        }
-
-        /// <summary>
-        /// 反初始化SDK
-        /// </summary>
-        public static void Finalize()
-        {
-            SDKSystem.Finalize();
-        }
-
-        /// <summary>
-        /// 根据设备信息获取设备名称
-        /// </summary>
-        /// <param name="cameraDevInfo"></param>
-        /// <returns></returns>
-        public static string GetDevNameByDevInfo(IDeviceInfo cameraDevInfo)
-        {
-            string name = "";
-            if (cameraDevInfo.UserDefinedName != "")
-            {
-                name = (cameraDevInfo.UserDefinedName + "(" + cameraDevInfo.SerialNumber + ")");
-            }
-            else
-            {
-                name = (cameraDevInfo.ManufacturerName + cameraDevInfo.ModelName + " (" + cameraDevInfo.SerialNumber + ")");
-            }
-            return name;
-        }
-
-        /// <summary>
-        /// 查找相机
-        /// </summary>
-        /// <returns></returns>
-        public static List<IDeviceInfo> FindCamera()
-        {
-            GC.Collect();
-            int nRet;
-            List<IDeviceInfo> infoList = null;
-            nRet = DeviceEnumerator.EnumDevices(DeviceTLayerType.MvGigEDevice | DeviceTLayerType.MvUsbDevice | DeviceTLayerType.MvGenTLCameraLinkDevice
-            | DeviceTLayerType.MvGenTLCXPDevice | DeviceTLayerType.MvGenTLXoFDevice, out infoList);
-            if (MvError.MV_OK != nRet)
-            {
-                LogHelper.AddLog(MsgLevel.Exception, "获取相机列表失败", true);
-            }
-            return infoList;
-        }
-
-
-        /// <summary>
-        /// 打开相机
-        /// </summary>
-        /// <param name="CamerSerialization"></param>
-        /// <returns></returns>
+        /// <summary>打开原生相机并配置GigE最佳包大小。</summary>
+        /// <returns>打开成功返回true。</returns>
         public bool Open()
         {
-            if (device == null) throw new Exception("相机对象为空！");
-
-            int nRet = 0;
-            nRet = device.Open();
-            if (nRet != MvError.MV_OK)
+            lock (_deviceLock)
             {
-                LogHelper.AddLog(MsgLevel.Fatal, $"相机（{UserDefinedName}）打开失败！原因：{nRet}", true);
-                throw new Exception($"相机（{UserDefinedName}）打开失败！");
+                if (IsOpen)
+                    return true;
+                if (_device == null || !_deviceCreated)
+                {
+                    HikNativeDeviceInfo deviceInfo = FindCamera()
+                        .FirstOrDefault(item => string.Equals(item.SerialNumber, SN, StringComparison.OrdinalIgnoreCase));
+                    if (deviceInfo == null)
+                        throw new InvalidOperationException(string.Format("相机（{0}）不在线。", UserDefinedName));
+                    SetDeviceIdentity(deviceInfo);
+                    CreateNativeDeviceCore(deviceInfo);
+                }
+
+                int result = _device.MV_CC_OpenDevice_NET();
+                if (result != MyCamera.MV_OK)
+                    throw CreateSdkException(string.Format("打开相机（{0}）", UserDefinedName), result);
+
+                try
+                {
+                    ConfigureGigENetwork();
+                    TrySetEnumValue("AcquisitionMode", (uint)MyCamera.MV_CAM_ACQUISITION_MODE.MV_ACQ_MODE_CONTINUOUS);
+                    IsOpen = true;
+                    TriggerSource = GetTriggerSource();
+                    lock (_imageCallbackLock)
+                        EnsureNativeCallbackRegisteredCore();
+                }
+                catch
+                {
+                    _device.MV_CC_CloseDevice_NET();
+                    IsOpen = false;
+                    throw;
+                }
             }
-            IsOpen = true;
-            TriggerSource = GetTriggerSource();
+
             ConnectStatusEvent?.Invoke(this, true);
-            //ch: 判断是否为gige设备 | en: Determine whether it is a GigE device
-            if (device is IGigEDevice)
-            {
-                //ch: 转换为gigE设备 | en: Convert to Gige device
-                IGigEDevice gigEDevice = device as IGigEDevice;
-
-                // ch:探测网络最佳包大小(只对GigE相机有效) | en:Detection network optimal package size(It only works for the GigE camera)
-                int optionPacketSize;
-                nRet = gigEDevice.GetOptimalPacketSize(out optionPacketSize);
-                if (nRet != MvError.MV_OK)
-                {
-                    LogHelper.AddLog(MsgLevel.Warn, $"获取网络最佳包大小失败！{nRet}");
-                    return false;
-                }
-                else
-                {
-                    nRet = device.Parameters.SetIntValue("GevSCPSPacketSize", (long)optionPacketSize);
-                    LogHelper.AddLog(MsgLevel.Info, $"设置网络最佳包大小：{optionPacketSize}", true);
-                    if (nRet != MvError.MV_OK)
-                    {
-                        LogHelper.AddLog(MsgLevel.Warn, $"设置网络最佳包大小失败！错误码：{nRet}");
-                        return false;
-                    }
-                }
-                SyncImageCallbackSubscription();
-            }
             return true;
         }
 
-        /// <summary>
-        /// 当前相机实例的回调帧序号，用于跨线程诊断关联。
-        /// </summary>
-        private long _callbackFrameSequence;
-
-        /// <summary>
-        /// 注册需要相机帧回调的拥有者。
-        /// </summary>
+        /// <summary>注册需要相机帧回调的拥有者。</summary>
         /// <param name="owner">回调拥有者。</param>
         public void RegisterImageCallbackOwner(object owner)
         {
             if (owner == null)
                 return;
-
             lock (_imageCallbackLock)
             {
                 _imageCallbackOwners.Add(owner);
-                SyncImageCallbackSubscriptionCore();
+                EnsureNativeCallbackRegisteredCore();
             }
         }
 
-        /// <summary>
-        /// 注销需要相机帧回调的拥有者。
-        /// </summary>
+        /// <summary>注销相机帧回调拥有者。</summary>
         /// <param name="owner">回调拥有者。</param>
         public void UnregisterImageCallbackOwner(object owner)
         {
             if (owner == null)
                 return;
-
             lock (_imageCallbackLock)
-            {
                 _imageCallbackOwners.Remove(owner);
-                SyncImageCallbackSubscriptionCore();
+        }
+
+        /// <summary>开始相机取流。</summary>
+        public void StartGrabbing()
+        {
+            lock (_deviceLock)
+            {
+                EnsureDeviceOpen();
+                if (_isGrabbing)
+                    return;
+
+                lock (_imageCallbackLock)
+                    EnsureNativeCallbackRegisteredCore();
+                EnsureSuccess(_device.MV_CC_SetImageNodeNum_NET(1), "设置相机取流缓存节点");
+
+                Volatile.Write(ref _isGrabbing, true);
+                int result = _device.MV_CC_StartGrabbing_NET();
+                if (result != MyCamera.MV_OK)
+                {
+                    Volatile.Write(ref _isGrabbing, false);
+                    throw CreateSdkException("开始相机取流", result);
+                }
             }
         }
 
-        /// <summary>
-        /// 根据拥有者集合同步 SDK 帧回调订阅状态。
-        /// </summary>
-        private void SyncImageCallbackSubscription()
+        /// <summary>停止相机取流。</summary>
+        public void StopGrabbing()
         {
-            lock (_imageCallbackLock)
-                SyncImageCallbackSubscriptionCore();
+            lock (_deviceLock)
+            {
+                if (_device == null || !_isGrabbing)
+                    return;
+
+                Volatile.Write(ref _isGrabbing, false);
+                int result = _device.MV_CC_StopGrabbing_NET();
+                if (result != MyCamera.MV_OK)
+                    throw CreateSdkException("停止相机取流", result);
+
+                lock (_callbackSyncRoot)
+                {
+                }
+            }
         }
 
-        /// <summary>
-        /// 根据拥有者集合同步 SDK 帧回调订阅状态，调用方需持有锁。
-        /// </summary>
-        private void SyncImageCallbackSubscriptionCore()
+        /// <summary>获取当前取流状态。</summary>
+        /// <returns>正在取流时返回true。</returns>
+        public bool GetGrabStatus()
         {
-            if (device == null)
+            return Volatile.Read(ref _isGrabbing);
+        }
+
+        /// <summary>主动获取一帧图像并转换为独立Bitmap。</summary>
+        /// <returns>成功返回Bitmap，失败返回null。</returns>
+        public Bitmap GetOneFrameImage()
+        {
+            EnsureDeviceOpen();
+            MyCamera.MV_FRAME_OUT frame = new MyCamera.MV_FRAME_OUT();
+            try
+            {
+                int clearResult = _device.MV_CC_ClearImageBuffer_NET();
+                if (clearResult != MyCamera.MV_OK)
+                    LogHelper.AddLog(MsgLevel.Warn, FormatSdkError("清空相机图像缓存", clearResult), true);
+                if (TriggerSource == TriggerSource.SOFT)
+                    GrabOne();
+
+                int timeout = GetImageTimeOut > int.MaxValue ? int.MaxValue : (int)GetImageTimeOut;
+                int result = _device.MV_CC_GetImageBuffer_NET(ref frame, timeout);
+                if (result != MyCamera.MV_OK)
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Exception,
+                        string.Format("{0}主动取图失败，错误码：0x{1:X8}，时间：{2:yyyy-MM-dd HH:mm:ss.fff}", DevName, result, DateTime.Now),
+                        true);
+                    return null;
+                }
+
+                using (Mat mat = ConvertFrameToIndependentMat(frame.pBufAddr, ref frame.stFrameInfo, 0, false))
+                    return mat == null ? null : BitmapConverter.ToBitmap(mat);
+            }
+            catch (Exception exception)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, string.Format("{0}主动取图异常：{1}", DevName, exception.Message), true);
+                return null;
+            }
+            finally
+            {
+                if (frame.pBufAddr != IntPtr.Zero)
+                    _device.MV_CC_FreeImageBuffer_NET(ref frame);
+            }
+        }
+
+        /// <summary>获取相机触发模式。</summary>
+        /// <returns>当前触发模式。</returns>
+        public TriggerModel GetTriggerMode()
+        {
+            CameraEnumValue value = GetEnumValue("TriggerMode");
+            TriggerModel = value.CurEnumEntry != null && value.CurEnumEntry.Value == 1 ? TriggerModel.On : TriggerModel.Off;
+            return TriggerModel;
+        }
+
+        /// <summary>设置相机触发模式。</summary>
+        /// <param name="triggerModel">目标触发模式。</param>
+        public void SetTriggerMode(TriggerModel triggerModel)
+        {
+            EnsureDeviceOpen();
+            EnsureSuccess(_device.MV_CC_SetEnumValue_NET("TriggerMode", triggerModel == TriggerModel.On ? 1u : 0u), "设置触发模式");
+            TriggerModel = triggerModel;
+        }
+
+        /// <summary>获取相机触发源。</summary>
+        /// <returns>当前触发源。</returns>
+        public TriggerSource GetTriggerSource()
+        {
+            if (GetTriggerMode() == TriggerModel.Off)
+            {
+                TriggerSource = TriggerSource.Auto;
+                return TriggerSource;
+            }
+
+            uint value = GetEnumValue("TriggerSource").CurEnumEntry?.Value ?? uint.MaxValue;
+            if (value == 7 || IsBaslerManufacturer() && value == 0)
+                TriggerSource = TriggerSource.SOFT;
+            else if (value <= 4)
+                TriggerSource = (TriggerSource)((int)TriggerSource.LINE0 + (int)value);
+            else
+                TriggerSource = TriggerSource.Auto;
+            return TriggerSource;
+        }
+
+        /// <summary>获取相机支持的触发源枚举项。</summary>
+        /// <returns>触发源参数。</returns>
+        public CameraEnumValue GetTriggerSourceOptions()
+        {
+            return GetEnumValue("TriggerSource");
+        }
+
+        /// <summary>获取相机支持的触发极性枚举项。</summary>
+        /// <returns>触发极性参数。</returns>
+        public CameraEnumValue GetTriggerActivationOptions()
+        {
+            return GetEnumValue("TriggerActivation");
+        }
+
+        /// <summary>设置连续、软件或线路触发源。</summary>
+        /// <param name="triggerSource">目标触发源。</param>
+        public void SetTriggerSource(TriggerSource triggerSource)
+        {
+            EnsureDeviceOpen();
+            if (triggerSource == TriggerSource.Auto)
+            {
+                SetTriggerMode(TriggerModel.Off);
+                TriggerSource = triggerSource;
                 return;
+            }
 
-            device.StreamGrabber.FrameGrabedEvent -= GetImageCallBack;
-            if (_imageCallbackOwners.Count > 0)
-                device.StreamGrabber.FrameGrabedEvent += GetImageCallBack;
+            uint value;
+            if (IsBaslerManufacturer())
+            {
+                value = triggerSource == TriggerSource.SOFT
+                    ? 0u
+                    : checked((uint)((int)triggerSource - (int)TriggerSource.LINE0));
+            }
+            else if (IsHuarayManufacturer())
+            {
+                value = triggerSource == TriggerSource.SOFT
+                    ? 0u
+                    : triggerSource == TriggerSource.LINE1 ? 2u
+                    : triggerSource == TriggerSource.LINE2 || triggerSource == TriggerSource.LINE3 ? 3u
+                    : triggerSource == TriggerSource.LINE4 ? 4u
+                    : 0u;
+            }
+            else
+            {
+                value = triggerSource == TriggerSource.SOFT
+                    ? 7u
+                    : checked((uint)((int)triggerSource - (int)TriggerSource.LINE0));
+            }
+
+            EnsureSuccess(_device.MV_CC_SetEnumValue_NET("TriggerSource", value), "设置触发源");
+            TriggerSource = triggerSource;
         }
 
-        /// <summary>
-        /// 取流回调
-        /// </summary>
-        private void GetImageCallBack(object sender, FrameGrabbedEventArgs e)
+        /// <summary>设置硬件触发极性。</summary>
+        /// <param name="triggerEdge">目标触发极性。</param>
+        public void SetTriggerEdge(TriggerEdge triggerEdge)
         {
+            EnsureDeviceOpen();
+            string symbolic;
+            switch (triggerEdge)
+            {
+                case TriggerEdge.Rising:
+                    symbolic = "RisingEdge";
+                    break;
+                case TriggerEdge.Falling:
+                    symbolic = "FallingEdge";
+                    break;
+                case TriggerEdge.Low:
+                    symbolic = "LevelLow";
+                    break;
+                case TriggerEdge.Hight:
+                    symbolic = "LevelHigh";
+                    break;
+                case TriggerEdge.Any:
+                    symbolic = "AnyEdge";
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(triggerEdge));
+            }
+            EnsureSuccess(_device.MV_CC_SetEnumValueByString_NET("TriggerActivation", symbolic), "设置触发极性");
+        }
+
+        /// <summary>执行一次软件触发。</summary>
+        public void GrabOne()
+        {
+            EnsureDeviceOpen();
+            EnsureSuccess(_device.MV_CC_SetCommandValue_NET("TriggerSoftware"), "执行软件触发");
+        }
+
+        /// <summary>获取当前曝光时间。</summary>
+        /// <returns>曝光时间参数。</returns>
+        public CameraFloatValue GetExposureTime()
+        {
+            return GetFloatValue(IsBaslerManufacturer() ? "ExposureTimeAbs" : "ExposureTime");
+        }
+
+        /// <summary>获取当前增益。</summary>
+        /// <returns>整数增益或浮点增益参数。</returns>
+        public (CameraIntValue, CameraFloatValue) GetGain()
+        {
+            if (IsBaslerManufacturer())
+                return (GetIntValue("GainRaw"), null);
+            return (null, GetFloatValue("Gain"));
+        }
+
+        /// <summary>获取当前触发延迟。</summary>
+        /// <returns>触发延迟参数。</returns>
+        public CameraFloatValue GetTriggerDelay()
+        {
+            return GetFloatValue(IsBaslerManufacturer() ? "TriggerDelayAbs" : "TriggerDelay");
+        }
+
+        /// <summary>获取线路选择器参数。</summary>
+        /// <returns>线路选择器参数。</returns>
+        public CameraEnumValue GetLineSelector()
+        {
+            return GetEnumValue("LineSelector");
+        }
+
+        /// <summary>设置当前线路选择器。</summary>
+        /// <param name="line">Line0至Line4。</param>
+        public void SetLineSelector(string line)
+        {
+            EnsureDeviceOpen();
+            if (string.IsNullOrWhiteSpace(line))
+                throw new ArgumentException("线路选择器不能为空。", nameof(line));
+
+            int result = _device.MV_CC_SetEnumValueByString_NET("LineSelector", line);
+            if (result != MyCamera.MV_OK && line.StartsWith("Line", StringComparison.OrdinalIgnoreCase))
+            {
+                uint lineValue;
+                if (uint.TryParse(line.Substring(4), out lineValue))
+                    result = _device.MV_CC_SetEnumValue_NET("LineSelector", lineValue);
+            }
+            EnsureSuccess(result, "设置线路选择器");
+        }
+
+        /// <summary>获取当前线路模式参数。</summary>
+        /// <returns>线路模式参数。</returns>
+        public CameraEnumValue GetLineMode()
+        {
+            return GetEnumValue("LineMode");
+        }
+
+        /// <summary>设置当前线路为输入或输出模式。</summary>
+        /// <param name="lineMode">中文或英文线路模式。</param>
+        public void SetLineMode(string lineMode)
+        {
+            EnsureDeviceOpen();
+            string symbolic = lineMode == "输入" || string.Equals(lineMode, "Input", StringComparison.OrdinalIgnoreCase)
+                ? "Input"
+                : lineMode == "输出" || string.Equals(lineMode, "Output", StringComparison.OrdinalIgnoreCase)
+                    ? "Output"
+                    : null;
+            if (symbolic == null)
+                throw new ArgumentException("不支持的线路模式：" + lineMode, nameof(lineMode));
+
+            int result = _device.MV_CC_SetEnumValueByString_NET("LineMode", symbolic);
+            if (result != MyCamera.MV_OK)
+            {
+                uint fallbackValue = symbolic == "Input" ? 0u : IsHuarayManufacturer() ? 1u : 8u;
+                result = _device.MV_CC_SetEnumValue_NET("LineMode", fallbackValue);
+            }
+            EnsureSuccess(result, "设置线路模式");
+        }
+
+        /// <summary>获取闪光灯输出使能状态。</summary>
+        /// <returns>已经使能时返回true。</returns>
+        public bool GetStrobeEnable()
+        {
+            EnsureDeviceOpen();
+            bool enabled = false;
+            int result = _device.MV_CC_GetBoolValue_NET("StrobeEnable", ref enabled);
+            if (result != MyCamera.MV_OK)
+                LogHelper.AddLog(MsgLevel.Warn, FormatSdkError("读取闪光灯使能", result), true);
+            return enabled;
+        }
+
+        /// <summary>设置闪光灯输出使能状态。</summary>
+        /// <param name="enable">目标使能状态。</param>
+        public void SetStrobeEnable(bool enable)
+        {
+            EnsureDeviceOpen();
+            EnsureSuccess(_device.MV_CC_SetBoolValue_NET("StrobeEnable", enable), "设置闪光灯使能");
+        }
+
+        /// <summary>设置当前线路的输出反转状态。</summary>
+        /// <param name="inverter">是否反转输出。</param>
+        public void SetLineInverter(bool inverter)
+        {
+            EnsureDeviceOpen();
+            EnsureSuccess(_device.MV_CC_SetBoolValue_NET("LineInverter", inverter), "设置线路反转");
+        }
+
+        /// <summary>在线程安全边界内设置线路选择器和输出反转状态。</summary>
+        /// <param name="lineSelector">线路选择器。</param>
+        /// <param name="inverter">输出反转状态。</param>
+        public void SetIO(string lineSelector, bool inverter)
+        {
+            lock (_ioLock)
+            {
+                SetLineSelector(lineSelector);
+                SetLineInverter(inverter);
+            }
+        }
+
+        /// <summary>设置手动增益。</summary>
+        /// <param name="gainValue">目标增益值。</param>
+        public void SetGain(double gainValue)
+        {
+            EnsureDeviceOpen();
+            TrySetEnumValue("GainAuto", 0);
+            int result = IsBaslerManufacturer()
+                ? _device.MV_CC_SetIntValueEx_NET("GainRaw", checked((long)gainValue))
+                : _device.MV_CC_SetFloatValue_NET("Gain", checked((float)gainValue));
+            EnsureSuccess(result, "设置相机增益");
+        }
+
+        /// <summary>设置手动曝光时间。</summary>
+        /// <param name="time">曝光时间，单位为微秒。</param>
+        public void SetExposureTime(double time)
+        {
+            EnsureDeviceOpen();
+            TrySetEnumValue("ExposureAuto", 0);
+            string key = IsBaslerManufacturer() ? "ExposureTimeAbs" : "ExposureTime";
+            EnsureSuccess(_device.MV_CC_SetFloatValue_NET(key, checked((float)time)), "设置曝光时间");
+        }
+
+        /// <summary>设置触发延迟。</summary>
+        /// <param name="time">触发延迟，单位为微秒。</param>
+        public void SetTriggerDelay(double time)
+        {
+            EnsureDeviceOpen();
+            string key = IsBaslerManufacturer() ? "TriggerDelayAbs" : "TriggerDelay";
+            EnsureSuccess(_device.MV_CC_SetFloatValue_NET(key, checked((float)time)), "设置触发延迟");
+        }
+
+        /// <summary>关闭相机并释放当前转换缓冲区。</summary>
+        public void Close()
+        {
+            bool notifyDisconnected = false;
+            lock (_deviceLock)
+            {
+                if (_device == null)
+                    return;
+
+                if (_isGrabbing)
+                {
+                    Volatile.Write(ref _isGrabbing, false);
+                    int stopResult = _device.MV_CC_StopGrabbing_NET();
+                    if (stopResult != MyCamera.MV_OK)
+                        LogHelper.AddLog(MsgLevel.Warn, FormatSdkError("停止相机取流", stopResult), true);
+                }
+
+                lock (_callbackSyncRoot)
+                    ReleaseConversionBuffer();
+
+                if (IsOpen)
+                {
+                    int closeResult = _device.MV_CC_CloseDevice_NET();
+                    if (closeResult != MyCamera.MV_OK)
+                        LogHelper.AddLog(MsgLevel.Warn, FormatSdkError("关闭相机", closeResult), true);
+                    notifyDisconnected = true;
+                }
+
+                IsOpen = false;
+                _callbackRegistered = false;
+            }
+
+            if (notifyDisconnected)
+                ConnectStatusEvent?.Invoke(this, false);
+        }
+
+        /// <summary>关闭相机并销毁原生设备句柄。</summary>
+        public void Dispose()
+        {
+            Close();
+            lock (_deviceLock)
+            {
+                if (_device != null && _deviceCreated)
+                {
+                    int result = _device.MV_CC_DestroyDevice_NET();
+                    if (result != MyCamera.MV_OK)
+                        LogHelper.AddLog(MsgLevel.Warn, FormatSdkError("销毁相机句柄", result), true);
+                }
+
+                _deviceCreated = false;
+                _callbackRegistered = false;
+                _nativeImageCallback = null;
+                _device = null;
+                _deviceInfo = null;
+            }
+        }
+
+        /// <summary>SDK图像回调：转换到预分配内存并生成独立Mat后交给现有框架事件。</summary>
+        /// <param name="sourceData">SDK帧数据地址。</param>
+        /// <param name="frameInfo">SDK帧信息。</param>
+        /// <param name="userData">用户数据，本实现未使用。</param>
+        private void GetImageCallBack(IntPtr sourceData, ref MyCamera.MV_FRAME_OUT_INFO_EX frameInfo, IntPtr userData)
+        {
+            if (!Volatile.Read(ref _isGrabbing) || sourceData == IntPtr.Zero)
+                return;
+            lock (_imageCallbackLock)
+            {
+                if (_imageCallbackOwners.Count == 0 || OnMatReceived == null)
+                    return;
+            }
+
             long frameId = Interlocked.Increment(ref _callbackFrameSequence);
             bool diagnosticEnabled = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
             long callbackStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
+            int frameWidth = frameInfo.nWidth;
+            int frameHeight = frameInfo.nHeight;
+            MyCamera.MvGvspPixelType sourcePixelType = frameInfo.enPixelType;
             Mat image = null;
             CameraFrameTraceInfo frameTrace = null;
             PerformanceSpikeDiagnostics.LogIfEnabled(
                 MsgLevel.Debug,
-                () => $"【完整耗时-相机帧】相机={DevName}；FrameId={frameId}；阶段=SDK回调开始；线程={Thread.CurrentThread.ManagedThreadId}",
+                () => string.Format("【完整耗时-相机帧】相机={0}；FrameId={1}；阶段=SDK回调开始；线程={2}", DevName, frameId, Thread.CurrentThread.ManagedThreadId),
                 true);
-            if (OnImageReceived != null)
-                LogHelper.AddLog(MsgLevel.Warn, $"相机{DevName} 仍存在旧Bitmap回调订阅，硬触发主链路已切换为Mat事件。", true);
+
             try
             {
-                // 硬触发流程直接进入 Mat 链路，避开 SDK ToBitmap 在现场偶发阻塞 9 秒的问题。
-                IImage sourceImage = e.FrameOut.Image;
-                image = ConvertImageFormatToMat(sourceImage, device.PixelTypeConverter, DevName, frameId);
+                image = ConvertFrameToIndependentMat(sourceData, ref frameInfo, frameId, diagnosticEnabled);
                 long conversionCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
                 if (diagnosticEnabled)
                 {
@@ -399,261 +738,143 @@ namespace TDJS_Vision.Device.Camera
                         frameId,
                         callbackStartedTimestamp,
                         conversionCompletedTimestamp,
-                        checked((int)sourceImage.Width),
-                        checked((int)sourceImage.Height),
-                        sourceImage.PixelType.ToString());
+                        frameWidth,
+                        frameHeight,
+                        sourcePixelType.ToString());
                 }
 
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    () => $"【完整耗时-相机帧】相机={DevName}；FrameId={frameId}；阶段=Mat转换完成；回调到转换={frameTrace?.CallbackToConversionMilliseconds ?? 0}ms；尺寸={sourceImage.Width}x{sourceImage.Height}；PixelType={sourceImage.PixelType}",
+                    () => string.Format(
+                        "【完整耗时-相机帧】相机={0}；FrameId={1}；阶段=Mat转换完成；回调到转换={2}ms；尺寸={3}x{4}；PixelType={5}",
+                        DevName,
+                        frameId,
+                        frameTrace?.CallbackToConversionMilliseconds ?? 0,
+                        frameWidth,
+                        frameHeight,
+                        sourcePixelType),
                     true);
                 RaiseMatImageReceived(image, frameTrace);
                 image = null;
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
                 image?.Dispose();
-                LogHelper.AddLog(MsgLevel.Exception, $"回调函数{DevName}转换Mat失败：FrameId={frameId}；{ex.Message}", true);
+                LogHelper.AddLog(MsgLevel.Exception, string.Format("回调函数{0}转换Mat失败：FrameId={1}；{2}", DevName, frameId, exception.Message), true);
             }
             finally
             {
                 long callbackCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
-                long callbackElapsedMilliseconds = CameraFrameTraceInfo.GetElapsedMilliseconds(
-                    callbackStartedTimestamp,
-                    callbackCompletedTimestamp);
+                long callbackElapsedMilliseconds = CameraFrameTraceInfo.GetElapsedMilliseconds(callbackStartedTimestamp, callbackCompletedTimestamp);
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    () => $"【完整耗时-相机帧】相机={DevName}；FrameId={frameId}；阶段=SDK回调结束；回调总耗时={callbackElapsedMilliseconds}ms；线程={Thread.CurrentThread.ManagedThreadId}",
+                    () => string.Format("【完整耗时-相机帧】相机={0}；FrameId={1}；阶段=SDK回调结束；回调总耗时={2}ms；线程={3}", DevName, frameId, callbackElapsedMilliseconds, Thread.CurrentThread.ManagedThreadId),
                     true);
                 PerformanceSpikeDiagnostics.LogSlowIfEnabled(
                     MsgLevel.Debug,
                     PerformanceSpikeDiagnostics.FrameConvertSlowMs,
-                    () => $"【慢诊断-相机回调】相机={DevName}；FrameId={frameId}；回调总耗时={callbackElapsedMilliseconds}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                    () => string.Format("【慢诊断-相机回调】相机={0}；FrameId={1}；回调总耗时={2}ms；{3}", DevName, frameId, callbackElapsedMilliseconds, PerformanceSpikeDiagnostics.GetRuntimeText()),
                     true,
                     callbackElapsedMilliseconds);
             }
         }
 
-        /// <summary>
-        /// 主动获取一帧图像
-        /// </summary>
-        /// <returns></returns>
-        public Bitmap GetOneFrameImage()
+        /// <summary>使用原生SDK转换帧并复制为拥有独立生命周期的Mat。</summary>
+        /// <param name="sourceData">源帧地址。</param>
+        /// <param name="frameInfo">源帧信息。</param>
+        /// <param name="frameId">诊断帧号。</param>
+        /// <param name="diagnosticEnabled">是否记录完整耗时。</param>
+        /// <returns>调用方负责释放的独立Mat。</returns>
+        private Mat ConvertFrameToIndependentMat(IntPtr sourceData, ref MyCamera.MV_FRAME_OUT_INFO_EX frameInfo, long frameId, bool diagnosticEnabled)
         {
-            try
+            lock (_callbackSyncRoot)
             {
-                device.StreamGrabber.ClearImageBuffer();  //清除掉上一帧的图像
-                if (TriggerSource == TriggerSource.SOFT)
+                if (_device == null)
+                    throw new InvalidOperationException("相机对象为空。");
+
+                int frameWidth = frameInfo.nWidth;
+                int frameHeight = frameInfo.nHeight;
+                MyCamera.MvGvspPixelType sourcePixelType = frameInfo.enPixelType;
+                int channelCount;
+                MyCamera.MvGvspPixelType destinationPixelType = ResolveDestinationPixelType(sourcePixelType, out channelCount);
+                ulong requiredByteCount = checked((ulong)frameWidth * (uint)frameHeight * (uint)channelCount);
+                if (requiredByteCount > int.MaxValue)
+                    throw new InvalidOperationException("转换后的单帧图像超过可分配上限。");
+                EnsureConversionBuffer((uint)requiredByteCount);
+
+                MyCamera.MV_PIXEL_CONVERT_PARAM convertParameter = new MyCamera.MV_PIXEL_CONVERT_PARAM
                 {
-                    GrabOne();
-                }
-                IFrameOut frame;
-                int ret = device.StreamGrabber.GetImageBuffer(GetImageTimeOut, out frame);
-                if (ret != MvError.MV_OK) {
-                    LogHelper.AddLog(MsgLevel.Exception, $"{DevName} 相机主动取图出现错误码:{ret}, {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}", true);
-                    return null;
-                }
-                var image = ConvertImageFormat(frame.Image, device.PixelTypeConverter);
-                device.StreamGrabber.FreeImageBuffer(frame);
-                return image;
-            }
-            catch (Exception)
-            {
-                return null;
-            }
-        }
+                    nWidth = frameInfo.nWidth,
+                    nHeight = frameInfo.nHeight,
+                    pSrcData = sourceData,
+                    nSrcDataLen = frameInfo.nFrameLen,
+                    enSrcPixelType = frameInfo.enPixelType,
+                    enDstPixelType = destinationPixelType,
+                    pDstBuffer = _conversionBuffer,
+                    nDstBufferSize = _conversionBufferSize
+                };
 
-        /// <summary>
-        /// 将 IImage 转换为 Bitmap
-        /// </summary>
-        /// <param name="image"></param>
-        /// <returns></returns>
-        private static Bitmap ConvertImageFormat(IImage image, IPixelTypeConverter pixelType)
-        {
-            IImage inputImage = image;
-            uint nChannelNum = 0;
-            try
-            {
-                MvGvspPixelType dstPixelType = MvGvspPixelType.PixelType_Gvsp_Undefined;
-                if (IsColorPixelFormat(image.PixelType))
-                {
-                    dstPixelType = MvGvspPixelType.PixelType_Gvsp_RGB8_Packed;
-                    nChannelNum = 3;
-                }
-                else if (IsMonoPixelFormat(image.PixelType))
-                {
-                    dstPixelType = MvGvspPixelType.PixelType_Gvsp_Mono8;
-                    nChannelNum = 1;
-                }
-                pixelType.ConvertPixelType(inputImage, out inputImage, dstPixelType);
-                if (nChannelNum == 1)
-                {
-                    //通过设置调色板从伪彩改为灰度
-                    var pal = inputImage.ToBitmap().Palette;
-                    for (int j = 0; j < 256; j++)
-                        pal.Entries[j] = Color.FromArgb(j, j, j);
-                    inputImage.ToBitmap().Palette = pal;
-                }
-            }
-            catch (Exception)
-            {
-                return null;
-            }
+                long conversionStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
+                int result = _device.MV_CC_ConvertPixelType_NET(ref convertParameter);
+                long conversionCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
+                EnsureSuccess(result, "转换相机像素格式");
 
-            return inputImage.ToBitmap();
-        }
+                MatType matType = channelCount == 1 ? MatType.CV_8UC1 : MatType.CV_8UC3;
+                Mat independentMat;
+                long cloneStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
+                using (Mat bufferView = Mat.FromPixelData(frameHeight, frameWidth, matType, _conversionBuffer))
+                    independentMat = bufferView.Clone();
+                long cloneCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
 
-        /// <summary>
-        /// 将相机 SDK 图像转换为 OpenCV Mat，硬触发流程使用该路径绕开 Bitmap 转换。
-        /// </summary>
-        /// <param name="image">相机 SDK 输出图像。</param>
-        /// <param name="pixelType">相机 SDK 像素格式转换器。</param>
-        /// <param name="devName">设备名称，用于诊断日志。</param>
-        /// <param name="frameId">当前相机回调帧编号。</param>
-        /// <returns>调用方接管生命周期的 Mat 图像。</returns>
-        private static Mat ConvertImageFormatToMat(IImage image, IPixelTypeConverter pixelType, string devName, long frameId)
-        {
-            if (image == null)
-                return null;
-            if (pixelType == null)
-                throw new ArgumentNullException(nameof(pixelType), "相机像素格式转换器为空！");
-
-            MvGvspPixelType dstPixelType;
-            int channelCount;
-            bool needRgbToBgr = false;
-            if (IsColorPixelFormat(image.PixelType))
-            {
-                dstPixelType = MvGvspPixelType.PixelType_Gvsp_BGR8_Packed;
-                channelCount = 3;
-            }
-            else if (IsMonoPixelFormat(image.PixelType))
-            {
-                dstPixelType = MvGvspPixelType.PixelType_Gvsp_Mono8;
-                channelCount = 1;
-            }
-            else
-            {
-                throw new NotSupportedException($"不支持的相机像素格式：{image.PixelType}");
-            }
-
-            bool diagnosticEnabled = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
-            long conversionStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
-            IImage convertedImage;
-            int ret = pixelType.ConvertPixelType(image, out convertedImage, dstPixelType);
-            if (ret != MvError.MV_OK && dstPixelType == MvGvspPixelType.PixelType_Gvsp_BGR8_Packed)
-            {
-                // 个别 SDK/相机固件不支持直接转 BGR 时，退回 RGB 再由 OpenCV 做通道交换。
-                dstPixelType = MvGvspPixelType.PixelType_Gvsp_RGB8_Packed;
-                needRgbToBgr = true;
-                ret = pixelType.ConvertPixelType(image, out convertedImage, dstPixelType);
-            }
-            long pixelConversionCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
-
-            if (ret != MvError.MV_OK || convertedImage == null)
-                throw new InvalidOperationException($"ConvertPixelType失败，错误码：{ret}");
-
-            Mat mat = CopyConvertedImageToMat(convertedImage, channelCount);
-            long copyCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
-
-            long rgbToBgrMs = 0;
-            if (needRgbToBgr)
-            {
-                long rgbStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
-                Mat bgrMat = new Mat();
-                Cv2.CvtColor(mat, bgrMat, ColorConversionCodes.RGB2BGR);
-                mat.Dispose();
-                mat = bgrMat;
-                long rgbCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
-                rgbToBgrMs = CameraFrameTraceInfo.GetElapsedMilliseconds(rgbStartedTimestamp, rgbCompletedTimestamp);
-            }
-
-            long convertMs = CameraFrameTraceInfo.GetElapsedMilliseconds(
-                conversionStartedTimestamp,
-                pixelConversionCompletedTimestamp);
-            long copyMs = CameraFrameTraceInfo.GetElapsedMilliseconds(
-                pixelConversionCompletedTimestamp,
-                copyCompletedTimestamp);
-            long totalMilliseconds = convertMs + copyMs + rgbToBgrMs;
-            PerformanceSpikeDiagnostics.LogIfEnabled(
-                MsgLevel.Debug,
-                () => $"【完整耗时-相机帧】相机={devName}；FrameId={frameId}；阶段=ConvertPixelType完成；耗时={convertMs}ms；PixelType={image.PixelType}->{dstPixelType}",
-                true);
-            PerformanceSpikeDiagnostics.LogIfEnabled(
-                MsgLevel.Debug,
-                () => $"【完整耗时-相机帧】相机={devName}；FrameId={frameId}；阶段=CopyToMat完成；耗时={copyMs}ms；尺寸={image.Width}x{image.Height}",
-                true);
-            if (needRgbToBgr)
-            {
+                long convertMilliseconds = CameraFrameTraceInfo.GetElapsedMilliseconds(conversionStartedTimestamp, conversionCompletedTimestamp);
+                long cloneMilliseconds = CameraFrameTraceInfo.GetElapsedMilliseconds(cloneStartedTimestamp, cloneCompletedTimestamp);
+                long totalMilliseconds = convertMilliseconds + cloneMilliseconds;
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    () => $"【完整耗时-相机帧】相机={devName}；FrameId={frameId}；阶段=RGB转BGR完成；耗时={rgbToBgrMs}ms",
+                    () => string.Format(
+                        "【完整耗时-相机帧】相机={0}；FrameId={1}；阶段=ConvertPixelType完成；耗时={2}ms；PixelType={3}->{4}",
+                        DevName,
+                        frameId,
+                        convertMilliseconds,
+                        sourcePixelType,
+                        destinationPixelType),
                     true);
-            }
-
-            PerformanceSpikeDiagnostics.LogSlowIfEnabled(
-                MsgLevel.Debug,
-                PerformanceSpikeDiagnostics.FrameConvertSlowMs,
-                () => $"【慢诊断-相机Mat转换】相机={devName}；FrameId={frameId}；ConvertPixelType={convertMs}ms；CopyToMat={copyMs}ms；RGB转BGR={rgbToBgrMs}ms；总耗时={totalMilliseconds}ms；PixelType={image.PixelType}->{dstPixelType}；尺寸={image.Width}x{image.Height}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
-                true,
-                convertMs,
-                copyMs,
-                rgbToBgrMs,
-                totalMilliseconds);
-            return mat;
-        }
-
-        /// <summary>
-        /// 将 SDK 转换后的连续像素内存复制为独立 Mat，避免回调返回后引用 SDK 缓冲区。
-        /// </summary>
-        /// <param name="image">已转换为 Mono8、BGR8 或 RGB8 的 SDK 图像。</param>
-        /// <param name="channelCount">图像通道数。</param>
-        /// <returns>拥有独立内存的 Mat。</returns>
-        private static Mat CopyConvertedImageToMat(IImage image, int channelCount)
-        {
-            int width = checked((int)image.Width);
-            int height = checked((int)image.Height);
-            if (width <= 0 || height <= 0)
-                throw new ArgumentException($"相机图像尺寸无效：{width}x{height}");
-            if (channelCount != 1 && channelCount != 3)
-                throw new ArgumentOutOfRangeException(nameof(channelCount), "只支持单通道或三通道图像。");
-
-            long expectedBytes = (long)width * height * channelCount;
-            if (image.ImageSize > 0 && image.ImageSize < (ulong)expectedBytes)
-                throw new InvalidOperationException($"相机图像数据长度不足：{image.ImageSize}/{expectedBytes}");
-            if (expectedBytes > uint.MaxValue || expectedBytes > int.MaxValue)
-                throw new InvalidOperationException($"相机图像过大，无法安全复制：{expectedBytes}字节");
-
-            MatType matType = channelCount == 1 ? MatType.CV_8UC1 : MatType.CV_8UC3;
-            Mat mat = new Mat(height, width, matType);
-            try
-            {
-                if (image.PixelDataPtr != IntPtr.Zero)
-                {
-                    CopyMemory(mat.Data, image.PixelDataPtr, (uint)expectedBytes);
-                }
-                else
-                {
-                    byte[] pixelData = image.PixelData;
-                    if (pixelData == null || pixelData.Length < expectedBytes)
-                        throw new InvalidOperationException($"相机托管图像数据长度不足：{pixelData?.Length ?? 0}/{expectedBytes}");
-
-                    Marshal.Copy(pixelData, 0, mat.Data, (int)expectedBytes);
-                }
-                return mat;
-            }
-            catch
-            {
-                mat.Dispose();
-                throw;
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => string.Format(
+                        "【完整耗时-相机帧】相机={0}；FrameId={1}；阶段=CopyToMat完成；耗时={2}ms；尺寸={3}x{4}",
+                        DevName,
+                        frameId,
+                        cloneMilliseconds,
+                        frameWidth,
+                        frameHeight),
+                    true);
+                PerformanceSpikeDiagnostics.LogSlowIfEnabled(
+                    MsgLevel.Debug,
+                    PerformanceSpikeDiagnostics.FrameConvertSlowMs,
+                    () => string.Format(
+                        "【慢诊断-相机Mat转换】相机={0}；FrameId={1}；ConvertPixelType={2}ms；CopyToMat={3}ms；总耗时={4}ms；PixelType={5}->{6}；尺寸={7}x{8}；{9}",
+                        DevName,
+                        frameId,
+                        convertMilliseconds,
+                        cloneMilliseconds,
+                        totalMilliseconds,
+                        sourcePixelType,
+                        destinationPixelType,
+                        frameWidth,
+                        frameHeight,
+                        PerformanceSpikeDiagnostics.GetRuntimeText()),
+                    true,
+                    convertMilliseconds,
+                    cloneMilliseconds,
+                    totalMilliseconds);
+                return independentMat;
             }
         }
 
-        /// <summary>
-        /// 触发 Mat 图像事件；多订阅者时克隆图像，保证每个订阅者独立接管生命周期。
-        /// </summary>
-        /// <param name="image">待分发的 Mat 图像。</param>
-        /// <param name="frameTrace">需要随每个Mat包装对象传递的相机帧诊断元数据。</param>
+        /// <summary>将独立Mat分发给订阅者；多订阅者时为前面的订阅者克隆图像。</summary>
+        /// <param name="image">待分发图像。</param>
+        /// <param name="frameTrace">相机帧诊断元数据。</param>
         private void RaiseMatImageReceived(Mat image, CameraFrameTraceInfo frameTrace)
         {
             Action<Mat> handlers = OnMatReceived;
@@ -664,654 +885,433 @@ namespace TDJS_Vision.Device.Camera
             }
 
             Delegate[] invocationList = handlers.GetInvocationList();
-            for (int i = 0; i < invocationList.Length; i++)
+            for (int index = 0; index < invocationList.Length; index++)
             {
-                Mat subscriberImage = i == invocationList.Length - 1 ? image : image?.Clone();
+                Mat subscriberImage = index == invocationList.Length - 1 ? image : image?.Clone();
                 try
                 {
                     CameraFrameTraceRegistry.Attach(subscriberImage, frameTrace);
-                    ((Action<Mat>)invocationList[i]).Invoke(subscriberImage);
+                    ((Action<Mat>)invocationList[index]).Invoke(subscriberImage);
                     subscriberImage = null;
                 }
-                catch (Exception ex)
+                catch (Exception exception)
                 {
                     subscriberImage?.Dispose();
-                    LogHelper.AddLog(MsgLevel.Exception, $"相机{DevName} Mat回调处理异常：{ex.Message}", true);
+                    LogHelper.AddLog(MsgLevel.Exception, string.Format("相机{0} Mat回调处理异常：{1}", DevName, exception.Message), true);
                 }
             }
         }
 
-        public TriggerModel GetTriggerMode()
+        /// <summary>在存在回调拥有者时注册官方原生图像回调，调用方必须持有回调锁。</summary>
+        private void EnsureNativeCallbackRegisteredCore()
         {
-            if (device == null) throw new Exception("相机对象为空！");
-            IEnumValue isTriggerMode;
-            device.Parameters.GetEnumValue("TriggerMode", out isTriggerMode);
-            return isTriggerMode.CurEnumEntry.Value == 1u ? TriggerModel.On : TriggerModel.Off;
+            if (!IsOpen || _device == null || _callbackRegistered || _imageCallbackOwners.Count == 0)
+                return;
+
+            _nativeImageCallback = GetImageCallBack;
+            EnsureSuccess(_device.MV_CC_RegisterImageCallBackEx_NET(_nativeImageCallback, IntPtr.Zero), "注册相机图像回调");
+            _callbackRegistered = true;
         }
 
-        /// <summary>
-        /// 设置相机触发模式
-        /// </summary>
-        /// <param name="isTrigger"></param>
-        public void SetTriggerMode(TriggerModel triggerModel)
+        /// <summary>创建原生相机句柄并替换当前未打开的句柄。</summary>
+        /// <param name="deviceInfo">原生设备信息。</param>
+        private void CreateNativeDevice(HikNativeDeviceInfo deviceInfo)
         {
-            if (device == null) throw new Exception("相机对象为空！");
-            int result = device.Parameters.SetEnumValue("TriggerMode", triggerModel==TriggerModel.On ? 1u : 0u);
+            InitSDK();
+            lock (_deviceLock)
+                CreateNativeDeviceCore(deviceInfo);
         }
 
-        /// <summary>
-        /// 获取相机触发源
-        /// </summary>
-        /// <param name="triggerSource"></param>
-        public TriggerSource GetTriggerSource()
+        /// <summary>在设备锁内创建原生相机句柄。</summary>
+        /// <param name="deviceInfo">原生设备信息。</param>
+        private void CreateNativeDeviceCore(HikNativeDeviceInfo deviceInfo)
         {
-            if (device == null) throw new Exception("相机对象为空！");
-            if (GetTriggerMode() == TriggerModel.Off)
+            if (IsOpen || _isGrabbing)
+                throw new InvalidOperationException("相机打开时不能重新创建设备句柄。");
+            if (_device != null && _deviceCreated)
+                _device.MV_CC_DestroyDevice_NET();
+
+            _device = new MyCamera();
+            MyCamera.MV_CC_DEVICE_INFO nativeInfo = deviceInfo.NativeDeviceInfo;
+            EnsureSuccess(_device.MV_CC_CreateDevice_NET(ref nativeInfo), "创建相机句柄");
+            _deviceCreated = true;
+            _callbackRegistered = false;
+            _deviceInfo = deviceInfo;
+        }
+
+        /// <summary>把枚举信息同步到可序列化的相机属性。</summary>
+        /// <param name="deviceInfo">原生设备信息。</param>
+        private void SetDeviceIdentity(HikNativeDeviceInfo deviceInfo)
+        {
+            _deviceInfo = deviceInfo;
+            ManufacturerName = deviceInfo.ManufacturerName;
+            SN = deviceInfo.SerialNumber;
+            IP = string.IsNullOrWhiteSpace(deviceInfo.IpAddress) ? "无" : deviceInfo.IpAddress;
+            DevName = GetDevNameByDevInfo(deviceInfo);
+            Brand = ResolveDeviceBrand(deviceInfo.ManufacturerName);
+        }
+
+        /// <summary>为GigE相机设置SDK探测出的最佳网络包大小。</summary>
+        private void ConfigureGigENetwork()
+        {
+            if (_deviceInfo == null || _deviceInfo.TransportLayerType != MyCamera.MV_GIGE_DEVICE)
+                return;
+
+            int packetSize = _device.MV_CC_GetOptimalPacketSize_NET();
+            if (packetSize <= 0)
             {
-                TriggerSource = TriggerSource.Auto;
-                return TriggerSource.Auto;
+                LogHelper.AddLog(MsgLevel.Warn, string.Format("相机{0}获取最佳网络包大小失败：{1}", UserDefinedName, packetSize), true);
+                return;
             }
 
-            IEnumValue triggerSourceEnum;
-            device.Parameters.GetEnumValue("TriggerSource", out triggerSourceEnum);
-
-            switch (triggerSourceEnum.CurEnumEntry.Value)
-            {
-                case 0:
-                    TriggerSource = ManufacturerName == "Basler" ? TriggerSource.SOFT : TriggerSource.LINE0;
-                    return TriggerSource;
-                case 1:
-                    TriggerSource = ManufacturerName == "Basler" ? TriggerSource.LINE1 : TriggerSource.LINE1;
-                    return TriggerSource;
-                case 2:
-                    TriggerSource = ManufacturerName == "Basler" ? TriggerSource.LINE2 : TriggerSource.LINE2;
-                    return TriggerSource;
-                case 3:
-                    TriggerSource = ManufacturerName == "Basler" ? TriggerSource.LINE3 : TriggerSource.LINE3;
-                    return TriggerSource;
-                case 7:
-                    TriggerSource = TriggerSource.SOFT;
-                    return TriggerSource;
-                default:
-                    TriggerSource = TriggerSource.Auto;
-                    return TriggerSource;
-            }
-        }
-
-        /// <summary>
-        /// 获取触发源 SDK 可选枚举，用于界面按 SupportEnumEntries 动态显示相机真实支持项。
-        /// </summary>
-        /// <returns>触发源 SDK 枚举值。</returns>
-        public IEnumValue GetTriggerSourceOptions()
-        {
-            if (device == null) throw new Exception("相机对象为空！");
-            IEnumValue enumValue;
-            int Rnet = device.Parameters.GetEnumValue("TriggerSource", out enumValue);
-            if (Rnet != MvError.MV_OK)
-                LogHelper.AddLog(MsgLevel.Exception, $"获取触发源失败！错误码：{Rnet}", true);
-            _ = enumValue?.SupportEnumEntries;
-            return enumValue;
-        }
-
-        /// <summary>
-        /// 获取触发极性 SDK 可选枚举，用于界面隐藏不支持的触发极性。
-        /// </summary>
-        /// <returns>触发极性 SDK 枚举值。</returns>
-        public IEnumValue GetTriggerActivationOptions()
-        {
-            if (device == null) throw new Exception("相机对象为空！");
-            IEnumValue enumValue;
-            int Rnet = device.Parameters.GetEnumValue("TriggerActivation", out enumValue);
-            if (Rnet != MvError.MV_OK)
-                LogHelper.AddLog(MsgLevel.Exception, $"获取触发极性失败！错误码：{Rnet}", true);
-            _ = enumValue?.SupportEnumEntries;
-            return enumValue;
-        }
-
-        /// <summary>
-        /// 设置触发源，AUTO表示自动触发（非触发模式），SOFT表示软件触发，LINE0-3表示硬件触发
-        /// </summary>
-        /// <param name="trigBySoft"></param>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        public void SetTriggerSource(TriggerSource triggerSource)
-        {
-            if (device == null) throw new Exception("相机对象为空！");
-            // ch:触发源选择:0 - Line0; | en:Trigger source select:0 - Line0;
-            //           1 - Line1;
-            //           2 - Line2;
-            //           3 - Line3;
-            //           4 - Counter;
-            //           7 - Software;
-            if (ManufacturerName == "Basler")
-            {
-                switch (triggerSource)
-                {
-                    case TriggerSource.Auto:
-                        SetTriggerMode(TriggerModel.Off);
-                        break;
-                    case TriggerSource.SOFT:
-                        device.Parameters.SetEnumValue("TriggerSource", 0);
-                        break;
-                    case TriggerSource.LINE1:
-                        device.Parameters.SetEnumValue("TriggerSource", 1);
-                        break;
-                    case TriggerSource.LINE2:
-                        device.Parameters.SetEnumValue("TriggerSource", 2);
-                        break;
-                    case TriggerSource.LINE3:
-                        device.Parameters.SetEnumValue("TriggerSource", 3);
-                        break;
-                    case TriggerSource.LINE4:
-                        device.Parameters.SetEnumValue("TriggerSource", 4);
-                        break;
-                    default:
-                        break;
-                }
-            }
-            else if (ManufacturerName == "Huaray Technology")
-            {
-                switch (triggerSource)
-                {
-                    case TriggerSource.Auto:
-                        SetTriggerMode(TriggerModel.Off);
-                        break;
-                    case TriggerSource.SOFT:
-                        device.Parameters.SetEnumValue("TriggerSource", 0);
-                        break;
-                    case TriggerSource.LINE1:
-                        device.Parameters.SetEnumValue("TriggerSource", 2);
-                        break;
-                    case TriggerSource.LINE2:
-                        device.Parameters.SetEnumValue("TriggerSource", 3);
-                        break;
-                    case TriggerSource.LINE3:
-                        device.Parameters.SetEnumValue("TriggerSource", 3);
-                        break;
-                    case TriggerSource.LINE4:
-                        device.Parameters.SetEnumValue("TriggerSource", 4);
-                        break;
-                    default:
-                        break;
-                }
-            }
+            int result = _device.MV_CC_SetIntValueEx_NET("GevSCPSPacketSize", packetSize);
+            if (result != MyCamera.MV_OK)
+                LogHelper.AddLog(MsgLevel.Warn, FormatSdkError("设置最佳网络包大小", result), true);
             else
-            {
-                switch (triggerSource)
-                {
-                    case TriggerSource.Auto:
-                        SetTriggerMode(TriggerModel.Off);
-                        break;
-                    case TriggerSource.SOFT:
-                        int result = device.Parameters.SetEnumValue("TriggerSource", 7);
-                        break;
-                    case TriggerSource.LINE0:
-                        device.Parameters.SetEnumValue("TriggerSource", 0);
-                        break;
-                    case TriggerSource.LINE1:
-                        device.Parameters.SetEnumValue("TriggerSource", 1);
-                        break;
-                    case TriggerSource.LINE2:
-                        device.Parameters.SetEnumValue("TriggerSource", 2);
-                        break;
-                    case TriggerSource.LINE3:
-                        device.Parameters.SetEnumValue("TriggerSource", 3);
-                        break;
-                    case TriggerSource.LINE4:
-                        device.Parameters.SetEnumValue("TriggerSource", 4);
-                        break;
-                    default:
-                        break;
-                }
-            }
-            TriggerSource = triggerSource;
+                LogHelper.AddLog(MsgLevel.Info, string.Format("相机{0}设置网络最佳包大小：{1}", UserDefinedName, packetSize), true);
         }
 
-        /// <summary>
-        /// 设置硬触发触发沿
-        /// </summary>
-        public void SetTriggerEdge(TriggerEdge triggerEdge)
+        /// <summary>读取原生浮点参数并转换为框架参数模型。</summary>
+        /// <param name="key">GenICam参数键。</param>
+        /// <returns>框架浮点参数。</returns>
+        private CameraFloatValue GetFloatValue(string key)
         {
-            if (device == null) throw new Exception("相机对象为空！");
-            switch (triggerEdge)
-            {
-                case TriggerEdge.Rising:
-                    device.Parameters.SetEnumValueByString("TriggerActivation", "RisingEdge");
-                    break;
-                case TriggerEdge.Falling:
-                    device.Parameters.SetEnumValueByString("TriggerActivation", "FallingEdge");
-                    break;
-                case TriggerEdge.Low:
-                    device.Parameters.SetEnumValueByString("TriggerActivation", "LevelLow");
-                    break;
-                case TriggerEdge.Hight:
-                    device.Parameters.SetEnumValueByString("TriggerActivation", "LevelHigh");
-                    break;
-                case TriggerEdge.Any:
-                    device.Parameters.SetEnumValueByString("TriggerActivation", "AnyEdge");
-                    break;
-            }
+            EnsureDeviceOpen();
+            MyCamera.MVCC_FLOATVALUE nativeValue = new MyCamera.MVCC_FLOATVALUE();
+            EnsureSuccess(_device.MV_CC_GetFloatValue_NET(key, ref nativeValue), "读取相机参数" + key);
+            return new CameraFloatValue { CurValue = nativeValue.fCurValue, Min = nativeValue.fMin, Max = nativeValue.fMax };
         }
 
-        /// <summary>
-        /// 软触发一次
-        /// </summary>
-        /// <returns></returns>
-        public void GrabOne()
+        /// <summary>读取原生整数参数并转换为框架参数模型。</summary>
+        /// <param name="key">GenICam参数键。</param>
+        /// <returns>框架整数参数。</returns>
+        private CameraIntValue GetIntValue(string key)
         {
-            if (device == null) throw new Exception("相机对象为空！");
-            int result = device.Parameters.SetCommandValue("TriggerSoftware");
+            EnsureDeviceOpen();
+            MyCamera.MVCC_INTVALUE_EX nativeValue = new MyCamera.MVCC_INTVALUE_EX();
+            EnsureSuccess(_device.MV_CC_GetIntValueEx_NET(key, ref nativeValue), "读取相机参数" + key);
+            return new CameraIntValue
+            {
+                CurValue = nativeValue.nCurValue,
+                Min = nativeValue.nMin,
+                Max = nativeValue.nMax,
+                Increment = nativeValue.nInc
+            };
         }
 
-        /// <summary>
-        /// 获取曝光
-        /// </summary>
-        public IFloatValue GetExposureTime()
+        /// <summary>读取原生枚举参数和每个支持项的符号名称。</summary>
+        /// <param name="key">GenICam参数键。</param>
+        /// <returns>框架枚举参数。</returns>
+        private CameraEnumValue GetEnumValue(string key)
         {
-            if (device == null) throw new Exception("相机对象为空！");
-            if (ManufacturerName == "Basler")
+            EnsureDeviceOpen();
+            MyCamera.MVCC_ENUMVALUE nativeValue = new MyCamera.MVCC_ENUMVALUE();
+            EnsureSuccess(_device.MV_CC_GetEnumValue_NET(key, ref nativeValue), "读取相机参数" + key);
+
+            uint[] supportedValues = nativeValue.nSupportValue ?? new uint[0];
+            int count = (int)Math.Min(nativeValue.nSupportedNum, (uint)supportedValues.Length);
+            List<CameraEnumEntry> entries = new List<CameraEnumEntry>(count);
+            for (int index = 0; index < count; index++)
             {
-                device.Parameters.GetFloatValue("ExposureTimeAbs", out IFloatValue exposureTime);
-                return exposureTime;
+                uint value = supportedValues[index];
+                entries.Add(new CameraEnumEntry { Value = value, Symbolic = GetEnumSymbolic(key, value) });
             }
-            else
+
+            CameraEnumEntry currentEntry = entries.FirstOrDefault(item => item.Value == nativeValue.nCurValue)
+                ?? new CameraEnumEntry { Value = nativeValue.nCurValue, Symbolic = GetEnumSymbolic(key, nativeValue.nCurValue) };
+            return new CameraEnumValue
             {
-                device.Parameters.GetFloatValue("ExposureTime", out IFloatValue exposureTime);
-                return exposureTime;
-            }
+                CurEnumEntry = currentEntry,
+                SupportEnumEntries = entries.ToArray(),
+                SupportedNum = (uint)entries.Count
+            };
         }
 
-        /// <summary>
-        /// 获取增益
-        /// </summary>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        public (IIntValue, IFloatValue) GetGain()
+        /// <summary>读取指定枚举值的SDK符号名称。</summary>
+        /// <param name="key">GenICam参数键。</param>
+        /// <param name="value">枚举值。</param>
+        /// <returns>符号名称。</returns>
+        private string GetEnumSymbolic(string key, uint value)
         {
-            if (device == null) throw new Exception("相机对象为空！");
-
-            if (ManufacturerName == "Basler")
+            MyCamera.MVCC_ENUMENTRY entry = new MyCamera.MVCC_ENUMENTRY
             {
-                device.Parameters.GetIntValue("GainRaw", out IIntValue gain);
-                return (gain, null);
-            }
-            else
-            {
-                device.Parameters.GetFloatValue("Gain", out IFloatValue gain);
-                return (null, gain);
-            }
+                nValue = value,
+                chSymbolic = new byte[MyCamera.MV_MAX_SYMBOLIC_LEN],
+                nReserved = new uint[4]
+            };
+            int result = _device.MV_CC_GetEnumEntrySymbolic_NET(key, ref entry);
+            return result == MyCamera.MV_OK ? CleanByteString(entry.chSymbolic) : GetFallbackEnumSymbolic(key, value);
         }
 
-        /// <summary>
-        /// 获取触发延迟时间
-        /// </summary>
-        /// <returns></returns>
-        public IFloatValue GetTriggerDelay()
+        /// <summary>在不影响主操作的情况下尝试设置枚举参数。</summary>
+        /// <param name="key">GenICam参数键。</param>
+        /// <param name="value">目标枚举值。</param>
+        private void TrySetEnumValue(string key, uint value)
         {
-            if (device == null) throw new Exception("相机对象为空！");
-            if (ManufacturerName == "Basler")
-            {
-                device.Parameters.GetFloatValue("TriggerDelayAbs", out IFloatValue triggerDelay);
-                return triggerDelay;
-            }
-            else
-            {
-                device.Parameters.GetFloatValue("TriggerDelay", out IFloatValue triggerDelay);
-                return triggerDelay;
-            }
+            int result = _device.MV_CC_SetEnumValue_NET(key, value);
+            if (result != MyCamera.MV_OK)
+                LogHelper.AddLog(MsgLevel.Warn, FormatSdkError("设置相机参数" + key, result), true);
         }
 
-        /// <summary>
-        /// 获取线路选择器
-        /// </summary>
-        /// <returns></returns>
-        public IEnumValue GetLineSelector()
+        /// <summary>确保当前相机已经打开。</summary>
+        private void EnsureDeviceOpen()
         {
-            if (device == null) throw new Exception("相机对象为空！");
-            IEnumValue enumValue;
-            int Rnet;
-            Rnet = device.Parameters.GetEnumValue("LineSelector", out enumValue);
-            if (Rnet != MvError.MV_OK)
-            {
-                LogHelper.AddLog(MsgLevel.Exception, $"获取线路选择器失败！错误码：{Rnet}", true);
-            }
-            return enumValue;
+            if (_device == null || !_deviceCreated)
+                throw new InvalidOperationException("相机对象为空。");
+            if (!IsOpen)
+                throw new InvalidOperationException(string.Format("相机（{0}）尚未打开。", UserDefinedName));
         }
 
-        /// <summary>
-        /// 设置线路
-        /// </summary>
-        /// <param name="line"></param>
-        public void SetLineSelector(string line)
+        /// <summary>确保转换缓冲区容量满足当前帧要求。</summary>
+        /// <param name="requiredBytes">所需字节数。</param>
+        private void EnsureConversionBuffer(uint requiredBytes)
         {
-            if (device == null) throw new Exception("相机对象为空！");
-            int Rnet = 0;
-            switch (line)
-            {
-                case "Line0":
-                    Rnet = device.Parameters.SetEnumValue("LineSelector", 0);
-                    break;
-                case "Line1":
-                    Rnet = device.Parameters.SetEnumValue("LineSelector", 1);
-                    break;
-               case "Line2":
-                    Rnet = device.Parameters.SetEnumValue("LineSelector", 2);
-                    break;
-                case "Line3":
-                    Rnet = device.Parameters.SetEnumValue("LineSelector", 3);
-                    break;
-                case "Line4":
-                    Rnet = device.Parameters.SetEnumValue("LineSelector", 4);
-                    break;
-                default:
-                    break;
-            }
-            if (Rnet != MvError.MV_OK)
-            {
-                LogHelper.AddLog(MsgLevel.Exception, $"设置线路选择器失败！错误码：{Rnet}", true);
-            }
+            if (_conversionBuffer != IntPtr.Zero && _conversionBufferSize >= requiredBytes)
+                return;
+            ReleaseConversionBuffer();
+            _conversionBuffer = Marshal.AllocHGlobal(checked((int)requiredBytes));
+            if (_conversionBuffer == IntPtr.Zero)
+                throw new OutOfMemoryException("无法分配相机像素转换缓冲区。");
+            _conversionBufferSize = requiredBytes;
         }
 
-        /// <summary>
-        /// 获取线路模式
-        /// </summary>
-        /// <returns></returns>
-        public IEnumValue GetLineMode()
-        { 
-            if (device == null) throw new Exception("相机对象为空！");
-            int Rnet = 0;
-            IEnumValue enumValue;
-            Rnet = device.Parameters.GetEnumValue("LineMode", out enumValue);
-            if (Rnet != MvError.MV_OK)
-            {
-                LogHelper.AddLog(MsgLevel.Exception, $"获取线路模式失败！错误码：{Rnet}", true);
-            }
-            return enumValue;
-        }
-
-        /// <summary>
-        /// 设置线路模式
-        /// </summary>
-        /// <param name="lineMode"></param>
-        public void SetLineMode(string lineMode)
+        /// <summary>释放预分配的非托管转换缓冲区。</summary>
+        private void ReleaseConversionBuffer()
         {
-            if (device == null) throw new Exception("相机对象为空！");
-            int Rnet = 0;
-            switch (lineMode)
-            { 
-                case "输入":
-                case "Input":
-                    Rnet = device.Parameters.SetEnumValue("LineMode", 0);
-                    break;
-                case "输出":
-                case "Output":
-                    if (Brand==DeviceBrand.HuarayTechnology)
-                    {
-                        Rnet = device.Parameters.SetEnumValue("LineMode", 1);
-                    }else Rnet = device.Parameters.SetEnumValue("LineMode", 8);
-                    break;
-                default:
-                    break;
-            }
-            if (Rnet != MvError.MV_OK)
-            {
-                LogHelper.AddLog(MsgLevel.Exception, $"设置线路模式失败！错误码：{Rnet}", true);
-            }
+            if (_conversionBuffer == IntPtr.Zero)
+                return;
+            Marshal.FreeHGlobal(_conversionBuffer);
+            _conversionBuffer = IntPtr.Zero;
+            _conversionBufferSize = 0;
         }
 
-        /// <summary>
-        /// 获取使能
-        /// </summary>
-        /// <returns></returns>
-        public bool GetStrobeEnable() 
-        { 
-            if(device == null) throw new Exception("相机对象为空！");
-            int Rnet = 0;
-            bool enable;
-            Rnet = device.Parameters.GetBoolValue("StrobeEnable", out enable);
-
-            if (Rnet != MvError.MV_OK)
-            {
-                LogHelper.AddLog(MsgLevel.Exception, $"设置线路源失败！错误码：{Rnet}", true);
-            }
-
-            return enable;
-        }
-
-        /// <summary>
-        /// 设置使能
-        /// </summary>
-        /// <param name="enable"></param>
-        public void SetStrobeEnable(bool enable)
+        /// <summary>根据源格式选择Mono8或BGR8目标格式。</summary>
+        /// <param name="sourcePixelType">源像素格式。</param>
+        /// <param name="channelCount">输出通道数。</param>
+        /// <returns>目标像素格式。</returns>
+        private static MyCamera.MvGvspPixelType ResolveDestinationPixelType(MyCamera.MvGvspPixelType sourcePixelType, out int channelCount)
         {
-            if (device == null) throw new Exception("相机对象为空！");
-            int Rnet = 0;
-
-            Rnet = device.Parameters.SetBoolValue("StrobeEnable", enable);
-
-            if (Rnet != MvError.MV_OK)
-            { 
-                LogHelper.AddLog(MsgLevel.Exception, $"设置线路源失败！错误码：{Rnet}", true);
+            if (IsMonoPixelFormat(sourcePixelType))
+            {
+                channelCount = 1;
+                return MyCamera.MvGvspPixelType.PixelType_Gvsp_Mono8;
             }
+            if (IsColorPixelFormat(sourcePixelType))
+            {
+                channelCount = 3;
+                return MyCamera.MvGvspPixelType.PixelType_Gvsp_BGR8_Packed;
+            }
+            throw new NotSupportedException("不支持的相机像素格式：" + sourcePixelType);
         }
 
-        /// <summary>
-        /// 设置线路反转
-        /// </summary>
-        /// <param name="inverter"></param>
-        public void SetLineInverter(bool inverter)
+        /// <summary>判断像素格式是否为支持的单色格式。</summary>
+        /// <param name="pixelType">像素格式。</param>
+        /// <returns>支持转为Mono8时返回true。</returns>
+        private static bool IsMonoPixelFormat(MyCamera.MvGvspPixelType pixelType)
         {
-            if (device == null) throw new Exception("相机对象为空！");
-            int Rnet = 0;
-            Rnet = device.Parameters.SetBoolValue("LineInverter", inverter);
-            if (Rnet != MvError.MV_OK)
+            switch (pixelType)
             {
-                LogHelper.AddLog(MsgLevel.Exception, $"设置线路反转失败！错误码：{Rnet}  相机品牌:{DevName.ToString()}", true);
-            } 
-        }
-
-        private readonly object _ioLock = new object();
-
-        
-        public void SetIO(string lineSelector,bool inverter) {
-            lock (_ioLock)
-            {
-                SetLineSelector(lineSelector);
-                SetLineInverter(inverter);
-            }
-        }
-
-        /// <summary>
-        /// 设置增益
-        /// </summary>
-        /// <param name="gainValue"></param>
-        public void SetGain(double gainValue)
-        {
-            if (device == null) throw new Exception("相机对象为空！");
-            device.Parameters.SetEnumValue("GainAuto", 0);
-            if (ManufacturerName == "Basler")
-            {
-                device.Parameters.SetIntValue("GainRaw", (int)gainValue);
-            }
-            else
-            {
-                device.Parameters.SetFloatValue("Gain", (float)gainValue);
-            }
-        }
-
-        /// <summary>
-        /// 设置曝光 
-        /// </summary>
-        /// <param name="time"></param>
-        public void SetExposureTime(double time)
-        {
-            if (device == null) throw new Exception("相机对象为空！");
-            device.Parameters.SetEnumValue("ExposureAuto", 0);
-
-            if (ManufacturerName == "Basler")
-            {
-                device.Parameters.SetFloatValue("ExposureTimeAbs", (float)time);
-            }
-            else
-            {
-                device.Parameters.SetFloatValue("ExposureTime", (float)time);
-            }
-        }
-
-        /// <summary>
-        /// 设置触发延迟
-        /// </summary>
-        /// <param name="time">单位us</param>
-        public void SetTriggerDelay(double time)
-        {
-            if (device == null) throw new Exception("相机对象为空！");
-
-            if (ManufacturerName == "Basler")
-            {
-                device.Parameters.SetFloatValue("TriggerDelayAbs", (float)time);
-            }
-            else
-            {
-                device.Parameters.SetFloatValue("TriggerDelay", (float)time);
-            }
-        }
-
-        /// <summary>
-        /// 开始取流
-        /// </summary>
-        /// <returns></returns>
-        public void StartGrabbing()
-        {
-            if (device == null) throw new Exception("相机对象为空！");
-            if (!_isGrabbing)
-            {
-                // 开始取流前同步一次帧事件订阅，保证相机回调流程能在 SDK 取流线程启动时收到帧事件。
-                SyncImageCallbackSubscription();
-                device.StreamGrabber.SetImageNodeNum(1);
-                int result = device.StreamGrabber.StartGrabbing();
-                if (result != MvError.MV_OK)
-                    throw new Exception($"相机开始取流失败，错误码：{result}");
-
-                _isGrabbing = true;
-            }
-        }
-
-        /// <summary>
-        /// 停止取流
-        /// </summary>
-        /// <returns></returns>
-        public void StopGrabbing()
-        {
-            if (device == null) throw new Exception("相机对象为空！");
-            device.StreamGrabber.StopGrabbing();
-            _isGrabbing = false;
-        }
-
-        /// <summary>
-        /// 获取相机取流状态
-        /// </summary>
-        /// <returns></returns>
-        public bool GetGrabStatus()
-        {
-            if (device == null) throw new Exception("相机对象为空！");
-            return _isGrabbing;
-        }
-
-        /// <summary>
-        /// 关闭相机
-        /// </summary>
-        /// <returns></returns>
-        public void Close()
-        {
-            if (device == null) throw new Exception("相机对象为空！");
-            //先停止取流
-            if (_isGrabbing)
-            {
-                StopGrabbing();
-            }
-            lock (_imageCallbackLock)
-                device.StreamGrabber.FrameGrabedEvent -= GetImageCallBack;
-            ConnectStatusEvent?.Invoke(this, false);
-            device.Close();
-            IsOpen = false;
-            ConnectStatusEvent?.Invoke(this, false);
-        }
-
-        /// <summary>
-        /// 释放相机资源
-        /// </summary>
-        public void Dispose()
-        {
-            if (device != null)
-            {
-                lock (_imageCallbackLock)
-                    device.StreamGrabber.FrameGrabedEvent -= GetImageCallBack;
-                if (device.IsConnected) { device.Close(); }
-                device?.Dispose();
-            }
-        }
-
-        /// <summary>
-        /// 判断是否为彩色图像
-        /// </summary>
-        /// <param name="enType"></param>
-        /// <returns></returns>
-        private static bool IsColorPixelFormat(MvGvspPixelType enType)
-        {
-            switch (enType)
-            {
-                case MvGvspPixelType.PixelType_Gvsp_RGB8_Packed:
-                case MvGvspPixelType.PixelType_Gvsp_BGR8_Packed:
-                case MvGvspPixelType.PixelType_Gvsp_RGBA8_Packed:
-                case MvGvspPixelType.PixelType_Gvsp_BGRA8_Packed:
-                case MvGvspPixelType.PixelType_Gvsp_YUV422_Packed:
-                case MvGvspPixelType.PixelType_Gvsp_YUV422_YUYV_Packed:
-                case MvGvspPixelType.PixelType_Gvsp_BayerGR8:
-                case MvGvspPixelType.PixelType_Gvsp_BayerRG8:
-                case MvGvspPixelType.PixelType_Gvsp_BayerGB8:
-                case MvGvspPixelType.PixelType_Gvsp_BayerBG8:
-                case MvGvspPixelType.PixelType_Gvsp_BayerGB10:
-                case MvGvspPixelType.PixelType_Gvsp_BayerGB10_Packed:
-                case MvGvspPixelType.PixelType_Gvsp_BayerBG10:
-                case MvGvspPixelType.PixelType_Gvsp_BayerBG10_Packed:
-                case MvGvspPixelType.PixelType_Gvsp_BayerRG10:
-                case MvGvspPixelType.PixelType_Gvsp_BayerRG10_Packed:
-                case MvGvspPixelType.PixelType_Gvsp_BayerGR10:
-                case MvGvspPixelType.PixelType_Gvsp_BayerGR10_Packed:
-                case MvGvspPixelType.PixelType_Gvsp_BayerGB12:
-                case MvGvspPixelType.PixelType_Gvsp_BayerGB12_Packed:
-                case MvGvspPixelType.PixelType_Gvsp_BayerBG12:
-                case MvGvspPixelType.PixelType_Gvsp_BayerBG12_Packed:
-                case MvGvspPixelType.PixelType_Gvsp_BayerRG12:
-                case MvGvspPixelType.PixelType_Gvsp_BayerRG12_Packed:
-                case MvGvspPixelType.PixelType_Gvsp_BayerGR12:
-                case MvGvspPixelType.PixelType_Gvsp_BayerGR12_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_Mono8:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_Mono10:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_Mono10_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_Mono12:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_Mono12_Packed:
                     return true;
                 default:
                     return false;
             }
         }
 
-        /// <summary>
-        /// 判断图像是否是黑白图像
-        /// </summary>
-        /// <param name="enType"></param>
-        /// <returns></returns>
-        private static bool IsMonoPixelFormat(MvGvspPixelType enType)
+        /// <summary>判断像素格式是否为支持的彩色格式。</summary>
+        /// <param name="pixelType">像素格式。</param>
+        /// <returns>支持转为BGR8时返回true。</returns>
+        private static bool IsColorPixelFormat(MyCamera.MvGvspPixelType pixelType)
         {
-            switch (enType)
+            switch (pixelType)
             {
-                case MvGvspPixelType.PixelType_Gvsp_Mono8:
-                case MvGvspPixelType.PixelType_Gvsp_Mono10:
-                case MvGvspPixelType.PixelType_Gvsp_Mono10_Packed:
-                case MvGvspPixelType.PixelType_Gvsp_Mono12:
-                case MvGvspPixelType.PixelType_Gvsp_Mono12_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BGR8_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_RGB8_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_RGBA8_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BGRA8_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_YUV422_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_YUV422_YUYV_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerGR8:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerRG8:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerGB8:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerBG8:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerGB10:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerGB10_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerBG10:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerBG10_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerRG10:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerRG10_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerGR10:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerGR10_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerGB12:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerGB12_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerBG12:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerBG12_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerRG12:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerRG12_Packed:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerGR12:
+                case MyCamera.MvGvspPixelType.PixelType_Gvsp_BayerGR12_Packed:
                     return true;
                 default:
                     return false;
             }
         }
 
-       
+        /// <summary>把SDK设备联合体解析为框架设备信息。</summary>
+        /// <param name="index">枚举序号。</param>
+        /// <param name="nativeInfo">SDK设备结构。</param>
+        /// <returns>框架设备信息。</returns>
+        private static HikNativeDeviceInfo ParseDeviceInfo(int index, MyCamera.MV_CC_DEVICE_INFO nativeInfo)
+        {
+            HikNativeDeviceInfo deviceInfo = new HikNativeDeviceInfo
+            {
+                Index = index,
+                TransportLayerType = nativeInfo.nTLayerType,
+                NativeDeviceInfo = nativeInfo,
+                ManufacturerName = "未知厂商",
+                ModelName = "未知型号",
+                SerialNumber = string.Empty,
+                UserDefinedName = string.Empty,
+                IpAddress = string.Empty
+            };
+
+            if (nativeInfo.nTLayerType == MyCamera.MV_GIGE_DEVICE)
+            {
+                MyCamera.MV_GIGE_DEVICE_INFO_EX gigEInfo =
+                    (MyCamera.MV_GIGE_DEVICE_INFO_EX)MyCamera.ByteToStruct(nativeInfo.SpecialInfo.stGigEInfo, typeof(MyCamera.MV_GIGE_DEVICE_INFO_EX));
+                deviceInfo.ManufacturerName = CleanText(gigEInfo.chManufacturerName);
+                deviceInfo.ModelName = CleanText(gigEInfo.chModelName);
+                deviceInfo.SerialNumber = CleanText(gigEInfo.chSerialNumber);
+                deviceInfo.UserDefinedName = CleanByteString(gigEInfo.chUserDefinedName);
+                deviceInfo.IpAddress = string.Format(
+                    "{0}.{1}.{2}.{3}",
+                    (gigEInfo.nCurrentIp & 0xff000000) >> 24,
+                    (gigEInfo.nCurrentIp & 0x00ff0000) >> 16,
+                    (gigEInfo.nCurrentIp & 0x0000ff00) >> 8,
+                    gigEInfo.nCurrentIp & 0x000000ff);
+            }
+            else if (nativeInfo.nTLayerType == MyCamera.MV_USB_DEVICE)
+            {
+                MyCamera.MV_USB3_DEVICE_INFO_EX usbInfo =
+                    (MyCamera.MV_USB3_DEVICE_INFO_EX)MyCamera.ByteToStruct(nativeInfo.SpecialInfo.stUsb3VInfo, typeof(MyCamera.MV_USB3_DEVICE_INFO_EX));
+                deviceInfo.ManufacturerName = CleanText(usbInfo.chManufacturerName);
+                deviceInfo.ModelName = CleanText(usbInfo.chModelName);
+                deviceInfo.SerialNumber = CleanText(usbInfo.chSerialNumber);
+                deviceInfo.UserDefinedName = CleanByteString(usbInfo.chUserDefinedName);
+            }
+            return deviceInfo;
+        }
+
+        /// <summary>根据制造商名称映射框架设备品牌。</summary>
+        /// <param name="manufacturerName">制造商名称。</param>
+        /// <returns>框架设备品牌。</returns>
+        private static DeviceBrand ResolveDeviceBrand(string manufacturerName)
+        {
+            string value = manufacturerName ?? string.Empty;
+            if (value.IndexOf("Basler", StringComparison.OrdinalIgnoreCase) >= 0)
+                return DeviceBrand.Basler;
+            if (value.IndexOf("Huaray", StringComparison.OrdinalIgnoreCase) >= 0)
+                return DeviceBrand.HuarayTechnology;
+            if (value.IndexOf("Hik", StringComparison.OrdinalIgnoreCase) >= 0 || value.Equals("GEV", StringComparison.OrdinalIgnoreCase))
+                return DeviceBrand.HikVision;
+            return DeviceBrand.Unknow;
+        }
+
+        /// <summary>清理SDK固定长度字符串。</summary>
+        /// <param name="value">原始字符串。</param>
+        /// <returns>清理后的字符串。</returns>
+        private static string CleanText(string value)
+        {
+            return string.IsNullOrEmpty(value) ? string.Empty : value.TrimEnd('\0', ' ');
+        }
+
+        /// <summary>将SDK固定长度字节数组转换为本机编码字符串。</summary>
+        /// <param name="bytes">原始字节数组。</param>
+        /// <returns>清理后的字符串。</returns>
+        private static string CleanByteString(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0)
+                return string.Empty;
+            int length = Array.IndexOf(bytes, (byte)0);
+            if (length < 0)
+                length = bytes.Length;
+            return Encoding.Default.GetString(bytes, 0, length).Trim();
+        }
+
+        /// <summary>获取旧型号相机无法返回符号名时的枚举兜底名称。</summary>
+        /// <param name="key">参数键。</param>
+        /// <param name="value">枚举值。</param>
+        /// <returns>兜底符号名称。</returns>
+        private static string GetFallbackEnumSymbolic(string key, uint value)
+        {
+            if (key == "TriggerSource")
+                return value == 7 ? "Software" : value <= 4 ? "Line" + value : string.Empty;
+            if (key == "LineSelector")
+                return value <= 4 ? "Line" + value : string.Empty;
+            if (key == "LineMode")
+                return value == 0 ? "Input" : value == 1 || value == 8 ? "Output" : string.Empty;
+            if (key == "TriggerActivation")
+            {
+                switch (value)
+                {
+                    case 0:
+                        return "RisingEdge";
+                    case 1:
+                        return "FallingEdge";
+                    case 2:
+                        return "LevelHigh";
+                    case 3:
+                        return "LevelLow";
+                    case 4:
+                        return "AnyEdge";
+                }
+            }
+            return string.Empty;
+        }
+
+        /// <summary>判断当前相机是否为巴斯勒制造商。</summary>
+        /// <returns>巴斯勒相机返回true。</returns>
+        private bool IsBaslerManufacturer()
+        {
+            return (ManufacturerName ?? string.Empty).IndexOf("Basler", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        /// <summary>判断当前相机是否为华睿制造商。</summary>
+        /// <returns>华睿相机返回true。</returns>
+        private bool IsHuarayManufacturer()
+        {
+            return (ManufacturerName ?? string.Empty).IndexOf("Huaray", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        /// <summary>检查SDK返回码，失败时抛出包含操作名称的异常。</summary>
+        /// <param name="result">SDK返回码。</param>
+        /// <param name="operation">操作名称。</param>
+        private static void EnsureSuccess(int result, string operation)
+        {
+            if (result != MyCamera.MV_OK)
+                throw CreateSdkException(operation, result);
+        }
+
+        /// <summary>创建包含SDK十六进制错误码的异常。</summary>
+        /// <param name="operation">操作名称。</param>
+        /// <param name="result">SDK返回码。</param>
+        /// <returns>标准相机异常。</returns>
+        private static InvalidOperationException CreateSdkException(string operation, int result)
+        {
+            return new InvalidOperationException(FormatSdkError(operation, result));
+        }
+
+        /// <summary>格式化SDK错误信息。</summary>
+        /// <param name="operation">操作名称。</param>
+        /// <param name="result">SDK返回码。</param>
+        /// <returns>错误描述。</returns>
+        private static string FormatSdkError(string operation, int result)
+        {
+            return string.Format("{0}失败，错误码：0x{1:X8}", operation, result);
+        }
     }
 }

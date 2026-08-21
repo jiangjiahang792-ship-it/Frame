@@ -1,5 +1,4 @@
 ﻿using Basler.Pylon;
-using MvCameraControl;
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
@@ -125,13 +124,13 @@ namespace TDJS_Vision.Device.Camera
         /// 获取触发源 SDK 可选枚举。
         /// </summary>
         /// <returns>触发源 SDK 枚举值。</returns>
-        IEnumValue GetTriggerSourceOptions();
+        CameraEnumValue GetTriggerSourceOptions();
 
         /// <summary>
         /// 获取触发极性 SDK 可选枚举。
         /// </summary>
         /// <returns>触发极性 SDK 枚举值。</returns>
-        IEnumValue GetTriggerActivationOptions();
+        CameraEnumValue GetTriggerActivationOptions();
 
         /// <summary>
         /// 设置硬件触发时的触发沿
@@ -156,24 +155,24 @@ namespace TDJS_Vision.Device.Camera
         /// 获取相机曝光
         /// </summary>
         /// <returns></returns>
-        IFloatValue GetExposureTime();
+        CameraFloatValue GetExposureTime();
 
         /// <summary>
         /// 获取相机增益
         /// </summary>
         /// <returns></returns>
-        (IIntValue, IFloatValue) GetGain();
+        (CameraIntValue, CameraFloatValue) GetGain();
 
         /// <summary>
         /// 获取触发延迟
         /// </summary>
         /// <returns></returns>
-        IFloatValue GetTriggerDelay();
+        CameraFloatValue GetTriggerDelay();
 
         /// <summary>
         /// 获取线路选择器
         /// </summary>
-        IEnumValue GetLineSelector();
+        CameraEnumValue GetLineSelector();
 
         /// <summary>
         /// 设置线路选择器
@@ -184,7 +183,7 @@ namespace TDJS_Vision.Device.Camera
         /// 获取线路模式
         /// </summary>
         /// <returns></returns>
-        IEnumValue GetLineMode();
+        CameraEnumValue GetLineMode();
 
         /// <summary>
         /// 设置线路模式
@@ -246,8 +245,8 @@ namespace TDJS_Vision.Device.Camera
     /// </summary>
     public struct CameraDevInfo
     {
-        public IDeviceInfo cameraInfo;
-        public CameraDevInfo(IDeviceInfo Info)
+        public HikNativeDeviceInfo cameraInfo;
+        public CameraDevInfo(HikNativeDeviceInfo Info)
         {
             cameraInfo = Info;
         }
