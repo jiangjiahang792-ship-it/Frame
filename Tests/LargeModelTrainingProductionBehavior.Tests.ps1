@@ -18,6 +18,7 @@ $trainingModelsPath = Join-Path $root "Forms\AiTrainForm\LargeModelTrainingModel
 $runtimeBootstrapperPath = Join-Path $root "Forms\AiTrainForm\LargeModelRuntimeBootstrapper.cs"
 $trainingServicePath = Join-Path $root "Forms\AiTrainForm\LargeModelTrainingService.cs"
 $openCvPath = Join-Path $root "packages\OpenCvSharp4.4.10.0.20240616\lib\net48\OpenCvSharp.dll"
+$openCvNativePath = Join-Path $root "packages\OpenCvSharp4.runtime.win.4.10.0.20240616\runtimes\win-x64\native"
 $newtonsoftPath = Join-Path $root "packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll"
 $cscPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\Roslyn\csc.exe"
 
@@ -29,6 +30,7 @@ foreach ($requiredPath in @(
     $runtimeBootstrapperPath,
     $trainingServicePath,
     $openCvPath,
+    $openCvNativePath,
     $newtonsoftPath,
     $cscPath)) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
@@ -38,6 +40,14 @@ foreach ($requiredPath in @(
 
 [void][Reflection.Assembly]::LoadFrom($openCvPath)
 [void][Reflection.Assembly]::LoadFrom($newtonsoftPath)
+$currentProcessPath = [Environment]::GetEnvironmentVariable("PATH", "Process")
+if ($null -eq $currentProcessPath) {
+    $currentProcessPath = [string]::Empty
+}
+[Environment]::SetEnvironmentVariable(
+    "PATH",
+    $openCvNativePath + ";" + $currentProcessPath,
+    "Process")
 $productionSourcePaths = @(
     $pipelinePath,
     $detectorPath,
@@ -597,6 +607,24 @@ public static class LargeModelTrainingProductionBehaviorHarness
                     FilePath = imagePath,
                     DisplayName = Path.GetFileName(imagePath),
                     Category = LargeModelImageCategory.OK
+                },
+                new LargeModelImageItem
+                {
+                    FilePath = imagePath,
+                    DisplayName = Path.GetFileNameWithoutExtension(imagePath) + "-ok-train.png",
+                    Category = LargeModelImageCategory.OK
+                },
+                new LargeModelImageItem
+                {
+                    FilePath = imagePath,
+                    DisplayName = Path.GetFileNameWithoutExtension(imagePath) + "-ng-calibration.png",
+                    Category = LargeModelImageCategory.NG
+                },
+                new LargeModelImageItem
+                {
+                    FilePath = imagePath,
+                    DisplayName = Path.GetFileNameWithoutExtension(imagePath) + "-ng-train.png",
+                    Category = LargeModelImageCategory.NG
                 }
             },
             ModelType = "DINOv2",
@@ -612,7 +640,14 @@ public static class LargeModelTrainingProductionBehaviorHarness
     {
         Directory.CreateDirectory(root);
         string imagePath = Path.Combine(root, "ok.png");
-        File.WriteAllBytes(imagePath, new byte[] { 1, 2, 3 });
+        using (System.Drawing.Bitmap bitmap = new System.Drawing.Bitmap(8, 8))
+        {
+            using (System.Drawing.Graphics graphics = System.Drawing.Graphics.FromImage(bitmap))
+            {
+                graphics.Clear(System.Drawing.Color.FromArgb(32, 64, 96));
+            }
+            bitmap.Save(imagePath, System.Drawing.Imaging.ImageFormat.Png);
+        }
         return imagePath;
     }
 
@@ -907,6 +942,7 @@ internal sealed class RecordingNativeApi : ILargeModelDinov2NativeApi
     private readonly Dictionary<IntPtr, string> _modelPaths = new Dictionary<IntPtr, string>();
     private readonly List<string> _trainedModelPaths = new List<string>();
     private int _nextHandle;
+    private int _inferCalls;
 
     public void Configure(string runtimeRoot)
     {
@@ -951,9 +987,10 @@ internal sealed class RecordingNativeApi : ILargeModelDinov2NativeApi
         int maxBboxes,
         out int outNumBboxes)
     {
-        outScore = 0;
+        int inferCall = Interlocked.Increment(ref _inferCalls);
+        outScore = inferCall % 2 == 0 ? 0.9F : 0.1F;
         outNumBboxes = 0;
-        return 0;
+        return imageThreshold > 0F && outScore > imageThreshold ? 1 : 0;
     }
 
     public void Release(IntPtr handler)
@@ -1105,6 +1142,7 @@ internal sealed class BlockingNativeApi : ILargeModelDinov2NativeApi, IDisposabl
     private int _initCalls;
     private int _trainCalls;
     private int _releaseCalls;
+    private int _inferCalls;
     private IntPtr _lastReleasedHandle;
 
     public BlockingNativeApi()
@@ -1164,9 +1202,10 @@ internal sealed class BlockingNativeApi : ILargeModelDinov2NativeApi, IDisposabl
         int maxBboxes,
         out int outNumBboxes)
     {
-        outScore = 0;
+        int inferCall = Interlocked.Increment(ref _inferCalls);
+        outScore = inferCall % 2 == 0 ? 0.9F : 0.1F;
         outNumBboxes = 0;
-        return 0;
+        return imageThreshold > 0F && outScore > imageThreshold ? 1 : 0;
     }
 
     public void Release(IntPtr handler)

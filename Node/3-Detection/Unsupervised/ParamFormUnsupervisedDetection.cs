@@ -300,7 +300,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// <returns>有效阈值。</returns>
         private static float GetValidThreshold(float value)
         {
-            if (value <= 0F || value > 1F)
+            if (value < 0F || value > 1F)
                 return NodeParamUnsupervisedDetection.DefaultThreshold;
 
             return value;

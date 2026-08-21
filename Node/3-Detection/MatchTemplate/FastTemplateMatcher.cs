@@ -493,6 +493,11 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             private readonly bool forceNativeDemoAlgorithm;
 
             /// <summary>
+            /// native 内部错误码，通常表示原生库内部异常已被 DLL 保护层拦截。
+            /// </summary>
+            private const int NativeInternalErrorStatus = -10;
+
+            /// <summary>
             /// 会话是否已经释放。
             /// </summary>
             private bool disposed;
@@ -571,66 +576,74 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         if (!forceNativeDemoAlgorithm && ShouldUseManagedCpuFallback())
                             return MatchWithManagedCpuFallback(param, source, template, contourMask, sw);
 
-                        WriteDiagnosticLog("MatchSession.Match：开始确保模板已学习，templateVersion=" + templateVersion + "，learnedVersion=" + learnedTemplateVersion);
-                        EnsureTemplateLearned(template);
-                        WriteDiagnosticLog("MatchSession.Match：模板学习状态确认完成。");
-
-                        int maxResults = Math.Max(1, Math.Min(1000, param.ResultNum));
-                        double[] xs = new double[maxResults];
-                        double[] ys = new double[maxResults];
-                        double[] angles = new double[maxResults];
-                        double[] scores = new double[maxResults];
-
-                        double expectedScore = NormalizeScore(param.MinScore);
-                        double maxOverlap = NormalizeRatio(param.MaxOverlap);
-                        double toleranceAngle = Math.Abs(param.ToleranceAngle);
-
-                        WriteDiagnosticLog(string.Format("MatchSession.Match：准备调用native匹配，maxResults={0}，expectedScore={1:F4}，toleranceAngle={2:F4}，maxOverlap={3:F4}，angleStep={4:F4}，coarse={5}。", maxResults, expectedScore, toleranceAngle, maxOverlap, Math.Max(0, param.AngleStep), param.CoarseMatch));
-                        int count = engine.Match(
-                            source,
-                            expectedScore,
-                            toleranceAngle,
-                            maxOverlap,
-                            Math.Max(0, param.AngleStep),
-                            param.CoarseMatch,
-                            xs,
-                            ys,
-                            angles,
-                            scores,
-                            maxResults);
-                        WriteDiagnosticLog("MatchSession.Match：native匹配返回，count=" + count);
-
-                        List<PointF> contour = null;
-                        if (param.ShowOutlineStatus)
+                        try
                         {
-                            WriteDiagnosticLog("MatchSession.Match：开始获取模板轮廓。");
-                            contour = GetTemplateContour(template, contourMask);
-                            WriteDiagnosticLog("MatchSession.Match：模板轮廓完成，点数=" + (contour == null ? 0 : contour.Count));
-                        }
+                            WriteDiagnosticLog("MatchSession.Match：开始确保模板已学习，templateVersion=" + templateVersion + "，learnedVersion=" + learnedTemplateVersion);
+                            EnsureTemplateLearned(template);
+                            WriteDiagnosticLog("MatchSession.Match：模板学习状态确认完成。");
 
-                        for (int i = 0; i < count; i++)
-                        {
-                            var match = new FastTemplateMatchInfo
+                            int maxResults = Math.Max(1, Math.Min(1000, param.ResultNum));
+                            double[] xs = new double[maxResults];
+                            double[] ys = new double[maxResults];
+                            double[] angles = new double[maxResults];
+                            double[] scores = new double[maxResults];
+
+                            double expectedScore = NormalizeScore(param.MinScore);
+                            double maxOverlap = NormalizeRatio(param.MaxOverlap);
+                            double toleranceAngle = Math.Abs(param.ToleranceAngle);
+
+                            WriteDiagnosticLog(string.Format("MatchSession.Match：准备调用native匹配，maxResults={0}，expectedScore={1:F4}，toleranceAngle={2:F4}，maxOverlap={3:F4}，angleStep={4:F4}，coarse={5}。", maxResults, expectedScore, toleranceAngle, maxOverlap, Math.Max(0, param.AngleStep), param.CoarseMatch));
+                            int count = engine.Match(
+                                source,
+                                expectedScore,
+                                toleranceAngle,
+                                maxOverlap,
+                                Math.Max(0, param.AngleStep),
+                                param.CoarseMatch,
+                                xs,
+                                ys,
+                                angles,
+                                scores,
+                                maxResults);
+                            WriteDiagnosticLog("MatchSession.Match：native匹配返回，count=" + count);
+
+                            List<PointF> contour = null;
+                            if (param.ShowOutlineStatus)
                             {
-                                Box = new FastTemplateMatchBox
+                                WriteDiagnosticLog("MatchSession.Match：开始获取模板轮廓。");
+                                contour = GetTemplateContour(template, contourMask);
+                                WriteDiagnosticLog("MatchSession.Match：模板轮廓完成，点数=" + (contour == null ? 0 : contour.Count));
+                            }
+
+                            for (int i = 0; i < count; i++)
+                            {
+                                var match = new FastTemplateMatchInfo
                                 {
-                                    CenterX = (float)xs[i],
-                                    CenterY = (float)ys[i],
-                                    Width = template.Width,
-                                    Height = template.Height,
-                                    Angle = (float)-angles[i]
-                                },
-                                Score = scores[i]
-                            };
-                            result.Matches.Add(match);
+                                    Box = new FastTemplateMatchBox
+                                    {
+                                        CenterX = (float)xs[i],
+                                        CenterY = (float)ys[i],
+                                        Width = template.Width,
+                                        Height = template.Height,
+                                        Angle = (float)-angles[i]
+                                    },
+                                    Score = scores[i]
+                                };
+                                result.Matches.Add(match);
 
-                            if (contour != null && contour.Count > 0)
-                                result.Outlines.Add(TransformContour(contour, match.Box.CenterX, match.Box.CenterY, match.Box.Angle));
+                                if (contour != null && contour.Count > 0)
+                                    result.Outlines.Add(TransformContour(contour, match.Box.CenterX, match.Box.CenterY, match.Box.Angle));
+                            }
+
+                            result.ExpectedCount = maxResults;
+                            result.ExpectedScore = expectedScore;
+                            result.IsOk = result.Matches.Count > 0 && result.Matches.All(m => m.Score >= expectedScore);
                         }
-
-                        result.ExpectedCount = maxResults;
-                        result.ExpectedScore = expectedScore;
-                        result.IsOk = result.Matches.Count > 0 && result.Matches.All(m => m.Score >= expectedScore);
+                        catch (MatchToolNativeException ex) when (ShouldFallbackAfterNativeFailure(ex))
+                        {
+                            ResetNativeEngineAfterFailure(ex);
+                            return MatchWithManagedCpuFallback(param, source, template, contourMask, sw);
+                        }
                     }
 
                     sw.Stop();
@@ -666,66 +679,74 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                     {
                         template = PrepareNativeTemplate(templateImage, out disposeTemplate);
                         WriteDiagnosticLog("MatchSession.MatchMat：图像已准备，sourceNative=" + DescribeMat(sourceImage) + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("templateNative", template));
-                        WriteDiagnosticLog("MatchSession.MatchMat：开始确保模板已学习，templateVersion=" + templateVersion + "，learnedVersion=" + learnedTemplateVersion);
-                        EnsureTemplateLearned(template);
-                        WriteDiagnosticLog("MatchSession.MatchMat：模板学习状态确认完成。");
-
-                        int maxResults = Math.Max(1, Math.Min(1000, param.ResultNum));
-                        double[] xs = new double[maxResults];
-                        double[] ys = new double[maxResults];
-                        double[] angles = new double[maxResults];
-                        double[] scores = new double[maxResults];
-
-                        double expectedScore = NormalizeScore(param.MinScore);
-                        double maxOverlap = NormalizeRatio(param.MaxOverlap);
-                        double toleranceAngle = Math.Abs(param.ToleranceAngle);
-
-                        WriteDiagnosticLog(string.Format("MatchSession.MatchMat：准备调用native匹配，maxResults={0}，expectedScore={1:F4}，toleranceAngle={2:F4}，maxOverlap={3:F4}，angleStep={4:F4}，coarse={5}。", maxResults, expectedScore, toleranceAngle, maxOverlap, Math.Max(0, param.AngleStep), param.CoarseMatch));
-                        int count = engine.Match(
-                            sourceImage,
-                            expectedScore,
-                            toleranceAngle,
-                            maxOverlap,
-                            Math.Max(0, param.AngleStep),
-                            param.CoarseMatch,
-                            xs,
-                            ys,
-                            angles,
-                            scores,
-                            maxResults);
-                        WriteDiagnosticLog("MatchSession.MatchMat：native匹配返回，count=" + count);
-
-                        List<PointF> contour = null;
-                        if (param.ShowOutlineStatus)
+                        try
                         {
-                            WriteDiagnosticLog("MatchSession.MatchMat：开始获取模板轮廓。");
-                            contour = GetTemplateContour(template, contourMask);
-                            WriteDiagnosticLog("MatchSession.MatchMat：模板轮廓完成，点数=" + (contour == null ? 0 : contour.Count));
-                        }
+                            WriteDiagnosticLog("MatchSession.MatchMat：开始确保模板已学习，templateVersion=" + templateVersion + "，learnedVersion=" + learnedTemplateVersion);
+                            EnsureTemplateLearned(template);
+                            WriteDiagnosticLog("MatchSession.MatchMat：模板学习状态确认完成。");
 
-                        for (int i = 0; i < count; i++)
-                        {
-                            var match = new FastTemplateMatchInfo
+                            int maxResults = Math.Max(1, Math.Min(1000, param.ResultNum));
+                            double[] xs = new double[maxResults];
+                            double[] ys = new double[maxResults];
+                            double[] angles = new double[maxResults];
+                            double[] scores = new double[maxResults];
+
+                            double expectedScore = NormalizeScore(param.MinScore);
+                            double maxOverlap = NormalizeRatio(param.MaxOverlap);
+                            double toleranceAngle = Math.Abs(param.ToleranceAngle);
+
+                            WriteDiagnosticLog(string.Format("MatchSession.MatchMat：准备调用native匹配，maxResults={0}，expectedScore={1:F4}，toleranceAngle={2:F4}，maxOverlap={3:F4}，angleStep={4:F4}，coarse={5}。", maxResults, expectedScore, toleranceAngle, maxOverlap, Math.Max(0, param.AngleStep), param.CoarseMatch));
+                            int count = engine.Match(
+                                sourceImage,
+                                expectedScore,
+                                toleranceAngle,
+                                maxOverlap,
+                                Math.Max(0, param.AngleStep),
+                                param.CoarseMatch,
+                                xs,
+                                ys,
+                                angles,
+                                scores,
+                                maxResults);
+                            WriteDiagnosticLog("MatchSession.MatchMat：native匹配返回，count=" + count);
+
+                            List<PointF> contour = null;
+                            if (param.ShowOutlineStatus)
                             {
-                                Box = new FastTemplateMatchBox
+                                WriteDiagnosticLog("MatchSession.MatchMat：开始获取模板轮廓。");
+                                contour = GetTemplateContour(template, contourMask);
+                                WriteDiagnosticLog("MatchSession.MatchMat：模板轮廓完成，点数=" + (contour == null ? 0 : contour.Count));
+                            }
+
+                            for (int i = 0; i < count; i++)
+                            {
+                                var match = new FastTemplateMatchInfo
                                 {
-                                    CenterX = (float)xs[i],
-                                    CenterY = (float)ys[i],
-                                    Width = template.Width,
-                                    Height = template.Height,
-                                    Angle = (float)-angles[i]
-                                },
-                                Score = scores[i]
-                            };
-                            result.Matches.Add(match);
+                                    Box = new FastTemplateMatchBox
+                                    {
+                                        CenterX = (float)xs[i],
+                                        CenterY = (float)ys[i],
+                                        Width = template.Width,
+                                        Height = template.Height,
+                                        Angle = (float)-angles[i]
+                                    },
+                                    Score = scores[i]
+                                };
+                                result.Matches.Add(match);
 
-                            if (contour != null && contour.Count > 0)
-                                result.Outlines.Add(TransformContour(contour, match.Box.CenterX, match.Box.CenterY, match.Box.Angle));
+                                if (contour != null && contour.Count > 0)
+                                    result.Outlines.Add(TransformContour(contour, match.Box.CenterX, match.Box.CenterY, match.Box.Angle));
+                            }
+
+                            result.ExpectedCount = maxResults;
+                            result.ExpectedScore = expectedScore;
+                            result.IsOk = result.Matches.Count > 0 && result.Matches.All(m => m.Score >= expectedScore);
                         }
-
-                        result.ExpectedCount = maxResults;
-                        result.ExpectedScore = expectedScore;
-                        result.IsOk = result.Matches.Count > 0 && result.Matches.All(m => m.Score >= expectedScore);
+                        catch (MatchToolNativeException ex) when (ShouldFallbackAfterNativeFailure(ex))
+                        {
+                            ResetNativeEngineAfterFailure(ex);
+                            return MatchWithManagedCpuFallback(param, sourceImage, template, contourMask, sw);
+                        }
                     }
                     finally
                     {
@@ -766,15 +787,40 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             }
 
             /// <summary>
+            /// 判断 native 失败是否允许切换到托管 CPU 后备算法。
+            /// </summary>
+            private bool ShouldFallbackAfterNativeFailure(MatchToolNativeException exception)
+            {
+                bool useFallback = !forceNativeDemoAlgorithm && exception != null && exception.Status == NativeInternalErrorStatus;
+                WriteDiagnosticLog("MatchSession.Match：native失败后备判断，Status=" + (exception == null ? 0 : exception.Status) + "，ForceNativeDemoAlgorithm=" + forceNativeDemoAlgorithm + "，UseFallback=" + useFallback + "。");
+                return useFallback;
+            }
+
+            /// <summary>
+            /// native 内部异常后释放当前引擎，避免复用可能已经不可靠的学习状态。
+            /// </summary>
+            private void ResetNativeEngineAfterFailure(MatchToolNativeException exception)
+            {
+                WriteDiagnosticLog("MatchSession.Match：native返回内部错误，自动释放引擎并切换CPU后备，原因=" + (exception == null ? string.Empty : exception.Message));
+                engine?.Dispose();
+                engine = null;
+                templateLearned = false;
+                learnedTemplateVersion = -1;
+                learnedTemplateWidth = 0;
+                learnedTemplateHeight = 0;
+            }
+
+            /// <summary>
             /// 当前发布的 native DLL 需要 AVX2 且本机不支持时，自动切换到 OpenCvSharp CPU 后备算法。
             /// </summary>
             private static bool ShouldUseManagedCpuFallback()
             {
                 string nativeDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Native");
+                bool forceManagedFallback = MatchToolRuntimeProfile.ForceManagedCpuFallback(nativeDirectory, "MatchTool.runtime.txt");
                 bool requiresAvx2 = MatchToolRuntimeProfile.RequiresAvx2(nativeDirectory, "MatchTool.runtime.txt");
                 bool supportsAvx2 = CpuInstructionSet.SupportsAvx2;
-                bool useFallback = requiresAvx2 && !supportsAvx2;
-                WriteDiagnosticLog("MatchSession.Match：CPU后备判断，RequiresAvx2=" + requiresAvx2 + "，CpuSupportsAvx2=" + supportsAvx2 + "，UseFallback=" + useFallback + "。");
+                bool useFallback = forceManagedFallback || (requiresAvx2 && !supportsAvx2);
+                WriteDiagnosticLog("MatchSession.Match：CPU后备判断，ForceManagedFallback=" + forceManagedFallback + "，RequiresAvx2=" + requiresAvx2 + "，CpuSupportsAvx2=" + supportsAvx2 + "，UseFallback=" + useFallback + "。");
                 return useFallback;
             }
 
@@ -819,6 +865,24 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 result.AlgorithmMs = stopwatch.Elapsed.TotalMilliseconds;
                 WriteDiagnosticLog(string.Format("ManagedCpuFallback出口：matches={0}，elapsed={1:F2}ms。", result.Matches.Count, result.AlgorithmMs));
                 return result;
+            }
+
+            /// <summary>
+            /// 使用 Mat 输入执行 OpenCvSharp CPU 后备模板匹配，供 native 内部错误时继续完成本次执行。
+            /// </summary>
+            private FastTemplateMatchResult MatchWithManagedCpuFallback(
+                NodeParamMatchTemplate param,
+                Mat source,
+                Bitmap template,
+                Bitmap contourMask,
+                Stopwatch stopwatch)
+            {
+                WriteDiagnosticLog("ManagedCpuFallbackMat入口：" + DescribeMat(source));
+                using (var sourceBitmap = BitmapConverter.ToBitmap(source))
+                using (var source24 = To24Bpp(sourceBitmap))
+                {
+                    return MatchWithManagedCpuFallback(param, source24, template, contourMask, stopwatch);
+                }
             }
 
             /// <summary>
@@ -1065,9 +1129,10 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 {
                     MatchTemplateDiagnosticLog.Write(string.Format("FastMatchEngineHandle.Learn：准备调用LearnPatternMem，width={0}，height={1}，stride={2}，scan0={3}。", template.Width, template.Height, data.Stride, data.Scan0));
                     int code = FastMatchNative.LearnPatternMem(_engine, data.Scan0, template.Width, template.Height, data.Stride, 3);
-                    MatchTemplateDiagnosticLog.Write("FastMatchEngineHandle.Learn：LearnPatternMem返回，code=" + code);
+                    string nativeStage = FastMatchNative.GetLastDiagnosticStage();
+                    MatchTemplateDiagnosticLog.Write("FastMatchEngineHandle.Learn：LearnPatternMem返回，code=" + code + "，nativeStage=" + nativeStage);
                     if (code != 0)
-                        throw CreateNativeException("模板学习失败", code);
+                        throw CreateNativeException("模板学习失败", code, nativeStage);
                 }
                 finally
                 {
@@ -1198,10 +1263,11 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             /// <summary>
             /// 创建带 native 错误文本的异常，方便低配电脑现场定位卡死或失败原因。
             /// </summary>
-            private static InvalidOperationException CreateNativeException(string actionName, int status)
+            private static MatchToolNativeException CreateNativeException(string actionName, int status, string nativeStage = null)
             {
                 string message = FastMatchNative.GetStatusMessage(status);
-                return new InvalidOperationException(string.Format("{0}：{1}（错误码 {2}）。", actionName, message, status));
+                string stageText = string.IsNullOrWhiteSpace(nativeStage) ? string.Empty : " native阶段：" + nativeStage;
+                return new MatchToolNativeException(status, string.Format("{0}：{1}（错误码 {2}）。{3}", actionName, message, status, stageText));
             }
 
             /// <summary>
@@ -1214,6 +1280,26 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 
                 FastMatchNative.ReleaseMatchEngine(_engine);
                 _engine = IntPtr.Zero;
+            }
+        }
+
+        /// <summary>
+        /// native 模板匹配错误异常，保留稳定错误码以便上层决定是否自动降级。
+        /// </summary>
+        private sealed class MatchToolNativeException : InvalidOperationException
+        {
+            /// <summary>
+            /// MatchTool.dll 返回的稳定错误码。
+            /// </summary>
+            public int Status { get; }
+
+            /// <summary>
+            /// 创建带错误码的 native 异常。
+            /// </summary>
+            public MatchToolNativeException(int status, string message)
+                : base(message)
+            {
+                Status = status;
             }
         }
 
@@ -1267,6 +1353,9 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             private static extern IntPtr GetMatchStatusMessage(int status);
 
             [DllImport("MatchTool.dll", CallingConvention = CallingConvention.Cdecl)]
+            private static extern IntPtr GetLastMatchDiagnosticStage();
+
+            [DllImport("MatchTool.dll", CallingConvention = CallingConvention.Cdecl)]
             public static extern IntPtr CreateMatchEngine();
 
             [DllImport("MatchTool.dll", CallingConvention = CallingConvention.Cdecl)]
@@ -1312,6 +1401,30 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 string message = Marshal.PtrToStringAnsi(pointer);
                 return string.IsNullOrWhiteSpace(message) ? "未知 native 错误" : message;
             }
+
+            /// <summary>
+            /// 获取 native 内部最后执行阶段，定位被保护层拦截的-10错误发生位置。
+            /// </summary>
+            public static string GetLastDiagnosticStage()
+            {
+                try
+                {
+                    IntPtr pointer = GetLastMatchDiagnosticStage();
+                    if (pointer == IntPtr.Zero)
+                        return "unknown";
+
+                    string stage = Marshal.PtrToStringAnsi(pointer);
+                    return string.IsNullOrWhiteSpace(stage) ? "unknown" : stage;
+                }
+                catch (EntryPointNotFoundException)
+                {
+                    return "diagnostic-export-missing";
+                }
+                catch
+                {
+                    return "diagnostic-read-failed";
+                }
+            }
         }
     }
 
@@ -1338,6 +1451,26 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             catch
             {
                 return true;
+            }
+        }
+
+        /// <summary>
+        /// 判断是否由现场配置强制绕开 native 模板学习，改用托管 CPU 后备算法。
+        /// </summary>
+        public static bool ForceManagedCpuFallback(string nativeDirectory, string profileFileName)
+        {
+            try
+            {
+                string profilePath = Path.Combine(nativeDirectory ?? string.Empty, profileFileName ?? string.Empty);
+                if (!File.Exists(profilePath))
+                    return false;
+
+                string profile = File.ReadAllText(profilePath, Encoding.UTF8);
+                return profile.IndexOf("force_managed_cpu_fallback=true", StringComparison.OrdinalIgnoreCase) >= 0;
+            }
+            catch
+            {
+                return false;
             }
         }
     }

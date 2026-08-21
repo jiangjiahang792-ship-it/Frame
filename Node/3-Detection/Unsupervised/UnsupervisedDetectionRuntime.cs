@@ -363,7 +363,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             if (manifest != null && manifest.Threshold > 0F && manifest.Threshold <= 1F)
                 return manifest.Threshold;
 
-            return NodeParamUnsupervisedDetection.DefaultThreshold;
+            return NodeParamUnsupervisedDetection.FallbackThreshold;
         }
 
         /// <summary>
