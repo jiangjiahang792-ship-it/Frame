@@ -1128,7 +1128,9 @@
       <DependentUpon>SinglePLC.cs</DependentUpon>
     </Compile>
     <Compile Include="Device\Camera\CameraHik.cs" />
+    <Compile Include="Device\Camera\HikNativeCameraModels.cs" />
     <Compile Include="Device\Camera\ICamera.cs" />
+    <Compile Include="Device\Camera\Vendor\MVCamera.cs" />
     <Compile Include="Device\IDevice.cs" />
     <Compile Include="Device\Light\LightRsee.cs" />
     <Compile Include="Device\Modbus\ModbusTcpParam.cs" />
