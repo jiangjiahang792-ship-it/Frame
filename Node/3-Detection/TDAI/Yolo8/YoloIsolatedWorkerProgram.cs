@@ -4,8 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
-using System.Runtime.InteropServices;
+using System.IO.MemoryMappedFiles;
 using System.Text;
+using System.Threading;
 using Point = OpenCvSharp.Point;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
@@ -19,6 +20,26 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// 当前worker中持有的YOLO模型。
         /// </summary>
         private static IYolo8 currentModel;
+
+        /// <summary>
+        /// 当前父进程共享图像映射。
+        /// </summary>
+        private static MemoryMappedFile currentImageMap;
+
+        /// <summary>
+        /// worker只读共享图像视图。
+        /// </summary>
+        private static MemoryMappedViewAccessor currentImageView;
+
+        /// <summary>
+        /// 当前已打开的共享图像映射名称。
+        /// </summary>
+        private static string currentImageMapName;
+
+        /// <summary>
+        /// 当前已打开的共享图像映射容量。
+        /// </summary>
+        private static long currentImageMapCapacity;
 
         /// <summary>
         /// 如果当前启动参数为YOLO worker，则运行worker并阻止主程序继续启动。
@@ -57,29 +78,41 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <param name="output">worker响应输出流。</param>
         private static void RunLoop(TextReader input, TextWriter output)
         {
-            string line;
-            while ((line = input.ReadLine()) != null)
+            try
             {
-                YoloIsolatedResponse response;
+                string line;
+                while ((line = input.ReadLine()) != null)
+                {
+                    YoloIsolatedResponse response;
+                    try
+                    {
+                        YoloIsolatedRequest request = JsonConvert.DeserializeObject<YoloIsolatedRequest>(line);
+                        response = HandleRequest(request);
+                    }
+                    catch (Exception ex)
+                    {
+                        response = new YoloIsolatedResponse
+                        {
+                            Success = false,
+                            Error = ex.Message
+                        };
+                    }
+
+                    output.WriteLine(JsonConvert.SerializeObject(response, Formatting.None));
+                    output.Flush();
+                }
+            }
+            finally
+            {
                 try
                 {
-                    YoloIsolatedRequest request = JsonConvert.DeserializeObject<YoloIsolatedRequest>(line);
-                    response = HandleRequest(request);
+                    DestroyCurrentModel();
                 }
-                catch (Exception ex)
+                finally
                 {
-                    response = new YoloIsolatedResponse
-                    {
-                        Success = false,
-                        Error = ex.Message
-                    };
+                    ReleaseSharedImageMap();
                 }
-
-                output.WriteLine(JsonConvert.SerializeObject(response, Formatting.None));
-                output.Flush();
             }
-
-            DestroyCurrentModel();
         }
 
         /// <summary>
@@ -96,6 +129,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             {
                 case "ping":
                     return Success();
+                case "validate-image":
+                    return ValidateSharedImage(request);
                 case "init":
                     InitializeModel(request);
                     return Success();
@@ -140,8 +175,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             if (currentModel == null)
                 throw new InvalidOperationException("YOLO worker模型尚未初始化。");
 
-            using (Mat image = CreateMat(request))
+            using (SharedImageMatLease imageLease = CreateMat(request))
             {
+                Mat image = imageLease.Image;
                 switch (currentModel.ModelType)
                 {
                     case ModelType.DET:
@@ -181,23 +217,181 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         }
 
         /// <summary>
-        /// 从请求消息还原OpenCV图像。
+        /// 从父进程共享内存建立零拷贝OpenCV Mat视图。
         /// </summary>
         /// <param name="request">推理请求。</param>
-        /// <returns>OpenCV Mat图像。</returns>
-        private static Mat CreateMat(YoloIsolatedRequest request)
+        /// <returns>同时管理Mat头和共享内存指针的租约。</returns>
+        private static SharedImageMatLease CreateMat(YoloIsolatedRequest request)
         {
-            byte[] bytes = Convert.FromBase64String(request.ImageBase64 ?? string.Empty);
-            Mat image = new Mat(request.Rows, request.Cols, request.MatType);
-            int expectedBytes = (int)(image.Total() * image.ElemSize());
-            if (bytes.Length != expectedBytes)
+            if (string.IsNullOrWhiteSpace(request.ImageMapName))
+                throw new InvalidOperationException("YOLO worker共享内存名称为空。");
+            if (request.Rows <= 0 || request.Cols <= 0 || request.ImageStride <= 0L)
+                throw new InvalidOperationException("YOLO worker共享图像尺寸或步长无效。");
+            if (request.ImageByteCount <= 0L || request.ImageByteCount > YoloSharedImageTransport.MaximumImageBytes)
             {
-                image.Dispose();
-                throw new InvalidOperationException($"YOLO worker图像字节数不匹配，期望={expectedBytes}，实际={bytes.Length}。");
+                throw new InvalidOperationException(
+                    "YOLO worker共享图像字节数无效，实际=" + request.ImageByteCount +
+                    "，上限=" + YoloSharedImageTransport.MaximumImageBytes + "。");
+            }
+            if (request.ImageMapCapacity < request.ImageByteCount ||
+                request.ImageMapCapacity > YoloSharedImageTransport.MaximumImageBytes)
+                throw new InvalidOperationException("YOLO worker共享内存容量与图像字节数不匹配。");
+
+            EnsureSharedImageMap(request.ImageMapName, request.ImageMapCapacity);
+            Thread.MemoryBarrier();
+            return new SharedImageMatLease(
+                currentImageView,
+                request.Rows,
+                request.Cols,
+                request.MatType,
+                request.ImageStride,
+                request.ImageByteCount);
+        }
+
+        /// <summary>
+        /// 不加载模型地校验共享内存图像内容，供部署诊断和自动测试使用。
+        /// </summary>
+        /// <param name="request">共享图像请求。</param>
+        /// <returns>包含全部通道像素和的响应。</returns>
+        private static YoloIsolatedResponse ValidateSharedImage(YoloIsolatedRequest request)
+        {
+            using (SharedImageMatLease imageLease = CreateMat(request))
+            {
+                Scalar sum = Cv2.Sum(imageLease.Image);
+                return new YoloIsolatedResponse
+                {
+                    Success = true,
+                    SharedImageValueSum = sum.Val0 + sum.Val1 + sum.Val2 + sum.Val3
+                };
+            }
+        }
+
+        /// <summary>
+        /// 打开父进程当前共享图像映射，名称未变化时复用现有视图。
+        /// </summary>
+        /// <param name="mapName">共享内存名称。</param>
+        /// <param name="capacity">共享内存容量。</param>
+        private static void EnsureSharedImageMap(string mapName, long capacity)
+        {
+            if (currentImageMap != null &&
+                string.Equals(currentImageMapName, mapName, StringComparison.Ordinal) &&
+                currentImageMapCapacity == capacity)
+                return;
+
+            ReleaseSharedImageMap();
+            currentImageMap = MemoryMappedFile.OpenExisting(mapName, MemoryMappedFileRights.Read);
+            currentImageView = currentImageMap.CreateViewAccessor(0L, capacity, MemoryMappedFileAccess.Read);
+            currentImageMapName = mapName;
+            currentImageMapCapacity = capacity;
+        }
+
+        /// <summary>
+        /// 释放worker侧共享图像映射和视图。
+        /// </summary>
+        private static void ReleaseSharedImageMap()
+        {
+            MemoryMappedViewAccessor view = currentImageView;
+            MemoryMappedFile map = currentImageMap;
+            currentImageView = null;
+            currentImageMap = null;
+            currentImageMapName = null;
+            currentImageMapCapacity = 0L;
+
+            try
+            {
+                if (view != null)
+                    view.Dispose();
+            }
+            finally
+            {
+                if (map != null)
+                    map.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// 管理一次共享图像推理期间的Mat头和映射指针生命周期。
+        /// </summary>
+        private sealed unsafe class SharedImageMatLease : IDisposable
+        {
+            /// <summary>
+            /// 当前共享内存视图。
+            /// </summary>
+            private readonly MemoryMappedViewAccessor view;
+
+            /// <summary>
+            /// 当前取得的视图起始指针。
+            /// </summary>
+            private byte* viewPointer;
+
+            /// <summary>
+            /// 标记指针是否已经成功取得。
+            /// </summary>
+            private bool pointerAcquired;
+
+            /// <summary>
+            /// 使用共享内存建立Mat头，并验证有效图像范围没有越界。
+            /// </summary>
+            /// <param name="view">共享内存视图。</param>
+            /// <param name="rows">图像行数。</param>
+            /// <param name="cols">图像列数。</param>
+            /// <param name="matType">Mat类型。</param>
+            /// <param name="stride">图像行步长。</param>
+            /// <param name="imageByteCount">有效图像字节数。</param>
+            public SharedImageMatLease(
+                MemoryMappedViewAccessor view,
+                int rows,
+                int cols,
+                int matType,
+                long stride,
+                long imageByteCount)
+            {
+                this.view = view ?? throw new ArgumentNullException(nameof(view));
+                view.SafeMemoryMappedViewHandle.AcquirePointer(ref viewPointer);
+                pointerAcquired = true;
+                try
+                {
+                    IntPtr imagePointer = new IntPtr(viewPointer + view.PointerOffset);
+                    Image = Mat.FromPixelData(rows, cols, matType, imagePointer, stride);
+                    long minimumBytes = checked(((long)rows - 1L) * stride + ((long)cols * Image.ElemSize()));
+                    if (minimumBytes > imageByteCount)
+                        throw new InvalidOperationException("YOLO worker共享图像有效字节数不足。");
+                }
+                catch
+                {
+                    Dispose();
+                    throw;
+                }
             }
 
-            Marshal.Copy(bytes, 0, image.Data, bytes.Length);
-            return image;
+            /// <summary>
+            /// 获取本次推理使用的零拷贝Mat头。
+            /// </summary>
+            public Mat Image { get; private set; }
+
+            /// <summary>
+            /// 先释放Mat头，再归还共享内存视图指针。
+            /// </summary>
+            public void Dispose()
+            {
+                try
+                {
+                    if (Image != null)
+                    {
+                        Image.Dispose();
+                        Image = null;
+                    }
+                }
+                finally
+                {
+                    if (pointerAcquired)
+                    {
+                        view.SafeMemoryMappedViewHandle.ReleasePointer();
+                        pointerAcquired = false;
+                        viewPointer = null;
+                    }
+                }
+            }
         }
 
         /// <summary>

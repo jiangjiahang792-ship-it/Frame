@@ -3,6 +3,22 @@ using System.Collections.Generic;
 namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
 {
     /// <summary>
+    /// YOLO隔离worker共享图像传输的容量规则。
+    /// </summary>
+    internal static class YoloSharedImageTransport
+    {
+        /// <summary>
+        /// 共享图像缓冲按4MB粒度增长，减少相近分辨率切换时重复创建映射。
+        /// </summary>
+        public const long CapacityGrowthBytes = 4L * 1024L * 1024L;
+
+        /// <summary>
+        /// 单个YOLO模型worker允许的最大共享图像字节数。
+        /// </summary>
+        public const long MaximumImageBytes = 512L * 1024L * 1024L;
+    }
+
+    /// <summary>
     /// YOLO隔离worker请求消息。
     /// </summary>
     internal sealed class YoloIsolatedRequest
@@ -68,9 +84,24 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         public int MatType { get; set; }
 
         /// <summary>
-        /// 获取或设置图像原始字节的Base64文本。
+        /// 获取或设置父进程创建的命名共享内存名称。
         /// </summary>
-        public string ImageBase64 { get; set; }
+        public string ImageMapName { get; set; }
+
+        /// <summary>
+        /// 获取或设置共享内存映射容量。
+        /// </summary>
+        public long ImageMapCapacity { get; set; }
+
+        /// <summary>
+        /// 获取或设置本帧有效图像字节数。
+        /// </summary>
+        public long ImageByteCount { get; set; }
+
+        /// <summary>
+        /// 获取或设置共享图像的紧凑行步长。
+        /// </summary>
+        public long ImageStride { get; set; }
 
         /// <summary>
         /// 获取或设置结果X方向偏移。
@@ -122,6 +153,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// 获取或设置POSE检测结果。
         /// </summary>
         public YoloIsolatedPoseResult PoseResult { get; set; }
+
+        /// <summary>
+        /// 获取或设置共享图像传输校验时的全部通道像素和。
+        /// </summary>
+        public double SharedImageValueSum { get; set; }
     }
 
     /// <summary>

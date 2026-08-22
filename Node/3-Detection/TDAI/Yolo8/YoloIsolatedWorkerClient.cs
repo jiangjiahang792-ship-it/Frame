@@ -5,8 +5,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
-using System.Runtime.InteropServices;
+using System.IO.MemoryMappedFiles;
 using System.Text;
+using System.Threading;
 using System.Windows.Forms;
 using Point = OpenCvSharp.Point;
 using DiagnosticsProcess = System.Diagnostics.Process;
@@ -43,6 +44,26 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// worker标准错误输出，用于在子进程异常退出时返回真实原因。
         /// </summary>
         private StreamReader errorOutput;
+
+        /// <summary>
+        /// 当前模型worker独享的命名共享内存。
+        /// </summary>
+        private MemoryMappedFile sharedImageMap;
+
+        /// <summary>
+        /// 主进程用于写入图像的共享内存视图。
+        /// </summary>
+        private MemoryMappedViewAccessor sharedImageView;
+
+        /// <summary>
+        /// 当前共享内存名称，扩容时生成新名称。
+        /// </summary>
+        private string sharedImageMapName;
+
+        /// <summary>
+        /// 当前共享图像映射容量。
+        /// </summary>
+        private long sharedImageMapCapacity;
 
         /// <summary>
         /// 当前模型路径。
@@ -135,8 +156,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <returns>DET结果。</returns>
         public List<DetResult> DetectDet(Mat image, float scoreThreshold, float nmsThreshold, int deltaX, int deltaY)
         {
-            YoloIsolatedRequest request = CreateDetectRequest(image, scoreThreshold, nmsThreshold, deltaX, deltaY, true);
-            YoloIsolatedResponse response = SendRequest(request);
+            YoloIsolatedResponse response = SendDetectRequest(image, scoreThreshold, nmsThreshold, deltaX, deltaY, true);
             List<DetResult> results = new List<DetResult>();
             if (response.DetResults == null)
                 return results;
@@ -165,8 +185,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <returns>OBB结果。</returns>
         public List<ObbResult> DetectObb(Mat image, float scoreThreshold, float nmsThreshold, int deltaX, int deltaY)
         {
-            YoloIsolatedRequest request = CreateDetectRequest(image, scoreThreshold, nmsThreshold, deltaX, deltaY, true);
-            YoloIsolatedResponse response = SendRequest(request);
+            YoloIsolatedResponse response = SendDetectRequest(image, scoreThreshold, nmsThreshold, deltaX, deltaY, true);
             List<ObbResult> results = new List<ObbResult>();
             if (response.ObbResults == null)
                 return results;
@@ -200,8 +219,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <returns>SEG结果。</returns>
         public List<SegResult> DetectSeg(Mat image, float scoreThreshold, float nmsThreshold, int deltaX, int deltaY, bool needMaskBox)
         {
-            YoloIsolatedRequest request = CreateDetectRequest(image, scoreThreshold, nmsThreshold, deltaX, deltaY, needMaskBox);
-            YoloIsolatedResponse response = SendRequest(request);
+            YoloIsolatedResponse response = SendDetectRequest(image, scoreThreshold, nmsThreshold, deltaX, deltaY, needMaskBox);
             List<SegResult> results = new List<SegResult>();
             if (response.SegResults == null)
                 return results;
@@ -235,8 +253,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <returns>POSE结果。</returns>
         public PoseResult DetectPose(Mat image, float scoreThreshold, float nmsThreshold, int deltaX, int deltaY)
         {
-            YoloIsolatedRequest request = CreateDetectRequest(image, scoreThreshold, nmsThreshold, deltaX, deltaY, true);
-            YoloIsolatedResponse response = SendRequest(request);
+            YoloIsolatedResponse response = SendDetectRequest(image, scoreThreshold, nmsThreshold, deltaX, deltaY, true);
             PoseResult result = new PoseResult
             {
                 Boxs = new List<Rect>(),
@@ -266,36 +283,66 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// </summary>
         public void Dispose()
         {
-            if (disposed)
+            lock (syncRoot)
+            {
+                if (disposed)
+                    return;
+
+                disposed = true;
+                try
+                {
+                    if (process != null && !process.HasExited)
+                        SendRequestCore(new YoloIsolatedRequest { Command = "destroy" });
+                }
+                catch
+                {
+                    // 释放阶段忽略worker通信异常，后续会直接结束进程。
+                }
+
+                DisposeSilently(input);
+                input = null;
+                DisposeSilently(output);
+                output = null;
+                DisposeSilently(errorOutput);
+                errorOutput = null;
+                try
+                {
+                    if (process != null && !process.HasExited)
+                        process.Kill();
+                }
+                catch
+                {
+                    // worker可能已在状态检查后退出，关闭阶段无需上抛。
+                }
+                DisposeSilently(process);
+                process = null;
+                try
+                {
+                    ReleaseSharedImageMap();
+                }
+                catch
+                {
+                    // 关闭阶段逐资源尽力释放，避免影响主流程退出。
+                }
+            }
+        }
+
+        /// <summary>
+        /// 在关闭路径中释放单个托管资源并隔离其异常。
+        /// </summary>
+        /// <param name="resource">待释放资源。</param>
+        private static void DisposeSilently(IDisposable resource)
+        {
+            if (resource == null)
                 return;
 
-            disposed = true;
             try
             {
-                if (process != null && !process.HasExited)
-                    SendRequest(new YoloIsolatedRequest { Command = "destroy" });
+                resource.Dispose();
             }
             catch
             {
-                // 释放阶段忽略worker通信异常，后续会直接结束进程。
-            }
-
-            try
-            {
-                if (input != null)
-                    input.Dispose();
-                if (output != null)
-                    output.Dispose();
-                if (errorOutput != null)
-                    errorOutput.Dispose();
-                if (process != null && !process.HasExited)
-                    process.Kill();
-                if (process != null)
-                    process.Dispose();
-            }
-            catch
-            {
-                // 释放阶段不再向调用方抛异常，避免关闭模型时影响主流程。
+                // 关闭路径继续释放后续资源。
             }
         }
 
@@ -369,7 +416,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         }
 
         /// <summary>
-        /// 创建推理请求。
+        /// 将图像写入当前模型独享的共享内存并执行推理请求。
         /// </summary>
         /// <param name="image">输入图像。</param>
         /// <param name="scoreThreshold">置信度阈值。</param>
@@ -377,33 +424,128 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <param name="deltaX">X方向偏移。</param>
         /// <param name="deltaY">Y方向偏移。</param>
         /// <param name="needMaskBox">是否需要掩膜不规则框。</param>
-        /// <returns>推理请求。</returns>
-        private YoloIsolatedRequest CreateDetectRequest(Mat image, float scoreThreshold, float nmsThreshold, int deltaX, int deltaY, bool needMaskBox)
+        /// <returns>推理响应。</returns>
+        private YoloIsolatedResponse SendDetectRequest(Mat image, float scoreThreshold, float nmsThreshold, int deltaX, int deltaY, bool needMaskBox)
         {
             if (image == null || image.Empty())
                 throw new InvalidOperationException("YOLO隔离worker输入图像为空。");
 
-            using (Mat continuousImage = image.IsContinuous() ? image.Clone() : image.Clone())
+            lock (syncRoot)
             {
-                int byteCount = (int)(continuousImage.Total() * continuousImage.ElemSize());
-                byte[] bytes = new byte[byteCount];
-                Marshal.Copy(continuousImage.Data, bytes, 0, byteCount);
+                ThrowIfDisposed();
+                EnsureWorkerAlive();
+                long rowByteCount = checked((long)image.Cols * image.ElemSize());
+                long imageByteCount = checked((long)image.Rows * rowByteCount);
+                EnsureSharedImageCapacity(imageByteCount);
+                CopyImageToSharedMemory(image, rowByteCount, imageByteCount);
+                Thread.MemoryBarrier();
 
-                return new YoloIsolatedRequest
+                YoloIsolatedRequest request = new YoloIsolatedRequest
                 {
                     Command = "detect",
                     ModelType = modelType,
                     DeviceType = deviceType,
                     ScoreThreshold = scoreThreshold,
                     NmsThreshold = nmsThreshold,
-                    Rows = continuousImage.Rows,
-                    Cols = continuousImage.Cols,
-                    MatType = (int)continuousImage.Type(),
-                    ImageBase64 = Convert.ToBase64String(bytes),
+                    Rows = image.Rows,
+                    Cols = image.Cols,
+                    MatType = (int)image.Type(),
+                    ImageMapName = sharedImageMapName,
+                    ImageMapCapacity = sharedImageMapCapacity,
+                    ImageByteCount = imageByteCount,
+                    ImageStride = rowByteCount,
                     DeltaX = deltaX,
                     DeltaY = deltaY,
                     NeedMaskBox = needMaskBox
                 };
+
+                return SendRequestCore(request);
+            }
+        }
+
+        /// <summary>
+        /// 确保共享图像映射可容纳本帧，只有容量不足时才重建。
+        /// </summary>
+        /// <param name="requiredBytes">本帧所需字节数。</param>
+        private void EnsureSharedImageCapacity(long requiredBytes)
+        {
+            if (requiredBytes <= 0L || requiredBytes > YoloSharedImageTransport.MaximumImageBytes)
+            {
+                throw new InvalidOperationException(
+                    "YOLO共享图像字节数无效，实际=" + requiredBytes +
+                    "，上限=" + YoloSharedImageTransport.MaximumImageBytes + "。");
+            }
+            if (sharedImageMap != null && sharedImageMapCapacity >= requiredBytes)
+                return;
+
+            ReleaseSharedImageMap();
+            long growth = YoloSharedImageTransport.CapacityGrowthBytes;
+            long capacity = checked(((requiredBytes + growth - 1L) / growth) * growth);
+            sharedImageMapName = "TDJS_VISION_YOLO_" +
+                DiagnosticsProcess.GetCurrentProcess().Id + "_" + Guid.NewGuid().ToString("N");
+            sharedImageMap = MemoryMappedFile.CreateNew(
+                sharedImageMapName,
+                capacity,
+                MemoryMappedFileAccess.ReadWrite);
+            sharedImageView = sharedImageMap.CreateViewAccessor(
+                0L,
+                capacity,
+                MemoryMappedFileAccess.ReadWrite);
+            sharedImageMapCapacity = capacity;
+        }
+
+        /// <summary>
+        /// 按源Mat真实步长逐行复制到紧凑共享内存，兼容非连续ROI。
+        /// </summary>
+        /// <param name="image">输入图像。</param>
+        /// <param name="rowByteCount">每行有效字节数。</param>
+        /// <param name="imageByteCount">整帧有效字节数。</param>
+        private unsafe void CopyImageToSharedMemory(Mat image, long rowByteCount, long imageByteCount)
+        {
+            byte* viewPointer = null;
+            sharedImageView.SafeMemoryMappedViewHandle.AcquirePointer(ref viewPointer);
+            try
+            {
+                byte* destination = viewPointer + sharedImageView.PointerOffset;
+                byte* source = (byte*)image.Data.ToPointer();
+                long sourceStride = checked((long)image.Step());
+                for (int row = 0; row < image.Rows; row++)
+                {
+                    Buffer.MemoryCopy(
+                        source + (row * sourceStride),
+                        destination + (row * rowByteCount),
+                        imageByteCount - (row * rowByteCount),
+                        rowByteCount);
+                }
+            }
+            finally
+            {
+                if (viewPointer != null)
+                    sharedImageView.SafeMemoryMappedViewHandle.ReleasePointer();
+            }
+        }
+
+        /// <summary>
+        /// 释放当前共享图像映射及其视图。
+        /// </summary>
+        private void ReleaseSharedImageMap()
+        {
+            MemoryMappedViewAccessor view = sharedImageView;
+            MemoryMappedFile map = sharedImageMap;
+            sharedImageView = null;
+            sharedImageMap = null;
+            sharedImageMapName = null;
+            sharedImageMapCapacity = 0L;
+
+            try
+            {
+                if (view != null)
+                    view.Dispose();
+            }
+            finally
+            {
+                if (map != null)
+                    map.Dispose();
             }
         }
 
@@ -416,22 +558,42 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         {
             lock (syncRoot)
             {
-                EnsureWorkerAlive();
-                string requestJson = JsonConvert.SerializeObject(request, Formatting.None);
-                input.WriteLine(requestJson);
-
-                string responseJson = output.ReadLine();
-                if (responseJson == null)
-                    throw new InvalidOperationException(BuildWorkerExitMessage("YOLO隔离worker已退出，无法读取响应。"));
-
-                YoloIsolatedResponse response = JsonConvert.DeserializeObject<YoloIsolatedResponse>(responseJson);
-                if (response == null)
-                    throw new InvalidOperationException("YOLO隔离worker返回空响应。");
-                if (!response.Success)
-                    throw new InvalidOperationException(response.Error ?? "YOLO隔离worker执行失败。");
-
-                return response;
+                ThrowIfDisposed();
+                return SendRequestCore(request);
             }
+        }
+
+        /// <summary>
+        /// 已关闭的客户端禁止继续发送模型或推理请求。
+        /// </summary>
+        private void ThrowIfDisposed()
+        {
+            if (disposed)
+                throw new ObjectDisposedException(nameof(YoloIsolatedWorkerClient));
+        }
+
+        /// <summary>
+        /// 在调用方已持有请求锁时发送一条小型JSON控制消息并读取响应。
+        /// </summary>
+        /// <param name="request">请求。</param>
+        /// <returns>响应。</returns>
+        private YoloIsolatedResponse SendRequestCore(YoloIsolatedRequest request)
+        {
+            EnsureWorkerAlive();
+            string requestJson = JsonConvert.SerializeObject(request, Formatting.None);
+            input.WriteLine(requestJson);
+
+            string responseJson = output.ReadLine();
+            if (responseJson == null)
+                throw new InvalidOperationException(BuildWorkerExitMessage("YOLO隔离worker已退出，无法读取响应。"));
+
+            YoloIsolatedResponse response = JsonConvert.DeserializeObject<YoloIsolatedResponse>(responseJson);
+            if (response == null)
+                throw new InvalidOperationException("YOLO隔离worker返回空响应。");
+            if (!response.Success)
+                throw new InvalidOperationException(response.Error ?? "YOLO隔离worker执行失败。");
+
+            return response;
         }
 
         /// <summary>
