@@ -373,7 +373,11 @@ namespace TDJS_Vision.Device.Camera
         public TriggerModel GetTriggerMode()
         {
             CameraEnumValue value = GetEnumValue("TriggerMode");
-            TriggerModel = value.CurEnumEntry != null && value.CurEnumEntry.Value == 1 ? TriggerModel.On : TriggerModel.Off;
+            CameraEnumEntry currentEntry = value.CurEnumEntry;
+            TriggerModel = currentEntry != null
+                && (string.Equals(currentEntry.Symbolic, "On", StringComparison.OrdinalIgnoreCase) || currentEntry.Value == 1)
+                    ? TriggerModel.On
+                    : TriggerModel.Off;
             return TriggerModel;
         }
 
@@ -382,7 +386,11 @@ namespace TDJS_Vision.Device.Camera
         public void SetTriggerMode(TriggerModel triggerModel)
         {
             EnsureDeviceOpen();
-            EnsureSuccess(_device.MV_CC_SetEnumValue_NET("TriggerMode", triggerModel == TriggerModel.On ? 1u : 0u), "设置触发模式");
+            string symbolic = triggerModel == TriggerModel.On ? "On" : "Off";
+            int result = _device.MV_CC_SetEnumValueByString_NET("TriggerMode", symbolic);
+            if (result != MyCamera.MV_OK)
+                result = _device.MV_CC_SetEnumValue_NET("TriggerMode", triggerModel == TriggerModel.On ? 1u : 0u);
+            EnsureSuccess(result, "设置触发模式");
             TriggerModel = triggerModel;
         }
 
@@ -396,13 +404,7 @@ namespace TDJS_Vision.Device.Camera
                 return TriggerSource;
             }
 
-            uint value = GetEnumValue("TriggerSource").CurEnumEntry?.Value ?? uint.MaxValue;
-            if (value == 7 || IsBaslerManufacturer() && value == 0)
-                TriggerSource = TriggerSource.SOFT;
-            else if (value <= 4)
-                TriggerSource = (TriggerSource)((int)TriggerSource.LINE0 + (int)value);
-            else
-                TriggerSource = TriggerSource.Auto;
+            TriggerSource = MapTriggerSource(GetEnumValue("TriggerSource").CurEnumEntry);
             return TriggerSource;
         }
 
@@ -417,6 +419,13 @@ namespace TDJS_Vision.Device.Camera
         /// <returns>触发极性参数。</returns>
         public CameraEnumValue GetTriggerActivationOptions()
         {
+            if (!IsLineTriggerSource(GetTriggerSource()))
+                return CreateUnavailableEnumValue();
+
+            MyCamera.MV_XML_AccessMode accessMode;
+            if (TryGetNodeAccessMode("TriggerActivation", out accessMode) && !IsNodeReadable(accessMode))
+                return CreateUnavailableEnumValue();
+
             return GetEnumValue("TriggerActivation");
         }
 
@@ -432,30 +441,17 @@ namespace TDJS_Vision.Device.Camera
                 return;
             }
 
-            uint value;
-            if (IsBaslerManufacturer())
+            string symbolic = GetTriggerSourceSymbolic(triggerSource);
+            int result = _device.MV_CC_SetEnumValueByString_NET("TriggerSource", symbolic);
+            if (result != MyCamera.MV_OK)
             {
-                value = triggerSource == TriggerSource.SOFT
-                    ? 0u
-                    : checked((uint)((int)triggerSource - (int)TriggerSource.LINE0));
-            }
-            else if (IsHuarayManufacturer())
-            {
-                value = triggerSource == TriggerSource.SOFT
-                    ? 0u
-                    : triggerSource == TriggerSource.LINE1 ? 2u
-                    : triggerSource == TriggerSource.LINE2 || triggerSource == TriggerSource.LINE3 ? 3u
-                    : triggerSource == TriggerSource.LINE4 ? 4u
-                    : 0u;
-            }
-            else
-            {
-                value = triggerSource == TriggerSource.SOFT
-                    ? 7u
-                    : checked((uint)((int)triggerSource - (int)TriggerSource.LINE0));
+                uint fallbackValue;
+                if (!TryGetOfficialTriggerSourceValue(triggerSource, out fallbackValue))
+                    throw new NotSupportedException(string.Format("当前相机不支持触发源：{0}。", symbolic));
+                result = _device.MV_CC_SetEnumValue_NET("TriggerSource", fallbackValue);
             }
 
-            EnsureSuccess(_device.MV_CC_SetEnumValue_NET("TriggerSource", value), "设置触发源");
+            EnsureSuccess(result, "设置触发源");
             TriggerSource = triggerSource;
         }
 
@@ -464,6 +460,10 @@ namespace TDJS_Vision.Device.Camera
         public void SetTriggerEdge(TriggerEdge triggerEdge)
         {
             EnsureDeviceOpen();
+            if (!IsLineTriggerSource(GetTriggerSource()))
+                throw new InvalidOperationException("只有线路硬触发模式可以设置触发极性。");
+            EnsureNodeWritable("TriggerActivation", "设置触发极性");
+
             string symbolic;
             switch (triggerEdge)
             {
@@ -1005,6 +1005,11 @@ namespace TDJS_Vision.Device.Camera
         private CameraEnumValue GetEnumValue(string key)
         {
             EnsureDeviceOpen();
+            MyCamera.MV_XML_AccessMode accessMode;
+            bool hasAccessMode = TryGetNodeAccessMode(key, out accessMode);
+            if (hasAccessMode && !IsNodeReadable(accessMode))
+                throw new InvalidOperationException(string.Format("相机参数 {0} 在当前状态下不可读。", key));
+
             MyCamera.MVCC_ENUMVALUE nativeValue = new MyCamera.MVCC_ENUMVALUE();
             EnsureSuccess(_device.MV_CC_GetEnumValue_NET(key, ref nativeValue), "读取相机参数" + key);
 
@@ -1021,9 +1026,58 @@ namespace TDJS_Vision.Device.Camera
                 ?? new CameraEnumEntry { Value = nativeValue.nCurValue, Symbolic = GetEnumSymbolic(key, nativeValue.nCurValue) };
             return new CameraEnumValue
             {
+                IsReadable = true,
+                IsWritable = !hasAccessMode || IsNodeWritable(accessMode),
                 CurEnumEntry = currentEntry,
                 SupportEnumEntries = entries.ToArray(),
                 SupportedNum = (uint)entries.Count
+            };
+        }
+
+        /// <summary>尝试读取节点在相机当前状态下的访问权限。</summary>
+        /// <param name="key">GenICam参数键。</param>
+        /// <param name="accessMode">读取到的访问权限。</param>
+        /// <returns>SDK成功返回访问权限时为true。</returns>
+        private bool TryGetNodeAccessMode(string key, out MyCamera.MV_XML_AccessMode accessMode)
+        {
+            accessMode = MyCamera.MV_XML_AccessMode.AM_Undefined;
+            return _device.MV_XML_GetNodeAccessMode_NET(key, ref accessMode) == MyCamera.MV_OK;
+        }
+
+        /// <summary>确保节点在相机当前状态下可以写入。</summary>
+        /// <param name="key">GenICam参数键。</param>
+        /// <param name="operation">错误信息中的操作名称。</param>
+        private void EnsureNodeWritable(string key, string operation)
+        {
+            MyCamera.MV_XML_AccessMode accessMode;
+            if (TryGetNodeAccessMode(key, out accessMode) && !IsNodeWritable(accessMode))
+                throw new InvalidOperationException(string.Format("{0}失败：相机参数 {1} 在当前状态下不可写。", operation, key));
+        }
+
+        /// <summary>判断节点访问权限是否允许读取。</summary>
+        /// <param name="accessMode">SDK节点访问权限。</param>
+        /// <returns>只读或可读写时为true。</returns>
+        private static bool IsNodeReadable(MyCamera.MV_XML_AccessMode accessMode)
+        {
+            return accessMode == MyCamera.MV_XML_AccessMode.AM_RO || accessMode == MyCamera.MV_XML_AccessMode.AM_RW;
+        }
+
+        /// <summary>判断节点访问权限是否允许写入。</summary>
+        /// <param name="accessMode">SDK节点访问权限。</param>
+        /// <returns>只写或可读写时为true。</returns>
+        private static bool IsNodeWritable(MyCamera.MV_XML_AccessMode accessMode)
+        {
+            return accessMode == MyCamera.MV_XML_AccessMode.AM_WO || accessMode == MyCamera.MV_XML_AccessMode.AM_RW;
+        }
+
+        /// <summary>创建表示节点在当前相机状态下不可用的枚举结果。</summary>
+        /// <returns>不可读且不可写的空枚举结果。</returns>
+        private static CameraEnumValue CreateUnavailableEnumValue()
+        {
+            return new CameraEnumValue
+            {
+                IsReadable = false,
+                IsWritable = false
             };
         }
 
@@ -1249,7 +1303,17 @@ namespace TDJS_Vision.Device.Camera
         private static string GetFallbackEnumSymbolic(string key, uint value)
         {
             if (key == "TriggerSource")
-                return value == 7 ? "Software" : value <= 4 ? "Line" + value : string.Empty;
+            {
+                if (value == 7)
+                    return "Software";
+                if (value <= 3)
+                    return "Line" + value;
+                if (value == 4)
+                    return "Counter0";
+                if (value == 8)
+                    return "FrequencyConverter";
+                return string.Empty;
+            }
             if (key == "LineSelector")
                 return value <= 4 ? "Line" + value : string.Empty;
             if (key == "LineMode")
@@ -1271,6 +1335,92 @@ namespace TDJS_Vision.Device.Camera
                 }
             }
             return string.Empty;
+        }
+
+        /// <summary>将SDK触发源枚举项转换为框架触发源。</summary>
+        /// <param name="entry">SDK当前触发源枚举项。</param>
+        /// <returns>框架支持的触发源；不支持的SDK触发源返回Auto。</returns>
+        private static TriggerSource MapTriggerSource(CameraEnumEntry entry)
+        {
+            if (entry == null)
+                return TriggerSource.Auto;
+
+            switch ((entry.Symbolic ?? string.Empty).Trim().ToUpperInvariant())
+            {
+                case "SOFTWARE":
+                    return TriggerSource.SOFT;
+                case "LINE0":
+                    return TriggerSource.LINE0;
+                case "LINE1":
+                    return TriggerSource.LINE1;
+                case "LINE2":
+                    return TriggerSource.LINE2;
+                case "LINE3":
+                    return TriggerSource.LINE3;
+                case "LINE4":
+                    return TriggerSource.LINE4;
+            }
+
+            if (entry.Value == (uint)MyCamera.MV_CAM_TRIGGER_SOURCE.MV_TRIGGER_SOURCE_SOFTWARE)
+                return TriggerSource.SOFT;
+            if (entry.Value <= (uint)MyCamera.MV_CAM_TRIGGER_SOURCE.MV_TRIGGER_SOURCE_LINE3)
+                return (TriggerSource)((int)TriggerSource.LINE0 + (int)entry.Value);
+            return TriggerSource.Auto;
+        }
+
+        /// <summary>获取框架触发源对应的GenICam符号名称。</summary>
+        /// <param name="triggerSource">框架触发源。</param>
+        /// <returns>GenICam符号名称。</returns>
+        private static string GetTriggerSourceSymbolic(TriggerSource triggerSource)
+        {
+            switch (triggerSource)
+            {
+                case TriggerSource.SOFT:
+                    return "Software";
+                case TriggerSource.LINE0:
+                    return "Line0";
+                case TriggerSource.LINE1:
+                    return "Line1";
+                case TriggerSource.LINE2:
+                    return "Line2";
+                case TriggerSource.LINE3:
+                    return "Line3";
+                case TriggerSource.LINE4:
+                    return "Line4";
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(triggerSource), triggerSource, "不支持的触发源。");
+            }
+        }
+
+        /// <summary>获取海康官方SDK明确定义的触发源数值兜底。</summary>
+        /// <param name="triggerSource">框架触发源。</param>
+        /// <param name="value">官方SDK枚举值。</param>
+        /// <returns>存在无歧义的官方数值时为true。</returns>
+        private static bool TryGetOfficialTriggerSourceValue(TriggerSource triggerSource, out uint value)
+        {
+            switch (triggerSource)
+            {
+                case TriggerSource.SOFT:
+                    value = (uint)MyCamera.MV_CAM_TRIGGER_SOURCE.MV_TRIGGER_SOURCE_SOFTWARE;
+                    return true;
+                case TriggerSource.LINE0:
+                case TriggerSource.LINE1:
+                case TriggerSource.LINE2:
+                case TriggerSource.LINE3:
+                    value = checked((uint)((int)triggerSource - (int)TriggerSource.LINE0));
+                    return true;
+                default:
+                    value = 0;
+                    return false;
+            }
+        }
+
+        /// <summary>判断框架触发源是否为线路硬触发。</summary>
+        /// <param name="triggerSource">框架触发源。</param>
+        /// <returns>Line0至Line4时为true。</returns>
+        private static bool IsLineTriggerSource(TriggerSource triggerSource)
+        {
+            return triggerSource >= TriggerSource.LINE0 && triggerSource <= TriggerSource.LINE4;
         }
 
         /// <summary>判断当前相机是否为巴斯勒制造商。</summary>

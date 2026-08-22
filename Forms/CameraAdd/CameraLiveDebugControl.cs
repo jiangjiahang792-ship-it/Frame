@@ -434,8 +434,10 @@ namespace TDJS_Vision.Forms.CameraAdd
             try
             {
                 CameraEnumValue lineSelectorOptions = _camera.GetLineSelector();
-                SetComboBoxItems(comboTriggerSource, new[] { "连续采集" }.Concat(GetEnumDisplayItems(_camera.GetTriggerSourceOptions(), GetTriggerSourceDisplayText, new[] { "软件触发", "线路0", "线路1", "线路2", "线路3" })), comboTriggerSource.Text);
-                SetComboBoxItems(comboTriggerEdge, GetEnumDisplayItems(_camera.GetTriggerActivationOptions(), GetTriggerEdgeDisplayText, new[] { "上升沿", "下降沿", "高电平", "低电平", "任意沿" }), comboTriggerEdge.Text);
+                TriggerSource currentTriggerSource = _camera.GetTriggerSource();
+                SetComboBoxItems(comboTriggerSource, new[] { "连续采集" }.Concat(GetEnumDisplayItems(_camera.GetTriggerSourceOptions(), GetTriggerSourceDisplayText, new[] { "软件触发", "线路0", "线路1", "线路2", "线路3" })), GetTriggerSourceText(currentTriggerSource));
+                if (IsHardwareTriggerSource(currentTriggerSource))
+                    Refresh2DTriggerEdgeItems();
                 SetComboBoxItems(comboLineSelector, GetEnumDisplayItems(lineSelectorOptions, GetLineSelectorDisplayText, new[] { "线路0", "线路1", "线路2" }), GetCurrentEnumDisplayText(lineSelectorOptions, GetLineSelectorDisplayText, comboLineSelector.Text));
                 RefreshLineModeItemsForSelectedLine();
                 checkStrobeEnable.Checked = _camera.GetStrobeEnable();
@@ -536,6 +538,25 @@ namespace TDJS_Vision.Forms.CameraAdd
         }
 
         /// <summary>
+        /// 在线路硬触发状态下读取当前相机支持的触发极性。
+        /// </summary>
+        private void Refresh2DTriggerEdgeItems()
+        {
+            if (_camera == null || !_camera.IsOpen || !IsHardwareTriggerSource())
+                return;
+
+            CameraEnumValue triggerEdgeOptions = _camera.GetTriggerActivationOptions();
+            if (!triggerEdgeOptions.IsReadable)
+                return;
+
+            SetComboBoxItems(
+                comboTriggerEdge,
+                GetEnumDisplayItems(triggerEdgeOptions, GetTriggerEdgeDisplayText, null),
+                GetCurrentEnumDisplayText(triggerEdgeOptions, GetTriggerEdgeDisplayText, comboTriggerEdge.Text));
+            comboTriggerEdge.Enabled = triggerEdgeOptions.IsWritable;
+        }
+
+        /// <summary>
         /// 选择参数页面。
         /// </summary>
         /// <param name="pageKey">页面键。</param>
@@ -580,6 +601,16 @@ namespace TDJS_Vision.Forms.CameraAdd
         private bool IsHardwareTriggerSource()
         {
             return comboTriggerSource.Text.StartsWith("线路", StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// 判断框架触发源是否为线路硬触发。
+        /// </summary>
+        /// <param name="triggerSource">框架触发源。</param>
+        /// <returns>Line0至Line4时返回 true。</returns>
+        private static bool IsHardwareTriggerSource(TriggerSource triggerSource)
+        {
+            return triggerSource >= TriggerSource.LINE0 && triggerSource <= TriggerSource.LINE4;
         }
 
         /// <summary>
@@ -784,12 +815,14 @@ namespace TDJS_Vision.Forms.CameraAdd
 
             try
             {
+                TriggerModel triggerMode = _camera.GetTriggerMode();
+                TriggerSource triggerSource = _camera.GetTriggerSource();
                 _camera2DDebugStateSnapshot = new Camera2DDebugStateSnapshot
                 {
-                    TriggerMode = _camera.GetTriggerMode(),
-                    TriggerSource = _camera.GetTriggerSource(),
+                    TriggerMode = triggerMode,
+                    TriggerSource = triggerSource,
                     TriggerDelay = GetSdkNumericValue(_camera.GetTriggerDelay(), (double)numericTriggerDelay.Value),
-                    TriggerEdge = TryGetCurrent2DTriggerEdge()
+                    TriggerEdge = IsHardwareTriggerSource(triggerSource) ? TryGetCurrent2DTriggerEdge() : null
                 };
             }
             catch (Exception ex)
@@ -812,7 +845,7 @@ namespace TDJS_Vision.Forms.CameraAdd
                 _camera.SetTriggerMode(_camera2DDebugStateSnapshot.TriggerMode);
                 _camera.SetTriggerSource(_camera2DDebugStateSnapshot.TriggerSource);
                 _camera.SetTriggerDelay(_camera2DDebugStateSnapshot.TriggerDelay);
-                if (_camera2DDebugStateSnapshot.TriggerEdge.HasValue)
+                if (IsHardwareTriggerSource(_camera2DDebugStateSnapshot.TriggerSource) && _camera2DDebugStateSnapshot.TriggerEdge.HasValue)
                     _camera.SetTriggerEdge(_camera2DDebugStateSnapshot.TriggerEdge.Value);
             }
             catch (Exception ex)
@@ -2015,6 +2048,8 @@ namespace TDJS_Vision.Forms.CameraAdd
             }
 
             Execute2DCameraAction("触发源", () => _camera.SetTriggerSource(Get2DTriggerSource(comboTriggerSource.Text)));
+            if (IsHardwareTriggerSource())
+                Refresh2DTriggerEdgeItems();
             ApplyTriggerParameterVisibility();
         }
 
@@ -2025,6 +2060,8 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// <param name="e">事件参数。</param>
         private void ComboTriggerEdge_SelectedIndexChanged(object sender, EventArgs e)
         {
+            if (!IsHardwareTriggerSource())
+                return;
             Execute2DCameraAction("触发极性", () => _camera.SetTriggerEdge(Get2DTriggerEdge(comboTriggerEdge.Text)));
         }
 
@@ -2406,8 +2443,19 @@ namespace TDJS_Vision.Forms.CameraAdd
             string symbolic = entry?.Symbolic ?? string.Empty;
             if (symbolic.Equals("Software", StringComparison.OrdinalIgnoreCase))
                 return "软件触发";
-            if (symbolic.StartsWith("Line", StringComparison.OrdinalIgnoreCase))
-                return $"线路{symbolic.Substring(4)}";
+            switch (symbolic.ToUpperInvariant())
+            {
+                case "LINE0":
+                    return "线路0";
+                case "LINE1":
+                    return "线路1";
+                case "LINE2":
+                    return "线路2";
+                case "LINE3":
+                    return "线路3";
+                case "LINE4":
+                    return "线路4";
+            }
             if (string.IsNullOrWhiteSpace(symbolic))
             {
                 if (entry != null && entry.Value == 7)

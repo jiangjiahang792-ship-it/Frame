@@ -529,13 +529,14 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                             // 是否需要每次设置相机参数
                             if (param.IsEveryTime)
                             {
+                                param.Camera.SetTriggerMode(TriggerModel.On);
+                                param.Camera.SetTriggerSource(param.TriggerSource);
+                                if (param.TriggerSource >= TriggerSource.LINE0 && param.TriggerSource <= TriggerSource.LINE4)
+                                    param.Camera.SetTriggerEdge(param.TriggerEdge);
                                 param.Camera.SetTriggerDelay(param.TriggerDelay);
                                 param.Camera.SetExposureTime(param.ExposureTime);
                                 param.Camera.SetGain(param.Gain);
                                 param.Camera.GetImageTimeOut = param.TimeOut;
-                                param.Camera.SetTriggerSource(param.TriggerSource);
-                                param.Camera.SetTriggerEdge(param.TriggerEdge);
-                                param.Camera.SetTriggerMode(TriggerModel.On);
                             }
 
                             res.OutputImage = await AcquireCameraImageAsync(param, token).ConfigureAwait(false);

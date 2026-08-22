@@ -722,9 +722,10 @@ namespace TDJS_Vision
             if (camera == null || param == null)
                 return;
 
-            camera.SetTriggerSource(param.TriggerSource);
-            camera.SetTriggerEdge(param.TriggerEdge);
             camera.SetTriggerMode(param.TriggerModel);
+            camera.SetTriggerSource(param.TriggerSource);
+            if (param.TriggerSource >= TriggerSource.LINE0 && param.TriggerSource <= TriggerSource.LINE4)
+                camera.SetTriggerEdge(param.TriggerEdge);
             camera.SetTriggerDelay(param.TriggerDelay);
             camera.SetExposureTime(param.ExposureTime);
             camera.SetGain(param.Gain);

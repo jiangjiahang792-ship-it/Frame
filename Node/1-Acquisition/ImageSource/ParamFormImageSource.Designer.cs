@@ -438,8 +438,7 @@
             "Line0",
             "Line1",
             "Line2",
-            "Line3",
-            "Line4"});
+            "Line3"});
             this.comboBoxTriggerMode.Location = new System.Drawing.Point(399, 115);
             this.comboBoxTriggerMode.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxTriggerMode.Name = "comboBoxTriggerMode";

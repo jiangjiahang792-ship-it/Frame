@@ -70,6 +70,16 @@ namespace TDJS_Vision.Device.Camera
     public sealed class CameraEnumValue
     {
         /// <summary>
+        /// 获取或设置节点在当前相机状态下是否可读。
+        /// </summary>
+        public bool IsReadable { get; set; } = true;
+
+        /// <summary>
+        /// 获取或设置节点在当前相机状态下是否可写。
+        /// </summary>
+        public bool IsWritable { get; set; } = true;
+
+        /// <summary>
         /// 获取或设置当前枚举项。
         /// </summary>
         public CameraEnumEntry CurEnumEntry { get; set; }

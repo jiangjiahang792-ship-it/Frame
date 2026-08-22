@@ -423,15 +423,26 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <param name="gain"></param>
         private void SetCameraParams(ICamera camera, TriggerModel triggerModel, TriggerSource triggerSource, TriggerEdge triggerEdge, int delay, double exposureTime, double gain, uint timeOut)
         {
+            camera.SetTriggerMode(triggerModel);        // 设置触发模式
             camera.SetTriggerSource(triggerSource);     // 设置触发源
-            camera.SetTriggerEdge(triggerEdge);         // 设置硬触发边沿
-            camera.SetTriggerMode(triggerModel);        //设置触发模式
+            if (IsHardwareTriggerSource(triggerSource))
+                camera.SetTriggerEdge(triggerEdge);     // 只有线路硬触发存在触发极性
             //if (triggerSource != TriggerSource.Auto)
             //    camera.SetTriggerMode(true);                // 设置触发模式（除了自动取流外均设置）
             camera.SetTriggerDelay(delay);              // 设置触发延迟
             camera.SetExposureTime(exposureTime);       // 设置曝光时间
             camera.SetGain(gain);                       // 设置增益
             camera.GetImageTimeOut = timeOut;           // 设置采图超时xw
+        }
+
+        /// <summary>
+        /// 判断触发源是否为线路硬触发。
+        /// </summary>
+        /// <param name="triggerSource">待判断的触发源。</param>
+        /// <returns>Line0至Line4时返回true。</returns>
+        private static bool IsHardwareTriggerSource(TriggerSource triggerSource)
+        {
+            return triggerSource >= TriggerSource.LINE0 && triggerSource <= TriggerSource.LINE4;
         }
         /// <summary>
         /// 选择相机改变事件处理
@@ -445,6 +456,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             {
                 if (camera.UserDefinedName == comboBoxChoiceCamera.Text)
                 {
+                    RefreshTriggerSourceItems(camera);
+
                     // 当前相机触发延迟
                     var _triggerDelay = camera.GetTriggerDelay();
                     numericUpDownTriggerDelay.Minimum = (decimal)_triggerDelay.Min;
@@ -477,6 +490,31 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             labelTriggerDelay.Text = "触发延迟(us)";
             labelExposureTime.Text = "曝光(us)";
             labelGain.Text = "增益";
+        }
+
+        /// <summary>
+        /// 按当前相机SDK真实支持项刷新触发源，避免把Counter0误显示为Line4。
+        /// </summary>
+        /// <param name="camera">当前选中的二维相机。</param>
+        private void RefreshTriggerSourceItems(ICamera camera)
+        {
+            if (camera == null || !camera.IsOpen)
+                return;
+
+            string previousText = comboBoxTriggerMode.Text;
+            CameraEnumValue options = camera.GetTriggerSourceOptions();
+            List<string> items = options.SupportEnumEntries
+                .Take((int)Math.Min(options.SupportedNum, (uint)options.SupportEnumEntries.Length))
+                .Select(GetTriggerSourceDisplayText)
+                .Where(text => !string.IsNullOrWhiteSpace(text))
+                .Distinct()
+                .ToList();
+            if (items.Count == 0)
+                items.AddRange(new[] { "软触发", "Line0", "Line1", "Line2", "Line3" });
+
+            comboBoxTriggerMode.Items.Clear();
+            comboBoxTriggerMode.Items.AddRange(items.Cast<object>().ToArray());
+            comboBoxTriggerMode.SelectedItem = items.Contains(previousText) ? previousText : items[0];
         }
 
         #endregion
@@ -631,6 +669,33 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     return "Line4";
                 default:
                     return "软触发";
+            }
+        }
+
+        /// <summary>
+        /// 获取SDK触发源枚举项在参数界面中的显示文本。
+        /// </summary>
+        /// <param name="entry">SDK触发源枚举项。</param>
+        /// <returns>框架支持的触发源文本；不支持的类型返回空文本。</returns>
+        private static string GetTriggerSourceDisplayText(CameraEnumEntry entry)
+        {
+            string symbolic = entry?.Symbolic ?? string.Empty;
+            if (symbolic.Equals("Software", StringComparison.OrdinalIgnoreCase))
+                return "软触发";
+            switch (symbolic.ToUpperInvariant())
+            {
+                case "LINE0":
+                    return "Line0";
+                case "LINE1":
+                    return "Line1";
+                case "LINE2":
+                    return "Line2";
+                case "LINE3":
+                    return "Line3";
+                case "LINE4":
+                    return "Line4";
+                default:
+                    return string.Empty;
             }
         }
 
