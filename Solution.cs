@@ -1630,12 +1630,13 @@ namespace TDJS_Vision
             bool resetCompleted = false;
             try
             {
-                try
-                {
-                    ReleaseAllProcessResources();
+                ReleaseAllProcessResources();
 
-                    // 释放旧方案的硬件资源（光源、相机、PLC、Modbus、TCP）
-                    foreach (var dev in Solution.Instance.AllDevices)
+                // 逐台释放旧方案硬件；一台失败不能阻止后续设备释放，也不能丢失失败设备的托管引用。
+                List<string> deviceReleaseFailures = new List<string>();
+                foreach (var dev in Solution.Instance.AllDevices.ToArray())
+                {
+                    try
                     {
                         if (dev is ILight light)
                             light.Disconnect();
@@ -1652,11 +1653,18 @@ namespace TDJS_Vision
                         if (dev is ComDevice com)
                             com.Close();
                     }
+                    catch (Exception deviceException)
+                    {
+                        string deviceName = dev?.DevName ?? dev?.GetType().Name ?? "未知设备";
+                        string failure = $"设备【{deviceName}】释放失败：{deviceException.Message}";
+                        deviceReleaseFailures.Add(failure);
+                        LogHelper.AddLog(MsgLevel.Exception, failure, true);
+                    }
                 }
-                catch (Exception ex)
-                {
-                    LogHelper.AddLog(MsgLevel.Exception, ex.Message, true);
-                }
+
+                if (deviceReleaseFailures.Count > 0)
+                    throw new InvalidOperationException(
+                        $"方案重置有{deviceReleaseFailures.Count}台设备未安全释放，已保留全部设备引用并继续禁止运行。{string.Join("；", deviceReleaseFailures)}");
 
                 // 清空设备
                 SingleLight.SingleLights.Clear();

@@ -43,6 +43,9 @@ Assert-Contains $source 'ReleaseProcessResources(process);' 'RemoveProcess(Proce
 Assert-Contains $source 'ReleaseProcessResources(processToRemove);' 'RemoveProcess(string) must release node resources before removing process.'
 Assert-Contains $source 'ReleaseAllProcessResources();' 'SolReset must release all process resources before clearing processes.'
 Assert-Sequence $source 'ReleaseAllProcessResources();' 'Solution.Instance.AllProcesses.Clear();' 'SolReset must release process resources before clearing process list.'
+Assert-Contains $source 'deviceReleaseFailures' '方案重置必须逐设备汇总释放失败。'
+Assert-Contains $source 'Solution.Instance.AllDevices.ToArray()' '设备释放遍历必须使用稳定快照并继续处理后续设备。'
+Assert-Sequence $source 'if (deviceReleaseFailures.Count > 0)' 'Solution.Instance.AllDevices.Clear();' '存在设备释放失败时必须在清空设备引用前中止重置。'
 Assert-Sequence $source 'ReleaseProcessResources(process);' 'AllProcesses.Remove(process);' 'RemoveProcess(Process) must release resources before removing the process.'
 Assert-Sequence $source 'ReleaseProcessResources(processToRemove);' 'AllProcesses.Remove(processToRemove);' 'RemoveProcess(string) must release resources before removing the process.'
 
@@ -60,7 +63,7 @@ Assert-Contains $source 'internal IDisposable EnterSolutionMutationScope()' '方
 Assert-Contains $source 'internal bool TryBeginExternalRunSession()' '手动流程和参数预览必须接入统一运行会话门禁。'
 Assert-Contains $source 'TryBeginRunSession(out isFirstSession)' '首条外部运行会话必须在登记锁内原子确定。'
 Assert-Contains $source 'if (isFirstSession)' '第一条运行会话必须负责初始化运行时资源档案。'
-Assert-Contains $source 'RefreshRuntimeResourceProfile();' '资源档案刷新必须由统一运行会话入口触发。'
+Assert-Contains $source 'RefreshRuntimeResourceProfile(true);' '首次运行会话必须显式允许安全应用资源档案。'
 Assert-Contains $processSource 'Volatile.Read(ref _isRunning)' '流程运行状态必须跨线程可见。'
 Assert-Contains $processSource 'if (!Solution.Instance.TryBeginExternalRunSession())' '公开流程运行入口必须登记运行会话。'
 Assert-Contains $processSource 'Solution.Instance.EndExternalRunSession();' '公开流程运行入口退出时必须归还运行会话。'

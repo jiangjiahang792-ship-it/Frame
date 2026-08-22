@@ -138,6 +138,13 @@ Assert-Equal $standard.SaveDiskCriticalSpaceMb 512 '全部图片磁盘严重水�
 Assert-Equal $standard.SaveSlowThresholdMs 500 '单路径慢写阈值默认必须为500ms。'
 Assert-Equal $standard.SaveDiskProbeIntervalMs 1000 '磁盘空间探测默认必须缓存1000ms。'
 
+$manyCameras = New-Profile 16 24 24 16384 10000 16 16 (12MB)
+Assert-Equal $manyCameras.CpuHeavyMaxConcurrency 8 '十六流程不得把CPU重任务并发扩张到硬件上限之外。'
+Assert-Equal $manyCameras.ImageConvertMaxConcurrency 4 '十六台相机必须按物理核心和转换上限收敛到4路转换。'
+
+$manyCamerasSmallCpu = New-Profile 4 8 8 8192 4096 16 16 (12MB)
+Assert-Equal $manyCamerasSmallCpu.ImageConvertMaxConcurrency 1 '低核心电脑连接十六台相机时必须保持单路转换。'
+
 $singleProcess = New-Profile 16 24 24 16384 10000 1 4 (12MB)
 Assert-Equal $singleProcess.CpuHeavyMaxConcurrency 1 '单流程CPU重任务并发应为1。'
 Assert-Equal $singleProcess.ImageConvertMaxConcurrency 1 '图像转换自动并发不得超过共享CPU总并发。'
