@@ -32,6 +32,9 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>相机原始帧总预算占流程图像内存预算的默认比例。</summary>
         private const double RawFrameMemoryBudgetRatio = 0.25D;
 
+        /// <summary>尚未生成运行资源档案时使用的全方案原始帧保守预算。</summary>
+        private const int RawFrameFallbackMemoryBudgetMb = 256;
+
         /// <summary>Windows原生内存复制函数，用于在SDK回调返回前快速接管原始帧。</summary>
         [DllImport("kernel32.dll", EntryPoint = "RtlMoveMemory", SetLastError = false)]
         private static extern void CopyMemory(IntPtr destination, IntPtr source, uint count);
@@ -89,6 +92,12 @@ namespace TDJS_Vision.Device.Camera
 
         /// <summary>当前相机实际分配的原始帧缓冲数量。</summary>
         private int _rawFrameBufferCount;
+
+        /// <summary>当前相机已经从全方案预算管理器取得的原始帧内存租约。</summary>
+        private ICameraRawFrameMemoryLease _rawFrameMemoryLease;
+
+        /// <summary>对象完成永久销毁后置为1，禁止重新创建已释放的同步对象。</summary>
+        private int _disposed;
 
         /// <summary>缓冲暂不可用时累计的帧入口失败数量，详细满载策略后续独立设计。</summary>
         private long _rawFrameIngressFailureCount;
@@ -254,15 +263,20 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>反序列化后根据序列号重新枚举并创建原生设备句柄。</summary>
         public void CreateDevice()
         {
+            ThrowIfDisposed();
+            ThrowIfCalledFromFrameConversionWorker("创建设备句柄");
             try
             {
-                HikNativeDeviceInfo deviceInfo = FindCamera()
-                    .FirstOrDefault(item => string.Equals(item.SerialNumber, SN, StringComparison.OrdinalIgnoreCase));
-                if (deviceInfo == null)
-                    throw new InvalidOperationException(string.Format("未找到序列号为{0}的相机。", SN));
+                lock (_cameraLifecycleLock)
+                {
+                    HikNativeDeviceInfo deviceInfo = FindCamera()
+                        .FirstOrDefault(item => string.Equals(item.SerialNumber, SN, StringComparison.OrdinalIgnoreCase));
+                    if (deviceInfo == null)
+                        throw new InvalidOperationException(string.Format("未找到序列号为{0}的相机。", SN));
 
-                SetDeviceIdentity(deviceInfo);
-                CreateNativeDevice(deviceInfo);
+                    SetDeviceIdentity(deviceInfo);
+                    CreateNativeDevice(deviceInfo);
+                }
             }
             catch (Exception exception)
             {
@@ -274,38 +288,43 @@ namespace TDJS_Vision.Device.Camera
         /// <returns>打开成功返回true。</returns>
         public bool Open()
         {
-            lock (_deviceLock)
+            ThrowIfDisposed();
+            ThrowIfCalledFromFrameConversionWorker("打开相机");
+            lock (_cameraLifecycleLock)
             {
-                if (IsOpen)
-                    return true;
-                if (_device == null || !_deviceCreated)
+                lock (_deviceLock)
                 {
-                    HikNativeDeviceInfo deviceInfo = FindCamera()
-                        .FirstOrDefault(item => string.Equals(item.SerialNumber, SN, StringComparison.OrdinalIgnoreCase));
-                    if (deviceInfo == null)
-                        throw new InvalidOperationException(string.Format("相机（{0}）不在线。", UserDefinedName));
-                    SetDeviceIdentity(deviceInfo);
-                    CreateNativeDeviceCore(deviceInfo);
-                }
+                    if (IsOpen)
+                        return true;
+                    if (_device == null || !_deviceCreated)
+                    {
+                        HikNativeDeviceInfo deviceInfo = FindCamera()
+                            .FirstOrDefault(item => string.Equals(item.SerialNumber, SN, StringComparison.OrdinalIgnoreCase));
+                        if (deviceInfo == null)
+                            throw new InvalidOperationException(string.Format("相机（{0}）不在线。", UserDefinedName));
+                        SetDeviceIdentity(deviceInfo);
+                        CreateNativeDeviceCore(deviceInfo);
+                    }
 
-                int result = _device.MV_CC_OpenDevice_NET();
-                if (result != MyCamera.MV_OK)
-                    throw CreateSdkException(string.Format("打开相机（{0}）", UserDefinedName), result);
+                    int result = _device.MV_CC_OpenDevice_NET();
+                    if (result != MyCamera.MV_OK)
+                        throw CreateSdkException(string.Format("打开相机（{0}）", UserDefinedName), result);
 
-                try
-                {
-                    ConfigureGigENetwork();
-                    TrySetEnumValue("AcquisitionMode", (uint)MyCamera.MV_CAM_ACQUISITION_MODE.MV_ACQ_MODE_CONTINUOUS);
-                    IsOpen = true;
-                    TriggerSource = GetTriggerSource();
-                    lock (_imageCallbackLock)
-                        EnsureNativeCallbackRegisteredCore();
-                }
-                catch
-                {
-                    _device.MV_CC_CloseDevice_NET();
-                    IsOpen = false;
-                    throw;
+                    try
+                    {
+                        ConfigureGigENetwork();
+                        TrySetEnumValue("AcquisitionMode", (uint)MyCamera.MV_CAM_ACQUISITION_MODE.MV_ACQ_MODE_CONTINUOUS);
+                        IsOpen = true;
+                        TriggerSource = GetTriggerSource();
+                        lock (_imageCallbackLock)
+                            EnsureNativeCallbackRegisteredCore();
+                    }
+                    catch
+                    {
+                        _device.MV_CC_CloseDevice_NET();
+                        IsOpen = false;
+                        throw;
+                    }
                 }
             }
 
@@ -317,6 +336,7 @@ namespace TDJS_Vision.Device.Camera
         /// <param name="owner">回调拥有者。</param>
         public void RegisterImageCallbackOwner(object owner)
         {
+            ThrowIfDisposed();
             if (owner == null)
                 return;
             lock (_imageCallbackLock)
@@ -353,9 +373,11 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>开始相机取流。</summary>
         public void StartGrabbing()
         {
+            ThrowIfDisposed();
             ThrowIfCalledFromFrameConversionWorker("开始相机取流");
             lock (_cameraLifecycleLock)
             {
+                int payloadSize;
                 lock (_deviceLock)
                 {
                     EnsureDeviceOpen();
@@ -366,17 +388,32 @@ namespace TDJS_Vision.Device.Camera
                         EnsureNativeCallbackRegisteredCore();
                     EnsureSuccess(_device.MV_CC_SetImageNodeNum_NET(1), "设置相机取流缓存节点");
 
-                    CameraIntValue payloadSize = GetIntValue("PayloadSize");
-                    EnsureRawFrameBuffers(checked((int)payloadSize.CurValue));
+                    payloadSize = checked((int)GetIntValue("PayloadSize").CurValue);
+                }
+
+                PrepareFrameConversionWorkerForStart();
+                try
+                {
+                    EnsureRawFrameBuffers(payloadSize);
                     StartFrameConversionWorker();
-                    Volatile.Write(ref _isGrabbing, true);
-                    int result = _device.MV_CC_StartGrabbing_NET();
-                    if (result != MyCamera.MV_OK)
+
+                    int result;
+                    lock (_deviceLock)
                     {
-                        Volatile.Write(ref _isGrabbing, false);
-                        StopFrameConversionWorker();
-                        throw CreateSdkException("开始相机取流", result);
+                        Volatile.Write(ref _isGrabbing, true);
+                        result = _device.MV_CC_StartGrabbing_NET();
+                        if (result != MyCamera.MV_OK)
+                            Volatile.Write(ref _isGrabbing, false);
                     }
+
+                    if (result != MyCamera.MV_OK)
+                        throw CreateSdkException("开始相机取流", result);
+                }
+                catch
+                {
+                    Volatile.Write(ref _isGrabbing, false);
+                    StopFrameConversionWorker();
+                    throw;
                 }
             }
         }
@@ -384,6 +421,7 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>停止相机取流。</summary>
         public void StopGrabbing()
         {
+            ThrowIfDisposed();
             ThrowIfCalledFromFrameConversionWorker("停止相机取流");
             lock (_cameraLifecycleLock)
             {
@@ -426,6 +464,7 @@ namespace TDJS_Vision.Device.Camera
         /// <returns>成功返回Bitmap，失败返回null。</returns>
         public Bitmap GetOneFrameImage()
         {
+            ThrowIfDisposed();
             ThrowIfCalledFromFrameConversionWorker("主动取图");
             lock (_cameraLifecycleLock)
             {
@@ -450,9 +489,10 @@ namespace TDJS_Vision.Device.Camera
                         return null;
                     }
 
+                    using (CancellationTokenSource conversionTimeout = new CancellationTokenSource(timeout))
                     using (ICpuWorkLease conversionLease = Solution.Instance.AcquireCpuWorkAsync(
                         CpuWorkloadKind.ImageConversion,
-                        CancellationToken.None).GetAwaiter().GetResult())
+                        conversionTimeout.Token).GetAwaiter().GetResult())
                     using (Mat mat = ConvertFrameToIndependentMat(frame.pBufAddr, ref frame.stFrameInfo, 0, false))
                         return mat == null ? null : BitmapConverter.ToBitmap(mat);
                 }
@@ -747,6 +787,8 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>关闭相机并释放当前转换缓冲区。</summary>
         public void Close()
         {
+            if (Volatile.Read(ref _disposed) != 0)
+                return;
             ThrowIfCalledFromFrameConversionWorker("关闭相机");
             bool notifyDisconnected = false;
             lock (_cameraLifecycleLock)
@@ -778,7 +820,7 @@ namespace TDJS_Vision.Device.Camera
                     {
                         int closeResult = _device.MV_CC_CloseDevice_NET();
                         if (closeResult != MyCamera.MV_OK)
-                            LogHelper.AddLog(MsgLevel.Warn, FormatSdkError("关闭相机", closeResult), true);
+                            throw CreateSdkException("关闭相机", closeResult);
                         notifyDisconnected = true;
                     }
 
@@ -794,9 +836,13 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>关闭相机并销毁原生设备句柄。</summary>
         public void Dispose()
         {
+            if (Volatile.Read(ref _disposed) != 0)
+                return;
             ThrowIfCalledFromFrameConversionWorker("销毁相机");
             lock (_cameraLifecycleLock)
             {
+                if (Volatile.Read(ref _disposed) != 0)
+                    return;
                 Close();
                 lock (_deviceLock)
                 {
@@ -804,7 +850,7 @@ namespace TDJS_Vision.Device.Camera
                     {
                         int result = _device.MV_CC_DestroyDevice_NET();
                         if (result != MyCamera.MV_OK)
-                            LogHelper.AddLog(MsgLevel.Warn, FormatSdkError("销毁相机句柄", result), true);
+                            throw CreateSdkException("销毁相机句柄", result);
                     }
 
                     _deviceCreated = false;
@@ -813,6 +859,7 @@ namespace TDJS_Vision.Device.Camera
                     _device = null;
                     _deviceInfo = null;
                 }
+                Volatile.Write(ref _disposed, 1);
             }
             _rawFrameAvailable.Dispose();
         }
@@ -903,7 +950,16 @@ namespace TDJS_Vision.Device.Camera
                 if (_rawFrameBufferSize != 0)
                     throw new InvalidOperationException("相机取流期间原始帧尺寸发生变化，请停止取流后重新开始。");
 
-                int rawFrameBufferCount = CalculateRawFrameBufferCount(requiredSize);
+                int desiredRawFrameBufferCount = CalculateRawFrameBufferCount(requiredSize);
+                long totalRawFrameBudgetBytes = GetRawFrameMemoryBudgetBytes();
+                ICameraRawFrameMemoryLease memoryLease =
+                    Solution.Instance.CameraRawFrameMemoryBudgetManager.Reserve(
+                        DevName,
+                        totalRawFrameBudgetBytes,
+                        requiredSize,
+                        desiredRawFrameBufferCount,
+                        RawFrameBufferCountMinimum);
+                int rawFrameBufferCount = memoryLease.BufferCount;
                 List<HikRawFramePacket> allocatedPackets = new List<HikRawFramePacket>(rawFrameBufferCount);
                 try
                 {
@@ -916,20 +972,24 @@ namespace TDJS_Vision.Device.Camera
                 {
                     foreach (HikRawFramePacket packet in allocatedPackets)
                         packet.Dispose();
+                    memoryLease.Dispose();
                     throw;
                 }
+                _rawFrameMemoryLease = memoryLease;
                 Volatile.Write(ref _rawFrameBufferCount, rawFrameBufferCount);
                 Volatile.Write(ref _rawFrameBufferSize, requiredSize);
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
                     () => string.Format(
-                        "【相机原始帧缓冲】相机={0}；数量={1}；单块={2}字节；合计={3:F1}MB；配置相机={4}；预算比例={5:P0}",
+                        "【相机原始帧缓冲】相机={0}；数量={1}；单块={2}字节；合计={3:F1}MB；配置相机={4}；预算比例={5:P0}；全局已预留={6:F1}MB；全局预算={7:F1}MB",
                         DevName,
                         rawFrameBufferCount,
                         requiredSize,
                         (long)rawFrameBufferCount * requiredSize / 1024D / 1024D,
                         GetConfiguredCameraCount(),
-                        RawFrameMemoryBudgetRatio),
+                        RawFrameMemoryBudgetRatio,
+                        Solution.Instance.CameraRawFrameMemoryBudgetManager.CurrentReservedBytes / 1024D / 1024D,
+                        Solution.Instance.CameraRawFrameMemoryBudgetManager.CurrentBudgetBytes / 1024D / 1024D),
                     true);
             }
         }
@@ -939,13 +999,8 @@ namespace TDJS_Vision.Device.Camera
         /// <returns>当前相机应预分配的缓冲数量。</returns>
         private int CalculateRawFrameBufferCount(int requiredSize)
         {
-            AutomaticResourceProfile profile = Solution.Instance.CurrentResourceProfile;
-            if (profile == null || profile.FlowImageMemoryBudgetMb <= 0)
-                return RawFrameBufferCountMaximum;
-
             int cameraCount = GetConfiguredCameraCount();
-            long totalBudgetBytes = (long)Math.Floor(
-                profile.FlowImageMemoryBudgetMb * 1024D * 1024D * RawFrameMemoryBudgetRatio);
+            long totalBudgetBytes = GetRawFrameMemoryBudgetBytes();
             long perCameraBudgetBytes = totalBudgetBytes / cameraCount;
             long minimumRequiredBytes = (long)requiredSize * RawFrameBufferCountMinimum;
             if (perCameraBudgetBytes < minimumRequiredBytes)
@@ -966,6 +1021,18 @@ namespace TDJS_Vision.Device.Camera
                 Math.Min(RawFrameBufferCountMaximum, budgetCount));
         }
 
+        /// <summary>读取当前全方案允许用于相机原始帧缓冲的总字节数。</summary>
+        /// <returns>运行资源档案预算的25%，无档案时使用256MB保守预算。</returns>
+        private static long GetRawFrameMemoryBudgetBytes()
+        {
+            AutomaticResourceProfile profile = Solution.Instance.CurrentResourceProfile;
+            int flowImageBudgetMb = profile?.FlowImageMemoryBudgetMb ?? 0;
+            if (flowImageBudgetMb <= 0)
+                return RawFrameFallbackMemoryBudgetMb * 1024L * 1024L;
+            return (long)Math.Floor(
+                flowImageBudgetMb * 1024D * 1024D * RawFrameMemoryBudgetRatio);
+        }
+
         /// <summary>读取资源档案中的二维与三维相机总数，缺少档案时使用当前设备列表。</summary>
         /// <returns>至少为1的配置相机数量。</returns>
         private static int GetConfiguredCameraCount()
@@ -976,33 +1043,57 @@ namespace TDJS_Vision.Device.Camera
             return Math.Max(1, Solution.Instance.CameraDevices.Count + Solution.Instance.Camera3DDevices.Count);
         }
 
-        /// <summary>启动当前相机独占的顺序消费线程；实际转换并发由全方案CPU调度器限制。</summary>
+        /// <summary>开始本轮取流前清理已经退出的旧转换线程，活动旧线程一律拒绝重入。</summary>
+        private void PrepareFrameConversionWorkerForStart()
+        {
+            lock (_rawFramePipelineLock)
+            {
+                if (_frameConversionWorker == null)
+                    return;
+                if (_frameConversionWorker.IsAlive)
+                {
+                    throw new InvalidOperationException("上一次相机转换线程尚未退出，禁止重新开始取流。");
+                }
+
+                _frameConversionWorker = null;
+                _frameConversionCancellation?.Dispose();
+                _frameConversionCancellation = null;
+                ReleaseRawFrameBuffersCore();
+            }
+        }
+
+        /// <summary>启动当前相机独占的顺序消费线程；任一启动异常都会回滚CTS、缓冲和内存租约。</summary>
         private void StartFrameConversionWorker()
         {
             lock (_rawFramePipelineLock)
             {
-                if (_frameConversionWorker != null && _frameConversionWorker.IsAlive)
-                {
-                    if (Volatile.Read(ref _frameConversionStopRequested) != 0)
-                        throw new InvalidOperationException("上一次相机转换线程尚未退出，禁止重新开始取流。");
-                    return;
-                }
                 if (_frameConversionWorker != null)
-                {
-                    _frameConversionCancellation?.Dispose();
-                    _frameConversionCancellation = null;
-                    ReleaseRawFrameBuffersCore();
-                }
+                    throw new InvalidOperationException("相机转换线程状态未清理，禁止重复启动。");
 
                 Volatile.Write(ref _frameConversionStopRequested, 0);
-                _frameConversionCancellation = new CancellationTokenSource();
-                _frameConversionWorker = new Thread(FrameConversionWorkerLoop)
+                CancellationTokenSource cancellation = new CancellationTokenSource();
+                Thread worker = null;
+                try
                 {
-                    IsBackground = true,
-                    Name = string.Format("HikFrameConvert-{0}", UserDefinedName ?? SN ?? "Camera"),
-                    Priority = ThreadPriority.Normal
-                };
-                _frameConversionWorker.Start();
+                    worker = new Thread(FrameConversionWorkerLoop)
+                    {
+                        IsBackground = true,
+                        Name = string.Format("HikFrameConvert-{0}", UserDefinedName ?? SN ?? "Camera"),
+                        Priority = ThreadPriority.Normal
+                    };
+                    _frameConversionCancellation = cancellation;
+                    _frameConversionWorker = worker;
+                    worker.Start();
+                }
+                catch
+                {
+                    _frameConversionWorker = null;
+                    _frameConversionCancellation = null;
+                    cancellation.Cancel();
+                    cancellation.Dispose();
+                    ReleaseRawFrameBuffersCore();
+                    throw;
+                }
             }
         }
 
@@ -1253,6 +1344,9 @@ namespace TDJS_Vision.Device.Camera
                 packet.Dispose();
             while (_availableRawFrames.TryDequeue(out packet))
                 packet.Dispose();
+            ICameraRawFrameMemoryLease memoryLease = _rawFrameMemoryLease;
+            _rawFrameMemoryLease = null;
+            memoryLease?.Dispose();
             Volatile.Write(ref _rawFrameBufferCount, 0);
             Volatile.Write(ref _rawFrameBufferSize, 0);
         }
@@ -1681,10 +1775,18 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>确保当前相机已经打开。</summary>
         private void EnsureDeviceOpen()
         {
+            ThrowIfDisposed();
             if (_device == null || !_deviceCreated)
                 throw new InvalidOperationException("相机对象为空。");
             if (!IsOpen)
                 throw new InvalidOperationException(string.Format("相机（{0}）尚未打开。", UserDefinedName));
+        }
+
+        /// <summary>对象完成永久销毁后禁止再次访问已经释放的SDK与同步资源。</summary>
+        private void ThrowIfDisposed()
+        {
+            if (Volatile.Read(ref _disposed) != 0)
+                throw new ObjectDisposedException(GetType().FullName, string.Format("相机{0}已经销毁，不能重新使用。", DevName));
         }
 
         /// <summary>确保转换缓冲区容量满足当前帧要求。</summary>

@@ -45,6 +45,7 @@ namespace TDJS_Vision
         private Solution() 
         {
             AllDevices = new List<IDevice>();
+            CameraRawFrameMemoryBudgetManager = new CameraRawFrameMemoryBudgetManager();
             _cpuWorkScheduler = new CpuWorkScheduler(new CpuWorkSchedulerOptions());
             _cpuResourceMonitor = new CpuResourceMonitor(
                 _cpuWorkScheduler,
@@ -161,6 +162,9 @@ namespace TDJS_Vision
         /// 最近一次方案运行前生成的自动资源建议档案。
         /// </summary>
         public AutomaticResourceProfile CurrentResourceProfile { get; private set; }
+
+        /// <summary>全方案唯一的相机原始帧非托管内存预算管理器。</summary>
+        public ICameraRawFrameMemoryBudgetManager CameraRawFrameMemoryBudgetManager { get; }
 
         /// <summary>
         /// 流程节点CPU工作分类器；插件可以替换分类策略，但AI和通信节点默认不受限。
