@@ -99,6 +99,15 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>对象完成永久销毁后置为1，禁止重新创建已释放的同步对象。</summary>
         private int _disposed;
 
+        /// <summary>原生SDK句柄真实打开后置为1；不参与方案序列化，避免把保存时连接状态误当成重启后的真实状态。</summary>
+        private int _nativeDeviceOpened;
+
+        /// <summary>原生句柄打开后的网络、采集模式、触发源和回调配置全部完成后置为1。</summary>
+        private int _deviceConfigurationCompleted;
+
+        /// <summary>方案加载后需要恢复上次连接时置为1，与原生句柄真实状态相互独立。</summary>
+        private int _restoreConnectionRequested;
+
         /// <summary>缓冲暂不可用时累计的帧入口失败数量，详细满载策略后续独立设计。</summary>
         private long _rawFrameIngressFailureCount;
 
@@ -141,8 +150,25 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>硬触发流程使用的Mat图像事件。</summary>
         public event Action<Mat> OnMatReceived;
 
-        /// <summary>获取或设置设备是否已经打开。</summary>
-        public bool IsOpen { get; set; }
+        /// <summary>获取原生SDK设备当前是否真实打开；设置值仅用于兼容外部连接意图。</summary>
+        [JsonIgnore]
+        public bool IsOpen
+        {
+            get => Volatile.Read(ref _nativeDeviceOpened) != 0;
+            set => Volatile.Write(ref _restoreConnectionRequested, value ? 1 : 0);
+        }
+
+        /// <summary>获取方案反序列化后是否需要恢复上次的相机连接。</summary>
+        [JsonIgnore]
+        public bool RestoreConnectionRequested => Volatile.Read(ref _restoreConnectionRequested) != 0;
+
+        /// <summary>兼容旧方案中的IsOpen字段，并在保存时记录下次是否需要恢复连接。</summary>
+        [JsonProperty("IsOpen")]
+        private bool PersistedConnectionRequested
+        {
+            get => IsOpen || RestoreConnectionRequested;
+            set => Volatile.Write(ref _restoreConnectionRequested, value ? 1 : 0);
+        }
 
         /// <summary>获取或设置当前触发模式。</summary>
         public TriggerModel TriggerModel { get; set; }
@@ -294,8 +320,12 @@ namespace TDJS_Vision.Device.Camera
             {
                 lock (_deviceLock)
                 {
-                    if (IsOpen)
+                    if (Volatile.Read(ref _nativeDeviceOpened) != 0 &&
+                        Volatile.Read(ref _deviceConfigurationCompleted) != 0)
+                    {
+                        Volatile.Write(ref _restoreConnectionRequested, 1);
                         return true;
+                    }
                     if (_device == null || !_deviceCreated)
                     {
                         HikNativeDeviceInfo deviceInfo = FindCamera()
@@ -306,24 +336,44 @@ namespace TDJS_Vision.Device.Camera
                         CreateNativeDeviceCore(deviceInfo);
                     }
 
-                    int result = _device.MV_CC_OpenDevice_NET();
-                    if (result != MyCamera.MV_OK)
-                        throw CreateSdkException(string.Format("打开相机（{0}）", UserDefinedName), result);
+                    if (Volatile.Read(ref _nativeDeviceOpened) == 0)
+                    {
+                        int result = _device.MV_CC_OpenDevice_NET();
+                        if (result != MyCamera.MV_OK)
+                            throw CreateSdkException(string.Format("打开相机（{0}）", UserDefinedName), result);
+                        Volatile.Write(ref _nativeDeviceOpened, 1);
+                    }
 
+                    Volatile.Write(ref _restoreConnectionRequested, 1);
                     try
                     {
                         ConfigureGigENetwork();
                         TrySetEnumValue("AcquisitionMode", (uint)MyCamera.MV_CAM_ACQUISITION_MODE.MV_ACQ_MODE_CONTINUOUS);
-                        IsOpen = true;
-                        TriggerSource = GetTriggerSource();
                         lock (_imageCallbackLock)
-                            EnsureNativeCallbackRegisteredCore();
+                        {
+                            TriggerSource = GetTriggerSourceCore();
+                            RegisterNativeCallbackCore();
+                            Volatile.Write(ref _deviceConfigurationCompleted, 1);
+                        }
                     }
-                    catch
+                    catch (Exception configurationException)
                     {
-                        _device.MV_CC_CloseDevice_NET();
-                        IsOpen = false;
-                        throw;
+                        Volatile.Write(ref _deviceConfigurationCompleted, 0);
+                        lock (_imageCallbackLock)
+                        {
+                            int closeResult = _device.MV_CC_CloseDevice_NET();
+                            if (closeResult == MyCamera.MV_OK)
+                            {
+                                Volatile.Write(ref _nativeDeviceOpened, 0);
+                                _callbackRegistered = false;
+                                throw;
+                            }
+
+                            throw new AggregateException(
+                                "相机打开后的配置失败，并且SDK回滚关闭也失败；已保留真实打开状态并标记配置未完成。",
+                                configurationException,
+                                CreateSdkException("回滚关闭相机", closeResult));
+                        }
                     }
                 }
             }
@@ -539,13 +589,23 @@ namespace TDJS_Vision.Device.Camera
         /// <returns>当前触发源。</returns>
         public TriggerSource GetTriggerSource()
         {
-            if (GetTriggerMode() == TriggerModel.Off)
-            {
-                TriggerSource = TriggerSource.Auto;
-                return TriggerSource;
-            }
+            EnsureDeviceOpen();
+            return GetTriggerSourceCore();
+        }
 
-            TriggerSource = MapTriggerSource(GetEnumValue("TriggerSource").CurEnumEntry);
+        /// <summary>在Open配置事务内部读取触发模式和触发源，不提前放开配置完成门禁。</summary>
+        /// <returns>当前触发源。</returns>
+        private TriggerSource GetTriggerSourceCore()
+        {
+            CameraEnumEntry triggerModeEntry = GetEnumValueCore("TriggerMode").CurEnumEntry;
+            TriggerModel = triggerModeEntry != null &&
+                (string.Equals(triggerModeEntry.Symbolic, "On", StringComparison.OrdinalIgnoreCase) || triggerModeEntry.Value == 1)
+                    ? TriggerModel.On
+                    : TriggerModel.Off;
+            if (TriggerModel == TriggerModel.Off)
+                return TriggerSource.Auto;
+
+            TriggerSource = MapTriggerSource(GetEnumValueCore("TriggerSource").CurEnumEntry);
             return TriggerSource;
         }
 
@@ -789,6 +849,7 @@ namespace TDJS_Vision.Device.Camera
         {
             if (Volatile.Read(ref _disposed) != 0)
                 return;
+            Volatile.Write(ref _restoreConnectionRequested, 0);
             ThrowIfCalledFromFrameConversionWorker("关闭相机");
             bool notifyDisconnected = false;
             lock (_cameraLifecycleLock)
@@ -796,9 +857,12 @@ namespace TDJS_Vision.Device.Camera
                 lock (_deviceLock)
                 {
                     if (_device == null)
-                        return;
-
-                    if (_isGrabbing)
+                    {
+                        Volatile.Write(ref _nativeDeviceOpened, 0);
+                        Volatile.Write(ref _deviceConfigurationCompleted, 0);
+                        _callbackRegistered = false;
+                    }
+                    else if (_isGrabbing)
                     {
                         int stopResult = _device.MV_CC_StopGrabbing_NET();
                         if (stopResult != MyCamera.MV_OK)
@@ -816,16 +880,20 @@ namespace TDJS_Vision.Device.Camera
 
                 lock (_deviceLock)
                 {
-                    if (IsOpen)
+                    lock (_imageCallbackLock)
                     {
-                        int closeResult = _device.MV_CC_CloseDevice_NET();
-                        if (closeResult != MyCamera.MV_OK)
-                            throw CreateSdkException("关闭相机", closeResult);
-                        notifyDisconnected = true;
-                    }
+                        if (_device != null && Volatile.Read(ref _nativeDeviceOpened) != 0)
+                        {
+                            int closeResult = _device.MV_CC_CloseDevice_NET();
+                            if (closeResult != MyCamera.MV_OK)
+                                throw CreateSdkException("关闭相机", closeResult);
+                            notifyDisconnected = true;
+                        }
 
-                    IsOpen = false;
-                    _callbackRegistered = false;
+                        Volatile.Write(ref _nativeDeviceOpened, 0);
+                        Volatile.Write(ref _deviceConfigurationCompleted, 0);
+                        _callbackRegistered = false;
+                    }
                 }
             }
 
@@ -838,6 +906,7 @@ namespace TDJS_Vision.Device.Camera
         {
             if (Volatile.Read(ref _disposed) != 0)
                 return;
+            Volatile.Write(ref _restoreConnectionRequested, 0);
             ThrowIfCalledFromFrameConversionWorker("销毁相机");
             lock (_cameraLifecycleLock)
             {
@@ -854,6 +923,9 @@ namespace TDJS_Vision.Device.Camera
                     }
 
                     _deviceCreated = false;
+                    Volatile.Write(ref _nativeDeviceOpened, 0);
+                    Volatile.Write(ref _deviceConfigurationCompleted, 0);
+                    Volatile.Write(ref _restoreConnectionRequested, 0);
                     _callbackRegistered = false;
                     _nativeImageCallback = null;
                     _device = null;
@@ -1570,9 +1642,20 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>注册官方原生图像回调，调用方必须持有回调锁。</summary>
         private void EnsureNativeCallbackRegisteredCore()
         {
-            if (!IsOpen || _device == null || _callbackRegistered)
+            if (Volatile.Read(ref _nativeDeviceOpened) == 0 ||
+                Volatile.Read(ref _deviceConfigurationCompleted) == 0 ||
+                _device == null ||
+                _callbackRegistered)
                 return;
 
+            RegisterNativeCallbackCore();
+        }
+
+        /// <summary>在设备锁和回调锁保护下执行原生回调注册，不修改配置完成状态。</summary>
+        private void RegisterNativeCallbackCore()
+        {
+            if (_device == null || _callbackRegistered)
+                return;
             _nativeImageCallback = GetImageCallBack;
             EnsureSuccess(_device.MV_CC_RegisterImageCallBackEx_NET(_nativeImageCallback, IntPtr.Zero), "注册相机图像回调");
             _callbackRegistered = true;
@@ -1591,16 +1674,28 @@ namespace TDJS_Vision.Device.Camera
         /// <param name="deviceInfo">原生设备信息。</param>
         private void CreateNativeDeviceCore(HikNativeDeviceInfo deviceInfo)
         {
-            if (IsOpen || _isGrabbing)
+            if (Volatile.Read(ref _nativeDeviceOpened) != 0 || _isGrabbing)
                 throw new InvalidOperationException("相机打开时不能重新创建设备句柄。");
             if (_device != null && _deviceCreated)
-                _device.MV_CC_DestroyDevice_NET();
+            {
+                int destroyResult = _device.MV_CC_DestroyDevice_NET();
+                if (destroyResult != MyCamera.MV_OK)
+                    throw CreateSdkException("重建前销毁旧相机句柄", destroyResult);
+            }
 
-            _device = new MyCamera();
-            MyCamera.MV_CC_DEVICE_INFO nativeInfo = deviceInfo.NativeDeviceInfo;
-            EnsureSuccess(_device.MV_CC_CreateDevice_NET(ref nativeInfo), "创建相机句柄");
-            _deviceCreated = true;
+            _deviceCreated = false;
             _callbackRegistered = false;
+            _nativeImageCallback = null;
+            _device = null;
+            _deviceInfo = null;
+            Volatile.Write(ref _nativeDeviceOpened, 0);
+            Volatile.Write(ref _deviceConfigurationCompleted, 0);
+
+            MyCamera newDevice = new MyCamera();
+            MyCamera.MV_CC_DEVICE_INFO nativeInfo = deviceInfo.NativeDeviceInfo;
+            EnsureSuccess(newDevice.MV_CC_CreateDevice_NET(ref nativeInfo), "创建相机句柄");
+            _device = newDevice;
+            _deviceCreated = true;
             _deviceInfo = deviceInfo;
         }
 
@@ -1670,6 +1765,14 @@ namespace TDJS_Vision.Device.Camera
         private CameraEnumValue GetEnumValue(string key)
         {
             EnsureDeviceOpen();
+            return GetEnumValueCore(key);
+        }
+
+        /// <summary>在相机Open配置事务内读取原生枚举参数，不检查尚未完成的配置门禁。</summary>
+        /// <param name="key">GenICam参数键。</param>
+        /// <returns>框架枚举参数。</returns>
+        private CameraEnumValue GetEnumValueCore(string key)
+        {
             MyCamera.MV_XML_AccessMode accessMode;
             bool hasAccessMode = TryGetNodeAccessMode(key, out accessMode);
             if (hasAccessMode && !IsNodeReadable(accessMode))
@@ -1778,8 +1881,10 @@ namespace TDJS_Vision.Device.Camera
             ThrowIfDisposed();
             if (_device == null || !_deviceCreated)
                 throw new InvalidOperationException("相机对象为空。");
-            if (!IsOpen)
+            if (Volatile.Read(ref _nativeDeviceOpened) == 0)
                 throw new InvalidOperationException(string.Format("相机（{0}）尚未打开。", UserDefinedName));
+            if (Volatile.Read(ref _deviceConfigurationCompleted) == 0)
+                throw new InvalidOperationException(string.Format("相机（{0}）已打开但初始化配置尚未完成。", UserDefinedName));
         }
 
         /// <summary>对象完成永久销毁后禁止再次访问已经释放的SDK与同步资源。</summary>

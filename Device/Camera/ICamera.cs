@@ -49,6 +49,10 @@ namespace TDJS_Vision.Device.Camera
         /// </summary>
         bool IsOpen { get; set; }
         /// <summary>
+        /// 获取方案反序列化后是否需要恢复上次的相机连接。
+        /// </summary>
+        bool RestoreConnectionRequested { get; }
+        /// <summary>
         /// 设备序列号
         /// </summary>
         string SN { get; }

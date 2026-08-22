@@ -47,7 +47,7 @@ namespace TDJS_Vision.Forms.CameraAdd
             InitializeComponent();
             Camera = camera;
             Camera.ConnectStatusEvent += Camera_ConnectStatusEvent;
-            if (camera.IsOpen)
+            if (camera.IsOpen || camera.RestoreConnectionRequested)
             {
                 try
                 {
