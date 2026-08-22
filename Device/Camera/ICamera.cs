@@ -32,7 +32,7 @@ namespace TDJS_Vision.Device.Camera
         /// <param name="owner">回调拥有者。</param>
         void RegisterImageCallbackOwner(object owner);
         /// <summary>
-        /// 注销需要相机帧回调的拥有者，全部注销后会关闭底层取流回调。
+        /// 注销需要相机帧回调的拥有者，全部注销后底层回调不再接管和转换业务帧。
         /// </summary>
         /// <param name="owner">回调拥有者。</param>
         void UnregisterImageCallbackOwner(object owner);

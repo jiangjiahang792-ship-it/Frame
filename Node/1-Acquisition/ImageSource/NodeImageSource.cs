@@ -36,6 +36,16 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         private readonly ICameraFrameAwaiter _cameraFrameAwaiter;
 
         /// <summary>
+        /// 保护单个图像源节点的一次性相机订阅，禁止并发运行破坏上一轮等待。
+        /// </summary>
+        private readonly object _cameraCallbackBindingLock = new object();
+
+        /// <summary>
+        /// 当前图像源是否已经为某一轮等待绑定相机回调。
+        /// </summary>
+        private bool _cameraCallbackBound;
+
+        /// <summary>
         /// 创建使用默认相机帧等待器的图像源节点。
         /// </summary>
         public NodeImageSource(int nodeId, string nodeName, Process process, NodeType nodeType)
@@ -150,29 +160,32 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <param name="mat">相机回调 Mat 帧。</param>
         public void HandleCameraCallbackFrame(Mat mat)
         {
-            if (mat == null || mat.Empty())
+            lock (_cameraCallbackBindingLock)
             {
-                mat?.Dispose();
-                return;
-            }
+                if (mat == null || mat.Empty())
+                {
+                    mat?.Dispose();
+                    return;
+                }
 
-            CameraFrameTraceInfo frameTrace;
-            CameraFrameTraceRegistry.TryGet(mat, out frameTrace);
-            long nodeReceivedTimestamp = frameTrace == null ? 0L : Stopwatch.GetTimestamp();
-            if (_cameraFrameAwaiter.TrySupplyFrame(mat))
-            {
+                CameraFrameTraceInfo frameTrace;
+                CameraFrameTraceRegistry.TryGet(mat, out frameTrace);
+                long nodeReceivedTimestamp = frameTrace == null ? 0L : Stopwatch.GetTimestamp();
+                if (_cameraFrameAwaiter.TrySupplyFrame(mat))
+                {
+                    PerformanceSpikeDiagnostics.LogIfEnabled(
+                        MsgLevel.Debug,
+                        () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=回调帧交付等待器；{GetCameraFrameTraceText(frameTrace, nodeReceivedTimestamp)}",
+                        true);
+                    return;
+                }
+
+                mat.Dispose();
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=回调帧交付等待器；{GetCameraFrameTraceText(frameTrace, nodeReceivedTimestamp)}",
+                    () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=丢弃迟到回调帧；{GetCameraFrameTraceText(frameTrace, nodeReceivedTimestamp)}",
                     true);
-                return;
             }
-
-            mat.Dispose();
-            PerformanceSpikeDiagnostics.LogIfEnabled(
-                MsgLevel.Debug,
-                () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=丢弃迟到回调帧；{GetCameraFrameTraceText(frameTrace, nodeReceivedTimestamp)}",
-                true);
         }
 
         /// <summary>
@@ -440,14 +453,26 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             long waitStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
             Mat callbackMat = null;
             bool callbackBound = false;
+            bool callbackOwnerRegistered = false;
+            bool waitOwnershipAcquired = false;
+            Task<Mat> frameTask = null;
             try
             {
                 // 回调订阅只覆盖本轮有效等待，防止已结束流程继续参与每帧分发和图像克隆。
-                param.Camera.OnMatReceived += HandleCameraCallbackFrame;
-                param.Camera.RegisterImageCallbackOwner(this);
-                callbackBound = true;
+                lock (_cameraCallbackBindingLock)
+                {
+                    if (_cameraCallbackBound)
+                        throw new InvalidOperationException("当前图像源已经在等待相机回调帧。");
 
-                Task<Mat> frameTask = _cameraFrameAwaiter.BeginWaitAsync(token);
+                    callbackBound = true;
+                    param.Camera.OnMatReceived += HandleCameraCallbackFrame;
+                    param.Camera.RegisterImageCallbackOwner(this);
+                    callbackOwnerRegistered = true;
+                    _cameraCallbackBound = true;
+                    waitOwnershipAcquired = true;
+                    frameTask = _cameraFrameAwaiter.BeginWaitAsync(token);
+                }
+
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
                     () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=等待器就绪；相机={param.Camera.DevName}；触发源={param.TriggerSource}",
@@ -484,15 +509,21 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             catch
             {
                 callbackMat?.Dispose();
-                _cameraFrameAwaiter.CancelPendingWait();
+                if (waitOwnershipAcquired)
+                    _cameraFrameAwaiter.CancelPendingWait();
                 throw;
             }
             finally
             {
                 if (callbackBound)
                 {
-                    param.Camera.OnMatReceived -= HandleCameraCallbackFrame;
-                    param.Camera.UnregisterImageCallbackOwner(this);
+                    lock (_cameraCallbackBindingLock)
+                    {
+                        param.Camera.OnMatReceived -= HandleCameraCallbackFrame;
+                        if (callbackOwnerRegistered)
+                            param.Camera.UnregisterImageCallbackOwner(this);
+                        _cameraCallbackBound = false;
+                    }
                 }
             }
         }
