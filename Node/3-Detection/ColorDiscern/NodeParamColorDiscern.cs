@@ -44,6 +44,21 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         /// </summary>
         public string Address { get; set; }
 
+        /// <summary>
+        /// 是否启用位置修正跟随。
+        /// </summary>
+        public bool UsePositionCorrection { get; set; }
+
+        /// <summary>
+        /// 位置修正订阅节点的名称。
+        /// </summary>
+        public string CorrectionText1 { get; set; }
+
+        /// <summary>
+        /// 位置修正订阅节点的属性。
+        /// </summary>
+        public string CorrectionText2 { get; set; }
+
 
         // <summary>
         /// 是否开启结果排序
