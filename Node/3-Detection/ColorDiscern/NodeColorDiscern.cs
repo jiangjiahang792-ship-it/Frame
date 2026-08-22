@@ -67,6 +67,8 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         pendingResult.OutputImage = OutputImage.FromBorrowedSingleImage(inputImage, sourceImage, inputImage?.GrayImg);
                         pendingResult.OutputImage.Rectangles = BuildRectangleList(resultList);
                         pendingResult.Result = BuildDisplayResult(resultList, isOk);
+                        pendingResult.IsOk = isOk;
+                        pendingResult.JudgeOk = isOk;
                         pendingResult.OutputImage.DisplayResult = pendingResult.Result;
                         LogRuntimeStep(showLog, "输出结果构建完毕");
 

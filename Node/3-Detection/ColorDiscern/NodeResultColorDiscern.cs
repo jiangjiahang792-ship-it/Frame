@@ -8,7 +8,7 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
     /// <summary>
     /// 颜色识别节点运行结果，包含干净输出图像和结构化算法结果。
     /// </summary>
-    public class NodeResultColorDiscern : INodeResult
+    public class NodeResultColorDiscern : INodeResult, IJudgmentResult
     {
         /// <summary>
         /// 节点运行耗时，单位毫秒。
@@ -25,9 +25,23 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         /// <summary>
         /// 颜色识别结构化结果，供显示控件、结果汇总和通信模块订阅。
         /// </summary>
-        [SubscriptionOutput]
+        [SubscriptionOutput(SubscriptionDataCategory.AlgorithmResult)]
         [DisplayName("算法结果")]
         public NodetColorResult Result { get; set; } = new NodetColorResult();
+
+        /// <summary>
+        /// LAB颜色、面积、占比以及已启用线序规则共同形成的原始整体判定结果。
+        /// </summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
+        [DisplayName("算法原始OK")]
+        public bool IsOk { get; set; }
+
+        /// <summary>
+        /// 获取或设置供多条件判定订阅和回写的最终整体结果。
+        /// </summary>
+        [SubscriptionOutput]
+        [DisplayName("整体判定OK")]
+        public bool JudgeOk { get; set; }
     }
 
     /// <summary>
