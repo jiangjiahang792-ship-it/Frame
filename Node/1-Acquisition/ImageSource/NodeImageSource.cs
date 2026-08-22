@@ -438,14 +438,20 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
             bool diagnosticEnabled = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
             long waitStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
-            Task<Mat> frameTask = _cameraFrameAwaiter.BeginWaitAsync(token);
-            PerformanceSpikeDiagnostics.LogIfEnabled(
-                MsgLevel.Debug,
-                () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=等待器就绪；相机={param.Camera.DevName}；触发源={param.TriggerSource}",
-                true);
             Mat callbackMat = null;
+            bool callbackBound = false;
             try
             {
+                // 回调订阅只覆盖本轮有效等待，防止已结束流程继续参与每帧分发和图像克隆。
+                param.Camera.OnMatReceived += HandleCameraCallbackFrame;
+                param.Camera.RegisterImageCallbackOwner(this);
+                callbackBound = true;
+
+                Task<Mat> frameTask = _cameraFrameAwaiter.BeginWaitAsync(token);
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=等待器就绪；相机={param.Camera.DevName}；触发源={param.TriggerSource}",
+                    true);
                 if (param.TriggerSource == TriggerSource.SOFT)
                     param.Camera.GrabOne();
 
@@ -480,6 +486,14 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 callbackMat?.Dispose();
                 _cameraFrameAwaiter.CancelPendingWait();
                 throw;
+            }
+            finally
+            {
+                if (callbackBound)
+                {
+                    param.Camera.OnMatReceived -= HandleCameraCallbackFrame;
+                    param.Camera.UnregisterImageCallbackOwner(this);
+                }
             }
         }
 

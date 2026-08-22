@@ -30,11 +30,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
         private NodeBase _node;
         /// <summary>
-        /// 当前已绑定回调的相机，切换相机或删除节点时用于解绑事件。
-        /// </summary>
-        private ICamera _callbackCamera;
-        /// <summary>
-        /// 当前参数窗体所属的图像源节点，相机回调直接注册到该节点方法。
+        /// 当前参数窗体所属的图像源节点。
         /// </summary>
         private readonly NodeImageSource _imageSourceNode;
         public ParamFormImageSource(NodeBase node)
@@ -47,7 +43,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             comboBoxImgSource.SelectedIndex = 0;
             Shown += ParamFormImageSource_Shown;
             SolRunParamControl.RefreshParamView += SolRunParamControl_RefreshParamView;
-            NodeBase.NodeDeletedEvent += NodeBase_NodeDeletedEvent;
             Disposed += ParamFormImageSource_Disposed;
         }
 
@@ -161,8 +156,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         }
                     }
 
-                    // 相机图像源统一使用回调取图，不再依赖流程菜单开关。
-                    SyncCameraCallbackBinding();
                 }
                 else if (param.ImageSource == "共享变量")
                 {
@@ -173,89 +166,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         }
 
         /// <summary>
-        /// 根据当前有效相机参数同步图像源节点的回调订阅。
-        /// </summary>
-        public void SyncCameraCallbackBinding()
-        {
-            ICamera camera = GetCallbackCameraFromParams();
-            if (camera == null)
-            {
-                UnbindCameraCallback();
-                return;
-            }
-
-            BindCameraCallback(camera);
-        }
-
-        /// <summary>
-        /// 从当前节点参数中获取用于回调触发的相机。
-        /// </summary>
-        private ICamera GetCallbackCameraFromParams()
-        {
-            if (Params is NodeParamImageSoucre param && param.ImageSource == "相机")
-                return param.Camera;
-
-            return null;
-        }
-
-        /// <summary>
-        /// 绑定相机回调到当前图像源节点，避免每帧回调时再查找节点。
-        /// </summary>
-        private void BindCameraCallback(ICamera camera)
-        {
-            if (_imageSourceNode == null || camera == null)
-                return;
-
-            if (ReferenceEquals(_callbackCamera, camera))
-            {
-                if (camera != null)
-                {
-                    camera.OnMatReceived -= _imageSourceNode.HandleCameraCallbackFrame;
-                    camera.OnMatReceived += _imageSourceNode.HandleCameraCallbackFrame;
-                    camera.RegisterImageCallbackOwner(_imageSourceNode);
-                }
-                return;
-            }
-
-            UnbindCameraCallback();
-            _callbackCamera = camera;
-            if (_callbackCamera != null)
-            {
-                _callbackCamera.OnMatReceived -= _imageSourceNode.HandleCameraCallbackFrame;
-                _callbackCamera.OnMatReceived += _imageSourceNode.HandleCameraCallbackFrame;
-                _callbackCamera.RegisterImageCallbackOwner(_imageSourceNode);
-            }
-        }
-
-        /// <summary>
-        /// 解除当前相机回调绑定。
-        /// </summary>
-        private void UnbindCameraCallback()
-        {
-            if (_callbackCamera != null && _imageSourceNode != null)
-            {
-                _callbackCamera.OnMatReceived -= _imageSourceNode.HandleCameraCallbackFrame;
-                _callbackCamera.UnregisterImageCallbackOwner(_imageSourceNode);
-            }
-            _callbackCamera = null;
-        }
-
-        /// <summary>
-        /// 节点删除时解绑相机回调，避免旧节点继续响应相机帧。
-        /// </summary>
-        private void NodeBase_NodeDeletedEvent(object sender, NodeBase node)
-        {
-            if (ReferenceEquals(node, _node))
-                UnbindCameraCallback();
-        }
-
-        /// <summary>
-        /// 参数窗体释放时清理事件订阅。
+        /// 参数窗体释放时清理静态事件订阅。
         /// </summary>
         private void ParamFormImageSource_Disposed(object sender, EventArgs e)
         {
-            UnbindCameraCallback();
-            NodeBase.NodeDeletedEvent -= NodeBase_NodeDeletedEvent;
             SolRunParamControl.RefreshParamView -= SolRunParamControl_RefreshParamView;
         }
 
@@ -525,7 +439,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             _nodeParamImageSource.ImageSource = comboBoxImgSource.Text;
             if (comboBoxImgSource.SelectedIndex == 0)
             {
-                UnbindCameraCallback();
                 if (string.IsNullOrEmpty(textBoxImgPath.Text))
                 {
                     MessageBoxTD.Show("未选择图片");
@@ -631,7 +544,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             }
             else if (comboBoxImgSource.SelectedIndex == 2)
             {
-                UnbindCameraCallback();
                 if (comboBoxSharedVariable.Text.IsNullOrEmpty() || comboBoxSharedVariable.Text == "[未选择]")
                 {
                     MessageBoxTD.Show("共享变量为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -642,7 +554,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             }
 
             Params = _nodeParamImageSource;
-            SyncCameraCallbackBinding();
             return true;
         }
 

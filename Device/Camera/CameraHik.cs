@@ -902,10 +902,10 @@ namespace TDJS_Vision.Device.Camera
             }
         }
 
-        /// <summary>在存在回调拥有者时注册官方原生图像回调，调用方必须持有回调锁。</summary>
+        /// <summary>注册官方原生图像回调，调用方必须持有回调锁。</summary>
         private void EnsureNativeCallbackRegisteredCore()
         {
-            if (!IsOpen || _device == null || _callbackRegistered || _imageCallbackOwners.Count == 0)
+            if (!IsOpen || _device == null || _callbackRegistered)
                 return;
 
             _nativeImageCallback = GetImageCallBack;

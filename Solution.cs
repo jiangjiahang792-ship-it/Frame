@@ -586,10 +586,6 @@ namespace TDJS_Vision
                     if (imageSource == null || !imageSource.Active)
                         continue;
 
-                    ParamFormImageSource form = imageSource.ParamForm as ParamFormImageSource;
-                    if (form != null)
-                        form.SyncCameraCallbackBinding();
-
                     NodeParamImageSoucre param = imageSource.ParamForm == null
                         ? null
                         : imageSource.ParamForm.Params as NodeParamImageSoucre;
