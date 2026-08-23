@@ -169,6 +169,9 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>全部在途信号结束后要发布的目标终态。</summary>
         private WorkpieceTerminalState _requestedTerminalState;
 
+        /// <summary>由已完成外发结果累计得到的最严重工件终态；Active表示尚无信号故障。</summary>
+        private WorkpieceTerminalState _signalTerminalOverride;
+
         /// <summary>
         /// 创建不可变运行元数据和可并发提交的终态容器。
         /// </summary>
@@ -204,6 +207,7 @@ namespace TDJS_Vision.ResourceManagement
             CreatedAtUtc = createdAtUtc;
             CancellationToken = cancellationToken;
             _terminalState = (int)WorkpieceTerminalState.Active;
+            _signalTerminalOverride = WorkpieceTerminalState.Active;
         }
 
         /// <summary>获取本轮工件身份。</summary>
@@ -331,7 +335,7 @@ namespace TDJS_Vision.ResourceManagement
         }
 
         /// <summary>
-        /// 等待协调器返回，并保证成功、失败和取消路径都释放对应在途名额。
+        /// 等待协调器返回，并在成功、拒绝、未知、异常和取消路径原子记录发送结论。
         /// </summary>
         /// <param name="coordinator">有序信号协调器。</param>
         /// <param name="intent">已预约意图。</param>
@@ -342,27 +346,53 @@ namespace TDJS_Vision.ResourceManagement
             OrderedSignalIntent intent,
             CancellationToken waitingCancellationToken)
         {
+            OrderedSignalSendResult result;
             try
             {
-                return await coordinator.SubmitAsync(intent, waitingCancellationToken).ConfigureAwait(false);
+                result = await coordinator.SubmitAsync(intent, waitingCancellationToken).ConfigureAwait(false);
+                if (result == null)
+                {
+                    result = new OrderedSignalSendResult(
+                        OrderedSignalSendStatus.Unknown,
+                        "有序信号协调器返回了空结果，无法判断设备副作用状态。");
+                }
             }
-            finally
+            catch (OperationCanceledException)
             {
-                ReleaseSignalIntent(intent.IntentId);
+                // 只有协调器明确返回取消结果，才能证明副作用尚未开始且意图已永久移除。
+                // 任意取消异常都可能来自设备适配器，必须按发送状态未知保守停机。
+                FinalizeSignalIntent(intent.IntentId, OrderedSignalSendStatus.Unknown);
+                throw;
             }
+            catch
+            {
+                FinalizeSignalIntent(intent.IntentId, OrderedSignalSendStatus.Unknown);
+                throw;
+            }
+
+            FinalizeSignalIntent(intent.IntentId, result.Status);
+            return result;
         }
 
         /// <summary>
-        /// 幂等释放已经从协调器返回的在途信号，并在最后一个信号结束后发布终态。
+        /// 幂等终结已经从协调器返回的在途信号，原子合并发送结论并在最后一个信号结束后发布终态。
         /// </summary>
         /// <param name="intentId">上下文预约的信号意图ID。</param>
-        internal void ReleaseSignalIntent(Guid intentId)
+        /// <param name="sendStatus">协调器保证不再迟到发送后的最终状态。</param>
+        internal void FinalizeSignalIntent(Guid intentId, OrderedSignalSendStatus sendStatus)
         {
+            if (!Enum.IsDefined(typeof(OrderedSignalSendStatus), sendStatus))
+                throw new ArgumentOutOfRangeException(nameof(sendStatus), "未知的外发确认状态。");
+
             lock (_stateSyncRoot)
             {
                 if (!_pendingSignalIntentIds.Remove(intentId))
                     return;
 
+                WorkpieceTerminalState signalTerminalState = GetSignalTerminalState(sendStatus);
+                _signalTerminalOverride = GetMoreSevereTerminalState(
+                    _signalTerminalOverride,
+                    signalTerminalState);
                 TryPublishTerminalStateUnderLock();
             }
         }
@@ -379,8 +409,73 @@ namespace TDJS_Vision.ResourceManagement
                 return;
             }
 
-            Volatile.Write(ref _terminalState, (int)_requestedTerminalState);
-            _completionSource.TrySetResult(_requestedTerminalState);
+            WorkpieceTerminalState finalTerminalState = GetMoreSevereTerminalState(
+                _requestedTerminalState,
+                _signalTerminalOverride);
+            Volatile.Write(ref _terminalState, (int)finalTerminalState);
+            _completionSource.TrySetResult(finalTerminalState);
+        }
+
+        /// <summary>
+        /// 把明确发送状态转换为工件终态覆盖值。
+        /// </summary>
+        /// <param name="sendStatus">协调器最终发送状态。</param>
+        /// <returns>成功发送返回Active；失败、未知或发送前取消返回对应终态。</returns>
+        private static WorkpieceTerminalState GetSignalTerminalState(OrderedSignalSendStatus sendStatus)
+        {
+            switch (sendStatus)
+            {
+                case OrderedSignalSendStatus.DeviceAcknowledged:
+                case OrderedSignalSendStatus.LocalCallCompleted:
+                    return WorkpieceTerminalState.Active;
+                case OrderedSignalSendStatus.Rejected:
+                    return WorkpieceTerminalState.Faulted;
+                case OrderedSignalSendStatus.CancelledBeforeStart:
+                    return WorkpieceTerminalState.Cancelled;
+                case OrderedSignalSendStatus.Unknown:
+                default:
+                    return WorkpieceTerminalState.Stopped;
+            }
+        }
+
+        /// <summary>
+        /// 按生产安全优先级合并流程终态与信号终态，防止失败被成功覆盖。
+        /// </summary>
+        /// <param name="left">左侧终态。</param>
+        /// <param name="right">右侧终态。</param>
+        /// <returns>更需要停止生产的一侧终态。</returns>
+        private static WorkpieceTerminalState GetMoreSevereTerminalState(
+            WorkpieceTerminalState left,
+            WorkpieceTerminalState right)
+        {
+            return GetTerminalSeverity(right) > GetTerminalSeverity(left) ? right : left;
+        }
+
+        /// <summary>
+        /// 获取终态合并时使用的生产安全等级。
+        /// </summary>
+        /// <param name="terminalState">待评估终态。</param>
+        /// <returns>值越大表示越不能被普通流程结果覆盖。</returns>
+        private static int GetTerminalSeverity(WorkpieceTerminalState terminalState)
+        {
+            switch (terminalState)
+            {
+                case WorkpieceTerminalState.Stopped:
+                    return 6;
+                case WorkpieceTerminalState.Faulted:
+                    return 5;
+                case WorkpieceTerminalState.TimedOut:
+                    return 4;
+                case WorkpieceTerminalState.Cancelled:
+                    return 3;
+                case WorkpieceTerminalState.BusinessRejected:
+                    return 2;
+                case WorkpieceTerminalState.Succeeded:
+                    return 1;
+                case WorkpieceTerminalState.Active:
+                default:
+                    return 0;
+            }
         }
 
         /// <summary>
@@ -431,7 +526,10 @@ namespace TDJS_Vision.ResourceManagement
         Rejected = 3,
 
         /// <summary>无法确认外部副作用是否已经发生。</summary>
-        Unknown = 4
+        Unknown = 4,
+
+        /// <summary>协调器确认意图在副作用开始前已永久移除，后续绝不会迟到发送。</summary>
+        CancelledBeforeStart = 5
     }
 
     /// <summary>
@@ -588,7 +686,7 @@ namespace TDJS_Vision.ResourceManagement
         /// <param name="intent">已冻结的外发信号意图。</param>
         /// <param name="cancellationToken">只取消取得发送权之前的等待；副作用开始后不得提前返回取消。</param>
         /// <returns>设备确认结果。</returns>
-        /// <remarks>同一IntentId重复提交必须返回首次结果或明确拒绝，禁止再次执行设备动作。</remarks>
+        /// <remarks>同一IntentId重复提交必须返回首次结果或明确拒绝，禁止再次执行设备动作。任务以取消结束前必须从内部队列永久移除意图并保证后续绝不执行；副作用一旦开始，必须等待明确结果或端点冻结后返回Unknown，不能再抛取消。</remarks>
         Task<OrderedSignalSendResult> SubmitAsync(
             OrderedSignalIntent intent,
             CancellationToken cancellationToken);
@@ -604,6 +702,18 @@ namespace TDJS_Vision.ResourceManagement
     }
 
     /// <summary>
+    /// 同一物理设备端点的独占租约，重复释放必须无害且不得增加额外许可。
+    /// </summary>
+    public interface ISignalEndpointLease : IDisposable
+    {
+        /// <summary>获取本租约所属的规范化物理设备键。</summary>
+        string EndpointKey { get; }
+
+        /// <summary>获取租约是否已经幂等释放。</summary>
+        bool IsReleased { get; }
+    }
+
+    /// <summary>
     /// 对同一物理设备连接实施互斥调用的可插拔串行器接口。
     /// </summary>
     public interface ISignalEndpointSerializer
@@ -613,8 +723,8 @@ namespace TDJS_Vision.ResourceManagement
         /// </summary>
         /// <param name="endpointKey">已经规范化的物理设备键。</param>
         /// <param name="cancellationToken">只取消取得租约之前的等待。</param>
-        /// <returns>必须在设备动作真正结束或端点冻结后释放的独占租约。</returns>
-        Task<IDisposable> AcquireAsync(
+        /// <returns>非空且支持幂等释放的独占租约，必须在设备动作真正结束或端点冻结后释放。</returns>
+        Task<ISignalEndpointLease> AcquireAsync(
             string endpointKey,
             CancellationToken cancellationToken);
     }
