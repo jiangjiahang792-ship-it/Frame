@@ -244,6 +244,16 @@ namespace TDJS_Vision.Tests
         }
     }
 
+    public sealed class CountingDisposable : IDisposable
+    {
+        public int DisposeCount { get; private set; }
+
+        public void Dispose()
+        {
+            DisposeCount++;
+        }
+    }
+
     public static class ImageResourceStressRunner
     {
         public static int Run(int cycles)
@@ -423,6 +433,23 @@ $lease.Dispose()
 $ownedOutput.Dispose()
 Assert-True ($ownedOutput.AreOwnedResourcesReleased) '最后一个租约释放后必须完成最终回收。'
 Assert-True ($colorSource.DisposeCount -eq 1 -and $generatedGray.DisposeCount -eq 1) '每个自产Mat必须且只能释放一次。'
+
+$lifetimeImage = New-Object OpenCvSharp.Mat
+$lifetimeImage.ChannelCount = 1
+$externalLifetime = New-Object TDJS_Vision.Tests.CountingDisposable
+$lifetimeOutput = [TDJS_Vision.Node._1_Acquisition.ImageSource.OutputImage]::FromOwnedSingleImageWithLifetime(
+    $lifetimeImage,
+    $externalLifetime,
+    $lifetimeImage)
+$null = $lifetimeOutput.TakeExternalLifetime($externalLifetime)
+$lifetimeLease = $lifetimeOutput.AcquireLease()
+$lifetimeOutput.Dispose()
+Assert-True ($lifetimeOutput.OwnedExternalLifetimeCount -eq 1) '重复登记同一外部生命周期必须按引用去重。'
+Assert-True ($externalLifetime.DisposeCount -eq 0) '图像仍有下游租约时不得提前归还相机字节预算。'
+$lifetimeLease.Dispose()
+Assert-True ($lifetimeImage.DisposeCount -eq 1) '最后一个图像租约释放后必须释放自产Mat。'
+Assert-True ($externalLifetime.DisposeCount -eq 1) '最后一个图像租约释放后必须且只能归还一次外部生命周期。'
+Assert-True ($lifetimeOutput.OwnedExternalLifetimeCount -eq 0) '最终回收后外部生命周期集合必须归零。'
 
 $graySource = New-Object OpenCvSharp.Mat
 $graySource.ChannelCount = 1

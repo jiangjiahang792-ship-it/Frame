@@ -45,6 +45,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// </summary>
         private readonly List<IImageResourceLease> _ownedDependencies = new List<IImageResourceLease>();
 
+        /// <summary>必须与当前输出图像最终生命周期一起释放的外部资源。</summary>
+        private readonly List<IDisposable> _ownedExternalLifetimes = new List<IDisposable>();
+
         /// <summary>
         /// 当前仍在使用图像的后台租约数量。
         /// </summary>
@@ -180,6 +183,16 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             }
         }
 
+        /// <summary>当前随图像最终生命周期持有的外部资源数量。</summary>
+        public int OwnedExternalLifetimeCount
+        {
+            get
+            {
+                lock (_resourceLock)
+                    return _ownedExternalLifetimes.Count;
+            }
+        }
+
         /// <summary>
         /// 当前拥有者是否已经请求释放。
         /// </summary>
@@ -260,6 +273,36 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     try { suppliedGray?.Dispose(); } catch { }
                 }
 
+                throw;
+            }
+        }
+
+        /// <summary>使用自产图像构建输出，并接管必须随该图像最终释放的外部生命周期。</summary>
+        /// <param name="source">当前节点创建并转交所有权的源图。</param>
+        /// <param name="externalLifetime">例如相机实际图像字节预算租约。</param>
+        /// <param name="grayImage">可复用的自产灰度图；为空时按需创建。</param>
+        /// <returns>同时拥有Mat和外部生命周期的标准输出对象。</returns>
+        public static OutputImage FromOwnedSingleImageWithLifetime(
+            Mat source,
+            IDisposable externalLifetime,
+            Mat grayImage = null)
+        {
+            if (externalLifetime == null)
+                throw new ArgumentNullException(nameof(externalLifetime));
+
+            OutputImage outputImage = null;
+            IDisposable pendingLifetime = externalLifetime;
+            try
+            {
+                outputImage = FromOwnedSingleImage(source, grayImage);
+                outputImage.TakeExternalLifetime(pendingLifetime);
+                pendingLifetime = null;
+                return outputImage;
+            }
+            catch
+            {
+                outputImage?.Dispose();
+                try { pendingLifetime?.Dispose(); } catch { }
                 throw;
             }
         }
@@ -390,6 +433,23 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 dependency?.Dispose();
             }
 
+            return this;
+        }
+
+        /// <summary>接管一个必须等当前输出最后一份图像租约释放后才能回收的外部资源。</summary>
+        /// <param name="externalLifetime">待接管的幂等外部资源。</param>
+        /// <returns>当前输出对象。</returns>
+        public OutputImage TakeExternalLifetime(IDisposable externalLifetime)
+        {
+            if (externalLifetime == null)
+                return this;
+
+            lock (_resourceLock)
+            {
+                ThrowIfDisposeRequestedNoLock();
+                if (!_ownedExternalLifetimes.Any(item => ReferenceEquals(item, externalLifetime)))
+                    _ownedExternalLifetimes.Add(externalLifetime);
+            }
             return this;
         }
 
@@ -543,16 +603,19 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         {
             List<Mat> imagesToDispose;
             List<IImageResourceLease> dependenciesToDispose;
+            List<IDisposable> externalLifetimesToDispose;
             lock (_resourceLock)
             {
                 if (_disposeRequested)
                     return;
 
                 _disposeRequested = true;
-                imagesToDispose = CollectResourcesForFinalRelease(out dependenciesToDispose);
+                imagesToDispose = CollectResourcesForFinalRelease(
+                    out dependenciesToDispose,
+                    out externalLifetimesToDispose);
             }
 
-            DisposeResources(imagesToDispose, dependenciesToDispose);
+            DisposeResources(imagesToDispose, dependenciesToDispose, externalLifetimesToDispose);
         }
 
         /// <summary>
@@ -562,16 +625,19 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         {
             List<Mat> imagesToDispose;
             List<IImageResourceLease> dependenciesToDispose;
+            List<IDisposable> externalLifetimesToDispose;
             lock (_resourceLock)
             {
                 if (_activeLeaseCount <= 0)
                     return;
 
                 _activeLeaseCount--;
-                imagesToDispose = CollectResourcesForFinalRelease(out dependenciesToDispose);
+                imagesToDispose = CollectResourcesForFinalRelease(
+                    out dependenciesToDispose,
+                    out externalLifetimesToDispose);
             }
 
-            DisposeResources(imagesToDispose, dependenciesToDispose);
+            DisposeResources(imagesToDispose, dependenciesToDispose, externalLifetimesToDispose);
         }
 
         /// <summary>
@@ -579,17 +645,22 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// </summary>
         /// <param name="dependencies">需要在锁外释放的父级租约集合。</param>
         /// <returns>需要在锁外释放的Mat集合；条件未满足时返回空。</returns>
-        private List<Mat> CollectResourcesForFinalRelease(out List<IImageResourceLease> dependencies)
+        private List<Mat> CollectResourcesForFinalRelease(
+            out List<IImageResourceLease> dependencies,
+            out List<IDisposable> externalLifetimes)
         {
             dependencies = null;
+            externalLifetimes = null;
             if (!_disposeRequested || _activeLeaseCount != 0 || _ownedResourcesReleased)
                 return null;
 
             _ownedResourcesReleased = true;
             List<Mat> images = _ownedImages.ToList();
             dependencies = new List<IImageResourceLease>(_ownedDependencies);
+            externalLifetimes = new List<IDisposable>(_ownedExternalLifetimes);
             _ownedImages.Clear();
             _ownedDependencies.Clear();
+            _ownedExternalLifetimes.Clear();
             _srcImg = null;
             _grayImg = null;
             _bitmaps = new List<Mat>();
@@ -712,7 +783,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <param name="dependencies">待释放的父级图像租约集合。</param>
         private static void DisposeResources(
             IEnumerable<Mat> images,
-            IEnumerable<IImageResourceLease> dependencies)
+            IEnumerable<IImageResourceLease> dependencies,
+            IEnumerable<IDisposable> externalLifetimes)
         {
             if (images != null)
             {
@@ -729,18 +801,29 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 }
             }
 
-            if (dependencies == null)
-                return;
-
-            foreach (IImageResourceLease dependency in dependencies)
+            if (dependencies != null)
             {
-                try
+                foreach (IImageResourceLease dependency in dependencies)
                 {
-                    dependency?.Dispose();
+                    try
+                    {
+                        dependency?.Dispose();
+                    }
+                    catch
+                    {
+                        // 单个父级租约异常不能阻断其余借用链释放。
+                    }
                 }
+            }
+
+            if (externalLifetimes == null)
+                return;
+            foreach (IDisposable externalLifetime in externalLifetimes)
+            {
+                try { externalLifetime?.Dispose(); }
                 catch
                 {
-                    // 单个父级租约异常不能阻断其余借用链释放。
+                    // 外部预算或句柄释放异常不能阻断同批其他资源回收。
                 }
             }
         }
