@@ -96,14 +96,14 @@ function New-CoordinatorProbe {
 }
 
 $epoch = [Guid]::NewGuid()
-$identity1 = [Activator]::CreateInstance($identityType, @($epoch, [long]1))
-$identity2 = [Activator]::CreateInstance($identityType, @($epoch, [long]2))
+$identity1 = [Activator]::CreateInstance($identityType, @($epoch, 'LINE-A', [long]1))
+$identity2 = [Activator]::CreateInstance($identityType, @($epoch, 'line-a', [long]2))
 Assert-True ($identity1.CompareTo($identity2) -lt 0) '同一生产会话内的工件序号必须保持先后顺序。'
 Assert-True ($identity1.ToString().EndsWith('/1')) '工件身份日志文本必须包含工件序号。'
 
 $crossSessionRejected = $false
 try {
-    $otherIdentity = [Activator]::CreateInstance($identityType, @([Guid]::NewGuid(), [long]1))
+    $otherIdentity = [Activator]::CreateInstance($identityType, @([Guid]::NewGuid(), 'LINE-A', [long]1))
     $identity1.CompareTo($otherIdentity)
 }
 catch [System.Management.Automation.MethodInvocationException] {
@@ -226,7 +226,7 @@ $successContext = [Activator]::CreateInstance(
 Assert-True ($successContext.TryComplete($succeeded)) '没有外发信号的工件应能直接请求成功封口。'
 Assert-True ($successContext.Completion.GetAwaiter().GetResult().ToString() -eq 'Succeeded') '没有信号故障时必须保留流程请求的成功终态。'
 
-$identity3 = [Activator]::CreateInstance($identityType, @($epoch, [long]3))
+$identity3 = [Activator]::CreateInstance($identityType, @($epoch, 'LINE-A', [long]3))
 $unknownContext = [Activator]::CreateInstance(
     $contextType,
     @($identity3, [long]7, 'line-a', '软件触发', [DateTime]::UtcNow, [Threading.CancellationToken]::None))
@@ -243,7 +243,7 @@ $nullResult = $nullTask.GetAwaiter().GetResult()
 Assert-True ($nullResult.Status.ToString() -eq 'Unknown') '协调器空结果必须转成明确的未知状态。'
 Assert-True ($unknownContext.Completion.GetAwaiter().GetResult().ToString() -eq 'Stopped') '发送结果未知必须升级为停机终态，禁止后续工件越过。'
 
-$identity4 = [Activator]::CreateInstance($identityType, @($epoch, [long]4))
+$identity4 = [Activator]::CreateInstance($identityType, @($epoch, 'LINE-A', [long]4))
 $rejectedContext = [Activator]::CreateInstance(
     $contextType,
     @($identity4, [long]7, 'line-a', '软件触发', [DateTime]::UtcNow, [Threading.CancellationToken]::None))
@@ -260,7 +260,7 @@ Assert-True ($rejectedContext.TryComplete($succeeded)) '拒绝结果测试必须
 $null = $rejectedTask.GetAwaiter().GetResult()
 Assert-True ($rejectedContext.Completion.GetAwaiter().GetResult().ToString() -eq 'Faulted') '公开提交入口收到明确拒绝时必须升级为故障终态。'
 
-$identity5 = [Activator]::CreateInstance($identityType, @($epoch, [long]5))
+$identity5 = [Activator]::CreateInstance($identityType, @($epoch, 'LINE-A', [long]5))
 $cancelContext = [Activator]::CreateInstance(
     $contextType,
     @($identity5, [long]7, 'line-a', '软件触发', [DateTime]::UtcNow, [Threading.CancellationToken]::None))
@@ -284,7 +284,7 @@ catch [OperationCanceledException] {
 }
 Assert-True ($cancelContext.Completion.GetAwaiter().GetResult().ToString() -eq 'Stopped') '无法证明发送前取消的异常必须按未知结果停机。'
 
-$identity6 = [Activator]::CreateInstance($identityType, @($epoch, [long]6))
+$identity6 = [Activator]::CreateInstance($identityType, @($epoch, 'LINE-A', [long]6))
 $faultContext = [Activator]::CreateInstance(
     $contextType,
     @($identity6, [long]7, 'line-a', '软件触发', [DateTime]::UtcNow, [Threading.CancellationToken]::None))

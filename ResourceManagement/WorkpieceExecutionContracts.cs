@@ -13,6 +13,9 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>当前生产会话的唯一纪元。</summary>
         private readonly Guid _sessionEpoch;
 
+        /// <summary>身份所属的规范化生产顺序域。</summary>
+        private readonly string _orderDomain;
+
         /// <summary>当前会话内从1开始递增的工件序号。</summary>
         private readonly long _sequence;
 
@@ -20,22 +23,29 @@ namespace TDJS_Vision.ResourceManagement
         /// 创建不可变工件身份。
         /// </summary>
         /// <param name="sessionEpoch">生产会话唯一纪元。</param>
-        /// <param name="sequence">会话内大于0的递增序号。</param>
-        public WorkpieceIdentity(Guid sessionEpoch, long sequence)
+        /// <param name="orderDomain">身份所属的生产顺序域。</param>
+        /// <param name="sequence">会话和顺序域内大于0的递增序号。</param>
+        public WorkpieceIdentity(Guid sessionEpoch, string orderDomain, long sequence)
         {
             if (sessionEpoch == Guid.Empty)
                 throw new ArgumentException("生产会话纪元不能为空。", nameof(sessionEpoch));
+            if (string.IsNullOrWhiteSpace(orderDomain))
+                throw new ArgumentException("生产顺序域不能为空。", nameof(orderDomain));
             if (sequence <= 0L)
                 throw new ArgumentOutOfRangeException(nameof(sequence), "工件序号必须大于0。");
 
             _sessionEpoch = sessionEpoch;
+            _orderDomain = orderDomain.Trim().ToUpperInvariant();
             _sequence = sequence;
         }
 
         /// <summary>获取生产会话唯一纪元。</summary>
         public Guid SessionEpoch => _sessionEpoch;
 
-        /// <summary>获取会话内工件序号。</summary>
+        /// <summary>获取身份所属的规范化生产顺序域。</summary>
+        public string OrderDomain => _orderDomain;
+
+        /// <summary>获取会话和顺序域内工件序号。</summary>
         public long Sequence => _sequence;
 
         /// <summary>
@@ -45,8 +55,11 @@ namespace TDJS_Vision.ResourceManagement
         /// <returns>小于0表示当前工件更早，0表示相同，大于0表示当前工件更晚。</returns>
         public int CompareTo(WorkpieceIdentity other)
         {
-            if (_sessionEpoch != other._sessionEpoch)
-                throw new InvalidOperationException("不同生产会话的工件不能比较先后顺序。");
+            if (_sessionEpoch != other._sessionEpoch ||
+                !string.Equals(_orderDomain, other._orderDomain, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("不同生产会话或顺序域的工件不能比较先后顺序。");
+            }
 
             return _sequence.CompareTo(other._sequence);
         }
@@ -58,7 +71,9 @@ namespace TDJS_Vision.ResourceManagement
         /// <returns>会话纪元和序号都相同时返回true。</returns>
         public bool Equals(WorkpieceIdentity other)
         {
-            return _sessionEpoch == other._sessionEpoch && _sequence == other._sequence;
+            return _sessionEpoch == other._sessionEpoch &&
+                string.Equals(_orderDomain, other._orderDomain, StringComparison.Ordinal) &&
+                _sequence == other._sequence;
         }
 
         /// <summary>
@@ -79,7 +94,9 @@ namespace TDJS_Vision.ResourceManagement
         {
             unchecked
             {
-                return (_sessionEpoch.GetHashCode() * 397) ^ _sequence.GetHashCode();
+                int hashCode = _sessionEpoch.GetHashCode();
+                hashCode = (hashCode * 397) ^ (_orderDomain == null ? 0 : _orderDomain.GetHashCode());
+                return (hashCode * 397) ^ _sequence.GetHashCode();
             }
         }
 
@@ -89,7 +106,7 @@ namespace TDJS_Vision.ResourceManagement
         /// <returns>会话纪元和工件序号文本。</returns>
         public override string ToString()
         {
-            return $"{_sessionEpoch:N}/{_sequence}";
+            return $"{_orderDomain}/{_sessionEpoch:N}/{_sequence}";
         }
 
         /// <summary>
@@ -189,8 +206,12 @@ namespace TDJS_Vision.ResourceManagement
             DateTime createdAtUtc,
             CancellationToken cancellationToken)
         {
-            if (identity.SessionEpoch == Guid.Empty || identity.Sequence <= 0L)
+            if (identity.SessionEpoch == Guid.Empty ||
+                string.IsNullOrWhiteSpace(identity.OrderDomain) ||
+                identity.Sequence <= 0L)
+            {
                 throw new ArgumentException("必须提供有效工件身份。", nameof(identity));
+            }
             if (flowRevision <= 0L)
                 throw new ArgumentOutOfRangeException(nameof(flowRevision), "流程快照版本必须大于0。");
             if (string.IsNullOrWhiteSpace(orderDomain))
@@ -200,9 +221,13 @@ namespace TDJS_Vision.ResourceManagement
             if (createdAtUtc.Kind != DateTimeKind.Utc)
                 throw new ArgumentException("工件创建时间必须使用UTC。", nameof(createdAtUtc));
 
+            string normalizedOrderDomain = NormalizeKey(orderDomain, nameof(orderDomain));
+            if (!string.Equals(identity.OrderDomain, normalizedOrderDomain, StringComparison.Ordinal))
+                throw new ArgumentException("工件身份顺序域必须与执行上下文顺序域一致。", nameof(orderDomain));
+
             Identity = identity;
             FlowRevision = flowRevision;
-            OrderDomain = NormalizeKey(orderDomain, nameof(orderDomain));
+            OrderDomain = normalizedOrderDomain;
             TriggerSource = triggerSource.Trim();
             CreatedAtUtc = createdAtUtc;
             CancellationToken = cancellationToken;

@@ -245,6 +245,7 @@
     <Compile Include="ResourceManagement\ImageSaveStorageGuard.cs" />
     <Compile Include="ResourceManagement\SolutionRunAdmissionController.cs" />
     <Compile Include="ResourceManagement\WorkpieceExecutionContracts.cs" />
+    <Compile Include="ResourceManagement\WorkpieceRuntimeInfrastructure.cs" />
     <Compile Include="ResourceManagement\FlowExecutionPlanCompiler.cs" />
     <Compile Include="ResourceManagement\CpuWorkScheduler.cs" />
     <Compile Include="ResourceManagement\CpuWorkloadClassifier.cs" />
