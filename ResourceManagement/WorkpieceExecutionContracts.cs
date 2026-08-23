@@ -160,6 +160,24 @@ namespace TDJS_Vision.ResourceManagement
     }
 
     /// <summary>
+    /// 已准入工件上下文的在途流程分支租约，重复释放必须无害。
+    /// </summary>
+    internal interface IWorkpieceExecutionLease : IDisposable
+    {
+        /// <summary>获取租约所属工件身份。</summary>
+        WorkpieceIdentity Identity { get; }
+
+        /// <summary>获取租约是否已经释放。</summary>
+        bool IsReleased { get; }
+
+        /// <summary>
+        /// 以明确流程终态结束本分支并幂等释放租约。
+        /// </summary>
+        /// <param name="terminalState">本分支执行终态。</param>
+        void Complete(WorkpieceTerminalState terminalState);
+    }
+
+    /// <summary>
     /// 单个工件运行完整可编辑流程时携带的隔离上下文。
     /// </summary>
     public sealed class WorkpieceExecutionContext
@@ -173,6 +191,9 @@ namespace TDJS_Vision.ResourceManagement
 
         /// <summary>已经预约且尚未从协调器返回的信号意图ID。</summary>
         private readonly HashSet<Guid> _pendingSignalIntentIds = new HashSet<Guid>();
+
+        /// <summary>已经准入且尚未退出的异步流程分支租约ID。</summary>
+        private readonly HashSet<Guid> _pendingExecutionLeaseIds = new HashSet<Guid>();
 
         /// <summary>已分配的实际外发信号序号。</summary>
         private long _signalSequence;
@@ -188,6 +209,9 @@ namespace TDJS_Vision.ResourceManagement
 
         /// <summary>由已完成外发结果累计得到的最严重工件终态；Active表示尚无信号故障。</summary>
         private WorkpieceTerminalState _signalTerminalOverride;
+
+        /// <summary>由已完成流程分支累计得到的最严重工件终态；Active表示尚无分支故障。</summary>
+        private WorkpieceTerminalState _executionTerminalOverride;
 
         /// <summary>
         /// 创建不可变运行元数据和可并发提交的终态容器。
@@ -233,6 +257,7 @@ namespace TDJS_Vision.ResourceManagement
             CancellationToken = cancellationToken;
             _terminalState = (int)WorkpieceTerminalState.Active;
             _signalTerminalOverride = WorkpieceTerminalState.Active;
+            _executionTerminalOverride = WorkpieceTerminalState.Active;
         }
 
         /// <summary>获取本轮工件身份。</summary>
@@ -315,6 +340,55 @@ namespace TDJS_Vision.ResourceManagement
                 Volatile.Write(ref _completionRequested, 1);
                 TryPublishTerminalStateUnderLock();
                 return true;
+            }
+        }
+
+        /// <summary>
+        /// 在封口锁内原子取得一个流程分支在途租约，堵住继承检查与父工件封口之间的竞态。
+        /// </summary>
+        /// <param name="lease">成功时返回必须释放的分支租约。</param>
+        /// <returns>工件仍活动、未请求封口且未取消时返回true。</returns>
+        internal bool TryAcquireExecutionLease(out IWorkpieceExecutionLease lease)
+        {
+            lock (_stateSyncRoot)
+            {
+                if (_terminalState != (int)WorkpieceTerminalState.Active ||
+                    _completionRequested == 1 ||
+                    CancellationToken.IsCancellationRequested)
+                {
+                    lease = null;
+                    return false;
+                }
+
+                Guid leaseId = Guid.NewGuid();
+                _pendingExecutionLeaseIds.Add(leaseId);
+                lease = new WorkpieceExecutionLease(this, leaseId);
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// 幂等释放在途流程分支，并在最后一个分支和信号都退出后尝试发布终态。
+        /// </summary>
+        /// <param name="leaseId">上下文分配的分支租约ID。</param>
+        private void ReleaseExecutionLease(Guid leaseId, WorkpieceTerminalState terminalState)
+        {
+            if (terminalState == WorkpieceTerminalState.Active ||
+                !Enum.IsDefined(typeof(WorkpieceTerminalState), terminalState))
+            {
+                throw new ArgumentOutOfRangeException(nameof(terminalState), "流程分支必须提交明确终态。");
+            }
+
+            lock (_stateSyncRoot)
+            {
+                if (!_pendingExecutionLeaseIds.Remove(leaseId))
+                    return;
+                _executionTerminalOverride = GetMoreSevereTerminalState(
+                    _executionTerminalOverride,
+                    terminalState == WorkpieceTerminalState.Succeeded
+                        ? WorkpieceTerminalState.Active
+                        : terminalState);
+                TryPublishTerminalStateUnderLock();
             }
         }
 
@@ -429,6 +503,7 @@ namespace TDJS_Vision.ResourceManagement
         {
             if (_completionRequested != 1 ||
                 _pendingSignalIntentIds.Count != 0 ||
+                _pendingExecutionLeaseIds.Count != 0 ||
                 _terminalState != (int)WorkpieceTerminalState.Active)
             {
                 return;
@@ -437,8 +512,53 @@ namespace TDJS_Vision.ResourceManagement
             WorkpieceTerminalState finalTerminalState = GetMoreSevereTerminalState(
                 _requestedTerminalState,
                 _signalTerminalOverride);
+            finalTerminalState = GetMoreSevereTerminalState(
+                finalTerminalState,
+                _executionTerminalOverride);
             Volatile.Write(ref _terminalState, (int)finalTerminalState);
             _completionSource.TrySetResult(finalTerminalState);
+        }
+
+        /// <summary>绑定单个在途流程分支的幂等租约。</summary>
+        private sealed class WorkpieceExecutionLease : IWorkpieceExecutionLease
+        {
+            /// <summary>租约所属上下文。</summary>
+            private WorkpieceExecutionContext _context;
+
+            /// <summary>上下文分配的唯一租约ID。</summary>
+            private readonly Guid _leaseId;
+
+            /// <summary>
+            /// 创建在途流程分支租约。
+            /// </summary>
+            /// <param name="context">租约所属上下文。</param>
+            /// <param name="leaseId">唯一租约ID。</param>
+            public WorkpieceExecutionLease(WorkpieceExecutionContext context, Guid leaseId)
+            {
+                _context = context ?? throw new ArgumentNullException(nameof(context));
+                _leaseId = leaseId;
+                Identity = context.Identity;
+            }
+
+            /// <summary>获取租约所属工件身份。</summary>
+            public WorkpieceIdentity Identity { get; }
+
+            /// <summary>获取租约是否已经释放。</summary>
+            public bool IsReleased => Volatile.Read(ref _context) == null;
+
+            /// <summary>以明确终态幂等结束本流程分支。</summary>
+            /// <param name="terminalState">本分支执行终态。</param>
+            public void Complete(WorkpieceTerminalState terminalState)
+            {
+                WorkpieceExecutionContext context = Interlocked.Exchange(ref _context, null);
+                context?.ReleaseExecutionLease(_leaseId, terminalState);
+            }
+
+            /// <summary>未明确完成便释放时保守按停机终态结束分支。</summary>
+            public void Dispose()
+            {
+                Complete(WorkpieceTerminalState.Stopped);
+            }
         }
 
         /// <summary>

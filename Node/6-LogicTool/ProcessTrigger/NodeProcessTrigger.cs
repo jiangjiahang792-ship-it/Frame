@@ -49,58 +49,18 @@ namespace TDJS_Vision.Node._6_LogicTool.ProcessTrigger
                         SetStatus(NodeStatus.Unexecuted, "*");
                         base.CheckTokenCancel(token);
 
-                        // 是否是点击流程编辑界面运行的
-                        if (_process.IsHandRun)
+                        // 直接触发还是订阅条件触发；目标流程必须与当前工件调用链共同完成。
+                        if (param.UseOkOrNg)
                         {
-                            var passiveTasks = new ConcurrentBag<Task>(); // 用于追踪本组被触发的被动流程任务
-                            // 用于注册触发器的方法（暴露给流程内部）
-                            Action<Process> triggerAction = (targetProcess) =>
-                            {
-                                if (targetProcess == null || !targetProcess.IsPassiveTriggered)
-                                    return;
-
-                                var task = targetProcess.RunInternal(
-                                    isCyclical: false,
-                                    isTriggered: true,
-                                    ct: token
-                                );
-
-                                passiveTasks.Add(task);
-                            };
-                            // 注册触发方法
-                            _process.SetTriggerAction(triggerAction);
-
-                            // 直接触发还是订阅条件触发
-                            if (param.UseOkOrNg)
-                            {
-                                var isTrue = form.GetBoolValue();
-                                if(isTrue)
-                                    _process.TriggerProcess(param.OKProcessName);
-                                else
-                                    _process.TriggerProcess(param.NGProcessName);
-                            }
+                            var isTrue = form.GetBoolValue();
+                            if (isTrue)
+                                await _process.TriggerProcess(param.OKProcessName, token);
                             else
-                            {
-                                // 直接触发流程
-                                _process.TriggerProcess(param.ProcessName);
-                            }
+                                await _process.TriggerProcess(param.NGProcessName, token);
                         }
                         else
                         {
-                            // 直接触发还是订阅条件触发
-                            if (param.UseOkOrNg)
-                            {
-                                var isTrue = form.GetBoolValue();
-                                if (isTrue)
-                                    _process.TriggerProcess(param.OKProcessName);
-                                else
-                                    _process.TriggerProcess(param.NGProcessName);
-                            }
-                            else
-                            {
-                                // 直接触发流程
-                                _process.TriggerProcess(param.ProcessName);
-                            }
+                            await _process.TriggerProcess(param.ProcessName, token);
                         }
 
                         var time = SetRunResult(startTime, NodeStatus.Successful);

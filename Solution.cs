@@ -46,6 +46,8 @@ namespace TDJS_Vision
         {
             AllDevices = new List<IDevice>();
             CameraRawFrameMemoryBudgetManager = new CameraRawFrameMemoryBudgetManager();
+            WorkpieceContextAccessor = new WorkpieceContextAccessor();
+            WorkpieceIdentityGenerator = new WorkpieceIdentityGenerator();
             _cpuWorkScheduler = new CpuWorkScheduler(new CpuWorkSchedulerOptions());
             _cpuResourceMonitor = new CpuResourceMonitor(
                 _cpuWorkScheduler,
@@ -165,6 +167,12 @@ namespace TDJS_Vision
 
         /// <summary>全方案唯一的相机原始帧非托管内存预算管理器。</summary>
         public ICameraRawFrameMemoryBudgetManager CameraRawFrameMemoryBudgetManager { get; }
+
+        /// <summary>全方案唯一的异步工件上下文访问器。</summary>
+        public IWorkpieceContextAccessor WorkpieceContextAccessor { get; }
+
+        /// <summary>全方案生产会话内按顺序域分配工件身份的生成器。</summary>
+        internal WorkpieceIdentityGenerator WorkpieceIdentityGenerator { get; }
 
         /// <summary>
         /// 流程节点CPU工作分类器；插件可以替换分类策略，但AI和通信节点默认不受限。
@@ -462,65 +470,53 @@ namespace TDJS_Vision
                     {
                         while (!groupCts.Token.IsCancellationRequested)
                         {
-                           
-                            var passiveTasks = new ConcurrentBag<Task>(); // 本轮被动任务
+                            string orderDomain = $"GROUP:{groupCopy[0].Group}";
+                            long flowRevision = groupCopy.Max(process => process.FlowRevision);
+                            WorkpieceExecutionContext workpieceContext = CreateWorkpieceExecutionContext(
+                                orderDomain,
+                                flowRevision,
+                                "方案流程组运行",
+                                groupCts.Token);
 
-                            // 创建本轮的 triggerAction
-                            Action<Process> triggerAction = (targetProcess) =>
+                            bool workpieceSucceeded = false;
+                            try
                             {
-                                if (targetProcess == null ||
-                                    !targetProcess.IsPassiveTriggered ||
-                                    targetProcess.Group != groupCopy[0].Group)
+                                using (WorkpieceContextAccessor.Push(workpieceContext))
                                 {
-                                    return;
-                                }
-
-                                var task = targetProcess.RunInternal(
-                                    isCyclical: isCyclical,
-                                    isTriggered: true,
-                                    ct: groupCts.Token
-                                );
-                                passiveTasks.Add(task);
-                            };
-
-                            // 注入 triggerAction 到该组所有流程
-                            foreach (var proc in groupCopy)
-                            {
-                                proc.SetTriggerAction(triggerAction);
-                            }
-
-                            // 按优先级执行主动流程
-                            var priorityLevels = groupCopy.Select(p => p.RunLv).Distinct().OrderBy(lv => lv);
-                            foreach (var priority in priorityLevels)
-                            {
-                                var activeProcesses = groupCopy
-                                    .Where(p => p.RunLv == priority &&
-                                                !p.IsPassiveTriggered)
-                                    .ToList();
-
-                                if (!activeProcesses.Any()) continue;
-
-                                var activeTasks = activeProcesses.Select(async p =>
-                                {
-                                    try
+                                    List<ProcessInvocationResult> activeResults = new List<ProcessInvocationResult>();
+                                    // 按优先级执行主动流程
+                                    var priorityLevels = groupCopy.Select(p => p.RunLv).Distinct().OrderBy(lv => lv);
+                                    foreach (var priority in priorityLevels)
                                     {
-                                        await p.RunInternal(
-                                            isCyclical: isCyclical,
-                                            isTriggered: false, // 注意：主动运行的流程不是被触发的
-                                            ct: groupCts.Token
-                                        );
+                                        var activeProcesses = groupCopy
+                                            .Where(p => p.RunLv == priority &&
+                                                        p.Enable &&
+                                                        !p.IsPassiveTriggered)
+                                            .ToList();
+
+                                        if (!activeProcesses.Any()) continue;
+
+                                        ProcessInvocationResult[] priorityResults = await Task.WhenAll(
+                                            activeProcesses.Select(p => p.RunInternalWithResultAsync(
+                                                    isCyclical: isCyclical,
+                                                    isTriggered: false,
+                                                    ct: groupCts.Token)));
+                                        activeResults.AddRange(priorityResults);
                                     }
-                                    catch (Exception ex) {/* 忽略异常 */ }
-                                });
 
-                                // 等待所有任务完成（即使有异常，也会继续等待）
-                                await Task.WhenAll(activeTasks);
+                                    // 被动流程结果由触发节点同步传播到所属主动流程结果，避免共享状态覆盖。
+                                    workpieceSucceeded = activeResults.All(result => result.Succeeded);
+                                }
                             }
-
-                            // 等待被动流程完成
-                            if (passiveTasks.Count > 0)
+                            finally
                             {
-                                await Task.WhenAll(passiveTasks.ToArray());
+                                WorkpieceTerminalState terminalState = groupCts.Token.IsCancellationRequested
+                                    ? WorkpieceTerminalState.Cancelled
+                                    : workpieceSucceeded
+                                        ? WorkpieceTerminalState.Succeeded
+                                        : WorkpieceTerminalState.Faulted;
+                                workpieceContext.TryComplete(terminalState);
+                                await workpieceContext.Completion.ConfigureAwait(false);
                             }
 
                             // 🔁 如果不是循环模式，本组只运行一次
@@ -801,7 +797,10 @@ namespace TDJS_Vision
 
                 // 所有运行入口共用首会话初始化；刷新完成前生命周期锁阻止第二条会话登记。
                 if (isFirstSession)
+                {
+                    WorkpieceIdentityGenerator.ResetSession();
                     RefreshRuntimeResourceProfile(true);
+                }
             }
 
             retiredTokenSource?.Dispose();
@@ -1096,6 +1095,67 @@ namespace TDJS_Vision
             CancellationToken cancellationToken)
         {
             return _cpuWorkScheduler.AcquireAsync(workloadKind, cancellationToken);
+        }
+
+        /// <summary>
+        /// 创建已经绑定规范化顺序域和当前生产会话身份的工件执行上下文。
+        /// </summary>
+        /// <param name="orderDomain">生产线或流程组顺序域。</param>
+        /// <param name="flowRevision">工件准入时冻结的流程版本。</param>
+        /// <param name="triggerSource">触发来源。</param>
+        /// <param name="cancellationToken">本轮停止令牌。</param>
+        /// <returns>尚未封口的新工件上下文。</returns>
+        internal WorkpieceExecutionContext CreateWorkpieceExecutionContext(
+            string orderDomain,
+            long flowRevision,
+            string triggerSource,
+            CancellationToken cancellationToken)
+        {
+            WorkpieceIdentity identity = WorkpieceIdentityGenerator.Next(orderDomain);
+            return new WorkpieceExecutionContext(
+                identity,
+                flowRevision,
+                identity.OrderDomain,
+                triggerSource,
+                DateTime.UtcNow,
+                cancellationToken);
+        }
+
+        /// <summary>
+        /// 判断异步分支携带的上下文是否仍属于当前活动生产会话并允许继续继承。
+        /// </summary>
+        /// <param name="context">异步分支携带的候选上下文。</param>
+        /// <returns>上下文仍活动、未取消且会话纪元一致时返回true。</returns>
+        internal bool CanInheritWorkpieceContext(WorkpieceExecutionContext context)
+        {
+            return context != null &&
+                context.TerminalState == WorkpieceTerminalState.Active &&
+                !context.IsCompletionRequested &&
+                !context.CancellationToken.IsCancellationRequested &&
+                context.Identity.SessionEpoch == WorkpieceIdentityGenerator.SessionEpoch;
+        }
+
+        /// <summary>
+        /// 原子取得当前会话工件的在途流程分支租约；会话重置竞态下会立即归还租约。
+        /// </summary>
+        /// <param name="context">待继承的工件上下文。</param>
+        /// <param name="lease">成功时返回必须释放的分支租约。</param>
+        /// <returns>上下文属于当前会话且成功阻止父工件提前封口时返回true。</returns>
+        internal bool TryAcquireInheritedWorkpieceContext(
+            WorkpieceExecutionContext context,
+            out IWorkpieceExecutionLease lease)
+        {
+            lease = null;
+            if (!CanInheritWorkpieceContext(context))
+                return false;
+            if (!context.TryAcquireExecutionLease(out lease))
+                return false;
+            if (context.Identity.SessionEpoch == WorkpieceIdentityGenerator.SessionEpoch)
+                return true;
+
+            lease.Dispose();
+            lease = null;
+            return false;
         }
 
         /// <summary>
