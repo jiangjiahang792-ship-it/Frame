@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -146,14 +147,27 @@ namespace TDJS_Vision.ResourceManagement
     /// </summary>
     public sealed class WorkpieceExecutionContext
     {
-        /// <summary>保护信号序号分配和唯一终态切换不可交错的实例锁。</summary>
+        /// <summary>保护信号意图预约、在途释放和唯一终态切换不可交错的实例锁。</summary>
         private readonly object _stateSyncRoot = new object();
+
+        /// <summary>等待全部在途信号结束后发布唯一终态的异步完成源。</summary>
+        private readonly TaskCompletionSource<WorkpieceTerminalState> _completionSource =
+            new TaskCompletionSource<WorkpieceTerminalState>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>已经预约且尚未从协调器返回的信号意图ID。</summary>
+        private readonly HashSet<Guid> _pendingSignalIntentIds = new HashSet<Guid>();
 
         /// <summary>已分配的实际外发信号序号。</summary>
         private long _signalSequence;
 
         /// <summary>当前工件唯一终态的整数值。</summary>
         private int _terminalState;
+
+        /// <summary>是否已经请求封口，1表示禁止再预约新信号。</summary>
+        private int _completionRequested;
+
+        /// <summary>全部在途信号结束后要发布的目标终态。</summary>
+        private WorkpieceTerminalState _requestedTerminalState;
 
         /// <summary>
         /// 创建不可变运行元数据和可并发提交的终态容器。
@@ -185,7 +199,7 @@ namespace TDJS_Vision.ResourceManagement
 
             Identity = identity;
             FlowRevision = flowRevision;
-            OrderDomain = orderDomain.Trim();
+            OrderDomain = NormalizeKey(orderDomain, nameof(orderDomain));
             TriggerSource = triggerSource.Trim();
             CreatedAtUtc = createdAtUtc;
             CancellationToken = cancellationToken;
@@ -214,26 +228,48 @@ namespace TDJS_Vision.ResourceManagement
         public WorkpieceTerminalState TerminalState =>
             (WorkpieceTerminalState)Volatile.Read(ref _terminalState);
 
-        /// <summary>
-        /// 为本轮实际到达的外发节点分配严格递增信号序号。
-        /// </summary>
-        /// <returns>从1开始且仅属于当前工件的信号序号。</returns>
-        public long AllocateSignalSequence()
-        {
-            lock (_stateSyncRoot)
-            {
-                if (_terminalState != (int)WorkpieceTerminalState.Active)
-                    throw new InvalidOperationException("工件已经封口，不能继续分配外发信号序号。");
+        /// <summary>获取是否已经请求封口并禁止产生新的信号意图。</summary>
+        public bool IsCompletionRequested => Volatile.Read(ref _completionRequested) == 1;
 
-                return ++_signalSequence;
-            }
+        /// <summary>获取等待全部在途信号结束并发布唯一终态的任务。</summary>
+        public Task<WorkpieceTerminalState> Completion => _completionSource.Task;
+
+        /// <summary>
+        /// 原子预约信号序号和意图ID，并立即通过唯一协调器提交。
+        /// </summary>
+        /// <param name="coordinator">当前生产会话的有序信号协调器。</param>
+        /// <param name="nodePath">运行快照中的节点路径。</param>
+        /// <param name="nodeKind">白名单外发节点类别。</param>
+        /// <param name="endpointKey">物理设备串行化键。</param>
+        /// <param name="sendAsync">已复制动态值且不再读取节点共享状态的发送动作。</param>
+        /// <param name="waitingCancellationToken">只取消发送开始前等待，不得中断已经开始的外部副作用。</param>
+        /// <returns>协调器返回的明确发送结果。</returns>
+        public Task<OrderedSignalSendResult> SubmitOrderedSignalAsync(
+            IOrderedSignalCoordinator coordinator,
+            string nodePath,
+            OrderedSignalNodeKind nodeKind,
+            string endpointKey,
+            Func<Task<OrderedSignalSendResult>> sendAsync,
+            CancellationToken waitingCancellationToken)
+        {
+            if (coordinator == null)
+                throw new ArgumentNullException(nameof(coordinator));
+            if (sendAsync == null)
+                throw new ArgumentNullException(nameof(sendAsync));
+
+            OrderedSignalIntent intent = ReserveSignalIntent(
+                nodePath,
+                nodeKind,
+                endpointKey,
+                sendAsync);
+            return SubmitAndReleaseIntentAsync(coordinator, intent, waitingCancellationToken);
         }
 
         /// <summary>
         /// 尝试把当前工件从活动状态原子切换到唯一终态。
         /// </summary>
         /// <param name="terminalState">不允许为Active的目标终态。</param>
-        /// <returns>本次调用完成唯一状态切换返回true；已经封口返回false。</returns>
+        /// <returns>本次调用成功建立唯一封口请求返回true；已经请求或已经封口返回false。</returns>
         public bool TryComplete(WorkpieceTerminalState terminalState)
         {
             if (terminalState == WorkpieceTerminalState.Active)
@@ -243,12 +279,122 @@ namespace TDJS_Vision.ResourceManagement
 
             lock (_stateSyncRoot)
             {
-                if (_terminalState != (int)WorkpieceTerminalState.Active)
+                if (_terminalState != (int)WorkpieceTerminalState.Active || _completionRequested == 1)
                     return false;
 
-                Volatile.Write(ref _terminalState, (int)terminalState);
+                _requestedTerminalState = terminalState;
+                Volatile.Write(ref _completionRequested, 1);
+                TryPublishTerminalStateUnderLock();
                 return true;
             }
+        }
+
+        /// <summary>
+        /// 在同一把实例锁内预约不可伪造的信号序号、意图ID和在途名额。
+        /// </summary>
+        /// <param name="nodePath">运行快照中的节点路径。</param>
+        /// <param name="nodeKind">白名单外发节点类别。</param>
+        /// <param name="endpointKey">物理设备串行化键。</param>
+        /// <param name="sendAsync">已经冻结动态值的发送动作。</param>
+        /// <returns>只能交给协调器的信号意图。</returns>
+        internal OrderedSignalIntent ReserveSignalIntent(
+            string nodePath,
+            OrderedSignalNodeKind nodeKind,
+            string endpointKey,
+            Func<Task<OrderedSignalSendResult>> sendAsync)
+        {
+            if (string.IsNullOrWhiteSpace(nodePath))
+                throw new ArgumentException("节点路径不能为空。", nameof(nodePath));
+            if (!Enum.IsDefined(typeof(OrderedSignalNodeKind), nodeKind))
+                throw new ArgumentOutOfRangeException(nameof(nodeKind), "节点不属于有序外发白名单。");
+            if (sendAsync == null)
+                throw new ArgumentNullException(nameof(sendAsync));
+
+            string normalizedEndpointKey = NormalizeKey(endpointKey, nameof(endpointKey));
+            lock (_stateSyncRoot)
+            {
+                if (_terminalState != (int)WorkpieceTerminalState.Active || _completionRequested == 1)
+                    throw new InvalidOperationException("工件已经请求封口，不能继续创建外发信号意图。");
+
+                Guid intentId = Guid.NewGuid();
+                long signalSequence = ++_signalSequence;
+                _pendingSignalIntentIds.Add(intentId);
+                return new OrderedSignalIntent(
+                    intentId,
+                    this,
+                    signalSequence,
+                    nodePath.Trim(),
+                    nodeKind,
+                    normalizedEndpointKey,
+                    sendAsync);
+            }
+        }
+
+        /// <summary>
+        /// 等待协调器返回，并保证成功、失败和取消路径都释放对应在途名额。
+        /// </summary>
+        /// <param name="coordinator">有序信号协调器。</param>
+        /// <param name="intent">已预约意图。</param>
+        /// <param name="waitingCancellationToken">发送开始前等待取消令牌。</param>
+        /// <returns>明确发送结果。</returns>
+        private async Task<OrderedSignalSendResult> SubmitAndReleaseIntentAsync(
+            IOrderedSignalCoordinator coordinator,
+            OrderedSignalIntent intent,
+            CancellationToken waitingCancellationToken)
+        {
+            try
+            {
+                return await coordinator.SubmitAsync(intent, waitingCancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                ReleaseSignalIntent(intent.IntentId);
+            }
+        }
+
+        /// <summary>
+        /// 幂等释放已经从协调器返回的在途信号，并在最后一个信号结束后发布终态。
+        /// </summary>
+        /// <param name="intentId">上下文预约的信号意图ID。</param>
+        internal void ReleaseSignalIntent(Guid intentId)
+        {
+            lock (_stateSyncRoot)
+            {
+                if (!_pendingSignalIntentIds.Remove(intentId))
+                    return;
+
+                TryPublishTerminalStateUnderLock();
+            }
+        }
+
+        /// <summary>
+        /// 在持有状态锁时检查封口请求和在途信号，并发布唯一终态。
+        /// </summary>
+        private void TryPublishTerminalStateUnderLock()
+        {
+            if (_completionRequested != 1 ||
+                _pendingSignalIntentIds.Count != 0 ||
+                _terminalState != (int)WorkpieceTerminalState.Active)
+            {
+                return;
+            }
+
+            Volatile.Write(ref _terminalState, (int)_requestedTerminalState);
+            _completionSource.TrySetResult(_requestedTerminalState);
+        }
+
+        /// <summary>
+        /// 把顺序域和物理设备键规范为大小写不敏感的稳定比较值。
+        /// </summary>
+        /// <param name="value">原始键值。</param>
+        /// <param name="parameterName">参数名称。</param>
+        /// <returns>去除首尾空白并转为大写的稳定键。</returns>
+        internal static string NormalizeKey(string value, string parameterName)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new ArgumentException("顺序域或物理设备键不能为空。", parameterName);
+
+            return value.Trim().ToUpperInvariant();
         }
     }
 
@@ -275,14 +421,17 @@ namespace TDJS_Vision.ResourceManagement
     /// </summary>
     public enum OrderedSignalSendStatus
     {
-        /// <summary>设备已确认发送成功。</summary>
-        Confirmed = 1,
+        /// <summary>协议或设备以可记录凭据确认外部副作用已经生效。</summary>
+        DeviceAcknowledged = 1,
+
+        /// <summary>本地设备API正常返回，但协议不提供远端生效确认。</summary>
+        LocalCallCompleted = 2,
 
         /// <summary>设备明确拒绝或确认发送失败。</summary>
-        Rejected = 2,
+        Rejected = 3,
 
         /// <summary>无法确认外部副作用是否已经发生。</summary>
-        Unknown = 3
+        Unknown = 4
     }
 
     /// <summary>
@@ -295,13 +444,25 @@ namespace TDJS_Vision.ResourceManagement
         /// </summary>
         /// <param name="status">设备确认状态。</param>
         /// <param name="message">用于诊断的简短说明。</param>
-        public OrderedSignalSendResult(OrderedSignalSendStatus status, string message)
+        /// <param name="confirmationEvidence">设备确认时必须保存的工件号、响应码或协议凭据。</param>
+        public OrderedSignalSendResult(
+            OrderedSignalSendStatus status,
+            string message,
+            string confirmationEvidence = null)
         {
             if (!Enum.IsDefined(typeof(OrderedSignalSendStatus), status))
                 throw new ArgumentOutOfRangeException(nameof(status), "未知的外发确认状态。");
+            if (status == OrderedSignalSendStatus.DeviceAcknowledged &&
+                string.IsNullOrWhiteSpace(confirmationEvidence))
+            {
+                throw new ArgumentException("设备确认成功必须提供可记录的确认凭据。", nameof(confirmationEvidence));
+            }
 
             Status = status;
             Message = message ?? string.Empty;
+            ConfirmationEvidence = confirmationEvidence == null
+                ? string.Empty
+                : confirmationEvidence.Trim();
         }
 
         /// <summary>获取设备确认状态。</summary>
@@ -309,6 +470,9 @@ namespace TDJS_Vision.ResourceManagement
 
         /// <summary>获取诊断说明。</summary>
         public string Message { get; }
+
+        /// <summary>获取设备确认时返回的工件号、响应码或协议凭据。</summary>
+        public string ConfirmationEvidence { get; }
     }
 
     /// <summary>
@@ -316,41 +480,45 @@ namespace TDJS_Vision.ResourceManagement
     /// </summary>
     public sealed class OrderedSignalIntent
     {
+        /// <summary>只有框架协调器可以调用的已冻结发送动作。</summary>
+        private readonly Func<Task<OrderedSignalSendResult>> _sendAsync;
+
         /// <summary>
         /// 创建不可变有序信号意图。
         /// </summary>
+        /// <param name="intentId">上下文原子预约的唯一意图ID。</param>
         /// <param name="context">当前工件执行上下文。</param>
         /// <param name="signalSequence">上下文分配的实际信号序号。</param>
         /// <param name="nodePath">运行快照中的节点路径。</param>
         /// <param name="nodeKind">白名单外发节点类别。</param>
         /// <param name="endpointKey">物理设备串行化键。</param>
-        /// <param name="sendAsync">已经冻结动态发送参数的设备动作。</param>
-        public OrderedSignalIntent(
+        /// <param name="sendAsync">已经复制动态发送参数的设备动作。</param>
+        internal OrderedSignalIntent(
+            Guid intentId,
             WorkpieceExecutionContext context,
             long signalSequence,
             string nodePath,
             OrderedSignalNodeKind nodeKind,
             string endpointKey,
-            Func<CancellationToken, Task<OrderedSignalSendResult>> sendAsync)
+            Func<Task<OrderedSignalSendResult>> sendAsync)
         {
+            if (intentId == Guid.Empty)
+                throw new ArgumentException("信号意图ID不能为空。", nameof(intentId));
             if (context == null)
                 throw new ArgumentNullException(nameof(context));
             if (signalSequence <= 0L)
                 throw new ArgumentOutOfRangeException(nameof(signalSequence), "信号序号必须大于0。");
-            if (string.IsNullOrWhiteSpace(nodePath))
-                throw new ArgumentException("节点路径不能为空。", nameof(nodePath));
-            if (!Enum.IsDefined(typeof(OrderedSignalNodeKind), nodeKind))
-                throw new ArgumentOutOfRangeException(nameof(nodeKind), "节点不属于有序外发白名单。");
-            if (string.IsNullOrWhiteSpace(endpointKey))
-                throw new ArgumentException("物理设备键不能为空。", nameof(endpointKey));
-
+            IntentId = intentId;
             Context = context;
             SignalSequence = signalSequence;
             NodePath = nodePath.Trim();
             NodeKind = nodeKind;
-            EndpointKey = endpointKey.Trim();
-            SendAsync = sendAsync ?? throw new ArgumentNullException(nameof(sendAsync));
+            EndpointKey = endpointKey;
+            _sendAsync = sendAsync ?? throw new ArgumentNullException(nameof(sendAsync));
         }
+
+        /// <summary>获取上下文原子预约的唯一意图ID。</summary>
+        public Guid IntentId { get; }
 
         /// <summary>获取本意图所属工件上下文。</summary>
         public WorkpieceExecutionContext Context { get; }
@@ -367,8 +535,14 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>获取物理设备串行化键。</summary>
         public string EndpointKey { get; }
 
-        /// <summary>获取已经冻结动态发送参数的设备动作。</summary>
-        public Func<CancellationToken, Task<OrderedSignalSendResult>> SendAsync { get; }
+        /// <summary>
+        /// 由框架协调器在取得工件顺序权和物理端点租约后执行发送动作。
+        /// </summary>
+        /// <returns>明确发送结果。</returns>
+        internal Task<OrderedSignalSendResult> ExecuteAsync()
+        {
+            return _sendAsync();
+        }
     }
 
     /// <summary>
@@ -383,12 +557,18 @@ namespace TDJS_Vision.ResourceManagement
         string OrderedSignalEndpointKey { get; }
 
         /// <summary>
-        /// 在节点真正执行到达时冻结动态参数并创建有序信号意图。
+        /// 在节点真正执行到达时复制动态参数，并只通过协调器提交一次信号。
         /// </summary>
         /// <param name="context">当前工件执行上下文。</param>
         /// <param name="nodePath">运行快照中的节点路径。</param>
-        /// <returns>可提交到有序协调器的信号意图。</returns>
-        OrderedSignalIntent CreateOrderedSignalIntent(WorkpieceExecutionContext context, string nodePath);
+        /// <param name="coordinator">当前生产会话的唯一有序协调器。</param>
+        /// <param name="waitingCancellationToken">只作用于发送开始前等待的取消令牌。</param>
+        /// <returns>明确发送结果。</returns>
+        Task<OrderedSignalSendResult> SubmitOrderedSignalAsync(
+            WorkpieceExecutionContext context,
+            string nodePath,
+            IOrderedSignalCoordinator coordinator,
+            CancellationToken waitingCancellationToken);
     }
 
     /// <summary>
@@ -406,17 +586,21 @@ namespace TDJS_Vision.ResourceManagement
         /// 按生产顺序域、工件序号和信号序号提交设备动作。
         /// </summary>
         /// <param name="intent">已冻结的外发信号意图。</param>
-        /// <param name="cancellationToken">等待顺序和设备发送的取消令牌。</param>
+        /// <param name="cancellationToken">只取消取得发送权之前的等待；副作用开始后不得提前返回取消。</param>
         /// <returns>设备确认结果。</returns>
+        /// <remarks>同一IntentId重复提交必须返回首次结果或明确拒绝，禁止再次执行设备动作。</remarks>
         Task<OrderedSignalSendResult> SubmitAsync(
             OrderedSignalIntent intent,
             CancellationToken cancellationToken);
 
         /// <summary>
-        /// 封口工件并声明本轮不会再产生新的外发信号。
+        /// 请求封口并等待全部已预约信号返回，随后才允许推进下一工件。
         /// </summary>
-        /// <param name="context">已进入唯一终态的工件上下文。</param>
-        void CompleteWorkpiece(WorkpieceExecutionContext context);
+        /// <param name="terminalState">本轮唯一目标终态。</param>
+        /// <returns>在途信号全部结束且终态发布后完成的任务。</returns>
+        Task CompleteWorkpieceAsync(
+            WorkpieceExecutionContext context,
+            WorkpieceTerminalState terminalState);
     }
 
     /// <summary>
@@ -425,13 +609,13 @@ namespace TDJS_Vision.ResourceManagement
     public interface ISignalEndpointSerializer
     {
         /// <summary>
-        /// 在指定物理设备键上串行执行已经冻结的发送动作。
+        /// 在指定物理设备键上取得独占租约；实际发送仍由框架协调器调用意图内部动作。
         /// </summary>
-        /// <param name="intent">待执行的信号意图。</param>
-        /// <param name="cancellationToken">等待和发送取消令牌。</param>
-        /// <returns>设备确认结果。</returns>
-        Task<OrderedSignalSendResult> ExecuteAsync(
-            OrderedSignalIntent intent,
+        /// <param name="endpointKey">已经规范化的物理设备键。</param>
+        /// <param name="cancellationToken">只取消取得租约之前的等待。</param>
+        /// <returns>必须在设备动作真正结束或端点冻结后释放的独占租约。</returns>
+        Task<IDisposable> AcquireAsync(
+            string endpointKey,
             CancellationToken cancellationToken);
     }
 
