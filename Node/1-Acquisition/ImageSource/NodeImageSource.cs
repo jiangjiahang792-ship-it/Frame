@@ -467,15 +467,19 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// 在当前流程批次中等待相机回调图像，软触发时只发送一次采图命令。
         /// </summary>
         /// <param name="param">当前图像源相机参数。</param>
+        /// <param name="camera">本轮固定使用的相机对象。</param>
         /// <param name="token">流程停止时使用的取消令牌。</param>
         /// <returns>由相机回调帧构建的标准图像输出。</returns>
-        private async Task<OutputImage> AcquireCameraImageAsync(NodeParamImageSoucre param, CancellationToken token)
+        private async Task<OutputImage> AcquireCameraImageAsync(
+            NodeParamImageSoucre param,
+            ICamera camera,
+            CancellationToken token)
         {
             if (param == null)
                 throw new ArgumentNullException(nameof(param));
-            if (param.Camera == null)
+            if (camera == null)
                 throw new Exception("相机对象无效！");
-            if (!param.Camera.IsOpen)
+            if (!camera.IsOpen)
                 throw new Exception("相机尚未连接！");
             if (Volatile.Read(ref _isUnavailable) != 0)
                 throw new ObjectDisposedException(nameof(NodeImageSource), "图像源节点已经删除或释放，禁止继续等待相机帧。 ");
@@ -486,6 +490,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             {
                 return await AcquireProductionCameraImageAsync(
                     param,
+                    camera,
                     workpieceContext,
                     token).ConfigureAwait(false);
             }
@@ -508,8 +513,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         throw new InvalidOperationException("当前图像源已经在等待相机回调帧。");
 
                     callbackBound = true;
-                    param.Camera.OnMatReceived += HandleCameraCallbackFrame;
-                    param.Camera.RegisterImageCallbackOwner(this);
+                    camera.OnMatReceived += HandleCameraCallbackFrame;
+                    camera.RegisterImageCallbackOwner(this);
                     callbackOwnerRegistered = true;
                     _cameraCallbackBound = true;
                     waitOwnershipAcquired = true;
@@ -518,10 +523,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=等待器就绪；相机={param.Camera.DevName}；触发源={param.TriggerSource}",
+                    () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=等待器就绪；相机={camera.DevName}；触发源={param.TriggerSource}",
                     true);
                 if (GetEffectiveTriggerSource(param.TriggerSource) == TriggerSource.SOFT)
-                    param.Camera.GrabOne();
+                    camera.GrabOne();
 
                 callbackMat = await frameTask.ConfigureAwait(false);
                 long waitCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
@@ -562,9 +567,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 {
                     lock (_cameraCallbackBindingLock)
                     {
-                        param.Camera.OnMatReceived -= HandleCameraCallbackFrame;
+                        camera.OnMatReceived -= HandleCameraCallbackFrame;
                         if (callbackOwnerRegistered)
-                            param.Camera.UnregisterImageCallbackOwner(this);
+                            camera.UnregisterImageCallbackOwner(this);
                         _cameraCallbackBound = false;
                     }
                 }
@@ -572,8 +577,14 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         }
 
         /// <summary>在真实触发前登记工件票据，并把Mat和实际字节预算成对转给图像输出。</summary>
+        /// <param name="param">当前图像源方案参数。</param>
+        /// <param name="camera">本轮固定使用的相机对象。</param>
+        /// <param name="workpieceContext">当前工件执行上下文。</param>
+        /// <param name="token">流程停止令牌。</param>
+        /// <returns>携带实际图像预算生命周期的输出图像。</returns>
         private async Task<OutputImage> AcquireProductionCameraImageAsync(
             NodeParamImageSoucre param,
+            ICamera camera,
             WorkpieceExecutionContext workpieceContext,
             CancellationToken token)
         {
@@ -581,11 +592,11 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 throw new ArgumentNullException(nameof(workpieceContext));
 
             CameraTriggerTicketRegistry registry = Solution.Instance.CameraTriggerTicketRegistry;
-            string cameraKey = CameraProductionIdentity.GetStableKey(param.Camera);
-            int timeoutMilliseconds = GetCameraTimeoutMilliseconds(param);
+            string cameraKey = CameraProductionIdentity.GetStableKey(camera);
+            int timeoutMilliseconds = GetCameraTimeoutMilliseconds(param, camera);
             DateTime deadlineUtc = DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds);
             long memoryBudgetBytes = GetWorkpieceFrameMemoryBudgetBytes();
-            long estimatedFrameBytes = GetEstimatedCameraFrameBytes(param.Camera);
+            long estimatedFrameBytes = GetEstimatedCameraFrameBytes(camera);
             CameraTriggerKind triggerKind = GetProductionCameraTriggerKind(param.TriggerSource);
             bool isSoftwareTrigger = triggerKind == CameraTriggerKind.Software;
 
@@ -609,7 +620,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 }
 
                 productionCancellation.Token.ThrowIfCancellationRequested();
-                param.Camera.RegisterImageCallbackOwner(this);
+                camera.RegisterImageCallbackOwner(this);
                 callbackOwnerRegistered = true;
                 productionCancellation.Token.ThrowIfCancellationRequested();
 
@@ -631,12 +642,12 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=生产票据就绪；工件={workpieceContext.Identity}；相机={param.Camera.DevName}；触发源={param.TriggerSource}；估算字节={estimatedFrameBytes}；预算字节={memoryBudgetBytes}",
+                    () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=生产票据就绪；工件={workpieceContext.Identity}；相机={camera.DevName}；触发源={param.TriggerSource}；估算字节={estimatedFrameBytes}；预算字节={memoryBudgetBytes}",
                     true);
 
                 Task triggerTask = isSoftwareTrigger
                     ? Task.Factory.StartNew(
-                        () => ticket.IssueSoftwareTrigger(param.Camera.GrabOne),
+                        () => ticket.IssueSoftwareTrigger(camera.GrabOne),
                         CancellationToken.None,
                         TaskCreationOptions.DenyChildAttach,
                         TaskScheduler.Default)
@@ -670,7 +681,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             {
                 if (callbackOwnerRegistered)
                 {
-                    try { param.Camera.UnregisterImageCallbackOwner(this); } catch { }
+                    try { camera.UnregisterImageCallbackOwner(this); } catch { }
                 }
                 try { envelope?.Dispose(); } catch { }
                 try { ticket?.Dispose(); } catch { }
@@ -799,12 +810,15 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 TaskScheduler.Default);
         }
 
-        /// <summary>读取节点配置的相机等待上限，缺省时回退相机参数，最终至少1毫秒。</summary>
-        private static int GetCameraTimeoutMilliseconds(NodeParamImageSoucre param)
+        /// <summary>读取节点配置的相机等待上限，缺省时回退本轮固定相机参数，最终至少1毫秒。</summary>
+        /// <param name="param">当前图像源方案参数。</param>
+        /// <param name="camera">本轮固定使用的相机对象。</param>
+        /// <returns>至少1毫秒的等待上限。</returns>
+        private static int GetCameraTimeoutMilliseconds(NodeParamImageSoucre param, ICamera camera)
         {
             uint configuredTimeout = param.TimeOut > 0U
                 ? param.TimeOut
-                : param.Camera.GetImageTimeOut;
+                : camera.GetImageTimeOut;
             if (configuredTimeout == 0U)
                 configuredTimeout = 2000U;
             return configuredTimeout > int.MaxValue ? int.MaxValue : Math.Max(1, (int)configuredTimeout);
@@ -893,26 +907,27 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         }
                         else if (param.ImageSource == "相机")
                         {
-                            if (param.Camera == null)
+                            ICamera camera = Solution.Instance.ResolveImageSourceCamera(param);
+                            if (camera == null)
                                 throw new Exception("相机对象无效！");
-                            if (!param.Camera.IsOpen)
+                            if (!camera.IsOpen)
                                 throw new Exception("相机尚未连接！");
 
                             // 是否需要每次设置相机参数
                             if (param.IsEveryTime)
                             {
                                 TriggerSource effectiveTriggerSource = GetEffectiveTriggerSource(param.TriggerSource);
-                                param.Camera.SetTriggerMode(TriggerModel.On);
-                                param.Camera.SetTriggerSource(effectiveTriggerSource);
+                                camera.SetTriggerMode(TriggerModel.On);
+                                camera.SetTriggerSource(effectiveTriggerSource);
                                 if (effectiveTriggerSource >= TriggerSource.LINE0 && effectiveTriggerSource <= TriggerSource.LINE4)
-                                    param.Camera.SetTriggerEdge(param.TriggerEdge);
-                                param.Camera.SetTriggerDelay(param.TriggerDelay);
-                                param.Camera.SetExposureTime(param.ExposureTime);
-                                param.Camera.SetGain(param.Gain);
-                                param.Camera.GetImageTimeOut = param.TimeOut;
+                                    camera.SetTriggerEdge(param.TriggerEdge);
+                                camera.SetTriggerDelay(param.TriggerDelay);
+                                camera.SetExposureTime(param.ExposureTime);
+                                camera.SetGain(param.Gain);
+                                camera.GetImageTimeOut = param.TimeOut;
                             }
 
-                            res.OutputImage = await AcquireCameraImageAsync(param, token).ConfigureAwait(false);
+                            res.OutputImage = await AcquireCameraImageAsync(param, camera, token).ConfigureAwait(false);
                         }
                         else if (param.ImageSource == "共享变量")
                         {

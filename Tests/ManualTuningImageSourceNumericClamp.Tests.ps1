@@ -22,7 +22,7 @@ $paramForm = Get-ProjectSource 'Node\1-Acquisition\ImageSource\ParamFormImageSou
 
 Assert-Contains $paramForm 'SetNumericUpDownValueInRange(numericUpDownExposureTime, (decimal)paramSrc.ExposureTime);' 'Exposure refresh must clamp NumericUpDown value.'
 Assert-Contains $paramForm 'SetNumericUpDownValueInRange(numericUpDownGain, (decimal)paramSrc.Gain);' 'Gain refresh must clamp NumericUpDown value.'
-Assert-Contains $paramForm 'if (value < control.Minimum)' 'NumericUpDown clamp must protect the minimum value.'
-Assert-Contains $paramForm 'else if (value > control.Maximum)' 'NumericUpDown clamp must protect the maximum value.'
+Assert-Contains $paramForm 'control.Minimum = value;' 'NumericUpDown must expand its minimum to preserve the scheme value.'
+Assert-Contains $paramForm 'control.Maximum = value;' 'NumericUpDown must expand its maximum to preserve the scheme value.'
 
 Write-Host "Manual tuning image source numeric clamp check passed."

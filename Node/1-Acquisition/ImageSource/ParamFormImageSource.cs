@@ -33,6 +33,12 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// 当前参数窗体所属的图像源节点。
         /// </summary>
         private readonly NodeImageSource _imageSourceNode;
+
+        /// <summary>
+        /// 是否正在从方案恢复控件，恢复期间禁止相机选择事件读取或改写硬件参数。
+        /// </summary>
+        private bool _isRestoringParameters;
+
         public ParamFormImageSource(NodeBase node)
         {
             InitializeComponent();
@@ -65,7 +71,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         }
 
         /// <summary>
-        /// 按控件当前相机范围安全回填数值，避免运行参数保存刷新时写入越界值导致弹窗报错。
+        /// 扩展控件范围并完整回填方案数值，禁止显示后再保存时静默截断方案。
         /// </summary>
         /// <param name="control">需要回填的数值控件。</param>
         /// <param name="value">待回填的节点参数值。</param>
@@ -75,9 +81,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 return;
 
             if (value < control.Minimum)
-                value = control.Minimum;
-            else if (value > control.Maximum)
-                value = control.Maximum;
+                control.Minimum = value;
+            if (value > control.Maximum)
+                control.Maximum = value;
 
             control.Value = value;
         }
@@ -89,79 +95,79 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         {
             if (Params is NodeParamImageSoucre param)
             {
-                comboBoxImgSource.Text = param.ImageSource;
-
-                if (param.ImageSource == "本地图像")
+                ICamera cameraToConfigure = null;
+                _isRestoringParameters = true;
+                try
                 {
-                    textBoxImgPath.Text = param.PathText;
-                    checkBoxAuto.Checked = param.IsAutoLoop;
-                    if (param.ImagePaths.Count != 0)
-                    {
-                        checkBoxAuto.Enabled = true;
-                    }
-                    // “选择目录”需要获取目录下所有图像文件
-                    if (Directory.Exists(param.PathText))
-                    {
-                        var extensions = new[] { ".bmp", ".jpg", ".jpeg", ".png" };
-                        var files = Directory.GetFiles(textBoxImgPath.Text)
-                                             .Where(s => extensions.Any(e => s.EndsWith(e, StringComparison.OrdinalIgnoreCase)))
-                                             .ToList();
+                    comboBoxImgSource.Text = param.ImageSource;
 
-                        param.ImagePaths = files;
-                    }
-                }
-                else if (param.ImageSource == "相机")
-                {
-                    // 旧方案可能保存了连续取流模式；新版本统一迁移为回调触发模式。
-                    if (param.TriggerModel == TriggerModel.Off)
+                    if (param.ImageSource == "本地图像")
                     {
-                        param.TriggerModel = TriggerModel.On;
-                        LogHelper.AddLog(
-                            MsgLevel.Info,
-                            $"流程【{_imageSourceNode?.Process?.ProcessName}】图像源节点({_imageSourceNode?.ID}.{_imageSourceNode?.NodeName})的旧触发模式 Off 已迁移为 On。",
-                            true);
-                    }
-
-                    // 还原选中的相机 
-                    comboBoxChoiceCamera.Items.Clear();
-                    comboBoxChoiceCamera.Items.Add("[未设置]");
-                    foreach (var camera in Solution.Instance.CameraDevices)
-                    {
-                        comboBoxChoiceCamera.Items.Add(camera.UserDefinedName);
-                    }
-                    int index = comboBoxChoiceCamera.Items.IndexOf(param.CameraName);
-                    comboBoxChoiceCamera.SelectedIndex = index == -1 ? 0 : index;
-                    // 还原选中的触发源
-                    comboBoxTriggerMode.Text = GetTriggerSourceDisplayText(param.TriggerSource);
-                    // 硬触发沿
-                    comboBoxTriggerEdge.SelectedIndex = (int)param.TriggerEdge;
-                    //// 设置延迟、曝光、增益
-                    numericUpDownTriggerDelay.Text = param.TriggerDelay.ToString();
-                    numericUpDownExposureTime.Text = param.ExposureTime.ToString();
-                    numericUpDownGain.Text = param.Gain.ToString();
-                    numericUpDownTimeOut.Value = param.TimeOut;
-                    // 是否频闪
-                    int index1 = comboBoxStrobe.Items.IndexOf(param.IsEveryTime ? "是" : "否");
-                    comboBoxStrobe.SelectedIndex = index1 == -1 ? 0 : index1;
-                    // 还原节点使用的相机
-                    foreach (var camera in Solution.Instance.CameraDevices)
-                    {
-                        if (camera.UserDefinedName == param.CameraName)
+                        textBoxImgPath.Text = param.PathText;
+                        checkBoxAuto.Checked = param.IsAutoLoop;
+                        if (param.ImagePaths.Count != 0)
                         {
-                            param.Camera = camera;
-                            // 不是频闪应用可以在参数界面只设置一次,是频闪的话相机需要在节点运行时每次设置
-                            if (!param.IsEveryTime)
-                                SetCameraParams(param.Camera, TriggerModel.On, param.TriggerSource, param.TriggerEdge, param.TriggerDelay
-                                    , param.ExposureTime, param.Gain, param.TimeOut);
+                            checkBoxAuto.Enabled = true;
+                        }
+                        // “选择目录”需要获取目录下所有图像文件
+                        if (Directory.Exists(param.PathText))
+                        {
+                            var extensions = new[] { ".bmp", ".jpg", ".jpeg", ".png" };
+                            var files = Directory.GetFiles(textBoxImgPath.Text)
+                                                 .Where(s => extensions.Any(e => s.EndsWith(e, StringComparison.OrdinalIgnoreCase)))
+                                                 .ToList();
+
+                            param.ImagePaths = files;
                         }
                     }
+                    else if (param.ImageSource == "相机")
+                    {
+                        // 旧方案可能保存了连续取流模式；新版本统一迁移为回调触发模式。
+                        if (param.TriggerModel == TriggerModel.Off)
+                        {
+                            param.TriggerModel = TriggerModel.On;
+                            LogHelper.AddLog(
+                                MsgLevel.Info,
+                                $"流程【{_imageSourceNode?.Process?.ProcessName}】图像源节点({_imageSourceNode?.ID}.{_imageSourceNode?.NodeName})的旧触发模式 Off 已迁移为 On。",
+                                true);
+                        }
 
+                        // 先按方案中的相机名称绑定当前设备对象，不能依赖上次运行留下的对象引用。
+                        cameraToConfigure = Solution.Instance.ResolveImageSourceCamera(param);
+
+                        // 还原选中的相机。
+                        comboBoxChoiceCamera.Items.Clear();
+                        comboBoxChoiceCamera.Items.Add("[未设置]");
+                        foreach (var camera in Solution.Instance.CameraDevices)
+                        {
+                            comboBoxChoiceCamera.Items.Add(camera.UserDefinedName);
+                        }
+                        int index = comboBoxChoiceCamera.Items.IndexOf(param.CameraName);
+                        comboBoxChoiceCamera.SelectedIndex = index == -1 ? 0 : index;
+                        // 还原选中的触发源。
+                        comboBoxTriggerMode.Text = GetTriggerSourceDisplayText(param.TriggerSource);
+                        // 还原硬触发沿和方案参数；相机当前值不参与恢复。
+                        comboBoxTriggerEdge.SelectedIndex = (int)param.TriggerEdge;
+                        SetNumericUpDownValueInRange(numericUpDownTriggerDelay, param.TriggerDelay);
+                        SetNumericUpDownValueInRange(numericUpDownExposureTime, (decimal)param.ExposureTime);
+                        SetNumericUpDownValueInRange(numericUpDownGain, (decimal)param.Gain);
+                        SetNumericUpDownValueInRange(numericUpDownTimeOut, param.TimeOut);
+                        int index1 = comboBoxStrobe.Items.IndexOf(param.IsEveryTime ? "是" : "否");
+                        comboBoxStrobe.SelectedIndex = index1 == -1 ? 0 : index1;
+                    }
+                    else if (param.ImageSource == "共享变量")
+                    {
+                        RefreshSharedVariableList(param.SharedVariableName);
+                    }
                 }
-                else if (param.ImageSource == "共享变量")
+                finally
                 {
-                    RefreshSharedVariableList(param.SharedVariableName);
+                    _isRestoringParameters = false;
                 }
 
+                // 相机在线时立即把方案值写入硬件；离线只保留方案和绑定关系，不阻断节点恢复。
+                if (cameraToConfigure != null && cameraToConfigure.IsOpen)
+                    TryApplySchemeCameraParameters(cameraToConfigure, param, "恢复图像源方案");
             }
         }
 
@@ -337,9 +343,15 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <param name="gain"></param>
         private void SetCameraParams(ICamera camera, TriggerModel triggerModel, TriggerSource triggerSource, TriggerEdge triggerEdge, int delay, double exposureTime, double gain, uint timeOut)
         {
+            if (camera == null)
+                throw new InvalidOperationException("图像源没有可用相机对象。");
+
+            TriggerSource effectiveTriggerSource = triggerSource == TriggerSource.Auto
+                ? TriggerSource.SOFT
+                : triggerSource;
             camera.SetTriggerMode(triggerModel);        // 设置触发模式
-            camera.SetTriggerSource(triggerSource);     // 设置触发源
-            if (IsHardwareTriggerSource(triggerSource))
+            camera.SetTriggerSource(effectiveTriggerSource); // 设置触发源
+            if (IsHardwareTriggerSource(effectiveTriggerSource))
                 camera.SetTriggerEdge(triggerEdge);     // 只有线路硬触发存在触发极性
             //if (triggerSource != TriggerSource.Auto)
             //    camera.SetTriggerMode(true);                // 设置触发模式（除了自动取流外均设置）
@@ -347,6 +359,64 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             camera.SetExposureTime(exposureTime);       // 设置曝光时间
             camera.SetGain(gain);                       // 设置增益
             camera.GetImageTimeOut = timeOut;           // 设置采图超时xw
+        }
+
+        /// <summary>
+        /// 尝试把方案参数写入在线相机，写入失败只记录原因，不能破坏方案恢复。
+        /// </summary>
+        /// <param name="camera">目标相机。</param>
+        /// <param name="param">图像源方案参数。</param>
+        /// <param name="operation">日志中的操作名称。</param>
+        private void TryApplySchemeCameraParameters(ICamera camera, NodeParamImageSoucre param, string operation)
+        {
+            bool resumeGrabbing = false;
+            try
+            {
+                bool wasGrabbing = camera.GetGrabStatus();
+                if (wasGrabbing)
+                {
+                    camera.StopGrabbing();
+                    resumeGrabbing = true;
+                }
+
+                SetCameraParams(
+                    camera,
+                    TriggerModel.On,
+                    param.TriggerSource,
+                    param.TriggerEdge,
+                    param.TriggerDelay,
+                    param.ExposureTime,
+                    param.Gain,
+                    param.TimeOut);
+                LogHelper.AddLog(
+                    MsgLevel.Info,
+                    $"{operation}已按方案写入相机【{camera.UserDefinedName}】：曝光={param.ExposureTime}us，增益={param.Gain}。",
+                    true);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(
+                    MsgLevel.Warn,
+                    $"{operation}向相机【{camera.UserDefinedName}】写入方案参数失败，方案仍已正常恢复。原因：{ex.Message}",
+                    true);
+            }
+            finally
+            {
+                if (resumeGrabbing && camera.IsOpen)
+                {
+                    try
+                    {
+                        camera.StartGrabbing();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.AddLog(
+                            MsgLevel.Exception,
+                            $"{operation}后恢复相机【{camera.UserDefinedName}】取流失败：{ex.Message}",
+                            true);
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -365,45 +435,31 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <param name="e"></param>
         private void comboBoxChoiceCamera_SelectedIndexChanged(object sender, EventArgs e)
         {
-            // 获取对应相机曝光和增益参数
+            labelTriggerDelay.Text = "触发延迟(us)";
+            labelExposureTime.Text = "曝光(us)";
+            labelGain.Text = "增益";
+            if (_isRestoringParameters)
+                return;
+
+            // 只刷新相机支持的触发源，不读取相机当前曝光、增益或延迟覆盖方案值。
             foreach (var camera in Solution.Instance.CameraDevices)
             {
                 if (camera.UserDefinedName == comboBoxChoiceCamera.Text)
                 {
-                    RefreshTriggerSourceItems(camera);
-
-                    // 当前相机触发延迟
-                    var _triggerDelay = camera.GetTriggerDelay();
-                    numericUpDownTriggerDelay.Minimum = (decimal)_triggerDelay.Min;
-                    numericUpDownTriggerDelay.Maximum = (decimal)_triggerDelay.Max;
-                    labelTriggerDelay.Text = $"触发延迟(当前{_triggerDelay.CurValue})";
-
-                    // 当前相机曝光
-                    var _exposurTime = camera.GetExposureTime();
-                    numericUpDownExposureTime.Minimum = (decimal)_exposurTime.Min;
-                    numericUpDownExposureTime.Maximum = (decimal)_exposurTime.Max;
-                    labelExposureTime.Text = $"曝光(当前{_exposurTime.CurValue})";
-
-                    // 当前相机增益
-                    var (gainInt, gainFloat) = camera.GetGain();
-                    if (gainInt != null)
+                    try
                     {
-                        numericUpDownGain.Minimum = gainInt.Min;
-                        numericUpDownGain.Maximum = gainInt.Max;
-                        labelGain.Text = $"增益(当前{gainInt.CurValue})";
+                        RefreshTriggerSourceItems(camera);
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        numericUpDownGain.Minimum = (decimal)gainFloat.Min;
-                        numericUpDownGain.Maximum = (decimal)gainFloat.Max;
-                        labelGain.Text = $"增益(当前{gainFloat.CurValue})";
+                        LogHelper.AddLog(
+                            MsgLevel.Warn,
+                            $"刷新相机【{camera.UserDefinedName}】支持的触发源失败，保留方案中的触发设置。原因：{ex.Message}",
+                            true);
                     }
                     return;
                 }
             }
-            labelTriggerDelay.Text = "触发延迟(us)";
-            labelExposureTime.Text = "曝光(us)";
-            labelGain.Text = "增益";
         }
 
         /// <summary>
@@ -469,9 +525,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             {
                 #region 参数合法校验
 
-                int delay, exposureTime;
+                int delay;
+                double exposureTime;
                 uint timeOut;
-                float gain;
+                double gain;
                 if (comboBoxChoiceCamera.Text == "[未设置]" || comboBoxChoiceCamera.Text.IsNullOrEmpty())
                 {
                     MessageBoxTD.Show("相机为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -479,8 +536,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 }
 
                 delay = (int)numericUpDownTriggerDelay.Value;
-                exposureTime = (int)numericUpDownExposureTime.Value;
-                gain = (float)numericUpDownGain.Value;
+                exposureTime = (double)numericUpDownExposureTime.Value;
+                gain = (double)numericUpDownGain.Value;
                 timeOut = (uint)numericUpDownTimeOut.Value;
 
                 #endregion
@@ -498,6 +555,11 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 }
                 // 保存相机名称参与序列化
                 _nodeParamImageSource.CameraName = comboBoxChoiceCamera.Text;
+                if (_nodeParamImageSource.Camera == null)
+                {
+                    MessageBoxTD.Show("方案中的相机当前不存在！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return false;
+                }
 
                 // 相机图像源统一使用回调触发模式。
                 _nodeParamImageSource.TriggerModel = TriggerModel.On;
@@ -536,10 +598,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
                 #endregion
 
-                // 不是频闪应用可以在参数界面只设置一次,是频闪的话相机需要在节点运行时每次设置
-                if (!_nodeParamImageSource.IsEveryTime)
-                    SetCameraParams(_nodeParamImageSource.Camera, TriggerModel.On, _nodeParamImageSource.TriggerSource, _nodeParamImageSource.TriggerEdge, _nodeParamImageSource.TriggerDelay
-                        , _nodeParamImageSource.ExposureTime, _nodeParamImageSource.Gain, _nodeParamImageSource.TimeOut);
+                // 在线且不是逐次设置时立即应用；离线也允许保存，运行前会按名称重新绑定并再次应用。
+                if (!_nodeParamImageSource.IsEveryTime && _nodeParamImageSource.Camera.IsOpen)
+                    TryApplySchemeCameraParameters(_nodeParamImageSource.Camera, _nodeParamImageSource, "保存图像源方案");
 
             }
             else if (comboBoxImgSource.SelectedIndex == 2)

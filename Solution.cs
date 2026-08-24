@@ -624,8 +624,17 @@ namespace TDJS_Vision
             if (processes == null)
                 return startedCameras;
 
+            List<Process> processList = processes.Where(process => process != null).ToList();
+            // 单流程入口也必须看见全方案中的共享相机配置，禁止两个流程分别运行时互相改写硬件状态。
+            List<Process> validationProcessList = (AllProcesses ?? new List<Process>())
+                .Concat(processList)
+                .Where(process => process != null)
+                .Distinct()
+                .ToList();
+            ValidateSharedCameraParameterConsistency(validationProcessList);
+
             HashSet<ICamera> visitedCameras = new HashSet<ICamera>();
-            foreach (Process process in processes)
+            foreach (Process process in processList)
             {
                 if (process == null ||
                     !process.Enable ||
@@ -750,16 +759,204 @@ namespace TDJS_Vision
         }
 
         /// <summary>
-        /// 从图像源参数中获取用于相机回调的相机。
+        /// 按方案保存的相机名称解析当前设备对象，并刷新图像源中的运行时引用。
+        /// </summary>
+        /// <param name="param">图像源方案参数。</param>
+        /// <returns>当前方案设备列表中的相机；找不到时返回null。</returns>
+        public ICamera ResolveImageSourceCamera(NodeParamImageSoucre param)
+        {
+            if (param == null ||
+                param.ImageSource != "相机" ||
+                string.IsNullOrWhiteSpace(param.CameraName))
+            {
+                return null;
+            }
+
+            List<ICamera> cameras = CameraDevices;
+            if (param.Camera != null &&
+                cameras.Contains(param.Camera) &&
+                string.Equals(param.Camera.UserDefinedName, param.CameraName, StringComparison.Ordinal))
+            {
+                return param.Camera;
+            }
+
+            ICamera resolvedCamera = cameras.FirstOrDefault(camera =>
+                camera != null &&
+                string.Equals(camera.UserDefinedName, param.CameraName, StringComparison.Ordinal));
+            param.Camera = resolvedCamera;
+            return resolvedCamera;
+        }
+
+        /// <summary>
+        /// 相机连接后尝试应用第一个匹配图像源的方案参数。
+        /// </summary>
+        /// <param name="camera">刚完成连接的相机。</param>
+        /// <returns>找到匹配方案且参数写入成功时返回true。</returns>
+        public bool TryApplyImageSourceParametersForCamera(ICamera camera)
+        {
+            if (camera == null || !camera.IsOpen)
+                return false;
+
+            NodeParamImageSoucre selectedParam = null;
+            string selectedOwner = null;
+            foreach (Process process in AllProcesses ?? new List<Process>())
+            {
+                if (process?.Nodes == null || !process.Enable)
+                    continue;
+
+                foreach (NodeBase node in process.Nodes)
+                {
+                    NodeImageSource imageSource = node as NodeImageSource;
+                    NodeParamImageSoucre param = imageSource?.ParamForm?.Params as NodeParamImageSoucre;
+                    if (imageSource == null ||
+                        !imageSource.Active ||
+                        param == null ||
+                        param.ImageSource != "相机" ||
+                        !string.Equals(param.CameraName, camera.UserDefinedName, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    string currentOwner = $"流程【{process.ProcessName}】节点【{imageSource.ID}.{imageSource.NodeName}】";
+                    if (selectedParam != null && !HaveEquivalentCameraParameters(selectedParam, param))
+                    {
+                        LogHelper.AddLog(
+                            MsgLevel.Exception,
+                            $"相机【{camera.UserDefinedName}】存在互相冲突的图像源参数：{selectedOwner}与{currentOwner}。连接后未选择任意一组参数，请先统一配置。",
+                            true);
+                        return false;
+                    }
+
+                    param.Camera = camera;
+                    if (selectedParam == null)
+                    {
+                        selectedParam = param;
+                        selectedOwner = currentOwner;
+                    }
+                }
+            }
+
+            if (selectedParam == null)
+                return false;
+
+            try
+            {
+                ApplyCameraCallbackParameters(camera, selectedParam);
+                LogHelper.AddLog(
+                    MsgLevel.Info,
+                    $"相机【{camera.UserDefinedName}】连接后已应用{selectedOwner}的图像源方案参数：曝光={selectedParam.ExposureTime}us，增益={selectedParam.Gain}。",
+                    true);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(
+                    MsgLevel.Warn,
+                    $"相机【{camera.UserDefinedName}】连接后应用{selectedOwner}的图像源方案参数失败：{ex.Message}",
+                    true);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 在触碰相机硬件前验证同一相机的全部启用图像源使用一致参数。
+        /// </summary>
+        /// <param name="processes">本次准备运行的流程。</param>
+        private static void ValidateSharedCameraParameterConsistency(IEnumerable<Process> processes)
+        {
+            Dictionary<string, NodeParamImageSoucre> parametersByCamera =
+                new Dictionary<string, NodeParamImageSoucre>(StringComparer.Ordinal);
+            Dictionary<string, string> ownersByCamera =
+                new Dictionary<string, string>(StringComparer.Ordinal);
+
+            foreach (Process process in processes)
+            {
+                if (process?.Nodes == null || !process.Enable)
+                    continue;
+
+                foreach (NodeBase node in process.Nodes)
+                {
+                    NodeImageSource imageSource = node as NodeImageSource;
+                    NodeParamImageSoucre param = imageSource?.ParamForm?.Params as NodeParamImageSoucre;
+                    if (imageSource == null ||
+                        !imageSource.Active ||
+                        param == null ||
+                        param.ImageSource != "相机" ||
+                        string.IsNullOrWhiteSpace(param.CameraName))
+                    {
+                        continue;
+                    }
+
+                    string currentOwner = $"流程【{process.ProcessName}】节点【{imageSource.ID}.{imageSource.NodeName}】";
+                    if (!parametersByCamera.TryGetValue(param.CameraName, out NodeParamImageSoucre existingParam))
+                    {
+                        parametersByCamera.Add(param.CameraName, param);
+                        ownersByCamera.Add(param.CameraName, currentOwner);
+                        continue;
+                    }
+
+                    if (!HaveEquivalentCameraParameters(existingParam, param))
+                    {
+                        throw new InvalidOperationException(
+                            $"相机【{param.CameraName}】被多个启用图像源配置为不同参数：{ownersByCamera[param.CameraName]}与{currentOwner}。请统一曝光、增益、触发、延迟和超时后再运行。");
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 比较两个图像源是否会向同一相机写入完全一致的硬件参数。
+        /// </summary>
+        /// <param name="left">第一组图像源参数。</param>
+        /// <param name="right">第二组图像源参数。</param>
+        /// <returns>相机硬件参数一致时返回true。</returns>
+        private static bool HaveEquivalentCameraParameters(
+            NodeParamImageSoucre left,
+            NodeParamImageSoucre right)
+        {
+            TriggerSource leftSource = NormalizeImageSourceTriggerSource(left.TriggerSource);
+            TriggerSource rightSource = NormalizeImageSourceTriggerSource(right.TriggerSource);
+            bool triggerEdgeMatches = !IsImageSourceHardwareTrigger(leftSource) ||
+                left.TriggerEdge == right.TriggerEdge;
+            return leftSource == rightSource &&
+                triggerEdgeMatches &&
+                left.TriggerDelay == right.TriggerDelay &&
+                left.ExposureTime.Equals(right.ExposureTime) &&
+                left.Gain.Equals(right.Gain) &&
+                left.TimeOut == right.TimeOut;
+        }
+
+        /// <summary>
+        /// 把旧方案Auto触发源归一为明确的软件触发源。
+        /// </summary>
+        /// <param name="triggerSource">方案保存的触发源。</param>
+        /// <returns>相机实际使用的触发源。</returns>
+        private static TriggerSource NormalizeImageSourceTriggerSource(TriggerSource triggerSource)
+        {
+            return triggerSource == TriggerSource.Auto ? TriggerSource.SOFT : triggerSource;
+        }
+
+        /// <summary>
+        /// 判断图像源触发源是否为线路硬触发。
+        /// </summary>
+        /// <param name="triggerSource">归一后的触发源。</param>
+        /// <returns>Line0至Line4时返回true。</returns>
+        private static bool IsImageSourceHardwareTrigger(TriggerSource triggerSource)
+        {
+            return triggerSource >= TriggerSource.LINE0 && triggerSource <= TriggerSource.LINE4;
+        }
+
+        /// <summary>
+        /// 从图像源参数中获取用于相机回调的当前相机对象。
         /// </summary>
         /// <param name="param">图像源参数。</param>
         /// <returns>可用相机对象。</returns>
-        private static ICamera GetCameraCallbackCamera(NodeParamImageSoucre param)
+        private ICamera GetCameraCallbackCamera(NodeParamImageSoucre param)
         {
             if (param == null || param.ImageSource != "相机")
                 return null;
 
-            return param.Camera;
+            return ResolveImageSourceCamera(param);
         }
 
         /// <summary>
