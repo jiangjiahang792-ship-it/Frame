@@ -118,6 +118,9 @@ public sealed class CameraTriggerConcurrencyProbe : IDisposable
 $generator = [Activator]::CreateInstance($generatorType)
 $budget = [Activator]::CreateInstance($budgetType)
 $registry = [Activator]::CreateInstance($registryType, @($budget))
+$prepareStreamResetMethod = $registryType.GetMethod(
+    'PrepareCameraStreamReset',
+    [Reflection.BindingFlags]'Instance,NonPublic')
 $confirmStreamResetMethod = $registryType.GetMethod(
     'ConfirmCameraStreamReset',
     [Reflection.BindingFlags]'Instance,NonPublic')
@@ -142,7 +145,8 @@ function New-TestMat {
 function Confirm-CameraStreamReset {
     param([string]$CameraKey)
     Wait-ProductionFaultDrain
-    $null = $confirmStreamResetMethod.Invoke($registry, @($CameraKey))
+    $faultGeneration = $prepareStreamResetMethod.Invoke($registry, @($CameraKey))
+    $null = $confirmStreamResetMethod.Invoke($registry, @($CameraKey, [long]$faultGeneration))
 }
 
 function Wait-ProductionFaultDrain {
@@ -165,7 +169,7 @@ $ticket2.IssueSoftwareTrigger($noOpTrigger)
 Assert-True ($registry.GetSnapshot().PendingTicketCount -eq 2) '同一相机票据必须按FIFO保留。'
 
 $frame1 = New-TestMat
-Assert-True ($registry.TryPublishFrame('CAMERA-1', [long]1, [uint32]100, $frame1, $null)) '第一帧必须被生产票据接收。'
+Assert-True ($registry.TryPublishFrame('CAMERA-1', [long]1, [uint32]100, [Diagnostics.Stopwatch]::GetTimestamp(), $frame1, $null)) '第一帧必须被生产票据接收。'
 $envelope1 = $ticket1.Completion.GetAwaiter().GetResult()
 Assert-True ($envelope1.Identity.Equals($context1.Identity)) '第一帧必须绑定FIFO队首工件。'
 Assert-True (-not $ticket2.Completion.IsCompleted) '第二个工件不能越过第一工件取得帧。'
@@ -178,7 +182,7 @@ $ownedImage.Dispose()
 $ownedLease.Dispose()
 
 $frame2 = New-TestMat
-Assert-True ($registry.TryPublishFrame('CAMERA-1', [long]2, [uint32]101, $frame2, $null)) '第二帧必须继续匹配下一票据。'
+Assert-True ($registry.TryPublishFrame('CAMERA-1', [long]2, [uint32]101, [Diagnostics.Stopwatch]::GetTimestamp(), $frame2, $null)) '第二帧必须继续匹配下一票据。'
 $envelope2 = $ticket2.Completion.GetAwaiter().GetResult()
 Assert-True ($envelope2.Identity.Equals($context2.Identity)) '第二帧必须绑定第二工件。'
 $envelope2.Dispose()
@@ -191,7 +195,7 @@ $ticket4 = $registry.Register('CAMERA-1', $context4, $softwareTrigger, $deadline
 $ticket3.IssueSoftwareTrigger($noOpTrigger)
 $ticket4.IssueSoftwareTrigger($noOpTrigger)
 $brokenFrame = New-TestMat
-Assert-True ($registry.TryPublishFrame('CAMERA-1', [long]4, [uint32]103, $brokenFrame, $null)) '断层帧必须由生产管线接管并明确失败。'
+Assert-True ($registry.TryPublishFrame('CAMERA-1', [long]4, [uint32]103, [Diagnostics.Stopwatch]::GetTimestamp(), $brokenFrame, $null)) '断层帧必须由生产管线接管并明确失败。'
 $sequenceFaulted = $false
 try {
     $null = $ticket3.Completion.GetAwaiter().GetResult()
@@ -223,7 +227,7 @@ Confirm-CameraStreamReset 'CAMERA-1'
 $unarmedContext = New-Context '产线D'
 $unarmedTicket = $registry.Register('CAMERA-4', $unarmedContext, $softwareTrigger, $deadline, [long]256, [long]4096)
 $staleFrame = New-TestMat
-Assert-True ($registry.TryPublishFrame('CAMERA-4', [long]1, [uint32]1, $staleFrame, $null)) '未武装票据前到达的旧帧必须由生产管线接管并故障。'
+Assert-True ($registry.TryPublishFrame('CAMERA-4', [long]1, [uint32]1, [Diagnostics.Stopwatch]::GetTimestamp(), $staleFrame, $null)) '未武装票据前到达的旧帧必须由生产管线接管并故障。'
 $unarmedFaulted = $false
 try {
     $null = $unarmedTicket.Completion.GetAwaiter().GetResult()
@@ -237,6 +241,18 @@ $unarmedResetRejected = $false
 try { $registry.ResetCamera('CAMERA-4') } catch { $unarmedResetRejected = $true }
 Assert-True $unarmedResetRejected '收到无法绑定的旧帧后普通重置必须拒绝，防止缓存中的下一旧帧污染新工件。'
 Confirm-CameraStreamReset 'CAMERA-4'
+
+$queuedBeforeTriggerContext = New-Context '产线旧帧'
+$queuedBeforeTriggerTicket = $registry.Register('CAMERA-OLD', $queuedBeforeTriggerContext, $softwareTrigger, $deadline, [long]256, [long]4096)
+$queuedBeforeTriggerTimestamp = [Diagnostics.Stopwatch]::GetTimestamp()
+[Threading.Thread]::Sleep(1)
+$queuedBeforeTriggerTicket.IssueSoftwareTrigger($noOpTrigger)
+$queuedBeforeTriggerFrame = New-TestMat
+Assert-True ($registry.TryPublishFrame('CAMERA-OLD', [long]1, [uint32]1, $queuedBeforeTriggerTimestamp, $queuedBeforeTriggerFrame, $null)) '触发前已进入SDK回调的旧帧必须由生产管线接管并拒绝。'
+$queuedBeforeTriggerFaulted = $false
+try { $null = $queuedBeforeTriggerTicket.Completion.GetAwaiter().GetResult() } catch { $queuedBeforeTriggerFaulted = $true }
+Assert-True $queuedBeforeTriggerFaulted '触发前旧帧不得绑定到当前工件。'
+Confirm-CameraStreamReset 'CAMERA-OLD'
 
 $cancelContext1 = New-Context '产线E'
 $cancelContext2 = New-Context '产线E'

@@ -114,6 +114,9 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>由转换线程异步报告的最后一个SDK回调入口异常。</summary>
         private Exception _rawFrameIngressException;
 
+        /// <summary>本批尚未报告的首个原始帧入口故障，用发生时刻而不是报告时刻绑定工件。</summary>
+        private RawFrameIngressFailure _rawFrameIngressFailure;
+
         /// <summary>海康官方C#类实例。</summary>
         private MyCamera _device;
 
@@ -442,6 +445,11 @@ namespace TDJS_Vision.Device.Camera
                 }
 
                 PrepareFrameConversionWorkerForStart();
+                string productionCameraKey = CameraProductionIdentity.GetStableKey(this);
+                CameraTriggerTicketRegistry productionRegistry =
+                    Solution.Instance.CameraTriggerTicketRegistry;
+                long preparedFaultGeneration =
+                    productionRegistry.PrepareCameraStreamReset(productionCameraKey);
                 try
                 {
                     EnsureRawFrameBuffers(payloadSize);
@@ -461,8 +469,44 @@ namespace TDJS_Vision.Device.Camera
                 }
                 catch
                 {
-                    Volatile.Write(ref _isGrabbing, false);
+                    lock (_deviceLock)
+                    {
+                        if (Volatile.Read(ref _isGrabbing) && _device != null)
+                        {
+                            try
+                            {
+                                _device.MV_CC_StopGrabbing_NET();
+                            }
+                            catch
+                            {
+                            }
+                        }
+                        Volatile.Write(ref _isGrabbing, false);
+                    }
                     StopFrameConversionWorker();
+                    throw;
+                }
+
+                try
+                {
+                    // 只有真实停流、回调排空并成功重新取流后，才能解除迟到生产帧门禁。
+                    productionRegistry.ConfirmCameraStreamReset(
+                        productionCameraKey,
+                        preparedFaultGeneration);
+                }
+                catch (Exception confirmationException)
+                {
+                    try
+                    {
+                        StopGrabbing();
+                    }
+                    catch (Exception stopException)
+                    {
+                        throw new AggregateException(
+                            "相机重新取流后的生产帧清场确认失败，并且回滚停流失败。",
+                            confirmationException,
+                            stopException);
+                    }
                     throw;
                 }
             }
@@ -942,23 +986,27 @@ namespace TDJS_Vision.Device.Camera
         /// <param name="userData">用户数据，本实现未使用。</param>
         private void GetImageCallBack(IntPtr sourceData, ref MyCamera.MV_FRAME_OUT_INFO_EX frameInfo, IntPtr userData)
         {
+            long callbackStartedTimestamp = Stopwatch.GetTimestamp();
             lock (_sdkCallbackLifetimeLock)
-                EnqueueRawFrameCore(sourceData, ref frameInfo);
+                EnqueueRawFrameCore(sourceData, ref frameInfo, callbackStartedTimestamp);
         }
 
         /// <summary>在SDK回调生命周期锁内复制并投递一帧原始数据。</summary>
         /// <param name="sourceData">SDK帧数据地址。</param>
         /// <param name="frameInfo">SDK帧信息。</param>
-        private void EnqueueRawFrameCore(IntPtr sourceData, ref MyCamera.MV_FRAME_OUT_INFO_EX frameInfo)
+        /// <param name="callbackStartedTimestamp">进入SDK托管回调后、取得任何锁之前冻结的单调时钟。</param>
+        private void EnqueueRawFrameCore(
+            IntPtr sourceData,
+            ref MyCamera.MV_FRAME_OUT_INFO_EX frameInfo,
+            long callbackStartedTimestamp)
         {
             if (!Volatile.Read(ref _isGrabbing) || sourceData == IntPtr.Zero)
                 return;
-            if (Volatile.Read(ref _imageCallbackOwnerCount) == 0 || OnMatReceived == null)
+            if (Volatile.Read(ref _imageCallbackOwnerCount) == 0)
                 return;
 
             long frameId = Interlocked.Increment(ref _callbackFrameSequence);
             bool diagnosticEnabled = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
-            long callbackStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
             HikRawFramePacket packet = null;
             bool packetPublished = false;
 
@@ -968,6 +1016,7 @@ namespace TDJS_Vision.Device.Camera
                 EnsureRawFrameBuffers(frameLength);
                 if (!_availableRawFrames.TryDequeue(out packet))
                 {
+                    RecordRawFrameIngressFailure(frameId, callbackStartedTimestamp, null);
                     Interlocked.Increment(ref _rawFrameIngressFailureCount);
                     _rawFrameAvailable.Set();
                     return;
@@ -986,24 +1035,38 @@ namespace TDJS_Vision.Device.Camera
                 _pendingRawFrames.Enqueue(packet);
                 packetPublished = true;
                 _rawFrameAvailable.Set();
-                packet.MarkCallbackCompleted(diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L);
+                packet.MarkCallbackCompleted(Stopwatch.GetTimestamp());
                 packet = null;
             }
             catch (Exception exception)
             {
                 if (packet != null && packetPublished)
                 {
-                    packet.MarkCallbackCompleted(diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L);
+                    packet.MarkCallbackCompleted(Stopwatch.GetTimestamp());
                 }
                 else if (packet != null)
                 {
                     packet.Reset();
                     _availableRawFrames.Enqueue(packet);
                 }
+                RecordRawFrameIngressFailure(frameId, callbackStartedTimestamp, exception);
                 Interlocked.Exchange(ref _rawFrameIngressException, exception);
                 Interlocked.Increment(ref _rawFrameIngressFailureCount);
                 _rawFrameAvailable.Set();
             }
+        }
+
+        /// <summary>SDK回调只发布本批首个入口故障对象，不执行票据锁、日志或停机。</summary>
+        private void RecordRawFrameIngressFailure(
+            long frameId,
+            long callbackStartedTimestamp,
+            Exception exception)
+        {
+            RawFrameIngressFailure failure = new RawFrameIngressFailure(
+                frameId,
+                callbackStartedTimestamp,
+                exception);
+            Interlocked.CompareExchange(ref _rawFrameIngressFailure, failure, null);
         }
 
         /// <summary>确保原始帧缓冲池已经按当前有效载荷完成一次性分配。</summary>
@@ -1231,6 +1294,8 @@ namespace TDJS_Vision.Device.Camera
 
                     try
                     {
+                        // 原始入口一旦丢帧，先失败生产票据再处理队列中余帧，避免满载时迟迟等不到队列清空。
+                        ReportRawFrameIngressFailures();
                         packet.WaitUntilCallbackCompleted();
                         ProcessRawFrame(packet, cancellationToken);
                     }
@@ -1375,8 +1440,23 @@ namespace TDJS_Vision.Device.Camera
                         frameInfo.nHeight,
                         frameInfo.enPixelType),
                     true);
-                RaiseMatImageReceived(image, frameTrace);
-                image = null;
+                string cameraKey = CameraProductionIdentity.GetStableKey(this);
+                if (Solution.Instance.CameraTriggerTicketRegistry.TryPublishFrame(
+                    cameraKey,
+                    packet.FrameId,
+                    frameInfo.nFrameNum,
+                    packet.CallbackStartedTimestamp,
+                    image,
+                    frameTrace))
+                {
+                    // 返回true表示注册表已经接管或安全释放Mat，转换线程不得再次释放或分发。
+                    image = null;
+                }
+                else
+                {
+                    RaiseMatImageReceived(image, frameTrace);
+                    image = null;
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -1386,7 +1466,36 @@ namespace TDJS_Vision.Device.Camera
             catch (Exception exception)
             {
                 image?.Dispose();
+                TryFailProductionFrame(packet.FrameId, packet.CallbackStartedTimestamp, exception);
                 LogHelper.AddLog(MsgLevel.Exception, string.Format("相机{0}后台转换Mat失败：FrameId={1}；{2}", DevName, packet.FrameId, exception.Message), true);
+            }
+        }
+
+        /// <summary>在相机转换线程中失败当前相机的生产票据；没有生产票据时保持预览兼容行为。</summary>
+        /// <param name="exception">导致当前生产帧无法完成的异常。</param>
+        private void TryFailProductionFrame(
+            long frameId,
+            long callbackStartedTimestamp,
+            Exception exception)
+        {
+            try
+            {
+                Solution.Instance.CameraTriggerTicketRegistry.TryFailFrame(
+                    CameraProductionIdentity.GetStableKey(this),
+                    frameId,
+                    callbackStartedTimestamp,
+                    exception ?? new InvalidOperationException("相机生产帧转换失败。"));
+            }
+            catch (ObjectDisposedException)
+            {
+                // 方案重置已经关闭注册表时，运行入口与相机生命周期层负责停止，不重复报告。
+            }
+            catch (Exception reportException)
+            {
+                LogHelper.AddLog(
+                    MsgLevel.Exception,
+                    string.Format("相机{0}报告生产帧失败时发生异常：{1}", DevName, reportException.Message),
+                    true);
             }
         }
 
@@ -1395,13 +1504,30 @@ namespace TDJS_Vision.Device.Camera
         {
             long failureCount = Interlocked.Exchange(ref _rawFrameIngressFailureCount, 0L);
             Exception exception = Interlocked.Exchange(ref _rawFrameIngressException, null);
-            if (failureCount <= 0 && exception == null)
+            RawFrameIngressFailure ingressFailure =
+                Interlocked.Exchange(ref _rawFrameIngressFailure, null);
+            if (failureCount <= 0 && exception == null && ingressFailure == null)
                 return;
+
+            InvalidOperationException productionFailure = new InvalidOperationException(
+                string.Format(
+                    "相机{0}有{1}帧未完成原始帧入口交接；最后异常={2}。生产帧身份已经不可信，必须停流排空后重启。",
+                    DevName,
+                    failureCount,
+                    exception?.Message ?? "无"),
+                exception);
+            if (ingressFailure != null)
+            {
+                TryFailProductionFrame(
+                    ingressFailure.FrameId,
+                    ingressFailure.CallbackStartedTimestamp,
+                    productionFailure);
+            }
 
             LogHelper.AddLog(
                 MsgLevel.Exception,
                 string.Format(
-                    "相机{0}有{1}帧未完成原始帧入口交接；最后异常={2}；满载处理策略将在后续步骤单独设计。",
+                    "相机{0}有{1}帧未完成原始帧入口交接；最后异常={2}；生产票据存在时已故障停机，预览模式保留最新可交付帧。",
                     DevName,
                     failureCount,
                     exception?.Message ?? "无"),
@@ -1421,6 +1547,30 @@ namespace TDJS_Vision.Device.Camera
             memoryLease?.Dispose();
             Volatile.Write(ref _rawFrameBufferCount, 0);
             Volatile.Write(ref _rawFrameBufferSize, 0);
+        }
+
+        /// <summary>SDK回调入口故障发生时冻结的首帧身份和单调时钟。</summary>
+        private sealed class RawFrameIngressFailure
+        {
+            /// <summary>创建不可变入口故障。</summary>
+            public RawFrameIngressFailure(
+                long frameId,
+                long callbackStartedTimestamp,
+                Exception exception)
+            {
+                FrameId = frameId;
+                CallbackStartedTimestamp = callbackStartedTimestamp;
+                Exception = exception;
+            }
+
+            /// <summary>获取故障帧的相机内部编号。</summary>
+            public long FrameId { get; }
+
+            /// <summary>获取故障帧进入SDK回调时的单调时钟刻度。</summary>
+            public long CallbackStartedTimestamp { get; }
+
+            /// <summary>获取SDK入口异常；缓冲暂不可用时为空。</summary>
+            public Exception Exception { get; }
         }
 
         /// <summary>保存一帧已脱离海康SDK生命周期的原始数据和诊断元数据。</summary>

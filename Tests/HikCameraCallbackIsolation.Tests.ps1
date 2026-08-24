@@ -27,8 +27,10 @@ function Get-MethodSlice {
 $sourcePath = Join-Path $PSScriptRoot '..\Device\Camera\CameraHik.cs'
 $source = Get-Content -LiteralPath $sourcePath -Raw -Encoding UTF8
 $callback = Get-MethodSlice $source 'private void EnqueueRawFrameCore' 'private void EnsureRawFrameBuffers'
+$nativeCallback = Get-MethodSlice $source 'private void GetImageCallBack' 'private void EnqueueRawFrameCore'
 
 Assert-True ($callback.Contains('CopyMemory(packet.Buffer, sourceData, frameInfo.nFrameLen);')) 'The SDK callback must copy source bytes before returning.'
+Assert-True ($nativeCallback.IndexOf('Stopwatch.GetTimestamp()', [System.StringComparison]::Ordinal) -lt $nativeCallback.IndexOf('lock (_sdkCallbackLifetimeLock)', [System.StringComparison]::Ordinal)) 'The callback identity timestamp must be captured before every lock.'
 Assert-True ($source.Contains('EntryPoint = "RtlMoveMemory"')) 'The native copy import must use a real kernel32 export.'
 Assert-True ($callback.Contains('_pendingRawFrames.Enqueue(packet);')) 'The SDK callback must enqueue raw frames for the worker.'
 Assert-True (-not $callback.Contains('ConvertFrameToIndependentMat(')) 'Pixel conversion and Mat creation are forbidden in the SDK callback.'

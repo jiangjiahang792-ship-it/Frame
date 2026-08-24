@@ -1,6 +1,7 @@
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -481,6 +482,9 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>真实触发命令发出或硬触发等待开始的UTC刻度。</summary>
         private long _triggerIssuedAtUtcTicks;
 
+        /// <summary>真实触发提交点的单调时钟刻度，用于拒绝触发前已进入原始队列的旧帧。</summary>
+        private long _triggerIssuedTimestamp;
+
         /// <summary>创建已经完成内存预留的触发票据。</summary>
         internal CameraTriggerTicket(
             CameraTriggerTicketRegistry owner,
@@ -530,6 +534,9 @@ namespace TDJS_Vision.ResourceManagement
             }
         }
 
+        /// <summary>获取真实触发提交点的单调时钟刻度。</summary>
+        internal long TriggerIssuedTimestamp => Interlocked.Read(ref _triggerIssuedTimestamp);
+
         /// <summary>获取帧信封异步结果。</summary>
         public Task<CameraFrameEnvelope> Completion => _completionSource.Task;
 
@@ -565,9 +572,14 @@ namespace TDJS_Vision.ResourceManagement
         }
 
         /// <summary>仅允许注册表在确认票据仍位于当前相机FIFO时写入首次武装时间。</summary>
-        internal bool TryMarkReadyForFrame(DateTime issuedAtUtc)
+        internal bool TryMarkReadyForFrame(DateTime issuedAtUtc, long issuedTimestamp)
         {
-            return Interlocked.CompareExchange(ref _triggerIssuedAtUtcTicks, issuedAtUtc.Ticks, 0L) == 0L;
+            if (issuedTimestamp <= 0L)
+                throw new ArgumentOutOfRangeException(nameof(issuedTimestamp));
+            if (Interlocked.CompareExchange(ref _triggerIssuedAtUtcTicks, issuedAtUtc.Ticks, 0L) != 0L)
+                return false;
+            Interlocked.Exchange(ref _triggerIssuedTimestamp, issuedTimestamp);
+            return true;
         }
 
         /// <summary>把触发前预算租约转给完成匹配的帧信封。</summary>
@@ -787,8 +799,8 @@ namespace TDJS_Vision.ResourceManagement
                 {
                     throw new InvalidOperationException("相机票据已经取消、故障或离开等待队列，禁止继续触发。 ");
                 }
-                if (!ticket.TryMarkReadyForFrame(issuedAtUtc))
-                    throw new InvalidOperationException("相机票据已经发送过触发，禁止重复触发。 ");
+            if (!ticket.TryMarkReadyForFrame(issuedAtUtc, Stopwatch.GetTimestamp()))
+                throw new InvalidOperationException("相机票据已经发送过触发，禁止重复触发。 ");
                 if (trackSoftwareDispatch)
                     state.ActiveTriggerDispatchCount++;
             }
@@ -874,7 +886,7 @@ namespace TDJS_Vision.ResourceManagement
                 {
                     ThrowIfDisposed();
                     CameraTicketQueueState state = GetOrCreateStateUnderLock(normalizedCameraKey);
-                    if (state.Faulted)
+                    if (state.Faulted || state.RequiresStreamRestart)
                         throw new InvalidOperationException($"相机{normalizedCameraKey}处于生产帧故障状态，确认并重置前禁止继续触发。 ");
                     int occupancy = state.PendingTickets.Count + (state.InFlightTicket == null ? 0 : 1);
                     if (occupancy >= MaximumPendingTicketsPerCamera)
@@ -911,10 +923,13 @@ namespace TDJS_Vision.ResourceManagement
             string cameraKey,
             long frameId,
             uint sdkFrameNumber,
+            long callbackStartedTimestamp,
             Mat image,
             CameraFrameTraceInfo traceInfo)
         {
             string normalizedCameraKey = NormalizeCameraKey(cameraKey);
+            if (callbackStartedTimestamp <= 0L)
+                throw new ArgumentOutOfRangeException(nameof(callbackStartedTimestamp));
             if (image == null || image.Empty())
                 return false;
 
@@ -922,6 +937,7 @@ namespace TDJS_Vision.ResourceManagement
                 normalizedCameraKey,
                 frameId,
                 sdkFrameNumber,
+                callbackStartedTimestamp,
                 image,
                 traceInfo));
         }
@@ -931,6 +947,7 @@ namespace TDJS_Vision.ResourceManagement
             string normalizedCameraKey,
             long frameId,
             uint sdkFrameNumber,
+            long callbackStartedTimestamp,
             Mat image,
             CameraFrameTraceInfo traceInfo)
         {
@@ -968,6 +985,11 @@ namespace TDJS_Vision.ResourceManagement
                         state.Faulted = true;
                         failure = new InvalidOperationException($"相机{normalizedCameraKey}在票据明确进入触发等待前收到生产帧，禁止把旧帧绑定给工件。 ");
                     }
+                    else if (callbackStartedTimestamp < ticket.TriggerIssuedTimestamp)
+                    {
+                        state.Faulted = true;
+                        failure = new InvalidOperationException($"相机{normalizedCameraKey}收到触发前已进入SDK回调的旧帧，禁止绑定给工件{ticket.Context.Identity}。 ");
+                    }
                     else if (ticket.DeadlineUtc <= DateTime.UtcNow)
                     {
                         state.Faulted = true;
@@ -984,7 +1006,7 @@ namespace TDJS_Vision.ResourceManagement
                     if (failure != null)
                     {
                         // 任一无法可信绑定的入站帧都证明流中可能仍有旧缓存，普通重置不安全。
-                        state.RequiresStreamRestart = true;
+                        RequireStreamRestartUnderLock(state);
                         failedTickets = DrainPendingTicketsUnderLock(state);
                         productionFault = new CameraProductionFault(
                             normalizedCameraKey,
@@ -1169,6 +1191,7 @@ namespace TDJS_Vision.ResourceManagement
 
                 ticket = state.InFlightTicket ?? state.PendingTickets.First.Value;
                 state.Faulted = true;
+                RequireStreamRestartUnderLock(state);
                 state.InFlightFailure = exception;
                 failedTickets = DrainPendingTicketsUnderLock(state);
             }
@@ -1178,6 +1201,70 @@ namespace TDJS_Vision.ResourceManagement
             RaiseProductionFault(new CameraProductionFault(
                 normalizedCameraKey,
                 ticket.Context.Identity,
+                effectiveException.Message,
+                effectiveException));
+            return true;
+        }
+
+        /// <summary>
+        /// 按发生故障的SDK回调时刻归属生产票据，禁止把延迟报告的旧故障错误归给后一工件。
+        /// </summary>
+        public bool TryFailFrame(
+            string cameraKey,
+            long frameId,
+            long callbackStartedTimestamp,
+            Exception exception)
+        {
+            string normalizedCameraKey = NormalizeCameraKey(cameraKey);
+            if (frameId <= 0L)
+                throw new ArgumentOutOfRangeException(nameof(frameId));
+            if (callbackStartedTimestamp <= 0L)
+                throw new ArgumentOutOfRangeException(nameof(callbackStartedTimestamp));
+
+            return ExecuteCameraSynchronized(normalizedCameraKey, () => TryFailFrameCore(
+                normalizedCameraKey,
+                frameId,
+                callbackStartedTimestamp,
+                exception));
+        }
+
+        /// <summary>调用方持有单相机锁时记录流故障，并只失败触发提交早于该回调的票据。</summary>
+        private bool TryFailFrameCore(
+            string normalizedCameraKey,
+            long frameId,
+            long callbackStartedTimestamp,
+            Exception exception)
+        {
+            CameraTriggerTicket affectedTicket;
+            List<CameraTriggerTicket> failedTickets;
+            bool failurePredatesAffectedTicket;
+            lock (_syncRoot)
+            {
+                CameraTicketQueueState state = GetOrCreateStateUnderLock(normalizedCameraKey);
+                RequireStreamRestartUnderLock(state);
+
+                CameraTriggerTicket candidate = state.InFlightTicket ?? state.PendingTickets.First?.Value;
+                if (candidate == null)
+                    return false;
+
+                affectedTicket = candidate;
+                failurePredatesAffectedTicket = !candidate.TriggerIssuedAtUtc.HasValue ||
+                    candidate.TriggerIssuedTimestamp > callbackStartedTimestamp;
+                state.Faulted = true;
+                state.InFlightFailure = exception;
+                failedTickets = DrainPendingTicketsUnderLock(state);
+            }
+
+            Exception effectiveException = failurePredatesAffectedTicket
+                ? (Exception)new InvalidOperationException(
+                    $"相机{normalizedCameraKey}在当前工件触发前已有FrameId={frameId}入口故障，当前及后续工件必须停止，禁止把旧故障归为当前工件采集失败。 ",
+                    exception)
+                : exception ?? new InvalidOperationException(
+                    $"相机{normalizedCameraKey}的FrameId={frameId}未完成生产帧交接。 ");
+            FailTickets(failedTickets, normalizedCameraKey, effectiveException, WorkpieceTerminalState.Stopped);
+            RaiseProductionFault(new CameraProductionFault(
+                normalizedCameraKey,
+                affectedTicket.Context.Identity,
                 effectiveException.Message,
                 effectiveException));
             return true;
@@ -1381,8 +1468,30 @@ namespace TDJS_Vision.ResourceManagement
             });
         }
 
-        /// <summary>仅供相机生命周期层在停流、回调排空并重新取流成功后解除迟到帧门禁。</summary>
-        internal void ConfirmCameraStreamReset(string cameraKey)
+        /// <summary>相机已经停流并排空回调后，记录本次重新取流前的故障代数。</summary>
+        internal long PrepareCameraStreamReset(string cameraKey)
+        {
+            string normalizedCameraKey = NormalizeCameraKey(cameraKey);
+            return ExecuteCameraSynchronized(normalizedCameraKey, () =>
+            {
+                lock (_syncRoot)
+                {
+                    CameraTicketQueueState state = GetOrCreateStateUnderLock(normalizedCameraKey);
+                    if (state.PendingTickets.Count != 0 ||
+                        state.InFlightTicket != null ||
+                        state.ActiveTriggerDispatchCount != 0 ||
+                        state.PendingProductionFaultCount != 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"相机{normalizedCameraKey}尚未排空票据、帧或SDK触发调用，禁止准备流重置。 ");
+                    }
+                    return state.StreamFaultGeneration;
+                }
+            });
+        }
+
+        /// <summary>仅供相机生命周期层在重新取流成功且期间没有新故障时解除迟到帧门禁。</summary>
+        internal void ConfirmCameraStreamReset(string cameraKey, long preparedFaultGeneration)
         {
             string normalizedCameraKey = NormalizeCameraKey(cameraKey);
             ExecuteCameraSynchronized(normalizedCameraKey, () =>
@@ -1396,7 +1505,12 @@ namespace TDJS_Vision.ResourceManagement
                         state.PendingProductionFaultCount != 0)
                     {
                         throw new InvalidOperationException(
-                            $"相机{normalizedCameraKey}尚未排空票据、帧或SDK触发调用，禁止确认流重置。 ");
+                            $"相机{normalizedCameraKey}重新取流期间出现待处理票据、帧或故障，禁止确认流重置。 ");
+                    }
+                    if (state.StreamFaultGeneration != preparedFaultGeneration)
+                    {
+                        throw new InvalidOperationException(
+                            $"相机{normalizedCameraKey}重新取流期间又发生生产帧故障，禁止清除门禁。 ");
                     }
                     state.Faulted = false;
                     state.RequiresStreamRestart = false;
@@ -1514,11 +1628,18 @@ namespace TDJS_Vision.ResourceManagement
             {
                 CameraTriggerTicket ticket = state.PendingTickets.First.Value;
                 if (ticket.TriggerIssuedAtUtc.HasValue)
-                    state.RequiresStreamRestart = true;
+                    RequireStreamRestartUnderLock(state);
                 tickets.Add(ticket);
                 state.PendingTickets.RemoveFirst();
             }
             return tickets;
+        }
+
+        /// <summary>记录一次新的流身份故障，并保持物理停流重启门禁。</summary>
+        private static void RequireStreamRestartUnderLock(CameraTicketQueueState state)
+        {
+            state.RequiresStreamRestart = true;
+            state.StreamFaultGeneration = checked(state.StreamFaultGeneration + 1L);
         }
 
         /// <summary>检查指定票据是否仍在当前相机的等待链表内。</summary>
@@ -1809,6 +1930,9 @@ namespace TDJS_Vision.ResourceManagement
 
             /// <summary>是否清场过已武装票据，必须完成物理停流排空后才能解除。</summary>
             public bool RequiresStreamRestart { get; set; }
+
+            /// <summary>每次出现新的不可信帧流事实时递增，用于两阶段重启确认。</summary>
+            public long StreamFaultGeneration { get; set; }
 
             /// <summary>尚未由独立派发线程处理完的该相机生产故障数。</summary>
             public int PendingProductionFaultCount { get; set; }
