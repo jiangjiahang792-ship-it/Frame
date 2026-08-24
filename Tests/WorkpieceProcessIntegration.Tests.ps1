@@ -42,6 +42,11 @@ Assert-True ($solutionSource.Contains('List<ProcessInvocationResult> activeResul
 Assert-True ($solutionSource.Contains('WorkpieceIdentityGenerator.ResetSession();')) '新生产会话必须在首条运行会话登记时重建身份纪元。'
 Assert-True ($solutionSource.Contains('if (isFirstSession)')) '身份纪元重建必须受首条活动会话条件保护。'
 Assert-True ($solutionSource.Contains('context.Identity.SessionEpoch == WorkpieceIdentityGenerator.SessionEpoch')) '继承上下文前必须校验当前生产会话纪元。'
+Assert-True ($solutionSource.Contains('OrderedSignalCoordinator.RegisterWorkpiece(context);')) '工件上下文创建后必须立即登记到当前会话有序协调器。'
+Assert-True ($solutionSource.Contains('RenewOrderedSignalCoordinator();')) '新生产会话和方案重置必须淘汰旧有序协调器。'
+Assert-True (-not $solutionSource.Contains('workpieceContext.TryComplete(terminalState);')) '方案流程组根工件不得绕过协调器直接封口。'
+Assert-True ($solutionSource.Contains('await CompleteWorkpieceExecutionAsync(')) '方案流程组根工件必须通过协调器封口并推进顺序域。'
+Assert-True ($processSource.Contains('CompleteWorkpieceExecutionAsync(')) '自有工件必须通过协调器封口，不能只等待上下文本地终态。'
 
 [Environment]::CurrentDirectory = $debugDirectory
 $assembly = [Reflection.Assembly]::LoadFrom($application.FullName)
@@ -55,6 +60,7 @@ Assert-True ($triggerMethods.Count -eq 2) 'TriggerProcess必须同时保留旧�
 Assert-True (($triggerMethods | Where-Object { $_.ReturnType -ne $taskType }).Count -eq 0) 'TriggerProcess所有公开重载必须返回Task。'
 Assert-True ($null -ne $processType.GetMethod('GetWorkpieceGateSnapshot')) 'Process必须公开只读队列诊断快照。'
 Assert-True ($null -ne $solutionType.GetProperty('WorkpieceContextAccessor')) 'Solution必须持有全方案唯一工件上下文访问器。'
+Assert-True ($null -ne $solutionType.GetProperty('OrderedSignalCoordinator')) 'Solution必须公开当前生产会话唯一有序协调器。'
 
 $process = [Activator]::CreateInstance($processType, @('环检测流程'))
 $pushPathMethod = $processType.GetMethod('PushProcessRunPath', [Reflection.BindingFlags]'Instance,NonPublic')
@@ -73,9 +79,11 @@ $canInheritMethod = $solutionType.GetMethod('CanInheritWorkpieceContext', [Refle
 $generatorProperty = $solutionType.GetProperty('WorkpieceIdentityGenerator', [Reflection.BindingFlags]'Instance,NonPublic')
 $generator = $generatorProperty.GetValue($solution)
 $resetSessionMethod = $generator.GetType().GetMethod('ResetSession', [Reflection.BindingFlags]'Instance,NonPublic')
+$renewCoordinatorMethod = $solutionType.GetMethod('RenewOrderedSignalCoordinator', [Reflection.BindingFlags]'Instance,NonPublic')
+$coordinatorProperty = $solutionType.GetProperty('OrderedSignalCoordinator')
 $contextAccessor = $solutionType.GetProperty('WorkpieceContextAccessor').GetValue($solution)
 
-$cycleContext = $createContextMethod.Invoke($solution, @('测试产线', [long]1, '环检测测试', [Threading.CancellationToken]::None))
+$cycleContext = $createContextMethod.Invoke($solution, @('环检测产线', [long]1, '环检测测试', [Threading.CancellationToken]::None))
 $cycleContextScope = $contextAccessor.Push($cycleContext)
 $pathScope = $pushPathMethod.Invoke($process, @())
 $pathScope.BindIdentity($cycleContext.Identity)
@@ -121,17 +129,21 @@ finally {
 }
 Assert-True ($null -eq $contextAccessor.Current) '流程作用域释放后必须恢复调用者原有工件上下文。'
 
-$activeContext = $createContextMethod.Invoke($solution, @('测试产线', [long]1, '接入测试', [Threading.CancellationToken]::None))
+$activeContext = $createContextMethod.Invoke($solution, @('继承测试产线', [long]1, '接入测试', [Threading.CancellationToken]::None))
 Assert-True ([bool]$canInheritMethod.Invoke($solution, @($activeContext))) '当前会话内尚未封口的上下文必须允许被动流程继承。'
 $activeContext.TryComplete([Enum]::Parse($activeContext.TerminalState.GetType(), 'Succeeded')) | Out-Null
 $activeContext.Completion.GetAwaiter().GetResult() | Out-Null
 Assert-True (-not [bool]$canInheritMethod.Invoke($solution, @($activeContext))) '已经封口的上下文不得被延迟异步分支继承。'
 
-$oldEpochContext = $createContextMethod.Invoke($solution, @('测试产线', [long]1, '旧会话测试', [Threading.CancellationToken]::None))
+$oldEpochContext = $createContextMethod.Invoke($solution, @('旧会话产线', [long]1, '旧会话测试', [Threading.CancellationToken]::None))
+$retiredCoordinator = $coordinatorProperty.GetValue($solution)
 $resetSessionMethod.Invoke($generator, @()) | Out-Null
+$renewCoordinatorMethod.Invoke($solution, @()) | Out-Null
+$currentCoordinator = $coordinatorProperty.GetValue($solution)
+Assert-True (-not [object]::ReferenceEquals($retiredCoordinator, $currentCoordinator)) '生产会话纪元重建时必须同步替换有序协调器。'
 Assert-True (-not [bool]$canInheritMethod.Invoke($solution, @($oldEpochContext))) '旧会话纪元上下文不得进入新生产会话。'
 
-$leasedContext = $createContextMethod.Invoke($solution, @('测试产线', [long]1, '分支租约测试', [Threading.CancellationToken]::None))
+$leasedContext = $createContextMethod.Invoke($solution, @('分支租约产线', [long]1, '分支租约测试', [Threading.CancellationToken]::None))
 $acquireLeaseMethod = $contextType.GetMethod('TryAcquireExecutionLease', [Reflection.BindingFlags]'Instance,NonPublic')
 $leaseArguments = @($null)
 $leaseAcquired = [bool]$acquireLeaseMethod.Invoke($leasedContext, $leaseArguments)
@@ -144,7 +156,7 @@ $executionLease.Dispose()
 $leasedTerminal = $leasedContext.Completion.GetAwaiter().GetResult()
 Assert-True ($leasedTerminal.ToString() -eq 'Succeeded') '最后一个在途流程分支退出后必须发布父工件终态。'
 
-$failedBranchContext = $createContextMethod.Invoke($solution, @('测试产线', [long]1, '分支失败测试', [Threading.CancellationToken]::None))
+$failedBranchContext = $createContextMethod.Invoke($solution, @('失败分支产线', [long]1, '分支失败测试', [Threading.CancellationToken]::None))
 $failedLeaseArguments = @($null)
 $null = $acquireLeaseMethod.Invoke($failedBranchContext, $failedLeaseArguments)
 $failedBranchContext.TryComplete([Enum]::Parse($failedBranchContext.TerminalState.GetType(), 'Succeeded')) | Out-Null

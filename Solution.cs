@@ -48,6 +48,7 @@ namespace TDJS_Vision
             CameraRawFrameMemoryBudgetManager = new CameraRawFrameMemoryBudgetManager();
             WorkpieceContextAccessor = new WorkpieceContextAccessor();
             WorkpieceIdentityGenerator = new WorkpieceIdentityGenerator();
+            _orderedSignalCoordinator = new OrderedSignalCoordinator();
             RenewCameraProductionPipeline();
             _cpuWorkScheduler = new CpuWorkScheduler(new CpuWorkSchedulerOptions());
             _cpuResourceMonitor = new CpuResourceMonitor(
@@ -109,6 +110,12 @@ namespace TDJS_Vision
 
         /// <summary>当前注册表专属故障处理委托，用于替换时准确取消订阅。</summary>
         private Action<CameraProductionFault> _cameraProductionFaultHandler;
+
+        /// <summary>保护生产会话有序信号协调器的原子替换。</summary>
+        private readonly object _orderedSignalCoordinatorSync = new object();
+
+        /// <summary>当前生产会话唯一的有序信号协调器。</summary>
+        private OrderedSignalCoordinator _orderedSignalCoordinator;
 
         #endregion
 
@@ -186,6 +193,16 @@ namespace TDJS_Vision
 
         /// <summary>全方案生产会话内按顺序域分配工件身份的生成器。</summary>
         internal WorkpieceIdentityGenerator WorkpieceIdentityGenerator { get; }
+
+        /// <summary>获取当前生产会话唯一的有序信号协调器。</summary>
+        public IOrderedSignalCoordinator OrderedSignalCoordinator
+        {
+            get
+            {
+                lock (_orderedSignalCoordinatorSync)
+                    return _orderedSignalCoordinator;
+            }
+        }
 
         /// <summary>获取当前方案的生产帧实际字节预算管理器。</summary>
         public WorkpieceFrameMemoryBudgetManager WorkpieceFrameMemoryBudgetManager
@@ -548,8 +565,9 @@ namespace TDJS_Vision
                                     : workpieceSucceeded
                                         ? WorkpieceTerminalState.Succeeded
                                         : WorkpieceTerminalState.Faulted;
-                                workpieceContext.TryComplete(terminalState);
-                                await workpieceContext.Completion.ConfigureAwait(false);
+                                await CompleteWorkpieceExecutionAsync(
+                                    workpieceContext,
+                                    terminalState).ConfigureAwait(false);
                             }
 
                             // 🔁 如果不是循环模式，本组只运行一次
@@ -832,6 +850,7 @@ namespace TDJS_Vision
                 if (isFirstSession)
                 {
                     WorkpieceIdentityGenerator.ResetSession();
+                    RenewOrderedSignalCoordinator();
                     RefreshRuntimeResourceProfile(true);
                 }
             }
@@ -1224,13 +1243,40 @@ namespace TDJS_Vision
             CancellationToken cancellationToken)
         {
             WorkpieceIdentity identity = WorkpieceIdentityGenerator.Next(orderDomain);
-            return new WorkpieceExecutionContext(
+            WorkpieceExecutionContext context = new WorkpieceExecutionContext(
                 identity,
                 flowRevision,
                 identity.OrderDomain,
                 triggerSource,
                 DateTime.UtcNow,
                 cancellationToken);
+            OrderedSignalCoordinator.RegisterWorkpiece(context);
+            return context;
+        }
+
+        /// <summary>请求当前工件封口，并由有序协调器在信号排空后推进同顺序域下一工件。</summary>
+        /// <param name="context">本入口创建并已登记的工件上下文。</param>
+        /// <param name="terminalState">流程请求的明确终态。</param>
+        /// <returns>全部在途信号结束且协调器完成顺序推进后完成的任务。</returns>
+        internal Task CompleteWorkpieceExecutionAsync(
+            WorkpieceExecutionContext context,
+            WorkpieceTerminalState terminalState)
+        {
+            if (context == null)
+                throw new ArgumentNullException(nameof(context));
+            return OrderedSignalCoordinator.CompleteWorkpieceAsync(context, terminalState);
+        }
+
+        /// <summary>建立新的生产会话协调器，并停止旧协调器全部尚未开始的设备动作。</summary>
+        private void RenewOrderedSignalCoordinator()
+        {
+            OrderedSignalCoordinator retiredCoordinator;
+            lock (_orderedSignalCoordinatorSync)
+            {
+                retiredCoordinator = _orderedSignalCoordinator;
+                _orderedSignalCoordinator = new OrderedSignalCoordinator();
+            }
+            retiredCoordinator?.Dispose();
         }
 
         /// <summary>
@@ -1854,6 +1900,7 @@ namespace TDJS_Vision
 
                 // 旧相机已经停流、排空回调并释放句柄，此时才能关闭旧票据并为新方案建立干净纪元。
                 RenewCameraProductionPipeline();
+                RenewOrderedSignalCoordinator();
 
                 // 释放AI节点的模型句柄
                 ModelHandleManager.DestroyAllModel();

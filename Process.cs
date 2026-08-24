@@ -2385,8 +2385,9 @@ namespace TDJS_Vision
                 if (!_ownsContext)
                     return Task.CompletedTask;
 
-                _context.TryComplete(terminalState);
-                return _context.Completion;
+                return Solution.Instance.CompleteWorkpieceExecutionAsync(
+                    _context,
+                    terminalState);
             }
 
             /// <summary>
