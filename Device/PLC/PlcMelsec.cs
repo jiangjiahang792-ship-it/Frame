@@ -2,7 +2,6 @@
 using HslCommunication;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json;
-using HslCommunication.Profinet.Panasonic;
 using Logger;
 using HslCommunication.Profinet.Melsec;
 using System.Threading.Tasks;
@@ -16,6 +15,15 @@ namespace TDJS_Vision.Device.PLC
     /// </summary>
     public class PlcMelsec : IPlc
     {
+        /// <summary>PLC操作允许的最小超时时间。</summary>
+        private const int MinimumOperationTimeoutMs = 100;
+
+        /// <summary>PLC操作允许的最大超时时间。</summary>
+        private const int MaximumOperationTimeoutMs = 60000;
+
+        /// <summary>当前连接和收发操作的有限超时时间。</summary>
+        private int _operationTimeoutMs = 5000;
+
         /// <summary>
         /// 使用TCP通信的三菱plc对象
         /// </summary>
@@ -28,6 +36,19 @@ namespace TDJS_Vision.Device.PLC
         /// 是否连接
         /// </summary>
         public bool IsConnect { get; set; }
+
+        /// <summary>获取或设置PLC连接与收发操作的有限超时时间。</summary>
+        public int OperationTimeoutMs
+        {
+            get => _operationTimeoutMs;
+            set
+            {
+                _operationTimeoutMs = Math.Max(
+                    MinimumOperationTimeoutMs,
+                    Math.Min(MaximumOperationTimeoutMs, value));
+                ApplyOperationTimeout();
+            }
+        }
         /// <summary>
         /// 设备名
         /// </summary>
@@ -79,6 +100,7 @@ namespace TDJS_Vision.Device.PLC
                     }
                     melsecMcNet.IpAddress = PLCParms.EthernetParms.IP;
                     melsecMcNet.Port = PLCParms.EthernetParms.Port;
+                    ApplyOperationTimeout();
                 }
                 else
                     throw new Exception("不支持的通信方式！");
@@ -99,13 +121,14 @@ namespace TDJS_Vision.Device.PLC
             UserDefinedName = parms.UserDefinedName;
             if (PLCParms.PlcConType == PlcConType.ETHERNET)
             {
-                melsecMcNet = new PanasonicMcNet();
+                melsecMcNet = new MelsecMcNet();
                 if (PLCParms.EthernetParms.IP == null)
                 {
                     throw new Exception("PLC网口连接参数为空！");
                 }
                 melsecMcNet.IpAddress = PLCParms.EthernetParms.IP;
                 melsecMcNet.Port = PLCParms.EthernetParms.Port;
+                ApplyOperationTimeout();
             }
             else
                 throw new Exception("不支持的通信方式！");
@@ -152,6 +175,15 @@ namespace TDJS_Vision.Device.PLC
         {
             if (PLCParms.PlcConType == PlcConType.ETHERNET)
                 melsecMcNet.Dispose();
+        }
+
+        /// <summary>把统一有限超时应用到当前三菱PLC通信对象。</summary>
+        private void ApplyOperationTimeout()
+        {
+            if (melsecMcNet == null)
+                return;
+            melsecMcNet.ConnectTimeOut = _operationTimeoutMs;
+            melsecMcNet.ReceiveTimeOut = _operationTimeoutMs;
         }
 
         /// <summary>

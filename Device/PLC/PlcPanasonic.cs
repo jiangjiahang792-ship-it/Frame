@@ -11,6 +11,15 @@ namespace TDJS_Vision.Device.PLC
 {
     public class PlcPanasonic : IPlc
     {
+        /// <summary>PLC操作允许的最小超时时间。</summary>
+        private const int MinimumOperationTimeoutMs = 100;
+
+        /// <summary>PLC操作允许的最大超时时间。</summary>
+        private const int MaximumOperationTimeoutMs = 60000;
+
+        /// <summary>当前连接和收发操作的有限超时时间。</summary>
+        private int _operationTimeoutMs = 5000;
+
         /// <summary>
         /// 串口plc对象
         /// </summary>
@@ -32,6 +41,19 @@ namespace TDJS_Vision.Device.PLC
         /// PLC连接状态
         /// </summary>
         public bool IsConnect { get; set; }
+
+        /// <summary>获取或设置PLC连接与收发操作的有限超时时间。</summary>
+        public int OperationTimeoutMs
+        {
+            get => _operationTimeoutMs;
+            set
+            {
+                _operationTimeoutMs = Math.Max(
+                    MinimumOperationTimeoutMs,
+                    Math.Min(MaximumOperationTimeoutMs, value));
+                ApplyOperationTimeout();
+            }
+        }
         /// <summary>
         /// 设备名称
         /// </summary>
@@ -82,7 +104,9 @@ namespace TDJS_Vision.Device.PLC
                         sp.DataBits = PLCParms.SerialParms.DataBits;
                         sp.StopBits = PLCParms.SerialParms.StopBits;
                         sp.Parity = PLCParms.SerialParms.Parity;
+                        sp.WriteTimeout = _operationTimeoutMs;
                     });
+                    ApplyOperationTimeout();
                 }
                 else if (PLCParms.PlcConType == PlcConType.ETHERNET)
                 {
@@ -93,6 +117,7 @@ namespace TDJS_Vision.Device.PLC
                     }
                     _panasonicMcNet.IpAddress = PLCParms.EthernetParms.IP;
                     _panasonicMcNet.Port = PLCParms.EthernetParms.Port;
+                    ApplyOperationTimeout();
                 }
             }
             catch (Exception ex)
@@ -123,7 +148,9 @@ namespace TDJS_Vision.Device.PLC
                     sp.DataBits = PLCParms.SerialParms.DataBits;
                     sp.StopBits = PLCParms.SerialParms.StopBits;
                     sp.Parity = PLCParms.SerialParms.Parity;
+                    sp.WriteTimeout = _operationTimeoutMs;
                 });
+                ApplyOperationTimeout();
             }
             else if (PLCParms.PlcConType == PlcConType.ETHERNET)
             {
@@ -134,6 +161,7 @@ namespace TDJS_Vision.Device.PLC
                 }
                 _panasonicMcNet.IpAddress = PLCParms.EthernetParms.IP;
                 _panasonicMcNet.Port = PLCParms.EthernetParms.Port;
+                ApplyOperationTimeout();
             }
         }
 
@@ -184,6 +212,22 @@ namespace TDJS_Vision.Device.PLC
                 _panasonicMewtocol.Dispose();
             else
                 _panasonicMcNet.Dispose();
+        }
+
+        /// <summary>把统一有限超时应用到当前松下PLC通信对象。</summary>
+        private void ApplyOperationTimeout()
+        {
+            if (_panasonicMewtocol != null)
+            {
+                _panasonicMewtocol.ReceiveTimeOut = _operationTimeoutMs;
+                _panasonicMewtocol.SerialPortInni(sp =>
+                    sp.WriteTimeout = _operationTimeoutMs);
+            }
+            if (_panasonicMcNet != null)
+            {
+                _panasonicMcNet.ConnectTimeOut = _operationTimeoutMs;
+                _panasonicMcNet.ReceiveTimeOut = _operationTimeoutMs;
+            }
         }
 
         /// <summary>

@@ -24,6 +24,9 @@ namespace TDJS_Vision.Device.PLC
         /// </summary>
         bool IsConnect { get; set; }
 
+        /// <summary>获取或设置PLC单次连接与收发操作的有限超时时间，单位为毫秒。</summary>
+        int OperationTimeoutMs { get; set; }
+
         /// <summary>
         /// 硬件硬件名称
         /// </summary>

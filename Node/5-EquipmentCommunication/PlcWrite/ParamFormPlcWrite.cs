@@ -65,13 +65,13 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
                 MessageBoxTD.Show("PLC不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            if (string.IsNullOrEmpty(this.textBoxAddress.Text))
+            if (string.IsNullOrWhiteSpace(this.textBoxAddress.Text))
             {
                 LogHelper.AddLog(MsgLevel.Exception, "信号地址为空", true);
                 MessageBoxTD.Show("信号地址为空", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            if (string.IsNullOrEmpty(this.textBoxValue.Text))
+            if (string.IsNullOrWhiteSpace(this.textBoxValue.Text))
             {
                 LogHelper.AddLog(MsgLevel.Exception, "写入的值不能为空！", true);
                 MessageBoxTD.Show("写入的值不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -88,30 +88,49 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
                     break;
                 }
             }
+            if (plc == null)
+            {
+                MessageBoxTD.Show("未找到选择的PLC设备！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
-            NodeParamPlcWrite nodeParamPlcWrite = new NodeParamPlcWrite();
-            nodeParamPlcWrite.Plc = plc;
-            nodeParamPlcWrite.PlcName = plc.UserDefinedName;
-            nodeParamPlcWrite.Address = this.textBoxAddress.Text;
-            nodeParamPlcWrite.Value = textBoxValue.Text;
+            string dataType = null;
             switch (this.comboBoxDataType.Text)
             {
                 case "布尔":
-                    nodeParamPlcWrite.DataType = typeof(bool).Name;
+                    dataType = typeof(bool).Name;
                     break;
                 case "整数":
-                    nodeParamPlcWrite.DataType = typeof(int).Name;
+                    dataType = typeof(int).Name;
                     break;
                 case "浮点":
-                    nodeParamPlcWrite.DataType = typeof(float).Name;
+                    dataType = typeof(float).Name;
                     break;
                 case "字符串":
-                    nodeParamPlcWrite.DataType = typeof(string).Name;
+                    dataType = typeof(string).Name;
                     break;
                 default:
-                    break;
+                    MessageBoxTD.Show("请选择写入数据类型！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
             }
-            Params = nodeParamPlcWrite;
+            try
+            {
+                NodePlcWrite.ValidateWriteValue(dataType, textBoxValue.Text);
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show($"写入值格式不正确：{ex.Message}", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            Params = new NodeParamPlcWrite
+            {
+                Plc = plc,
+                PlcName = plc.UserDefinedName,
+                Address = textBoxAddress.Text.Trim(),
+                Value = textBoxValue.Text.Trim(),
+                DataType = dataType
+            };
             Hide();
         }
 
