@@ -150,6 +150,12 @@ namespace TDJS_Vision.Device.Camera
         void GrabOne();
 
         /// <summary>
+        /// 在真实触发前估算标准图像输出将持有的源Mat和灰度缓存最大字节数。
+        /// </summary>
+        /// <returns>基于当前相机宽高和转换格式的保守正数字节数。</returns>
+        long GetProductionFrameMemoryEstimateBytes();
+
+        /// <summary>
         ///  设置增益
         /// </summary>
         /// <param name="gainValue"></param>

@@ -665,9 +665,23 @@ namespace TDJS_Vision.ResourceManagement
         public int PendingProductionFaultCount { get; internal set; }
     }
 
+    /// <summary>相机软件触发命令租约，用于区分未发命令、成功发出和结果未知三种退出路径。</summary>
+    public interface ISoftwareTriggerCommandLease : IDisposable
+    {
+        /// <summary>标记调用方即将进入真实相机SDK命令。</summary>
+        void MarkCommandStarted();
+
+        /// <summary>标记真实相机SDK已经明确返回成功。</summary>
+        void MarkCommandSucceeded();
+    }
+
     /// <summary>按相机严格FIFO登记触发票据并把转换后Mat绑定到唯一工件。</summary>
     public sealed class CameraTriggerTicketRegistry : IDisposable
     {
+        /// <summary>当前线程正在执行的唯一生产软件触发票据，供相机命令入口区分生产与预览。</summary>
+        [ThreadStatic]
+        private static CameraTriggerTicket _authorizedSoftwareTriggerTicket;
+
         /// <summary>单相机最大待匹配票据数。</summary>
         public const int MaximumPendingTicketsPerCamera = 64;
 
@@ -762,7 +776,16 @@ namespace TDJS_Vision.ResourceManagement
             // 但不能通过持锁阻塞SDK，因为部分SDK会等待另一线程的图像回调返回。
             try
             {
-                triggerAction();
+                CameraTriggerTicket previousAuthorizedTicket = _authorizedSoftwareTriggerTicket;
+                _authorizedSoftwareTriggerTicket = ticket;
+                try
+                {
+                    triggerAction();
+                }
+                finally
+                {
+                    _authorizedSoftwareTriggerTicket = previousAuthorizedTicket;
+                }
             }
             catch (Exception exception)
             {
@@ -799,11 +822,126 @@ namespace TDJS_Vision.ResourceManagement
                 {
                     throw new InvalidOperationException("相机票据已经取消、故障或离开等待队列，禁止继续触发。 ");
                 }
-            if (!ticket.TryMarkReadyForFrame(issuedAtUtc, Stopwatch.GetTimestamp()))
-                throw new InvalidOperationException("相机票据已经发送过触发，禁止重复触发。 ");
+                if (state.ActiveUncoordinatedTriggerDispatchCount != 0)
+                    throw new InvalidOperationException($"相机{ticket.CameraKey}正在执行预览软件触发，生产票据本轮禁止同时触发。 ");
+                if (state.ActiveTriggerDispatchCount != 0)
+                    throw new InvalidOperationException($"相机{ticket.CameraKey}已有尚未返回的软件触发命令，本轮禁止并发进入SDK。 ");
+                if (state.PendingTickets.First == null ||
+                    !ReferenceEquals(state.PendingTickets.First.Value, ticket))
+                {
+                    throw new InvalidOperationException(
+                        $"相机{ticket.CameraKey}的前序工件尚未取得生产帧，后序工件禁止提前触发。 ");
+                }
+                if (!ticket.TryMarkReadyForFrame(issuedAtUtc, Stopwatch.GetTimestamp()))
+                    throw new InvalidOperationException("相机票据已经发送过触发，禁止重复触发。 ");
                 if (trackSoftwareDispatch)
                     state.ActiveTriggerDispatchCount++;
             }
+        }
+
+        /// <summary>
+        /// 相机软件触发命令进入前取得短生命周期门禁；生产授权调用可通过，预览调用与生产票据严格互斥。
+        /// </summary>
+        public ISoftwareTriggerCommandLease EnterSoftwareTriggerCommand(string cameraKey)
+        {
+            string normalizedCameraKey = NormalizeCameraKey(cameraKey);
+            bool countedAsUncoordinated = false;
+            ExecuteCameraSynchronized(normalizedCameraKey, () =>
+            {
+                lock (_syncRoot)
+                {
+                    ThrowIfDisposed();
+                    CameraTicketQueueState state = GetOrCreateStateUnderLock(normalizedCameraKey);
+                    if (state.Faulted || state.RequiresStreamRestart)
+                    {
+                        throw new InvalidOperationException(
+                            $"相机{normalizedCameraKey}处于生产帧故障状态，停流排空并重启确认前禁止软件触发。 ");
+                    }
+                    CameraTriggerTicket authorizedTicket = _authorizedSoftwareTriggerTicket;
+                    bool isAuthorizedProductionTrigger = authorizedTicket != null &&
+                        string.Equals(authorizedTicket.CameraKey, normalizedCameraKey, StringComparison.OrdinalIgnoreCase) &&
+                        ContainsPendingTicketUnderLock(state, authorizedTicket) &&
+                        authorizedTicket.TriggerIssuedAtUtc.HasValue;
+                    if (isAuthorizedProductionTrigger)
+                    {
+                        return true;
+                    }
+
+                    bool hasProductionTicket = state.InFlightTicket != null ||
+                        state.PendingTickets.Count != 0;
+                    if (hasProductionTicket || state.ActiveTriggerDispatchCount != 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"相机{normalizedCameraKey}正在等待生产工件帧，预览或手动软件触发已拒绝。 ");
+                    }
+                    if (state.ActiveUncoordinatedTriggerDispatchCount != 0)
+                        throw new InvalidOperationException($"相机{normalizedCameraKey}已有预览软件触发命令正在执行。 ");
+                    if (state.PendingUncoordinatedFrameCount >= MaximumPendingTicketsPerCamera)
+                        throw new InvalidOperationException($"相机{normalizedCameraKey}待返回预览帧过多，禁止继续发送软件触发。 ");
+
+                    state.ActiveUncoordinatedTriggerDispatchCount++;
+                    countedAsUncoordinated = true;
+                }
+                return true;
+            });
+            return new SoftwareTriggerCommandLease(
+                this,
+                normalizedCameraKey,
+                countedAsUncoordinated);
+        }
+
+        /// <summary>预览SDK命令开始前先登记待返回帧，允许同步回调在命令返回前正确消费。</summary>
+        private void MarkSoftwareTriggerCommandStarted(string cameraKey, bool countedAsUncoordinated)
+        {
+            if (!countedAsUncoordinated)
+                return;
+            ExecuteCameraSynchronized(cameraKey, () =>
+            {
+                lock (_syncRoot)
+                {
+                    CameraTicketQueueState state = GetOrCreateStateUnderLock(cameraKey);
+                    if (state.Faulted || state.RequiresStreamRestart ||
+                        state.ActiveUncoordinatedTriggerDispatchCount == 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"相机{cameraKey}软件触发门禁已经失效，禁止进入SDK命令。 ");
+                    }
+                    state.PendingUncoordinatedFrameCount = checked(
+                        state.PendingUncoordinatedFrameCount + 1);
+                }
+                return true;
+            });
+        }
+
+        /// <summary>归还一次预览或手动软件触发门禁。</summary>
+        private void ReleaseSoftwareTriggerCommand(
+            string cameraKey,
+            bool countedAsUncoordinated,
+            bool commandStarted,
+            bool commandSucceeded)
+        {
+            if (!countedAsUncoordinated)
+                return;
+            ExecuteCameraSynchronized(cameraKey, () =>
+            {
+                lock (_syncRoot)
+                {
+                    if (_cameraStates.TryGetValue(cameraKey, out CameraTicketQueueState state))
+                    {
+                        state.ActiveUncoordinatedTriggerDispatchCount = Math.Max(
+                            0,
+                            state.ActiveUncoordinatedTriggerDispatchCount - 1);
+                        if (commandStarted && !commandSucceeded)
+                        {
+                            if (state.PendingUncoordinatedFrameCount != 0)
+                                state.PendingUncoordinatedFrameCount--;
+                            state.Faulted = true;
+                            RequireStreamRestartUnderLock(state);
+                        }
+                    }
+                }
+                return true;
+            }, true);
         }
 
         /// <summary>真实软件触发调用抛出异常时锁定相机并结束全部相关票据。</summary>
@@ -828,6 +966,8 @@ namespace TDJS_Vision.ResourceManagement
                 if (_cameraStates.TryGetValue(ticket.CameraKey, out CameraTicketQueueState state))
                 {
                     state.Faulted = true;
+                    // 票据可能已收到帧，但SDK命令仍可在随后失败或卡死，流身份仍不可信。
+                    RequireStreamRestartUnderLock(state);
                     state.InFlightFailure = exception;
                     failedTickets = DrainPendingTicketsUnderLock(state);
                 }
@@ -888,6 +1028,12 @@ namespace TDJS_Vision.ResourceManagement
                     CameraTicketQueueState state = GetOrCreateStateUnderLock(normalizedCameraKey);
                     if (state.Faulted || state.RequiresStreamRestart)
                         throw new InvalidOperationException($"相机{normalizedCameraKey}处于生产帧故障状态，确认并重置前禁止继续触发。 ");
+                    if (state.ActiveUncoordinatedTriggerDispatchCount != 0 ||
+                        state.PendingUncoordinatedFrameCount != 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"相机{normalizedCameraKey}仍有预览软件触发或待返回预览帧，禁止登记生产工件。 ");
+                    }
                     int occupancy = state.PendingTickets.Count + (state.InFlightTicket == null ? 0 : 1);
                     if (occupancy >= MaximumPendingTicketsPerCamera)
                         throw new InvalidOperationException($"相机{normalizedCameraKey}待匹配票据已达到{MaximumPendingTicketsPerCamera}，必须暂停触发并报警。 ");
@@ -958,7 +1104,19 @@ namespace TDJS_Vision.ResourceManagement
             List<CameraTriggerTicket> failedTickets = null;
             lock (_syncRoot)
             {
-                if (!_cameraStates.TryGetValue(normalizedCameraKey, out CameraTicketQueueState state) ||
+                if (!_cameraStates.TryGetValue(normalizedCameraKey, out CameraTicketQueueState state))
+                    return false;
+
+                if (state.PendingUncoordinatedFrameCount != 0)
+                {
+                    state.PendingUncoordinatedFrameCount--;
+                    state.LastFrameId = frameId;
+                    state.LastSdkFrameNumber = sdkFrameNumber;
+                    state.HasAcceptedFrame = true;
+                    return false;
+                }
+
+                if (
                     (state.PendingTickets.Count == 0 && state.InFlightTicket == null))
                 {
                     return false;
@@ -1042,7 +1200,7 @@ namespace TDJS_Vision.ResourceManagement
             try
             {
                 memoryLease = ticket.DetachMemoryLease();
-                long actualBytes = GetMatBytes(image);
+                long actualBytes = GetProductionOutputBytes(image);
                 if (memoryLease == null || !memoryLease.TryCommitActualBytes(actualBytes))
                 {
                     WorkpieceFrameMemoryBudgetSnapshot budgetSnapshot = _memoryBudgetManager.GetSnapshot();
@@ -1448,6 +1606,8 @@ namespace TDJS_Vision.ResourceManagement
                     if (state.PendingTickets.Count != 0 ||
                         state.InFlightTicket != null ||
                         state.ActiveTriggerDispatchCount != 0 ||
+                        state.ActiveUncoordinatedTriggerDispatchCount != 0 ||
+                        state.PendingUncoordinatedFrameCount != 0 ||
                         state.PendingProductionFaultCount != 0)
                     {
                         throw new InvalidOperationException(
@@ -1480,11 +1640,13 @@ namespace TDJS_Vision.ResourceManagement
                     if (state.PendingTickets.Count != 0 ||
                         state.InFlightTicket != null ||
                         state.ActiveTriggerDispatchCount != 0 ||
+                        state.ActiveUncoordinatedTriggerDispatchCount != 0 ||
                         state.PendingProductionFaultCount != 0)
                     {
                         throw new InvalidOperationException(
                             $"相机{normalizedCameraKey}尚未排空票据、帧或SDK触发调用，禁止准备流重置。 ");
                     }
+                    state.PendingUncoordinatedFrameCount = 0;
                     return state.StreamFaultGeneration;
                 }
             });
@@ -1502,6 +1664,8 @@ namespace TDJS_Vision.ResourceManagement
                     if (state.PendingTickets.Count != 0 ||
                         state.InFlightTicket != null ||
                         state.ActiveTriggerDispatchCount != 0 ||
+                        state.ActiveUncoordinatedTriggerDispatchCount != 0 ||
+                        state.PendingUncoordinatedFrameCount != 0 ||
                         state.PendingProductionFaultCount != 0)
                     {
                         throw new InvalidOperationException(
@@ -1535,7 +1699,8 @@ namespace TDJS_Vision.ResourceManagement
                 foreach (CameraTicketQueueState state in _cameraStates.Values)
                 {
                     pendingCount += state.PendingTickets.Count + (state.InFlightTicket == null ? 0 : 1);
-                    activeTriggerDispatchCount += state.ActiveTriggerDispatchCount;
+                    activeTriggerDispatchCount += state.ActiveTriggerDispatchCount +
+                        state.ActiveUncoordinatedTriggerDispatchCount;
                     if (state.RequiresStreamRestart)
                         cameraCountRequiringStreamReset++;
                     pendingProductionFaultCount += state.PendingProductionFaultCount;
@@ -1862,7 +2027,8 @@ namespace TDJS_Vision.ResourceManagement
             {
                 int activeCount = 0;
                 foreach (CameraTicketQueueState state in _cameraStates.Values)
-                    activeCount += state.ActiveTriggerDispatchCount;
+                    activeCount += state.ActiveTriggerDispatchCount +
+                        state.ActiveUncoordinatedTriggerDispatchCount;
                 return activeCount;
             }
         }
@@ -1897,6 +2063,87 @@ namespace TDJS_Vision.ResourceManagement
             return Math.Max(1L, checked((long)image.Rows * (long)image.Step()));
         }
 
+        /// <summary>计算图像源标准输出将长期持有的源Mat和按需灰度Mat实际字节。</summary>
+        private static long GetProductionOutputBytes(Mat image)
+        {
+            long sourceBytes = GetMatBytes(image);
+            if (image.Channels() <= 1)
+                return sourceBytes;
+            long grayBytes = Math.Max(1L, checked((long)image.Rows * (long)image.Cols));
+            return checked(sourceBytes + grayBytes);
+        }
+
+        /// <summary>相机软件触发命令结束时归还预览触发在途计数。</summary>
+        private sealed class SoftwareTriggerCommandLease : ISoftwareTriggerCommandLease
+        {
+            /// <summary>拥有当前门禁的注册表。</summary>
+            private CameraTriggerTicketRegistry _owner;
+
+            /// <summary>规范化相机键。</summary>
+            private readonly string _cameraKey;
+
+            /// <summary>是否需要归还非生产触发计数。</summary>
+            private readonly bool _countedAsUncoordinated;
+
+            /// <summary>1表示真实SDK命令已经开始。</summary>
+            private int _commandStarted;
+
+            /// <summary>1表示真实SDK命令明确返回成功。</summary>
+            private int _commandSucceeded;
+
+            /// <summary>创建软件触发命令门禁租约。</summary>
+            public SoftwareTriggerCommandLease(
+                CameraTriggerTicketRegistry owner,
+                string cameraKey,
+                bool countedAsUncoordinated)
+            {
+                _owner = owner;
+                _cameraKey = cameraKey;
+                _countedAsUncoordinated = countedAsUncoordinated;
+            }
+
+            /// <summary>标记真实SDK命令已经开始。</summary>
+            public void MarkCommandStarted()
+            {
+                if (Interlocked.CompareExchange(ref _commandStarted, 1, 0) != 0)
+                    throw new InvalidOperationException("软件触发命令开始状态禁止重复标记。 ");
+                CameraTriggerTicketRegistry owner = Volatile.Read(ref _owner);
+                if (owner == null)
+                {
+                    Interlocked.Exchange(ref _commandStarted, 0);
+                    throw new ObjectDisposedException(nameof(SoftwareTriggerCommandLease));
+                }
+                try
+                {
+                    owner.MarkSoftwareTriggerCommandStarted(_cameraKey, _countedAsUncoordinated);
+                }
+                catch
+                {
+                    Interlocked.Exchange(ref _commandStarted, 0);
+                    throw;
+                }
+            }
+
+            /// <summary>标记真实SDK命令明确返回成功。</summary>
+            public void MarkCommandSucceeded()
+            {
+                if (Volatile.Read(ref _commandStarted) == 0)
+                    throw new InvalidOperationException("必须先标记软件触发命令开始，再标记成功。 ");
+                Interlocked.Exchange(ref _commandSucceeded, 1);
+            }
+
+            /// <summary>幂等归还软件触发命令门禁。</summary>
+            public void Dispose()
+            {
+                CameraTriggerTicketRegistry owner = Interlocked.Exchange(ref _owner, null);
+                owner?.ReleaseSoftwareTriggerCommand(
+                    _cameraKey,
+                    _countedAsUncoordinated,
+                    Volatile.Read(ref _commandStarted) != 0,
+                    Volatile.Read(ref _commandSucceeded) != 0);
+            }
+        }
+
         /// <summary>单台相机的票据FIFO和连续帧状态。</summary>
         private sealed class CameraTicketQueueState
         {
@@ -1927,6 +2174,12 @@ namespace TDJS_Vision.ResourceManagement
 
             /// <summary>已经提交但真实SDK调用尚未返回的触发数量。</summary>
             public int ActiveTriggerDispatchCount { get; set; }
+
+            /// <summary>正在执行SDK命令但不属于生产票据的预览或手动软件触发数量。</summary>
+            public int ActiveUncoordinatedTriggerDispatchCount { get; set; }
+
+            /// <summary>已成功发送但尚未由转换线程消费的预览或手动软触发帧数量。</summary>
+            public int PendingUncoordinatedFrameCount { get; set; }
 
             /// <summary>是否清场过已武装票据，必须完成物理停流排空后才能解除。</summary>
             public bool RequiresStreamRestart { get; set; }

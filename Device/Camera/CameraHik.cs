@@ -737,7 +737,25 @@ namespace TDJS_Vision.Device.Camera
         public void GrabOne()
         {
             EnsureDeviceOpen();
-            EnsureSuccess(_device.MV_CC_SetCommandValue_NET("TriggerSoftware"), "执行软件触发");
+            using (ISoftwareTriggerCommandLease triggerLease =
+                Solution.Instance.CameraTriggerTicketRegistry.EnterSoftwareTriggerCommand(
+                    CameraProductionIdentity.GetStableKey(this)))
+            {
+                triggerLease.MarkCommandStarted();
+                EnsureSuccess(_device.MV_CC_SetCommandValue_NET("TriggerSoftware"), "执行软件触发");
+                triggerLease.MarkCommandSucceeded();
+            }
+        }
+
+        /// <summary>按当前宽高和最坏的BGR源图加灰度缓存估算生产帧长期持有字节。</summary>
+        public long GetProductionFrameMemoryEstimateBytes()
+        {
+            EnsureDeviceOpen();
+            long width = GetIntValue("Width").CurValue;
+            long height = GetIntValue("Height").CurValue;
+            if (width <= 0L || height <= 0L)
+                throw new InvalidOperationException("相机宽高无效，无法在触发前计算生产帧内存预算。 ");
+            return checked(width * height * 4L);
         }
 
         /// <summary>获取当前曝光时间。</summary>

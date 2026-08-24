@@ -40,6 +40,7 @@ $budgetType = $assembly.GetType('TDJS_Vision.ResourceManagement.WorkpieceFrameMe
 $registryType = $assembly.GetType('TDJS_Vision.ResourceManagement.CameraTriggerTicketRegistry', $true)
 $triggerKindType = $assembly.GetType('TDJS_Vision.ResourceManagement.CameraTriggerKind', $true)
 $generatorType = $assembly.GetType('TDJS_Vision.ResourceManagement.WorkpieceIdentityGenerator', $true)
+$nodeImageSourceType = $assembly.GetType('TDJS_Vision.Node._1_Acquisition.ImageSource.NodeImageSource', $true)
 $matType = $openCvAssembly.GetType('OpenCvSharp.Mat', $true)
 $matScalarType = $openCvAssembly.GetType('OpenCvSharp.Scalar', $true)
 $matTypeType = $openCvAssembly.GetType('OpenCvSharp.MatType', $true)
@@ -124,6 +125,9 @@ $prepareStreamResetMethod = $registryType.GetMethod(
 $confirmStreamResetMethod = $registryType.GetMethod(
     'ConfirmCameraStreamReset',
     [Reflection.BindingFlags]'Instance,NonPublic')
+$waitForProductionFrameMethod = $nodeImageSourceType.GetMethod(
+    'WaitForProductionFrameAsync',
+    [Reflection.BindingFlags]'Static,NonPublic')
 $softwareTrigger = [Enum]::Parse($triggerKindType, 'Software')
 $none = [Threading.CancellationToken]::None
 $noOpTrigger = [Action] { }
@@ -164,8 +168,10 @@ $context2 = New-Context '产线A'
 $deadline = [DateTime]::UtcNow.AddSeconds(10)
 $ticket1 = $registry.Register(' CAMERA-1 ', $context1, $softwareTrigger, $deadline, [long]256, [long]4096)
 $ticket2 = $registry.Register('camera-1', $context2, $softwareTrigger, $deadline, [long]256, [long]4096)
+$outOfOrderTriggerRejected = $false
+try { $ticket2.IssueSoftwareTrigger($noOpTrigger) } catch { $outOfOrderTriggerRejected = $true }
+Assert-True $outOfOrderTriggerRejected '前序生产票据尚未取得帧时，后序票据禁止提前发送真实触发。'
 $ticket1.IssueSoftwareTrigger($noOpTrigger)
-$ticket2.IssueSoftwareTrigger($noOpTrigger)
 Assert-True ($registry.GetSnapshot().PendingTicketCount -eq 2) '同一相机票据必须按FIFO保留。'
 
 $frame1 = New-TestMat
@@ -176,11 +182,12 @@ Assert-True (-not $ticket2.Completion.IsCompleted) '第二个工件不能越过�
 $ownedImage = $null
 $ownedLease = $null
 $envelope1.TransferOwnership([ref]$ownedImage, [ref]$ownedLease)
-Assert-True ($ownedLease.ReservedBytes -eq 300) '预算必须从触发前估算校正为Rows乘Step实际字节。'
+Assert-True ($ownedLease.ReservedBytes -eq 400) '预算必须校正为彩色源Mat与标准灰度缓存的实际总字节。'
 $envelope1.Dispose()
 $ownedImage.Dispose()
 $ownedLease.Dispose()
 
+$ticket2.IssueSoftwareTrigger($noOpTrigger)
 $frame2 = New-TestMat
 Assert-True ($registry.TryPublishFrame('CAMERA-1', [long]2, [uint32]101, [Diagnostics.Stopwatch]::GetTimestamp(), $frame2, $null)) '第二帧必须继续匹配下一票据。'
 $envelope2 = $ticket2.Completion.GetAwaiter().GetResult()
@@ -193,7 +200,6 @@ $ticket3 = $registry.Register('CAMERA-1', $context3, $softwareTrigger, $deadline
 $context4 = New-Context '产线A'
 $ticket4 = $registry.Register('CAMERA-1', $context4, $softwareTrigger, $deadline, [long]256, [long]4096)
 $ticket3.IssueSoftwareTrigger($noOpTrigger)
-$ticket4.IssueSoftwareTrigger($noOpTrigger)
 $brokenFrame = New-TestMat
 Assert-True ($registry.TryPublishFrame('CAMERA-1', [long]4, [uint32]103, [Diagnostics.Stopwatch]::GetTimestamp(), $brokenFrame, $null)) '断层帧必须由生产管线接管并明确失败。'
 $sequenceFaulted = $false
@@ -259,7 +265,6 @@ $cancelContext2 = New-Context '产线E'
 $cancelTicket1 = $registry.Register('CAMERA-5', $cancelContext1, $softwareTrigger, $deadline, [long]256, [long]4096)
 $cancelTicket2 = $registry.Register('CAMERA-5', $cancelContext2, $softwareTrigger, $deadline, [long]256, [long]4096)
 $cancelTicket1.IssueSoftwareTrigger($noOpTrigger)
-$cancelTicket2.IssueSoftwareTrigger($noOpTrigger)
 $cancelTicket1.Dispose()
 $cancelAfterTriggerFaulted = $false
 $cancelFollowerFaulted = $false
@@ -293,6 +298,150 @@ catch {
 }
 Assert-True $issueAfterCancelRejected '票据取消先完成后必须拒绝发送真实软件触发。'
 Assert-True ($triggerCallCount -eq 0) '取消后的软件触发动作绝不能被调用。'
+
+$previewConflictTicket = $registry.Register(
+    'CAMERA-GATE',
+    (New-Context '产线软触发隔离'),
+    $softwareTrigger,
+    $deadline,
+    [long]256,
+    [long]4096)
+$previewBeforeProductionTriggerRejected = $false
+try {
+    $unexpectedPreviewLease = $registry.EnterSoftwareTriggerCommand('CAMERA-GATE')
+    $unexpectedPreviewLease.Dispose()
+}
+catch {
+    $previewBeforeProductionTriggerRejected = $true
+}
+Assert-True $previewBeforeProductionTriggerRejected '生产票据已经登记但尚未触发时，普通预览软触发必须被拒绝。'
+$previewConflictTicket.Dispose()
+
+$previewLease = $registry.EnterSoftwareTriggerCommand('CAMERA-GATE')
+$productionDuringPreviewRejected = $false
+try {
+    $registry.Register(
+        'CAMERA-GATE',
+        (New-Context '产线软触发隔离'),
+        $softwareTrigger,
+        $deadline,
+        [long]256,
+        [long]4096)
+}
+catch {
+    $productionDuringPreviewRejected = $true
+}
+finally {
+    $previewLease.Dispose()
+}
+Assert-True $productionDuringPreviewRejected '普通预览软触发执行期间，生产票据必须在真实触发前被拒绝。'
+
+$fastPreviewLease = $registry.EnterSoftwareTriggerCommand('CAMERA-GATE')
+$fastPreviewLease.MarkCommandStarted()
+$fastPreviewFrame = New-TestMat
+Assert-True (-not $registry.TryPublishFrame(
+    'CAMERA-GATE',
+    [long]1,
+    [uint32]1,
+    [Diagnostics.Stopwatch]::GetTimestamp(),
+    $fastPreviewFrame,
+    $null)) '预览帧在SDK命令返回前到达时，也必须提前命中预览帧标记。'
+$fastPreviewFrame.Dispose()
+$fastPreviewLease.MarkCommandSucceeded()
+$fastPreviewLease.Dispose()
+$afterFastPreviewTicket = $registry.Register(
+    'CAMERA-GATE',
+    (New-Context '产线软触发隔离'),
+    $softwareTrigger,
+    $deadline,
+    [long]256,
+    [long]4096)
+$afterFastPreviewTicket.Dispose()
+
+$failedPreviewLease = $registry.EnterSoftwareTriggerCommand('CAMERA-PREVIEW-FAIL')
+$failedPreviewLease.MarkCommandStarted()
+$failedPreviewLease.Dispose()
+$productionAfterUnknownPreviewRejected = $false
+try {
+    $registry.Register(
+        'CAMERA-PREVIEW-FAIL',
+        (New-Context '产线预览失败'),
+        $softwareTrigger,
+        $deadline,
+        [long]256,
+        [long]4096)
+}
+catch {
+    $productionAfterUnknownPreviewRejected = $true
+}
+Assert-True $productionAfterUnknownPreviewRejected '预览SDK命令开始后未确认成功时，生产必须保持流重启门禁。'
+Confirm-CameraStreamReset 'CAMERA-PREVIEW-FAIL'
+$afterPreviewRecoveryTicket = $registry.Register(
+    'CAMERA-PREVIEW-FAIL',
+    (New-Context '产线预览失败恢复'),
+    $softwareTrigger,
+    $deadline,
+    [long]256,
+    [long]4096)
+$afterPreviewRecoveryTicket.Dispose()
+
+$delayedPreviewLease = $registry.EnterSoftwareTriggerCommand('CAMERA-GATE')
+$delayedPreviewLease.MarkCommandStarted()
+$delayedPreviewLease.MarkCommandSucceeded()
+$delayedPreviewLease.Dispose()
+$productionBeforePreviewFrameRejected = $false
+try {
+    $registry.Register(
+        'CAMERA-GATE',
+        (New-Context '产线软触发隔离'),
+        $softwareTrigger,
+        $deadline,
+        [long]256,
+        [long]4096)
+}
+catch {
+    $productionBeforePreviewFrameRejected = $true
+}
+Assert-True $productionBeforePreviewFrameRejected '预览命令已返回但对应帧尚未到达时，生产票据仍必须拒绝登记。'
+$delayedPreviewFrame = New-TestMat
+Assert-True (-not $registry.TryPublishFrame(
+    'CAMERA-GATE',
+    [long]2,
+    [uint32]2,
+    [Diagnostics.Stopwatch]::GetTimestamp(),
+    $delayedPreviewFrame,
+    $null)) '延迟预览帧必须留给旧预览显示链路，不能被生产票据接管。'
+$delayedPreviewFrame.Dispose()
+
+$productionGateTicket = $registry.Register(
+    'CAMERA-GATE',
+    (New-Context '产线软触发隔离'),
+    $softwareTrigger,
+    $deadline,
+    [long]256,
+    [long]4096)
+$script:productionTriggerCommandCount = 0
+$productionGateTicket.IssueSoftwareTrigger([Action] {
+    $productionLease = $registry.EnterSoftwareTriggerCommand('CAMERA-GATE')
+    try {
+        $script:productionTriggerCommandCount++
+    }
+    finally {
+        $productionLease.Dispose()
+    }
+})
+Assert-True ($productionTriggerCommandCount -eq 1) '生产票据授权的软件触发命令必须正常执行一次。'
+$previewTriggerRejected = $false
+try {
+    $unexpectedPreviewLease = $registry.EnterSoftwareTriggerCommand('CAMERA-GATE')
+    $unexpectedPreviewLease.Dispose()
+}
+catch {
+    $previewTriggerRejected = $true
+}
+Assert-True $previewTriggerRejected '生产票据已武装后，普通预览软触发必须被拒绝，防止下一帧错配。'
+$productionGateTicket.Dispose()
+Confirm-CameraStreamReset 'CAMERA-GATE'
 
 $sameCameraContext = New-Context '产线H'
 $sameCameraTicket = $registry.Register('CAMERA-8', $sameCameraContext, $softwareTrigger, $deadline, [long]256, [long]4096)
@@ -374,6 +523,41 @@ catch {
 }
 Assert-True $timeoutFollowerStopped '前序超时后尚未到期的后续工件也必须明确停止等待。'
 Assert-True ($budget.GetSnapshot().ActiveLeaseCount -eq 0) '超时票据必须归还触发前预算。'
+
+$stuckTriggerTicket = $registry.Register(
+    'CAMERA-STUCK-TRIGGER',
+    (New-Context '产线触发卡住'),
+    $softwareTrigger,
+    [DateTime]::UtcNow.AddSeconds(10),
+    [long]256,
+    [long]4096)
+$stuckTriggerTicket.IssueSoftwareTrigger($noOpTrigger)
+$stuckTriggerFrame = New-TestMat
+Assert-True ($registry.TryPublishFrame(
+    'CAMERA-STUCK-TRIGGER',
+    [long]1,
+    [uint32]1,
+    [Diagnostics.Stopwatch]::GetTimestamp(),
+    $stuckTriggerFrame,
+    $null)) '模拟SDK命令卡住前，生产帧必须先完成票据。'
+$neverCompletedTrigger = [Threading.Tasks.TaskCompletionSource[bool]]::new()
+$stuckWaitTask = $waitForProductionFrameMethod.Invoke(
+    $null,
+    @($registry, $stuckTriggerTicket, $neverCompletedTrigger.Task, [int]20, $none))
+$stuckTriggerTimedOut = $false
+try { $null = $stuckWaitTask.GetAwaiter().GetResult() } catch { $stuckTriggerTimedOut = $true }
+Assert-True $stuckTriggerTimedOut '帧已到但SDK触发命令未返回时，节点共同超时必须失败，不能返回成功图像。'
+Assert-True ($budget.GetSnapshot().ActiveLeaseCount -eq 0) 'SDK触发命令卡住超时后必须释放已完成信封的Mat预算。'
+$previewAfterFaultRejected = $false
+try {
+    $unexpectedFaultedPreviewLease = $registry.EnterSoftwareTriggerCommand('CAMERA-STUCK-TRIGGER')
+    $unexpectedFaultedPreviewLease.Dispose()
+}
+catch {
+    $previewAfterFaultRejected = $true
+}
+Assert-True $previewAfterFaultRejected '生产触发故障后，物理停流重启确认前必须同时禁止预览软件触发。'
+Confirm-CameraStreamReset 'CAMERA-STUCK-TRIGGER'
 
 $smallBudgetContext = New-Context '产线C'
 $budgetRejected = $false

@@ -11,11 +11,21 @@ using System.Threading.Tasks;
 using TDJS_Vision.Device.Camera;
 using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node._6_LogicTool.SharedVariable;
+using TDJS_Vision.ResourceManagement;
 
 namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 {
     public class NodeImageSource : NodeBase
     {
+        /// <summary>生产工件图像使用流程图像总预算的比例，剩余预算留给原始缓冲和下游派生图。</summary>
+        private const double WorkpieceFrameMemoryBudgetRatio = 0.50D;
+
+        /// <summary>尚未生成硬件资源档案时的生产工件图像预算。</summary>
+        private const int FallbackWorkpieceFrameMemoryBudgetMb = 256;
+
+        /// <summary>没有历史图像样本时触发前预留的保守单帧字节数。</summary>
+        private const long DefaultEstimatedCameraFrameBytes = 8L * 1024L * 1024L;
+
         /// <summary>
         /// 用于保存上次访问的图片索引
         /// </summary>
@@ -44,6 +54,12 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// 当前图像源是否已经为某一轮等待绑定相机回调。
         /// </summary>
         private bool _cameraCallbackBound;
+
+        /// <summary>当前生产票据等待的独立取消源，节点删除和释放可以立即撤销局部票据。</summary>
+        private CancellationTokenSource _productionCameraWaitCancellation;
+
+        /// <summary>1表示节点已经删除或释放，禁止竞态中的运行线程重新安装相机等待。</summary>
+        private int _isUnavailable;
 
         /// <summary>
         /// 创建使用默认相机帧等待器的图像源节点。
@@ -210,7 +226,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             if (!ReferenceEquals(node, this))
                 return;
 
+            Interlocked.Exchange(ref _isUnavailable, 1);
             _cameraFrameAwaiter.CancelPendingWait();
+            CancelProductionCameraWait();
         }
 
         /// <summary>
@@ -220,7 +238,18 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         {
             NodeBase.NodeDeletedEvent -= NodeImageSource_NodeDeletedEvent;
             Disposed -= NodeImageSource_Disposed;
+            Interlocked.Exchange(ref _isUnavailable, 1);
+            CancelProductionCameraWait();
             _cameraFrameAwaiter.Dispose();
+        }
+
+        /// <summary>线程安全取消当前生产相机等待，不在节点事件线程内等待票据或设备。</summary>
+        private void CancelProductionCameraWait()
+        {
+            CancellationTokenSource cancellation;
+            lock (_cameraCallbackBindingLock)
+                cancellation = _productionCameraWaitCancellation;
+            try { cancellation?.Cancel(); } catch { }
         }
 
         /// <summary>
@@ -448,6 +477,23 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 throw new Exception("相机对象无效！");
             if (!param.Camera.IsOpen)
                 throw new Exception("相机尚未连接！");
+            if (Volatile.Read(ref _isUnavailable) != 0)
+                throw new ObjectDisposedException(nameof(NodeImageSource), "图像源节点已经删除或释放，禁止继续等待相机帧。 ");
+
+            WorkpieceExecutionContext workpieceContext =
+                Solution.Instance.WorkpieceContextAccessor.Current;
+            if (workpieceContext != null)
+            {
+                if (param.TriggerSource != TriggerSource.SOFT)
+                {
+                    throw new InvalidOperationException(
+                        "硬触发生产帧尚未接入外部触发就绪握手，当前禁止用无法确认触发沿的回调帧继续生产。 ");
+                }
+                return await AcquireProductionCameraImageAsync(
+                    param,
+                    workpieceContext,
+                    token).ConfigureAwait(false);
+            }
 
             bool diagnosticEnabled = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
             long waitStartedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
@@ -461,6 +507,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 // 回调订阅只覆盖本轮有效等待，防止已结束流程继续参与每帧分发和图像克隆。
                 lock (_cameraCallbackBindingLock)
                 {
+                    if (Volatile.Read(ref _isUnavailable) != 0)
+                        throw new ObjectDisposedException(nameof(NodeImageSource));
                     if (_cameraCallbackBound)
                         throw new InvalidOperationException("当前图像源已经在等待相机回调帧。");
 
@@ -526,6 +574,259 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     }
                 }
             }
+        }
+
+        /// <summary>在真实触发前登记工件票据，并把Mat和实际字节预算成对转给图像输出。</summary>
+        private async Task<OutputImage> AcquireProductionCameraImageAsync(
+            NodeParamImageSoucre param,
+            WorkpieceExecutionContext workpieceContext,
+            CancellationToken token)
+        {
+            if (workpieceContext == null)
+                throw new ArgumentNullException(nameof(workpieceContext));
+
+            CameraTriggerTicketRegistry registry = Solution.Instance.CameraTriggerTicketRegistry;
+            string cameraKey = CameraProductionIdentity.GetStableKey(param.Camera);
+            int timeoutMilliseconds = GetCameraTimeoutMilliseconds(param);
+            DateTime deadlineUtc = DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds);
+            long memoryBudgetBytes = GetWorkpieceFrameMemoryBudgetBytes();
+            long estimatedFrameBytes = GetEstimatedCameraFrameBytes(param.Camera);
+            CameraTriggerKind triggerKind = CameraTriggerKind.Software;
+
+            CameraTriggerTicket ticket = null;
+            CameraFrameEnvelope envelope = null;
+            bool callbackOwnerRegistered = false;
+            bool callbackBound = false;
+            CancellationTokenSource productionCancellation =
+                CancellationTokenSource.CreateLinkedTokenSource(token);
+            try
+            {
+                lock (_cameraCallbackBindingLock)
+                {
+                    if (Volatile.Read(ref _isUnavailable) != 0)
+                        throw new ObjectDisposedException(nameof(NodeImageSource));
+                    if (_cameraCallbackBound)
+                        throw new InvalidOperationException("当前图像源已经在等待相机生产帧。 ");
+                    callbackBound = true;
+                    _cameraCallbackBound = true;
+                    _productionCameraWaitCancellation = productionCancellation;
+                }
+
+                productionCancellation.Token.ThrowIfCancellationRequested();
+                ticket = registry.Register(
+                    cameraKey,
+                    workpieceContext,
+                    triggerKind,
+                    deadlineUtc,
+                    estimatedFrameBytes,
+                    memoryBudgetBytes);
+                productionCancellation.Token.ThrowIfCancellationRequested();
+                param.Camera.RegisterImageCallbackOwner(this);
+                callbackOwnerRegistered = true;
+                productionCancellation.Token.ThrowIfCancellationRequested();
+
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=生产票据就绪；工件={workpieceContext.Identity}；相机={param.Camera.DevName}；触发源={param.TriggerSource}；估算字节={estimatedFrameBytes}；预算字节={memoryBudgetBytes}",
+                    true);
+
+                Task triggerTask = Task.Factory.StartNew(
+                    () => ticket.IssueSoftwareTrigger(param.Camera.GrabOne),
+                    CancellationToken.None,
+                    TaskCreationOptions.DenyChildAttach,
+                    TaskScheduler.Default);
+
+                envelope = await WaitForProductionFrameAsync(
+                    registry,
+                    ticket,
+                    triggerTask,
+                    timeoutMilliseconds,
+                    productionCancellation.Token).ConfigureAwait(false);
+                productionCancellation.Token.ThrowIfCancellationRequested();
+                CameraFrameTraceInfo frameTrace = envelope.TraceInfo;
+                Mat outputMat;
+                IWorkpieceFrameMemoryLease memoryLease;
+                envelope.TransferOwnership(out outputMat, out memoryLease);
+                envelope.Dispose();
+                envelope = null;
+
+                // 工厂从调用开始即接管两个对象，构造失败也会同时释放，调用方不得重复释放。
+                OutputImage outputImage = OutputImage.FromOwnedSingleImageWithLifetime(
+                    outputMat,
+                    memoryLease);
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=生产图像输出完成；工件={workpieceContext.Identity}；FrameId={frameTrace?.FrameId.ToString() ?? "无"}；实际预算字节={outputImage.GetRetainedImageBytesEstimateForAdmission()}",
+                    true);
+                return outputImage;
+            }
+            finally
+            {
+                if (callbackOwnerRegistered)
+                {
+                    try { param.Camera.UnregisterImageCallbackOwner(this); } catch { }
+                }
+                try { envelope?.Dispose(); } catch { }
+                try { ticket?.Dispose(); } catch { }
+                if (callbackBound)
+                {
+                    lock (_cameraCallbackBindingLock)
+                    {
+                        if (ReferenceEquals(_productionCameraWaitCancellation, productionCancellation))
+                            _productionCameraWaitCancellation = null;
+                        _cameraCallbackBound = false;
+                    }
+                }
+                productionCancellation.Dispose();
+            }
+        }
+
+        /// <summary>等待票据完成、流程取消或节点采图超时，超时后由注册表统一清场。</summary>
+        private static async Task<CameraFrameEnvelope> WaitForProductionFrameAsync(
+            CameraTriggerTicketRegistry registry,
+            CameraTriggerTicket ticket,
+            Task triggerTask,
+            int timeoutMilliseconds,
+            CancellationToken token)
+        {
+            using (CancellationTokenSource timeoutCancellation =
+                CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                Task timeoutTask = Task.Delay(timeoutMilliseconds, timeoutCancellation.Token);
+                Task<CameraFrameEnvelope> frameTask = ticket.Completion;
+                Task completedTask = await Task.WhenAny(
+                    triggerTask,
+                    frameTask,
+                    timeoutTask).ConfigureAwait(false);
+
+                if (ReferenceEquals(completedTask, triggerTask))
+                {
+                    await triggerTask.ConfigureAwait(false);
+                    if (!frameTask.IsCompleted)
+                    {
+                        completedTask = await Task.WhenAny(frameTask, timeoutTask).ConfigureAwait(false);
+                        if (ReferenceEquals(completedTask, timeoutTask))
+                            ThrowProductionCameraWaitFailure(registry, ticket, triggerTask, frameTask, timeoutMilliseconds, token);
+                    }
+                }
+                else if (ReferenceEquals(completedTask, timeoutTask))
+                {
+                    ThrowProductionCameraWaitFailure(registry, ticket, triggerTask, frameTask, timeoutMilliseconds, token);
+                }
+
+                CameraFrameEnvelope envelope = await frameTask.ConfigureAwait(false);
+                try
+                {
+                    if (!triggerTask.IsCompleted)
+                    {
+                        completedTask = await Task.WhenAny(triggerTask, timeoutTask).ConfigureAwait(false);
+                        if (ReferenceEquals(completedTask, timeoutTask))
+                            ThrowProductionCameraWaitFailure(registry, ticket, triggerTask, frameTask, timeoutMilliseconds, token);
+                    }
+
+                    await triggerTask.ConfigureAwait(false);
+                    token.ThrowIfCancellationRequested();
+                    timeoutCancellation.Cancel();
+                    return envelope;
+                }
+                catch
+                {
+                    try { envelope.Dispose(); } catch { }
+                    throw;
+                }
+            }
+        }
+
+        /// <summary>统一处理节点取消或触发/帧共同超时，绝不把超时点后的已到达帧当作成功。</summary>
+        private static void ThrowProductionCameraWaitFailure(
+            CameraTriggerTicketRegistry registry,
+            CameraTriggerTicket ticket,
+            Task triggerTask,
+            Task<CameraFrameEnvelope> frameTask,
+            int timeoutMilliseconds,
+            CancellationToken token)
+        {
+            ObserveFaultedTask(triggerTask);
+            bool triggerStillRunning = !triggerTask.IsCompleted;
+            Exception failure = token.IsCancellationRequested
+                ? (Exception)new OperationCanceledException(
+                    $"相机{ticket.CameraKey}等待工件{ticket.Context.Identity}生产帧已取消。",
+                    token)
+                : new TimeoutException(
+                    $"相机{ticket.CameraKey}等待工件{ticket.Context.Identity}生产帧和触发命令共同完成超时（{timeoutMilliseconds}ms）。");
+
+            if (triggerStillRunning)
+                registry.FailTriggeredTicket(ticket, failure);
+            else if (!token.IsCancellationRequested)
+                registry.FailExpired(ticket.DeadlineUtc.AddTicks(1L));
+
+            DisposeFrameWhenCompleted(frameTask);
+
+            if (token.IsCancellationRequested)
+                token.ThrowIfCancellationRequested();
+            throw failure;
+        }
+
+        /// <summary>无论帧已完成还是在失败清场后竞态完成，都在唯一成功结果上幂等释放信封。</summary>
+        private static void DisposeFrameWhenCompleted(Task<CameraFrameEnvelope> frameTask)
+        {
+            frameTask.ContinueWith(
+                completed =>
+                {
+                    try { completed.GetAwaiter().GetResult().Dispose(); } catch { }
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+
+        /// <summary>超时返回后继续观察仍在SDK中的触发任务异常，避免形成未观察任务。</summary>
+        private static void ObserveFaultedTask(Task task)
+        {
+            task.ContinueWith(
+                completed =>
+                {
+                    AggregateException ignored = completed.Exception;
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+
+        /// <summary>读取节点配置的相机等待上限，缺省时回退相机参数，最终至少1毫秒。</summary>
+        private static int GetCameraTimeoutMilliseconds(NodeParamImageSoucre param)
+        {
+            uint configuredTimeout = param.TimeOut > 0U
+                ? param.TimeOut
+                : param.Camera.GetImageTimeOut;
+            if (configuredTimeout == 0U)
+                configuredTimeout = 2000U;
+            return configuredTimeout > int.MaxValue ? int.MaxValue : Math.Max(1, (int)configuredTimeout);
+        }
+
+        /// <summary>按自动资源档案计算全部在途工件相机Mat共同遵守的实际字节硬预算。</summary>
+        private static long GetWorkpieceFrameMemoryBudgetBytes()
+        {
+            int flowBudgetMb = Solution.Instance.CurrentResourceProfile?.FlowImageMemoryBudgetMb ?? 0;
+            if (flowBudgetMb <= 0)
+                return FallbackWorkpieceFrameMemoryBudgetMb * 1024L * 1024L;
+            return Math.Max(
+                1L,
+                (long)Math.Floor(flowBudgetMb * 1024D * 1024D * WorkpieceFrameMemoryBudgetRatio));
+        }
+
+        /// <summary>优先使用运行档案的历史平均图像字节，首轮使用8MB保守估算。</summary>
+        private static long GetEstimatedCameraFrameBytes(ICamera camera)
+        {
+            if (camera == null)
+                throw new ArgumentNullException(nameof(camera));
+            long cameraBytes = camera.GetProductionFrameMemoryEstimateBytes();
+            if (cameraBytes <= 0L)
+                throw new InvalidOperationException("相机返回的生产帧内存估算无效。 ");
+            long sampledBytes = Solution.Instance.CurrentResourceProfile?.Workload?.AverageImageBytes ?? 0L;
+            return Math.Max(
+                cameraBytes,
+                sampledBytes > 0L ? sampledBytes : DefaultEstimatedCameraFrameBytes);
         }
 
         /// <summary>
