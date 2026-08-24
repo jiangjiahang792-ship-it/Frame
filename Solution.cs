@@ -894,6 +894,22 @@ namespace TDJS_Vision
             EndRunSession();
         }
 
+        /// <summary>仅在没有生产会话和方案重置时执行一次手动外设动作。</summary>
+        /// <param name="action">必须具备自身有限超时的手动设备动作。</param>
+        /// <returns>取得运行生命周期门禁并执行返回true；生产运行或重置中返回false。</returns>
+        internal bool TryExecuteManualExternalSignal(Action action)
+        {
+            if (action == null)
+                throw new ArgumentNullException(nameof(action));
+            lock (_runLifecycleSync)
+            {
+                if (_isResetting || _activeRunSessionCount != 0)
+                    return false;
+                action();
+                return true;
+            }
+        }
+
         /// <summary>
         /// 进入独占方案变更作用域，供加载逻辑覆盖从旧方案清理到新方案恢复的完整过程。
         /// </summary>
