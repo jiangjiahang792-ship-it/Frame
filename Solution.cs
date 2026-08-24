@@ -48,7 +48,7 @@ namespace TDJS_Vision
             CameraRawFrameMemoryBudgetManager = new CameraRawFrameMemoryBudgetManager();
             WorkpieceContextAccessor = new WorkpieceContextAccessor();
             WorkpieceIdentityGenerator = new WorkpieceIdentityGenerator();
-            _orderedSignalCoordinator = new OrderedSignalCoordinator();
+            _orderedSignalCoordinator = CreateOrderedSignalCoordinator();
             RenewCameraProductionPipeline();
             _cpuWorkScheduler = new CpuWorkScheduler(new CpuWorkSchedulerOptions());
             _cpuResourceMonitor = new CpuResourceMonitor(
@@ -91,6 +91,9 @@ namespace TDJS_Vision
 
         /// <summary>方案重置期间禁止启动新的运行会话。</summary>
         private bool _isResetting;
+
+        /// <summary>当前生产会话是否已提交不可恢复故障停机，活动会话退出前拒绝新入口。</summary>
+        private bool _runFaultStopRequested;
 
         /// <summary>串行化方案重置以及“重置后恢复新方案”的完整变更过程。</summary>
         private readonly object _solutionMutationSync = new object();
@@ -836,12 +839,17 @@ namespace TDJS_Vision
                 if (_isResetting)
                     return false;
 
-                isFirstSession = _activeRunSessionCount == 0;
-                if (_activeRunSessionCount == 0 && _cancellationTokenSource.IsCancellationRequested)
+                if (_runFaultStopRequested && _activeRunSessionCount != 0)
+                    return false;
+
+                if (_activeRunSessionCount == 0 &&
+                    (_runFaultStopRequested || _cancellationTokenSource.IsCancellationRequested))
                 {
                     retiredTokenSource = _cancellationTokenSource;
                     _cancellationTokenSource = new CancellationTokenSource();
+                    _runFaultStopRequested = false;
                 }
+                isFirstSession = _activeRunSessionCount == 0;
                 _activeRunSessionCount++;
                 _allRunsStopped.Reset();
                 IsRunning = true;
@@ -1004,12 +1012,17 @@ namespace TDJS_Vision
         /// <param name="stage">用于日志定位的停止阶段。</param>
         private static void CancelTokenSourceNoThrow(CancellationTokenSource tokenSource, string stage)
         {
-            if (tokenSource == null || tokenSource.IsCancellationRequested)
+            if (tokenSource == null)
                 return;
 
             try
             {
+                if (tokenSource.IsCancellationRequested)
+                    return;
                 tokenSource.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
             }
             catch (Exception ex)
             {
@@ -1290,9 +1303,62 @@ namespace TDJS_Vision
             lock (_orderedSignalCoordinatorSync)
             {
                 retiredCoordinator = _orderedSignalCoordinator;
-                _orderedSignalCoordinator = new OrderedSignalCoordinator();
+                _orderedSignalCoordinator = CreateOrderedSignalCoordinator();
             }
+            if (retiredCoordinator != null)
+                retiredCoordinator.OrderGapDetected -= HandleOrderedSignalGapDetected;
             retiredCoordinator?.Dispose();
+        }
+
+        /// <summary>创建绑定当前方案停机处理器的有序信号协调器。</summary>
+        private OrderedSignalCoordinator CreateOrderedSignalCoordinator()
+        {
+            var coordinator = new OrderedSignalCoordinator(
+                TDJS_Vision.ResourceManagement.OrderedSignalCoordinator.DefaultSignalOrderGapTimeoutMs);
+            coordinator.OrderGapDetected += HandleOrderedSignalGapDetected;
+            return coordinator;
+        }
+
+        /// <summary>当前会话出现持续顺序缺口时记录完整证据并取消整套方案。</summary>
+        private void HandleOrderedSignalGapDetected(
+            object sender,
+            OrderedSignalGapEventArgs eventArgs)
+        {
+            if (!TryCommitOrderedSignalGapStop(sender, out CancellationTokenSource tokenSource))
+                return;
+
+            try
+            {
+                LogHelper.AddLog(
+                    MsgLevel.Fatal,
+                    eventArgs?.Message ?? "有序信号出现未知顺序缺口，已停止方案。",
+                    true);
+            }
+            catch
+            {
+            }
+            CancelTokenSourceNoThrow(tokenSource, "有序信号顺序缺口");
+        }
+
+        /// <summary>原子确认报警来源并提交本会话故障停机状态，返回必须取消的旧令牌源。</summary>
+        private bool TryCommitOrderedSignalGapStop(
+            object sender,
+            out CancellationTokenSource tokenSource)
+        {
+            lock (_runLifecycleSync)
+            {
+                lock (_orderedSignalCoordinatorSync)
+                {
+                    if (!ReferenceEquals(sender, _orderedSignalCoordinator))
+                    {
+                        tokenSource = null;
+                        return false;
+                    }
+                    _runFaultStopRequested = true;
+                    tokenSource = _cancellationTokenSource;
+                    return true;
+                }
+            }
         }
 
         /// <summary>

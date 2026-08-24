@@ -44,6 +44,10 @@ Assert-True ($solutionSource.Contains('if (isFirstSession)')) '身份纪元重�
 Assert-True ($solutionSource.Contains('context.Identity.SessionEpoch == WorkpieceIdentityGenerator.SessionEpoch')) '继承上下文前必须校验当前生产会话纪元。'
 Assert-True ($solutionSource.Contains('OrderedSignalCoordinator.RegisterWorkpiece(context);')) '工件上下文创建后必须立即登记到当前会话有序协调器。'
 Assert-True ($solutionSource.Contains('RenewOrderedSignalCoordinator();')) '新生产会话和方案重置必须淘汰旧有序协调器。'
+Assert-True ($solutionSource.Contains('coordinator.OrderGapDetected += HandleOrderedSignalGapDetected;')) '当前有序协调器必须绑定顺序缺口停机处理器。'
+Assert-True ($solutionSource.Contains('if (!ReferenceEquals(sender, _orderedSignalCoordinator))')) '迟到的旧协调器缺口报警不得误停新生产会话。'
+Assert-True ($solutionSource.Contains('if (_runFaultStopRequested && _activeRunSessionCount != 0)')) '缺口停机提交后必须拒绝活动会话退出前的新运行入口。'
+Assert-True ($solutionSource.Contains('CancelTokenSourceNoThrow(tokenSource, "有序信号顺序缺口");')) '当前会话顺序缺口必须真实取消方案运行令牌。'
 Assert-True (-not $solutionSource.Contains('workpieceContext.TryComplete(terminalState);')) '方案流程组根工件不得绕过协调器直接封口。'
 Assert-True ($solutionSource.Contains('await CompleteWorkpieceExecutionAsync(')) '方案流程组根工件必须通过协调器封口并推进顺序域。'
 Assert-True ($processSource.Contains('CompleteWorkpieceExecutionAsync(')) '自有工件必须通过协调器封口，不能只等待上下文本地终态。'
@@ -53,6 +57,7 @@ $assembly = [Reflection.Assembly]::LoadFrom($application.FullName)
 $processType = $assembly.GetType('TDJS_Vision.Process', $true)
 $solutionType = $assembly.GetType('TDJS_Vision.Solution', $true)
 $contextType = $assembly.GetType('TDJS_Vision.ResourceManagement.WorkpieceExecutionContext', $true)
+$gapEventArgsType = $assembly.GetType('TDJS_Vision.ResourceManagement.OrderedSignalGapEventArgs', $true)
 $taskType = [Threading.Tasks.Task]
 
 $triggerMethods = @($processType.GetMethods() | Where-Object { $_.Name -eq 'TriggerProcess' })
@@ -163,5 +168,41 @@ $failedBranchContext.TryComplete([Enum]::Parse($failedBranchContext.TerminalStat
 $failedLeaseArguments[0].Complete([Enum]::Parse($failedBranchContext.TerminalState.GetType(), 'Faulted'))
 $failedTerminal = $failedBranchContext.Completion.GetAwaiter().GetResult()
 Assert-True ($failedTerminal.ToString() -eq 'Faulted') '子流程失败必须覆盖父流程先前请求的成功终态。'
+
+$commitGapStopMethod = $solutionType.GetMethod('TryCommitOrderedSignalGapStop', [Reflection.BindingFlags]'Instance,NonPublic')
+$beginExternalRunMethod = $solutionType.GetMethod('TryBeginExternalRunSession', [Reflection.BindingFlags]'Instance,NonPublic')
+$endExternalRunMethod = $solutionType.GetMethod('EndExternalRunSession', [Reflection.BindingFlags]'Instance,NonPublic')
+
+$retiredCommitArguments = [object[]]@($retiredCoordinator, $null)
+$retiredCommitted = [bool]$commitGapStopMethod.Invoke($solution, $retiredCommitArguments)
+Assert-True (-not $retiredCommitted -and $null -eq $retiredCommitArguments[1]) '旧协调器迟到报警被错误提交到当前会话。'
+
+# Commit a stop before cancellation, then prove a zero-active-session handoff rotates the token atomically.
+$handoffCommitArguments = [object[]]@($currentCoordinator, $null)
+Assert-True ([bool]$commitGapStopMethod.Invoke($solution, $handoffCommitArguments)) '当前协调器缺口停机状态没有提交。'
+$retiredTokenSource = $handoffCommitArguments[1]
+Assert-True ($null -ne $retiredTokenSource) '缺口停机提交没有捕获待取消令牌源。'
+$retiredToken = $retiredTokenSource.Token
+Assert-True ([bool]$beginExternalRunMethod.Invoke($solution, @())) '零活动会话未能在缺口提交后建立新会话。'
+$freshToken = $solution.CancellationToken
+Assert-True (-not $freshToken.IsCancellationRequested) '缺口提交后的新会话复用了待取消令牌。'
+Assert-True ($freshToken -ne $retiredToken) '缺口提交后的新会话没有更换运行令牌。'
+try {
+    $retiredTokenSource.Cancel()
+}
+catch [ObjectDisposedException] {
+    # 会话交接可能在延迟报警回调恢复前释放旧令牌源。
+}
+Assert-True (-not $solution.CancellationToken.IsCancellationRequested) '迟到的旧令牌取消误停了已经完成交接的新会话。'
+$endExternalRunMethod.Invoke($solution, @()) | Out-Null
+
+# While a run is active, the committed stop must reject every new entry until that run exits.
+Assert-True ([bool]$beginExternalRunMethod.Invoke($solution, @())) '活动停机门闩测试未能建立首个运行会话。'
+$activeCoordinator = $coordinatorProperty.GetValue($solution)
+$activeCommitArguments = [object[]]@($activeCoordinator, $null)
+Assert-True ([bool]$commitGapStopMethod.Invoke($solution, $activeCommitArguments)) '活动会话缺口停机状态没有提交。'
+Assert-True (-not [bool]$beginExternalRunMethod.Invoke($solution, @())) '缺口停机提交后仍允许第二个运行入口进入。'
+$activeCommitArguments[1].Cancel()
+$endExternalRunMethod.Invoke($solution, @()) | Out-Null
 
 Write-Host '工件上下文与流程运行入口集成测试通过。'

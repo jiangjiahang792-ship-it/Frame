@@ -99,6 +99,15 @@ namespace TDJS_Vision.ResourceManagement
     /// <summary>按生产顺序域、工件号和工件内信号号严格执行外部副作用。</summary>
     public sealed class OrderedSignalCoordinator : IOrderedSignalCoordinator, IDisposable
     {
+        /// <summary>默认前序工件或信号缺口报警时间。</summary>
+        public const int DefaultSignalOrderGapTimeoutMs = 30000;
+
+        /// <summary>允许配置的最小缺口报警时间。</summary>
+        public const int MinimumSignalOrderGapTimeoutMs = 1000;
+
+        /// <summary>允许配置的最大缺口报警时间。</summary>
+        public const int MaximumSignalOrderGapTimeoutMs = 600000;
+
         /// <summary>保护全部顺序域、意图和关闭状态。</summary>
         private readonly object _syncRoot = new object();
 
@@ -107,6 +116,9 @@ namespace TDJS_Vision.ResourceManagement
 
         /// <summary>是否由协调器负责释放端点串行器。</summary>
         private readonly bool _ownsEndpointSerializer;
+
+        /// <summary>后续信号已排队但前序缺失时允许等待的最长时间。</summary>
+        private readonly int _signalOrderGapTimeoutMs;
 
         /// <summary>按规范化生产顺序域保存当前会话状态。</summary>
         private readonly Dictionary<string, OrderDomainState> _domainStates =
@@ -129,24 +141,54 @@ namespace TDJS_Vision.ResourceManagement
 
         /// <summary>创建拥有默认端点串行器的协调器。</summary>
         public OrderedSignalCoordinator()
-            : this(new SignalEndpointSerializer(), true)
+            : this(
+                new SignalEndpointSerializer(),
+                true,
+                DefaultSignalOrderGapTimeoutMs)
+        {
+        }
+
+        /// <summary>创建拥有默认端点串行器和指定缺口超时的协调器。</summary>
+        public OrderedSignalCoordinator(int signalOrderGapTimeoutMs)
+            : this(new SignalEndpointSerializer(), true, signalOrderGapTimeoutMs)
         {
         }
 
         /// <summary>创建使用可替换端点串行器的协调器。</summary>
         public OrderedSignalCoordinator(ISignalEndpointSerializer endpointSerializer)
-            : this(endpointSerializer, false)
+            : this(
+                endpointSerializer,
+                false,
+                DefaultSignalOrderGapTimeoutMs)
+        {
+        }
+
+        /// <summary>创建使用可替换端点串行器和指定缺口超时的协调器。</summary>
+        public OrderedSignalCoordinator(
+            ISignalEndpointSerializer endpointSerializer,
+            int signalOrderGapTimeoutMs)
+            : this(endpointSerializer, false, signalOrderGapTimeoutMs)
         {
         }
 
         /// <summary>创建协调器并声明端点串行器所有权。</summary>
         private OrderedSignalCoordinator(
             ISignalEndpointSerializer endpointSerializer,
-            bool ownsEndpointSerializer)
+            bool ownsEndpointSerializer,
+            int signalOrderGapTimeoutMs)
         {
             _endpointSerializer = endpointSerializer ?? throw new ArgumentNullException(nameof(endpointSerializer));
             _ownsEndpointSerializer = ownsEndpointSerializer;
+            _signalOrderGapTimeoutMs = Math.Max(
+                MinimumSignalOrderGapTimeoutMs,
+                Math.Min(MaximumSignalOrderGapTimeoutMs, signalOrderGapTimeoutMs));
         }
+
+        /// <summary>获取当前协调器使用的前序缺口报警时间。</summary>
+        public int SignalOrderGapTimeoutMs => _signalOrderGapTimeoutMs;
+
+        /// <summary>顺序缺口持续超过阈值并已阻断当前域时触发。</summary>
+        public event EventHandler<OrderedSignalGapEventArgs> OrderGapDetected;
 
         /// <summary>按身份序号登记已准入工件，禁止缺号、重复对象和跨会话混用。</summary>
         public void RegisterWorkpiece(WorkpieceExecutionContext context)
@@ -487,7 +529,7 @@ namespace TDJS_Vision.ResourceManagement
         }
 
         /// <summary>只调度当前队首工件的下一连续信号。</summary>
-        private static SignalIntentRecord TryScheduleNextUnderLock(OrderDomainState state)
+        private SignalIntentRecord TryScheduleNextUnderLock(OrderDomainState state)
         {
             if (state.Blocked || state.DispatchActive || state.Workpieces.First == null)
                 return null;
@@ -495,20 +537,188 @@ namespace TDJS_Vision.ResourceManagement
             if (!workpiece.Signals.TryGetValue(workpiece.NextSignalSequence, out SignalIntentRecord record) ||
                 record.State != SignalRecordState.Queued)
             {
+                UpdateGapWatchUnderLock(state);
                 return null;
             }
+            CancelGapWatchUnderLock(state);
             record.State = SignalRecordState.Started;
             state.DispatchActive = true;
             return record;
         }
 
+        /// <summary>根据当前队首和后方排队压力启动、保持或取消唯一缺口计时。</summary>
+        private void UpdateGapWatchUnderLock(OrderDomainState state)
+        {
+            if (!TryCreateGapObservationUnderLock(state, out SignalGapObservation observation))
+            {
+                CancelGapWatchUnderLock(state);
+                return;
+            }
+
+            if (state.GapWatchCancellation != null &&
+                state.GapExpectedWorkpieceSequence == observation.ExpectedWorkpieceSequence &&
+                state.GapExpectedSignalSequence == observation.ExpectedSignalSequence)
+            {
+                return;
+            }
+
+            CancelGapWatchUnderLock(state);
+            var cancellation = new CancellationTokenSource();
+            state.GapWatchCancellation = cancellation;
+            state.GapExpectedWorkpieceSequence = observation.ExpectedWorkpieceSequence;
+            state.GapExpectedSignalSequence = observation.ExpectedSignalSequence;
+            long generation = ++state.GapWatchGeneration;
+            _ = MonitorGapAsync(state, generation, cancellation.Token);
+        }
+
+        /// <summary>异步等待缺口阈值，计时期间不占用线程。</summary>
+        private async Task MonitorGapAsync(
+            OrderDomainState state,
+            long generation,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await Task.Delay(_signalOrderGapTimeoutMs, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            HandleGapTimeout(state, generation);
+        }
+
+        /// <summary>重新确认缺口仍存在后阻断顺序域，并在锁外发布唯一报警。</summary>
+        private void HandleGapTimeout(OrderDomainState state, long generation)
+        {
+            List<SignalIntentRecord> rejectedRecords;
+            List<WorkpieceExecutionContext> affectedContexts;
+            OrderedSignalGapEventArgs eventArgs;
+            lock (_syncRoot)
+            {
+                if (Volatile.Read(ref _disposed) != 0 ||
+                    state.Blocked ||
+                    state.GapWatchGeneration != generation ||
+                    !TryCreateGapObservationUnderLock(state, out SignalGapObservation observation) ||
+                    observation.ExpectedWorkpieceSequence != state.GapExpectedWorkpieceSequence ||
+                    observation.ExpectedSignalSequence != state.GapExpectedSignalSequence)
+                {
+                    return;
+                }
+
+                string message =
+                    $"有序信号顺序缺口超时，已停止方案：顺序域={state.OrderDomain}；会话={state.SessionEpoch:N}；" +
+                    $"期望工件={observation.ExpectedWorkpieceSequence}；期望信号={observation.ExpectedSignalSequence}；" +
+                    $"首个等待=工件{observation.FirstWaitingWorkpieceSequence}/信号{observation.FirstWaitingSignalSequence}/节点{observation.FirstWaitingNodePath}；" +
+                    $"等待意图={observation.WaitingIntentCount}；超时={_signalOrderGapTimeoutMs}ms。禁止越过缺口发送。";
+                rejectedRecords = BlockDomainUnderLock(state, message);
+                affectedContexts = new List<WorkpieceExecutionContext>(state.Workpieces.Count);
+                foreach (WorkpieceSignalState workpiece in state.Workpieces)
+                    affectedContexts.Add(workpiece.Context);
+                eventArgs = new OrderedSignalGapEventArgs(
+                    state.OrderDomain,
+                    state.SessionEpoch,
+                    observation.ExpectedWorkpieceSequence,
+                    observation.ExpectedSignalSequence,
+                    observation.FirstWaitingWorkpieceSequence,
+                    observation.FirstWaitingSignalSequence,
+                    observation.FirstWaitingNodePath,
+                    observation.WaitingIntentCount,
+                    _signalOrderGapTimeoutMs,
+                    DateTime.UtcNow,
+                    message);
+            }
+
+            foreach (WorkpieceExecutionContext context in affectedContexts)
+                context.TryEscalateTerminalState(WorkpieceTerminalState.Stopped);
+            CompleteRejectedRecords(rejectedRecords);
+            RaiseOrderGapDetected(eventArgs);
+        }
+
+        /// <summary>判断是否有后续意图因当前队首的前序工件或信号缺失而等待。</summary>
+        private static bool TryCreateGapObservationUnderLock(
+            OrderDomainState state,
+            out SignalGapObservation observation)
+        {
+            observation = null;
+            if (state.Blocked || state.DispatchActive || state.Workpieces.First == null)
+                return false;
+
+            WorkpieceSignalState head = state.Workpieces.First.Value;
+            if (head.Signals.TryGetValue(head.NextSignalSequence, out SignalIntentRecord expected) &&
+                expected.State == SignalRecordState.Queued)
+            {
+                return false;
+            }
+
+            SignalIntentRecord firstWaiting = null;
+            int waitingCount = 0;
+            foreach (WorkpieceSignalState workpiece in state.Workpieces)
+            {
+                foreach (SignalIntentRecord record in workpiece.Signals.Values)
+                {
+                    if (record.State != SignalRecordState.Queued)
+                        continue;
+                    if (ReferenceEquals(workpiece, head) &&
+                        record.Intent.SignalSequence <= head.NextSignalSequence)
+                    {
+                        continue;
+                    }
+                    waitingCount++;
+                    if (firstWaiting == null)
+                        firstWaiting = record;
+                }
+            }
+            if (firstWaiting == null)
+                return false;
+
+            observation = new SignalGapObservation(
+                head.Context.Identity.Sequence,
+                head.NextSignalSequence,
+                firstWaiting.Intent.Context.Identity.Sequence,
+                firstWaiting.Intent.SignalSequence,
+                firstWaiting.Intent.NodePath,
+                waitingCount);
+            return true;
+        }
+
+        /// <summary>取消当前域的缺口监视；重复调用安全。</summary>
+        private static void CancelGapWatchUnderLock(OrderDomainState state)
+        {
+            CancellationTokenSource cancellation = state.GapWatchCancellation;
+            state.GapWatchCancellation = null;
+            state.GapExpectedWorkpieceSequence = 0L;
+            state.GapExpectedSignalSequence = 0L;
+            state.GapWatchGeneration++;
+            if (cancellation == null)
+                return;
+            try { cancellation.Cancel(); } catch { }
+            cancellation.Dispose();
+        }
+
+        /// <summary>逐个隔离报警订阅者异常，避免诊断回调破坏协调器状态。</summary>
+        private void RaiseOrderGapDetected(OrderedSignalGapEventArgs eventArgs)
+        {
+            EventHandler<OrderedSignalGapEventArgs> handlers = OrderGapDetected;
+            if (handlers == null)
+                return;
+            foreach (EventHandler<OrderedSignalGapEventArgs> handler in handlers.GetInvocationList())
+            {
+                try { handler(this, eventArgs); } catch { }
+            }
+        }
+
         /// <summary>阻断顺序域并取出全部尚未开始的意图。</summary>
-        private static List<SignalIntentRecord> BlockDomainUnderLock(
+        private List<SignalIntentRecord> BlockDomainUnderLock(
             OrderDomainState state,
             string reason)
         {
-            state.Blocked = true;
-            state.BlockReason = reason ?? "有序信号顺序域已经停止。 ";
+            CancelGapWatchUnderLock(state);
+            if (!state.Blocked)
+            {
+                state.Blocked = true;
+                state.BlockReason = reason ?? "有序信号顺序域已经停止。 ";
+            }
             List<SignalIntentRecord> rejected = new List<SignalIntentRecord>();
             foreach (WorkpieceSignalState workpiece in state.Workpieces)
             {
@@ -628,6 +838,57 @@ namespace TDJS_Vision.ResourceManagement
 
             /// <summary>阻断后续发送的首个原因。</summary>
             public string BlockReason { get; set; }
+
+            /// <summary>当前缺口监视的取消源；为空表示没有后续排队压力。</summary>
+            public CancellationTokenSource GapWatchCancellation { get; set; }
+
+            /// <summary>用于淘汰迟到计时回调的代数。</summary>
+            public long GapWatchGeneration { get; set; }
+
+            /// <summary>当前缺口计时等待的工件序号。</summary>
+            public long GapExpectedWorkpieceSequence { get; set; }
+
+            /// <summary>当前缺口计时等待的信号序号。</summary>
+            public long GapExpectedSignalSequence { get; set; }
+        }
+
+        /// <summary>一次锁内顺序缺口判断的不可变快照。</summary>
+        private sealed class SignalGapObservation
+        {
+            /// <summary>创建缺口观察快照。</summary>
+            public SignalGapObservation(
+                long expectedWorkpieceSequence,
+                long expectedSignalSequence,
+                long firstWaitingWorkpieceSequence,
+                long firstWaitingSignalSequence,
+                string firstWaitingNodePath,
+                int waitingIntentCount)
+            {
+                ExpectedWorkpieceSequence = expectedWorkpieceSequence;
+                ExpectedSignalSequence = expectedSignalSequence;
+                FirstWaitingWorkpieceSequence = firstWaitingWorkpieceSequence;
+                FirstWaitingSignalSequence = firstWaitingSignalSequence;
+                FirstWaitingNodePath = firstWaitingNodePath;
+                WaitingIntentCount = waitingIntentCount;
+            }
+
+            /// <summary>获取当前缺失的工件序号。</summary>
+            public long ExpectedWorkpieceSequence { get; }
+
+            /// <summary>获取当前缺失的工件内信号序号。</summary>
+            public long ExpectedSignalSequence { get; }
+
+            /// <summary>获取首个后续等待工件序号。</summary>
+            public long FirstWaitingWorkpieceSequence { get; }
+
+            /// <summary>获取首个后续等待信号序号。</summary>
+            public long FirstWaitingSignalSequence { get; }
+
+            /// <summary>获取首个后续等待节点路径。</summary>
+            public string FirstWaitingNodePath { get; }
+
+            /// <summary>获取后续累计等待意图数量。</summary>
+            public int WaitingIntentCount { get; }
         }
 
         /// <summary>单个已登记工件的动态信号序列。</summary>

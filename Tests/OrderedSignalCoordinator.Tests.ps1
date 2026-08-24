@@ -152,6 +152,8 @@ $plcWrite = [Enum]::Parse($nodeKindType, 'PLCWrite')
 $localCompleted = [Enum]::Parse($sendStatusType, 'LocalCallCompleted')
 $cancelledBeforeStart = [Enum]::Parse($sendStatusType, 'CancelledBeforeStart')
 $unknown = [Enum]::Parse($sendStatusType, 'Unknown')
+$rejected = [Enum]::Parse($sendStatusType, 'Rejected')
+$stopped = [Enum]::Parse($terminalType, 'Stopped')
 $localResult = [Activator]::CreateInstance($sendResultType, @($localCompleted, 'completed', $null))
 
 function New-Context {
@@ -367,6 +369,144 @@ Assert-True ($waitingResult.Status -eq $cancelledBeforeStart) 'The frozen-endpoi
 Assert-True ($waitingProbe.CallCount -eq 0) 'The frozen-endpoint waiter reached the device delegate.'
 $unknownProbe.Dispose()
 $waitingProbe.Dispose()
+
+# A later workpiece waiting behind a missing head must raise one diagnostic and stop the domain.
+$coordinator = [Activator]::CreateInstance($coordinatorType, @(1000))
+$epoch = [Guid]::NewGuid()
+$missingContext = New-Context $epoch 'LINE-GAP-TIMEOUT' 1
+$waitingContext = New-Context $epoch 'LINE-GAP-TIMEOUT' 2
+$coordinator.RegisterWorkpiece($missingContext)
+$coordinator.RegisterWorkpiece($waitingContext)
+$waitingProbe = [OrderedSignalActionProbe]::new()
+$waitingProbe.Result = $localResult
+$gapSource = 'ordered-gap-timeout-' + [Guid]::NewGuid().ToString('N')
+$null = Register-ObjectEvent -InputObject $coordinator -EventName OrderGapDetected -SourceIdentifier $gapSource
+$waitingTask = $waitingContext.SubmitOrderedSignalAsync(
+    $coordinator,
+    'flow/gap-waiting',
+    $plcWrite,
+    'plc:gap',
+    $waitingProbe.CreateDelegate($sendResultType),
+    $none)
+$waitingSealTask = $coordinator.CompleteWorkpieceAsync($waitingContext, $succeeded)
+Assert-True (-not $waitingSealTask.IsCompleted) 'The persistent-gap waiter sealed before its signal received a result.'
+$gapEvent = Wait-Event -SourceIdentifier $gapSource -Timeout 3
+Assert-True ($null -ne $gapEvent) 'A persistent order gap did not raise an active diagnostic.'
+$gap = $gapEvent.SourceEventArgs
+Assert-True ($gap.OrderDomain -eq 'LINE-GAP-TIMEOUT') 'The gap diagnostic reported the wrong order domain.'
+Assert-True ($gap.ExpectedWorkpieceSequence -eq 1 -and $gap.ExpectedSignalSequence -eq 1) 'The gap diagnostic reported the wrong missing predecessor.'
+Assert-True ($gap.FirstWaitingWorkpieceSequence -eq 2 -and $gap.FirstWaitingSignalSequence -eq 1) 'The gap diagnostic reported the wrong first waiter.'
+Assert-True ($gap.WaitingIntentCount -eq 1 -and $gap.TimeoutMilliseconds -eq 1000) 'The gap diagnostic reported the wrong pressure or timeout.'
+Assert-True ($gap.Message.Contains('LINE-GAP-TIMEOUT') -and $gap.Message.Contains('1000ms')) 'The gap diagnostic omitted stable domain or timeout evidence.'
+$waitingResult = Wait-TaskResult $waitingTask 'The persistent-gap waiter did not receive a final result.'
+Assert-True ($waitingResult.Status -eq $rejected) 'A persistent-gap waiter was not explicitly rejected.'
+Assert-True ($waitingProbe.CallCount -eq 0) 'A persistent-gap waiter reached the device action.'
+Wait-Task $waitingSealTask 'The persistent-gap waiter did not finish its automatic signal cleanup.'
+Assert-True ((Wait-TaskResult $missingContext.Completion 'The missing-head context did not stop.') -eq $stopped) 'The missing-head context did not enter Stopped.'
+Assert-True ((Wait-TaskResult $waitingContext.Completion 'The waiting context did not stop.') -eq $stopped) 'The waiting context did not enter Stopped.'
+Remove-Event -SourceIdentifier $gapSource -ErrorAction SilentlyContinue
+Unregister-Event -SourceIdentifier $gapSource -ErrorAction SilentlyContinue
+$coordinator.Dispose()
+$waitingProbe.Dispose()
+
+# A missing signal inside a workpiece must upgrade an already requested successful seal to Stopped.
+$coordinator = [Activator]::CreateInstance($coordinatorType, @(1000))
+$epoch = [Guid]::NewGuid()
+$innerGapContext = New-Context $epoch 'LINE-INNER-GAP' 1
+$coordinator.RegisterWorkpiece($innerGapContext)
+$innerProbe1 = [OrderedSignalActionProbe]::new()
+$innerProbe2 = [OrderedSignalActionProbe]::new()
+$innerProbe1.Result = $localResult
+$innerProbe2.Result = $localResult
+$innerIntent1 = New-Intent $innerGapContext 'flow/inner-gap-1' 'plc:inner-gap' $innerProbe1
+$innerIntent2 = New-Intent $innerGapContext 'flow/inner-gap-2' 'plc:inner-gap' $innerProbe2
+$innerGapSource = 'ordered-inner-gap-' + [Guid]::NewGuid().ToString('N')
+$null = Register-ObjectEvent -InputObject $coordinator -EventName OrderGapDetected -SourceIdentifier $innerGapSource
+$innerTask2 = $coordinator.SubmitAsync($innerIntent2, $none)
+$innerSealTask = $coordinator.CompleteWorkpieceAsync($innerGapContext, $succeeded)
+Assert-True (-not $innerSealTask.IsCompleted) 'The inner-gap workpiece sealed before its reserved signals finished.'
+$innerGapEvent = Wait-Event -SourceIdentifier $innerGapSource -Timeout 3
+Assert-True ($null -ne $innerGapEvent) 'A persistent inner-workpiece signal gap did not raise an alarm.'
+$innerGap = $innerGapEvent.SourceEventArgs
+Assert-True ($innerGap.ExpectedWorkpieceSequence -eq 1 -and $innerGap.ExpectedSignalSequence -eq 1) 'The inner gap reported the wrong expected signal.'
+Assert-True ($innerGap.FirstWaitingWorkpieceSequence -eq 1 -and $innerGap.FirstWaitingSignalSequence -eq 2) 'The inner gap reported the wrong queued signal.'
+$innerResult2 = Wait-TaskResult $innerTask2 'The inner-gap second signal did not reject.'
+$innerResult1 = Wait-TaskResult ($coordinator.SubmitAsync($innerIntent1, $none)) 'The late missing signal did not receive the blocked-domain result.'
+Assert-True ($innerResult1.Status -eq $rejected -and $innerResult2.Status -eq $rejected) 'The inner-gap signals did not both reject.'
+Assert-True ($innerProbe1.CallCount -eq 0 -and $innerProbe2.CallCount -eq 0) 'An inner-gap signal reached the device action.'
+Complete-Intent $innerGapContext $innerIntent1 $innerResult1
+Complete-Intent $innerGapContext $innerIntent2 $innerResult2
+Wait-Task $innerSealTask 'The inner-gap workpiece did not finish its escalated seal.'
+Assert-True ((Wait-TaskResult $innerGapContext.Completion 'The inner-gap context has no terminal state.') -eq $stopped) 'The prior successful seal request was not upgraded to Stopped.'
+Remove-Event -SourceIdentifier $innerGapSource -ErrorAction SilentlyContinue
+Unregister-Event -SourceIdentifier $innerGapSource -ErrorAction SilentlyContinue
+$coordinator.Dispose()
+$innerProbe1.Dispose()
+$innerProbe2.Dispose()
+
+# A temporary reverse arrival resolved before the threshold must cancel the timer and emit no alarm.
+$coordinator = [Activator]::CreateInstance($coordinatorType, @(1000))
+$epoch = [Guid]::NewGuid()
+$headContext = New-Context $epoch 'LINE-GAP-RECOVERY' 1
+$nextContext = New-Context $epoch 'LINE-GAP-RECOVERY' 2
+$coordinator.RegisterWorkpiece($headContext)
+$coordinator.RegisterWorkpiece($nextContext)
+$nextProbe = [OrderedSignalActionProbe]::new()
+$nextProbe.Result = $localResult
+$nextProbe.Release()
+$nextIntent = New-Intent $nextContext 'flow/gap-recovered' 'plc:gap-recovered' $nextProbe
+$recoverySource = 'ordered-gap-recovery-' + [Guid]::NewGuid().ToString('N')
+$null = Register-ObjectEvent -InputObject $coordinator -EventName OrderGapDetected -SourceIdentifier $recoverySource
+$nextTask = $coordinator.SubmitAsync($nextIntent, $none)
+[Threading.Thread]::Sleep(200)
+Wait-Task ($coordinator.CompleteWorkpieceAsync($headContext, $succeeded)) 'The temporary-gap head did not seal.'
+$nextResult = Wait-TaskResult $nextTask 'The recovered-gap signal did not execute.'
+Assert-True ($nextResult.Status -eq $localCompleted -and $nextProbe.CallCount -eq 1) 'The recovered-gap signal did not execute exactly once.'
+Complete-Intent $nextContext $nextIntent $nextResult
+Wait-Task ($coordinator.CompleteWorkpieceAsync($nextContext, $succeeded)) 'The recovered-gap workpiece did not seal.'
+$unexpectedGap = Wait-Event -SourceIdentifier $recoverySource -Timeout 2
+Assert-True ($null -eq $unexpectedGap) 'A resolved temporary gap raised a late false alarm.'
+Remove-Event -SourceIdentifier $recoverySource -ErrorAction SilentlyContinue
+Unregister-Event -SourceIdentifier $recoverySource -ErrorAction SilentlyContinue
+$coordinator.Dispose()
+$nextProbe.Dispose()
+
+# A device action that legitimately runs longer than the gap threshold is not a missing predecessor.
+$coordinator = [Activator]::CreateInstance($coordinatorType, @(1000))
+$epoch = [Guid]::NewGuid()
+$activeContext = New-Context $epoch 'LINE-LONG-DEVICE' 1
+$queuedContext = New-Context $epoch 'LINE-LONG-DEVICE' 2
+$coordinator.RegisterWorkpiece($activeContext)
+$coordinator.RegisterWorkpiece($queuedContext)
+$activeProbe = [OrderedSignalActionProbe]::new()
+$queuedProbe = [OrderedSignalActionProbe]::new()
+$activeProbe.Result = $localResult
+$queuedProbe.Result = $localResult
+$activeIntent = New-Intent $activeContext 'flow/long-device' 'plc:long-device' $activeProbe
+$queuedIntent = New-Intent $queuedContext 'flow/queued-behind-long-device' 'plc:long-device' $queuedProbe
+$activeSource = 'ordered-long-device-' + [Guid]::NewGuid().ToString('N')
+$null = Register-ObjectEvent -InputObject $coordinator -EventName OrderGapDetected -SourceIdentifier $activeSource
+$activeTask = $coordinator.SubmitAsync($activeIntent, $none)
+Assert-True ($activeProbe.WaitUntilEntered(2000)) 'The long device action did not start.'
+$queuedTask = $coordinator.SubmitAsync($queuedIntent, $none)
+[Threading.Thread]::Sleep(100)
+Assert-True (-not $queuedProbe.HasEntered) 'The later workpiece bypassed the running device action.'
+$unexpectedActiveGap = Wait-Event -SourceIdentifier $activeSource -Timeout 2
+Assert-True ($null -eq $unexpectedActiveGap) 'A running device action was misclassified as an order gap.'
+$activeProbe.Release()
+$activeResult = Wait-TaskResult $activeTask 'The long device action did not finish.'
+Complete-Intent $activeContext $activeIntent $activeResult
+Wait-Task ($coordinator.CompleteWorkpieceAsync($activeContext, $succeeded)) 'The long-device workpiece did not seal.'
+Assert-True ($queuedProbe.WaitUntilEntered(2000)) 'The queued workpiece did not start after the long action sealed.'
+$queuedProbe.Release()
+$queuedResult = Wait-TaskResult $queuedTask 'The queued workpiece did not finish.'
+Complete-Intent $queuedContext $queuedIntent $queuedResult
+Wait-Task ($coordinator.CompleteWorkpieceAsync($queuedContext, $succeeded)) 'The queued workpiece did not seal.'
+Remove-Event -SourceIdentifier $activeSource -ErrorAction SilentlyContinue
+Unregister-Event -SourceIdentifier $activeSource -ErrorAction SilentlyContinue
+$coordinator.Dispose()
+$activeProbe.Dispose()
+$queuedProbe.Dispose()
 
 # Stress a large reverse-submission batch to expose gaps, duplicate sends, or scheduler stalls.
 $stressCount = 10000

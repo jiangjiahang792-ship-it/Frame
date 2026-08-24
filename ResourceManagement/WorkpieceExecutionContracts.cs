@@ -343,6 +343,32 @@ namespace TDJS_Vision.ResourceManagement
             }
         }
 
+        /// <summary>把尚未发布的封口请求升级为更严重终态，供框架不可恢复故障使用。</summary>
+        /// <param name="terminalState">需要合并的明确终态。</param>
+        /// <returns>终态尚未发布且升级请求已合并时返回true。</returns>
+        internal bool TryEscalateTerminalState(WorkpieceTerminalState terminalState)
+        {
+            if (terminalState == WorkpieceTerminalState.Active ||
+                !Enum.IsDefined(typeof(WorkpieceTerminalState), terminalState))
+            {
+                throw new ArgumentOutOfRangeException(nameof(terminalState), "升级终态必须是明确终态。");
+            }
+
+            lock (_stateSyncRoot)
+            {
+                if (_terminalState != (int)WorkpieceTerminalState.Active)
+                    return false;
+                _requestedTerminalState = GetMoreSevereTerminalState(
+                    _completionRequested == 0
+                        ? WorkpieceTerminalState.Active
+                        : _requestedTerminalState,
+                    terminalState);
+                Volatile.Write(ref _completionRequested, 1);
+                TryPublishTerminalStateUnderLock();
+                return true;
+            }
+        }
+
         /// <summary>
         /// 在封口锁内原子取得一个流程分支在途租约，堵住继承检查与父工件封口之间的竞态。
         /// </summary>
@@ -718,6 +744,85 @@ namespace TDJS_Vision.ResourceManagement
         public string ConfirmationEvidence { get; }
     }
 
+    /// <summary>描述有序信号协调器发现的不可恢复顺序缺口。</summary>
+    public sealed class OrderedSignalGapEventArgs : EventArgs
+    {
+        /// <summary>创建不可变顺序缺口诊断。</summary>
+        public OrderedSignalGapEventArgs(
+            string orderDomain,
+            Guid sessionEpoch,
+            long expectedWorkpieceSequence,
+            long expectedSignalSequence,
+            long firstWaitingWorkpieceSequence,
+            long firstWaitingSignalSequence,
+            string firstWaitingNodePath,
+            int waitingIntentCount,
+            int timeoutMilliseconds,
+            DateTime detectedAtUtc,
+            string message)
+        {
+            OrderDomain = WorkpieceExecutionContext.NormalizeKey(orderDomain, nameof(orderDomain));
+            if (sessionEpoch == Guid.Empty)
+                throw new ArgumentException("顺序缺口会话纪元不能为空。", nameof(sessionEpoch));
+            if (expectedWorkpieceSequence <= 0L || expectedSignalSequence <= 0L)
+                throw new ArgumentOutOfRangeException(nameof(expectedWorkpieceSequence), "期望工件和信号序号必须大于0。");
+            if (firstWaitingWorkpieceSequence <= 0L || firstWaitingSignalSequence <= 0L)
+                throw new ArgumentOutOfRangeException(nameof(firstWaitingWorkpieceSequence), "首个等待工件和信号序号必须大于0。");
+            if (string.IsNullOrWhiteSpace(firstWaitingNodePath))
+                throw new ArgumentException("首个等待节点路径不能为空。", nameof(firstWaitingNodePath));
+            if (waitingIntentCount <= 0)
+                throw new ArgumentOutOfRangeException(nameof(waitingIntentCount));
+            if (timeoutMilliseconds <= 0)
+                throw new ArgumentOutOfRangeException(nameof(timeoutMilliseconds));
+            if (detectedAtUtc.Kind != DateTimeKind.Utc)
+                throw new ArgumentException("顺序缺口发现时间必须使用UTC。", nameof(detectedAtUtc));
+
+            SessionEpoch = sessionEpoch;
+            ExpectedWorkpieceSequence = expectedWorkpieceSequence;
+            ExpectedSignalSequence = expectedSignalSequence;
+            FirstWaitingWorkpieceSequence = firstWaitingWorkpieceSequence;
+            FirstWaitingSignalSequence = firstWaitingSignalSequence;
+            FirstWaitingNodePath = firstWaitingNodePath.Trim();
+            WaitingIntentCount = waitingIntentCount;
+            TimeoutMilliseconds = timeoutMilliseconds;
+            DetectedAtUtc = detectedAtUtc;
+            Message = message ?? string.Empty;
+        }
+
+        /// <summary>获取发生缺口的规范化生产顺序域。</summary>
+        public string OrderDomain { get; }
+
+        /// <summary>获取发生缺口的生产会话纪元。</summary>
+        public Guid SessionEpoch { get; }
+
+        /// <summary>获取协调器当时等待的工件序号。</summary>
+        public long ExpectedWorkpieceSequence { get; }
+
+        /// <summary>获取协调器当时等待的工件内信号序号。</summary>
+        public long ExpectedSignalSequence { get; }
+
+        /// <summary>获取已经排队的首个后续工件序号。</summary>
+        public long FirstWaitingWorkpieceSequence { get; }
+
+        /// <summary>获取已经排队的首个后续信号序号。</summary>
+        public long FirstWaitingSignalSequence { get; }
+
+        /// <summary>获取已经排队的首个后续节点路径。</summary>
+        public string FirstWaitingNodePath { get; }
+
+        /// <summary>获取缺口后方累计等待的意图数量。</summary>
+        public int WaitingIntentCount { get; }
+
+        /// <summary>获取本次生效的缺口超时时间。</summary>
+        public int TimeoutMilliseconds { get; }
+
+        /// <summary>获取UTC缺口发现时间。</summary>
+        public DateTime DetectedAtUtc { get; }
+
+        /// <summary>获取可直接记录的中文诊断消息。</summary>
+        public string Message { get; }
+    }
+
     /// <summary>
     /// 已冻结节点元数据和发送动作的单次有序信号意图。
     /// </summary>
@@ -819,6 +924,12 @@ namespace TDJS_Vision.ResourceManagement
     /// </summary>
     public interface IOrderedSignalCoordinator
     {
+        /// <summary>获取前序工件或信号缺口的主动报警时间。</summary>
+        int SignalOrderGapTimeoutMs { get; }
+
+        /// <summary>顺序缺口持续超过阈值并已阻断当前域时触发。</summary>
+        event EventHandler<OrderedSignalGapEventArgs> OrderGapDetected;
+
         /// <summary>
         /// 登记工件身份，使后到达发送节点的工件不能越过尚未到达的前序工件。
         /// </summary>
