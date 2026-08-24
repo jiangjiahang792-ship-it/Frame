@@ -663,6 +663,24 @@ namespace TDJS_Vision.ResourceManagement
 
         /// <summary>获取尚未由独立派发线程处理完的生产故障数。</summary>
         public int PendingProductionFaultCount { get; internal set; }
+
+        /// <summary>获取当前等待后续工件执行的硬触发帧数。</summary>
+        public int BufferedHardwareFrameCount { get; internal set; }
+
+        /// <summary>获取历史最大待执行硬触发帧数。</summary>
+        public int PeakBufferedHardwareFrameCount { get; internal set; }
+
+        /// <summary>获取累计进入待执行队列的硬触发帧数。</summary>
+        public long TotalBufferedHardwareFrameCount { get; internal set; }
+
+        /// <summary>获取当前待执行硬触发Mat实际字节数。</summary>
+        public long BufferedHardwareFrameBytes { get; internal set; }
+
+        /// <summary>获取待执行硬触发Mat历史峰值字节数。</summary>
+        public long PeakBufferedHardwareFrameBytes { get; internal set; }
+
+        /// <summary>获取全部相机共同遵守的待执行硬触发Mat字节预算。</summary>
+        public long BufferedHardwareFrameBudgetBytes { get; internal set; }
     }
 
     /// <summary>相机软件触发命令租约，用于区分未发命令、成功发出和结果未知三种退出路径。</summary>
@@ -684,6 +702,12 @@ namespace TDJS_Vision.ResourceManagement
 
         /// <summary>单相机最大待匹配票据数。</summary>
         public const int MaximumPendingTicketsPerCamera = 64;
+
+        /// <summary>单相机允许在完整流程忙碌期间积压的硬触发Mat数量。</summary>
+        public const int MaximumBufferedHardwareFramesPerCamera = 8;
+
+        /// <summary>没有资源档案时使用的全局待执行硬触发Mat预算。</summary>
+        public const long DefaultBufferedHardwareFrameBudgetBytes = 256L * 1024L * 1024L;
 
         /// <summary>关闭时等待故障订阅者返回的最长时间，超时后由后台线程自行收尾。</summary>
         public const int FaultDispatcherShutdownTimeoutMs = 2000;
@@ -714,6 +738,9 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>注册表是否已经进入释放阶段。</summary>
         private int _disposed;
 
+        /// <summary>当前生产运行会话是否仍允许原始队列中的帧进入票据或硬触发FIFO。</summary>
+        private int _acceptingProductionFrames = 1;
+
         /// <summary>注册表是否已经完成票据清场和关闭屏障。</summary>
         private int _disposeCompleted;
 
@@ -735,10 +762,36 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>累计超时票据数。</summary>
         private long _timedOutTicketCount;
 
-        /// <summary>创建使用指定字节预算的票据注册表。</summary>
+        /// <summary>历史最大待执行硬触发帧数。</summary>
+        private int _peakBufferedHardwareFrameCount;
+
+        /// <summary>累计成功暂存的硬触发帧数。</summary>
+        private long _bufferedHardwareFrameCount;
+
+        /// <summary>当前全部相机待执行硬触发Mat实际字节数。</summary>
+        private long _bufferedHardwareFrameBytes;
+
+        /// <summary>历史最大待执行硬触发Mat实际字节数。</summary>
+        private long _peakBufferedHardwareFrameBytes;
+
+        /// <summary>全部相机待执行硬触发Mat共同遵守的字节预算。</summary>
+        private long _bufferedHardwareFrameBudgetBytes;
+
+        /// <summary>创建使用默认硬触发缓存预算的票据注册表。</summary>
         public CameraTriggerTicketRegistry(WorkpieceFrameMemoryBudgetManager memoryBudgetManager)
+            : this(memoryBudgetManager, DefaultBufferedHardwareFrameBudgetBytes)
+        {
+        }
+
+        /// <summary>创建使用指定流程图像预算和硬触发缓存预算的票据注册表。</summary>
+        public CameraTriggerTicketRegistry(
+            WorkpieceFrameMemoryBudgetManager memoryBudgetManager,
+            long bufferedHardwareFrameBudgetBytes)
         {
             _memoryBudgetManager = memoryBudgetManager ?? throw new ArgumentNullException(nameof(memoryBudgetManager));
+            if (bufferedHardwareFrameBudgetBytes <= 0L)
+                throw new ArgumentOutOfRangeException(nameof(bufferedHardwareFrameBudgetBytes));
+            _bufferedHardwareFrameBudgetBytes = bufferedHardwareFrameBudgetBytes;
             _faultDispatcherThread = new Thread(DispatchProductionFaultLoop)
             {
                 IsBackground = true,
@@ -749,6 +802,49 @@ namespace TDJS_Vision.ResourceManagement
 
         /// <summary>生产帧无法安全交接时通知方案控制层停机。</summary>
         public event Action<CameraProductionFault> ProductionFaulted;
+
+        /// <summary>获取当前注册表是否仍接收生产帧。</summary>
+        internal bool IsAcceptingProductionFrames =>
+            Volatile.Read(ref _disposed) == 0 && Volatile.Read(ref _acceptingProductionFrames) != 0;
+
+        /// <summary>关闭当前运行会话的生产帧入口，并释放所有尚未绑定工件的硬触发Mat。</summary>
+        internal void StopAcceptingProductionFrames()
+        {
+            if (Interlocked.Exchange(ref _acceptingProductionFrames, 0) == 0)
+                return;
+
+            List<string> cameraKeys;
+            lock (_syncRoot)
+                cameraKeys = new List<string>(_cameraStates.Keys);
+            foreach (string cameraKey in cameraKeys)
+            {
+                ExecuteCameraSynchronized(cameraKey, () =>
+                {
+                    lock (_syncRoot)
+                    {
+                        if (!_cameraStates.TryGetValue(cameraKey, out CameraTicketQueueState state))
+                            return true;
+                        state.HardwareFrameBufferingEnabled = false;
+                        DrainBufferedHardwareFramesUnderLock(state);
+                    }
+                    return true;
+                }, true);
+            }
+        }
+
+        /// <summary>仅在没有待执行Mat时应用新的全局硬触发缓存预算。</summary>
+        public void UpdateBufferedHardwareFrameBudget(long budgetBytes)
+        {
+            if (budgetBytes <= 0L)
+                throw new ArgumentOutOfRangeException(nameof(budgetBytes));
+            lock (_syncRoot)
+            {
+                ThrowIfDisposed();
+                if (_bufferedHardwareFrameBytes != 0L)
+                    throw new InvalidOperationException("待执行硬触发帧尚未排空，禁止切换缓存字节预算。 ");
+                _bufferedHardwareFrameBudgetBytes = budgetBytes;
+            }
+        }
 
         /// <summary>在触发/取消共用的票据锁内确认票据仍排队并原子武装。</summary>
         internal void MarkReadyForFrame(CameraTriggerTicket ticket, DateTime issuedAtUtc)
@@ -856,6 +952,11 @@ namespace TDJS_Vision.ResourceManagement
                     {
                         throw new InvalidOperationException(
                             $"相机{normalizedCameraKey}处于生产帧故障状态，停流排空并重启确认前禁止软件触发。 ");
+                    }
+                    if (state.HardwareFrameBufferingEnabled || state.BufferedHardwareFrames.Count != 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"相机{normalizedCameraKey}已经进入生产硬触发持续接管，停流排空并重启前禁止执行预览或软件触发。 ");
                     }
                     CameraTriggerTicket authorizedTicket = _authorizedSoftwareTriggerTicket;
                     bool isAuthorizedProductionTrigger = authorizedTicket != null &&
@@ -992,6 +1093,8 @@ namespace TDJS_Vision.ResourceManagement
             long memoryBudgetBytes)
         {
             ThrowIfDisposed();
+            if (Volatile.Read(ref _acceptingProductionFrames) == 0)
+                throw new InvalidOperationException("当前生产运行会话已经停止，禁止登记新的相机票据。 ");
             string normalizedCameraKey = NormalizeCameraKey(cameraKey);
             if (context == null)
                 throw new ArgumentNullException(nameof(context));
@@ -1025,6 +1128,8 @@ namespace TDJS_Vision.ResourceManagement
                 lock (_syncRoot)
                 {
                     ThrowIfDisposed();
+                    if (Volatile.Read(ref _acceptingProductionFrames) == 0)
+                        throw new InvalidOperationException("当前生产运行会话已经停止，禁止登记新的相机票据。 ");
                     CameraTicketQueueState state = GetOrCreateStateUnderLock(normalizedCameraKey);
                     if (state.Faulted || state.RequiresStreamRestart)
                         throw new InvalidOperationException($"相机{normalizedCameraKey}处于生产帧故障状态，确认并重置前禁止继续触发。 ");
@@ -1033,6 +1138,12 @@ namespace TDJS_Vision.ResourceManagement
                     {
                         throw new InvalidOperationException(
                             $"相机{normalizedCameraKey}仍有预览软件触发或待返回预览帧，禁止登记生产工件。 ");
+                    }
+                    if (triggerKind == CameraTriggerKind.Software &&
+                        (state.HardwareFrameBufferingEnabled || state.BufferedHardwareFrames.Count != 0))
+                    {
+                        throw new InvalidOperationException(
+                            $"相机{normalizedCameraKey}已经进入生产硬触发持续接管，停流排空并重启前禁止登记软件触发工件。 ");
                     }
                     int occupancy = state.PendingTickets.Count + (state.InFlightTicket == null ? 0 : 1);
                     if (occupancy >= MaximumPendingTicketsPerCamera)
@@ -1082,6 +1193,7 @@ namespace TDJS_Vision.ResourceManagement
             return ExecuteCameraSynchronized(normalizedCameraKey, () =>
             {
                 CameraTriggerTicket ticket = null;
+                BufferedHardwareFrame bufferedFrame = null;
                 try
                 {
                     ticket = Register(
@@ -1092,6 +1204,39 @@ namespace TDJS_Vision.ResourceManagement
                         estimatedFrameBytes,
                         memoryBudgetBytes);
                     MarkReadyForFrameCore(ticket, DateTime.UtcNow, false);
+                    lock (_syncRoot)
+                    {
+                        CameraTicketQueueState state = GetOrCreateStateUnderLock(normalizedCameraKey);
+                        state.HardwareFrameBufferingEnabled = true;
+                        if (state.BufferedHardwareFrames.Count != 0)
+                            bufferedFrame = DequeueBufferedHardwareFrameUnderLock(state);
+                    }
+                    if (bufferedFrame != null)
+                    {
+                        Mat bufferedImage = bufferedFrame.DetachImage();
+                        bool bufferedImageAccepted = false;
+                        try
+                        {
+                            bufferedImageAccepted = TryPublishFrameCore(
+                                normalizedCameraKey,
+                                bufferedFrame.FrameId,
+                                bufferedFrame.SdkFrameNumber,
+                                bufferedFrame.CallbackStartedTimestamp,
+                                bufferedImage,
+                                bufferedFrame.TraceInfo,
+                                true);
+                            if (bufferedImageAccepted)
+                                bufferedImage = null;
+                            else
+                                throw new InvalidOperationException(
+                                    $"相机{normalizedCameraKey}的待执行硬触发帧未被生产票据接管。 ");
+                        }
+                        finally
+                        {
+                            SafeDispose(bufferedImage);
+                            bufferedFrame.Dispose();
+                        }
+                    }
                     return ticket;
                 }
                 catch
@@ -1123,7 +1268,85 @@ namespace TDJS_Vision.ResourceManagement
                 sdkFrameNumber,
                 callbackStartedTimestamp,
                 image,
-                traceInfo));
+                traceInfo,
+                false));
+        }
+
+        /// <summary>相机转换线程使用的无异常帧路由入口；旧注册表关闭或释放后统一返回false。</summary>
+        internal bool TryRouteFrame(
+            string cameraKey,
+            long frameId,
+            uint sdkFrameNumber,
+            long callbackStartedTimestamp,
+            Mat image,
+            CameraFrameTraceInfo traceInfo)
+        {
+            if (Volatile.Read(ref _disposed) != 0)
+                return false;
+            string normalizedCameraKey = NormalizeCameraKey(cameraKey);
+            if (callbackStartedTimestamp <= 0L)
+                throw new ArgumentOutOfRangeException(nameof(callbackStartedTimestamp));
+            if (image == null || image.Empty())
+                return false;
+
+            try
+            {
+                return ExecuteCameraSynchronized(normalizedCameraKey, () => TryPublishFrameCore(
+                    normalizedCameraKey,
+                    frameId,
+                    sdkFrameNumber,
+                    callbackStartedTimestamp,
+                    image,
+                    traceInfo,
+                    false));
+            }
+            catch (ObjectDisposedException)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>预览帧在原始入口或Mat转换阶段失败时，无异常归还一次待返回预览计数。</summary>
+        internal bool TryAcknowledgePreviewFrameFailure(string cameraKey)
+        {
+            if (Volatile.Read(ref _disposed) != 0 || string.IsNullOrWhiteSpace(cameraKey))
+                return false;
+            string normalizedCameraKey = NormalizeCameraKey(cameraKey);
+            try
+            {
+                return ExecuteCameraSynchronized(normalizedCameraKey, () =>
+                {
+                    lock (_syncRoot)
+                    {
+                        if (!_cameraStates.TryGetValue(normalizedCameraKey, out CameraTicketQueueState state) ||
+                            state.PendingUncoordinatedFrameCount == 0)
+                        {
+                            return false;
+                        }
+                        state.PendingUncoordinatedFrameCount--;
+                        return true;
+                    }
+                });
+            }
+            catch (ObjectDisposedException)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>判断没有节点临时订阅者时是否仍需持续接管该相机的硬触发帧。</summary>
+        public bool ShouldCaptureBufferedHardwareFrame(string cameraKey)
+        {
+            if (Volatile.Read(ref _disposed) != 0 || string.IsNullOrWhiteSpace(cameraKey))
+                return false;
+            string normalizedCameraKey = NormalizeCameraKey(cameraKey);
+            lock (_syncRoot)
+            {
+                return _cameraStates.TryGetValue(normalizedCameraKey, out CameraTicketQueueState state) &&
+                    state.HardwareFrameBufferingEnabled &&
+                    !state.Faulted &&
+                    !state.RequiresStreamRestart;
+            }
         }
 
         /// <summary>调用方持有候选票据锁时复核队首并完成实际帧发布。</summary>
@@ -1133,7 +1356,8 @@ namespace TDJS_Vision.ResourceManagement
             uint sdkFrameNumber,
             long callbackStartedTimestamp,
             Mat image,
-            CameraFrameTraceInfo traceInfo)
+            CameraFrameTraceInfo traceInfo,
+            bool isBufferedHardwareFrame)
         {
 
             CameraTriggerTicket ticket = null;
@@ -1145,6 +1369,10 @@ namespace TDJS_Vision.ResourceManagement
                 if (!_cameraStates.TryGetValue(normalizedCameraKey, out CameraTicketQueueState state))
                     return false;
 
+                // 停止、故障或等待物理重启期间禁止把迟到帧重新积压到下一轮。
+                if (state.Faulted || state.RequiresStreamRestart)
+                    return false;
+
                 if (state.PendingUncoordinatedFrameCount != 0)
                 {
                     state.PendingUncoordinatedFrameCount--;
@@ -1154,13 +1382,51 @@ namespace TDJS_Vision.ResourceManagement
                     return false;
                 }
 
-                if (
-                    (state.PendingTickets.Count == 0 && state.InFlightTicket == null))
-                {
+                if (Volatile.Read(ref _acceptingProductionFrames) == 0)
                     return false;
-                }
 
-                if (state.InFlightTicket != null)
+                if (state.PendingTickets.Count == 0 && state.InFlightTicket == null)
+                {
+                    if (!state.HardwareFrameBufferingEnabled)
+                        return false;
+                    long bufferedFrameBytes = GetMatBytes(image);
+                    bool hasCountCapacity =
+                        state.BufferedHardwareFrames.Count < MaximumBufferedHardwareFramesPerCamera;
+                    bool hasByteCapacity =
+                        bufferedFrameBytes <= _bufferedHardwareFrameBudgetBytes - _bufferedHardwareFrameBytes;
+                    if (hasCountCapacity && hasByteCapacity)
+                    {
+                        state.BufferedHardwareFrames.Enqueue(new BufferedHardwareFrame(
+                            frameId,
+                            sdkFrameNumber,
+                            callbackStartedTimestamp,
+                            image,
+                            traceInfo,
+                            bufferedFrameBytes));
+                        _bufferedHardwareFrameBytes = checked(
+                            _bufferedHardwareFrameBytes + bufferedFrameBytes);
+                        if (_bufferedHardwareFrameBytes > _peakBufferedHardwareFrameBytes)
+                            _peakBufferedHardwareFrameBytes = _bufferedHardwareFrameBytes;
+                        Interlocked.Increment(ref _bufferedHardwareFrameCount);
+                        UpdatePeakBufferedHardwareFramesUnderLock();
+                        return true;
+                    }
+
+                    state.Faulted = true;
+                    RequireStreamRestartUnderLock(state);
+                    failure = new InvalidOperationException(
+                        $"相机{normalizedCameraKey}待执行硬触发帧容量不足：" +
+                        $"当前={state.BufferedHardwareFrames.Count}张/{_bufferedHardwareFrameBytes}字节，" +
+                        $"上限={MaximumBufferedHardwareFramesPerCamera}张/{_bufferedHardwareFrameBudgetBytes}字节，" +
+                        $"本帧={bufferedFrameBytes}字节。无法继续安全接收。 ");
+                    failedTickets = DrainPendingTicketsUnderLock(state);
+                    productionFault = new CameraProductionFault(
+                        normalizedCameraKey,
+                        null,
+                        failure.Message,
+                        failure);
+                }
+                else if (state.InFlightTicket != null)
                 {
                     state.Faulted = true;
                     ticket = state.InFlightTicket;
@@ -1181,7 +1447,7 @@ namespace TDJS_Vision.ResourceManagement
                         state.Faulted = true;
                         failure = new InvalidOperationException($"相机{normalizedCameraKey}在票据明确进入触发等待前收到生产帧，禁止把旧帧绑定给工件。 ");
                     }
-                    else if (callbackStartedTimestamp < ticket.TriggerIssuedTimestamp)
+                    else if (!isBufferedHardwareFrame && callbackStartedTimestamp < ticket.TriggerIssuedTimestamp)
                     {
                         state.Faulted = true;
                         failure = new InvalidOperationException($"相机{normalizedCameraKey}收到触发前已进入SDK回调的旧帧，禁止绑定给工件{ticket.Context.Identity}。 ");
@@ -1221,14 +1487,21 @@ namespace TDJS_Vision.ResourceManagement
             if (failure != null)
             {
                 SafeDispose(image);
-                FailPrimaryAndBlockedTickets(
-                    failedTickets,
-                    ticket,
-                    normalizedCameraKey,
-                    failure,
-                    failure is TimeoutException
-                        ? WorkpieceTerminalState.TimedOut
-                        : WorkpieceTerminalState.Stopped);
+                if (ticket != null)
+                {
+                    FailPrimaryAndBlockedTickets(
+                        failedTickets,
+                        ticket,
+                        normalizedCameraKey,
+                        failure,
+                        failure is TimeoutException
+                            ? WorkpieceTerminalState.TimedOut
+                            : WorkpieceTerminalState.Stopped);
+                }
+                else
+                {
+                    FailTickets(failedTickets, normalizedCameraKey, failure, WorkpieceTerminalState.Stopped);
+                }
                 RaiseProductionFault(productionFault);
                 return true;
             }
@@ -1375,17 +1648,21 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>调用方持有候选票据锁时复核并失败该相机全部生产票据。</summary>
         private bool TryFailNextCore(string normalizedCameraKey, Exception exception)
         {
-            CameraTriggerTicket ticket;
+            CameraTriggerTicket ticket = null;
             List<CameraTriggerTicket> failedTickets;
             lock (_syncRoot)
             {
-                if (!_cameraStates.TryGetValue(normalizedCameraKey, out CameraTicketQueueState state) ||
-                    (state.PendingTickets.Count == 0 && state.InFlightTicket == null))
-                {
+                if (Volatile.Read(ref _acceptingProductionFrames) == 0)
                     return false;
-                }
+                if (!_cameraStates.TryGetValue(normalizedCameraKey, out CameraTicketQueueState state))
+                    return false;
+                if (state.Faulted || state.RequiresStreamRestart)
+                    return false;
 
-                ticket = state.InFlightTicket ?? state.PendingTickets.First.Value;
+                ticket = state.InFlightTicket ?? state.PendingTickets.First?.Value;
+                if (ticket == null && !state.HardwareFrameBufferingEnabled)
+                    return false;
+
                 state.Faulted = true;
                 RequireStreamRestartUnderLock(state);
                 state.InFlightFailure = exception;
@@ -1396,7 +1673,7 @@ namespace TDJS_Vision.ResourceManagement
             FailTickets(failedTickets, normalizedCameraKey, effectiveException, WorkpieceTerminalState.Stopped);
             RaiseProductionFault(new CameraProductionFault(
                 normalizedCameraKey,
-                ticket.Context.Identity,
+                ticket?.Context.Identity,
                 effectiveException.Message,
                 effectiveException));
             return true;
@@ -1431,27 +1708,35 @@ namespace TDJS_Vision.ResourceManagement
             long callbackStartedTimestamp,
             Exception exception)
         {
-            CameraTriggerTicket affectedTicket;
+            CameraTriggerTicket affectedTicket = null;
             List<CameraTriggerTicket> failedTickets;
-            bool failurePredatesAffectedTicket;
+            bool failurePredatesAffectedTicket = false;
             lock (_syncRoot)
             {
+                if (Volatile.Read(ref _acceptingProductionFrames) == 0)
+                    return false;
                 CameraTicketQueueState state = GetOrCreateStateUnderLock(normalizedCameraKey);
-                RequireStreamRestartUnderLock(state);
-
+                if (state.Faulted || state.RequiresStreamRestart)
+                    return false;
                 CameraTriggerTicket candidate = state.InFlightTicket ?? state.PendingTickets.First?.Value;
-                if (candidate == null)
+                if (candidate == null && !state.HardwareFrameBufferingEnabled)
                     return false;
 
+                RequireStreamRestartUnderLock(state);
                 affectedTicket = candidate;
-                failurePredatesAffectedTicket = !candidate.TriggerIssuedAtUtc.HasValue ||
-                    candidate.TriggerIssuedTimestamp > callbackStartedTimestamp;
+                failurePredatesAffectedTicket = candidate != null &&
+                    (!candidate.TriggerIssuedAtUtc.HasValue ||
+                    candidate.TriggerIssuedTimestamp > callbackStartedTimestamp);
                 state.Faulted = true;
                 state.InFlightFailure = exception;
                 failedTickets = DrainPendingTicketsUnderLock(state);
             }
 
-            Exception effectiveException = failurePredatesAffectedTicket
+            Exception effectiveException = affectedTicket == null
+                ? (Exception)new InvalidOperationException(
+                    $"相机{normalizedCameraKey}持续接管硬触发帧期间，FrameId={frameId}转换或交接失败。 ",
+                    exception)
+                : failurePredatesAffectedTicket
                 ? (Exception)new InvalidOperationException(
                     $"相机{normalizedCameraKey}在当前工件触发前已有FrameId={frameId}入口故障，当前及后续工件必须停止，禁止把旧故障归为当前工件采集失败。 ",
                     exception)
@@ -1460,7 +1745,7 @@ namespace TDJS_Vision.ResourceManagement
             FailTickets(failedTickets, normalizedCameraKey, effectiveException, WorkpieceTerminalState.Stopped);
             RaiseProductionFault(new CameraProductionFault(
                 normalizedCameraKey,
-                affectedTicket.Context.Identity,
+                affectedTicket?.Context.Identity,
                 effectiveException.Message,
                 effectiveException));
             return true;
@@ -1643,6 +1928,7 @@ namespace TDJS_Vision.ResourceManagement
                     CameraTicketQueueState state = GetOrCreateStateUnderLock(normalizedCameraKey);
                     if (state.PendingTickets.Count != 0 ||
                         state.InFlightTicket != null ||
+                        state.BufferedHardwareFrames.Count != 0 ||
                         state.ActiveTriggerDispatchCount != 0 ||
                         state.ActiveUncoordinatedTriggerDispatchCount != 0 ||
                         state.PendingUncoordinatedFrameCount != 0 ||
@@ -1684,6 +1970,8 @@ namespace TDJS_Vision.ResourceManagement
                         throw new InvalidOperationException(
                             $"相机{normalizedCameraKey}尚未排空票据、帧或SDK触发调用，禁止准备流重置。 ");
                     }
+                    DrainBufferedHardwareFramesUnderLock(state);
+                    state.HardwareFrameBufferingEnabled = false;
                     state.PendingUncoordinatedFrameCount = 0;
                     return state.StreamFaultGeneration;
                 }
@@ -1701,6 +1989,7 @@ namespace TDJS_Vision.ResourceManagement
                     CameraTicketQueueState state = GetOrCreateStateUnderLock(normalizedCameraKey);
                     if (state.PendingTickets.Count != 0 ||
                         state.InFlightTicket != null ||
+                        state.BufferedHardwareFrames.Count != 0 ||
                         state.ActiveTriggerDispatchCount != 0 ||
                         state.ActiveUncoordinatedTriggerDispatchCount != 0 ||
                         state.PendingUncoordinatedFrameCount != 0 ||
@@ -1734,6 +2023,7 @@ namespace TDJS_Vision.ResourceManagement
                 int activeTriggerDispatchCount = 0;
                 int cameraCountRequiringStreamReset = 0;
                 int pendingProductionFaultCount = 0;
+                int bufferedHardwareFrameCount = 0;
                 foreach (CameraTicketQueueState state in _cameraStates.Values)
                 {
                     pendingCount += state.PendingTickets.Count + (state.InFlightTicket == null ? 0 : 1);
@@ -1742,6 +2032,7 @@ namespace TDJS_Vision.ResourceManagement
                     if (state.RequiresStreamRestart)
                         cameraCountRequiringStreamReset++;
                     pendingProductionFaultCount += state.PendingProductionFaultCount;
+                    bufferedHardwareFrameCount += state.BufferedHardwareFrames.Count;
                 }
                 return new CameraTriggerTicketRegistrySnapshot
                 {
@@ -1753,7 +2044,13 @@ namespace TDJS_Vision.ResourceManagement
                     TimedOutTicketCount = _timedOutTicketCount,
                     ActiveTriggerDispatchCount = activeTriggerDispatchCount,
                     CameraCountRequiringStreamReset = cameraCountRequiringStreamReset,
-                    PendingProductionFaultCount = pendingProductionFaultCount
+                    PendingProductionFaultCount = pendingProductionFaultCount,
+                    BufferedHardwareFrameCount = bufferedHardwareFrameCount,
+                    PeakBufferedHardwareFrameCount = _peakBufferedHardwareFrameCount,
+                    TotalBufferedHardwareFrameCount = Interlocked.Read(ref _bufferedHardwareFrameCount),
+                    BufferedHardwareFrameBytes = _bufferedHardwareFrameBytes,
+                    PeakBufferedHardwareFrameBytes = _peakBufferedHardwareFrameBytes,
+                    BufferedHardwareFrameBudgetBytes = _bufferedHardwareFrameBudgetBytes
                 };
             }
         }
@@ -1824,7 +2121,7 @@ namespace TDJS_Vision.ResourceManagement
         }
 
         /// <summary>取出相机全部排队票据；在途票据由发布线程完成资源清理后自行终结。</summary>
-        private static List<CameraTriggerTicket> DrainPendingTicketsUnderLock(CameraTicketQueueState state)
+        private List<CameraTriggerTicket> DrainPendingTicketsUnderLock(CameraTicketQueueState state)
         {
             List<CameraTriggerTicket> tickets = new List<CameraTriggerTicket>(state.PendingTickets.Count);
             while (state.PendingTickets.Count > 0)
@@ -1835,7 +2132,35 @@ namespace TDJS_Vision.ResourceManagement
                 tickets.Add(ticket);
                 state.PendingTickets.RemoveFirst();
             }
+            DrainBufferedHardwareFramesUnderLock(state);
             return tickets;
+        }
+
+        /// <summary>释放并清空单相机尚未交给工件的全部硬触发Mat。</summary>
+        private void DrainBufferedHardwareFramesUnderLock(CameraTicketQueueState state)
+        {
+            while (state.BufferedHardwareFrames.Count != 0)
+                SafeDispose(DequeueBufferedHardwareFrameUnderLock(state));
+        }
+
+        /// <summary>从单相机FIFO取出一帧并同步归还全局等待字节记账。</summary>
+        private BufferedHardwareFrame DequeueBufferedHardwareFrameUnderLock(CameraTicketQueueState state)
+        {
+            BufferedHardwareFrame frame = state.BufferedHardwareFrames.Dequeue();
+            _bufferedHardwareFrameBytes = Math.Max(
+                0L,
+                _bufferedHardwareFrameBytes - frame.RetainedBytes);
+            return frame;
+        }
+
+        /// <summary>更新全部相机待执行硬触发帧的历史峰值。</summary>
+        private void UpdatePeakBufferedHardwareFramesUnderLock()
+        {
+            int bufferedCount = 0;
+            foreach (CameraTicketQueueState state in _cameraStates.Values)
+                bufferedCount += state.BufferedHardwareFrames.Count;
+            if (bufferedCount > _peakBufferedHardwareFrameCount)
+                _peakBufferedHardwareFrameCount = bufferedCount;
         }
 
         /// <summary>记录一次新的流身份故障，并保持物理停流重启门禁。</summary>
@@ -2040,14 +2365,22 @@ namespace TDJS_Vision.ResourceManagement
                 InvalidOperationException shutdownFailure =
                     new InvalidOperationException("相机生产票据注册表已经停止。 ");
                 List<CameraTriggerTicket> shutdownTickets = new List<CameraTriggerTicket>();
+                List<string> shutdownCameraKeys;
                 lock (_syncRoot)
+                    shutdownCameraKeys = new List<string>(_cameraStates.Keys);
+                foreach (string cameraKey in shutdownCameraKeys)
                 {
-                    foreach (CameraTicketQueueState state in _cameraStates.Values)
+                    ExecuteCameraSynchronized(cameraKey, () =>
                     {
-                        state.Faulted = true;
-                        state.InFlightFailure = shutdownFailure;
-                        shutdownTickets.AddRange(DrainPendingTicketsUnderLock(state));
-                    }
+                        lock (_syncRoot)
+                        {
+                            CameraTicketQueueState state = GetOrCreateStateUnderLock(cameraKey);
+                            state.Faulted = true;
+                            state.InFlightFailure = shutdownFailure;
+                            shutdownTickets.AddRange(DrainPendingTicketsUnderLock(state));
+                        }
+                        return true;
+                    }, true);
                 }
                 foreach (CameraTriggerTicket shutdownTicket in shutdownTickets)
                     shutdownTicket.TryFail(shutdownFailure, WorkpieceTerminalState.Stopped);
@@ -2198,6 +2531,13 @@ namespace TDJS_Vision.ResourceManagement
             public LinkedList<CameraTriggerTicket> PendingTickets { get; } =
                 new LinkedList<CameraTriggerTicket>();
 
+            /// <summary>完整流程忙碌期间已经到达、等待下一工件消费的硬触发帧。</summary>
+            public Queue<BufferedHardwareFrame> BufferedHardwareFrames { get; } =
+                new Queue<BufferedHardwareFrame>();
+
+            /// <summary>本运行会话是否已经由生产硬触发节点启用持续帧接管。</summary>
+            public bool HardwareFrameBufferingEnabled { get; set; }
+
             /// <summary>上一帧内部编号。</summary>
             public long LastFrameId { get; set; }
 
@@ -2227,6 +2567,62 @@ namespace TDJS_Vision.ResourceManagement
 
             /// <summary>尚未由独立派发线程处理完的该相机生产故障数。</summary>
             public int PendingProductionFaultCount { get; set; }
+        }
+
+        /// <summary>暂存完整流程忙碌期间到达的独立Mat及其帧身份。</summary>
+        private sealed class BufferedHardwareFrame : IDisposable
+        {
+            /// <summary>当前尚未转移给生产票据的独立Mat。</summary>
+            private Mat _image;
+
+            /// <summary>创建一个等待后续硬触发工件消费的帧。</summary>
+            public BufferedHardwareFrame(
+                long frameId,
+                uint sdkFrameNumber,
+                long callbackStartedTimestamp,
+                Mat image,
+                CameraFrameTraceInfo traceInfo,
+                long retainedBytes)
+            {
+                FrameId = frameId;
+                SdkFrameNumber = sdkFrameNumber;
+                CallbackStartedTimestamp = callbackStartedTimestamp;
+                _image = image ?? throw new ArgumentNullException(nameof(image));
+                TraceInfo = traceInfo;
+                RetainedBytes = retainedBytes > 0L
+                    ? retainedBytes
+                    : throw new ArgumentOutOfRangeException(nameof(retainedBytes));
+            }
+
+            /// <summary>获取进程内连续帧号。</summary>
+            public long FrameId { get; }
+
+            /// <summary>获取相机SDK帧号。</summary>
+            public uint SdkFrameNumber { get; }
+
+            /// <summary>获取帧进入SDK回调的单调时钟。</summary>
+            public long CallbackStartedTimestamp { get; }
+
+            /// <summary>获取帧耗时诊断信息。</summary>
+            public CameraFrameTraceInfo TraceInfo { get; }
+
+            /// <summary>获取该Mat在全局待执行队列中记账的实际字节数。</summary>
+            public long RetainedBytes { get; }
+
+            /// <summary>把Mat唯一所有权转交给生产票据。</summary>
+            public Mat DetachImage()
+            {
+                Mat image = Interlocked.Exchange(ref _image, null);
+                if (image == null)
+                    throw new InvalidOperationException("待执行硬触发帧已经转交或释放。 ");
+                return image;
+            }
+
+            /// <summary>释放尚未被工件接管的Mat。</summary>
+            public void Dispose()
+            {
+                SafeDispose(Interlocked.Exchange(ref _image, null));
+            }
         }
     }
 }

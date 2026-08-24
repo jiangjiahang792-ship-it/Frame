@@ -303,9 +303,8 @@ Assert-True ([bool]$beginExternalRunMethod.Invoke($solution, @())) '零活动会
 Assert-True ($solution.CancellationToken -ne $cameraFaultToken) '相机故障提交后的新会话复用了待取消令牌。'
 try { $cameraFaultTokenSource.Cancel() } catch [ObjectDisposedException] { }
 Assert-True (-not $solution.CancellationToken.IsCancellationRequested) '迟到的相机故障取消误停了新运行会话。'
-$endExternalRunMethod.Invoke($solution, @()) | Out-Null
 
-# 首会话初始化失败不得提前增加活动计数；释放阻塞后必须能够重新启动。
+# 活动会话内建立阻塞票据后再结束；首会话初始化失败不得提前增加活动计数，释放阻塞后必须能够重新启动。
 $initializationFailureRegistry = $cameraRegistryProperty.GetValue($solution)
 $initializationFailureContext = $createContextMethod.Invoke(
     $solution,
@@ -321,6 +320,7 @@ $blockingTicket = $initializationFailureRegistry.Register(
 $blockingProbe = [BlockingCameraTriggerProbe]::new()
 $blockingTriggerTask = $blockingProbe.IssueAsync($blockingTicket)
 Assert-True ($blockingProbe.WaitUntilEntered(2000)) '初始化失败测试没有进入真实票据触发调用。'
+$endExternalRunMethod.Invoke($solution, @()) | Out-Null
 $initializationFailed = $false
 try {
     $null = $beginExternalRunMethod.Invoke($solution, @())

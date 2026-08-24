@@ -227,6 +227,24 @@ namespace TDJS_Vision
             }
         }
 
+        /// <summary>原子取得相机帧路由注册表及其生产活动状态，预览帧也使用冻结的注册表归还触发计数。</summary>
+        /// <param name="registry">回调进入时的相机帧路由注册表。</param>
+        /// <param name="productionActive">该注册表当前是否属于活动生产会话。</param>
+        internal void GetCameraFrameRoutingSnapshot(
+            out CameraTriggerTicketRegistry registry,
+            out bool productionActive)
+        {
+            lock (_runLifecycleSync)
+            {
+                lock (_cameraProductionPipelineSync)
+                    registry = _cameraTriggerTicketRegistry;
+                productionActive = _activeRunSessionCount != 0 &&
+                    !_runFaultStopRequested &&
+                    registry != null &&
+                    registry.IsAcceptingProductionFrames;
+            }
+        }
+
         /// <summary>
         /// 流程节点CPU工作分类器；插件可以替换分类策略，但AI和通信节点默认不受限。
         /// </summary>
@@ -1065,6 +1083,8 @@ namespace TDJS_Vision
                             RenewOrderedSignalCoordinator();
                             RenewCameraProductionPipeline();
                             RefreshRuntimeResourceProfile(true);
+                            CameraTriggerTicketRegistry.UpdateBufferedHardwareFrameBudget(
+                                GetBufferedHardwareFrameBudgetBytes(CurrentResourceProfile));
                         }
                         catch
                         {
@@ -1099,6 +1119,10 @@ namespace TDJS_Vision
                 if (_activeRunSessionCount != 0)
                     return;
 
+                CameraTriggerTicketRegistry registry;
+                lock (_cameraProductionPipelineSync)
+                    registry = _cameraTriggerTicketRegistry;
+                registry?.StopAcceptingProductionFrames();
                 IsRunning = false;
                 _allRunsStopped.Set();
             }
@@ -1370,6 +1394,17 @@ namespace TDJS_Vision
                 _cameraTriggerTicketRegistry = newRegistry;
                 _cameraProductionFaultHandler = newFaultHandler;
             }
+        }
+
+        /// <summary>按运行资源档案为全部相机待执行Mat分配独立的全局硬预算。</summary>
+        private static long GetBufferedHardwareFrameBudgetBytes(AutomaticResourceProfile profile)
+        {
+            int flowImageBudgetMb = profile?.FlowImageMemoryBudgetMb ?? 0;
+            if (flowImageBudgetMb <= 0)
+                return CameraTriggerTicketRegistry.DefaultBufferedHardwareFrameBudgetBytes;
+            return Math.Max(
+                1L,
+                (long)Math.Floor(flowImageBudgetMb * 1024D * 1024D * 0.25D));
         }
 
         /// <summary>

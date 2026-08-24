@@ -304,6 +304,57 @@ Assert-True ($hardwareEnvelope.Identity.Equals($hardwareContext.Identity)) '硬�
 $hardwareEnvelope.Dispose()
 Assert-True ($budget.GetSnapshot().ReservedBytes -eq 0) '硬触发帧释放后图像预算没有归零。'
 
+# 完整流程忙碌期间到达的下一硬触发帧必须进入FIFO，后续工件登记后立即继续执行。
+$bufferedHardwareFrame = New-TestMat
+Assert-True ($registry.ShouldCaptureBufferedHardwareFrame('CAMERA-HARDWARE')) '首个硬触发工件完成后没有保持运行会话级帧接管。'
+Assert-True ($registry.TryPublishFrame(
+    'CAMERA-HARDWARE',
+    [long]2,
+    [uint32]2,
+    [Diagnostics.Stopwatch]::GetTimestamp(),
+    $bufferedHardwareFrame,
+    $null)) '算法忙碌期间到达的第二帧没有进入待执行FIFO。'
+Assert-True ($registry.GetSnapshot().BufferedHardwareFrameCount -eq 1) '第二帧进入FIFO后的等待数量不正确。'
+$bufferedHardwareContext = New-Context '产线硬触发第二工件'
+$bufferedHardwareTicket = $registry.RegisterHardwareWait(
+    'CAMERA-HARDWARE',
+    $bufferedHardwareContext,
+    [DateTime]::SpecifyKind([DateTime]::MaxValue, [DateTimeKind]::Utc),
+    [long]256,
+    [long]4096)
+$bufferedHardwareEnvelope = $bufferedHardwareTicket.Completion.GetAwaiter().GetResult()
+Assert-True ($bufferedHardwareEnvelope.Identity.Equals($bufferedHardwareContext.Identity)) '缓存的第二帧没有绑定到下一工件。'
+Assert-True ($bufferedHardwareEnvelope.SdkFrameNumber -eq 2) '下一工件没有按FIFO取得SDK第二帧。'
+Assert-True ($registry.GetSnapshot().BufferedHardwareFrameCount -eq 0) '第二帧交付后待执行FIFO没有归零。'
+$bufferedHardwareEnvelope.Dispose()
+$bufferedHardwareTicket.Dispose()
+Assert-True ($budget.GetSnapshot().ReservedBytes -eq 0) '缓存硬触发帧执行完毕后图像预算没有归零。'
+$previewDuringHardwareRejected = $false
+try {
+    $unexpectedHardwarePreviewLease = $registry.EnterSoftwareTriggerCommand('CAMERA-HARDWARE')
+    $unexpectedHardwarePreviewLease.Dispose()
+}
+catch {
+    $previewDuringHardwareRejected = $true
+}
+Assert-True $previewDuringHardwareRejected '硬触发持续接管期间没有拒绝预览或手动软件触发。'
+$softwareDuringHardwareRejected = $false
+try {
+    $unexpectedSoftwareTicket = $registry.Register(
+        'CAMERA-HARDWARE',
+        (New-Context '产线硬触发误入软件触发'),
+        $softwareTrigger,
+        $deadline,
+        [long]256,
+        [long]4096)
+    $unexpectedSoftwareTicket.Dispose()
+}
+catch {
+    $softwareDuringHardwareRejected = $true
+}
+Assert-True $softwareDuringHardwareRejected '硬触发持续接管期间没有拒绝生产软件触发票据。'
+Assert-True ($budget.GetSnapshot().ReservedBytes -eq 0) '拒绝硬软触发混流后没有归还临时预算。'
+
 # 线路硬触发不得使用图像源采图超时；超过传入超时后仍等待，物理帧或停止令牌才能结束。
 $hardwarePersistentContext = New-Context '产线硬触发常驻等待'
 $hardwarePersistentTicket = $registry.RegisterHardwareWait(
@@ -789,6 +840,201 @@ catch {
 }
 Assert-True $budgetRejected '触发前估算超过预算时必须先拒绝且不得生成票据。'
 Assert-True ($budget.GetSnapshot().ActiveLeaseCount -eq 0) '触发前拒绝不能泄漏预算租约。'
+
+# 每相机硬触发待执行FIFO固定容量8；第9张不能静默丢弃，必须明确故障并释放全部缓存Mat。
+$overflowBudget = [TDJS_Vision.ResourceManagement.WorkpieceFrameMemoryBudgetManager]::new()
+$overflowRegistry = [TDJS_Vision.ResourceManagement.CameraTriggerTicketRegistry]::new($overflowBudget)
+$overflowContext = New-Context '产线硬触发满载'
+$overflowTicket = $overflowRegistry.RegisterHardwareWait(
+    'CAMERA-HARDWARE-OVERFLOW',
+    $overflowContext,
+    [DateTime]::SpecifyKind([DateTime]::MaxValue, [DateTimeKind]::Utc),
+    [long]256,
+    [long]4096)
+$overflowFirstFrame = New-TestMat
+Assert-True ($overflowRegistry.TryPublishFrame(
+    'CAMERA-HARDWARE-OVERFLOW', [long]1, [uint32]1,
+    [Diagnostics.Stopwatch]::GetTimestamp(), $overflowFirstFrame, $null)) '满载测试首帧没有完成硬触发模式武装。'
+$overflowFirstEnvelope = $overflowTicket.Completion.GetAwaiter().GetResult()
+$overflowFirstEnvelope.Dispose()
+$overflowTicket.Dispose()
+for ($bufferedIndex = 2; $bufferedIndex -le 9; $bufferedIndex++) {
+    $queuedFrame = New-TestMat
+    Assert-True ($overflowRegistry.TryPublishFrame(
+        'CAMERA-HARDWARE-OVERFLOW', [long]$bufferedIndex, [uint32]$bufferedIndex,
+        [Diagnostics.Stopwatch]::GetTimestamp(), $queuedFrame, $null)) "第$bufferedIndex 帧没有进入硬触发待执行FIFO。"
+}
+Assert-True ($overflowRegistry.GetSnapshot().BufferedHardwareFrameCount -eq 8) '硬触发待执行FIFO没有严格限制为8张。'
+$overflowFrame = New-TestMat
+Assert-True ($overflowRegistry.TryPublishFrame(
+    'CAMERA-HARDWARE-OVERFLOW', [long]10, [uint32]10,
+    [Diagnostics.Stopwatch]::GetTimestamp(), $overflowFrame, $null)) '第9张积压帧没有被生产管线明确接管并故障。'
+Assert-True ($overflowRegistry.GetSnapshot().BufferedHardwareFrameCount -eq 0) '硬触发FIFO满载故障后没有释放全部缓存Mat。'
+Assert-True ($overflowRegistry.GetSnapshot().CameraCountRequiringStreamReset -eq 1) '硬触发FIFO满载后没有建立物理停流重启门禁。'
+Assert-True (-not $overflowRegistry.ShouldCaptureBufferedHardwareFrame('CAMERA-HARDWARE-OVERFLOW')) '满载故障后仍允许继续缓存迟到帧。'
+Assert-True ($overflowBudget.GetSnapshot().ActiveLeaseCount -eq 0) '硬触发FIFO满载清场后仍有图像预算残留。'
+$overflowRegistry.Dispose()
+
+# 没有当前票据但硬触发持续接管时，转换失败必须立即故障，不能等到下一帧断层才发现。
+$idleFailureBudget = [TDJS_Vision.ResourceManagement.WorkpieceFrameMemoryBudgetManager]::new()
+$idleFailureRegistry = [TDJS_Vision.ResourceManagement.CameraTriggerTicketRegistry]::new($idleFailureBudget)
+$idleFailureTicket = $idleFailureRegistry.RegisterHardwareWait(
+    'CAMERA-HARDWARE-IDLE-FAILURE',
+    (New-Context '产线硬触发空窗转换失败'),
+    [DateTime]::SpecifyKind([DateTime]::MaxValue, [DateTimeKind]::Utc),
+    [long]256,
+    [long]4096)
+$idleFailureFirstFrame = New-TestMat
+Assert-True ($idleFailureRegistry.TryPublishFrame(
+    'CAMERA-HARDWARE-IDLE-FAILURE', [long]1, [uint32]1,
+    [Diagnostics.Stopwatch]::GetTimestamp(), $idleFailureFirstFrame, $null)) '空窗失败测试首帧没有正常完成。'
+$idleFailureEnvelope = $idleFailureTicket.Completion.GetAwaiter().GetResult()
+$idleFailureEnvelope.Dispose()
+$idleFailureTicket.Dispose()
+Assert-True ($idleFailureRegistry.TryFailFrame(
+    'CAMERA-HARDWARE-IDLE-FAILURE', [long]2,
+    [Diagnostics.Stopwatch]::GetTimestamp(),
+    [InvalidOperationException]::new('模拟算法忙碌期间Mat转换失败'))) '无票据期间转换失败没有被持续硬触发管线接管。'
+Assert-True ($idleFailureRegistry.GetSnapshot().CameraCountRequiringStreamReset -eq 1) '无票据期间转换失败没有建立停流重启门禁。'
+Assert-True (-not $idleFailureRegistry.ShouldCaptureBufferedHardwareFrame('CAMERA-HARDWARE-IDLE-FAILURE')) '无票据转换失败后仍在继续接收硬触发帧。'
+$idleFailureRegistry.Dispose()
+
+# 待执行Mat同时受全局字节预算控制，多相机不能各自绕过内存上限。
+$byteBudget = [TDJS_Vision.ResourceManagement.WorkpieceFrameMemoryBudgetManager]::new()
+$byteRegistry = [TDJS_Vision.ResourceManagement.CameraTriggerTicketRegistry]::new($byteBudget, [long]500)
+foreach ($byteCameraKey in @('CAMERA-BYTE-A', 'CAMERA-BYTE-B')) {
+    $byteTicket = $byteRegistry.RegisterHardwareWait(
+        $byteCameraKey,
+        (New-Context "产线$byteCameraKey"),
+        [DateTime]::SpecifyKind([DateTime]::MaxValue, [DateTimeKind]::Utc),
+        [long]256,
+        [long]4096)
+    $byteFirstFrame = New-TestMat
+    Assert-True ($byteRegistry.TryPublishFrame(
+        $byteCameraKey, [long]1, [uint32]1,
+        [Diagnostics.Stopwatch]::GetTimestamp(), $byteFirstFrame, $null)) "相机$byteCameraKey 首帧没有正常完成。"
+    $byteEnvelope = $byteTicket.Completion.GetAwaiter().GetResult()
+    $byteEnvelope.Dispose()
+    $byteTicket.Dispose()
+}
+$byteQueuedFrame = New-TestMat
+Assert-True ($byteRegistry.TryPublishFrame(
+    'CAMERA-BYTE-A', [long]2, [uint32]2,
+    [Diagnostics.Stopwatch]::GetTimestamp(), $byteQueuedFrame, $null)) '第一台相机没有取得全局待执行Mat预算。'
+Assert-True ($byteRegistry.GetSnapshot().BufferedHardwareFrameBytes -eq 300) '第一张待执行Mat实际字节记账不正确。'
+$byteRejectedFrame = New-TestMat
+Assert-True ($byteRegistry.TryPublishFrame(
+    'CAMERA-BYTE-B', [long]2, [uint32]2,
+    [Diagnostics.Stopwatch]::GetTimestamp(), $byteRejectedFrame, $null)) '第二台相机超过全局字节预算时没有明确故障。'
+Assert-True ($byteRegistry.GetSnapshot().BufferedHardwareFrameBytes -eq 300) '第二台相机预算拒绝错误破坏了第一台相机记账。'
+Assert-True ($byteRegistry.GetSnapshot().BufferedHardwareFrameBudgetBytes -eq 500) '全局待执行Mat字节预算快照不正确。'
+$byteRegistry.Dispose()
+Assert-True ($byteRegistry.GetSnapshot().BufferedHardwareFrameBytes -eq 0) '注册表释放后全局待执行Mat字节记账没有归零。'
+
+# 最后一个运行会话结束时必须关闭旧注册表入口；已复制但尚未转换的迟到帧不能重新写入旧FIFO。
+$stopBudget = [TDJS_Vision.ResourceManagement.WorkpieceFrameMemoryBudgetManager]::new()
+$stopRegistry = [TDJS_Vision.ResourceManagement.CameraTriggerTicketRegistry]::new($stopBudget)
+$stopTicket = $stopRegistry.RegisterHardwareWait(
+    'CAMERA-STOP-RACE',
+    (New-Context '产线停止迟到帧'),
+    [DateTime]::SpecifyKind([DateTime]::MaxValue, [DateTimeKind]::Utc),
+    [long]256,
+    [long]4096)
+$stopFirstFrame = New-TestMat
+Assert-True ($stopRegistry.TryPublishFrame(
+    'CAMERA-STOP-RACE', [long]1, [uint32]1,
+    [Diagnostics.Stopwatch]::GetTimestamp(), $stopFirstFrame, $null)) '停止竞态测试首帧没有正常完成。'
+$stopEnvelope = $stopTicket.Completion.GetAwaiter().GetResult()
+$stopEnvelope.Dispose()
+$stopTicket.Dispose()
+$stopQueuedFrame = New-TestMat
+Assert-True ($stopRegistry.TryPublishFrame(
+    'CAMERA-STOP-RACE', [long]2, [uint32]2,
+    [Diagnostics.Stopwatch]::GetTimestamp(), $stopQueuedFrame, $null)) '停止前到达的第2帧没有进入待执行FIFO。'
+Assert-True ($stopRegistry.GetSnapshot().BufferedHardwareFrameCount -eq 1) '停止前待执行FIFO数量不正确。'
+$stopAcceptingMethod = $registryType.GetMethod(
+    'StopAcceptingProductionFrames',
+    [Reflection.BindingFlags]'Instance,NonPublic')
+Assert-True ($null -ne $stopAcceptingMethod) '没有找到生产会话停止入口。'
+$null = $stopAcceptingMethod.Invoke($stopRegistry, @())
+Assert-True ($stopRegistry.GetSnapshot().BufferedHardwareFrameCount -eq 0) '生产会话停止后没有释放待执行Mat。'
+Assert-True ($stopRegistry.GetSnapshot().BufferedHardwareFrameBytes -eq 0) '生产会话停止后待执行Mat字节没有归零。'
+Assert-True (-not $stopRegistry.ShouldCaptureBufferedHardwareFrame('CAMERA-STOP-RACE')) '生产会话停止后仍允许SDK回调持续接管。'
+$previewFailureMethod = $registryType.GetMethod(
+    'TryAcknowledgePreviewFrameFailure',
+    [Reflection.BindingFlags]'Instance,NonPublic')
+Assert-True ($null -ne $previewFailureMethod) '没有找到预览帧失败计数归还入口。'
+# 分别模拟原始入口失败和Mat转换失败，两次失败都必须归还预览待返回计数。
+foreach ($previewFailureKind in @('原始入口失败', 'Mat转换失败')) {
+    $failedPreviewLease = $stopRegistry.EnterSoftwareTriggerCommand('CAMERA-STOP-PREVIEW')
+    $failedPreviewLease.MarkCommandStarted()
+    $failedPreviewLease.MarkCommandSucceeded()
+    $failedPreviewLease.Dispose()
+    Assert-True ([bool]$previewFailureMethod.Invoke(
+        $stopRegistry,
+        @('CAMERA-STOP-PREVIEW'))) "$previewFailureKind 没有归还预览待返回计数。"
+}
+# 生产门闩关闭后仍允许手动预览归还待返回计数；连续超过64次不能因计数泄漏被拒绝。
+for ($previewIndex = 1; $previewIndex -le 100; $previewIndex++) {
+    $previewLease = $stopRegistry.EnterSoftwareTriggerCommand('CAMERA-STOP-PREVIEW')
+    $previewLease.MarkCommandStarted()
+    $previewLease.MarkCommandSucceeded()
+    $previewLease.Dispose()
+    $previewFrame = New-TestMat
+    $previewProductionAccepted = $stopRegistry.TryPublishFrame(
+        'CAMERA-STOP-PREVIEW', [long]$previewIndex, [uint32]$previewIndex,
+        [Diagnostics.Stopwatch]::GetTimestamp(), $previewFrame, $null)
+    if (-not $previewProductionAccepted) { $previewFrame.Dispose() }
+    Assert-True (-not $previewProductionAccepted) '停止后的预览帧错误进入了生产管线。'
+}
+$staleFrame = New-TestMat
+$staleAccepted = $stopRegistry.TryPublishFrame(
+    'CAMERA-STOP-RACE', [long]3, [uint32]3,
+    [Diagnostics.Stopwatch]::GetTimestamp(), $staleFrame, $null)
+if (-not $staleAccepted) { $staleFrame.Dispose() }
+Assert-True (-not $staleAccepted) '生产会话停止后，旧原始包仍被写入生产FIFO。'
+$stopRegisterRejected = $false
+try {
+    $null = $stopRegistry.RegisterHardwareWait(
+        'CAMERA-STOP-RACE',
+        (New-Context '产线停止后登记'),
+        [DateTime]::SpecifyKind([DateTime]::MaxValue, [DateTimeKind]::Utc),
+        [long]256,
+        [long]4096)
+}
+catch {
+    $stopRegisterRejected = $true
+}
+Assert-True $stopRegisterRejected '生产会话停止后仍允许登记新的相机票据。'
+$tryRouteFrameMethod = $registryType.GetMethod(
+    'TryRouteFrame',
+    [Reflection.BindingFlags]'Instance,NonPublic')
+Assert-True ($null -ne $tryRouteFrameMethod) '没有找到相机转换线程无异常帧路由入口。'
+$stopRegistry.Dispose()
+$disposedLateFrame = New-TestMat
+$disposedRouteAccepted = [bool]$tryRouteFrameMethod.Invoke(
+    $stopRegistry,
+    @(
+        'CAMERA-STOP-RACE',
+        [long]4,
+        [uint32]4,
+        [Diagnostics.Stopwatch]::GetTimestamp(),
+        $disposedLateFrame,
+        $null))
+if (-not $disposedRouteAccepted) { $disposedLateFrame.Dispose() }
+Assert-True (-not $disposedRouteAccepted) '已经释放的旧注册表没有无异常拒绝迟到帧。'
+
+# 低内存档案必须严格使用流程图像预算的25%，不能用固定32MB下限突破总预算。
+$solutionType = $assembly.GetType('TDJS_Vision.Solution', $true)
+$bufferBudgetMethod = $solutionType.GetMethod(
+    'GetBufferedHardwareFrameBudgetBytes',
+    [Reflection.BindingFlags]'Static,NonPublic')
+Assert-True ($null -ne $bufferBudgetMethod) '没有找到硬触发FIFO动态字节预算计算方法。'
+$profileType = $bufferBudgetMethod.GetParameters()[0].ParameterType
+$lowMemoryProfile = [Activator]::CreateInstance($profileType)
+$profileType.GetProperty('FlowImageMemoryBudgetMb').SetValue($lowMemoryProfile, [int]64)
+$lowMemoryBufferedBudget = [long]$bufferBudgetMethod.Invoke($null, @($lowMemoryProfile))
+Assert-True ($lowMemoryBufferedBudget -eq 16L * 1024L * 1024L) '64MB流程图像预算没有严格分配16MB给硬触发FIFO。'
 
 Wait-ProductionFaultDrain
 $shutdownContext = New-Context '产线K'
