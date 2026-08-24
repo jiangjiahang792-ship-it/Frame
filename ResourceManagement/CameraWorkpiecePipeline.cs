@@ -1064,6 +1064,44 @@ namespace TDJS_Vision.ResourceManagement
             }
         }
 
+        /// <summary>原子登记并武装线路硬触发票据，确保物理帧不能穿过登记与就绪之间的空窗。</summary>
+        /// <param name="cameraKey">稳定相机键。</param>
+        /// <param name="context">当前工件上下文。</param>
+        /// <param name="deadlineUtc">硬触发帧最迟到达时间。</param>
+        /// <param name="estimatedFrameBytes">触发前预留的估算图像字节数。</param>
+        /// <param name="memoryBudgetBytes">本次运行使用的图像总预算。</param>
+        /// <returns>已经进入硬触发等待状态的唯一票据。</returns>
+        public CameraTriggerTicket RegisterHardwareWait(
+            string cameraKey,
+            WorkpieceExecutionContext context,
+            DateTime deadlineUtc,
+            long estimatedFrameBytes,
+            long memoryBudgetBytes)
+        {
+            string normalizedCameraKey = NormalizeCameraKey(cameraKey);
+            return ExecuteCameraSynchronized(normalizedCameraKey, () =>
+            {
+                CameraTriggerTicket ticket = null;
+                try
+                {
+                    ticket = Register(
+                        normalizedCameraKey,
+                        context,
+                        CameraTriggerKind.Hardware,
+                        deadlineUtc,
+                        estimatedFrameBytes,
+                        memoryBudgetBytes);
+                    MarkReadyForFrameCore(ticket, DateTime.UtcNow, false);
+                    return ticket;
+                }
+                catch
+                {
+                    try { ticket?.Dispose(); } catch { }
+                    throw;
+                }
+            });
+        }
+
         /// <summary>把转换线程产出的独立Mat匹配给该相机FIFO队首票据。</summary>
         public bool TryPublishFrame(
             string cameraKey,

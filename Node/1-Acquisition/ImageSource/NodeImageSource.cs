@@ -484,11 +484,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 Solution.Instance.WorkpieceContextAccessor.Current;
             if (workpieceContext != null)
             {
-                if (param.TriggerSource != TriggerSource.SOFT)
-                {
-                    throw new InvalidOperationException(
-                        "硬触发生产帧尚未接入外部触发就绪握手，当前禁止用无法确认触发沿的回调帧继续生产。 ");
-                }
                 return await AcquireProductionCameraImageAsync(
                     param,
                     workpieceContext,
@@ -525,7 +520,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     MsgLevel.Debug,
                     () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=等待器就绪；相机={param.Camera.DevName}；触发源={param.TriggerSource}",
                     true);
-                if (param.TriggerSource == TriggerSource.SOFT)
+                if (GetEffectiveTriggerSource(param.TriggerSource) == TriggerSource.SOFT)
                     param.Camera.GrabOne();
 
                 callbackMat = await frameTask.ConfigureAwait(false);
@@ -591,7 +586,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             DateTime deadlineUtc = DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds);
             long memoryBudgetBytes = GetWorkpieceFrameMemoryBudgetBytes();
             long estimatedFrameBytes = GetEstimatedCameraFrameBytes(param.Camera);
-            CameraTriggerKind triggerKind = CameraTriggerKind.Software;
+            CameraTriggerKind triggerKind = GetProductionCameraTriggerKind(param.TriggerSource);
+            bool isSoftwareTrigger = triggerKind == CameraTriggerKind.Software;
 
             CameraTriggerTicket ticket = null;
             CameraFrameEnvelope envelope = null;
@@ -613,16 +609,24 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 }
 
                 productionCancellation.Token.ThrowIfCancellationRequested();
-                ticket = registry.Register(
-                    cameraKey,
-                    workpieceContext,
-                    triggerKind,
-                    deadlineUtc,
-                    estimatedFrameBytes,
-                    memoryBudgetBytes);
-                productionCancellation.Token.ThrowIfCancellationRequested();
                 param.Camera.RegisterImageCallbackOwner(this);
                 callbackOwnerRegistered = true;
+                productionCancellation.Token.ThrowIfCancellationRequested();
+
+                ticket = isSoftwareTrigger
+                    ? registry.Register(
+                        cameraKey,
+                        workpieceContext,
+                        triggerKind,
+                        deadlineUtc,
+                        estimatedFrameBytes,
+                        memoryBudgetBytes)
+                    : registry.RegisterHardwareWait(
+                        cameraKey,
+                        workpieceContext,
+                        deadlineUtc,
+                        estimatedFrameBytes,
+                        memoryBudgetBytes);
                 productionCancellation.Token.ThrowIfCancellationRequested();
 
                 PerformanceSpikeDiagnostics.LogIfEnabled(
@@ -630,11 +634,13 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=生产票据就绪；工件={workpieceContext.Identity}；相机={param.Camera.DevName}；触发源={param.TriggerSource}；估算字节={estimatedFrameBytes}；预算字节={memoryBudgetBytes}",
                     true);
 
-                Task triggerTask = Task.Factory.StartNew(
-                    () => ticket.IssueSoftwareTrigger(param.Camera.GrabOne),
-                    CancellationToken.None,
-                    TaskCreationOptions.DenyChildAttach,
-                    TaskScheduler.Default);
+                Task triggerTask = isSoftwareTrigger
+                    ? Task.Factory.StartNew(
+                        () => ticket.IssueSoftwareTrigger(param.Camera.GrabOne),
+                        CancellationToken.None,
+                        TaskCreationOptions.DenyChildAttach,
+                        TaskScheduler.Default)
+                    : Task.CompletedTask;
 
                 envelope = await WaitForProductionFrameAsync(
                     registry,
@@ -804,6 +810,26 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             return configuredTimeout > int.MaxValue ? int.MaxValue : Math.Max(1, (int)configuredTimeout);
         }
 
+        /// <summary>把旧默认Auto归一为软触发，只把明确线路源归类为硬触发。</summary>
+        /// <param name="triggerSource">节点保存的触发源。</param>
+        /// <returns>生产票据使用的明确触发类别。</returns>
+        private static CameraTriggerKind GetProductionCameraTriggerKind(TriggerSource triggerSource)
+        {
+            if (triggerSource == TriggerSource.Auto || triggerSource == TriggerSource.SOFT)
+                return CameraTriggerKind.Software;
+            if (triggerSource >= TriggerSource.LINE0 && triggerSource <= TriggerSource.LINE4)
+                return CameraTriggerKind.Hardware;
+            throw new ArgumentOutOfRangeException(nameof(triggerSource), "图像源触发方式无效。 ");
+        }
+
+        /// <summary>获取真正写入相机SDK的触发源，Auto按参数界面既有语义归一为软触发。</summary>
+        private static TriggerSource GetEffectiveTriggerSource(TriggerSource triggerSource)
+        {
+            return triggerSource == TriggerSource.Auto
+                ? TriggerSource.SOFT
+                : triggerSource;
+        }
+
         /// <summary>按自动资源档案计算全部在途工件相机Mat共同遵守的实际字节硬预算。</summary>
         private static long GetWorkpieceFrameMemoryBudgetBytes()
         {
@@ -875,9 +901,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                             // 是否需要每次设置相机参数
                             if (param.IsEveryTime)
                             {
+                                TriggerSource effectiveTriggerSource = GetEffectiveTriggerSource(param.TriggerSource);
                                 param.Camera.SetTriggerMode(TriggerModel.On);
-                                param.Camera.SetTriggerSource(param.TriggerSource);
-                                if (param.TriggerSource >= TriggerSource.LINE0 && param.TriggerSource <= TriggerSource.LINE4)
+                                param.Camera.SetTriggerSource(effectiveTriggerSource);
+                                if (effectiveTriggerSource >= TriggerSource.LINE0 && effectiveTriggerSource <= TriggerSource.LINE4)
                                     param.Camera.SetTriggerEdge(param.TriggerEdge);
                                 param.Camera.SetTriggerDelay(param.TriggerDelay);
                                 param.Camera.SetExposureTime(param.ExposureTime);

@@ -772,9 +772,12 @@ namespace TDJS_Vision
             if (camera == null || param == null)
                 return;
 
+            TriggerSource effectiveTriggerSource = param.TriggerSource == TriggerSource.Auto
+                ? TriggerSource.SOFT
+                : param.TriggerSource;
             camera.SetTriggerMode(param.TriggerModel);
-            camera.SetTriggerSource(param.TriggerSource);
-            if (param.TriggerSource >= TriggerSource.LINE0 && param.TriggerSource <= TriggerSource.LINE4)
+            camera.SetTriggerSource(effectiveTriggerSource);
+            if (effectiveTriggerSource >= TriggerSource.LINE0 && effectiveTriggerSource <= TriggerSource.LINE4)
                 camera.SetTriggerEdge(param.TriggerEdge);
             camera.SetTriggerDelay(param.TriggerDelay);
             camera.SetExposureTime(param.ExposureTime);
@@ -834,37 +837,57 @@ namespace TDJS_Vision
         {
             CancellationTokenSource retiredTokenSource = null;
             isFirstSession = false;
-            lock (_runLifecycleSync)
+            try
             {
-                if (_isResetting)
-                    return false;
-
-                if (_runFaultStopRequested && _activeRunSessionCount != 0)
-                    return false;
-
-                if (_activeRunSessionCount == 0 &&
-                    (_runFaultStopRequested || _cancellationTokenSource.IsCancellationRequested))
+                lock (_runLifecycleSync)
                 {
-                    retiredTokenSource = _cancellationTokenSource;
-                    _cancellationTokenSource = new CancellationTokenSource();
-                    _runFaultStopRequested = false;
-                }
-                isFirstSession = _activeRunSessionCount == 0;
-                _activeRunSessionCount++;
-                _allRunsStopped.Reset();
-                IsRunning = true;
+                    if (_isResetting)
+                        return false;
 
-                // 所有运行入口共用首会话初始化；刷新完成前生命周期锁阻止第二条会话登记。
-                if (isFirstSession)
-                {
-                    WorkpieceIdentityGenerator.ResetSession();
-                    RenewOrderedSignalCoordinator();
-                    RefreshRuntimeResourceProfile(true);
+                    if (_activeRunSessionCount != 0 &&
+                        (_runFaultStopRequested || _cancellationTokenSource.IsCancellationRequested))
+                    {
+                        return false;
+                    }
+
+                    if (_activeRunSessionCount == 0 &&
+                        (_runFaultStopRequested || _cancellationTokenSource.IsCancellationRequested))
+                    {
+                        retiredTokenSource = _cancellationTokenSource;
+                        _cancellationTokenSource = new CancellationTokenSource();
+                        _runFaultStopRequested = false;
+                    }
+                    isFirstSession = _activeRunSessionCount == 0;
+
+                    // 首会话初始化全部成功后才登记活动计数；任一步异常都保持零活动并允许重试。
+                    if (isFirstSession)
+                    {
+                        try
+                        {
+                            WorkpieceIdentityGenerator.ResetSession();
+                            RenewOrderedSignalCoordinator();
+                            RenewCameraProductionPipeline();
+                            RefreshRuntimeResourceProfile(true);
+                        }
+                        catch
+                        {
+                            isFirstSession = false;
+                            IsRunning = false;
+                            _allRunsStopped.Set();
+                            throw;
+                        }
+                    }
+
+                    _activeRunSessionCount++;
+                    _allRunsStopped.Reset();
+                    IsRunning = true;
                 }
+                return true;
             }
-
-            retiredTokenSource?.Dispose();
-            return true;
+            finally
+            {
+                retiredTokenSource?.Dispose();
+            }
         }
 
         /// <summary>
@@ -1041,10 +1064,19 @@ namespace TDJS_Vision
         /// </summary>
         public void Stop()
         {
-            CancellationTokenSource tokenSource;
-            lock (_runLifecycleSync)
-                tokenSource = _cancellationTokenSource;
+            TryCommitRunStop(out CancellationTokenSource tokenSource);
             CancelTokenSourceNoThrow(tokenSource, "方案停止");
+        }
+
+        /// <summary>在执行可能较慢的取消回调前提交停机门闩，阻止新入口复用当前会话令牌。</summary>
+        private bool TryCommitRunStop(out CancellationTokenSource tokenSource)
+        {
+            lock (_runLifecycleSync)
+            {
+                _runFaultStopRequested = true;
+                tokenSource = _cancellationTokenSource;
+                return true;
+            }
         }
 
         /// <summary>生产帧身份或资源边界失效时记录证据并请求整套方案停止。</summary>
@@ -1053,14 +1085,10 @@ namespace TDJS_Vision
             CameraTriggerTicketRegistry sourceRegistry,
             CameraProductionFault fault)
         {
-            CancellationTokenSource tokenSource;
-            lock (_cameraProductionPipelineSync)
-            {
-                if (!ReferenceEquals(_cameraTriggerTicketRegistry, sourceRegistry))
-                    return;
-                lock (_runLifecycleSync)
-                    tokenSource = _cancellationTokenSource;
-            }
+            if (!TryCommitCameraProductionFaultStop(
+                sourceRegistry,
+                out CancellationTokenSource tokenSource))
+                return;
 
             try
             {
@@ -1075,6 +1103,27 @@ namespace TDJS_Vision
             }
             // 只取消来源注册表确认时对应的方案令牌；注册表换代后不得重新读取并误停新方案。
             CancelTokenSourceNoThrow(tokenSource, "相机生产帧故障");
+        }
+
+        /// <summary>原子确认相机故障来源并提交本会话停机门闩，阻止取消动作前新入口复用旧令牌。</summary>
+        private bool TryCommitCameraProductionFaultStop(
+            CameraTriggerTicketRegistry sourceRegistry,
+            out CancellationTokenSource tokenSource)
+        {
+            lock (_runLifecycleSync)
+            {
+                lock (_cameraProductionPipelineSync)
+                {
+                    if (!ReferenceEquals(_cameraTriggerTicketRegistry, sourceRegistry))
+                    {
+                        tokenSource = null;
+                        return false;
+                    }
+                    _runFaultStopRequested = true;
+                    tokenSource = _cancellationTokenSource;
+                    return true;
+                }
+            }
         }
 
         /// <summary>

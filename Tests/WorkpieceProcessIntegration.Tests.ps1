@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 function Assert-True {
     param([bool]$Condition, [string]$Message)
@@ -44,9 +44,11 @@ Assert-True ($solutionSource.Contains('if (isFirstSession)')) '身份纪元重�
 Assert-True ($solutionSource.Contains('context.Identity.SessionEpoch == WorkpieceIdentityGenerator.SessionEpoch')) '继承上下文前必须校验当前生产会话纪元。'
 Assert-True ($solutionSource.Contains('OrderedSignalCoordinator.RegisterWorkpiece(context);')) '工件上下文创建后必须立即登记到当前会话有序协调器。'
 Assert-True ($solutionSource.Contains('RenewOrderedSignalCoordinator();')) '新生产会话和方案重置必须淘汰旧有序协调器。'
+Assert-True ($solutionSource.Contains('RenewCameraProductionPipeline();')) '新生产会话和方案重置必须淘汰旧相机票据注册表。'
 Assert-True ($solutionSource.Contains('coordinator.OrderGapDetected += HandleOrderedSignalGapDetected;')) '当前有序协调器必须绑定顺序缺口停机处理器。'
 Assert-True ($solutionSource.Contains('if (!ReferenceEquals(sender, _orderedSignalCoordinator))')) '迟到的旧协调器缺口报警不得误停新生产会话。'
-Assert-True ($solutionSource.Contains('if (_runFaultStopRequested && _activeRunSessionCount != 0)')) '缺口停机提交后必须拒绝活动会话退出前的新运行入口。'
+Assert-True ($solutionSource.Contains('(_runFaultStopRequested || _cancellationTokenSource.IsCancellationRequested)')) '故障或正常停止后必须拒绝活动会话退出前的新运行入口。'
+Assert-True ($solutionSource.IndexOf('TryCommitRunStop(out CancellationTokenSource tokenSource);', [StringComparison]::Ordinal) -lt $solutionSource.IndexOf('CancelTokenSourceNoThrow(tokenSource, "方案停止");', [StringComparison]::Ordinal)) '正常停止必须先提交门闩，再执行可能较慢的令牌取消。'
 Assert-True ($solutionSource.Contains('CancelTokenSourceNoThrow(tokenSource, "有序信号顺序缺口");')) '当前会话顺序缺口必须真实取消方案运行令牌。'
 Assert-True (-not $solutionSource.Contains('workpieceContext.TryComplete(terminalState);')) '方案流程组根工件不得绕过协调器直接封口。'
 Assert-True ($solutionSource.Contains('await CompleteWorkpieceExecutionAsync(')) '方案流程组根工件必须通过协调器封口并推进顺序域。'
@@ -58,7 +60,56 @@ $processType = $assembly.GetType('TDJS_Vision.Process', $true)
 $solutionType = $assembly.GetType('TDJS_Vision.Solution', $true)
 $contextType = $assembly.GetType('TDJS_Vision.ResourceManagement.WorkpieceExecutionContext', $true)
 $gapEventArgsType = $assembly.GetType('TDJS_Vision.ResourceManagement.OrderedSignalGapEventArgs', $true)
+$cameraTriggerKindType = $assembly.GetType('TDJS_Vision.ResourceManagement.CameraTriggerKind', $true)
 $taskType = [Threading.Tasks.Task]
+
+# 使用纯C#线程阻塞真实票据触发入口，避免PowerShell后台线程缺少Runspace影响竞态测试。
+Add-Type -TypeDefinition @'
+using System;
+using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
+
+public sealed class BlockingCameraTriggerProbe : IDisposable
+{
+    private readonly ManualResetEventSlim _entered = new ManualResetEventSlim(false);
+    private readonly ManualResetEventSlim _release = new ManualResetEventSlim(false);
+
+    public bool WaitUntilEntered(int millisecondsTimeout)
+    {
+        return _entered.Wait(millisecondsTimeout);
+    }
+
+    public Task IssueAsync(object ticket)
+    {
+        return Task.Run(() =>
+        {
+            try
+            {
+                ticket.GetType().GetMethod("IssueSoftwareTrigger").Invoke(
+                    ticket,
+                    new object[] { new Action(() => { _entered.Set(); _release.Wait(); }) });
+            }
+            catch (TargetInvocationException exception)
+            {
+                throw exception.InnerException ?? exception;
+            }
+        });
+    }
+
+    public void Release()
+    {
+        _release.Set();
+    }
+
+    public void Dispose()
+    {
+        _release.Set();
+        _entered.Dispose();
+        _release.Dispose();
+    }
+}
+'@
 
 $triggerMethods = @($processType.GetMethods() | Where-Object { $_.Name -eq 'TriggerProcess' })
 Assert-True ($triggerMethods.Count -eq 2) 'TriggerProcess必须同时保留旧签名和显式取消令牌签名。'
@@ -86,6 +137,7 @@ $generator = $generatorProperty.GetValue($solution)
 $resetSessionMethod = $generator.GetType().GetMethod('ResetSession', [Reflection.BindingFlags]'Instance,NonPublic')
 $renewCoordinatorMethod = $solutionType.GetMethod('RenewOrderedSignalCoordinator', [Reflection.BindingFlags]'Instance,NonPublic')
 $coordinatorProperty = $solutionType.GetProperty('OrderedSignalCoordinator')
+$cameraRegistryProperty = $solutionType.GetProperty('CameraTriggerTicketRegistry')
 $contextAccessor = $solutionType.GetProperty('WorkpieceContextAccessor').GetValue($solution)
 
 $cycleContext = $createContextMethod.Invoke($solution, @('环检测产线', [long]1, '环检测测试', [Threading.CancellationToken]::None))
@@ -170,8 +222,11 @@ $failedTerminal = $failedBranchContext.Completion.GetAwaiter().GetResult()
 Assert-True ($failedTerminal.ToString() -eq 'Faulted') '子流程失败必须覆盖父流程先前请求的成功终态。'
 
 $commitGapStopMethod = $solutionType.GetMethod('TryCommitOrderedSignalGapStop', [Reflection.BindingFlags]'Instance,NonPublic')
+$commitCameraStopMethod = $solutionType.GetMethod('TryCommitCameraProductionFaultStop', [Reflection.BindingFlags]'Instance,NonPublic')
+$commitRunStopMethod = $solutionType.GetMethod('TryCommitRunStop', [Reflection.BindingFlags]'Instance,NonPublic')
 $beginExternalRunMethod = $solutionType.GetMethod('TryBeginExternalRunSession', [Reflection.BindingFlags]'Instance,NonPublic')
 $endExternalRunMethod = $solutionType.GetMethod('EndExternalRunSession', [Reflection.BindingFlags]'Instance,NonPublic')
+$activeRunCountField = $solutionType.GetField('_activeRunSessionCount', [Reflection.BindingFlags]'Instance,NonPublic')
 
 $retiredCommitArguments = [object[]]@($retiredCoordinator, $null)
 $retiredCommitted = [bool]$commitGapStopMethod.Invoke($solution, $retiredCommitArguments)
@@ -183,10 +238,12 @@ Assert-True ([bool]$commitGapStopMethod.Invoke($solution, $handoffCommitArgument
 $retiredTokenSource = $handoffCommitArguments[1]
 Assert-True ($null -ne $retiredTokenSource) '缺口停机提交没有捕获待取消令牌源。'
 $retiredToken = $retiredTokenSource.Token
+$retiredCameraRegistry = $cameraRegistryProperty.GetValue($solution)
 Assert-True ([bool]$beginExternalRunMethod.Invoke($solution, @())) '零活动会话未能在缺口提交后建立新会话。'
 $freshToken = $solution.CancellationToken
 Assert-True (-not $freshToken.IsCancellationRequested) '缺口提交后的新会话复用了待取消令牌。'
 Assert-True ($freshToken -ne $retiredToken) '缺口提交后的新会话没有更换运行令牌。'
+Assert-True (-not [object]::ReferenceEquals($retiredCameraRegistry, $cameraRegistryProperty.GetValue($solution))) '停止后的新运行会话没有更换相机生产票据注册表。'
 try {
     $retiredTokenSource.Cancel()
 }
@@ -201,8 +258,88 @@ Assert-True ([bool]$beginExternalRunMethod.Invoke($solution, @())) '活动停机
 $activeCoordinator = $coordinatorProperty.GetValue($solution)
 $activeCommitArguments = [object[]]@($activeCoordinator, $null)
 Assert-True ([bool]$commitGapStopMethod.Invoke($solution, $activeCommitArguments)) '活动会话缺口停机状态没有提交。'
+$activeCameraRegistry = $cameraRegistryProperty.GetValue($solution)
 Assert-True (-not [bool]$beginExternalRunMethod.Invoke($solution, @())) '缺口停机提交后仍允许第二个运行入口进入。'
+Assert-True ([object]::ReferenceEquals($activeCameraRegistry, $cameraRegistryProperty.GetValue($solution))) '被拒绝的运行入口错误换代了活动相机票据注册表。'
 $activeCommitArguments[1].Cancel()
 $endExternalRunMethod.Invoke($solution, @()) | Out-Null
+
+# 正常停止同样必须等旧会话完全退出，再以新令牌和新相机票据表开始。
+Assert-True ([bool]$beginExternalRunMethod.Invoke($solution, @())) '正常停止换代测试未能建立首个运行会话。'
+$normalStopToken = $solution.CancellationToken
+$normalStopCameraRegistry = $cameraRegistryProperty.GetValue($solution)
+$normalStopCommitArguments = [object[]]@($null)
+Assert-True ([bool]$commitRunStopMethod.Invoke($solution, $normalStopCommitArguments)) '正常停止没有先提交停机门闩。'
+Assert-True (-not [bool]$beginExternalRunMethod.Invoke($solution, @())) '正常停止后旧会话退出前仍允许新运行入口进入。'
+Assert-True ([object]::ReferenceEquals($normalStopCameraRegistry, $cameraRegistryProperty.GetValue($solution))) '正常停止排空期间错误换代了相机票据注册表。'
+$normalStopCommitArguments[0].Cancel()
+Assert-True ($normalStopToken.IsCancellationRequested) '正常停止提交后没有取消当前运行令牌。'
+$endExternalRunMethod.Invoke($solution, @()) | Out-Null
+Assert-True ([bool]$beginExternalRunMethod.Invoke($solution, @())) '旧会话退出后没有允许新运行会话启动。'
+Assert-True (-not $solution.CancellationToken.IsCancellationRequested) '停止后的新运行会话仍使用已取消令牌。'
+Assert-True (-not [object]::ReferenceEquals($normalStopCameraRegistry, $cameraRegistryProperty.GetValue($solution))) '停止后的新运行会话没有取得全新的相机票据注册表。'
+$endExternalRunMethod.Invoke($solution, @()) | Out-Null
+
+# 零活动时也要先换代再启动；旧Stop令牌的迟到取消不得穿透到新会话。
+$zeroActiveStopArguments = [object[]]@($null)
+Assert-True ([bool]$commitRunStopMethod.Invoke($solution, $zeroActiveStopArguments)) '零活动正常停止没有提交停机门闩。'
+$zeroActiveRetiredTokenSource = $zeroActiveStopArguments[0]
+$zeroActiveRetiredToken = $zeroActiveRetiredTokenSource.Token
+Assert-True ([bool]$beginExternalRunMethod.Invoke($solution, @())) '零活动正常停止后没有换代启动新会话。'
+Assert-True ($solution.CancellationToken -ne $zeroActiveRetiredToken) '零活动正常停止后的新会话复用了待取消令牌。'
+try { $zeroActiveRetiredTokenSource.Cancel() } catch [ObjectDisposedException] { }
+Assert-True (-not $solution.CancellationToken.IsCancellationRequested) '正常停止旧令牌的迟到取消误停了新会话。'
+$endExternalRunMethod.Invoke($solution, @()) | Out-Null
+
+# 相机故障必须先提交停机门闩；延迟取消旧令牌不能误停已经换代的新会话。
+$retiredCameraFaultArguments = [object[]]@($normalStopCameraRegistry, $null)
+Assert-True (-not [bool]$commitCameraStopMethod.Invoke($solution, $retiredCameraFaultArguments)) '旧相机票据表迟到故障被提交到当前会话。'
+$cameraFaultRegistry = $cameraRegistryProperty.GetValue($solution)
+$cameraFaultArguments = [object[]]@($cameraFaultRegistry, $null)
+Assert-True ([bool]$commitCameraStopMethod.Invoke($solution, $cameraFaultArguments)) '当前相机生产故障没有提交停机门闩。'
+$cameraFaultTokenSource = $cameraFaultArguments[1]
+$cameraFaultToken = $cameraFaultTokenSource.Token
+Assert-True ([bool]$beginExternalRunMethod.Invoke($solution, @())) '零活动会话未能在相机故障提交后换代启动。'
+Assert-True ($solution.CancellationToken -ne $cameraFaultToken) '相机故障提交后的新会话复用了待取消令牌。'
+try { $cameraFaultTokenSource.Cancel() } catch [ObjectDisposedException] { }
+Assert-True (-not $solution.CancellationToken.IsCancellationRequested) '迟到的相机故障取消误停了新运行会话。'
+$endExternalRunMethod.Invoke($solution, @()) | Out-Null
+
+# 首会话初始化失败不得提前增加活动计数；释放阻塞后必须能够重新启动。
+$initializationFailureRegistry = $cameraRegistryProperty.GetValue($solution)
+$initializationFailureContext = $createContextMethod.Invoke(
+    $solution,
+    @('初始化失败测试产线', [long]1, '票据表关闭超时测试', $solution.CancellationToken))
+$softwareTriggerKind = [Enum]::Parse($cameraTriggerKindType, 'Software')
+$blockingTicket = $initializationFailureRegistry.Register(
+    'CAMERA-SESSION-INIT-FAILURE',
+    $initializationFailureContext,
+    $softwareTriggerKind,
+    [DateTime]::UtcNow.AddSeconds(10),
+    [long]256,
+    [long]4096)
+$blockingProbe = [BlockingCameraTriggerProbe]::new()
+$blockingTriggerTask = $blockingProbe.IssueAsync($blockingTicket)
+Assert-True ($blockingProbe.WaitUntilEntered(2000)) '初始化失败测试没有进入真实票据触发调用。'
+$initializationFailed = $false
+try {
+    $null = $beginExternalRunMethod.Invoke($solution, @())
+}
+catch {
+    $currentException = $_.Exception
+    while ($null -ne $currentException.InnerException) {
+        $currentException = $currentException.InnerException
+    }
+    $initializationFailed = $currentException -is [TimeoutException]
+}
+Assert-True $initializationFailed '旧票据表关闭超时没有中止首会话初始化。'
+Assert-True ([int]$activeRunCountField.GetValue($solution) -eq 0) '首会话初始化失败遗留了虚假活动计数。'
+Assert-True (-not $solution.IsRunning) '首会话初始化失败后方案仍被标记为运行中。'
+$blockingProbe.Release()
+Assert-True ($blockingTriggerTask.Wait(5000)) '阻塞中的票据触发调用没有退出。'
+$blockingTriggerTask.GetAwaiter().GetResult() | Out-Null
+Assert-True ([bool]$beginExternalRunMethod.Invoke($solution, @())) '票据触发退出后首会话初始化不能重试。'
+$endExternalRunMethod.Invoke($solution, @()) | Out-Null
+$blockingProbe.Dispose()
 
 Write-Host '工件上下文与流程运行入口集成测试通过。'

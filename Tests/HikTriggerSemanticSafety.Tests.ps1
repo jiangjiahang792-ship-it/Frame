@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$ProjectRoot = (Split-Path -Parent $PSScriptRoot)
 )
 
@@ -31,7 +31,7 @@ Assert-Regex $paramForm 'RefreshTriggerSourceItems\(camera\);' "图像源参数�
 if ($paramFormDesigner -match '"Line4"') {
     throw "图像源参数界面不能默认提供海康SDK未定义的Line4。"
 }
-Assert-Regex $node 'if\s*\(param\.TriggerSource >= TriggerSource\.LINE0 && param\.TriggerSource <= TriggerSource\.LINE4\)\s*param\.Camera\.SetTriggerEdge\(param\.TriggerEdge\);' "图像源运行时必须仅在线路触发时设置极性。"
-Assert-Regex $solution 'if\s*\(param\.TriggerSource >= TriggerSource\.LINE0 && param\.TriggerSource <= TriggerSource\.LINE4\)\s*camera\.SetTriggerEdge\(param\.TriggerEdge\);' "方案启动应用相机参数时必须仅在线路触发写入极性。"
+Assert-Regex $node 'if\s*\(effectiveTriggerSource >= TriggerSource\.LINE0 && effectiveTriggerSource <= TriggerSource\.LINE4\)\s*param\.Camera\.SetTriggerEdge\(param\.TriggerEdge\);' "图像源运行时必须仅在线路触发时设置极性。"
+Assert-Regex $solution 'if\s*\(effectiveTriggerSource >= TriggerSource\.LINE0 && effectiveTriggerSource <= TriggerSource\.LINE4\)\s*camera\.SetTriggerEdge\(param\.TriggerEdge\);' "方案启动应用相机参数时必须仅在线路触发写入极性。"
 
 Write-Output "海康触发语义安全检查通过。"

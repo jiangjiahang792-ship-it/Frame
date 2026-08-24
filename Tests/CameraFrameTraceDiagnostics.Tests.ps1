@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 function Get-ProjectSource {
     param([string]$RelativePath)
@@ -51,7 +51,7 @@ $camera = Get-ProjectSource 'Device\Camera\CameraHik.cs'
 $imageSource = Get-ProjectSource 'Node\1-Acquisition\ImageSource\NodeImageSource.cs'
 $project = Get-ProjectSource 'TDJS-Vision.csproj'
 $callbackStart = $camera.IndexOf('private void GetImageCallBack')
-$callbackEnd = $camera.IndexOf('public Bitmap GetOneFrameImage', $callbackStart)
+$callbackEnd = $camera.IndexOf('private void EnqueueRawFrameCore', $callbackStart)
 if ($callbackStart -lt 0 -or $callbackEnd -le $callbackStart) {
     throw 'Unable to locate the camera callback method for log-level validation.'
 }
@@ -63,10 +63,10 @@ Assert-Contains $registry 'public static void Attach(' 'The registry must attach
 Assert-Contains $registry 'public static bool TryGet(' 'Process nodes must be able to read frame metadata.'
 
 Assert-Contains $camera 'Interlocked.Increment(ref _callbackFrameSequence)' 'Each SDK callback must receive a thread-safe FrameId.'
-Assert-Contains $camera 'ConvertImageFormatToMat(sourceImage, device.PixelTypeConverter, DevName, frameId)' 'Mat conversion must use the same FrameId.'
+Assert-Contains $camera 'ConvertFrameToIndependentMat(packet.Buffer, ref frameInfo, packet.FrameId, packet.DiagnosticEnabled)' 'Mat conversion must use the same FrameId.'
 Assert-Contains $camera 'private void RaiseMatImageReceived(Mat image, CameraFrameTraceInfo frameTrace)' 'Mat distribution must receive frame metadata.'
 Assert-Contains $camera 'CameraFrameTraceRegistry.Attach(subscriberImage, frameTrace);' 'Every subscriber Mat wrapper must receive frame metadata.'
-Assert-Order $camera 'CameraFrameTraceRegistry.Attach(subscriberImage, frameTrace);' '((Action<Mat>)invocationList[i]).Invoke(subscriberImage);' 'Metadata must be attached before subscriber invocation.'
+Assert-Order $camera 'CameraFrameTraceRegistry.Attach(subscriberImage, frameTrace);' '((Action<Mat>)invocationList[index]).Invoke(subscriberImage);' 'Metadata must be attached before subscriber invocation.'
 Assert-Contains $camera 'PerformanceSpikeDiagnostics.FrameConvertSlowMs' 'Camera conversion must use its dedicated slow threshold.'
 Assert-NotContains $cameraCallback 'LogHelper.AddLog(MsgLevel.Info' 'High-frequency camera callback timing must not use Info logs.'
 

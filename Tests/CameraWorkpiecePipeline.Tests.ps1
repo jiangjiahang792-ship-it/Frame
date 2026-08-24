@@ -17,9 +17,12 @@ function Assert-True {
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $debugDirectory = Join-Path $projectRoot 'bin\x64\Debug'
 $application = Get-Item -LiteralPath (Join-Path $debugDirectory '机器视觉AI检测系统V1.0.exe') -ErrorAction SilentlyContinue
-$source = Get-Item -LiteralPath (Join-Path $projectRoot 'ResourceManagement\CameraWorkpiecePipeline.cs')
+$sources = @(
+    Get-Item -LiteralPath (Join-Path $projectRoot 'ResourceManagement\CameraWorkpiecePipeline.cs')
+    Get-Item -LiteralPath (Join-Path $projectRoot 'Node\1-Acquisition\ImageSource\NodeImageSource.cs')
+)
 Assert-True ($null -ne $application) '相机工件管线测试需要最新Debug程序。'
-Assert-True ($application.LastWriteTimeUtc -ge $source.LastWriteTimeUtc) 'Debug程序早于相机工件管线源码，请先重新编译。'
+Assert-True ($application.LastWriteTimeUtc -ge ($sources.LastWriteTimeUtc | Measure-Object -Maximum).Maximum) 'Debug程序早于相机工件管线或图像源节点源码，请先重新编译。'
 
 [Environment]::CurrentDirectory = $debugDirectory
 $assemblyResolveHandler = [ResolveEventHandler] {
@@ -39,11 +42,27 @@ $contextType = $assembly.GetType('TDJS_Vision.ResourceManagement.WorkpieceExecut
 $budgetType = $assembly.GetType('TDJS_Vision.ResourceManagement.WorkpieceFrameMemoryBudgetManager', $true)
 $registryType = $assembly.GetType('TDJS_Vision.ResourceManagement.CameraTriggerTicketRegistry', $true)
 $triggerKindType = $assembly.GetType('TDJS_Vision.ResourceManagement.CameraTriggerKind', $true)
+$triggerSourceType = $assembly.GetType('TDJS_Vision.Device.Camera.TriggerSource', $true)
 $generatorType = $assembly.GetType('TDJS_Vision.ResourceManagement.WorkpieceIdentityGenerator', $true)
 $nodeImageSourceType = $assembly.GetType('TDJS_Vision.Node._1_Acquisition.ImageSource.NodeImageSource', $true)
 $matType = $openCvAssembly.GetType('OpenCvSharp.Mat', $true)
 $matScalarType = $openCvAssembly.GetType('OpenCvSharp.Scalar', $true)
 $matTypeType = $openCvAssembly.GetType('OpenCvSharp.MatType', $true)
+
+# 直接执行编译后的节点分类逻辑，防止Auto或线路触发在后续修改中走错生产分支。
+$classifyTriggerMethod = $nodeImageSourceType.GetMethod(
+    'GetProductionCameraTriggerKind',
+    [Reflection.BindingFlags]'Static,NonPublic')
+$softwareTrigger = [Enum]::Parse($triggerKindType, 'Software')
+$hardwareTrigger = [Enum]::Parse($triggerKindType, 'Hardware')
+foreach ($softwareSourceName in @('Auto', 'SOFT')) {
+    $softwareSource = [Enum]::Parse($triggerSourceType, $softwareSourceName)
+    Assert-True ($classifyTriggerMethod.Invoke($null, @($softwareSource)) -eq $softwareTrigger) "触发源$softwareSourceName没有归类为软触发。"
+}
+foreach ($hardwareSourceName in @('LINE0', 'LINE1', 'LINE2', 'LINE3', 'LINE4')) {
+    $hardwareSource = [Enum]::Parse($triggerSourceType, $hardwareSourceName)
+    Assert-True ($classifyTriggerMethod.Invoke($null, @($hardwareSource)) -eq $hardwareTrigger) "触发源$hardwareSourceName没有归类为硬触发。"
+}
 
 # 用纯C#线程执行并发边界，避免PowerShell后台线程缺少Runspace影响测试结论。
 Add-Type -TypeDefinition @'
@@ -128,7 +147,6 @@ $confirmStreamResetMethod = $registryType.GetMethod(
 $waitForProductionFrameMethod = $nodeImageSourceType.GetMethod(
     'WaitForProductionFrameAsync',
     [Reflection.BindingFlags]'Static,NonPublic')
-$softwareTrigger = [Enum]::Parse($triggerKindType, 'Software')
 $none = [Threading.CancellationToken]::None
 $noOpTrigger = [Action] { }
 
@@ -194,6 +212,38 @@ $envelope2 = $ticket2.Completion.GetAwaiter().GetResult()
 Assert-True ($envelope2.Identity.Equals($context2.Identity)) '第二帧必须绑定第二工件。'
 $envelope2.Dispose()
 Assert-True ($budget.GetSnapshot().ReservedBytes -eq 0) '全部帧释放后实际字节预算必须归零。'
+
+# 线路硬触发票据必须在一个相机临界区内完成登记与武装，并只等待物理帧。
+$hardwareContext = New-Context '产线硬触发'
+$hardwareTicket = $registry.RegisterHardwareWait(
+    'CAMERA-HARDWARE',
+    $hardwareContext,
+    $deadline,
+    [long]256,
+    [long]4096)
+Assert-True ($hardwareTicket.TriggerKind -eq $hardwareTrigger) '硬触发登记入口创建了错误的票据类型。'
+Assert-True ($null -ne $hardwareTicket.TriggerIssuedAtUtc) '硬触发票据返回前没有完成武装。'
+$hardwareSoftwareCommandCount = 0
+$hardwareSoftwareCommandRejected = $false
+try {
+    $hardwareTicket.IssueSoftwareTrigger([Action] { $script:hardwareSoftwareCommandCount++ })
+}
+catch {
+    $hardwareSoftwareCommandRejected = $true
+}
+Assert-True ($hardwareSoftwareCommandRejected -and $hardwareSoftwareCommandCount -eq 0) '硬触发票据错误调用了软件触发命令。'
+$hardwareFrame = New-TestMat
+Assert-True ($registry.TryPublishFrame(
+    'CAMERA-HARDWARE',
+    [long]1,
+    [uint32]1,
+    [Diagnostics.Stopwatch]::GetTimestamp(),
+    $hardwareFrame,
+    $null)) '硬触发物理帧没有被已武装票据接管。'
+$hardwareEnvelope = $hardwareTicket.Completion.GetAwaiter().GetResult()
+Assert-True ($hardwareEnvelope.Identity.Equals($hardwareContext.Identity)) '硬触发物理帧绑定到了错误工件。'
+$hardwareEnvelope.Dispose()
+Assert-True ($budget.GetSnapshot().ReservedBytes -eq 0) '硬触发帧释放后图像预算没有归零。'
 
 $context3 = New-Context '产线A'
 $ticket3 = $registry.Register('CAMERA-1', $context3, $softwareTrigger, $deadline, [long]256, [long]4096)

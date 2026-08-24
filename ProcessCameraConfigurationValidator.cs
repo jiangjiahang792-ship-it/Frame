@@ -94,7 +94,7 @@ namespace TDJS_Vision
                     NodeParamImageSoucre param = imageSource.ParamForm?.Params as NodeParamImageSoucre;
                     if (param == null ||
                         param.ImageSource != "相机" ||
-                        param.TriggerSource == TriggerSource.SOFT ||
+                        IsSoftwareTriggerSource(param.TriggerSource) ||
                         !HasActiveUpstreamNode(process, imageSource))
                     {
                         continue;
@@ -109,6 +109,12 @@ namespace TDJS_Vision
             }
 
             return errors;
+        }
+
+        /// <summary>Auto沿用参数界面的软触发默认语义，只有明确线路源属于硬触发。</summary>
+        private static bool IsSoftwareTriggerSource(TriggerSource triggerSource)
+        {
+            return triggerSource == TriggerSource.Auto || triggerSource == TriggerSource.SOFT;
         }
 
         /// <summary>
