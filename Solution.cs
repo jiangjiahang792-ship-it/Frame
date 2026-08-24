@@ -48,6 +48,7 @@ namespace TDJS_Vision
             CameraRawFrameMemoryBudgetManager = new CameraRawFrameMemoryBudgetManager();
             WorkpieceContextAccessor = new WorkpieceContextAccessor();
             WorkpieceIdentityGenerator = new WorkpieceIdentityGenerator();
+            RenewCameraProductionPipeline();
             _cpuWorkScheduler = new CpuWorkScheduler(new CpuWorkSchedulerOptions());
             _cpuResourceMonitor = new CpuResourceMonitor(
                 _cpuWorkScheduler,
@@ -96,6 +97,18 @@ namespace TDJS_Vision
         /// <summary>当前方案保存任务完整图像资源字节数的滚动采样器。</summary>
         private IImageResourceSizeSampler _imageSaveSizeSampler =
             new RollingImageResourceSizeSampler(RollingImageResourceSizeSampler.DefaultCapacity);
+
+        /// <summary>保护相机生产帧预算和票据注册表成对替换。</summary>
+        private readonly object _cameraProductionPipelineSync = new object();
+
+        /// <summary>当前方案使用的生产帧实际字节预算管理器。</summary>
+        private WorkpieceFrameMemoryBudgetManager _workpieceFrameMemoryBudgetManager;
+
+        /// <summary>当前方案使用的多相机触发票据注册表。</summary>
+        private CameraTriggerTicketRegistry _cameraTriggerTicketRegistry;
+
+        /// <summary>当前注册表专属故障处理委托，用于替换时准确取消订阅。</summary>
+        private Action<CameraProductionFault> _cameraProductionFaultHandler;
 
         #endregion
 
@@ -173,6 +186,26 @@ namespace TDJS_Vision
 
         /// <summary>全方案生产会话内按顺序域分配工件身份的生成器。</summary>
         internal WorkpieceIdentityGenerator WorkpieceIdentityGenerator { get; }
+
+        /// <summary>获取当前方案的生产帧实际字节预算管理器。</summary>
+        public WorkpieceFrameMemoryBudgetManager WorkpieceFrameMemoryBudgetManager
+        {
+            get
+            {
+                lock (_cameraProductionPipelineSync)
+                    return _workpieceFrameMemoryBudgetManager;
+            }
+        }
+
+        /// <summary>获取当前方案的多相机触发票据注册表。</summary>
+        public CameraTriggerTicketRegistry CameraTriggerTicketRegistry
+        {
+            get
+            {
+                lock (_cameraProductionPipelineSync)
+                    return _cameraTriggerTicketRegistry;
+            }
+        }
 
         /// <summary>
         /// 流程节点CPU工作分类器；插件可以替换分类策略，但AI和通信节点默认不受限。
@@ -966,6 +999,85 @@ namespace TDJS_Vision
             CancelTokenSourceNoThrow(tokenSource, "方案停止");
         }
 
+        /// <summary>生产帧身份或资源边界失效时记录证据并请求整套方案停止。</summary>
+        /// <param name="fault">相机票据注册表生成的不可恢复生产故障。</param>
+        private void HandleCameraProductionFault(
+            CameraTriggerTicketRegistry sourceRegistry,
+            CameraProductionFault fault)
+        {
+            CancellationTokenSource tokenSource;
+            lock (_cameraProductionPipelineSync)
+            {
+                if (!ReferenceEquals(_cameraTriggerTicketRegistry, sourceRegistry))
+                    return;
+                lock (_runLifecycleSync)
+                    tokenSource = _cancellationTokenSource;
+            }
+
+            try
+            {
+                string identity = fault?.Identity?.ToString() ?? "无";
+                LogHelper.AddLog(
+                    MsgLevel.Exception,
+                    $"相机生产帧故障，已停止方案：相机={fault?.CameraKey ?? "未知"}；工件={identity}；原因={fault?.Reason ?? "未知"}",
+                    true);
+            }
+            catch
+            {
+            }
+            // 只取消来源注册表确认时对应的方案令牌；注册表换代后不得重新读取并误停新方案。
+            CancelTokenSourceNoThrow(tokenSource, "相机生产帧故障");
+        }
+
+        /// <summary>
+        /// 为新方案创建独立的生产帧预算和票据注册表，并在替换后关闭旧注册表。
+        /// 调用方必须已经停止流程并物理释放旧方案全部相机。
+        /// </summary>
+        private void RenewCameraProductionPipeline()
+        {
+            WorkpieceFrameMemoryBudgetManager newMemoryBudgetManager =
+                new WorkpieceFrameMemoryBudgetManager();
+            CameraTriggerTicketRegistry newRegistry =
+                new CameraTriggerTicketRegistry(newMemoryBudgetManager);
+            Action<CameraProductionFault> newFaultHandler =
+                fault => HandleCameraProductionFault(newRegistry, fault);
+            newRegistry.ProductionFaulted += newFaultHandler;
+
+            CameraTriggerTicketRegistry retiredRegistry;
+            Action<CameraProductionFault> retiredFaultHandler;
+            lock (_cameraProductionPipelineSync)
+            {
+                retiredRegistry = _cameraTriggerTicketRegistry;
+                retiredFaultHandler = _cameraProductionFaultHandler;
+            }
+
+            if (retiredRegistry != null)
+            {
+                if (retiredFaultHandler != null)
+                    retiredRegistry.ProductionFaulted -= retiredFaultHandler;
+                try
+                {
+                    // 先完成旧表关闭再发布新表；失败时恢复订阅并保留旧表，允许下次重试关闭。
+                    retiredRegistry.Dispose();
+                }
+                catch
+                {
+                    if (retiredFaultHandler != null)
+                        retiredRegistry.ProductionFaulted += retiredFaultHandler;
+                    newRegistry.ProductionFaulted -= newFaultHandler;
+                    newRegistry.Dispose();
+                    throw;
+                }
+            }
+
+            lock (_cameraProductionPipelineSync)
+            {
+                _workpieceFrameMemoryBudgetManager = newMemoryBudgetManager;
+                _cameraTriggerTicketRegistry = newRegistry;
+                _cameraProductionFaultHandler = newFaultHandler;
+            }
+        }
+
         /// <summary>
         /// 加载方案；数据恢复失败只写入日志，不显示阻断操作的弹窗。
         /// </summary>
@@ -1739,6 +1851,9 @@ namespace TDJS_Vision
                 SingleTcp.SingleTCPs.Clear();
                 SingleCOM.SingleComs.Clear();
                 Solution.Instance.AllDevices.Clear();
+
+                // 旧相机已经停流、排空回调并释放句柄，此时才能关闭旧票据并为新方案建立干净纪元。
+                RenewCameraProductionPipeline();
 
                 // 释放AI节点的模型句柄
                 ModelHandleManager.DestroyAllModel();

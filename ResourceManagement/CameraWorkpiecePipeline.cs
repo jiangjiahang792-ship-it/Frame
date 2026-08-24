@@ -1,12 +1,65 @@
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Device.Camera;
 using TDJS_Vision.Diagnostics;
 
 namespace TDJS_Vision.ResourceManagement
 {
+    /// <summary>为生产票据、相机转换线程和图像源节点生成同一个稳定相机键。</summary>
+    public static class CameraProductionIdentity
+    {
+        /// <summary>为没有SDK序列号的相机对象分配进程内不可变且互不重复的身份。</summary>
+        private static readonly ConditionalWeakTable<ICamera, CameraIdentity> Identities =
+            new ConditionalWeakTable<ICamera, CameraIdentity>();
+
+        /// <summary>
+        /// 优先使用品牌和序列号标识物理相机；没有序列号时再使用用户名称、设备名称和类型降级。
+        /// </summary>
+        /// <param name="camera">需要生成生产键的相机。</param>
+        /// <returns>不依赖对象引用和列表顺序的规范化相机键。</returns>
+        public static string GetStableKey(ICamera camera)
+        {
+            if (camera == null)
+                throw new ArgumentNullException(nameof(camera));
+
+            return Identities.GetValue(camera, CreateIdentity).Key;
+        }
+
+        /// <summary>移除键组成部分的首尾空白，空值统一为空字符串。</summary>
+        private static string NormalizePart(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+        }
+
+        /// <summary>在首次看到相机对象时冻结键，后续SDK补齐属性或界面改名均不改变身份。</summary>
+        private static CameraIdentity CreateIdentity(ICamera camera)
+        {
+            string brand = camera.Brand.ToString().Trim();
+            string serialNumber = NormalizePart(camera.SN);
+            string key = string.IsNullOrEmpty(serialNumber)
+                ? string.Concat(brand, "|INSTANCE|", Guid.NewGuid().ToString("N"))
+                : string.Concat(brand, "|SN|", serialNumber);
+            return new CameraIdentity(key);
+        }
+
+        /// <summary>相机对象首次使用时冻结的不可变生产身份。</summary>
+        private sealed class CameraIdentity
+        {
+            /// <summary>创建不可变相机身份。</summary>
+            public CameraIdentity(string key)
+            {
+                Key = key;
+            }
+
+            /// <summary>获取冻结后的生产键。</summary>
+            public string Key { get; }
+        }
+    }
+
     /// <summary>相机生产帧的触发来源。</summary>
     public enum CameraTriggerKind
     {
