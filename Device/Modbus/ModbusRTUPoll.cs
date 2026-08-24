@@ -11,6 +11,15 @@ namespace TDJS_Vision.Device.Modbus
     /// </summary>
     public class ModbusRTUPoll : IModbus
     {
+        /// <summary>Modbus操作允许的最小超时时间。</summary>
+        private const int MinimumOperationTimeoutMs = 100;
+
+        /// <summary>Modbus操作允许的最大超时时间。</summary>
+        private const int MaximumOperationTimeoutMs = 60000;
+
+        /// <summary>当前连接和收发操作的有限超时时间。</summary>
+        private int _operationTimeoutMs = 5000;
+
         private PipeSerialPort _pipe;
         private ModbusRtu _modbus;
 
@@ -20,6 +29,19 @@ namespace TDJS_Vision.Device.Modbus
         public IModbusParam ModbusParam { get; set; }
 
         public bool IsConnect { get; set; }
+
+        /// <summary>获取或设置Modbus RTU收发操作的有限超时时间。</summary>
+        public int OperationTimeoutMs
+        {
+            get => _operationTimeoutMs;
+            set
+            {
+                _operationTimeoutMs = Math.Max(
+                    MinimumOperationTimeoutMs,
+                    Math.Min(MaximumOperationTimeoutMs, value));
+                ApplyOperationTimeout();
+            }
+        }
 
         public DevType DevType { get; set; } = DevType.ModbusRTUPoll;
         public DeviceBrand Brand { get; set; } = DeviceBrand.Unknow;
@@ -52,7 +74,7 @@ namespace TDJS_Vision.Device.Modbus
                 _pipe.RtsEnable = false;
                 _pipe.DtrEnable = false;
                 _pipe.SleepTime = 20;
-                _pipe.ReceiveTimeOut = 5000;
+                ApplyOperationTimeout();
                 _pipe.OpenCommunication();
                 _modbus.CommunicationPipe = _pipe;
             }
@@ -80,7 +102,7 @@ namespace TDJS_Vision.Device.Modbus
             _pipe.RtsEnable = false;
             _pipe.DtrEnable = false;
             _pipe.SleepTime = 20;
-            _pipe.ReceiveTimeOut = 5000;
+            ApplyOperationTimeout();
             _pipe.OpenCommunication();
             _modbus.CommunicationPipe = _pipe;
         }
@@ -106,7 +128,7 @@ namespace TDJS_Vision.Device.Modbus
                 _pipe.RtsEnable = false;
                 _pipe.DtrEnable = false;
                 _pipe.SleepTime = 20;
-                _pipe.ReceiveTimeOut = 5000;
+                ApplyOperationTimeout();
                 _pipe.OpenCommunication();
                 _modbus.CommunicationPipe = _pipe;
 
@@ -137,6 +159,19 @@ namespace TDJS_Vision.Device.Modbus
 
             //_pipe = null;
             IsConnect = false;
+        }
+
+        /// <summary>把统一有限超时应用到当前Modbus RTU管线和底层串口。</summary>
+        private void ApplyOperationTimeout()
+        {
+            if (_pipe == null)
+                return;
+            _pipe.ReceiveTimeOut = _operationTimeoutMs;
+            _pipe.SerialPortInni(port =>
+            {
+                port.ReadTimeout = _operationTimeoutMs;
+                port.WriteTimeout = _operationTimeoutMs;
+            });
         }
 
         #endregion

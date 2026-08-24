@@ -166,17 +166,19 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
         /// <param name="e"></param>
         private void button1_Click(object sender, EventArgs e)
         {
-            SaveParam();
-            Hide();
+            if (SaveParam())
+                Hide();
         }
 
-        private void SaveParam()
+        /// <summary>验证界面输入并保存不可变运行参数。</summary>
+        /// <returns>参数有效并成功保存时返回true。</returns>
+        private bool SaveParam()
         {
             if (comboBoxModbusDev.Text.IsNullOrEmpty() || comboBoxModbusDev.Text == "[未设置]")
             {
                 LogHelper.AddLog(MsgLevel.Exception, "Modbus不能为空！", true);
                 MessageBoxTD.Show("Modbus不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                return false;
             }
             ushort adress;
             try
@@ -187,7 +189,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
             {
                 LogHelper.AddLog(MsgLevel.Exception, "无效的起始地址", true);
                 MessageBoxTD.Show("无效的起始地址", "错误提示", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
+                return false;
             }
 
 
@@ -201,12 +203,31 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
                     break;
                 }
             }
+            if (modbus == null)
+            {
+                MessageBoxTD.Show("未找到选择的Modbus设备！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
+            RegistersType dataType = GetSelectedDataType();
+            if (radioButton2.Checked)
+            {
+                try
+                {
+                    NodeModbusWrite.ValidateWriteValue(dataType, textBoxData.Text);
+                }
+                catch (Exception ex)
+                {
+                    MessageBoxTD.Show($"写入值格式不正确：{ex.Message}", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return false;
+                }
+            }
 
             NodeParamModbusWrite nodeParamWrite = new NodeParamModbusWrite();
             nodeParamWrite.Device = modbus;
             nodeParamWrite.DeviceName = modbus.UserDefinedName;
             nodeParamWrite.StartAddress = adress.ToString();
-            nodeParamWrite.DataType = GetSelectedDataType();
+            nodeParamWrite.DataType = dataType;
             
             if (radioButton2.Checked)
             {
@@ -219,6 +240,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
                 nodeParamWrite.Text2 = nodeSubscription1.GetText2();
             }
             Params = nodeParamWrite;
+            return true;
         }
 
         /// <summary>
@@ -300,10 +322,29 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
             }
         }
 
-        private void buttonRun_Click(object sender, EventArgs e)
+        /// <summary>执行一次不抢占生产会话的人工Modbus写入。</summary>
+        private async void buttonRun_Click(object sender, EventArgs e)
         {
-            SaveParam();
-            RunHandler?.Invoke(this, EventArgs.Empty);
+            if (!SaveParam())
+                return;
+
+            buttonRun.Enabled = false;
+            try
+            {
+                AsyncEventHandler<EventArgs> handler = RunHandler;
+                if (handler == null)
+                    throw new InvalidOperationException("Modbus人工运行处理器尚未初始化。");
+                await handler(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, $"Modbus人工写入失败：{ex.Message}", true);
+                MessageBoxTD.Show($"Modbus人工写入失败：{ex.Message}", "错误提示", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                buttonRun.Enabled = true;
+            }
         }
 
         private void radioButton_CheckedChanged(object sender, EventArgs e)

@@ -10,6 +10,15 @@ namespace TDJS_Vision.Device.Modbus
     /// </summary>
     public class ModbusTcpPoll : IModbus
     {
+        /// <summary>Modbus操作允许的最小超时时间。</summary>
+        private const int MinimumOperationTimeoutMs = 100;
+
+        /// <summary>Modbus操作允许的最大超时时间。</summary>
+        private const int MaximumOperationTimeoutMs = 60000;
+
+        /// <summary>当前连接和收发操作的有限超时时间。</summary>
+        private int _operationTimeoutMs = 5000;
+
         ModbusTcpNet modbusTcp;
 
         public string DevName { get; set; }
@@ -18,6 +27,19 @@ namespace TDJS_Vision.Device.Modbus
         public IModbusParam ModbusParam { get; set; }
 
         public bool IsConnect {  get; set; }
+
+        /// <summary>获取或设置Modbus TCP连接与收发操作的有限超时时间。</summary>
+        public int OperationTimeoutMs
+        {
+            get => _operationTimeoutMs;
+            set
+            {
+                _operationTimeoutMs = Math.Max(
+                    MinimumOperationTimeoutMs,
+                    Math.Min(MaximumOperationTimeoutMs, value));
+                ApplyOperationTimeout();
+            }
+        }
 
         public DevType DevType { get; set; } = DevType.ModbusTcpPoll;
         public DeviceBrand Brand { get; set; } = DeviceBrand.Unknow;
@@ -73,10 +95,11 @@ namespace TDJS_Vision.Device.Modbus
                 modbusTcp.DataFormat = HslCommunication.Core.DataFormat.CDAB;
                 modbusTcp.CommunicationPipe = new HslCommunication.Core.Pipe.PipeTcpNet(param.IP, param.Port)
                 {
-                    ConnectTimeOut = 5000,    // 连接超时时间，单位毫秒
-                    ReceiveTimeOut = 5000,    // 接收设备数据反馈的超时时间
+                    ConnectTimeOut = _operationTimeoutMs,
+                    ReceiveTimeOut = _operationTimeoutMs,
                 };
-                modbusTcp.ConnectServer();
+                HslCommunication.OperateResult connectResult = modbusTcp.ConnectServer();
+                EnsureConnectionSucceeded(connectResult);
 
                 ConnectStatusEvent?.Invoke(this, true);
                 
@@ -102,6 +125,31 @@ namespace TDJS_Vision.Device.Modbus
             }
             modbusTcp = null;
             IsConnect = false;
+        }
+
+        /// <summary>把统一有限超时应用到当前Modbus TCP通信管线。</summary>
+        private void ApplyOperationTimeout()
+        {
+            if (modbusTcp?.CommunicationPipe is HslCommunication.Core.Pipe.PipeTcpNet pipe)
+            {
+                pipe.ConnectTimeOut = _operationTimeoutMs;
+                pipe.ReceiveTimeOut = _operationTimeoutMs;
+            }
+        }
+
+        /// <summary>检查HSL连接结果，禁止失败返回继续发布已连接状态。</summary>
+        /// <param name="connectResult">HSL TCP连接结果。</param>
+        internal static void EnsureConnectionSucceeded(HslCommunication.OperateResult connectResult)
+        {
+            if (connectResult == null)
+                throw new InvalidOperationException("Modbus TCP连接API返回空结果。");
+            if (!connectResult.IsSuccess)
+            {
+                throw new InvalidOperationException(
+                    string.IsNullOrWhiteSpace(connectResult.Message)
+                        ? "Modbus TCP连接失败。"
+                        : $"Modbus TCP连接失败：{connectResult.Message}");
+            }
         }
 
         #region 读取操作
