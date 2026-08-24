@@ -594,11 +594,14 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             CameraTriggerTicketRegistry registry = Solution.Instance.CameraTriggerTicketRegistry;
             string cameraKey = CameraProductionIdentity.GetStableKey(camera);
             int timeoutMilliseconds = GetCameraTimeoutMilliseconds(param, camera);
-            DateTime deadlineUtc = DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds);
             long memoryBudgetBytes = GetWorkpieceFrameMemoryBudgetBytes();
             long estimatedFrameBytes = GetEstimatedCameraFrameBytes(camera);
             CameraTriggerKind triggerKind = GetProductionCameraTriggerKind(param.TriggerSource);
             bool isSoftwareTrigger = triggerKind == CameraTriggerKind.Software;
+            // 线路硬触发由外部设备决定到帧时刻，只允许停止令牌结束等待；节点超时仅约束软件触发。
+            DateTime deadlineUtc = isSoftwareTrigger
+                ? DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds)
+                : DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
 
             CameraTriggerTicket ticket = null;
             CameraFrameEnvelope envelope = null;
@@ -698,7 +701,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             }
         }
 
-        /// <summary>等待票据完成、流程取消或节点采图超时，超时后由注册表统一清场。</summary>
+        /// <summary>等待票据完成或流程取消；只有软件触发受节点采图超时约束。</summary>
         private static async Task<CameraFrameEnvelope> WaitForProductionFrameAsync(
             CameraTriggerTicketRegistry registry,
             CameraTriggerTicket ticket,
@@ -709,7 +712,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             using (CancellationTokenSource timeoutCancellation =
                 CancellationTokenSource.CreateLinkedTokenSource(token))
             {
-                Task timeoutTask = Task.Delay(timeoutMilliseconds, timeoutCancellation.Token);
+                bool waitsUntilStopped = ticket.TriggerKind == CameraTriggerKind.Hardware;
+                Task timeoutTask = waitsUntilStopped
+                    ? Task.Delay(Timeout.Infinite, timeoutCancellation.Token)
+                    : Task.Delay(timeoutMilliseconds, timeoutCancellation.Token);
                 Task<CameraFrameEnvelope> frameTask = ticket.Completion;
                 Task completedTask = await Task.WhenAny(
                     triggerTask,

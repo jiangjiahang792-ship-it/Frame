@@ -14,6 +14,15 @@ function Assert-True {
     }
 }
 
+function Get-InnermostException {
+    param([Exception]$Exception)
+    $current = $Exception
+    while ($null -ne $current.InnerException) {
+        $current = $current.InnerException
+    }
+    return $current
+}
+
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $debugDirectory = Join-Path $projectRoot 'bin\x64\Debug'
 $application = Get-Item -LiteralPath (Join-Path $debugDirectory '机器视觉AI检测系统V1.0.exe') -ErrorAction SilentlyContinue
@@ -67,6 +76,7 @@ foreach ($hardwareSourceName in @('LINE0', 'LINE1', 'LINE2', 'LINE3', 'LINE4')) 
 # 用纯C#线程执行并发边界，避免PowerShell后台线程缺少Runspace影响测试结论。
 Add-Type -TypeDefinition @'
 using System;
+using System.Diagnostics;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -107,6 +117,55 @@ public sealed class CameraTriggerConcurrencyProbe : IDisposable
     public static Task DisposeTicketAsync(object ticket)
     {
         return Task.Run(() => ((IDisposable)ticket).Dispose());
+    }
+
+    public static bool RaceCancellationAndPublish(
+        object registry,
+        object ticket,
+        string cameraKey,
+        object image,
+        CancellationTokenSource cancellation,
+        bool favorPublish)
+    {
+        bool published = false;
+        Exception publishFailure = null;
+        using (Barrier barrier = new Barrier(2))
+        {
+            Task publishTask = Task.Run(() =>
+            {
+                barrier.SignalAndWait();
+                if (!favorPublish)
+                    Thread.Sleep(2);
+                try
+                {
+                    published = (bool)registry.GetType().GetMethod("TryPublishFrame").Invoke(
+                        registry,
+                        new object[] { cameraKey, 1L, (uint)1, Stopwatch.GetTimestamp(), image, null });
+                }
+                catch (TargetInvocationException exception)
+                {
+                    publishFailure = exception.InnerException ?? exception;
+                }
+                catch (Exception exception)
+                {
+                    publishFailure = exception;
+                }
+            });
+            Task cancelTask = Task.Run(() =>
+            {
+                barrier.SignalAndWait();
+                if (favorPublish)
+                    Thread.Sleep(2);
+                cancellation.Cancel();
+                ((IDisposable)ticket).Dispose();
+            });
+            Task.WaitAll(publishTask, cancelTask);
+        }
+        if (!published)
+            ((IDisposable)image).Dispose();
+        if (publishFailure != null)
+            throw publishFailure;
+        return published;
     }
 
     private static Task InvokeAsync(object ticket, Action triggerAction)
@@ -244,6 +303,97 @@ $hardwareEnvelope = $hardwareTicket.Completion.GetAwaiter().GetResult()
 Assert-True ($hardwareEnvelope.Identity.Equals($hardwareContext.Identity)) '硬触发物理帧绑定到了错误工件。'
 $hardwareEnvelope.Dispose()
 Assert-True ($budget.GetSnapshot().ReservedBytes -eq 0) '硬触发帧释放后图像预算没有归零。'
+
+# 线路硬触发不得使用图像源采图超时；超过传入超时后仍等待，物理帧或停止令牌才能结束。
+$hardwarePersistentContext = New-Context '产线硬触发常驻等待'
+$hardwarePersistentTicket = $registry.RegisterHardwareWait(
+    'CAMERA-HARDWARE-PERSISTENT',
+    $hardwarePersistentContext,
+    [DateTime]::SpecifyKind([DateTime]::MaxValue, [DateTimeKind]::Utc),
+    [long]256,
+    [long]4096)
+$hardwarePersistentWaitTask = $waitForProductionFrameMethod.Invoke(
+    $null,
+    @($registry, $hardwarePersistentTicket, [Threading.Tasks.Task]::CompletedTask, [int]20, $none))
+[Threading.Thread]::Sleep(100)
+Assert-True (-not $hardwarePersistentWaitTask.IsCompleted) '硬触发错误使用了图像源采图超时，外部帧尚未到达时不应结束等待。'
+$hardwarePersistentFrame = New-TestMat
+Assert-True ($registry.TryPublishFrame(
+    'CAMERA-HARDWARE-PERSISTENT',
+    [long]1,
+    [uint32]1,
+    [Diagnostics.Stopwatch]::GetTimestamp(),
+    $hardwarePersistentFrame,
+    $null)) '超过原采图超时后到达的硬触发帧没有被接管。'
+$hardwarePersistentEnvelope = $hardwarePersistentWaitTask.GetAwaiter().GetResult()
+Assert-True ($hardwarePersistentEnvelope.Identity.Equals($hardwarePersistentContext.Identity)) '常驻等待取得的硬触发帧绑定到了错误工件。'
+$hardwarePersistentEnvelope.Dispose()
+
+$hardwareStopContext = New-Context '产线硬触发停止'
+$hardwareStopTicket = $registry.RegisterHardwareWait(
+    'CAMERA-HARDWARE-STOP',
+    $hardwareStopContext,
+    [DateTime]::SpecifyKind([DateTime]::MaxValue, [DateTimeKind]::Utc),
+    [long]256,
+    [long]4096)
+$hardwareStopCancellation = [Threading.CancellationTokenSource]::new()
+$hardwareStopWaitTask = $waitForProductionFrameMethod.Invoke(
+    $null,
+    @($registry, $hardwareStopTicket, [Threading.Tasks.Task]::CompletedTask, [int]20, $hardwareStopCancellation.Token))
+[Threading.Thread]::Sleep(100)
+Assert-True (-not $hardwareStopWaitTask.IsCompleted) '硬触发在停止前不应自行结束等待。'
+$hardwareStopCancellation.Cancel()
+$hardwareStopCancelled = $false
+try { $null = $hardwareStopWaitTask.GetAwaiter().GetResult() } catch {
+    $hardwareStopCancelled = (Get-InnermostException $_.Exception) -is [OperationCanceledException]
+}
+Assert-True $hardwareStopCancelled '点击停止对应的取消令牌没有解除硬触发等待。'
+$hardwareStopTicket.Dispose()
+$hardwareStopCancellation.Dispose()
+Assert-True ($budget.GetSnapshot().ReservedBytes -eq 0) '硬触发停止后没有归还票据图像预算。'
+
+# 高频覆盖物理帧与停止同时发生的竞态，两种先后顺序都必须结束等待并归还预算。
+$racePublishedCount = 0
+$raceCancelledBeforePublishCount = 0
+for ($raceIndex = 1; $raceIndex -le 100; $raceIndex++) {
+    $raceCameraKey = "CAMERA-HARDWARE-RACE-$raceIndex"
+    $raceTicket = $registry.RegisterHardwareWait(
+        $raceCameraKey,
+        (New-Context '产线硬触发停止竞态'),
+        [DateTime]::SpecifyKind([DateTime]::MaxValue, [DateTimeKind]::Utc),
+        [long]256,
+        [long]4096)
+    $raceCancellation = [Threading.CancellationTokenSource]::new()
+    $raceWaitTask = $waitForProductionFrameMethod.Invoke(
+        $null,
+        @($registry, $raceTicket, [Threading.Tasks.Task]::CompletedTask, [int]20, $raceCancellation.Token))
+    $raceFrame = New-TestMat
+    $racePublished = [CameraTriggerConcurrencyProbe]::RaceCancellationAndPublish(
+        $registry,
+        $raceTicket,
+        $raceCameraKey,
+        $raceFrame,
+        $raceCancellation,
+        (($raceIndex % 2) -eq 1))
+    if ($racePublished) {
+        $racePublishedCount++
+    }
+    else {
+        $raceCancelledBeforePublishCount++
+    }
+    try {
+        $raceEnvelope = $raceWaitTask.GetAwaiter().GetResult()
+        $raceEnvelope.Dispose()
+    }
+    catch {
+        Assert-True ((Get-InnermostException $_.Exception) -is [OperationCanceledException]) '硬触发停止与到帧竞态产生了非取消异常。'
+    }
+    $raceTicket.Dispose()
+    $raceCancellation.Dispose()
+}
+Assert-True ($racePublishedCount -gt 0) '硬触发停止与到帧竞态没有实际覆盖物理帧先完成。'
+Assert-True ($raceCancelledBeforePublishCount -gt 0) '硬触发停止与到帧竞态没有实际覆盖票据取消先完成。'
+Assert-True ($budget.GetSnapshot().ReservedBytes -eq 0) '硬触发停止与到帧100轮竞态后仍有图像预算残留。'
 
 $context3 = New-Context '产线A'
 $ticket3 = $registry.Register('CAMERA-1', $context3, $softwareTrigger, $deadline, [long]256, [long]4096)
@@ -573,6 +723,26 @@ catch {
 }
 Assert-True $timeoutFollowerStopped '前序超时后尚未到期的后续工件也必须明确停止等待。'
 Assert-True ($budget.GetSnapshot().ActiveLeaseCount -eq 0) '超时票据必须归还触发前预算。'
+
+# 直接执行节点等待方法，确认软触发成功发出但没有返回帧时仍按配置超时。
+$softwareWaitTimeoutTicket = $registry.Register(
+    'CAMERA-SOFTWARE-WAIT-TIMEOUT',
+    (New-Context '产线软触发等待超时'),
+    $softwareTrigger,
+    [DateTime]::UtcNow.AddSeconds(10),
+    [long]256,
+    [long]4096)
+$softwareWaitTimeoutTicket.IssueSoftwareTrigger($noOpTrigger)
+$softwareWaitTimeoutTask = $waitForProductionFrameMethod.Invoke(
+    $null,
+    @($registry, $softwareWaitTimeoutTicket, [Threading.Tasks.Task]::CompletedTask, [int]20, $none))
+$softwareWaitTimedOut = $false
+try { $null = $softwareWaitTimeoutTask.GetAwaiter().GetResult() } catch {
+    $softwareWaitTimedOut = (Get-InnermostException $_.Exception) -is [TimeoutException]
+}
+Assert-True $softwareWaitTimedOut '软触发成功发出但没有返回帧时，节点没有按配置抛出TimeoutException。'
+Assert-True ($budget.GetSnapshot().ActiveLeaseCount -eq 0) '软触发节点等待超时后没有归还票据预算。'
+Confirm-CameraStreamReset 'CAMERA-SOFTWARE-WAIT-TIMEOUT'
 
 $stuckTriggerTicket = $registry.Register(
     'CAMERA-STUCK-TRIGGER',
