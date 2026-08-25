@@ -1306,6 +1306,26 @@ namespace TDJS_Vision
             CameraTriggerTicketRegistry sourceRegistry,
             CameraProductionFault fault)
         {
+            if (fault != null && !fault.RequiresSolutionStop)
+            {
+                lock (_cameraProductionPipelineSync)
+                {
+                    if (!ReferenceEquals(_cameraTriggerTicketRegistry, sourceRegistry))
+                        return;
+                }
+                try
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Warn,
+                        $"相机生产队列报警，方案继续运行：相机={fault.CameraKey}；原因={fault.Reason}",
+                        true);
+                }
+                catch
+                {
+                }
+                return;
+            }
+
             if (!TryCommitCameraProductionFaultStop(
                 sourceRegistry,
                 out CancellationTokenSource tokenSource))
@@ -1396,7 +1416,7 @@ namespace TDJS_Vision
             }
         }
 
-        /// <summary>按运行资源档案为全部相机待执行Mat分配独立的全局硬预算。</summary>
+        /// <summary>按运行资源档案计算全部相机待执行Mat的参考报警预算。</summary>
         private static long GetBufferedHardwareFrameBudgetBytes(AutomaticResourceProfile profile)
         {
             int flowImageBudgetMb = profile?.FlowImageMemoryBudgetMb ?? 0;

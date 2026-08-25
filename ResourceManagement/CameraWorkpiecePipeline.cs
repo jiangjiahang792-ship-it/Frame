@@ -329,12 +329,18 @@ namespace TDJS_Vision.ResourceManagement
     public sealed class CameraProductionFault
     {
         /// <summary>创建可用于日志和停机决策的故障快照。</summary>
-        public CameraProductionFault(string cameraKey, WorkpieceIdentity? identity, string reason, Exception exception)
+        public CameraProductionFault(
+            string cameraKey,
+            WorkpieceIdentity? identity,
+            string reason,
+            Exception exception,
+            bool requiresSolutionStop = true)
         {
             CameraKey = cameraKey ?? string.Empty;
             Identity = identity;
             Reason = reason ?? string.Empty;
             Exception = exception;
+            RequiresSolutionStop = requiresSolutionStop;
             OccurredAtUtc = DateTime.UtcNow;
         }
 
@@ -349,6 +355,9 @@ namespace TDJS_Vision.ResourceManagement
 
         /// <summary>获取原始异常。</summary>
         public Exception Exception { get; }
+
+        /// <summary>获取该事件是否必须停止整套方案。</summary>
+        public bool RequiresSolutionStop { get; }
 
         /// <summary>获取故障UTC时间。</summary>
         public DateTime OccurredAtUtc { get; }
@@ -679,8 +688,11 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>获取待执行硬触发Mat历史峰值字节数。</summary>
         public long PeakBufferedHardwareFrameBytes { get; internal set; }
 
-        /// <summary>获取全部相机共同遵守的待执行硬触发Mat字节预算。</summary>
+        /// <summary>获取全部相机待执行硬触发Mat的参考报警字节预算。</summary>
         public long BufferedHardwareFrameBudgetBytes { get; internal set; }
+
+        /// <summary>获取累计待执行硬触发帧积压报警数。</summary>
+        public long BufferedHardwareFramePressureWarningCount { get; internal set; }
     }
 
     /// <summary>相机软件触发命令租约，用于区分未发命令、成功发出和结果未知三种退出路径。</summary>
@@ -703,8 +715,8 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>单相机最大待匹配票据数。</summary>
         public const int MaximumPendingTicketsPerCamera = 64;
 
-        /// <summary>单相机允许在完整流程忙碌期间积压的硬触发Mat数量。</summary>
-        public const int MaximumBufferedHardwareFramesPerCamera = 8;
+        /// <summary>单相机待执行硬触发帧每增长到该张数倍数时输出一次积压报警。</summary>
+        public const int BufferedHardwareFrameWarningIntervalPerCamera = 8;
 
         /// <summary>没有资源档案时使用的全局待执行硬触发Mat预算。</summary>
         public const long DefaultBufferedHardwareFrameBudgetBytes = 256L * 1024L * 1024L;
@@ -768,13 +780,19 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>累计成功暂存的硬触发帧数。</summary>
         private long _bufferedHardwareFrameCount;
 
+        /// <summary>累计已发出的待执行硬触发帧积压报警数。</summary>
+        private long _bufferedHardwareFramePressureWarningCount;
+
         /// <summary>当前全部相机待执行硬触发Mat实际字节数。</summary>
         private long _bufferedHardwareFrameBytes;
+
+        /// <summary>已从相机FIFO脱离、等待在全局状态锁外释放的硬触发帧。</summary>
+        private List<BufferedHardwareFrame> _retiredBufferedHardwareFrames;
 
         /// <summary>历史最大待执行硬触发Mat实际字节数。</summary>
         private long _peakBufferedHardwareFrameBytes;
 
-        /// <summary>全部相机待执行硬触发Mat共同遵守的字节预算。</summary>
+        /// <summary>全部相机待执行硬触发Mat的参考报警字节预算。</summary>
         private long _bufferedHardwareFrameBudgetBytes;
 
         /// <summary>创建使用默认硬触发缓存预算的票据注册表。</summary>
@@ -829,10 +847,11 @@ namespace TDJS_Vision.ResourceManagement
                     }
                     return true;
                 }, true);
+                DisposeRetiredBufferedHardwareFrames();
             }
         }
 
-        /// <summary>仅在没有待执行Mat时应用新的全局硬触发缓存预算。</summary>
+        /// <summary>仅在没有待执行Mat时应用新的全局硬触发缓存参考报警预算。</summary>
         public void UpdateBufferedHardwareFrameBudget(long budgetBytes)
         {
             if (budgetBytes <= 0L)
@@ -1364,6 +1383,7 @@ namespace TDJS_Vision.ResourceManagement
             Exception failure = null;
             CameraProductionFault productionFault = null;
             List<CameraTriggerTicket> failedTickets = null;
+            bool bufferedFrameAccepted = false;
             lock (_syncRoot)
             {
                 if (!_cameraStates.TryGetValue(normalizedCameraKey, out CameraTicketQueueState state))
@@ -1390,41 +1410,41 @@ namespace TDJS_Vision.ResourceManagement
                     if (!state.HardwareFrameBufferingEnabled)
                         return false;
                     long bufferedFrameBytes = GetMatBytes(image);
-                    bool hasCountCapacity =
-                        state.BufferedHardwareFrames.Count < MaximumBufferedHardwareFramesPerCamera;
-                    bool hasByteCapacity =
-                        bufferedFrameBytes <= _bufferedHardwareFrameBudgetBytes - _bufferedHardwareFrameBytes;
-                    if (hasCountCapacity && hasByteCapacity)
-                    {
-                        state.BufferedHardwareFrames.Enqueue(new BufferedHardwareFrame(
-                            frameId,
-                            sdkFrameNumber,
-                            callbackStartedTimestamp,
-                            image,
-                            traceInfo,
-                            bufferedFrameBytes));
-                        _bufferedHardwareFrameBytes = checked(
-                            _bufferedHardwareFrameBytes + bufferedFrameBytes);
-                        if (_bufferedHardwareFrameBytes > _peakBufferedHardwareFrameBytes)
-                            _peakBufferedHardwareFrameBytes = _bufferedHardwareFrameBytes;
-                        Interlocked.Increment(ref _bufferedHardwareFrameCount);
-                        UpdatePeakBufferedHardwareFramesUnderLock();
-                        return true;
-                    }
+                    long updatedBufferedBytes = checked(
+                        _bufferedHardwareFrameBytes + bufferedFrameBytes);
+                    state.BufferedHardwareFrames.Enqueue(new BufferedHardwareFrame(
+                        frameId,
+                        sdkFrameNumber,
+                        callbackStartedTimestamp,
+                        image,
+                        traceInfo,
+                        bufferedFrameBytes));
+                    _bufferedHardwareFrameBytes = updatedBufferedBytes;
+                    if (_bufferedHardwareFrameBytes > _peakBufferedHardwareFrameBytes)
+                        _peakBufferedHardwareFrameBytes = _bufferedHardwareFrameBytes;
+                    Interlocked.Increment(ref _bufferedHardwareFrameCount);
+                    UpdatePeakBufferedHardwareFramesUnderLock();
+                    bufferedFrameAccepted = true;
 
-                    state.Faulted = true;
-                    RequireStreamRestartUnderLock(state);
-                    failure = new InvalidOperationException(
-                        $"相机{normalizedCameraKey}待执行硬触发帧容量不足：" +
-                        $"当前={state.BufferedHardwareFrames.Count}张/{_bufferedHardwareFrameBytes}字节，" +
-                        $"上限={MaximumBufferedHardwareFramesPerCamera}张/{_bufferedHardwareFrameBudgetBytes}字节，" +
-                        $"本帧={bufferedFrameBytes}字节。无法继续安全接收。 ");
-                    failedTickets = DrainPendingTicketsUnderLock(state);
-                    productionFault = new CameraProductionFault(
-                        normalizedCameraKey,
-                        null,
-                        failure.Message,
-                        failure);
+                    int bufferedCount = state.BufferedHardwareFrames.Count;
+                    if (bufferedCount >= state.NextBufferedHardwareFrameWarningCount)
+                    {
+                        productionFault = new CameraProductionFault(
+                            normalizedCameraKey,
+                            null,
+                            $"相机{normalizedCameraKey}待执行硬触发帧积压报警：" +
+                            $"当前={bufferedCount}张/{_bufferedHardwareFrameBytes}字节，" +
+                            $"报警间隔={BufferedHardwareFrameWarningIntervalPerCamera}张，" +
+                            $"参考内存预算={_bufferedHardwareFrameBudgetBytes}字节。" +
+                            "队列不设张数和字节拒绝上限，方案继续运行，请检查触发频率与流程耗时。",
+                            null,
+                            false);
+                        Interlocked.Increment(ref _bufferedHardwareFramePressureWarningCount);
+                        state.NextBufferedHardwareFrameWarningCount =
+                            bufferedCount > int.MaxValue - BufferedHardwareFrameWarningIntervalPerCamera
+                                ? int.MaxValue
+                                : bufferedCount + BufferedHardwareFrameWarningIntervalPerCamera;
+                    }
                 }
                 else if (state.InFlightTicket != null)
                 {
@@ -1482,6 +1502,12 @@ namespace TDJS_Vision.ResourceManagement
                         state.InFlightTicket = ticket;
                     }
                 }
+            }
+
+            if (bufferedFrameAccepted)
+            {
+                RaiseProductionFault(productionFault);
+                return true;
             }
 
             if (failure != null)
@@ -1956,7 +1982,7 @@ namespace TDJS_Vision.ResourceManagement
         internal long PrepareCameraStreamReset(string cameraKey)
         {
             string normalizedCameraKey = NormalizeCameraKey(cameraKey);
-            return ExecuteCameraSynchronized(normalizedCameraKey, () =>
+            long preparedFaultGeneration = ExecuteCameraSynchronized(normalizedCameraKey, () =>
             {
                 lock (_syncRoot)
                 {
@@ -1976,6 +2002,8 @@ namespace TDJS_Vision.ResourceManagement
                     return state.StreamFaultGeneration;
                 }
             });
+            DisposeRetiredBufferedHardwareFrames();
+            return preparedFaultGeneration;
         }
 
         /// <summary>仅供相机生命周期层在重新取流成功且期间没有新故障时解除迟到帧门禁。</summary>
@@ -2050,7 +2078,9 @@ namespace TDJS_Vision.ResourceManagement
                     TotalBufferedHardwareFrameCount = Interlocked.Read(ref _bufferedHardwareFrameCount),
                     BufferedHardwareFrameBytes = _bufferedHardwareFrameBytes,
                     PeakBufferedHardwareFrameBytes = _peakBufferedHardwareFrameBytes,
-                    BufferedHardwareFrameBudgetBytes = _bufferedHardwareFrameBudgetBytes
+                    BufferedHardwareFrameBudgetBytes = _bufferedHardwareFrameBudgetBytes,
+                    BufferedHardwareFramePressureWarningCount =
+                        Interlocked.Read(ref _bufferedHardwareFramePressureWarningCount)
                 };
             }
         }
@@ -2136,11 +2166,33 @@ namespace TDJS_Vision.ResourceManagement
             return tickets;
         }
 
-        /// <summary>释放并清空单相机尚未交给工件的全部硬触发Mat。</summary>
+        /// <summary>清空单相机尚未交给工件的硬触发Mat，并转交给锁外释放队列。</summary>
         private void DrainBufferedHardwareFramesUnderLock(CameraTicketQueueState state)
         {
+            if (state.BufferedHardwareFrames.Count == 0)
+                return;
+            if (_retiredBufferedHardwareFrames == null)
+            {
+                _retiredBufferedHardwareFrames =
+                    new List<BufferedHardwareFrame>(state.BufferedHardwareFrames.Count);
+            }
             while (state.BufferedHardwareFrames.Count != 0)
-                SafeDispose(DequeueBufferedHardwareFrameUnderLock(state));
+                _retiredBufferedHardwareFrames.Add(DequeueBufferedHardwareFrameUnderLock(state));
+        }
+
+        /// <summary>原子取出已脱离FIFO的帧，并在全局状态锁外逐张释放Mat。</summary>
+        private void DisposeRetiredBufferedHardwareFrames()
+        {
+            List<BufferedHardwareFrame> retiredFrames;
+            lock (_syncRoot)
+            {
+                retiredFrames = _retiredBufferedHardwareFrames;
+                _retiredBufferedHardwareFrames = null;
+            }
+            if (retiredFrames == null)
+                return;
+            foreach (BufferedHardwareFrame retiredFrame in retiredFrames)
+                SafeDispose(retiredFrame);
         }
 
         /// <summary>从单相机FIFO取出一帧并同步归还全局等待字节记账。</summary>
@@ -2150,6 +2202,11 @@ namespace TDJS_Vision.ResourceManagement
             _bufferedHardwareFrameBytes = Math.Max(
                 0L,
                 _bufferedHardwareFrameBytes - frame.RetainedBytes);
+            if (state.BufferedHardwareFrames.Count < BufferedHardwareFrameWarningIntervalPerCamera)
+            {
+                state.NextBufferedHardwareFrameWarningCount =
+                    BufferedHardwareFrameWarningIntervalPerCamera;
+            }
             return frame;
         }
 
@@ -2272,6 +2329,7 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>把故障加入独立单消费者队列，并在相机状态中保留恢复门禁。</summary>
         private void RaiseProductionFault(CameraProductionFault fault)
         {
+            DisposeRetiredBufferedHardwareFrames();
             if (fault == null)
                 return;
 
@@ -2382,6 +2440,7 @@ namespace TDJS_Vision.ResourceManagement
                         return true;
                     }, true);
                 }
+                DisposeRetiredBufferedHardwareFrames();
                 foreach (CameraTriggerTicket shutdownTicket in shutdownTickets)
                     shutdownTicket.TryFail(shutdownFailure, WorkpieceTerminalState.Stopped);
 
@@ -2534,6 +2593,10 @@ namespace TDJS_Vision.ResourceManagement
             /// <summary>完整流程忙碌期间已经到达、等待下一工件消费的硬触发帧。</summary>
             public Queue<BufferedHardwareFrame> BufferedHardwareFrames { get; } =
                 new Queue<BufferedHardwareFrame>();
+
+            /// <summary>下一次需要输出积压报警的待执行帧数。</summary>
+            public int NextBufferedHardwareFrameWarningCount { get; set; } =
+                BufferedHardwareFrameWarningIntervalPerCamera;
 
             /// <summary>本运行会话是否已经由生产硬触发节点启用持续帧接管。</summary>
             public bool HardwareFrameBufferingEnabled { get; set; }

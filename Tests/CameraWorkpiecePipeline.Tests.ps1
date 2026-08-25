@@ -841,10 +841,10 @@ catch {
 Assert-True $budgetRejected '触发前估算超过预算时必须先拒绝且不得生成票据。'
 Assert-True ($budget.GetSnapshot().ActiveLeaseCount -eq 0) '触发前拒绝不能泄漏预算租约。'
 
-# 每相机硬触发待执行FIFO固定容量8；第9张不能静默丢弃，必须明确故障并释放全部缓存Mat。
+# 硬触发待执行FIFO不设拒绝上限；超过原8张边界后必须继续按序接收并累计非停机报警。
 $overflowBudget = [TDJS_Vision.ResourceManagement.WorkpieceFrameMemoryBudgetManager]::new()
 $overflowRegistry = [TDJS_Vision.ResourceManagement.CameraTriggerTicketRegistry]::new($overflowBudget)
-$overflowContext = New-Context '产线硬触发满载'
+$overflowContext = New-Context '产线硬触发积压'
 $overflowTicket = $overflowRegistry.RegisterHardwareWait(
     'CAMERA-HARDWARE-OVERFLOW',
     $overflowContext,
@@ -858,22 +858,48 @@ Assert-True ($overflowRegistry.TryPublishFrame(
 $overflowFirstEnvelope = $overflowTicket.Completion.GetAwaiter().GetResult()
 $overflowFirstEnvelope.Dispose()
 $overflowTicket.Dispose()
-for ($bufferedIndex = 2; $bufferedIndex -le 9; $bufferedIndex++) {
+for ($bufferedIndex = 2; $bufferedIndex -le 18; $bufferedIndex++) {
     $queuedFrame = New-TestMat
     Assert-True ($overflowRegistry.TryPublishFrame(
         'CAMERA-HARDWARE-OVERFLOW', [long]$bufferedIndex, [uint32]$bufferedIndex,
         [Diagnostics.Stopwatch]::GetTimestamp(), $queuedFrame, $null)) "第$bufferedIndex 帧没有进入硬触发待执行FIFO。"
 }
-Assert-True ($overflowRegistry.GetSnapshot().BufferedHardwareFrameCount -eq 8) '硬触发待执行FIFO没有严格限制为8张。'
-$overflowFrame = New-TestMat
+$overflowSnapshot = $overflowRegistry.GetSnapshot()
+Assert-True ($overflowSnapshot.BufferedHardwareFrameCount -eq 17) '硬触发待执行FIFO超过原8张边界后没有继续接收。'
+Assert-True ($overflowSnapshot.BufferedHardwareFramePressureWarningCount -eq 2) '积压到8张和16张时没有各记录一次报警。'
+Assert-True ($overflowSnapshot.CameraCountRequiringStreamReset -eq 0) '待执行帧积压报警错误建立了物理停流重启门禁。'
+Assert-True ($overflowRegistry.ShouldCaptureBufferedHardwareFrame('CAMERA-HARDWARE-OVERFLOW')) '待执行帧积压报警后没有继续接收硬触发帧。'
+$overflowNextTicket = $overflowRegistry.RegisterHardwareWait(
+    'CAMERA-HARDWARE-OVERFLOW',
+    (New-Context '产线硬触发积压后继续'),
+    [DateTime]::SpecifyKind([DateTime]::MaxValue, [DateTimeKind]::Utc),
+    [long]256,
+    [long]4096)
+$overflowNextEnvelope = $overflowNextTicket.Completion.GetAwaiter().GetResult()
+Assert-True ($overflowNextEnvelope.SdkFrameNumber -eq 2) '超过报警阈值后没有按FIFO交付最早待执行帧。'
+$overflowNextEnvelope.Dispose()
+$overflowNextTicket.Dispose()
+Assert-True ($overflowRegistry.GetSnapshot().BufferedHardwareFrameCount -eq 16) '积压后消费一帧没有正确减少FIFO数量。'
+for ($drainIndex = 3; $drainIndex -le 11; $drainIndex++) {
+    $drainTicket = $overflowRegistry.RegisterHardwareWait(
+        'CAMERA-HARDWARE-OVERFLOW',
+        (New-Context "产线硬触发回落$drainIndex"),
+        [DateTime]::SpecifyKind([DateTime]::MaxValue, [DateTimeKind]::Utc),
+        [long]256,
+        [long]4096)
+    $drainEnvelope = $drainTicket.Completion.GetAwaiter().GetResult()
+    Assert-True ($drainEnvelope.SdkFrameNumber -eq $drainIndex) "积压回落期间没有按FIFO交付SDK第$drainIndex 帧。"
+    $drainEnvelope.Dispose()
+    $drainTicket.Dispose()
+}
+Assert-True ($overflowRegistry.GetSnapshot().BufferedHardwareFrameCount -eq 7) '积压回落到报警阈值以下时FIFO数量不正确。'
+$warningResetFrame = New-TestMat
 Assert-True ($overflowRegistry.TryPublishFrame(
-    'CAMERA-HARDWARE-OVERFLOW', [long]10, [uint32]10,
-    [Diagnostics.Stopwatch]::GetTimestamp(), $overflowFrame, $null)) '第9张积压帧没有被生产管线明确接管并故障。'
-Assert-True ($overflowRegistry.GetSnapshot().BufferedHardwareFrameCount -eq 0) '硬触发FIFO满载故障后没有释放全部缓存Mat。'
-Assert-True ($overflowRegistry.GetSnapshot().CameraCountRequiringStreamReset -eq 1) '硬触发FIFO满载后没有建立物理停流重启门禁。'
-Assert-True (-not $overflowRegistry.ShouldCaptureBufferedHardwareFrame('CAMERA-HARDWARE-OVERFLOW')) '满载故障后仍允许继续缓存迟到帧。'
-Assert-True ($overflowBudget.GetSnapshot().ActiveLeaseCount -eq 0) '硬触发FIFO满载清场后仍有图像预算残留。'
+    'CAMERA-HARDWARE-OVERFLOW', [long]19, [uint32]19,
+    [Diagnostics.Stopwatch]::GetTimestamp(), $warningResetFrame, $null)) '积压回落后再次到8张时没有继续接收。'
+Assert-True ($overflowRegistry.GetSnapshot().BufferedHardwareFramePressureWarningCount -eq 3) '积压回落到8张以下后再次到8张没有重新报警。'
 $overflowRegistry.Dispose()
+Assert-True ($overflowRegistry.GetSnapshot().BufferedHardwareFrameCount -eq 0) '无上限FIFO释放后没有清空全部缓存Mat。'
 
 # 没有当前票据但硬触发持续接管时，转换失败必须立即故障，不能等到下一帧断层才发现。
 $idleFailureBudget = [TDJS_Vision.ResourceManagement.WorkpieceFrameMemoryBudgetManager]::new()
@@ -899,7 +925,7 @@ Assert-True ($idleFailureRegistry.GetSnapshot().CameraCountRequiringStreamReset 
 Assert-True (-not $idleFailureRegistry.ShouldCaptureBufferedHardwareFrame('CAMERA-HARDWARE-IDLE-FAILURE')) '无票据转换失败后仍在继续接收硬触发帧。'
 $idleFailureRegistry.Dispose()
 
-# 待执行Mat同时受全局字节预算控制，多相机不能各自绕过内存上限。
+# 待执行Mat超过参考字节预算后仍必须接收，字节计账仅用于日志追查和资源观测。
 $byteBudget = [TDJS_Vision.ResourceManagement.WorkpieceFrameMemoryBudgetManager]::new()
 $byteRegistry = [TDJS_Vision.ResourceManagement.CameraTriggerTicketRegistry]::new($byteBudget, [long]500)
 foreach ($byteCameraKey in @('CAMERA-BYTE-A', 'CAMERA-BYTE-B')) {
@@ -922,12 +948,13 @@ Assert-True ($byteRegistry.TryPublishFrame(
     'CAMERA-BYTE-A', [long]2, [uint32]2,
     [Diagnostics.Stopwatch]::GetTimestamp(), $byteQueuedFrame, $null)) '第一台相机没有取得全局待执行Mat预算。'
 Assert-True ($byteRegistry.GetSnapshot().BufferedHardwareFrameBytes -eq 300) '第一张待执行Mat实际字节记账不正确。'
-$byteRejectedFrame = New-TestMat
+$byteOverBudgetFrame = New-TestMat
 Assert-True ($byteRegistry.TryPublishFrame(
     'CAMERA-BYTE-B', [long]2, [uint32]2,
-    [Diagnostics.Stopwatch]::GetTimestamp(), $byteRejectedFrame, $null)) '第二台相机超过全局字节预算时没有明确故障。'
-Assert-True ($byteRegistry.GetSnapshot().BufferedHardwareFrameBytes -eq 300) '第二台相机预算拒绝错误破坏了第一台相机记账。'
+    [Diagnostics.Stopwatch]::GetTimestamp(), $byteOverBudgetFrame, $null)) '第二台相机超过参考字节预算后没有继续接收。'
+Assert-True ($byteRegistry.GetSnapshot().BufferedHardwareFrameBytes -eq 600) '超过参考字节预算后待执行Mat字节计账不正确。'
 Assert-True ($byteRegistry.GetSnapshot().BufferedHardwareFrameBudgetBytes -eq 500) '全局待执行Mat字节预算快照不正确。'
+Assert-True ($byteRegistry.GetSnapshot().CameraCountRequiringStreamReset -eq 0) '超过参考字节预算错误建立了物理停流重启门禁。'
 $byteRegistry.Dispose()
 Assert-True ($byteRegistry.GetSnapshot().BufferedHardwareFrameBytes -eq 0) '注册表释放后全局待执行Mat字节记账没有归零。'
 
