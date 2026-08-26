@@ -329,6 +329,33 @@ Assert-True ($registry.GetSnapshot().BufferedHardwareFrameCount -eq 0) '第二�
 $bufferedHardwareEnvelope.Dispose()
 $bufferedHardwareTicket.Dispose()
 Assert-True ($budget.GetSnapshot().ReservedBytes -eq 0) '缓存硬触发帧执行完毕后图像预算没有归零。'
+
+# 硬触发由外部线路独立产生：帧可先进入SDK回调、票据随后建立，转换完成后仍应按连续帧号交给下一工件。
+$earlyHardwareCallbackTimestamp = [Diagnostics.Stopwatch]::GetTimestamp()
+[Threading.Thread]::Sleep(2)
+$earlyHardwareContext = New-Context '产线硬触发回调先到'
+$earlyHardwareTicket = $registry.RegisterHardwareWait(
+    'CAMERA-HARDWARE',
+    $earlyHardwareContext,
+    [DateTime]::SpecifyKind([DateTime]::MaxValue, [DateTimeKind]::Utc),
+    [long]256,
+    [long]4096)
+$earlyHardwareFrame = New-TestMat
+Assert-True ($registry.TryPublishFrame(
+    'CAMERA-HARDWARE',
+    [long]3,
+    [uint32]3,
+    $earlyHardwareCallbackTimestamp,
+    $earlyHardwareFrame,
+    $null)) '回调先于下一票据的连续硬触发帧没有被生产管线接管。'
+$earlyHardwareEnvelope = $earlyHardwareTicket.Completion.GetAwaiter().GetResult()
+Assert-True ($earlyHardwareEnvelope.Identity.Equals($earlyHardwareContext.Identity)) '提前进入回调的连续硬触发帧绑定到了错误工件。'
+Assert-True ($earlyHardwareEnvelope.SdkFrameNumber -eq 3) '提前进入回调的硬触发帧没有保持SDK帧号顺序。'
+Assert-True ($registry.GetSnapshot().CameraCountRequiringStreamReset -eq 0) '合法的硬触发回调与票据竞态错误建立了停流重启门禁。'
+$earlyHardwareEnvelope.Dispose()
+$earlyHardwareTicket.Dispose()
+Assert-True ($budget.GetSnapshot().ReservedBytes -eq 0) '硬触发回调与票据竞态完成后图像预算没有归零。'
+
 $previewDuringHardwareRejected = $false
 try {
     $unexpectedHardwarePreviewLease = $registry.EnterSoftwareTriggerCommand('CAMERA-HARDWARE')

@@ -1467,7 +1467,10 @@ namespace TDJS_Vision.ResourceManagement
                         state.Faulted = true;
                         failure = new InvalidOperationException($"相机{normalizedCameraKey}在票据明确进入触发等待前收到生产帧，禁止把旧帧绑定给工件。 ");
                     }
-                    else if (!isBufferedHardwareFrame && callbackStartedTimestamp < ticket.TriggerIssuedTimestamp)
+                    // 软件触发必须保持命令与返回帧的因果关系；线路硬触发由外部独立产生，按连续帧号FIFO归属。
+                    else if (ticket.TriggerKind == CameraTriggerKind.Software &&
+                        !isBufferedHardwareFrame &&
+                        callbackStartedTimestamp < ticket.TriggerIssuedTimestamp)
                     {
                         state.Faulted = true;
                         failure = new InvalidOperationException($"相机{normalizedCameraKey}收到触发前已进入SDK回调的旧帧，禁止绑定给工件{ticket.Context.Identity}。 ");
