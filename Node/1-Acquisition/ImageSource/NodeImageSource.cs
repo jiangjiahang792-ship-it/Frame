@@ -695,6 +695,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             }
             catch (TimeoutException timeoutException) when (
                 isSoftwareTrigger &&
+                !(timeoutException is SoftwareTriggerCommandTimeoutException) &&
                 !productionCancellation.IsCancellationRequested)
             {
                 try
@@ -845,6 +846,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 ? (Exception)new OperationCanceledException(
                     $"相机{ticket.CameraKey}等待工件{ticket.Context.Identity}生产帧已取消。",
                     token)
+                : sdkTriggerMayBeRunning
+                ? new SoftwareTriggerCommandTimeoutException(
+                    $"相机{ticket.CameraKey}为工件{ticket.Context.Identity}执行的软件触发SDK命令在{timeoutMilliseconds}ms内未返回。")
                 : new TimeoutException(
                     $"相机{ticket.CameraKey}等待工件{ticket.Context.Identity}生产帧和触发命令共同完成超时（{timeoutMilliseconds}ms）。");
 
@@ -886,6 +890,17 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             public bool TryCancelBeforeSdkCommand()
             {
                 return Interlocked.CompareExchange(ref _phase, 2, 0) == 0;
+            }
+        }
+
+        /// <summary>表示真实软件触发SDK命令已经开始但未返回，禁止按普通无帧超时并发重启相机。</summary>
+        private sealed class SoftwareTriggerCommandTimeoutException : TimeoutException
+        {
+            /// <summary>创建携带SDK触发在途事实的超时异常。</summary>
+            /// <param name="message">用于停机诊断的中文原因。</param>
+            public SoftwareTriggerCommandTimeoutException(string message)
+                : base(message)
+            {
             }
         }
 
