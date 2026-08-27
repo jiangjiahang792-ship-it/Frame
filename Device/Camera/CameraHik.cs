@@ -108,8 +108,11 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>方案加载后需要恢复上次连接时置为1，与原生句柄真实状态相互独立。</summary>
         private int _restoreConnectionRequested;
 
-        /// <summary>当前连接会话的首个生产帧宽限是否已经被领取，0表示可领取，1表示已领取。</summary>
+        /// <summary>当前连接会话的首个生产帧宽限是否已经提交，0表示可预留，1表示已提交。</summary>
         private int _initialProductionFrameGraceReserved;
+
+        /// <summary>串行化首帧宽限预留、提交以及相机连接会话重置。</summary>
+        private readonly object _initialProductionFrameGraceLock = new object();
 
         /// <summary>缓冲暂不可用时累计的帧入口失败数量，详细满载策略后续独立设计。</summary>
         private long _rawFrameIngressFailureCount;
@@ -212,16 +215,17 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>获取或设置主动取图超时时间，单位为毫秒。</summary>
         public uint GetImageTimeOut { get; set; } = 2000;
 
-        /// <summary>原子领取当前连接会话唯一的首个生产帧冷启动宽限。</summary>
-        /// <returns>相机已打开且本连接尚未领取时返回true。</returns>
-        public bool TryReserveInitialProductionFrameGrace()
+        /// <summary>预留当前连接会话唯一的首个生产帧冷启动宽限。</summary>
+        /// <returns>相机已打开且资格尚未提交时返回待提交对象。</returns>
+        public IProductionCameraStartupGraceReservation TryReserveInitialProductionFrameGrace()
         {
-            if (!IsOpen)
-                return false;
-            return Interlocked.CompareExchange(
-                ref _initialProductionFrameGraceReserved,
-                1,
-                0) == 0;
+            Monitor.Enter(_initialProductionFrameGraceLock);
+            if (!IsOpen || Volatile.Read(ref _initialProductionFrameGraceReserved) != 0)
+            {
+                Monitor.Exit(_initialProductionFrameGraceLock);
+                return null;
+            }
+            return new InitialProductionFrameGraceReservation(this);
         }
 
         /// <summary>创建用于反序列化的空相机对象。</summary>
@@ -368,14 +372,17 @@ namespace TDJS_Vision.Device.Camera
                     {
                         ConfigureGigENetwork();
                         TrySetEnumValue("AcquisitionMode", (uint)MyCamera.MV_CAM_ACQUISITION_MODE.MV_ACQ_MODE_CONTINUOUS);
-                        lock (_imageCallbackLock)
+                        lock (_initialProductionFrameGraceLock)
                         {
-                            TriggerSource = GetTriggerSourceCore();
-                            RegisterNativeCallbackCore();
-                            Volatile.Write(ref _deviceConfigurationCompleted, 1);
+                            lock (_imageCallbackLock)
+                            {
+                                TriggerSource = GetTriggerSourceCore();
+                                RegisterNativeCallbackCore();
+                                Volatile.Write(ref _deviceConfigurationCompleted, 1);
+                            }
+                            // 配置完成标记与新会话资格在同一锁内发布，领取方不可能观察到中间状态。
+                            Volatile.Write(ref _initialProductionFrameGraceReserved, 0);
                         }
-                        // 只有完整打开并配置成功才建立新的连接会话宽限，失败回滚不能留下伪会话。
-                        Volatile.Write(ref _initialProductionFrameGraceReserved, 0);
                     }
                     catch (Exception configurationException)
                     {
@@ -930,7 +937,6 @@ namespace TDJS_Vision.Device.Camera
             if (Volatile.Read(ref _disposed) != 0)
                 return;
             Volatile.Write(ref _restoreConnectionRequested, 0);
-            Volatile.Write(ref _initialProductionFrameGraceReserved, 0);
             ThrowIfCalledFromFrameConversionWorker("关闭相机");
             bool notifyDisconnected = false;
             lock (_cameraLifecycleLock)
@@ -976,6 +982,9 @@ namespace TDJS_Vision.Device.Camera
                         _callbackRegistered = false;
                     }
                 }
+                // 只有原生关闭、回调排空和转换资源释放全部成功后，才结束当前连接会话。
+                lock (_initialProductionFrameGraceLock)
+                    Volatile.Write(ref _initialProductionFrameGraceReserved, 0);
             }
 
             if (notifyDisconnected)
@@ -1634,6 +1643,39 @@ namespace TDJS_Vision.Device.Camera
             memoryLease?.Dispose();
             Volatile.Write(ref _rawFrameBufferCount, 0);
             Volatile.Write(ref _rawFrameBufferSize, 0);
+        }
+
+        /// <summary>持有首帧宽限锁直到生产票据成功登记或调用方回滚。</summary>
+        private sealed class InitialProductionFrameGraceReservation : IProductionCameraStartupGraceReservation
+        {
+            /// <summary>拥有当前连接会话资格的相机。</summary>
+            private readonly CameraHik _owner;
+
+            /// <summary>释放状态，0表示仍持有锁，1表示已经释放。</summary>
+            private int _disposed;
+
+            /// <summary>创建已经持有相机宽限锁的预留对象。</summary>
+            /// <param name="owner">拥有资格状态和锁的相机。</param>
+            public InitialProductionFrameGraceReservation(CameraHik owner)
+            {
+                _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+            }
+
+            /// <summary>确认生产票据已经成功入队，并永久消费当前连接的唯一宽限。</summary>
+            public void Commit()
+            {
+                if (Volatile.Read(ref _disposed) != 0)
+                    throw new ObjectDisposedException(nameof(InitialProductionFrameGraceReservation));
+                Volatile.Write(ref _owner._initialProductionFrameGraceReserved, 1);
+            }
+
+            /// <summary>释放预留锁；未调用提交时资格保持可用，供下一个成功票据领取。</summary>
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _disposed, 1) != 0)
+                    return;
+                Monitor.Exit(_owner._initialProductionFrameGraceLock);
+            }
         }
 
         /// <summary>SDK回调入口故障发生时冻结的首帧身份和单调时钟。</summary>

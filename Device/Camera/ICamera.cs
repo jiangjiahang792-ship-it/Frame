@@ -11,13 +11,24 @@ namespace TDJS_Vision.Device.Camera
     /// <summary>
     /// 为相机连接后的首个生产帧提供一次性冷启动宽限。
     /// </summary>
+    public interface IProductionCameraStartupGraceReservation : IDisposable
+    {
+        /// <summary>
+        /// 在生产票据成功登记后提交本次宽限资格。
+        /// </summary>
+        void Commit();
+    }
+
+    /// <summary>
+    /// 为相机连接后的首个生产帧提供一次性冷启动宽限。
+    /// </summary>
     public interface IProductionCameraStartupGraceProvider
     {
         /// <summary>
-        /// 原子领取当前相机连接会话的首个生产帧宽限资格。
+        /// 预留当前连接会话的首个生产帧宽限；票据登记失败时释放对象会自动归还资格。
         /// </summary>
-        /// <returns>当前调用取得唯一宽限资格时返回true。</returns>
-        bool TryReserveInitialProductionFrameGrace();
+        /// <returns>取得唯一预留时返回待提交对象；资格已提交或相机未连接时返回null。</returns>
+        IProductionCameraStartupGraceReservation TryReserveInitialProductionFrameGrace();
     }
 
     /// <summary>

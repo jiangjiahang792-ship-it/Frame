@@ -41,8 +41,18 @@ public static class CameraInitialFrameGraceConcurrencyProbe
         int winnerCount = 0;
         Parallel.For(0, contenderCount, index =>
         {
-            if ((bool)reserveMethod.Invoke(camera, null))
+            object reservation = reserveMethod.Invoke(camera, null);
+            if (reservation == null)
+                return;
+            try
+            {
+                reservation.GetType().GetMethod("Commit").Invoke(reservation, null);
                 Interlocked.Increment(ref winnerCount);
+            }
+            finally
+            {
+                ((IDisposable)reservation).Dispose();
+            }
         });
         return winnerCount;
     }
@@ -54,16 +64,37 @@ $winnerCount = [CameraInitialFrameGraceConcurrencyProbe]::Race($camera, $reserve
 if ($winnerCount -ne 1) {
     throw "Exactly one concurrent caller must reserve startup grace. Actual=$winnerCount."
 }
-if ([bool]$reserveMethod.Invoke($camera, $null)) {
+$unexpectedReservation = $reserveMethod.Invoke($camera, $null)
+if ($null -ne $unexpectedReservation) {
+    ([IDisposable]$unexpectedReservation).Dispose()
     throw 'Startup grace must not be reserved twice in one connection session.'
 }
 
-# Simulate the reset performed after a successful reconnect.
+# A failed ticket registration disposes without Commit and must return the reservation.
 $graceField.SetValue($camera, 0)
-if (-not [bool]$reserveMethod.Invoke($camera, $null)) {
+$rollbackReservation = $reserveMethod.Invoke($camera, $null)
+if ($null -eq $rollbackReservation) {
+    throw 'A fresh session must allow a provisional reservation.'
+}
+([IDisposable]$rollbackReservation).Dispose()
+$reservationAfterRollback = $reserveMethod.Invoke($camera, $null)
+if ($null -eq $reservationAfterRollback) {
+    throw 'Disposal without Commit must return startup grace to the next ticket.'
+}
+$reservationAfterRollback.GetType().GetMethod('Commit').Invoke($reservationAfterRollback, $null)
+([IDisposable]$reservationAfterRollback).Dispose()
+
+# Simulate the reset performed only after a successful reconnect.
+$graceField.SetValue($camera, 0)
+$reconnectReservation = $reserveMethod.Invoke($camera, $null)
+if ($null -eq $reconnectReservation) {
     throw 'A reconnected camera must receive a new startup grace reservation.'
 }
-if ([bool]$reserveMethod.Invoke($camera, $null)) {
+$reconnectReservation.GetType().GetMethod('Commit').Invoke($reconnectReservation, $null)
+([IDisposable]$reconnectReservation).Dispose()
+$secondReconnectReservation = $reserveMethod.Invoke($camera, $null)
+if ($null -ne $secondReconnectReservation) {
+    ([IDisposable]$secondReconnectReservation).Dispose()
     throw 'Reconnect startup grace must still be reserved only once.'
 }
 

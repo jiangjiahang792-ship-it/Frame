@@ -606,6 +606,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
             CameraTriggerTicket ticket = null;
             CameraFrameEnvelope envelope = null;
+            IProductionCameraStartupGraceReservation startupGraceReservation = null;
             bool callbackOwnerRegistered = false;
             bool callbackBound = false;
             CancellationTokenSource productionCancellation =
@@ -630,9 +631,12 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
                 IProductionCameraStartupGraceProvider startupGraceProvider =
                     camera as IProductionCameraStartupGraceProvider;
-                initialFrameStartupGraceApplied = isSoftwareTrigger &&
-                    startupGraceProvider != null &&
-                    startupGraceProvider.TryReserveInitialProductionFrameGrace();
+                if (isSoftwareTrigger && startupGraceProvider != null)
+                {
+                    startupGraceReservation =
+                        startupGraceProvider.TryReserveInitialProductionFrameGrace();
+                }
+                initialFrameStartupGraceApplied = startupGraceReservation != null;
                 timeoutMilliseconds = AddInitialProductionFrameStartupGrace(
                     configuredTimeoutMilliseconds,
                     initialFrameStartupGraceApplied);
@@ -640,16 +644,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 DateTime deadlineUtc = isSoftwareTrigger
                     ? DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds)
                     : DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
-
-                if (initialFrameStartupGraceApplied)
-                {
-                    LogHelper.AddLog(
-                        MsgLevel.Info,
-                        $"相机【{camera.UserDefinedName}】当前连接的首个生产帧启用启动宽限：" +
-                        $"方案超时={configuredTimeoutMilliseconds}ms，附加宽限={InitialProductionFrameStartupGraceMilliseconds}ms，" +
-                        $"本次等待上限={timeoutMilliseconds}ms；后续帧恢复方案超时。",
-                        true);
-                }
 
                 ticket = isSoftwareTrigger
                     ? registry.Register(
@@ -665,6 +659,19 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         deadlineUtc,
                         estimatedFrameBytes,
                         memoryBudgetBytes);
+                startupGraceReservation?.Commit();
+                startupGraceReservation?.Dispose();
+                startupGraceReservation = null;
+
+                if (initialFrameStartupGraceApplied)
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Info,
+                        $"相机【{camera.UserDefinedName}】当前连接的首个成功登记生产票据启用启动宽限：" +
+                        $"方案超时={configuredTimeoutMilliseconds}ms，附加宽限={InitialProductionFrameStartupGraceMilliseconds}ms，" +
+                        $"本次等待上限={timeoutMilliseconds}ms；后续帧恢复方案超时。",
+                        true);
+                }
                 productionCancellation.Token.ThrowIfCancellationRequested();
 
                 PerformanceSpikeDiagnostics.LogIfEnabled(
@@ -755,6 +762,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             }
             finally
             {
+                try { startupGraceReservation?.Dispose(); } catch { }
                 if (callbackOwnerRegistered)
                 {
                     try { camera.UnregisterImageCallbackOwner(this); } catch { }
