@@ -1497,7 +1497,8 @@ namespace TDJS_Vision.ResourceManagement
                             normalizedCameraKey,
                             ticket.Context.Identity,
                             failure.Message,
-                            failure);
+                            failure,
+                            !(failure is TimeoutException));
                     }
                     else
                     {
@@ -1780,7 +1781,7 @@ namespace TDJS_Vision.ResourceManagement
             return true;
         }
 
-        /// <summary>清理所有到期票据并把对应相机置为故障状态。</summary>
+        /// <summary>清理所有到期票据并要求对应相机清流恢复，但普通取帧超时不停止整套方案。</summary>
         public int FailExpired(DateTime utcNow)
         {
             if (utcNow.Kind != DateTimeKind.Utc)
@@ -1841,7 +1842,8 @@ namespace TDJS_Vision.ResourceManagement
                         cameraKey,
                         state.InFlightTicket.Context.Identity,
                         state.InFlightFailure.Message,
-                        state.InFlightFailure));
+                        state.InFlightFailure,
+                        false));
                 }
                 foreach (CameraTriggerTicket failedTicket in DrainPendingTicketsUnderLock(state))
                 {
@@ -1867,7 +1869,8 @@ namespace TDJS_Vision.ResourceManagement
                     ticket.CameraKey,
                     ticket.Context.Identity,
                     failure.Message,
-                    failure));
+                    failure,
+                    false));
             }
             foreach (CameraProductionFault inFlightFault in inFlightFaults)
                 RaiseProductionFault(inFlightFault);
@@ -1961,7 +1964,7 @@ namespace TDJS_Vision.ResourceManagement
                         state.ActiveTriggerDispatchCount != 0 ||
                         state.ActiveUncoordinatedTriggerDispatchCount != 0 ||
                         state.PendingUncoordinatedFrameCount != 0 ||
-                        state.PendingProductionFaultCount != 0)
+                        state.PendingBlockingProductionFaultCount != 0)
                     {
                         throw new InvalidOperationException(
                             $"相机{normalizedCameraKey}仍有待匹配票据、在途帧或未返回的SDK触发调用，禁止重置故障。 ");
@@ -1994,7 +1997,7 @@ namespace TDJS_Vision.ResourceManagement
                         state.InFlightTicket != null ||
                         state.ActiveTriggerDispatchCount != 0 ||
                         state.ActiveUncoordinatedTriggerDispatchCount != 0 ||
-                        state.PendingProductionFaultCount != 0)
+                        state.PendingBlockingProductionFaultCount != 0)
                     {
                         throw new InvalidOperationException(
                             $"相机{normalizedCameraKey}尚未排空票据、帧或SDK触发调用，禁止准备流重置。 ");
@@ -2024,7 +2027,7 @@ namespace TDJS_Vision.ResourceManagement
                         state.ActiveTriggerDispatchCount != 0 ||
                         state.ActiveUncoordinatedTriggerDispatchCount != 0 ||
                         state.PendingUncoordinatedFrameCount != 0 ||
-                        state.PendingProductionFaultCount != 0)
+                        state.PendingBlockingProductionFaultCount != 0)
                     {
                         throw new InvalidOperationException(
                             $"相机{normalizedCameraKey}重新取流期间出现待处理票据、帧或故障，禁止确认流重置。 ");
@@ -2342,7 +2345,12 @@ namespace TDJS_Vision.ResourceManagement
                     return;
                 _pendingProductionFaults.Enqueue(fault);
                 lock (_syncRoot)
-                    GetOrCreateStateUnderLock(fault.CameraKey).PendingProductionFaultCount++;
+                {
+                    CameraTicketQueueState state = GetOrCreateStateUnderLock(fault.CameraKey);
+                    state.PendingProductionFaultCount++;
+                    if (fault.RequiresSolutionStop)
+                        state.PendingBlockingProductionFaultCount++;
+                }
                 _faultDispatchSignal.Set();
             }
         }
@@ -2380,6 +2388,12 @@ namespace TDJS_Vision.ResourceManagement
                             {
                                 state.PendingProductionFaultCount =
                                     Math.Max(0, state.PendingProductionFaultCount - 1);
+                                if (fault.RequiresSolutionStop)
+                                {
+                                    state.PendingBlockingProductionFaultCount = Math.Max(
+                                        0,
+                                        state.PendingBlockingProductionFaultCount - 1);
+                                }
                             }
                         }
                         continue;
@@ -2633,6 +2647,9 @@ namespace TDJS_Vision.ResourceManagement
 
             /// <summary>尚未由独立派发线程处理完的该相机生产故障数。</summary>
             public int PendingProductionFaultCount { get; set; }
+
+            /// <summary>尚未派发完成且会停止方案的故障数；可恢复告警不阻塞单相机重启确认。</summary>
+            public int PendingBlockingProductionFaultCount { get; set; }
         }
 
         /// <summary>暂存完整流程忙碌期间到达的独立Mat及其帧身份。</summary>

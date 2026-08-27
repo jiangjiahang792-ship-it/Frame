@@ -680,6 +680,38 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     true);
                 return outputImage;
             }
+            catch (TimeoutException timeoutException) when (
+                isSoftwareTrigger &&
+                !productionCancellation.IsCancellationRequested)
+            {
+                try
+                {
+                    RecoverProductionCameraAfterFrameTimeout(
+                        camera,
+                        productionCancellation.Token);
+                    LogHelper.AddLog(
+                        MsgLevel.Warn,
+                        $"相机【{camera.UserDefinedName}】本次软件触发等待超过{timeoutMilliseconds}ms，" +
+                        $"工件{workpieceContext.Identity}按取帧失败结束；该相机已停流排空并重新取流，方案继续运行。",
+                        true);
+                }
+                catch (OperationCanceledException) when (productionCancellation.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception recoveryException)
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Exception,
+                        $"相机【{camera.UserDefinedName}】本次软件触发等待超过{timeoutMilliseconds}ms，" +
+                        $"随后执行单相机停流恢复失败：{recoveryException.Message}；方案未因普通取帧超时主动停止。",
+                        true);
+                    throw new InvalidOperationException(
+                        $"相机{cameraKey}本次取帧超时，并且单相机清流恢复失败。",
+                        new AggregateException(timeoutException, recoveryException));
+                }
+                throw;
+            }
             finally
             {
                 if (callbackOwnerRegistered)
@@ -699,6 +731,23 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 }
                 productionCancellation.Dispose();
             }
+        }
+
+        /// <summary>普通软件触发取帧超时后只重启当前相机，排空可能迟到的旧帧并恢复下一轮采集。</summary>
+        private static void RecoverProductionCameraAfterFrameTimeout(
+            ICamera camera,
+            CancellationToken token)
+        {
+            if (camera == null)
+                throw new ArgumentNullException(nameof(camera));
+            token.ThrowIfCancellationRequested();
+            if (!camera.IsOpen)
+                throw new InvalidOperationException("相机已经断开，无法执行取帧超时恢复。 ");
+
+            if (camera.GetGrabStatus())
+                camera.StopGrabbing();
+            token.ThrowIfCancellationRequested();
+            camera.StartGrabbing();
         }
 
         /// <summary>等待票据完成或流程取消；只有软件触发受节点采图超时约束。</summary>
