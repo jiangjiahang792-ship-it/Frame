@@ -673,6 +673,12 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>获取尚未由独立派发线程处理完的生产故障数。</summary>
         public int PendingProductionFaultCount { get; internal set; }
 
+        /// <summary>获取累计不会停止方案的可恢复相机告警数。</summary>
+        public long RecoverableProductionFaultCount { get; internal set; }
+
+        /// <summary>获取累计要求停止方案的相机故障数。</summary>
+        public long StoppingProductionFaultCount { get; internal set; }
+
         /// <summary>获取当前等待后续工件执行的硬触发帧数。</summary>
         public int BufferedHardwareFrameCount { get; internal set; }
 
@@ -773,6 +779,12 @@ namespace TDJS_Vision.ResourceManagement
 
         /// <summary>累计超时票据数。</summary>
         private long _timedOutTicketCount;
+
+        /// <summary>累计不会停止方案的相机生产告警数。</summary>
+        private long _recoverableProductionFaultCount;
+
+        /// <summary>累计要求停止方案的相机生产故障数。</summary>
+        private long _stoppingProductionFaultCount;
 
         /// <summary>历史最大待执行硬触发帧数。</summary>
         private int _peakBufferedHardwareFrameCount;
@@ -2079,6 +2091,10 @@ namespace TDJS_Vision.ResourceManagement
                     ActiveTriggerDispatchCount = activeTriggerDispatchCount,
                     CameraCountRequiringStreamReset = cameraCountRequiringStreamReset,
                     PendingProductionFaultCount = pendingProductionFaultCount,
+                    RecoverableProductionFaultCount = Interlocked.Read(
+                        ref _recoverableProductionFaultCount),
+                    StoppingProductionFaultCount = Interlocked.Read(
+                        ref _stoppingProductionFaultCount),
                     BufferedHardwareFrameCount = bufferedHardwareFrameCount,
                     PeakBufferedHardwareFrameCount = _peakBufferedHardwareFrameCount,
                     TotalBufferedHardwareFrameCount = Interlocked.Read(ref _bufferedHardwareFrameCount),
@@ -2338,6 +2354,11 @@ namespace TDJS_Vision.ResourceManagement
             DisposeRetiredBufferedHardwareFrames();
             if (fault == null)
                 return;
+
+            if (fault.RequiresSolutionStop)
+                Interlocked.Increment(ref _stoppingProductionFaultCount);
+            else
+                Interlocked.Increment(ref _recoverableProductionFaultCount);
 
             lock (_faultQueueSyncRoot)
             {

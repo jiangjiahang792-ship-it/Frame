@@ -803,6 +803,15 @@ Assert-True $timeoutFollowerStopped '前序超时后尚未到期的后续工件�
 Assert-True ($budget.GetSnapshot().ActiveLeaseCount -eq 0) '超时票据必须归还触发前预算。'
 
 # 直接执行节点等待方法，确认软触发成功发出但没有返回帧时仍按配置超时。
+$timeoutFaultSnapshotBefore = $registry.GetSnapshot()
+$independentCameraTicket = $registry.Register(
+    'CAMERA-SOFTWARE-TIMEOUT-INDEPENDENT',
+    (New-Context '产线软触发超时隔离'),
+    $softwareTrigger,
+    [DateTime]::UtcNow.AddSeconds(10),
+    [long]256,
+    [long]4096)
+$independentCameraTicket.IssueSoftwareTrigger($noOpTrigger)
 $softwareWaitTimeoutTicket = $registry.Register(
     'CAMERA-SOFTWARE-WAIT-TIMEOUT',
     (New-Context '产线软触发等待超时'),
@@ -819,8 +828,62 @@ try { $null = $softwareWaitTimeoutTask.GetAwaiter().GetResult() } catch {
     $softwareWaitTimedOut = (Get-InnermostException $_.Exception) -is [TimeoutException]
 }
 Assert-True $softwareWaitTimedOut '软触发成功发出但没有返回帧时，节点没有按配置抛出TimeoutException。'
-Assert-True ($budget.GetSnapshot().ActiveLeaseCount -eq 0) '软触发节点等待超时后没有归还票据预算。'
-Confirm-CameraStreamReset 'CAMERA-SOFTWARE-WAIT-TIMEOUT'
+$timeoutFaultSnapshotAfter = $registry.GetSnapshot()
+Assert-True ($timeoutFaultSnapshotAfter.RecoverableProductionFaultCount -eq ($timeoutFaultSnapshotBefore.RecoverableProductionFaultCount + 1)) '普通软件取帧超时必须只累计一条可恢复告警。'
+Assert-True ($timeoutFaultSnapshotAfter.StoppingProductionFaultCount -eq $timeoutFaultSnapshotBefore.StoppingProductionFaultCount) '普通软件取帧超时错误升级成了停方案故障。'
+Assert-True (-not $independentCameraTicket.Completion.IsCompleted) '一台相机取帧超时不得清场另一台相机的工件票据。'
+Assert-True ($budget.GetSnapshot().ActiveLeaseCount -eq 1) '软触发节点等待超时后必须只保留另一台相机的活动预算。'
+
+$lateTimedOutFrame = New-TestMat
+$lateTimedOutFrameAccepted = $registry.TryPublishFrame(
+    'CAMERA-SOFTWARE-WAIT-TIMEOUT',
+    [long]1,
+    [uint32]1,
+    [Diagnostics.Stopwatch]::GetTimestamp(),
+    $lateTimedOutFrame,
+    $null)
+Assert-True (-not $lateTimedOutFrameAccepted) '超时后的迟到帧不得绑定给下一工件。'
+$lateTimedOutFrame.Dispose()
+
+# 可恢复告警即使尚在后台派发，也不得阻止该相机完成物理停流后的两阶段流重置。
+$recoverableTimeoutGeneration = $prepareStreamResetMethod.Invoke(
+    $registry,
+    @('CAMERA-SOFTWARE-WAIT-TIMEOUT'))
+$null = $confirmStreamResetMethod.Invoke(
+    $registry,
+    @('CAMERA-SOFTWARE-WAIT-TIMEOUT', [long]$recoverableTimeoutGeneration))
+
+$recoveredCameraTicket = $registry.Register(
+    'CAMERA-SOFTWARE-WAIT-TIMEOUT',
+    (New-Context '产线软触发超时恢复'),
+    $softwareTrigger,
+    [DateTime]::UtcNow.AddSeconds(10),
+    [long]256,
+    [long]4096)
+$recoveredCameraTicket.IssueSoftwareTrigger($noOpTrigger)
+$recoveredCameraFrame = New-TestMat
+Assert-True ($registry.TryPublishFrame(
+    'CAMERA-SOFTWARE-WAIT-TIMEOUT',
+    [long]1,
+    [uint32]1,
+    [Diagnostics.Stopwatch]::GetTimestamp(),
+    $recoveredCameraFrame,
+    $null)) '超时相机完成清流重启后，下一轮新帧必须能绑定新工件。'
+$recoveredEnvelope = $recoveredCameraTicket.Completion.GetAwaiter().GetResult()
+$recoveredEnvelope.Dispose()
+
+$independentCameraFrame = New-TestMat
+Assert-True ($registry.TryPublishFrame(
+    'CAMERA-SOFTWARE-TIMEOUT-INDEPENDENT',
+    [long]1,
+    [uint32]1,
+    [Diagnostics.Stopwatch]::GetTimestamp(),
+    $independentCameraFrame,
+    $null)) '另一台相机必须在首台相机超时恢复后继续完成自己的原票据。'
+$independentCameraEnvelope = $independentCameraTicket.Completion.GetAwaiter().GetResult()
+$independentCameraEnvelope.Dispose()
+Assert-True ($budget.GetSnapshot().ActiveLeaseCount -eq 0) '超时恢复和独立相机都完成后，图像预算必须全部归零。'
+Wait-ProductionFaultDrain
 
 $stuckTriggerTicket = $registry.Register(
     'CAMERA-STUCK-TRIGGER',

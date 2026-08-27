@@ -50,6 +50,7 @@ Assert-True ($solutionSource.Contains('if (!ReferenceEquals(sender, _orderedSign
 Assert-True ($solutionSource.Contains('(_runFaultStopRequested || _cancellationTokenSource.IsCancellationRequested)')) '故障或正常停止后必须拒绝活动会话退出前的新运行入口。'
 Assert-True ($solutionSource.IndexOf('TryCommitRunStop(out CancellationTokenSource tokenSource);', [StringComparison]::Ordinal) -lt $solutionSource.IndexOf('CancelTokenSourceNoThrow(tokenSource, "方案停止");', [StringComparison]::Ordinal)) '正常停止必须先提交门闩，再执行可能较慢的令牌取消。'
 Assert-True ($solutionSource.Contains('CancelTokenSourceNoThrow(tokenSource, "有序信号顺序缺口");')) '当前会话顺序缺口必须真实取消方案运行令牌。'
+Assert-True ($solutionSource.Contains('fault != null && !fault.RequiresSolutionStop')) '可恢复相机告警必须在提交全局停机门闩前直接返回。'
 Assert-True (-not $solutionSource.Contains('workpieceContext.TryComplete(terminalState);')) '方案流程组根工件不得绕过协调器直接封口。'
 Assert-True ($solutionSource.Contains('await CompleteWorkpieceExecutionAsync(')) '方案流程组根工件必须通过协调器封口并推进顺序域。'
 Assert-True ($processSource.Contains('CompleteWorkpieceExecutionAsync(')) '自有工件必须通过协调器封口，不能只等待上下文本地终态。'
