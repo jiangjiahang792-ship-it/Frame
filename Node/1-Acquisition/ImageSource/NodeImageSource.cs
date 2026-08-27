@@ -830,7 +830,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             if (triggerStillRunning)
                 registry.FailTriggeredTicket(ticket, failure);
             else if (!token.IsCancellationRequested)
-                registry.FailExpired(ticket.DeadlineUtc.AddTicks(1L));
+                registry.FailTimedOutTicket(ticket, failure as TimeoutException);
 
             DisposeFrameWhenCompleted(frameTask);
 

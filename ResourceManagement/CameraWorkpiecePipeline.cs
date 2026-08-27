@@ -1793,7 +1793,60 @@ namespace TDJS_Vision.ResourceManagement
             return true;
         }
 
-        /// <summary>清理所有到期票据并要求对应相机清流恢复，但普通取帧超时不停止整套方案。</summary>
+        /// <summary>按节点本次等待结果只清场目标相机，禁止用未来扫描时间误伤其他相机票据。</summary>
+        internal int FailTimedOutTicket(
+            CameraTriggerTicket ticket,
+            TimeoutException exception)
+        {
+            if (ticket == null)
+                return 0;
+
+            return ExecuteCameraSynchronized(ticket.CameraKey, () =>
+            {
+                List<CameraTriggerTicket> failedTickets;
+                bool ticketFound;
+                lock (_syncRoot)
+                {
+                    if (!_cameraStates.TryGetValue(ticket.CameraKey, out CameraTicketQueueState state))
+                        return 0;
+
+                    bool wasInFlight = ReferenceEquals(state.InFlightTicket, ticket);
+                    ticketFound = wasInFlight || ContainsPendingTicketUnderLock(state, ticket);
+                    if (!ticketFound)
+                        return 0;
+
+                    state.Faulted = true;
+                    RequireStreamRestartUnderLock(state);
+                    state.InFlightFailure = exception;
+                    failedTickets = DrainPendingTicketsUnderLock(state);
+                    if (wasInFlight)
+                    {
+                        state.InFlightTicket = null;
+                        state.InFlightFailure = null;
+                        failedTickets.Insert(0, ticket);
+                    }
+                    _timedOutTicketCount++;
+                }
+
+                TimeoutException failure = exception ?? new TimeoutException(
+                    $"相机{ticket.CameraKey}等待工件{ticket.Context.Identity}帧超时。 ");
+                FailPrimaryAndBlockedTickets(
+                    failedTickets,
+                    ticket,
+                    ticket.CameraKey,
+                    failure,
+                    WorkpieceTerminalState.TimedOut);
+                RaiseProductionFault(new CameraProductionFault(
+                    ticket.CameraKey,
+                    ticket.Context.Identity,
+                    failure.Message,
+                    failure,
+                    false));
+                return failedTickets.Count;
+            }, true);
+        }
+
+        /// <summary>清理所有自然到期票据并要求对应相机清流恢复，但普通取帧超时不停止整套方案。</summary>
         public int FailExpired(DateTime utcNow)
         {
             if (utcNow.Kind != DateTimeKind.Utc)
