@@ -72,7 +72,7 @@ Assert-Contains $nodeSource 'camera.GrabOne();' 'The soft trigger path must call
 Assert-Order $nodeSource '_cameraFrameAwaiter.BeginWaitAsync(token)' 'camera.GrabOne();' 'The frame wait must be armed before GrabOne.'
 Assert-Contains $nodeSource 'AcquireProductionCameraImageAsync(' 'Production software acquisition must use a workpiece ticket.'
 Assert-Contains $nodeSource 'registry.Register(' 'The production ticket must be registered before the camera command.'
-Assert-Order $nodeSource '? registry.Register(' 'ticket.IssueSoftwareTrigger(camera.GrabOne)' 'Ticket registration must precede the real software trigger.'
+Assert-Order $nodeSource '? registry.Register(' 'ticket.IssueSoftwareTrigger(() =>' 'Ticket registration must precede the real software trigger.'
 Assert-Contains $nodeSource 'registry.RegisterHardwareWait(' 'Production hardware acquisition must atomically register and arm a hardware ticket.'
 Assert-Contains $nodeSource ': Task.CompletedTask;' 'The hardware path must wait for the physical frame without issuing a software command.'
 Assert-Contains $nodeSource 'ticket.TriggerKind == CameraTriggerKind.Hardware' 'Hardware acquisition must explicitly select the stop-only wait policy.'
