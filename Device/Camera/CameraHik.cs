@@ -21,7 +21,7 @@ namespace TDJS_Vision.Device.Camera
     /// <summary>
     /// 使用海康官方MVCamera类直接访问原生SDK的二维相机实现。
     /// </summary>
-    public class CameraHik : ICamera
+    public class CameraHik : ICamera, IProductionCameraStartupGraceProvider
     {
         /// <summary>每台相机至少保留的原始帧缓冲数量。</summary>
         private const int RawFrameBufferCountMinimum = 2;
@@ -107,6 +107,9 @@ namespace TDJS_Vision.Device.Camera
 
         /// <summary>方案加载后需要恢复上次连接时置为1，与原生句柄真实状态相互独立。</summary>
         private int _restoreConnectionRequested;
+
+        /// <summary>当前连接会话的首个生产帧宽限是否已经被领取，0表示可领取，1表示已领取。</summary>
+        private int _initialProductionFrameGraceReserved;
 
         /// <summary>缓冲暂不可用时累计的帧入口失败数量，详细满载策略后续独立设计。</summary>
         private long _rawFrameIngressFailureCount;
@@ -208,6 +211,18 @@ namespace TDJS_Vision.Device.Camera
 
         /// <summary>获取或设置主动取图超时时间，单位为毫秒。</summary>
         public uint GetImageTimeOut { get; set; } = 2000;
+
+        /// <summary>原子领取当前连接会话唯一的首个生产帧冷启动宽限。</summary>
+        /// <returns>相机已打开且本连接尚未领取时返回true。</returns>
+        public bool TryReserveInitialProductionFrameGrace()
+        {
+            if (!IsOpen)
+                return false;
+            return Interlocked.CompareExchange(
+                ref _initialProductionFrameGraceReserved,
+                1,
+                0) == 0;
+        }
 
         /// <summary>创建用于反序列化的空相机对象。</summary>
         [JsonConstructor]
@@ -359,6 +374,8 @@ namespace TDJS_Vision.Device.Camera
                             RegisterNativeCallbackCore();
                             Volatile.Write(ref _deviceConfigurationCompleted, 1);
                         }
+                        // 只有完整打开并配置成功才建立新的连接会话宽限，失败回滚不能留下伪会话。
+                        Volatile.Write(ref _initialProductionFrameGraceReserved, 0);
                     }
                     catch (Exception configurationException)
                     {
@@ -913,6 +930,7 @@ namespace TDJS_Vision.Device.Camera
             if (Volatile.Read(ref _disposed) != 0)
                 return;
             Volatile.Write(ref _restoreConnectionRequested, 0);
+            Volatile.Write(ref _initialProductionFrameGraceReserved, 0);
             ThrowIfCalledFromFrameConversionWorker("关闭相机");
             bool notifyDisconnected = false;
             lock (_cameraLifecycleLock)

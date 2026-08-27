@@ -17,6 +17,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 {
     public class NodeImageSource : NodeBase
     {
+        /// <summary>相机连接后首个软件触发生产帧追加的冷启动宽限，单位为毫秒。</summary>
+        private const int InitialProductionFrameStartupGraceMilliseconds = 500;
+
         /// <summary>生产工件图像使用流程图像总预算的比例，剩余预算留给原始缓冲和下游派生图。</summary>
         private const double WorkpieceFrameMemoryBudgetRatio = 0.50D;
 
@@ -593,15 +596,13 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
             CameraTriggerTicketRegistry registry = Solution.Instance.CameraTriggerTicketRegistry;
             string cameraKey = CameraProductionIdentity.GetStableKey(camera);
-            int timeoutMilliseconds = GetCameraTimeoutMilliseconds(param, camera);
+            int configuredTimeoutMilliseconds = GetCameraTimeoutMilliseconds(param, camera);
+            int timeoutMilliseconds = configuredTimeoutMilliseconds;
             long memoryBudgetBytes = GetWorkpieceFrameMemoryBudgetBytes();
             long estimatedFrameBytes = GetEstimatedCameraFrameBytes(camera);
             CameraTriggerKind triggerKind = GetProductionCameraTriggerKind(param.TriggerSource);
             bool isSoftwareTrigger = triggerKind == CameraTriggerKind.Software;
-            // 线路硬触发由外部设备决定到帧时刻，只允许停止令牌结束等待；节点超时仅约束软件触发。
-            DateTime deadlineUtc = isSoftwareTrigger
-                ? DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds)
-                : DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
+            bool initialFrameStartupGraceApplied = false;
 
             CameraTriggerTicket ticket = null;
             CameraFrameEnvelope envelope = null;
@@ -626,6 +627,29 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 camera.RegisterImageCallbackOwner(this);
                 callbackOwnerRegistered = true;
                 productionCancellation.Token.ThrowIfCancellationRequested();
+
+                IProductionCameraStartupGraceProvider startupGraceProvider =
+                    camera as IProductionCameraStartupGraceProvider;
+                initialFrameStartupGraceApplied = isSoftwareTrigger &&
+                    startupGraceProvider != null &&
+                    startupGraceProvider.TryReserveInitialProductionFrameGrace();
+                timeoutMilliseconds = AddInitialProductionFrameStartupGrace(
+                    configuredTimeoutMilliseconds,
+                    initialFrameStartupGraceApplied);
+                // 线路硬触发由外部设备决定到帧时刻，只允许停止令牌结束等待；节点超时仅约束软件触发。
+                DateTime deadlineUtc = isSoftwareTrigger
+                    ? DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds)
+                    : DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
+
+                if (initialFrameStartupGraceApplied)
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Info,
+                        $"相机【{camera.UserDefinedName}】当前连接的首个生产帧启用启动宽限：" +
+                        $"方案超时={configuredTimeoutMilliseconds}ms，附加宽限={InitialProductionFrameStartupGraceMilliseconds}ms，" +
+                        $"本次等待上限={timeoutMilliseconds}ms；后续帧恢复方案超时。",
+                        true);
+                }
 
                 ticket = isSoftwareTrigger
                     ? registry.Register(
@@ -705,7 +729,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         productionCancellation.Token);
                     LogHelper.AddLog(
                         MsgLevel.Warn,
-                        $"相机【{camera.UserDefinedName}】本次软件触发等待超过{timeoutMilliseconds}ms，" +
+                        $"相机【{camera.UserDefinedName}】本次软件触发等待超过{timeoutMilliseconds}ms" +
+                        (initialFrameStartupGraceApplied
+                            ? $"（方案超时{configuredTimeoutMilliseconds}ms+首次启动宽限{InitialProductionFrameStartupGraceMilliseconds}ms）"
+                            : string.Empty) + "，" +
                         $"工件{workpieceContext.Identity}按取帧失败结束；该相机已停流排空并重新取流，方案继续运行。",
                         true);
                 }
@@ -942,6 +969,23 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             if (configuredTimeout == 0U)
                 configuredTimeout = 2000U;
             return configuredTimeout > int.MaxValue ? int.MaxValue : Math.Max(1, (int)configuredTimeout);
+        }
+
+        /// <summary>在不溢出的前提下，为相机连接后的首个软件触发生产帧追加一次启动宽限。</summary>
+        /// <param name="configuredTimeoutMilliseconds">图像源保存的稳态超时。</param>
+        /// <param name="applyStartupGrace">当前票据是否取得连接会话的唯一宽限资格。</param>
+        /// <returns>当前票据实际使用的等待上限。</returns>
+        private static int AddInitialProductionFrameStartupGrace(
+            int configuredTimeoutMilliseconds,
+            bool applyStartupGrace)
+        {
+            if (!applyStartupGrace)
+                return configuredTimeoutMilliseconds;
+            long effectiveTimeout = (long)configuredTimeoutMilliseconds +
+                InitialProductionFrameStartupGraceMilliseconds;
+            return effectiveTimeout > int.MaxValue
+                ? int.MaxValue
+                : (int)effectiveTimeout;
         }
 
         /// <summary>把旧默认Auto归一为软触发，只把明确线路源归类为硬触发。</summary>

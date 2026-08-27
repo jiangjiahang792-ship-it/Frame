@@ -9,6 +9,18 @@ using TDJS_Vision.Forms.ImageViewer;
 namespace TDJS_Vision.Device.Camera
 {
     /// <summary>
+    /// 为相机连接后的首个生产帧提供一次性冷启动宽限。
+    /// </summary>
+    public interface IProductionCameraStartupGraceProvider
+    {
+        /// <summary>
+        /// 原子领取当前相机连接会话的首个生产帧宽限资格。
+        /// </summary>
+        /// <returns>当前调用取得唯一宽限资格时返回true。</returns>
+        bool TryReserveInitialProductionFrameGrace();
+    }
+
+    /// <summary>
     /// 相机基类
     /// </summary>
     public interface ICamera : IDevice
