@@ -648,9 +648,22 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=生产票据就绪；工件={workpieceContext.Identity}；相机={camera.DevName}；触发源={param.TriggerSource}；估算字节={estimatedFrameBytes}；预算字节={memoryBudgetBytes}",
                     true);
 
+                SoftwareTriggerDispatchState triggerDispatchState = isSoftwareTrigger
+                    ? new SoftwareTriggerDispatchState()
+                    : null;
                 Task triggerTask = isSoftwareTrigger
                     ? Task.Factory.StartNew(
-                        () => ticket.IssueSoftwareTrigger(camera.GrabOne),
+                        state =>
+                        {
+                            SoftwareTriggerDispatchState dispatchState =
+                                (SoftwareTriggerDispatchState)state;
+                            ticket.IssueSoftwareTrigger(() =>
+                            {
+                                if (dispatchState.TryBeginSdkCommand())
+                                    camera.GrabOne();
+                            });
+                        },
+                        triggerDispatchState,
                         CancellationToken.None,
                         TaskCreationOptions.DenyChildAttach,
                         TaskScheduler.Default)
@@ -777,11 +790,11 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     if (!frameTask.IsCompleted)
                     {
                         completedTask = await Task.WhenAny(frameTask, timeoutTask).ConfigureAwait(false);
-                        if (ReferenceEquals(completedTask, timeoutTask))
+                        if (ReferenceEquals(completedTask, timeoutTask) && !frameTask.IsCompleted)
                             ThrowProductionCameraWaitFailure(registry, ticket, triggerTask, frameTask, timeoutMilliseconds, token);
                     }
                 }
-                else if (ReferenceEquals(completedTask, timeoutTask))
+                else if (ReferenceEquals(completedTask, timeoutTask) && !frameTask.IsCompleted)
                 {
                     ThrowProductionCameraWaitFailure(registry, ticket, triggerTask, frameTask, timeoutMilliseconds, token);
                 }
@@ -820,6 +833,14 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         {
             ObserveFaultedTask(triggerTask);
             bool triggerStillRunning = !triggerTask.IsCompleted;
+            SoftwareTriggerDispatchState triggerDispatchState =
+                triggerTask.AsyncState as SoftwareTriggerDispatchState;
+            bool cancelledBeforeSdk = triggerStillRunning &&
+                triggerDispatchState != null &&
+                triggerDispatchState.TryCancelBeforeSdkCommand();
+            bool sdkTriggerMayBeRunning = triggerStillRunning &&
+                !cancelledBeforeSdk &&
+                (triggerDispatchState == null || triggerDispatchState.HasStartedSdkCommand);
             Exception failure = token.IsCancellationRequested
                 ? (Exception)new OperationCanceledException(
                     $"相机{ticket.CameraKey}等待工件{ticket.Context.Identity}生产帧已取消。",
@@ -827,16 +848,45 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 : new TimeoutException(
                     $"相机{ticket.CameraKey}等待工件{ticket.Context.Identity}生产帧和触发命令共同完成超时（{timeoutMilliseconds}ms）。");
 
-            if (triggerStillRunning)
+            if (sdkTriggerMayBeRunning)
                 registry.FailTriggeredTicket(ticket, failure);
             else if (!token.IsCancellationRequested)
-                registry.FailTimedOutTicket(ticket, failure as TimeoutException);
+            {
+                int failedCount = registry.FailTimedOutTicket(
+                    ticket,
+                    failure as TimeoutException);
+                // 超时与帧完成发生竞态时，注册表是唯一裁决点；票据已经成功脱队则继续读取该成功结果。
+                if (failedCount == 0 && frameTask.Status == TaskStatus.RanToCompletion)
+                    return;
+            }
 
             DisposeFrameWhenCompleted(frameTask);
 
             if (token.IsCancellationRequested)
                 token.ThrowIfCancellationRequested();
             throw failure;
+        }
+
+        /// <summary>在线程池排队、SDK命令开始和超时取消之间提供原子裁决。</summary>
+        private sealed class SoftwareTriggerDispatchState
+        {
+            /// <summary>0表示等待进入SDK，1表示SDK命令已经开始，2表示超时已禁止进入SDK。</summary>
+            private int _phase;
+
+            /// <summary>获取真实SDK命令是否已经开始；仅在线程池排队或票据武装不算开始。</summary>
+            public bool HasStartedSdkCommand => Volatile.Read(ref _phase) == 1;
+
+            /// <summary>SDK命令调用前原子取得执行权；超时已经获胜时返回false并跳过SDK。</summary>
+            public bool TryBeginSdkCommand()
+            {
+                return Interlocked.CompareExchange(ref _phase, 1, 0) == 0;
+            }
+
+            /// <summary>超时原子禁止尚未开始的SDK命令；命令已开始时返回false。</summary>
+            public bool TryCancelBeforeSdkCommand()
+            {
+                return Interlocked.CompareExchange(ref _phase, 2, 0) == 0;
+            }
         }
 
         /// <summary>无论帧已完成还是在失败清场后竞态完成，都在唯一成功结果上幂等释放信封。</summary>

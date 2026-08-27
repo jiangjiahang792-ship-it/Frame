@@ -1908,7 +1908,7 @@ namespace TDJS_Vision.ResourceManagement
                         state.InFlightTicket.Context.Identity,
                         state.InFlightFailure.Message,
                         state.InFlightFailure,
-                        false));
+                        !(state.InFlightFailure is TimeoutException)));
                 }
                 foreach (CameraTriggerTicket failedTicket in DrainPendingTicketsUnderLock(state))
                 {
