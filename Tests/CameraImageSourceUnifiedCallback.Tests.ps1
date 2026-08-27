@@ -83,6 +83,8 @@ Assert-Contains $nodeSource 'GetEffectiveTriggerSource(param.TriggerSource) == T
 Assert-Contains $nodeSource 'triggerSource == TriggerSource.Auto || triggerSource == TriggerSource.SOFT' 'Auto and SOFT must both follow the software-trigger path.'
 Assert-Contains $nodeSource 'Task.WhenAny(' 'The camera command and frame must share an asynchronous timeout.'
 Assert-Contains $nodeSource 'registry.FailTriggeredTicket(ticket, failure)' 'A stuck SDK trigger must fault and isolate the camera.'
+Assert-Contains $nodeSource 'TryCancelBeforeSdkCommand()' 'A queued trigger must be cancelled atomically before timeout cleanup.'
+Assert-Contains $nodeSource 'frameTask.Status == TaskStatus.RanToCompletion' 'A frame already committed at the timeout boundary must win the race.'
 Assert-Contains $nodeSource 'RecoverProductionCameraAfterFrameTimeout(' 'A normal software-frame timeout must recover only the affected camera.'
 Assert-Order $nodeSource 'camera.StopGrabbing();' 'camera.StartGrabbing();' 'Timeout recovery must stop and drain the old stream before restarting it.'
 Assert-Contains $nodeSource '方案继续运行' 'A recovered software-frame timeout must explicitly preserve the solution run.'

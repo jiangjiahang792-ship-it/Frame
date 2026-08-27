@@ -206,8 +206,24 @@ $confirmStreamResetMethod = $registryType.GetMethod(
 $waitForProductionFrameMethod = $nodeImageSourceType.GetMethod(
     'WaitForProductionFrameAsync',
     [Reflection.BindingFlags]'Static,NonPublic')
+$throwProductionCameraWaitFailureMethod = $nodeImageSourceType.GetMethod(
+    'ThrowProductionCameraWaitFailure',
+    [Reflection.BindingFlags]'Static,NonPublic')
+$softwareTriggerDispatchStateType = $nodeImageSourceType.GetNestedType(
+    'SoftwareTriggerDispatchState',
+    [Reflection.BindingFlags]'NonPublic')
 $none = [Threading.CancellationToken]::None
 $noOpTrigger = [Action] { }
+
+# 线程池排队与SDK命令开始必须原子裁决，超时获胜后排队任务不得再进入真实SDK。
+$queuedDispatchState = [Activator]::CreateInstance($softwareTriggerDispatchStateType, $true)
+$tryCancelBeforeSdkMethod = $softwareTriggerDispatchStateType.GetMethod('TryCancelBeforeSdkCommand')
+$tryBeginSdkMethod = $softwareTriggerDispatchStateType.GetMethod('TryBeginSdkCommand')
+Assert-True ([bool]$tryCancelBeforeSdkMethod.Invoke($queuedDispatchState, @())) '线程池尚未进入SDK时，超时必须能够取消真实SDK命令。'
+Assert-True (-not [bool]$tryBeginSdkMethod.Invoke($queuedDispatchState, @())) '超时已经获胜后，排队任务仍取得了SDK执行权。'
+$startedDispatchState = [Activator]::CreateInstance($softwareTriggerDispatchStateType, $true)
+Assert-True ([bool]$tryBeginSdkMethod.Invoke($startedDispatchState, @())) '正常触发任务没有取得SDK执行权。'
+Assert-True (-not [bool]$tryCancelBeforeSdkMethod.Invoke($startedDispatchState, @())) 'SDK命令已经开始后，超时不应伪装成触发前安全取消。'
 
 function New-Context {
     param([string]$Domain)
@@ -884,6 +900,38 @@ $independentCameraEnvelope = $independentCameraTicket.Completion.GetAwaiter().Ge
 $independentCameraEnvelope.Dispose()
 Assert-True ($budget.GetSnapshot().ActiveLeaseCount -eq 0) '超时恢复和独立相机都完成后，图像预算必须全部归零。'
 Wait-ProductionFaultDrain
+
+# 超时计时器和成功帧同时完成时，已经由注册表提交成功的帧必须胜出，不能再反向改判超时。
+$timeoutTieTicket = $registry.Register(
+    'CAMERA-SOFTWARE-TIMEOUT-TIE',
+    (New-Context '产线软触发超时同时完成'),
+    $softwareTrigger,
+    [DateTime]::UtcNow.AddSeconds(10),
+    [long]256,
+    [long]4096)
+$timeoutTieTicket.IssueSoftwareTrigger($noOpTrigger)
+$timeoutTieFrame = New-TestMat
+Assert-True ($registry.TryPublishFrame(
+    'CAMERA-SOFTWARE-TIMEOUT-TIE',
+    [long]1,
+    [uint32]1,
+    [Diagnostics.Stopwatch]::GetTimestamp(),
+    $timeoutTieFrame,
+    $null)) '超时同时完成测试必须先由注册表成功提交帧。'
+$timeoutTieFaultCountBefore = $registry.GetSnapshot().RecoverableProductionFaultCount
+$null = $throwProductionCameraWaitFailureMethod.Invoke(
+    $null,
+    @(
+        $registry,
+        $timeoutTieTicket,
+        [Threading.Tasks.Task]::CompletedTask,
+        $timeoutTieTicket.Completion,
+        [int]20,
+        $none))
+Assert-True ($registry.GetSnapshot().RecoverableProductionFaultCount -eq $timeoutTieFaultCountBefore) '已经成功提交的帧被迟到超时反向改判为失败。'
+$timeoutTieEnvelope = $timeoutTieTicket.Completion.GetAwaiter().GetResult()
+$timeoutTieEnvelope.Dispose()
+Assert-True ($budget.GetSnapshot().ActiveLeaseCount -eq 0) '超时同时完成裁决后图像预算没有归零。'
 
 $stuckTriggerTicket = $registry.Register(
     'CAMERA-STUCK-TRIGGER',
