@@ -954,8 +954,12 @@ $stuckWaitTask = $waitForProductionFrameMethod.Invoke(
     $null,
     @($registry, $stuckTriggerTicket, $neverCompletedTrigger.Task, [int]20, $none))
 $stuckTriggerTimedOut = $false
-try { $null = $stuckWaitTask.GetAwaiter().GetResult() } catch { $stuckTriggerTimedOut = $true }
+try { $null = $stuckWaitTask.GetAwaiter().GetResult() } catch {
+    $stuckTriggerException = Get-InnermostException $_.Exception
+    $stuckTriggerTimedOut = $stuckTriggerException -is [TimeoutException]
+}
 Assert-True $stuckTriggerTimedOut '帧已到但SDK触发命令未返回时，节点共同超时必须失败，不能返回成功图像。'
+Assert-True ($stuckTriggerException.GetType().Name -eq 'SoftwareTriggerCommandTimeoutException') 'SDK触发命令卡死必须使用专用异常，禁止被外层当普通无帧超时执行并发重启。'
 Assert-True ($budget.GetSnapshot().ActiveLeaseCount -eq 0) 'SDK触发命令卡住超时后必须释放已完成信封的Mat预算。'
 $previewAfterFaultRejected = $false
 try {
