@@ -63,7 +63,7 @@ Assert-Contains $registry 'public static void Attach(' 'The registry must attach
 Assert-Contains $registry 'public static bool TryGet(' 'Process nodes must be able to read frame metadata.'
 
 Assert-Contains $camera 'Interlocked.Increment(ref _callbackFrameSequence)' 'Each SDK callback must receive a thread-safe FrameId.'
-Assert-Contains $camera 'ConvertFrameToIndependentMat(packet.Buffer, ref frameInfo, packet.FrameId, packet.DiagnosticEnabled)' 'Mat conversion must use the same FrameId.'
+Assert-Contains $camera 'ConvertFrameToIndependentMat(packet.Buffer, ref frameInfo, packet.FrameId, packet.DiagnosticEnabled, cancellationToken)' 'Mat conversion must use the same FrameId and camera cancellation token.'
 Assert-Contains $camera 'private void RaiseMatImageReceived(Mat image, CameraFrameTraceInfo frameTrace)' 'Mat distribution must receive frame metadata.'
 Assert-Contains $camera 'CameraFrameTraceRegistry.Attach(subscriberImage, frameTrace);' 'Every subscriber Mat wrapper must receive frame metadata.'
 Assert-Order $camera 'CameraFrameTraceRegistry.Attach(subscriberImage, frameTrace);' '((Action<Mat>)invocationList[index]).Invoke(subscriberImage);' 'Metadata must be attached before subscriber invocation.'
@@ -75,7 +75,8 @@ Assert-Contains $imageSource 'TraceId={Process?.CurrentPerformanceTraceId}' 'Ima
 Assert-Contains $imageSource 'RunId={Process?.CurrentRunId}' 'Image source diagnostics must include the current RunId.'
 Assert-Contains $imageSource 'frameTrace.GetElapsedFromCallbackStartMilliseconds(currentTimestamp)' 'Diagnostics must measure SDK callback to the current process stage.'
 Assert-Contains $imageSource 'long waitCompletedTimestamp = diagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;' 'The camera wait completion timestamp must be captured only for Debug diagnostics.'
-Assert-Order $imageSource '_cameraFrameAwaiter.BeginWaitAsync(token)' 'param.Camera.GrabOne();' 'The wait must be armed before a software trigger.'
+Assert-Order $imageSource '_cameraFrameAwaiter.BeginWaitAsync(token)' 'camera.GrabOne();' 'The wait must be armed before a software trigger on the captured camera.'
+Assert-Order $imageSource '? registry.Register(' 'ticket.IssueSoftwareTrigger(() =>' 'Production ticket registration must precede the real software trigger.'
 
 Assert-Contains $project '<Compile Include="Diagnostics\CameraFrameTraceRegistry.cs" />' 'The project must compile the camera frame registry.'
 

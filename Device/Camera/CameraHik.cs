@@ -608,10 +608,6 @@ namespace TDJS_Vision.Device.Camera
                         return null;
                     }
 
-                    using (CancellationTokenSource conversionTimeout = new CancellationTokenSource(timeout))
-                    using (ICpuWorkLease conversionLease = Solution.Instance.AcquireCpuWorkAsync(
-                        CpuWorkloadKind.ImageConversion,
-                        conversionTimeout.Token).GetAwaiter().GetResult())
                     using (Mat mat = ConvertFrameToIndependentMat(frame.pBufAddr, ref frame.stFrameInfo, 0, false))
                         return mat == null ? null : BitmapConverter.ToBitmap(mat);
                 }
@@ -1433,9 +1429,9 @@ namespace TDJS_Vision.Device.Camera
                 return _frameConversionWorker != null;
         }
 
-        /// <summary>在相机顺序消费线程中取得全局CPU许可后执行像素转换，再在许可外分发Mat。</summary>
+        /// <summary>在本相机顺序消费线程中独立转换并分发Mat，不等待其他相机或普通CPU任务的许可。</summary>
         /// <param name="packet">已经脱离SDK生命周期的原始帧。</param>
-        /// <param name="cancellationToken">停止相机时取消尚未取得的全局转换许可。</param>
+        /// <param name="cancellationToken">停止相机时跳过尚未转换的帧，并释放转换期间取消的Mat。</param>
         private void ProcessRawFrame(HikRawFramePacket packet, CancellationToken cancellationToken)
         {
             MyCamera.MV_FRAME_OUT_INFO_EX frameInfo = packet.FrameInfo;
@@ -1451,20 +1447,18 @@ namespace TDJS_Vision.Device.Camera
                 conversionWorkerDequeuedTimestamp);
 
             Mat image = null;
-            double cpuPermitWaitMilliseconds = 0D;
+            // 保留旧日志字段供现场同比；独立相机通道不再申请共享CPU许可。
+            const double cpuPermitWaitMilliseconds = 0D;
             long conversionStartedTimestamp = 0L;
             long conversionCompletedTimestamp = 0L;
             try
             {
-                using (ICpuWorkLease conversionLease = Solution.Instance.AcquireCpuWorkAsync(
-                    CpuWorkloadKind.ImageConversion,
-                    cancellationToken).GetAwaiter().GetResult())
-                {
-                    cpuPermitWaitMilliseconds = conversionLease?.WaitElapsedMilliseconds ?? 0D;
-                    conversionStartedTimestamp = packet.DiagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
-                    image = ConvertFrameToIndependentMat(packet.Buffer, ref frameInfo, packet.FrameId, packet.DiagnosticEnabled);
-                    conversionCompletedTimestamp = packet.DiagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
-                }
+                cancellationToken.ThrowIfCancellationRequested();
+                conversionStartedTimestamp = packet.DiagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
+                image = ConvertFrameToIndependentMat(packet.Buffer, ref frameInfo, packet.FrameId, packet.DiagnosticEnabled, cancellationToken);
+                conversionCompletedTimestamp = packet.DiagnosticEnabled ? Stopwatch.GetTimestamp() : 0L;
+                // SDK转换不能强制中断，返回后检查停止状态，禁止再发布已经取消的图像。
+                cancellationToken.ThrowIfCancellationRequested();
 
                 long totalConversionWaitMilliseconds = CameraFrameTraceInfo.GetElapsedMilliseconds(
                     packet.CallbackCompletedTimestamp,
@@ -1491,7 +1485,7 @@ namespace TDJS_Vision.Device.Camera
                     true);
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
-                    () => string.Format("【完整耗时-相机帧】相机={0}；FrameId={1}；SDKFrameNum={2}；阶段=转换线程开始；排队耗时={3}ms；CPU许可等待={4:F3}ms；转换总等待={5}ms；线程={6}", DevName, packet.FrameId, frameInfo.nFrameNum, cameraQueueMilliseconds, cpuPermitWaitMilliseconds, totalConversionWaitMilliseconds, Thread.CurrentThread.ManagedThreadId),
+                    () => string.Format("【完整耗时-相机帧】相机={0}；FrameId={1}；SDKFrameNum={2}；阶段=转换线程开始；排队耗时={3}ms；CPU许可等待={4:F3}ms；转换总等待={5}ms；线程={6}；转换通道=每相机独立；共享CPU许可=不参与", DevName, packet.FrameId, frameInfo.nFrameNum, cameraQueueMilliseconds, cpuPermitWaitMilliseconds, totalConversionWaitMilliseconds, Thread.CurrentThread.ManagedThreadId),
                     true);
                 PerformanceSpikeDiagnostics.LogSlowIfEnabled(
                     MsgLevel.Debug,
@@ -1818,11 +1812,13 @@ namespace TDJS_Vision.Device.Camera
         /// <param name="frameInfo">源帧信息。</param>
         /// <param name="frameId">诊断帧号。</param>
         /// <param name="diagnosticEnabled">是否记录完整耗时。</param>
+        /// <param name="cancellationToken">生产取图的停止令牌；主动取图由相机生命周期锁保护。</param>
         /// <returns>调用方负责释放的独立Mat。</returns>
-        private Mat ConvertFrameToIndependentMat(IntPtr sourceData, ref MyCamera.MV_FRAME_OUT_INFO_EX frameInfo, long frameId, bool diagnosticEnabled)
+        private Mat ConvertFrameToIndependentMat(IntPtr sourceData, ref MyCamera.MV_FRAME_OUT_INFO_EX frameInfo, long frameId, bool diagnosticEnabled, CancellationToken cancellationToken = default(CancellationToken))
         {
             lock (_callbackSyncRoot)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (_device == null)
                     throw new InvalidOperationException("相机对象为空。");
 
