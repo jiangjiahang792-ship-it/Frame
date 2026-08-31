@@ -335,9 +335,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
             if (request.Images == null || request.Images.Count == 0)
                 throw new InvalidOperationException("请先加载训练图片。");
             int okImageCount = request.Images.Count(item => item.Category == LargeModelImageCategory.OK);
-            int ngImageCount = request.Images.Count(item => item.Category == LargeModelImageCategory.NG);
-            if (okImageCount < 2 || ngImageCount < 2)
-                throw new InvalidOperationException("大模型训练至少需要 2 张 OK 图片和 2 张 NG 图片，其中每类各 1 张用于自动校准识别分数，不放入训练样本。");
+            if (okImageCount < 1)
+                throw new InvalidOperationException("大模型训练至少需要 1 张 OK 图片。");
             if (request.InputWidth <= 0 || request.InputHeight <= 0)
                 throw new InvalidOperationException("训练输入尺寸必须大于 0。");
             ValidatePatchSizeMultiple(request.InputWidth, "输入宽度");
@@ -867,12 +866,6 @@ namespace TDJS_Vision.Forms.AiTrainForm
         {
             if (dataset.OkCount <= 0)
                 throw new InvalidOperationException("没有可用于训练的 OK 图片。");
-            if (dataset.NgCount <= 0)
-                throw new InvalidOperationException("没有可用于训练的 NG 图片。");
-            if (string.IsNullOrWhiteSpace(dataset.CalibrationOkImagePath))
-                throw new InvalidOperationException("没有可用于自动校准识别分数的 OK 图片。");
-            if (string.IsNullOrWhiteSpace(dataset.CalibrationNgImagePath))
-                throw new InvalidOperationException("没有可用于自动校准识别分数的 NG 图片。");
         }
 
         /// <summary>
@@ -930,15 +923,19 @@ namespace TDJS_Vision.Forms.AiTrainForm
             int okCount = 0;
             int ngCount = 0;
             int index = 0;
+            int sourceOkCount = request.Images.Count(item => item.Category == LargeModelImageCategory.OK);
+            int sourceNgCount = request.Images.Count(item => item.Category == LargeModelImageCategory.NG);
+            bool canReserveCalibrationImages = sourceOkCount > 1 && sourceNgCount > 0;
             string calibrationOkImagePath = null;
             string calibrationNgImagePath = null;
             foreach (LargeModelImageItem item in request.Images)
             {
                 token.ThrowIfCancellationRequested();
                 bool isNg = item.Category == LargeModelImageCategory.NG;
-                bool reserveForCalibration = isNg
-                    ? string.IsNullOrWhiteSpace(calibrationNgImagePath)
-                    : string.IsNullOrWhiteSpace(calibrationOkImagePath);
+                bool reserveForCalibration = canReserveCalibrationImages &&
+                    (isNg
+                        ? string.IsNullOrWhiteSpace(calibrationNgImagePath)
+                        : string.IsNullOrWhiteSpace(calibrationOkImagePath));
                 string targetFolder = reserveForCalibration
                     ? (isNg ? calibrationNgPath : calibrationOkPath)
                     : (isNg ? ngPath : okPath);
@@ -1034,35 +1031,75 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 throw new ArgumentNullException(nameof(detector));
 
             token.ThrowIfCancellationRequested();
-            using (Mat okImage = LoadCalibrationImage(dataset.CalibrationOkImagePath, "OK"))
-            using (Mat ngImage = LoadCalibrationImage(dataset.CalibrationNgImagePath, "NG"))
+            if (!HasCalibrationImages(dataset))
             {
-                LargeModelDinov2Result okProbe = detector.InferBgr(okImage, request.ImageThreshold, request.AreaThreshold, CalibrationMaxBoxes);
-                LargeModelDinov2Result ngProbe = detector.InferBgr(ngImage, request.ImageThreshold, request.AreaThreshold, CalibrationMaxBoxes);
-                float threshold = SelectThresholdBetweenScores(okProbe.Score, ngProbe.Score, "大模型");
-                LargeModelDinov2Result okVerify = detector.InferBgr(okImage, threshold, request.AreaThreshold, CalibrationMaxBoxes);
-                LargeModelDinov2Result ngVerify = detector.InferBgr(ngImage, threshold, request.AreaThreshold, CalibrationMaxBoxes);
-                if (!okVerify.IsOk || !ngVerify.IsNg)
+                log?.Report(
+                    "大模型自动校准识别分数样本不足，使用默认图像阈值："
+                    + request.ImageThreshold.ToString("0.######", CultureInfo.InvariantCulture));
+                return request.ImageThreshold;
+            }
+
+            log?.Report("正在使用预留 OK/NG 图像自动校准大模型识别分数。");
+            try
+            {
+                using (Mat okImage = LoadCalibrationImage(dataset.CalibrationOkImagePath, "OK"))
+                using (Mat ngImage = LoadCalibrationImage(dataset.CalibrationNgImagePath, "NG"))
                 {
-                    throw new InvalidOperationException(
-                        "大模型自动校准识别分数失败，预留 OK/NG 样本无法同时判对；OK分数="
+                    LargeModelDinov2Result okProbe = detector.InferBgr(okImage, request.ImageThreshold, request.AreaThreshold, CalibrationMaxBoxes);
+                    LargeModelDinov2Result ngProbe = detector.InferBgr(ngImage, request.ImageThreshold, request.AreaThreshold, CalibrationMaxBoxes);
+                    if (okProbe.ReturnCode < 0 || ngProbe.ReturnCode < 0)
+                        throw new InvalidOperationException("大模型自动校准探测推理失败。");
+
+                    float threshold = SelectThresholdBetweenScores(okProbe.Score, ngProbe.Score, "大模型");
+                    LargeModelDinov2Result okVerify = detector.InferBgr(okImage, threshold, request.AreaThreshold, CalibrationMaxBoxes);
+                    LargeModelDinov2Result ngVerify = detector.InferBgr(ngImage, threshold, request.AreaThreshold, CalibrationMaxBoxes);
+                    if (!okVerify.IsOk || !ngVerify.IsNg)
+                    {
+                        throw new InvalidOperationException(
+                            "大模型自动校准识别分数失败，预留 OK/NG 样本无法同时判对；OK分数="
+                            + okProbe.Score.ToString("0.######", CultureInfo.InvariantCulture)
+                            + "，NG分数="
+                            + ngProbe.Score.ToString("0.######", CultureInfo.InvariantCulture)
+                            + "，候选阈值="
+                            + threshold.ToString("0.######", CultureInfo.InvariantCulture)
+                            + "。请更换更有代表性的 OK/NG 样本或调整最小面积。");
+                    }
+
+                    log?.Report(
+                        "大模型识别分数自动校准完成，OK分数="
                         + okProbe.Score.ToString("0.######", CultureInfo.InvariantCulture)
                         + "，NG分数="
                         + ngProbe.Score.ToString("0.######", CultureInfo.InvariantCulture)
-                        + "，候选阈值="
-                        + threshold.ToString("0.######", CultureInfo.InvariantCulture)
-                        + "。请更换更有代表性的 OK/NG 样本或调整最小面积。");
+                        + "，阈值="
+                        + threshold.ToString("0.######", CultureInfo.InvariantCulture));
+                    return threshold;
                 }
-
-                log?.Report(
-                    "大模型识别分数自动校准完成，OK分数="
-                    + okProbe.Score.ToString("0.######", CultureInfo.InvariantCulture)
-                    + "，NG分数="
-                    + ngProbe.Score.ToString("0.######", CultureInfo.InvariantCulture)
-                    + "，阈值="
-                    + threshold.ToString("0.######", CultureInfo.InvariantCulture));
-                return threshold;
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                log?.Report(
+                    "大模型自动校准识别分数未成功，已使用默认图像阈值 "
+                    + request.ImageThreshold.ToString("0.######", CultureInfo.InvariantCulture)
+                    + "，不影响模型生成。原因："
+                    + ex.Message);
+                return request.ImageThreshold;
+            }
+        }
+
+        /// <summary>
+        /// 判断本次数据集是否具备自动校准识别分数所需的预留样本。
+        /// </summary>
+        /// <param name="dataset">数据集构建结果。</param>
+        /// <returns>具备 OK 和 NG 预留校准图时返回 true。</returns>
+        private static bool HasCalibrationImages(DatasetBuildResult dataset)
+        {
+            return dataset != null &&
+                !string.IsNullOrWhiteSpace(dataset.CalibrationOkImagePath) &&
+                !string.IsNullOrWhiteSpace(dataset.CalibrationNgImagePath);
         }
 
         /// <summary>
@@ -1616,12 +1653,37 @@ namespace TDJS_Vision.Forms.AiTrainForm
 
                             _log?.Report("memory bank 训练完成，处理图片数：" + trained.ToString(CultureInfo.InvariantCulture));
                             token.ThrowIfCancellationRequested();
-                            int loadRet = detector.LoadModel(modelPath, _bankPath, _deviceMode);
-                            if (loadRet != 0)
-                                throw new InvalidOperationException("大模型自动校准前加载 memory bank 失败，native 返回码：" + loadRet.ToString(CultureInfo.InvariantCulture));
+                            if (HasCalibrationImages(_dataset))
+                            {
+                                try
+                                {
+                                    int loadRet = detector.LoadModel(modelPath, _bankPath, _deviceMode);
+                                    if (loadRet != 0)
+                                    {
+                                        throw new InvalidOperationException(
+                                            "native 返回码：" + loadRet.ToString(CultureInfo.InvariantCulture));
+                                    }
 
-                            _log?.Report("正在使用预留 OK/NG 图像自动校准大模型识别分数。");
-                            _calibratedImageThreshold = CalibrateImageThreshold(detector, _dataset, _request, _log, token);
+                                    _calibratedImageThreshold = CalibrateImageThreshold(detector, _dataset, _request, _log, token);
+                                }
+                                catch (OperationCanceledException)
+                                {
+                                    throw;
+                                }
+                                catch (Exception ex)
+                                {
+                                    _log?.Report(
+                                        "大模型自动校准前加载 memory bank 失败，已使用默认图像阈值 "
+                                        + _request.ImageThreshold.ToString("0.######", CultureInfo.InvariantCulture)
+                                        + "，不影响模型生成。原因："
+                                        + ex.Message);
+                                    _calibratedImageThreshold = _request.ImageThreshold;
+                                }
+                            }
+                            else
+                            {
+                                _calibratedImageThreshold = CalibrateImageThreshold(detector, _dataset, _request, _log, token);
+                            }
                         }
                     }
                     finally

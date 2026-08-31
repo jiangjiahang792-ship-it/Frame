@@ -76,6 +76,40 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 };
             }
 
+            string trainingScriptPath = Path.Combine(root, "train_export.py");
+            if (!File.Exists(trainingScriptPath))
+            {
+                return new UnsupervisedRuntimeStatus
+                {
+                    IsReady = false,
+                    RootPath = root,
+                    Message = "无监督环境缺少 train_export.py"
+                };
+            }
+
+            string cpuPythonPath = Path.Combine(root, "python_env", "python.exe");
+            string gpuPythonPath = Path.Combine(root, "python_env_gpu", "Scripts", "python.exe");
+            if (!File.Exists(cpuPythonPath) && !File.Exists(gpuPythonPath))
+            {
+                return new UnsupervisedRuntimeStatus
+                {
+                    IsReady = false,
+                    RootPath = root,
+                    Message = "无监督环境缺少可执行的 Python 运行时"
+                };
+            }
+
+            string pretrainedPath = Path.Combine(root, "pretrained");
+            if (!Directory.Exists(pretrainedPath))
+            {
+                return new UnsupervisedRuntimeStatus
+                {
+                    IsReady = false,
+                    RootPath = root,
+                    Message = "无监督环境缺少 pretrained 预训练权重目录"
+                };
+            }
+
             return new UnsupervisedRuntimeStatus
             {
                 IsReady = true,

@@ -284,6 +284,7 @@
     </Compile>
     <Compile Include="Forms\AiTrainForm\UnsupervisedAnomalibDetector.cs" />
     <Compile Include="Forms\AiTrainForm\UnsupervisedImageLoader.cs" />
+    <Compile Include="Forms\AiTrainForm\UnsupervisedNativeDatasetPreparer.cs" />
     <Compile Include="Forms\AiTrainForm\UnsupervisedRuntimeBootstrapper.cs" />
     <Compile Include="Forms\AiTrainForm\UnsupervisedTemplatePackage.cs" />
     <Compile Include="Forms\AiTrainForm\UnsupervisedTrainingModels.cs" />

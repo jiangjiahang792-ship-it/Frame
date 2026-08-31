@@ -20,6 +20,11 @@ namespace TDJS_Vision.Forms.AiTrainForm
         private const int CalibrationMaxBoxes = 128;
 
         /// <summary>
+        /// native 子进程发生内部错误时允许的总训练次数。
+        /// </summary>
+        private const int NativeTrainingAttemptCount = 2;
+
+        /// <summary>
         /// 当前训练使用的 native 检测器。
         /// </summary>
         private UnsupervisedAnomalibDetector _activeDetector;
@@ -57,37 +62,21 @@ namespace TDJS_Vision.Forms.AiTrainForm
             DatasetBuildResult dataset = BuildDataset(request, datasetRoot, token);
             log?.Report("数据集准备完成，OK=" + dataset.OkCount.ToString(CultureInfo.InvariantCulture) + "，NG=" + dataset.NgCount.ToString(CultureInfo.InvariantCulture));
             ValidateDatasetImageCount(dataset);
+            int compatibilityFileCount = UnsupervisedNativeDatasetPreparer.EnsureMinimumNgSplitFiles(dataset.NgPath, dataset.NgCount);
+            if (compatibilityFileCount > 0)
+            {
+                log?.Report("单张 NG 已生成 native 内部拆分副本，客户样本统计仍为 1 张。");
+            }
 
             token.ThrowIfCancellationRequested();
             progress?.Report(1);
 
             string pythonPath = UnsupervisedAnomalibDetector.FindPython(runtime.RootPath);
-            using (var detector = new UnsupervisedAnomalibDetector(runtime.RootPath))
-            {
-                SetActiveDetector(detector);
-                try
-                {
-                    log?.Report("正在初始化无监督训练环境。");
-                    int initRet = detector.InitForTraining(request.ModelType, request.Threshold, request.InputWidth, request.InputHeight, request.MiniArea, request.MaxEpochs, request.BatchSize, request.Device, pythonPath, false);
-                    if (initRet != 0)
-                        throw new InvalidOperationException("初始化无监督训练失败，返回码：" + initRet.ToString(CultureInfo.InvariantCulture));
-
-                    token.ThrowIfCancellationRequested();
-                    log?.Report("开始训练模型。");
-                    int trainRet = detector.TrainModel(dataset.OkPath, dataset.NgCount > 0 ? dataset.NgPath : string.Empty, modelOutputRoot, request.MaxEpochs, value => progress?.Report(ClampProgress(value)));
-                    if (trainRet != 0)
-                        throw new InvalidOperationException("无监督训练失败，返回码：" + trainRet.ToString(CultureInfo.InvariantCulture));
-                }
-                finally
-                {
-                    SetActiveDetector(null);
-                }
-            }
+            TrainNativeModel(runtime.RootPath, pythonPath, modelOutputRoot, request, dataset, progress, log, token);
 
             token.ThrowIfCancellationRequested();
             string onnxPath = UnsupervisedAnomalibDetector.FindNewestOnnx(modelOutputRoot);
             log?.Report("正在打包模板文件。");
-            log?.Report("正在使用预留 OK/NG 图像自动校准无监督识别分数。");
             float calibratedThreshold = CalibrateThreshold(runtime.RootPath, onnxPath, pythonPath, request, dataset, log, token);
             token.ThrowIfCancellationRequested();
             UnsupervisedTemplateManifest manifest = BuildManifest(request, dataset, calibratedThreshold);
@@ -101,6 +90,116 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 OkCount = dataset.OkCount,
                 NgCount = dataset.NgCount
             };
+        }
+
+        /// <summary>
+        /// 使用独立 native 句柄执行训练，并对可恢复的子进程内部错误重试一次。
+        /// </summary>
+        /// <param name="runtimeRoot">无监督运行环境根目录。</param>
+        /// <param name="pythonPath">本次训练使用的 Python 路径。</param>
+        /// <param name="modelOutputRoot">模型输出目录。</param>
+        /// <param name="request">训练请求。</param>
+        /// <param name="dataset">已准备的数据集。</param>
+        /// <param name="progress">训练进度回调。</param>
+        /// <param name="log">训练日志回调。</param>
+        /// <param name="token">取消令牌。</param>
+        private void TrainNativeModel(
+            string runtimeRoot,
+            string pythonPath,
+            string modelOutputRoot,
+            UnsupervisedTrainingRequest request,
+            DatasetBuildResult dataset,
+            IProgress<int> progress,
+            IProgress<string> log,
+            CancellationToken token)
+        {
+            for (int attempt = 1; attempt <= NativeTrainingAttemptCount; attempt++)
+            {
+                token.ThrowIfCancellationRequested();
+                using (var detector = new UnsupervisedAnomalibDetector(runtimeRoot))
+                {
+                    SetActiveDetector(detector);
+                    try
+                    {
+                        log?.Report(attempt == 1 ? "正在初始化无监督训练环境。" : "正在使用全新 native 句柄重新初始化训练环境。");
+                        int initRet = detector.InitForTraining(
+                            request.ModelType,
+                            request.Threshold,
+                            request.InputWidth,
+                            request.InputHeight,
+                            request.MiniArea,
+                            request.MaxEpochs,
+                            request.BatchSize,
+                            request.Device,
+                            pythonPath,
+                            false);
+                        if (initRet != 0)
+                            throw CreateNativeTrainingException("初始化无监督训练", initRet);
+
+                        token.ThrowIfCancellationRequested();
+                        log?.Report(attempt == 1 ? "开始训练模型。" : "开始第 2 次训练模型。");
+                        int trainRet = detector.TrainModel(
+                            dataset.OkPath,
+                            dataset.NgPath,
+                            modelOutputRoot,
+                            request.MaxEpochs,
+                            value => progress?.Report(ClampProgress(value)));
+                        if (trainRet == 0)
+                            return;
+
+                        token.ThrowIfCancellationRequested();
+                        if (trainRet != -2 || attempt >= NativeTrainingAttemptCount)
+                            throw CreateNativeTrainingException("无监督训练", trainRet);
+                    }
+                    finally
+                    {
+                        SetActiveDetector(null);
+                    }
+                }
+
+                log?.Report("native 子进程返回内部错误 -2，正在清理本次残留并自动重试一次。");
+                PrepareCleanDirectory(modelOutputRoot, Path.GetDirectoryName(modelOutputRoot));
+            }
+        }
+
+        /// <summary>
+        /// 创建包含 native 返回码语义的训练异常。
+        /// </summary>
+        /// <param name="stage">失败阶段。</param>
+        /// <param name="returnCode">native 返回码。</param>
+        /// <returns>可直接显示和记录的异常。</returns>
+        private static InvalidOperationException CreateNativeTrainingException(string stage, int returnCode)
+        {
+            string reason;
+            switch (returnCode)
+            {
+                case -1:
+                    reason = "native 参数无效";
+                    break;
+                case -2:
+                    reason = "Python/anomalib 子进程执行失败";
+                    break;
+                case -3:
+                    reason = "当前训练句柄已有任务运行";
+                    break;
+                case -4:
+                    reason = "训练已取消";
+                    break;
+                case -5:
+                    reason = "设备授权失败";
+                    break;
+                default:
+                    reason = "未知 native 错误";
+                    break;
+            }
+
+            return new InvalidOperationException(
+                stage
+                + "失败，返回码："
+                + returnCode.ToString(CultureInfo.InvariantCulture)
+                + "（"
+                + reason
+                + "）。");
         }
 
         /// <summary>
@@ -145,8 +244,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 throw new InvalidOperationException("请先加载训练图片。");
             int okImageCount = request.Images.Count(item => item.Category == UnsupervisedImageCategory.OK);
             int ngImageCount = request.Images.Count(item => item.Category == UnsupervisedImageCategory.NG);
-            if (okImageCount < 2 || ngImageCount < 2)
-                throw new InvalidOperationException("无监督训练至少需要 2 张 OK 图片和 2 张 NG 图片，其中每类各 1 张用于自动校准识别分数，不放入训练样本。");
+            if (okImageCount < 1 || ngImageCount < 1)
+                throw new InvalidOperationException("无监督训练至少需要 1 张 OK 图片和 1 张 NG 图片。");
             if (request.InputWidth <= 0 || request.InputHeight <= 0)
                 throw new InvalidOperationException("训练输入尺寸必须大于 0。");
             if (request.BatchSize <= 0 || request.MaxEpochs <= 0)
@@ -163,10 +262,6 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 throw new InvalidOperationException("没有可用于训练的 OK 图片。");
             if (dataset.NgCount <= 0)
                 throw new InvalidOperationException("没有可用于训练的 NG 图片。");
-            if (string.IsNullOrWhiteSpace(dataset.CalibrationOkImagePath))
-                throw new InvalidOperationException("没有可用于自动校准识别分数的 OK 图片。");
-            if (string.IsNullOrWhiteSpace(dataset.CalibrationNgImagePath))
-                throw new InvalidOperationException("没有可用于自动校准识别分数的 NG 图片。");
         }
 
         /// <summary>
@@ -222,15 +317,19 @@ namespace TDJS_Vision.Forms.AiTrainForm
             int okCount = 0;
             int ngCount = 0;
             int index = 0;
+            int sourceOkCount = request.Images.Count(item => item.Category == UnsupervisedImageCategory.OK);
+            int sourceNgCount = request.Images.Count(item => item.Category == UnsupervisedImageCategory.NG);
+            bool canReserveCalibrationImages = sourceOkCount > 1 && sourceNgCount > 1;
             string calibrationOkImagePath = null;
             string calibrationNgImagePath = null;
             foreach (UnsupervisedImageItem item in request.Images)
             {
                 token.ThrowIfCancellationRequested();
                 bool isNg = item.Category == UnsupervisedImageCategory.NG;
-                bool reserveForCalibration = isNg
-                    ? string.IsNullOrWhiteSpace(calibrationNgImagePath)
-                    : string.IsNullOrWhiteSpace(calibrationOkImagePath);
+                bool reserveForCalibration = canReserveCalibrationImages &&
+                    (isNg
+                        ? string.IsNullOrWhiteSpace(calibrationNgImagePath)
+                        : string.IsNullOrWhiteSpace(calibrationOkImagePath));
                 string targetFolder = reserveForCalibration
                     ? (isNg ? calibrationNgPath : calibrationOkPath)
                     : (isNg ? ngPath : okPath);
@@ -329,51 +428,109 @@ namespace TDJS_Vision.Forms.AiTrainForm
             CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
-            using (var detector = new UnsupervisedAnomalibDetector(runtimeRoot))
-            using (Mat okImage = LoadCalibrationImage(dataset.CalibrationOkImagePath, "OK"))
-            using (Mat ngImage = LoadCalibrationImage(dataset.CalibrationNgImagePath, "NG"))
+            if (!HasCalibrationImages(dataset))
             {
-                int loadRet = detector.LoadModel(
-                    request.ModelType,
-                    onnxPath,
-                    request.Threshold,
-                    request.InputWidth,
-                    request.InputHeight,
-                    request.MiniArea,
-                    request.BatchSize,
-                    request.Device,
-                    pythonPath);
-                if (loadRet != 0)
-                    throw new InvalidOperationException("无监督自动校准前加载模型失败，返回码：" + loadRet.ToString(CultureInfo.InvariantCulture));
+                log?.Report(
+                    "无监督自动校准识别分数样本不足，使用默认异常阈值："
+                    + request.Threshold.ToString("0.######", CultureInfo.InvariantCulture));
+                return request.Threshold;
+            }
 
-                UnsupervisedAnomalibResult okProbe = detector.InferBgr(okImage, request.Threshold, request.MiniArea, CalibrationMaxBoxes);
-                UnsupervisedAnomalibResult ngProbe = detector.InferBgr(ngImage, request.Threshold, request.MiniArea, CalibrationMaxBoxes);
-                float threshold = SelectThresholdBetweenScores(okProbe.Score, ngProbe.Score, "无监督");
-                UnsupervisedAnomalibResult okVerify = detector.InferBgr(okImage, threshold, request.MiniArea, CalibrationMaxBoxes);
-                UnsupervisedAnomalibResult ngVerify = detector.InferBgr(ngImage, threshold, request.MiniArea, CalibrationMaxBoxes);
-                bool okPassed = okVerify.ReturnCode == 0 && okVerify.Boxes.Length == 0;
-                bool ngPassed = ngVerify.ReturnCode == 0 && ngVerify.Boxes.Length > 0;
-                if (!okPassed || !ngPassed)
+            log?.Report("正在使用预留 OK/NG 图像自动校准无监督识别分数。");
+            try
+            {
+                using (var detector = new UnsupervisedAnomalibDetector(runtimeRoot))
+                using (Mat okImage = LoadCalibrationImage(dataset.CalibrationOkImagePath, "OK"))
+                using (Mat ngImage = LoadCalibrationImage(dataset.CalibrationNgImagePath, "NG"))
                 {
-                    throw new InvalidOperationException(
-                        "无监督自动校准识别分数失败，预留 OK/NG 样本无法同时判对；OK分数="
+                    int loadRet = detector.LoadModel(
+                        request.ModelType,
+                        onnxPath,
+                        request.Threshold,
+                        request.InputWidth,
+                        request.InputHeight,
+                        request.MiniArea,
+                        request.BatchSize,
+                        request.Device,
+                        pythonPath);
+                    if (loadRet != 0)
+                        throw new InvalidOperationException("无监督自动校准前加载模型失败，返回码：" + loadRet.ToString(CultureInfo.InvariantCulture));
+
+                    UnsupervisedAnomalibResult okProbe = detector.InferBgr(okImage, request.Threshold, request.MiniArea, CalibrationMaxBoxes);
+                    UnsupervisedAnomalibResult ngProbe = detector.InferBgr(ngImage, request.Threshold, request.MiniArea, CalibrationMaxBoxes);
+                    EnsureCalibrationInferenceSucceeded(okProbe, "OK");
+                    EnsureCalibrationInferenceSucceeded(ngProbe, "NG");
+                    float threshold = SelectThresholdBetweenScores(okProbe.Score, ngProbe.Score, "无监督");
+                    UnsupervisedAnomalibResult okVerify = detector.InferBgr(okImage, threshold, request.MiniArea, CalibrationMaxBoxes);
+                    UnsupervisedAnomalibResult ngVerify = detector.InferBgr(ngImage, threshold, request.MiniArea, CalibrationMaxBoxes);
+                    bool okPassed = okVerify.ReturnCode == 0 && okVerify.Boxes.Length == 0;
+                    bool ngPassed = ngVerify.ReturnCode == 0 && ngVerify.Boxes.Length > 0;
+                    if (!okPassed || !ngPassed)
+                    {
+                        throw new InvalidOperationException(
+                            "无监督自动校准识别分数失败，预留 OK/NG 样本无法同时判对；OK分数="
+                            + okProbe.Score.ToString("0.######", CultureInfo.InvariantCulture)
+                            + "，NG分数="
+                            + ngProbe.Score.ToString("0.######", CultureInfo.InvariantCulture)
+                            + "，候选阈值="
+                            + threshold.ToString("0.######", CultureInfo.InvariantCulture)
+                            + "。请更换更有代表性的 OK/NG 样本或调整最小缺陷面积。");
+                    }
+
+                    log?.Report(
+                        "无监督识别分数自动校准完成，OK分数="
                         + okProbe.Score.ToString("0.######", CultureInfo.InvariantCulture)
                         + "，NG分数="
                         + ngProbe.Score.ToString("0.######", CultureInfo.InvariantCulture)
-                        + "，候选阈值="
-                        + threshold.ToString("0.######", CultureInfo.InvariantCulture)
-                        + "。请更换更有代表性的 OK/NG 样本或调整最小缺陷面积。");
+                        + "，阈值="
+                        + threshold.ToString("0.######", CultureInfo.InvariantCulture));
+                    return threshold;
                 }
-
-                log?.Report(
-                    "无监督识别分数自动校准完成，OK分数="
-                    + okProbe.Score.ToString("0.######", CultureInfo.InvariantCulture)
-                    + "，NG分数="
-                    + ngProbe.Score.ToString("0.######", CultureInfo.InvariantCulture)
-                    + "，阈值="
-                    + threshold.ToString("0.######", CultureInfo.InvariantCulture));
-                return threshold;
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                log?.Report(
+                    "无监督自动校准识别分数未成功，已使用默认异常阈值 "
+                    + request.Threshold.ToString("0.######", CultureInfo.InvariantCulture)
+                    + "，不影响模型生成。原因："
+                    + ex.Message);
+                return request.Threshold;
+            }
+        }
+
+        /// <summary>
+        /// 校验自动分数探测的 native 推理是否成功。
+        /// </summary>
+        /// <param name="result">native 推理结果。</param>
+        /// <param name="categoryText">校准图片分类。</param>
+        private static void EnsureCalibrationInferenceSucceeded(UnsupervisedAnomalibResult result, string categoryText)
+        {
+            if (result == null)
+                throw new InvalidOperationException("无监督自动校准 " + categoryText + " 图片未返回推理结果。");
+            if (result.ReturnCode != 0)
+            {
+                throw new InvalidOperationException(
+                    "无监督自动校准 "
+                    + categoryText
+                    + " 图片推理失败，返回码："
+                    + result.ReturnCode.ToString(CultureInfo.InvariantCulture));
+            }
+        }
+
+        /// <summary>
+        /// 判断本次数据集是否具备自动校准识别分数所需的预留样本。
+        /// </summary>
+        /// <param name="dataset">数据集构建结果。</param>
+        /// <returns>具备 OK 和 NG 预留校准图时返回 true。</returns>
+        private static bool HasCalibrationImages(DatasetBuildResult dataset)
+        {
+            return dataset != null &&
+                !string.IsNullOrWhiteSpace(dataset.CalibrationOkImagePath) &&
+                !string.IsNullOrWhiteSpace(dataset.CalibrationNgImagePath);
         }
 
         /// <summary>
