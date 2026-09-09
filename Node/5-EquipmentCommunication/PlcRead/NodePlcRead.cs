@@ -7,12 +7,29 @@ using System.Threading.Tasks;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
 {
-    public class NodePlcRead : NodeBase
+    /// <summary>读取 PLC 数据，并按当前配置公开可订阅的单值结果。</summary>
+    public class NodePlcRead : NodeBase, IDynamicResultVariableProvider, IDynamicResultVariableTypeProvider
     {
+        /// <summary>初始化 PLC 读取节点和参数界面。</summary>
         public NodePlcRead(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
         {
             ParamForm = new ParamFormPlcRead();
             Result = new NodeResultPlcRead();
+        }
+
+        /// <summary>根据已保存的地址和类型发布变量，尚未连接或运行也能配置订阅。</summary>
+        public IEnumerable<string> GetDynamicResultVariableNames()
+        {
+            var param = ParamForm?.Params as NodeParamPlcRead;
+            return PlcReadDynamicVariable.BuildNames(param?.Address, param?.DataType);
+        }
+
+        /// <summary>提供 PLC 单个读取值的真实类型，供订阅筛选和条件运算使用。</summary>
+        public bool TryGetDynamicResultVariableType(string variableName, out Type valueType)
+        {
+            var param = ParamForm?.Params as NodeParamPlcRead;
+            valueType = PlcReadDynamicVariable.GetValueType(param?.DataType);
+            return PlcReadDynamicVariable.ResolveIndex(param?.Address, param?.DataType, variableName) >= 0;
         }
 
         /// <summary>
@@ -21,6 +38,10 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
         public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+
+            // 清除上轮数据，失败、取消或禁用时不能让单值订阅读到旧结果。
+            if (Result is NodeResultPlcRead previousResult)
+                previousResult.ReadResult = null;
 
             if (!Active)
             {
@@ -41,7 +62,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                 try
                 {
                     SetStatus(NodeStatus.Unexecuted, "*");
-                    base.CheckTokenCancel(token);
+                    await base.CheckTokenCancel(token);
 
                     //如果没有连接则不运行
                     if (!param.Plc.IsConnect)
@@ -58,13 +79,13 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                             type = typeof(bool[]).Name;
                             var result = await param.Plc.ReadBoolAsync(adds);
                             if (!result.IsSuccess) throw new Exception("读取失败！");
-                            res.ReadResult = new PlcReadResult(result.Content, typeof(bool[]).Name);
+                            res.ReadResult = new PlcReadResult(result.Content, type, param.Address);
                         }
                         else if (adds.Length == 1)
                         {
                             var result = await param.Plc.ReadBoolAsync(param.Address, 1);
                             if (!result.IsSuccess) throw new Exception("读取失败！");
-                            res.ReadResult = new PlcReadResult(result.Content[0], typeof(bool).Name);
+                            res.ReadResult = new PlcReadResult(result.Content[0], type, param.Address);
                         }
                     }
                     else if (param.DataType == typeof(short).Name)
@@ -76,13 +97,13 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                             string[] adds = param.Address.Split('-');
                             var result = await param.Plc.ReadInt16Async(adds);
                             if (!result.IsSuccess) throw new Exception("读取失败！");
-                            res.ReadResult = new PlcReadResult(result.Content, typeof(bool[]).Name);
+                            res.ReadResult = new PlcReadResult(result.Content, type, param.Address);
                         }
                         else
                         {
                             var result = await param.Plc.ReadInt16Async(param.Address);
                             if (!result.IsSuccess) throw new Exception("读取失败！");
-                            res.ReadResult = new PlcReadResult(result.Content, typeof(int).Name);
+                            res.ReadResult = new PlcReadResult(result.Content, type, param.Address);
                         }
                     }
                     else if (param.DataType == typeof(int).Name)
@@ -94,13 +115,13 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                             string[] adds = param.Address.Split('-');
                             var result = await param.Plc.ReadInt32Async(adds);
                             if (!result.IsSuccess) throw new Exception("读取失败！");
-                            res.ReadResult = new PlcReadResult(result.Content, typeof(bool[]).Name);
+                            res.ReadResult = new PlcReadResult(result.Content, type, param.Address);
                         }
                         else
                         {
                             var result = await param.Plc.ReadInt32Async(param.Address);
                             if (!result.IsSuccess) throw new Exception("读取失败！");
-                            res.ReadResult = new PlcReadResult(result.Content, typeof(int).Name);
+                            res.ReadResult = new PlcReadResult(result.Content, type, param.Address);
                         }
                     }
                     else if (param.DataType == typeof(long).Name)
@@ -112,13 +133,13 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                             string[] adds = param.Address.Split('-');
                             var result = await param.Plc.ReadInt64Async(adds);
                             if (!result.IsSuccess) throw new Exception("读取失败！");
-                            res.ReadResult = new PlcReadResult(result.Content, typeof(bool[]).Name);
+                            res.ReadResult = new PlcReadResult(result.Content, type, param.Address);
                         }
                         else
                         {
                             var result = await param.Plc.ReadInt64Async(param.Address);
                             if (!result.IsSuccess) throw new Exception("读取失败！");
-                            res.ReadResult = new PlcReadResult(result.Content, typeof(int).Name);
+                            res.ReadResult = new PlcReadResult(result.Content, type, param.Address);
                         }
                     }
                     else if (param.DataType == typeof(float).Name)
@@ -132,7 +153,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                         {
                             var result = await param.Plc.ReadFloatAsync(param.Address);
                             if (!result.IsSuccess) throw new Exception("读取失败！");
-                            res.ReadResult = new PlcReadResult(result.Content, param.DataType);
+                            res.ReadResult = new PlcReadResult(result.Content, type, param.Address);
                         }
                     }
                     else if (param.DataType == typeof(string).Name)
@@ -146,7 +167,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                         {
                             var result = await param.Plc.ReadStringAsync(param.Address, param.Length);
                             if (!result.IsSuccess) throw new Exception("读取失败！");
-                            res.ReadResult = new PlcReadResult(result.Content, param.DataType);
+                            res.ReadResult = new PlcReadResult(result.Content, type, param.Address);
                         }
                     }
                     else

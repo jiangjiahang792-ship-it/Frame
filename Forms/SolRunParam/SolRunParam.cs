@@ -224,6 +224,9 @@ namespace TDJS_Vision.Forms.SolRunParam
 
                 SetMultiConditionNodes(multiConditionNodes);
                 RefreshRunParamGrid();
+                // 本地图像测试只依赖有效的图像源节点，无需相机连接成功。
+                buttonSingleImg.Enabled = _nodeSource != null;
+                buttonCatalogueImg.Enabled = _nodeSource != null;
                 LogHelper.AddLog(
                     MsgLevel.Info,
                     $"【手动调参诊断】SolRunParamControl.Init完成，流程={process.ProcessName}，多条件节点数={multiConditionNodes.Count}，耗时={initStopwatch.ElapsedMilliseconds}ms。",

@@ -43,6 +43,61 @@ namespace TDJS_Vision.Forms.PLCAdd
         }
 
         /// <summary>
+        /// 添加基恩士 Nano OverTcp，沿用现有 PLC 添加事件和重复设备检查规则。
+        /// </summary>
+        private void buttonConfirmKeyence_Click(object sender, EventArgs e)
+        {
+            string deviceName = textBoxNameKeyence.Text.Trim();
+            string ip = uiipTextBoxKeyence.Text.Trim();
+            if (string.IsNullOrWhiteSpace(deviceName))
+            {
+                MessageBoxTD.Show("请输入设备名称！");
+                return;
+            }
+
+            if (!System.Net.IPAddress.TryParse(ip, out var address) ||
+                address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+            {
+                MessageBoxTD.Show("请输入有效的IP地址！");
+                return;
+            }
+
+            if (!int.TryParse(textBoxPortKeyence.Text.Trim(), out int port) || port < 1 || port > 65535)
+            {
+                MessageBoxTD.Show("请输入1到65535之间的端口号！");
+                return;
+            }
+
+            bool exist = Solution.Instance.PlcDevices.Exists(plc =>
+                (plc.PLCParms.PlcConType == PlcConType.ETHERNET && plc.PLCParms.EthernetParms.IP == ip) ||
+                plc.UserDefinedName == deviceName);
+            if (exist)
+            {
+                MessageBoxTD.Show("PLC的IP地址或用户自定义名称已存在！");
+                LogHelper.AddLog(MsgLevel.Warn, "PLC的IP地址或用户自定义名称已存在！", true);
+                return;
+            }
+
+            try
+            {
+                var parms = new PLCParms
+                {
+                    DeviceBrand = Device.DeviceBrand.Keyence,
+                    UserDefinedName = deviceName,
+                    PlcConType = PlcConType.ETHERNET,
+                    EthernetParms = new EthernetParms(ip, port)
+                };
+                PLCAddEvent?.Invoke(this, parms);
+                Hide();
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Warn, $"添加基恩士PLC失败：{ex}", true);
+                MessageBoxTD.Show("添加基恩士PLC失败，请检查通信参数！");
+            }
+        }
+
+        /// <summary>
         /// 点击添加三菱MC(Binary)设备
         /// </summary>
         /// <param name="sender"></param>

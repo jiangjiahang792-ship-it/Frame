@@ -24,6 +24,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         /// </summary>
         private static readonly Dictionary<string, string> 检测项中文名到内部键 = new Dictionary<string, string>
         {
+            { "端子数量", "DetectItem.TerminalCount" },
             { "前铆脚露线芯长度", "DetectItem.FrontRivetCoreLength" },
             { "前铆脚露线芯高度", "DetectItem.FrontRivetCoreHeight" },
             { "前铆脚面积", "DetectItem.FrontRivetArea" },
@@ -39,6 +40,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             { "正插防水栓长度", "DetectItem.ForwardWaterproofPlugLength" },
             { "正插防水栓高度", "DetectItem.ForwardWaterproofPlugHeight" }
         };
+
+        /// <summary>
+        /// 多端子公共数量检测项内部键。
+        /// </summary>
+        private const string 端子数量内部键 = "DetectItem.TerminalCount";
+
+        /// <summary>
+        /// 飞丝检测项内部键，飞丝按自身存在即NG逻辑处理，不参与端子数量公共校验。
+        /// </summary>
+        private const string 飞丝内部键 = "DetectItem.FlyingWire";
 
         /// <summary>
         /// 用于记录检测结果数量，自动学习模式下使用
@@ -61,6 +72,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             // 当前使用的检测项配置
             var deteItems = Solution.Instance.DetectItemDic[param.CurDetectItemName];
             ParseCommon.NormalizeDetectItems(deteItems);
+            DetectItemInfo 端子数量检测项 = 获取端子数量检测项(deteItems);
 
             // 用来保存检测结果的检测项OK/NG、带颜色的框、带颜色的文本
             var detectResults = new Dictionary<string, List<SingleDetectResult>>();
@@ -81,8 +93,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                 string itemKey = item.Name;
                 string itemName = 获取检测项中文名(itemKey);
+                bool isCountItem = item.IsCountItem;
                 // 检测项没启用就不用处理
                 if (!item.Enable) continue;
+
+                // 端子数量只作为除飞丝外其它检测项的公共数量上下限，不单独绑定模型类别解析。
+                if (itemKey == 端子数量内部键)
+                    continue;
 
                 bool hasData = false;
 
@@ -173,11 +190,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 #endregion
 
                 var singleResults = new List<SingleDetectResult>();
+                bool countLimitOk = IsFlyingWireItem(itemKey)
+                    ? true
+                    : 端子数量检测项 == null || ParseCommon.IsValueWithinLimits(端子数量检测项, matchedResults.Count);
 
                 #region 正常情况: 检测项已启用，模型有检出该项的DetResult结果
-
-                // 获取当前检测项是否为“数量型”
-                bool isCountItem = item.IsCountItem;
 
                 if (isCountItem)
                 {
@@ -198,7 +215,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                     // 数量型检测项没有检出时按0参与上下限判断，支持0~0直接判OK。
                     valueStr = count.ToString();
-                    isOk = ParseCommon.IsValueWithinLimits(item, count);
+                    isOk = ParseCommon.IsValueWithinLimits(item, count) && countLimitOk;
 
                     #endregion
 
@@ -297,7 +314,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
 
 
-                        bool isOk = ParseCommon.IsValueWithinLimits(item, value);
+                        bool isOk = ParseCommon.IsValueWithinLimits(item, value) && countLimitOk;
 
                         // 一旦有一个 false，则整体不是 OK
                         if (!isOk)
@@ -349,7 +366,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                 if (!matchedResults.Any() && item.Enable && !isCountItem)
                 {
-                    bool zeroIsOk = ParseCommon.IsValueWithinLimits(item, 0F);
+                    bool zeroIsOk = ParseCommon.IsValueWithinLimits(item, 0F) && countLimitOk;
 
                     #region 对于“存在”即NG的非数量型检测项要这样设置
                     
@@ -451,6 +468,32 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     return;
                 }
             }
+        }
+
+        /// <summary>
+        /// 获取启用的端子数量公共检测项配置。
+        /// </summary>
+        /// <param name="detectItemInfos">当前方案检测项集合。</param>
+        /// <returns>启用的端子数量配置；未配置时返回 null，保持旧方案行为。</returns>
+        private static DetectItemInfo 获取端子数量检测项(List<DetectItemInfo> detectItemInfos)
+        {
+            if (detectItemInfos == null)
+                return null;
+
+            return detectItemInfos.FirstOrDefault(item =>
+                item != null &&
+                item.Enable &&
+                string.Equals(item.Name, 端子数量内部键, StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// 判断当前检测项是否为飞丝检测项。
+        /// </summary>
+        /// <param name="itemKey">检测项内部键。</param>
+        /// <returns>是飞丝检测项时返回 true。</returns>
+        private static bool IsFlyingWireItem(string itemKey)
+        {
+            return string.Equals(itemKey, 飞丝内部键, StringComparison.Ordinal);
         }
 
         /// <summary>

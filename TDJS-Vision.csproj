@@ -312,6 +312,7 @@
     <Compile Include="Device\Modbus\ModbusRTUPoll.cs" />
     <Compile Include="Device\Modbus\ModbusTcpPoll.cs" />
     <Compile Include="Device\PLC\PlcMelsec.cs" />
+    <Compile Include="Device\PLC\PlcKeyenceNano.cs" />
     <Compile Include="FormAIConfigTool.cs">
       <SubType>Form</SubType>
     </Compile>

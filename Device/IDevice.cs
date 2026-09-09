@@ -126,5 +126,9 @@ namespace TDJS_Vision.Device
         /// 华睿相机
         /// </summary>
         HuarayTechnology,
+        /// <summary>
+        /// 基恩士
+        /// </summary>
+        Keyence,
     }
 }

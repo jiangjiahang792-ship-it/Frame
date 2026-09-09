@@ -68,6 +68,9 @@ namespace TDJS_Vision.Forms.PLCAdd
                 case Device.DeviceBrand.Melsec:
                     plc = new PlcMelsec(parms);
                     break;
+                case Device.DeviceBrand.Keyence:
+                    plc = new PlcKeyenceNano(parms);
+                    break;
                 default:
                     break;
             }
