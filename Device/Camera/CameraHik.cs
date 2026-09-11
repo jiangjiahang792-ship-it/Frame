@@ -1028,6 +1028,24 @@ namespace TDJS_Vision.Device.Camera
         /// <param name="userData">用户数据，本实现未使用。</param>
         private void GetImageCallBack(IntPtr sourceData, ref MyCamera.MV_FRAME_OUT_INFO_EX frameInfo, IntPtr userData)
         {
+            if (LogHelper.CanRecord(MsgLevel.Debug))
+            {
+                LogHelper.TryAddDiagnosticLog(
+                    string.Format(
+                        "相机进入回调-{0}-{1:yyyy-MM-dd HH:mm:ss.fff}；SDKFrameNum={2}；尺寸={3}x{4}；FrameLen={5}；PixelType={6}；sourceData为空={7}；正在取流={8}；回调拥有者={9}；线程={10}",
+                        DevName,
+                        DateTime.Now,
+                        frameInfo.nFrameNum,
+                        frameInfo.nWidth,
+                        frameInfo.nHeight,
+                        frameInfo.nFrameLen,
+                        frameInfo.enPixelType,
+                        sourceData == IntPtr.Zero ? "是" : "否",
+                        Volatile.Read(ref _isGrabbing) ? "是" : "否",
+                        Volatile.Read(ref _imageCallbackOwnerCount),
+                        Thread.CurrentThread.ManagedThreadId),
+                    true);
+            }
             long callbackStartedTimestamp = Stopwatch.GetTimestamp();
             lock (_sdkCallbackLifetimeLock)
                 EnqueueRawFrameCore(sourceData, ref frameInfo, callbackStartedTimestamp);
