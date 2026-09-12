@@ -945,9 +945,8 @@ namespace TDJS_Vision
                     connected = false;
                 }
 
-                if (connected)
+                if (connected && !IsCameraReconnecting(camera))
                 {
-                    ClearReportedDisconnectedCamera(camera);
                     continue;
                 }
 
@@ -976,7 +975,7 @@ namespace TDJS_Vision
             }
         }
 
-        /// <summary>对一台已经判断为断线的相机执行停流程、重连和取流恢复。</summary>
+        /// <summary>隔离断线相机的旧票据并恢复连接和取流，不停止整个方案。</summary>
         /// <param name="camera">断线相机。</param>
         private void ReconnectDisconnectedCamera(ICamera camera)
         {
@@ -993,15 +992,20 @@ namespace TDJS_Vision
                     true);
             }
 
-            StopRunningSolutionForCameraDisconnect(camera);
+            CameraTriggerTicketRegistry.SuspendCameraForReconnect(
+                CameraProductionIdentity.GetStableKey(camera));
 
             if (!camera.TryReconnect())
                 return;
 
-            ClearReportedDisconnectedCamera(cameraKey);
-            TryApplyImageSourceParametersForCamera(camera);
-            if (!shouldRestoreGrabbing)
+            bool parametersApplied = TryApplyImageSourceParametersForCamera(camera);
+            if (IsCameraUsedByActiveImageSource(camera) && !parametersApplied)
                 return;
+            if (!shouldRestoreGrabbing)
+            {
+                ClearReportedDisconnectedCamera(cameraKey);
+                return;
+            }
 
             try
             {
@@ -1010,6 +1014,8 @@ namespace TDJS_Vision
                     camera.StartGrabbing();
                     LogHelper.AddLog(MsgLevel.Info, $"相机【{camera.UserDefinedName}】自动重连后已恢复取流。", true);
                 }
+                if (camera.IsOpen && camera.GetGrabStatus())
+                    ClearReportedDisconnectedCamera(cameraKey);
             }
             catch (Exception exception)
             {
@@ -1068,21 +1074,22 @@ namespace TDJS_Vision
             return false;
         }
 
-        /// <summary>相机掉线时只在存在活动流程会话的情况下提交停机。</summary>
-        /// <param name="camera">断线相机。</param>
-        private void StopRunningSolutionForCameraDisconnect(ICamera camera)
+        /// <summary>异步等待单相机恢复，避免断线期间循环取图失败和日志空转。</summary>
+        /// <param name="camera">当前图像源使用的相机。</param>
+        /// <param name="token">用户停止流程时取消等待。</param>
+        internal async Task WaitForCameraReconnectAsync(ICamera camera, CancellationToken token)
         {
-            bool shouldStop;
-            lock (_runLifecycleSync)
-                shouldStop = _activeRunSessionCount != 0 && !_runFaultStopRequested;
-            if (!shouldStop)
-                return;
+            while (IsCameraReconnecting(camera) && camera.RestoreConnectionRequested)
+                await Task.Delay(100, token).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+        }
 
-            LogHelper.AddLog(
-                MsgLevel.Exception,
-                $"相机【{camera.UserDefinedName}】掉线，已请求停止当前方案，避免断线期间的触发与后续帧混用。",
-                true);
-            Stop();
+        /// <summary>查询相机是否仍在恢复连接、参数或取流，恢复完成前不放行新取图。</summary>
+        /// <param name="camera">待查询相机。</param>
+        private bool IsCameraReconnecting(ICamera camera)
+        {
+            lock (_cameraReconnectWatchdogSync)
+                return _reportedDisconnectedCameraKeys.Contains(GetCameraReconnectKey(camera));
         }
 
         /// <summary>生成用于断线去重的稳定相机键。</summary>
@@ -1109,13 +1116,6 @@ namespace TDJS_Vision
         {
             lock (_cameraReconnectWatchdogSync)
                 return _reportedDisconnectedCameraKeys.Add(cameraKey ?? "UNKNOWN");
-        }
-
-        /// <summary>清除相机断线报告状态。</summary>
-        /// <param name="camera">相机对象。</param>
-        private void ClearReportedDisconnectedCamera(ICamera camera)
-        {
-            ClearReportedDisconnectedCamera(GetCameraReconnectKey(camera));
         }
 
         /// <summary>清除相机断线报告状态。</summary>

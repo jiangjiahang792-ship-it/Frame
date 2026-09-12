@@ -63,4 +63,16 @@ Assert-True ($ensureOpenBody.Contains('Volatile.Read(ref _deviceConfigurationCom
 Assert-True ($callbackRegistrationBody.Contains('Volatile.Read(ref _deviceConfigurationCompleted) == 0')) '配置完成前不得注册原生回调。'
 Assert-True ($singleCameraSource.Contains('camera.IsOpen || camera.RestoreConnectionRequested')) '保存时已连接状态必须通过独立请求触发启动后的自动重连。'
 
-Write-Host '海康相机保存后自动重连回归检查通过：持久化连接意图与原生真实状态已经分离。'
+# 守护只隔离单相机，取流和参数恢复成功之前保持节点等待，失败后继续重试。
+$solutionSource = Get-Content -LiteralPath (Join-Path $root 'Solution.cs') -Raw -Encoding UTF8
+$imageSource = Get-Content -LiteralPath (Join-Path $root 'Node/1-Acquisition/ImageSource/NodeImageSource.cs') -Raw -Encoding UTF8
+$reconnectBody = Get-MethodBody $solutionSource 'private void ReconnectDisconnectedCamera(ICamera camera)' '/// <summary>判断相机重连成功后是否需要恢复取流。'
+Assert-True (-not $solutionSource.Contains('StopRunningSolutionForCameraDisconnect')) '相机掉线守护不得主动请求停止整个方案。'
+Assert-True (-not $reconnectBody.Contains('Stop();')) '重连入口不得调用方案停止。'
+Assert-True ($reconnectBody.IndexOf('SuspendCameraForReconnect(') -lt $reconnectBody.IndexOf('camera.TryReconnect()')) '物理重连前必须先隔离旧票据。'
+Assert-True ($reconnectBody.Contains('IsCameraUsedByActiveImageSource(camera) && !parametersApplied')) '方案参数恢复失败不得提前恢复生产。'
+Assert-True ($reconnectBody.Contains('if (camera.IsOpen && camera.GetGrabStatus())')) '恢复取流成功后才能放行新取图。'
+Assert-True ($solutionSource.Contains('connected && !IsCameraReconnecting(camera)')) '仅SDK在线但恢复未完成的相机必须继续重试。'
+Assert-True ($solutionSource.Contains('await Task.Delay(100, token)')) '重连等待必须异步且响应用户停止。'
+Assert-True ($imageSource.Contains('await Solution.Instance.WaitForCameraReconnectAsync(camera, token)')) '图像源取图前必须等待当前相机恢复。'
+Write-Host '海康自动重连回归检查通过：持久化连接意图、真实状态、单相机隔离及不停方案恢复结构符合预期。'

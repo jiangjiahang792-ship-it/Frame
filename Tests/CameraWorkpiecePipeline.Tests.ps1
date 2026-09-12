@@ -1,9 +1,11 @@
-﻿$ErrorActionPreference = 'Stop'
+﻿param([string]$BuildDirectory = 'bin\x64\Debug')
+
+$ErrorActionPreference = 'Stop'
 
 # 生产程序基于.NET Framework 4.8，PowerShell 7不直接承载其OpenCvSharp原生依赖。
 if ($PSVersionTable.PSEdition -eq 'Core') {
     $windowsPowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    & $windowsPowerShell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $PSCommandPath
+    & $windowsPowerShell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $PSCommandPath -BuildDirectory $BuildDirectory
     exit $LASTEXITCODE
 }
 
@@ -24,7 +26,7 @@ function Get-InnermostException {
 }
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$debugDirectory = Join-Path $projectRoot 'bin\x64\Debug'
+$debugDirectory = if ([IO.Path]::IsPathRooted($BuildDirectory)) { $BuildDirectory } else { Join-Path $projectRoot $BuildDirectory }
 $application = Get-Item -LiteralPath (Join-Path $debugDirectory '机器视觉AI检测系统V1.0.exe') -ErrorAction SilentlyContinue
 $sources = @(
     Get-Item -LiteralPath (Join-Path $projectRoot 'ResourceManagement\CameraWorkpiecePipeline.cs')
@@ -1192,6 +1194,83 @@ $disposedRouteAccepted = [bool]$tryRouteFrameMethod.Invoke(
         $null))
 if (-not $disposedRouteAccepted) { $disposedLateFrame.Dispose() }
 Assert-True (-not $disposedRouteAccepted) '已经释放的旧注册表没有无异常拒绝迟到帧。'
+
+# 单相机断线不关闭生产会话：旧票据失败、旧帧拒绝、其他相机继续收帧，物理重启确认后恢复。
+$reconnectBudget = [Activator]::CreateInstance($budgetType)
+$reconnectRegistry = [Activator]::CreateInstance($registryType, @($reconnectBudget))
+$suspendReconnectMethod = $registryType.GetMethod('SuspendCameraForReconnect', [Reflection.BindingFlags]'Instance,NonPublic')
+$failTriggeredMethod = $registryType.GetMethod('FailTriggeredTicket', [Reflection.BindingFlags]'Instance,NonPublic')
+$reconnectDeadline = [DateTime]::UtcNow.AddMinutes(1)
+try {
+    $offlineTicket = $reconnectRegistry.RegisterHardwareWait('CAMERA-OFFLINE', (New-Context '重连旧工件'), $reconnectDeadline, [long]256, [long]4096)
+    $onlineTicket = $reconnectRegistry.RegisterHardwareWait('CAMERA-ONLINE', (New-Context '重连其他相机'), $reconnectDeadline, [long]256, [long]4096)
+    $null = $suspendReconnectMethod.Invoke($reconnectRegistry, @('CAMERA-OFFLINE'))
+    Assert-True $offlineTicket.Completion.IsFaulted '断线时旧工件必须结束，不能继续等待新连接的帧。'
+    $offlineTicket.Dispose()
+    # 旧票据清场后的取消和SDK迟到异常均不能产生全方案停止请求。
+    $null = $failTriggeredMethod.Invoke($reconnectRegistry, @($offlineTicket, [InvalidOperationException]::new('旧SDK调用失败')))
+    Assert-True (-not $onlineTicket.Completion.IsCompleted) '断线清场误伤了其他相机的等待。'
+    $lateReconnectFrame = New-TestMat
+    $lateReconnectAccepted = $reconnectRegistry.TryPublishFrame('CAMERA-OFFLINE', [long]1, [uint32]1, [Diagnostics.Stopwatch]::GetTimestamp(), $lateReconnectFrame, $null)
+    if (-not $lateReconnectAccepted) { $lateReconnectFrame.Dispose() }
+    Assert-True (-not $lateReconnectAccepted) '断线后的旧帧不应进入生产管线。'
+    $reconnectRegisterRejected = $false
+    try { $null = $reconnectRegistry.RegisterHardwareWait('CAMERA-OFFLINE', (New-Context '重连尚未完成'), $reconnectDeadline, [long]256, [long]4096) }
+    catch { $reconnectRegisterRejected = $true }
+    Assert-True $reconnectRegisterRejected '流恢复确认前不得登记新工件。'
+    $manualResetRejected = $false
+    try { $reconnectRegistry.ResetCamera('CAMERA-OFFLINE') } catch { $manualResetRejected = $true }
+    Assert-True $manualResetRejected '断线恢复不能跳过物理停流及重新取流确认。'
+    $onlineFrame = New-TestMat
+    Assert-True ($reconnectRegistry.TryPublishFrame('CAMERA-ONLINE', [long]1, [uint32]1, [Diagnostics.Stopwatch]::GetTimestamp(), $onlineFrame, $null)) '断线相机不应阻止其他相机正常交付。'
+    $onlineTicket.Completion.GetAwaiter().GetResult().Dispose()
+    $onlineTicket.Dispose()
+    $reconnectGeneration = $prepareStreamResetMethod.Invoke($reconnectRegistry, @('CAMERA-OFFLINE'))
+    $null = $suspendReconnectMethod.Invoke($reconnectRegistry, @('CAMERA-OFFLINE'))
+    $staleReconnectRejected = $false
+    try { $null = $confirmStreamResetMethod.Invoke($reconnectRegistry, @('CAMERA-OFFLINE', [long]$reconnectGeneration)) }
+    catch { $staleReconnectRejected = $true }
+    Assert-True $staleReconnectRejected '重新发生断线后，不得使用旧代数解除门禁。'
+    $reconnectGeneration = $prepareStreamResetMethod.Invoke($reconnectRegistry, @('CAMERA-OFFLINE'))
+    $null = $confirmStreamResetMethod.Invoke($reconnectRegistry, @('CAMERA-OFFLINE', [long]$reconnectGeneration))
+    $restoredTicket = $reconnectRegistry.RegisterHardwareWait('CAMERA-OFFLINE', (New-Context '重连新工件'), $reconnectDeadline, [long]256, [long]4096)
+    $null = $failTriggeredMethod.Invoke($reconnectRegistry, @($offlineTicket, [InvalidOperationException]::new('重连成功后才处理的旧异常')))
+    Assert-True (-not $restoredTicket.Completion.IsCompleted) '旧连接的迟到异常误伤了新连接票据。'
+    $restoredFrame = New-TestMat
+    Assert-True ($reconnectRegistry.TryPublishFrame('CAMERA-OFFLINE', [long]2, [uint32]1, [Diagnostics.Stopwatch]::GetTimestamp(), $restoredFrame, $null)) '重连确认后应允许SDK帧号重新起步并交付新工件。'
+    $restoredTicket.Completion.GetAwaiter().GetResult().Dispose()
+    $restoredTicket.Dispose()
+    # 流程忙碌期间缓存的帧也必须在断线时释放，不能跨连接继续使用。
+    $bufferedReconnectFrame = New-TestMat
+    Assert-True ($reconnectRegistry.TryPublishFrame('CAMERA-OFFLINE', [long]3, [uint32]2, [Diagnostics.Stopwatch]::GetTimestamp(), $bufferedReconnectFrame, $null)) '测试缓存帧未成功进入FIFO。'
+    $null = $suspendReconnectMethod.Invoke($reconnectRegistry, @('CAMERA-OFFLINE'))
+    Assert-True ($reconnectRegistry.GetSnapshot().BufferedHardwareFrameCount -eq 0) '断线时没有清空旧连接缓存帧。'
+    Assert-True ($reconnectRegistry.GetSnapshot().StoppingProductionFaultCount -eq 0) '单相机重连产生了全方案停止故障。'
+    Assert-True ($reconnectBudget.GetSnapshot().ActiveLeaseCount -eq 0) '单相机重连泄漏了工件图像预算。'
+
+    # 真实SDK调用尚未返回时允许隔离，但仍禁止跨越物理重启确认。
+    $reconnectProbe = [CameraTriggerConcurrencyProbe]::new()
+    try {
+        $busyReconnectTicket = $reconnectRegistry.Register('CAMERA-RECONNECT-BUSY', (New-Context '重连在途触发'), $softwareTrigger, $reconnectDeadline, [long]256, [long]4096)
+        $busyReconnectTask = $reconnectProbe.IssueBlockingAsync($busyReconnectTicket)
+        Assert-True ($reconnectProbe.WaitUntilEntered(2000)) '重连并发测试SDK调用没有开始。'
+        $null = $suspendReconnectMethod.Invoke($reconnectRegistry, @('CAMERA-RECONNECT-BUSY'))
+        Assert-True $busyReconnectTicket.Completion.IsFaulted 'SDK在途期间断线未结束旧票据。'
+        $busyReconnectResetRejected = $false
+        try { $null = $prepareStreamResetMethod.Invoke($reconnectRegistry, @('CAMERA-RECONNECT-BUSY')) }
+        catch { $busyReconnectResetRejected = $true }
+        Assert-True $busyReconnectResetRejected '旧SDK调用仍在执行时不得重新取流确认。'
+        $reconnectProbe.Release()
+        $busyReconnectTask.GetAwaiter().GetResult()
+        $busyReconnectTicket.Dispose()
+        $busyReconnectGeneration = $prepareStreamResetMethod.Invoke($reconnectRegistry, @('CAMERA-RECONNECT-BUSY'))
+        $null = $confirmStreamResetMethod.Invoke($reconnectRegistry, @('CAMERA-RECONNECT-BUSY', [long]$busyReconnectGeneration))
+        Assert-True ($reconnectRegistry.GetSnapshot().StoppingProductionFaultCount -eq 0) '重连SDK在途边界不应生成全方案停机故障。'
+        Assert-True ($reconnectBudget.GetSnapshot().ActiveLeaseCount -eq 0) 'SDK在途断线清场泄漏图像预算。'
+    }
+    finally { $reconnectProbe.Release(); $reconnectProbe.Dispose() }
+}
+finally { $reconnectRegistry.Dispose() }
 
 # 低内存档案必须严格使用流程图像预算的25%，不能用固定32MB下限突破总预算。
 $solutionType = $assembly.GetType('TDJS_Vision.Solution', $true)

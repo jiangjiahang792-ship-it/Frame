@@ -1091,6 +1091,8 @@ namespace TDJS_Vision.Device.Camera
             catch (Exception exception)
             {
                 LogHelper.AddLog(MsgLevel.Warn, string.Format("相机【{0}】自动重连前停止转换线程异常：{1}", UserDefinedName, exception.Message), true);
+                // 未排空旧帧前禁止打开新连接，下一轮守护继续尝试恢复。
+                throw;
             }
 
             lock (_callbackSyncRoot)

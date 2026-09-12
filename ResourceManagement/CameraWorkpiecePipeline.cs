@@ -546,6 +546,9 @@ namespace TDJS_Vision.ResourceManagement
         /// <summary>获取真实触发提交点的单调时钟刻度。</summary>
         internal long TriggerIssuedTimestamp => Interlocked.Read(ref _triggerIssuedTimestamp);
 
+        /// <summary>登记时冻结的相机重连代数，只在注册表状态锁内读写。</summary>
+        internal long ReconnectGeneration { get; set; }
+
         /// <summary>获取帧信封异步结果。</summary>
         public Task<CameraFrameEnvelope> Completion => _completionSource.Task;
 
@@ -1097,6 +1100,9 @@ namespace TDJS_Vision.ResourceManagement
             {
                 if (_cameraStates.TryGetValue(ticket.CameraKey, out CameraTicketQueueState state))
                 {
+                    // 重连已经隔离旧票据；旧SDK调用随后返回异常不应升级为全方案停机。
+                    if (ticket.ReconnectGeneration != state.ReconnectGeneration)
+                        return;
                     state.Faulted = true;
                     // 票据可能已收到帧，但SDK命令仍可在随后失败或卡死，流身份仍不可信。
                     RequireStreamRestartUnderLock(state);
@@ -1187,6 +1193,7 @@ namespace TDJS_Vision.ResourceManagement
                             throw new InvalidOperationException($"工件{context.Identity}已经登记相机{normalizedCameraKey}，禁止重复登记。 ");
                     }
 
+                    ticket.ReconnectGeneration = state.ReconnectGeneration;
                     state.PendingTickets.AddLast(ticket);
                     UpdatePeakPendingUnderLock();
                 }
@@ -2014,6 +2021,31 @@ namespace TDJS_Vision.ResourceManagement
             }
         }
 
+        /// <summary>隔离单相机旧票据和缓存帧，保留物理重启门禁，不发布全方案停机故障。</summary>
+        /// <param name="cameraKey">断线相机的稳定标识。</param>
+        internal void SuspendCameraForReconnect(string cameraKey)
+        {
+            string normalizedCameraKey = NormalizeCameraKey(cameraKey);
+            ExecuteCameraSynchronized(normalizedCameraKey, () =>
+            {
+                List<CameraTriggerTicket> failedTickets;
+                lock (_syncRoot)
+                {
+                    CameraTicketQueueState state = GetOrCreateStateUnderLock(normalizedCameraKey);
+                    state.ReconnectGeneration = checked(state.ReconnectGeneration + 1L);
+                    state.Faulted = true;
+                    RequireStreamRestartUnderLock(state);
+                    failedTickets = DrainPendingTicketsUnderLock(state);
+                    state.HardwareFrameBufferingEnabled = false;
+                }
+                FailTickets(failedTickets, normalizedCameraKey,
+                    new InvalidOperationException($"相机{normalizedCameraKey}掉线，本轮取图失败，等待自动重连；方案继续运行。"),
+                    WorkpieceTerminalState.Faulted);
+                return true;
+            });
+            DisposeRetiredBufferedHardwareFrames();
+        }
+
         /// <summary>在人工确认且当前没有待匹配票据时清除相机故障状态。</summary>
         public void ResetCamera(string cameraKey)
         {
@@ -2703,6 +2735,9 @@ namespace TDJS_Vision.ResourceManagement
 
             /// <summary>是否需要人工确认后才能恢复。</summary>
             public bool Faulted { get; set; }
+
+            /// <summary>单相机断线隔离代数，防止旧连接异步异常误伤已经恢复的新连接。</summary>
+            public long ReconnectGeneration { get; set; }
 
             /// <summary>已经提交但真实SDK调用尚未返回的触发数量。</summary>
             public int ActiveTriggerDispatchCount { get; set; }

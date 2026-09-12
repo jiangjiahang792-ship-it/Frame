@@ -1082,6 +1082,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                             ICamera camera = Solution.Instance.ResolveImageSourceCamera(param);
                             if (camera == null)
                                 throw new Exception("相机对象无效！");
+                            await Solution.Instance.WaitForCameraReconnectAsync(camera, token).ConfigureAwait(false);
                             if (!camera.IsOpen)
                                 throw new Exception("相机尚未连接！");
 
