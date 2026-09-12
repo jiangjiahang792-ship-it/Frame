@@ -679,7 +679,10 @@ namespace TDJS_Vision.ResourceManagement
         PLCWrite = 3,
 
         /// <summary>Modbus写入节点。</summary>
-        ModbusWrite = 4
+        ModbusWrite = 4,
+
+        /// <summary>订阅基础结果并发送至PLC或Modbus设备。</summary>
+        ResultSend = 5
     }
 
     /// <summary>

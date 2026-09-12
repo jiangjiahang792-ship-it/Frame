@@ -13,7 +13,7 @@ namespace TDJS_Vision.Device.PLC
     /// <summary>
     /// 三菱PLC
     /// </summary>
-    public class PlcMelsec : IPlc
+    public class PlcMelsec : IPlc, IResultSendTypedPlc
     {
         /// <summary>PLC操作允许的最小超时时间。</summary>
         private const int MinimumOperationTimeoutMs = 100;
@@ -28,6 +28,16 @@ namespace TDJS_Vision.Device.PLC
         /// 使用TCP通信的三菱plc对象
         /// </summary>
         private MelsecMcNet melsecMcNet = null;
+
+        /// <summary>按三菱通信客户端的字节序写入扩展基础类型。</summary>
+        public Task<OperateResult> WriteTypedValuesAsync(string address, Array values)
+        {
+            if (values is short[] signedWords) return melsecMcNet.WriteAsync(address, signedWords);
+            if (values is ushort[] words) return melsecMcNet.WriteAsync(address, words);
+            if (values is uint[] integers) return melsecMcNet.WriteAsync(address, integers);
+            if (values is double[] doubles) return melsecMcNet.WriteAsync(address, doubles);
+            throw new NotSupportedException("不支持的PLC扩展写入类型。");
+        }
         /// <summary>
         /// 设备参数
         /// </summary>

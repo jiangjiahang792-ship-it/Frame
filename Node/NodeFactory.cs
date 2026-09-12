@@ -176,6 +176,8 @@ namespace TDJS_Vision.Node
                     return new NodeSharedVariable(nodeId, nodeName, process, nodeType);
                 case NodeType.GenerateExcel:
                     return new NodeGenerateExcel(nodeId, nodeName, process, nodeType);
+                case NodeType.ResultSend:
+                    return new TDJS_Vision.Node._7_ResultProcessing.ResultSend.NodeResultSend(nodeId, nodeName, process, nodeType);
                 case NodeType.DrawAIResult:
                     return new NodeImageDraw(nodeId, nodeName, process, nodeType);
                 case NodeType.ResultOverlayDraw:

@@ -220,6 +220,51 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             long afterBuildDisplay = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
             if (performanceDiagnostics != null)
                 performanceDiagnostics.BuildDisplayResultMs = afterBuildDisplay - afterGetCleanImage;
+
+            int rotationAngle = NormalizeRotationAngle(param.RotationAngle);
+            if (rotationAngle != 0)
+            {
+                OutputImage rotatedOutput = null;
+                Mat rotatedImage = null;
+                try
+                {
+                    rotatedImage = RotateImageByQuadrant(cleanImage, rotationAngle);
+                    AlgorithmResult rotatedDisplayResult = RotateDisplayResult(
+                        displayResult,
+                        cleanImage.Width,
+                        cleanImage.Height,
+                        rotationAngle);
+                    rotatedOutput = OutputImage.FromOwnedSingleImage(rotatedImage);
+                    rotatedImage = null;
+                    rotatedOutput.Rectangles = RotateRectangles(
+                        inputImage.Rectangles,
+                        cleanImage.Width,
+                        cleanImage.Height,
+                        rotationAngle);
+                    rotatedOutput.DisplayResult = rotatedDisplayResult;
+                    displayResult = rotatedDisplayResult;
+                    long afterRotatedOutput = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+                    if (performanceDiagnostics != null)
+                    {
+                        performanceDiagnostics.RotationAngle = rotationAngle;
+                        performanceDiagnostics.RotationMs = afterRotatedOutput - afterBuildDisplay;
+                        performanceDiagnostics.BuildOutputImageMs = afterRotatedOutput - afterBuildDisplay;
+                        performanceDiagnostics.TotalMs = afterRotatedOutput;
+                        performanceDiagnostics.CaptureDisplayResultCounts(displayResult);
+                        performanceDiagnostics.OutputImageText = PerformanceSpikeDiagnostics.GetOutputImageText(rotatedOutput);
+                    }
+                    outputImage = rotatedOutput;
+                    rotatedOutput = null;
+                    return;
+                }
+                catch
+                {
+                    rotatedImage?.Dispose();
+                    rotatedOutput?.Dispose();
+                    throw;
+                }
+            }
+
             OutputImage borrowedOutput = new OutputImage
             {
                 Bitmaps = new List<Mat> { cleanImage },
@@ -244,6 +289,316 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 borrowedOutput.Dispose();
                 throw;
             }
+        }
+
+        /// <summary>
+        /// 把保存的旋转角度归一为当前节点支持的直角顺时针角度。
+        /// </summary>
+        /// <param name="rotationAngle">保存的旋转角度。</param>
+        /// <returns>0、90、180或270。</returns>
+        private static int NormalizeRotationAngle(int rotationAngle)
+        {
+            int normalizedAngle = rotationAngle % 360;
+            if (normalizedAngle < 0)
+                normalizedAngle += 360;
+            if (normalizedAngle == 0 ||
+                normalizedAngle == 90 ||
+                normalizedAngle == 180 ||
+                normalizedAngle == 270)
+            {
+                return normalizedAngle;
+            }
+
+            throw new ArgumentOutOfRangeException(nameof(rotationAngle), "ROI结果绘制旋转角度必须为0、90、180或270。");
+        }
+
+        /// <summary>
+        /// 使用OpenCV直角快路径旋转输出图像。
+        /// </summary>
+        /// <param name="source">输入图像。</param>
+        /// <param name="rotationAngle">顺时针旋转角度。</param>
+        /// <returns>旋转后的新图像。</returns>
+        private static Mat RotateImageByQuadrant(Mat source, int rotationAngle)
+        {
+            if (source == null || source.Empty())
+                throw new Exception("ROI结果绘制旋转图像为空！");
+
+            Mat rotated = new Mat();
+            switch (rotationAngle)
+            {
+                case 90:
+                    Cv2.Rotate(source, rotated, RotateFlags.Rotate90Clockwise);
+                    break;
+                case 180:
+                    Cv2.Rotate(source, rotated, RotateFlags.Rotate180);
+                    break;
+                case 270:
+                    Cv2.Rotate(source, rotated, RotateFlags.Rotate90Counterclockwise);
+                    break;
+                default:
+                    rotated.Dispose();
+                    throw new ArgumentOutOfRangeException(nameof(rotationAngle), "ROI结果绘制旋转角度必须为90、180或270。");
+            }
+
+            return rotated;
+        }
+
+        /// <summary>
+        /// 旋转显示结果中的图像坐标几何，文本保持原显示位置与方向。
+        /// </summary>
+        /// <param name="source">原始显示结果。</param>
+        /// <param name="imageWidth">原图宽度。</param>
+        /// <param name="imageHeight">原图高度。</param>
+        /// <param name="rotationAngle">顺时针旋转角度。</param>
+        /// <returns>旋转后的显示结果。</returns>
+        private static AlgorithmResult RotateDisplayResult(
+            AlgorithmResult source,
+            int imageWidth,
+            int imageHeight,
+            int rotationAngle)
+        {
+            if (source == null)
+                return new AlgorithmResult();
+
+            AlgorithmResult rotated = new AlgorithmResult
+            {
+                DetectResults = CloneDetectResults(source.DetectResults)
+            };
+            rotated.IsAllOk = source.IsAllOk;
+
+            if (source.Rects != null)
+            {
+                foreach (ColorRotatedRect rect in source.Rects.Where(item => item != null))
+                    rotated.Rects.Add(RotateColorRotatedRect(rect, imageWidth, imageHeight, rotationAngle));
+            }
+
+            if (source.RectsNgMap != null)
+            {
+                foreach (KeyValuePair<string, List<ColorRotatedRect>> pair in source.RectsNgMap)
+                {
+                    List<ColorRotatedRect> rects = new List<ColorRotatedRect>();
+                    if (pair.Value != null)
+                    {
+                        foreach (ColorRotatedRect rect in pair.Value.Where(item => item != null))
+                            rects.Add(RotateColorRotatedRect(rect, imageWidth, imageHeight, rotationAngle));
+                    }
+                    rotated.RectsNgMap[pair.Key] = rects;
+                }
+            }
+
+            if (source.Texts != null)
+            {
+                foreach (ColorText text in source.Texts.Where(item => item != null))
+                    rotated.Texts.Add(CloneColorText(text));
+            }
+
+            if (source.Lines != null)
+            {
+                foreach (ColorLine line in source.Lines.Where(item => item != null))
+                {
+                    rotated.Lines.Add(new ColorLine(
+                        RotatePoint(line.P1, imageWidth, imageHeight, rotationAngle),
+                        RotatePoint(line.P2, imageWidth, imageHeight, rotationAngle),
+                        line.Color)
+                    {
+                        LineWidth = line.LineWidth
+                    });
+                }
+            }
+
+            if (source.Circles != null)
+            {
+                foreach (ColorCircle circle in source.Circles.Where(item => item != null))
+                {
+                    rotated.Circles.Add(new ColorCircle(
+                        RotatePoint(circle.Center, imageWidth, imageHeight, rotationAngle),
+                        (int)Math.Round(circle.Radius),
+                        circle.Color)
+                    {
+                        Radius = circle.Radius,
+                        LineWidth = circle.LineWidth
+                    });
+                }
+            }
+
+            if (source.Arcs != null)
+            {
+                foreach (ColorArc arc in source.Arcs.Where(item => item != null))
+                {
+                    rotated.Arcs.Add(new ColorArc(
+                        RotatePoint(arc.Center, imageWidth, imageHeight, rotationAngle),
+                        arc.Radius,
+                        NormalizeAngle(arc.StartAngle + rotationAngle),
+                        arc.SweepAngle,
+                        arc.Color)
+                    {
+                        LineWidth = arc.LineWidth
+                    });
+                }
+            }
+
+            if (source.Ellipses != null)
+            {
+                foreach (ColorEllipse ellipse in source.Ellipses.Where(item => item != null))
+                {
+                    rotated.Ellipses.Add(new ColorEllipse(
+                        RotatePoint(ellipse.Center, imageWidth, imageHeight, rotationAngle),
+                        ellipse.Width,
+                        ellipse.Height,
+                        NormalizeAngle(ellipse.Angle + rotationAngle),
+                        ellipse.Color)
+                    {
+                        LineWidth = ellipse.LineWidth
+                    });
+                }
+            }
+
+            if (source.Contours != null)
+            {
+                foreach (ColorContour contour in source.Contours.Where(item => item != null))
+                {
+                    List<PointF> points = contour.Points == null
+                        ? new List<PointF>()
+                        : contour.Points
+                            .Select(point => RotatePoint(point, imageWidth, imageHeight, rotationAngle))
+                            .ToList();
+                    rotated.Contours.Add(new ColorContour(points, contour.Color)
+                    {
+                        LineWidth = contour.LineWidth
+                    });
+                }
+            }
+
+            return rotated;
+        }
+
+        /// <summary>
+        /// 复制检测结果字典，避免旋转显示层修改上游结果容器。
+        /// </summary>
+        /// <param name="source">原检测结果字典。</param>
+        /// <returns>浅复制后的检测结果字典。</returns>
+        private static Dictionary<string, List<SingleDetectResult>> CloneDetectResults(
+            Dictionary<string, List<SingleDetectResult>> source)
+        {
+            Dictionary<string, List<SingleDetectResult>> clone =
+                new Dictionary<string, List<SingleDetectResult>>();
+            if (source == null)
+                return clone;
+
+            foreach (KeyValuePair<string, List<SingleDetectResult>> pair in source)
+                clone[pair.Key] = pair.Value == null ? new List<SingleDetectResult>() : pair.Value.ToList();
+            return clone;
+        }
+
+        /// <summary>
+        /// 旋转单个带颜色的旋转矩形。
+        /// </summary>
+        private static ColorRotatedRect RotateColorRotatedRect(
+            ColorRotatedRect source,
+            int imageWidth,
+            int imageHeight,
+            int rotationAngle)
+        {
+            var sourceRect = source.RotatedRect;
+            PointF center = RotatePoint(
+                new PointF(sourceRect.center.x, sourceRect.center.y),
+                imageWidth,
+                imageHeight,
+                rotationAngle);
+            return new ColorRotatedRect(
+                center.X,
+                center.Y,
+                sourceRect.size.width,
+                sourceRect.size.height,
+                NormalizeAngle(sourceRect.angle + rotationAngle),
+                source.Color)
+            {
+                LineWidth = source.LineWidth
+            };
+        }
+
+        /// <summary>
+        /// 复制单个文本显示项；ROI结果旋转时文字不参与几何旋转，保持现场读数方向稳定。
+        /// </summary>
+        private static ColorText CloneColorText(ColorText source)
+        {
+            return new ColorText(source.Text, source.Color)
+            {
+                FontSize = source.FontSize,
+                Margin = source.Margin,
+                Title = source.Title,
+                CoordinateMode = source.CoordinateMode,
+                UseImagePosition = source.UseImagePosition,
+                ImagePosition = source.ImagePosition,
+                Position = source.Position
+            };
+        }
+
+        /// <summary>
+        /// 旋转裁剪偏移矩形列表。
+        /// </summary>
+        private static List<Rect> RotateRectangles(List<Rect> rectangles, int imageWidth, int imageHeight, int rotationAngle)
+        {
+            List<Rect> result = new List<Rect>();
+            if (rectangles == null)
+                return result;
+
+            foreach (Rect rect in rectangles)
+                result.Add(RotateRectangle(rect, imageWidth, imageHeight, rotationAngle));
+            return result;
+        }
+
+        /// <summary>
+        /// 旋转轴对齐矩形并返回旋转后的外接轴对齐矩形。
+        /// </summary>
+        private static Rect RotateRectangle(Rect rect, int imageWidth, int imageHeight, int rotationAngle)
+        {
+            PointF[] points =
+            {
+                new PointF(rect.Left, rect.Top),
+                new PointF(rect.Right, rect.Top),
+                new PointF(rect.Right, rect.Bottom),
+                new PointF(rect.Left, rect.Bottom)
+            };
+            PointF[] rotatedPoints = points
+                .Select(point => RotatePoint(point, imageWidth, imageHeight, rotationAngle))
+                .ToArray();
+            float minX = rotatedPoints.Min(point => point.X);
+            float minY = rotatedPoints.Min(point => point.Y);
+            float maxX = rotatedPoints.Max(point => point.X);
+            float maxY = rotatedPoints.Max(point => point.Y);
+            int x = (int)Math.Floor(minX);
+            int y = (int)Math.Floor(minY);
+            int width = Math.Max(0, (int)Math.Ceiling(maxX) - x);
+            int height = Math.Max(0, (int)Math.Ceiling(maxY) - y);
+            return new Rect(x, y, width, height);
+        }
+
+        /// <summary>
+        /// 按顺时针直角旋转变换图像坐标点。
+        /// </summary>
+        private static PointF RotatePoint(PointF point, int imageWidth, int imageHeight, int rotationAngle)
+        {
+            switch (rotationAngle)
+            {
+                case 90:
+                    return new PointF(imageHeight - point.Y, point.X);
+                case 180:
+                    return new PointF(imageWidth - point.X, imageHeight - point.Y);
+                case 270:
+                    return new PointF(point.Y, imageWidth - point.X);
+                default:
+                    return point;
+            }
+        }
+
+        /// <summary>
+        /// 角度归一到0到360区间。
+        /// </summary>
+        private static float NormalizeAngle(float angle)
+        {
+            float normalized = angle % 360F;
+            return normalized < 0F ? normalized + 360F : normalized;
         }
 
         public static object ReadSubscribedValue(NodeBase owner, string nodeText, string resultText, out NodeBase sourceNode)
@@ -495,10 +850,15 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             bool isOk = ResolveAutomaticJudgeOk(value, sourceNode == null ? null : sourceNode.Result);
             displayResult.IsAllOk = displayResult.IsAllOk && isOk;
             Color displayColor = isOk ? param.OkColor : param.NgColor;
+            // 自动ROI保留各检测项自身颜色；整体NG只参与汇总，不能把其他OK框一起染红。
+            // UseJudgeColor是旧绘制项字段，新版自动ROI不依赖该字段，兼容已保存为false的方案。
+            AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
+            bool preserveElementColor = algorithmResult != null &&
+                algorithmResult.DetectResults != null && algorithmResult.DetectResults.Count > 0;
             OverlayGeometryRenderContext context = new OverlayGeometryRenderContext
             {
                 FallbackColor = displayColor,
-                OverrideColor = displayColor,
+                OverrideColor = preserveElementColor ? (Color?)null : displayColor,
                 LineWidth = Math.Max(1, item.LineWidth)
             };
 
@@ -1332,6 +1692,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         public long BuildDisplayResultMs { get; set; }
         /// <summary>构建输出图像对象耗时。</summary>
         public long BuildOutputImageMs { get; set; }
+        /// <summary>输出图像顺时针旋转角度。</summary>
+        public int RotationAngle { get; set; }
+        /// <summary>图像和叠加结果旋转耗时。</summary>
+        public long RotationMs { get; set; }
         /// <summary>总耗时。</summary>
         public long TotalMs { get; set; }
         /// <summary>启用的绘制项数量。</summary>
@@ -1406,7 +1770,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 LineItemsMs,
                 RectangleItemsMs,
                 RegionItemsMs,
-                RoiItemsMs);
+                RoiItemsMs,
+                RotationMs);
         }
 
         /// <summary>
@@ -1414,7 +1779,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// </summary>
         public string ToLogText()
         {
-            return $"订阅图像={ImageSubscriptionMs}ms；取图引用={GetCleanImageMs}ms；绘制项构建={BuildDisplayResultMs}ms（含自动判定）；输出对象={BuildOutputImageMs}ms；总构建={TotalMs}ms；绘制项=启用{EnabledItemCount}/文本{TextItemCount}({TextItemsMs}ms)/自动ROI{RoiItemCount}({RoiItemsMs}ms)/旧线{LineItemCount}({LineItemsMs}ms)/旧矩形{RectangleItemCount}({RectangleItemsMs}ms)/旧区域{RegionItemCount}({RegionItemsMs}ms)；输出=矩形{OutputRectCount}/NG矩形{OutputNgRectCount}/线{OutputLineCount}/轮廓{OutputContourCount}/文本{OutputTextCount}";
+            return $"订阅图像={ImageSubscriptionMs}ms；取图引用={GetCleanImageMs}ms；绘制项构建={BuildDisplayResultMs}ms（含自动判定）；旋转={RotationAngle}度/{RotationMs}ms；输出对象={BuildOutputImageMs}ms；总构建={TotalMs}ms；绘制项=启用{EnabledItemCount}/文本{TextItemCount}({TextItemsMs}ms)/自动ROI{RoiItemCount}({RoiItemsMs}ms)/旧线{LineItemCount}({LineItemsMs}ms)/旧矩形{RectangleItemCount}({RectangleItemsMs}ms)/旧区域{RegionItemCount}({RegionItemsMs}ms)；输出=矩形{OutputRectCount}/NG矩形{OutputNgRectCount}/线{OutputLineCount}/轮廓{OutputContourCount}/文本{OutputTextCount}";
         }
     }
 }

@@ -894,8 +894,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         }
 
         private async Task<ushort> GetModbusCode(IModbus modbus,string address) {
-            bool[] value = modbus.ReadDiscretes(address, 1);
-            return value[0]==false?(ushort)0:(ushort)1;
+            ushort[] value = modbus.ReadUInt16(address, 1);
+            return value[0];
         }
     }
 

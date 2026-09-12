@@ -349,7 +349,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
         }
 
         /// <summary>按PLC品牌和物理通信参数生成跨节点共享的稳定连接端点键。</summary>
-        private static string CreateEndpointKey(IPlc plc)
+        internal static string CreateEndpointKey(IPlc plc)
         {
             if (plc == null)
                 throw new InvalidOperationException("PLC写入设备尚未绑定。");

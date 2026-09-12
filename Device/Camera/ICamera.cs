@@ -80,6 +80,10 @@ namespace TDJS_Vision.Device.Camera
         /// </summary>
         string SN { get; }
         /// <summary>
+        /// 相机IP地址。
+        /// </summary>
+        string IP { get; set; }
+        /// <summary>
         /// 相机品牌
         /// </summary>
         DeviceBrand Brand { get; set; }
@@ -119,6 +123,18 @@ namespace TDJS_Vision.Device.Camera
         /// </summary>
         /// <returns></returns>
         bool GetGrabStatus();
+
+        /// <summary>
+        /// 判断相机SDK当前连接是否仍然有效。
+        /// </summary>
+        /// <returns>SDK确认设备在线时返回true。</returns>
+        bool IsDeviceConnected();
+
+        /// <summary>
+        /// 释放失效连接并按保存的相机身份重新枚举打开。
+        /// </summary>
+        /// <returns>重新打开成功时返回true。</returns>
+        bool TryReconnect();
 
         /// <summary>
         /// 获取相机触发模式

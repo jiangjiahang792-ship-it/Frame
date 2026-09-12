@@ -55,6 +55,7 @@ namespace TDJS_Vision
                 _cpuWorkScheduler,
                 new WindowsSystemCpuUsageSampler(),
                 5000);
+            StartCameraReconnectWatchdog();
         }
 
         public static Solution Instance => _lazy.Value;
@@ -119,6 +120,22 @@ namespace TDJS_Vision
 
         /// <summary>当前生产会话唯一的有序信号协调器。</summary>
         private OrderedSignalCoordinator _orderedSignalCoordinator;
+
+        /// <summary>相机自动重连守护线程检查间隔，单位毫秒。</summary>
+        private const int CameraReconnectWatchdogIntervalMilliseconds = 1000;
+
+        /// <summary>保护相机自动重连守护线程启动和断线日志去重状态。</summary>
+        private readonly object _cameraReconnectWatchdogSync = new object();
+
+        /// <summary>后台检测相机连接并按需自动重连的守护线程。</summary>
+        private Thread _cameraReconnectWatchdogThread;
+
+        /// <summary>请求相机自动重连守护线程退出的原子标记。</summary>
+        private int _cameraReconnectWatchdogStopRequested;
+
+        /// <summary>已经报告过断线且尚未恢复的相机键，避免每秒重复刷同一条断线日志。</summary>
+        private readonly HashSet<string> _reportedDisconnectedCameraKeys =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         #endregion
 
@@ -874,6 +891,239 @@ namespace TDJS_Vision
                     true);
                 return false;
             }
+        }
+
+        /// <summary>启动相机自动重连守护线程。</summary>
+        private void StartCameraReconnectWatchdog()
+        {
+            lock (_cameraReconnectWatchdogSync)
+            {
+                if (_cameraReconnectWatchdogThread != null && _cameraReconnectWatchdogThread.IsAlive)
+                    return;
+
+                Volatile.Write(ref _cameraReconnectWatchdogStopRequested, 0);
+                _cameraReconnectWatchdogThread = new Thread(CameraReconnectWatchdogLoop)
+                {
+                    IsBackground = true,
+                    Name = "CameraReconnectWatchdog",
+                    Priority = ThreadPriority.BelowNormal
+                };
+                _cameraReconnectWatchdogThread.Start();
+            }
+        }
+
+        /// <summary>循环检查需要保持连接的相机，断线后尝试重新枚举打开。</summary>
+        private void CameraReconnectWatchdogLoop()
+        {
+            while (Volatile.Read(ref _cameraReconnectWatchdogStopRequested) == 0)
+            {
+                try
+                {
+                    CheckCameraReconnectWatchdogOnce();
+                }
+                catch (Exception exception)
+                {
+                    LogHelper.AddLog(MsgLevel.Warn, $"相机自动重连守护线程异常：{exception.Message}", true);
+                }
+
+                Thread.Sleep(CameraReconnectWatchdogIntervalMilliseconds);
+            }
+        }
+
+        /// <summary>执行一次相机连接检查和自动重连处理。</summary>
+        private void CheckCameraReconnectWatchdogOnce()
+        {
+            foreach (ICamera camera in GetCameraReconnectCandidates())
+            {
+                bool connected;
+                try
+                {
+                    connected = camera.IsDeviceConnected();
+                }
+                catch
+                {
+                    connected = false;
+                }
+
+                if (connected)
+                {
+                    ClearReportedDisconnectedCamera(camera);
+                    continue;
+                }
+
+                ReconnectDisconnectedCamera(camera);
+            }
+        }
+
+        /// <summary>获取需要守护连接状态的相机快照。</summary>
+        /// <returns>本轮需要检查的相机列表。</returns>
+        private List<ICamera> GetCameraReconnectCandidates()
+        {
+            try
+            {
+                if (_isResetting || AllDevices == null)
+                    return new List<ICamera>();
+
+                return AllDevices
+                    .OfType<ICamera>()
+                    .Where(camera => camera != null && (camera.IsOpen || camera.RestoreConnectionRequested))
+                    .ToList();
+            }
+            catch (Exception exception)
+            {
+                LogHelper.AddLog(MsgLevel.Warn, $"获取相机自动重连列表失败：{exception.Message}", true);
+                return new List<ICamera>();
+            }
+        }
+
+        /// <summary>对一台已经判断为断线的相机执行停流程、重连和取流恢复。</summary>
+        /// <param name="camera">断线相机。</param>
+        private void ReconnectDisconnectedCamera(ICamera camera)
+        {
+            if (camera == null)
+                return;
+
+            bool shouldRestoreGrabbing = ShouldRestoreCameraGrabbing(camera);
+            string cameraKey = GetCameraReconnectKey(camera);
+            if (MarkCameraDisconnected(cameraKey))
+            {
+                LogHelper.AddLog(
+                    MsgLevel.Exception,
+                    $"相机【{camera.UserDefinedName}】连接异常，自动重连守护已介入：SN={camera.SN}，IP={camera.IP}。",
+                    true);
+            }
+
+            StopRunningSolutionForCameraDisconnect(camera);
+
+            if (!camera.TryReconnect())
+                return;
+
+            ClearReportedDisconnectedCamera(cameraKey);
+            TryApplyImageSourceParametersForCamera(camera);
+            if (!shouldRestoreGrabbing)
+                return;
+
+            try
+            {
+                if (camera.IsOpen && !camera.GetGrabStatus())
+                {
+                    camera.StartGrabbing();
+                    LogHelper.AddLog(MsgLevel.Info, $"相机【{camera.UserDefinedName}】自动重连后已恢复取流。", true);
+                }
+            }
+            catch (Exception exception)
+            {
+                LogHelper.AddLog(
+                    MsgLevel.Warn,
+                    $"相机【{camera.UserDefinedName}】自动重连后恢复取流失败：{exception.Message}",
+                    true);
+            }
+        }
+
+        /// <summary>判断相机重连成功后是否需要恢复取流。</summary>
+        /// <param name="camera">相机对象。</param>
+        /// <returns>重连后应继续取流时返回true。</returns>
+        private bool ShouldRestoreCameraGrabbing(ICamera camera)
+        {
+            try
+            {
+                if (camera.GetGrabStatus())
+                    return true;
+            }
+            catch
+            {
+            }
+
+            return IsCameraUsedByActiveImageSource(camera);
+        }
+
+        /// <summary>判断当前方案中是否存在启用的图像源节点引用该相机。</summary>
+        /// <param name="camera">相机对象。</param>
+        /// <returns>存在启用图像源节点时返回true。</returns>
+        private bool IsCameraUsedByActiveImageSource(ICamera camera)
+        {
+            if (camera == null || AllProcesses == null)
+                return false;
+
+            foreach (Process process in AllProcesses)
+            {
+                if (process?.Nodes == null || !process.Enable)
+                    continue;
+
+                foreach (NodeBase node in process.Nodes)
+                {
+                    NodeImageSource imageSource = node as NodeImageSource;
+                    NodeParamImageSoucre param = imageSource?.ParamForm?.Params as NodeParamImageSoucre;
+                    if (imageSource != null &&
+                        imageSource.Active &&
+                        param != null &&
+                        param.ImageSource == "相机" &&
+                        string.Equals(param.CameraName, camera.UserDefinedName, StringComparison.Ordinal))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>相机掉线时只在存在活动流程会话的情况下提交停机。</summary>
+        /// <param name="camera">断线相机。</param>
+        private void StopRunningSolutionForCameraDisconnect(ICamera camera)
+        {
+            bool shouldStop;
+            lock (_runLifecycleSync)
+                shouldStop = _activeRunSessionCount != 0 && !_runFaultStopRequested;
+            if (!shouldStop)
+                return;
+
+            LogHelper.AddLog(
+                MsgLevel.Exception,
+                $"相机【{camera.UserDefinedName}】掉线，已请求停止当前方案，避免断线期间的触发与后续帧混用。",
+                true);
+            Stop();
+        }
+
+        /// <summary>生成用于断线去重的稳定相机键。</summary>
+        /// <param name="camera">相机对象。</param>
+        /// <returns>优先使用品牌和序列号组成的键。</returns>
+        private static string GetCameraReconnectKey(ICamera camera)
+        {
+            if (camera == null)
+                return "UNKNOWN";
+
+            if (!string.IsNullOrWhiteSpace(camera.SN))
+                return $"{camera.Brand}|SN|{camera.SN}";
+
+            if (!string.IsNullOrWhiteSpace(camera.UserDefinedName))
+                return $"{camera.Brand}|NAME|{camera.UserDefinedName}";
+
+            return camera.GetHashCode().ToString();
+        }
+
+        /// <summary>登记相机断线状态。</summary>
+        /// <param name="cameraKey">相机去重键。</param>
+        /// <returns>本次首次登记断线时返回true。</returns>
+        private bool MarkCameraDisconnected(string cameraKey)
+        {
+            lock (_cameraReconnectWatchdogSync)
+                return _reportedDisconnectedCameraKeys.Add(cameraKey ?? "UNKNOWN");
+        }
+
+        /// <summary>清除相机断线报告状态。</summary>
+        /// <param name="camera">相机对象。</param>
+        private void ClearReportedDisconnectedCamera(ICamera camera)
+        {
+            ClearReportedDisconnectedCamera(GetCameraReconnectKey(camera));
+        }
+
+        /// <summary>清除相机断线报告状态。</summary>
+        /// <param name="cameraKey">相机去重键。</param>
+        private void ClearReportedDisconnectedCamera(string cameraKey)
+        {
+            lock (_cameraReconnectWatchdogSync)
+                _reportedDisconnectedCameraKeys.Remove(cameraKey ?? "UNKNOWN");
         }
 
         /// <summary>

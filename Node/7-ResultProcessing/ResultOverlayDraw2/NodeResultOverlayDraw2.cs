@@ -921,10 +921,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             }
 
             SubscriptionDataCategory category = ResolveSubscriptionCategory(sourceNode, item.SourceText2, value);
+            // 旧颜色规则与文本绘制保持一致，保留AI检测项颜色；显式布尔颜色订阅仍允许统一覆盖。
+            AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
+            bool preserveElementColor = colorState.UseLegacyColorRules &&
+                ShouldPreserveAlgorithmResultElementColor(algorithmResult);
             OverlayGeometryRenderContext context = new OverlayGeometryRenderContext
             {
                 FallbackColor = colorState.DisplayColor,
-                OverrideColor = colorState.OverrideSourceColor ? colorState.DisplayColor : (Color?)null,
+                OverrideColor = colorState.OverrideSourceColor && !preserveElementColor ? colorState.DisplayColor : (Color?)null,
                 LineWidth = Math.Max(1, item.LineWidth)
             };
 

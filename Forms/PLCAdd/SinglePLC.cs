@@ -69,7 +69,17 @@ namespace TDJS_Vision.Forms.PLCAdd
                     plc = new PlcMelsec(parms);
                     break;
                 case Device.DeviceBrand.Keyence:
-                    plc = new PlcKeyenceNano(parms);
+                    switch (parms.KeyenceProtocol)
+                    {
+                        case KeyenceProtocol.NanoOverTcp:
+                            plc = new PlcKeyenceNano(parms);
+                            break;
+                        case KeyenceProtocol.Kv300Older:
+                            plc = new PlcKeyenceKvOld(parms);
+                            break;
+                        default:
+                            throw new NotSupportedException("不支持的基恩士通信协议！");
+                    }
                     break;
                 default:
                     break;

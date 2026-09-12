@@ -142,7 +142,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
             if (node.Tag is NodeType nodeType && nodeType != NodeType.UNKNOWN)
             {
-                node.Text = LanguageManager.T("ProcessNew.NodeType." + nodeType);
+                node.Text = nodeType == NodeType.ResultSend ? "结果发送" : LanguageManager.T("ProcessNew.NodeType." + nodeType);
             }
             else
             {
@@ -884,6 +884,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.Summarize:
                 case NodeType.DetectResultShow:
                 case NodeType.GenerateExcel:
+                case NodeType.ResultSend:
                     return Color.FromArgb(42, 157, 143);
                 default:
                     return Color.FromArgb(91, 219, 213);
@@ -1013,6 +1014,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.ResultOverlayDraw2:
                     return "ROI2";
                 case NodeType.AIResultSend:
+                case NodeType.ResultSend:
                     return "TX";
                 case NodeType.ImageSave:
                     return "SV";

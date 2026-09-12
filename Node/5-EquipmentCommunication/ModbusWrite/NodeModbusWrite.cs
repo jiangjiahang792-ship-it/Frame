@@ -332,7 +332,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
         }
 
         /// <summary>按通信方式和物理参数生成跨节点共享的稳定连接端点键。</summary>
-        private static string CreateEndpointKey(IModbus modbus)
+        internal static string CreateEndpointKey(IModbus modbus)
         {
             if (modbus == null)
                 throw new InvalidOperationException("Modbus写入设备尚未绑定。");

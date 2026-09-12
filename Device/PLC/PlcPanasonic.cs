@@ -9,7 +9,7 @@ using System.Linq;
 
 namespace TDJS_Vision.Device.PLC
 {
-    public class PlcPanasonic : IPlc
+    public class PlcPanasonic : IPlc, IResultSendTypedPlc
     {
         /// <summary>PLC操作允许的最小超时时间。</summary>
         private const int MinimumOperationTimeoutMs = 100;
@@ -29,6 +29,17 @@ namespace TDJS_Vision.Device.PLC
         /// 网口plc对象
         /// </summary>
         private PanasonicMcNet _panasonicMcNet = null;
+
+        /// <summary>根据串口或网口连接按协议原生类型写入，避免整数位宽丢失。</summary>
+        public Task<OperateResult> WriteTypedValuesAsync(string address, Array values)
+        {
+            bool serial = PLCParms.PlcConType == PlcConType.COM;
+            if (values is short[] signedWords) return serial ? _panasonicMewtocol.WriteAsync(address, signedWords) : _panasonicMcNet.WriteAsync(address, signedWords);
+            if (values is ushort[] words) return serial ? _panasonicMewtocol.WriteAsync(address, words) : _panasonicMcNet.WriteAsync(address, words);
+            if (values is uint[] integers) return serial ? _panasonicMewtocol.WriteAsync(address, integers) : _panasonicMcNet.WriteAsync(address, integers);
+            if (values is double[] doubles) return serial ? _panasonicMewtocol.WriteAsync(address, doubles) : _panasonicMcNet.WriteAsync(address, doubles);
+            throw new NotSupportedException("不支持的PLC扩展写入类型。");
+        }
         /// <summary>
         /// 连接状态改变事件
         /// </summary>

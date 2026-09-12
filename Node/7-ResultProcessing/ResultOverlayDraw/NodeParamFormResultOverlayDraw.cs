@@ -112,6 +112,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             nodeSubscriptionImage.SetText(param.ImageText1, param.ImageText2);
             panelOkColor.BackColor = param.OkColor;
             panelNgColor.BackColor = param.NgColor;
+            SetRotationAngle(param.RotationAngle);
             _syncing = false;
 
             _items.Clear();
@@ -143,6 +144,15 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             {
                 new EnumOption<DisplayTextCoordinateMode>("图像坐标系", DisplayTextCoordinateMode.Image),
                 new EnumOption<DisplayTextCoordinateMode>("控件坐标系", DisplayTextCoordinateMode.Control)
+            };
+            comboBoxRotationAngle.DisplayMember = "Text";
+            comboBoxRotationAngle.ValueMember = "Value";
+            comboBoxRotationAngle.DataSource = new List<EnumOption<int>>
+            {
+                new EnumOption<int>("0", 0),
+                new EnumOption<int>("90", 90),
+                new EnumOption<int>("180", 180),
+                new EnumOption<int>("270", 270)
             };
         }
 
@@ -369,6 +379,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 ImageText2 = nodeSubscriptionImage.GetText2(),
                 OkColor = panelOkColor.BackColor,
                 NgColor = panelNgColor.BackColor,
+                RotationAngle = GetRotationAngle(),
                 Items = _items.Select(item => item.Clone()).ToList()
             };
 
@@ -632,6 +643,52 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             EnumOption<DisplayTextPosition> option =
                 comboBoxTextPosition.SelectedItem as EnumOption<DisplayTextPosition>;
             return option == null ? DisplayTextPosition.TopLeft : option.Value;
+        }
+
+        /// <summary>
+        /// 获取当前输出图像顺时针旋转角度。
+        /// </summary>
+        /// <returns>0、90、180或270。</returns>
+        private int GetRotationAngle()
+        {
+            EnumOption<int> option = comboBoxRotationAngle.SelectedItem as EnumOption<int>;
+            return option == null ? 0 : option.Value;
+        }
+
+        /// <summary>
+        /// 设置输出图像顺时针旋转角度下拉框。
+        /// </summary>
+        /// <param name="rotationAngle">顺时针旋转角度。</param>
+        private void SetRotationAngle(int rotationAngle)
+        {
+            int normalizedAngle = NormalizeRotationAngle(rotationAngle);
+            foreach (object item in comboBoxRotationAngle.Items)
+            {
+                EnumOption<int> option = item as EnumOption<int>;
+                if (option != null && option.Value == normalizedAngle)
+                {
+                    comboBoxRotationAngle.SelectedItem = option;
+                    return;
+                }
+            }
+
+            if (comboBoxRotationAngle.Items.Count > 0)
+                comboBoxRotationAngle.SelectedIndex = 0;
+        }
+
+        /// <summary>
+        /// 把保存值归一到直角旋转范围，兼容负角度或大于360度的历史手工配置。
+        /// </summary>
+        /// <param name="rotationAngle">保存的旋转角度。</param>
+        /// <returns>0、90、180或270。</returns>
+        private static int NormalizeRotationAngle(int rotationAngle)
+        {
+            int normalizedAngle = rotationAngle % 360;
+            if (normalizedAngle < 0)
+                normalizedAngle += 360;
+            return normalizedAngle == 90 || normalizedAngle == 180 || normalizedAngle == 270
+                ? normalizedAngle
+                : 0;
         }
 
         /// <summary>

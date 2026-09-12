@@ -34,6 +34,9 @@ namespace TDJS_Vision.ResourceManagement
                 case NodeType.ModbusWrite:
                     signalKind = OrderedSignalNodeKind.ModbusWrite;
                     return true;
+                case NodeType.ResultSend:
+                    signalKind = OrderedSignalNodeKind.ResultSend;
+                    return true;
                 default:
                     signalKind = default(OrderedSignalNodeKind);
                     return false;

@@ -3550,24 +3550,89 @@ namespace TDJS_Vision
         Lv5,
     }
 
+    /// <summary>方案流程组；保留既有编号，并扩展为40个独立调度组。</summary>
     public enum ProcessGroup
     {
-        Group1,
-        Group2,
-        Group3,
-        Group4,
-        Group5,
-        Group6,
-        Group7,
-        //Group8,
-        //Group9,
-        //Group10,
-        //Group11,
-        //Group12,
-        //Group13,
-        //Group14,
-        //Group15,
-        //Group16
+        /// <summary>第1组。</summary>
+        Group1 = 0,
+        /// <summary>第2组。</summary>
+        Group2 = 1,
+        /// <summary>第3组。</summary>
+        Group3 = 2,
+        /// <summary>第4组。</summary>
+        Group4 = 3,
+        /// <summary>第5组。</summary>
+        Group5 = 4,
+        /// <summary>第6组。</summary>
+        Group6 = 5,
+        /// <summary>第7组。</summary>
+        Group7 = 6,
+        /// <summary>第8组。</summary>
+        Group8 = 7,
+        /// <summary>第9组。</summary>
+        Group9 = 8,
+        /// <summary>第10组。</summary>
+        Group10 = 9,
+        /// <summary>第11组。</summary>
+        Group11 = 10,
+        /// <summary>第12组。</summary>
+        Group12 = 11,
+        /// <summary>第13组。</summary>
+        Group13 = 12,
+        /// <summary>第14组。</summary>
+        Group14 = 13,
+        /// <summary>第15组。</summary>
+        Group15 = 14,
+        /// <summary>第16组。</summary>
+        Group16 = 15,
+        /// <summary>第17组。</summary>
+        Group17 = 16,
+        /// <summary>第18组。</summary>
+        Group18 = 17,
+        /// <summary>第19组。</summary>
+        Group19 = 18,
+        /// <summary>第20组。</summary>
+        Group20 = 19,
+        /// <summary>第21组。</summary>
+        Group21 = 20,
+        /// <summary>第22组。</summary>
+        Group22 = 21,
+        /// <summary>第23组。</summary>
+        Group23 = 22,
+        /// <summary>第24组。</summary>
+        Group24 = 23,
+        /// <summary>第25组。</summary>
+        Group25 = 24,
+        /// <summary>第26组。</summary>
+        Group26 = 25,
+        /// <summary>第27组。</summary>
+        Group27 = 26,
+        /// <summary>第28组。</summary>
+        Group28 = 27,
+        /// <summary>第29组。</summary>
+        Group29 = 28,
+        /// <summary>第30组。</summary>
+        Group30 = 29,
+        /// <summary>第31组。</summary>
+        Group31 = 30,
+        /// <summary>第32组。</summary>
+        Group32 = 31,
+        /// <summary>第33组。</summary>
+        Group33 = 32,
+        /// <summary>第34组。</summary>
+        Group34 = 33,
+        /// <summary>第35组。</summary>
+        Group35 = 34,
+        /// <summary>第36组。</summary>
+        Group36 = 35,
+        /// <summary>第37组。</summary>
+        Group37 = 36,
+        /// <summary>第38组。</summary>
+        Group38 = 37,
+        /// <summary>第39组。</summary>
+        Group39 = 38,
+        /// <summary>第40组。</summary>
+        Group40 = 39,
     }
 
     /// <summary>

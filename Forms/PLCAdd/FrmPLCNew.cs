@@ -47,8 +47,22 @@ namespace TDJS_Vision.Forms.PLCAdd
         /// </summary>
         private void buttonConfirmKeyence_Click(object sender, EventArgs e)
         {
-            string deviceName = textBoxNameKeyence.Text.Trim();
-            string ip = uiipTextBoxKeyence.Text.Trim();
+            AddKeyenceDevice(textBoxNameKeyence.Text, uiipTextBoxKeyence.Text,
+                textBoxPortKeyence.Text, KeyenceProtocol.NanoOverTcp);
+        }
+
+        /// <summary>添加基恩士 KV300/Older 上位链路设备。</summary>
+        private void buttonConfirmKeyenceOld_Click(object sender, EventArgs e)
+        {
+            AddKeyenceDevice(textBoxNameKeyenceOld.Text, uiipTextBoxKeyenceOld.Text,
+                textBoxPortKeyenceOld.Text, KeyenceProtocol.Kv300Older);
+        }
+
+        /// <summary>两种基恩士协议共用现有参数校验、重复检查与 PLC 添加事件。</summary>
+        private void AddKeyenceDevice(string name, string ipAddress, string portText, KeyenceProtocol protocol)
+        {
+            string deviceName = name.Trim();
+            string ip = ipAddress.Trim();
             if (string.IsNullOrWhiteSpace(deviceName))
             {
                 MessageBoxTD.Show("请输入设备名称！");
@@ -62,7 +76,7 @@ namespace TDJS_Vision.Forms.PLCAdd
                 return;
             }
 
-            if (!int.TryParse(textBoxPortKeyence.Text.Trim(), out int port) || port < 1 || port > 65535)
+            if (!int.TryParse(portText.Trim(), out int port) || port < 1 || port > 65535)
             {
                 MessageBoxTD.Show("请输入1到65535之间的端口号！");
                 return;
@@ -83,6 +97,7 @@ namespace TDJS_Vision.Forms.PLCAdd
                 var parms = new PLCParms
                 {
                     DeviceBrand = Device.DeviceBrand.Keyence,
+                    KeyenceProtocol = protocol,
                     UserDefinedName = deviceName,
                     PlcConType = PlcConType.ETHERNET,
                     EthernetParms = new EthernetParms(ip, port)

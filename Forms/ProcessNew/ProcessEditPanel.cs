@@ -766,6 +766,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.GenerateExcel:
                     node = new NodeGenerateExcel(nodeId, nodeName, _process, nodeType);
                     break;
+                case NodeType.ResultSend:
+                    node = new TDJS_Vision.Node._7_ResultProcessing.ResultSend.NodeResultSend(nodeId, nodeName, _process, nodeType);
+                    break;
                 case NodeType.DrawAIResult:
                     node = new NodeImageDraw(nodeId, nodeName, _process, nodeType);
                     break;

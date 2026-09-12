@@ -313,6 +313,9 @@
     <Compile Include="Device\Modbus\ModbusTcpPoll.cs" />
     <Compile Include="Device\PLC\PlcMelsec.cs" />
     <Compile Include="Device\PLC\PlcKeyenceNano.cs" />
+    <Compile Include="Device\PLC\PlcKeyenceTcpBase.cs" />
+    <Compile Include="Device\PLC\PlcKeyenceKvOld.cs" />
+    <Compile Include="Device\PLC\KeyenceKvOldWordClient.cs" />
     <Compile Include="FormAIConfigTool.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -1606,6 +1609,21 @@
       <DependentUpon>ParamFormSaveImage.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\7-ResultProcessing\ResultSummarize\NodeParamSummarize.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultSend\ResultSendContracts.cs" />
+    <Compile Include="Device\PLC\IResultSendTypedPlc.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultSend\ResultSendSourceReader.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultSend\ResultSendValueConverter.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultSend\ResultSendDeviceWriter.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultSend\ResultSendAddressValidator.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultSend\NodeResultSend.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\7-ResultProcessing\ResultSend\ParamFormResultSend.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\7-ResultProcessing\ResultSend\ParamFormResultSend.Designer.cs">
+      <DependentUpon>ParamFormResultSend.cs</DependentUpon>
+    </Compile>
     <Compile Include="Node\7-ResultProcessing\ResultSummarize\NodeResultSummarize.cs" />
     <Compile Include="Node\7-ResultProcessing\ResultSummarize\NodeSummarize.cs">
       <SubType>UserControl</SubType>

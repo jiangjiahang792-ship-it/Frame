@@ -485,5 +485,7 @@ namespace TDJS_Vision.Node
         /// 相机曝光增益
         /// </summary>
         CameraExposureGain,
+        /// <summary>将上游基础结果写入PLC或Modbus设备。</summary>
+        ResultSend,
     }
 }

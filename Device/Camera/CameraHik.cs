@@ -35,6 +35,9 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>尚未生成运行资源档案时使用的全方案原始帧保守预算。</summary>
         private const int RawFrameFallbackMemoryBudgetMb = 256;
 
+        /// <summary>GigE相机断线检测心跳超时，单位毫秒。</summary>
+        private const long GigEHeartbeatTimeoutMilliseconds = 1000L;
+
         /// <summary>Windows原生内存复制函数，用于在SDK回调返回前快速接管原始帧。</summary>
         [DllImport("kernel32.dll", EntryPoint = "RtlMoveMemory", SetLastError = false)]
         private static extern void CopyMemory(IntPtr destination, IntPtr source, uint count);
@@ -371,6 +374,7 @@ namespace TDJS_Vision.Device.Camera
                     try
                     {
                         ConfigureGigENetwork();
+                        ConfigureGigEHeartbeat();
                         TrySetEnumValue("AcquisitionMode", (uint)MyCamera.MV_CAM_ACQUISITION_MODE.MV_ACQ_MODE_CONTINUOUS);
                         lock (_initialProductionFrameGraceLock)
                         {
@@ -577,6 +581,71 @@ namespace TDJS_Vision.Device.Camera
         public bool GetGrabStatus()
         {
             return Volatile.Read(ref _isGrabbing);
+        }
+
+        /// <summary>判断当前SDK句柄是否仍然连接到物理相机。</summary>
+        /// <returns>SDK确认设备在线时返回true。</returns>
+        public bool IsDeviceConnected()
+        {
+            if (Volatile.Read(ref _disposed) != 0)
+                return false;
+
+            lock (_deviceLock)
+            {
+                if (_device == null ||
+                    !_deviceCreated ||
+                    Volatile.Read(ref _nativeDeviceOpened) == 0 ||
+                    Volatile.Read(ref _deviceConfigurationCompleted) == 0)
+                {
+                    return false;
+                }
+
+                try
+                {
+                    return _device.MV_CC_IsDeviceConnected_NET();
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+        }
+
+        /// <summary>释放异常SDK句柄并按序列号重新枚举打开相机。</summary>
+        /// <returns>重新打开成功时返回true。</returns>
+        public bool TryReconnect()
+        {
+            if (Volatile.Read(ref _disposed) != 0 || string.IsNullOrWhiteSpace(SN))
+                return false;
+
+            bool hadConnection = false;
+            try
+            {
+                ThrowIfCalledFromFrameConversionWorker("自动重连相机");
+                lock (_cameraLifecycleLock)
+                    hadConnection = ReleaseNativeConnectionForReconnectCore();
+
+                if (hadConnection)
+                    ConnectStatusEvent?.Invoke(this, false);
+
+                bool opened = Open();
+                if (opened)
+                {
+                    LogHelper.AddLog(
+                        MsgLevel.Info,
+                        string.Format("相机【{0}】自动重连成功，SN={1}，IP={2}。", UserDefinedName, SN, IP),
+                        true);
+                }
+                return opened;
+            }
+            catch (Exception exception)
+            {
+                LogHelper.AddLog(
+                    MsgLevel.Warn,
+                    string.Format("相机【{0}】自动重连失败：{1}", UserDefinedName, exception.Message),
+                    true);
+                return false;
+            }
         }
 
         /// <summary>主动获取一帧图像并转换为独立Bitmap。</summary>
@@ -985,6 +1054,95 @@ namespace TDJS_Vision.Device.Camera
 
             if (notifyDisconnected)
                 ConnectStatusEvent?.Invoke(this, false);
+        }
+
+        /// <summary>为自动重连释放当前SDK连接，释放过程吞掉SDK断线后的二次错误并重置托管状态。</summary>
+        /// <returns>释放前存在SDK句柄或打开状态时返回true。</returns>
+        private bool ReleaseNativeConnectionForReconnectCore()
+        {
+            bool hadConnection;
+            lock (_deviceLock)
+            {
+                hadConnection = _device != null || _deviceCreated || Volatile.Read(ref _nativeDeviceOpened) != 0;
+                if (_device != null && _isGrabbing)
+                {
+                    try
+                    {
+                        int stopResult = _device.MV_CC_StopGrabbing_NET();
+                        if (stopResult != MyCamera.MV_OK)
+                            LogHelper.AddLog(MsgLevel.Warn, FormatSdkError("自动重连前停止相机取流", stopResult), true);
+                    }
+                    catch (Exception exception)
+                    {
+                        LogHelper.AddLog(MsgLevel.Warn, string.Format("相机【{0}】自动重连前停止取流异常：{1}", UserDefinedName, exception.Message), true);
+                    }
+                    Volatile.Write(ref _isGrabbing, false);
+                }
+            }
+
+            lock (_sdkCallbackLifetimeLock)
+            {
+            }
+
+            try
+            {
+                StopFrameConversionWorker();
+            }
+            catch (Exception exception)
+            {
+                LogHelper.AddLog(MsgLevel.Warn, string.Format("相机【{0}】自动重连前停止转换线程异常：{1}", UserDefinedName, exception.Message), true);
+            }
+
+            lock (_callbackSyncRoot)
+                ReleaseConversionBuffer();
+
+            lock (_deviceLock)
+            {
+                lock (_imageCallbackLock)
+                {
+                    if (_device != null && Volatile.Read(ref _nativeDeviceOpened) != 0)
+                    {
+                        try
+                        {
+                            int closeResult = _device.MV_CC_CloseDevice_NET();
+                            if (closeResult != MyCamera.MV_OK)
+                                LogHelper.AddLog(MsgLevel.Warn, FormatSdkError("自动重连前关闭相机", closeResult), true);
+                        }
+                        catch (Exception exception)
+                        {
+                            LogHelper.AddLog(MsgLevel.Warn, string.Format("相机【{0}】自动重连前关闭设备异常：{1}", UserDefinedName, exception.Message), true);
+                        }
+                    }
+
+                    if (_device != null && _deviceCreated)
+                    {
+                        try
+                        {
+                            int destroyResult = _device.MV_CC_DestroyDevice_NET();
+                            if (destroyResult != MyCamera.MV_OK)
+                                LogHelper.AddLog(MsgLevel.Warn, FormatSdkError("自动重连前销毁相机句柄", destroyResult), true);
+                        }
+                        catch (Exception exception)
+                        {
+                            LogHelper.AddLog(MsgLevel.Warn, string.Format("相机【{0}】自动重连前销毁句柄异常：{1}", UserDefinedName, exception.Message), true);
+                        }
+                    }
+
+                    _deviceCreated = false;
+                    _callbackRegistered = false;
+                    _nativeImageCallback = null;
+                    _device = null;
+                    _deviceInfo = null;
+                    Volatile.Write(ref _nativeDeviceOpened, 0);
+                    Volatile.Write(ref _deviceConfigurationCompleted, 0);
+                    Volatile.Write(ref _isGrabbing, false);
+                }
+            }
+
+            lock (_initialProductionFrameGraceLock)
+                Volatile.Write(ref _initialProductionFrameGraceReserved, 0);
+
+            return hadConnection;
         }
 
         /// <summary>关闭相机并销毁原生设备句柄。</summary>
@@ -2040,6 +2198,21 @@ namespace TDJS_Vision.Device.Camera
                 LogHelper.AddLog(MsgLevel.Warn, FormatSdkError("设置最佳网络包大小", result), true);
             else
                 LogHelper.AddLog(MsgLevel.Info, string.Format("相机{0}设置网络最佳包大小：{1}", UserDefinedName, packetSize), true);
+        }
+
+        /// <summary>为GigE相机设置SDK心跳超时，便于断网后快速进入自动重连。</summary>
+        private void ConfigureGigEHeartbeat()
+        {
+            if (_deviceInfo == null || _deviceInfo.TransportLayerType != MyCamera.MV_GIGE_DEVICE)
+                return;
+
+            int result = _device.MV_CC_SetIntValueEx_NET("GevHeartbeatTimeout", GigEHeartbeatTimeoutMilliseconds);
+            if (result != MyCamera.MV_OK)
+                LogHelper.AddLog(MsgLevel.Warn, FormatSdkError("设置GigE相机心跳超时", result), true);
+            else if (LogHelper.CanRecord(MsgLevel.Debug))
+                LogHelper.TryAddDiagnosticLog(
+                    string.Format("相机{0}设置GigE心跳超时：{1}ms", UserDefinedName, GigEHeartbeatTimeoutMilliseconds),
+                    true);
         }
 
         /// <summary>读取原生浮点参数并转换为框架参数模型。</summary>

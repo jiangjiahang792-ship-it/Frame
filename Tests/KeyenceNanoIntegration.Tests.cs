@@ -118,7 +118,7 @@ internal static class KeyenceNanoIntegrationTests
             using (var form = new FrmPLCNew())
             {
                 var tabs = Control<TabControl>(form, "tabControl1");
-                Check(tabs.TabPages.Count == 4, "添加页数量错误。");
+                Check(tabs.TabPages.Count == 5, "添加页数量错误。");
                 var tab = Control<TabPage>(form, "tabPageKeyence");
                 Check(tab.Text == "基恩士 Nano OverTcp", "基恩士页标题错误。");
                 Check(tabs.Multiline, "新增页不能挤掉原有协议入口。");
@@ -160,6 +160,18 @@ internal static class KeyenceNanoIntegrationTests
                 Check(restored.PLCParms.EthernetParms.Port == 18501 && restored.UserDefinedName == "基恩士添加验证",
                     "通信参数保存恢复失败。");
                 restored.Release();
+                // 已保存的旧方案没有协议字段时，必须仍创建原来的 Nano 客户端。
+                var legacyJson = Newtonsoft.Json.Linq.JObject.Parse(json);
+                var legacyDevice = (Newtonsoft.Json.Linq.JObject)legacyJson["Devices"].First.First;
+                ((Newtonsoft.Json.Linq.JObject)legacyDevice["PLCParms"]).Remove("KeyenceProtocol");
+                var legacy = (PlcKeyenceNano)JsonConvert.DeserializeObject<DeviceSnapshot>(legacyJson.ToString()).Devices[0];
+                using (var legacySingle = new SinglePLC(legacy.PLCParms))
+                {
+                    Check(legacySingle.Plc is PlcKeyenceNano, "旧方案缺少协议字段时必须保持Nano协议。");
+                    Solution.Instance.AllDevices.Remove(legacySingle.Plc);
+                    SinglePLC.SinglePLCs.Remove(legacySingle);
+                    legacySingle.Plc.Release();
+                }
             }
         }
         finally
