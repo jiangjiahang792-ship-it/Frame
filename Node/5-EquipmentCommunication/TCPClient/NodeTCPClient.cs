@@ -53,7 +53,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.TcpClient
             try
             {
                 SetStatus(NodeStatus.Unexecuted, "*");
-                base.CheckTokenCancel(token);
+                await base.CheckTokenCancel(token);
 
                 //如果没有连接则不运行
                 if (!param.Device.IsConnect)
@@ -62,7 +62,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.TcpClient
                 ((ParamFormTCPClient)ParamForm).SetResult("");    // 先清空界面的响应结果
 
                 //发起请求
-                SendRequest(param, startTime);
+                await SendRequest(param, startTime);
 
                 var time = SetRunResult(startTime, NodeStatus.Successful);
                 Result.RunTime = time;

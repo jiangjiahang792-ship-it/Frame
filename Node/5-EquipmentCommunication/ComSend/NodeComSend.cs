@@ -7,8 +7,8 @@ using TDJS_Vision.ResourceManagement;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.ComSend
 {
-    /// <summary>通过生产会话协调器按工件顺序发送串口命令。</summary>
-    public class NodeComSend : NodeBase, IOrderedExternalSignalNode
+    /// <summary>到达节点后直接发送串口命令，不参与工件顺序排队。</summary>
+    public class NodeComSend : NodeBase
     {
         /// <summary>创建串口发送节点并初始化参数与结果对象。</summary>
         public NodeComSend(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType) 
@@ -16,19 +16,6 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ComSend
             ParamForm = new ParamFormComSend();
             ParamForm.SetNodeBelong(this);
             Result = new NodeResultComSend();
-        }
-
-        /// <summary>获取有序外发白名单中的串口发送类别。</summary>
-        public OrderedSignalNodeKind OrderedSignalKind => OrderedSignalNodeKind.ComSend;
-
-        /// <summary>获取当前配置绑定的物理串口端点键。</summary>
-        public string OrderedSignalEndpointKey
-        {
-            get
-            {
-                NodeParamComSend param = ParamForm?.Params as NodeParamComSend;
-                return CreateEndpointKey(param?.Dev);
-            }
         }
 
         /// <summary>
@@ -50,24 +37,11 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ComSend
                 throw new Exception($"节点({NodeName})运行参数未设置或保存！");
             }
 
-            var param = (NodeParamComSend)ParamForm.Params;
             try
             {
                 SetStatus(NodeStatus.Unexecuted, "*");
-                base.CheckTokenCancel(token);
-
-                //如果没有连接则不运行
-                if (!param.Dev.IsOpen)
-                    throw new Exception("串口尚未打开！");
-
-                WorkpieceExecutionContext context = Solution.Instance.WorkpieceContextAccessor.Current;
-                if (context == null)
-                    throw new InvalidOperationException("串口发送节点缺少当前工件上下文，已拒绝无序发送。");
-                OrderedSignalSendResult sendResult = await SubmitOrderedSignalAsync(
-                    context,
-                    $"{Process?.ProcessName ?? "未知流程"}/{ID}.{NodeName}",
-                    Solution.Instance.OrderedSignalCoordinator,
-                    token);
+                await base.CheckTokenCancel(token);
+                OrderedSignalSendResult sendResult = await ExecuteDirectSendAsync(token);
                 if (sendResult.Status == OrderedSignalSendStatus.CancelledBeforeStart)
                     throw new OperationCanceledException(sendResult.Message, token);
                 if (sendResult.Status != OrderedSignalSendStatus.DeviceAcknowledged &&
@@ -75,7 +49,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ComSend
                 {
                     throw new InvalidOperationException(
                         string.IsNullOrWhiteSpace(sendResult.Message)
-                            ? $"串口有序发送返回{sendResult.Status}。"
+                            ? $"串口发送返回{sendResult.Status}。"
                             : sendResult.Message);
                 }
 
@@ -99,17 +73,10 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ComSend
             }
         }
 
-        /// <summary>复制本轮动态值并通过当前生产会话协调器提交唯一串口动作。</summary>
-        public Task<OrderedSignalSendResult> SubmitOrderedSignalAsync(
-            WorkpieceExecutionContext context,
-            string nodePath,
-            IOrderedSignalCoordinator coordinator,
-            CancellationToken waitingCancellationToken)
+        /// <summary>冻结并预检本轮命令后直接发送，不等待工件或端点发送权。</summary>
+        public Task<OrderedSignalSendResult> ExecuteDirectSendAsync(CancellationToken token)
         {
-            if (context == null)
-                throw new ArgumentNullException(nameof(context));
-            if (coordinator == null)
-                throw new ArgumentNullException(nameof(coordinator));
+            token.ThrowIfCancellationRequested();
             NodeParamComSend param = ParamForm?.Params as NodeParamComSend;
             if (param == null)
                 throw new InvalidOperationException("串口发送参数尚未设置。");
@@ -123,14 +90,9 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ComSend
             string encodingSnapshot = param.Encoding;
             if (string.IsNullOrEmpty(commandSnapshot))
                 throw new InvalidOperationException("串口发送命令不能为空。");
-            string endpointKeySnapshot = CreateEndpointKey(deviceSnapshot);
-            return context.SubmitOrderedSignalAsync(
-                coordinator,
-                nodePath,
-                OrderedSignalKind,
-                endpointKeySnapshot,
-                () => SendSnapshotAsync(deviceSnapshot, commandSnapshot, encodingSnapshot),
-                waitingCancellationToken);
+            _ = CreateEndpointKey(deviceSnapshot);
+            token.ThrowIfCancellationRequested();
+            return SendSnapshotAsync(deviceSnapshot, commandSnapshot, encodingSnapshot);
         }
 
         /// <summary>使用已经冻结的串口对象和参数执行一次真实写入。</summary>
@@ -143,7 +105,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ComSend
             {
                 return Task.FromResult(new OrderedSignalSendResult(
                     OrderedSignalSendStatus.Rejected,
-                    "串口在取得发送权后已经关闭。"));
+                    "串口在实际发送前已经关闭。"));
             }
 
             device.Send(command, encoding);

@@ -89,7 +89,7 @@ internal static class ResultSendTests
         }
     }
 
-    /// <summary>确认结果发送不再参与有序外发检查，其他有序节点仍被识别。</summary>
+    /// <summary>确认结果发送与其他外发节点均不再参与有序外发检查。</summary>
     private static void VerifyCompiler()
     {
         var config = new ProcessConfig { ProcessName = "结果发送编译检查", HasCanvasGraph = true };
@@ -104,12 +104,12 @@ internal static class ResultSendTests
         for (int id = 2; id <= 4; id++)
             config.ConnectionInfos.Add(new ProcessConnectionConfig { ID = "并行" + id, FromNodeId = 1, ToNodeId = id });
         plan = new FlowExecutionPlanCompiler().Compile(config, 1, "测试域");
-        Check(plan.IsProductionReady && plan.PotentialSignals.Count == 1 && plan.PotentialSignals[0].SignalKind == OrderedSignalNodeKind.CameraIO,
-            "并行结果发送被拦截或相机IO的有序规则被移除。");
+        Check(plan.IsProductionReady && plan.PotentialSignals.Count == 0,
+            "并行结果发送或相机IO仍被登记为有序信号。");
         config.NodeInfos[3].NodeType = NodeType.PLCWrite;
         plan = new FlowExecutionPlanCompiler().Compile(config, 1, "测试域");
-        Check(plan.IsProductionReady && plan.PotentialSignals.Count == 1 && plan.PotentialSignals[0].SignalKind == OrderedSignalNodeKind.PLCWrite,
-            "独立PLC写入的有序规则被移除。");
+        Check(plan.IsProductionReady && plan.PotentialSignals.Count == 0,
+            "独立PLC写入仍被登记为有序信号。");
     }
 
     /// <summary>验证严格转换、空集合、容量及固定字节字符串。</summary>

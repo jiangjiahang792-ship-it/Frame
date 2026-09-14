@@ -10,8 +10,8 @@ using TDJS_Vision.ResourceManagement;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
 {
-    /// <summary>通过生产会话协调器按工件顺序写入PLC。</summary>
-    public class NodePlcWrite : NodeBase, IOrderedExternalSignalNode
+    /// <summary>到达节点后直接写入PLC，不参与工件顺序排队。</summary>
+    public class NodePlcWrite : NodeBase
     {
         /// <summary>创建PLC写入节点并初始化参数与结果对象。</summary>
         public NodePlcWrite(int nodeId, string nodeName, Process process, NodeType nodeType)
@@ -20,19 +20,6 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
             ParamForm = new ParamFormPlcWrite();
             ParamForm.SetNodeBelong(this);
             Result = new NodeResultPlcWrite();
-        }
-
-        /// <summary>获取有序外发白名单中的PLC写入类别。</summary>
-        public OrderedSignalNodeKind OrderedSignalKind => OrderedSignalNodeKind.PLCWrite;
-
-        /// <summary>获取当前配置绑定的PLC物理连接端点键。</summary>
-        public string OrderedSignalEndpointKey
-        {
-            get
-            {
-                NodeParamPlcWrite param = ParamForm?.Params as NodeParamPlcWrite;
-                return CreateEndpointKey(param?.Plc);
-            }
         }
 
         /// <summary>运行节点并等待PLC写入取得明确结果。</summary>
@@ -55,17 +42,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
             {
                 SetStatus(NodeStatus.Unexecuted, "*");
                 await base.CheckTokenCancel(token);
-                WorkpieceExecutionContext context = Solution.Instance.WorkpieceContextAccessor.Current;
-                if (context == null)
-                    throw new InvalidOperationException("PLC写入节点缺少当前工件上下文，已拒绝无序发送。");
-
-                PlcWriteSignalSnapshot signalSnapshot = CaptureSignalSnapshot();
-                OrderedSignalSendResult sendResult = await SubmitOrderedSignalSnapshotAsync(
-                    context,
-                    $"{Process?.ProcessName ?? "未知流程"}/{ID}.{NodeName}",
-                    Solution.Instance.OrderedSignalCoordinator,
-                    signalSnapshot,
-                    token);
+                OrderedSignalSendResult sendResult = await ExecuteDirectWriteAsync(token);
                 EnsureSuccessfulResult(sendResult, token);
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
@@ -88,41 +65,13 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
             }
         }
 
-        /// <summary>冻结本轮PLC、地址、类型和值并提交唯一写入动作。</summary>
-        public Task<OrderedSignalSendResult> SubmitOrderedSignalAsync(
-            WorkpieceExecutionContext context,
-            string nodePath,
-            IOrderedSignalCoordinator coordinator,
-            CancellationToken waitingCancellationToken)
+        /// <summary>冻结并预检本轮写入值，直接调用设备，不等待工件或端点发送权。</summary>
+        public Task<OrderedSignalSendResult> ExecuteDirectWriteAsync(CancellationToken token)
         {
-            if (context == null)
-                throw new ArgumentNullException(nameof(context));
-            if (coordinator == null)
-                throw new ArgumentNullException(nameof(coordinator));
+            token.ThrowIfCancellationRequested();
             PlcWriteSignalSnapshot signalSnapshot = CaptureSignalSnapshot();
-            return SubmitOrderedSignalSnapshotAsync(
-                context,
-                nodePath,
-                coordinator,
-                signalSnapshot,
-                waitingCancellationToken);
-        }
-
-        /// <summary>使用同一次参数读取生成的不可变快照提交PLC写入。</summary>
-        private Task<OrderedSignalSendResult> SubmitOrderedSignalSnapshotAsync(
-            WorkpieceExecutionContext context,
-            string nodePath,
-            IOrderedSignalCoordinator coordinator,
-            PlcWriteSignalSnapshot signalSnapshot,
-            CancellationToken waitingCancellationToken)
-        {
-            return context.SubmitOrderedSignalAsync(
-                coordinator,
-                nodePath,
-                OrderedSignalKind,
-                signalSnapshot.EndpointKey,
-                () => ExecuteWriteSnapshotAsync(signalSnapshot),
-                waitingCancellationToken);
+            token.ThrowIfCancellationRequested();
+            return ExecuteWriteSnapshotAsync(signalSnapshot);
         }
 
         /// <summary>只读取一次当前参数对象，并在发送前完成全部值解析。</summary>
@@ -157,7 +106,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
                 parsedValue);
         }
 
-        /// <summary>在协调器持有PLC物理连接租约期间执行一次真实写入。</summary>
+        /// <summary>使用冻结的参数执行一次真实写入，等待协议结果，不自动重试。</summary>
         private static async Task<OrderedSignalSendResult> ExecuteWriteSnapshotAsync(
             PlcWriteSignalSnapshot signalSnapshot)
         {
@@ -165,7 +114,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
             {
                 return new OrderedSignalSendResult(
                     OrderedSignalSendStatus.Rejected,
-                    "PLC在取得发送权后已经断开连接。");
+                    "PLC在实际写入前已经断开连接。");
             }
 
             OperateResult result;
@@ -226,7 +175,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
                 evidence);
         }
 
-        /// <summary>把协调器结果转换为节点运行结果。</summary>
+        /// <summary>把实际设备写入结果转换为节点运行结果。</summary>
         private static void EnsureSuccessfulResult(
             OrderedSignalSendResult sendResult,
             CancellationToken token)
@@ -238,7 +187,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
             {
                 throw new InvalidOperationException(
                     string.IsNullOrWhiteSpace(sendResult.Message)
-                        ? $"PLC有序写入返回{sendResult.Status}。"
+                        ? $"PLC写入返回{sendResult.Status}。"
                         : sendResult.Message);
             }
         }

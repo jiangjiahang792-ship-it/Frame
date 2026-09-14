@@ -160,8 +160,8 @@ internal static class ModbusDirectWriteTests
         config.ConnectionInfos.Add(new ProcessConnectionConfig { ID = "a", FromNodeId = 1, ToNodeId = 2 });
         config.ConnectionInfos.Add(new ProcessConnectionConfig { ID = "b", FromNodeId = 1, ToNodeId = 3 });
         var plan = new FlowExecutionPlanCompiler().Compile(config, 1, "DIRECT");
-        Check(plan.IsProductionReady && plan.PotentialSignals.Count == 1 && plan.PotentialSignals[0].SignalKind == OrderedSignalNodeKind.CameraIO,
-            "Modbus直接写入影响了编译检查或相机IO的有序目录。");
+        Check(plan.IsProductionReady && plan.PotentialSignals.Count == 0,
+            "Modbus和相机IO直接发送仍被登记为有序信号。");
     }
 
     /// <summary>用本机Modbus服务验证真实On保持及显式Off，不访问现场设备。</summary>

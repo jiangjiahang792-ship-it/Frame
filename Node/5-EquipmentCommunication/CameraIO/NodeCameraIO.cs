@@ -8,8 +8,8 @@ using TDJS_Vision.ResourceManagement;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
 {
-    /// <summary>通过生产会话协调器按工件顺序输出相机线路脉冲。</summary>
-    public class NodeCameraIO: NodeBase, IOrderedExternalSignalNode
+    /// <summary>到达节点后直接输出相机线路脉冲，保留同步和异步执行模式。</summary>
+    public class NodeCameraIO: NodeBase
     {
         /// <summary>允许配置的最大脉冲保持时间，防止错误参数长期占住物理端点。</summary>
         private const int MaximumHoldTimeMicroseconds = 1000000;
@@ -22,20 +22,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
             ParamForm.SetNodeBelong(this);
         }
 
-        /// <summary>获取有序外发白名单中的相机IO类别。</summary>
-        public OrderedSignalNodeKind OrderedSignalKind => OrderedSignalNodeKind.CameraIO;
-
-        /// <summary>获取当前配置绑定的稳定物理相机端点键。</summary>
-        public string OrderedSignalEndpointKey
-        {
-            get
-            {
-                NodeParamCameraIO param = ParamForm?.Params as NodeParamCameraIO;
-                return CreateEndpointKey(param?.Camera);
-            }
-        }
-
-        /// <summary>运行节点并按同步或受管异步模式提交唯一相机IO信号。</summary>
+        /// <summary>直接开始脉冲；同步模式等待完成，异步模式由独立观察任务记录结果。</summary>
         public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
@@ -59,22 +46,15 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
                     {
                         SetStatus(NodeStatus.Unexecuted, "*");
                         await base.CheckTokenCancel(token);
-                        WorkpieceExecutionContext context = Solution.Instance.WorkpieceContextAccessor.Current;
-                        if (context == null)
-                            throw new InvalidOperationException("相机IO节点缺少当前工件上下文，已拒绝无序发送。");
                         CameraIoSignalSnapshot signalSnapshot = CaptureSignalSnapshot();
-                        Task<OrderedSignalSendResult> sendTask = SubmitOrderedSignalSnapshotAsync(
-                            context,
-                            $"{Process?.ProcessName ?? "未知流程"}/{ID}.{NodeName}",
-                            Solution.Instance.OrderedSignalCoordinator,
-                            signalSnapshot,
-                            token);
-                        if (signalSnapshot.RunAsynchronously)
+                        Task<OrderedSignalSendResult> sendTask = ExecuteDirectPulseSnapshotAsync(signalSnapshot, token);
+                        bool completesAsynchronously = signalSnapshot.RunAsynchronously && !sendTask.IsCompleted;
+                        if (completesAsynchronously)
                         {
-                            _ = ObserveManagedAsyncSendAsync(
+                            _ = ObserveDirectAsyncSendAsync(
                                 sendTask,
-                                context.Identity,
-                                $"{ID}.{NodeName}");
+                                $"{Process?.ProcessName ?? "未知流程"}/{ID}.{NodeName}；工件={Solution.Instance.WorkpieceContextAccessor.Current?.Identity.ToString() ?? "无"}",
+                                showLog);
                         }
                         else
                         {
@@ -85,7 +65,9 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
                         var time = SetRunResult(startTime, NodeStatus.Successful);
                         Result.RunTime = time;
                         if (showLog)
-                            LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                            LogHelper.AddLog(MsgLevel.Info, completesAsynchronously
+                                ? $"节点({ID}.{NodeName})相机IO脉冲已直接发起，异步模式不等待保持及复位。({time} ms)"
+                                : $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
                         return new NodeReturn(NodeRunFlag.ContinueRun);
                     }
                     catch (OperationCanceledException)
@@ -105,45 +87,46 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
             return new NodeReturn(NodeRunFlag.StopRun);
         }
 
-        /// <summary>复制本轮相机、线路、模式和保持时间并提交唯一IO动作。</summary>
-        public Task<OrderedSignalSendResult> SubmitOrderedSignalAsync(
-            WorkpieceExecutionContext context,
-            string nodePath,
-            IOrderedSignalCoordinator coordinator,
-            CancellationToken waitingCancellationToken)
+        /// <summary>冻结相机、线路、模式和保持时间，立即开始脉冲并返回实际完成任务。</summary>
+        public Task<OrderedSignalSendResult> ExecuteDirectPulseAsync(CancellationToken token)
         {
-            if (context == null)
-                throw new ArgumentNullException(nameof(context));
-            if (coordinator == null)
-                throw new ArgumentNullException(nameof(coordinator));
+            token.ThrowIfCancellationRequested();
             CameraIoSignalSnapshot signalSnapshot = CaptureSignalSnapshot();
-            return SubmitOrderedSignalSnapshotAsync(
-                context,
-                nodePath,
-                coordinator,
-                signalSnapshot,
-                waitingCancellationToken);
+            return ExecuteDirectPulseSnapshotAsync(signalSnapshot, token);
         }
 
-        /// <summary>使用同一次参数读取形成的不可变快照提交相机IO动作。</summary>
-        private Task<OrderedSignalSendResult> SubmitOrderedSignalSnapshotAsync(
-            WorkpieceExecutionContext context,
-            string nodePath,
-            IOrderedSignalCoordinator coordinator,
+        /// <summary>不申请设备发送权；异步脉冲仅登记工件在途生命周期，防止提前结束运行会话。</summary>
+        private static async Task<OrderedSignalSendResult> ExecuteDirectPulseSnapshotAsync(
             CameraIoSignalSnapshot signalSnapshot,
-            CancellationToken waitingCancellationToken)
+            CancellationToken token)
         {
-            return context.SubmitOrderedSignalAsync(
-                coordinator,
-                nodePath,
-                OrderedSignalKind,
-                signalSnapshot.EndpointKey,
-                () => ExecutePulseSnapshotAsync(
+            token.ThrowIfCancellationRequested();
+            IWorkpieceExecutionLease executionLease = null;
+            WorkpieceExecutionContext context = Solution.Instance.WorkpieceContextAccessor.Current;
+            if (signalSnapshot.RunAsynchronously && context != null &&
+                !context.TryAcquireExecutionLease(out executionLease))
+            {
+                token.ThrowIfCancellationRequested();
+                throw new InvalidOperationException("当前工件已结束或取消，不能发起新的异步相机IO脉冲。");
+            }
+            WorkpieceTerminalState terminalState = WorkpieceTerminalState.Faulted;
+            try
+            {
+                token.ThrowIfCancellationRequested();
+                // 已拉高的脉冲不因取消提前退出，必须继续尝试复位。
+                OrderedSignalSendResult result = await ExecutePulseSnapshotAsync(
                     signalSnapshot.Camera,
                     signalSnapshot.LineSelector,
                     signalSnapshot.LineMode,
-                    signalSnapshot.HoldTimeMicroseconds),
-                waitingCancellationToken);
+                    signalSnapshot.HoldTimeMicroseconds).ConfigureAwait(false);
+                EnsureSuccessfulResult(result, token);
+                terminalState = WorkpieceTerminalState.Succeeded;
+                return result;
+            }
+            finally
+            {
+                executionLease?.Complete(terminalState);
+            }
         }
 
         /// <summary>只读取一次当前参数对象，并验证后生成本轮不可变信号快照。</summary>
@@ -186,7 +169,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
                 CreateEndpointKey(cameraSnapshot));
         }
 
-        /// <summary>在持有相机端点租约期间完成一次从低到高再回低的完整脉冲。</summary>
+        /// <summary>直接完成一次从低到高再回低的完整脉冲，不占有跨节点发送租约。</summary>
         private static async Task<OrderedSignalSendResult> ExecutePulseSnapshotAsync(
             ICamera camera,
             string lineSelector,
@@ -197,7 +180,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
             {
                 return new OrderedSignalSendResult(
                     OrderedSignalSendStatus.Rejected,
-                    "相机在取得发送权后已经断开连接。");
+                    "相机在实际输出前已经断开连接。");
             }
 
             bool outputMayBeRaised = false;
@@ -209,6 +192,8 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
                 outputMayBeRaised = true;
                 camera.SetLineInverter(true);
                 await DelayMicrosecondsAsync(holdTimeMicroseconds).ConfigureAwait(false);
+                // 等待期间其他节点可能切换线路，复位前重新选择本次快照的线路。
+                camera.SetLineSelector(lineSelector);
                 camera.SetLineInverter(false);
                 outputMayBeRaised = false;
                 return new OrderedSignalSendResult(
@@ -248,34 +233,29 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
                 Thread.SpinWait(16);
         }
 
-        /// <summary>观察受管异步信号，最终工件终态仍由上下文中的在途意图决定。</summary>
-        private static async Task ObserveManagedAsyncSendAsync(
+        /// <summary>观察直接执行的异步脉冲，不修改可能已被下一轮复用的节点结果。</summary>
+        private static async Task ObserveDirectAsyncSendAsync(
             Task<OrderedSignalSendResult> sendTask,
-            WorkpieceIdentity identity,
-            string nodeText)
+            string nodeText,
+            bool showLog)
         {
             try
             {
                 OrderedSignalSendResult result = await sendTask.ConfigureAwait(false);
-                if (result.Status != OrderedSignalSendStatus.DeviceAcknowledged &&
-                    result.Status != OrderedSignalSendStatus.LocalCallCompleted)
-                {
-                    LogHelper.AddLog(
-                        MsgLevel.Fatal,
-                        $"工件{identity}的相机IO节点({nodeText})异步发送返回{result.Status}：{result.Message}",
-                        true);
-                }
+                EnsureSuccessfulResult(result, CancellationToken.None);
+                if (showLog)
+                    LogHelper.AddLog(MsgLevel.Info, $"相机IO节点({nodeText})异步脉冲完成，保持及复位API已返回。", true);
             }
             catch (Exception ex)
             {
                 LogHelper.AddLog(
                     MsgLevel.Fatal,
-                    $"工件{identity}的相机IO节点({nodeText})异步发送异常：{ex.Message}",
+                    $"相机IO节点({nodeText})异步发送异常：{ex.Message}",
                     true);
             }
         }
 
-        /// <summary>把协调器结果转换为节点同步运行结果。</summary>
+        /// <summary>把实际脉冲执行结果转换为节点同步运行结果。</summary>
         private static void EnsureSuccessfulResult(
             OrderedSignalSendResult sendResult,
             CancellationToken token)
@@ -287,7 +267,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
             {
                 throw new InvalidOperationException(
                     string.IsNullOrWhiteSpace(sendResult.Message)
-                        ? $"相机IO有序发送返回{sendResult.Status}。"
+                        ? $"相机IO发送返回{sendResult.Status}。"
                         : sendResult.Message);
             }
         }

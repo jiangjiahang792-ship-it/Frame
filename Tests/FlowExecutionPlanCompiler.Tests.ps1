@@ -101,10 +101,10 @@ Assert-True $plan.IsProductionReady '串行外发和组合模块内部串行外�
 Assert-True ($plan.FlowRevision -eq 11 -and $plan.OrderDomain -eq '产线A') '编译计划必须冻结流程版本并规范生产顺序域。'
 Assert-True ($plan.Nodes.Count -eq 8) '编译计划必须包含顶层6个节点和组合模块内部2个节点。'
 Assert-True ($plan.Connections.Count -eq 6) '编译计划必须包含顶层5条和组合模块内部1条连线。'
-Assert-True ($plan.PotentialSignals.Count -eq 3) '有序外发应排除直接执行的Modbus写入、读取和手动IO。'
+Assert-True ($plan.PotentialSignals.Count -eq 0) '全部外发节点直接执行，不应登记有序信号。'
 $signalKinds = @($plan.PotentialSignals | ForEach-Object { $_.SignalKind.ToString() } | Sort-Object)
-Assert-True (($signalKinds -join ',') -eq 'CameraIO,ComSend,PLCWrite') '递归外发节点类别与业务白名单不一致。'
-Assert-True (($plan.PotentialSignals | Where-Object { $_.NodePath -like '*组合模块*相机IO*' }).Count -eq 1) '组合模块内部外发节点必须带完整嵌套路径。'
+Assert-True ($signalKinds.Count -eq 0) '组合模块内部也不得登记有序信号。'
+Assert-True (($plan.Nodes | Where-Object { $_.NodePath -like '*组合模块*相机IO*' }).Count -eq 1) '组合模块内部节点仍必须带完整嵌套路径。'
 
 $compiledName = $plan.Nodes[1].NodeName
 $config.NodeInfos[1].NodeName = '后续改名'
@@ -129,8 +129,8 @@ $parallel.ConnectionInfos.Add((New-ConnectionConfig -Id 'p1' -From 1 -To 2))
 $parallel.ConnectionInfos.Add((New-ConnectionConfig -Id 'p2' -From 1 -To 3))
 $parallelPlan = $compiler.Compile($parallel, [long]12, '产线A')
 $parallelErrors = @($parallelPlan.Diagnostics | Where-Object { $_.Code.ToString() -eq 'UnorderedParallelSignals' })
-Assert-True (-not $parallelPlan.IsProductionReady) '同轮可并发且没有先后依赖的外发节点必须阻止生产启动。'
-Assert-True ($parallelErrors.Count -eq 1) '一对无序并行外发节点必须生成一条稳定诊断。'
+Assert-True $parallelPlan.IsProductionReady '直接发送允许多个外发节点并行执行。'
+Assert-True ($parallelErrors.Count -eq 0) '直接发送节点不能被旧有序规则拦截。'
 
 $exclusive = New-ProcessConfig -Name '互斥分支流程'
 $exclusive.NodeInfos.Add((New-NodeConfig -Id 1 -Name '条件' -TypeName 'If' -IsStartNode $true))
@@ -150,8 +150,8 @@ $disabledCondition.NodeInfos.Add((New-NodeConfig -Id 3 -Name 'PLC写入' -TypeNa
 $disabledCondition.ConnectionInfos.Add((New-ConnectionConfig -Id 'd1' -From 1 -To 2 -Branch 'True'))
 $disabledCondition.ConnectionInfos.Add((New-ConnectionConfig -Id 'd2' -From 1 -To 3 -Branch 'False'))
 $disabledConditionPlan = $compiler.Compile($disabledCondition, [long]14, '产线A')
-Assert-True (-not $disabledConditionPlan.IsProductionReady) '禁用条件节点会放行全部分支，两个外发节点必须按可能并行处理。'
-Assert-True (@($disabledConditionPlan.Diagnostics | Where-Object { $_.Code.ToString() -eq 'UnorderedParallelSignals' }).Count -eq 1) '禁用条件分支必须产生一条无序外发诊断。'
+Assert-True $disabledConditionPlan.IsProductionReady '禁用条件放行多个直接发送分支时也应允许启动。'
+Assert-True (@($disabledConditionPlan.Diagnostics | Where-Object { $_.Code.ToString() -eq 'UnorderedParallelSignals' }).Count -eq 0) '禁用条件分支不再产生外发排序诊断。'
 
 $multipleComponents = New-ProcessConfig -Name '多组件互斥流程'
 $multipleComponents.NodeInfos.Add((New-NodeConfig -Id 1 -Name '显式开始' -TypeName 'UNKNOWN' -IsStartNode $true))
@@ -196,4 +196,4 @@ Assert-True $legacyPlan.IsProductionReady '旧顺序流程应按节点列表顺�
 Assert-True ($legacyPlan.Connections.Count -eq 1) '旧顺序流程的不可变计划必须保存合成的顺序连线。'
 Assert-True ($legacyPlan.Connections[0].ConnectionId -eq 'legacy-1-2') '旧顺序流程的合成连线必须使用稳定ID。'
 
-Write-Host '流程编译器检查通过：不可变拓扑、组合模块递归、禁用分支、多组件起点、空组合、三类白名单、无序拦截和顺序回退均符合预期。'
+Write-Host '流程编译器检查通过：不可变拓扑、组合模块递归、禁用分支、多组件起点、空组合、外发直接执行和顺序回退均符合预期。'
