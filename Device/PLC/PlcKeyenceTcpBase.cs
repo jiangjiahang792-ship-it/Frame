@@ -10,7 +10,7 @@ using Newtonsoft.Json.Converters;
 namespace TDJS_Vision.Device.PLC
 {
     /// <summary>将基恩士上位链路 TCP 协议适配为项目统一的 PLC 设备接口。</summary>
-    public abstract class PlcKeyenceTcpBase : IPlc, IResultSendTypedPlc
+    public abstract class PlcKeyenceTcpBase : ReconnectingCommunicationDevice, IPlc, IResultSendTypedPlc
     {
         /// <summary>当前设备独享的通信客户端，复用长连接并由通信库串行处理报文。</summary>
         private DeviceTcpNet _client;
@@ -31,8 +31,10 @@ namespace TDJS_Vision.Device.PLC
         /// <summary>设备保存和恢复使用的通信参数。</summary>
         public PLCParms PLCParms { get; set; }
 
-        /// <summary>连接状态，同时用于方案恢复时决定是否重新连接。</summary>
-        public bool IsConnect { get; set; }
+        /// <inheritdoc />
+        protected override string CommunicationName => UserDefinedName;
+        /// <inheritdoc />
+        protected override DeviceCommunication CommunicationClient => _client;
 
         /// <summary>单次连接和收发超时，限制在 100 到 60000 毫秒。</summary>
         public int OperationTimeoutMs
@@ -61,8 +63,6 @@ namespace TDJS_Vision.Device.PLC
         /// <summary>供现有方案反序列化逻辑定位具体设备类型。</summary>
         public string ClassName { get; set; }
 
-        /// <summary>通知现有设备列表更新连接开关。</summary>
-        public event EventHandler<bool> ConnectStatusEvent;
 
         /// <summary>反序列化构造函数；通信客户端在 CreateDevice 中恢复。</summary>
 
@@ -98,26 +98,30 @@ namespace TDJS_Vision.Device.PLC
         /// <summary>建立长连接并同步设备列表中的连接状态。</summary>
         public bool Connect()
         {
+            return ConnectWithRecovery();
+        }
+
+        /// <inheritdoc />
+        protected override OperateResult OpenCommunicationCore()
+        {
             if (_client == null)
                 CreateDevice();
-            IsConnect = _client.ConnectServer().IsSuccess;
-            ConnectStatusEvent?.Invoke(this, IsConnect);
-            return IsConnect;
+            return _client.ConnectServer();
         }
 
         /// <summary>关闭通信连接并通知设备列表。</summary>
         public void Disconnect()
         {
-            if (_client != null)
-                IsConnect = !_client.ConnectClose().IsSuccess;
-            else
-                IsConnect = false;
-            ConnectStatusEvent?.Invoke(this, IsConnect);
+            DisconnectWithRecovery();
         }
+
+        /// <inheritdoc />
+        protected override void CloseCommunicationCore() => _client?.ConnectClose();
 
         /// <summary>释放底层连接资源。</summary>
         public void Release()
         {
+            DisconnectWithRecovery();
             _client?.Dispose();
             _client = null;
             IsConnect = false;

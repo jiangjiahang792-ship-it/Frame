@@ -1,5 +1,12 @@
 $ErrorActionPreference = 'Stop'
 
+# 以UTF-8读取后交给.NET Framework执行，避免Windows PowerShell按ANSI解释中文。
+if ($PSVersionTable.PSEdition -eq 'Core') {
+    $env:TDJS_FLOW_COMPILER_TEST_PATH = $PSCommandPath
+    & "$env:WINDIR/System32/WindowsPowerShell/v1.0/powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command 'try { Invoke-Expression (Get-Content -LiteralPath $env:TDJS_FLOW_COMPILER_TEST_PATH -Raw -Encoding UTF8) } catch { Write-Host $_; exit 1 }'
+    exit $LASTEXITCODE
+}
+
 function Assert-True {
     param([bool]$Condition, [string]$Message)
     if (-not $Condition) {
@@ -7,8 +14,10 @@ function Assert-True {
     }
 }
 
-$projectRoot = Split-Path -Parent $PSScriptRoot
-$debugDirectory = Join-Path $projectRoot 'bin\x64\Debug'
+$scriptDirectory = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $env:TDJS_FLOW_COMPILER_TEST_PATH }
+$projectRoot = Split-Path -Parent $scriptDirectory
+$buildDirectory = if ($env:TDJS_TEST_BUILD_DIRECTORY) { $env:TDJS_TEST_BUILD_DIRECTORY } else { 'bin\x64\Debug' }
+$debugDirectory = Join-Path $projectRoot $buildDirectory
 $application = Get-Item -LiteralPath (Join-Path $debugDirectory '机器视觉AI检测系统V1.0.exe') -ErrorAction SilentlyContinue
 $source = Get-Item -LiteralPath (Join-Path $projectRoot 'ResourceManagement\FlowExecutionPlanCompiler.cs')
 Assert-True ($null -ne $application) '流程编译器测试需要最新Debug程序。'
@@ -92,9 +101,9 @@ Assert-True $plan.IsProductionReady '串行外发和组合模块内部串行外�
 Assert-True ($plan.FlowRevision -eq 11 -and $plan.OrderDomain -eq '产线A') '编译计划必须冻结流程版本并规范生产顺序域。'
 Assert-True ($plan.Nodes.Count -eq 8) '编译计划必须包含顶层6个节点和组合模块内部2个节点。'
 Assert-True ($plan.Connections.Count -eq 6) '编译计划必须包含顶层5条和组合模块内部1条连线。'
-Assert-True ($plan.PotentialSignals.Count -eq 4) '四类白名单外发节点必须全部识别，读取和手动IO必须排除。'
+Assert-True ($plan.PotentialSignals.Count -eq 3) '有序外发应排除直接执行的Modbus写入、读取和手动IO。'
 $signalKinds = @($plan.PotentialSignals | ForEach-Object { $_.SignalKind.ToString() } | Sort-Object)
-Assert-True (($signalKinds -join ',') -eq 'CameraIO,ComSend,ModbusWrite,PLCWrite') '递归外发节点类别与业务白名单不一致。'
+Assert-True (($signalKinds -join ',') -eq 'CameraIO,ComSend,PLCWrite') '递归外发节点类别与业务白名单不一致。'
 Assert-True (($plan.PotentialSignals | Where-Object { $_.NodePath -like '*组合模块*相机IO*' }).Count -eq 1) '组合模块内部外发节点必须带完整嵌套路径。'
 
 $compiledName = $plan.Nodes[1].NodeName
@@ -187,4 +196,4 @@ Assert-True $legacyPlan.IsProductionReady '旧顺序流程应按节点列表顺�
 Assert-True ($legacyPlan.Connections.Count -eq 1) '旧顺序流程的不可变计划必须保存合成的顺序连线。'
 Assert-True ($legacyPlan.Connections[0].ConnectionId -eq 'legacy-1-2') '旧顺序流程的合成连线必须使用稳定ID。'
 
-Write-Host '流程编译器检查通过：不可变拓扑、组合模块递归、禁用分支、多组件起点、空组合、四类白名单、无序拦截和顺序回退均符合预期。'
+Write-Host '流程编译器检查通过：不可变拓扑、组合模块递归、禁用分支、多组件起点、空组合、三类白名单、无序拦截和顺序回退均符合预期。'

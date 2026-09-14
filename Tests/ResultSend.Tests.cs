@@ -76,7 +76,7 @@ internal static class ResultSendTests
         public List<Tuple<string, Array>> Calls { get; } = new List<Tuple<string, Array>>();
         /// <summary>指定在第几次写入抛出异常。</summary>
         public int FailAt { get; set; }
-        /// <summary>暂停首个写入，以验证排队快照。</summary>
+        /// <summary>暂停首个写入，以验证发送快照及完成等待。</summary>
         public TaskCompletionSource<bool> Gate { get; set; }
         /// <summary>复用真实设备预检。</summary>
         public void Validate(string address, ResultSendType type, Array values) => new PlcResultSendWriter((IPlc)Device).Validate(address, type, values);
@@ -89,13 +89,27 @@ internal static class ResultSendTests
         }
     }
 
-    /// <summary>确认结果发送被流程编译器识别为需要排序的外部写入。</summary>
+    /// <summary>确认结果发送不再参与有序外发检查，其他有序节点仍被识别。</summary>
     private static void VerifyCompiler()
     {
         var config = new ProcessConfig { ProcessName = "结果发送编译检查", HasCanvasGraph = true };
         config.NodeInfos.Add(new NodeConfig { ID = 1, NodeName = "结果发送", NodeType = NodeType.ResultSend, Active = true, IsStartNode = true });
         var plan = new FlowExecutionPlanCompiler().Compile(config, 1, "测试域");
-        Check(plan.IsProductionReady && plan.PotentialSignals.Count == 1 && plan.PotentialSignals[0].SignalKind == OrderedSignalNodeKind.ResultSend, "流程编译器未识别结果发送。");
+        Check(plan.IsProductionReady && plan.PotentialSignals.Count == 0, "结果发送仍被登记为有序外发。");
+        Check(!typeof(IOrderedExternalSignalNode).IsAssignableFrom(typeof(NodeResultSend)), "结果发送仍实现有序外发接口。");
+        config.NodeInfos[0].NodeType = NodeType.UNKNOWN;
+        config.NodeInfos.Add(new NodeConfig { ID = 2, NodeType = NodeType.ResultSend, Active = true });
+        config.NodeInfos.Add(new NodeConfig { ID = 3, NodeType = NodeType.ResultSend, Active = true });
+        config.NodeInfos.Add(new NodeConfig { ID = 4, NodeType = NodeType.CameraIO, Active = true });
+        for (int id = 2; id <= 4; id++)
+            config.ConnectionInfos.Add(new ProcessConnectionConfig { ID = "并行" + id, FromNodeId = 1, ToNodeId = id });
+        plan = new FlowExecutionPlanCompiler().Compile(config, 1, "测试域");
+        Check(plan.IsProductionReady && plan.PotentialSignals.Count == 1 && plan.PotentialSignals[0].SignalKind == OrderedSignalNodeKind.CameraIO,
+            "并行结果发送被拦截或相机IO的有序规则被移除。");
+        config.NodeInfos[3].NodeType = NodeType.PLCWrite;
+        plan = new FlowExecutionPlanCompiler().Compile(config, 1, "测试域");
+        Check(plan.IsProductionReady && plan.PotentialSignals.Count == 1 && plan.PotentialSignals[0].SignalKind == OrderedSignalNodeKind.PLCWrite,
+            "独立PLC写入的有序规则被移除。");
     }
 
     /// <summary>验证严格转换、空集合、容量及固定字节字符串。</summary>
@@ -208,7 +222,7 @@ internal static class ResultSendTests
             writers[1].WriteAsync("1000", ResultSendType.Double, large).GetAwaiter().GetResult();
             Check(modServer.ReadDouble("1000", 70).Content.SequenceEqual(large), "Modbus分批地址或字序错误。");
             Reject(() => writers[1].Validate("65535", ResultSendType.Double, new double[1]), "Modbus越界不能写入。");
-            VerifyNodeAndUi(plc);
+            VerifyNodeAndUi(plc, modbus, modServer);
             plc.Disconnect(); modbus.Disconnect();
             Reject(() => writers[0].WriteAsync("DM100", ResultSendType.Int32, new int[] { 1 }).GetAwaiter().GetResult(), "断开PLC不能报成功。");
             Reject(() => writers[1].WriteAsync("100", ResultSendType.Int32, new int[] { 1 }).GetAwaiter().GetResult(), "断开Modbus不能报成功。");
@@ -216,12 +230,13 @@ internal static class ResultSendTests
         finally { plc.Release(); modbus.Disconnect(); server.ServerClose(); server.Dispose(); modServer.ServerClose(); modServer.Dispose(); }
     }
 
-    /// <summary>验证真实节点订阅、配置恢复、设计器布局和有序发送入口。</summary>
-    private static void VerifyNodeAndUi(IPlc plc)
+    /// <summary>验证真实节点订阅、配置恢复、设计器布局和直接发送入口。</summary>
+    private static void VerifyNodeAndUi(IPlc plc, TDJS_Vision.Device.Modbus.IModbus modbus, ModbusTcpServer modServer)
     {
         Console.WriteLine("开始节点与窗体验证。");
         var process = new TDJS_Vision.Process("结果发送验证");
         var sender = (NodeResultSend)NodeFactory.CreateNode(5, "结果发送", process, NodeType.ResultSend);
+        sender.Active = true;
         var arithmetic = new NodeArithmeticOperation(1, "四则运算", process, NodeType.ArithmeticOperation);
         arithmetic.ParamForm.Params = new NodeParamArithmeticOperation { Rows = new List<ArithmeticOperationRow> { new ArithmeticOperationRow { OutputVariableName = "长度" } } };
         SetResult(arithmetic, new NodeResultArithmeticOperation { Value = 12.5, Variables = new Dictionary<string, double> { { "长度", 12.5 } } });
@@ -238,6 +253,7 @@ internal static class ResultSendTests
         process.Nodes.AddRange(nodes);
         foreach (var node in nodes.Take(4)) process.Connections.Add(new ProcessConnection { FromNodeId = node.ID, ToNodeId = 5 });
         Solution.Instance.AllDevices.Add(plc);
+        Solution.Instance.AllDevices.Add(modbus);
         try
         {
             Console.WriteLine("检查四类订阅目录。");
@@ -289,41 +305,65 @@ internal static class ResultSendTests
             ((NodeResultCaliperCircle)measure.Result).Items[1].IsOk = false;
             Check(((double[])sender.PrepareRows(param, writer, true)[2].Values)[0] == 0, "未测得的目标应发送默认值。");
             ((NodeResultCaliperCircle)measure.Result).Items[1].IsOk = true;
-            // 有序入口实际提交一次整批写入，并检查取消前没有设备写入。
-            using (var coordinator = new OrderedSignalCoordinator())
+            // 没有工件上下文时，PLC和Modbus都通过真实Run入口直接写入。
+            Pump(sender.Run(CancellationToken.None, false));
+            Check(((NodeResultResultSend)sender.Result).Success && ((NodeResultResultSend)sender.Result).SentCount == 4, "PLC无工件上下文直接发送失败。");
+            var modParam = param.Copy();
+            modParam.DeviceName = modbus.UserDefinedName;
+            for (int index = 0; index < modParam.Rows.Count; index++) modParam.Rows[index].Address = (2000 + index * 100).ToString();
+            modParam.Rows[1].CountAddress = "2500";
+            sender.ParamForm.Params = modParam;
+            Pump(sender.Run(CancellationToken.None, false));
+            Check(((NodeResultResultSend)sender.Result).Success && modServer.ReadDouble("2000").Content == 12.5 &&
+                modServer.ReadFloat("2100", 5).Content.SequenceEqual(new[] { 12.3f, 15.6f, 0f, 0f, 0f }) &&
+                modServer.ReadUInt16("2500").Content == 2 && modServer.ReadBool("2300").Content, "Modbus真实Run直接发送或数量写入失败。");
+            sender.ParamForm.Params = param.Copy();
+            var coordinator = Solution.Instance.OrderedSignalCoordinator;
+            var epoch = Guid.NewGuid();
+            var first = new WorkpieceExecutionContext(new WorkpieceIdentity(epoch, "结果测试", 1), 1, "结果测试", "测试", DateTime.UtcNow, CancellationToken.None);
+            var second = new WorkpieceExecutionContext(new WorkpieceIdentity(epoch, "结果测试", 2), 1, "结果测试", "测试", DateTime.UtcNow, CancellationToken.None);
+            coordinator.RegisterWorkpiece(first);
+            coordinator.RegisterWorkpiece(second);
+            using (Solution.Instance.WorkpieceContextAccessor.Push(second))
             {
-                var epoch = Guid.NewGuid();
-                var context = new WorkpieceExecutionContext(new WorkpieceIdentity(epoch, "结果测试", 1), 1, "结果测试", "测试", DateTime.UtcNow, CancellationToken.None);
-                coordinator.RegisterWorkpiece(context);
-                var send = sender.SubmitOrderedSignalAsync(context, "测试/5.结果发送", coordinator, CancellationToken.None);
-                Pump(send);
-                Check(send.Result.Status == OrderedSignalSendStatus.DeviceAcknowledged, "有序发送未完成。");
+                Pump(sender.Run(CancellationToken.None, false));
+                Check(((NodeResultResultSend)sender.Result).Success, "前序工件未完成时不能直接发送。");
+                Pump(coordinator.CompleteWorkpieceAsync(first, WorkpieceTerminalState.Faulted));
+                Pump(sender.Run(CancellationToken.None, false));
+                Check(((NodeResultResultSend)sender.Result).Success, "前序工件故障阻塞了直接发送。");
             }
             var recording = new RecordingWriter { Device = plc, Gate = new TaskCompletionSource<bool>() };
             ResultSendWriterFactory.Register(device => ReferenceEquals(device, plc) ? recording : null);
-            using (var coordinator = new OrderedSignalCoordinator())
             {
-                var context = new WorkpieceExecutionContext(new WorkpieceIdentity(Guid.NewGuid(), "快照测试", 1), 1, "快照测试", "测试", DateTime.UtcNow, CancellationToken.None);
-                coordinator.RegisterWorkpiece(context);
-                var send = sender.SubmitOrderedSignalAsync(context, "测试/5.结果发送", coordinator, CancellationToken.None);
+                var send = sender.Run(CancellationToken.None, false);
+                Check(recording.Calls.Count == 1 && !send.IsCompleted && !((NodeResultResultSend)sender.Result).Success, "写入未完成就报告了节点成功。");
                 var replacement = param.Copy(); replacement.Rows[1].Address = "DM999"; sender.ParamForm.Params = replacement;
                 aiResult.DetectResults["DetectItem.BackRivetArea"][0].Value = "999";
                 recording.Gate.SetResult(true); Pump(send);
-                Check(recording.Calls.Any(call => call.Item1 == "DM310" && call.Item2 is float[] values && values[0] == 12.3f) && !recording.Calls.Any(call => call.Item1 == "DM999"), "排队期间的参数或结果变化污染了快照。");
+                Check(recording.Calls.Any(call => call.Item1 == "DM310" && call.Item2 is float[] values && values[0] == 12.3f) && !recording.Calls.Any(call => call.Item1 == "DM999"), "发送期间的参数或结果变化污染了快照。");
+                Check(recording.Calls.Select(call => call.Item1).SequenceEqual(new[] { "DM300", "DM310", "DM350", "DM360", "DM380.1" }), "单次调用内数据、数量及行顺序错误。");
                 aiResult.DetectResults["DetectItem.BackRivetArea"][0].Value = "12.3";
                 sender.ParamForm.Params = param.Copy();
             }
             recording = new RecordingWriter { Device = plc };
-            using (var coordinator = new OrderedSignalCoordinator())
             using (var cancelled = new CancellationTokenSource())
             {
                 cancelled.Cancel();
-                var context = new WorkpieceExecutionContext(new WorkpieceIdentity(Guid.NewGuid(), "取消测试", 1), 1, "取消测试", "测试", DateTime.UtcNow, CancellationToken.None);
-                coordinator.RegisterWorkpiece(context);
-                var send = sender.SubmitOrderedSignalAsync(context, "测试/5.结果发送", coordinator, cancelled.Token);
-                Pump(send);
-                Check(send.Result.Status == OrderedSignalSendStatus.CancelledBeforeStart && recording.Calls.Count == 0, "发送前取消仍然写入了设备。");
+                var send = sender.Run(cancelled.Token, false);
+                Reject(() => Pump(send), "发送前取消未返回取消。");
+                Check(send.IsCanceled && recording.Calls.Count == 0, "发送前取消仍然写入了设备。");
             }
+            sender.ParamForm.Params = invalid;
+            Reject(() => Pump(sender.Run(CancellationToken.None, false)), "后续行配置无效时没有拒绝整批发送。");
+            Check(recording.Calls.Count == 0 && ((NodeResultResultSend)sender.Result).FailedRow == 2, "整批预检完成前已写入设备或失败行错误。");
+            sender.ParamForm.Params = param.Copy();
+            recording = new RecordingWriter { Device = plc, FailAt = 2 };
+            Reject(() => Pump(sender.Run(CancellationToken.None, false)), "实际Run吞掉了设备写入失败。");
+            var failed = (NodeResultResultSend)sender.Result;
+            Check(!failed.Success && failed.FailedRow == 2 && failed.SentCount == 1 && recording.Calls.Count == 2, "部分失败后发生自动重试或继续发送。");
+            recording = new RecordingWriter { Device = plc };
+            Pump(sender.Run(CancellationToken.None, false));
+            Check(((NodeResultResultSend)sender.Result).Success && recording.Calls.Count == 5, "上次失败冻结了后续直接发送。");
             form.StartPosition = FormStartPosition.Manual; form.Location = new Point(-20000, -20000); form.ShowInTaskbar = false; form.Show();
             Console.WriteLine("实际窗体布局与保存检查。");
             Control<DataGridView>(form, "gridRows").CurrentCell = Control<DataGridView>(form, "gridRows").Rows[1].Cells[1];
@@ -351,6 +391,7 @@ internal static class ResultSendTests
         finally
         {
             Solution.Instance.AllDevices.Remove(plc);
+            Solution.Instance.AllDevices.Remove(modbus);
             foreach (var node in nodes) { (node.ParamForm as Form)?.Dispose(); node.Dispose(); }
         }
     }
@@ -458,7 +499,7 @@ internal static class ResultSendTests
     [STAThread]
     private static int Main()
     {
-        try { LanguageManager.SetLanguage("zh-CN", false); VerifyConversion(); VerifyMissingValues(); VerifyCompiler(); Console.WriteLine("转换专项完成，开始本机通信。"); VerifyDevices(); VerifyConfiguredAiSources(); Console.WriteLine("结果发送专项通过：中文检测项、八类型默认值与协议、四类订阅、多目标、方案恢复、精简窗体、有序发送、快照隔离、发送前取消和部分失败。"); return 0; }
+        try { LanguageManager.SetLanguage("zh-CN", false); VerifyConversion(); VerifyMissingValues(); VerifyCompiler(); Console.WriteLine("转换专项完成，开始本机通信。"); VerifyDevices(); VerifyConfiguredAiSources(); Console.WriteLine("结果发送专项通过：中文检测项、八类型默认值与协议、四类订阅、多目标、方案恢复、精简窗体、直接发送、前序未完成及故障不阻塞、快照隔离、发送完成等待、发送前取消和部分失败。"); return 0; }
         catch (Exception exception) { Console.Error.WriteLine(exception); return 1; }
     }
 }

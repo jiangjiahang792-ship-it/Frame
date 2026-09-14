@@ -48,7 +48,7 @@ namespace TDJS_Vision.Forms.ModbusAdd
             ModbusDevice = dev;
             Parms = dev.ModbusParam;
             dev.ConnectStatusEvent += Modbus_ConnectStatusEvent;
-            if (dev.IsConnect)
+            if (dev.IsConnect || (dev as TDJS_Vision.Device.IReconnectableCommunicationDevice)?.RestoreConnectionRequested == true)
             {
                 try
                 {
@@ -101,9 +101,23 @@ namespace TDJS_Vision.Forms.ModbusAdd
         /// </summary>
         private void Modbus_ConnectStatusEvent(object sender, bool e)
         {
+            if (IsDisposed || Disposing || !IsHandleCreated) return;
+            if (InvokeRequired)
+            {
+                try { BeginInvoke(new Action(() => Modbus_ConnectStatusEvent(sender, e))); }
+                catch (InvalidOperationException) { }
+                return;
+            }
             uiSwitch1.ValueChanged -= uiSwitch1_ValueChanged;
-            uiSwitch1.Active = e;
+            uiSwitch1.Active = ModbusDevice?.IsConnect == true;
             uiSwitch1.ValueChanged += uiSwitch1_ValueChanged;
+        }
+
+        /// <summary>控件首次显示时读取最新状态，补偿建句柄前的后台恢复通知。</summary>
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            Modbus_ConnectStatusEvent(ModbusDevice, ModbusDevice?.IsConnect == true);
         }
 
         /// <summary>
@@ -172,7 +186,7 @@ namespace TDJS_Vision.Forms.ModbusAdd
                 }
                 else
                 {
-                    if (ModbusDevice.IsConnect)
+                    if (ModbusDevice.IsConnect || (ModbusDevice as IReconnectableCommunicationDevice)?.RestoreConnectionRequested == true)
                     {
                         ModbusDevice.Disconnect();
                         LogHelper.AddLog(MsgLevel.Info, $"Modbus设备【{ModbusDevice.DevName}】关闭", true);
@@ -194,6 +208,12 @@ namespace TDJS_Vision.Forms.ModbusAdd
         {
             if(IsSelected)
                 SingleModbusRemoveEvent?.Invoke(this, this);
+        }
+
+        /// <summary>即使当前已经离线，也允许用户明确撤销后台连接请求。</summary>
+        private void disconnectToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            uiSwitch1_ValueChanged(sender, false);
         }
     }
 }

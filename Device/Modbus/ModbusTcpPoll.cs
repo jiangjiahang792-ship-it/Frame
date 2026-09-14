@@ -8,7 +8,7 @@ namespace TDJS_Vision.Device.Modbus
     /// <summary>
     /// Modbus通信设备类
     /// </summary>
-    public class ModbusTcpPoll : IModbus
+    public class ModbusTcpPoll : ReconnectingCommunicationDevice, IModbus
     {
         /// <summary>Modbus操作允许的最小超时时间。</summary>
         private const int MinimumOperationTimeoutMs = 100;
@@ -26,7 +26,10 @@ namespace TDJS_Vision.Device.Modbus
 
         public IModbusParam ModbusParam { get; set; }
 
-        public bool IsConnect {  get; set; }
+        /// <inheritdoc />
+        protected override string CommunicationName => UserDefinedName;
+        /// <inheritdoc />
+        protected override HslCommunication.Core.Device.DeviceCommunication CommunicationClient => modbusTcp;
 
         /// <summary>获取或设置Modbus TCP连接与收发操作的有限超时时间。</summary>
         public int OperationTimeoutMs
@@ -45,7 +48,6 @@ namespace TDJS_Vision.Device.Modbus
         public DeviceBrand Brand { get; set; } = DeviceBrand.Unknow;
         public string ClassName { get; set; } = typeof(ModbusTcpPoll).FullName;
 
-        public event EventHandler<bool> ConnectStatusEvent;
 
 
         #region 反序列化专用函数
@@ -86,7 +88,14 @@ namespace TDJS_Vision.Device.Modbus
         /// <exception cref="Exception"></exception>
         public void  Connect()
         {
-            try
+            if (!ConnectWithRecovery())
+                throw new InvalidOperationException($"Modbus设备【{DevName}】连接失败，后台将自动重试。");
+        }
+
+        /// <inheritdoc />
+        protected override HslCommunication.OperateResult OpenCommunicationCore()
+        {
+            if (modbusTcp == null)
             {
                 var param = ModbusParam as ModbusTcpParam;
                 modbusTcp = new ModbusTcpNet();
@@ -98,19 +107,15 @@ namespace TDJS_Vision.Device.Modbus
                     ConnectTimeOut = _operationTimeoutMs,
                     ReceiveTimeOut = _operationTimeoutMs,
                 };
-                HslCommunication.OperateResult connectResult = modbusTcp.ConnectServer();
-                EnsureConnectionSucceeded(connectResult);
-
-                ConnectStatusEvent?.Invoke(this, true);
-                
-                IsConnect = true;
             }
-            catch (Exception ex)
-            {
-                ConnectStatusEvent?.Invoke(this, false);
-                IsConnect = false;
-                throw new Exception($"Mobus设备【{DevName}】连接失败: {ex.Message}");
-            }
+            // 手动修改通信参数后仍复用同一个管线锁，不能让后台恢复绕过已有读写。
+            var currentParam = (ModbusTcpParam)ModbusParam;
+            var currentPipe = (HslCommunication.Core.Pipe.PipeTcpNet)modbusTcp.CommunicationPipe;
+            currentPipe.IpAddress = currentParam.IP;
+            currentPipe.Port = currentParam.Port;
+            HslCommunication.OperateResult connectResult = modbusTcp.ConnectServer();
+            EnsureConnectionSucceeded(connectResult);
+            return connectResult;
         }
 
         /// <summary>
@@ -119,13 +124,11 @@ namespace TDJS_Vision.Device.Modbus
         /// <exception cref="Exception"></exception>
         public void Disconnect()
         {
-            if (modbusTcp != null)
-            {
-                modbusTcp.CommunicationPipe.CloseCommunication();
-            }
-            modbusTcp = null;
-            IsConnect = false;
+            DisconnectWithRecovery();
         }
+
+        /// <inheritdoc />
+        protected override void CloseCommunicationCore() => modbusTcp?.ConnectClose();
 
         /// <summary>把统一有限超时应用到当前Modbus TCP通信管线。</summary>
         private void ApplyOperationTimeout()

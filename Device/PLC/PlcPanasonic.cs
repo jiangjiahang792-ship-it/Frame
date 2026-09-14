@@ -9,7 +9,7 @@ using System.Linq;
 
 namespace TDJS_Vision.Device.PLC
 {
-    public class PlcPanasonic : IPlc, IResultSendTypedPlc
+    public class PlcPanasonic : ReconnectingCommunicationDevice, IPlc, IResultSendTypedPlc
     {
         /// <summary>PLC操作允许的最小超时时间。</summary>
         private const int MinimumOperationTimeoutMs = 100;
@@ -41,17 +41,15 @@ namespace TDJS_Vision.Device.PLC
             throw new NotSupportedException("不支持的PLC扩展写入类型。");
         }
         /// <summary>
-        /// 连接状态改变事件
-        /// </summary>
-        public event EventHandler<bool> ConnectStatusEvent;
-        /// <summary>
         /// PLC连接参数
         /// </summary>
         public PLCParms PLCParms { get; set; } = new PLCParms();
-        /// <summary>
-        /// PLC连接状态
-        /// </summary>
-        public bool IsConnect { get; set; }
+        /// <inheritdoc />
+        protected override string CommunicationName => UserDefinedName;
+        /// <inheritdoc />
+        protected override HslCommunication.Core.Device.DeviceCommunication CommunicationClient =>
+            PLCParms.PlcConType == PlcConType.COM
+                ? (HslCommunication.Core.Device.DeviceCommunication)_panasonicMewtocol : _panasonicMcNet;
 
         /// <summary>获取或设置PLC连接与收发操作的有限超时时间。</summary>
         public int OperationTimeoutMs
@@ -178,47 +176,34 @@ namespace TDJS_Vision.Device.PLC
 
         public bool Connect()
         {
-            try
-            {
-                if (PLCParms.PlcConType == PlcConType.ETHERNET)
-                {
-                    IsConnect = _panasonicMcNet.ConnectServer().IsSuccess;
-                    ConnectStatusEvent?.Invoke(this, IsConnect);
-                    return IsConnect;
-                }
-                else
-                {
-                    if (_panasonicMewtocol.IsOpen())
-                        return true;
-                    IsConnect = _panasonicMewtocol.Open().IsSuccess;
-                    ConnectStatusEvent?.Invoke(this, IsConnect);
-                    return IsConnect;
-                }
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            return ConnectWithRecovery();
+        }
+
+        /// <inheritdoc />
+        protected override OperateResult OpenCommunicationCore()
+        {
+            if (CommunicationClient == null) CreateDevice();
+            if (PLCParms.PlcConType == PlcConType.ETHERNET)
+                return _panasonicMcNet.ConnectServer();
+            _panasonicMewtocol.Close();
+            return _panasonicMewtocol.Open();
         }
 
         public void Disconnect()
         {
-            if (!IsConnect) { return; }
+            DisconnectWithRecovery();
+        }
 
-            if (PLCParms.PlcConType == PlcConType.COM)
-            {
-                _panasonicMewtocol.Close();
-                IsConnect = false;
-            }
-            else
-            {
-                IsConnect = !_panasonicMcNet.ConnectClose().IsSuccess;
-            }
-            ConnectStatusEvent?.Invoke(this, IsConnect);
+        /// <inheritdoc />
+        protected override void CloseCommunicationCore()
+        {
+            if (PLCParms.PlcConType == PlcConType.COM) _panasonicMewtocol?.Close();
+            else _panasonicMcNet?.ConnectClose();
         }
 
         public void Release()
         {
+            DisconnectWithRecovery();
             if (PLCParms.PlcConType == PlcConType.COM)
                 _panasonicMewtocol.Dispose();
             else
@@ -231,8 +216,10 @@ namespace TDJS_Vision.Device.PLC
             if (_panasonicMewtocol != null)
             {
                 _panasonicMewtocol.ReceiveTimeOut = _operationTimeoutMs;
-                _panasonicMewtocol.SerialPortInni(sp =>
-                    sp.WriteTimeout = _operationTimeoutMs);
+                var pipe = (HslCommunication.Core.Pipe.PipeSerialPort)_panasonicMewtocol.CommunicationPipe;
+                var sp = pipe.GetPipe();
+                sp.ReadTimeout = _operationTimeoutMs;
+                sp.WriteTimeout = _operationTimeoutMs;
             }
             if (_panasonicMcNet != null)
             {

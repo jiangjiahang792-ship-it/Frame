@@ -706,6 +706,13 @@ namespace TDJS_Vision.ResourceManagement
         CancelledBeforeStart = 5
     }
 
+    /// <summary>设备适配器确认尚未调用任何真实写入，允许归还端点但不伪装成发送成功。</summary>
+    public sealed class DeviceSendNotStartedException : InvalidOperationException
+    {
+        /// <summary>创建明确无写入副作用的拒绝原因。</summary>
+        public DeviceSendNotStartedException(string message) : base(message) { }
+    }
+
     /// <summary>
     /// 单次外发动作返回的不可变确认结果。
     /// </summary>

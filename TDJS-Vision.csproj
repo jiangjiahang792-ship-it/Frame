@@ -313,6 +313,7 @@
     <Compile Include="Device\Modbus\ModbusTcpPoll.cs" />
     <Compile Include="Device\PLC\PlcMelsec.cs" />
     <Compile Include="Device\PLC\PlcKeyenceNano.cs" />
+    <Compile Include="Device\ReconnectingCommunicationDevice.cs" />
     <Compile Include="Device\PLC\PlcKeyenceTcpBase.cs" />
     <Compile Include="Device\PLC\PlcKeyenceKvOld.cs" />
     <Compile Include="Device\PLC\KeyenceKvOldWordClient.cs" />

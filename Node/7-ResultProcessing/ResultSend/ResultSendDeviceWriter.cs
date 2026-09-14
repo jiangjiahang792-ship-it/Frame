@@ -65,7 +65,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
         public async Task WriteAsync(string address, ResultSendType type, Array values)
         {
             Validate(address, type, values);
-            if (!_plc.IsConnect) throw new InvalidOperationException("PLC设备未连接。");
+            if (!_plc.IsConnect) throw new TDJS_Vision.ResourceManagement.DeviceSendNotStartedException("PLC设备未连接，本次写入尚未开始。");
             if (values.Length == 0) return;
             OperateResult result;
             switch (type)
@@ -116,8 +116,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
         public Task WriteAsync(string address, ResultSendType type, Array values)
         {
             Validate(address, type, values);
-            if (!_modbus.IsConnect) throw new InvalidOperationException("Modbus设备未连接。");
-            // NModbus为同步接口，后台执行避免阻塞参数窗体；端点租约覆盖全部分批写入。
+            if (!_modbus.IsConnect) throw new TDJS_Vision.ResourceManagement.DeviceSendNotStartedException("Modbus设备未连接，本次写入尚未开始。");
+            // Modbus为同步接口，后台执行避免阻塞参数窗体；本次调用内按地址依次分批写入。
             return Task.Run(() =>
             {
                 int start = int.Parse(address, CultureInfo.InvariantCulture);

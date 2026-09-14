@@ -457,6 +457,11 @@ namespace TDJS_Vision.ResourceManagement
                     OrderedSignalSendStatus.CancelledBeforeStart,
                     "取得物理设备发送权之前已取消。 ");
             }
+            catch (DeviceSendNotStartedException exception)
+            {
+                // 适配器在真实写入前明确拒绝，不冻结整台设备；本工件仍按失败保护。
+                result = new OrderedSignalSendResult(OrderedSignalSendStatus.Rejected, exception.Message);
+            }
             catch (Exception exception)
             {
                 result = new OrderedSignalSendResult(

@@ -1143,8 +1143,13 @@ namespace TDJS_Vision.Forms.DispShowImage
         { 
             base.OnMouseUp(e);
 
+            // 只有左键释放才结束当前绘制，最终位置可能尚未收到MouseMove。
+            if (e.Button != MouseButtons.Left)
+                return;
+
             if (_isDrawingRectangleRoi)
             {
+                UpdateDrawingRectangleRoi(ScreenToImage(e.Location));
                 FinishRectangleRoiDrawing();
                 if (Cursor == Cursors.SizeAll) Cursor = Cursors.Default;
                 Invalidate();

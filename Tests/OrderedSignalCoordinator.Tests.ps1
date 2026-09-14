@@ -27,7 +27,8 @@ function Wait-Task {
 }
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$debugDirectory = Join-Path $projectRoot 'bin\x64\Debug'
+$buildDirectory = if ($env:TDJS_TEST_BUILD_DIRECTORY) { $env:TDJS_TEST_BUILD_DIRECTORY } else { 'bin\x64\Debug' }
+$debugDirectory = Join-Path $projectRoot $buildDirectory
 [xml]$project = Get-Content -Raw -Encoding UTF8 (Join-Path $projectRoot 'TDJS-Vision.csproj')
 $assemblyName = @($project.Project.PropertyGroup.AssemblyName | Where-Object { $_ })[0]
 $application = Get-Item -LiteralPath (Join-Path $debugDirectory ($assemblyName + '.exe')) -ErrorAction SilentlyContinue

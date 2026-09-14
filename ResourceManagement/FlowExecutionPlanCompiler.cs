@@ -17,7 +17,7 @@ namespace TDJS_Vision.ResourceManagement
         /// </summary>
         /// <param name="nodeType">框架节点类型。</param>
         /// <param name="signalKind">映射成功时返回有序外发类别。</param>
-        /// <returns>节点属于四类外发白名单时返回true。</returns>
+        /// <returns>节点属于有序外发白名单时返回true；直接执行的Modbus写入和结果发送不参与。</returns>
         public static bool TryGetSignalKind(NodeType nodeType, out OrderedSignalNodeKind signalKind)
         {
             switch (nodeType)
@@ -30,12 +30,6 @@ namespace TDJS_Vision.ResourceManagement
                     return true;
                 case NodeType.PLCWrite:
                     signalKind = OrderedSignalNodeKind.PLCWrite;
-                    return true;
-                case NodeType.ModbusWrite:
-                    signalKind = OrderedSignalNodeKind.ModbusWrite;
-                    return true;
-                case NodeType.ResultSend:
-                    signalKind = OrderedSignalNodeKind.ResultSend;
                     return true;
                 default:
                     signalKind = default(OrderedSignalNodeKind);

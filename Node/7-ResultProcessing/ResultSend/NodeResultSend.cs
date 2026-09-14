@@ -8,8 +8,8 @@ using TDJS_Vision.ResourceManagement;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
 {
-    /// <summary>按工件顺序发送多个上游基础结果，整批预检后再取得设备发送权。</summary>
-    public sealed class NodeResultSend : NodeBase, INodeSubscriptionDependencyProvider, IOrderedExternalSignalNode
+    /// <summary>整批预检多个上游基础结果，到达节点后直接逐行发送，不参与工件有序排队。</summary>
+    public sealed class NodeResultSend : NodeBase, INodeSubscriptionDependencyProvider
     {
         /// <summary>创建结果发送节点与设计器参数窗体。</summary>
         public NodeResultSend(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
@@ -18,11 +18,6 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             ParamForm = new ParamFormResultSend();
             ParamForm.SetNodeBelong(this);
         }
-
-        /// <summary>有序外发分类。</summary>
-        public OrderedSignalNodeKind OrderedSignalKind => OrderedSignalNodeKind.ResultSend;
-        /// <summary>当前设备的共享物理端点。</summary>
-        public string OrderedSignalEndpointKey => GetWriter((NodeParamResultSend)ParamForm.Params).EndpointKey;
 
         /// <summary>为图调度器声明全部启用订阅依赖。</summary>
         public IEnumerable<int> GetSubscriptionDependencyNodeIds() =>
@@ -67,21 +62,21 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             return prepared;
         }
 
-        /// <summary>冻结结果后提交唯一有序发送意图，禁止在队列回调中再读取上游。</summary>
-        public Task<OrderedSignalSendResult> SubmitOrderedSignalAsync(WorkpieceExecutionContext context, string nodePath,
-            IOrderedSignalCoordinator coordinator, CancellationToken waitingCancellationToken)
+        /// <summary>冻结并预检本轮结果后直接发送，不等待工件顺序或获取有序端点租约。</summary>
+        public Task<OrderedSignalSendResult> ExecuteDirectSendAsync(CancellationToken token)
         {
-            if (context == null) throw new InvalidOperationException("结果发送缺少当前工件上下文，已拒绝无序写入。");
             var result = new NodeResultResultSend();
             Result = result;
             try
             {
+                token.ThrowIfCancellationRequested();
                 var param = (ParamForm.Params as NodeParamResultSend)?.Copy();
                 var writer = GetWriter(param);
-                string endpoint = writer.EndpointKey;
+                // 保留适配器端点配置校验，但不使用端点键申请发送权。
+                _ = writer.EndpointKey;
                 var rows = PrepareRows(param, writer, true);
-                return context.SubmitOrderedSignalAsync(coordinator, nodePath, OrderedSignalKind, endpoint,
-                    () => SendPreparedAsync(writer, rows, result), waitingCancellationToken);
+                token.ThrowIfCancellationRequested();
+                return SendPreparedAsync(writer, rows, result);
             }
             catch (Exception exception)
             {
@@ -91,17 +86,25 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             }
         }
 
-        /// <summary>在同一个端点租约内逐行发送；每行数据成功后才写有效数量，失败不自动重试。</summary>
+        /// <summary>在本次调用内逐行发送；每行数据成功后才写有效数量，失败不自动重试。</summary>
         public static async Task<OrderedSignalSendResult> SendPreparedAsync(IResultSendWriter writer, List<ResultSendPreparedRow> rows, NodeResultResultSend result)
         {
+            bool anyWriteCompleted = false;
             foreach (var row in rows)
             {
                 try
                 {
                     await writer.WriteAsync(row.Configuration.Address, row.Configuration.DataType, row.Values).ConfigureAwait(false);
+                    anyWriteCompleted = true;
                     if (row.Configuration.Mode == ResultSendMode.All)
                         await writer.WriteAsync(row.Configuration.CountAddress, ResultSendType.UInt16, new ushort[] { row.Count }).ConfigureAwait(false);
                     result.SentCount++;
+                }
+                catch (DeviceSendNotStartedException exception) when (!anyWriteCompleted)
+                {
+                    result.FailedRow = row.RowNumber;
+                    result.Error = "第" + row.RowNumber + "行发送前检查失败：" + exception.Message + "本次结果未写入，后续行未发送。";
+                    throw new DeviceSendNotStartedException(result.Error);
                 }
                 catch (Exception exception)
                 {
@@ -128,8 +131,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             {
                 token.ThrowIfCancellationRequested();
                 SetStatus(NodeStatus.Unexecuted, "*");
-                var response = await SubmitOrderedSignalAsync(Solution.Instance.WorkpieceContextAccessor.Current,
-                    (Process?.ProcessName ?? "未知流程") + "/" + ID + "." + NodeName, Solution.Instance.OrderedSignalCoordinator, token);
+                var response = await ExecuteDirectSendAsync(token);
                 if (response.Status == OrderedSignalSendStatus.CancelledBeforeStart) throw new OperationCanceledException(response.Message, token);
                 if (response.Status != OrderedSignalSendStatus.DeviceAcknowledged && response.Status != OrderedSignalSendStatus.LocalCallCompleted)
                     throw new InvalidOperationException(response.Message);

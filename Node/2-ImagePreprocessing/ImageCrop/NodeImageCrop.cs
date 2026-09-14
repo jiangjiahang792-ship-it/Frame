@@ -8,9 +8,11 @@ using TDJS_Vision.Node._1_Acquisition.ImageSource;
 
 namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
 {
+    /// <summary>裁剪图像节点，旋转ROI直接输出纠正后的独立矩形图像。</summary>
     public class NodeImageCrop : NodeBase
     {
 
+        /// <summary>初始化裁剪节点和参数窗体。</summary>
         public NodeImageCrop(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
         {
             ParamForm = new NodeParamFormImageCrop(process, this);
@@ -54,24 +56,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
                         if (param.RoiEnable)
                         {
                             var rects = form.GetImageROIRects(src);
-                            var roiImg = CropImages(src, rects);
-                            if (roiImg == null || roiImg.Count == 0)
-                            {
-                                throw new Exception("裁切的图像为空，请检查是否超出图像区域！");
-                            }
-
-                            nodeResultImageCrop.OutputImage = new OutputImage
-                            {
-                                SrcImg = src,
-                                Bitmaps = roiImg,
-                                Rectangles = rects
-                            };
-                            nodeResultImageCrop.OutputImage
-                                .TakeOwnership(roiImg)
-                                .TakeDependency(inputImage);
-                            Mat firstGrayCrop = BuildFirstGrayCrop(inputImage, rects, roiImg);
-                            nodeResultImageCrop.OutputImage.GrayImg = firstGrayCrop;
-                            nodeResultImageCrop.OutputImage.TakeOwnership(firstGrayCrop);
+                            nodeResultImageCrop.OutputImage = BuildCroppedOutput(inputImage, src, param.ImageRois, rects);
                         }
                         else
                         {
@@ -106,6 +91,107 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
             }
 
             return new NodeReturn(NodeRunFlag.ContinueRun);
+        }
+
+        /// <summary>构造完整裁剪输出，失败时释放全部已创建的图像。</summary>
+        internal static OutputImage BuildCroppedOutput(OutputImage inputImage, Mat source,
+            List<ImageCropRoiRegion> regions, List<Rect> rects)
+        {
+            var output = new OutputImage();
+            try
+            {
+                bool hasRegions = regions != null && regions.Count > 0;
+                var roiImg = hasRegions ? CropRectifiedImages(source, regions) : CropImages(source, rects);
+                output.TakeOwnership(roiImg).TakeDependency(inputImage);
+                output.Bitmaps = roiImg;
+                bool rectified = false;
+                if (hasRegions)
+                    foreach (ImageCropRoiRegion region in regions)
+                        rectified |= region.RequiresRectification;
+
+                if (rectified)
+                {
+                    // 旋转纠正不能再使用源图外接矩形的平移偏移，否则下游检测框会错位。
+                    // 单ROI直接使用裁图作为基准；多ROI纵向拼接预览，使每张图都有独立坐标区。
+                    output.SrcImg = BuildRectifiedPreview(roiImg, out List<Rect> outputRects);
+                    output.TakeOwnership(output.SrcImg);
+                    output.Rectangles = outputRects;
+                }
+                else
+                {
+                    output.SrcImg = source;
+                    output.Rectangles = rects;
+                }
+
+                Mat firstGrayCrop;
+                if (roiImg[0].Channels() == 1)
+                    firstGrayCrop = roiImg[0];
+                else if (hasRegions && OutputImage.HasValidImage(inputImage?.GrayImg) &&
+                    inputImage.GrayImg.Width == source.Width && inputImage.GrayImg.Height == source.Height)
+                    firstGrayCrop = regions[0].CropRectified(inputImage.GrayImg);
+                else if (!hasRegions)
+                    firstGrayCrop = BuildFirstGrayCrop(inputImage, rects, roiImg);
+                else
+                    firstGrayCrop = OutputImage.BuildGrayImage(roiImg[0]);
+                output.TakeOwnership(firstGrayCrop);
+                output.GrayImg = firstGrayCrop;
+                return output;
+            }
+            catch
+            {
+                output.Dispose();
+                throw;
+            }
+        }
+
+        /// <summary>从同一源图直接采样多个纠正ROI，不创建整幅旋转中间图。</summary>
+        internal static List<Mat> CropRectifiedImages(Mat source, IEnumerable<ImageCropRoiRegion> regions)
+        {
+            var images = new List<Mat>();
+            try
+            {
+                foreach (ImageCropRoiRegion region in regions)
+                {
+                    if (region == null)
+                        throw new InvalidOperationException("裁剪ROI参数为空。");
+                    images.Add(region.CropRectified(source));
+                }
+                return images;
+            }
+            catch
+            {
+                foreach (Mat image in images)
+                    image.Dispose();
+                throw;
+            }
+        }
+
+        /// <summary>为纠正后的多图建立一致的预览坐标；单图直接复用，无额外复制。</summary>
+        private static Mat BuildRectifiedPreview(List<Mat> images, out List<Rect> rects)
+        {
+            rects = new List<Rect>(images.Count);
+            int width = 0, height = 0;
+            foreach (Mat image in images)
+            {
+                rects.Add(new Rect(0, height, image.Width, image.Height));
+                width = Math.Max(width, image.Width);
+                height = checked(height + image.Height);
+            }
+            if (images.Count == 1)
+                return images[0];
+            var preview = new Mat(height, width, images[0].Type(), Scalar.All(0));
+            try
+            {
+                for (int i = 0; i < images.Count; i++)
+                    using (var target = new Mat(preview, rects[i]))
+                        images[i].CopyTo(target);
+                return preview;
+            }
+            catch
+            {
+                preview.Dispose();
+                throw;
+            }
         }
 
         /// <summary>

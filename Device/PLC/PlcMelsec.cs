@@ -13,7 +13,7 @@ namespace TDJS_Vision.Device.PLC
     /// <summary>
     /// 三菱PLC
     /// </summary>
-    public class PlcMelsec : IPlc, IResultSendTypedPlc
+    public class PlcMelsec : ReconnectingCommunicationDevice, IPlc, IResultSendTypedPlc
     {
         /// <summary>PLC操作允许的最小超时时间。</summary>
         private const int MinimumOperationTimeoutMs = 100;
@@ -42,10 +42,10 @@ namespace TDJS_Vision.Device.PLC
         /// 设备参数
         /// </summary>
         public PLCParms PLCParms { get; set; } = new PLCParms();
-        /// <summary>
-        /// 是否连接
-        /// </summary>
-        public bool IsConnect { get; set; }
+        /// <inheritdoc />
+        protected override string CommunicationName => UserDefinedName;
+        /// <inheritdoc />
+        protected override HslCommunication.Core.Device.DeviceCommunication CommunicationClient => melsecMcNet;
 
         /// <summary>获取或设置PLC连接与收发操作的有限超时时间。</summary>
         public int OperationTimeoutMs
@@ -80,12 +80,6 @@ namespace TDJS_Vision.Device.PLC
         /// 反序列化使用标志
         /// </summary>
         public string ClassName { get; set; } = typeof(PlcMelsec).FullName;
-        /// <summary>
-        /// 连接状态改变事件
-        /// </summary>
-        public event EventHandler<bool> ConnectStatusEvent;
-
-
         #region 反序列化专用函数
 
         /// <summary>
@@ -146,43 +140,29 @@ namespace TDJS_Vision.Device.PLC
 
         public bool Connect()
         {
-            try
-            {
-                if (PLCParms.PlcConType == PlcConType.ETHERNET)
-                {
-                    IsConnect = melsecMcNet.ConnectServer().IsSuccess;
-                    ConnectStatusEvent?.Invoke(this, IsConnect);
-                    return IsConnect;
-                }
-                else
-                {
-                    throw new Exception("不支持的通信方式！");
-                }
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            return ConnectWithRecovery();
+        }
+
+        /// <inheritdoc />
+        protected override HslCommunication.OperateResult OpenCommunicationCore()
+        {
+            if (PLCParms.PlcConType != PlcConType.ETHERNET)
+                throw new InvalidOperationException("不支持的通信方式！");
+            if (melsecMcNet == null) CreateDevice();
+            return melsecMcNet.ConnectServer();
         }
 
         public void Disconnect()
         {
-            if (!IsConnect) { return; }
-
-            if (PLCParms.PlcConType == PlcConType.COM)
-            {
-                melsecMcNet.ConnectClose();
-                IsConnect = false;
-            }
-            else
-            {
-                IsConnect = !melsecMcNet.ConnectClose().IsSuccess;
-            }
-            ConnectStatusEvent?.Invoke(this, IsConnect);
+            DisconnectWithRecovery();
         }
+
+        /// <inheritdoc />
+        protected override void CloseCommunicationCore() => melsecMcNet?.ConnectClose();
 
         public void Release()
         {
+            DisconnectWithRecovery();
             if (PLCParms.PlcConType == PlcConType.ETHERNET)
                 melsecMcNet.Dispose();
         }

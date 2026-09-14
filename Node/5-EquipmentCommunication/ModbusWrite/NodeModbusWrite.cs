@@ -11,8 +11,8 @@ using TDJS_Vision.ResourceManagement;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
 {
-    /// <summary>通过生产会话协调器按工件顺序写入Modbus设备。</summary>
-    public class NodeModbusWrite : NodeBase, IOrderedExternalSignalNode
+    /// <summary>运行到节点时直接写入Modbus设备，不参与工件顺序排队。</summary>
+    public class NodeModbusWrite : NodeBase
     {
         /// <summary>创建Modbus写入节点并初始化参数页与结果对象。</summary>
         public NodeModbusWrite(int nodeId, string nodeName, Process process, NodeType nodeType)
@@ -23,19 +23,6 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
             form.SetNodeBelong(this);
             ParamForm = form;
             Result = new NodeResultModbusWrite();
-        }
-
-        /// <summary>获取有序外发白名单中的Modbus写入类别。</summary>
-        public OrderedSignalNodeKind OrderedSignalKind => OrderedSignalNodeKind.ModbusWrite;
-
-        /// <summary>获取当前配置绑定的Modbus物理连接端点键。</summary>
-        public string OrderedSignalEndpointKey
-        {
-            get
-            {
-                NodeParamModbusWrite param = ParamForm?.Params as NodeParamModbusWrite;
-                return CreateEndpointKey(param?.Device);
-            }
         }
 
         /// <summary>在参数页执行一次经过生产会话门禁保护的人工写入。</summary>
@@ -76,17 +63,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
             {
                 SetStatus(NodeStatus.Unexecuted, "*");
                 await base.CheckTokenCancel(token);
-                WorkpieceExecutionContext context = Solution.Instance.WorkpieceContextAccessor.Current;
-                if (context == null)
-                    throw new InvalidOperationException("Modbus写入节点缺少当前工件上下文，已拒绝无序发送。");
-
-                ModbusWriteSignalSnapshot signalSnapshot = CaptureSignalSnapshot();
-                OrderedSignalSendResult sendResult = await SubmitOrderedSignalSnapshotAsync(
-                    context,
-                    $"{Process?.ProcessName ?? "未知流程"}/{ID}.{NodeName}",
-                    Solution.Instance.OrderedSignalCoordinator,
-                    signalSnapshot,
-                    token);
+                OrderedSignalSendResult sendResult = await ExecuteDirectWriteAsync(token);
                 EnsureSuccessfulResult(sendResult, token);
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
@@ -109,44 +86,16 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
             }
         }
 
-        /// <summary>冻结本轮Modbus设备、地址、类型和值并提交唯一写入动作。</summary>
-        public Task<OrderedSignalSendResult> SubmitOrderedSignalAsync(
-            WorkpieceExecutionContext context,
-            string nodePath,
-            IOrderedSignalCoordinator coordinator,
-            CancellationToken waitingCancellationToken)
+        /// <summary>冻结本次地址和值后直接写入；只保留设备通信锁，不等待前序工件，也不自动重试或复位。</summary>
+        public Task<OrderedSignalSendResult> ExecuteDirectWriteAsync(CancellationToken token)
         {
-            if (context == null)
-                throw new ArgumentNullException(nameof(context));
-            if (coordinator == null)
-                throw new ArgumentNullException(nameof(coordinator));
+            token.ThrowIfCancellationRequested();
             ModbusWriteSignalSnapshot signalSnapshot = CaptureSignalSnapshot();
-            return SubmitOrderedSignalSnapshotAsync(
-                context,
-                nodePath,
-                coordinator,
-                signalSnapshot,
-                waitingCancellationToken);
+            token.ThrowIfCancellationRequested();
+            return ExecuteWriteSnapshotAsync(signalSnapshot);
         }
 
-        /// <summary>使用同一次参数读取生成的不可变快照提交Modbus写入。</summary>
-        private Task<OrderedSignalSendResult> SubmitOrderedSignalSnapshotAsync(
-            WorkpieceExecutionContext context,
-            string nodePath,
-            IOrderedSignalCoordinator coordinator,
-            ModbusWriteSignalSnapshot signalSnapshot,
-            CancellationToken waitingCancellationToken)
-        {
-            return context.SubmitOrderedSignalAsync(
-                coordinator,
-                nodePath,
-                OrderedSignalKind,
-                signalSnapshot.EndpointKey,
-                () => ExecuteWriteSnapshotAsync(signalSnapshot),
-                waitingCancellationToken);
-        }
-
-        /// <summary>只读取一次当前参数对象，并在排队前完成订阅值读取和类型解析。</summary>
+        /// <summary>只读取一次当前参数对象，并在写入前完成订阅值读取和类型解析。</summary>
         private ModbusWriteSignalSnapshot CaptureSignalSnapshot()
         {
             NodeParamModbusWrite paramSnapshot = ParamForm?.Params as NodeParamModbusWrite;
@@ -175,7 +124,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
                 parsedValue);
         }
 
-        /// <summary>在协调器持有整个Modbus物理连接租约期间执行一次真实写入。</summary>
+        /// <summary>执行一次真实写入并检查协议结果，连接内报文互斥由设备通信层负责。</summary>
         private static Task<OrderedSignalSendResult> ExecuteWriteSnapshotAsync(
             ModbusWriteSignalSnapshot signalSnapshot)
         {
@@ -183,7 +132,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
             {
                 return Task.FromResult(new OrderedSignalSendResult(
                     OrderedSignalSendStatus.Rejected,
-                    "Modbus设备在取得发送权后已经断开连接。"));
+                    "Modbus设备在写入前已经断开连接。"));
             }
 
             switch (signalSnapshot.DataType)
@@ -240,7 +189,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusWrite
             {
                 throw new InvalidOperationException(
                     string.IsNullOrWhiteSpace(sendResult.Message)
-                        ? $"Modbus有序写入返回{sendResult.Status}。"
+                        ? $"Modbus写入返回{sendResult.Status}。"
                         : sendResult.Message);
             }
         }

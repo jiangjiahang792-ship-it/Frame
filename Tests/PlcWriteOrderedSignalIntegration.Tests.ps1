@@ -21,7 +21,8 @@ $scriptDirectory = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
     $PSScriptRoot
 }
 $projectRoot = Split-Path -Parent $scriptDirectory
-$debugDirectory = Join-Path $projectRoot 'bin\x64\Debug'
+$buildDirectory = if ($env:TDJS_TEST_BUILD_DIRECTORY) { $env:TDJS_TEST_BUILD_DIRECTORY } else { 'bin\x64\Debug' }
+$debugDirectory = Join-Path $projectRoot $buildDirectory
 $application = Get-Item -LiteralPath (Join-Path $debugDirectory '机器视觉AI检测系统V1.0.exe') -ErrorAction SilentlyContinue
 $sourcePaths = @(
     'Node\5-EquipmentCommunication\PLCWrite\NodePlcWrite.cs',
