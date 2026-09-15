@@ -4486,6 +4486,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             switch (nodeType)
             {
                 case NodeType.ImageSource:
+                case NodeType.CameraExposureGain:
                 case NodeType.ImageSource3D:
                 case NodeType.ImageShow:
                 case NodeType.ImageShow3D:
@@ -4493,6 +4494,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.ImageRotate:
                 case NodeType.ImageSplit:
                 case NodeType.ImagePreprocess:
+                case NodeType.BlobAnalysis:
                     return Color.FromArgb(18, 132, 219);
                 case NodeType.If:
                 case NodeType.MultiCondition:
@@ -4513,6 +4515,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return Color.FromArgb(226, 140, 32);
                 case NodeType.LineMergeFit:
                     return Color.FromArgb(64, 170, 112);
+                case NodeType.NccMatchTemplate:
+                    return Color.FromArgb(42, 157, 143);
                 default:
                     return Color.FromArgb(42, 157, 143);
             }

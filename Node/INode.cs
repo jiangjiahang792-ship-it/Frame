@@ -338,6 +338,10 @@ namespace TDJS_Vision.Node
         /// </summary>
         MatchTemplate,
         /// <summary>
+        /// NCC模板匹配
+        /// </summary>
+        NccMatchTemplate,
+        /// <summary>
         /// 图片定时删除
         /// </summary>
         ImageFileDelete,
@@ -477,5 +481,11 @@ namespace TDJS_Vision.Node
         /// 大模型调用
         /// </summary>
         LargeModelDetection,
+        /// <summary>
+        /// 相机曝光增益
+        /// </summary>
+        CameraExposureGain,
+        /// <summary>将上游基础结果写入PLC或Modbus设备。</summary>
+        ResultSend,
     }
 }

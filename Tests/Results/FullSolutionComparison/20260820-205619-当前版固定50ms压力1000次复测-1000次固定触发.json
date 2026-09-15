@@ -1,0 +1,157 @@
+{
+  "VersionLabel": "当前版固定50ms压力1000次复测",
+  "RunMode": "FixedIntervalTriggers",
+  "ExecutablePath": "D:\\MyCode\\PublicWook\\TDJS-Vision\\bin\\x64\\Debug\\机器视觉AI检测系统V1.0.exe",
+  "ExecutableSha256": "FE9474A39B86501389CABDE1A45F45CA6F9984B0EAF12687CC7FB463179322FC",
+  "SchemePath": "D:\\MyCode\\PublicWook\\TDJS-Vision\\Tests\\Results\\FullSolutionComparison\\8_6方案-20260820-205536-当前版固定50ms1000次复测.Sol",
+  "SchemeSha256": "CAC8C2A8F3E1CF1489AE0A8AB1A663CBD5291F11F3B01D3496A1270CAE369F4D",
+  "RuntimeInputHashes": {
+    "device.license": "19C1E84F1C23E3D9BDD9611EEC271135459208EC2B982A1D674436CEE8AB67F2",
+    "DockPanel.config": "8B2B92DA48F21F0AE0845A1540E98318B2AFC5EC67F7BBE37923BC4570EE25E0",
+    "DockPanelImageWindows.config": "21EFE7BFD0551FDBE1B8A3ACCF21B7929DE1E81141A74450F3CC435C2B159312"
+  },
+  "WindowMode": "Normal",
+  "ProcessPriority": "Normal",
+  "DebugSwitch": "Current",
+  "TestEnvironmentMode": "Dedicated",
+  "RequestedPerformanceConclusionEligibility": true,
+  "AvailableMemoryBeforeStartMegabytes": 5837.688,
+  "MinimumSharedDesktopAvailableMemoryMegabytes": 4096,
+  "WarmupRounds": 1,
+  "Trigger": {
+    "Attempted": 1000,
+    "IntervalMilliseconds": 50,
+    "InjectionWallMilliseconds": 50025.11,
+    "Accepted": 90,
+    "BusyRejected": 910,
+    "MessageTimeouts": 0,
+    "AdmissionPercent": 9.0
+  },
+  "Scheduling": {
+    "DriftP50Milliseconds": 8.262,
+    "DriftP95Milliseconds": 66.984,
+    "DriftP99Milliseconds": 110.05,
+    "DriftMaxMilliseconds": 155.63,
+    "DispatchP95Milliseconds": 8.123,
+    "DispatchMaxMilliseconds": 75.084
+  },
+  "AcceptedRunTiming": {
+    "Samples": 90,
+    "P50Milliseconds": 528,
+    "P95Milliseconds": 563,
+    "P99Milliseconds": 591,
+    "MaxMilliseconds": 591
+  },
+  "Cpu": {
+    "LogicalProcessorCount": 24,
+    "AveragePercent": 37.026,
+    "PeakSamplePercent": 125.457
+  },
+  "Resources": {
+    "ProcessTreeCount": {
+      "Start": 3,
+      "Peak": 3,
+      "End": 3
+    },
+    "MainPrivateMemoryMegabytes": {
+      "Start": 632.793,
+      "Peak": 1356.379,
+      "End": 845.867
+    },
+    "ProcessTreePrivateMemoryMegabytes": {
+      "Start": 1111.355,
+      "Peak": 2079.703,
+      "End": 1535.328
+    },
+    "ProcessTreeManagedHeapMegabytes": {
+      "Start": 326.397,
+      "Peak": 1000.687,
+      "End": 649.98
+    },
+    "GdiObjects": {
+      "Start": 808,
+      "Peak": 826,
+      "End": 822
+    },
+    "UserObjects": {
+      "Start": 492,
+      "Peak": 494,
+      "End": 494
+    },
+    "Handles": {
+      "Start": 2540,
+      "Peak": 2836,
+      "End": 2833
+    }
+  },
+  "ProcessIdsStable": true,
+  "ProcessResults": [
+    {
+      "Name": "中心端子正面检测",
+      "Total": 90,
+      "Success": 90,
+      "Failed": 0,
+      "StatusCounts": {
+        "成功": 90
+      },
+      "P50Milliseconds": 519.0,
+      "P95Milliseconds": 552.85,
+      "P99Milliseconds": 574.77,
+      "MaxMilliseconds": 581.0
+    },
+    {
+      "Name": "同心度检测",
+      "Total": 90,
+      "Success": 90,
+      "Failed": 0,
+      "StatusCounts": {
+        "成功": 90
+      },
+      "P50Milliseconds": 127.0,
+      "P95Milliseconds": 154.95,
+      "P99Milliseconds": 250.99,
+      "MaxMilliseconds": 259.0
+    },
+    {
+      "Name": "中心端子侧面左检测",
+      "Total": 90,
+      "Success": 90,
+      "Failed": 0,
+      "StatusCounts": {
+        "成功": 90
+      },
+      "P50Milliseconds": 351.0,
+      "P95Milliseconds": 383.65,
+      "P99Milliseconds": 407.22,
+      "MaxMilliseconds": 409.0
+    },
+    {
+      "Name": "中心端子侧面右检测",
+      "Total": 90,
+      "Success": 90,
+      "Failed": 0,
+      "StatusCounts": {
+        "成功": 90
+      },
+      "P50Milliseconds": 311.0,
+      "P95Milliseconds": 347.65,
+      "P99Milliseconds": 364.66,
+      "MaxMilliseconds": 370.0
+    }
+  ],
+  "ExceptionLogCount": 0,
+  "Modbus": {
+    "SuccessLogCount": 360,
+    "FailureLogCount": 0
+  },
+  "ResultFiles": {
+    "Json": "D:\\MyCode\\PublicWook\\TDJS-Vision\\Tests\\Results\\FullSolutionComparison\\20260820-205619-当前版固定50ms压力1000次复测-1000次固定触发.json",
+    "Csv": "D:\\MyCode\\PublicWook\\TDJS-Vision\\Tests\\Results\\FullSolutionComparison\\20260820-205619-当前版固定50ms压力1000次复测-1000次固定触发.csv",
+    "Checkpoint": "D:\\MyCode\\PublicWook\\TDJS-Vision\\Tests\\Results\\FullSolutionComparison\\20260820-205619-当前版固定50ms压力1000次复测-1000次固定触发-checkpoint.json"
+  },
+  "ExitValidationCompleted": true,
+  "ExitValidationPassed": true,
+  "ExitValidationFailure": "",
+  "AwaitingExitValidation": false,
+  "PerformanceConclusionEligible": true
+}

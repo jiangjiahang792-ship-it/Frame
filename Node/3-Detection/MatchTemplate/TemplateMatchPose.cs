@@ -30,7 +30,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         public double CenterY { get; set; }
 
         /// <summary>
-        /// 获取或设置目标角度，单位为度。
+        /// 获取或设置目标相对基准模板的角度偏差，单位为度。
         /// </summary>
         public double Angle { get; set; }
 

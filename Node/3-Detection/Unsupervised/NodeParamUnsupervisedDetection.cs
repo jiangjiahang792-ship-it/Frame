@@ -6,9 +6,14 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
     public class NodeParamUnsupervisedDetection : INodeParam
     {
         /// <summary>
-        /// 默认异常阈值，和训练界面默认值保持一致。
+        /// 默认异常阈值，0 表示跟随模板中训练自动校准的识别分数。
         /// </summary>
-        public const float DefaultThreshold = 0.3F;
+        public const float DefaultThreshold = 0F;
+
+        /// <summary>
+        /// 老模板没有有效识别分数时使用的兼容异常阈值。
+        /// </summary>
+        public const float FallbackThreshold = 0.3F;
 
         /// <summary>
         /// 默认推理批次，0 表示未显式设置并跟随模板中的批次。
@@ -41,7 +46,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         public string TemplatePath { get; set; }
 
         /// <summary>
-        /// 推理阶段使用的异常阈值。
+        /// 推理阶段使用的异常阈值，0 表示跟随模板中训练自动校准的识别分数。
         /// </summary>
         public float Threshold { get; set; } = DefaultThreshold;
 

@@ -31,6 +31,11 @@ namespace TDJS_Vision.Forms.DispShowImage
         private bool _isInteracting = false;
         private readonly Timer _interactionTimer;
 
+        /// <summary>
+        /// 控件自有图像和交互资源是否已经释放，保证重复Dispose不会重复回收。
+        /// </summary>
+        private int _ownedResourcesReleased;
+
         private PointF _currentImgPt = new PointF(-1, -1);
         private Color _currentPixelColor = Color.Black;
         private int _currentGrayValue = 0;
@@ -39,12 +44,18 @@ namespace TDJS_Vision.Forms.DispShowImage
         private readonly List<IRoiShape> _dynamicRois = new List<IRoiShape>();
         private readonly List<IRoiShape> _staticRois = new List<IRoiShape>();
         private readonly List<ToolStripItem> _builtInMenuItems = new List<ToolStripItem>();
+        private bool _rectangleRoiDrawingEnabled;
+        private bool _isDrawingRectangleRoi;
+        private PointF _drawingStartImagePoint;
+        private RoiRotatedRect _drawingRectangleRoi;
 
         public ShowImageControl()
         {
             InitializeComponent();
             this.DoubleBuffered = true;
+            this.TabStop = true;
             this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.ResizeRedraw | ControlStyles.OptimizedDoubleBuffer, true);
+            this.SetStyle(ControlStyles.Selectable, true);
             this.BackColor = Color.FromArgb(20, 20, 20);
 
             this.MouseWheel += (s, e) => {
@@ -196,15 +207,18 @@ namespace TDJS_Vision.Forms.DispShowImage
                 string oldImageInfo = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug)
                     ? PerformanceSpikeDiagnostics.GetBitmapText(oldImage)
                     : string.Empty;
-                Stopwatch disposeStopwatch = Stopwatch.StartNew();
+                Stopwatch disposeStopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
                 try { oldImage?.Dispose(); } catch { }
-                long disposeMs = disposeStopwatch.ElapsedMilliseconds;
-                PerformanceSpikeDiagnostics.LogSlowIfEnabled(
-                    MsgLevel.Debug,
-                    PerformanceSpikeDiagnostics.CommonSlowMs,
-                    () => $"【慢诊断-旧图释放】图像={oldImageInfo}；释放耗时={disposeMs}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
-                    true,
-                    disposeMs);
+                long disposeMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(disposeStopwatch);
+                if (disposeStopwatch != null)
+                {
+                    PerformanceSpikeDiagnostics.LogSlowIfEnabled(
+                        MsgLevel.Debug,
+                        PerformanceSpikeDiagnostics.CommonSlowMs,
+                        () => $"【慢诊断-旧图释放】图像={oldImageInfo}；释放耗时={disposeMs}ms；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                        true,
+                        disposeMs);
+                }
             });
         }
 
@@ -232,7 +246,16 @@ namespace TDJS_Vision.Forms.DispShowImage
             });
         }
 
-        public void ClearAll() { lock (_roiLock) { _dynamicRois.Clear(); _staticRois.Clear(); _textElements.Clear(); } SafeInvalidate(); }
+        public void ClearAll()
+        {
+            lock (_roiLock)
+            {
+                ClearRoiShapes(_dynamicRois);
+                ClearRoiShapes(_staticRois);
+                _textElements.Clear();
+            }
+            SafeInvalidate();
+        }
         public void ClearDisplay() 
         { 
             SafeInvoke(() =>
@@ -268,16 +291,27 @@ namespace TDJS_Vision.Forms.DispShowImage
         public void ClearAllRoi() => ClearAll();
         
         /// <summary>兼容旧版名称</summary>
-        public void ClearStaticShapes() { lock (_roiLock) _staticRois.Clear(); SafeInvalidate(); }
+        public void ClearStaticShapes() { lock (_roiLock) ClearRoiShapes(_staticRois); SafeInvalidate(); }
 
         /// <summary>兼容旧版名称</summary>
-        public void ClearRois() { lock (_roiLock) _dynamicRois.Clear(); SafeInvalidate(); }
+        public void ClearRois() { lock (_roiLock) ClearRoiShapes(_dynamicRois); SafeInvalidate(); }
 
-        public void ClearDynamicRoi() { lock (_roiLock) _dynamicRois.Clear(); SafeInvalidate(); }
+        public void ClearDynamicRoi() { lock (_roiLock) ClearRoiShapes(_dynamicRois); SafeInvalidate(); }
 
-        public void ClearStaticRoi() { lock (_roiLock) _staticRois.Clear(); SafeInvalidate(); }
+        public void ClearStaticRoi() { lock (_roiLock) ClearRoiShapes(_staticRois); SafeInvalidate(); }
 
         public int DynamicRoiCount { get { lock (_roiLock) return _dynamicRois.Count; } }
+
+        /// <summary>
+        /// 获取或设置是否允许在空白图像区域拖拽绘制矩形 ROI。
+        /// </summary>
+        [Category("Behavior")]
+        [Description("是否允许在空白图像区域拖拽绘制矩形ROI")]
+        public bool EnableRectangleRoiDrawing
+        {
+            get { return _rectangleRoiDrawingEnabled; }
+            set { _rectangleRoiDrawingEnabled = value; }
+        }
 
         public IRoiShape GetDynamicRoi(int index)
         {
@@ -285,6 +319,30 @@ namespace TDJS_Vision.Forms.DispShowImage
             {
                 return index >= 0 && index < _dynamicRois.Count ? _dynamicRois[index] : null;
             }
+        }
+
+        /// <summary>
+        /// 删除当前选中的动态 ROI。
+        /// </summary>
+        /// <returns>成功删除时返回 true。</returns>
+        public bool DeleteSelectedDynamicRoi()
+        {
+            lock (_roiLock)
+            {
+                IRoiShape selected = _dynamicRois.LastOrDefault(roi => roi.IsSelected);
+                if (selected == null)
+                    return false;
+
+                _dynamicRois.Remove(selected);
+                DisposeRoiShape(selected);
+                if (ReferenceEquals(_activeRoi, selected))
+                    _activeRoi = null;
+                if (ReferenceEquals(_drawingRectangleRoi, selected))
+                    _drawingRectangleRoi = null;
+            }
+
+            SafeInvalidate();
+            return true;
         }
          
         /// <summary>安全设置图像（线程安全）</summary>
@@ -298,66 +356,89 @@ namespace TDJS_Vision.Forms.DispShowImage
 
         public void SetImage(Bitmap bmp, AlgorithmResult displayResult)
         {
-            Stopwatch queueStopwatch = Stopwatch.StartNew();
+            bool diagnosticEnabled = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
+            Stopwatch queueStopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
             SafeInvoke(() =>
             {
-                long uiQueueWait = queueStopwatch.ElapsedMilliseconds;
-                Stopwatch stopwatch = Stopwatch.StartNew();
+                long uiQueueWait = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(queueStopwatch);
+                Stopwatch stopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
                 bool needShowFit = ImageBitmap == null && bmp != null;
                 ImageBitmap = bmp;
-                long afterSetBitmap = stopwatch.ElapsedMilliseconds;
+                long afterSetBitmap = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
                 if (needShowFit)
                     ShowFit();
-                long afterShowFit = stopwatch.ElapsedMilliseconds;
+                long afterShowFit = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
 
                 StaticRoiBuildDiagnostics roiDiagnostics;
                 int roiCount = ApplyDisplayResultCore(displayResult, out roiDiagnostics);
-                long afterApplyDisplayResult = stopwatch.ElapsedMilliseconds;
+                long afterApplyDisplayResult = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
                 Invalidate();
-                long afterInvalidate = stopwatch.ElapsedMilliseconds;
-                PerformanceSpikeDiagnostics.LogIfEnabled(
-                    MsgLevel.Debug,
-                    () => $"【性能诊断-图像显示】ShowImageControl.SetImage 图像={GetBitmapDiagnosticText(bmp)}；需要自适应={needShowFit}；UI排队等待={uiQueueWait}ms；静态ROI={roiCount}；设置Bitmap={afterSetBitmap}ms；ShowFit={afterShowFit - afterSetBitmap}ms；构建ROI={afterApplyDisplayResult - afterShowFit}ms；{roiDiagnostics.ToLogText()}；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms。",
-                    true);
-                PerformanceSpikeDiagnostics.LogSlowIfEnabled(
-                    MsgLevel.Debug,
-                    PerformanceSpikeDiagnostics.CommonSlowMs,
-                    () => $"【慢诊断-显示控件SetImage】图像={PerformanceSpikeDiagnostics.GetBitmapText(bmp)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；需要自适应={needShowFit}；UI排队等待={uiQueueWait}ms；静态ROI={roiCount}；设置Bitmap={afterSetBitmap}ms；ShowFit={afterShowFit - afterSetBitmap}ms；构建ROI={afterApplyDisplayResult - afterShowFit}ms；{roiDiagnostics.ToLogText()}；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms；控件尺寸={Width}x{Height}；可见={Visible}；句柄已创建={IsHandleCreated}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
-                    true,
-                    uiQueueWait,
-                    afterInvalidate,
-                    afterSetBitmap,
-                    afterShowFit - afterSetBitmap,
-                    afterApplyDisplayResult - afterShowFit,
-                    afterInvalidate - afterApplyDisplayResult);
+                long afterInvalidate = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+                if (diagnosticEnabled)
+                {
+                    PerformanceSpikeDiagnostics.LogIfEnabled(
+                        MsgLevel.Debug,
+                        () => $"【性能诊断-图像显示】ShowImageControl.SetImage 图像={GetBitmapDiagnosticText(bmp)}；需要自适应={needShowFit}；UI排队等待={uiQueueWait}ms；静态ROI={roiCount}；设置Bitmap={afterSetBitmap}ms；ShowFit={afterShowFit - afterSetBitmap}ms；构建ROI={afterApplyDisplayResult - afterShowFit}ms；{roiDiagnostics.ToLogText()}；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms。",
+                        true);
+                    PerformanceSpikeDiagnostics.LogSlowIfEnabled(
+                        MsgLevel.Debug,
+                        PerformanceSpikeDiagnostics.CommonSlowMs,
+                        () => $"【慢诊断-显示控件SetImage】图像={PerformanceSpikeDiagnostics.GetBitmapText(bmp)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；需要自适应={needShowFit}；UI排队等待={uiQueueWait}ms；静态ROI={roiCount}；设置Bitmap={afterSetBitmap}ms；ShowFit={afterShowFit - afterSetBitmap}ms；构建ROI={afterApplyDisplayResult - afterShowFit}ms；{roiDiagnostics.ToLogText()}；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms；控件尺寸={Width}x{Height}；可见={Visible}；句柄已创建={IsHandleCreated}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                        true,
+                        uiQueueWait,
+                        afterInvalidate,
+                        afterSetBitmap,
+                        afterShowFit - afterSetBitmap,
+                        afterApplyDisplayResult - afterShowFit,
+                        afterInvalidate - afterApplyDisplayResult);
+                }
             });
+        }
+
+        /// <summary>
+        /// 仅在当前UI线程和有效句柄上接管图像，供有明确Bitmap所有权的调用方使用。
+        /// </summary>
+        /// <param name="bmp">准备移交给显示控件的Bitmap。</param>
+        /// <param name="displayResult">与Bitmap同帧的叠加结果。</param>
+        /// <returns>控件已经接管Bitmap返回 true；调用方仍需释放返回 false。</returns>
+        public bool TrySetImage(Bitmap bmp, AlgorithmResult displayResult)
+        {
+            if (IsDisposed || !IsHandleCreated || InvokeRequired)
+                return false;
+
+            SetImage(bmp, displayResult);
+            return true;
         }
 
         public void SetDisplayResult(AlgorithmResult displayResult)
         {
-            Stopwatch queueStopwatch = Stopwatch.StartNew();
+            bool diagnosticEnabled = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
+            Stopwatch queueStopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
             SafeInvoke(() =>
             {
-                long uiQueueWait = queueStopwatch.ElapsedMilliseconds;
-                Stopwatch stopwatch = Stopwatch.StartNew();
+                long uiQueueWait = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(queueStopwatch);
+                Stopwatch stopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
                 StaticRoiBuildDiagnostics roiDiagnostics;
                 int roiCount = ApplyDisplayResultCore(displayResult, out roiDiagnostics);
-                long afterApplyDisplayResult = stopwatch.ElapsedMilliseconds;
+                long afterApplyDisplayResult = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
                 Invalidate();
-                long afterInvalidate = stopwatch.ElapsedMilliseconds;
-                PerformanceSpikeDiagnostics.LogIfEnabled(
-                    MsgLevel.Debug,
-                    () => $"【性能诊断-图像显示】ShowImageControl.SetDisplayResult UI排队等待={uiQueueWait}ms；静态ROI={roiCount}；构建ROI={afterApplyDisplayResult}ms；{roiDiagnostics.ToLogText()}；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms。",
-                    true);
-                PerformanceSpikeDiagnostics.LogSlowIfEnabled(
-                    MsgLevel.Debug,
-                    PerformanceSpikeDiagnostics.CommonSlowMs,
-                    () => $"【慢诊断-显示控件SetDisplayResult】显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；UI排队等待={uiQueueWait}ms；静态ROI={roiCount}；构建ROI={afterApplyDisplayResult}ms；{roiDiagnostics.ToLogText()}；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms；控件尺寸={Width}x{Height}；可见={Visible}；句柄已创建={IsHandleCreated}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
-                    true,
-                    uiQueueWait,
-                    afterInvalidate,
-                    afterApplyDisplayResult,
-                    afterInvalidate - afterApplyDisplayResult);
+                long afterInvalidate = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+                if (diagnosticEnabled)
+                {
+                    PerformanceSpikeDiagnostics.LogIfEnabled(
+                        MsgLevel.Debug,
+                        () => $"【性能诊断-图像显示】ShowImageControl.SetDisplayResult UI排队等待={uiQueueWait}ms；静态ROI={roiCount}；构建ROI={afterApplyDisplayResult}ms；{roiDiagnostics.ToLogText()}；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms。",
+                        true);
+                    PerformanceSpikeDiagnostics.LogSlowIfEnabled(
+                        MsgLevel.Debug,
+                        PerformanceSpikeDiagnostics.CommonSlowMs,
+                        () => $"【慢诊断-显示控件SetDisplayResult】显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；UI排队等待={uiQueueWait}ms；静态ROI={roiCount}；构建ROI={afterApplyDisplayResult}ms；{roiDiagnostics.ToLogText()}；Invalidate={afterInvalidate - afterApplyDisplayResult}ms；总耗时={afterInvalidate}ms；控件尺寸={Width}x{Height}；可见={Visible}；句柄已创建={IsHandleCreated}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                        true,
+                        uiQueueWait,
+                        afterInvalidate,
+                        afterApplyDisplayResult,
+                        afterInvalidate - afterApplyDisplayResult);
+                }
             });
         }
 
@@ -371,7 +452,7 @@ namespace TDJS_Vision.Forms.DispShowImage
         {
             lock (_roiLock)
             {
-                _staticRois.Clear();
+                ClearRoiShapes(_staticRois);
                 int imageWidth = _image == null ? 0 : _image.Width;
                 int imageHeight = _image == null ? 0 : _image.Height;
                 List<IRoiShape> rois = BuildStaticRois(displayResult, imageWidth, imageHeight, out diagnostics);
@@ -404,16 +485,20 @@ namespace TDJS_Vision.Forms.DispShowImage
             if (bitmap == null)
                 throw new ArgumentNullException(nameof(bitmap));
 
-            Stopwatch stopwatch = Stopwatch.StartNew();
+            bool diagnosticEnabled = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
+            Stopwatch stopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
             StaticRoiBuildDiagnostics diagnostics;
             List<IRoiShape> rois = BuildStaticRois(displayResult, bitmap.Width, bitmap.Height, out diagnostics);
-            long afterBuildRois = stopwatch.ElapsedMilliseconds;
+            long afterBuildRois = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
             if (rois.Count == 0)
             {
-                PerformanceSpikeDiagnostics.LogIfEnabled(
-                    MsgLevel.Debug,
-                    () => $"【性能诊断-ROI绘制】DrawDisplayResultToBitmap 图像={GetBitmapDiagnosticText(bitmap)}；静态ROI=0；构建ROI={afterBuildRois}ms；{diagnostics.ToLogText()}；绘制Bitmap=0ms；总耗时={afterBuildRois}ms。",
-                    true);
+                if (diagnosticEnabled)
+                {
+                    PerformanceSpikeDiagnostics.LogIfEnabled(
+                        MsgLevel.Debug,
+                        () => $"【性能诊断-ROI绘制】DrawDisplayResultToBitmap 图像={GetBitmapDiagnosticText(bitmap)}；静态ROI=0；构建ROI={afterBuildRois}ms；{diagnostics.ToLogText()}；绘制Bitmap=0ms；总耗时={afterBuildRois}ms。",
+                        true);
+                }
                 return;
             }
 
@@ -423,11 +508,14 @@ namespace TDJS_Vision.Forms.DispShowImage
                 foreach (IRoiShape roi in rois)
                     roi.Draw(graphics, 1F, PointF.Empty);
             }
-            long afterDraw = stopwatch.ElapsedMilliseconds;
-            PerformanceSpikeDiagnostics.LogIfEnabled(
-                MsgLevel.Debug,
-                () => $"【性能诊断-ROI绘制】DrawDisplayResultToBitmap 图像={GetBitmapDiagnosticText(bitmap)}；静态ROI={rois.Count}；构建ROI={afterBuildRois}ms；{diagnostics.ToLogText()}；绘制Bitmap={afterDraw - afterBuildRois}ms；总耗时={afterDraw}ms。",
-                true);
+            long afterDraw = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+            if (diagnosticEnabled)
+            {
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【性能诊断-ROI绘制】DrawDisplayResultToBitmap 图像={GetBitmapDiagnosticText(bitmap)}；静态ROI={rois.Count}；构建ROI={afterBuildRois}ms；{diagnostics.ToLogText()}；绘制Bitmap={afterDraw - afterBuildRois}ms；总耗时={afterDraw}ms。",
+                    true);
+            }
         }
 
         /// <summary>
@@ -453,12 +541,12 @@ namespace TDJS_Vision.Forms.DispShowImage
         /// <returns>可直接绘制的静态 ROI 列表。</returns>
         private static List<IRoiShape> BuildStaticRois(AlgorithmResult displayResult, int imageWidth, int imageHeight, out StaticRoiBuildDiagnostics diagnostics)
         {
-            Stopwatch stopwatch = Stopwatch.StartNew();
+            Stopwatch stopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
             diagnostics = new StaticRoiBuildDiagnostics();
             List<IRoiShape> rois = new List<IRoiShape>();
             if (displayResult == null)
             {
-                diagnostics.TotalMs = stopwatch.ElapsedMilliseconds;
+                diagnostics.TotalMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
                 return rois;
             }
 
@@ -468,7 +556,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                 foreach (var rect in displayResult.Rects)
                     AddRotatedRectRoi(rois, rect);
             }
-            long afterRects = stopwatch.ElapsedMilliseconds;
+            long afterRects = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
             diagnostics.RectsMs = afterRects;
 
             if (displayResult.RectsNgMap != null)
@@ -483,7 +571,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                         AddRotatedRectRoi(rois, rect);
                 }
             }
-            long afterNgRects = stopwatch.ElapsedMilliseconds;
+            long afterNgRects = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
             diagnostics.NgRectsMs = afterNgRects - afterRects;
 
             if (displayResult.Lines != null)
@@ -502,7 +590,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                     });
                 }
             }
-            long afterLines = stopwatch.ElapsedMilliseconds;
+            long afterLines = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
             diagnostics.LinesMs = afterLines - afterNgRects;
 
             if (displayResult.Circles != null)
@@ -555,7 +643,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                     });
                 }
             }
-            long afterMeasureShapes = stopwatch.ElapsedMilliseconds;
+            long afterMeasureShapes = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
             diagnostics.MeasureShapesMs = afterMeasureShapes - afterLines;
 
             if (displayResult.Contours != null)
@@ -572,7 +660,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                     });
                 }
             }
-            long afterContours = stopwatch.ElapsedMilliseconds;
+            long afterContours = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
             diagnostics.ContoursMs = afterContours - afterMeasureShapes;
 
             if (displayResult.Texts != null && displayResult.Texts.Count > 0)
@@ -606,7 +694,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                 }
             }
 
-            long afterTexts = stopwatch.ElapsedMilliseconds;
+            long afterTexts = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
             diagnostics.TextsMs = afterTexts - afterContours;
             diagnostics.RoiCount = rois.Count;
             diagnostics.TotalMs = afterTexts;
@@ -901,9 +989,17 @@ namespace TDJS_Vision.Forms.DispShowImage
         private void DrawCheckerBoard(Graphics g)
         {
             int sz = 30;
-            for (int y = 0; y < Height; y += sz)
-                for (int x = 0; x < Width; x += sz)
-                    g.FillRectangle(((x / sz) + (y / sz)) % 2 == 0 ? Brushes.Black : new SolidBrush(Color.FromArgb(20, 20, 20)), x, y, sz, sz);
+            using (Brush darkBrush = new SolidBrush(Color.FromArgb(20, 20, 20)))
+            {
+                for (int y = 0; y < Height; y += sz)
+                {
+                    for (int x = 0; x < Width; x += sz)
+                    {
+                        Brush brush = ((x / sz) + (y / sz)) % 2 == 0 ? Brushes.Black : darkBrush;
+                        g.FillRectangle(brush, x, y, sz, sz);
+                    }
+                }
+            }
         }
 
         private void DrawStatusBar(Graphics g)
@@ -913,7 +1009,8 @@ namespace TDJS_Vision.Forms.DispShowImage
             {
                 txt = _image == null ? "No Image" : $"{_image.Width}x{_image.Height} | R:{_currentPixelColor.R:D3} G:{_currentPixelColor.G:D3} B:{_currentPixelColor.B:D3} | Gray:{_currentGrayValue:D3} | X:{(int)_currentImgPt.X} Y:{(int)_currentImgPt.Y} | Zoom:{_scale * 100:F1}%";
             }
-            g.FillRectangle(new SolidBrush(Color.FromArgb(180, 10, 10, 10)), 0, Height - 22, Width, 22);
+            using (Brush statusBrush = new SolidBrush(Color.FromArgb(180, 10, 10, 10)))
+                g.FillRectangle(statusBrush, 0, Height - 22, Width, 22);
             g.DrawString(txt, SystemFonts.DefaultFont, Brushes.LightGray, 8, Height - 18);
         }
 
@@ -959,6 +1056,7 @@ namespace TDJS_Vision.Forms.DispShowImage
 
         protected override void OnMouseDown(MouseEventArgs e)
         {
+            Focus();
             _lastMouse = e.Location; 
             _mouseDownLocation = e.Location;
             PointF imgPt = ScreenToImage(e.Location);
@@ -968,13 +1066,20 @@ namespace TDJS_Vision.Forms.DispShowImage
                 _isPanning = false; // 初始不将其视为拖拽（除非移动超过阈值）
                 lock (_roiLock)
                 {
+                    _activeRoi = null;
+                    _handleIdx = -1;
                     for (int i = _dynamicRois.Count - 1; i >= 0; i--)
                     {
                         int h = _dynamicRois[i].HitTest(e.Location, _scale, _offset);
                         if (h != -1) { _activeRoi = _dynamicRois[i]; _handleIdx = h; break; }
                     }
                     if (_activeRoi != null) { foreach (var r in _dynamicRois) r.IsSelected = (r == _activeRoi); _activeRoi.BeginDrag(imgPt); }
-                    else { foreach (var r in _dynamicRois) r.IsSelected = false; }
+                    else
+                    {
+                        foreach (var r in _dynamicRois) r.IsSelected = false;
+                        if (_rectangleRoiDrawingEnabled && IsImagePointInside(imgPt))
+                            BeginRectangleRoiDrawing(imgPt);
+                    }
                 }
                 Invalidate();
             }
@@ -1001,6 +1106,13 @@ namespace TDJS_Vision.Forms.DispShowImage
                         }
                     }
                 }
+            }
+
+            if (_isDrawingRectangleRoi && e.Button == MouseButtons.Left)
+            {
+                UpdateDrawingRectangleRoi(imgPt);
+                Invalidate();
+                return;
             }
 
             // 判断是否转为拖拽（平移）图像模式
@@ -1030,6 +1142,19 @@ namespace TDJS_Vision.Forms.DispShowImage
         protected override void OnMouseUp(MouseEventArgs e) 
         { 
             base.OnMouseUp(e);
+
+            // 只有左键释放才结束当前绘制，最终位置可能尚未收到MouseMove。
+            if (e.Button != MouseButtons.Left)
+                return;
+
+            if (_isDrawingRectangleRoi)
+            {
+                UpdateDrawingRectangleRoi(ScreenToImage(e.Location));
+                FinishRectangleRoiDrawing();
+                if (Cursor == Cursors.SizeAll) Cursor = Cursors.Default;
+                Invalidate();
+                return;
+            }
             
             if (e.Button == MouseButtons.Left && !_isPanning && _activeRoi == null && _handleIdx == -1)
             {
@@ -1041,6 +1166,114 @@ namespace TDJS_Vision.Forms.DispShowImage
             _handleIdx = -1; 
             if (Cursor == Cursors.SizeAll) Cursor = Cursors.Default;
             Invalidate(); 
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+
+            if (e.KeyCode == Keys.Delete && DeleteSelectedDynamicRoi())
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+        }
+
+        /// <summary>
+        /// 开始拖拽创建矩形 ROI。
+        /// </summary>
+        /// <param name="imagePoint">鼠标按下时的图像坐标。</param>
+        private void BeginRectangleRoiDrawing(PointF imagePoint)
+        {
+            _isDrawingRectangleRoi = true;
+            _drawingStartImagePoint = ClampImagePoint(imagePoint);
+            _drawingRectangleRoi = new RoiRotatedRect(_drawingStartImagePoint.X, _drawingStartImagePoint.Y, 1F, 1F, 0F)
+            {
+                IsSelected = true,
+                ShapeColor = RoiColor,
+                Label = "ROI" + (_dynamicRois.Count + 1)
+            };
+            _dynamicRois.Add(_drawingRectangleRoi);
+        }
+
+        /// <summary>
+        /// 根据当前拖拽点更新正在创建的矩形 ROI。
+        /// </summary>
+        /// <param name="imagePoint">当前鼠标图像坐标。</param>
+        private void UpdateDrawingRectangleRoi(PointF imagePoint)
+        {
+            if (_drawingRectangleRoi == null)
+                return;
+
+            PointF current = ClampImagePoint(imagePoint);
+            float left = Math.Min(_drawingStartImagePoint.X, current.X);
+            float top = Math.Min(_drawingStartImagePoint.Y, current.Y);
+            float right = Math.Max(_drawingStartImagePoint.X, current.X);
+            float bottom = Math.Max(_drawingStartImagePoint.Y, current.Y);
+            _drawingRectangleRoi.CX = (left + right) / 2F;
+            _drawingRectangleRoi.CY = (top + bottom) / 2F;
+            _drawingRectangleRoi.W = Math.Max(1F, right - left);
+            _drawingRectangleRoi.H = Math.Max(1F, bottom - top);
+            _drawingRectangleRoi.Phi = 0F;
+        }
+
+        /// <summary>
+        /// 完成矩形 ROI 创建，过小的误操作区域会被丢弃。
+        /// </summary>
+        private void FinishRectangleRoiDrawing()
+        {
+            RoiRotatedRect roi = _drawingRectangleRoi;
+            _isDrawingRectangleRoi = false;
+            _drawingRectangleRoi = null;
+            _activeRoi = null;
+            _handleIdx = -1;
+
+            if (roi == null)
+                return;
+
+            if (roi.W < 5F || roi.H < 5F)
+            {
+                lock (_roiLock)
+                {
+                    _dynamicRois.Remove(roi);
+                    DisposeRoiShape(roi);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 判断图像坐标点是否位于当前图像范围内。
+        /// </summary>
+        /// <param name="imagePoint">图像坐标点。</param>
+        /// <returns>在图像内返回 true。</returns>
+        private bool IsImagePointInside(PointF imagePoint)
+        {
+            lock (_imageLock)
+            {
+                return _image != null &&
+                    imagePoint.X >= 0F &&
+                    imagePoint.Y >= 0F &&
+                    imagePoint.X < _image.Width &&
+                    imagePoint.Y < _image.Height;
+            }
+        }
+
+        /// <summary>
+        /// 将图像坐标限制到当前图像范围内，避免拖拽到图像外生成非法 ROI。
+        /// </summary>
+        /// <param name="imagePoint">原始图像坐标。</param>
+        /// <returns>限制后的图像坐标。</returns>
+        private PointF ClampImagePoint(PointF imagePoint)
+        {
+            lock (_imageLock)
+            {
+                if (_image == null)
+                    return imagePoint;
+
+                float x = Math.Max(0F, Math.Min(_image.Width - 1F, imagePoint.X));
+                float y = Math.Max(0F, Math.Min(_image.Height - 1F, imagePoint.Y));
+                return new PointF(x, y);
+            }
         }
         #endregion
 
@@ -1073,10 +1306,11 @@ namespace TDJS_Vision.Forms.DispShowImage
         {
             if (string.IsNullOrEmpty(label)) return;
             using (Font f = new Font("SimSun", 10f, FontStyle.Bold))
+            using (Brush backgroundBrush = new SolidBrush(Color.FromArgb(150, 0, 0, 0)))
             {
                 var sz = g.MeasureString(label, f);
                 var r = new RectangleF(center.X - sz.Width / 2, center.Y - sz.Height / 2, sz.Width, sz.Height);
-                g.FillRectangle(new SolidBrush(Color.FromArgb(150, 0, 0, 0)), r);
+                g.FillRectangle(backgroundBrush, r);
                 g.DrawString(label, f, Brushes.Yellow, r.X, r.Y);
             }
         }
@@ -1117,10 +1351,11 @@ namespace TDJS_Vision.Forms.DispShowImage
                 if (!IsStatic && IsSelected)
                 {
                     using (Brush orb = new SolidBrush(Color.Orange))
+                    using (Pen rotatePen = new Pen(Color.Orange, 2f))
                     {
                         g.FillRectangle(orb, -sw / 2 - 4, -sh / 2 - 4, 8, 8); g.FillRectangle(orb, sw / 2 - 4, -sh / 2 - 4, 8, 8);
                         g.FillRectangle(orb, sw / 2 - 4, sh / 2 - 4, 8, 8); g.FillRectangle(orb, -sw / 2 - 4, sh / 2 - 4, 8, 8);
-                        g.DrawArc(new Pen(Color.Orange, 2f), sw / 2 + 5, -sh / 2 - 15, 15, 15, -90, 180);
+                        g.DrawArc(rotatePen, sw / 2 + 5, -sh / 2 - 15, 15, 15, -90, 180);
                     }
                 }
                 g.Restore(st); DrawCross(g, sc); DrawLabel(g, Label, sc);
@@ -1326,8 +1561,8 @@ namespace TDJS_Vision.Forms.DispShowImage
                 using (Pen ap = new Pen(mainCol, 2f))
                 {
                     float arrowSize = Math.Min(12, sh / 4 + 4);
-                    if (Direction == 0) { ap.DashStyle = DashStyle.Dash; g.DrawLine(ap, 0, -sh / 2, 0, sh / 2); ap.DashStyle = DashStyle.Solid; PointF[] arrowHead = { new PointF(-arrowSize * 0.8f, sh / 2 - arrowSize), new PointF(arrowSize * 0.8f, sh / 2 - arrowSize), new PointF(0, sh / 2) }; g.FillPolygon(new SolidBrush(mainCol), arrowHead); }
-                    else { ap.DashStyle = DashStyle.Dash; g.DrawLine(ap, -halfSeg, 0, halfSeg, 0); ap.DashStyle = DashStyle.Solid; PointF[] arrowHead = { new PointF(halfSeg - arrowSize, -arrowSize * 0.8f), new PointF(halfSeg - arrowSize, arrowSize * 0.8f), new PointF(halfSeg, 0) }; g.FillPolygon(new SolidBrush(mainCol), arrowHead); }
+                    if (Direction == 0) { ap.DashStyle = DashStyle.Dash; g.DrawLine(ap, 0, -sh / 2, 0, sh / 2); ap.DashStyle = DashStyle.Solid; PointF[] arrowHead = { new PointF(-arrowSize * 0.8f, sh / 2 - arrowSize), new PointF(arrowSize * 0.8f, sh / 2 - arrowSize), new PointF(0, sh / 2) }; g.FillPolygon(b, arrowHead); }
+                    else { ap.DashStyle = DashStyle.Dash; g.DrawLine(ap, -halfSeg, 0, halfSeg, 0); ap.DashStyle = DashStyle.Solid; PointF[] arrowHead = { new PointF(halfSeg - arrowSize, -arrowSize * 0.8f), new PointF(halfSeg - arrowSize, arrowSize * 0.8f), new PointF(halfSeg, 0) }; g.FillPolygon(b, arrowHead); }
                 }
                 if (!IsStatic && IsSelected) { using (Brush wb = new SolidBrush(Color.White)) using (Pen bp = new Pen(mainCol, 2f)) { g.FillEllipse(wb, -halfSeg - 7, -7, 14, 14); g.DrawEllipse(bp, -halfSeg - 7, -7, 14, 14); g.FillEllipse(wb, halfSeg - 7, -7, 14, 14); g.DrawEllipse(bp, halfSeg - 7, -7, 14, 14); g.FillEllipse(wb, -7, -7, 14, 14); g.DrawEllipse(bp, -7, -7, 14, 14); } using (Brush orb = new SolidBrush(Color.Orange)) { g.FillRectangle(orb, -6, -sh / 2 - 6, 12, 12); } }
                 g.Restore(st); if (IsSelected) DrawLabel(g, Label, sc);
@@ -1970,7 +2205,7 @@ namespace TDJS_Vision.Forms.DispShowImage
         /// <summary>
         /// Mask 区域半透明叠加层（用于可视化颜色匹配检测区域）
         /// </summary>
-        public class RoiMaskOverlay : IRoiShape
+        public class RoiMaskOverlay : IRoiShape, IDisposable
         {
             private readonly Bitmap _overlayBitmap;
             private readonly int _offsetX, _offsetY;
@@ -2029,7 +2264,65 @@ namespace TDJS_Vision.Forms.DispShowImage
             public int HitTest(Point p, float s, PointF o) => -1;
             public void BeginDrag(PointF p) { }
             public void DragTo(PointF p, int h) { }
+
+            /// <summary>
+            /// 释放Mask可视化创建的内部GDI位图。
+            /// </summary>
+            public void Dispose()
+            {
+                _overlayBitmap?.Dispose();
+            }
         }
         #endregion
+
+        /// <summary>
+        /// 清空ROI集合，并释放其中实现了IDisposable的图像型ROI。
+        /// </summary>
+        /// <param name="rois">需要清空的ROI集合。</param>
+        private static void ClearRoiShapes(ICollection<IRoiShape> rois)
+        {
+            if (rois == null)
+                return;
+
+            foreach (IRoiShape roi in rois)
+                DisposeRoiShape(roi);
+            rois.Clear();
+        }
+
+        /// <summary>
+        /// 释放单个可释放ROI，普通几何ROI不执行额外操作。
+        /// </summary>
+        /// <param name="roi">待释放的ROI。</param>
+        private static void DisposeRoiShape(IRoiShape roi)
+        {
+            (roi as IDisposable)?.Dispose();
+        }
+
+        /// <summary>
+        /// 控件销毁时释放当前显示图、ROI内部图像和交互定时器。
+        /// </summary>
+        private void ReleaseOwnedResources()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _ownedResourcesReleased, 1) != 0)
+                return;
+
+            _interactionTimer?.Stop();
+            _interactionTimer?.Dispose();
+
+            Bitmap imageToDispose;
+            lock (_imageLock)
+            {
+                imageToDispose = _image;
+                _image = null;
+            }
+            imageToDispose?.Dispose();
+
+            lock (_roiLock)
+            {
+                ClearRoiShapes(_dynamicRois);
+                ClearRoiShapes(_staticRois);
+                _textElements.Clear();
+            }
+        }
     }
 }

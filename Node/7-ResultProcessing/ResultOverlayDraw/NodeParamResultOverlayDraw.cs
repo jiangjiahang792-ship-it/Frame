@@ -33,6 +33,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         public int NgColorArgb { get; set; } = Color.Red.ToArgb();
 
         /// <summary>
+        /// 输出图像和叠加结果的顺时针旋转角度，仅支持0、90、180、270。
+        /// </summary>
+        public int RotationAngle { get; set; } = 0;
+
+        /// <summary>
         /// 需要叠加绘制的项目列表。
         /// </summary>
         public List<ResultOverlayDrawItem> Items { get; set; } = new List<ResultOverlayDrawItem>();

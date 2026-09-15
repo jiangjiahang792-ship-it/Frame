@@ -47,11 +47,12 @@ namespace TDJS_Vision.Forms.CameraAdd
             InitializeComponent();
             Camera = camera;
             Camera.ConnectStatusEvent += Camera_ConnectStatusEvent;
-            if (camera.IsOpen)
+            if (camera.IsOpen || camera.RestoreConnectionRequested)
             {
                 try
                 {
                     Camera.Open();
+                    Solution.Instance.TryApplyImageSourceParametersForCamera(Camera);
                     Camera.StartGrabbing();
                     Camera.SetTriggerMode(Camera.GetTriggerMode());
                 }
@@ -147,6 +148,7 @@ namespace TDJS_Vision.Forms.CameraAdd
                     await Task.Run(() =>
                     {
                         Camera.Open();
+                        Solution.Instance.TryApplyImageSourceParametersForCamera(Camera);
                         Camera.SetTriggerMode(Camera.GetTriggerMode());
                         Camera.StartGrabbing();
                     });

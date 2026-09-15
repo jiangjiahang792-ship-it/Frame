@@ -30,6 +30,9 @@
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ParamFormTDAI));
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
+            this.linkLabelRoiEdit = new System.Windows.Forms.LinkLabel();
+            this.uiSwitch_RoiEnable = new Sunny.UI.UISwitch();
+            this.labelRoiEnable = new System.Windows.Forms.Label();
             this.label12 = new System.Windows.Forms.Label();
             this.nodeSubscription1 = new TDJS_Vision.Node.NodeSubscription();
             this.label2 = new System.Windows.Forms.Label();
@@ -69,6 +72,9 @@
             this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 185F));
+            this.tableLayoutPanel1.Controls.Add(this.linkLabelRoiEdit, 2, 6);
+            this.tableLayoutPanel1.Controls.Add(this.uiSwitch_RoiEnable, 1, 6);
+            this.tableLayoutPanel1.Controls.Add(this.labelRoiEnable, 0, 6);
             this.tableLayoutPanel1.Controls.Add(this.label12, 0, 0);
             this.tableLayoutPanel1.Controls.Add(this.nodeSubscription1, 1, 0);
             this.tableLayoutPanel1.Controls.Add(this.label2, 0, 1);
@@ -77,16 +83,16 @@
             this.tableLayoutPanel1.Controls.Add(this.uiSwitch_Learning, 3, 5);
             this.tableLayoutPanel1.Controls.Add(this.label1, 2, 5);
             this.tableLayoutPanel1.Controls.Add(this.label3, 0, 5);
-            this.tableLayoutPanel1.Controls.Add(this.button1, 0, 8);
+            this.tableLayoutPanel1.Controls.Add(this.button1, 0, 9);
             this.tableLayoutPanel1.Controls.Add(this.comboBoxModelName, 1, 5);
-            this.tableLayoutPanel1.Controls.Add(this.label4, 0, 7);
-            this.tableLayoutPanel1.Controls.Add(this.uiSwitch_Convert, 1, 7);
-            this.tableLayoutPanel1.Controls.Add(this.label_scale, 2, 7);
-            this.tableLayoutPanel1.Controls.Add(this.textBox_Scale, 3, 7);
-            this.tableLayoutPanel1.Controls.Add(this.label_studyNum, 0, 6);
-            this.tableLayoutPanel1.Controls.Add(this.textBox_StudyNum, 1, 6);
-            this.tableLayoutPanel1.Controls.Add(this.label_studyPercentage, 2, 6);
-            this.tableLayoutPanel1.Controls.Add(this.textBox_studyPercentage, 3, 6);
+            this.tableLayoutPanel1.Controls.Add(this.label4, 0, 8);
+            this.tableLayoutPanel1.Controls.Add(this.uiSwitch_Convert, 1, 8);
+            this.tableLayoutPanel1.Controls.Add(this.label_scale, 2, 8);
+            this.tableLayoutPanel1.Controls.Add(this.textBox_Scale, 3, 8);
+            this.tableLayoutPanel1.Controls.Add(this.label_studyNum, 0, 7);
+            this.tableLayoutPanel1.Controls.Add(this.textBox_StudyNum, 1, 7);
+            this.tableLayoutPanel1.Controls.Add(this.label_studyPercentage, 2, 7);
+            this.tableLayoutPanel1.Controls.Add(this.textBox_studyPercentage, 3, 7);
             this.tableLayoutPanel1.Controls.Add(this.label5, 0, 2);
             this.tableLayoutPanel1.Controls.Add(this.radioButton1, 1, 2);
             this.tableLayoutPanel1.Controls.Add(this.radioButton2, 1, 3);
@@ -101,18 +107,56 @@
             this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 38);
             this.tableLayoutPanel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
-            this.tableLayoutPanel1.RowCount = 9;
+            this.tableLayoutPanel1.RowCount = 10;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
+            this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 77F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(930, 580);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(930, 631);
             this.tableLayoutPanel1.TabIndex = 5;
+            // 
+            // linkLabelRoiEdit
+            // 
+            this.linkLabelRoiEdit.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.linkLabelRoiEdit.AutoSize = true;
+            this.linkLabelRoiEdit.Font = new System.Drawing.Font("宋体", 10.5F);
+            this.linkLabelRoiEdit.Location = new System.Drawing.Point(524, 389);
+            this.linkLabelRoiEdit.Name = "linkLabelRoiEdit";
+            this.linkLabelRoiEdit.Size = new System.Drawing.Size(136, 21);
+            this.linkLabelRoiEdit.TabIndex = 2;
+            this.linkLabelRoiEdit.TabStop = true;
+            this.linkLabelRoiEdit.Text = "绘制检测区域";
+            this.linkLabelRoiEdit.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.linkLabelRoiEdit_LinkClicked);
+            // 
+            // uiSwitch_RoiEnable
+            // 
+            this.uiSwitch_RoiEnable.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.uiSwitch_RoiEnable.Font = new System.Drawing.Font("宋体", 9F);
+            this.uiSwitch_RoiEnable.Location = new System.Drawing.Point(245, 382);
+            this.uiSwitch_RoiEnable.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.uiSwitch_RoiEnable.MinimumSize = new System.Drawing.Size(1, 1);
+            this.uiSwitch_RoiEnable.Name = "uiSwitch_RoiEnable";
+            this.uiSwitch_RoiEnable.Size = new System.Drawing.Size(84, 35);
+            this.uiSwitch_RoiEnable.TabIndex = 1;
+            this.uiSwitch_RoiEnable.Text = "uiSwitch1";
+            this.uiSwitch_RoiEnable.ValueChanged += new Sunny.UI.UISwitch.OnValueChanged(this.uiSwitch_RoiEnable_ValueChanged);
+            // 
+            // labelRoiEnable
+            // 
+            this.labelRoiEnable.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.labelRoiEnable.AutoSize = true;
+            this.labelRoiEnable.Font = new System.Drawing.Font("宋体", 10.8F);
+            this.labelRoiEnable.Location = new System.Drawing.Point(24, 388);
+            this.labelRoiEnable.Name = "labelRoiEnable";
+            this.labelRoiEnable.Size = new System.Drawing.Size(87, 22);
+            this.labelRoiEnable.TabIndex = 0;
+            this.labelRoiEnable.Text = "启用ROI";
             // 
             // label12
             // 
@@ -141,7 +185,7 @@
             this.label2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label2.AutoSize = true;
             this.label2.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label2.Location = new System.Drawing.Point(18, 82);
+            this.label2.Location = new System.Drawing.Point(18, 83);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(98, 22);
             this.label2.TabIndex = 4;
@@ -153,7 +197,7 @@
             this.textBoxConfigPath.BackColor = System.Drawing.SystemColors.ButtonHighlight;
             this.tableLayoutPanel1.SetColumnSpan(this.textBoxConfigPath, 2);
             this.textBoxConfigPath.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBoxConfigPath.Location = new System.Drawing.Point(138, 77);
+            this.textBoxConfigPath.Location = new System.Drawing.Point(138, 78);
             this.textBoxConfigPath.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.textBoxConfigPath.Name = "textBoxConfigPath";
             this.textBoxConfigPath.ReadOnly = true;
@@ -165,7 +209,7 @@
             this.bt_ConfigSelect.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.bt_ConfigSelect.Cursor = System.Windows.Forms.Cursors.Default;
             this.bt_ConfigSelect.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.bt_ConfigSelect.Location = new System.Drawing.Point(783, 71);
+            this.bt_ConfigSelect.Location = new System.Drawing.Point(783, 73);
             this.bt_ConfigSelect.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.bt_ConfigSelect.Name = "bt_ConfigSelect";
             this.bt_ConfigSelect.Size = new System.Drawing.Size(108, 43);
@@ -178,7 +222,7 @@
             // 
             this.uiSwitch_Learning.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.uiSwitch_Learning.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.uiSwitch_Learning.Location = new System.Drawing.Point(795, 323);
+            this.uiSwitch_Learning.Location = new System.Drawing.Point(795, 329);
             this.uiSwitch_Learning.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.uiSwitch_Learning.MinimumSize = new System.Drawing.Size(1, 1);
             this.uiSwitch_Learning.Name = "uiSwitch_Learning";
@@ -192,7 +236,7 @@
             this.label1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label1.AutoSize = true;
             this.label1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label1.Location = new System.Drawing.Point(543, 330);
+            this.label1.Location = new System.Drawing.Point(543, 335);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(98, 22);
             this.label1.TabIndex = 4;
@@ -203,7 +247,7 @@
             this.label3.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label3.AutoSize = true;
             this.label3.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label3.Location = new System.Drawing.Point(18, 330);
+            this.label3.Location = new System.Drawing.Point(18, 335);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(98, 22);
             this.label3.TabIndex = 4;
@@ -214,7 +258,7 @@
             this.button1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.tableLayoutPanel1.SetColumnSpan(this.button1, 4);
             this.button1.Font = new System.Drawing.Font("宋体", 10.8F);
-            this.button1.Location = new System.Drawing.Point(419, 514);
+            this.button1.Location = new System.Drawing.Point(419, 565);
             this.button1.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.button1.Name = "button1";
             this.button1.Size = new System.Drawing.Size(91, 48);
@@ -225,16 +269,19 @@
             // 
             // comboBoxModelName
             // 
-            this.comboBoxModelName.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.comboBoxModelName.Anchor = System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
             this.comboBoxModelName.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxModelName.DropDownWidth = 280;
             this.comboBoxModelName.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.comboBoxModelName.FormattingEnabled = true;
             this.comboBoxModelName.Items.AddRange(new object[] {
             "RL_12类线芯模型",
             "RL_线芯截面",
             "XM_Fakra模型",
-            "合压模型"});
-            this.comboBoxModelName.Location = new System.Drawing.Point(183, 326);
+            "合压模型",
+            "多端子模型",
+            "超声波焊接侧面三类模型"});
+            this.comboBoxModelName.Location = new System.Drawing.Point(183, 331);
             this.comboBoxModelName.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxModelName.Name = "comboBoxModelName";
             this.comboBoxModelName.Size = new System.Drawing.Size(208, 30);
@@ -245,7 +292,7 @@
             this.label4.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label4.AutoSize = true;
             this.label4.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label4.Location = new System.Drawing.Point(7, 454);
+            this.label4.Location = new System.Drawing.Point(7, 504);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(120, 22);
             this.label4.TabIndex = 4;
@@ -255,7 +302,7 @@
             // 
             this.uiSwitch_Convert.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.uiSwitch_Convert.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.uiSwitch_Convert.Location = new System.Drawing.Point(245, 447);
+            this.uiSwitch_Convert.Location = new System.Drawing.Point(245, 498);
             this.uiSwitch_Convert.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.uiSwitch_Convert.MinimumSize = new System.Drawing.Size(1, 1);
             this.uiSwitch_Convert.Name = "uiSwitch_Convert";
@@ -270,7 +317,7 @@
             this.label_scale.AutoSize = true;
             this.label_scale.Enabled = false;
             this.label_scale.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label_scale.Location = new System.Drawing.Point(510, 454);
+            this.label_scale.Location = new System.Drawing.Point(510, 504);
             this.label_scale.Name = "label_scale";
             this.label_scale.Size = new System.Drawing.Size(164, 22);
             this.label_scale.TabIndex = 4;
@@ -281,7 +328,7 @@
             this.textBox_Scale.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBox_Scale.Enabled = false;
             this.textBox_Scale.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBox_Scale.Location = new System.Drawing.Point(781, 449);
+            this.textBox_Scale.Location = new System.Drawing.Point(781, 499);
             this.textBox_Scale.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBox_Scale.Name = "textBox_Scale";
             this.textBox_Scale.Size = new System.Drawing.Size(112, 32);
@@ -295,7 +342,7 @@
             this.label_studyNum.AutoSize = true;
             this.label_studyNum.Enabled = false;
             this.label_studyNum.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label_studyNum.Location = new System.Drawing.Point(18, 392);
+            this.label_studyNum.Location = new System.Drawing.Point(18, 441);
             this.label_studyNum.Name = "label_studyNum";
             this.label_studyNum.Size = new System.Drawing.Size(98, 22);
             this.label_studyNum.TabIndex = 13;
@@ -306,7 +353,7 @@
             this.textBox_StudyNum.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBox_StudyNum.Enabled = false;
             this.textBox_StudyNum.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBox_StudyNum.Location = new System.Drawing.Point(231, 387);
+            this.textBox_StudyNum.Location = new System.Drawing.Point(231, 436);
             this.textBox_StudyNum.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBox_StudyNum.Name = "textBox_StudyNum";
             this.textBox_StudyNum.Size = new System.Drawing.Size(112, 32);
@@ -320,7 +367,7 @@
             this.label_studyPercentage.AutoSize = true;
             this.label_studyPercentage.Enabled = false;
             this.label_studyPercentage.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label_studyPercentage.Location = new System.Drawing.Point(516, 392);
+            this.label_studyPercentage.Location = new System.Drawing.Point(516, 441);
             this.label_studyPercentage.Name = "label_studyPercentage";
             this.label_studyPercentage.Size = new System.Drawing.Size(153, 22);
             this.label_studyPercentage.TabIndex = 15;
@@ -331,7 +378,7 @@
             this.textBox_studyPercentage.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.textBox_studyPercentage.Enabled = false;
             this.textBox_studyPercentage.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.textBox_studyPercentage.Location = new System.Drawing.Point(781, 387);
+            this.textBox_studyPercentage.Location = new System.Drawing.Point(781, 436);
             this.textBox_studyPercentage.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.textBox_studyPercentage.Name = "textBox_studyPercentage";
             this.textBox_studyPercentage.Size = new System.Drawing.Size(112, 32);
@@ -344,7 +391,7 @@
             this.label5.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label5.AutoSize = true;
             this.label5.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label5.Location = new System.Drawing.Point(7, 144);
+            this.label5.Location = new System.Drawing.Point(7, 146);
             this.label5.Name = "label5";
             this.label5.Size = new System.Drawing.Size(120, 22);
             this.label5.TabIndex = 4;
@@ -356,7 +403,7 @@
             this.radioButton1.AutoSize = true;
             this.radioButton1.Checked = true;
             this.radioButton1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.radioButton1.Location = new System.Drawing.Point(215, 142);
+            this.radioButton1.Location = new System.Drawing.Point(215, 144);
             this.radioButton1.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.radioButton1.Name = "radioButton1";
             this.radioButton1.Size = new System.Drawing.Size(145, 26);
@@ -371,7 +418,7 @@
             this.radioButton2.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.radioButton2.AutoSize = true;
             this.radioButton2.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.radioButton2.Location = new System.Drawing.Point(193, 204);
+            this.radioButton2.Location = new System.Drawing.Point(193, 207);
             this.radioButton2.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.radioButton2.Name = "radioButton2";
             this.radioButton2.Size = new System.Drawing.Size(189, 26);
@@ -386,7 +433,7 @@
             this.comboBoxDetectConfig1.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxDetectConfig1.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.comboBoxDetectConfig1.FormattingEnabled = true;
-            this.comboBoxDetectConfig1.Location = new System.Drawing.Point(477, 140);
+            this.comboBoxDetectConfig1.Location = new System.Drawing.Point(477, 142);
             this.comboBoxDetectConfig1.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxDetectConfig1.Name = "comboBoxDetectConfig1";
             this.comboBoxDetectConfig1.Size = new System.Drawing.Size(231, 30);
@@ -399,7 +446,7 @@
             this.comboBoxDevice.Enabled = false;
             this.comboBoxDevice.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.comboBoxDevice.FormattingEnabled = true;
-            this.comboBoxDevice.Location = new System.Drawing.Point(477, 202);
+            this.comboBoxDevice.Location = new System.Drawing.Point(477, 205);
             this.comboBoxDevice.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxDevice.Name = "comboBoxDevice";
             this.comboBoxDevice.Size = new System.Drawing.Size(231, 30);
@@ -411,7 +458,7 @@
             this.label6.AutoSize = true;
             this.label6.Enabled = false;
             this.label6.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label6.Location = new System.Drawing.Point(766, 195);
+            this.label6.Location = new System.Drawing.Point(766, 198);
             this.label6.Name = "label6";
             this.label6.Size = new System.Drawing.Size(142, 44);
             this.label6.TabIndex = 4;
@@ -423,7 +470,7 @@
             this.label7.AutoSize = true;
             this.label7.Enabled = false;
             this.label7.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label7.Location = new System.Drawing.Point(194, 268);
+            this.label7.Location = new System.Drawing.Point(194, 272);
             this.label7.Name = "label7";
             this.label7.Size = new System.Drawing.Size(186, 22);
             this.label7.TabIndex = 4;
@@ -436,7 +483,7 @@
             this.comboBoxDetectConfig2.Enabled = false;
             this.comboBoxDetectConfig2.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.comboBoxDetectConfig2.FormattingEnabled = true;
-            this.comboBoxDetectConfig2.Location = new System.Drawing.Point(477, 264);
+            this.comboBoxDetectConfig2.Location = new System.Drawing.Point(477, 268);
             this.comboBoxDetectConfig2.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxDetectConfig2.Name = "comboBoxDetectConfig2";
             this.comboBoxDetectConfig2.Size = new System.Drawing.Size(231, 30);
@@ -448,7 +495,7 @@
             this.label8.AutoSize = true;
             this.label8.Enabled = false;
             this.label8.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label8.Location = new System.Drawing.Point(7, 268);
+            this.label8.Location = new System.Drawing.Point(7, 272);
             this.label8.Name = "label8";
             this.label8.Size = new System.Drawing.Size(120, 22);
             this.label8.TabIndex = 4;
@@ -461,7 +508,7 @@
             this.linkLabel1.Enabled = false;
             this.linkLabel1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.linkLabel1.LinkColor = System.Drawing.Color.Blue;
-            this.linkLabel1.Location = new System.Drawing.Point(801, 268);
+            this.linkLabel1.Location = new System.Drawing.Point(801, 273);
             this.linkLabel1.Name = "linkLabel1";
             this.linkLabel1.Size = new System.Drawing.Size(73, 21);
             this.linkLabel1.TabIndex = 18;
@@ -478,7 +525,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(934, 620);
+            this.ClientSize = new System.Drawing.Size(934, 671);
             this.Controls.Add(this.tableLayoutPanel1);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
@@ -525,5 +572,8 @@
         private System.Windows.Forms.ComboBox comboBoxDetectConfig2;
         private System.Windows.Forms.Label label8;
         private System.Windows.Forms.LinkLabel linkLabel1;
+        private System.Windows.Forms.Label labelRoiEnable;
+        private Sunny.UI.UISwitch uiSwitch_RoiEnable;
+        private System.Windows.Forms.LinkLabel linkLabelRoiEdit;
     }
 }

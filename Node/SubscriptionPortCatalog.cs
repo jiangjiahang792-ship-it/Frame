@@ -182,11 +182,23 @@ namespace TDJS_Vision.Node
                 !contract.AcceptedCategories.Contains(category))
                 return false;
 
-            return contract.AcceptedCategories.All(item =>
-                item != SubscriptionDataCategory.Boolean &&
-                item != SubscriptionDataCategory.Number &&
-                item != SubscriptionDataCategory.Text &&
-                item != SubscriptionDataCategory.Unknown);
+            if (category == SubscriptionDataCategory.Boolean ||
+                category == SubscriptionDataCategory.Number ||
+                category == SubscriptionDataCategory.Text ||
+                category == SubscriptionDataCategory.Unknown)
+            {
+                return false;
+            }
+
+            int visibleCategoryCount = Enum
+                .GetValues(typeof(SubscriptionDataCategory))
+                .Cast<SubscriptionDataCategory>()
+                .Count(item => item != SubscriptionDataCategory.Unknown);
+            if (contract.AcceptedCategories.Count >= visibleCategoryCount)
+                return false;
+
+            // 文本绘制这类混合输入会显式接受 AlgorithmResult，不能因为同时接受基础文本而隐藏 AI 输出结果。
+            return true;
         }
 
         /// <summary>

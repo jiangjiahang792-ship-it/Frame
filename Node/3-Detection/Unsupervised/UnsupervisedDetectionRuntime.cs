@@ -363,7 +363,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             if (manifest != null && manifest.Threshold > 0F && manifest.Threshold <= 1F)
                 return manifest.Threshold;
 
-            return NodeParamUnsupervisedDetection.DefaultThreshold;
+            return NodeParamUnsupervisedDetection.FallbackThreshold;
         }
 
         /// <summary>
@@ -424,7 +424,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         }
 
         /// <summary>
-        /// 加载无监督模板模型；只有 AUTO 初始化失败时允许使用 CPU 回退。
+        /// 加载无监督模板模型；GPU 或 AUTO 初始化失败时允许使用 CPU 回退。
         /// </summary>
         /// <param name="runtimeRoot">无监督运行环境目录。</param>
         /// <param name="extractResult">模板解包结果。</param>
@@ -490,11 +490,14 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// 判断当前失败是否允许用 CPU 重新初始化。
         /// </summary>
         /// <param name="device">首选推理设备。</param>
-        /// <returns>AUTO 后端失败时返回 true。</returns>
+        /// <returns>GPU 或 AUTO 后端失败时返回 true。</returns>
         private static bool ShouldRetryLoadModelOnCpu(string device)
         {
-            return !string.IsNullOrWhiteSpace(device) &&
-                device.StartsWith("AUTO", StringComparison.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(device))
+                return false;
+
+            return device.StartsWith("AUTO", StringComparison.OrdinalIgnoreCase) ||
+                device.StartsWith("GPU", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

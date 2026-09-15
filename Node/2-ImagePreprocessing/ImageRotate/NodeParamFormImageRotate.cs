@@ -322,8 +322,21 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
         private void SetPreviewBitmap(Bitmap bitmap)
         {
             Image oldImage = pictureBox1.Image;
+            if (ReferenceEquals(oldImage, bitmap))
+                return;
+
             pictureBox1.Image = bitmap;
             oldImage?.Dispose();
+        }
+
+        /// <summary>
+        /// 释放参数窗体最后一张预览图。
+        /// </summary>
+        private void ReleaseImageResources()
+        {
+            Image image = pictureBox1.Image;
+            pictureBox1.Image = null;
+            image?.Dispose();
         }
     }
 }

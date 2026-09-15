@@ -50,7 +50,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSend
                 {
                     // 初始化运行状态
                     SetStatus(NodeStatus.Unexecuted, "*");
-                    base.CheckTokenCancel(token);
+                    await base.CheckTokenCancel(token);
 
                     // 获取AI检测结果
                     AlgorithmResult aiResult = form.GetAiResult();
@@ -80,11 +80,9 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSend
 
                     #endregion
 
-                    // 执行结果发送
-                    Task.Run(() =>
-                    {
-                        SendToModbus(aiResult, map, param.SignalHoldTime, param.IsAutoReset, token, param.IsRegister, showLog);
-                    });
+                    // 直接发送并等待实际完成；启用自动复位时也等待保持及复位，不提前报告成功。
+                    token.ThrowIfCancellationRequested();
+                    await SendToModbus(aiResult, map, param.SignalHoldTime, param.IsAutoReset, token, param.IsRegister, showLog);
                     var time = SetRunResult(startTime, NodeStatus.Successful);
                     Result.RunTime = time;
                     if (showLog)
@@ -230,11 +228,12 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSend
                     }
                     else if (device is IPlc plc)
                     {
-                        if (isRegister)
-                            await plc.WriteIntAsync(key.SignalAddress, valueToSend);
-                        else
-                            await plc.WriteBoolAsync(key.SignalAddress, new bool[] { valueToSend != 0 });
+                        var response = isRegister
+                            ? await plc.WriteIntAsync(key.SignalAddress, valueToSend)
+                            : await plc.WriteBoolAsync(key.SignalAddress, new bool[] { valueToSend != 0 });
+                        EnsurePlcWriteSucceeded(response, key.SignalAddress);
                     }
+                    else throw new InvalidOperationException($"设备{key.DeviceName}不支持PLC或Modbus信号写入。");
                     if (showLog)
                         LogHelper.AddLog(MsgLevel.Info, ($"地址：{key.SignalAddress}, 值：{valueToSend}"), true);
                 }
@@ -263,11 +262,12 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSend
                         }
                         else if (device is IPlc plc)
                         {
-                            if (isRegister)
-                                await plc.WriteIntAsync(key.SignalAddress, 0);
-                            else
-                                await plc.WriteBoolAsync(key.SignalAddress, new bool[] { false });
+                            var response = isRegister
+                                ? await plc.WriteIntAsync(key.SignalAddress, 0)
+                                : await plc.WriteBoolAsync(key.SignalAddress, new bool[] { false });
+                            EnsurePlcWriteSucceeded(response, key.SignalAddress);
                         }
+                        else throw new InvalidOperationException($"设备{key.DeviceName}不支持PLC或Modbus信号写入。");
                     }
                 }
             }
@@ -281,6 +281,12 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.AIResultSend
                 LogHelper.AddLog(MsgLevel.Fatal, $"Modbus发送异常：{ex.Message}\n{ex.StackTrace}");
                 throw;
             }
+        }
+        /// <summary>PLC写入及复位必须取得成功响应，空响应或失败响应不能报告节点成功。</summary>
+        private static void EnsurePlcWriteSucceeded(HslCommunication.OperateResult response, string address)
+        {
+            if (response == null || !response.IsSuccess)
+                throw new InvalidOperationException($"PLC地址{address}写入失败：{response?.Message ?? "设备返回空结果"}");
         }
     }
     /// <summary>

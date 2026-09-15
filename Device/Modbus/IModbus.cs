@@ -18,6 +18,9 @@ namespace TDJS_Vision.Device.Modbus
 
         bool IsConnect { get; set; }
 
+        /// <summary>获取或设置Modbus连接与收发操作的有限超时时间，单位为毫秒。</summary>
+        int OperationTimeoutMs { get; set; }
+
         DevType DevType { get; set; }
         DeviceBrand Brand { get; set; }
         string ClassName { get; set; }

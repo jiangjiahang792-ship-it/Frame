@@ -8,6 +8,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
+using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Forms.DispShowImage;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
@@ -105,8 +106,11 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
         /// <returns>Measurement result containing ordered contours and flattened points.</returns>
         internal List<FindPointTargetResult> ExecuteMeasures(NodeParamFindPoint param, CancellationToken token)
         {
-            Stopwatch executeMeasureWatch = Stopwatch.StartNew();
-            LastTimingInfo = new FindPointTimingInfo();
+            FindPointTimingInfo timing = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug)
+                ? new FindPointTimingInfo()
+                : null;
+            LastTimingInfo = timing;
+            Stopwatch executeMeasureWatch = timing == null ? null : Stopwatch.StartNew();
             bool disposeGrayAfterUse = false;
             Mat gray = null;
             try
@@ -115,30 +119,34 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
                 if (corrections.Count == 0)
                     return new List<FindPointTargetResult>();
 
-                gray = GetInputGrayMat(out disposeGrayAfterUse);
+                gray = GetInputGrayMat(timing, out disposeGrayAfterUse);
                 List<FindPointTargetResult> items = MultiTargetMeasurementRunner.Run(
                     corrections,
                     token,
                     correction =>
                     {
-                        Stopwatch runtimeParamWatch = Stopwatch.StartNew();
+                        Stopwatch runtimeParamWatch = timing == null ? null : Stopwatch.StartNew();
                         NodeParamFindPoint runtimeParam = BuildRuntimeParam(param, correction);
-                        runtimeParamWatch.Stop();
-                        LastTimingInfo.RuntimeParamMs += runtimeParamWatch.Elapsed.TotalMilliseconds;
+                        runtimeParamWatch?.Stop();
+                        if (timing != null)
+                            timing.RuntimeParamMs += runtimeParamWatch.Elapsed.TotalMilliseconds;
                         return ExecuteOne(gray, runtimeParam, correction, token);
                     },
                     CreateFailure);
 
-                LastTimingInfo.AlgorithmMs = items.Sum(item => item.AlgorithmMs);
-                LastTimingInfo.ProcessedRegionCount = items.Sum(item => item.ProcessedRegionCount);
-                LastTimingInfo.ProcessedPixelCount = items.Sum(item => item.ProcessedPixelCount);
+                if (timing != null)
+                {
+                    timing.AlgorithmMs = items.Sum(item => item.AlgorithmMs);
+                    timing.ProcessedRegionCount = items.Sum(item => item.ProcessedRegionCount);
+                    timing.ProcessedPixelCount = items.Sum(item => item.ProcessedPixelCount);
+                }
                 return items;
             }
             finally
             {
-                executeMeasureWatch.Stop();
-                if (LastTimingInfo != null)
-                    LastTimingInfo.ExecuteMeasureMs = executeMeasureWatch.Elapsed.TotalMilliseconds;
+                executeMeasureWatch?.Stop();
+                if (timing != null)
+                    timing.ExecuteMeasureMs = executeMeasureWatch.Elapsed.TotalMilliseconds;
 
                 if (disposeGrayAfterUse)
                     gray?.Dispose();
@@ -270,21 +278,22 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
         /// <summary>
         /// Reads the subscribed output image as a read-only grayscale OpenCV matrix.
         /// </summary>
-        private Mat GetInputGrayMat(out bool disposeAfterUse)
+        private Mat GetInputGrayMat(FindPointTimingInfo timing, out bool disposeAfterUse)
         {
-            FindPointTimingInfo timing = LastTimingInfo ?? new FindPointTimingInfo();
-            LastTimingInfo = timing;
-
-            Stopwatch subscriptionWatch = Stopwatch.StartNew();
+            Stopwatch subscriptionWatch = timing == null ? null : Stopwatch.StartNew();
             OutputImage outputImage = nodeSubscriptionImage.GetValue<OutputImage>();
-            subscriptionWatch.Stop();
-            timing.SubscriptionReadMs = subscriptionWatch.Elapsed.TotalMilliseconds;
+            subscriptionWatch?.Stop();
+            if (timing != null)
+                timing.SubscriptionReadMs = subscriptionWatch.Elapsed.TotalMilliseconds;
 
-            Stopwatch grayAcquireWatch = Stopwatch.StartNew();
+            Stopwatch grayAcquireWatch = timing == null ? null : Stopwatch.StartNew();
             Mat gray = GetReadOnlyGrayMat(outputImage, timing, out disposeAfterUse);
-            grayAcquireWatch.Stop();
-            timing.GrayAcquireMs = grayAcquireWatch.Elapsed.TotalMilliseconds;
-            timing.TemporaryGrayCreated = disposeAfterUse;
+            grayAcquireWatch?.Stop();
+            if (timing != null)
+            {
+                timing.GrayAcquireMs = grayAcquireWatch.Elapsed.TotalMilliseconds;
+                timing.TemporaryGrayCreated = disposeAfterUse;
+            }
             return gray;
         }
 
@@ -302,11 +311,11 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
 
             Mat source = GetReadOnlyPreviewMat(outputImage, timing);
             if (source.Channels() == 1)
-                return CaptureInputInfo(source, timing.InputSource, timing);
+                return CaptureInputInfo(source, timing?.InputSource ?? string.Empty, timing);
 
             disposeAfterUse = true;
             Mat gray = CaliperMeasurementAlgorithm.ToGray(source);
-            return CaptureInputInfo(gray, "运行时灰度转换(" + timing.InputSource + ")", timing);
+            return CaptureInputInfo(gray, "运行时灰度转换(" + (timing?.InputSource ?? "预览图") + ")", timing);
         }
 
         /// <summary>
@@ -334,6 +343,9 @@ namespace TDJS_Vision.Node._4_Measurement.FindPoint
         /// </summary>
         private static Mat CaptureInputInfo(Mat source, string inputSource, FindPointTimingInfo timing)
         {
+            if (timing == null)
+                return source;
+
             timing.InputSource = inputSource;
             timing.InputWidth = source.Width;
             timing.InputHeight = source.Height;

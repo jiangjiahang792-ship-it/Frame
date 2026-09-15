@@ -28,6 +28,8 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+            IImageResourceLease inputLease = null;
+            NodeResultColorDiscern pendingResult = null;
             LogRuntimeStep(showLog, "开始运行");
             // 参数合法性校验
             if (!Active)
@@ -54,22 +56,26 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                         // 获取干净原图并执行颜色识别，运行链路不再生成烧录标注图。
                         LogRuntimeStep(showLog, "开始获取输入图像");
                         OutputImage inputImage = form.GetInputOutputImage();
+                        inputLease = inputImage.AcquireLease();
                         LogRuntimeStep(showLog, "获取输入图像完毕");
                         Mat sourceImage = MeasurementNodeHelper.GetReadOnlyPreviewMat(inputImage);
                         LogRuntimeStep(showLog, "获取只读Mat完毕，开始颜色匹配");
                         var (resultList, isOk) = await form.MatchColorResultsAsync(sourceImage);
                         LogRuntimeStep(showLog, $"颜色匹配完毕，结果数量:{(resultList == null ? 0 : resultList.Count)}");
 
-                        NodeResultColorDiscern nodeResult = new NodeResultColorDiscern();
-                        nodeResult.OutputImage = OutputImage.FromSingleImage(sourceImage, inputImage?.GrayImg);
-                        nodeResult.OutputImage.Rectangles = BuildRectangleList(resultList);
-                        nodeResult.Result = BuildDisplayResult(resultList, isOk);
-                        nodeResult.OutputImage.DisplayResult = nodeResult.Result;
+                        pendingResult = new NodeResultColorDiscern();
+                        pendingResult.OutputImage = OutputImage.FromBorrowedSingleImage(inputImage, sourceImage, inputImage?.GrayImg);
+                        pendingResult.OutputImage.Rectangles = BuildRectangleList(resultList);
+                        pendingResult.Result = BuildDisplayResult(resultList, isOk);
+                        pendingResult.IsOk = isOk;
+                        pendingResult.JudgeOk = isOk;
+                        pendingResult.OutputImage.DisplayResult = pendingResult.Result;
                         LogRuntimeStep(showLog, "输出结果构建完毕");
 
                         var time = SetRunResult(startTime, NodeStatus.Successful);
-                        nodeResult.RunTime = time;
-                        Result = nodeResult;
+                        pendingResult.RunTime = time;
+                        Result = pendingResult;
+                        pendingResult = null;
                         if (showLog)
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms, 匹配是否成功: {isOk}", true);
 
@@ -79,13 +85,20 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                     {
                         LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})运行取消！", true);
                         SetRunResult(startTime, NodeStatus.Unexecuted);
+                        Result = new NodeResultColorDiscern();
                         throw new OperationCanceledException($"节点({ID}.{NodeName})运行取消！");
                     }
                     catch (Exception ex)
                     {
                         LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
                         SetRunResult(startTime, NodeStatus.Failed);
+                        Result = new NodeResultColorDiscern();
                         throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
+                    }
+                    finally
+                    {
+                        NodeResultResourceManager.Release(pendingResult);
+                        inputLease?.Dispose();
                     }
                 }
             }

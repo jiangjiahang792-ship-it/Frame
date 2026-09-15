@@ -2,7 +2,6 @@
 using HslCommunication;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json;
-using HslCommunication.Profinet.Panasonic;
 using Logger;
 using HslCommunication.Profinet.Melsec;
 using System.Threading.Tasks;
@@ -14,20 +13,52 @@ namespace TDJS_Vision.Device.PLC
     /// <summary>
     /// 三菱PLC
     /// </summary>
-    public class PlcMelsec : IPlc
+    public class PlcMelsec : ReconnectingCommunicationDevice, IPlc, IResultSendTypedPlc
     {
+        /// <summary>PLC操作允许的最小超时时间。</summary>
+        private const int MinimumOperationTimeoutMs = 100;
+
+        /// <summary>PLC操作允许的最大超时时间。</summary>
+        private const int MaximumOperationTimeoutMs = 60000;
+
+        /// <summary>当前连接和收发操作的有限超时时间。</summary>
+        private int _operationTimeoutMs = 5000;
+
         /// <summary>
         /// 使用TCP通信的三菱plc对象
         /// </summary>
         private MelsecMcNet melsecMcNet = null;
+
+        /// <summary>按三菱通信客户端的字节序写入扩展基础类型。</summary>
+        public Task<OperateResult> WriteTypedValuesAsync(string address, Array values)
+        {
+            if (values is short[] signedWords) return melsecMcNet.WriteAsync(address, signedWords);
+            if (values is ushort[] words) return melsecMcNet.WriteAsync(address, words);
+            if (values is uint[] integers) return melsecMcNet.WriteAsync(address, integers);
+            if (values is double[] doubles) return melsecMcNet.WriteAsync(address, doubles);
+            throw new NotSupportedException("不支持的PLC扩展写入类型。");
+        }
         /// <summary>
         /// 设备参数
         /// </summary>
         public PLCParms PLCParms { get; set; } = new PLCParms();
-        /// <summary>
-        /// 是否连接
-        /// </summary>
-        public bool IsConnect { get; set; }
+        /// <inheritdoc />
+        protected override string CommunicationName => UserDefinedName;
+        /// <inheritdoc />
+        protected override HslCommunication.Core.Device.DeviceCommunication CommunicationClient => melsecMcNet;
+
+        /// <summary>获取或设置PLC连接与收发操作的有限超时时间。</summary>
+        public int OperationTimeoutMs
+        {
+            get => _operationTimeoutMs;
+            set
+            {
+                _operationTimeoutMs = Math.Max(
+                    MinimumOperationTimeoutMs,
+                    Math.Min(MaximumOperationTimeoutMs, value));
+                ApplyOperationTimeout();
+            }
+        }
         /// <summary>
         /// 设备名
         /// </summary>
@@ -49,12 +80,6 @@ namespace TDJS_Vision.Device.PLC
         /// 反序列化使用标志
         /// </summary>
         public string ClassName { get; set; } = typeof(PlcMelsec).FullName;
-        /// <summary>
-        /// 连接状态改变事件
-        /// </summary>
-        public event EventHandler<bool> ConnectStatusEvent;
-
-
         #region 反序列化专用函数
 
         /// <summary>
@@ -79,6 +104,7 @@ namespace TDJS_Vision.Device.PLC
                     }
                     melsecMcNet.IpAddress = PLCParms.EthernetParms.IP;
                     melsecMcNet.Port = PLCParms.EthernetParms.Port;
+                    ApplyOperationTimeout();
                 }
                 else
                     throw new Exception("不支持的通信方式！");
@@ -99,13 +125,14 @@ namespace TDJS_Vision.Device.PLC
             UserDefinedName = parms.UserDefinedName;
             if (PLCParms.PlcConType == PlcConType.ETHERNET)
             {
-                melsecMcNet = new PanasonicMcNet();
+                melsecMcNet = new MelsecMcNet();
                 if (PLCParms.EthernetParms.IP == null)
                 {
                     throw new Exception("PLC网口连接参数为空！");
                 }
                 melsecMcNet.IpAddress = PLCParms.EthernetParms.IP;
                 melsecMcNet.Port = PLCParms.EthernetParms.Port;
+                ApplyOperationTimeout();
             }
             else
                 throw new Exception("不支持的通信方式！");
@@ -113,45 +140,40 @@ namespace TDJS_Vision.Device.PLC
 
         public bool Connect()
         {
-            try
-            {
-                if (PLCParms.PlcConType == PlcConType.ETHERNET)
-                {
-                    IsConnect = melsecMcNet.ConnectServer().IsSuccess;
-                    ConnectStatusEvent?.Invoke(this, IsConnect);
-                    return IsConnect;
-                }
-                else
-                {
-                    throw new Exception("不支持的通信方式！");
-                }
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            return ConnectWithRecovery();
+        }
+
+        /// <inheritdoc />
+        protected override HslCommunication.OperateResult OpenCommunicationCore()
+        {
+            if (PLCParms.PlcConType != PlcConType.ETHERNET)
+                throw new InvalidOperationException("不支持的通信方式！");
+            if (melsecMcNet == null) CreateDevice();
+            return melsecMcNet.ConnectServer();
         }
 
         public void Disconnect()
         {
-            if (!IsConnect) { return; }
-
-            if (PLCParms.PlcConType == PlcConType.COM)
-            {
-                melsecMcNet.ConnectClose();
-                IsConnect = false;
-            }
-            else
-            {
-                IsConnect = !melsecMcNet.ConnectClose().IsSuccess;
-            }
-            ConnectStatusEvent?.Invoke(this, IsConnect);
+            DisconnectWithRecovery();
         }
+
+        /// <inheritdoc />
+        protected override void CloseCommunicationCore() => melsecMcNet?.ConnectClose();
 
         public void Release()
         {
+            DisconnectWithRecovery();
             if (PLCParms.PlcConType == PlcConType.ETHERNET)
                 melsecMcNet.Dispose();
+        }
+
+        /// <summary>把统一有限超时应用到当前三菱PLC通信对象。</summary>
+        private void ApplyOperationTimeout()
+        {
+            if (melsecMcNet == null)
+                return;
+            melsecMcNet.ConnectTimeOut = _operationTimeoutMs;
+            melsecMcNet.ReceiveTimeOut = _operationTimeoutMs;
         }
 
         /// <summary>

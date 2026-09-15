@@ -8,13 +8,91 @@ using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
-    public class NodeResultTDAI : INodeResult
+    /// <summary>
+    /// AI检测节点运行结果，负责同时发布完整算法结果和多条件可直接判断的基础值。
+    /// </summary>
+    public class NodeResultTDAI : INodeResult, IJudgmentResult
     {
+        /// <summary>
+        /// 多条件节点回写的最终判定状态；为空时跟随算法原始 OK/NG。
+        /// </summary>
+        private bool? _judgeOkOverride;
+
+        /// <summary>
+        /// 获取或设置节点运行耗时，单位毫秒。
+        /// </summary>
         public int RunTime { get; set; }
 
-        [SubscriptionOutput]
+        /// <summary>
+        /// 获取或设置完整 AI 算法结果，供结果绘制、汇总、通信发送等节点订阅。
+        /// </summary>
+        [SubscriptionOutput(SubscriptionDataCategory.AlgorithmResult)]
         [DisplayName("AI输出结果")]
         public AlgorithmResult AlgorithmResult { get; set; } = new AlgorithmResult();
+
+        /// <summary>
+        /// 获取 AI 原始检测项是否全部 OK，隐藏保留给旧方案兼容。
+        /// </summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
+        [DisplayName("是否OK")]
+        public bool IsOk
+        {
+            get { return AlgorithmResult == null || AlgorithmResult.IsAllOk; }
+        }
+
+        /// <summary>
+        /// 获取或设置多条件回写后的最终判定状态，供多条件、绘制和存图节点统一读取。
+        /// </summary>
+        [SubscriptionOutput]
+        [DisplayName("判定OK")]
+        public bool JudgeOk
+        {
+            get { return _judgeOkOverride ?? IsOk; }
+            set { _judgeOkOverride = value; }
+        }
+
+        /// <summary>
+        /// 获取当前 AI 结果中检测项名称的数量。
+        /// </summary>
+        [SubscriptionOutput]
+        [DisplayName("检测项数量")]
+        public int DetectItemCount
+        {
+            get { return AlgorithmResult == null || AlgorithmResult.DetectResults == null ? 0 : AlgorithmResult.DetectResults.Count; }
+        }
+
+        /// <summary>
+        /// 获取当前 AI 结果中所有检测明细的总数量。
+        /// </summary>
+        [SubscriptionOutput]
+        [DisplayName("检测明细数量")]
+        public int DetectResultCount
+        {
+            get
+            {
+                return AlgorithmResult == null || AlgorithmResult.DetectResults == null
+                    ? 0
+                    : AlgorithmResult.DetectResults.Values.Sum(items => items == null ? 0 : items.Count);
+            }
+        }
+
+        /// <summary>
+        /// 获取当前 AI 结果的紧凑文本摘要，便于多条件用文本包含方式判断。
+        /// </summary>
+        [SubscriptionOutput]
+        [DisplayName("检测结果文本")]
+        public string DetectResultText
+        {
+            get { return AlgorithmResult == null ? string.Empty : AlgorithmResult.BuildDetectResultText(); }
+        }
+
+        /// <summary>
+        /// 重置多条件回写状态，确保每次新运行先跟随本次算法原始结果。
+        /// </summary>
+        public void ResetJudgeOk()
+        {
+            _judgeOkOverride = null;
+        }
     }
 
     /// <summary>
@@ -33,7 +111,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// </summary>
         public bool IsAllOk
         {
-            get { return _isAllOkOverride ?? DetectResults.Values.SelectMany(list => list).All(result => result.IsOk); }
+            get
+            {
+                return _isAllOkOverride ??
+                    (DetectResults == null ||
+                     DetectResults.Values
+                         .Where(list => list != null)
+                         .SelectMany(list => list)
+                         .Where(result => result != null)
+                         .All(result => result.IsOk));
+            }
             set { _isAllOkOverride = value; }
         }
         /// <summary>
@@ -81,6 +168,44 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             Ellipses.Clear();
             Contours.Clear();
             _isAllOkOverride = null;
+        }
+
+        /// <summary>
+        /// 构建检测结果文本摘要，格式为“检测项:OK/NG=值”，用于文本订阅和诊断显示。
+        /// </summary>
+        /// <returns>检测结果文本摘要。</returns>
+        public string BuildDetectResultText()
+        {
+            if (DetectResults == null || DetectResults.Count == 0)
+                return string.Empty;
+
+            List<string> parts = new List<string>();
+            foreach (KeyValuePair<string, List<SingleDetectResult>> pair in DetectResults)
+            {
+                string itemName = string.IsNullOrWhiteSpace(pair.Key) ? "未命名检测项" : pair.Key;
+                List<SingleDetectResult> itemResults = pair.Value;
+                if (itemResults == null || itemResults.Count == 0)
+                {
+                    parts.Add(itemName + ":空");
+                    continue;
+                }
+
+                for (int index = 0; index < itemResults.Count; index++)
+                {
+                    SingleDetectResult result = itemResults[index];
+                    if (result == null)
+                    {
+                        parts.Add(itemName + "[" + (index + 1) + "]:空");
+                        continue;
+                    }
+
+                    string resultName = string.IsNullOrWhiteSpace(result.Name) ? itemName : result.Name;
+                    string valueText = string.IsNullOrWhiteSpace(result.Value) ? string.Empty : "=" + result.Value;
+                    parts.Add(resultName + "[" + (index + 1) + "]:" + (result.IsOk ? "OK" : "NG") + valueText);
+                }
+            }
+
+            return string.Join("; ", parts);
         }
     }
 

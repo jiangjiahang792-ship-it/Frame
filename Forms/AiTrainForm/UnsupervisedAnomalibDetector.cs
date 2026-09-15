@@ -197,7 +197,9 @@ namespace TDJS_Vision.Forms.AiTrainForm
             string root = UnsupervisedAnomalibNative.ResolveRuntimeRoot(runtimeRoot);
             string gpuPython = Path.Combine(root, "python_env_gpu", "Scripts", "python.exe");
             if (File.Exists(gpuPython)) return gpuPython;
-            return Path.Combine(root, "python_env", "python.exe");
+            string cpuPython = Path.Combine(root, "python_env", "python.exe");
+            if (File.Exists(cpuPython)) return cpuPython;
+            throw new FileNotFoundException("无监督环境缺少可执行的 Python 运行时。", cpuPython);
         }
 
         /// <summary>

@@ -175,17 +175,26 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                     {
                         comboBoxDataType.SelectedIndex = 0;
                     }
-                    else if (param.DataType == typeof(int).Name)
+                    else if (param.DataType == typeof(short).Name)
                     {
                         comboBoxDataType.SelectedIndex = 1;
                     }
-                    else if (param.DataType == typeof(float).Name)
+                    else if (param.DataType == typeof(int).Name)
                     {
                         comboBoxDataType.SelectedIndex = 2;
                     }
-                    else if (param.DataType == typeof(string).Name)
+                    else if (param.DataType == typeof(long).Name)
                     {
                         comboBoxDataType.SelectedIndex = 3;
+                    }
+                    else if (param.DataType == typeof(float).Name)
+                    {
+                        comboBoxDataType.SelectedIndex = 4;
+                    }
+                    else if (param.DataType == typeof(string).Name)
+                    {
+                        comboBoxDataType.SelectedIndex = 5;
+                        textBoxStringLength.Text = param.Length.ToString();
                     }
                     else
                         throw new Exception("不支持的类型");

@@ -27,6 +27,11 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         // 防止频繁触发的锁
         private bool isProcessing = false;
 
+        /// <summary>
+        /// 模板窗体自有图像是否已经释放，避免重复Dispose。
+        /// </summary>
+        private int _imageResourcesReleased;
+
         private bool _eventsEnabled = true;
 
         private enum PickMode { None, SinglePoint, ThreePoints }
@@ -75,26 +80,47 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
 
         public void UpdataImage()
         {
-            Bitmap bitmap = null;
+            Mat nextImage = null;
+            Bitmap nextDisplay = null;
             try
             {
                 if (checkBoxUseSub.Checked)
-                    bitmap = nodeSubscription1.GetValue<OutputImage>().Bitmaps[0].ToBitmap();
-                else bitmap = Cv2.ImRead(textBox1.Text).ToBitmap();
+                    nextImage = nodeSubscription1.GetValue<OutputImage>().Bitmaps[0].Clone();
+                else
+                    nextImage = Cv2.ImRead(textBox1.Text, ImreadModes.Color);
 
+                if (nextImage == null || nextImage.Empty())
+                    throw new InvalidOperationException("图像加载失败。");
 
-                if (bitmap != null)
+                nextDisplay = nextImage.ToBitmap();
+                ReplaceCurrentImage(nextImage);
+                nextImage = null;
+                showImageControl1.ImageBitmap = nextDisplay;
+                nextDisplay = null;
+                showImageControl1.ResetView();
+            }
+            catch (Exception)
+            {
+                nextImage?.Dispose();
+                nextDisplay?.Dispose();
+                ReplaceCurrentImage(null);
+                if (!showImageControl1.IsDisposed)
                 {
-                    if (CurrentImage != null && !CurrentImage.IsDisposed) CurrentImage.Dispose();
-                    CurrentImage = BitmapToColorMat(bitmap);
-                    showImageControl1.ImageBitmap = bitmap;
-                    showImageControl1.ResetView();
+                    showImageControl1.ImageBitmap = null;
                 }
             }
-            catch (Exception) { bitmap = null; }
         }
 
-        private static Mat BitmapToColorMat(Bitmap bitmap) { return BitmapConverter.ToMat(bitmap); }
+        /// <summary>
+        /// 替换模板窗体拥有的当前Mat，并释放上一张图。
+        /// </summary>
+        /// <param name="nextImage">由模板窗体接管的新图，可为空。</param>
+        private void ReplaceCurrentImage(Mat nextImage)
+        {
+            Mat previous = CurrentImage;
+            CurrentImage = nextImage;
+            previous?.Dispose();
+        }
 
         private void checkBox1_CheckedChanged(object sender, EventArgs e)
         {
@@ -113,9 +139,7 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
             if (openFileDialog1.ShowDialog() == DialogResult.OK)
             {
                 textBox1.Text = openFileDialog1.FileName;
-                Bitmap bitmap = new Bitmap(openFileDialog1.FileName);
-                if (CurrentImage != null) CurrentImage.Dispose();
-                CurrentImage = BitmapToColorMat(bitmap);
+                UpdataImage();
             }
         }
 
@@ -146,131 +170,138 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         private async void RunDetection()
         {
             if (CurrentImage == null || isProcessing) return;
-            if (colorParam.Profiles.Count == 0)
-            {
-                showImageControl1.ImageBitmap = CurrentImage.ToBitmap();
-                return;
-            }
-
             isProcessing = true;
-
-            // 如果定义了搜索区域，则计算交集，否则全图
-            Rect searchRect = (colorParam.DetectedRoi.Size.Width > 0)
-                ? colorParam.DetectedRoi.BoundingRect().Intersect(new Rect(0, 0, CurrentImage.Width, CurrentImage.Height))
-                : new Rect(0, 0, CurrentImage.Width, CurrentImage.Height);
-
+            Mat sourceSnapshot = null;
             Bitmap resultDisplay = null;
-
-            await Task.Run(() =>
+            try
             {
-                using (Mat roiSrc = new Mat(CurrentImage, searchRect))
-                using (Mat baseProcessed = new Mat())
+                sourceSnapshot = CurrentImage.Clone();
+                if (colorParam.Profiles.Count == 0)
                 {
-                    // 全局降噪
-                    Cv2.GaussianBlur(roiSrc, baseProcessed, new Size(3, 3), 0);
-
-                    // 1. 第一遍扫描：找出所有符合基础条件的色块，并计算总面积
-                    List<BlobCandidate> candidates = new List<BlobCandidate>();
-                    double totalDetectedArea = 0;
-
-                    for (int i = 0; i < colorParam.Profiles.Count; i++)
+                    resultDisplay = sourceSnapshot.ToBitmap();
+                    if (!IsDisposed && !showImageControl1.IsDisposed)
                     {
-                        var profile = colorParam.Profiles[i];
-                        List<BlobCandidate> profileCandidates = new List<BlobCandidate>(); // 暂存当前Profile的候选
+                        showImageControl1.ImageBitmap = resultDisplay;
+                        resultDisplay = null;
+                    }
+                    return;
+                }
 
-                        using (Mat processed = baseProcessed.Clone())
-                        using (Mat lab = new Mat())
-                        using (Mat mask = new Mat())
+                // 如果定义了搜索区域，则计算交集，否则全图
+                Rect searchRect = (colorParam.DetectedRoi.Size.Width > 0)
+                    ? colorParam.DetectedRoi.BoundingRect().Intersect(new Rect(0, 0, sourceSnapshot.Width, sourceSnapshot.Height))
+                    : new Rect(0, 0, sourceSnapshot.Width, sourceSnapshot.Height);
+
+                await Task.Run(() =>
+                {
+                    using (Mat roiSrc = new Mat(sourceSnapshot, searchRect))
+                    using (Mat baseProcessed = new Mat())
+                    {
+                        // 全局降噪
+                        Cv2.GaussianBlur(roiSrc, baseProcessed, new Size(3, 3), 0);
+
+                        // 1. 第一遍扫描：找出所有符合基础条件的色块，并计算总面积
+                        List<BlobCandidate> candidates = new List<BlobCandidate>();
+                        double totalDetectedArea = 0;
+
+                        for (int i = 0; i < colorParam.Profiles.Count; i++)
                         {
-                            // --- 图像处理管线 (Gamma -> Structure -> Lab -> Morph) ---
-                            ProcessImagePipeline(processed, lab, mask, profile, out Mat rawMask);
-                            using (rawMask)
+                            var profile = colorParam.Profiles[i];
+                            List<BlobCandidate> profileCandidates = new List<BlobCandidate>(); // 暂存当前Profile的候选
+
+                            using (Mat processed = baseProcessed.Clone())
+                            using (Mat lab = new Mat())
+                            using (Mat mask = new Mat())
                             {
-                                // 轮廓查找
-                                Point[][] contours;
-                                HierarchyIndex[] hierarchy;
-                                Cv2.FindContours(mask, out contours, out hierarchy, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
-
-                                foreach (var contour in contours)
+                                // --- 图像处理管线 (Gamma -> Structure -> Lab -> Morph) ---
+                                ProcessImagePipeline(processed, lab, mask, profile, out Mat rawMask);
+                                using (rawMask)
                                 {
-                                    // 计算轮廓的最小外接矩形
-                                    RotatedRect minRect = Cv2.MinAreaRect(contour);
-                                    // 计算最小外接矩形的面积（宽 × 高）
-                                    double area = minRect.Size.Width * minRect.Size.Height;
+                                    // 轮廓查找
+                                    Point[][] contours;
+                                    HierarchyIndex[] hierarchy;
+                                    Cv2.FindContours(mask, out contours, out hierarchy, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
 
-                                    // 基础降噪筛选 (MinArea)
-                                    if (area < profile.MinArea) continue;
-
-                                    bool isColorMatch = true;
-                                    if (profile.EnableMeanCheck)
+                                    foreach (var contour in contours)
                                     {
-                                        using (Mat singleBlobMask = new Mat(mask.Size(), MatType.CV_8U, Scalar.All(0)))
+                                        // 计算轮廓的最小外接矩形
+                                        RotatedRect minRect = Cv2.MinAreaRect(contour);
+                                        // 计算最小外接矩形的面积（宽 × 高）
+                                        double area = minRect.Size.Width * minRect.Size.Height;
+
+                                        // 基础降噪筛选 (MinArea)
+                                        if (area < profile.MinArea) continue;
+
+                                        bool isColorMatch = true;
+                                        if (profile.EnableMeanCheck)
                                         {
-                                            Cv2.DrawContours(singleBlobMask, new[] { contour }, -1, Scalar.All(255), -1);
-                                            if (rawMask != null && !rawMask.Empty())
+                                            using (Mat singleBlobMask = new Mat(mask.Size(), MatType.CV_8U, Scalar.All(0)))
                                             {
-                                                Cv2.BitwiseAnd(singleBlobMask, rawMask, singleBlobMask);
+                                                Cv2.DrawContours(singleBlobMask, new[] { contour }, -1, Scalar.All(255), -1);
+                                                if (rawMask != null && !rawMask.Empty())
+                                                {
+                                                    Cv2.BitwiseAnd(singleBlobMask, rawMask, singleBlobMask);
+                                                }
+                                                Scalar meanVal = Cv2.Mean(lab, singleBlobMask);
+
+                                                // 独立通道判定 (Box Model)
+                                                double diffL = Math.Abs(meanVal.Val0 - profile.TargetLab.Val0);
+                                                double diffA = Math.Abs(meanVal.Val1 - profile.TargetLab.Val1);
+                                                double diffB = Math.Abs(meanVal.Val2 - profile.TargetLab.Val2);
+
+                                                if (diffL > profile.ToleranceL || diffA > profile.ToleranceA || diffB > profile.ToleranceB) isColorMatch = false;
                                             }
-                                            Scalar meanVal = Cv2.Mean(lab, singleBlobMask);
-
-                                            // 独立通道判定 (Box Model)
-                                            double diffL = Math.Abs(meanVal.Val0 - profile.TargetLab.Val0);
-                                            double diffA = Math.Abs(meanVal.Val1 - profile.TargetLab.Val1);
-                                            double diffB = Math.Abs(meanVal.Val2 - profile.TargetLab.Val2);
-
-                                            if (diffL > profile.ToleranceL || diffA > profile.ToleranceA || diffB > profile.ToleranceB) isColorMatch = false;
                                         }
-                                    }
 
-                                    if (isColorMatch)
-                                    {
-                                        Rect r = Cv2.BoundingRect(contour);
-                                        // 坐标还原到原图
-                                        r.X += searchRect.X;
-                                        r.Y += searchRect.Y;
-
-                                        profileCandidates.Add(new BlobCandidate
+                                        if (isColorMatch)
                                         {
-                                            Area = area,
-                                            BoundingBox = r,
-                                            Profile = profile
-                                        });
+                                            Rect r = Cv2.BoundingRect(contour);
+                                            // 坐标还原到原图
+                                            r.X += searchRect.X;
+                                            r.Y += searchRect.Y;
+
+                                            profileCandidates.Add(new BlobCandidate
+                                            {
+                                                Area = area,
+                                                BoundingBox = r,
+                                                Profile = profile
+                                            });
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        // --- Screening Logic (筛选模式) ---
-                        if (profileCandidates.Count > 0)
-                        {
-                            if (profile.ScreeningModel == "MaxArea")
+                            // --- Screening Logic (筛选模式) ---
+                            if (profileCandidates.Count > 0)
                             {
-                                var best = profileCandidates.OrderByDescending(x => x.Area).First();
-                                profileCandidates.Clear();
-                                profileCandidates.Add(best);
+                                if (profile.ScreeningModel == "MaxArea")
+                                {
+                                    var best = profileCandidates.OrderByDescending(x => x.Area).First();
+                                    profileCandidates.Clear();
+                                    profileCandidates.Add(best);
+                                }
+                                else if (profile.ScreeningModel == "MinArea")
+                                {
+                                    var best = profileCandidates.OrderBy(x => x.Area).First();
+                                    profileCandidates.Clear();
+                                    profileCandidates.Add(best);
+                                }
+                                // "All" do nothing
                             }
-                            else if (profile.ScreeningModel == "MinArea")
+
+                            // 将筛选后的结果加入总列表并累计面积
+                            foreach (var c in profileCandidates)
                             {
-                                var best = profileCandidates.OrderBy(x => x.Area).First();
-                                profileCandidates.Clear();
-                                profileCandidates.Add(best);
+                                candidates.Add(c);
+                                totalDetectedArea += c.Area;
                             }
-                            // "All" do nothing
                         }
 
-                        // 将筛选后的结果加入总列表并累计面积
-                        foreach (var c in profileCandidates)
+                        // 2. 第二遍：根据总面积计算占比，并进行最终判定和绘制
+                        // 先在 Mat 上画框 (OpenCV 效率高)
+                        using (Mat drawMat = sourceSnapshot.Clone())
                         {
-                            candidates.Add(c);
-                            totalDetectedArea += c.Area;
-                        }
-                    }
-
-                    // 2. 第二遍：根据总面积计算占比，并进行最终判定和绘制
-                    // 先在 Mat 上画框 (OpenCV 效率高)
-                    using (Mat drawMat = CurrentImage.Clone())
-                    {
-                        var resultsForText = new List<(string Info, Color Col)>();
+                            var resultsForText = new List<(string Info, Color Col)>();
 
                         foreach (var blob in candidates)
                         {
@@ -319,10 +350,11 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                         // 转为 Bitmap 进行文字绘制 (解决中文乱码和堆叠问题)
                         resultDisplay = drawMat.ToBitmap();
 
-                        using (Graphics g = Graphics.FromImage(resultDisplay))
-                        {
+                            using (Graphics g = Graphics.FromImage(resultDisplay))
+                            using (Font font = new Font("Microsoft YaHei", 9, FontStyle.Bold))
+                            using (Brush backgroundBrush = new SolidBrush(Color.FromArgb(160, 0, 0, 0)))
+                            {
                             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                            Font font = new Font("Microsoft YaHei", 9, FontStyle.Bold); // 使用支持中文的字体
 
                             // 在左侧绘制半透明背景列
                             int lineHeight = 20;
@@ -330,7 +362,7 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                             int boxHeight = (resultsForText.Count * lineHeight) + 30;
 
                             // 绘制半透明背景
-                            g.FillRectangle(new SolidBrush(Color.FromArgb(160, 0, 0, 0)), 0, 0, boxWidth, boxHeight);
+                            g.FillRectangle(backgroundBrush, 0, 0, boxWidth, boxHeight);
                             g.DrawString("检测结果 (左侧列表):", font, Brushes.White, 5, 5);
 
                             for (int i = 0; i < resultsForText.Count; i++)
@@ -341,18 +373,23 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                                     g.DrawString($"{i + 1}. {item.Info}", font, b, 5, 25 + (i * lineHeight));
                                 }
                             }
+                            }
                         }
                     }
+                });
+
+                if (resultDisplay != null && !IsDisposed && !showImageControl1.IsDisposed)
+                {
+                    showImageControl1.ImageBitmap = resultDisplay;
+                    resultDisplay = null;
                 }
-            });
-
-            if (resultDisplay != null)
-            {
-                showImageControl1.ImageBitmap = resultDisplay;
-                // FormBase 模式下通常不立即 Dispose Bitmap，等待控件更新
             }
-
-            isProcessing = false;
+            finally
+            {
+                resultDisplay?.Dispose();
+                sourceSnapshot?.Dispose();
+                isProcessing = false;
+            }
         }
 
         /// <summary>
@@ -365,19 +402,21 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
             if (index == -1) return;
             ColorProfile profile = colorParam.Profiles[index];
             isProcessing = true;
-
-            Rect searchRect = (colorParam.DetectedRoi.Size.Width > 0)
-               ? colorParam.DetectedRoi.BoundingRect().Intersect(new Rect(0, 0, CurrentImage.Width, CurrentImage.Height))
-               : new Rect(0, 0, CurrentImage.Width, CurrentImage.Height);
-
+            Mat sourceSnapshot = null;
             Bitmap resultDisplay = null;
-
-            await Task.Run(() =>
+            try
             {
-                using (Mat roiSrc = new Mat(CurrentImage, searchRect))
-                using (Mat baseProcessed = new Mat())
+                sourceSnapshot = CurrentImage.Clone();
+                Rect searchRect = (colorParam.DetectedRoi.Size.Width > 0)
+                   ? colorParam.DetectedRoi.BoundingRect().Intersect(new Rect(0, 0, sourceSnapshot.Width, sourceSnapshot.Height))
+                   : new Rect(0, 0, sourceSnapshot.Width, sourceSnapshot.Height);
+
+                await Task.Run(() =>
                 {
-                    Cv2.GaussianBlur(roiSrc, baseProcessed, new Size(3, 3), 0);
+                    using (Mat roiSrc = new Mat(sourceSnapshot, searchRect))
+                    using (Mat baseProcessed = new Mat())
+                    {
+                        Cv2.GaussianBlur(roiSrc, baseProcessed, new Size(3, 3), 0);
 
                     List<BlobCandidate> candidates = new List<BlobCandidate>();
                     double totalDetectedArea = 0;
@@ -451,7 +490,7 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                     foreach (var c in candidates) totalDetectedArea += c.Area;
 
                     // 2. 第二遍：绘制结果
-                    using (Mat drawMat = CurrentImage.Clone())
+                    using (Mat drawMat = sourceSnapshot.Clone())
                     {
                         var resultsForText = new List<(string Info, Color Col)>();
 
@@ -489,15 +528,16 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                         // 文字绘制逻辑
                         resultDisplay = drawMat.ToBitmap();
                         using (Graphics g = Graphics.FromImage(resultDisplay))
+                        using (Font font = new Font("Microsoft YaHei", 9, FontStyle.Bold))
+                        using (Brush backgroundBrush = new SolidBrush(Color.FromArgb(160, 0, 0, 0)))
                         {
                             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                            Font font = new Font("Microsoft YaHei", 9, FontStyle.Bold);
 
                             int lineHeight = 20;
                             int boxWidth = 260;
                             int boxHeight = (resultsForText.Count * lineHeight) + 30;
 
-                            g.FillRectangle(new SolidBrush(Color.FromArgb(160, 0, 0, 0)), 0, 0, boxWidth, boxHeight);
+                            g.FillRectangle(backgroundBrush, 0, 0, boxWidth, boxHeight);
                             g.DrawString("当前颜色结果:", font, Brushes.White, 5, 5);
 
                             for (int i = 0; i < resultsForText.Count; i++)
@@ -510,11 +550,21 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                             }
                         }
                     }
-                }
-            });
+                    }
+                });
 
-            if (resultDisplay != null) { showImageControl1.ImageBitmap = resultDisplay; }
-            isProcessing = false;
+                if (resultDisplay != null && !IsDisposed && !showImageControl1.IsDisposed)
+                {
+                    showImageControl1.ImageBitmap = resultDisplay;
+                    resultDisplay = null;
+                }
+            }
+            finally
+            {
+                resultDisplay?.Dispose();
+                sourceSnapshot?.Dispose();
+                isProcessing = false;
+            }
         }
 
         // 提取的公共图像处理管线，减少代码重复
@@ -573,7 +623,6 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                         Cv2.BitwiseAnd(maskL, maskA, mask);
                         Cv2.BitwiseAnd(mask, maskB, mask);
                     }
-                    foreach (var c in channels) c.Dispose();
                 }
                 if (profile.UseStructure && !structureMask.Empty()) Cv2.BitwiseAnd(mask, structureMask, mask);
             }
@@ -609,29 +658,32 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                 Point[] pts = pickRect.Points().Select(p => new Point(p.X - bounding.X, p.Y - bounding.Y)).ToArray();
                 Cv2.FillConvexPoly(mask, pts, Scalar.All(255));
                 Cv2.CvtColor(roiImg, labImg, ColorConversionCodes.BGR2Lab);
-                Mat mean = new Mat(); Mat stdDev = new Mat();
-                Cv2.MeanStdDev(labImg, mean, stdDev, mask);
-                double mL = mean.At<double>(0), mA = mean.At<double>(1), mB = mean.At<double>(2);
-                double sL = stdDev.At<double>(0), sA = stdDev.At<double>(1), sB = stdDev.At<double>(2);
-                var newProfile = new ColorProfile
+                using (Mat mean = new Mat())
+                using (Mat stdDev = new Mat())
                 {
-                    Name = $"Auto_{colorParam.Profiles.Count + 1}",
-                    TargetLab = new Scalar(mL, mA, mB),
-                    ToleranceL = Math.Max(25, sL * 3),
-                    // 自动计算 A/B 独立容差
-                    ToleranceA = Math.Max(15, sA * 3),
-                    ToleranceB = Math.Max(15, sB * 3),
-                    UseMorphology = true,
-                    MorphOp = MorphTypes.Close,
-                    MorphKernelSize = 5,
-                    MorphIterations = 1,
-                    MinArea = 100,
-                    EnableMeanCheck = true,
-                    MinWidth = 0,
-                    MaxWidth = 9999
-                };
-                colorParam.Profiles.Add(newProfile);
-                AddProfileToUI(newProfile);
+                    Cv2.MeanStdDev(labImg, mean, stdDev, mask);
+                    double mL = mean.At<double>(0), mA = mean.At<double>(1), mB = mean.At<double>(2);
+                    double sL = stdDev.At<double>(0), sA = stdDev.At<double>(1), sB = stdDev.At<double>(2);
+                    var newProfile = new ColorProfile
+                    {
+                        Name = $"Auto_{colorParam.Profiles.Count + 1}",
+                        TargetLab = new Scalar(mL, mA, mB),
+                        ToleranceL = Math.Max(25, sL * 3),
+                        // 自动计算 A/B 独立容差
+                        ToleranceA = Math.Max(15, sA * 3),
+                        ToleranceB = Math.Max(15, sB * 3),
+                        UseMorphology = true,
+                        MorphOp = MorphTypes.Close,
+                        MorphKernelSize = 5,
+                        MorphIterations = 1,
+                        MinArea = 100,
+                        EnableMeanCheck = true,
+                        MinWidth = 0,
+                        MaxWidth = 9999
+                    };
+                    colorParam.Profiles.Add(newProfile);
+                    AddProfileToUI(newProfile);
+                }
             }
         }
 
@@ -740,6 +792,18 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
 
         private void btnSinglePick_Click(object sender, EventArgs e) { StartPickMode(PickMode.SinglePoint); }
         private void btnTriplePick_Click(object sender, EventArgs e) { StartPickMode(PickMode.ThreePoints); }
+
+        /// <summary>
+        /// 释放模板窗体最后持有的源Mat，并解除图像控件事件。
+        /// </summary>
+        private void ReleaseImageResources()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _imageResourcesReleased, 1) != 0)
+                return;
+
+            showImageControl1.MouseImageClick -= ShowImageControl1_MouseImageClick;
+            ReplaceCurrentImage(null);
+        }
 
         private void button4_Click(object sender, EventArgs e)
         {

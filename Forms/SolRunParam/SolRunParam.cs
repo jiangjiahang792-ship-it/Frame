@@ -140,44 +140,30 @@ namespace TDJS_Vision.Forms.SolRunParam
                         is NodeParamImageSoucre nodeParam)
                     {
                         _nodeSource = nodeSource;
-                        if (nodeParam != null && nodeParam.Camera != null)
+                        if (nodeParam != null)
                         {
                             Stopwatch cameraStopwatch = Stopwatch.StartNew();
                             LogHelper.AddLog(
                                 MsgLevel.Info,
-                                $"【手动调参诊断】开始读取图像源相机参数，节点={nodeSource.ID}.{nodeSource.NodeName}。",
+                                $"【手动调参诊断】开始加载图像源方案参数，节点={nodeSource.ID}.{nodeSource.NodeName}。",
                                 true);
-                            // 订阅相机图像发布事件
-                            _camera = nodeParam.Camera;
 
-                            try
-                            {
-                                //获取参数
-                                var (intV, flloatV) = nodeParam.Camera.GetGain();
-                                //float四舍五入到0位小数，海康官方使用float类型存储增益会丢失精度，如设置2会变成2.000……或1.999……
-                                var gain = intV == null ? (float)Math.Round(flloatV.CurValue, 0) : intV.CurValue;
-                                triggerSrc = _camera.GetTriggerSource();
-                                //设置参数
-                                textBoxExposureTime.Text = nodeParam.Camera.GetExposureTime().CurValue.ToString();
-                                textBoxGain.Text = gain.ToString();
-                                uiSwitchContinue.Active = nodeParam.Camera.GetTriggerSource() == TriggerSource.Auto ? true : false;
-                                //设置控件可用性
-                                textBoxExposureTime.Enabled = true;
-                                textBoxGain.Enabled = true;
-                                uiSwitchContinue.Enabled = true;
-                                buttonOnce.Enabled = true;
-                            }
-                            catch (Exception ex)
-                            {
-                                LogHelper.AddLog(
-                                    MsgLevel.Warn,
-                                    $"【手动调参诊断】读取图像源相机参数异常，节点={nodeSource.ID}.{nodeSource.NodeName}，原因={ex.Message}",
-                                    true);
-                            }
+                            // 运行调参页显示方案值，不能用相机当前值反向覆盖方案。
+                            _camera = Solution.Instance.ResolveImageSourceCamera(nodeParam);
+                            triggerSrc = nodeParam.TriggerSource == TriggerSource.Auto
+                                ? TriggerSource.SOFT
+                                : nodeParam.TriggerSource;
+                            textBoxExposureTime.Text = nodeParam.ExposureTime.ToString();
+                            textBoxGain.Text = nodeParam.Gain.ToString();
+                            uiSwitchContinue.Active = false;
+                            textBoxExposureTime.Enabled = true;
+                            textBoxGain.Enabled = true;
+                            uiSwitchContinue.Enabled = _camera != null && _camera.IsOpen;
+                            buttonOnce.Enabled = _camera != null && _camera.IsOpen;
 
                             LogHelper.AddLog(
                                 MsgLevel.Info,
-                                $"【手动调参诊断】读取图像源相机参数完成，节点={nodeSource.ID}.{nodeSource.NodeName}，耗时={cameraStopwatch.ElapsedMilliseconds}ms。",
+                                $"【手动调参诊断】图像源方案参数加载完成，节点={nodeSource.ID}.{nodeSource.NodeName}，曝光={nodeParam.ExposureTime}us，增益={nodeParam.Gain}，耗时={cameraStopwatch.ElapsedMilliseconds}ms。",
                                 true);
                         }
                     }
@@ -238,6 +224,9 @@ namespace TDJS_Vision.Forms.SolRunParam
 
                 SetMultiConditionNodes(multiConditionNodes);
                 RefreshRunParamGrid();
+                // 本地图像测试只依赖有效的图像源节点，无需相机连接成功。
+                buttonSingleImg.Enabled = _nodeSource != null;
+                buttonCatalogueImg.Enabled = _nodeSource != null;
                 LogHelper.AddLog(
                     MsgLevel.Info,
                     $"【手动调参诊断】SolRunParamControl.Init完成，流程={process.ProcessName}，多条件节点数={multiConditionNodes.Count}，耗时={initStopwatch.ElapsedMilliseconds}ms。",
@@ -1097,7 +1086,16 @@ namespace TDJS_Vision.Forms.SolRunParam
                             tokenSource.Token.ThrowIfCancellationRequested();
                             //var img = (await _camera.GetOneFrameImage()).Bitmap;
                             var img = _camera.GetOneFrameImage();
-                            ImageShowChanged?.Invoke(this, new ImageShowPamra(_windowsName, img));
+                            var eventArgs = new ImageShowPamra(_windowsName, img);
+                            try
+                            {
+                                ImageShowChanged?.Invoke(this, eventArgs);
+                            }
+                            finally
+                            {
+                                // 连续采图功能即使重新启用，也不能遗留无人接管的Bitmap。
+                                eventArgs.DisposeUnclaimedBitmap();
+                            }
                             // 可以加个短暂延时避免 CPU 占用过高（可选）
                             await Task.Delay(5, tokenSource.Token);
                         }

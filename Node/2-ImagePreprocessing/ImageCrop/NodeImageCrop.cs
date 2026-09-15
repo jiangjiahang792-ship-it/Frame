@@ -8,9 +8,11 @@ using TDJS_Vision.Node._1_Acquisition.ImageSource;
 
 namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
 {
+    /// <summary>裁剪图像节点，旋转ROI直接输出纠正后的独立矩形图像。</summary>
     public class NodeImageCrop : NodeBase
     {
 
+        /// <summary>初始化裁剪节点和参数窗体。</summary>
         public NodeImageCrop(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
         {
             ParamForm = new NodeParamFormImageCrop(process, this);
@@ -50,23 +52,18 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
                         OutputImage inputImage = form.GetInputOutputImage();
                         Mat src = form.GetInputMat(inputImage);
                         NodeResultImageCrop nodeResultImageCrop = new NodeResultImageCrop();
+                        Result = nodeResultImageCrop;
                         if (param.RoiEnable)
                         {
                             var rects = form.GetImageROIRects(src);
-                            var roiImg = CropImages(src, rects);
-                            if (roiImg == null || roiImg.Count == 0)
-                            {
-                                throw new Exception("裁切的图像为空，请检查是否超出图像区域！");
-                            }
-
-                            nodeResultImageCrop.OutputImage.SrcImg = src;
-                            nodeResultImageCrop.OutputImage.Bitmaps = roiImg;
-                            nodeResultImageCrop.OutputImage.Rectangles = rects;
-                            nodeResultImageCrop.OutputImage.GrayImg = BuildFirstGrayCrop(inputImage, rects, roiImg);
+                            nodeResultImageCrop.OutputImage = BuildCroppedOutput(inputImage, src, param.ImageRois, rects);
                         }
                         else
                         {
-                            nodeResultImageCrop.OutputImage = OutputImage.FromSingleImage(src, form.GetInputGrayMat(inputImage));
+                            nodeResultImageCrop.OutputImage = OutputImage.FromBorrowedSingleImage(
+                                inputImage,
+                                src,
+                                form.GetInputGrayMat(inputImage));
                             nodeResultImageCrop.OutputImage.Rectangles = new List<Rect>();
                         }
                         var time = SetRunResult(startTime, NodeStatus.Successful);
@@ -80,12 +77,14 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
                     {
                         LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})运行取消！", true);
                         SetRunResult(startTime, NodeStatus.Unexecuted);
+                        Result = new NodeResultImageCrop();
                         throw new OperationCanceledException($"节点({ID}.{NodeName})运行取消！");
                     }
                     catch (Exception ex)
                     {
                         LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
                         SetRunResult(startTime, NodeStatus.Failed);
+                        Result = new NodeResultImageCrop();
                         throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
                     }
                 }
@@ -94,13 +93,117 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
             return new NodeReturn(NodeRunFlag.ContinueRun);
         }
 
+        /// <summary>构造完整裁剪输出，失败时释放全部已创建的图像。</summary>
+        internal static OutputImage BuildCroppedOutput(OutputImage inputImage, Mat source,
+            List<ImageCropRoiRegion> regions, List<Rect> rects)
+        {
+            var output = new OutputImage();
+            try
+            {
+                bool hasRegions = regions != null && regions.Count > 0;
+                var roiImg = hasRegions ? CropRectifiedImages(source, regions) : CropImages(source, rects);
+                output.TakeOwnership(roiImg).TakeDependency(inputImage);
+                output.Bitmaps = roiImg;
+                bool rectified = false;
+                if (hasRegions)
+                    foreach (ImageCropRoiRegion region in regions)
+                        rectified |= region.RequiresOutputCoordinates(source.Width, source.Height);
+                else
+                    foreach (Rect rect in rects)
+                        rectified |= ImageCropRoiRegion.FromRectangle(rect).RequiresOutputCoordinates(source.Width, source.Height);
+
+                if (rectified)
+                {
+                    // 旋转或越界补边后使用独立基准，避免下游检测框错位或出现负坐标。
+                    // 单ROI直接使用裁图作为基准；多ROI纵向拼接预览，使每张图都有独立坐标区。
+                    output.SrcImg = BuildRectifiedPreview(roiImg, out List<Rect> outputRects);
+                    output.TakeOwnership(output.SrcImg);
+                    output.Rectangles = outputRects;
+                }
+                else
+                {
+                    output.SrcImg = source;
+                    output.Rectangles = rects;
+                }
+
+                Mat firstGrayCrop;
+                if (roiImg[0].Channels() == 1)
+                    firstGrayCrop = roiImg[0];
+                else if (hasRegions && OutputImage.HasValidImage(inputImage?.GrayImg) &&
+                    inputImage.GrayImg.Width == source.Width && inputImage.GrayImg.Height == source.Height)
+                    firstGrayCrop = regions[0].CropRectified(inputImage.GrayImg);
+                else if (!hasRegions)
+                    firstGrayCrop = BuildFirstGrayCrop(inputImage, rects, roiImg);
+                else
+                    firstGrayCrop = OutputImage.BuildGrayImage(roiImg[0]);
+                output.TakeOwnership(firstGrayCrop);
+                output.GrayImg = firstGrayCrop;
+                return output;
+            }
+            catch
+            {
+                output.Dispose();
+                throw;
+            }
+        }
+
+        /// <summary>从同一源图直接采样多个纠正ROI，不创建整幅旋转中间图。</summary>
+        internal static List<Mat> CropRectifiedImages(Mat source, IEnumerable<ImageCropRoiRegion> regions)
+        {
+            var images = new List<Mat>();
+            try
+            {
+                foreach (ImageCropRoiRegion region in regions)
+                {
+                    if (region == null)
+                        throw new InvalidOperationException("裁剪ROI参数为空。");
+                    images.Add(region.CropRectified(source));
+                }
+                return images;
+            }
+            catch
+            {
+                foreach (Mat image in images)
+                    image.Dispose();
+                throw;
+            }
+        }
+
+        /// <summary>为纠正后的多图建立一致的预览坐标；单图直接复用，无额外复制。</summary>
+        private static Mat BuildRectifiedPreview(List<Mat> images, out List<Rect> rects)
+        {
+            rects = new List<Rect>(images.Count);
+            int width = 0, height = 0;
+            foreach (Mat image in images)
+            {
+                rects.Add(new Rect(0, height, image.Width, image.Height));
+                width = Math.Max(width, image.Width);
+                height = checked(height + image.Height);
+            }
+            if (images.Count == 1)
+                return images[0];
+            var preview = new Mat(height, width, images[0].Type(), Scalar.All(0));
+            try
+            {
+                for (int i = 0; i < images.Count; i++)
+                    using (var target = new Mat(preview, rects[i]))
+                        images[i].CopyTo(target);
+                return preview;
+            }
+            catch
+            {
+                preview.Dispose();
+                throw;
+            }
+        }
+
         /// <summary>
         /// 按矩形区域裁剪源图像，并返回独立的 ROI 图像，避免下游修改影响源图。
         /// </summary>
         /// <param name="source">源图像。</param>
         /// <param name="rects">ROI 矩形列表。</param>
         /// <returns>裁剪后的图像列表。</returns>
-        private static List<Mat> CropImages(Mat source, List<Rect> rects)
+        internal static List<Mat> CropImages(Mat source, List<Rect> rects)
         {
             if (!OutputImage.HasValidImage(source))
                 throw new Exception("订阅的图像为null！");
@@ -108,13 +211,19 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
                 throw new Exception("裁切的ROI为空！");
 
             var images = new List<Mat>();
-            foreach (Rect rect in rects)
+            try
             {
-                EnsureRoiInsideImage(rect, source);
-                using (Mat roi = new Mat(source, rect))
+                foreach (Rect rect in rects)
                 {
-                    images.Add(roi.Clone());
+                    images.Add(ImageCropRoiRegion.FromRectangle(rect).CropRectified(source));
                 }
+            }
+            catch
+            {
+                foreach (Mat image in images)
+                    image?.Dispose();
+
+                throw;
             }
 
             return images;
@@ -131,11 +240,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
         {
             if (rects != null && rects.Count > 0 && OutputImage.HasValidImage(inputImage?.GrayImg))
             {
-                EnsureRoiInsideImage(rects[0], inputImage.GrayImg);
-                using (Mat grayRoi = new Mat(inputImage.GrayImg, rects[0]))
-                {
-                    return grayRoi.Clone();
-                }
+                return ImageCropRoiRegion.FromRectangle(rects[0]).CropRectified(inputImage.GrayImg);
             }
 
             if (croppedImages != null && croppedImages.Count > 0)
@@ -144,20 +249,5 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
             return new Mat();
         }
 
-        /// <summary>
-        /// 校验 ROI 是否完全位于图像范围内。
-        /// </summary>
-        /// <param name="rect">待校验的 ROI 矩形。</param>
-        /// <param name="source">源图像。</param>
-        private static void EnsureRoiInsideImage(Rect rect, Mat source)
-        {
-            if (rect.Width <= 0 || rect.Height <= 0 ||
-                rect.X < 0 || rect.Y < 0 ||
-                rect.X + rect.Width > source.Width ||
-                rect.Y + rect.Height > source.Height)
-            {
-                throw new Exception("裁切的图像为空，请检查是否超出图像区域！");
-            }
-        }
     }
 }

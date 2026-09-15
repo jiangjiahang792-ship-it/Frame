@@ -1,0 +1,5 @@
+﻿instruction_set=x64-generic
+requires_avx2=false
+api_version=0x00010001
+force_managed_cpu_fallback=false
+note=当前随包模板匹配库为通用x64 CPU版本；低配电脑不需要AVX2也会走native高速匹配。

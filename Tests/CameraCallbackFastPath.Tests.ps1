@@ -21,6 +21,18 @@ function Assert-Contains {
     }
 }
 
+function Assert-NotContains {
+    param(
+        [string]$Text,
+        [string]$Pattern,
+        [string]$Message
+    )
+
+    if ($Text.Contains($Pattern)) {
+        throw $Message
+    }
+}
+
 function Assert-Order {
     param(
         [string]$Text,
@@ -49,5 +61,11 @@ Assert-Contains $processSource 'CameraCallbackFastPathResult.NotHandled' 'Fast p
 
 Assert-Order $processSource 'if (!TryPrepareSkippedNodeRunResult(nodeImage))' 'TryRunCameraCallbackFastPath(nodeImage)' 'Fast path must run only after the callback image-source result has been prepared.'
 Assert-Order $processSource 'TryRunCameraCallbackFastPath(nodeImage)' 'RunConnectedNodes(nodeImage, null, nodeImage)' 'Normal graph runtime must remain as the fallback after the fast path.'
+
+$cameraSource = Get-ProjectSource 'Device\Camera\CameraHik.cs'
+Assert-Contains $cameraSource 'ConcurrentQueue<RawFrameIngressFailure> _rawFrameIngressFailures' 'Raw ingress failures must preserve each frame routing identity in a queue.'
+Assert-Contains $cameraSource '_rawFrameIngressFailures.Enqueue(failure)' 'SDK callback must enqueue every raw ingress failure without blocking.'
+Assert-Contains $cameraSource 'while (_rawFrameIngressFailures.TryDequeue(out ingressFailure))' 'Conversion worker must report every queued ingress failure independently.'
+Assert-NotContains $cameraSource 'CompareExchange(ref _rawFrameIngressFailure' 'A single first-failure slot can hide a later production failure behind a preview failure.'
 
 Write-Host 'Camera callback fast path regression checks passed.'

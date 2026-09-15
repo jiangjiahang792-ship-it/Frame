@@ -18,13 +18,22 @@ namespace TDJS_Vision.Diagnostics
     public static class PerformanceSpikeDiagnostics
     {
         /// <summary>链路诊断编译标记，用于从现场日志确认当前运行程序是否包含本轮诊断代码。</summary>
-        public const string DiagnosticBuildMark = "2026-07-02-链路诊断V2";
+        public const string DiagnosticBuildMark = "2026-08-19-完整链路诊断V5";
 
         /// <summary>通用慢耗时阈值，超过该值时输出额外慢诊断日志。</summary>
         public const long CommonSlowMs = 20;
 
         /// <summary>UI排队慢耗时阈值，超过该值时输出窗口消息队列现场。</summary>
         public const long UiQueueSlowMs = 20;
+
+        /// <summary>相机图像转换慢耗时阈值，单位毫秒。</summary>
+        public const long FrameConvertSlowMs = 100;
+
+        /// <summary>整轮流程慢耗时阈值，单位毫秒。</summary>
+        public const long FlowSlowMs = 1000;
+
+        /// <summary>需要记录完整运行时现场的严重停顿阈值，单位毫秒。</summary>
+        public const long CriticalStallMs = 3000;
 
         /// <summary>私有内存水位日志步长，超过该增长量时记录当前节点。</summary>
         private const double MemoryGrowthLogStepMb = 256D;
@@ -99,6 +108,26 @@ namespace TDJS_Vision.Diagnostics
         }
 
         /// <summary>
+        /// 仅在指定诊断等级开启时创建高精度计时器，关闭时避免分配Stopwatch对象。
+        /// </summary>
+        /// <param name="level">需要记录的日志等级。</param>
+        /// <returns>诊断开启时返回已启动计时器，否则返回null。</returns>
+        public static Stopwatch StartStopwatchIfEnabled(MsgLevel level)
+        {
+            return IsDiagnosticLogEnabled(level) ? Stopwatch.StartNew() : null;
+        }
+
+        /// <summary>
+        /// 安全读取可选诊断计时器的经过毫秒数。
+        /// </summary>
+        /// <param name="stopwatch">按诊断开关创建的计时器。</param>
+        /// <returns>计时器不存在时返回0。</returns>
+        public static long GetElapsedMilliseconds(Stopwatch stopwatch)
+        {
+            return stopwatch?.ElapsedMilliseconds ?? 0L;
+        }
+
+        /// <summary>
         /// 仅在日志等级开启后才生成并记录诊断文本，避免关闭 Debug 时仍采集运行时现场。
         /// </summary>
         /// <param name="level">需要记录的日志等级。</param>
@@ -109,7 +138,14 @@ namespace TDJS_Vision.Diagnostics
             if (!IsDiagnosticLogEnabled(level) || messageFactory == null)
                 return;
 
-            LogHelper.AddLog(level, messageFactory(), isDisplay);
+            string message = messageFactory();
+            if (level == MsgLevel.Debug)
+            {
+                LogHelper.TryAddDiagnosticLog(message, isDisplay);
+                return;
+            }
+
+            LogHelper.AddLog(level, message, isDisplay);
         }
 
         /// <summary>
@@ -125,7 +161,7 @@ namespace TDJS_Vision.Diagnostics
             if (!IsDiagnosticLogEnabled(level) || !ShouldLog(thresholdMs, elapsedItems) || messageFactory == null)
                 return;
 
-            LogHelper.AddLog(level, messageFactory(), isDisplay);
+            LogIfEnabled(level, messageFactory, isDisplay);
         }
 
         /// <summary>

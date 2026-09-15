@@ -88,12 +88,20 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             CaliperLineTargetResult first = result.Items.FirstOrDefault();
             if (first != null)
             {
+                result.CandidatePointCount = first.CandidatePointCount;
                 result.StartX = first.StartX;
                 result.StartY = first.StartY;
                 result.EndX = first.EndX;
                 result.EndY = first.EndY;
                 result.Length = first.Length;
                 result.Angle = first.Angle;
+                result.WarpageDifference = first.WarpageDifference;
+                result.ValidPointRatio = first.ValidPointRatio;
+                result.AverageResidual = first.AverageResidual;
+                result.MaximumResidual = first.MaximumResidual;
+                result.CoverageRatio = first.CoverageRatio;
+                result.AngleDeviation = first.AngleDeviation;
+                result.ErrorMessage = first.ErrorMessage ?? string.Empty;
                 result.AlgorithmMs = result.Items.Sum(item => item.AlgorithmMs);
             }
             result.Result = BuildDisplayResult(result.Items);
@@ -118,11 +126,15 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                     var start = new PointF((float)item.StartX, (float)item.StartY);
                     var end = new PointF((float)item.EndX, (float)item.EndY);
                     result.Lines.Add(new ColorLine(start, end, Color.Lime));
-                    result.Texts.Add(new ColorText($"目标{item.TargetIndex} 卡尺找线：点数 {item.EdgePointCount}，长度 {item.Length:F3}px，角度 {item.Angle:F3}°", Color.Lime));
+                    result.Texts.Add(new ColorText(
+                        $"目标{item.TargetIndex} 卡尺找线：内点 {item.EdgePointCount}/{item.CandidatePointCount}，角度 {item.Angle:F3}°，翘曲度差值 {item.WarpageDifference:F3}px，平均/最大残差 {item.AverageResidual:F3}/{item.MaximumResidual:F3}px，覆盖率 {item.CoverageRatio:P1}",
+                        Color.Lime));
                 }
                 else
                 {
-                    result.Texts.Add(new ColorText($"目标{item.TargetIndex} 卡尺找线失败：数值0，原因：{item.ErrorMessage}", Color.Red));
+                    result.Texts.Add(new ColorText(
+                        $"目标{item.TargetIndex} 卡尺找线失败：内点 {item.EdgePointCount}/{item.CandidatePointCount}，平均/最大残差 {item.AverageResidual:F3}/{item.MaximumResidual:F3}px，原因：{item.ErrorMessage}",
+                        Color.Red));
                 }
             }
 

@@ -1,0 +1,278 @@
+{
+  "TestName": "步骤6真实图片落盘最终同比",
+  "GeneratedAt": "2026-08-20 01:59:24",
+  "Sources": {
+    "Old": "D:\\MyCode\\PublicWook\\TDJS-Vision\\Tests\\Results\\ImageSaveComparison\\20260820-015716-旧版真实落盘最终同比-500张.json",
+    "New": "D:\\MyCode\\PublicWook\\TDJS-Vision\\Tests\\Results\\ImageSaveComparison\\20260820-015652-当前新版真实落盘最终同比-500张.json",
+    "ProductionBoundary": "D:\\MyCode\\PublicWook\\TDJS-Vision\\Tests\\Results\\ImageSaveComparison\\20260820-015730-当前新版生产边界最终突发-500张.json",
+    "LongStress": "D:\\MyCode\\PublicWook\\TDJS-Vision\\Tests\\Results\\ImageSaveComparison\\20260820-当前新版保存工作池同进程长稳-5000次.json"
+  },
+  "EqualWorkValidation": {
+    "OldFiles": 500,
+    "NewFiles": 500,
+    "OldBytes": 337698500,
+    "NewBytes": 337698500,
+    "OldHash": "03B0D81B4FB63939AEAFC70C3337A9EABED70185826E3E0DB06BDDC0E0C3C521",
+    "NewHash": "03B0D81B4FB63939AEAFC70C3337A9EABED70185826E3E0DB06BDDC0E0C3C521",
+    "OldInvalid": 0,
+    "NewInvalid": 0,
+    "OldTemporary": 0,
+    "NewTemporary": 0
+  },
+  "Metrics": [
+    {
+      "Metric": "文件完成墙钟",
+      "Unit": "ms",
+      "Old": 6517.0,
+      "New": 1559.0,
+      "Delta": -4958.0,
+      "ChangePercent": -76.078
+    },
+    {
+      "Metric": "文件吞吐",
+      "Unit": "MB/s",
+      "Old": 49.417583,
+      "New": 206.577541,
+      "Delta": 157.159958,
+      "ChangePercent": 318.024
+    },
+    {
+      "Metric": "平均CPU",
+      "Unit": "%",
+      "Old": 17.23383,
+      "New": 15.73607,
+      "Delta": -1.49776,
+      "ChangePercent": -8.691
+    },
+    {
+      "Metric": "峰值CPU",
+      "Unit": "%",
+      "Old": 38.077066,
+      "New": 32.079446,
+      "Delta": -5.997619,
+      "ChangePercent": -15.751
+    },
+    {
+      "Metric": "私有内存峰值",
+      "Unit": "MB",
+      "Old": 117.808594,
+      "New": 108.554688,
+      "Delta": -9.253906,
+      "ChangePercent": -7.855
+    },
+    {
+      "Metric": "私有内存回收后",
+      "Unit": "MB",
+      "Old": 100.636719,
+      "New": 96.132812,
+      "Delta": -4.503906,
+      "ChangePercent": -4.475
+    },
+    {
+      "Metric": "托管内存峰值",
+      "Unit": "MB",
+      "Old": 21.891434,
+      "New": 25.912361,
+      "Delta": 4.020927,
+      "ChangePercent": 18.368
+    },
+    {
+      "Metric": "托管内存回收后",
+      "Unit": "MB",
+      "Old": 10.997894,
+      "New": 11.087967,
+      "Delta": 0.090073,
+      "ChangePercent": 0.819
+    },
+    {
+      "Metric": "句柄峰值",
+      "Unit": "个",
+      "Old": 898.0,
+      "New": 926.0,
+      "Delta": 28.0,
+      "ChangePercent": 3.118
+    },
+    {
+      "Metric": "句柄结束",
+      "Unit": "个",
+      "Old": 892.0,
+      "New": 883.0,
+      "Delta": -9.0,
+      "ChangePercent": -1.009
+    },
+    {
+      "Metric": "GDI峰值",
+      "Unit": "个",
+      "Old": 3.0,
+      "New": 3.0,
+      "Delta": 0.0,
+      "ChangePercent": 0.0
+    },
+    {
+      "Metric": "进程写入字节",
+      "Unit": "字节",
+      "Old": 337698500.0,
+      "New": 337699044.0,
+      "Delta": 544.0,
+      "ChangePercent": 0.0
+    },
+    {
+      "Metric": "入队P99",
+      "Unit": "ms",
+      "Old": 0.0017,
+      "New": 0.001,
+      "Delta": -0.0007,
+      "ChangePercent": -41.176
+    }
+  ],
+  "ProductionBoundary": {
+    "Architecture": "当前版有界共享保存工作池",
+    "AttemptedCount": 500,
+    "AcceptedCount": 10,
+    "RejectedCount": 490,
+    "EvictedCount": 0,
+    "FileCount": 10,
+    "EmptyFileCount": 0,
+    "TemporaryFileCount": 0,
+    "InvalidImageCount": 0,
+    "HashMismatchCount": 0,
+    "TotalFileBytes": 6753970,
+    "MinimumFileBytes": 675397,
+    "MaximumFileBytes": 675397,
+    "FirstFileSha256": "03B0D81B4FB63939AEAFC70C3337A9EABED70185826E3E0DB06BDDC0E0C3C521",
+    "FirstFilePath": "D:\\MyCode\\PublicWook\\TDJS-Vision\\Tests\\Results\\ImageSaveComparison\\Raw\\new-final-bounded-500\\frame_00000.jpg",
+    "SourcePixelSha256": "7141C512F12EB05A846D874782AD31B4A86A23BEB70F137C184AD56C38103779",
+    "EnqueueWallMilliseconds": 6,
+    "EnqueueP50Milliseconds": 0.0002,
+    "EnqueueP95Milliseconds": 0.0004,
+    "EnqueueP99Milliseconds": 0.0053,
+    "EnqueueMaximumMilliseconds": 0.0807,
+    "SaveWallMilliseconds": 70,
+    "FilesCompletedWallMilliseconds": 70,
+    "ShutdownWallMilliseconds": 0,
+    "FileMegabytesPerSecond": 92.01553889683314,
+    "ValidationMilliseconds": 90,
+    "AverageCpuPercent": 8.439746381764701,
+    "PeakCpuPercent": 18.867491643965298,
+    "CpuLogicalProcessorCount": 24,
+    "ProcessWriteOperations": 116,
+    "ProcessWriteTransferBytes": 6755906,
+    "ProcessReadOperations": 1846,
+    "ProcessReadTransferBytes": 7429767,
+    "PrivateMemoryStartMb": 92.48046875,
+    "PrivateMemoryPeakMb": 101.58984375,
+    "PrivateMemoryAfterCollectionMb": 94.63671875,
+    "ManagedMemoryStartMb": 8.5985107421875,
+    "ManagedMemoryPeakMb": 18.283859252929688,
+    "ManagedMemoryAfterCollectionMb": 10.885650634765625,
+    "HandleStart": 858,
+    "HandlePeak": 887,
+    "HandleEnd": 864,
+    "GdiStart": 3,
+    "GdiPeak": 3,
+    "GdiEnd": 3,
+    "PeakQueueCount": 8,
+    "PeakQueueBytes": 18874368,
+    "PeakActiveWorkers": 2,
+    "CompletedTaskCount": 10,
+    "FailedTaskCount": 0,
+    "LeaseDisposeCount": 500,
+    "LeaseDoubleDisposeCount": 0,
+    "GracefullyStopped": true
+  },
+  "LongStress": {
+    "TestName": "当前版保存工作池同进程长稳",
+    "FormalRoundCount": 10,
+    "AttemptsPerRound": 500,
+    "TotalAttemptedCount": 5000,
+    "TotalAcceptedCount": 516,
+    "TotalRejectedCount": 4484,
+    "TotalEvictedNormalCount": 237,
+    "TotalCompletedCount": 279,
+    "TotalFailedCount": 0,
+    "TotalFileCount": 279,
+    "TotalFileBytes": 3603219,
+    "TotalLeaseDisposeCount": 5000,
+    "TotalLeaseDoubleDisposeCount": 0,
+    "PeakQueueCount": 8,
+    "PeakQueueBytes": 18874368,
+    "PeakActiveWorkers": 2,
+    "EnqueueP99MaximumMilliseconds": 0.0693,
+    "EnqueueAbsoluteMaximumMilliseconds": 0.1732,
+    "StressWallMilliseconds": 2732,
+    "CpuLogicalProcessorCount": 24,
+    "AverageCpuPercent": 16.057,
+    "PrivateMemoryBaselineMb": 95.188,
+    "PrivateMemoryFinalMb": 95.156,
+    "PrivateMemoryDeltaMb": -0.031,
+    "ManagedMemoryBaselineMb": 9.814,
+    "ManagedMemoryFinalMb": 9.805,
+    "ManagedMemoryDeltaMb": -0.009,
+    "HandleBaseline": 896,
+    "HandleFinal": 895,
+    "HandleDelta": -1,
+    "RoundResourceSnapshots": [
+      {
+        "Round": 1,
+        "PrivateMemoryMb": 95.105,
+        "ManagedMemoryMb": 9.918,
+        "HandleCount": 896
+      },
+      {
+        "Round": 2,
+        "PrivateMemoryMb": 95.168,
+        "ManagedMemoryMb": 9.774,
+        "HandleCount": 896
+      },
+      {
+        "Round": 3,
+        "PrivateMemoryMb": 95.07,
+        "ManagedMemoryMb": 9.778,
+        "HandleCount": 895
+      },
+      {
+        "Round": 4,
+        "PrivateMemoryMb": 95.098,
+        "ManagedMemoryMb": 9.779,
+        "HandleCount": 895
+      },
+      {
+        "Round": 5,
+        "PrivateMemoryMb": 95,
+        "ManagedMemoryMb": 9.874,
+        "HandleCount": 895
+      },
+      {
+        "Round": 6,
+        "PrivateMemoryMb": 95.059,
+        "ManagedMemoryMb": 9.789,
+        "HandleCount": 895
+      },
+      {
+        "Round": 7,
+        "PrivateMemoryMb": 95.09,
+        "ManagedMemoryMb": 9.791,
+        "HandleCount": 895
+      },
+      {
+        "Round": 8,
+        "PrivateMemoryMb": 95.145,
+        "ManagedMemoryMb": 9.792,
+        "HandleCount": 895
+      },
+      {
+        "Round": 9,
+        "PrivateMemoryMb": 95.18,
+        "ManagedMemoryMb": 9.793,
+        "HandleCount": 895
+      },
+      {
+        "Round": 10,
+        "PrivateMemoryMb": 95.156,
+        "ManagedMemoryMb": 9.795,
+        "HandleCount": 895
+      }
+    ]
+  },
+  "Conclusion": "相同500张真实JPEG工作量下，当前版文件完成耗时下降76.08%，吞吐提升318.02%，平均CPU下降1.498个百分点，私有内存峰值下降7.86%；生产容量8和2线程突发保持硬边界，500次租约全部释放；同进程5000次长稳无内存或句柄累积上升。"
+}

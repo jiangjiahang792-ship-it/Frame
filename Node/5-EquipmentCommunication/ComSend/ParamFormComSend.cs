@@ -1,6 +1,7 @@
 ﻿using Logger;
 using Sunny.UI;
 using System;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Device.COM;
 using TDJS_Vision.Device.PLC;
@@ -56,33 +57,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ComSend
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void buttonTest_Click(object sender, EventArgs e)
-        {
-            SaveParams();
-            var param = (NodeParamComSend)Params;
-            if (param.Dev == null || !param.Dev.IsOpen)
-            {
-                MessageBoxTD.Show("串口对象为空或未打开！");
-                return;
-            }
-            param.Dev.Send(param.Cmd, param.Encoding);
-        }
-
-        /// <summary>
-        /// 点击保存当前参数配置
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void buttonSvae_Click(object sender, EventArgs e)
-        {
-            SaveParams();
-            Hide();
-        }
-
-        /// <summary>
-        /// 保存参数配置
-        /// </summary>
-        private void SaveParams()
+        private async void buttonTest_Click(object sender, EventArgs e)
         {
             if (comboBoxComList.Text.IsNullOrEmpty() || comboBoxComList.Text == "[未设置]")
             {
@@ -93,6 +68,68 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ComSend
             {
                 MessageBoxTD.Show("发送的指令不能为空！");
                 return;
+            }
+            if (!SaveParams())
+                return;
+            var param = Params as NodeParamComSend;
+            if (param?.Dev == null || !param.Dev.IsOpen)
+            {
+                MessageBoxTD.Show("串口对象为空或未打开！");
+                return;
+            }
+            if (string.IsNullOrEmpty(param.Cmd))
+            {
+                MessageBoxTD.Show("发送的指令不能为空！");
+                return;
+            }
+
+            var deviceSnapshot = param.Dev;
+            string commandSnapshot = param.Cmd;
+            string encodingSnapshot = param.Encoding;
+            buttonTest.Enabled = false;
+            try
+            {
+                bool executed = await Task.Run(() =>
+                    Solution.Instance.TryExecuteManualExternalSignal(
+                        () => deviceSnapshot.Send(commandSnapshot, encodingSnapshot)));
+                if (!executed)
+                    MessageBoxTD.Show("方案正在运行或重置，禁止手动插入串口命令！");
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show($"串口测试发送失败：{ex.Message}");
+            }
+            finally
+            {
+                buttonTest.Enabled = true;
+            }
+        }
+
+        /// <summary>
+        /// 点击保存当前参数配置
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void buttonSvae_Click(object sender, EventArgs e)
+        {
+            if (SaveParams())
+                Hide();
+        }
+
+        /// <summary>
+        /// 保存参数配置
+        /// </summary>
+        private bool SaveParams()
+        {
+            if (comboBoxComList.Text.IsNullOrEmpty() || comboBoxComList.Text == "[未设置]")
+            {
+                MessageBoxTD.Show("COM号不能为空！");
+                return false;
+            }
+            if (textBoxCMD.Text.IsNullOrEmpty())
+            {
+                MessageBoxTD.Show("发送的指令不能为空！");
+                return false;
             }
 
             //查找当前选择的串口
@@ -105,6 +142,11 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ComSend
                     break;
                 }
             }
+            if (com == null)
+            {
+                MessageBoxTD.Show("所选串口已不在当前方案中，请重新选择！");
+                return false;
+            }
 
             NodeParamComSend nodeParamComSend = new NodeParamComSend();
             nodeParamComSend.Dev = com;
@@ -112,6 +154,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ComSend
             nodeParamComSend.Encoding = comboBoxEncoding.Text;
             nodeParamComSend.Cmd = this.textBoxCMD.Text;
             Params = nodeParamComSend;
+            return true;
         }
         /// <summary>
         /// 反序列化需要设置参数给回界面

@@ -590,9 +590,9 @@
             this.labelThreshold.AutoSize = true;
             this.labelThreshold.Location = new System.Drawing.Point(3, 47);
             this.labelThreshold.Name = "labelThreshold";
-            this.labelThreshold.Size = new System.Drawing.Size(110, 31);
+            this.labelThreshold.Size = new System.Drawing.Size(158, 31);
             this.labelThreshold.TabIndex = 2;
-            this.labelThreshold.Text = "图像阈值";
+            this.labelThreshold.Text = "初始图像阈值";
             // 
             // numericUpDownThreshold
             // 

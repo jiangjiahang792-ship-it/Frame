@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.Reflection;
+using TDJS_Vision.Node._4_Measurement.Common;
 
 namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 {
@@ -165,6 +166,13 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             if (param == null || param.Conditions == null || param.Conditions.Count == 0)
                 throw new Exception("至少需要配置一个条件！");
 
+            List<NodeConditionEvaluation> failedUpstreamEvaluations = BuildFailedUpstreamEvaluations(currentNode);
+            if (failedUpstreamEvaluations.Count > 0)
+            {
+                evaluations.AddRange(failedUpstreamEvaluations);
+                return false;
+            }
+
             int enabledConditionCount = 0;
             for (int index = 0; index < param.Conditions.Count; index++)
             {
@@ -215,7 +223,9 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                     throw new Exception($"条件“{conditionName}”没有选择结果属性！");
 
                 ConditionValueReadResult valueResult = ReadConditionValue(currentNode, sourceNode, condition);
-                bool matched = CompareCondition(valueResult.Value, condition);
+                bool matched = valueResult.IsMultiTarget
+                    ? valueResult.AreAllMultiTargetValuesMatched
+                    : CompareCondition(valueResult.Value, condition);
                 bool judgeWriteBackApplied;
                 string judgeWriteBackText;
                 ApplyJudgeWriteBack(sourceNode, matched, out judgeWriteBackApplied, out judgeWriteBackText);
@@ -228,7 +238,9 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                     PropertyDisplayName = condition.PropertyDisplayName,
                     OperatorText = condition.Operator.ToString(),
                     ExpectedValue = BuildExpectedText(condition),
-                    ActualValue = FormatValue(valueResult.Value),
+                    ActualValue = valueResult.IsMultiTarget
+                        ? Convert.ToString(valueResult.Value, CultureInfo.CurrentCulture)
+                        : FormatValue(valueResult.Value),
                     NullReason = valueResult.NullReason,
                     SourceRunState = valueResult.SourceRunState,
                     SourceHasCurrentRunResult = valueResult.SourceHasCurrentRunResult,
@@ -263,6 +275,52 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// 构建本轮已经失败的上游节点诊断，避免多条件在检测链路异常时继续输出 OK。
+        /// </summary>
+        /// <param name="currentNode">当前多条件节点。</param>
+        /// <returns>失败上游对应的诊断明细。</returns>
+        private static List<NodeConditionEvaluation> BuildFailedUpstreamEvaluations(NodeBase currentNode)
+        {
+            List<NodeConditionEvaluation> failedEvaluations = new List<NodeConditionEvaluation>();
+            if (currentNode == null || currentNode.Process == null)
+                return failedEvaluations;
+
+            List<NodeBase> upstreamNodes = currentNode.Process.GetUpstreamNodes(currentNode);
+            foreach (NodeBase upstreamNode in upstreamNodes)
+            {
+                if (upstreamNode == null ||
+                    !upstreamNode.Active ||
+                    upstreamNode.RuntimeStatus != NodeStatus.Failed)
+                {
+                    continue;
+                }
+
+                string sourceText = GetNodeText(upstreamNode);
+                string runState = BuildSourceRunState(currentNode, upstreamNode);
+                failedEvaluations.Add(new NodeConditionEvaluation
+                {
+                    IsEnabled = true,
+                    Name = "上游节点失败",
+                    SourceNodeText = sourceText,
+                    PropertyPath = string.Empty,
+                    PropertyDisplayName = string.Empty,
+                    OperatorText = "上游状态",
+                    ExpectedValue = "Successful",
+                    ActualValue = "Failed",
+                    NullReason = "上游节点“" + sourceText + "”本轮运行失败，多条件强制判定为不通过。",
+                    SourceRunState = runState,
+                    SourceHasCurrentRunResult = upstreamNode.HasSuccessfulResultForRun(currentNode.Process.CurrentRunId),
+                    DiagnosticText = "源节点=" + sourceText + "，" + runState + "，失败时多条件结果强制为False。",
+                    IsMatched = false,
+                    JudgeWriteBackApplied = false,
+                    JudgeWriteBackText = "未回写，上游节点已失败。"
+                });
+            }
+
+            return failedEvaluations;
         }
 
         /// <summary>
@@ -389,6 +447,16 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 return readResult;
             }
 
+            ConditionValueReadResult multiTargetReadResult;
+            if (TryReadMultiTargetConditionValue(sourceNode.Result, condition, out multiTargetReadResult))
+            {
+                multiTargetReadResult.SourceRunState = readResult.SourceRunState;
+                multiTargetReadResult.SourceHasCurrentRunResult = readResult.SourceHasCurrentRunResult;
+                multiTargetReadResult.PropertyPath = condition.PropertyPath;
+                multiTargetReadResult.PropertyDisplayName = condition.PropertyDisplayName;
+                return multiTargetReadResult;
+            }
+
             if (DynamicResultVariableResolver.IsDynamicVariablePath(condition.PropertyPath))
                 return ReadDynamicConditionValue(sourceNode, condition, readResult);
 
@@ -408,6 +476,235 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 readResult.NullReason = BuildMemberNullReason(sourceNode.Result, condition);
             readResult.DiagnosticText = BuildDiagnosticText(sourceNode, readResult);
             return readResult;
+        }
+
+        /// <summary>
+        /// 多目标测量结果优先按 Items 明细逐目标判断，避免只读取目标1摘要字段。
+        /// </summary>
+        /// <param name="sourceResult">上游节点完整结果。</param>
+        /// <param name="condition">当前多条件配置。</param>
+        /// <param name="readResult">读取到的逐目标判断结果。</param>
+        /// <returns>当前结果支持按多目标明细读取该条件时返回 true。</returns>
+        private static bool TryReadMultiTargetConditionValue(
+            INodeResult sourceResult,
+            MultiConditionItem condition,
+            out ConditionValueReadResult readResult)
+        {
+            readResult = null;
+            if (sourceResult == null ||
+                condition == null ||
+                DynamicResultVariableResolver.IsDynamicVariablePath(condition.PropertyPath) ||
+                IsItemsPath(condition.PropertyPath))
+            {
+                return false;
+            }
+
+            List<IMultiTargetMeasurementItem> items;
+            if (!MeasurementResultReader.TryReadMultiTargetItems(sourceResult, out items))
+                return false;
+
+            if (items == null)
+                return false;
+
+            if (items.Count > 0 && !CanReadConditionPathFromAnyTarget(items, condition.PropertyPath))
+                return false;
+
+            readResult = new ConditionValueReadResult
+            {
+                IsMultiTarget = true,
+                MultiTargetValues = new List<MultiTargetConditionValue>(),
+                PropertyPath = condition.PropertyPath,
+                PropertyDisplayName = condition.PropertyDisplayName
+            };
+
+            for (int index = 0; index < items.Count; index++)
+            {
+                IMultiTargetMeasurementItem item = items[index];
+                MultiTargetConditionValue targetValue = ReadSingleTargetConditionValue(item, index, condition);
+                readResult.MultiTargetValues.Add(targetValue);
+            }
+
+            readResult.Value = BuildMultiTargetActualValueText(readResult.MultiTargetValues);
+            readResult.NullReason = BuildMultiTargetNullReason(readResult.MultiTargetValues);
+            readResult.DiagnosticText = BuildMultiTargetDiagnosticText(readResult.MultiTargetValues);
+            return true;
+        }
+
+        /// <summary>
+        /// 判断条件路径是否明确指向 Items 集合本身，这类路径继续交给原单值逻辑处理。
+        /// </summary>
+        /// <param name="propertyPath">条件属性路径。</param>
+        /// <returns>路径指向 Items 时返回 true。</returns>
+        private static bool IsItemsPath(string propertyPath)
+        {
+            if (string.IsNullOrWhiteSpace(propertyPath))
+                return false;
+
+            string text = propertyPath.Trim();
+            return string.Equals(text, "Items", StringComparison.OrdinalIgnoreCase) ||
+                text.StartsWith("Items.", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// 判断当前条件字段是否存在于至少一个多目标明细项中。
+        /// </summary>
+        /// <param name="items">多目标明细集合。</param>
+        /// <param name="propertyPath">条件属性路径。</param>
+        /// <returns>能从目标明细读取该字段时返回 true。</returns>
+        private static bool CanReadConditionPathFromAnyTarget(
+            List<IMultiTargetMeasurementItem> items,
+            string propertyPath)
+        {
+            foreach (IMultiTargetMeasurementItem item in items)
+            {
+                if (item == null)
+                    continue;
+
+                try
+                {
+                    MultiConditionReflection.GetMemberPathValue(item, propertyPath);
+                    return true;
+                }
+                catch
+                {
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 读取并判断单个目标的条件值。
+        /// </summary>
+        /// <param name="item">当前目标明细。</param>
+        /// <param name="index">当前目标在列表中的零基位置。</param>
+        /// <param name="condition">条件配置。</param>
+        /// <returns>单目标条件判断结果。</returns>
+        private static MultiTargetConditionValue ReadSingleTargetConditionValue(
+            IMultiTargetMeasurementItem item,
+            int index,
+            MultiConditionItem condition)
+        {
+            MultiTargetConditionValue targetValue = new MultiTargetConditionValue
+            {
+                TargetIndex = item == null || item.TargetIndex <= 0 ? index + 1 : item.TargetIndex,
+                ItemIsOk = item != null && item.IsOk
+            };
+
+            if (item == null)
+            {
+                targetValue.NullReason = "目标结果为空。";
+                targetValue.IsMatched = false;
+                return targetValue;
+            }
+
+            try
+            {
+                targetValue.Value = MultiConditionReflection.GetMemberPathValue(item, condition.PropertyPath);
+                targetValue.IsMatched = CompareCondition(targetValue.Value, condition);
+                if (ShouldRequireTargetOk(condition) && !item.IsOk)
+                {
+                    targetValue.IsMatched = false;
+                    targetValue.NullReason = string.IsNullOrWhiteSpace(item.ErrorMessage)
+                        ? "目标测量状态为NG。"
+                        : item.ErrorMessage;
+                }
+                else if (targetValue.Value == null)
+                {
+                    targetValue.NullReason = "目标属性读取结果为空。";
+                }
+            }
+            catch (Exception ex)
+            {
+                targetValue.NullReason = ex.Message;
+                targetValue.IsMatched = false;
+            }
+
+            return targetValue;
+        }
+
+        /// <summary>
+        /// 判断当前字段是否需要目标测量自身状态为OK；直接检查 IsOk 时按条件本身判断。
+        /// </summary>
+        /// <param name="condition">条件配置。</param>
+        /// <returns>非状态字段返回 true。</returns>
+        private static bool ShouldRequireTargetOk(MultiConditionItem condition)
+        {
+            return condition == null ||
+                !string.Equals(condition.PropertyPath, "IsOk", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// 构建逐目标实际值摘要。
+        /// </summary>
+        /// <param name="values">逐目标条件结果。</param>
+        /// <returns>用于界面和诊断显示的实际值文本。</returns>
+        private static string BuildMultiTargetActualValueText(List<MultiTargetConditionValue> values)
+        {
+            if (values == null || values.Count == 0)
+                return "无目标结果";
+
+            List<string> parts = new List<string>();
+            foreach (MultiTargetConditionValue value in values)
+            {
+                if (value == null)
+                    continue;
+
+                string stateText = value.IsMatched ? "通过" : "不通过";
+                string actualText = value.Value == null ? "空" : FormatValue(value.Value);
+                parts.Add("目标" + value.TargetIndex + "=" + actualText + "(" + stateText + ")");
+            }
+
+            return string.Join("；", parts);
+        }
+
+        /// <summary>
+        /// 构建逐目标失败或空值原因摘要。
+        /// </summary>
+        /// <param name="values">逐目标条件结果。</param>
+        /// <returns>失败目标原因。</returns>
+        private static string BuildMultiTargetNullReason(List<MultiTargetConditionValue> values)
+        {
+            if (values == null || values.Count == 0)
+                return "多目标结果为空。";
+
+            List<string> reasons = new List<string>();
+            foreach (MultiTargetConditionValue value in values)
+            {
+                if (value == null || value.IsMatched || string.IsNullOrWhiteSpace(value.NullReason))
+                    continue;
+
+                reasons.Add("目标" + value.TargetIndex + "：" + value.NullReason);
+            }
+
+            return string.Join("；", reasons);
+        }
+
+        /// <summary>
+        /// 构建逐目标完整诊断文本。
+        /// </summary>
+        /// <param name="values">逐目标条件结果。</param>
+        /// <returns>诊断文本。</returns>
+        private static string BuildMultiTargetDiagnosticText(List<MultiTargetConditionValue> values)
+        {
+            if (values == null || values.Count == 0)
+                return "多目标明细数量为0，条件判定为不通过。";
+
+            List<string> lines = new List<string>();
+            foreach (MultiTargetConditionValue value in values)
+            {
+                if (value == null)
+                    continue;
+
+                string stateText = value.IsMatched ? "通过" : "不通过";
+                string actualText = value.Value == null ? "空" : FormatValue(value.Value);
+                string reasonText = string.IsNullOrWhiteSpace(value.NullReason)
+                    ? string.Empty
+                    : "，原因：" + value.NullReason;
+                lines.Add("目标" + value.TargetIndex + "：" + stateText + "，实际值=" + actualText + reasonText);
+            }
+
+            return string.Join(Environment.NewLine, lines);
         }
 
         /// <summary>
@@ -859,6 +1156,36 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
         public object Value { get; set; }
 
         /// <summary>
+        /// 当前条件是否按多目标明细逐个判断。
+        /// </summary>
+        public bool IsMultiTarget { get; set; }
+
+        /// <summary>
+        /// 多目标逐项判断结果。
+        /// </summary>
+        public List<MultiTargetConditionValue> MultiTargetValues { get; set; } = new List<MultiTargetConditionValue>();
+
+        /// <summary>
+        /// 多目标场景下是否所有目标均通过。
+        /// </summary>
+        public bool AreAllMultiTargetValuesMatched
+        {
+            get
+            {
+                if (!IsMultiTarget || MultiTargetValues == null || MultiTargetValues.Count == 0)
+                    return false;
+
+                foreach (MultiTargetConditionValue value in MultiTargetValues)
+                {
+                    if (value == null || !value.IsMatched)
+                        return false;
+                }
+
+                return true;
+            }
+        }
+
+        /// <summary>
         /// 实际值为空时的原因说明。
         /// </summary>
         public string NullReason { get; set; }
@@ -892,6 +1219,37 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
         /// 完整诊断文本。
         /// </summary>
         public string DiagnosticText { get; set; }
+    }
+
+    /// <summary>
+    /// 多条件节点逐目标判断时的单个目标诊断结果。
+    /// </summary>
+    internal sealed class MultiTargetConditionValue
+    {
+        /// <summary>
+        /// 模板目标编号。
+        /// </summary>
+        public int TargetIndex { get; set; }
+
+        /// <summary>
+        /// 当前目标测量本身是否成功。
+        /// </summary>
+        public bool ItemIsOk { get; set; }
+
+        /// <summary>
+        /// 当前目标读取到的实际值。
+        /// </summary>
+        public object Value { get; set; }
+
+        /// <summary>
+        /// 当前目标条件是否通过。
+        /// </summary>
+        public bool IsMatched { get; set; }
+
+        /// <summary>
+        /// 当前目标失败或空值原因。
+        /// </summary>
+        public string NullReason { get; set; }
     }
 
     internal static class MultiConditionReflection

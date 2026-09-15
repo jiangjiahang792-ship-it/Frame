@@ -156,7 +156,7 @@
             this.groupBox1.Size = new System.Drawing.Size(564, 205);
             this.groupBox1.TabIndex = 9;
             this.groupBox1.TabStop = false;
-            this.groupBox1.Text = "写入的值(多个值使用-隔开)";
+            this.groupBox1.Text = "写入的值(多个值使用逗号隔开)";
             // 
             // textBoxValue
             // 

@@ -1,6 +1,7 @@
 ﻿using OpenCvSharp.Extensions;
 using OpenCvSharp;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Linq;
@@ -198,98 +199,99 @@ namespace TDJS_Vision.Node._3_Detection.FindLine
         /// <summary>
         /// 检测直线
         /// </summary>
-        public (LineSegmentPoint, Bitmap) DetectLine()
+        public (LineSegmentPoint line, bool succeeded) DetectLine()
         {
             LineSegmentPoint line = new LineSegmentPoint();
-            Mat cleanOutput = null;
+            List<Mat> roiImages = null;
             try
             {
                 // 更新输入图像和获取ROI图像
-                pictureBoxCanny.Image = null;
-                pictureBoxResult1.Image = null;
-                pictureBoxResult2.Image = null;
+                ReplacePictureBoxImage(pictureBoxCanny, null);
+                ReplacePictureBoxImage(pictureBoxResult1, null);
+                ReplacePictureBoxImage(pictureBoxResult2, null);
                 UpdataImage();
-                Mat bitmap = imageROIEditControl1.GetROIImages()[0];
-                cleanOutput = bitmap.Clone();
+                roiImages = imageROIEditControl1.GetROIImages();
+                if (roiImages == null || roiImages.Count == 0 || !OutputImage.HasValidImage(roiImages[0]))
+                    throw new Exception("直线查找没有取得有效ROI图像！");
 
+                Mat bitmap = roiImages[0];
                 if (bitmap.Channels() != 1)
                     Cv2.CvtColor(bitmap, bitmap, ColorConversionCodes.BGR2GRAY);
 
                 // 应用高斯模糊减少噪点
-                Mat blurred = new Mat();
-                Cv2.GaussianBlur(bitmap, blurred, new OpenCvSharp.Size(int.Parse(textBoxBlurSize.Text), int.Parse(textBoxBlurSize.Text)), 0);
-                
-                // 使用 Canny 边缘检测
-                Mat edges = new Mat();
-                Cv2.Canny(blurred, edges, double.Parse(textBoxThreshold1.Text), double.Parse(textBoxThreshold2.Text), 3, checkBoxUseL2.Checked);
-                pictureBoxCanny.Image = BitmapConverter.ToBitmap(edges);
-
-                //霍夫直线检测
-                var lineSegmentPoints = Cv2.HoughLinesP(edges, 1.0, Math.PI / 180, int.Parse(textBoxCount.Text), double.Parse(textBoxMinLength.Text), 
-                                        double.Parse(textBoxMaxDistance.Text)).ToList();
-
-                #region 绘制霍夫直线检测出来的所有直线
-
-                // 绘制检测到的直线
-                Mat result = bitmap.Clone();
-                Cv2.CvtColor(result, result, ColorConversionCodes.BayerBG2BGR);
-
-                // 生成随机颜色（排除红色）
-                Scalar randomColor;
-                Random rand = new Random();
-                do
+                using (Mat blurred = new Mat())
+                using (Mat edges = new Mat())
                 {
-                    byte r = GetDarkColorValue(rand);
-                    byte g = GetDarkColorValue(rand);
-                    byte b = GetDarkColorValue(rand);
-                    randomColor = new Scalar(r, g, b);
-                } while (randomColor == Scalar.Red);
+                    Cv2.GaussianBlur(bitmap, blurred, new OpenCvSharp.Size(int.Parse(textBoxBlurSize.Text), int.Parse(textBoxBlurSize.Text)), 0);
+                    Cv2.Canny(blurred, edges, double.Parse(textBoxThreshold1.Text), double.Parse(textBoxThreshold2.Text), 3, checkBoxUseL2.Checked);
+                    ReplacePictureBoxImage(pictureBoxCanny, BitmapConverter.ToBitmap(edges));
 
+                    var lineSegmentPoints = Cv2.HoughLinesP(edges, 1.0, Math.PI / 180, int.Parse(textBoxCount.Text), double.Parse(textBoxMinLength.Text),
+                                            double.Parse(textBoxMaxDistance.Text)).ToList();
+                    Scalar randomColor;
+                    Random rand = new Random();
+                    do
+                    {
+                        randomColor = new Scalar(GetDarkColorValue(rand), GetDarkColorValue(rand), GetDarkColorValue(rand));
+                    } while (randomColor == Scalar.Red);
 
-                int radius = 5; // 端点半径
-                foreach (var points in lineSegmentPoints)
-                {
-                    // 绘制线段
-                    Cv2.Line(result, points.P1, points.P2, randomColor, 2);
-                    // 在线段的两端绘制红色端点
-                    Cv2.Circle(result, points.P1, radius, Scalar.Red, -1); // -1 表示填充圆
-                    Cv2.Circle(result, points.P2, radius, Scalar.Red, -1);
+                    int radius = 5;
+                    using (Mat result = bitmap.Clone())
+                    {
+                        Cv2.CvtColor(result, result, ColorConversionCodes.BayerBG2BGR);
+                        foreach (var points in lineSegmentPoints)
+                        {
+                            Cv2.Line(result, points.P1, points.P2, randomColor, 2);
+                            Cv2.Circle(result, points.P1, radius, Scalar.Red, -1);
+                            Cv2.Circle(result, points.P2, radius, Scalar.Red, -1);
+                        }
+                        Cv2.PutText(result, $"Count:{lineSegmentPoints.Count}", new Point(40, 40), HersheyFonts.Italic, 1, Scalar.Red);
+                        ReplacePictureBoxImage(pictureBoxResult1, BitmapConverter.ToBitmap(result));
+                    }
+
+                    var point = imageROIEditControl1.GetImageROIRects()[0].Location;
+                    using (Mat selectedResult = bitmap.Clone())
+                    {
+                        Cv2.CvtColor(selectedResult, selectedResult, ColorConversionCodes.BayerBG2BGR);
+                        var singleLine = LineMerger.MergeLines(lineSegmentPoints, curLineSelection);
+                        Cv2.Line(selectedResult, singleLine.P1, singleLine.P2, randomColor, 2);
+                        Cv2.Circle(selectedResult, singleLine.P1, radius, Scalar.Red, -1);
+                        Cv2.Circle(selectedResult, singleLine.P2, radius, Scalar.Red, -1);
+                        Cv2.PutText(selectedResult, $"Lenth:{LineMerger.PointDistance(singleLine.P1, singleLine.P2).ToString("F2")} px", new Point(40, 40), HersheyFonts.Italic, 1, Scalar.Red);
+                        ReplacePictureBoxImage(pictureBoxResult2, BitmapConverter.ToBitmap(selectedResult));
+                        singleLine.Offset((int)point.X, (int)point.Y);
+                        line = singleLine;
+                    }
                 }
-                Cv2.PutText(result, $"Count:{lineSegmentPoints.Count}", new Point(40, 40), HersheyFonts.Italic, 1, Scalar.Red);
-                pictureBoxResult1.Image = BitmapConverter.ToBitmap(result);
-
-                #endregion
-
-                #region 绘制筛选后的图像
-
-                // 加上在原图的偏差值
-                var point = imageROIEditControl1.GetImageROIRects()[0].Location;
-
-                // 绘制直线
-                Mat result1 = bitmap.Clone();
-                Cv2.CvtColor(result1, result1, ColorConversionCodes.BayerBG2BGR);
-                var singleLine = LineMerger.MergeLines(lineSegmentPoints, curLineSelection);// 合并重合度高的直线并且筛选对应输出的直线
-                                // 绘制线段
-                Cv2.Line(result1, singleLine.P1, singleLine.P2, randomColor, 2);
-                Cv2.Circle(result1, singleLine.P1, radius, Scalar.Red, -1); // -1 表示填充圆
-                Cv2.Circle(result1, singleLine.P2, radius, Scalar.Red, -1);
-                Cv2.PutText(result1, $"Lenth:{LineMerger.PointDistance(singleLine.P1, singleLine.P2).ToString("F2")} px", new Point(40, 40), HersheyFonts.Italic, 1, Scalar.Red);
-                pictureBoxResult2.Image = BitmapConverter.ToBitmap(result1);
-                singleLine.Offset((int)point.X, (int)point.Y);
-                line = singleLine;
-
-                #endregion
             }
             catch (Exception ex)
             {
                 LogHelper.AddLog(MsgLevel.Exception, $"检测直线失败，原因：{ex.Message}", true);
-                cleanOutput?.Dispose();
-                return (line, null);
+                return (line, false);
+            }
+            finally
+            {
+                if (roiImages != null)
+                {
+                    foreach (Mat roiImage in roiImages)
+                        roiImage?.Dispose();
+                }
             }
 
-            Bitmap outputBitmap = cleanOutput == null ? (Bitmap)pictureBoxResult2.Image : BitmapConverter.ToBitmap(cleanOutput);
-            cleanOutput?.Dispose();
-            return (line, outputBitmap);
+            return (line, true);
+        }
+
+        /// <summary>
+        /// 替换预览框图像并释放上一张位图，避免重复执行时累积GDI资源。
+        /// </summary>
+        /// <param name="pictureBox">目标预览框。</param>
+        /// <param name="image">由预览框接管的新图像。</param>
+        private static void ReplacePictureBoxImage(PictureBox pictureBox, Image image)
+        {
+            Image oldImage = pictureBox.Image;
+            pictureBox.Image = image;
+            if (!ReferenceEquals(oldImage, image))
+                oldImage?.Dispose();
         }
         private static byte GetDarkColorValue(Random rand)
         {

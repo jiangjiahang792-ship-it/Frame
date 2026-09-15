@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Device.Modbus;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using Point = OpenCvSharp.Point;
 
@@ -27,6 +28,8 @@ namespace TDJS_Vision.Node._3_Detection.BatteryEar
         public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+            Mat generatedImage = null;
+            OutputImage pendingOutputImage = null;
             // 参数合法性校验
             if (!Active)
             {
@@ -54,6 +57,7 @@ namespace TDJS_Vision.Node._3_Detection.BatteryEar
                         form.UpdataImage();
 
                         var (vals, rects, lines, img) = form.CalculateJierToMarkVerticalDistancesOnOriginal();
+                        generatedImage = img;
 
                         // 单位转换:像素-》物理
                         vals = vals.Select(x => double.Parse((x * param.Scale).ToString("F2"))).ToList();
@@ -106,12 +110,23 @@ namespace TDJS_Vision.Node._3_Detection.BatteryEar
                         displayResult.Texts.Add(new ColorText($"D2:{vals[1] + param.DeltaMM2}mm  D4:{vals[3] + param.DeltaMM4}mm", isOk ? System.Drawing.Color.Green : System.Drawing.Color.Red));
                         displayResult.Texts.Add(new ColorText(isOk ? "OK" : "NG", isOk ? System.Drawing.Color.Green : System.Drawing.Color.Red));
 
-                        // 输出结果
-                        ((NodeResultBatteryEar)Result).IsOk = isOk;
-                        ((NodeResultBatteryEar)Result).OutputImage.Bitmaps = new List<Mat> { img };
-                        ((NodeResultBatteryEar)Result).OutputImage.DisplayResult = displayResult;
+                        // 先在局部变量中构建完整结果，成功后再原子替换，避免异常时遗留半成品和自产Mat。
+                        pendingOutputImage = new OutputImage
+                        {
+                            Bitmaps = new List<Mat> { generatedImage },
+                            DisplayResult = displayResult
+                        };
+                        pendingOutputImage.TakeOwnership(generatedImage);
+                        generatedImage = null;
+                        var nodeResult = new NodeResultBatteryEar
+                        {
+                            IsOk = isOk,
+                            OutputImage = pendingOutputImage
+                        };
                         var time = SetRunResult(startTime, NodeStatus.Successful);
-                        Result.RunTime = time;
+                        nodeResult.RunTime = time;
+                        Result = nodeResult;
+                        pendingOutputImage = null;
                         if (showLog)
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms）", true);
                         return new NodeReturn(NodeRunFlag.ContinueRun);
@@ -127,6 +142,11 @@ namespace TDJS_Vision.Node._3_Detection.BatteryEar
                         LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
                         SetRunResult(startTime, NodeStatus.Failed);
                         throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
+                    }
+                    finally
+                    {
+                        pendingOutputImage?.Dispose();
+                        generatedImage?.Dispose();
                     }
                 }
             }

@@ -14,16 +14,26 @@ using TDJS_Vision.Device.Modbus;
 using TDJS_Vision.Device.PLC;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
+using TDJS_Vision.Node._4_Measurement.Common;
 using Point = OpenCvSharp.Point;
 
 namespace TDJS_Vision.Node._3_Detection.ColorDiscern
 {
     public partial class NodeParamFormColorDiscern : FormBase, INodeParamForm
     {
+        /// <summary>
+        /// 多目标位置修正坐标变换服务。
+        /// </summary>
+        private readonly IMultiTargetTransformService _transformService = new MultiTargetTransformService();
+
         private Process process;//所属流程
         private NodeBase node;//所属节点
-        private static ColorCreate colorCreate = null; // 模版创建对象
         private Mat srcMat = null;  // 原图
+
+        /// <summary>
+        /// 参数窗体自有图像是否已经释放，避免重复Dispose。
+        /// </summary>
+        private int _imageResourcesReleased;
 
         private bool isOpenGeiGround;  //是否开启通信检测项
         private IDevice device;   //通信设备
@@ -88,6 +98,9 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
 
                     checkBox1.Checked = param.IsOpenSort;
                     comboBox1.SelectedIndex = param.SrotModel;
+                    checkBoxUsePositionCorrection.Checked = param.UsePositionCorrection;
+                    nodeSubscriptionPositionCorrection.SetText(param.CorrectionText1, param.CorrectionText2);
+                    UpdatePositionCorrectionEnabled();
 
                     if (File.Exists(param.TemplateFileName))
                     {
@@ -109,6 +122,8 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         {
             nodeSubscription1.SetExpectedValueType<OutputImage>();
             nodeSubscription1.Init(node);
+            nodeSubscriptionPositionCorrection.SetExpectedValueType<List<PositionCorrectionInfo>>();
+            nodeSubscriptionPositionCorrection.Init(node);
         }
 
         /// <summary>
@@ -127,18 +142,45 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         /// </summary>
         public void UpdataImage(bool isShow = true)
         {
+            Mat nextSource = null;
+            Bitmap nextDisplay = null;
             try
             {
                 OutputImage outputImage = nodeSubscription1.GetValue<OutputImage>();
-                srcMat?.Dispose();
-                srcMat = outputImage.Bitmaps[0]?.Clone();
+                nextSource = outputImage.Bitmaps[0]?.Clone();
+                if (nextSource == null || nextSource.Empty())
+                    throw new InvalidOperationException("订阅图像为空。");
+
+                if (isShow)
+                    nextDisplay = BitmapConverter.ToBitmap(nextSource);
+
+                ReplaceSourceImage(nextSource);
+                nextSource = null;
+                if (isShow)
+                {
+                    showImageControl1.ImageBitmap = nextDisplay;
+                    nextDisplay = null;
+                }
             }
             catch (Exception)
             {
-                srcMat = null;
+                nextSource?.Dispose();
+                nextDisplay?.Dispose();
+                ReplaceSourceImage(null);
+                if (isShow)
+                    showImageControl1.ImageBitmap = null;
             }
-            //imageROIEditControl1.SetImage(src);
-            if (isShow) showImageControl1.ImageBitmap = (srcMat != null && !srcMat.Empty()) ? BitmapConverter.ToBitmap(srcMat) : null;
+        }
+
+        /// <summary>
+        /// 原子替换参数窗体拥有的源Mat，并释放上一张图。
+        /// </summary>
+        /// <param name="nextSource">由参数窗体接管的新源图，可为空。</param>
+        private void ReplaceSourceImage(Mat nextSource)
+        {
+            Mat previous = srcMat;
+            srcMat = nextSource;
+            previous?.Dispose();
         }
 
         /// <summary>
@@ -160,6 +202,9 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         {
             try
             {
+                if (!SaveParams())
+                    return;
+
                 await MatchTemplateAsync();
             }
             catch (Exception ex)
@@ -168,33 +213,6 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
             }
         }
 
-
-        /// <summary>
-        /// Bitmap转灰度Mat
-        /// </summary>
-        /// <param name="bitmap"></param>
-        /// <returns></returns>
-        private static Mat BitmapToGrayMat(Bitmap bitmap)
-        {
-            using (Mat mat = BitmapConverter.ToMat(bitmap))
-            {
-                if (mat.Channels() == 1)
-                    return mat.Clone();
-                Mat grayMat = new Mat();
-                Cv2.CvtColor(mat, grayMat, ColorConversionCodes.BGR2GRAY);
-                return grayMat;
-            }
-        }
-
-        /// <summary>
-        /// Bitmap转彩色Mat
-        /// </summary>
-        /// <param name="bitmap"></param>
-        /// <returns></returns>
-        private static Mat BitmapToColorMat(Bitmap bitmap)
-        {
-            return BitmapConverter.ToMat(bitmap);
-        }
 
         /// <summary>
         /// 点击保存参数
@@ -219,6 +237,10 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                 param.TemplateFileName = textBoxModelPath.Text;
                 param.Text1 = nodeSubscription1.GetText1();
                 param.Text2 = nodeSubscription1.GetText2();
+                if (checkBoxUsePositionCorrection.Checked &&
+                    (string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText1()) ||
+                     string.IsNullOrWhiteSpace(nodeSubscriptionPositionCorrection.GetText2())))
+                    throw new Exception("请选择位置修正信息。");
 
                 colorParam = JsonProjectSerializer.LoadProject<ColorParam>(textBoxModelPath.Text);
 
@@ -226,6 +248,9 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                 param.Device = device;
                 param.DeviceName = deviceName;
                 param.Address = address;
+                param.UsePositionCorrection = checkBoxUsePositionCorrection.Checked;
+                param.CorrectionText1 = nodeSubscriptionPositionCorrection.GetText1();
+                param.CorrectionText2 = nodeSubscriptionPositionCorrection.GetText2();
 
                 param.IsOpenSort = isOpenSort;
                 param.SrotModel = sortModel;
@@ -261,9 +286,22 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         /// <param name="e"></param>
         private void label1_Click(object sender, EventArgs e)
         {
-            colorCreate = new ColorCreate();
-            colorCreate.SetNodeBelong(node);
-            colorCreate.ShowDialog();
+            using (var colorCreate = new ColorCreate())
+            {
+                colorCreate.SetNodeBelong(node);
+                colorCreate.ShowDialog(this);
+            }
+        }
+
+        /// <summary>
+        /// 释放参数窗体最后持有的源Mat。
+        /// </summary>
+        private void ReleaseImageResources()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _imageResourcesReleased, 1) != 0)
+                return;
+
+            ReplaceSourceImage(null);
         }
 
         private void radioButton2_CheckedChanged(object sender, EventArgs e)
@@ -341,58 +379,66 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                 if (sourceImage == null || sourceImage.Empty())
                     throw new ArgumentException("源图像或模板图像不能为空");
 
-                var (allMatchResults, allOk) = await MatchColorResultsAsync(sourceImage);
-                if (!show)
-                    return (null, allMatchResults, allOk);
-
-                using (Mat sourceMat = sourceImage.Clone())
+                using (Mat sourceSnapshot = sourceImage.Clone())
                 {
-                    // 显示识别结果
-                    foreach (var r in allMatchResults)
+                    var (allMatchResults, allOk) = await MatchColorResultsAsync(sourceSnapshot);
+                    if (!show)
+                        return (null, allMatchResults, allOk);
+
+                    using (Mat sourceMat = sourceSnapshot.Clone())
                     {
-                        Scalar rectColor = r.IsOk ? Scalar.Lime : Scalar.Red;
-                        // 参数界面预览保留烧图显示，运行节点不走此分支。
-                        Cv2.Rectangle(sourceMat, r.Region, rectColor, 3);
-                    }
-
-                    // 转换为 Bitmap 进行文字绘制 (解决中文乱码和堆叠问题)
-                    Bitmap resultBitmap = BitmapConverter.ToBitmap(sourceMat);
-
-                    using (Graphics g = Graphics.FromImage(resultBitmap))
-                    using (Font font = new Font("Microsoft YaHei", 9, FontStyle.Bold))
-                    using (Brush backgroundBrush = new SolidBrush(Color.FromArgb(160, 0, 0, 0)))
-                    {
-                        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-
-                        // 在左侧绘制半透明背景列
-                        int lineHeight = 20;
-                        int boxWidth = 260;
-                        int boxHeight = (allMatchResults.Count * lineHeight) + 30;
-
-                        // 绘制半透明背景
-                        g.FillRectangle(backgroundBrush, 0, 0, boxWidth, boxHeight);
-                        g.DrawString("检测结果 (左侧列表):", font, Brushes.White, 5, 5);
-
-                        for (int i = 0; i < allMatchResults.Count; i++)
+                        // 显示识别结果
+                        foreach (var r in allMatchResults)
                         {
-                            var r = allMatchResults[i];
-                            string status = r.IsOk ? "OK" : "NG";
-                            Brush brush = r.IsOk ? Brushes.Lime : Brushes.Red;
+                            Scalar rectColor = r.IsOk ? Scalar.Lime : Scalar.Red;
+                            // 参数界面预览保留烧图显示，运行节点不走此分支。
+                            Cv2.Rectangle(sourceMat, r.Region, rectColor, 3);
+                        }
 
-                            string text = $"{i + 1}. {r.Name} [{status}]";
-                            if (r.ShowArea) text += $" Area:{r.Area}";
-                            if (r.ShowRatio) text += $" Ratio:{r.AreaB:F1}%";
+                        // 转换为 Bitmap 进行文字绘制 (解决中文乱码和堆叠问题)
+                        Bitmap resultBitmap = BitmapConverter.ToBitmap(sourceMat);
+                        try
+                        {
+                            using (Graphics g = Graphics.FromImage(resultBitmap))
+                            using (Font font = new Font("Microsoft YaHei", 9, FontStyle.Bold))
+                            using (Brush backgroundBrush = new SolidBrush(Color.FromArgb(160, 0, 0, 0)))
+                            {
+                                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
 
-                            g.DrawString(text, font, brush, 5, 25 + (i * lineHeight));
+                                // 在左侧绘制半透明背景列
+                                int lineHeight = 20;
+                                int boxWidth = 260;
+                                int boxHeight = (allMatchResults.Count * lineHeight) + 30;
+
+                                // 绘制半透明背景
+                                g.FillRectangle(backgroundBrush, 0, 0, boxWidth, boxHeight);
+                                g.DrawString("检测结果 (左侧列表):", font, Brushes.White, 5, 5);
+
+                                for (int i = 0; i < allMatchResults.Count; i++)
+                                {
+                                    var r = allMatchResults[i];
+                                    string status = r.IsOk ? "OK" : "NG";
+                                    Brush brush = r.IsOk ? Brushes.Lime : Brushes.Red;
+
+                                    string text = $"{i + 1}. {r.Name} [{status}]";
+                                    if (r.ShowArea) text += $" Area:{r.Area}";
+                                    if (r.ShowRatio) text += $" Ratio:{r.AreaB:F1}%";
+
+                                    g.DrawString(text, font, brush, 5, 25 + (i * lineHeight));
+                                }
+                            }
+
+                            showImageControl1.ClearAllRoi();
+                            showImageControl1.ImageBitmap = resultBitmap;
+                            return (resultBitmap, allMatchResults, allOk);
+                        }
+                        catch
+                        {
+                            if (!ReferenceEquals(showImageControl1.ImageBitmap, resultBitmap))
+                                resultBitmap.Dispose();
+                            throw;
                         }
                     }
-
-                    if (show)
-                    {
-                        showImageControl1.ClearAllRoi();
-                        showImageControl1.ImageBitmap = resultBitmap;
-                    }
-                    return (resultBitmap, allMatchResults, allOk);
 
                 }
             }
@@ -419,14 +465,12 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                     throw new ArgumentException("请先添加色彩文件再次执行匹配!");
 
                 bool allOk = true;
-                Rect searchRect = (colorParam.DetectedRoi.Size.Width > 0)
-                    ? colorParam.DetectedRoi.BoundingRect().Intersect(new Rect(0, 0, sourceImage.Width, sourceImage.Height))
-                    : new Rect(0, 0, sourceImage.Width, sourceImage.Height);
-
-                List<DetectionResult> allMatchResults = null;
+                bool usePositionCorrection = IsUsePositionCorrection();
+                IReadOnlyList<PositionCorrectionInfo> corrections = ReadCorrections(usePositionCorrection);
+                List<DetectionResult> allMatchResults = new List<DetectionResult>();
+                ColorProfile currentColor = null;
                 if (isOpenGeiGround)
                 {
-                    ColorProfile currentColor = null;
                     if (device is IPlc)
                     {
                         throw new Exception("未实现该通信方式<IPlc>");
@@ -444,26 +488,39 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                                 .Contains(strVal));
                         if (currentColor == null) currentColor = colorParam.Profiles[0];
                     }
-
-                    LogRuntimeStep("开始执行当前颜色检测");
-                    allMatchResults = RunCurrentDetection(sourceImage, currentColor, searchRect);
-                    LogRuntimeStep($"当前颜色检测完毕，结果数量:{(allMatchResults == null ? 0 : allMatchResults.Count)}");
                 }
-                else
+
+                for (int i = 0; i < corrections.Count; i++)
                 {
-                    LogRuntimeStep($"开始执行全部颜色检测，模板数量:{colorParam.Profiles.Count}");
-                    allMatchResults = RunDetection(sourceImage, searchRect);
-                    LogRuntimeStep($"全部颜色检测完毕，结果数量:{(allMatchResults == null ? 0 : allMatchResults.Count)}");
+                    PositionCorrectionInfo correction = corrections[i];
+                    Rect searchRect = BuildSearchRect(sourceImage, correction, usePositionCorrection);
+                    List<DetectionResult> targetResults;
 
-                    if (isOpenSort)
+                    if (isOpenGeiGround)
                     {
-                        LogRuntimeStep("开始执行颜色排序校验");
-                        allOk = SortAndCheckByProfile(allMatchResults, colorParam.Profiles, sortModel);
-                        LogRuntimeStep($"颜色排序校验完毕，结果:{allOk}");
+                        LogRuntimeStep($"开始执行当前颜色检测，目标:{i + 1}，ROI:{searchRect}");
+                        targetResults = RunCurrentDetection(sourceImage, currentColor, searchRect);
+                        LogRuntimeStep($"当前颜色检测完毕，目标:{i + 1}，结果数量:{(targetResults == null ? 0 : targetResults.Count)}");
                     }
+                    else
+                    {
+                        LogRuntimeStep($"开始执行全部颜色检测，目标:{i + 1}，模板数量:{colorParam.Profiles.Count}，ROI:{searchRect}");
+                        targetResults = RunDetection(sourceImage, searchRect);
+                        LogRuntimeStep($"全部颜色检测完毕，目标:{i + 1}，结果数量:{(targetResults == null ? 0 : targetResults.Count)}");
+
+                        if (isOpenSort)
+                        {
+                            LogRuntimeStep($"开始执行颜色排序校验，目标:{i + 1}");
+                            bool targetSortOk = SortAndCheckByProfile(targetResults, colorParam.Profiles, sortModel);
+                            allOk = allOk && targetSortOk;
+                            LogRuntimeStep($"颜色排序校验完毕，目标:{i + 1}，结果:{targetSortOk}");
+                        }
+                    }
+
+                    if (targetResults != null)
+                        allMatchResults.AddRange(targetResults);
                 }
 
-                allMatchResults = allMatchResults ?? new List<DetectionResult>();
                 if (allMatchResults.Count == 0)
                     allOk = false;
 
@@ -482,6 +539,109 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
             {
                 throw new InvalidOperationException("颜色识别失败", ex);
             }
+        }
+
+        /// <summary>
+        /// 判断当前运行是否启用位置修正。
+        /// </summary>
+        /// <returns>启用时返回 true。</returns>
+        private bool IsUsePositionCorrection()
+        {
+            NodeParamColorDiscern param = Params as NodeParamColorDiscern;
+            return param == null ? checkBoxUsePositionCorrection.Checked : param.UsePositionCorrection;
+        }
+
+        /// <summary>
+        /// 读取位置修正列表；未启用或未配置 ROI 时使用单个恒等修正，保持旧方案行为。
+        /// </summary>
+        /// <param name="usePositionCorrection">是否启用位置修正。</param>
+        /// <returns>运行用位置修正列表。</returns>
+        private IReadOnlyList<PositionCorrectionInfo> ReadCorrections(bool usePositionCorrection)
+        {
+            if (!usePositionCorrection || !HasSearchRoi())
+                return new List<PositionCorrectionInfo> { CreateIdentityCorrection() };
+
+            List<PositionCorrectionInfo> corrections = nodeSubscriptionPositionCorrection.GetValue<List<PositionCorrectionInfo>>();
+            return corrections ?? new List<PositionCorrectionInfo>();
+        }
+
+        /// <summary>
+        /// 创建不改变坐标的默认修正项。
+        /// </summary>
+        /// <returns>恒等位置修正信息。</returns>
+        private static PositionCorrectionInfo CreateIdentityCorrection()
+        {
+            return new PositionCorrectionInfo
+            {
+                TargetIndex = 1,
+                IsValid = true,
+                BaseScaleX = 1,
+                BaseScaleY = 1,
+                CurrentScaleX = 1,
+                CurrentScaleY = 1
+            };
+        }
+
+        /// <summary>
+        /// 判断模板是否配置了搜索 ROI。
+        /// </summary>
+        /// <returns>配置有效 ROI 时返回 true。</returns>
+        private bool HasSearchRoi()
+        {
+            return colorParam.DetectedRoi.Size.Width > 0 && colorParam.DetectedRoi.Size.Height > 0;
+        }
+
+        /// <summary>
+        /// 根据基准 ROI 和位置修正信息构建当前图像搜索区域。
+        /// </summary>
+        /// <param name="sourceImage">待识别图像。</param>
+        /// <param name="correction">当前目标的位置修正信息。</param>
+        /// <param name="usePositionCorrection">是否启用位置修正。</param>
+        /// <returns>裁剪到图像范围内的搜索矩形。</returns>
+        private Rect BuildSearchRect(Mat sourceImage, PositionCorrectionInfo correction, bool usePositionCorrection)
+        {
+            Rect imageRect = new Rect(0, 0, sourceImage.Width, sourceImage.Height);
+            if (!HasSearchRoi())
+                return imageRect;
+
+            if (!usePositionCorrection)
+                return colorParam.DetectedRoi.BoundingRect().Intersect(imageRect);
+
+            Point2f[] points = colorParam.DetectedRoi.Points();
+            var transformed = new List<PointF>();
+            for (int i = 0; i < points.Length; i++)
+                transformed.Add(_transformService.TransformPoint(new PointF(points[i].X, points[i].Y), correction));
+
+            return BuildBoundingRect(transformed).Intersect(imageRect);
+        }
+
+        /// <summary>
+        /// 根据点集合构建轴对齐包围矩形。
+        /// </summary>
+        /// <param name="points">当前目标 ROI 顶点集合。</param>
+        /// <returns>轴对齐矩形。</returns>
+        private static Rect BuildBoundingRect(IReadOnlyList<PointF> points)
+        {
+            if (points == null || points.Count == 0)
+                return new Rect();
+
+            float minX = points[0].X;
+            float minY = points[0].Y;
+            float maxX = points[0].X;
+            float maxY = points[0].Y;
+            for (int i = 1; i < points.Count; i++)
+            {
+                minX = Math.Min(minX, points[i].X);
+                minY = Math.Min(minY, points[i].Y);
+                maxX = Math.Max(maxX, points[i].X);
+                maxY = Math.Max(maxY, points[i].Y);
+            }
+
+            int x = (int)Math.Floor(minX);
+            int y = (int)Math.Floor(minY);
+            int right = (int)Math.Ceiling(maxX);
+            int bottom = (int)Math.Ceiling(maxY);
+            return new Rect(x, y, Math.Max(0, right - x), Math.Max(0, bottom - y));
         }
 
         /// <summary>
@@ -848,7 +1008,6 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                         Cv2.BitwiseAnd(maskL, maskA, mask);
                         Cv2.BitwiseAnd(mask, maskB, mask);
                     }
-                    foreach (var c in channels) c.Dispose();
                 }
 
                 if (profile.UseStructure && !structureMask.Empty())
@@ -927,6 +1086,25 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
         private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
         {
             sortModel = comboBox1.SelectedIndex;
+        }
+
+        /// <summary>
+        /// 位置修正开关变更时同步订阅控件启用状态。
+        /// </summary>
+        /// <param name="sender">事件来源。</param>
+        /// <param name="e">事件参数。</param>
+        private void checkBoxUsePositionCorrection_CheckedChanged(object sender, EventArgs e)
+        {
+            UpdatePositionCorrectionEnabled();
+        }
+
+        /// <summary>
+        /// 根据位置修正开关启用或禁用位置修正订阅控件。
+        /// </summary>
+        private void UpdatePositionCorrectionEnabled()
+        {
+            if (nodeSubscriptionPositionCorrection != null)
+                nodeSubscriptionPositionCorrection.Enabled = checkBoxUsePositionCorrection.Checked;
         }
     }
 }

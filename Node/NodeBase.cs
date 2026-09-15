@@ -31,6 +31,10 @@ namespace TDJS_Vision.Node
         private string _runtimeTimeText = "*";
         private FrmNodeRename _frmNodeRename;
         /// <summary>
+        /// 当前节点运行结果，由统一替换入口负责释放旧结果中的图像资源。
+        /// </summary>
+        private INodeResult _result;
+        /// <summary>
         /// 运行状态字段的同步锁，流程后台运行时状态会从工作线程写入。
         /// </summary>
         private readonly object _runtimeStateLock = new object();
@@ -116,7 +120,25 @@ namespace TDJS_Vision.Node
         /// <summary>
         /// 节点运行结果
         /// </summary>
-        public INodeResult Result { get; protected set; }
+        public INodeResult Result
+        {
+            get { return Volatile.Read(ref _result); }
+            protected set
+            {
+                INodeResult previousResult = Interlocked.Exchange(ref _result, value);
+                if (!ReferenceEquals(previousResult, value))
+                    NodeResultResourceManager.Release(previousResult);
+            }
+        }
+
+        /// <summary>
+        /// 释放当前节点最后一次运行结果持有的图像资源，供节点删除和方案关闭统一调用。
+        /// </summary>
+        internal void ReleaseResultResources()
+        {
+            INodeResult previousResult = Interlocked.Exchange(ref _result, null);
+            NodeResultResourceManager.Release(previousResult);
+        }
 
         /// <summary>
         /// 检查节点信号源Token是否取消,如果取消会抛出异常，停止运行流程
@@ -567,6 +589,7 @@ namespace TDJS_Vision.Node
             }
 
             SetStatus(status, elapsedMilliseconds.ToString());
+            Process?.TraceNodeCompleted(this, status, elapsedMilliseconds);
             PerformanceSpikeDiagnostics.LogNodeMemoryIfNeeded(Process == null ? "未知" : Process.ProcessName, ID, NodeName, GetNodeStatusText(status), elapsedMilliseconds);
             return elapsedMilliseconds;
         }
@@ -654,6 +677,8 @@ namespace TDJS_Vision.Node
             if (!releaseResources)
                 return true;
 
+            ReleaseResultResources();
+
             // 移除AI节点需要释放AI句柄
             if (NodeType == NodeType.AITD && ParamForm.Params is NodeParamTDAI param)
             {
@@ -676,6 +701,15 @@ namespace TDJS_Vision.Node
 
             // 移除的节点如果包含了加载的检测项也需要从静态全局检测项中移除
             TDAI.DetectItemMap.Remove($"{this.ID}.{this.NodeName}");
+            try
+            {
+                (ParamForm as IDisposable)?.Dispose();
+            }
+            finally
+            {
+                // 参数窗体释放失败时也必须释放节点控件及其后台资源。
+                Dispose();
+            }
             return true;
         }
 

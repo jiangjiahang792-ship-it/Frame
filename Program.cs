@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using Logger;
 using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Forms.YTMessageBox;
+using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 using TDJS_Vision.Startup;
 
 namespace TDJS_Vision
@@ -38,25 +39,33 @@ namespace TDJS_Vision
         [STAThread]
         static void Main(string[] args)
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
+            if (YoloIsolatedWorkerProgram.TryRun(args))
+                return;
 
-            using (Mutex singleInstanceMutex = new Mutex(false, SingleInstanceMutexName))
+            using (BackgroundWindowActivationGuard activationGuard =
+                BackgroundWindowActivationGuard.CreateForCurrentThread())
             {
-                bool hasSingleInstance = TryEnterSingleInstance(singleInstanceMutex);
-                if (!hasSingleInstance)
-                {
-                    MessageBoxTD.Show("软件已经运行，请勿重复启动！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
 
-                try
+                using (Mutex singleInstanceMutex = new Mutex(false, SingleInstanceMutexName))
                 {
-                    RunApplication(args);
-                }
-                finally
-                {
-                    singleInstanceMutex.ReleaseMutex();
+                    bool hasSingleInstance = TryEnterSingleInstance(singleInstanceMutex);
+                    if (!hasSingleInstance)
+                    {
+                        if (!StartupDisplayMode.IsBackgroundAcceptance)
+                            MessageBoxTD.Show("软件已经运行，请勿重复启动！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+
+                    try
+                    {
+                        RunApplication(args);
+                    }
+                    finally
+                    {
+                        singleInstanceMutex.ReleaseMutex();
+                    }
                 }
             }
         }
@@ -92,6 +101,12 @@ namespace TDJS_Vision
             // HslCommunication通信库授权
             if (!HslCommunication.Authorization.SetAuthorizationCode("d8868ab9-4494-4056-98c6-b669e2434e25"))
             {
+                if (StartupDisplayMode.IsBackgroundAcceptance)
+                {
+                    LogHelper.AddLog(MsgLevel.Exception, "后台性能验收启动失败：HslCommunication通信库授权失败。", true);
+                    return;
+                }
+
                 MessageBoxTD.Show("HslCommunication通信库授权失败！", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             string solutionPath = null;

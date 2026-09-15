@@ -9,8 +9,17 @@ namespace TDJS_Vision.Device.Modbus
     /// <summary>
     /// Modbus RTU 串口通信从站类（主站主动轮询）
     /// </summary>
-    public class ModbusRTUPoll : IModbus
+    public class ModbusRTUPoll : ReconnectingCommunicationDevice, IModbus
     {
+        /// <summary>Modbus操作允许的最小超时时间。</summary>
+        private const int MinimumOperationTimeoutMs = 100;
+
+        /// <summary>Modbus操作允许的最大超时时间。</summary>
+        private const int MaximumOperationTimeoutMs = 60000;
+
+        /// <summary>当前连接和收发操作的有限超时时间。</summary>
+        private int _operationTimeoutMs = 5000;
+
         private PipeSerialPort _pipe;
         private ModbusRtu _modbus;
 
@@ -19,13 +28,28 @@ namespace TDJS_Vision.Device.Modbus
 
         public IModbusParam ModbusParam { get; set; }
 
-        public bool IsConnect { get; set; }
+        /// <inheritdoc />
+        protected override string CommunicationName => UserDefinedName;
+        /// <inheritdoc />
+        protected override HslCommunication.Core.Device.DeviceCommunication CommunicationClient => _modbus;
+
+        /// <summary>获取或设置Modbus RTU收发操作的有限超时时间。</summary>
+        public int OperationTimeoutMs
+        {
+            get => _operationTimeoutMs;
+            set
+            {
+                _operationTimeoutMs = Math.Max(
+                    MinimumOperationTimeoutMs,
+                    Math.Min(MaximumOperationTimeoutMs, value));
+                ApplyOperationTimeout();
+            }
+        }
 
         public DevType DevType { get; set; } = DevType.ModbusRTUPoll;
         public DeviceBrand Brand { get; set; } = DeviceBrand.Unknow;
         public string ClassName { get; set; } = typeof(ModbusRTUPoll).FullName;
 
-        public event EventHandler<bool> ConnectStatusEvent;
 
         #region 构造函数
 
@@ -52,8 +76,7 @@ namespace TDJS_Vision.Device.Modbus
                 _pipe.RtsEnable = false;
                 _pipe.DtrEnable = false;
                 _pipe.SleepTime = 20;
-                _pipe.ReceiveTimeOut = 5000;
-                _pipe.OpenCommunication();
+                ApplyOperationTimeout();
                 _modbus.CommunicationPipe = _pipe;
             }
             catch (Exception ex)
@@ -80,8 +103,7 @@ namespace TDJS_Vision.Device.Modbus
             _pipe.RtsEnable = false;
             _pipe.DtrEnable = false;
             _pipe.SleepTime = 20;
-            _pipe.ReceiveTimeOut = 5000;
-            _pipe.OpenCommunication();
+            ApplyOperationTimeout();
             _modbus.CommunicationPipe = _pipe;
         }
 
@@ -91,52 +113,40 @@ namespace TDJS_Vision.Device.Modbus
 
         public void Connect()
         {
-            try
-            {
-                var param = ModbusParam as ModbusRTUParam;
-                // 创建并配置串口
-                _pipe = new PipeSerialPort();
-                _pipe.SerialPortInni(
-                    portName: param.PortName,
-                    baudRate: param.BaudRate,
-                    dataBits: param.DataBits,
-                    stopBits: param.StopBits,
-                    parity: param.Parity
-                );
-                _pipe.RtsEnable = false;
-                _pipe.DtrEnable = false;
-                _pipe.SleepTime = 20;
-                _pipe.ReceiveTimeOut = 5000;
-                _pipe.OpenCommunication();
-                _modbus.CommunicationPipe = _pipe;
+            if (!ConnectWithRecovery())
+                throw new InvalidOperationException($"Modbus串口设备【{DevName}】连接失败，后台将自动重试。");
+        }
 
-                ConnectStatusEvent?.Invoke(this, true);
-                IsConnect = true;
-            }
-            catch (Exception ex)
-            {
-                ConnectStatusEvent?.Invoke(this, false);
-                IsConnect = false;
-                throw new Exception($"Modbus串口设备【{DevName}】连接失败: {ex.Message}");
-            }
+        /// <inheritdoc />
+        protected override HslCommunication.OperateResult OpenCommunicationCore()
+        {
+            if (_modbus == null) CreateDevice();
+            _pipe.CloseCommunication();
+            var currentParam = (ModbusRTUParam)ModbusParam;
+            _pipe.SerialPortInni(currentParam.PortName, currentParam.BaudRate, currentParam.DataBits,
+                currentParam.StopBits, currentParam.Parity);
+            ApplyOperationTimeout();
+            return _modbus.Open();
         }
 
         public void Disconnect()
         {
-            if (_modbus != null)
-            {
-                //_modbus.Dispose();
-                _modbus.Close();
-                //_modbus = null;
-            }
+            DisconnectWithRecovery();
+        }
 
-            if (_pipe != null)
-            {
-                _pipe.CloseCommunication();
-            }
+        /// <inheritdoc />
+        protected override void CloseCommunicationCore() => _pipe?.CloseCommunication();
 
-            //_pipe = null;
-            IsConnect = false;
+        /// <summary>把统一有限超时应用到当前Modbus RTU管线和底层串口。</summary>
+        private void ApplyOperationTimeout()
+        {
+            if (_pipe == null)
+                return;
+            _pipe.ReceiveTimeOut = _operationTimeoutMs;
+            // SerialPortInni会重建串口并丢失原端口配置，超时只能更新当前实例。
+            var port = _pipe.GetPipe();
+            port.ReadTimeout = _operationTimeoutMs;
+            port.WriteTimeout = _operationTimeoutMs;
         }
 
         #endregion

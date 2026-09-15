@@ -58,14 +58,13 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImagePreprocess
                 if (form == null || param == null)
                     throw new Exception("图像预处理参数异常！");
 
+                var result = new NodeResultImagePreprocess();
+                Result = result;
                 OutputImage inputImage = form.GetInputOutputImage();
                 Mat inputMat = form.GetInputMat(inputImage);
                 Mat processed = ImagePreprocessAlgorithm.Execute(inputMat, param);
-                var result = new NodeResultImagePreprocess
-                {
-                    OutputImage = OutputImage.FromSingleImage(processed),
-                    ModeName = NodeParamFormImagePreprocess.GetModeDisplayName(param.Mode)
-                };
+                result.OutputImage = OutputImage.FromOwnedSingleImage(processed);
+                result.ModeName = NodeParamFormImagePreprocess.GetModeDisplayName(param.Mode);
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 result.RunTime = time;
@@ -80,12 +79,14 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImagePreprocess
             {
                 LogHelper.AddLog(MsgLevel.Warn, $"节点({ID}.{NodeName})运行取消！", true);
                 SetRunResult(startTime, NodeStatus.Unexecuted);
+                Result = new NodeResultImagePreprocess();
                 throw;
             }
             catch (Exception ex)
             {
                 LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
                 SetRunResult(startTime, NodeStatus.Failed);
+                Result = new NodeResultImagePreprocess();
                 throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
             }
         }

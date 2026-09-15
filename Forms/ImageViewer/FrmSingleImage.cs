@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using Logger;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
@@ -31,6 +32,21 @@ namespace TDJS_Vision.Forms.ImageViewer
         // 记录每个流程窗口上一次选择的AI节点，避免同一窗口反复弹出选择框。
         private static readonly Dictionary<string, int> AiNodeSelectionCache = new Dictionary<string, int>();
 
+        /// <summary>
+        /// 当前窗口等待UI显示的最新帧，容量固定为1。
+        /// </summary>
+        private PendingViewerFrame _pendingViewerFrame;
+
+        /// <summary>
+        /// 当前窗口是否已经向UI消息队列投递刷新任务。
+        /// </summary>
+        private int _viewerDispatchScheduled;
+
+        /// <summary>
+        /// 窗口事件和待显示资源是否已经释放。
+        /// </summary>
+        private int _runtimeResourcesReleased;
+
         public FrmSingleImage(string name)
         {
             InitializeComponent();
@@ -53,8 +69,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         /// </summary>
         private void FrmSingleImage_FormClosed(object sender, FormClosedEventArgs e)
         {
-            LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
-            UserPermissionContext.RoleChanged -= UserPermissionContext_RoleChanged;
+            ReleaseRuntimeResources();
         }
 
         /// <summary>
@@ -195,6 +210,9 @@ namespace TDJS_Vision.Forms.ImageViewer
             if (FormName != NormalizeWindowKey(e.WinName))
                 return;
 
+            if (!e.TryTakeBitmap(out Bitmap bitmap))
+                return;
+
             // 同一个窗口可能被多个图像显示节点复用，这里记录真正刷新当前画面的节点。
             if (sender is NodeImageShow nodeShow)
             {
@@ -203,74 +221,269 @@ namespace TDJS_Vision.Forms.ImageViewer
                 _isBoundToProcess = true;
             }
 
-            SetViewerImage(e.Bitmap, e.DisplayResult);
+            SetViewerImage(bitmap, e.DisplayResult, e.TraceContext);
+            e.ConfirmBitmapOwnershipTransfer(bitmap);
         }
 
-        private void SetViewerImage(Bitmap bitmap, AlgorithmResult displayResult = null)
+        private void SetViewerImage(
+            Bitmap bitmap,
+            AlgorithmResult displayResult = null,
+            PerformanceTraceContext traceContext = null)
         {
-            if (IsDisposed)
+            if (Volatile.Read(ref _runtimeResourcesReleased) != 0 || IsDisposed)
             {
                 bitmap?.Dispose();
                 return;
             }
 
-            Stopwatch scheduleStopwatch = Stopwatch.StartNew();
-            Action updateImage = () =>
+            bool diagnosticEnabled = PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug);
+            Stopwatch scheduleStopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
+            var frame = new PendingViewerFrame(
+                bitmap,
+                displayResult,
+                traceContext,
+                diagnosticEnabled,
+                scheduleStopwatch);
+            bitmap = null;
+
+            PendingViewerFrame superseded = Interlocked.Exchange(ref _pendingViewerFrame, frame);
+            if (superseded != null)
             {
-                long queueDelay = scheduleStopwatch.ElapsedMilliseconds;
-                if (showImageControl1.IsDisposed)
+                if (diagnosticEnabled || superseded.DiagnosticEnabled)
                 {
-                    bitmap?.Dispose();
-                    return;
-                }
-
-                Stopwatch uiStopwatch = Stopwatch.StartNew();
-                showImageControl1.SetImage(bitmap, displayResult);
-                long setImageMs = uiStopwatch.ElapsedMilliseconds;
-                PerformanceSpikeDiagnostics.LogIfEnabled(
-                    MsgLevel.Debug,
-                    () => $"【性能诊断-图像显示】窗口({FormName}) UI刷新完成，图像={GetBitmapDiagnosticText(bitmap)}；显示结果={GetDisplayResultDiagnosticText(displayResult)}；排队等待={queueDelay}ms；SetImage={setImageMs}ms。",
-                    true);
-                PerformanceSpikeDiagnostics.LogSlowIfEnabled(
-                    MsgLevel.Debug,
-                    PerformanceSpikeDiagnostics.UiQueueSlowMs,
-                    () => $"【慢诊断-窗口图像显示】窗口({FormName}) 图像={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；排队等待={queueDelay}ms；SetImage={setImageMs}ms；窗体可见={Visible}；句柄已创建={IsHandleCreated}；InvokeRequired={InvokeRequired}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
-                    true,
-                    queueDelay,
-                    setImageMs);
-            };
-
-            if (InvokeRequired)
-            {
-                if (!IsHandleCreated)
-                {
-                    bitmap?.Dispose();
-                    return;
-                }
-
-                try
-                {
-                    BeginInvoke(updateImage);
-                    long postMs = scheduleStopwatch.ElapsedMilliseconds;
                     PerformanceSpikeDiagnostics.LogIfEnabled(
                         MsgLevel.Debug,
-                        () => $"【性能诊断-图像显示】窗口({FormName}) 已投递UI刷新，图像={GetBitmapDiagnosticText(bitmap)}；显示结果={GetDisplayResultDiagnosticText(displayResult)}；投递耗时={postMs}ms。",
+                        () => $"【完整耗时-图像显示】{GetTraceContextText(superseded.TraceContext)}；阶段=容量1槽被新帧替换；窗口={FormName}；图像={superseded.BitmapDiagnosticText}；显示结果={superseded.DisplayResultDiagnosticText}",
+                        true);
+                }
+
+                superseded.Dispose();
+            }
+
+            ScheduleLatestViewerFrame(frame);
+        }
+
+        /// <summary>
+        /// 保证每个窗口的UI消息队列中最多存在一个图像刷新任务。
+        /// </summary>
+        /// <param name="submittedFrame">触发本次调度的帧，用于Debug投递诊断。</param>
+        private void ScheduleLatestViewerFrame(PendingViewerFrame submittedFrame)
+        {
+            if (Interlocked.CompareExchange(ref _viewerDispatchScheduled, 1, 0) != 0)
+                return;
+
+            if (Volatile.Read(ref _runtimeResourcesReleased) != 0 || IsDisposed)
+            {
+                Interlocked.Exchange(ref _viewerDispatchScheduled, 0);
+                DisposePendingViewerFrame();
+                return;
+            }
+
+            if (!InvokeRequired)
+            {
+                ProcessLatestViewerFrame();
+                return;
+            }
+
+            if (!IsHandleCreated)
+            {
+                Interlocked.Exchange(ref _viewerDispatchScheduled, 0);
+                DisposePendingViewerFrame();
+                return;
+            }
+
+            try
+            {
+                BeginInvoke(new MethodInvoker(ProcessLatestViewerFrame));
+                if (submittedFrame != null && submittedFrame.DiagnosticEnabled)
+                {
+                    long postMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(submittedFrame.ScheduleStopwatch);
+                    PerformanceSpikeDiagnostics.LogIfEnabled(
+                        MsgLevel.Debug,
+                        () => $"【完整耗时-图像显示】{GetTraceContextText(submittedFrame.TraceContext)}；阶段=已投递UI；窗口={FormName}；图像={submittedFrame.BitmapDiagnosticText}；显示结果={submittedFrame.DisplayResultDiagnosticText}；投递耗时={postMs}ms",
                         true);
                     PerformanceSpikeDiagnostics.LogSlowIfEnabled(
                         MsgLevel.Debug,
                         PerformanceSpikeDiagnostics.CommonSlowMs,
-                        () => $"【慢诊断-窗口投递】窗口({FormName}) 图像={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(displayResult)}；投递耗时={postMs}ms；句柄已创建={IsHandleCreated}；InvokeRequired={InvokeRequired}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                        () => $"【慢诊断-窗口投递】{GetTraceContextText(submittedFrame.TraceContext)}；窗口={FormName}；图像={submittedFrame.BitmapDiagnosticText}；显示结果={submittedFrame.DisplayResultDiagnosticText}；投递耗时={postMs}ms；句柄已创建={IsHandleCreated}；InvokeRequired={InvokeRequired}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
                         true,
                         postMs);
                 }
-                catch
-                {
-                    bitmap?.Dispose();
-                }
             }
-            else
+            catch (InvalidOperationException)
             {
-                updateImage();
+                Interlocked.Exchange(ref _viewerDispatchScheduled, 0);
+                DisposePendingViewerFrame();
+            }
+        }
+
+        /// <summary>
+        /// 在UI线程取出并显示当前最新帧，完成后处理调度期间到达的新帧。
+        /// </summary>
+        private void ProcessLatestViewerFrame()
+        {
+            PendingViewerFrame frame = Interlocked.Exchange(ref _pendingViewerFrame, null);
+            try
+            {
+                if (frame != null && Volatile.Read(ref _runtimeResourcesReleased) == 0 && !IsDisposed)
+                    DisplayViewerFrame(frame);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Warn, "图像窗口刷新失败：" + ex.Message, true);
+            }
+            finally
+            {
+                frame?.Dispose();
+                Interlocked.Exchange(ref _viewerDispatchScheduled, 0);
+                PendingViewerFrame pending = Volatile.Read(ref _pendingViewerFrame);
+                if (pending != null)
+                    ScheduleLatestViewerFrame(pending);
+            }
+        }
+
+        /// <summary>
+        /// 将一组图像、叠加结果和追踪上下文显示到当前窗口。
+        /// </summary>
+        /// <param name="frame">当前窗口已取出的最新帧。</param>
+        private void DisplayViewerFrame(PendingViewerFrame frame)
+        {
+            if (showImageControl1.IsDisposed)
+                return;
+
+            long queueDelay = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(frame.ScheduleStopwatch);
+            Bitmap bitmap = frame.Bitmap;
+            Stopwatch uiStopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
+            if (!showImageControl1.TrySetImage(bitmap, frame.DisplayResult))
+                return;
+
+            frame.TransferBitmapOwnership();
+            long setImageMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(uiStopwatch);
+            if (frame.DiagnosticEnabled)
+            {
+                long traceToUiMilliseconds = frame.TraceContext?.GetElapsedMilliseconds(Stopwatch.GetTimestamp()) ?? 0L;
+                PerformanceSpikeDiagnostics.LogIfEnabled(
+                    MsgLevel.Debug,
+                    () => $"【完整耗时-图像显示】{GetTraceContextText(frame.TraceContext)}；阶段=UI刷新完成；窗口={FormName}；图像={GetBitmapDiagnosticText(bitmap)}；显示结果={GetDisplayResultDiagnosticText(frame.DisplayResult)}；节点投递到UI={traceToUiMilliseconds}ms；UI排队={queueDelay}ms；SetImage={setImageMs}ms",
+                    true);
+                PerformanceSpikeDiagnostics.LogSlowIfEnabled(
+                    MsgLevel.Debug,
+                    PerformanceSpikeDiagnostics.UiQueueSlowMs,
+                    () => $"【慢诊断-窗口图像显示】{GetTraceContextText(frame.TraceContext)}；窗口={FormName}；图像={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；显示结果={PerformanceSpikeDiagnostics.GetAlgorithmResultText(frame.DisplayResult)}；节点投递到UI={traceToUiMilliseconds}ms；排队等待={queueDelay}ms；SetImage={setImageMs}ms；窗体可见={Visible}；句柄已创建={IsHandleCreated}；InvokeRequired={InvokeRequired}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                    true,
+                    traceToUiMilliseconds,
+                    queueDelay,
+                    setImageMs);
+            }
+        }
+
+        /// <summary>
+        /// 释放尚未显示的最新帧。
+        /// </summary>
+        private void DisposePendingViewerFrame()
+        {
+            PendingViewerFrame pending = Interlocked.Exchange(ref _pendingViewerFrame, null);
+            pending?.Dispose();
+        }
+
+        /// <summary>
+        /// 解除窗口静态事件并排空容量1显示槽。
+        /// </summary>
+        private void ReleaseRuntimeResources()
+        {
+            if (Interlocked.Exchange(ref _runtimeResourcesReleased, 1) != 0)
+                return;
+
+            NodeImageShow.ImageShowChanged -= NodeImageShow_ImageShowChanged;
+            NodeImageShow.ImageShowWindowNameChanged -= NodeImageShow_ImageShowWindowNameChanged1;
+            SolRunParamControl.ImageShowChanged -= NodeImageShow_ImageShowChanged;
+            LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+            UserPermissionContext.RoleChanged -= UserPermissionContext_RoleChanged;
+            DisposePendingViewerFrame();
+            Interlocked.Exchange(ref _viewerDispatchScheduled, 0);
+            NodeImageShow.ResetWindowRefreshState(FormName);
+        }
+
+        /// <summary>
+        /// 一次待显示帧，将Bitmap、叠加结果和诊断上下文作为不可拆分的一组保存。
+        /// </summary>
+        private sealed class PendingViewerFrame : IDisposable
+        {
+            /// <summary>
+            /// 初始化一组待显示帧并接管Bitmap所有权。
+            /// </summary>
+            /// <param name="bitmap">待显示Bitmap。</param>
+            /// <param name="displayResult">同一帧的叠加结果。</param>
+            /// <param name="traceContext">同一帧的性能追踪上下文。</param>
+            /// <param name="diagnosticEnabled">是否记录完整Debug诊断。</param>
+            /// <param name="scheduleStopwatch">UI排队计时器。</param>
+            public PendingViewerFrame(
+                Bitmap bitmap,
+                AlgorithmResult displayResult,
+                PerformanceTraceContext traceContext,
+                bool diagnosticEnabled,
+                Stopwatch scheduleStopwatch)
+            {
+                Bitmap = bitmap;
+                DisplayResult = displayResult;
+                TraceContext = traceContext;
+                DiagnosticEnabled = diagnosticEnabled;
+                ScheduleStopwatch = scheduleStopwatch;
+                BitmapDiagnosticText = diagnosticEnabled ? GetBitmapDiagnosticText(bitmap) : string.Empty;
+                DisplayResultDiagnosticText = diagnosticEnabled ? GetDisplayResultDiagnosticText(displayResult) : string.Empty;
+            }
+
+            /// <summary>
+            /// 当前待显示Bitmap，由本对象持有直到成功交给显示控件。
+            /// </summary>
+            public Bitmap Bitmap { get; private set; }
+
+            /// <summary>
+            /// 当前帧对应的算法叠加结果。
+            /// </summary>
+            public AlgorithmResult DisplayResult { get; }
+
+            /// <summary>
+            /// 当前帧对应的性能追踪上下文。
+            /// </summary>
+            public PerformanceTraceContext TraceContext { get; }
+
+            /// <summary>
+            /// 当前帧是否启用完整Debug诊断。
+            /// </summary>
+            public bool DiagnosticEnabled { get; }
+
+            /// <summary>
+            /// 当前帧的UI排队计时器，Debug关闭时为空。
+            /// </summary>
+            public Stopwatch ScheduleStopwatch { get; }
+
+            /// <summary>
+            /// Debug开启时固化的Bitmap摘要，避免帧被替换释放后再读取原对象。
+            /// </summary>
+            public string BitmapDiagnosticText { get; }
+
+            /// <summary>
+            /// Debug开启时固化的叠加结果摘要。
+            /// </summary>
+            public string DisplayResultDiagnosticText { get; }
+
+            /// <summary>
+            /// Bitmap成功交给显示控件后解除本对象的释放责任。
+            /// </summary>
+            public void TransferBitmapOwnership()
+            {
+                Bitmap = null;
+            }
+
+            /// <summary>
+            /// 释放仍由容量1槽持有的Bitmap。
+            /// </summary>
+            public void Dispose()
+            {
+                Bitmap bitmap = Bitmap;
+                Bitmap = null;
+                bitmap?.Dispose();
             }
         }
 
@@ -584,6 +797,16 @@ namespace TDJS_Vision.Forms.ImageViewer
         }
 
         /// <summary>
+        /// 获取UI刷新日志使用的跨线程流程关联文本。
+        /// </summary>
+        /// <param name="traceContext">图像显示节点创建的诊断上下文。</param>
+        /// <returns>上下文不存在时返回手动或非流程来源标记。</returns>
+        private static string GetTraceContextText(PerformanceTraceContext traceContext)
+        {
+            return traceContext?.ToLogText() ?? "流程=非流程来源；TraceId=无；RunId=0；来源节点=无";
+        }
+
+        /// <summary>
         /// 收集新版ROI结果绘制节点中绘制项、单布尔判定或旧颜色规则订阅的来源节点。
         /// </summary>
         /// <param name="filter">待补充的过滤范围。</param>
@@ -870,16 +1093,97 @@ namespace TDJS_Vision.Forms.ImageViewer
             }
         }
     }
+    /// <summary>
+    /// 图像显示事件参数，包含显示内容和可选的跨线程流程诊断上下文。
+    /// </summary>
     public class ImageShowPamra
     {
+        /// <summary>尚未被目标窗口认领的位图。</summary>
+        private Bitmap _bitmap;
+
+        /// <summary>位图是否已经被一个目标窗口认领。</summary>
+        private int _bitmapClaimed;
+
+        /// <summary>位图是否已经由认领窗口确认接管。</summary>
+        private int _bitmapOwnershipTransferred;
+
+        /// <summary>目标图像窗口名称。</summary>
         public string WinName;
-        public Bitmap Bitmap;
+        /// <summary>需要叠加到图像窗口的算法显示结果。</summary>
         public AlgorithmResult DisplayResult;
-        public ImageShowPamra(string winname, Bitmap bitmap, AlgorithmResult displayResult = null)
+        /// <summary>跨线程流程诊断上下文，Debug关闭时为空。</summary>
+        public PerformanceTraceContext TraceContext;
+
+        /// <summary>当前位图是否已经由一个目标窗口确认接管。</summary>
+        public bool IsBitmapClaimed => Volatile.Read(ref _bitmapOwnershipTransferred) != 0;
+
+        /// <summary>当前是否存在尚未确认转交的位图认领。</summary>
+        public bool HasUnconfirmedBitmapClaim =>
+            Volatile.Read(ref _bitmapClaimed) != 0 &&
+            Volatile.Read(ref _bitmapOwnershipTransferred) == 0;
+
+        /// <summary>
+        /// 创建图像显示事件参数。
+        /// </summary>
+        /// <param name="winname">目标窗口名称。</param>
+        /// <param name="bitmap">待显示位图。</param>
+        /// <param name="displayResult">显示叠加结果。</param>
+        /// <param name="traceContext">跨线程流程诊断上下文。</param>
+        public ImageShowPamra(
+            string winname,
+            Bitmap bitmap,
+            AlgorithmResult displayResult = null,
+            PerformanceTraceContext traceContext = null)
         {
             WinName = FrmSingleImage.NormalizeWindowKey(winname);
-            Bitmap = bitmap;
+            _bitmap = bitmap;
             DisplayResult = displayResult;
+            TraceContext = traceContext;
+        }
+
+        /// <summary>
+        /// 由匹配的目标窗口原子预认领位图，同一位图最多成功预认领一次。
+        /// </summary>
+        /// <param name="bitmap">成功时返回由调用窗口负责释放的位图。</param>
+        /// <returns>成功预认领位图返回 true；窗口接管后还需确认转交。</returns>
+        public bool TryTakeBitmap(out Bitmap bitmap)
+        {
+            bitmap = null;
+            if (Interlocked.CompareExchange(ref _bitmapClaimed, 1, 0) != 0)
+                return false;
+
+            bitmap = Volatile.Read(ref _bitmap);
+            if (bitmap == null)
+                return false;
+
+            return true;
+        }
+
+        /// <summary>
+        /// 在目标窗口已经接管Bitmap后确认转交，发布器随后不再负责释放。
+        /// </summary>
+        /// <param name="bitmap">由本次认领取得并已交给窗口的Bitmap。</param>
+        /// <returns>成功确认本次转交返回 true。</returns>
+        public bool ConfirmBitmapOwnershipTransfer(Bitmap bitmap)
+        {
+            if (bitmap == null || Volatile.Read(ref _bitmapClaimed) == 0)
+                return false;
+
+            Bitmap transferred = Interlocked.CompareExchange(ref _bitmap, null, bitmap);
+            if (!ReferenceEquals(transferred, bitmap))
+                return false;
+
+            Volatile.Write(ref _bitmapOwnershipTransferred, 1);
+            return true;
+        }
+
+        /// <summary>
+        /// 发布结束后释放未认领或认领后尚未确认转交的位图。
+        /// </summary>
+        public void DisposeUnclaimedBitmap()
+        {
+            Bitmap bitmap = Interlocked.Exchange(ref _bitmap, null);
+            bitmap?.Dispose();
         }
     }
 }

@@ -143,6 +143,22 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             }
         }
 
+        /// <summary>
+        /// 判断检测项实测值是否落在配置上下限内。
+        /// </summary>
+        /// <param name="item">检测项配置。</param>
+        /// <param name="value">待判断的实测值。</param>
+        /// <returns>上下限均解析成功且实测值在范围内时返回 true。</returns>
+        public static bool IsValueWithinLimits(DetectItemInfo item, float value)
+        {
+            if (item == null)
+                return false;
+
+            bool minOk = float.TryParse(item.MinValue, out float min) && value >= min;
+            bool maxOk = float.TryParse(item.MaxValue, out float max) && value <= max;
+            return minOk && maxOk;
+        }
+
         public static void NormalizeDetectItems(List<DetectItemInfo> detectItemInfos)
         {
             DetectItemLanguage.NormalizeItems(detectItemInfos);

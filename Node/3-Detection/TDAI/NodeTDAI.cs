@@ -1,4 +1,5 @@
 ﻿using Logger;
+using OpenCvSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -58,6 +59,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 {
                     if (Result is NodeResultTDAI res)
                     {
+                        OutputImage subscribedInputImage = null;
                         OutputImage inputImage = null;
                         try
                         {
@@ -67,12 +69,18 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测开始{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                             // 清空上次检测结果
                             res.AlgorithmResult.Clear();
+                            res.ResetJudgeOk();
 
                             // 获取图像
-                            inputImage = form.GetOutputImage();
+                            subscribedInputImage = form.GetOutputImage();
+                            inputImage = subscribedInputImage;
 
                             LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测,图像获取完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                             LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测输入图像摘要：订阅({param.Text1}-{param.Text2})，{BuildOutputImageSummary(inputImage)}", true);
+                            EnsureInputImageReady(inputImage, param);
+                            inputImage = BuildRoiInputImage(inputImage, param);
+                            if (param.RoiEnable)
+                                LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测ROI裁剪完成：区域数量={param.RoiRegions.Count}，{BuildOutputImageSummary(inputImage)}", true);
                             EnsureInputImageReady(inputImage, param);
                             LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测模型检查开始：{BuildModelSummary(param)}", true);
                             await EnsureModelReadyAsync(param);
@@ -150,17 +158,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     var handleDet = param.Yolo8 as Yolo8Det;
                                     if (handleDet == null)
                                         throw new Exception("AI模型句柄类型与DET模型不匹配，请重新加载模型！");
+                                    for (int i = 0; i < inputImage.Bitmaps.Count; i++)
                                     {
                                         List<DetResult> tmp = new List<DetResult>();
-                                        var img = inputImage.Bitmaps[0];
-                                        if (inputImage.Rectangles.Count != 0)
-                                            tmp = handleDet.Detect(img);
-                                        else
-                                            tmp = handleDet.Detect(img);
+                                        var img = inputImage.Bitmaps[i];
+                                        Rect offsetRect = GetOffsetRect(inputImage, i);
+                                        tmp = handleDet.Detect(img, offsetRect.X, offsetRect.Y);
 
                                         det_results.AddRange(tmp);
 
-                                        LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测推理完毕,结果数量:{tmp.Count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                                        LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测推理完毕,图像序号:{i + 1},结果数量:{tmp.Count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                                     }
 
                                     #endregion
@@ -178,6 +185,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                             break;
                                         case ModelName.XM_Fakra模型:
                                             XMSGParse.Parse(det_results, result_count, param, Process,ref res);
+                                            break;
+                                        case ModelName.多端子模型:
+                                            MultiTerminalParse.Parse(det_results, result_count, param, Process,ref res);
+                                            break;
+                                        case ModelName.超声波焊接侧面三类模型:
+                                            Ultrasound_Side_3Class.Parse(det_results, det_results.Count, param, ref res);
                                             break;
                                         default:
                                             throw new Exception("不存在的模型名称！");
@@ -198,14 +211,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                         var handle = param.Yolo8 as Yolo8Obb;
                                         if (handle == null)
                                             throw new Exception("AI模型句柄类型与OBB模型不匹配，请重新加载模型！");
-                                        var img = inputImage.Bitmaps[i].Clone();
-                                        if (inputImage.Rectangles.Count != 0)
+                                        using (Mat img = inputImage.Bitmaps[i].Clone())
                                         {
-                                            tmp = handle.Detect(img, inputImage.Rectangles[i].Location.X, inputImage.Rectangles[i].Location.Y);
-                                        }
-                                        else
-                                        {
-                                            tmp = handle.Detect(img);
+                                            if (inputImage.Rectangles.Count != 0)
+                                            {
+                                                tmp = handle.Detect(img, inputImage.Rectangles[i].Location.X, inputImage.Rectangles[i].Location.Y);
+                                            }
+                                            else
+                                            {
+                                                tmp = handle.Detect(img);
+                                            }
                                         }
                                         obb_results.AddRange(tmp);
                                     }
@@ -237,16 +252,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                         var handle = param.Yolo8 as Yolo8Seg;
                                         if (handle == null)
                                             throw new Exception("AI模型句柄类型与SEG模型不匹配，请重新加载模型！");
-                                        var img = inputImage.Bitmaps[0];
                                         // 线芯截面只使用矩形统计，跳过SEG掩膜四角提取以降低推理后处理耗时。
                                         bool needMaskBox = param.ModelName != ModelName.RL_线芯截面;
-                                        if (inputImage.Rectangles.Count != 0)
-                                            tmp = handle.Detect(img, 0, 0, needMaskBox);
-                                        else
-                                            tmp = handle.Detect(img, 0, 0, needMaskBox);
-                                        seg_results.AddRange(tmp);
+                                        for (int i = 0; i < inputImage.Bitmaps.Count; i++)
+                                        {
+                                            var img = inputImage.Bitmaps[i];
+                                            Rect offsetRect = GetOffsetRect(inputImage, i);
+                                            tmp = handle.Detect(img, offsetRect.X, offsetRect.Y, needMaskBox);
+                                            seg_results.AddRange(tmp);
 
-                                        LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测推理完毕,结果数量:{tmp.Count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                                            LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测推理完毕,图像序号:{i + 1},结果数量:{tmp.Count} {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                                        }
                                     }
                                     #endregion
 
@@ -311,6 +327,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                             Result.RunTime = time;
                             throw new Exception($"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", ex);
                         }
+                        finally
+                        {
+                            if (inputImage != null && !ReferenceEquals(inputImage, subscribedInputImage))
+                                inputImage.Dispose();
+                        }
                     }
                 }
             }
@@ -348,6 +369,257 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 throw new Exception(
                     $"AI输入图像数量({inputImage.Bitmaps.Count})大于ROI数量({inputImage.Rectangles.Count})，订阅：{subscriptionText}，请检查上游裁剪或分割节点！");
             }
+        }
+
+        /// <summary>
+        /// 根据节点内部 ROI 参数构建实际送入 AI 的图像集合；未启用 ROI 时直接返回原输入。
+        /// </summary>
+        /// <param name="inputImage">上游订阅得到的图像输出。</param>
+        /// <param name="param">当前 AI 节点参数。</param>
+        /// <returns>用于 AI 推理的图像输出。</returns>
+        private static OutputImage BuildRoiInputImage(OutputImage inputImage, NodeParamTDAI param)
+        {
+            if (param == null || !param.RoiEnable)
+                return inputImage;
+
+            if (param.RoiRegions == null || param.RoiRegions.Count == 0)
+                throw new Exception("AI检测已启用ROI，但没有配置任何检测区域。");
+
+            Mat sourceImage = GetRoiSourceImage(inputImage);
+            if (!OutputImage.HasValidImage(sourceImage))
+                throw new Exception("AI检测ROI裁剪失败，输入图像为空。");
+
+            List<Rect> localRoiRects = BuildRoiRects(param.RoiRegions, sourceImage.Width, sourceImage.Height);
+            List<Mat> roiImages = null;
+            Mat grayImage = null;
+            OutputImage roiOutput = null;
+            try
+            {
+                roiImages = CropImages(sourceImage, localRoiRects);
+                if (roiImages.Count == 0)
+                    throw new Exception("AI检测ROI裁剪失败，没有得到有效ROI图像。");
+
+                grayImage = BuildFirstGrayCrop(inputImage, localRoiRects, roiImages);
+                roiOutput = new OutputImage();
+                roiOutput.TakeOwnership(roiImages);
+                roiOutput.TakeOwnership(grayImage);
+                roiOutput.TakeDependency(inputImage);
+                roiOutput.SrcImg = sourceImage;
+                roiOutput.Bitmaps = roiImages;
+                roiOutput.Rectangles = BuildOutputRoiRects(localRoiRects, GetBaseOffsetRect(inputImage));
+                roiOutput.GrayImg = grayImage;
+                roiOutput.DisplayResult = inputImage.DisplayResult;
+                return roiOutput;
+            }
+            catch
+            {
+                if (roiOutput != null)
+                {
+                    roiOutput.Dispose();
+                }
+                else
+                {
+                    if (roiImages != null)
+                    {
+                        foreach (Mat roiImage in roiImages)
+                            roiImage?.Dispose();
+                    }
+                    if (grayImage != null && (roiImages == null || !roiImages.Any(image => ReferenceEquals(image, grayImage))))
+                        grayImage.Dispose();
+                }
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 获取 ROI 裁剪使用的源图，优先使用当前订阅输出的第一张图。
+        /// </summary>
+        /// <param name="inputImage">上游图像输出。</param>
+        /// <returns>用于裁剪的源图。</returns>
+        private static Mat GetRoiSourceImage(OutputImage inputImage)
+        {
+            if (inputImage == null)
+                return null;
+            if (inputImage.Bitmaps != null && inputImage.Bitmaps.Count > 0 && OutputImage.HasValidImage(inputImage.Bitmaps[0]))
+                return inputImage.Bitmaps[0];
+            return OutputImage.HasValidImage(inputImage.SrcImg) ? inputImage.SrcImg : null;
+        }
+
+        /// <summary>
+        /// 将保存的 ROI 参数转换为当前图像范围内的 OpenCV 矩形。
+        /// </summary>
+        /// <param name="regions">保存的 ROI 参数集合。</param>
+        /// <param name="imageWidth">当前图像宽度。</param>
+        /// <param name="imageHeight">当前图像高度。</param>
+        /// <returns>图像坐标系下的 ROI 矩形集合。</returns>
+        private static List<Rect> BuildRoiRects(IEnumerable<TDAIRoiRegion> regions, int imageWidth, int imageHeight)
+        {
+            var rects = new List<Rect>();
+            int index = 0;
+            foreach (TDAIRoiRegion region in regions)
+            {
+                index++;
+                if (region == null)
+                    continue;
+                if (region.Width <= 0F || region.Height <= 0F)
+                    throw new Exception($"AI检测ROI区域({FormatRoiName(region, index)})宽高无效。");
+
+                var rotatedRect = new OpenCvSharp.RotatedRect(
+                    new OpenCvSharp.Point2f(region.CenterX, region.CenterY),
+                    new OpenCvSharp.Size2f(region.Width, region.Height),
+                    region.Angle);
+                Rect rect = ClampRect(rotatedRect.BoundingRect(), imageWidth, imageHeight);
+                if (rect.Width <= 0 || rect.Height <= 0)
+                    throw new Exception($"AI检测ROI区域({FormatRoiName(region, index)})超出当前图像范围。");
+
+                rects.Add(rect);
+            }
+
+            if (rects.Count == 0)
+                throw new Exception("AI检测ROI区域全部无效。");
+
+            return rects;
+        }
+
+        /// <summary>
+        /// 裁剪多个 ROI 图像，并返回独立 Mat，避免下游推理修改源图。
+        /// </summary>
+        /// <param name="sourceImage">源图像。</param>
+        /// <param name="rects">ROI 矩形集合。</param>
+        /// <returns>裁剪图像集合。</returns>
+        private static List<Mat> CropImages(Mat sourceImage, IEnumerable<Rect> rects)
+        {
+            var images = new List<Mat>();
+            try
+            {
+                foreach (Rect rect in rects)
+                {
+                    using (Mat roi = new Mat(sourceImage, rect))
+                    {
+                        images.Add(roi.Clone());
+                    }
+                }
+
+                return images;
+            }
+            catch
+            {
+                foreach (Mat image in images)
+                    image?.Dispose();
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 构建送入 YOLO 的 ROI 坐标偏移，内部 ROI 叠加上游已有裁剪偏移。
+        /// </summary>
+        /// <param name="localRoiRects">当前源图局部坐标下的 ROI 矩形。</param>
+        /// <param name="baseOffset">上游图像相对原图的偏移。</param>
+        /// <returns>相对原图的 ROI 偏移矩形。</returns>
+        private static List<Rect> BuildOutputRoiRects(IEnumerable<Rect> localRoiRects, Rect baseOffset)
+        {
+            var rects = new List<Rect>();
+            if (localRoiRects == null)
+                return rects;
+
+            foreach (Rect rect in localRoiRects)
+            {
+                rects.Add(new Rect(
+                    rect.X + baseOffset.X,
+                    rect.Y + baseOffset.Y,
+                    rect.Width,
+                    rect.Height));
+            }
+
+            return rects;
+        }
+
+        /// <summary>
+        /// 获取上游输入图像的基础偏移；没有上游 ROI 时返回零偏移。
+        /// </summary>
+        /// <param name="inputImage">上游图像输出。</param>
+        /// <returns>第一张图像对应的上游偏移。</returns>
+        private static Rect GetBaseOffsetRect(OutputImage inputImage)
+        {
+            if (inputImage != null && inputImage.Rectangles != null && inputImage.Rectangles.Count > 0)
+                return inputImage.Rectangles[0];
+
+            return new Rect();
+        }
+
+        /// <summary>
+        /// 为第一张 ROI 图像构建灰度缓存，优先同步裁剪上游灰度图。
+        /// </summary>
+        /// <param name="inputImage">上游图像输出。</param>
+        /// <param name="roiRects">ROI 矩形集合。</param>
+        /// <param name="roiImages">已裁剪的 ROI 图像集合。</param>
+        /// <returns>第一张 ROI 对应的灰度图。</returns>
+        private static Mat BuildFirstGrayCrop(OutputImage inputImage, IReadOnlyList<Rect> roiRects, IReadOnlyList<Mat> roiImages)
+        {
+            Mat sourceImage = GetRoiSourceImage(inputImage);
+            if (roiRects != null &&
+                roiRects.Count > 0 &&
+                OutputImage.HasValidImage(inputImage?.GrayImg) &&
+                OutputImage.HasValidImage(sourceImage) &&
+                inputImage.GrayImg.Width == sourceImage.Width &&
+                inputImage.GrayImg.Height == sourceImage.Height)
+            {
+                using (Mat grayRoi = new Mat(inputImage.GrayImg, roiRects[0]))
+                {
+                    return grayRoi.Clone();
+                }
+            }
+
+            if (roiImages != null && roiImages.Count > 0)
+                return OutputImage.BuildGrayImage(roiImages[0]);
+
+            return null;
+        }
+
+        /// <summary>
+        /// 获取指定输入图像的坐标偏移矩形。
+        /// </summary>
+        /// <param name="inputImage">AI 输入图像集合。</param>
+        /// <param name="index">图像序号。</param>
+        /// <returns>对应 ROI 偏移；没有偏移时返回零矩形。</returns>
+        private static Rect GetOffsetRect(OutputImage inputImage, int index)
+        {
+            if (inputImage != null &&
+                inputImage.Rectangles != null &&
+                index >= 0 &&
+                index < inputImage.Rectangles.Count)
+            {
+                return inputImage.Rectangles[index];
+            }
+
+            return new Rect();
+        }
+
+        /// <summary>
+        /// 将 ROI 矩形限制在图像范围内。
+        /// </summary>
+        /// <param name="rect">原始矩形。</param>
+        /// <param name="imageWidth">图像宽度。</param>
+        /// <param name="imageHeight">图像高度。</param>
+        /// <returns>限制后的矩形。</returns>
+        private static Rect ClampRect(Rect rect, int imageWidth, int imageHeight)
+        {
+            int left = Math.Max(0, rect.X);
+            int top = Math.Max(0, rect.Y);
+            int right = Math.Min(imageWidth, rect.X + rect.Width);
+            int bottom = Math.Min(imageHeight, rect.Y + rect.Height);
+            return new Rect(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
+        }
+
+        /// <summary>
+        /// 格式化 ROI 名称，名称为空时使用序号兜底。
+        /// </summary>
+        /// <param name="region">ROI 参数。</param>
+        /// <param name="index">ROI 序号。</param>
+        /// <returns>可读 ROI 名称。</returns>
+        private static string FormatRoiName(TDAIRoiRegion region, int index)
+        {
+            return region == null || string.IsNullOrWhiteSpace(region.Name) ? "ROI" + index : region.Name;
         }
 
         /// <summary>

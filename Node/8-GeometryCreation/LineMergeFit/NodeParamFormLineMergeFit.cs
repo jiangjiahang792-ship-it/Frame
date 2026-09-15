@@ -91,7 +91,7 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
             var stopwatch = Stopwatch.StartNew();
             token.ThrowIfCancellationRequested();
 
-            output = needPreviewImage ? CloneFirstAvailableOutputImage() : new Mat();
+            output = needPreviewImage ? CloneFirstAvailableOutputImage() : null;
             stopwatch.Restart();
             MeasuredLine line1 = ReadSubscribedLine(nodeSubscriptionLine1, "直线1");
             MeasuredLine line2 = ReadSubscribedLine(nodeSubscriptionLine2, "直线2");
@@ -430,10 +430,17 @@ namespace TDJS_Vision.Node._8_GeometryCreation.LineMergeFit
                 if (!SaveParams())
                     return;
 
-                LineMergeFitMeasureResult measureResult = ExecuteMeasure((NodeParamLineMergeFit)Params, CancellationToken.None, out Mat output);
-                UpdateRuntimeStatus(measureResult);
-                SetPreview(output, NodeLineMergeFit.BuildDisplayResult(measureResult));
-                output?.Dispose();
+                Mat output = null;
+                try
+                {
+                    LineMergeFitMeasureResult measureResult = ExecuteMeasure((NodeParamLineMergeFit)Params, CancellationToken.None, out output);
+                    UpdateRuntimeStatus(measureResult);
+                    SetPreview(output, NodeLineMergeFit.BuildDisplayResult(measureResult));
+                }
+                finally
+                {
+                    output?.Dispose();
+                }
             }
             catch (Exception ex)
             {

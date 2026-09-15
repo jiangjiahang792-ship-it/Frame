@@ -26,11 +26,13 @@ function Assert-DiagnosticMarkerUsesDebug {
         }
 
         $found = $true
-        $callStart = $source.LastIndexOf('LogHelper.AddLog(', $markerIndex)
+        $directCallStart = $source.LastIndexOf('LogHelper.AddLog(', $markerIndex)
+        $lazyCallStart = $source.LastIndexOf('PerformanceSpikeDiagnostics.LogIfEnabled(', $markerIndex)
+        $callStart = [Math]::Max($directCallStart, $lazyCallStart)
         $callEnd = $source.IndexOf(');', $markerIndex)
 
         if ($callStart -lt 0 -or $callEnd -lt 0) {
-            throw "$RelativePath marker '$Marker' is not inside a LogHelper.AddLog call."
+            throw "$RelativePath marker '$Marker' is not inside a supported diagnostic log call."
         }
 
         $callText = $source.Substring($callStart, $callEnd - $callStart + 2)
@@ -75,6 +77,18 @@ $diagnosticMarkers = @(
     @{ Path = 'Node\1-Acquisition\ImageShow\NodeImageShow.cs'; Markers = @(
         '【性能诊断-图像显示】',
         '【慢诊断-图像显示】'
+    ) },
+    @{ Path = 'Node\2-ImagePreprocessing\ImageRotate\NodeImageRotate.cs'; Markers = @(
+        '【慢诊断-图像旋转】'
+    ) },
+    @{ Path = 'Node\4-Measurement\FindPoint\NodeFindPoint.cs'; Markers = @(
+        '【性能诊断-找点】'
+    ) },
+    @{ Path = 'Node\7-ResultProcessing\ImageDraw\NodeImageDraw.cs'; Markers = @(
+        '【性能诊断-AI结果绘制】'
+    ) },
+    @{ Path = 'Node\7-ResultProcessing\ResultOverlayDraw2\NodeResultOverlayDraw2.cs'; Markers = @(
+        '【性能诊断-ROI结果绘制2】'
     ) },
     @{ Path = 'Node\7-ResultProcessing\ImageSave\NodeSaveImage.cs'; Markers = @(
         '【性能诊断-保存图像快速入队】',

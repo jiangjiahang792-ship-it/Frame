@@ -8,7 +8,9 @@ using System.Drawing;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Forms.DispShowImage;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
@@ -30,6 +32,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
         public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+            IImageResourceLease inputLease = null;
+            OutputImage pendingOutputImage = null;
 
             if (!Active)
             {
@@ -53,10 +57,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                     SetStatus(NodeStatus.Unexecuted, "*");
                     base.CheckTokenCancel(token);
 
-                    Stopwatch performanceStopwatch = Stopwatch.StartNew();
+                    Stopwatch performanceStopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
                     //执行绘制
-                    Mat image = form.GetImage();
-                    long afterGetImage = performanceStopwatch.ElapsedMilliseconds;
+                    Mat image = form.GetImage(out OutputImage inputOwner);
+                    inputLease = inputOwner.AcquireLease();
+                    long afterGetImage = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                     AlgorithmResult aiResult = null;
                     AlgorithmResult colorResult=null;
                     try
@@ -67,28 +72,44 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                     catch { 
                         
                     }
-                    long afterGetResults = performanceStopwatch.ElapsedMilliseconds;
+                    long afterGetResults = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
 
                     using (Bitmap imageBitmap = BitmapConverter.ToBitmap(image))
                     {
-                        long afterToBitmap = performanceStopwatch.ElapsedMilliseconds;
+                        long afterToBitmap = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                         ImageDrawer.DrawDetectionRectangles(imageBitmap, aiResult, param, colorResult);
-                        long afterDraw = performanceStopwatch.ElapsedMilliseconds;
+                        long afterDraw = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
 
                         // 输出绘制后的图像
-                        ((NodeResultImageDraw)Result).OutputImage.Bitmaps = new List<Mat>() { BitmapConverter.ToMat(imageBitmap) };
-                        long afterToMat = performanceStopwatch.ElapsedMilliseconds;
-                        if (showLog)
+                        Mat outputMat = BitmapConverter.ToMat(imageBitmap);
+                        try
                         {
-                            LogHelper.AddLog(
-                                MsgLevel.Info,
-                                $"【性能诊断-AI结果绘制】节点({ID}.{NodeName}) 图像={GetMatDiagnosticText(image)}；AI结果={GetAlgorithmResultDiagnosticText(aiResult)}；颜色结果={GetAlgorithmResultDiagnosticText(colorResult)}；取图={afterGetImage}ms；取结果={afterGetResults - afterGetImage}ms；ToBitmap={afterToBitmap - afterGetResults}ms；绘制={afterDraw - afterToBitmap}ms；ToMat={afterToMat - afterDraw}ms；绘制总耗时={afterToMat}ms",
-                                true);
+                            pendingOutputImage = new OutputImage
+                            {
+                                Bitmaps = new List<Mat> { outputMat }
+                            };
+                            pendingOutputImage.TakeOwnership(outputMat);
+                            outputMat = null;
                         }
+                        finally
+                        {
+                            outputMat?.Dispose();
+                        }
+                        long afterToMat = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
+                        PerformanceSpikeDiagnostics.LogIfEnabled(
+                            MsgLevel.Debug,
+                            () => $"【性能诊断-AI结果绘制】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；图像={GetMatDiagnosticText(image)}；AI结果={GetAlgorithmResultDiagnosticText(aiResult)}；颜色结果={GetAlgorithmResultDiagnosticText(colorResult)}；取图={afterGetImage}ms；取结果={afterGetResults - afterGetImage}ms；ToBitmap={afterToBitmap - afterGetResults}ms；绘制={afterDraw - afterToBitmap}ms；ToMat={afterToMat - afterDraw}ms；绘制总耗时={afterToMat}ms",
+                            true);
                     }
 
                     var time = SetRunResult(startTime, NodeStatus.Successful);
-                    Result.RunTime = time;
+                    var nodeResult = new NodeResultImageDraw
+                    {
+                        RunTime = time,
+                        OutputImage = pendingOutputImage
+                    };
+                    Result = nodeResult;
+                    pendingOutputImage = null;
                     if (showLog)
                         LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
                     return new NodeReturn(NodeRunFlag.ContinueRun);
@@ -104,6 +125,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                     LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
                     SetRunResult(startTime, NodeStatus.Failed);
                     throw new Exception($"节点({ID}.{NodeName})运行失败！原因:{ex.Message}");
+                }
+                finally
+                {
+                    pendingOutputImage?.Dispose();
+                    inputLease?.Dispose();
                 }
             }
             return new NodeReturn(NodeRunFlag.StopRun);

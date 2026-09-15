@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using TDJS_Vision.Device._3D;
 using TDJS_Vision.Forms.ImageViewer;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
+using TDJS_Vision.ResourceManagement;
 
 namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
 {
@@ -48,13 +49,13 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
         /// <param name="token">流程取消令牌。</param>
         /// <param name="showLog">是否输出日志。</param>
         /// <returns>节点运行控制结果。</returns>
-        public override Task<NodeReturn> Run(CancellationToken token, bool showLog)
+        public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
             if (!Active)
             {
                 SetRunResult(startTime, NodeStatus.Unexecuted);
-                return Task.FromResult(new NodeReturn(NodeRunFlag.StopRun));
+                return new NodeReturn(NodeRunFlag.StopRun);
             }
 
             if (!(ParamForm.Params is NodeParamImageShow3D param))
@@ -67,7 +68,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
             try
             {
                 SetStatus(NodeStatus.Unexecuted, "*");
-                CheckTokenCancel(token);
+                await CheckTokenCancel(token);
 
                 ParamFormImageShow3D form = ParamForm as ParamFormImageShow3D;
                 if (form == null)
@@ -79,16 +80,39 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageShow3D
                 if (firstMat == null || firstMat.Empty())
                     throw new Exception("未获取到可显示的深度预览图！");
 
-                Bitmap image = firstMat.ToBitmap();
-                NodeImageShow.PublishImageShowChanged(this, param.WindowName, image, outputImage.DisplayResult);
-                NodeImageShow.PublishImageShowWindowNameChanged(Process, param.WindowName);
+                bool refreshGranted = NodeImageShow.TryAcquireWindowRefresh(
+                    param.WindowName,
+                    out int maximumFramesPerSecond);
+                string displayStrategy;
+                if (refreshGranted)
+                {
+                    Bitmap image;
+                    using (ICpuWorkLease conversionLease = await Solution.Instance.AcquireCpuWorkAsync(
+                        CpuWorkloadKind.ImageConversion,
+                        token))
+                    {
+                        image = firstMat.ToBitmap();
+                    }
+                    bool bitmapClaimed = NodeImageShow.PublishImageShowChanged(
+                        this,
+                        param.WindowName,
+                        image,
+                        outputImage.DisplayResult);
+                    if (bitmapClaimed)
+                        NodeImageShow.PublishImageShowWindowNameChanged(Process, param.WindowName);
+                    displayStrategy = bitmapClaimed ? "已发布" : "无人接管并释放";
+                }
+                else
+                {
+                    displayStrategy = $"刷新限速跳过({maximumFramesPerSecond}FPS)";
+                }
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 ((NodeResultImageShow3D)Result).RunTime = time;
                 if (showLog)
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！图像窗口={FrmSingleImage.GetWindowDisplayName(param.WindowName)}，深度图={GetMatDiagnosticText(firstMat)}，耗时={time} ms", true);
+                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！图像窗口={FrmSingleImage.GetWindowDisplayName(param.WindowName)}，显示策略={displayStrategy}，深度图={GetMatDiagnosticText(firstMat)}，耗时={time} ms", true);
 
-                return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
+                return new NodeReturn(NodeRunFlag.ContinueRun);
             }
             catch (OperationCanceledException)
             {

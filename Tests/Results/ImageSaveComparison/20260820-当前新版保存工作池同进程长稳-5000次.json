@@ -1,0 +1,94 @@
+﻿{
+    "TestName":  "当前版保存工作池同进程长稳",
+    "FormalRoundCount":  10,
+    "AttemptsPerRound":  500,
+    "TotalAttemptedCount":  5000,
+    "TotalAcceptedCount":  516,
+    "TotalRejectedCount":  4484,
+    "TotalEvictedNormalCount":  237,
+    "TotalCompletedCount":  279,
+    "TotalFailedCount":  0,
+    "TotalFileCount":  279,
+    "TotalFileBytes":  3603219,
+    "TotalLeaseDisposeCount":  5000,
+    "TotalLeaseDoubleDisposeCount":  0,
+    "PeakQueueCount":  8,
+    "PeakQueueBytes":  18874368,
+    "PeakActiveWorkers":  2,
+    "EnqueueP99MaximumMilliseconds":  0.0693,
+    "EnqueueAbsoluteMaximumMilliseconds":  0.1732,
+    "StressWallMilliseconds":  2732,
+    "CpuLogicalProcessorCount":  24,
+    "AverageCpuPercent":  16.057,
+    "PrivateMemoryBaselineMb":  95.188,
+    "PrivateMemoryFinalMb":  95.156,
+    "PrivateMemoryDeltaMb":  -0.031,
+    "ManagedMemoryBaselineMb":  9.814,
+    "ManagedMemoryFinalMb":  9.805,
+    "ManagedMemoryDeltaMb":  -0.009,
+    "HandleBaseline":  896,
+    "HandleFinal":  895,
+    "HandleDelta":  -1,
+    "RoundResourceSnapshots":  [
+                                   {
+                                       "Round":  1,
+                                       "PrivateMemoryMb":  95.105,
+                                       "ManagedMemoryMb":  9.918,
+                                       "HandleCount":  896
+                                   },
+                                   {
+                                       "Round":  2,
+                                       "PrivateMemoryMb":  95.168,
+                                       "ManagedMemoryMb":  9.774,
+                                       "HandleCount":  896
+                                   },
+                                   {
+                                       "Round":  3,
+                                       "PrivateMemoryMb":  95.07,
+                                       "ManagedMemoryMb":  9.778,
+                                       "HandleCount":  895
+                                   },
+                                   {
+                                       "Round":  4,
+                                       "PrivateMemoryMb":  95.098,
+                                       "ManagedMemoryMb":  9.779,
+                                       "HandleCount":  895
+                                   },
+                                   {
+                                       "Round":  5,
+                                       "PrivateMemoryMb":  95,
+                                       "ManagedMemoryMb":  9.874,
+                                       "HandleCount":  895
+                                   },
+                                   {
+                                       "Round":  6,
+                                       "PrivateMemoryMb":  95.059,
+                                       "ManagedMemoryMb":  9.789,
+                                       "HandleCount":  895
+                                   },
+                                   {
+                                       "Round":  7,
+                                       "PrivateMemoryMb":  95.09,
+                                       "ManagedMemoryMb":  9.791,
+                                       "HandleCount":  895
+                                   },
+                                   {
+                                       "Round":  8,
+                                       "PrivateMemoryMb":  95.145,
+                                       "ManagedMemoryMb":  9.792,
+                                       "HandleCount":  895
+                                   },
+                                   {
+                                       "Round":  9,
+                                       "PrivateMemoryMb":  95.18,
+                                       "ManagedMemoryMb":  9.793,
+                                       "HandleCount":  895
+                                   },
+                                   {
+                                       "Round":  10,
+                                       "PrivateMemoryMb":  95.156,
+                                       "ManagedMemoryMb":  9.795,
+                                       "HandleCount":  895
+                                   }
+                               ]
+}

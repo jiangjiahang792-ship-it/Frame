@@ -24,6 +24,9 @@ namespace TDJS_Vision.Device.PLC
         /// </summary>
         bool IsConnect { get; set; }
 
+        /// <summary>获取或设置PLC单次连接与收发操作的有限超时时间，单位为毫秒。</summary>
+        int OperationTimeoutMs { get; set; }
+
         /// <summary>
         /// 硬件硬件名称
         /// </summary>
@@ -492,6 +495,18 @@ namespace TDJS_Vision.Device.PLC
         public SerialParms SerialParms; //串口连接参数
         public EthernetParms EthernetParms; //网口连接参数
         public DeviceBrand DeviceBrand; //设备品牌
+        /// <summary>基恩士具体通信协议，旧方案未保存时默认为 Nano OverTcp。</summary>
+        [JsonConverter(typeof(StringEnumConverter))]
+        public KeyenceProtocol KeyenceProtocol;
+    }
+
+    /// <summary>基恩士 TCP 通信协议种类，首项兼容既有方案。</summary>
+    public enum KeyenceProtocol
+    {
+        /// <summary>基恩士 Nano 上位链路 TCP 协议。</summary>
+        NanoOverTcp = 0,
+        /// <summary>基恩士 KV300 及旧系列上位链路 TCP 协议。</summary>
+        Kv300Older = 1
     }
 
     /// <summary>

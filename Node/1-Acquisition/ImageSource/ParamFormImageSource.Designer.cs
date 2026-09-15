@@ -338,6 +338,12 @@
             this.numericUpDownGain.Font = new System.Drawing.Font("宋体", 10.5F);
             this.numericUpDownGain.Location = new System.Drawing.Point(399, 322);
             this.numericUpDownGain.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.numericUpDownGain.DecimalPlaces = 3;
+            this.numericUpDownGain.Maximum = new decimal(new int[] {
+            100000,
+            0,
+            0,
+            0});
             this.numericUpDownGain.Name = "numericUpDownGain";
             this.numericUpDownGain.Size = new System.Drawing.Size(212, 31);
             this.numericUpDownGain.TabIndex = 2;
@@ -357,9 +363,15 @@
             // numericUpDownExposureTime
             // 
             this.numericUpDownExposureTime.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.numericUpDownExposureTime.DecimalPlaces = 3;
             this.numericUpDownExposureTime.Font = new System.Drawing.Font("宋体", 10.5F);
             this.numericUpDownExposureTime.Location = new System.Drawing.Point(399, 270);
             this.numericUpDownExposureTime.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.numericUpDownExposureTime.Maximum = new decimal(new int[] {
+            10000000,
+            0,
+            0,
+            0});
             this.numericUpDownExposureTime.Name = "numericUpDownExposureTime";
             this.numericUpDownExposureTime.Size = new System.Drawing.Size(212, 31);
             this.numericUpDownExposureTime.TabIndex = 2;
@@ -371,6 +383,11 @@
             this.numericUpDownTriggerDelay.Font = new System.Drawing.Font("宋体", 10.5F);
             this.numericUpDownTriggerDelay.Location = new System.Drawing.Point(399, 218);
             this.numericUpDownTriggerDelay.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.numericUpDownTriggerDelay.Maximum = new decimal(new int[] {
+            10000000,
+            0,
+            0,
+            0});
             this.numericUpDownTriggerDelay.Name = "numericUpDownTriggerDelay";
             this.numericUpDownTriggerDelay.Size = new System.Drawing.Size(212, 31);
             this.numericUpDownTriggerDelay.TabIndex = 2;
@@ -438,8 +455,7 @@
             "Line0",
             "Line1",
             "Line2",
-            "Line3",
-            "Line4"});
+            "Line3"});
             this.comboBoxTriggerMode.Location = new System.Drawing.Point(399, 115);
             this.comboBoxTriggerMode.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxTriggerMode.Name = "comboBoxTriggerMode";

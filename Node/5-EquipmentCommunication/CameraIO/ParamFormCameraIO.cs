@@ -123,14 +123,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
         /// <param name="e"></param>
         private void comboBoxIO_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (comboBoxLineMode.Text == "输出")
-            {
-                checkLineDirection("输出");
-            }
-            else
-            {
-                checkLineDirection("输入");
-            }
+            checkLineDirection("输出");
         }
 
         /// <summary>
@@ -141,56 +134,39 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.CameraIO
         {
             try
             {
-                if (lineMode == "输出")
-                {
-                    string currentLine = comboBoxLines.Text;
-                    comboBoxLines.Items.Clear();
-                    // 获取当前相机所有线路
-                    foreach (var line in m_camera.GetLineSelector().SupportEnumEntries)
-                    {
-                        // 设置当前线路
-                        m_camera.SetLineSelector(line.Symbolic);
-                        // 获取当前线路方向
-                        foreach (var mode in m_camera.GetLineMode().SupportEnumEntries)
-                        {
-                            if (mode.Symbolic == "Strobe")
-                            {
-                                comboBoxLines.Items.Add(line.Symbolic);
-                            }
-                            if (mode.Symbolic == "Output")
-                            {
-                                comboBoxLines.Items.Add(line.Symbolic);
-                            }
-                        }
-                    }
-                    int index = comboBoxLines.Items.IndexOf(currentLine);
-                    comboBoxLines.SelectedIndex = index == -1 ? 0 : index;
-                }
-                else
-                {
-                    string currentLine = comboBoxLines.Text;
-                    comboBoxLines.Items.Clear();
-                    // 获取当前相机所有线路
-                    foreach (var line in m_camera.GetLineSelector().SupportEnumEntries)
-                    {
-                        // 设置当前线路
-                        m_camera.SetLineSelector(line.Symbolic);
-                        // 获取当前线路方向
-                        foreach (var mode in m_camera.GetLineMode().SupportEnumEntries)
-                        {
-                            if (mode.Symbolic == "Input")
-                            {
-                                comboBoxLines.Items.Add(line.Symbolic);
-                            }
-                        }
-                    }
-                    int index = comboBoxLines.Items.IndexOf(currentLine);
-                    comboBoxLines.SelectedIndex = index == -1 ? 0 : index;
-                }
+                Solution.Instance.TryExecuteManualExternalSignal(
+                    () => RefreshLineOptions(lineMode));
             }
             catch (Exception)
             {
             }
+        }
+
+        /// <summary>在方案运行门禁保护下枚举当前相机各线路支持的方向。</summary>
+        private void RefreshLineOptions(string lineMode)
+        {
+            if (m_camera == null)
+                return;
+            if (lineMode != "输出")
+                return;
+
+            string currentLine = comboBoxLines.Text;
+            comboBoxLines.Items.Clear();
+            // 获取当前相机所有支持主动输出的线路。
+            foreach (var line in m_camera.GetLineSelector().SupportEnumEntries)
+            {
+                m_camera.SetLineSelector(line.Symbolic);
+                foreach (var mode in m_camera.GetLineMode().SupportEnumEntries)
+                {
+                    bool supportsOutput = mode.Symbolic == "Output";
+                    if (supportsOutput && !comboBoxLines.Items.Contains(line.Symbolic))
+                    {
+                        comboBoxLines.Items.Add(line.Symbolic);
+                    }
+                }
+            }
+            int index = comboBoxLines.Items.IndexOf(currentLine);
+            comboBoxLines.SelectedIndex = index == -1 && comboBoxLines.Items.Count > 0 ? 0 : index;
         }
         /// <summary>
         /// 保存参数

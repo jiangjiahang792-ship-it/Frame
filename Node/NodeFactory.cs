@@ -1,4 +1,5 @@
 using System;
+using TDJS_Vision.Node._1_Acquisition.CameraExposureGain;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._1_Acquisition.ImageSource3D;
 using TDJS_Vision.Node._1_Acquisition.ImageShow3D;
@@ -16,6 +17,7 @@ using TDJS_Vision.Node._3_Detection.MatchTemplate;
 using TDJS_Vision.Node._3_Detection.QRScan;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._3_Detection.Unsupervised;
+using TDJS_Vision.Node._4_Measurement.BlobAnalysis;
 using TDJS_Vision.Node._4_Measurement.CaliperCircle;
 using TDJS_Vision.Node._4_Measurement.CaliperEllipse;
 using TDJS_Vision.Node._4_Measurement.CaliperLine;
@@ -116,6 +118,8 @@ namespace TDJS_Vision.Node
                     return new NodeCaliperEllipse(nodeId, nodeName, process, nodeType);
                 case NodeType.FindPoint:
                     return new NodeFindPoint(nodeId, nodeName, process, nodeType);
+                case NodeType.BlobAnalysis:
+                    return new NodeBlobAnalysis(nodeId, nodeName, process, nodeType);
                 case NodeType.PositionCorrection:
                     return new NodePositionCorrection(nodeId, nodeName, process, nodeType);
                 case NodeType.LineLineAngle:
@@ -150,6 +154,8 @@ namespace TDJS_Vision.Node
                     return new NodeSignalSend(nodeId, nodeName, process, nodeType);
                 case NodeType.CameraIO:
                     return new NodeCameraIO(nodeId, nodeName, process, nodeType);
+                case NodeType.CameraExposureGain:
+                    return new NodeCameraExposureGain(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageSource:
                     return new NodeImageSource(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageSource3D:
@@ -162,12 +168,16 @@ namespace TDJS_Vision.Node
                     return new NodeQRScan(nodeId, nodeName, process, nodeType);
                 case NodeType.MatchTemplate:
                     return new NodeMatchTemplate(nodeId, nodeName, process, nodeType);
+                case NodeType.NccMatchTemplate:
+                    return new NodeNccMatchTemplate(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageFileDelete:
                     return new NodeImageDelete(nodeId, nodeName, process, nodeType);
                 case NodeType.SharedVariable:
                     return new NodeSharedVariable(nodeId, nodeName, process, nodeType);
                 case NodeType.GenerateExcel:
                     return new NodeGenerateExcel(nodeId, nodeName, process, nodeType);
+                case NodeType.ResultSend:
+                    return new TDJS_Vision.Node._7_ResultProcessing.ResultSend.NodeResultSend(nodeId, nodeName, process, nodeType);
                 case NodeType.DrawAIResult:
                     return new NodeImageDraw(nodeId, nodeName, process, nodeType);
                 case NodeType.ResultOverlayDraw:

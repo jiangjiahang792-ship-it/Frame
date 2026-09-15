@@ -9,8 +9,17 @@ using System.Linq;
 
 namespace TDJS_Vision.Device.PLC
 {
-    public class PlcPanasonic : IPlc
+    public class PlcPanasonic : ReconnectingCommunicationDevice, IPlc, IResultSendTypedPlc
     {
+        /// <summary>PLC操作允许的最小超时时间。</summary>
+        private const int MinimumOperationTimeoutMs = 100;
+
+        /// <summary>PLC操作允许的最大超时时间。</summary>
+        private const int MaximumOperationTimeoutMs = 60000;
+
+        /// <summary>当前连接和收发操作的有限超时时间。</summary>
+        private int _operationTimeoutMs = 5000;
+
         /// <summary>
         /// 串口plc对象
         /// </summary>
@@ -20,18 +29,40 @@ namespace TDJS_Vision.Device.PLC
         /// 网口plc对象
         /// </summary>
         private PanasonicMcNet _panasonicMcNet = null;
-        /// <summary>
-        /// 连接状态改变事件
-        /// </summary>
-        public event EventHandler<bool> ConnectStatusEvent;
+
+        /// <summary>根据串口或网口连接按协议原生类型写入，避免整数位宽丢失。</summary>
+        public Task<OperateResult> WriteTypedValuesAsync(string address, Array values)
+        {
+            bool serial = PLCParms.PlcConType == PlcConType.COM;
+            if (values is short[] signedWords) return serial ? _panasonicMewtocol.WriteAsync(address, signedWords) : _panasonicMcNet.WriteAsync(address, signedWords);
+            if (values is ushort[] words) return serial ? _panasonicMewtocol.WriteAsync(address, words) : _panasonicMcNet.WriteAsync(address, words);
+            if (values is uint[] integers) return serial ? _panasonicMewtocol.WriteAsync(address, integers) : _panasonicMcNet.WriteAsync(address, integers);
+            if (values is double[] doubles) return serial ? _panasonicMewtocol.WriteAsync(address, doubles) : _panasonicMcNet.WriteAsync(address, doubles);
+            throw new NotSupportedException("不支持的PLC扩展写入类型。");
+        }
         /// <summary>
         /// PLC连接参数
         /// </summary>
         public PLCParms PLCParms { get; set; } = new PLCParms();
-        /// <summary>
-        /// PLC连接状态
-        /// </summary>
-        public bool IsConnect { get; set; }
+        /// <inheritdoc />
+        protected override string CommunicationName => UserDefinedName;
+        /// <inheritdoc />
+        protected override HslCommunication.Core.Device.DeviceCommunication CommunicationClient =>
+            PLCParms.PlcConType == PlcConType.COM
+                ? (HslCommunication.Core.Device.DeviceCommunication)_panasonicMewtocol : _panasonicMcNet;
+
+        /// <summary>获取或设置PLC连接与收发操作的有限超时时间。</summary>
+        public int OperationTimeoutMs
+        {
+            get => _operationTimeoutMs;
+            set
+            {
+                _operationTimeoutMs = Math.Max(
+                    MinimumOperationTimeoutMs,
+                    Math.Min(MaximumOperationTimeoutMs, value));
+                ApplyOperationTimeout();
+            }
+        }
         /// <summary>
         /// 设备名称
         /// </summary>
@@ -82,7 +113,9 @@ namespace TDJS_Vision.Device.PLC
                         sp.DataBits = PLCParms.SerialParms.DataBits;
                         sp.StopBits = PLCParms.SerialParms.StopBits;
                         sp.Parity = PLCParms.SerialParms.Parity;
+                        sp.WriteTimeout = _operationTimeoutMs;
                     });
+                    ApplyOperationTimeout();
                 }
                 else if (PLCParms.PlcConType == PlcConType.ETHERNET)
                 {
@@ -93,6 +126,7 @@ namespace TDJS_Vision.Device.PLC
                     }
                     _panasonicMcNet.IpAddress = PLCParms.EthernetParms.IP;
                     _panasonicMcNet.Port = PLCParms.EthernetParms.Port;
+                    ApplyOperationTimeout();
                 }
             }
             catch (Exception ex)
@@ -123,7 +157,9 @@ namespace TDJS_Vision.Device.PLC
                     sp.DataBits = PLCParms.SerialParms.DataBits;
                     sp.StopBits = PLCParms.SerialParms.StopBits;
                     sp.Parity = PLCParms.SerialParms.Parity;
+                    sp.WriteTimeout = _operationTimeoutMs;
                 });
+                ApplyOperationTimeout();
             }
             else if (PLCParms.PlcConType == PlcConType.ETHERNET)
             {
@@ -134,56 +170,62 @@ namespace TDJS_Vision.Device.PLC
                 }
                 _panasonicMcNet.IpAddress = PLCParms.EthernetParms.IP;
                 _panasonicMcNet.Port = PLCParms.EthernetParms.Port;
+                ApplyOperationTimeout();
             }
         }
 
         public bool Connect()
         {
-            try
-            {
-                if (PLCParms.PlcConType == PlcConType.ETHERNET)
-                {
-                    IsConnect = _panasonicMcNet.ConnectServer().IsSuccess;
-                    ConnectStatusEvent?.Invoke(this, IsConnect);
-                    return IsConnect;
-                }
-                else
-                {
-                    if (_panasonicMewtocol.IsOpen())
-                        return true;
-                    IsConnect = _panasonicMewtocol.Open().IsSuccess;
-                    ConnectStatusEvent?.Invoke(this, IsConnect);
-                    return IsConnect;
-                }
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            return ConnectWithRecovery();
+        }
+
+        /// <inheritdoc />
+        protected override OperateResult OpenCommunicationCore()
+        {
+            if (CommunicationClient == null) CreateDevice();
+            if (PLCParms.PlcConType == PlcConType.ETHERNET)
+                return _panasonicMcNet.ConnectServer();
+            _panasonicMewtocol.Close();
+            return _panasonicMewtocol.Open();
         }
 
         public void Disconnect()
         {
-            if (!IsConnect) { return; }
+            DisconnectWithRecovery();
+        }
 
-            if (PLCParms.PlcConType == PlcConType.COM)
-            {
-                _panasonicMewtocol.Close();
-                IsConnect = false;
-            }
-            else
-            {
-                IsConnect = !_panasonicMcNet.ConnectClose().IsSuccess;
-            }
-            ConnectStatusEvent?.Invoke(this, IsConnect);
+        /// <inheritdoc />
+        protected override void CloseCommunicationCore()
+        {
+            if (PLCParms.PlcConType == PlcConType.COM) _panasonicMewtocol?.Close();
+            else _panasonicMcNet?.ConnectClose();
         }
 
         public void Release()
         {
+            DisconnectWithRecovery();
             if (PLCParms.PlcConType == PlcConType.COM)
                 _panasonicMewtocol.Dispose();
             else
                 _panasonicMcNet.Dispose();
+        }
+
+        /// <summary>把统一有限超时应用到当前松下PLC通信对象。</summary>
+        private void ApplyOperationTimeout()
+        {
+            if (_panasonicMewtocol != null)
+            {
+                _panasonicMewtocol.ReceiveTimeOut = _operationTimeoutMs;
+                var pipe = (HslCommunication.Core.Pipe.PipeSerialPort)_panasonicMewtocol.CommunicationPipe;
+                var sp = pipe.GetPipe();
+                sp.ReadTimeout = _operationTimeoutMs;
+                sp.WriteTimeout = _operationTimeoutMs;
+            }
+            if (_panasonicMcNet != null)
+            {
+                _panasonicMcNet.ConnectTimeOut = _operationTimeoutMs;
+                _panasonicMcNet.ReceiveTimeOut = _operationTimeoutMs;
+            }
         }
 
         /// <summary>

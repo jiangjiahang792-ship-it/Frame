@@ -48,6 +48,20 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             this.comboBoxDirection = new System.Windows.Forms.ComboBox();
             this.labelSamplingMode = new System.Windows.Forms.Label();
             this.comboBoxSamplingMode = new System.Windows.Forms.ComboBox();
+            this.labelMeasureMode = new System.Windows.Forms.Label();
+            this.comboBoxMeasureMode = new System.Windows.Forms.ComboBox();
+            this.groupBoxQuality = new System.Windows.Forms.GroupBox();
+            this.checkBoxEnableQualityValidation = new System.Windows.Forms.CheckBox();
+            this.labelMinimumValidPointRatio = new System.Windows.Forms.Label();
+            this.textBoxMinimumValidPointRatio = new System.Windows.Forms.TextBox();
+            this.labelMaximumAverageResidual = new System.Windows.Forms.Label();
+            this.textBoxMaximumAverageResidual = new System.Windows.Forms.TextBox();
+            this.labelMaximumResidual = new System.Windows.Forms.Label();
+            this.textBoxMaximumResidual = new System.Windows.Forms.TextBox();
+            this.labelMinimumCoverageRatio = new System.Windows.Forms.Label();
+            this.textBoxMinimumCoverageRatio = new System.Windows.Forms.TextBox();
+            this.labelMaximumAngleDeviation = new System.Windows.Forms.Label();
+            this.textBoxMaximumAngleDeviation = new System.Windows.Forms.TextBox();
             this.showImageControl1 = new TDJS_Vision.Forms.DispShowImage.ShowImageControl();
             this.buttonDrawRoi = new System.Windows.Forms.Button();
             this.buttonConfirmRoi = new System.Windows.Forms.Button();
@@ -58,6 +72,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             this.groupBoxPositionCorrection.SuspendLayout();
             this.groupBoxGeometry.SuspendLayout();
             this.groupBoxCaliper.SuspendLayout();
+            this.groupBoxQuality.SuspendLayout();
             this.SuspendLayout();
             //
             // nodeSubscription1
@@ -214,6 +229,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             this.groupBoxCaliper.Controls.Add(this.comboBoxDirection);
             this.groupBoxCaliper.Controls.Add(this.labelSamplingMode);
             this.groupBoxCaliper.Controls.Add(this.comboBoxSamplingMode);
+            this.groupBoxCaliper.Controls.Add(this.labelMeasureMode);
+            this.groupBoxCaliper.Controls.Add(this.comboBoxMeasureMode);
             this.groupBoxCaliper.Location = new System.Drawing.Point(18, 336);
             this.groupBoxCaliper.Name = "groupBoxCaliper";
             this.groupBoxCaliper.Size = new System.Drawing.Size(390, 246);
@@ -377,6 +394,141 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             this.comboBoxSamplingMode.Name = "comboBoxSamplingMode";
             this.comboBoxSamplingMode.Size = new System.Drawing.Size(120, 23);
             this.comboBoxSamplingMode.TabIndex = 17;
+            //
+            // labelMeasureMode
+            //
+            this.labelMeasureMode.AutoSize = true;
+            this.labelMeasureMode.Location = new System.Drawing.Point(220, 200);
+            this.labelMeasureMode.Name = "labelMeasureMode";
+            this.labelMeasureMode.Size = new System.Drawing.Size(67, 15);
+            this.labelMeasureMode.TabIndex = 18;
+            this.labelMeasureMode.Text = "测量精度";
+            //
+            // comboBoxMeasureMode
+            //
+            this.comboBoxMeasureMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxMeasureMode.FormattingEnabled = true;
+            this.comboBoxMeasureMode.Location = new System.Drawing.Point(292, 196);
+            this.comboBoxMeasureMode.Name = "comboBoxMeasureMode";
+            this.comboBoxMeasureMode.Size = new System.Drawing.Size(70, 23);
+            this.comboBoxMeasureMode.TabIndex = 19;
+            //
+            // groupBoxQuality
+            //
+            this.groupBoxQuality.Controls.Add(this.checkBoxEnableQualityValidation);
+            this.groupBoxQuality.Controls.Add(this.labelMinimumValidPointRatio);
+            this.groupBoxQuality.Controls.Add(this.textBoxMinimumValidPointRatio);
+            this.groupBoxQuality.Controls.Add(this.labelMaximumAverageResidual);
+            this.groupBoxQuality.Controls.Add(this.textBoxMaximumAverageResidual);
+            this.groupBoxQuality.Controls.Add(this.labelMaximumResidual);
+            this.groupBoxQuality.Controls.Add(this.textBoxMaximumResidual);
+            this.groupBoxQuality.Controls.Add(this.labelMinimumCoverageRatio);
+            this.groupBoxQuality.Controls.Add(this.textBoxMinimumCoverageRatio);
+            this.groupBoxQuality.Controls.Add(this.labelMaximumAngleDeviation);
+            this.groupBoxQuality.Controls.Add(this.textBoxMaximumAngleDeviation);
+            this.groupBoxQuality.Location = new System.Drawing.Point(18, 588);
+            this.groupBoxQuality.Name = "groupBoxQuality";
+            this.groupBoxQuality.Size = new System.Drawing.Size(390, 204);
+            this.groupBoxQuality.TabIndex = 5;
+            this.groupBoxQuality.TabStop = false;
+            this.groupBoxQuality.Text = "拟合质量判定";
+            //
+            // checkBoxEnableQualityValidation
+            //
+            this.checkBoxEnableQualityValidation.AutoSize = true;
+            this.checkBoxEnableQualityValidation.Checked = true;
+            this.checkBoxEnableQualityValidation.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.checkBoxEnableQualityValidation.Location = new System.Drawing.Point(16, 26);
+            this.checkBoxEnableQualityValidation.Name = "checkBoxEnableQualityValidation";
+            this.checkBoxEnableQualityValidation.Size = new System.Drawing.Size(119, 19);
+            this.checkBoxEnableQualityValidation.TabIndex = 0;
+            this.checkBoxEnableQualityValidation.Text = "启用质量判定";
+            this.checkBoxEnableQualityValidation.UseVisualStyleBackColor = true;
+            //
+            // labelMinimumValidPointRatio
+            //
+            this.labelMinimumValidPointRatio.AutoSize = true;
+            this.labelMinimumValidPointRatio.Location = new System.Drawing.Point(16, 68);
+            this.labelMinimumValidPointRatio.Name = "labelMinimumValidPointRatio";
+            this.labelMinimumValidPointRatio.Size = new System.Drawing.Size(82, 15);
+            this.labelMinimumValidPointRatio.TabIndex = 1;
+            this.labelMinimumValidPointRatio.Text = "有效点比例";
+            //
+            // textBoxMinimumValidPointRatio
+            //
+            this.textBoxMinimumValidPointRatio.Location = new System.Drawing.Point(112, 64);
+            this.textBoxMinimumValidPointRatio.Name = "textBoxMinimumValidPointRatio";
+            this.textBoxMinimumValidPointRatio.Size = new System.Drawing.Size(60, 25);
+            this.textBoxMinimumValidPointRatio.TabIndex = 2;
+            this.textBoxMinimumValidPointRatio.Text = "0.8";
+            //
+            // labelMinimumCoverageRatio
+            //
+            this.labelMinimumCoverageRatio.AutoSize = true;
+            this.labelMinimumCoverageRatio.Location = new System.Drawing.Point(206, 68);
+            this.labelMinimumCoverageRatio.Name = "labelMinimumCoverageRatio";
+            this.labelMinimumCoverageRatio.Size = new System.Drawing.Size(67, 15);
+            this.labelMinimumCoverageRatio.TabIndex = 3;
+            this.labelMinimumCoverageRatio.Text = "最低覆盖率";
+            //
+            // textBoxMinimumCoverageRatio
+            //
+            this.textBoxMinimumCoverageRatio.Location = new System.Drawing.Point(302, 64);
+            this.textBoxMinimumCoverageRatio.Name = "textBoxMinimumCoverageRatio";
+            this.textBoxMinimumCoverageRatio.Size = new System.Drawing.Size(60, 25);
+            this.textBoxMinimumCoverageRatio.TabIndex = 4;
+            this.textBoxMinimumCoverageRatio.Text = "0.75";
+            //
+            // labelMaximumAverageResidual
+            //
+            this.labelMaximumAverageResidual.AutoSize = true;
+            this.labelMaximumAverageResidual.Location = new System.Drawing.Point(16, 110);
+            this.labelMaximumAverageResidual.Name = "labelMaximumAverageResidual";
+            this.labelMaximumAverageResidual.Size = new System.Drawing.Size(82, 15);
+            this.labelMaximumAverageResidual.TabIndex = 5;
+            this.labelMaximumAverageResidual.Text = "平均残差上限";
+            //
+            // textBoxMaximumAverageResidual
+            //
+            this.textBoxMaximumAverageResidual.Location = new System.Drawing.Point(112, 106);
+            this.textBoxMaximumAverageResidual.Name = "textBoxMaximumAverageResidual";
+            this.textBoxMaximumAverageResidual.Size = new System.Drawing.Size(60, 25);
+            this.textBoxMaximumAverageResidual.TabIndex = 6;
+            this.textBoxMaximumAverageResidual.Text = "1.5";
+            //
+            // labelMaximumResidual
+            //
+            this.labelMaximumResidual.AutoSize = true;
+            this.labelMaximumResidual.Location = new System.Drawing.Point(206, 110);
+            this.labelMaximumResidual.Name = "labelMaximumResidual";
+            this.labelMaximumResidual.Size = new System.Drawing.Size(82, 15);
+            this.labelMaximumResidual.TabIndex = 7;
+            this.labelMaximumResidual.Text = "最大残差上限";
+            //
+            // textBoxMaximumResidual
+            //
+            this.textBoxMaximumResidual.Location = new System.Drawing.Point(302, 106);
+            this.textBoxMaximumResidual.Name = "textBoxMaximumResidual";
+            this.textBoxMaximumResidual.Size = new System.Drawing.Size(60, 25);
+            this.textBoxMaximumResidual.TabIndex = 8;
+            this.textBoxMaximumResidual.Text = "3.5";
+            //
+            // labelMaximumAngleDeviation
+            //
+            this.labelMaximumAngleDeviation.AutoSize = true;
+            this.labelMaximumAngleDeviation.Location = new System.Drawing.Point(16, 152);
+            this.labelMaximumAngleDeviation.Name = "labelMaximumAngleDeviation";
+            this.labelMaximumAngleDeviation.Size = new System.Drawing.Size(82, 15);
+            this.labelMaximumAngleDeviation.TabIndex = 9;
+            this.labelMaximumAngleDeviation.Text = "方向偏差上限";
+            //
+            // textBoxMaximumAngleDeviation
+            //
+            this.textBoxMaximumAngleDeviation.Location = new System.Drawing.Point(112, 148);
+            this.textBoxMaximumAngleDeviation.Name = "textBoxMaximumAngleDeviation";
+            this.textBoxMaximumAngleDeviation.Size = new System.Drawing.Size(60, 25);
+            this.textBoxMaximumAngleDeviation.TabIndex = 10;
+            this.textBoxMaximumAngleDeviation.Text = "5";
             // 
             // showImageControl1
             // 
@@ -391,56 +543,56 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             this.showImageControl1.RoiColor = System.Drawing.Color.Lime;
             this.showImageControl1.ShowCheckerBackground = false;
             this.showImageControl1.ShowPixelInfo = false;
-            this.showImageControl1.Size = new System.Drawing.Size(520, 532);
+            this.showImageControl1.Size = new System.Drawing.Size(520, 742);
             this.showImageControl1.StaticShapeColor = System.Drawing.Color.Red;
-            this.showImageControl1.TabIndex = 5;
+            this.showImageControl1.TabIndex = 6;
             //
             // buttonDrawRoi
             //
-            this.buttonDrawRoi.Location = new System.Drawing.Point(424, 594);
+            this.buttonDrawRoi.Location = new System.Drawing.Point(424, 804);
             this.buttonDrawRoi.Name = "buttonDrawRoi";
             this.buttonDrawRoi.Size = new System.Drawing.Size(92, 34);
-            this.buttonDrawRoi.TabIndex = 6;
+            this.buttonDrawRoi.TabIndex = 7;
             this.buttonDrawRoi.Text = "绘制ROI";
             this.buttonDrawRoi.UseVisualStyleBackColor = true;
             this.buttonDrawRoi.Click += new System.EventHandler(this.buttonDrawRoi_Click);
             //
             // buttonConfirmRoi
             //
-            this.buttonConfirmRoi.Location = new System.Drawing.Point(522, 594);
+            this.buttonConfirmRoi.Location = new System.Drawing.Point(522, 804);
             this.buttonConfirmRoi.Name = "buttonConfirmRoi";
             this.buttonConfirmRoi.Size = new System.Drawing.Size(92, 34);
-            this.buttonConfirmRoi.TabIndex = 7;
+            this.buttonConfirmRoi.TabIndex = 8;
             this.buttonConfirmRoi.Text = "确认ROI";
             this.buttonConfirmRoi.UseVisualStyleBackColor = true;
             this.buttonConfirmRoi.Click += new System.EventHandler(this.buttonConfirmRoi_Click);
             //
             // buttonRefresh
             // 
-            this.buttonRefresh.Location = new System.Drawing.Point(620, 594);
+            this.buttonRefresh.Location = new System.Drawing.Point(620, 804);
             this.buttonRefresh.Name = "buttonRefresh";
             this.buttonRefresh.Size = new System.Drawing.Size(98, 34);
-            this.buttonRefresh.TabIndex = 8;
+            this.buttonRefresh.TabIndex = 9;
             this.buttonRefresh.Text = "刷新图像";
             this.buttonRefresh.UseVisualStyleBackColor = true;
             this.buttonRefresh.Click += new System.EventHandler(this.buttonRefresh_Click);
             // 
             // buttonRun
             // 
-            this.buttonRun.Location = new System.Drawing.Point(724, 594);
+            this.buttonRun.Location = new System.Drawing.Point(724, 804);
             this.buttonRun.Name = "buttonRun";
             this.buttonRun.Size = new System.Drawing.Size(100, 34);
-            this.buttonRun.TabIndex = 9;
+            this.buttonRun.TabIndex = 10;
             this.buttonRun.Text = "执行";
             this.buttonRun.UseVisualStyleBackColor = true;
             this.buttonRun.Click += new System.EventHandler(this.buttonRun_Click);
             // 
             // buttonSave
             // 
-            this.buttonSave.Location = new System.Drawing.Point(844, 594);
+            this.buttonSave.Location = new System.Drawing.Point(844, 804);
             this.buttonSave.Name = "buttonSave";
             this.buttonSave.Size = new System.Drawing.Size(100, 34);
-            this.buttonSave.TabIndex = 10;
+            this.buttonSave.TabIndex = 11;
             this.buttonSave.Text = "确定";
             this.buttonSave.UseVisualStyleBackColor = true;
             this.buttonSave.Click += new System.EventHandler(this.buttonSave_Click);
@@ -449,13 +601,14 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(962, 646);
+            this.ClientSize = new System.Drawing.Size(962, 856);
             this.Controls.Add(this.buttonSave);
             this.Controls.Add(this.buttonRun);
             this.Controls.Add(this.buttonRefresh);
             this.Controls.Add(this.buttonConfirmRoi);
             this.Controls.Add(this.buttonDrawRoi);
             this.Controls.Add(this.showImageControl1);
+            this.Controls.Add(this.groupBoxQuality);
             this.Controls.Add(this.groupBoxCaliper);
             this.Controls.Add(this.groupBoxGeometry);
             this.Controls.Add(this.groupBoxPositionCorrection);
@@ -469,6 +622,8 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             this.groupBoxGeometry.PerformLayout();
             this.groupBoxCaliper.ResumeLayout(false);
             this.groupBoxCaliper.PerformLayout();
+            this.groupBoxQuality.ResumeLayout(false);
+            this.groupBoxQuality.PerformLayout();
             this.ResumeLayout(false);
         }
 
@@ -505,6 +660,20 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
         private System.Windows.Forms.ComboBox comboBoxDirection;
         private System.Windows.Forms.Label labelSamplingMode;
         private System.Windows.Forms.ComboBox comboBoxSamplingMode;
+        private System.Windows.Forms.Label labelMeasureMode;
+        private System.Windows.Forms.ComboBox comboBoxMeasureMode;
+        private System.Windows.Forms.GroupBox groupBoxQuality;
+        private System.Windows.Forms.CheckBox checkBoxEnableQualityValidation;
+        private System.Windows.Forms.Label labelMinimumValidPointRatio;
+        private System.Windows.Forms.TextBox textBoxMinimumValidPointRatio;
+        private System.Windows.Forms.Label labelMaximumAverageResidual;
+        private System.Windows.Forms.TextBox textBoxMaximumAverageResidual;
+        private System.Windows.Forms.Label labelMaximumResidual;
+        private System.Windows.Forms.TextBox textBoxMaximumResidual;
+        private System.Windows.Forms.Label labelMinimumCoverageRatio;
+        private System.Windows.Forms.TextBox textBoxMinimumCoverageRatio;
+        private System.Windows.Forms.Label labelMaximumAngleDeviation;
+        private System.Windows.Forms.TextBox textBoxMaximumAngleDeviation;
         private TDJS_Vision.Forms.DispShowImage.ShowImageControl showImageControl1;
         private System.Windows.Forms.Button buttonDrawRoi;
         private System.Windows.Forms.Button buttonConfirmRoi;

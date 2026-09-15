@@ -4,6 +4,7 @@
     <Node Text="图像采集" ImageName="图像采集" Tag="UNKNOWN" SelectedImageName="图像采集">
       <Nodes>
         <Node Text="图像源" ImageName="图像源" Tag="ImageSource" SelectedImageName="图像源" />
+        <Node Text="相机曝光增益" ImageName="相机拍照" Tag="CameraExposureGain" SelectedImageName="相机拍照" />
         <Node Text="3D图像源" ImageName="图像源" Tag="ImageSource3D" SelectedImageName="图像源" />
         <Node Text="图像显示" ImageName="图像显示" Tag="ImageShow" SelectedImageName="图像显示" />
       </Nodes>
@@ -14,20 +15,21 @@
         <Node Text="图像旋转" ImageName="图像旋转" Tag="ImageRotate" SelectedImageName="图像旋转" />
         <Node Text="图像分割" ImageName="图像分割" Tag="ImageSplit" SelectedImageName="图像分割" />
         <Node Text="图像预处理" ImageName="图像处理" Tag="ImagePreprocess" SelectedImageName="图像处理" />
+        <Node Text="Blob分析工具" ImageName="图像处理" Tag="BlobAnalysis" SelectedImageName="图像处理" />
       </Nodes>
     </Node>
-    <Node Text="检测识别" ImageName="检测识别" Tag="UNKNOWN" SelectedImageName="检测识别">
+    <Node Text="深度学习" ImageName="检测识别" Tag="UNKNOWN" SelectedImageName="检测识别">
       <Nodes>
-        <Node Text="AI检测" ImageName="AI检测" Tag="AITD" SelectedImageName="AI检测" />
+        <Node Text="目标分类" ImageName="AI检测" Tag="AITD" SelectedImageName="AI检测" />
         <Node Text="无监督检测" ImageName="AI检测" Tag="UnsupervisedDetection" SelectedImageName="AI检测" />
         <Node Text="大模型调用" ImageName="AI检测" Tag="LargeModelDetection" SelectedImageName="AI检测" />
-        <Node Text="直线检测" ImageName="检测直线" Tag="LineFind" SelectedImageName="检测直线" />
-        <Node Text="圆检测" ImageName="检测圆" Tag="CircleFind" SelectedImageName="检测圆" />
-        <Node Text="二维码识别" ImageName="二维码识别" Tag="QRScan" SelectedImageName="二维码识别" />
-        <Node Text="模版匹配" ImageName="模版匹配" Tag="MatchTemplate" SelectedImageName="模版匹配" />
-        <Node Text="电池极耳检测" ImageName="极耳检测" Tag="BatteryEar" SelectedImageName="极耳检测" />
-        <Node Text="颜色识别" ImageName="颜色识别" Tag="RGBDiscern" SelectedImageName="颜色识别" />
-        <Node Text="二值化分析" ImageName="二值化分析" Tag="BinarizationAnalysis" SelectedImageName="二值化分析" />
+      </Nodes>
+    </Node>
+    <Node Text="定位工具" ImageName="测量工具" Tag="UNKNOWN" SelectedImageName="测量工具">
+      <Nodes>
+        <Node Text="模板匹配" ImageName="模版匹配" Tag="MatchTemplate" SelectedImageName="模版匹配" />
+        <Node Text="NCC模板匹配" ImageName="模版匹配" Tag="NccMatchTemplate" SelectedImageName="模版匹配" />
+        <Node Text="位置修正" ImageName="测量工具" Tag="PositionCorrection" SelectedImageName="测量工具" />
       </Nodes>
     </Node>
     <Node Text="测量工具" ImageName="测量工具" Tag="UNKNOWN" SelectedImageName="测量工具">
@@ -36,11 +38,20 @@
         <Node Text="卡尺找圆" ImageName="卡尺找圆" Tag="CaliperCircle" SelectedImageName="卡尺找圆" />
         <Node Text="卡尺找椭圆" ImageName="卡尺找椭圆" Tag="CaliperEllipse" SelectedImageName="卡尺找椭圆" />
         <Node Text="找点" ImageName="测量工具" Tag="FindPoint" SelectedImageName="测量工具" />
-        <Node Text="位置修正" ImageName="测量工具" Tag="PositionCorrection" SelectedImageName="测量工具" />
         <Node Text="线到线夹角" ImageName="测量工具" Tag="LineLineAngle" SelectedImageName="测量工具" />
         <Node Text="点到点距离" ImageName="测量工具" Tag="PointPointDistance" SelectedImageName="测量工具" />
         <Node Text="点到线距离" ImageName="测量工具" Tag="PointLineDistance" SelectedImageName="测量工具" />
         <Node Text="点到区域距离" ImageName="测量工具" Tag="PointRegionDistance" SelectedImageName="测量工具" />
+      </Nodes>
+    </Node>
+    <Node Text="颜色检测" ImageName="检测识别" Tag="UNKNOWN" SelectedImageName="检测识别">
+      <Nodes>
+        <Node Text="LAB颜色识别" ImageName="颜色识别" Tag="RGBDiscern" SelectedImageName="颜色识别" />
+      </Nodes>
+    </Node>
+    <Node Text="条码识别" ImageName="检测识别" Tag="UNKNOWN" SelectedImageName="检测识别">
+      <Nodes>
+        <Node Text="二维码识别" ImageName="二维码识别" Tag="QRScan" SelectedImageName="二维码识别" />
       </Nodes>
     </Node>
     <Node Text="图形创建" ImageName="测量工具" Tag="UNKNOWN" SelectedImageName="测量工具">
@@ -86,10 +97,9 @@
     </Node>
     <Node Text="结果处理" ImageName="结果处理" Tag="UNKNOWN" SelectedImageName="结果处理">
       <Nodes>
-        <Node Text="AI结果绘制" ImageName="AI结果绘制" Tag="DrawAIResult" SelectedImageName="AI结果绘制" />
-        <Node Text="ROI结果绘制" ImageName="AI结果绘制" Tag="ResultOverlayDraw" SelectedImageName="AI结果绘制" />
-        <Node Text="ROI结果绘制2" ImageName="AI结果绘制" Tag="ResultOverlayDraw2" SelectedImageName="AI结果绘制" />
+        <Node Text="ROI结果绘制" ImageName="结果处理" Tag="ResultOverlayDraw" SelectedImageName="结果处理" />
         <Node Text="发送AI结果" ImageName="发送AI结果" Tag="AIResultSend" SelectedImageName="发送AI结果" />
+        <Node Text="结果发送" ImageName="发送AI结果" Tag="ResultSend" SelectedImageName="发送AI结果" />
         <Node Text="保存图片" ImageName="保存图片" Tag="ImageSave" SelectedImageName="保存图片" />
         <Node Text="定期删除图片" ImageName="图片删除" Tag="ImageFileDelete" SelectedImageName="图片删除" />
         <Node Text="结果汇总" ImageName="结果汇总" Tag="Summarize" SelectedImageName="结果汇总" />

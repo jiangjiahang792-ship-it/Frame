@@ -11,6 +11,30 @@ namespace TDJS_Vision.Forms.Startup
     /// </summary>
     internal partial class FormStartup : Form
     {
+        /// <summary>禁止窗口取得前台激活状态的Windows扩展样式。</summary>
+        private const int ExtendedWindowStyleNoActivate = 0x08000000;
+
+        /// <summary>
+        /// 后台性能验收时显示启动页但不激活，避免占用用户正在办公的前台窗口。
+        /// </summary>
+        protected override bool ShowWithoutActivation =>
+            StartupDisplayMode.IsBackgroundAcceptance || base.ShowWithoutActivation;
+
+        /// <summary>
+        /// 后台性能验收时从窗口句柄层禁止启动页激活，消除Release快速启动下的短暂焦点竞争。
+        /// </summary>
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams createParams = base.CreateParams;
+                if (StartupDisplayMode.IsBackgroundAcceptance)
+                    createParams.ExStyle |= ExtendedWindowStyleNoActivate;
+
+                return createParams;
+            }
+        }
+
         /// <summary>
         /// 机器人图片初始纵向位置。
         /// </summary>
@@ -37,6 +61,13 @@ namespace TDJS_Vision.Forms.Startup
         public FormStartup()
         {
             InitializeComponent();
+            if (StartupDisplayMode.IsBackgroundAcceptance)
+            {
+                TopMost = false;
+                ShowInTaskbar = false;
+                WindowState = FormWindowState.Minimized;
+                Opacity = 0D;
+            }
             ConfigureAnimationOverlays();
             DoubleBuffered = true;
             mascotBaseTop = pictureBoxMascot.Top;

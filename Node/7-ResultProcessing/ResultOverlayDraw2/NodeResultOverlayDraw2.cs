@@ -12,6 +12,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._4_Measurement.Common;
@@ -89,6 +90,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         public override Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+            OutputImage pendingOutputImage = null;
 
             if (!Active)
             {
@@ -109,26 +111,33 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 CheckTokenCancel(token);
 
                 NodeParamResultOverlayDraw2 param = (NodeParamResultOverlayDraw2)ParamForm.Params;
-                OutputImage outputImage;
                 AlgorithmResult displayResult;
                 bool isOk;
                 string diagnostics;
                 ResultOverlayDraw2PerformanceDiagnostics performanceDiagnostics;
-                ResultOverlayDraw2Builder.Build(this, param, out outputImage, out displayResult, out isOk, out diagnostics, out performanceDiagnostics);
+                ResultOverlayDraw2Builder.Build(this, param, out pendingOutputImage, out displayResult, out isOk, out diagnostics, out performanceDiagnostics);
 
-                NodeResultResultOverlayDraw2 nodeResult = (NodeResultResultOverlayDraw2)Result;
-                nodeResult.OutputImage = outputImage;
-                nodeResult.Result = displayResult;
-                nodeResult.IsOk = isOk;
-                nodeResult.RuleDiagnostics = diagnostics;
+                NodeResultResultOverlayDraw2 nodeResult = new NodeResultResultOverlayDraw2
+                {
+                    OutputImage = pendingOutputImage,
+                    Result = displayResult,
+                    IsOk = isOk,
+                    RuleDiagnostics = diagnostics
+                };
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
-                Result.RunTime = time;
-                if (showLog)
+                nodeResult.RunTime = time;
+                Result = nodeResult;
+                pendingOutputImage = null;
+                if (performanceDiagnostics != null)
                 {
-                    LogHelper.AddLog(MsgLevel.Info, $"【性能诊断-ROI结果绘制2】节点({ID}.{NodeName}) {performanceDiagnostics.ToLogText()}；颜色判定={(isOk ? "OK" : "NG")}；状态耗时={time}ms", true);
-                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
+                    PerformanceSpikeDiagnostics.LogIfEnabled(
+                        MsgLevel.Debug,
+                        () => $"【性能诊断-ROI结果绘制2】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；{performanceDiagnostics.ToLogText()}；颜色判定={(isOk ? "OK" : "NG")}；状态耗时={time}ms",
+                        true);
                 }
+                if (showLog)
+                    LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms)", true);
 
                 return Task.FromResult(new NodeReturn(NodeRunFlag.ContinueRun));
             }
@@ -143,6 +152,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
                 SetRunResult(startTime, NodeStatus.Failed);
                 throw new Exception($"节点({ID}.{NodeName})运行失败！原因:{ex.Message}");
+            }
+            finally
+            {
+                pendingOutputImage?.Dispose();
             }
         }
 
@@ -214,11 +227,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             if (param == null)
                 throw new Exception("ROI结果绘制2参数为空！");
 
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            performanceDiagnostics = new ResultOverlayDraw2PerformanceDiagnostics();
+            Stopwatch stopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
+            performanceDiagnostics = stopwatch == null ? null : new ResultOverlayDraw2PerformanceDiagnostics();
 
             object imageValue = ReadSubscribedValue(owner, param.ImageText1, param.ImageText2, out NodeBase _);
-            performanceDiagnostics.ImageSubscriptionMs = stopwatch.ElapsedMilliseconds;
+            long imageSubscriptionMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+            if (performanceDiagnostics != null)
+                performanceDiagnostics.ImageSubscriptionMs = imageSubscriptionMs;
             OutputImage inputImage = imageValue as OutputImage;
             if (inputImage == null)
                 throw new Exception("订阅的图像类型不是 OutputImage！");
@@ -226,24 +241,40 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             ResultOverlayDrawColorState colorState = ResolveColorState(owner, param);
             isOk = colorState.IsOk;
             diagnostics = colorState.Diagnostics;
-            long afterResolveColor = stopwatch.ElapsedMilliseconds;
-            performanceDiagnostics.ColorRuleMs = afterResolveColor - performanceDiagnostics.ImageSubscriptionMs;
+            long afterResolveColor = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+            if (performanceDiagnostics != null)
+                performanceDiagnostics.ColorRuleMs = afterResolveColor - imageSubscriptionMs;
             Mat cleanImage = MeasurementNodeHelper.GetFirstMat(inputImage);
-            long afterGetCleanImage = stopwatch.ElapsedMilliseconds;
-            performanceDiagnostics.GetCleanImageMs = afterGetCleanImage - afterResolveColor;
+            long afterGetCleanImage = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+            if (performanceDiagnostics != null)
+                performanceDiagnostics.GetCleanImageMs = afterGetCleanImage - afterResolveColor;
             displayResult = BuildDisplayResult(owner, param, colorState, performanceDiagnostics);
-            long afterBuildDisplay = stopwatch.ElapsedMilliseconds;
-            performanceDiagnostics.BuildDisplayResultMs = afterBuildDisplay - afterGetCleanImage;
-            outputImage = new OutputImage
+            long afterBuildDisplay = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+            if (performanceDiagnostics != null)
+                performanceDiagnostics.BuildDisplayResultMs = afterBuildDisplay - afterGetCleanImage;
+            OutputImage borrowedOutput = new OutputImage
             {
                 Bitmaps = new List<Mat> { cleanImage },
                 Rectangles = inputImage.Rectangles == null ? new List<Rect>() : inputImage.Rectangles.ToList(),
                 DisplayResult = displayResult
             };
-            long afterBuildOutput = stopwatch.ElapsedMilliseconds;
-            performanceDiagnostics.BuildOutputImageMs = afterBuildOutput - afterBuildDisplay;
-            performanceDiagnostics.TotalMs = afterBuildOutput;
-            performanceDiagnostics.CaptureDisplayResultCounts(displayResult);
+            try
+            {
+                borrowedOutput.TakeDependency(inputImage);
+                long afterBuildOutput = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+                if (performanceDiagnostics != null)
+                {
+                    performanceDiagnostics.BuildOutputImageMs = afterBuildOutput - afterBuildDisplay;
+                    performanceDiagnostics.TotalMs = afterBuildOutput;
+                    performanceDiagnostics.CaptureDisplayResultCounts(displayResult);
+                }
+                outputImage = borrowedOutput;
+            }
+            catch
+            {
+                borrowedOutput.Dispose();
+                throw;
+            }
         }
 
         /// <summary>
@@ -755,7 +786,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
 
             foreach (ResultOverlayDraw2Item item in enabledItems)
             {
-                Stopwatch itemWatch = Stopwatch.StartNew();
+                Stopwatch itemWatch = performanceDiagnostics == null ? null : Stopwatch.StartNew();
                 switch (item.ItemType)
                 {
                     case ResultOverlayDraw2ItemType.Text:
@@ -890,10 +921,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             }
 
             SubscriptionDataCategory category = ResolveSubscriptionCategory(sourceNode, item.SourceText2, value);
+            // 旧颜色规则与文本绘制保持一致，保留AI检测项颜色；显式布尔颜色订阅仍允许统一覆盖。
+            AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
+            bool preserveElementColor = colorState.UseLegacyColorRules &&
+                ShouldPreserveAlgorithmResultElementColor(algorithmResult);
             OverlayGeometryRenderContext context = new OverlayGeometryRenderContext
             {
                 FallbackColor = colorState.DisplayColor,
-                OverrideColor = colorState.OverrideSourceColor ? colorState.DisplayColor : (Color?)null,
+                OverrideColor = colorState.OverrideSourceColor && !preserveElementColor ? colorState.DisplayColor : (Color?)null,
                 LineWidth = Math.Max(1, item.LineWidth)
             };
 
@@ -1015,6 +1050,19 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 {
                     displayResult.Contours.Add(new ColorContour(contour.Points == null ? new List<PointF>() : contour.Points.ToList(), drawColor)
                     {
+                        LineWidth = Math.Max(1, item.LineWidth)
+                    });
+                }
+                return;
+            }
+
+            if (algorithmResult != null && algorithmResult.Rects.Count > 0)
+            {
+                foreach (ColorRotatedRect rect in algorithmResult.Rects)
+                {
+                    displayResult.Rects.Add(new ColorRotatedRect(rect.RotatedRect)
+                    {
+                        Color = drawColor,
                         LineWidth = Math.Max(1, item.LineWidth)
                     });
                 }

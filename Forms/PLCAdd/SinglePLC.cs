@@ -42,7 +42,7 @@ namespace TDJS_Vision.Forms.PLCAdd
         {
             InitializeComponent();
             plc.ConnectStatusEvent += Plc_ConnectStatusEvent;
-            if (plc.IsConnect)
+            if (plc.IsConnect || (plc as TDJS_Vision.Device.IReconnectableCommunicationDevice)?.RestoreConnectionRequested == true)
             {
                 if (!plc.Connect())
                     LogHelper.AddLog(MsgLevel.Exception, $"PLC（{plc.UserDefinedName}）连接失败，请检查PLC通信是否正常！", true);
@@ -68,6 +68,19 @@ namespace TDJS_Vision.Forms.PLCAdd
                 case Device.DeviceBrand.Melsec:
                     plc = new PlcMelsec(parms);
                     break;
+                case Device.DeviceBrand.Keyence:
+                    switch (parms.KeyenceProtocol)
+                    {
+                        case KeyenceProtocol.NanoOverTcp:
+                            plc = new PlcKeyenceNano(parms);
+                            break;
+                        case KeyenceProtocol.Kv300Older:
+                            plc = new PlcKeyenceKvOld(parms);
+                            break;
+                        default:
+                            throw new NotSupportedException("不支持的基恩士通信协议！");
+                    }
+                    break;
                 default:
                     break;
             }
@@ -82,9 +95,23 @@ namespace TDJS_Vision.Forms.PLCAdd
         /// </summary>
         private void Plc_ConnectStatusEvent(object sender, bool e)
         {
+            if (IsDisposed || Disposing || !IsHandleCreated) return;
+            if (InvokeRequired)
+            {
+                try { BeginInvoke(new Action(() => Plc_ConnectStatusEvent(sender, e))); }
+                catch (InvalidOperationException) { }
+                return;
+            }
             uiSwitch1.ValueChanged -= uiSwitch1_ValueChanged;
-            uiSwitch1.Active = e;
+            uiSwitch1.Active = Plc?.IsConnect == true;
             uiSwitch1.ValueChanged += uiSwitch1_ValueChanged;
+        }
+
+        /// <summary>首次显示时刷新实际连接状态，避免构造期间的后台通知丢失。</summary>
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            Plc_ConnectStatusEvent(Plc, Plc?.IsConnect == true);
         }
 
         /// <summary>
@@ -138,7 +165,7 @@ namespace TDJS_Vision.Forms.PLCAdd
                 }
                 else
                 {
-                    if (Plc.IsConnect)
+                    if (Plc.IsConnect || (Plc as TDJS_Vision.Device.IReconnectableCommunicationDevice)?.RestoreConnectionRequested == true)
                     {
                         Plc.Disconnect();
                         LogHelper.AddLog(MsgLevel.Info, $"{Plc.UserDefinedName}关闭", true);
@@ -160,6 +187,12 @@ namespace TDJS_Vision.Forms.PLCAdd
         {
             if(IsSelected)
                 SinglePLCRemoveEvent?.Invoke(this, this);
+        }
+
+        /// <summary>离线重试期间也可主动停止恢复，不必等待连接成功。</summary>
+        private void disconnectToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            uiSwitch1_ValueChanged(sender, false);
         }
     }
 }

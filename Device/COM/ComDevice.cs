@@ -104,7 +104,7 @@ namespace TDJS_Vision.Device.COM
         public void Close()
         {
             _serialPort.Close();
-            IsOpen = true;
+            IsOpen = false;
             ConnectStatusEvent?.Invoke(this, false);
         }
 
@@ -117,7 +117,7 @@ namespace TDJS_Vision.Device.COM
         public void Send(string data, string encoding)
         {
             if (string.IsNullOrEmpty(data))
-                return;
+                throw new ArgumentException("串口发送数据不能为空。", nameof(data));
 
             lock (_sendLock) // 确保同一时间只有一个线程在写
             {
@@ -191,6 +191,9 @@ namespace TDJS_Vision.Device.COM
         public Parity Parity { get; set; } = Parity.None;
         public StopBits StopBits { get; set; } = StopBits.One;
 
+        /// <summary>同步串口写入的有限超时毫秒数。</summary>
+        public int WriteTimeout { get; set; } = 2000;
+
         // 可选：从 SerialPort 实例加载配置
         public static SerialPortConfig FromSerialPort(SerialPort port)
         {
@@ -200,7 +203,8 @@ namespace TDJS_Vision.Device.COM
                 BaudRate = port.BaudRate,
                 DataBits = port.DataBits,
                 Parity = port.Parity,
-                StopBits = port.StopBits
+                StopBits = port.StopBits,
+                WriteTimeout = port.WriteTimeout
             };
         }
 
@@ -212,6 +216,7 @@ namespace TDJS_Vision.Device.COM
             port.DataBits = DataBits;
             port.Parity = Parity;
             port.StopBits = StopBits;
+            port.WriteTimeout = Math.Min(60000, Math.Max(100, WriteTimeout));
         }
     }
 }

@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Node._3_Detection.FindCircle
@@ -29,6 +30,7 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
         public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+            OutputImage pendingOutputImage = null;
             // 参数合法性校验
             if (!Active)
             {
@@ -53,8 +55,8 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
                         base.CheckTokenCancel(token);
 
                         string res = string.Empty;
-                        var (Circle, image) = form.DetectCircle();
-                        if (Circle == null || image == null) { throw new Exception("圆查找失败！"); }
+                        var (Circle, detectionSucceeded) = form.DetectCircle();
+                        if (!detectionSucceeded) { throw new Exception("圆查找失败！"); }
 
                         if (!param.OKEnable)
                             res = "未启用";
@@ -67,15 +69,25 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
 
                         // 输出节点结果
                         var outputImage = form.GetOutputImage();
-                        ((NodeResultFindCircle)Result).OutputImage.Bitmaps = new List<Mat>() { outputImage.Bitmaps[0].Clone() };
-                        ((NodeResultFindCircle)Result).Result.Clear();
-                        ((NodeResultFindCircle)Result).Result.Circles.Add(new ColorCircle(Circle, resultColor));
-                        ((NodeResultFindCircle)Result).Result.Texts.Add(new ColorText($"识别到的圆心：（{Circle.Center.X}, {Circle.Center.Y}）\n半径：{Circle.Radius}", resultColor));
-                        ((NodeResultFindCircle)Result).Result.IsAllOk = isOk;
-                        ((NodeResultFindCircle)Result).OutputImage.DisplayResult = ((NodeResultFindCircle)Result).Result;
+                        if (outputImage == null || outputImage.Bitmaps == null || outputImage.Bitmaps.Count == 0 || !OutputImage.HasValidImage(outputImage.Bitmaps[0]))
+                            throw new Exception("圆查找的上游输出图像为空！");
+
+                        var nodeResult = new NodeResultFindCircle();
+                        nodeResult.Result.Circles.Add(new ColorCircle(Circle, resultColor));
+                        nodeResult.Result.Texts.Add(new ColorText($"识别到的圆心：（{Circle.Center.X}, {Circle.Center.Y}）\n半径：{Circle.Radius}", resultColor));
+                        nodeResult.Result.IsAllOk = isOk;
+                        pendingOutputImage = new OutputImage
+                        {
+                            Bitmaps = new List<Mat> { outputImage.Bitmaps[0] },
+                            DisplayResult = nodeResult.Result
+                        };
+                        pendingOutputImage.TakeDependency(outputImage);
+                        nodeResult.OutputImage = pendingOutputImage;
 
                         var time = SetRunResult(startTime, NodeStatus.Successful);
-                        Result.RunTime = time;
+                        nodeResult.RunTime = time;
+                        Result = nodeResult;
+                        pendingOutputImage = null;
                         if (showLog)
                             LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms，圆半径：{Circle.Radius} 像素, 圆心：({Circle.Center.X},{Circle.Center.Y}), 判定：{res}", true);
 
@@ -92,6 +104,10 @@ namespace TDJS_Vision.Node._3_Detection.FindCircle
                         LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
                         SetRunResult(startTime, NodeStatus.Failed);
                         throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
+                    }
+                    finally
+                    {
+                        pendingOutputImage?.Dispose();
                     }
                 }
             }

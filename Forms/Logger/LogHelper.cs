@@ -7,6 +7,7 @@ using System.Windows.Forms;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace Logger
 {
@@ -28,6 +29,11 @@ namespace Logger
         private const int LevelLogDisplayLimit = 300;
 
         /// <summary>
+        /// Debug性能诊断允许占用的最大待写日志数量，防止诊断洪峰无限推高内存。
+        /// </summary>
+        private const int DiagnosticPendingLogLimit = 4096;
+
+        /// <summary>
         /// 保存等待显示日志的有界缓冲区。
         /// </summary>
         private readonly ILogUiBuffer _logUiBuffer;
@@ -35,6 +41,11 @@ namespace Logger
         static readonly string LogDictory = Environment.CurrentDirectory + @"\Logs\";
         static event EventHandler<LevelAndInfo> LogAddEvent;
         private static readonly BlockingCollection<Action> _logQueue = new BlockingCollection<Action>();
+
+        /// <summary>
+        /// 因待写队列达到上限而放弃的Debug性能诊断数量。
+        /// </summary>
+        private static long _droppedDiagnosticLogCount;
 
         static LogHelper()
         {
@@ -354,6 +365,44 @@ namespace Logger
         }
 
         /// <summary>
+        /// 当前尚未写入文件的日志任务数量，供性能诊断观察日志积压。
+        /// </summary>
+        public static int PendingLogCount => _logQueue.Count;
+
+        /// <summary>
+        /// 获取因诊断队列保护而放弃的Debug性能诊断总数。
+        /// </summary>
+        public static long DroppedDiagnosticLogCount => Interlocked.Read(ref _droppedDiagnosticLogCount);
+
+        /// <summary>
+        /// 尝试写入一条有界Debug性能诊断；队列拥堵时只丢弃诊断，不阻塞检测流程。
+        /// </summary>
+        /// <param name="logInfo">诊断正文。</param>
+        /// <param name="isDisplay">是否进入日志显示缓冲区。</param>
+        /// <param name="filePath">调用者文件。</param>
+        /// <param name="memberName">调用者方法。</param>
+        /// <param name="lineNumber">调用者行号。</param>
+        /// <returns>成功加入待写队列时返回true。</returns>
+        public static bool TryAddDiagnosticLog(
+            string logInfo,
+            bool isDisplay = false,
+            [CallerFilePath] string filePath = "",
+            [CallerMemberName] string memberName = "",
+            [CallerLineNumber] int lineNumber = 0)
+        {
+            if (!CanRecord(MsgLevel.Debug))
+                return false;
+
+            if (_logQueue.Count >= DiagnosticPendingLogLimit)
+            {
+                Interlocked.Increment(ref _droppedDiagnosticLogCount);
+                return false;
+            }
+
+            return EnqueueLog(MsgLevel.Debug, logInfo, isDisplay, filePath, memberName, lineNumber, true);
+        }
+
+        /// <summary>
         /// 记录一条日志并触发异步落地
         /// </summary>
         /// <param name="level">日志级别</param>
@@ -371,14 +420,36 @@ namespace Logger
             [CallerLineNumber] int lineNumber = 0
             )
         {
+            EnqueueLog(level, logInfo, isDisplay, filePath, memberName, lineNumber, false);
+        }
+
+        /// <summary>
+        /// 创建日志任务并加入后台文件队列。
+        /// </summary>
+        /// <param name="level">日志等级。</param>
+        /// <param name="logInfo">日志正文。</param>
+        /// <param name="isDisplay">是否进入日志显示缓冲区。</param>
+        /// <param name="filePath">调用者文件。</param>
+        /// <param name="memberName">调用者方法。</param>
+        /// <param name="lineNumber">调用者行号。</param>
+        /// <param name="useNonBlockingAdd">是否使用非阻塞入队。</param>
+        /// <returns>成功加入待写队列时返回true。</returns>
+        private static bool EnqueueLog(
+            MsgLevel level,
+            string logInfo,
+            bool isDisplay,
+            string filePath,
+            string memberName,
+            int lineNumber,
+            bool useNonBlockingAdd)
+        {
             if (!CanRecord(level))
-                return; // 系统设置或仅记录异常菜单关闭的日志不再写文件或刷新界面
+                return false;
 
             SingleLog singleLog = new SingleLog();
             singleLog.MakeLog(GetHighResTimestamp(), $"{level}", logInfo, filePath, memberName, $"{lineNumber}");
-            
-            // 封装写文件和事件触发逻辑为匿名委托压入队列
-            _logQueue.Add(() =>
+
+            Action writeAction = () =>
             {
                 WriteLog(singleLog);
                 if (isDisplay)
@@ -391,7 +462,18 @@ namespace Logger
                     };
                     LogAddEvent?.Invoke(null, levelAndInfo);
                 }
-            });
+            };
+
+            if (useNonBlockingAdd)
+            {
+                bool added = _logQueue.TryAdd(writeAction);
+                if (!added)
+                    Interlocked.Increment(ref _droppedDiagnosticLogCount);
+                return added;
+            }
+
+            _logQueue.Add(writeAction);
+            return true;
         }
 
         private static DateTime _lastCheckTime = DateTime.MinValue;

@@ -62,6 +62,13 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 comboBoxFindMode.SelectedItem = param.FindMode;
                 comboBoxDirection.SelectedIndex = param.Direction == 1 ? 1 : 0;
                 comboBoxSamplingMode.SelectedIndex = param.SamplingMode == CaliperSamplingMode.AntiInterference ? 1 : 0;
+                comboBoxMeasureMode.SelectedIndex = param.MeasureMode == GeometryMeasureMode.Pixel ? 1 : 0;
+                checkBoxEnableQualityValidation.Checked = param.EnableQualityValidation;
+                textBoxMinimumValidPointRatio.Text = param.MinimumValidPointRatio.ToString();
+                textBoxMaximumAverageResidual.Text = param.MaximumAverageResidual.ToString();
+                textBoxMaximumResidual.Text = param.MaximumResidual.ToString();
+                textBoxMinimumCoverageRatio.Text = param.MinimumCoverageRatio.ToString();
+                textBoxMaximumAngleDeviation.Text = param.MaximumAngleDeviationDegrees.ToString();
                 UpdatePositionCorrectionEnabled();
             }
             finally
@@ -145,7 +152,14 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 Polarity = param.Polarity,
                 FindMode = param.FindMode,
                 SamplingMode = param.SamplingMode,
-                Direction = param.Direction
+                MeasureMode = param.MeasureMode,
+                Direction = param.Direction,
+                EnableQualityValidation = param.EnableQualityValidation,
+                MinimumValidPointRatio = param.MinimumValidPointRatio,
+                MaximumAverageResidual = param.MaximumAverageResidual,
+                MaximumResidual = param.MaximumResidual,
+                MinimumCoverageRatio = param.MinimumCoverageRatio,
+                MaximumAngleDeviationDegrees = param.MaximumAngleDeviationDegrees
             };
         }
 
@@ -165,8 +179,15 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 Polarity = runtimeParam.Polarity,
                 FindMode = runtimeParam.FindMode,
                 SamplingMode = runtimeParam.SamplingMode,
+                MeasureMode = runtimeParam.MeasureMode,
                 Direction = runtimeParam.Direction,
-                BlurSize = runtimeParam.BlurSize
+                BlurSize = runtimeParam.BlurSize,
+                EnableQualityValidation = runtimeParam.EnableQualityValidation,
+                MinimumValidPointRatio = runtimeParam.MinimumValidPointRatio,
+                MaximumAverageResidual = runtimeParam.MaximumAverageResidual,
+                MaximumResidual = runtimeParam.MaximumResidual,
+                MinimumCoverageRatio = runtimeParam.MinimumCoverageRatio,
+                MaximumAngleDeviationDegrees = runtimeParam.MaximumAngleDeviationDegrees
             };
             CaliperLineMeasureResult measure = CaliperMeasurementAlgorithm.FindLine(gray, algorithmParam);
             if (measure == null)
@@ -175,10 +196,16 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             var item = new CaliperLineTargetResult
             {
                 IsOk = measure.Success,
-                ErrorMessage = measure.Success ? string.Empty : "未找到有效直线。",
-                EdgePointCount = measure.Success ? measure.PointCount : 0,
+                ErrorMessage = measure.Success ? string.Empty : measure.ErrorMessage,
+                CandidatePointCount = measure.Quality.CandidatePointCount,
+                EdgePointCount = measure.PointCount,
                 EdgePoints = MeasurementResultRounder.RoundPoints(measure.EdgePoints),
-                AlgorithmMs = measure.Success ? MeasurementResultRounder.Round(measure.AlgorithmMs) : 0
+                ValidPointRatio = MeasurementResultRounder.Round(measure.Quality.ValidPointRatio),
+                AverageResidual = MeasurementResultRounder.Round(measure.Quality.AverageResidual),
+                MaximumResidual = MeasurementResultRounder.Round(measure.Quality.MaximumResidual),
+                CoverageRatio = MeasurementResultRounder.Round(measure.Quality.CoverageRatio),
+                AngleDeviation = MeasurementResultRounder.Round(measure.Quality.AngleDeviationDegrees),
+                AlgorithmMs = MeasurementResultRounder.Round(measure.AlgorithmMs)
             };
             if (measure.Success)
             {
@@ -188,6 +215,10 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 item.EndY = MeasurementResultRounder.Round(measure.LineEnd.Y);
                 item.Length = MeasurementResultRounder.Round(CalculateDistance(measure.LineStart, measure.LineEnd));
                 item.Angle = MeasurementResultRounder.Round(CalculateAbsoluteAngle(measure.LineStart, measure.LineEnd));
+                item.WarpageDifference = MeasurementResultRounder.Round(CalculateWarpageDifference(
+                    measure.EdgePoints,
+                    measure.LineStart,
+                    measure.LineEnd));
             }
             return item;
         }
@@ -199,6 +230,7 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             {
                 IsOk = false,
                 ErrorMessage = exception == null ? "卡尺找线失败。" : exception.Message,
+                CandidatePointCount = 0,
                 EdgePointCount = 0,
                 StartX = 0,
                 StartY = 0,
@@ -206,6 +238,12 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                 EndY = 0,
                 Length = 0,
                 Angle = 0,
+                WarpageDifference = 0,
+                ValidPointRatio = 0,
+                AverageResidual = 0,
+                MaximumResidual = 0,
+                CoverageRatio = 0,
+                AngleDeviation = 0,
                 AlgorithmMs = 0
             };
         }
@@ -248,6 +286,38 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             return Math.Abs(Math.Atan2(end.Y - start.Y, end.X - start.X) * 180.0 / Math.PI);
         }
 
+        /// <summary>计算边缘点到拟合线距离的最大值与最小值差，作为翘曲度差值输出。</summary>
+        private static double CalculateWarpageDifference(IReadOnlyList<PointF> edgePoints, PointF lineStart, PointF lineEnd)
+        {
+            if (edgePoints == null || edgePoints.Count == 0)
+                return 0;
+
+            double minDistance = double.MaxValue;
+            double maxDistance = 0;
+            foreach (PointF point in edgePoints)
+            {
+                double distance = CalculatePointLineDistance(point, lineStart, lineEnd);
+                if (distance < minDistance)
+                    minDistance = distance;
+                if (distance > maxDistance)
+                    maxDistance = distance;
+            }
+
+            return minDistance == double.MaxValue ? 0 : maxDistance - minDistance;
+        }
+
+        /// <summary>计算点到拟合直线的垂直距离。</summary>
+        private static double CalculatePointLineDistance(PointF point, PointF lineStart, PointF lineEnd)
+        {
+            double dx = lineEnd.X - lineStart.X;
+            double dy = lineEnd.Y - lineStart.Y;
+            double length = Math.Sqrt(dx * dx + dy * dy);
+            if (length < 1e-8)
+                return 0;
+
+            return Math.Abs((point.X - lineStart.X) * dy - (point.Y - lineStart.Y) * dx) / length;
+        }
+
         private void InitializeCombos()
         {
             comboBoxPolarity.Items.Add(CaliperEdgePolarity.Both);
@@ -267,6 +337,10 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             comboBoxSamplingMode.Items.Add("快速采样");
             comboBoxSamplingMode.Items.Add("抗干扰采样");
             comboBoxSamplingMode.SelectedIndex = 0;
+
+            comboBoxMeasureMode.Items.Add("亚像素");
+            comboBoxMeasureMode.Items.Add("像素");
+            comboBoxMeasureMode.SelectedIndex = 0;
         }
 
         private void BindRoiRefreshEvents()
@@ -427,7 +501,16 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
                     SamplingMode = comboBoxSamplingMode.SelectedIndex == 1
                         ? CaliperSamplingMode.AntiInterference
                         : CaliperSamplingMode.Fast,
-                    Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0
+                    MeasureMode = comboBoxMeasureMode.SelectedIndex == 1
+                        ? GeometryMeasureMode.Pixel
+                        : GeometryMeasureMode.SubPixel,
+                    Direction = comboBoxDirection.SelectedIndex == 1 ? 1 : 0,
+                    EnableQualityValidation = checkBoxEnableQualityValidation.Checked,
+                    MinimumValidPointRatio = ParseRatio(textBoxMinimumValidPointRatio, "最低有效点比例"),
+                    MaximumAverageResidual = ParsePositiveFloat(textBoxMaximumAverageResidual, "平均残差上限"),
+                    MaximumResidual = ParsePositiveFloat(textBoxMaximumResidual, "最大残差上限"),
+                    MinimumCoverageRatio = ParseRatio(textBoxMinimumCoverageRatio, "最低覆盖率"),
+                    MaximumAngleDeviationDegrees = ParsePositiveFloat(textBoxMaximumAngleDeviation, "方向偏差上限")
                 };
                 return true;
             }
@@ -451,6 +534,24 @@ namespace TDJS_Vision.Node._4_Measurement.CaliperLine
             int value;
             if (!int.TryParse(textBox.Text, out value))
                 throw new Exception($"{name}不是有效整数！");
+            return value;
+        }
+
+        /// <summary>读取大于零且不超过一的比例参数。</summary>
+        private static float ParseRatio(TextBox textBox, string name)
+        {
+            float value = ParseFloat(textBox, name);
+            if (value <= 0 || value > 1)
+                throw new Exception($"{name}必须大于0且不超过1！");
+            return value;
+        }
+
+        /// <summary>读取严格大于零的浮点参数。</summary>
+        private static float ParsePositiveFloat(TextBox textBox, string name)
+        {
+            float value = ParseFloat(textBox, name);
+            if (value <= 0)
+                throw new Exception($"{name}必须大于0！");
             return value;
         }
 

@@ -26,7 +26,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
     public enum CaliperSamplingMode
     {
         /// <summary>
-        /// 只读取扫描中心线的单个最近邻像素，优先保证运行速度。
+        /// 读取扫描宽度上的三个双线性样本，兼顾运行速度和旋转采样稳定性。
         /// </summary>
         Fast = 0,
 
@@ -36,31 +36,71 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         AntiInterference = 1
     }
 
+    /// <summary>定义卡尺找线的几何、边缘采样和拟合质量参数。</summary>
     public class CaliperLineParams
     {
+        /// <summary>获取或设置卡尺主轴起点 X 坐标。</summary>
         public float StartX { get; set; }
+        /// <summary>获取或设置卡尺主轴起点 Y 坐标。</summary>
         public float StartY { get; set; }
+        /// <summary>获取或设置卡尺主轴终点 X 坐标。</summary>
         public float EndX { get; set; }
+        /// <summary>获取或设置卡尺主轴终点 Y 坐标。</summary>
         public float EndY { get; set; }
+        /// <summary>获取或设置单把卡尺沿主轴方向的平均宽度。</summary>
         public float CaliperWidth { get; set; } = 20;
+        /// <summary>获取或设置单把卡尺沿扫描方向的高度。</summary>
         public float CaliperHeight { get; set; } = 200;
+        /// <summary>获取或设置沿主轴布置的卡尺数量。</summary>
         public int Count { get; set; } = 15;
+        /// <summary>获取或设置一维梯度边缘强度下限。</summary>
         public int EdgeStrength { get; set; } = 20;
+        /// <summary>获取或设置边缘极性。</summary>
         public CaliperEdgePolarity Polarity { get; set; } = CaliperEdgePolarity.Both;
+        /// <summary>获取或设置多候选边缘的选择方式。</summary>
         public CaliperEdgeFindMode FindMode { get; set; } = CaliperEdgeFindMode.Best;
+        /// <summary>获取或设置扫描方向，零表示垂直主轴。</summary>
         public int Direction { get; set; }
         /// <summary>获取或设置灰度剖面采样模式。</summary>
         public CaliperSamplingMode SamplingMode { get; set; } = CaliperSamplingMode.Fast;
+        /// <summary>获取或设置边缘定位精度，默认使用亚像素插值。</summary>
+        public GeometryMeasureMode MeasureMode { get; set; } = GeometryMeasureMode.SubPixel;
+        /// <summary>获取或设置一维灰度剖面平滑核大小。</summary>
         public int BlurSize { get; set; } = 3;
+        /// <summary>获取或设置是否启用直线拟合质量判定。</summary>
+        public bool EnableQualityValidation { get; set; } = true;
+        /// <summary>获取或设置内点数量占请求卡尺数量的最低比例。</summary>
+        public float MinimumValidPointRatio { get; set; } = 0.8f;
+        /// <summary>获取或设置内点到拟合线的平均残差上限，单位为像素。</summary>
+        public float MaximumAverageResidual { get; set; } = 1.5f;
+        /// <summary>获取或设置内点到拟合线的最大残差上限，单位为像素。</summary>
+        public float MaximumResidual { get; set; } = 3.5f;
+        /// <summary>获取或设置有效内点覆盖卡尺主轴的最低比例。</summary>
+        public float MinimumCoverageRatio { get; set; } = 0.75f;
+        /// <summary>获取或设置拟合线相对卡尺主轴的最大方向偏差，单位为度。</summary>
+        public float MaximumAngleDeviationDegrees { get; set; } = 5.0f;
     }
 
+    /// <summary>
+    /// 表示一次卡尺找线的输出、质量统计和失败原因。
+    /// </summary>
     public class CaliperLineMeasureResult
     {
+        /// <summary>获取或设置鲁棒拟合最终保留的边缘内点。</summary>
         public List<PointF> EdgePoints { get; set; } = new List<PointF>();
+        /// <summary>获取或设置拟合线起点。</summary>
         public PointF LineStart { get; set; }
+        /// <summary>获取或设置拟合线终点。</summary>
         public PointF LineEnd { get; set; }
+        /// <summary>获取或设置找线和质量判定是否成功。</summary>
         public bool Success { get; set; }
+        /// <summary>获取或设置失败时的简体中文原因。</summary>
+        public string ErrorMessage { get; set; } = string.Empty;
+        /// <summary>获取或设置直线拟合质量统计。</summary>
+        public CaliperLineFitQuality Quality { get; set; } = new CaliperLineFitQuality();
+        /// <summary>获取或设置算法耗时，单位为毫秒。</summary>
         public double AlgorithmMs { get; set; }
+        /// <summary>获取鲁棒拟合最终保留的边缘内点数量。</summary>
         public int PointCount => EdgePoints.Count;
     }
 
@@ -145,6 +185,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         public int PointCount => EdgePoints.Count;
     }
 
+    /// <summary>提供直线、圆和椭圆的公共卡尺测量算法。</summary>
     public static class CaliperMeasurementAlgorithm
     {
         public static Mat ToGray(Mat source)
@@ -162,17 +203,38 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             return gray;
         }
 
+        /// <summary>使用默认质量评估策略执行卡尺找线。</summary>
         public static CaliperLineMeasureResult FindLine(Mat gray, CaliperLineParams p)
+        {
+            return FindLine(gray, p, DefaultCaliperLineQualityEvaluator.Instance);
+        }
+
+        /// <summary>使用指定的可替换质量评估策略执行卡尺找线。</summary>
+        /// <param name="gray">单通道灰度图像。</param>
+        /// <param name="p">卡尺找线参数。</param>
+        /// <param name="qualityEvaluator">直线拟合质量评估策略。</param>
+        /// <returns>包含拟合直线、内点和质量统计的测量结果。</returns>
+        public static CaliperLineMeasureResult FindLine(
+            Mat gray,
+            CaliperLineParams p,
+            ICaliperLineQualityEvaluator qualityEvaluator)
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
             var result = new CaliperLineMeasureResult();
             ValidateGray(gray);
+            if (p == null)
+                throw new ArgumentNullException(nameof(p));
+            if (qualityEvaluator == null)
+                throw new ArgumentNullException(nameof(qualityEvaluator));
 
             float axisX = p.EndX - p.StartX;
             float axisY = p.EndY - p.StartY;
             float axisLen = (float)Math.Sqrt(axisX * axisX + axisY * axisY);
             if (axisLen < 1)
+            {
+                result.ErrorMessage = "卡尺主轴长度不足一个像素。";
                 return Finish(result, sw);
+            }
 
             float uAx = axisX / axisLen;
             float uAy = axisY / axisLen;
@@ -191,13 +253,18 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 float t = count == 1 ? 0.5f : (float)i / (count - 1);
                 float cx = p.StartX + axisX * t;
                 float cy = p.StartY + axisY * t;
-                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, scanRange, averageDirX, averageDirY, averageWidth, p.SamplingMode, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
+                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, scanRange, averageDirX, averageDirY, averageWidth, p.SamplingMode, p.MeasureMode, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
                 if (edgePoint.HasValue)
                     result.EdgePoints.Add(edgePoint.Value);
             }
 
-            if (result.EdgePoints.Count >= 2)
-                result.Success = FitLine(result);
+            if (result.EdgePoints.Count < 2)
+            {
+                result.ErrorMessage = $"有效边缘点数量不足：{result.EdgePoints.Count}/{count}。";
+                return Finish(result, sw);
+            }
+
+            result.Success = FitLine(result, p, qualityEvaluator);
 
             return Finish(result, sw);
         }
@@ -233,7 +300,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 float averageDirX = -scanDirY;
                 float averageDirY = scanDirX;
 
-                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, averageDirX, averageDirY, p.CaliperWidth, p.SamplingMode, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
+                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, averageDirX, averageDirY, p.CaliperWidth, p.SamplingMode, GeometryMeasureMode.SubPixel, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
                 if (edgePoint.HasValue)
                     result.EdgePoints.Add(edgePoint.Value);
             }
@@ -304,7 +371,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 float averageDirX = -scanDirY;
                 float averageDirY = scanDirX;
 
-                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, averageDirX, averageDirY, p.CaliperWidth, p.SamplingMode, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
+                PointF? edgePoint = FindEdgeOnProfile(gray, cx, cy, scanDirX, scanDirY, p.CaliperHeight, averageDirX, averageDirY, p.CaliperWidth, p.SamplingMode, GeometryMeasureMode.SubPixel, p.BlurSize, p.EdgeStrength, p.Polarity, p.FindMode);
                 if (edgePoint.HasValue)
                     result.EdgePoints.Add(edgePoint.Value);
                 else
@@ -345,6 +412,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             float averageDirY,
             float averageWidth,
             CaliperSamplingMode samplingMode,
+            GeometryMeasureMode measureMode,
             int blurSize,
             int edgeStrength,
             CaliperEdgePolarity polarity,
@@ -364,10 +432,10 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 posX[j] = px;
                 posY[j] = py;
 
-                // 只有明确选择抗干扰模式才执行高成本宽度平均；未知枚举值安全回落到快速模式。
+                // 抗干扰模式执行全宽度平均；快速模式只取三个代表点，在稳定性与速度之间取平衡。
                 profile[j] = samplingMode == CaliperSamplingMode.AntiInterference
                     ? SampleAveragedPixel(gray, px, py, averageDirX, averageDirY, averageWidth)
-                    : SampleFastPixel(gray, px, py);
+                    : SampleFastPixel(gray, px, py, averageDirX, averageDirY, averageWidth);
             }
 
             if (blurSize > 1)
@@ -377,17 +445,44 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             for (int j = 1; j < profileLen - 1; j++)
                 gradient[j] = (profile[j + 1] - profile[j - 1]) / 2f;
 
-            return FindEdgeInProfile(gradient, posX, posY, edgeStrength, polarity, findMode);
+            return FindEdgeInProfile(gradient, posX, posY, measureMode, edgeStrength, polarity, findMode);
         }
 
         /// <summary>
-        /// 使用旧版最近邻方式读取扫描中心线像素，避免宽度平均和双线性插值开销。
+        /// 使用中心与宽度两侧共三个双线性样本，减少物料旋转和局部反光引起的角度漂移。
         /// </summary>
-        private static float SampleFastPixel(Mat gray, float x, float y)
+        private static float SampleFastPixel(
+            Mat gray,
+            float x,
+            float y,
+            float averageDirX,
+            float averageDirY,
+            float averageWidth)
         {
-            int ix = (int)(x + 0.5f);
-            int iy = (int)(y + 0.5f);
-            return IsInside(gray, ix, iy) ? gray.At<byte>(iy, ix) : 0;
+            float halfOffset = Math.Min(4f, Math.Max(0f, averageWidth / 2f));
+            if (halfOffset < 0.5f)
+            {
+                float centerValue = SamplePixelBilinear(gray, x, y);
+                return centerValue < 0 ? 0 : centerValue;
+            }
+
+            float sum = 0;
+            int count = 0;
+            for (int sampleIndex = -1; sampleIndex <= 1; sampleIndex++)
+            {
+                float offset = sampleIndex * halfOffset;
+                float value = SamplePixelBilinear(
+                    gray,
+                    x + averageDirX * offset,
+                    y + averageDirY * offset);
+                if (value < 0)
+                    continue;
+
+                sum += value;
+                count++;
+            }
+
+            return count == 0 ? 0 : sum / count;
         }
 
         /// <summary>
@@ -473,6 +568,7 @@ namespace TDJS_Vision.Node._4_Measurement.Common
             float[] gradient,
             float[] px,
             float[] py,
+            GeometryMeasureMode measureMode,
             int threshold,
             CaliperEdgePolarity polarity,
             CaliperEdgeFindMode mode)
@@ -515,7 +611,8 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                     break;
             }
 
-            if (bestIdx > 0 && bestIdx < gradient.Length - 1)
+            // 像素模式直接采用梯度峰值所在的整步采样位置；亚像素模式才执行抛物线峰值插值。
+            if (measureMode != GeometryMeasureMode.Pixel && bestIdx > 0 && bestIdx < gradient.Length - 1)
             {
                 float gPrev = Math.Abs(gradient[bestIdx - 1]);
                 float gCurr = Math.Abs(gradient[bestIdx]);
@@ -539,61 +636,187 @@ namespace TDJS_Vision.Node._4_Measurement.Common
         }
 
         /// <summary>
-        /// 对卡尺边缘点做鲁棒直线拟合，先剔除偏离当前线过大的点，再输出最终线段。
+        /// 使用确定性两点共识搜索和可替换质量评估器完成鲁棒直线拟合。
         /// </summary>
-        private static bool FitLine(CaliperLineMeasureResult result)
+        private static bool FitLine(
+            CaliperLineMeasureResult result,
+            CaliperLineParams parameters,
+            ICaliperLineQualityEvaluator qualityEvaluator)
         {
-            List<PointF> points = BuildRobustLinePoints(result.EdgePoints);
-            if (points.Count < 2)
-                return false;
-
-            RobustLineFit fit = FitLineCore(points);
-            if (!fit.IsValid)
-                return false;
-
-            result.EdgePoints = points;
-            result.LineStart = fit.Start;
-            result.LineEnd = fit.End;
-            return true;
-        }
-
-        /// <summary>
-        /// 迭代剔除直线拟合离群点，避免少量反光边缘点拉偏角度。
-        /// </summary>
-        private static List<PointF> BuildRobustLinePoints(List<PointF> sourcePoints)
-        {
-            List<PointF> points = sourcePoints == null ? new List<PointF>() : sourcePoints.ToList();
-            int minimumCount = Math.Max(2, (int)Math.Ceiling(points.Count * 0.6));
-            for (int iteration = 0; iteration < 2 && points.Count >= 3; iteration++)
+            List<PointF> candidatePoints = result.EdgePoints == null
+                ? new List<PointF>()
+                : result.EdgePoints.ToList();
+            if (candidatePoints.Count < 2)
             {
-                RobustLineFit fit = FitLineCore(points);
-                if (!fit.IsValid)
-                    break;
-
-                List<double> distances = points.Select(point => DistanceToLine(point, fit.Start, fit.End)).ToList();
-                double threshold = BuildRobustDistanceThreshold(distances);
-                List<PointF> filtered = points.Where((point, index) => distances[index] <= threshold).ToList();
-                if (filtered.Count < minimumCount || filtered.Count == points.Count)
-                    break;
-
-                points = filtered;
+                result.Quality = new CaliperLineFitQuality
+                {
+                    CandidatePointCount = candidatePoints.Count,
+                    InlierPointCount = candidatePoints.Count,
+                    ValidPointRatio = (double)candidatePoints.Count / Math.Max(1, parameters.Count)
+                };
+                result.ErrorMessage = $"有效边缘点数量不足：{candidatePoints.Count}/{Math.Max(1, parameters.Count)}。";
+                return false;
             }
 
-            return points;
+            double consensusDistance = ResolveConsensusDistance(parameters);
+            List<PointF> inlierPoints = BuildConsensusLinePoints(candidatePoints, parameters, consensusDistance);
+            if (inlierPoints.Count < 2)
+            {
+                result.Quality = new CaliperLineFitQuality
+                {
+                    CandidatePointCount = candidatePoints.Count,
+                    InlierPointCount = inlierPoints.Count,
+                    ValidPointRatio = (double)inlierPoints.Count / Math.Max(1, parameters.Count)
+                };
+                result.EdgePoints = inlierPoints;
+                result.ErrorMessage = "没有找到至少两个方向一致的共线点。";
+                return false;
+            }
+
+            RobustLineFit fit = FitLineCore(inlierPoints);
+            if (!fit.IsValid)
+            {
+                result.ErrorMessage = "鲁棒直线拟合失败。";
+                return false;
+            }
+
+            // 使用第一次拟合线重新吸收全部候选内点，再做一次最小二乘精修，避免两点种子决定最终结果。
+            List<PointF> refinedPoints = candidatePoints
+                .Where(point => DistanceToLine(point, fit.Start, fit.End) <= consensusDistance)
+                .ToList();
+            if (refinedPoints.Count >= 2)
+            {
+                RobustLineFit refinedFit = FitLineCore(refinedPoints);
+                if (refinedFit.IsValid)
+                {
+                    inlierPoints = refinedPoints;
+                    fit = refinedFit;
+                }
+            }
+
+            CaliperLineQualityEvaluation evaluation = qualityEvaluator.Evaluate(new CaliperLineQualityContext
+            {
+                Parameters = parameters,
+                CandidatePoints = candidatePoints,
+                InlierPoints = inlierPoints,
+                LineStart = fit.Start,
+                LineEnd = fit.End
+            });
+
+            result.EdgePoints = inlierPoints;
+            result.LineStart = fit.Start;
+            result.LineEnd = fit.End;
+            result.Quality = evaluation.Quality;
+            result.ErrorMessage = evaluation.ErrorMessage;
+            return evaluation.IsAccepted;
         }
 
         /// <summary>
-        /// 按中位数绝对偏差生成鲁棒距离阈值。
+        /// 枚举候选点对建立直线种子，选择内点最多、覆盖最长且残差最小的确定性共识集合。
         /// </summary>
-        private static double BuildRobustDistanceThreshold(List<double> distances)
+        private static List<PointF> BuildConsensusLinePoints(
+            IReadOnlyList<PointF> candidatePoints,
+            CaliperLineParams parameters,
+            double consensusDistance)
         {
-            if (distances == null || distances.Count == 0)
-                return 0;
+            var bestPoints = new List<PointF>();
+            double bestCoverage = -1;
+            double bestAverageResidual = double.MaxValue;
+            if (candidatePoints == null || candidatePoints.Count < 2)
+                return bestPoints;
 
-            double median = Median(distances);
-            List<double> deviations = distances.Select(distance => Math.Abs(distance - median)).ToList();
-            double sigma = 1.4826 * Median(deviations);
-            return Math.Max(1.5, median + 3.0 * sigma);
+            for (int firstIndex = 0; firstIndex < candidatePoints.Count - 1; firstIndex++)
+            {
+                for (int secondIndex = firstIndex + 1; secondIndex < candidatePoints.Count; secondIndex++)
+                {
+                    PointF seedStart = candidatePoints[firstIndex];
+                    PointF seedEnd = candidatePoints[secondIndex];
+                    if (DistanceBetween(seedStart, seedEnd) < 1.0)
+                        continue;
+                    if (!IsDirectionAccepted(parameters, seedStart, seedEnd))
+                        continue;
+
+                    List<PointF> currentPoints = candidatePoints
+                        .Where(point => DistanceToLine(point, seedStart, seedEnd) <= consensusDistance)
+                        .ToList();
+                    if (currentPoints.Count < 2)
+                        continue;
+
+                    RobustLineFit currentFit = FitLineCore(currentPoints);
+                    if (!currentFit.IsValid || !IsDirectionAccepted(parameters, currentFit.Start, currentFit.End))
+                        continue;
+
+                    double coverage = DistanceBetween(currentFit.Start, currentFit.End);
+                    double averageResidual = currentPoints
+                        .Average(point => DistanceToLine(point, currentFit.Start, currentFit.End));
+                    if (IsBetterConsensus(
+                        currentPoints.Count,
+                        coverage,
+                        averageResidual,
+                        bestPoints.Count,
+                        bestCoverage,
+                        bestAverageResidual))
+                    {
+                        bestPoints = currentPoints;
+                        bestCoverage = coverage;
+                        bestAverageResidual = averageResidual;
+                    }
+                }
+            }
+
+            return bestPoints;
+        }
+
+        /// <summary>
+        /// 按内点数量、覆盖长度和平均残差依次比较两个共识集合。
+        /// </summary>
+        private static bool IsBetterConsensus(
+            int pointCount,
+            double coverage,
+            double averageResidual,
+            int bestPointCount,
+            double bestCoverage,
+            double bestAverageResidual)
+        {
+            if (pointCount != bestPointCount)
+                return pointCount > bestPointCount;
+            if (Math.Abs(coverage - bestCoverage) > 1e-6)
+                return coverage > bestCoverage;
+            return averageResidual < bestAverageResidual;
+        }
+
+        /// <summary>
+        /// 从质量残差门限派生共识距离，避免错误点集把自适应阈值一同拉大。
+        /// </summary>
+        private static double ResolveConsensusDistance(CaliperLineParams parameters)
+        {
+            double averageLimit = parameters.MaximumAverageResidual;
+            if (double.IsNaN(averageLimit) || double.IsInfinity(averageLimit) || averageLimit <= 0)
+                averageLimit = 1.5;
+            double maximumLimit = parameters.MaximumResidual;
+            if (double.IsNaN(maximumLimit) || double.IsInfinity(maximumLimit) || maximumLimit <= 0)
+                maximumLimit = 3.5;
+
+            return Math.Max(0.75, Math.Min(maximumLimit, averageLimit * 1.5));
+        }
+
+        /// <summary>
+        /// 检查拟合线方向是否符合卡尺主轴；沿主轴扫描模式不施加该约束。
+        /// </summary>
+        private static bool IsDirectionAccepted(CaliperLineParams parameters, PointF lineStart, PointF lineEnd)
+        {
+            if (parameters.Direction != 0 || !parameters.EnableQualityValidation)
+                return true;
+
+            double maximumDeviation = parameters.MaximumAngleDeviationDegrees;
+            if (double.IsNaN(maximumDeviation) || double.IsInfinity(maximumDeviation) || maximumDeviation <= 0)
+                maximumDeviation = 5.0;
+
+            double expected = Math.Atan2(parameters.EndY - parameters.StartY, parameters.EndX - parameters.StartX);
+            double actual = Math.Atan2(lineEnd.Y - lineStart.Y, lineEnd.X - lineStart.X);
+            double difference = Math.Abs((actual - expected) * 180.0 / Math.PI) % 180.0;
+            difference = difference > 90.0 ? 180.0 - difference : difference;
+            return difference <= maximumDeviation + 1e-9;
         }
 
         /// <summary>
@@ -656,22 +879,6 @@ namespace TDJS_Vision.Node._4_Measurement.Common
                 return double.MaxValue;
 
             return Math.Abs((point.X - lineStart.X) * dy - (point.Y - lineStart.Y) * dx) / length;
-        }
-
-        /// <summary>
-        /// 计算中位数。
-        /// </summary>
-        private static double Median(List<double> values)
-        {
-            if (values == null || values.Count == 0)
-                return 0;
-
-            List<double> sorted = values.OrderBy(value => value).ToList();
-            int middle = sorted.Count / 2;
-            if (sorted.Count % 2 == 1)
-                return sorted[middle];
-
-            return (sorted[middle - 1] + sorted[middle]) / 2.0;
         }
 
         private static void FitCircle(CaliperCircleMeasureResult result)

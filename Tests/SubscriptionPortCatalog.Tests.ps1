@@ -175,6 +175,17 @@ $complexContract = [TDJS_Vision.Node.SubscriptionInputContract]::ForCategories(
 $complexCandidates = [TDJS_Vision.Node.SubscriptionPortCatalog]::GetOutputs($node, $complexContract, $false, '')
 Assert-True ($complexCandidates.Count -eq 2) '只接受复杂类别的输入必须自动看到对应高级结果，不要求手动展开。'
 
+$textOverlayCategories = [TDJS_Vision.Node.SubscriptionDataCategory[]]@(
+    [TDJS_Vision.Node.SubscriptionDataCategory]::Boolean,
+    [TDJS_Vision.Node.SubscriptionDataCategory]::Number,
+    [TDJS_Vision.Node.SubscriptionDataCategory]::Text,
+    [TDJS_Vision.Node.SubscriptionDataCategory]::AlgorithmResult)
+$textOverlayContract = [TDJS_Vision.Node.SubscriptionInputContract]::ForCategories(
+    $textOverlayCategories,
+    [TDJS_Vision.Node.NumericConversionMode]::SafeWidening)
+$textOverlayCandidates = [TDJS_Vision.Node.SubscriptionPortCatalog]::GetOutputs($node, $textOverlayContract, $false, '')
+Assert-True (($textOverlayCandidates | Where-Object { $_.DisplayName -eq '算法结果' }).Count -eq 1) 'ROI结果绘制文本项虽然同时接受基础文本，也必须自动显示AI输出结果。'
+
 $legacyCandidates = [TDJS_Vision.Node.SubscriptionPortCatalog]::GetOutputs($node, [TDJS_Vision.Node.SubscriptionInputContract]::AnyVisible(), $false, '诊断信息')
 $legacy = $legacyCandidates | Where-Object { $_.DisplayName -eq '诊断信息' }
 Assert-True ($null -ne $legacy -and $legacy.IsLegacySelection) '旧方案当前选中的隐藏结果必须以兼容订阅保留。'

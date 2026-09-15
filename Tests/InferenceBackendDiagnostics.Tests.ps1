@@ -24,7 +24,8 @@ function Assert-NotContains {
 
 Assert-Contains $unsupervisedRuntime 'return "GPU_ORT";' "Plain GPU must use the same ORT backend as the native demo."
 Assert-Contains $unsupervisedRuntime 'return "AUTO_ORT";' "Plain AUTO must use the ORT auto backend."
-Assert-Contains $unsupervisedRuntime 'device.StartsWith("AUTO"' "Only AUTO unsupervised backends may retry on CPU."
+Assert-Contains $unsupervisedRuntime 'device.StartsWith("AUTO"' "AUTO unsupervised backends must retry on CPU."
+Assert-Contains $unsupervisedRuntime 'device.StartsWith("GPU"' "GPU unsupervised backends must retry on CPU when GPU_ORT loading fails."
 Assert-NotContains $largeRuntime 'return deviceMode == 0 || deviceMode == 1;' "Explicit large-model GPU must not silently retry on CPU."
 Assert-Contains $largeRuntime 'return deviceMode == 0;' "Only large-model AUTO mode may retry on CPU."
 

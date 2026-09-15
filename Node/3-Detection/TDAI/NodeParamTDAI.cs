@@ -138,7 +138,71 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// TDAI通信检测项配置
         /// </summary>
         public BindingList<TDAICommuntionParam> TDAICommuntionParams { get; set; } = new BindingList<TDAICommuntionParam>();
+
+        /// <summary>
+        /// 获取或设置是否启用本节点内部 ROI 检测区域。
+        /// </summary>
+        public bool RoiEnable { get; set; }
+
+        /// <summary>
+        /// 获取或设置本节点内部配置的多个 ROI 检测区域。
+        /// </summary>
+        public List<TDAIRoiRegion> RoiRegions { get; set; } = new List<TDAIRoiRegion>();
     }
+
+    /// <summary>
+    /// AI检测节点内部使用的矩形 ROI 检测区域参数。
+    /// </summary>
+    public class TDAIRoiRegion
+    {
+        /// <summary>
+        /// 获取或设置 ROI 名称，用于界面标签和日志定位。
+        /// </summary>
+        public string Name { get; set; }
+
+        /// <summary>
+        /// 获取或设置 ROI 中心点 X 坐标，单位为图像像素。
+        /// </summary>
+        public float CenterX { get; set; }
+
+        /// <summary>
+        /// 获取或设置 ROI 中心点 Y 坐标，单位为图像像素。
+        /// </summary>
+        public float CenterY { get; set; }
+
+        /// <summary>
+        /// 获取或设置 ROI 宽度，单位为图像像素。
+        /// </summary>
+        public float Width { get; set; }
+
+        /// <summary>
+        /// 获取或设置 ROI 高度，单位为图像像素。
+        /// </summary>
+        public float Height { get; set; }
+
+        /// <summary>
+        /// 获取或设置 ROI 角度，单位为度；运行时使用其外接矩形裁剪图像。
+        /// </summary>
+        public float Angle { get; set; }
+
+        /// <summary>
+        /// 创建当前 ROI 参数的独立副本。
+        /// </summary>
+        /// <returns>复制后的 ROI 参数。</returns>
+        public TDAIRoiRegion Clone()
+        {
+            return new TDAIRoiRegion
+            {
+                Name = Name,
+                CenterX = CenterX,
+                CenterY = CenterY,
+                Width = Width,
+                Height = Height,
+                Angle = Angle
+            };
+        }
+    }
+
     /// <summary>
     /// AI模型名称枚举
     /// </summary>
@@ -148,5 +212,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         RL_线芯截面,
         合压模型,
         XM_Fakra模型,
+        多端子模型,
+        /// <summary>
+        /// 超声波焊接侧面三类检测：线芯、焊接区域和飞丝。
+        /// </summary>
+        超声波焊接侧面三类模型,
     }
 }

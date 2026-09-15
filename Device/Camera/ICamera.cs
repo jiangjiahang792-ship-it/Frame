@@ -1,5 +1,4 @@
 ﻿using Basler.Pylon;
-using MvCameraControl;
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
@@ -9,6 +8,29 @@ using TDJS_Vision.Forms.ImageViewer;
 
 namespace TDJS_Vision.Device.Camera
 {
+    /// <summary>
+    /// 为相机连接后的首个生产帧提供一次性冷启动宽限。
+    /// </summary>
+    public interface IProductionCameraStartupGraceReservation : IDisposable
+    {
+        /// <summary>
+        /// 在生产票据成功登记后提交本次宽限资格。
+        /// </summary>
+        void Commit();
+    }
+
+    /// <summary>
+    /// 为相机连接后的首个生产帧提供一次性冷启动宽限。
+    /// </summary>
+    public interface IProductionCameraStartupGraceProvider
+    {
+        /// <summary>
+        /// 预留当前连接会话的首个生产帧宽限；票据登记失败时释放对象会自动归还资格。
+        /// </summary>
+        /// <returns>取得唯一预留时返回待提交对象；资格已提交或相机未连接时返回null。</returns>
+        IProductionCameraStartupGraceReservation TryReserveInitialProductionFrameGrace();
+    }
+
     /// <summary>
     /// 相机基类
     /// </summary>
@@ -33,7 +55,7 @@ namespace TDJS_Vision.Device.Camera
         /// <param name="owner">回调拥有者。</param>
         void RegisterImageCallbackOwner(object owner);
         /// <summary>
-        /// 注销需要相机帧回调的拥有者，全部注销后会关闭底层取流回调。
+        /// 注销需要相机帧回调的拥有者，全部注销后底层回调不再接管和转换业务帧。
         /// </summary>
         /// <param name="owner">回调拥有者。</param>
         void UnregisterImageCallbackOwner(object owner);
@@ -50,9 +72,17 @@ namespace TDJS_Vision.Device.Camera
         /// </summary>
         bool IsOpen { get; set; }
         /// <summary>
+        /// 获取方案反序列化后是否需要恢复上次的相机连接。
+        /// </summary>
+        bool RestoreConnectionRequested { get; }
+        /// <summary>
         /// 设备序列号
         /// </summary>
         string SN { get; }
+        /// <summary>
+        /// 相机IP地址。
+        /// </summary>
+        string IP { get; set; }
         /// <summary>
         /// 相机品牌
         /// </summary>
@@ -95,6 +125,18 @@ namespace TDJS_Vision.Device.Camera
         bool GetGrabStatus();
 
         /// <summary>
+        /// 判断相机SDK当前连接是否仍然有效。
+        /// </summary>
+        /// <returns>SDK确认设备在线时返回true。</returns>
+        bool IsDeviceConnected();
+
+        /// <summary>
+        /// 释放失效连接并按保存的相机身份重新枚举打开。
+        /// </summary>
+        /// <returns>重新打开成功时返回true。</returns>
+        bool TryReconnect();
+
+        /// <summary>
         /// 获取相机触发模式
         /// </summary>
         /// <returns></returns>
@@ -125,13 +167,13 @@ namespace TDJS_Vision.Device.Camera
         /// 获取触发源 SDK 可选枚举。
         /// </summary>
         /// <returns>触发源 SDK 枚举值。</returns>
-        IEnumValue GetTriggerSourceOptions();
+        CameraEnumValue GetTriggerSourceOptions();
 
         /// <summary>
         /// 获取触发极性 SDK 可选枚举。
         /// </summary>
         /// <returns>触发极性 SDK 枚举值。</returns>
-        IEnumValue GetTriggerActivationOptions();
+        CameraEnumValue GetTriggerActivationOptions();
 
         /// <summary>
         /// 设置硬件触发时的触发沿
@@ -147,6 +189,12 @@ namespace TDJS_Vision.Device.Camera
         void GrabOne();
 
         /// <summary>
+        /// 在真实触发前估算标准图像输出将持有的源Mat和灰度缓存最大字节数。
+        /// </summary>
+        /// <returns>基于当前相机宽高和转换格式的保守正数字节数。</returns>
+        long GetProductionFrameMemoryEstimateBytes();
+
+        /// <summary>
         ///  设置增益
         /// </summary>
         /// <param name="gainValue"></param>
@@ -156,24 +204,24 @@ namespace TDJS_Vision.Device.Camera
         /// 获取相机曝光
         /// </summary>
         /// <returns></returns>
-        IFloatValue GetExposureTime();
+        CameraFloatValue GetExposureTime();
 
         /// <summary>
         /// 获取相机增益
         /// </summary>
         /// <returns></returns>
-        (IIntValue, IFloatValue) GetGain();
+        (CameraIntValue, CameraFloatValue) GetGain();
 
         /// <summary>
         /// 获取触发延迟
         /// </summary>
         /// <returns></returns>
-        IFloatValue GetTriggerDelay();
+        CameraFloatValue GetTriggerDelay();
 
         /// <summary>
         /// 获取线路选择器
         /// </summary>
-        IEnumValue GetLineSelector();
+        CameraEnumValue GetLineSelector();
 
         /// <summary>
         /// 设置线路选择器
@@ -184,7 +232,7 @@ namespace TDJS_Vision.Device.Camera
         /// 获取线路模式
         /// </summary>
         /// <returns></returns>
-        IEnumValue GetLineMode();
+        CameraEnumValue GetLineMode();
 
         /// <summary>
         /// 设置线路模式
@@ -246,8 +294,8 @@ namespace TDJS_Vision.Device.Camera
     /// </summary>
     public struct CameraDevInfo
     {
-        public IDeviceInfo cameraInfo;
-        public CameraDevInfo(IDeviceInfo Info)
+        public HikNativeDeviceInfo cameraInfo;
+        public CameraDevInfo(HikNativeDeviceInfo Info)
         {
             cameraInfo = Info;
         }

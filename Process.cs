@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
+using TDJS_Vision.ResourceManagement;
 
 namespace TDJS_Vision
 {
@@ -21,6 +22,43 @@ namespace TDJS_Vision
             IsSuccess = isSuccess;
             ProcessName = name;
         }
+    }
+
+    /// <summary>
+    /// 单次流程调用不可变结果，避免后续排队运行覆盖Process.Success后污染当前工件判断。
+    /// </summary>
+    public sealed class ProcessInvocationResult
+    {
+        /// <summary>
+        /// 创建单次流程调用结果。
+        /// </summary>
+        /// <param name="processName">流程名称。</param>
+        /// <param name="succeeded">本次调用是否成功。</param>
+        /// <param name="cancelled">本次调用是否取消。</param>
+        /// <param name="exception">本次调用捕获的异常。</param>
+        internal ProcessInvocationResult(
+            string processName,
+            bool succeeded,
+            bool cancelled,
+            Exception exception)
+        {
+            ProcessName = processName ?? string.Empty;
+            Succeeded = succeeded;
+            Cancelled = cancelled;
+            Exception = exception;
+        }
+
+        /// <summary>获取流程名称。</summary>
+        public string ProcessName { get; }
+
+        /// <summary>获取本次流程调用是否成功。</summary>
+        public bool Succeeded { get; }
+
+        /// <summary>获取本次流程调用是否由取消结束。</summary>
+        public bool Cancelled { get; }
+
+        /// <summary>获取本次流程调用捕获的原始异常。</summary>
+        public Exception Exception { get; }
     }
 
     /// <summary>
@@ -88,15 +126,48 @@ namespace TDJS_Vision
         /// </summary>
         private int _runStartNGNumber;
 
+        /// <summary>跨线程可见的流程运行状态，1表示正在运行。</summary>
+        private int _isRunning;
+
+        /// <summary>单流程容量8、严格FIFO、并发固定为1的工件执行入口。</summary>
+        private ProcessWorkpieceGate _workpieceRunGate;
+
+        /// <summary>当前异步分支已经进入的流程路径，用于在等待FIFO前拒绝流程触发环。</summary>
+        private static readonly AsyncLocal<ProcessRunPath> CurrentProcessRunPath =
+            new AsyncLocal<ProcessRunPath>();
+
+        /// <summary>当前流程定义版本；后续统一编辑门切换快照时递增。</summary>
+        private long _flowRevision = 1L;
+
         /// <summary>
-        /// 流程是否正在运行
+        /// 获取或设置流程是否正在运行；重置线程可立即观察到后台线程的状态变化。
         /// </summary>
-        public bool IsRuning { get; set; } = false;
+        public bool IsRuning
+        {
+            get { return Volatile.Read(ref _isRunning) == 1; }
+            set { Volatile.Write(ref _isRunning, value ? 1 : 0); }
+        }
 
         /// <summary>
         /// 当前流程运行批次，用于判断节点结果是否来自本次运行。
         /// </summary>
         public int CurrentRunId { get; private set; }
+
+        /// <summary>获取当前流程定义版本。</summary>
+        public long FlowRevision => Volatile.Read(ref _flowRevision);
+
+        /// <summary>获取或设置生产顺序域；空值时按流程组生成稳定默认域。</summary>
+        public string ProductionOrderDomain { get; set; }
+
+        /// <summary>
+        /// 当前运行批次的Debug完整耗时追踪；Debug关闭时始终为空。
+        /// </summary>
+        private ProcessPerformanceTrace _performanceTrace;
+
+        /// <summary>
+        /// 获取当前运行批次的跨线程诊断关联号，Debug关闭时返回空字符串。
+        /// </summary>
+        public string CurrentPerformanceTraceId => _performanceTrace == null ? string.Empty : _performanceTrace.TraceId;
 
         /// <summary>
         /// 流程运行优先级
@@ -176,7 +247,11 @@ namespace TDJS_Vision
         /// </summary>
         private static void WriteProcessEndLog(Process process, ref bool startLogWritten, MsgLevel level, string statusText)
         {
-            if (process == null || !process.ShowLog)
+            if (process == null)
+                return;
+
+            process.CompletePerformanceTrace(statusText);
+            if (!process.ShowLog)
                 return;
 
             EnsureProcessStartLog(process, ref startLogWritten);
@@ -188,7 +263,11 @@ namespace TDJS_Vision
         /// </summary>
         private static void WriteFinalProcessEndLog(Process process, bool isCyclical, bool succeeded, ref bool startLogWritten)
         {
-            if (process == null || !process.ShowLog)
+            if (process == null)
+                return;
+
+            process.CompletePerformanceTrace(succeeded ? "成功" : "失败");
+            if (!process.ShowLog)
                 return;
 
             if (!ShouldWriteFinalProcessLog(process, isCyclical, succeeded))
@@ -352,9 +431,9 @@ namespace TDJS_Vision
             if (!CanUseCameraCallbackFastPath(nodeImage, out fastStartNode))
                 return CameraCallbackFastPathResult.NotHandled;
 
-            Stopwatch fastPathWatch = Stopwatch.StartNew();
+            Stopwatch fastPathWatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
             ConnectedNodeRunResult fastResult = await RunConnectedNode(fastStartNode, null);
-            long afterFirstNode = fastPathWatch.ElapsedMilliseconds;
+            long afterFirstNode = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(fastPathWatch);
             if (fastResult == null)
                 return CameraCallbackFastPathResult.HandledContinue;
 
@@ -397,7 +476,7 @@ namespace TDJS_Vision
             }
 
             bool stoppedEarly = await RunConnectedNodes(null, null, resumeNode);
-            long afterRemainder = fastPathWatch.ElapsedMilliseconds;
+            long afterRemainder = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(fastPathWatch);
             RunTime += prefixRunTime;
             PerformanceSpikeDiagnostics.LogIfEnabled(
                 MsgLevel.Debug,
@@ -464,6 +543,12 @@ namespace TDJS_Vision
                         continue;
                     }
 
+                    if (HasPendingIncomingConnection(node, visitedNodeIds, failedNodeIds, pendingNodes))
+                    {
+                        pendingNodes.AddLast(node);
+                        continue;
+                    }
+
                     if (!visitedNodeIds.Add(node.ID))
                         continue;
 
@@ -487,7 +572,7 @@ namespace TDJS_Vision
                     try
                     {
                         MarkNodeRunning(node);
-                        result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(this, node));
+                        result = await RunNodeWithCpuResourcePolicy(this, node);
                         FinalizeNodeRun(node);
                         if (node.Result != null)
                             RunTime += node.Result.RunTime;
@@ -849,7 +934,7 @@ namespace TDJS_Vision
             MarkNodeRunning(node);
             try
             {
-                NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(this, node));
+                NodeReturn result = await RunNodeWithCpuResourcePolicy(this, node);
                 FinalizeNodeRun(node);
                 return new ConnectedNodeRunResult
                 {
@@ -861,6 +946,7 @@ namespace TDJS_Vision
             }
             catch (OperationCanceledException)
             {
+                TraceNodeFaulted(node, "节点运行取消");
                 throw;
             }
             catch (Exception ex)
@@ -1266,6 +1352,85 @@ namespace TDJS_Vision
 
                 if (ContainsPendingNode(pendingNodes, dependencyNodeId))
                     return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 按节点资源分类取得CPU许可后执行节点；未分类节点保持原执行路径。
+        /// </summary>
+        /// <param name="process">当前流程。</param>
+        /// <param name="node">待执行节点。</param>
+        /// <returns>节点运行控制结果。</returns>
+        private static async Task<NodeReturn> RunNodeWithCpuResourcePolicy(Process process, NodeBase node)
+        {
+            Solution solution = Solution.Instance;
+            WorkpieceExecutionContext workpieceContext = solution.WorkpieceContextAccessor.Current;
+            CancellationToken cancellationToken = workpieceContext == null
+                ? solution.CancellationToken
+                : workpieceContext.CancellationToken;
+            bool showLog = ShouldShowNodeLog(process, node);
+            ICpuWorkloadClassifier classifier = solution.CpuWorkloadClassifier;
+            if (classifier == null || !classifier.TryClassify(node, out CpuWorkloadKind workloadKind))
+                return await node.Run(cancellationToken, showLog);
+
+            using (ICpuWorkLease lease = await solution.AcquireCpuWorkAsync(workloadKind, cancellationToken))
+                return await node.Run(cancellationToken, showLog);
+        }
+
+        /// <summary>
+        /// 判断顺序运行队列中是否还有未完成的入线来源，避免多入线节点提前执行。
+        /// </summary>
+        private bool HasPendingIncomingConnection(
+            NodeBase node,
+            HashSet<int> visitedNodeIds,
+            HashSet<int> failedNodeIds,
+            LinkedList<NodeBase> pendingNodes)
+        {
+            if (node == null || visitedNodeIds == null || pendingNodes == null || pendingNodes.Count == 0)
+                return false;
+
+            foreach (ProcessConnection connection in _connections)
+            {
+                if (connection == null || connection.ToNodeId != node.ID)
+                    continue;
+
+                int upstreamNodeId = connection.FromNodeId;
+                if (upstreamNodeId <= 0 ||
+                    upstreamNodeId == node.ID ||
+                    visitedNodeIds.Contains(upstreamNodeId) ||
+                    IsReachableThroughConnections(node.ID, upstreamNodeId) ||
+                    (failedNodeIds != null && failedNodeIds.Contains(upstreamNodeId)))
+                {
+                    continue;
+                }
+
+                if (IsPendingOrReachableFromPendingNodes(pendingNodes, upstreamNodeId))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 判断目标节点是否已经在待执行队列中，或能从队列内节点继续沿连线到达。
+        /// </summary>
+        private bool IsPendingOrReachableFromPendingNodes(LinkedList<NodeBase> pendingNodes, int targetNodeId)
+        {
+            if (pendingNodes == null || targetNodeId <= 0)
+                return false;
+
+            foreach (NodeBase pendingNode in pendingNodes)
+            {
+                if (pendingNode == null)
+                    continue;
+
+                if (pendingNode.ID == targetNodeId ||
+                    IsReachableThroughConnections(pendingNode.ID, targetNodeId))
+                {
+                    return true;
+                }
             }
 
             return false;
@@ -1893,7 +2058,10 @@ namespace TDJS_Vision
         private static void MarkNodeRunning(NodeBase node)
         {
             if (node != null)
+            {
                 node.SetStatus(NodeStatus.Running, "*");
+                node.Process?.TraceNodeStarted(node);
+            }
         }
 
         private static void MarkNodeFailed(NodeBase node)
@@ -1905,6 +2073,7 @@ namespace TDJS_Vision
                 ? "0"
                 : node.Result.RunTime.ToString();
             node.SetStatus(NodeStatus.Failed, runTime);
+            node.Process?.TraceNodeFaulted(node, "节点执行器捕获到未处理异常");
         }
 
         private static void FinalizeNodeRun(NodeBase node)
@@ -2003,6 +2172,386 @@ namespace TDJS_Vision
             CurrentRunId = CurrentRunId == int.MaxValue ? 1 : CurrentRunId + 1;
             foreach (var node in Nodes)
                 node.BeginProcessRun(CurrentRunId);
+
+            _performanceTrace = ProcessPerformanceTrace.CreateIfEnabled(
+                ID,
+                ProcessName,
+                CurrentRunId,
+                Nodes.Count,
+                ShouldRunByConnections());
+        }
+
+        /// <summary>
+        /// 在任何节点或相机软触发执行前取得单流程FIFO执行权，并建立或继承工件上下文。
+        /// </summary>
+        /// <param name="triggerSource">本轮运行入口说明。</param>
+        /// <returns>负责封口、恢复上下文和释放执行权的运行作用域。</returns>
+        private async Task<ManagedProcessRunScope> EnterManagedProcessRunAsync(
+            string triggerSource,
+            CancellationToken cancellationToken,
+            ProcessRunPathScope processPathScope)
+        {
+            if (processPathScope == null)
+                throw new ArgumentNullException(nameof(processPathScope));
+
+            ProcessWorkpieceGate gate = LazyInitializer.EnsureInitialized(
+                ref _workpieceRunGate,
+                () => new ProcessWorkpieceGate($"{ID}.{ProcessName}"));
+            IProcessWorkpieceLease lease;
+            try
+            {
+                lease = await gate.EnterAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (ProcessWorkpieceQueueFullException ex)
+            {
+                LogHelper.AddLog(MsgLevel.Fatal, ex.Message, true);
+                throw;
+            }
+
+            try
+            {
+                IWorkpieceContextAccessor accessor = Solution.Instance.WorkpieceContextAccessor;
+                WorkpieceExecutionContext inheritedContext = accessor.Current;
+                IWorkpieceExecutionLease executionLease;
+                if (Solution.Instance.TryAcquireInheritedWorkpieceContext(
+                    inheritedContext,
+                    out executionLease))
+                {
+                    return new ManagedProcessRunScope(
+                        lease,
+                        processPathScope,
+                        inheritedContext,
+                        false,
+                        executionLease);
+                }
+
+                string orderDomain = string.IsNullOrWhiteSpace(ProductionOrderDomain)
+                    ? $"GROUP:{Group}"
+                    : ProductionOrderDomain;
+                WorkpieceExecutionContext ownedContext = Solution.Instance.CreateWorkpieceExecutionContext(
+                    orderDomain,
+                    FlowRevision,
+                    triggerSource,
+                    cancellationToken);
+                return new ManagedProcessRunScope(
+                    lease,
+                    processPathScope,
+                    ownedContext,
+                    true,
+                    null);
+            }
+            catch
+            {
+                lease.Dispose();
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 在当前异步分支压入本流程；同一流程再次出现表示触发图存在执行环。
+        /// </summary>
+        /// <returns>按后进先出恢复调用路径的作用域。</returns>
+        private ProcessRunPathScope PushProcessRunPath()
+        {
+            ProcessRunPath previousPath = CurrentProcessRunPath.Value;
+            WorkpieceExecutionContext currentContext = Solution.Instance.WorkpieceContextAccessor.Current;
+            bool hasCurrentContext = Solution.Instance.CanInheritWorkpieceContext(currentContext);
+            if (!hasCurrentContext)
+                previousPath = null;
+
+            for (ProcessRunPath cursor = previousPath; cursor != null; cursor = cursor.Parent)
+            {
+                if (cursor.Identity.HasValue &&
+                    cursor.Identity.Value.Equals(currentContext.Identity) &&
+                    ReferenceEquals(cursor.Process, this))
+                {
+                    throw new InvalidOperationException(
+                        $"检测到流程触发环：流程【{ProcessName}】在当前工件调用链中被重复触发。");
+                }
+            }
+
+            ProcessRunPath currentPath = new ProcessRunPath(this, previousPath);
+            CurrentProcessRunPath.Value = currentPath;
+            return new ProcessRunPathScope(currentPath, previousPath);
+        }
+
+        /// <summary>
+        /// 根据流程结果封口本入口创建的上下文，并始终释放作用域和执行租约。
+        /// </summary>
+        /// <param name="scope">当前运行作用域。</param>
+        /// <param name="succeeded">流程业务执行是否成功。</param>
+        private async Task ExitManagedProcessRunAsync(ManagedProcessRunScope scope, bool succeeded)
+        {
+            if (scope == null)
+                return;
+
+            try
+            {
+                WorkpieceTerminalState terminalState = scope.Context.CancellationToken.IsCancellationRequested
+                    ? WorkpieceTerminalState.Cancelled
+                    : succeeded ? WorkpieceTerminalState.Succeeded : WorkpieceTerminalState.Faulted;
+                scope.CompleteExecutionBranch(terminalState);
+                await scope.CompleteOwnedContextAsync(terminalState).ConfigureAwait(false);
+            }
+            finally
+            {
+                scope.Dispose();
+            }
+        }
+
+        /// <summary>获取单流程工件入口的只读运行快照。</summary>
+        /// <returns>尚未首次运行时返回默认空快照。</returns>
+        public ProcessWorkpieceGateSnapshot GetWorkpieceGateSnapshot()
+        {
+            ProcessWorkpieceGate gate = Volatile.Read(ref _workpieceRunGate);
+            return gate == null
+                ? new ProcessWorkpieceGateSnapshot
+                {
+                    Capacity = ProcessWorkpieceGate.DefaultCapacity,
+                    HasActiveWorkpiece = false,
+                    WaitingCount = 0,
+                    PeakOccupancy = 0,
+                    RejectedFullCount = 0L
+                }
+                : gate.GetSnapshot();
+        }
+
+        /// <summary>单次流程运行的工件上下文和FIFO租约所有权作用域。</summary>
+        private sealed class ManagedProcessRunScope : IDisposable
+        {
+            /// <summary>单流程执行租约。</summary>
+            private IProcessWorkpieceLease _lease;
+
+            /// <summary>本入口创建上下文时对应的AsyncLocal恢复作用域。</summary>
+            private IDisposable _contextScope;
+
+            /// <summary>本入口对应的流程触发路径恢复作用域。</summary>
+            private ProcessRunPathScope _processPathScope;
+
+            /// <summary>继承父工件时持有的在途流程分支租约。</summary>
+            private IWorkpieceExecutionLease _executionLease;
+
+            /// <summary>本入口创建或继承的工件上下文。</summary>
+            private readonly WorkpieceExecutionContext _context;
+
+            /// <summary>本入口是否拥有工件终态封口权。</summary>
+            private readonly bool _ownsContext;
+
+            /// <summary>
+            /// 创建流程运行所有权作用域。
+            /// </summary>
+            /// <param name="lease">单流程执行租约。</param>
+            /// <param name="processPathScope">流程触发路径恢复作用域。</param>
+            /// <param name="context">当前工件上下文。</param>
+            /// <param name="ownsContext">是否由本入口创建上下文。</param>
+            public ManagedProcessRunScope(
+                IProcessWorkpieceLease lease,
+                ProcessRunPathScope processPathScope,
+                WorkpieceExecutionContext context,
+                bool ownsContext,
+                IWorkpieceExecutionLease executionLease)
+            {
+                _lease = lease ?? throw new ArgumentNullException(nameof(lease));
+                _processPathScope = processPathScope ?? throw new ArgumentNullException(nameof(processPathScope));
+                _context = context ?? throw new ArgumentNullException(nameof(context));
+                _ownsContext = ownsContext;
+                _executionLease = executionLease;
+            }
+
+            /// <summary>
+            /// 在取得FIFO执行权后由流程调用者同步激活自有工件上下文，确保AsyncLocal对节点链可见。
+            /// </summary>
+            /// <param name="accessor">全方案工件上下文访问器。</param>
+            public void ActivateOwnedContext(IWorkpieceContextAccessor accessor)
+            {
+                _processPathScope.BindIdentity(_context.Identity);
+                if (!_ownsContext)
+                    return;
+                if (accessor == null)
+                    throw new ArgumentNullException(nameof(accessor));
+                if (_contextScope != null)
+                    throw new InvalidOperationException("工件上下文不能重复激活。");
+
+                _contextScope = accessor.Push(_context);
+            }
+
+            /// <summary>
+            /// 仅由上下文创建者请求终态，并等待全部已预约信号终结。
+            /// </summary>
+            /// <param name="terminalState">流程请求的终态。</param>
+            /// <returns>继承上下文时立即完成；自有上下文在信号排空后完成。</returns>
+            public Task CompleteOwnedContextAsync(WorkpieceTerminalState terminalState)
+            {
+                if (!_ownsContext)
+                    return Task.CompletedTask;
+
+                return Solution.Instance.CompleteWorkpieceExecutionAsync(
+                    _context,
+                    terminalState);
+            }
+
+            /// <summary>
+            /// 把继承流程的实际终态合并到父工件；自有上下文不持有分支租约。
+            /// </summary>
+            /// <param name="terminalState">本次流程运行终态。</param>
+            public void CompleteExecutionBranch(WorkpieceTerminalState terminalState)
+            {
+                IWorkpieceExecutionLease executionLease = Interlocked.Exchange(ref _executionLease, null);
+                executionLease?.Complete(terminalState);
+            }
+
+            /// <summary>获取本次流程运行继承或创建的工件上下文。</summary>
+            public WorkpieceExecutionContext Context => _context;
+
+            /// <summary>幂等恢复上下文并释放单流程执行权。</summary>
+            public void Dispose()
+            {
+                IDisposable contextScope = Interlocked.Exchange(ref _contextScope, null);
+                IProcessWorkpieceLease lease = Interlocked.Exchange(ref _lease, null);
+                IWorkpieceExecutionLease executionLease = Interlocked.Exchange(ref _executionLease, null);
+                ProcessRunPathScope processPathScope = Interlocked.Exchange(ref _processPathScope, null);
+                try
+                {
+                    contextScope?.Dispose();
+                }
+                finally
+                {
+                    try
+                    {
+                        executionLease?.Dispose();
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            lease?.Dispose();
+                        }
+                        finally
+                        {
+                            processPathScope?.Dispose();
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>当前异步分支的不可变流程调用路径节点。</summary>
+        private sealed class ProcessRunPath
+        {
+            /// <summary>
+            /// 创建流程调用路径节点。
+            /// </summary>
+            /// <param name="process">当前流程。</param>
+            /// <param name="parent">上一层调用路径。</param>
+            public ProcessRunPath(Process process, ProcessRunPath parent)
+            {
+                Process = process ?? throw new ArgumentNullException(nameof(process));
+                Parent = parent;
+            }
+
+            /// <summary>获取当前路径节点对应的流程。</summary>
+            public Process Process { get; }
+
+            /// <summary>获取上一层流程调用路径。</summary>
+            public ProcessRunPath Parent { get; }
+
+            /// <summary>获取本路径节点绑定的工件身份；尚未取得FIFO执行权时为空。</summary>
+            public WorkpieceIdentity? Identity { get; private set; }
+
+            /// <summary>
+            /// 在流程取得执行权后一次性绑定实际工件身份。
+            /// </summary>
+            /// <param name="identity">本次流程运行实际使用的工件身份。</param>
+            public void BindIdentity(WorkpieceIdentity identity)
+            {
+                if (Identity.HasValue && !Identity.Value.Equals(identity))
+                    throw new InvalidOperationException("流程调用路径不能改绑到其他工件身份。");
+                Identity = identity;
+            }
+        }
+
+        /// <summary>严格按后进先出规则恢复流程调用路径。</summary>
+        private sealed class ProcessRunPathScope : IDisposable
+        {
+            /// <summary>本作用域压入的路径节点。</summary>
+            private readonly ProcessRunPath _expectedPath;
+
+            /// <summary>释放时需要恢复的上一层路径。</summary>
+            private readonly ProcessRunPath _previousPath;
+
+            /// <summary>作用域释放状态，1表示已经释放。</summary>
+            private int _isDisposed;
+
+            /// <summary>
+            /// 创建流程调用路径恢复作用域。
+            /// </summary>
+            /// <param name="expectedPath">本作用域压入的路径。</param>
+            /// <param name="previousPath">上一层路径。</param>
+            public ProcessRunPathScope(ProcessRunPath expectedPath, ProcessRunPath previousPath)
+            {
+                _expectedPath = expectedPath;
+                _previousPath = previousPath;
+            }
+
+            /// <summary>
+            /// 把已经获得执行权的流程路径绑定到实际工件身份。
+            /// </summary>
+            /// <param name="identity">当前工件身份。</param>
+            public void BindIdentity(WorkpieceIdentity identity)
+            {
+                _expectedPath.BindIdentity(identity);
+            }
+
+            /// <summary>恢复上一层流程路径；乱序释放时明确失败。</summary>
+            public void Dispose()
+            {
+                if (Volatile.Read(ref _isDisposed) == 1)
+                    return;
+                if (!ReferenceEquals(CurrentProcessRunPath.Value, _expectedPath))
+                    throw new InvalidOperationException("流程调用路径作用域必须按后进先出顺序释放。");
+
+                CurrentProcessRunPath.Value = _previousPath;
+                Volatile.Write(ref _isDisposed, 1);
+            }
+        }
+
+        /// <summary>
+        /// 记录节点进入执行状态。
+        /// </summary>
+        /// <param name="node">当前节点。</param>
+        internal void TraceNodeStarted(NodeBase node)
+        {
+            _performanceTrace?.NodeStarted(node);
+        }
+
+        /// <summary>
+        /// 记录节点通过统一结果入口完成。
+        /// </summary>
+        /// <param name="node">当前节点。</param>
+        /// <param name="status">节点状态。</param>
+        /// <param name="elapsedMilliseconds">节点报告耗时。</param>
+        internal void TraceNodeCompleted(NodeBase node, NodeStatus status, int elapsedMilliseconds)
+        {
+            _performanceTrace?.NodeCompleted(node, status, elapsedMilliseconds);
+        }
+
+        /// <summary>
+        /// 记录节点在统一结果入口之外发生的异常或中断。
+        /// </summary>
+        /// <param name="node">当前节点。</param>
+        /// <param name="reason">异常或中断原因。</param>
+        internal void TraceNodeFaulted(NodeBase node, string reason)
+        {
+            _performanceTrace?.NodeFaulted(node, reason);
+        }
+
+        /// <summary>
+        /// 结束本轮Debug完整耗时追踪；重复调用不会重复写日志。
+        /// </summary>
+        /// <param name="statusText">流程结束状态。</param>
+        private void CompletePerformanceTrace(string statusText)
+        {
+            _performanceTrace?.Complete(statusText, RunTime);
         }
 
         /// <summary>
@@ -2010,7 +2559,7 @@ namespace TDJS_Vision
         /// </summary>
         private bool TryPrepareSkippedNodeRunResult(NodeBase nodeToSkip)
         {
-            Stopwatch prepareWatch = Stopwatch.StartNew();
+            Stopwatch prepareWatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
             ISkippedNodeRunResultProvider provider = nodeToSkip as ISkippedNodeRunResultProvider;
             if (provider == null)
             {
@@ -2032,24 +2581,26 @@ namespace TDJS_Vision
             }
             catch (Exception ex)
             {
-                prepareWatch.Stop();
+                prepareWatch?.Stop();
+                long prepareElapsedMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(prepareWatch);
                 PerformanceSpikeDiagnostics.LogIfEnabled(MsgLevel.Exception,
-                    () => $"【链路诊断-跳过节点准备异常】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider耗时={prepareWatch.ElapsedMilliseconds}ms；异常={ex.GetType().Name}:{ex.Message}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                    () => $"【链路诊断-跳过节点准备异常】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider耗时={prepareElapsedMs}ms；异常={ex.GetType().Name}:{ex.Message}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
                     true);
                 throw;
             }
 
-            prepareWatch.Stop();
+            prepareWatch?.Stop();
+            long prepareElapsed = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(prepareWatch);
             int appendedRunTime = nodeToSkip.Result == null ? 0 : nodeToSkip.Result.RunTime;
             PerformanceSpikeDiagnostics.LogIfEnabled(MsgLevel.Debug,
-                () => $"【链路诊断-跳过节点准备结束】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；成功={prepared}；Provider耗时={prepareWatch.ElapsedMilliseconds}ms；消息={FormatDiagnosticMessage(message)}；结果后={GetNodeResultText(nodeToSkip.Result)}；RunTime追加={appendedRunTime}ms",
+                () => $"【链路诊断-跳过节点准备结束】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；成功={prepared}；Provider耗时={prepareElapsed}ms；消息={FormatDiagnosticMessage(message)}；结果后={GetNodeResultText(nodeToSkip.Result)}；RunTime追加={appendedRunTime}ms",
                 true);
             PerformanceSpikeDiagnostics.LogSlowIfEnabled(
                 MsgLevel.Debug,
                 PerformanceSpikeDiagnostics.CommonSlowMs,
-                () => $"【慢诊断-跳过节点准备】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider耗时={prepareWatch.ElapsedMilliseconds}ms；结果后={GetNodeResultText(nodeToSkip.Result)}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
+                () => $"【慢诊断-跳过节点准备】流程={ProcessName}；RunId={CurrentRunId}；节点={GetSkippedNodeText(nodeToSkip)}；Provider耗时={prepareElapsed}ms；结果后={GetNodeResultText(nodeToSkip.Result)}；{PerformanceSpikeDiagnostics.GetRuntimeText()}",
                 true,
-                prepareWatch.ElapsedMilliseconds);
+                prepareElapsed);
 
             if (prepared)
             {
@@ -2133,68 +2684,141 @@ namespace TDJS_Vision
         /// </summary>
         /// <param name="passiveProcesses"></param>
         /// <param name="ct"></param>
-        public void TriggerPassiveProcesses(IEnumerable<Process> passiveProcesses, CancellationToken ct)
+        public async Task TriggerPassiveProcesses(IEnumerable<Process> passiveProcesses, CancellationToken ct)
         {
+            List<Task<ProcessInvocationResult>> tasks = new List<Task<ProcessInvocationResult>>();
             foreach (var p in passiveProcesses)
             {
                 if (p == null)
                     continue;
                 // 可在这里加条件判断是否可触发等
-                p.RunInternal(isCyclical: false, isTriggered: true, ct: ct);
+                tasks.Add(p.RunInternalWithResultAsync(isCyclical: false, isTriggered: true, ct: ct));
             }
+
+            ProcessInvocationResult[] results = await Task.WhenAll(tasks).ConfigureAwait(false);
+            foreach (ProcessInvocationResult result in results)
+                ThrowIfInvocationFailed(result, ct);
         }
 
-        private Action<Process> _triggerAction; // 由外部注入
-
-        public void SetTriggerAction(Action<Process> action)
+        /// <summary>
+        /// 在当前流程组内触发名称唯一的被动流程，并等待其本次执行完成。
+        /// </summary>
+        /// <param name="processName">目标流程名称。</param>
+        /// <param name="cancellationToken">当前工件调用链取消令牌。</param>
+        /// <returns>目标流程执行任务。</returns>
+        public async Task TriggerProcess(string processName, CancellationToken cancellationToken)
         {
-            _triggerAction = action;
-        }
+            if (string.IsNullOrWhiteSpace(processName))
+                throw new ArgumentException("目标流程名称不能为空。", nameof(processName));
 
-        // 在流程的某个节点需要触发其他流程时调用
-        public async Task TriggerProcess(string processName)
-        {
+            Process targetProcess = null;
             foreach(var pro in Solution.Instance.AllProcesses)
             {
-                if (pro.ProcessName == processName)
+                if (pro.Group != Group ||
+                    !string.Equals(pro.ProcessName, processName, StringComparison.Ordinal))
                 {
-                    // 触发某个流程
-                    _triggerAction?.Invoke(pro);
-                    break;
+                    continue;
                 }
+
+                if (targetProcess != null)
+                    throw new InvalidOperationException($"流程组{Group}内存在重名流程【{processName}】，无法确定触发目标。");
+                targetProcess = pro;
+            }
+
+            if (targetProcess == null)
+                throw new InvalidOperationException($"流程组{Group}内不存在目标流程【{processName}】。");
+            if (!targetProcess.IsPassiveTriggered)
+                throw new InvalidOperationException($"目标流程【{processName}】没有配置为被动触发流程。");
+
+            ProcessInvocationResult result = await targetProcess.RunInternalWithResultAsync(
+                isCyclical: false,
+                isTriggered: true,
+                ct: cancellationToken).ConfigureAwait(false);
+            ThrowIfInvocationFailed(result, cancellationToken);
+        }
+
+        /// <summary>
+        /// 使用当前工件或方案停止令牌触发指定被动流程，保留旧节点插件调用签名。
+        /// </summary>
+        /// <param name="processName">目标流程名称。</param>
+        /// <returns>目标流程执行任务。</returns>
+        public Task TriggerProcess(string processName)
+        {
+            WorkpieceExecutionContext context = Solution.Instance.WorkpieceContextAccessor.Current;
+            CancellationToken cancellationToken = context == null
+                ? Solution.Instance.CancellationToken
+                : context.CancellationToken;
+            return TriggerProcess(processName, cancellationToken);
+        }
+
+        /// <summary>
+        /// 执行一次流程并返回不受后续排队运行覆盖的调用结果。
+        /// </summary>
+        /// <param name="isCyclical">是否按循环运行语义记录本次流程。</param>
+        /// <param name="isTriggered">是否由流程触发节点进入。</param>
+        /// <param name="ct">调用方取消令牌。</param>
+        /// <returns>本次调用独立结果。</returns>
+        public async Task<ProcessInvocationResult> RunInternalWithResultAsync(
+            bool isCyclical,
+            bool isTriggered,
+            CancellationToken ct)
+        {
+            CancellationToken effectiveCancellationToken = ct.CanBeCanceled
+                ? ct
+                : Solution.Instance.CancellationToken;
+            try
+            {
+                effectiveCancellationToken.ThrowIfCancellationRequested();
+                bool succeeded = await RunWithResultAsync(
+                    isCyclical,
+                    effectiveCancellationToken).ConfigureAwait(false);
+                return new ProcessInvocationResult(ProcessName, succeeded, false, null);
+            }
+            catch (OperationCanceledException ex) when (effectiveCancellationToken.IsCancellationRequested)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, $"流程【{ProcessName}】执行取消！");
+                return new ProcessInvocationResult(ProcessName, false, true, ex);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, $"流程【{ProcessName}】执行异常: {ex.Message}");
+                return new ProcessInvocationResult(ProcessName, false, false, ex);
             }
         }
 
-        // 包装 Run 方法，支持标记“是否被触发”
+        /// <summary>
+        /// 执行一次流程并保留旧节点插件使用的Task返回签名。
+        /// </summary>
+        /// <param name="isCyclical">是否按循环运行语义记录。</param>
+        /// <param name="isTriggered">是否由流程触发节点进入。</param>
+        /// <param name="ct">调用方取消令牌。</param>
         public async Task RunInternal(bool isCyclical, bool isTriggered, CancellationToken ct)
         {
-            using (ct.Register(() => { /* 可选：清理 */ }))
-            {
-                try
-                {
+            await RunInternalWithResultAsync(isCyclical, isTriggered, ct).ConfigureAwait(false);
+        }
 
-                    //Stopwatch stopwatch = new Stopwatch();
-                    //stopwatch.Start();
+        /// <summary>
+        /// 把被动流程的明确失败结果恢复为当前触发节点可观察的异常。
+        /// </summary>
+        /// <param name="result">目标流程本次调用结果。</param>
+        /// <param name="cancellationToken">当前调用链取消令牌。</param>
+        private static void ThrowIfInvocationFailed(
+            ProcessInvocationResult result,
+            CancellationToken cancellationToken)
+        {
+            if (result == null)
+                throw new InvalidOperationException("被动流程没有返回执行结果。");
+            if (result.Succeeded)
+                return;
+            if (result.Cancelled)
+                throw new OperationCanceledException(
+                    $"被动流程【{result.ProcessName}】执行取消。",
+                    result.Exception,
+                    cancellationToken);
 
-                    //FrmLogger.AddLog($"开始: 耗时: {stopwatch.ElapsedMilliseconds}  当前时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}", MsgLevel.Debug);
-
-                    await Run(isCyclical); // 实际执行
-
-                    //stopwatch.Stop();
-                    //FrmLogger.AddLog(
-                    //     $"结束: 耗时: {stopwatch.ElapsedMilliseconds}ms  当前时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}",
-                    //     MsgLevel.Debug
-                    // );
-                }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                {
-                    LogHelper.AddLog(MsgLevel.Exception, $"被动流程执行取消！");
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.AddLog(MsgLevel.Exception, $"被动流程执行异常: {ex.Message}");
-                }
-            }
+            throw new InvalidOperationException(
+                $"被动流程【{result.ProcessName}】执行失败。",
+                result.Exception);
         }
 
         #endregion
@@ -2213,6 +2837,22 @@ namespace TDJS_Vision
                 if (process.Nodes.Count == 0 || !process.Enable)
                     return;
 
+                if (!Solution.Instance.TryBeginExternalRunSession())
+                    return;
+
+                ManagedProcessRunScope managedRunScope = null;
+                ProcessRunPathScope pendingProcessPathScope = null;
+                bool invocationSucceeded = false;
+                try
+                {
+                pendingProcessPathScope = process.PushProcessRunPath();
+                managedRunScope = await process.EnterManagedProcessRunAsync(
+                    "按流程ID运行",
+                    Solution.Instance.CancellationToken,
+                    pendingProcessPathScope).ConfigureAwait(false);
+                pendingProcessPathScope = null;
+                managedRunScope.ActivateOwnedContext(Solution.Instance.WorkpieceContextAccessor);
+
                 process.BeginProcessRun();
 
                 process.RunTime = 0;
@@ -2229,6 +2869,7 @@ namespace TDJS_Vision
                         bool stoppedEarly = await process.RunConnectedNodes();
                         if (stoppedEarly)
                         {
+                            invocationSucceeded = true;
                             process.Success = true;
                             process.IsRuning = false;
 
@@ -2268,7 +2909,7 @@ namespace TDJS_Vision
                                 continue;
 
                             MarkNodeRunning(node);
-                            NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(process, node));
+                            NodeReturn result = await RunNodeWithCpuResourcePolicy(process, node);
                             FinalizeNodeRun(node);
                             process.RunTime += node.Result.RunTime;
 
@@ -2278,6 +2919,7 @@ namespace TDJS_Vision
                             // 检查还要不要继续运行
                             if (result.Flag == NodeRunFlag.StopRun || result.Flag == NodeRunFlag.StopBranch)
                             {
+                                invocationSucceeded = true;
                                 // 当前节点要求停止后续节点执行
                                 process.Success = true; // 可以设置为成功或其他状态
                                 process.IsRuning = false;
@@ -2328,21 +2970,57 @@ namespace TDJS_Vision
 
                 // 所有可运行节点都执行完毕，若任一节点最终为失败状态，则流程按失败结束。
                 bool processSucceeded = !process.HasFailedRuntimeNode();
+                invocationSucceeded = processSucceeded;
                 process.Success = processSucceeded;
                 process.IsRuning = false;
                 WriteFinalProcessEndLog(process, isCyclical, processSucceeded, ref processStartLogWritten);
                 UpdateRunStatus?.Invoke(process, new ProcessRunResult(false, processSucceeded, process.ProcessName));
                 ProcessEvents.OnProcessEnded(process.ID, processSucceeded ? ProcessEndStatus.Completed : ProcessEndStatus.Failed);
+                }
+                finally
+                {
+                    try
+                    {
+                        await process.ExitManagedProcessRunAsync(managedRunScope, invocationSucceeded).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        pendingProcessPathScope?.Dispose();
+                        Solution.Instance.EndExternalRunSession();
+                    }
+                }
             }
         }
 
         /// <summary>
         /// 流程开始运行
         /// </summary>
-        public async Task Run(bool isCyclical)
+        internal async Task<bool> RunWithResultAsync(
+            bool isCyclical,
+            CancellationToken cancellationToken)
         {
             if (Nodes.Count == 0 || !Enable)
-                return;
+                return false;
+
+            if (!Solution.Instance.TryBeginExternalRunSession())
+                return false;
+
+            CancellationToken effectiveCancellationToken = cancellationToken.CanBeCanceled
+                ? cancellationToken
+                : Solution.Instance.CancellationToken;
+
+            ManagedProcessRunScope managedRunScope = null;
+            ProcessRunPathScope pendingProcessPathScope = null;
+            bool invocationSucceeded = false;
+            try
+            {
+            pendingProcessPathScope = PushProcessRunPath();
+            managedRunScope = await EnterManagedProcessRunAsync(
+                "流程运行",
+                effectiveCancellationToken,
+                pendingProcessPathScope).ConfigureAwait(false);
+            pendingProcessPathScope = null;
+            managedRunScope.ActivateOwnedContext(Solution.Instance.WorkpieceContextAccessor);
 
             BeginProcessRun();
 
@@ -2366,7 +3044,8 @@ namespace TDJS_Vision
                         WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Info, "提前完成");
                         UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
                         ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
-                        return;
+                        invocationSucceeded = true;
+                        return true;
                     }
                 }
                 catch (OperationCanceledException ex)
@@ -2399,7 +3078,7 @@ namespace TDJS_Vision
                             continue;
 
                         MarkNodeRunning(node);
-                        NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(this, node));
+                        NodeReturn result = await RunNodeWithCpuResourcePolicy(this, node);
                         FinalizeNodeRun(node);
                         RunTime += node.Result.RunTime;
 
@@ -2416,7 +3095,8 @@ namespace TDJS_Vision
                             WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Info, "提前完成");
                             UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
                             ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
-                            return; // 提前退出整个流程
+                            invocationSucceeded = true;
+                            return true; // 提前退出整个流程
                         }
 
                         #region 实现IF^Else逻辑
@@ -2459,11 +3139,35 @@ namespace TDJS_Vision
 
             // 所有可运行节点都执行完毕，若任一节点最终为失败状态，则流程按失败结束。
             bool runSucceeded = !HasFailedRuntimeNode();
+            invocationSucceeded = runSucceeded;
             Success = runSucceeded;
             IsRuning = false;
             WriteFinalProcessEndLog(this, isCyclical, runSucceeded, ref processStartLogWritten);
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, runSucceeded, ProcessName));
             ProcessEvents.OnProcessEnded(ID, runSucceeded ? ProcessEndStatus.Completed : ProcessEndStatus.Failed);
+            return runSucceeded;
+            }
+            finally
+            {
+                try
+                {
+                    await ExitManagedProcessRunAsync(managedRunScope, invocationSucceeded).ConfigureAwait(false);
+                }
+                finally
+                {
+                    pendingProcessPathScope?.Dispose();
+                    Solution.Instance.EndExternalRunSession();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 流程开始运行，保留原有公开Task签名。
+        /// </summary>
+        /// <param name="isCyclical">是否按循环运行语义记录。</param>
+        public async Task Run(bool isCyclical)
+        {
+            await RunWithResultAsync(isCyclical, Solution.Instance.CancellationToken).ConfigureAwait(false);
         }
 
 
@@ -2474,6 +3178,22 @@ namespace TDJS_Vision
         {
             if (Nodes.Count == 0 || !Enable)
                 return;
+
+            if (!Solution.Instance.TryBeginExternalRunSession())
+                return;
+
+            ManagedProcessRunScope managedRunScope = null;
+            ProcessRunPathScope pendingProcessPathScope = null;
+            bool invocationSucceeded = false;
+            try
+            {
+            pendingProcessPathScope = PushProcessRunPath();
+            managedRunScope = await EnterManagedProcessRunAsync(
+                "相机帧续跑",
+                Solution.Instance.CancellationToken,
+                pendingProcessPathScope).ConfigureAwait(false);
+            pendingProcessPathScope = null;
+            managedRunScope.ActivateOwnedContext(Solution.Instance.WorkpieceContextAccessor);
 
             BeginProcessRun();
 
@@ -2504,6 +3224,7 @@ namespace TDJS_Vision
                         : await RunConnectedNodes(nodeImage, null, nodeImage);
                     if (stoppedEarly)
                     {
+                        invocationSucceeded = true;
                         Success = true;
                         IsRuning = false;
 
@@ -2553,7 +3274,7 @@ namespace TDJS_Vision
                             continue;
 
                         MarkNodeRunning(node);
-                        NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(this, node));
+                        NodeReturn result = await RunNodeWithCpuResourcePolicy(this, node);
                         FinalizeNodeRun(node);
                         RunTime += node.Result.RunTime;
 
@@ -2563,6 +3284,7 @@ namespace TDJS_Vision
                         // 检查还要不要继续运行
                         if (result.Flag == NodeRunFlag.StopRun || result.Flag == NodeRunFlag.StopBranch)
                         {
+                            invocationSucceeded = true;
                             // 当前节点要求停止后续节点执行
                             Success = true; // 可以设置为成功或其他状态
                             IsRuning = false;
@@ -2614,11 +3336,25 @@ namespace TDJS_Vision
 
             // 所有可运行节点都执行完毕，若任一节点最终为失败状态，则流程按失败结束。
             bool runSucceeded = !HasFailedRuntimeNode();
+            invocationSucceeded = runSucceeded;
             Success = runSucceeded;
             IsRuning = false;
             WriteFinalProcessEndLog(this, isCyclical, runSucceeded, ref processStartLogWritten);
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, runSucceeded, ProcessName));
             ProcessEvents.OnProcessEnded(ID, runSucceeded ? ProcessEndStatus.Completed : ProcessEndStatus.Failed);
+            }
+            finally
+            {
+                try
+                {
+                    await ExitManagedProcessRunAsync(managedRunScope, invocationSucceeded).ConfigureAwait(false);
+                }
+                finally
+                {
+                    pendingProcessPathScope?.Dispose();
+                    Solution.Instance.EndExternalRunSession();
+                }
+            }
         }
 
 
@@ -2628,12 +3364,24 @@ namespace TDJS_Vision
         /// </summary>
         public async Task RunForUpdateImages(NodeBase node2Stop)
         {
-            // 重置运行取消令牌
-            Solution.Instance.ResetTokenSource();
-
-            // 节点数为0或流程不启用则不运行
             if (Nodes.Count == 0 || !Enable)
                 return;
+
+            if (!Solution.Instance.TryBeginExternalRunSession())
+                return;
+
+            ManagedProcessRunScope managedRunScope = null;
+            ProcessRunPathScope pendingProcessPathScope = null;
+            bool invocationSucceeded = false;
+            try
+            {
+            pendingProcessPathScope = PushProcessRunPath();
+            managedRunScope = await EnterManagedProcessRunAsync(
+                "参数图像刷新",
+                Solution.Instance.CancellationToken,
+                pendingProcessPathScope).ConfigureAwait(false);
+            pendingProcessPathScope = null;
+            managedRunScope.ActivateOwnedContext(Solution.Instance.WorkpieceContextAccessor);
 
             BeginProcessRun();
             RunTime = 0;
@@ -2651,11 +3399,13 @@ namespace TDJS_Vision
                     bool stoppedEarly = await RunConnectedNodes(null, node2Stop);
                     if (stoppedEarly)
                     {
+                        invocationSucceeded = true;
                         Success = true;
                         IsRuning = false;
 
                         if (ShowLog)
                             LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（提前完成）  ---------------------------------", true);
+                        CompletePerformanceTrace("提前完成");
                         UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
                         return;
                     }
@@ -2666,6 +3416,7 @@ namespace TDJS_Vision
                     IsRuning = false;
                     if (ShowLog)
                         LogHelper.AddLog(MsgLevel.Warn, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（运行中断）  ---------------------------------", true);
+                    CompletePerformanceTrace("运行中断");
                     UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                     throw ex;
                 }
@@ -2675,6 +3426,7 @@ namespace TDJS_Vision
                     IsRuning = false;
                     if (ShowLog)
                         LogHelper.AddLog(MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（失败）  ---------------------------------", true);
+                    CompletePerformanceTrace("失败");
                     UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                     throw ex;
                 }
@@ -2692,7 +3444,7 @@ namespace TDJS_Vision
                         }
 
                         MarkNodeRunning(node);
-                        NodeReturn result = await node.Run(Solution.Instance.CancellationToken, ShouldShowNodeLog(this, node));
+                        NodeReturn result = await RunNodeWithCpuResourcePolicy(this, node);
                         FinalizeNodeRun(node);
                         RunTime += node.Result.RunTime;
 
@@ -2702,12 +3454,14 @@ namespace TDJS_Vision
                         // 检查还要不要继续运行
                         if (result.Flag == NodeRunFlag.StopRun || result.Flag == NodeRunFlag.StopBranch)
                         {
+                            invocationSucceeded = true;
                             // 当前节点要求停止后续节点执行
                             Success = true; // 可以设置为成功或其他状态
                             IsRuning = false;
 
                             if (ShowLog)
                                 LogHelper.AddLog(MsgLevel.Info, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（提前完成）  ---------------------------------", true);
+                            CompletePerformanceTrace("提前完成");
                             UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, true, ProcessName));
                             return; // 提前退出整个流程
                         }
@@ -2736,6 +3490,7 @@ namespace TDJS_Vision
                         RunTime += node.Result.RunTime;
                         if (ShowLog)
                             LogHelper.AddLog(MsgLevel.Warn, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（运行中断）  ---------------------------------", true);
+                        CompletePerformanceTrace("运行中断");
                         UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                         throw ex;
                     }
@@ -2746,6 +3501,7 @@ namespace TDJS_Vision
                         RunTime += node.Result.RunTime;
                         if (ShowLog)
                             LogHelper.AddLog(MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（失败）  ---------------------------------", true);
+                        CompletePerformanceTrace("失败");
                         UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
                         throw ex;
                     }
@@ -2753,11 +3509,26 @@ namespace TDJS_Vision
             }
 
             bool updateSucceeded = !HasFailedRuntimeNode();
+            invocationSucceeded = updateSucceeded;
             Success = updateSucceeded;
             IsRuning = false;
             if (ShowLog)
                 LogHelper.AddLog(updateSucceeded ? MsgLevel.Info : MsgLevel.Exception, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（{(updateSucceeded ? "成功" : "失败")}）  ---------------------------------", true);
+            CompletePerformanceTrace(updateSucceeded ? "成功" : "失败");
             UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, updateSucceeded, ProcessName));
+            }
+            finally
+            {
+                try
+                {
+                    await ExitManagedProcessRunAsync(managedRunScope, invocationSucceeded).ConfigureAwait(false);
+                }
+                finally
+                {
+                    pendingProcessPathScope?.Dispose();
+                    Solution.Instance.EndExternalRunSession();
+                }
+            }
         }
     }
 
@@ -2779,24 +3550,89 @@ namespace TDJS_Vision
         Lv5,
     }
 
+    /// <summary>方案流程组；保留既有编号，并扩展为40个独立调度组。</summary>
     public enum ProcessGroup
     {
-        Group1,
-        Group2,
-        Group3,
-        Group4,
-        Group5,
-        Group6,
-        Group7,
-        //Group8,
-        //Group9,
-        //Group10,
-        //Group11,
-        //Group12,
-        //Group13,
-        //Group14,
-        //Group15,
-        //Group16
+        /// <summary>第1组。</summary>
+        Group1 = 0,
+        /// <summary>第2组。</summary>
+        Group2 = 1,
+        /// <summary>第3组。</summary>
+        Group3 = 2,
+        /// <summary>第4组。</summary>
+        Group4 = 3,
+        /// <summary>第5组。</summary>
+        Group5 = 4,
+        /// <summary>第6组。</summary>
+        Group6 = 5,
+        /// <summary>第7组。</summary>
+        Group7 = 6,
+        /// <summary>第8组。</summary>
+        Group8 = 7,
+        /// <summary>第9组。</summary>
+        Group9 = 8,
+        /// <summary>第10组。</summary>
+        Group10 = 9,
+        /// <summary>第11组。</summary>
+        Group11 = 10,
+        /// <summary>第12组。</summary>
+        Group12 = 11,
+        /// <summary>第13组。</summary>
+        Group13 = 12,
+        /// <summary>第14组。</summary>
+        Group14 = 13,
+        /// <summary>第15组。</summary>
+        Group15 = 14,
+        /// <summary>第16组。</summary>
+        Group16 = 15,
+        /// <summary>第17组。</summary>
+        Group17 = 16,
+        /// <summary>第18组。</summary>
+        Group18 = 17,
+        /// <summary>第19组。</summary>
+        Group19 = 18,
+        /// <summary>第20组。</summary>
+        Group20 = 19,
+        /// <summary>第21组。</summary>
+        Group21 = 20,
+        /// <summary>第22组。</summary>
+        Group22 = 21,
+        /// <summary>第23组。</summary>
+        Group23 = 22,
+        /// <summary>第24组。</summary>
+        Group24 = 23,
+        /// <summary>第25组。</summary>
+        Group25 = 24,
+        /// <summary>第26组。</summary>
+        Group26 = 25,
+        /// <summary>第27组。</summary>
+        Group27 = 26,
+        /// <summary>第28组。</summary>
+        Group28 = 27,
+        /// <summary>第29组。</summary>
+        Group29 = 28,
+        /// <summary>第30组。</summary>
+        Group30 = 29,
+        /// <summary>第31组。</summary>
+        Group31 = 30,
+        /// <summary>第32组。</summary>
+        Group32 = 31,
+        /// <summary>第33组。</summary>
+        Group33 = 32,
+        /// <summary>第34组。</summary>
+        Group34 = 33,
+        /// <summary>第35组。</summary>
+        Group35 = 34,
+        /// <summary>第36组。</summary>
+        Group36 = 35,
+        /// <summary>第37组。</summary>
+        Group37 = 36,
+        /// <summary>第38组。</summary>
+        Group38 = 37,
+        /// <summary>第39组。</summary>
+        Group39 = 38,
+        /// <summary>第40组。</summary>
+        Group40 = 39,
     }
 
     /// <summary>

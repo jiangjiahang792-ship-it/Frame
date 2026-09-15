@@ -29,6 +29,7 @@ Assert-ContainsText $source 'SetInputContract(SubscriptionInputContract inputCon
 Assert-ContainsText $source 'SubscriptionPortCatalog.GetOutputs' 'NodeSubscription 必须从统一端口目录生成候选。'
 Assert-ContainsText $source 'SubscriptionTypeCompatibility.ConvertValue' 'NodeSubscription 运行取值必须使用统一转换服务。'
 Assert-ContainsText $source 'SubscriptionSelectionItem' 'NodeSubscription 必须把界面文字与旧方案持久化路径分开。'
+Assert-ContainsText $source 'SetShowAdvancedResults(bool showAdvancedResults)' 'NodeSubscription 必须允许调用方默认展开高级结果。'
 Assert-ContainsText $source 'IsLegacySelection' 'NodeSubscription 必须显示旧方案兼容订阅状态。'
 Assert-ContainsText $source 'IsMissing' 'NodeSubscription 必须显示结果不存在状态。'
 Assert-True (-not $source.Contains('comboBox2.SelectedIndex = index1 == -1 ? 0 : index1;')) '结果不存在时不能自动回退到第一项。'
@@ -37,6 +38,11 @@ Assert-ContainsText $designer 'toolStripMenuItemShowAdvancedResults' '高级结�
 Assert-ContainsText $designer 'this.toolStripMenuItemShowAdvancedResults.Text = "显示高级结果";' '高级结果菜单必须使用中文 Text。'
 Assert-ContainsText $designer 'this.toolStripMenuItemShowAdvancedResults.CheckOnClick = true;' '高级结果菜单必须支持勾选。'
 Assert-ContainsText $designer 'this.comboBox2.ContextMenuStrip = this.contextMenuStripResults;' '结果下拉框必须绑定高级结果右键菜单。'
+
+$sharedVariableSource = Get-Content -LiteralPath (Join-Path $projectRoot 'Node\6-LogicTool\SharedVariable\NodeParamFormSharedVariable.cs') -Raw -Encoding UTF8
+Assert-ContainsText $sharedVariableSource 'nodeSubscription1.SetInputContract(SubscriptionInputContract.AnyVisible());' '共享变量节点必须继续接受任意可见订阅类型。'
+Assert-ContainsText $sharedVariableSource 'nodeSubscription1.SetShowAdvancedResults(true);' '共享变量节点必须默认展开高级结果，允许直接订阅图像源输出图像。'
+Assert-True ($sharedVariableSource.IndexOf('nodeSubscription1.SetShowAdvancedResults(true);') -lt $sharedVariableSource.IndexOf('nodeSubscription1.Init(node);')) '共享变量节点必须在 Init 前默认展开高级结果。'
 
 $fixedContracts = @(
     @('Node\1-Acquisition\ImageShow\ParamFormImageShow.cs', 'nodeSubscription1', 'OutputImage'),

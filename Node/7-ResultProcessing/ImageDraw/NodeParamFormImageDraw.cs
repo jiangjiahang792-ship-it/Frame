@@ -31,14 +31,16 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
         /// <summary>
         /// 获取订阅的图像
         /// </summary>
-        /// <returns></returns>
-        public Mat GetImage()
+        /// <param name="owner">拥有当前Mat的上游图像输出。</param>
+        /// <returns>上游只读Mat。</returns>
+        public Mat GetImage(out OutputImage owner)
         {
             Mat bitmap = null;
+            owner = null;
             try
             {
-                var output = nodeSubscription1.GetValue<OutputImage>();
-                bitmap = output.Bitmaps[0];
+                owner = nodeSubscription1.GetValue<OutputImage>();
+                bitmap = owner.Bitmaps[0];
             }
             catch (Exception)
             {

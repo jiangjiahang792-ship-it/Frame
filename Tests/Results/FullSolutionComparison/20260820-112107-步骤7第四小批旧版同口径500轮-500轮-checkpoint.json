@@ -1,0 +1,9 @@
+{
+  "VersionLabel": "步骤7第四小批旧版同口径500轮",
+  "CompletedRounds": 500,
+  "TargetRounds": 500,
+  "Completed": true,
+  "ResultJson": ".\\Tests\\Results\\FullSolutionComparison\\20260820-112107-步骤7第四小批旧版同口径500轮-500轮.json",
+  "ResultCsv": ".\\Tests\\Results\\FullSolutionComparison\\20260820-112107-步骤7第四小批旧版同口径500轮-500轮.csv",
+  "UpdatedAt": "2026-08-20 11:25:54.318"
+}

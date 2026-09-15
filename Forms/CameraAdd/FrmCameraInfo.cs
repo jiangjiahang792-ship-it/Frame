@@ -1,6 +1,5 @@
 ﻿using Basler.Pylon;
 using Logger;
-using MvCameraControl;
 using Sunny.UI;
 using System;
 using System.Collections.Generic;
@@ -52,7 +51,7 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// <summary>
         /// 相机信息列表
         /// </summary>
-        private List<IDeviceInfo> infoList = CameraHik.FindCamera();
+        private List<HikNativeDeviceInfo> infoList = CameraHik.FindCamera();
 
         /// <summary>
         /// 3D 相机信息列表。
@@ -62,7 +61,7 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// <summary>
         /// 用来保存设备名对应的设备信息
         /// </summary>
-        private Dictionary<string, IDeviceInfo> _mapCamera = new Dictionary<string, IDeviceInfo>();
+        private Dictionary<string, HikNativeDeviceInfo> _mapCamera = new Dictionary<string, HikNativeDeviceInfo>();
 
         /// <summary>
         /// 用来保存 3D 设备名对应的设备信息。

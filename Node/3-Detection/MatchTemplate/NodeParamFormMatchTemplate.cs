@@ -25,6 +25,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         private double maxOverlap = 40.0;
         private float score = 0.5f;
         private int resultNum = 1;
+        private MatchTemplateSortMode sortMode = MatchTemplateSortMode.ColumnAscending;
         private bool coarseMatch = false;
         private bool showOutlineStatus = true;
         private bool showOutRegionStatus = true;
@@ -40,24 +41,38 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// <summary>
         /// native 模板匹配会话缓存，复用模板学习结果以对齐 Fastest_Image_Pattern_Matching Demo 的执行方式。
         /// </summary>
-        private readonly FastTemplateMatcher.MatchSession templateMatchSession = new FastTemplateMatcher.MatchSession();
+        private readonly FastTemplateMatcher.MatchSession templateMatchSession;
 
+        /// <summary>
+        /// 创建原模板匹配参数窗体，默认保留原节点既有算法路径。
+        /// </summary>
         public NodeParamFormMatchTemplate(Process process, NodeBase nodeBase)
+            : this(process, nodeBase, false)
+        {
+        }
+
+        /// <summary>
+        /// 创建模板匹配参数窗体，可按节点类型强制使用demo一致的native NCC算法路径。
+        /// </summary>
+        public NodeParamFormMatchTemplate(Process process, NodeBase nodeBase, bool forceNativeDemoAlgorithm)
         {
             InitializeComponent();
             node = nodeBase;
+            templateMatchSession = new FastTemplateMatcher.MatchSession(forceNativeDemoAlgorithm);
+            if (forceNativeDemoAlgorithm)
+                Text = "NCC模板匹配";
             Shown += NodeParamFormQRCodeIdentification_Shown;
 
-            toolTip1.SetToolTip(label2, "模板旋转搜索范围，单位度。");
+            toolTip1.SetToolTip(labelToleranceAngle, "模板旋转搜索范围，单位度。");
             toolTip1.SetToolTip(label4, "匹配可靠性阈值，支持 0~1 或 0~100。");
             toolTip1.SetToolTip(labelAngleStep, "旋转搜索步长，0 表示由算法自动选择。");
             toolTip1.SetToolTip(labelMaxOverlap, "多个目标之间允许的最大重叠率，支持 0~100。");
+            toolTip1.SetToolTip(labelSortMode, "多个匹配目标输出前先排序，排序后的目标编号可被四则运算订阅。");
             toolTip1.SetToolTip(showImageControlSource, "用于绘制搜索区域，也用于查看执行预览。");
             toolTip1.SetToolTip(pictureBoxTemplate, "青色轮廓为当前模板参与匹配的边缘。");
 
-            comboBoxPolarity.SelectedIndex = 0;
-            comboBoxScaleMode.SelectedIndex = 0;
             checkBoxAllSearch.Checked = true;
+            SetSortModeControl(sortMode);
             continuousRunTimer = new Timer { Interval = 500 };
             continuousRunTimer.Tick += continuousRunTimer_Tick;
 
@@ -91,6 +106,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             maxOverlap = param.MaxOverlap <= 0 ? 40.0 : param.MaxOverlap;
             score = param.MinScore <= 0 ? 0.5f : param.MinScore;
             resultNum = param.ResultNum <= 0 ? 1 : param.ResultNum;
+            sortMode = param.SortMode;
             coarseMatch = param.CoarseMatch;
             showOutlineStatus = param.ShowOutlineStatus;
             showOutRegionStatus = param.ShowOutRegionStatus;
@@ -102,11 +118,12 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             searchRegionAngle = param.SearchRegionAngle;
             searchRegionConfirmed = allSearch || (searchRegionWidth > 0 && searchRegionHeight > 0);
 
-            textBoxScale.Text = toleranceAngle.ToString("G");
+            textBoxToleranceAngle.Text = toleranceAngle.ToString("G");
             textBoxAngleStep.Text = angleStep.ToString("G");
             textBoxMaxOverlap.Text = maxOverlap.ToString("G");
             textBoxMinScore.Text = score.ToString("G");
             textBoxResultNum.Text = resultNum.ToString();
+            SetSortModeControl(sortMode);
             checkBoxCoarseMatch.Checked = coarseMatch;
             checkBoxShowOutline.Checked = showOutlineStatus;
             checkBoxShowMatchBox.Checked = showOutRegionStatus;
@@ -298,8 +315,10 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         {
             try
             {
+                FastTemplateMatcher.WriteDiagnosticLog("手动执行按钮：点击开始。");
                 SetSingleRunBusy(true);
                 var result = await MatchTemplateAsync();
+                FastTemplateMatcher.WriteDiagnosticLog("手动执行按钮：MatchTemplateAsync返回，matches=" + (result == null ? -1 : result.Matches.Count));
                 PublishMatchResult(result);
                 UpdateRunStatus(result);
                 if (result.Matches.Count == 0)
@@ -307,11 +326,13 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             }
             catch (Exception ex)
             {
+                FastTemplateMatcher.WriteDiagnosticLog("手动执行按钮：捕获异常，" + ex);
                 MessageBoxTD.Show($"模板匹配异常，原因：{GetDisplayExceptionMessage(ex)}");
             }
             finally
             {
                 SetSingleRunBusy(false);
+                FastTemplateMatcher.WriteDiagnosticLog("手动执行按钮：执行结束。");
             }
         }
 
@@ -323,18 +344,97 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             MatchTemplateExecutionContext context = null;
             try
             {
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate同步入口：show=" + show);
                 context = CreateMatchTemplateContext(show);
                 var result = ExecuteMatchTemplateContext(context);
                 ApplyMatchTemplateResult(result, show);
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate同步出口：成功。");
                 return result;
             }
             catch (Exception ex)
             {
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate同步异常：" + ex);
                 throw new InvalidOperationException("模板匹配失败。", ex);
             }
             finally
             {
                 context?.Dispose();
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate同步finally：上下文已释放。");
+            }
+        }
+
+        /// <summary>
+        /// NCC节点运行时快速匹配入口，直接复用订阅输出 Mat，避免 UpdataImage 和整图 Bitmap 往返。
+        /// </summary>
+        internal FastTemplateMatchResult MatchTemplateFromSubscribedMat(
+            bool show,
+            out OpenCvSharp.Mat outputMat,
+            out OpenCvSharp.Mat outputGrayMat,
+            out OutputImage outputOwner,
+            out IImageResourceLease outputLease)
+        {
+            outputMat = null;
+            outputGrayMat = null;
+            outputOwner = null;
+            outputLease = null;
+            OpenCvSharp.Mat matchMat = null;
+            bool disposeMatchMat = false;
+            try
+            {
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplateMat同步入口：show=" + show);
+                if (!(Params is NodeParamMatchTemplate savedParam))
+                    throw new ArgumentException("模板匹配参数不能为空。");
+
+                EnsureTemplateLoaded();
+                if (templateImage == null)
+                    throw new ArgumentException("模板图像不能为空。");
+
+                outputOwner = nodeSubscription1.GetValue<OutputImage>();
+                outputLease = outputOwner.AcquireLease();
+                outputMat = GetReadOnlySourceMat(outputOwner);
+                outputGrayMat = OutputImage.HasValidImage(outputOwner?.GrayImg) ? outputOwner.GrayImg : null;
+                OpenCvSharp.Mat nativeInputMat = OutputImage.HasValidImage(outputGrayMat) &&
+                                                outputGrayMat.Width == outputMat.Width &&
+                                                outputGrayMat.Height == outputMat.Height
+                    ? outputGrayMat
+                    : outputMat;
+                NodeParamMatchTemplate runtimeParam = BuildRuntimeParam(savedParam, false, false);
+                Rectangle searchBounds = GetSearchBounds(runtimeParam, new Size(outputMat.Width, outputMat.Height));
+                bool isAllSearch = runtimeParam.AllSearch || IsFullImage(searchBounds, outputMat.Width, outputMat.Height);
+                matchMat = isAllSearch
+                    ? nativeInputMat
+                    : new OpenCvSharp.Mat(nativeInputMat, new OpenCvSharp.Rect(searchBounds.X, searchBounds.Y, searchBounds.Width, searchBounds.Height));
+                disposeMatchMat = !isAllSearch;
+                FastTemplateMatcher.WriteDiagnosticLog(string.Format("MatchTemplateMat同步：订阅图像={0}x{1}，显示通道={2}，native输入通道={3}，search={4}，all={5}。", outputMat.Width, outputMat.Height, outputMat.Channels(), nativeInputMat.Channels(), searchBounds, isAllSearch));
+
+                var result = templateMatchSession.Match(runtimeParam, matchMat, templateImage, templateEraseMask);
+                if (!isAllSearch)
+                    OffsetResult(result, searchBounds.X, searchBounds.Y);
+
+                if (show && result != null)
+                {
+                    using (Bitmap previewSource = OpenCvSharp.Extensions.BitmapConverter.ToBitmap(outputMat))
+                    {
+                        result.OutputBitmap = FastTemplateMatcher.DrawPreview(previewSource, result, runtimeParam.ShowOutRegionStatus, runtimeParam.ShowOutlineStatus);
+                        ApplyMatchTemplateResult(result, true);
+                    }
+                }
+
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplateMat同步出口：成功。");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                outputLease?.Dispose();
+                outputLease = null;
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplateMat同步异常：" + ex);
+                throw new InvalidOperationException("NCC模板匹配失败。", ex);
+            }
+            finally
+            {
+                if (disposeMatchMat)
+                    matchMat?.Dispose();
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplateMat同步finally：ROI已释放。");
             }
         }
 
@@ -346,18 +446,24 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             MatchTemplateExecutionContext context = null;
             try
             {
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate异步入口：show=" + show);
                 context = CreateMatchTemplateContext(show);
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate异步：上下文创建完成，准备进入后台线程。");
                 var result = await Task.Run(() => ExecuteMatchTemplateContext(context));
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate异步：后台线程返回，准备显示结果。");
                 ApplyMatchTemplateResult(result, show);
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate异步出口：成功。");
                 return result;
             }
             catch (Exception ex)
             {
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate异步异常：" + ex);
                 throw new InvalidOperationException("模板匹配失败。", ex);
             }
             finally
             {
                 context?.Dispose();
+                FastTemplateMatcher.WriteDiagnosticLog("MatchTemplate异步finally：上下文已释放。");
             }
         }
 
@@ -366,12 +472,15 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// </summary>
         private MatchTemplateExecutionContext CreateMatchTemplateContext(bool show)
         {
+            FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext入口：show=" + show);
             ReadFormValues();
+            FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext：参数读取完成，resultNum=" + resultNum + "，score=" + score + "，sortMode=" + sortMode + "，allSearch=" + allSearch);
             EnsureTemplateLoaded();
             if (src == null)
                 throw new ArgumentException("源图像不能为空。");
             if (templateImage == null)
                 throw new ArgumentException("模板图像不能为空。");
+            FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext：源图和模板确认完成，" + MatchTemplateDiagnosticLog.DescribeBitmap("src", src) + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("template", templateImage) + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("mask", templateEraseMask));
 
             Bitmap sourceImage = null;
             Bitmap templateSnapshot = null;
@@ -383,9 +492,11 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 templateSnapshot = (Bitmap)templateImage.Clone();
                 eraseMaskSnapshot = templateEraseMask == null ? null : (Bitmap)templateEraseMask.Clone();
                 Rectangle searchBounds = GetSearchBounds(sourceImage.Size);
+                FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext：搜索区域=" + searchBounds + "，allSearch=" + allSearch);
                 matchImage = allSearch
                     ? (Bitmap)sourceImage.Clone()
                     : sourceImage.Clone(searchBounds, PixelFormat.Format24bppRgb);
+                FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext：匹配图创建完成，" + MatchTemplateDiagnosticLog.DescribeBitmap("matchImage", matchImage));
 
                 var context = new MatchTemplateExecutionContext
                 {
@@ -405,7 +516,13 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 templateSnapshot = null;
                 eraseMaskSnapshot = null;
                 matchImage = null;
+                FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext出口：上下文创建成功。");
                 return context;
+            }
+            catch (Exception ex)
+            {
+                FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext异常：" + ex);
+                throw;
             }
             finally
             {
@@ -413,6 +530,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 sourceImage?.Dispose();
                 templateSnapshot?.Dispose();
                 eraseMaskSnapshot?.Dispose();
+                FastTemplateMatcher.WriteDiagnosticLog("CreateMatchTemplateContext finally：临时对象释放完成。");
             }
         }
 
@@ -421,13 +539,21 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// </summary>
         private FastTemplateMatchResult ExecuteMatchTemplateContext(MatchTemplateExecutionContext context)
         {
+            FastTemplateMatcher.WriteDiagnosticLog("ExecuteMatchTemplateContext入口：" + MatchTemplateDiagnosticLog.DescribeParam(context == null ? null : context.RuntimeParam));
             var result = templateMatchSession.Match(context.RuntimeParam, context.MatchImage, context.TemplateImage, context.TemplateEraseMask);
+            FastTemplateMatcher.WriteDiagnosticLog("ExecuteMatchTemplateContext：native会话返回，matches=" + (result == null ? -1 : result.Matches.Count));
             if (!context.IsAllSearch)
+            {
+                FastTemplateMatcher.WriteDiagnosticLog("ExecuteMatchTemplateContext：开始偏移非整图搜索结果，offsetX=" + context.SearchBounds.X + "，offsetY=" + context.SearchBounds.Y);
                 OffsetResult(result, context.SearchBounds.X, context.SearchBounds.Y);
+                FastTemplateMatcher.WriteDiagnosticLog("ExecuteMatchTemplateContext：非整图搜索结果偏移完成。");
+            }
 
+            FastTemplateMatcher.WriteDiagnosticLog("ExecuteMatchTemplateContext：准备生成输出预览，showPreview=" + context.ShowPreview + "，showBox=" + context.ShowMatchBox + "，showOutline=" + context.ShowOutline);
             result.OutputBitmap = context.ShowPreview
                 ? FastTemplateMatcher.DrawPreview(context.SourceImage, result, context.ShowMatchBox, context.ShowOutline)
                 : (Bitmap)context.SourceImage.Clone();
+            FastTemplateMatcher.WriteDiagnosticLog("ExecuteMatchTemplateContext出口：预览图生成完成，" + MatchTemplateDiagnosticLog.DescribeBitmap("output", result.OutputBitmap));
             return result;
         }
 
@@ -436,8 +562,10 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// </summary>
         private void ApplyMatchTemplateResult(FastTemplateMatchResult result, bool show)
         {
+            FastTemplateMatcher.WriteDiagnosticLog("ApplyMatchTemplateResult入口：show=" + show + "，" + MatchTemplateDiagnosticLog.DescribeBitmap("output", result == null ? null : result.OutputBitmap));
             if (show)
                 showImageControlSource.SetImage(result.OutputBitmap);
+            FastTemplateMatcher.WriteDiagnosticLog("ApplyMatchTemplateResult出口。");
         }
 
         /// <summary>
@@ -455,7 +583,11 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// </summary>
         private static string GetDisplayExceptionMessage(Exception ex)
         {
-            return ex.InnerException == null ? ex.Message : ex.InnerException.Message;
+            Exception displayException = ex;
+            while (displayException.InnerException != null)
+                displayException = displayException.InnerException;
+
+            return displayException.Message;
         }
 
         /// <summary>
@@ -556,6 +688,63 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             return new Rectangle(x, y, width, height);
         }
 
+        /// <summary>
+        /// 使用保存参数计算运行时搜索区域，避免 NCC 快路径依赖窗体 ROI 刷新状态。
+        /// </summary>
+        private static Rectangle GetSearchBounds(NodeParamMatchTemplate param, Size imageSize)
+        {
+            if (param == null || param.AllSearch || param.SearchRegionWidth <= 0 || param.SearchRegionHeight <= 0)
+                return new Rectangle(0, 0, imageSize.Width, imageSize.Height);
+
+            PointF[] corners = GetRotatedRectCorners(
+                param.SearchRegionCenterX,
+                param.SearchRegionCenterY,
+                param.SearchRegionWidth,
+                param.SearchRegionHeight,
+                param.SearchRegionAngle);
+
+            float minX = corners.Min(p => p.X);
+            float minY = corners.Min(p => p.Y);
+            float maxX = corners.Max(p => p.X);
+            float maxY = corners.Max(p => p.Y);
+
+            int x = Math.Max(0, (int)Math.Floor(minX));
+            int y = Math.Max(0, (int)Math.Floor(minY));
+            int right = Math.Min(imageSize.Width, (int)Math.Ceiling(maxX));
+            int bottom = Math.Min(imageSize.Height, (int)Math.Ceiling(maxY));
+            int width = Math.Max(1, right - x);
+            int height = Math.Max(1, bottom - y);
+            return new Rectangle(x, y, width, height);
+        }
+
+        /// <summary>
+        /// 判断搜索区域是否覆盖整张图，避免不必要的 ROI Mat 包装。
+        /// </summary>
+        private static bool IsFullImage(Rectangle bounds, int width, int height)
+        {
+            return bounds.X <= 0 && bounds.Y <= 0 && bounds.Width >= width && bounds.Height >= height;
+        }
+
+        /// <summary>
+        /// 按卡尺节点同类方式获取只读输入图像引用，不接管 Mat 生命周期。
+        /// </summary>
+        private static OpenCvSharp.Mat GetReadOnlySourceMat(OutputImage outputImage)
+        {
+            if (outputImage == null)
+                throw new Exception("订阅图像为空！");
+
+            if (outputImage.Bitmaps != null && outputImage.Bitmaps.Count > 0 && OutputImage.HasValidImage(outputImage.Bitmaps[0]))
+                return outputImage.Bitmaps[0];
+
+            if (OutputImage.HasValidImage(outputImage.SrcImg))
+                return outputImage.SrcImg;
+
+            if (OutputImage.HasValidImage(outputImage.GrayImg))
+                return outputImage.GrayImg;
+
+            throw new Exception("订阅节点没有输出有效图像！");
+        }
+
         private static PointF[] GetRotatedRectCorners(float cx, float cy, float width, float height, float angle)
         {
             float halfW = width / 2f;
@@ -618,6 +807,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 Scale = 1,
                 MinScore = score,
                 ResultNum = resultNum,
+                SortMode = sortMode,
                 AllSearch = allSearch,
                 SearchRegionCenterX = searchRegionCenterX,
                 SearchRegionCenterY = searchRegionCenterY,
@@ -630,6 +820,41 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 CoarseMatch = coarseMatch,
                 ShowOutlineStatus = showOutlineStatus,
                 ShowOutRegionStatus = showOutRegionStatus
+            };
+        }
+
+        /// <summary>
+        /// 从已保存参数构造运行时快照，NCC快路径不读取界面控件，保证流程运行和卡尺一样只依赖订阅数据。
+        /// </summary>
+        private static NodeParamMatchTemplate BuildRuntimeParam(NodeParamMatchTemplate param, bool includeTemplateImage, bool includeTemplateEraseMask)
+        {
+            if (param == null)
+                throw new ArgumentNullException(nameof(param));
+
+            return new NodeParamMatchTemplate
+            {
+                TemplateFileName = includeTemplateImage ? param.TemplateFileName : string.Empty,
+                TemplateImageBytes = includeTemplateImage ? param.TemplateImageBytes : null,
+                TemplateEraseMaskBytes = includeTemplateEraseMask ? param.TemplateEraseMaskBytes : null,
+                TemplateSourceName = param.TemplateSourceName,
+                Text1 = param.Text1,
+                Text2 = param.Text2,
+                Scale = 1,
+                MinScore = param.MinScore <= 0 ? 0.5f : param.MinScore,
+                ResultNum = param.ResultNum <= 0 ? 1 : param.ResultNum,
+                SortMode = param.SortMode,
+                AllSearch = param.AllSearch || param.SearchRegionWidth <= 0 || param.SearchRegionHeight <= 0,
+                SearchRegionCenterX = param.SearchRegionCenterX,
+                SearchRegionCenterY = param.SearchRegionCenterY,
+                SearchRegionWidth = param.SearchRegionWidth,
+                SearchRegionHeight = param.SearchRegionHeight,
+                SearchRegionAngle = param.SearchRegionAngle,
+                ToleranceAngle = param.ToleranceAngle <= 0 ? 80.0 : param.ToleranceAngle,
+                AngleStep = Math.Max(0, param.AngleStep),
+                MaxOverlap = param.MaxOverlap <= 0 ? 40.0 : param.MaxOverlap,
+                CoarseMatch = param.CoarseMatch,
+                ShowOutlineStatus = param.ShowOutlineStatus,
+                ShowOutRegionStatus = param.ShowOutRegionStatus
             };
         }
 
@@ -722,7 +947,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             if (score > 100 || score < 0)
                 throw new Exception("最小匹配分数区间为 [0,1] 或 [0,100]。");
 
-            toleranceAngle = double.Parse(textBoxScale.Text);
+            toleranceAngle = double.Parse(textBoxToleranceAngle.Text);
             if (toleranceAngle < 0 || toleranceAngle > 360)
                 throw new Exception("角度范围设置区间为 [0,360]。");
 
@@ -734,6 +959,7 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             if (maxOverlap < 0 || maxOverlap > 100)
                 throw new Exception("最大重叠率设置区间为 [0,100]。");
 
+            sortMode = GetSelectedSortMode();
             coarseMatch = checkBoxCoarseMatch.Checked;
             showOutlineStatus = checkBoxShowOutline.Checked;
             showOutRegionStatus = checkBoxShowMatchBox.Checked;
@@ -887,10 +1113,29 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
                 var displayParam = new NodeParamMatchTemplate
                 {
                     ShowOutRegionStatus = showOutRegionStatus,
-                    ShowOutlineStatus = showOutlineStatus
+                    ShowOutlineStatus = showOutlineStatus,
+                    SortMode = sortMode
                 };
                 matchNode.PublishPreviewResult(result, displayParam);
             }
+        }
+
+        /// <summary>
+        /// 将排序模式写入界面下拉框。
+        /// </summary>
+        private void SetSortModeControl(MatchTemplateSortMode mode)
+        {
+            comboBoxSortMode.SelectedIndex = mode == MatchTemplateSortMode.RowAscending ? 1 : 0;
+        }
+
+        /// <summary>
+        /// 读取当前界面选择的排序模式。
+        /// </summary>
+        private MatchTemplateSortMode GetSelectedSortMode()
+        {
+            return comboBoxSortMode.SelectedIndex == 1
+                ? MatchTemplateSortMode.RowAscending
+                : MatchTemplateSortMode.ColumnAscending;
         }
 
         private void buttonRestoreTemplate_Click(object sender, EventArgs e)
@@ -1080,11 +1325,11 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         {
             try
             {
-                toleranceAngle = double.Parse(textBoxScale.Text);
+                toleranceAngle = double.Parse(textBoxToleranceAngle.Text);
             }
             catch (Exception)
             {
-                if (textBoxScale.Text.Length != 0)
+                if (textBoxToleranceAngle.Text.Length != 0)
                     MessageBoxTD.Show("角度范围参数不合法！");
             }
         }

@@ -112,6 +112,8 @@ $formClosedAssignmentIndex = $controllerSource.IndexOf('startupClosed = true;', 
 Assert-True ($formClosedLockIndex -ge 0 -and $formClosedLockIndex -lt $formClosedAssignmentIndex) '启动页关闭状态和失败等待源完成必须在同一把锁内切换。'
 
 Assert-Contains $applicationContextSource 'TimeSpan.FromSeconds(2)' '启动页必须至少显示 2 秒。'
+Assert-True ([regex]::IsMatch($applicationContextSource, 'if \(!StartupDisplayMode\.IsBackgroundAcceptance\)\s+splashController\.Start\(\);')) '普通启动必须创建启动动画，后台验收必须跳过不可见启动动画线程。'
+Assert-True ([regex]::IsMatch($applicationContextSource, 'if \(!StartupDisplayMode\.IsBackgroundAcceptance\)\s+\{\s+TimeSpan remaining')) '普通启动必须保留最短动画时长，后台验收不得等待不可见动画。'
 Assert-Contains $applicationContextSource 'ShowFailureAsync' '关键失败必须停留在启动页等待处理。'
 Assert-Contains $applicationContextSource 'mainForm.Show();' '关键初始化完成后才能显示主窗体。'
 Assert-Contains $applicationContextSource 'return $"软件启动初始化失败：{message}";' '启动失败提示必须包含简体中文说明。'

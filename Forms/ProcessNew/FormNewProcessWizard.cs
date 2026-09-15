@@ -142,7 +142,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
             if (node.Tag is NodeType nodeType && nodeType != NodeType.UNKNOWN)
             {
-                node.Text = LanguageManager.T("ProcessNew.NodeType." + nodeType);
+                node.Text = nodeType == NodeType.ResultSend ? "结果发送" : LanguageManager.T("ProcessNew.NodeType." + nodeType);
             }
             else
             {
@@ -168,10 +168,21 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return "ProcessNew.Category.ImageProcessing";
                 case "检测识别":
                 case "Detection":
+                case "深度学习":
+                case "Deep Learning":
                     return "ProcessNew.Category.Detection";
+                case "定位工具":
+                case "Positioning Tools":
+                    return "ProcessNew.Category.Positioning";
                 case "测量工具":
                 case "Measurement Tools":
                     return "ProcessNew.Category.Measurement";
+                case "颜色检测":
+                case "Color Detection":
+                    return "ProcessNew.Category.ColorDetection";
+                case "条码识别":
+                case "Barcode Recognition":
+                    return "ProcessNew.Category.BarcodeRecognition";
                 case "图形创建":
                 case "Geometry Creation":
                     return "ProcessNew.Category.GeometryCreation";
@@ -770,6 +781,12 @@ namespace TDJS_Vision.Forms.ProcessNew
                 return Color.FromArgb(18, 132, 219);
             if (key.Contains("ImageProcessing"))
                 return Color.FromArgb(77, 171, 247);
+            if (key.Contains("ColorDetection"))
+                return Color.FromArgb(210, 120, 54);
+            if (key.Contains("BarcodeRecognition"))
+                return Color.FromArgb(38, 148, 170);
+            if (key.Contains("Positioning"))
+                return Color.FromArgb(34, 139, 126);
             if (key.Contains("Detection"))
                 return Color.FromArgb(125, 84, 188);
             if (key.Contains("Measurement"))
@@ -791,6 +808,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             switch (nodeType)
             {
                 case NodeType.ImageSource:
+                case NodeType.CameraExposureGain:
                 case NodeType.ImageSource3D:
                 case NodeType.ImageShow:
                 case NodeType.ImageShow3D:
@@ -798,18 +816,22 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.ImageRotate:
                 case NodeType.ImageSplit:
                 case NodeType.ImagePreprocess:
+                case NodeType.BlobAnalysis:
                     return Color.FromArgb(18, 132, 219);
                 case NodeType.AITD:
                 case NodeType.LineFind:
                 case NodeType.CircleFind:
                 case NodeType.QRScan:
-                case NodeType.MatchTemplate:
                 case NodeType.BatteryEar:
                 case NodeType.RGBDiscern:
                 case NodeType.BinarizationAnalysis:
                 case NodeType.UnsupervisedDetection:
                 case NodeType.LargeModelDetection:
                     return Color.FromArgb(125, 84, 188);
+                case NodeType.MatchTemplate:
+                case NodeType.NccMatchTemplate:
+                case NodeType.PositionCorrection:
+                    return Color.FromArgb(34, 139, 126);
                 case NodeType.CaliperLine:
                 case NodeType.CaliperCircle:
                 case NodeType.CaliperEllipse:
@@ -862,6 +884,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.Summarize:
                 case NodeType.DetectResultShow:
                 case NodeType.GenerateExcel:
+                case NodeType.ResultSend:
                     return Color.FromArgb(42, 157, 143);
                 default:
                     return Color.FromArgb(91, 219, 213);
@@ -877,6 +900,8 @@ namespace TDJS_Vision.Forms.ProcessNew
             {
                 case NodeType.ImageSource:
                     return "IN";
+                case NodeType.CameraExposureGain:
+                    return "EG";
                 case NodeType.ImageSource3D:
                     return "3D";
                 case NodeType.ImageShow:
@@ -913,12 +938,16 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return "PL";
                 case NodeType.PointRegionDistance:
                     return "PR";
+                case NodeType.BlobAnalysis:
+                    return "BL";
                 case NodeType.LineMergeFit:
                     return "LM";
                 case NodeType.QRScan:
                     return "QR";
                 case NodeType.MatchTemplate:
                     return "MT";
+                case NodeType.NccMatchTemplate:
+                    return "NCC";
                 case NodeType.BatteryEar:
                     return "BE";
                 case NodeType.RGBDiscern:
@@ -985,6 +1014,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.ResultOverlayDraw2:
                     return "ROI2";
                 case NodeType.AIResultSend:
+                case NodeType.ResultSend:
                     return "TX";
                 case NodeType.ImageSave:
                     return "SV";
@@ -1009,6 +1039,12 @@ namespace TDJS_Vision.Forms.ProcessNew
                 return "CA";
             if (key.Contains("ImageProcessing"))
                 return "IM";
+            if (key.Contains("ColorDetection"))
+                return "CL";
+            if (key.Contains("BarcodeRecognition"))
+                return "QR";
+            if (key.Contains("Positioning"))
+                return "LC";
             if (key.Contains("Detection"))
                 return "AI";
             if (key.Contains("Measurement"))

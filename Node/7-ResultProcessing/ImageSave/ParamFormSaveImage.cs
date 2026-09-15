@@ -128,7 +128,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         public OutputImage GetOutputImageForSave()
         {
             OutputImage outputImage = nodeSubscriptionImg2Save.GetValue<OutputImage>();
-            if (outputImage == null || outputImage.Bitmaps == null || outputImage.Bitmaps.Count == 0 || !OutputImage.HasValidImage(outputImage.Bitmaps[0]))
+            if (outputImage == null)
                 throw new Exception("订阅的图片对象为空！");
 
             return outputImage;
@@ -144,28 +144,30 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             bool ownershipReturned = false;
             try
             {
-                Stopwatch stopwatch = Stopwatch.StartNew();
-                MemorySnapshot beforeSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
+                Stopwatch stopwatch = PerformanceSpikeDiagnostics.StartStopwatchIfEnabled(MsgLevel.Debug);
+                MemorySnapshot beforeSnapshot = stopwatch == null
+                    ? null
+                    : PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
                 OutputImage outputImage = nodeSubscriptionImg2Save.GetValue<OutputImage>();
-                long afterSubscription = stopwatch.ElapsedMilliseconds;
+                long afterSubscription = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
                 if (outputImage == null || outputImage.Bitmaps == null || outputImage.Bitmaps.Count == 0 || !OutputImage.HasValidImage(outputImage.Bitmaps[0]))
                     throw new Exception("订阅的图片对象为空！");
 
                 Mat sourceImage = outputImage.Bitmaps[0];
                 bitmap = sourceImage.ToBitmap();
-                long afterToBitmap = stopwatch.ElapsedMilliseconds;
+                long afterToBitmap = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
                 bool hasDrawableDisplayResult = HasDrawableDisplayResult(outputImage.DisplayResult);
                 if (hasDrawableDisplayResult)
                 {
                     bitmap = EnsureDrawableBitmap(bitmap);
-                    long afterEnsureDrawable = stopwatch.ElapsedMilliseconds;
+                    long afterEnsureDrawable = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
                     ShowImageControl.DrawDisplayResultToBitmap(bitmap, outputImage.DisplayResult);
-                    long afterDrawDisplayResult = stopwatch.ElapsedMilliseconds;
+                    long afterDrawDisplayResult = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
                     LogImageSnapshot(outputImage, bitmap, beforeSnapshot, afterSubscription, afterToBitmap, afterEnsureDrawable, afterDrawDisplayResult, true);
                 }
                 else
                 {
-                    long afterNoDraw = stopwatch.ElapsedMilliseconds;
+                    long afterNoDraw = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
                     LogImageSnapshot(outputImage, bitmap, beforeSnapshot, afterSubscription, afterToBitmap, afterNoDraw, afterNoDraw, false);
                 }
 
@@ -194,10 +196,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
         /// <param name="hasDrawableDisplayResult">是否存在需要写入保存图的显示结果。</param>
         private static void LogImageSnapshot(OutputImage outputImage, Bitmap bitmap, MemorySnapshot beforeSnapshot, long afterSubscription, long afterToBitmap, long afterEnsureDrawable, long afterDrawDisplayResult, bool hasDrawableDisplayResult)
         {
+            if (beforeSnapshot == null || !PerformanceSpikeDiagnostics.IsDiagnosticLogEnabled(MsgLevel.Debug))
+                return;
+
             MemorySnapshot afterSnapshot = PerformanceSpikeDiagnostics.CaptureMemorySnapshot();
-            LogHelper.AddLog(
+            PerformanceSpikeDiagnostics.LogIfEnabled(
                 MsgLevel.Debug,
-                $"【内存诊断-保存图像取图】输出图像={PerformanceSpikeDiagnostics.GetOutputImageText(outputImage)}；待保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；有标注={hasDrawableDisplayResult}；订阅读取={afterSubscription}ms；ToBitmap={afterToBitmap - afterSubscription}ms；确保可绘制={afterEnsureDrawable - afterToBitmap}ms；写入标注={afterDrawDisplayResult - afterEnsureDrawable}ms；总耗时={afterDrawDisplayResult}ms；私有内存变化={afterSnapshot.PrivateMemoryMb - beforeSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterSnapshot.GdiObjectCount - beforeSnapshot.GdiObjectCount}；前={beforeSnapshot.ToLogText()}；后={afterSnapshot.ToLogText()}",
+                () => $"【内存诊断-保存图像取图】输出图像={PerformanceSpikeDiagnostics.GetOutputImageText(outputImage)}；待保存Bitmap={PerformanceSpikeDiagnostics.GetBitmapText(bitmap)}；有标注={hasDrawableDisplayResult}；订阅读取={afterSubscription}ms；ToBitmap={afterToBitmap - afterSubscription}ms；确保可绘制={afterEnsureDrawable - afterToBitmap}ms；写入标注={afterDrawDisplayResult - afterEnsureDrawable}ms；总耗时={afterDrawDisplayResult}ms；私有内存变化={afterSnapshot.PrivateMemoryMb - beforeSnapshot.PrivateMemoryMb:F1}MB；GDI变化={afterSnapshot.GdiObjectCount - beforeSnapshot.GdiObjectCount}；前={beforeSnapshot.ToLogText()}；后={afterSnapshot.ToLogText()}",
                 true);
         }
 
@@ -215,12 +220,22 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             if (!isIndexed)
                 return source;
 
-            Bitmap drawable = new Bitmap(source.Width, source.Height, PixelFormat.Format24bppRgb);
-            using (Graphics graphics = Graphics.FromImage(drawable))
-                graphics.DrawImage(source, 0, 0, source.Width, source.Height);
+            Bitmap drawable = null;
+            try
+            {
+                drawable = new Bitmap(source.Width, source.Height, PixelFormat.Format24bppRgb);
+                using (Graphics graphics = Graphics.FromImage(drawable))
+                    graphics.DrawImage(source, 0, 0, source.Width, source.Height);
 
-            source.Dispose();
-            return drawable;
+                source.Dispose();
+                Bitmap result = drawable;
+                drawable = null;
+                return result;
+            }
+            finally
+            {
+                drawable?.Dispose();
+            }
         }
 
         /// <summary>

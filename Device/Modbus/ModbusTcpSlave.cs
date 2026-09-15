@@ -9,6 +9,9 @@ namespace TDJS_Vision.Device.Modbus
 {
     public class ModbusTcpSlave : IModbus
     {
+        /// <summary>从站接口要求保留的操作超时，当前从站不主动外发请求。</summary>
+        private int _operationTimeoutMs = 5000;
+
         private ModbusTcpServer _server;
         public IModbusParam ModbusParam { get; set; }
         public string DevName { get; set; }
@@ -18,6 +21,13 @@ namespace TDJS_Vision.Device.Modbus
         public string ClassName { get; set; } = typeof(ModbusTcpSlave).FullName;
 
         public bool IsConnect { get; set; }
+
+        /// <summary>获取或设置从站接口的有限操作超时时间。</summary>
+        public int OperationTimeoutMs
+        {
+            get => _operationTimeoutMs;
+            set => _operationTimeoutMs = Math.Max(100, Math.Min(60000, value));
+        }
 
         public event EventHandler<bool> ConnectStatusEvent;
 

@@ -1,0 +1,14 @@
+{
+  "VersionLabel": "当前版固定50ms压力1000次复测",
+  "RunMode": "FixedIntervalTriggers",
+  "CompletedAttempts": 1000,
+  "TargetAttempts": 1000,
+  "ResultJson": "D:\\MyCode\\PublicWook\\TDJS-Vision\\Tests\\Results\\FullSolutionComparison\\20260820-205619-当前版固定50ms压力1000次复测-1000次固定触发.json",
+  "ResultCsv": "D:\\MyCode\\PublicWook\\TDJS-Vision\\Tests\\Results\\FullSolutionComparison\\20260820-205619-当前版固定50ms压力1000次复测-1000次固定触发.csv",
+  "UpdatedAt": "2026-08-20 20:57:10.904",
+  "Completed": true,
+  "ExitValidationCompleted": true,
+  "ExitValidationPassed": true,
+  "ExitValidationFailure": "",
+  "AwaitingExitValidation": false
+}

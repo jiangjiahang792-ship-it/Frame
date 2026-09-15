@@ -41,6 +41,8 @@
             this.labelNgColor = new System.Windows.Forms.Label();
             this.panelNgColor = new System.Windows.Forms.Panel();
             this.buttonChooseNgColor = new System.Windows.Forms.Button();
+            this.labelRotationAngle = new System.Windows.Forms.Label();
+            this.comboBoxRotationAngle = new System.Windows.Forms.ComboBox();
             this.groupBoxItems = new System.Windows.Forms.GroupBox();
             this.tableLayoutPanelItems = new System.Windows.Forms.TableLayoutPanel();
             this.flowLayoutPanelItemButtons = new System.Windows.Forms.FlowLayoutPanel();
@@ -188,6 +190,8 @@
             this.flowLayoutPanelColors.Controls.Add(this.labelNgColor);
             this.flowLayoutPanelColors.Controls.Add(this.panelNgColor);
             this.flowLayoutPanelColors.Controls.Add(this.buttonChooseNgColor);
+            this.flowLayoutPanelColors.Controls.Add(this.labelRotationAngle);
+            this.flowLayoutPanelColors.Controls.Add(this.comboBoxRotationAngle);
             this.flowLayoutPanelColors.Location = new System.Drawing.Point(10, 88);
             this.flowLayoutPanelColors.Name = "flowLayoutPanelColors";
             this.flowLayoutPanelColors.Size = new System.Drawing.Size(570, 36);
@@ -253,6 +257,26 @@
             this.buttonChooseNgColor.Text = "选择";
             this.buttonChooseNgColor.UseVisualStyleBackColor = true;
             this.buttonChooseNgColor.Click += new System.EventHandler(this.buttonChooseNgColor_Click);
+            //
+            // labelRotationAngle
+            //
+            this.labelRotationAngle.AutoSize = true;
+            this.labelRotationAngle.Location = new System.Drawing.Point(399, 8);
+            this.labelRotationAngle.Margin = new System.Windows.Forms.Padding(18, 8, 3, 0);
+            this.labelRotationAngle.Name = "labelRotationAngle";
+            this.labelRotationAngle.Size = new System.Drawing.Size(44, 18);
+            this.labelRotationAngle.TabIndex = 6;
+            this.labelRotationAngle.Text = "旋转";
+            //
+            // comboBoxRotationAngle
+            //
+            this.comboBoxRotationAngle.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxRotationAngle.FormattingEnabled = true;
+            this.comboBoxRotationAngle.Location = new System.Drawing.Point(449, 5);
+            this.comboBoxRotationAngle.Margin = new System.Windows.Forms.Padding(3, 5, 3, 3);
+            this.comboBoxRotationAngle.Name = "comboBoxRotationAngle";
+            this.comboBoxRotationAngle.Size = new System.Drawing.Size(95, 26);
+            this.comboBoxRotationAngle.TabIndex = 7;
             //
             // groupBoxItems
             //
@@ -856,6 +880,8 @@
         private System.Windows.Forms.Label labelNgColor;
         private System.Windows.Forms.Panel panelNgColor;
         private System.Windows.Forms.Button buttonChooseNgColor;
+        private System.Windows.Forms.Label labelRotationAngle;
+        private System.Windows.Forms.ComboBox comboBoxRotationAngle;
         private System.Windows.Forms.GroupBox groupBoxItems;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanelItems;
         private System.Windows.Forms.FlowLayoutPanel flowLayoutPanelItemButtons;

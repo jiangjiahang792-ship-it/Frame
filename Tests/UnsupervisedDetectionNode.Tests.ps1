@@ -30,7 +30,7 @@ $runtimePath = Join-Path $nodeDir "UnsupervisedDetectionRuntime.cs"
 $unsupervisedNodeText = -join @([char]0x65E0, [char]0x76D1, [char]0x7763, [char]0x68C0, [char]0x6D4B)
 $unsupervisedTemplateText = -join @([char]0x65E0, [char]0x76D1, [char]0x7763, [char]0x6A21, [char]0x677F)
 $unsupervisedOutputText = -join @([char]0x65E0, [char]0x76D1, [char]0x7763, [char]0x8F93, [char]0x51FA, [char]0x7ED3, [char]0x679C)
-$thresholdText = -join @([char]0x5F02, [char]0x5E38, [char]0x9608, [char]0x503C)
+$thresholdText = -join @([char]0x5F02, [char]0x5E38, [char]0x9608, [char]0x503C, [char]0x28, [char]0x30, [char]0x3D, [char]0x6A21, [char]0x677F, [char]0x29)
 $inferenceBatchText = -join @([char]0x63A8, [char]0x7406, [char]0x6279, [char]0x6B21)
 $miniAreaText = -join @([char]0x6700, [char]0x5C0F, [char]0x7F3A, [char]0x9677, [char]0x9762, [char]0x79EF)
 $cpuFallbackText = -join @([char]0x43, [char]0x50, [char]0x55, [char]0x56DE, [char]0x9000)
@@ -137,6 +137,8 @@ Assert-Contains $param "Text1" "Node param must persist image subscription node 
 Assert-Contains $param "Text2" "Node param must persist image subscription result text."
 Assert-Contains $param "Threshold" "Node param must persist the anomaly threshold."
 Assert-Contains $param "InferenceBatchSize" "Node param must persist the inference batch size."
+Assert-Contains $param "DefaultThreshold = 0F" "Default anomaly threshold must follow the calibrated template threshold."
+Assert-Contains $param "FallbackThreshold = 0.3F" "Runtime must keep a legacy fallback threshold when a template has no calibrated score."
 Assert-Contains $param "DefaultInferenceBatchSize = 0" "Default inference batch size must mean 'use template batch size' for legacy GPU templates."
 Assert-Contains $param "MiniArea" "Node param must persist the minimum defect area."
 Assert-NotContains $node "public override string GetCanvasParameterSummary()" "Unsupervised node must not display runtime parameters on the canvas node."
@@ -149,6 +151,7 @@ Assert-Contains $form "GetOutputImage" "Param form must expose the subscribed Ou
 Assert-Contains $form "numericUpDownThreshold.Value" "Param form must save the anomaly threshold control value."
 Assert-Contains $form "numericUpDownInferenceBatchSize.Value" "Param form must save the inference batch size control value."
 Assert-Contains $form "numericUpDownMiniArea.Value" "Param form must save the minimum defect area control value."
+Assert-Contains $form "value < 0F || value > 1F" "Param form must allow zero threshold so new nodes can follow the template score."
 Assert-Contains $form "param.InferenceBatchSize <= 0" "Param form must apply the template batch size when old node params have no explicit inference batch."
 Assert-Contains $designer "nodeSubscription1" "Designer must contain the subscription control."
 Assert-Contains $designer "textBoxTemplatePath" "Designer must contain the template path text box."
@@ -156,7 +159,7 @@ Assert-Contains $designer ('Text = "' + $unsupervisedTemplateText + '"') "Design
 Assert-Contains $designer "numericUpDownThreshold" "Designer must contain the anomaly threshold numeric control."
 Assert-Contains $designer "numericUpDownInferenceBatchSize" "Designer must contain the inference batch numeric control."
 Assert-Contains $designer "numericUpDownMiniArea" "Designer must contain the minimum defect area numeric control."
-Assert-Contains $designer ('Text = "' + $thresholdText + '"') "Designer must label the anomaly threshold in Simplified Chinese."
+Assert-Contains $designer $thresholdText "Designer must label the anomaly threshold in Simplified Chinese."
 Assert-Contains $designer ('Text = "' + $inferenceBatchText + '"') "Designer must label the inference batch size in Simplified Chinese."
 Assert-Contains $designer ('Text = "' + $miniAreaText + '"') "Designer must label the minimum defect area in Simplified Chinese."
 

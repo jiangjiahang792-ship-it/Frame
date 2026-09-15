@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
+using TDJS_Vision.Startup;
 
 namespace TDJS_Vision.Forms.YTMessageBox
 {
@@ -73,6 +74,9 @@ namespace TDJS_Vision.Forms.YTMessageBox
         /// <returns>用户点击结果。</returns>
         public static DialogResult Show(IWin32Window owner, string message, string title, MessageBoxButtons buttons, MessageBoxIcon icon)
         {
+            if (StartupDisplayMode.IsBackgroundAcceptance)
+                return DialogResult.Cancel;
+
             using (var msgBox = new MessageBoxTD())
             {
                 msgBox.Text = title; // 设置窗体标题
@@ -107,6 +111,9 @@ namespace TDJS_Vision.Forms.YTMessageBox
         /// <returns>用户点击结果。</returns>
         public static DialogResult Show(IWin32Window owner, string message)
         {
+            if (StartupDisplayMode.IsBackgroundAcceptance)
+                return DialogResult.Cancel;
+
             using (var msgBox = new MessageBoxTD())
             {
                 msgBox.Text = "";

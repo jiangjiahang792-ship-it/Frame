@@ -17,6 +17,16 @@ namespace TDJS_Vision
 {
     public class ConfigHelper
     {
+        /// <summary>
+        /// 方案文件保存锁，避免自动保存、关闭保存和手动保存同时替换同一个方案文件。
+        /// </summary>
+        private static readonly object SolutionFileSaveLocker = new object();
+
+        /// <summary>
+        /// 保存失败日志标记键，用于避免同一次保存异常被内外层重复记录。
+        /// </summary>
+        private const string SolutionSaveFailureLoggedKey = "TDJS_Vision.SolutionSaveFailureLogged";
+
         public static SolConfig SolConfig = new SolConfig();
         public static EventHandler<bool> DeserializationCompletionEvent;
         /// <summary>
@@ -93,12 +103,14 @@ namespace TDJS_Vision
 
                 // 配置持久化到本地文件
                 string json = JsonConvert.SerializeObject(SolConfig, Formatting.Indented);
-                File.WriteAllText(solFile, json);
+                SafeWriteSolutionFile(solFile, json, "方案保存");
 
             }
             catch (Exception ex)
             {
-                throw ex;
+                if (!IsSolutionSaveFailureLogged(ex))
+                    WriteSolutionSaveFailureLog("方案保存", solFile, null, ex);
+                throw;
             }
         }
 
@@ -115,48 +127,63 @@ namespace TDJS_Vision
         /// <param name="solFile"></param>
         public static void SolLoad(string solFile, bool flag)
         {
-            try
+            using (Solution.Instance.EnterSolutionMutationScope())
             {
-                string solutionName = Path.GetFileName(solFile);
-                StartupProgressContext.ReportItem("正在读取方案文件", solutionName, 1, 1, 30, 32);
-                string json = File.ReadAllText(solFile);
-                StartupProgressContext.ReportItem("正在解析方案配置", solutionName, 1, 1, 32, 35);
-                SolConfig = JsonConvert.DeserializeObject<SolConfig>(json);
-                if (SolConfig == null)
-                    throw new Exception("方案配置文件已损坏！");
+                bool resetAttempted = false;
+                bool resetCompleted = false;
+                bool openedGateOwnedByLoad = Solution.Instance.BeginSolutionLoadRunGate();
+                try
+                {
+                    string solutionName = Path.GetFileName(solFile);
+                    StartupProgressContext.ReportItem("正在读取方案文件", solutionName, 1, 1, 30, 32);
+                    string json = File.ReadAllText(solFile);
+                    StartupProgressContext.ReportItem("正在解析方案配置", solutionName, 1, 1, 32, 35);
+                    SolConfig = JsonConvert.DeserializeObject<SolConfig>(json);
+                    if (SolConfig == null)
+                        throw new Exception("方案配置文件已损坏！");
 
-                SolConfig.SolName = solFile;
+                    SolConfig.SolName = solFile;
 
-                #region 清理旧方案设备和流程节点
+                    #region 清理旧方案设备和流程节点
 
-                StartupProgressContext.ReportStage("正在清理旧方案数据", solutionName, 35);
-                Solution.Instance.SolReset();
+                    StartupProgressContext.ReportStage("正在清理旧方案数据", solutionName, 35);
+                    resetAttempted = true;
+                    if (!Solution.Instance.SolResetForSolutionLoad())
+                        throw new TimeoutException("旧方案仍有运行流程或图像保存任务未退出，本次方案加载已中止。");
+                    resetCompleted = true;
 
-                #endregion
+                    #endregion
 
-                Solution.Instance.SolVersion = SolConfig.SolVer;
-                Solution.Instance.SolFileName = solFile;
-                Solution.Instance.RunInterval = SolConfig.RunInterval;
-                Solution.Instance.NodeCount = SolConfig.NodeCount;
-                Solution.Instance.ProcessCount = SolConfig.ProcessCount;
-                Solution.Instance.GlobalSignal = SolConfig.GlobalSignal;
-                Solution.Instance.DetectItemDic = SolConfig.DetectItemDic;
+                    Solution.Instance.SolVersion = SolConfig.SolVer;
+                    Solution.Instance.SolFileName = solFile;
+                    Solution.Instance.RunInterval = SolConfig.RunInterval;
+                    Solution.Instance.NodeCount = SolConfig.NodeCount;
+                    Solution.Instance.ProcessCount = SolConfig.ProcessCount;
+                    Solution.Instance.GlobalSignal = SolConfig.GlobalSignal;
+                    Solution.Instance.DetectItemDic = SolConfig.DetectItemDic;
 
-                // 发送反序列化完成事件
-                // 目的：
-                // 1.先触发光源管理窗口还原所有光源，还原完成触发光源完成事件
-                // 2.相机管理窗口订阅光源完成事件进行相机还原，完成后触发相机完成事件 移除旧方案的设备管理窗口的设备控件
-                // 3.PLC管理窗口订阅相机完成事件进行PLC还原 完成后触发PLC完成事件，Modbus-》TCP也是如此
-                // 4.流程管理窗口订阅PLC完成事件进行流程还原，因为流程还原需要用到设备，这样保证了在还原流程时设备可用
-                DeserializationCompletionEvent?.Invoke(null, flag);
-                // 所有流程节点和参数恢复完成后顺序预加载 AI 运行时，覆盖软件启动和手动打开方案入口。
-                SolutionAiRuntimePreloader.PreloadEnabledNodes();
-                Solution.Instance.NodeCount = SolConfig.NodeCount;
-
-            }
-            catch (Exception)
-            {
-                throw;
+                    using (StartupAiRuntimeLoadGate.BeginTDAIDeferral())
+                    {
+                        // 发送反序列化完成事件
+                        // 目的：
+                        // 1.先触发光源管理窗口还原所有光源，还原完成触发光源完成事件
+                        // 2.相机管理窗口订阅光源完成事件进行相机还原，完成后触发相机完成事件 移除旧方案的设备管理窗口的设备控件
+                        // 3.PLC管理窗口订阅相机完成事件进行PLC还原 完成后触发PLC完成事件，Modbus-》TCP也是如此
+                        // 4.流程管理窗口订阅PLC完成事件进行流程还原，因为流程还原需要用到设备，这样保证了在还原流程时设备可用
+                        DeserializationCompletionEvent?.Invoke(null, flag);
+                        // 所有流程节点和参数恢复完成后顺序预加载 AI 运行时，覆盖软件启动和手动打开方案入口。
+                        SolutionAiRuntimePreloader.PreloadEnabledNodes();
+                        // TDAI/YOLO 会加载另一套 native 依赖，必须等无监督和大模型预加载完成后再启动。
+                        StartupAiRuntimeLoadGate.FlushDeferredTDAILoads();
+                    }
+                    Solution.Instance.NodeCount = SolConfig.NodeCount;
+                }
+                finally
+                {
+                    // 重置超时继续保持门禁，供用户重试；读文件失败或旧方案已清理则恢复可运行状态。
+                    if (resetCompleted || (!resetAttempted && openedGateOwnedByLoad))
+                        Solution.Instance.EndSolutionLoadRunGate();
+                }
             }
         }
 
@@ -176,13 +203,242 @@ namespace TDJS_Vision
 
                 // 配置持久化到本地文件
                 string json = JsonConvert.SerializeObject(SolConfig, Formatting.Indented);
-                File.WriteAllText(solFile, json);
+                SafeWriteSolutionFile(solFile, json, "方案数量保存");
 
             }
             catch (Exception ex)
             {
-                throw ex;
+                if (!IsSolutionSaveFailureLogged(ex))
+                    WriteSolutionSaveFailureLog("方案数量保存", solFile, null, ex);
+                throw;
             }
+        }
+
+        /// <summary>
+        /// 安全写入方案文件，先写同目录临时文件并完成反序列化校验，确认无误后再替换原方案。
+        /// </summary>
+        /// <param name="solFile">目标方案文件路径。</param>
+        /// <param name="json">已经序列化完成的方案JSON内容。</param>
+        /// <param name="operationName">保存动作名称，用于诊断日志。</param>
+        private static void SafeWriteSolutionFile(string solFile, string json, string operationName)
+        {
+            if (string.IsNullOrWhiteSpace(solFile))
+                throw new ArgumentException("方案文件路径不能为空。", nameof(solFile));
+
+            if (string.IsNullOrWhiteSpace(json))
+                throw new InvalidOperationException("方案保存内容为空，已取消写入。");
+
+            string targetPath = Path.GetFullPath(solFile);
+            string directory = Path.GetDirectoryName(targetPath);
+            if (string.IsNullOrWhiteSpace(directory))
+                directory = Environment.CurrentDirectory;
+
+            Directory.CreateDirectory(directory);
+
+            string temporaryPath = Path.Combine(directory, Path.GetFileName(targetPath) + ".tmp-" + Guid.NewGuid().ToString("N"));
+            string backupPath = BuildSingleSolutionBackupPath(targetPath);
+
+            lock (SolutionFileSaveLocker)
+            {
+                try
+                {
+                    WriteTextWithFlush(temporaryPath, json);
+                    ValidateSolutionTemporaryFile(temporaryPath);
+                    ReplaceSolutionFile(targetPath, temporaryPath, backupPath);
+                }
+                catch (Exception ex)
+                {
+                    WriteSolutionSaveFailureLog(operationName, targetPath, temporaryPath, ex);
+                    throw;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 写入文本并强制刷新到磁盘，降低大模板图像数据写入中断导致文件半截落盘的风险。
+        /// </summary>
+        /// <param name="filePath">需要写入的临时文件路径。</param>
+        /// <param name="content">需要写入的文本内容。</param>
+        private static void WriteTextWithFlush(string filePath, string content)
+        {
+            using (FileStream stream = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 64, FileOptions.WriteThrough))
+            using (StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false)))
+            {
+                writer.Write(content);
+                writer.Flush();
+                stream.Flush(true);
+            }
+        }
+
+        /// <summary>
+        /// 校验临时方案文件能够被完整读取和解析，避免把损坏JSON替换成正式方案。
+        /// </summary>
+        /// <param name="temporaryPath">待校验的临时方案文件路径。</param>
+        private static void ValidateSolutionTemporaryFile(string temporaryPath)
+        {
+            string json = File.ReadAllText(temporaryPath, Encoding.UTF8);
+            if (string.IsNullOrWhiteSpace(json))
+                throw new InvalidOperationException("临时方案文件为空。");
+
+            if (json.IndexOf('\0') >= 0)
+                throw new InvalidOperationException("临时方案文件包含空字节，疑似写入中断。");
+
+            SolConfig config = JsonConvert.DeserializeObject<SolConfig>(json);
+            if (config == null)
+                throw new InvalidOperationException("临时方案文件无法反序列化为方案配置。");
+
+            ValidateSolutionGraph(config);
+        }
+
+        /// <summary>
+        /// 校验方案流程图连线端点都能找到对应节点，避免明显断层的流程图被保存为正式方案。
+        /// </summary>
+        /// <param name="config">已经反序列化的方案配置。</param>
+        private static void ValidateSolutionGraph(SolConfig config)
+        {
+            if (config.ProcessInfos == null)
+                throw new InvalidOperationException("方案缺少流程配置。");
+
+            foreach (ProcessConfig process in config.ProcessInfos)
+            {
+                if (process == null)
+                    throw new InvalidOperationException("方案存在空流程配置。");
+
+                if (process.NodeInfos == null)
+                    throw new InvalidOperationException($"流程“{process.ProcessName}”缺少节点配置。");
+
+                if (process.ConnectionInfos == null)
+                    continue;
+
+                HashSet<int> nodeIds = new HashSet<int>();
+                foreach (NodeConfig node in process.NodeInfos)
+                {
+                    if (node != null)
+                        nodeIds.Add(node.ID);
+                }
+
+                foreach (ProcessConnectionConfig connection in process.ConnectionInfos)
+                {
+                    if (connection == null)
+                        continue;
+
+                    if (!nodeIds.Contains(connection.FromNodeId) || !nodeIds.Contains(connection.ToNodeId))
+                    {
+                        throw new InvalidOperationException(
+                            $"流程“{process.ProcessName}”存在断开的连线：{connection.FromNodeId}->{connection.ToNodeId}。");
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 生成带时间戳的单份方案备份路径，备份统一放到程序运行目录，避免方案目录中持续递增备份文件。
+        /// </summary>
+        /// <param name="targetPath">正式方案文件路径。</param>
+        /// <returns>程序运行目录下带时间戳的备份文件路径。</returns>
+        private static string BuildSingleSolutionBackupPath(string targetPath)
+        {
+            string binDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            Directory.CreateDirectory(binDirectory);
+            return Path.Combine(binDirectory, Path.GetFileName(targetPath) + ".bak-" + DateTime.Now.ToString("yyyyMMddHHmmssfff"));
+        }
+
+        /// <summary>
+        /// 使用同目录临时文件替换正式方案；已有正式方案时只保留程序运行目录中的单份备份。
+        /// </summary>
+        /// <param name="targetPath">正式方案文件路径。</param>
+        /// <param name="temporaryPath">已经校验通过的临时方案文件路径。</param>
+        /// <param name="backupPath">程序运行目录中的本次备份路径。</param>
+        private static void ReplaceSolutionFile(string targetPath, string temporaryPath, string backupPath)
+        {
+            if (File.Exists(targetPath))
+            {
+                SaveSingleSolutionBackup(targetPath, backupPath);
+                File.Replace(temporaryPath, targetPath, null, true);
+            }
+            else
+            {
+                File.Move(temporaryPath, targetPath);
+            }
+        }
+
+        /// <summary>
+        /// 保存替换前的单份方案备份；同一方案旧备份存在时先删除，确保同一个方案只保留一个备份文件。
+        /// </summary>
+        /// <param name="targetPath">正式方案文件路径。</param>
+        /// <param name="backupPath">程序运行目录中的固定备份路径。</param>
+        private static void SaveSingleSolutionBackup(string targetPath, string backupPath)
+        {
+            DeleteExistingSolutionBackups(targetPath, backupPath);
+            File.Copy(targetPath, backupPath, false);
+        }
+
+        /// <summary>
+        /// 删除程序运行目录中同一方案的旧备份，避免每次保存都留下递增备份文件。
+        /// </summary>
+        /// <param name="targetPath">正式方案文件路径。</param>
+        /// <param name="backupPath">本次准备写入的备份文件路径。</param>
+        private static void DeleteExistingSolutionBackups(string targetPath, string backupPath)
+        {
+            string backupDirectory = Path.GetDirectoryName(backupPath);
+            if (string.IsNullOrWhiteSpace(backupDirectory) || !Directory.Exists(backupDirectory))
+                return;
+
+            string backupPattern = Path.GetFileName(targetPath) + ".bak-*";
+            foreach (string oldBackupPath in Directory.GetFiles(backupDirectory, backupPattern))
+            {
+                if (!string.Equals(oldBackupPath, backupPath, StringComparison.OrdinalIgnoreCase))
+                    File.Delete(oldBackupPath);
+            }
+        }
+
+        /// <summary>
+        /// 安全记录方案保存失败原因，日志组件异常时不再影响原始保存异常。
+        /// </summary>
+        /// <param name="operationName">保存动作名称。</param>
+        /// <param name="targetPath">正式方案文件路径。</param>
+        /// <param name="temporaryPath">失败时保留的临时文件路径。</param>
+        /// <param name="exception">保存失败异常。</param>
+        private static void WriteSolutionSaveFailureLog(string operationName, string targetPath, string temporaryPath, Exception exception)
+        {
+            try
+            {
+                MarkSolutionSaveFailureLogged(exception);
+                string temporaryInfo = string.IsNullOrWhiteSpace(temporaryPath) ? "无" : temporaryPath;
+                LogHelper.AddLog(
+                    MsgLevel.Exception,
+                    $"{operationName}失败，原方案文件未直接覆盖。方案：{targetPath}；临时文件：{temporaryInfo}；原因：{exception.Message}",
+                    true);
+            }
+            catch
+            {
+                // 保存失败时不再传播日志异常，避免掩盖真正的文件写入问题。
+            }
+        }
+
+        /// <summary>
+        /// 标记当前保存异常已经写过日志。
+        /// </summary>
+        /// <param name="exception">需要标记的保存异常。</param>
+        private static void MarkSolutionSaveFailureLogged(Exception exception)
+        {
+            if (exception == null)
+                return;
+
+            exception.Data[SolutionSaveFailureLoggedKey] = true;
+        }
+
+        /// <summary>
+        /// 判断当前保存异常是否已经写过日志。
+        /// </summary>
+        /// <param name="exception">需要检查的保存异常。</param>
+        /// <returns>已经写过日志时返回true。</returns>
+        private static bool IsSolutionSaveFailureLogged(Exception exception)
+        {
+            return exception != null &&
+                   exception.Data.Contains(SolutionSaveFailureLoggedKey) &&
+                   exception.Data[SolutionSaveFailureLoggedKey] is bool logged &&
+                   logged;
         }
     }
 

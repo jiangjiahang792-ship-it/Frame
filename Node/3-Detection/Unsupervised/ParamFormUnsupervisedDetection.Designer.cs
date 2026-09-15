@@ -153,9 +153,9 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             this.labelThreshold.Font = new System.Drawing.Font("宋体", 10.8F);
             this.labelThreshold.Location = new System.Drawing.Point(21, 161);
             this.labelThreshold.Name = "labelThreshold";
-            this.labelThreshold.Size = new System.Drawing.Size(98, 22);
+            this.labelThreshold.Size = new System.Drawing.Size(155, 22);
             this.labelThreshold.TabIndex = 5;
-            this.labelThreshold.Text = "异常阈值";
+            this.labelThreshold.Text = "异常阈值(0=模板)";
             // 
             // numericUpDownThreshold
             // 
@@ -173,11 +173,6 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             0,
             0,
             0});
-            this.numericUpDownThreshold.Minimum = new decimal(new int[] {
-            1,
-            0,
-            0,
-            131072});
             this.numericUpDownThreshold.Name = "numericUpDownThreshold";
             this.numericUpDownThreshold.Size = new System.Drawing.Size(160, 32);
             this.numericUpDownThreshold.TabIndex = 6;

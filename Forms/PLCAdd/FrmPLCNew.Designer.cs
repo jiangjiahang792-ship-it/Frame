@@ -67,6 +67,32 @@
             this.label14 = new System.Windows.Forms.Label();
             this.uiipTextBoxIP2 = new Sunny.UI.UIIPTextBox();
             this.textBoxPort2 = new System.Windows.Forms.TextBox();
+            this.tabPageKeyence = new System.Windows.Forms.TabPage();
+            this.tableLayoutPanelKeyence = new System.Windows.Forms.TableLayoutPanel();
+            this.tableLayoutPanelKeyenceFields = new System.Windows.Forms.TableLayoutPanel();
+            this.labelKeyencePort = new System.Windows.Forms.Label();
+            this.labelKeyenceIP = new System.Windows.Forms.Label();
+            this.textBoxNameKeyence = new System.Windows.Forms.TextBox();
+            this.buttonConfirmKeyence = new System.Windows.Forms.Button();
+            this.labelKeyenceName = new System.Windows.Forms.Label();
+            this.uiipTextBoxKeyence = new Sunny.UI.UIIPTextBox();
+            this.textBoxPortKeyence = new System.Windows.Forms.TextBox();
+            this.tabPageKeyence.SuspendLayout();
+            this.tableLayoutPanelKeyence.SuspendLayout();
+            this.tableLayoutPanelKeyenceFields.SuspendLayout();
+            this.tabPageKeyenceOld = new System.Windows.Forms.TabPage();
+            this.tableLayoutPanelKeyenceFieldsOld = new System.Windows.Forms.TableLayoutPanel();
+            this.tableLayoutPanelKeyenceOld = new System.Windows.Forms.TableLayoutPanel();
+            this.labelKeyencePortOld = new System.Windows.Forms.Label();
+            this.labelKeyenceIPOld = new System.Windows.Forms.Label();
+            this.textBoxNameKeyenceOld = new System.Windows.Forms.TextBox();
+            this.buttonConfirmKeyenceOld = new System.Windows.Forms.Button();
+            this.labelKeyenceNameOld = new System.Windows.Forms.Label();
+            this.uiipTextBoxKeyenceOld = new Sunny.UI.UIIPTextBox();
+            this.textBoxPortKeyenceOld = new System.Windows.Forms.TextBox();
+            this.tabPageKeyenceOld.SuspendLayout();
+            this.tableLayoutPanelKeyenceOld.SuspendLayout();
+            this.tableLayoutPanelKeyenceFieldsOld.SuspendLayout();
             this.groupBox1.SuspendLayout();
             this.tabControl1.SuspendLayout();
             this.tabPage3.SuspendLayout();
@@ -98,6 +124,9 @@
             this.tabControl1.Controls.Add(this.tabPage3);
             this.tabControl1.Controls.Add(this.tabPage1);
             this.tabControl1.Controls.Add(this.tabPage2);
+            this.tabControl1.Controls.Add(this.tabPageKeyence);
+            this.tabControl1.Controls.Add(this.tabPageKeyenceOld);
+            this.tabControl1.Multiline = true;
             this.tabControl1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tabControl1.Location = new System.Drawing.Point(3, 25);
             this.tabControl1.Name = "tabControl1";
@@ -619,6 +648,280 @@
             this.textBoxPort2.Text = "6000";
             this.textBoxPort2.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
+            // tabPageKeyence
+            //
+            this.tabPageKeyence.Controls.Add(this.tableLayoutPanelKeyence);
+            this.tabPageKeyence.Location = new System.Drawing.Point(4, 28);
+            this.tabPageKeyence.Name = "tabPageKeyence";
+            this.tabPageKeyence.Size = new System.Drawing.Size(521, 382);
+            this.tabPageKeyence.TabIndex = 3;
+            this.tabPageKeyence.Text = "基恩士 Nano OverTcp";
+            this.tabPageKeyence.UseVisualStyleBackColor = true;
+            //
+            // tableLayoutPanelKeyence
+            //
+            this.tableLayoutPanelKeyence.ColumnCount = 1;
+            this.tableLayoutPanelKeyence.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
+            this.tableLayoutPanelKeyence.Controls.Add(this.tableLayoutPanelKeyenceFields, 0, 0);
+            this.tableLayoutPanelKeyence.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.tableLayoutPanelKeyence.Location = new System.Drawing.Point(0, 0);
+            this.tableLayoutPanelKeyence.Name = "tableLayoutPanelKeyence";
+            this.tableLayoutPanelKeyence.RowCount = 1;
+            this.tableLayoutPanelKeyence.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
+            this.tableLayoutPanelKeyence.Size = new System.Drawing.Size(521, 382);
+            this.tableLayoutPanelKeyence.TabIndex = 14;
+            //
+            // tableLayoutPanelKeyenceFields
+            //
+            this.tableLayoutPanelKeyenceFields.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.tableLayoutPanelKeyenceFields.ColumnCount = 2;
+            this.tableLayoutPanelKeyenceFields.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 35F));
+            this.tableLayoutPanelKeyenceFields.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 65F));
+            this.tableLayoutPanelKeyenceFields.Controls.Add(this.labelKeyencePort, 0, 1);
+            this.tableLayoutPanelKeyenceFields.Controls.Add(this.labelKeyenceIP, 0, 0);
+            this.tableLayoutPanelKeyenceFields.Controls.Add(this.textBoxNameKeyence, 1, 2);
+            this.tableLayoutPanelKeyenceFields.Controls.Add(this.buttonConfirmKeyence, 1, 3);
+            this.tableLayoutPanelKeyenceFields.Controls.Add(this.labelKeyenceName, 0, 2);
+            this.tableLayoutPanelKeyenceFields.Controls.Add(this.uiipTextBoxKeyence, 1, 0);
+            this.tableLayoutPanelKeyenceFields.Controls.Add(this.textBoxPortKeyence, 1, 1);
+            this.tableLayoutPanelKeyenceFields.Location = new System.Drawing.Point(3, 37);
+            this.tableLayoutPanelKeyenceFields.Name = "tableLayoutPanelKeyenceFields";
+            this.tableLayoutPanelKeyenceFields.RowCount = 4;
+            this.tableLayoutPanelKeyenceFields.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
+            this.tableLayoutPanelKeyenceFields.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
+            this.tableLayoutPanelKeyenceFields.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
+            this.tableLayoutPanelKeyenceFields.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
+            this.tableLayoutPanelKeyenceFields.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
+            this.tableLayoutPanelKeyenceFields.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
+            this.tableLayoutPanelKeyenceFields.Size = new System.Drawing.Size(515, 307);
+            this.tableLayoutPanelKeyenceFields.TabIndex = 13;
+            //
+            // labelKeyencePort
+            //
+            this.labelKeyencePort.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.labelKeyencePort.AutoSize = true;
+            this.labelKeyencePort.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.labelKeyencePort.Location = new System.Drawing.Point(3, 104);
+            this.labelKeyencePort.Name = "labelKeyencePort";
+            this.labelKeyencePort.Size = new System.Drawing.Size(174, 20);
+            this.labelKeyencePort.TabIndex = 1;
+            this.labelKeyencePort.Text = "端口";
+            this.labelKeyencePort.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            //
+            // labelKeyenceIP
+            //
+            this.labelKeyenceIP.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.labelKeyenceIP.AutoSize = true;
+            this.labelKeyenceIP.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.labelKeyenceIP.Location = new System.Drawing.Point(3, 28);
+            this.labelKeyenceIP.Name = "labelKeyenceIP";
+            this.labelKeyenceIP.Size = new System.Drawing.Size(174, 20);
+            this.labelKeyenceIP.TabIndex = 2;
+            this.labelKeyenceIP.Text = "IP地址";
+            this.labelKeyenceIP.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            //
+            // textBoxNameKeyence
+            //
+            this.textBoxNameKeyence.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.textBoxNameKeyence.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.textBoxNameKeyence.Location = new System.Drawing.Point(235, 175);
+            this.textBoxNameKeyence.Name = "textBoxNameKeyence";
+            this.textBoxNameKeyence.Size = new System.Drawing.Size(224, 30);
+            this.textBoxNameKeyence.TabIndex = 2;
+            this.textBoxNameKeyence.Text = "基恩士PLC设备1";
+            this.textBoxNameKeyence.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            //
+            // buttonConfirmKeyence
+            //
+            this.buttonConfirmKeyence.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.buttonConfirmKeyence.Font = new System.Drawing.Font("黑体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.buttonConfirmKeyence.Location = new System.Drawing.Point(293, 249);
+            this.buttonConfirmKeyence.Margin = new System.Windows.Forms.Padding(53, 3, 53, 3);
+            this.buttonConfirmKeyence.Name = "buttonConfirmKeyence";
+            this.buttonConfirmKeyence.Size = new System.Drawing.Size(108, 37);
+            this.buttonConfirmKeyence.TabIndex = 3;
+            this.buttonConfirmKeyence.Text = "确认";
+            this.buttonConfirmKeyence.UseVisualStyleBackColor = true;
+            this.buttonConfirmKeyence.Click += new System.EventHandler(this.buttonConfirmKeyence_Click);
+            //
+            // labelKeyenceName
+            //
+            this.labelKeyenceName.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.labelKeyenceName.AutoSize = true;
+            this.labelKeyenceName.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.labelKeyenceName.Location = new System.Drawing.Point(3, 180);
+            this.labelKeyenceName.Name = "labelKeyenceName";
+            this.labelKeyenceName.Size = new System.Drawing.Size(174, 20);
+            this.labelKeyenceName.TabIndex = 11;
+            this.labelKeyenceName.Text = "设备名称";
+            this.labelKeyenceName.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            //
+            // uiipTextBoxKeyence
+            //
+            this.uiipTextBoxKeyence.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.uiipTextBoxKeyence.FillColor2 = System.Drawing.Color.FromArgb(((int)(((byte)(235)))), ((int)(((byte)(243)))), ((int)(((byte)(255)))));
+            this.uiipTextBoxKeyence.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.uiipTextBoxKeyence.Location = new System.Drawing.Point(237, 24);
+            this.uiipTextBoxKeyence.Margin = new System.Windows.Forms.Padding(4);
+            this.uiipTextBoxKeyence.MinimumSize = new System.Drawing.Size(1, 1);
+            this.uiipTextBoxKeyence.Name = "uiipTextBoxKeyence";
+            this.uiipTextBoxKeyence.Padding = new System.Windows.Forms.Padding(1);
+            this.uiipTextBoxKeyence.RectColor = System.Drawing.Color.FromArgb(((int)(((byte)(173)))), ((int)(((byte)(178)))), ((int)(((byte)(181)))));
+            this.uiipTextBoxKeyence.ShowText = false;
+            this.uiipTextBoxKeyence.Size = new System.Drawing.Size(220, 28);
+            this.uiipTextBoxKeyence.TabIndex = 0;
+            this.uiipTextBoxKeyence.Text = "127.0.0.1";
+            this.uiipTextBoxKeyence.TextAlignment = System.Drawing.ContentAlignment.MiddleCenter;
+            this.uiipTextBoxKeyence.Value = ((System.Net.IPAddress)(resources.GetObject("uiipTextBoxKeyence.Value")));
+            //
+            // textBoxPortKeyence
+            //
+            this.textBoxPortKeyence.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.textBoxPortKeyence.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.textBoxPortKeyence.Location = new System.Drawing.Point(235, 99);
+            this.textBoxPortKeyence.Name = "textBoxPortKeyence";
+            this.textBoxPortKeyence.Size = new System.Drawing.Size(224, 30);
+            this.textBoxPortKeyence.TabIndex = 1;
+            this.textBoxPortKeyence.Text = "8501";
+            this.textBoxPortKeyence.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            //
+            // tabPageKeyenceOld
+            //
+            this.tabPageKeyenceOld.Controls.Add(this.tableLayoutPanelKeyenceOld);
+            this.tabPageKeyenceOld.Location = new System.Drawing.Point(4, 28);
+            this.tabPageKeyenceOld.Name = "tabPageKeyenceOld";
+            this.tabPageKeyenceOld.Size = new System.Drawing.Size(521, 382);
+            this.tabPageKeyenceOld.TabIndex = 4;
+            this.tabPageKeyenceOld.Text = "基恩士 KV300/Older";
+            this.tabPageKeyenceOld.UseVisualStyleBackColor = true;
+            //
+            // tableLayoutPanelKeyenceOld
+            //
+            this.tableLayoutPanelKeyenceOld.ColumnCount = 1;
+            this.tableLayoutPanelKeyenceOld.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
+            this.tableLayoutPanelKeyenceOld.Controls.Add(this.tableLayoutPanelKeyenceFieldsOld, 0, 0);
+            this.tableLayoutPanelKeyenceOld.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.tableLayoutPanelKeyenceOld.Location = new System.Drawing.Point(0, 0);
+            this.tableLayoutPanelKeyenceOld.Name = "tableLayoutPanelKeyenceOld";
+            this.tableLayoutPanelKeyenceOld.RowCount = 1;
+            this.tableLayoutPanelKeyenceOld.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
+            this.tableLayoutPanelKeyenceOld.Size = new System.Drawing.Size(521, 382);
+            this.tableLayoutPanelKeyenceOld.TabIndex = 14;
+            //
+            // tableLayoutPanelKeyenceFieldsOld
+            //
+            this.tableLayoutPanelKeyenceFieldsOld.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.tableLayoutPanelKeyenceFieldsOld.ColumnCount = 2;
+            this.tableLayoutPanelKeyenceFieldsOld.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 35F));
+            this.tableLayoutPanelKeyenceFieldsOld.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 65F));
+            this.tableLayoutPanelKeyenceFieldsOld.Controls.Add(this.labelKeyencePortOld, 0, 1);
+            this.tableLayoutPanelKeyenceFieldsOld.Controls.Add(this.labelKeyenceIPOld, 0, 0);
+            this.tableLayoutPanelKeyenceFieldsOld.Controls.Add(this.textBoxNameKeyenceOld, 1, 2);
+            this.tableLayoutPanelKeyenceFieldsOld.Controls.Add(this.buttonConfirmKeyenceOld, 1, 3);
+            this.tableLayoutPanelKeyenceFieldsOld.Controls.Add(this.labelKeyenceNameOld, 0, 2);
+            this.tableLayoutPanelKeyenceFieldsOld.Controls.Add(this.uiipTextBoxKeyenceOld, 1, 0);
+            this.tableLayoutPanelKeyenceFieldsOld.Controls.Add(this.textBoxPortKeyenceOld, 1, 1);
+            this.tableLayoutPanelKeyenceFieldsOld.Location = new System.Drawing.Point(3, 37);
+            this.tableLayoutPanelKeyenceFieldsOld.Name = "tableLayoutPanelKeyenceFieldsOld";
+            this.tableLayoutPanelKeyenceFieldsOld.RowCount = 4;
+            this.tableLayoutPanelKeyenceFieldsOld.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
+            this.tableLayoutPanelKeyenceFieldsOld.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
+            this.tableLayoutPanelKeyenceFieldsOld.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
+            this.tableLayoutPanelKeyenceFieldsOld.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
+            this.tableLayoutPanelKeyenceFieldsOld.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
+            this.tableLayoutPanelKeyenceFieldsOld.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
+            this.tableLayoutPanelKeyenceFieldsOld.Size = new System.Drawing.Size(515, 307);
+            this.tableLayoutPanelKeyenceFieldsOld.TabIndex = 13;
+            //
+            // labelKeyencePortOld
+            //
+            this.labelKeyencePortOld.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.labelKeyencePortOld.AutoSize = true;
+            this.labelKeyencePortOld.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.labelKeyencePortOld.Location = new System.Drawing.Point(3, 104);
+            this.labelKeyencePortOld.Name = "labelKeyencePortOld";
+            this.labelKeyencePortOld.Size = new System.Drawing.Size(174, 20);
+            this.labelKeyencePortOld.TabIndex = 1;
+            this.labelKeyencePortOld.Text = "端口";
+            this.labelKeyencePortOld.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            //
+            // labelKeyenceIPOld
+            //
+            this.labelKeyenceIPOld.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.labelKeyenceIPOld.AutoSize = true;
+            this.labelKeyenceIPOld.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.labelKeyenceIPOld.Location = new System.Drawing.Point(3, 28);
+            this.labelKeyenceIPOld.Name = "labelKeyenceIPOld";
+            this.labelKeyenceIPOld.Size = new System.Drawing.Size(174, 20);
+            this.labelKeyenceIPOld.TabIndex = 2;
+            this.labelKeyenceIPOld.Text = "IP地址";
+            this.labelKeyenceIPOld.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            //
+            // textBoxNameKeyenceOld
+            //
+            this.textBoxNameKeyenceOld.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.textBoxNameKeyenceOld.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.textBoxNameKeyenceOld.Location = new System.Drawing.Point(235, 175);
+            this.textBoxNameKeyenceOld.Name = "textBoxNameKeyenceOld";
+            this.textBoxNameKeyenceOld.Size = new System.Drawing.Size(224, 30);
+            this.textBoxNameKeyenceOld.TabIndex = 2;
+            this.textBoxNameKeyenceOld.Text = "基恩士旧系列PLC设备1";
+            this.textBoxNameKeyenceOld.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            //
+            // buttonConfirmKeyenceOld
+            //
+            this.buttonConfirmKeyenceOld.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.buttonConfirmKeyenceOld.Font = new System.Drawing.Font("黑体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.buttonConfirmKeyenceOld.Location = new System.Drawing.Point(293, 249);
+            this.buttonConfirmKeyenceOld.Margin = new System.Windows.Forms.Padding(53, 3, 53, 3);
+            this.buttonConfirmKeyenceOld.Name = "buttonConfirmKeyenceOld";
+            this.buttonConfirmKeyenceOld.Size = new System.Drawing.Size(108, 37);
+            this.buttonConfirmKeyenceOld.TabIndex = 3;
+            this.buttonConfirmKeyenceOld.Text = "确认";
+            this.buttonConfirmKeyenceOld.UseVisualStyleBackColor = true;
+            this.buttonConfirmKeyenceOld.Click += new System.EventHandler(this.buttonConfirmKeyenceOld_Click);
+            //
+            // labelKeyenceNameOld
+            //
+            this.labelKeyenceNameOld.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.labelKeyenceNameOld.AutoSize = true;
+            this.labelKeyenceNameOld.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.labelKeyenceNameOld.Location = new System.Drawing.Point(3, 180);
+            this.labelKeyenceNameOld.Name = "labelKeyenceNameOld";
+            this.labelKeyenceNameOld.Size = new System.Drawing.Size(174, 20);
+            this.labelKeyenceNameOld.TabIndex = 11;
+            this.labelKeyenceNameOld.Text = "设备名称";
+            this.labelKeyenceNameOld.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            //
+            // uiipTextBoxKeyenceOld
+            //
+            this.uiipTextBoxKeyenceOld.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.uiipTextBoxKeyenceOld.FillColor2 = System.Drawing.Color.FromArgb(((int)(((byte)(235)))), ((int)(((byte)(243)))), ((int)(((byte)(255)))));
+            this.uiipTextBoxKeyenceOld.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.uiipTextBoxKeyenceOld.Location = new System.Drawing.Point(237, 24);
+            this.uiipTextBoxKeyenceOld.Margin = new System.Windows.Forms.Padding(4);
+            this.uiipTextBoxKeyenceOld.MinimumSize = new System.Drawing.Size(1, 1);
+            this.uiipTextBoxKeyenceOld.Name = "uiipTextBoxKeyenceOld";
+            this.uiipTextBoxKeyenceOld.Padding = new System.Windows.Forms.Padding(1);
+            this.uiipTextBoxKeyenceOld.RectColor = System.Drawing.Color.FromArgb(((int)(((byte)(173)))), ((int)(((byte)(178)))), ((int)(((byte)(181)))));
+            this.uiipTextBoxKeyenceOld.ShowText = false;
+            this.uiipTextBoxKeyenceOld.Size = new System.Drawing.Size(220, 28);
+            this.uiipTextBoxKeyenceOld.TabIndex = 0;
+            this.uiipTextBoxKeyenceOld.Text = "127.0.0.1";
+            this.uiipTextBoxKeyenceOld.TextAlignment = System.Drawing.ContentAlignment.MiddleCenter;
+            this.uiipTextBoxKeyenceOld.Value = ((System.Net.IPAddress)(resources.GetObject("uiipTextBoxKeyenceOld.Value")));
+            //
+            // textBoxPortKeyenceOld
+            //
+            this.textBoxPortKeyenceOld.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.textBoxPortKeyenceOld.Font = new System.Drawing.Font("宋体", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.textBoxPortKeyenceOld.Location = new System.Drawing.Point(235, 99);
+            this.textBoxPortKeyenceOld.Name = "textBoxPortKeyenceOld";
+            this.textBoxPortKeyenceOld.Size = new System.Drawing.Size(224, 30);
+            this.textBoxPortKeyenceOld.TabIndex = 1;
+            this.textBoxPortKeyenceOld.Text = "8501";
+            this.textBoxPortKeyenceOld.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            //
             // FrmPLCNew
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
@@ -634,6 +937,14 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "添加PLC";
             this.Controls.SetChildIndex(this.groupBox1, 0);
+            this.tabPageKeyence.ResumeLayout(false);
+            this.tableLayoutPanelKeyence.ResumeLayout(false);
+            this.tableLayoutPanelKeyenceFields.ResumeLayout(false);
+            this.tableLayoutPanelKeyenceFields.PerformLayout();
+            this.tabPageKeyenceOld.ResumeLayout(false);
+            this.tableLayoutPanelKeyenceOld.ResumeLayout(false);
+            this.tableLayoutPanelKeyenceFieldsOld.ResumeLayout(false);
+            this.tableLayoutPanelKeyenceFieldsOld.PerformLayout();
             this.groupBox1.ResumeLayout(false);
             this.tabControl1.ResumeLayout(false);
             this.tabPage3.ResumeLayout(false);
@@ -653,6 +964,46 @@
         }
 
         #endregion
+        /// <summary>基恩士 Nano OverTcp 添加页控件。</summary>
+        private System.Windows.Forms.TabPage tabPageKeyence;
+        /// <summary>基恩士 Nano OverTcp 添加页控件。</summary>
+        private System.Windows.Forms.TableLayoutPanel tableLayoutPanelKeyence;
+        /// <summary>基恩士 Nano OverTcp 添加页控件。</summary>
+        private System.Windows.Forms.TableLayoutPanel tableLayoutPanelKeyenceFields;
+        /// <summary>基恩士 Nano OverTcp 添加页控件。</summary>
+        private System.Windows.Forms.Label labelKeyencePort;
+        /// <summary>基恩士 Nano OverTcp 添加页控件。</summary>
+        private System.Windows.Forms.Label labelKeyenceIP;
+        /// <summary>基恩士 Nano OverTcp 添加页控件。</summary>
+        private System.Windows.Forms.TextBox textBoxNameKeyence;
+        /// <summary>基恩士 Nano OverTcp 添加页控件。</summary>
+        private System.Windows.Forms.Button buttonConfirmKeyence;
+        /// <summary>基恩士 Nano OverTcp 添加页控件。</summary>
+        private System.Windows.Forms.Label labelKeyenceName;
+        /// <summary>基恩士 Nano OverTcp 添加页控件。</summary>
+        private Sunny.UI.UIIPTextBox uiipTextBoxKeyence;
+        /// <summary>基恩士 Nano OverTcp 添加页控件。</summary>
+        private System.Windows.Forms.TextBox textBoxPortKeyence;
+        /// <summary>基恩士 KV300/Older 添加页控件。</summary>
+        private System.Windows.Forms.TabPage tabPageKeyenceOld;
+        /// <summary>基恩士 KV300/Older 添加页控件。</summary>
+        private System.Windows.Forms.TableLayoutPanel tableLayoutPanelKeyenceFieldsOld;
+        /// <summary>基恩士 KV300/Older 添加页控件。</summary>
+        private System.Windows.Forms.TableLayoutPanel tableLayoutPanelKeyenceOld;
+        /// <summary>基恩士 KV300/Older 添加页控件。</summary>
+        private System.Windows.Forms.Label labelKeyencePortOld;
+        /// <summary>基恩士 KV300/Older 添加页控件。</summary>
+        private System.Windows.Forms.Label labelKeyenceIPOld;
+        /// <summary>基恩士 KV300/Older 添加页控件。</summary>
+        private System.Windows.Forms.TextBox textBoxNameKeyenceOld;
+        /// <summary>基恩士 KV300/Older 添加页控件。</summary>
+        private System.Windows.Forms.Button buttonConfirmKeyenceOld;
+        /// <summary>基恩士 KV300/Older 添加页控件。</summary>
+        private System.Windows.Forms.Label labelKeyenceNameOld;
+        /// <summary>基恩士 KV300/Older 添加页控件。</summary>
+        private Sunny.UI.UIIPTextBox uiipTextBoxKeyenceOld;
+        /// <summary>基恩士 KV300/Older 添加页控件。</summary>
+        private System.Windows.Forms.TextBox textBoxPortKeyenceOld;
         private System.Windows.Forms.GroupBox groupBox1;
         private System.Windows.Forms.TabControl tabControl1;
         private System.Windows.Forms.TabPage tabPage1;

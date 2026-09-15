@@ -1,0 +1,166 @@
+{
+  "VersionLabel": "步骤7第四小批真实四流程500轮",
+  "ExecutablePath": "D:\\MyCode\\PublicWook\\TDJS-Vision\\bin\\x64\\Debug\\机器视觉AI检测系统V1.0.exe",
+  "ExecutableSha256": "553A77B692BED40F37FA8479952F53012FE4126AC5B59657C7F62F5CA420A365",
+  "SchemePath": "C:\\Users\\34652\\Desktop\\8_6方案.Sol",
+  "SchemeSha256": "CAC8C2A8F3E1CF1489AE0A8AB1A663CBD5291F11F3B01D3496A1270CAE369F4D",
+  "ImmutableSchemeSourcePath": "D:\\MyCode\\PublicWook\\TDJS-Vision\\Tests\\Results\\FullSolutionComparison\\8_6方案-20260819-170814-original.Sol",
+  "ImmutableSchemeSha256": "CAC8C2A8F3E1CF1489AE0A8AB1A663CBD5291F11F3B01D3496A1270CAE369F4D",
+  "WindowMode": "Minimized",
+  "ProcessPriority": "BelowNormal",
+  "UiPollMilliseconds": 5,
+  "DebugSwitch": "使用程序当前用户设置；本轮未通过自动化修改",
+  "UiMode": "单次运行按钮串行调用，确保四流程每轮各执行一次",
+  "WarmupRounds": 1,
+  "FormalRounds": 500,
+  "ExactSuccessRounds": 500,
+  "ExactFailedRounds": 0,
+  "ExceptionLogCount": 0,
+  "Timing": {
+    "ExecutionTotalMilliseconds": 270321.533,
+    "HarnessWallMilliseconds": 281801.366,
+    "ThroughputRoundsPerSecond": 1.849649,
+    "P50Milliseconds": 539.78,
+    "P95Milliseconds": 661.415,
+    "P99Milliseconds": 804.519,
+    "MaxMilliseconds": 949.375
+  },
+  "Cpu": {
+    "LogicalProcessorCount": 24,
+    "AveragePercent": 35.844,
+    "PeakSamplePercent": 44.863
+  },
+  "Resources": {
+    "ProcessTreeCount": {
+      "Start": 3,
+      "Peak": 3,
+      "End": 3
+    },
+    "MainPrivateMemoryMegabytes": {
+      "Start": 641.129,
+      "Peak": 1317.648,
+      "End": 694.602
+    },
+    "ProcessTreePrivateMemoryMegabytes": {
+      "Start": 1118.996,
+      "Peak": 1992.906,
+      "End": 1386.18
+    },
+    "ProcessTreeManagedHeapMegabytes": {
+      "Start": 399.115,
+      "Peak": 944.15,
+      "End": 487.038
+    },
+    "GdiObjects": {
+      "Start": 809,
+      "Peak": 825,
+      "End": 822
+    },
+    "UserObjects": {
+      "Start": 491,
+      "Peak": 498,
+      "End": 495
+    },
+    "Handles": {
+      "Start": 2555,
+      "Peak": 2809,
+      "End": 2807
+    }
+  },
+  "ProcessIo": {
+    "MeasurementScope": "Windows进程I/O累计值，覆盖主程序和同路径AI工作进程；包含文件、设备和管道等进程I/O，不等同于物理磁盘独占流量",
+    "AllProcessCountersCaptured": true,
+    "ProcessIdsStable": true,
+    "Read": {
+      "Operations": 2535599,
+      "TransferBytes": 10338693911,
+      "TransferMegabytes": 9859.747,
+      "MegabytesPerSecond": 34.988,
+      "KilobytesPerRound": 20192.762,
+      "PerRoundP50Kilobytes": 20076.45,
+      "PerRoundP95Kilobytes": 20079.758,
+      "PerRoundP99Kilobytes": 20080.584,
+      "PerRoundMaxKilobytes": 78181.059
+    },
+    "Write": {
+      "Operations": 2502366,
+      "TransferBytes": 10305287062,
+      "TransferMegabytes": 9827.888,
+      "MegabytesPerSecond": 34.875,
+      "KilobytesPerRound": 20127.514,
+      "PerRoundP50Kilobytes": 20126.889,
+      "PerRoundP95Kilobytes": 20133.917,
+      "PerRoundP99Kilobytes": 20134.982,
+      "PerRoundMaxKilobytes": 20135.262
+    },
+    "Other": {
+      "Operations": 3274778,
+      "TransferBytes": 44707384,
+      "TransferMegabytes": 42.636
+    }
+  },
+  "ProcessResults": [
+    {
+      "Name": "中心端子正面检测",
+      "Total": 500,
+      "Success": 500,
+      "Failed": 0,
+      "StatusCounts": {
+        "成功": 500
+      },
+      "P50Milliseconds": 524.0,
+      "P95Milliseconds": 631.55,
+      "P99Milliseconds": 769.23,
+      "MaxMilliseconds": 934.0
+    },
+    {
+      "Name": "同心度检测",
+      "Total": 500,
+      "Success": 500,
+      "Failed": 0,
+      "StatusCounts": {
+        "成功": 500
+      },
+      "P50Milliseconds": 108.0,
+      "P95Milliseconds": 130.0,
+      "P99Milliseconds": 158.01,
+      "MaxMilliseconds": 176.0
+    },
+    {
+      "Name": "中心端子侧面左检测",
+      "Total": 500,
+      "Success": 500,
+      "Failed": 0,
+      "StatusCounts": {
+        "成功": 500
+      },
+      "P50Milliseconds": 378.0,
+      "P95Milliseconds": 462.05,
+      "P99Milliseconds": 577.05,
+      "MaxMilliseconds": 685.0
+    },
+    {
+      "Name": "中心端子侧面右检测",
+      "Total": 500,
+      "Success": 500,
+      "Failed": 0,
+      "StatusCounts": {
+        "成功": 500
+      },
+      "P50Milliseconds": 349.5,
+      "P95Milliseconds": 430.1,
+      "P99Milliseconds": 510.0,
+      "MaxMilliseconds": 597.0
+    }
+  ],
+  "Modbus": {
+    "SuccessLogCount": 2000,
+    "FailureLogCount": 0
+  },
+  "SaveQueue": "日志未暴露队列采集能力",
+  "ResultFiles": {
+    "Json": ".\\Tests\\Results\\FullSolutionComparison\\20260820-111114-步骤7第四小批真实四流程500轮-500轮.json",
+    "Csv": ".\\Tests\\Results\\FullSolutionComparison\\20260820-111114-步骤7第四小批真实四流程500轮-500轮.csv",
+    "Checkpoint": ".\\Tests\\Results\\FullSolutionComparison\\20260820-111114-步骤7第四小批真实四流程500轮-500轮-checkpoint.json"
+  }
+}

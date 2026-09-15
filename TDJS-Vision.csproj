@@ -13,6 +13,7 @@
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <TargetFrameworkProfile />
     <IsWebBootstrapper>false</IsWebBootstrapper>
     <PublishUrl>publish\</PublishUrl>
@@ -61,7 +62,6 @@
     <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
     <Prefer32Bit>true</Prefer32Bit>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
     <OutputPath>bin\x64\Release\</OutputPath>
@@ -88,6 +88,9 @@
   </PropertyGroup>
   <PropertyGroup>
     <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
+  </PropertyGroup>
+  <PropertyGroup>
+    <NoWin32Manifest>true</NoWin32Manifest>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Basler.Pylon, Version=1.2.0.0, Culture=neutral, PublicKeyToken=e389355f398382ab, processorArchitecture=x86">
@@ -126,10 +129,6 @@
       <HintPath>packages\Microsoft.CodeAnalysis.Scripting.Common.4.14.0\lib\netstandard2.0\Microsoft.CodeAnalysis.Scripting.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.VisualBasic" />
-    <Reference Include="MvCameraControl.Net, Version=3.4.0.1, Culture=neutral, PublicKeyToken=52fddfb3f94be800, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>dll\MvCameraControl.Net.dll</HintPath>
-    </Reference>
     <Reference Include="Mv3dLpNet">
       <HintPath>dll\Mv3dLpNet.dll</HintPath>
       <Private>True</Private>
@@ -233,11 +232,36 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ConfigHelper.cs" />
+    <Compile Include="Diagnostics\CameraFrameTraceRegistry.cs" />
+    <Compile Include="Diagnostics\PerformanceTraceContext.cs" />
+    <Compile Include="Diagnostics\ProcessPerformanceTrace.cs" />
     <Compile Include="Diagnostics\PerformanceSpikeDiagnostics.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\Ultrasound_Side_3Class.cs" />
+    <Compile Include="ResourceManagement\ResourceProfileModels.cs" />
+    <Compile Include="ResourceManagement\PerformanceResourceSettings.cs" />
+    <Compile Include="ResourceManagement\IResourceProfileServices.cs" />
+    <Compile Include="ResourceManagement\WindowsHardwareResourceProbe.cs" />
+    <Compile Include="ResourceManagement\ResourceProfileCalculator.cs" />
+    <Compile Include="ResourceManagement\RuntimeResourceProfileProvider.cs" />
+    <Compile Include="ResourceManagement\PerWindowUiFrameRateLimiter.cs" />
+    <Compile Include="ResourceManagement\BoundedPriorityWorkQueue.cs" />
+    <Compile Include="ResourceManagement\ImageResourceSizeSampler.cs" />
+    <Compile Include="ResourceManagement\ImageSaveStorageGuard.cs" />
+    <Compile Include="ResourceManagement\SolutionRunAdmissionController.cs" />
+    <Compile Include="ResourceManagement\WorkpieceExecutionContracts.cs" />
+    <Compile Include="ResourceManagement\OrderedSignalCoordinator.cs" />
+    <Compile Include="ResourceManagement\WorkpieceRuntimeInfrastructure.cs" />
+    <Compile Include="ResourceManagement\FlowExecutionPlanCompiler.cs" />
+    <Compile Include="ResourceManagement\CpuWorkScheduler.cs" />
+    <Compile Include="ResourceManagement\CpuWorkloadClassifier.cs" />
+    <Compile Include="ResourceManagement\CpuResourceMonitor.cs" />
+    <Compile Include="ResourceManagement\CameraRawFrameMemoryBudgetManager.cs" />
+    <Compile Include="ResourceManagement\CameraWorkpiecePipeline.cs" />
     <Compile Include="DetectItemLanguage.cs" />
     <Compile Include="ExternalProgramLauncher.cs" />
     <Compile Include="Forms\Workspace\IExclusiveWorkspacePresenter.cs" />
     <Compile Include="Forms\Workspace\ExclusiveWorkspacePresenter.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\MultiTerminalParse.cs" />
     <Compile Include="Startup\IStartupProgressReporter.cs" />
     <Compile Include="Startup\ISolutionLoadingCoordinator.cs" />
     <Compile Include="Startup\IDeviceLicenseSynchronizer.cs" />
@@ -245,7 +269,10 @@
     <Compile Include="Startup\DeviceLicenseSynchronizer.cs" />
     <Compile Include="Startup\SolutionLoadingCoordinator.cs" />
     <Compile Include="Startup\SolutionAiRuntimePreloader.cs" />
+    <Compile Include="Startup\StartupAiRuntimeLoadGate.cs" />
     <Compile Include="Startup\StartupApplicationContext.cs" />
+    <Compile Include="Startup\BackgroundWindowActivationGuard.cs" />
+    <Compile Include="Startup\StartupDisplayMode.cs" />
     <Compile Include="Startup\StartupFailureAction.cs" />
     <Compile Include="Startup\StartupProgressContext.cs" />
     <Compile Include="Startup\StartupProgressInfo.cs" />
@@ -258,6 +285,7 @@
     </Compile>
     <Compile Include="Forms\AiTrainForm\UnsupervisedAnomalibDetector.cs" />
     <Compile Include="Forms\AiTrainForm\UnsupervisedImageLoader.cs" />
+    <Compile Include="Forms\AiTrainForm\UnsupervisedNativeDatasetPreparer.cs" />
     <Compile Include="Forms\AiTrainForm\UnsupervisedRuntimeBootstrapper.cs" />
     <Compile Include="Forms\AiTrainForm\UnsupervisedTemplatePackage.cs" />
     <Compile Include="Forms\AiTrainForm\UnsupervisedTrainingModels.cs" />
@@ -285,6 +313,11 @@
     <Compile Include="Device\Modbus\ModbusRTUPoll.cs" />
     <Compile Include="Device\Modbus\ModbusTcpPoll.cs" />
     <Compile Include="Device\PLC\PlcMelsec.cs" />
+    <Compile Include="Device\PLC\PlcKeyenceNano.cs" />
+    <Compile Include="Device\ReconnectingCommunicationDevice.cs" />
+    <Compile Include="Device\PLC\PlcKeyenceTcpBase.cs" />
+    <Compile Include="Device\PLC\PlcKeyenceKvOld.cs" />
+    <Compile Include="Device\PLC\KeyenceKvOldWordClient.cs" />
     <Compile Include="FormAIConfigTool.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -388,6 +421,7 @@
     <Compile Include="JsonProjectSerializer.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\XMSGParse.cs" />
     <Compile Include="Node\4-Measurement\Common\CaliperMeasurementAlgorithm.cs" />
+    <Compile Include="Node\4-Measurement\Common\CaliperLineQualityEvaluator.cs" />
     <Compile Include="Node\4-Measurement\Common\GeometryMeasurement.cs" />
     <Compile Include="Node\4-Measurement\Common\MeasurementResultRounder.cs" />
     <Compile Include="Node\4-Measurement\Common\MeasurementNodeHelper.cs" />
@@ -396,6 +430,17 @@
     <Compile Include="Node\4-Measurement\Common\MultiTargetPositionCorrectionResult.cs" />
     <Compile Include="Node\4-Measurement\Common\MultiTargetMeasurementRunner.cs" />
     <Compile Include="Node\4-Measurement\Common\MultiTargetMeasurementPairer.cs" />
+    <Compile Include="Node\4-Measurement\BlobAnalysis\NodeBlobAnalysis.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\BlobAnalysis\NodeParamBlobAnalysis.cs" />
+    <Compile Include="Node\4-Measurement\BlobAnalysis\NodeParamFormBlobAnalysis.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\BlobAnalysis\NodeParamFormBlobAnalysis.Designer.cs">
+      <DependentUpon>NodeParamFormBlobAnalysis.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\4-Measurement\BlobAnalysis\NodeResultBlobAnalysis.cs" />
     <Compile Include="Node\4-Measurement\CaliperLine\NodeCaliperLine.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -572,6 +617,10 @@
     <Compile Include="Node\3-Detection\TDAI\Yolo8\IYolo8.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\ModelHandleManager.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\YoloGpuRuntimeBootstrapper.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Yolo8\YoloIsolatedMessages.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Yolo8\YoloIsolatedRuntimeContext.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Yolo8\YoloIsolatedWorkerClient.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Yolo8\YoloIsolatedWorkerProgram.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\YoloOpenVinoCpuSession.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Obb.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\Yolo8Pose.cs" />
@@ -1047,6 +1096,7 @@
     </Compile>
     <Compile Include="Forms\ProcessNew\SerializableTreeNode.cs" />
     <Compile Include="Forms\ResultView\SingleResultViewData.cs" />
+    <Compile Include="Forms\SystemSetting\PerformanceSettingDefinition.cs" />
     <Compile Include="Forms\SystemSetting\FrmSystemSetting.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -1090,7 +1140,9 @@
       <DependentUpon>SinglePLC.cs</DependentUpon>
     </Compile>
     <Compile Include="Device\Camera\CameraHik.cs" />
+    <Compile Include="Device\Camera\HikNativeCameraModels.cs" />
     <Compile Include="Device\Camera\ICamera.cs" />
+    <Compile Include="Device\Camera\Vendor\MVCamera.cs" />
     <Compile Include="Device\IDevice.cs" />
     <Compile Include="Device\Light\LightRsee.cs" />
     <Compile Include="Device\Modbus\ModbusTcpParam.cs" />
@@ -1117,6 +1169,12 @@
     </Compile>
     <Compile Include="Node\3-Detection\TDAI\ParamFormTDAI.Designer.cs">
       <DependentUpon>ParamFormTDAI.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\TDAI\ParamFormTDAIRoiEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\TDAI\ParamFormTDAIRoiEditor.Designer.cs">
+      <DependentUpon>ParamFormTDAIRoiEditor.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\3-Detection\Unsupervised\NodeParamUnsupervisedDetection.cs" />
     <Compile Include="Node\3-Detection\Unsupervised\NodeResultUnsupervisedDetection.cs" />
@@ -1157,6 +1215,9 @@
       <DependentUpon>TemplateCreateForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\3-Detection\MatchTemplate\NodeParamMatchTemplate.cs" />
+    <Compile Include="Node\3-Detection\MatchTemplate\NodeNccMatchTemplate.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="Node\3-Detection\MatchTemplate\NodeMatchTemplate.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -1216,6 +1277,17 @@
     </Compile>
     <Compile Include="Node\5-EquipmentCommunication\CameraIO\ParamFormCameraIO.Designer.cs">
       <DependentUpon>ParamFormCameraIO.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\1-Acquisition\CameraExposureGain\NodeCameraExposureGain.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\1-Acquisition\CameraExposureGain\NodeParamCameraExposureGain.cs" />
+    <Compile Include="Node\1-Acquisition\CameraExposureGain\NodeResultCameraExposureGain.cs" />
+    <Compile Include="Node\1-Acquisition\CameraExposureGain\ParamFormCameraExposureGain.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\1-Acquisition\CameraExposureGain\ParamFormCameraExposureGain.Designer.cs">
+      <DependentUpon>ParamFormCameraExposureGain.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\1-Acquisition\ImageSource\CameraFrameAwaiter.cs" />
     <Compile Include="Node\1-Acquisition\ImageSource\NodeImageSource.cs">
@@ -1454,6 +1526,7 @@
     <Compile Include="Node\SubscriptionPortCatalog.cs" />
     <Compile Include="Node\SubscriptionTypeCompatibility.cs" />
     <Compile Include="Node\INode.cs" />
+    <Compile Include="Node\NodeResultResourceManager.cs" />
     <Compile Include="Node\NodeFactory.cs" />
     <Compile Include="Forms\ProcessNew\ProcessFlowCanvas.cs">
       <SubType>Component</SubType>
@@ -1538,6 +1611,21 @@
       <DependentUpon>ParamFormSaveImage.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\7-ResultProcessing\ResultSummarize\NodeParamSummarize.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultSend\ResultSendContracts.cs" />
+    <Compile Include="Device\PLC\IResultSendTypedPlc.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultSend\ResultSendSourceReader.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultSend\ResultSendValueConverter.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultSend\ResultSendDeviceWriter.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultSend\ResultSendAddressValidator.cs" />
+    <Compile Include="Node\7-ResultProcessing\ResultSend\NodeResultSend.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\7-ResultProcessing\ResultSend\ParamFormResultSend.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\7-ResultProcessing\ResultSend\ParamFormResultSend.Designer.cs">
+      <DependentUpon>ParamFormResultSend.cs</DependentUpon>
+    </Compile>
     <Compile Include="Node\7-ResultProcessing\ResultSummarize\NodeResultSummarize.cs" />
     <Compile Include="Node\7-ResultProcessing\ResultSummarize\NodeSummarize.cs">
       <SubType>UserControl</SubType>
@@ -1985,9 +2073,11 @@
     <Content Include="dll\Basler.Pylon.dll" />
     <Content Include="dll\FastColoredTextBox.dll" />
     <Content Include="dll\HslCommunication.dll" />
-    <Content Include="dll\MvCameraControl.Net.dll" />
     <Content Include="dll\Mv3dLpNet.dll" />
     <Content Include="Native\MatchTool.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Native\MatchTool.runtime.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Native\opencv_world4100.dll">
@@ -2012,6 +2102,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Languages\zh-CN.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\超声波焊接侧面三类检测项.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Languages\en-US.json">

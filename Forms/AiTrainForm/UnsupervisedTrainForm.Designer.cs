@@ -606,9 +606,9 @@ namespace TDJS_Vision.Forms.AiTrainForm
             this.labelThreshold.AutoSize = true;
             this.labelThreshold.Location = new System.Drawing.Point(3, 47);
             this.labelThreshold.Name = "labelThreshold";
-            this.labelThreshold.Size = new System.Drawing.Size(62, 31);
+            this.labelThreshold.Size = new System.Drawing.Size(110, 31);
             this.labelThreshold.TabIndex = 2;
-            this.labelThreshold.Text = "阈值";
+            this.labelThreshold.Text = "初始阈值";
             // 
             // numericUpDownThreshold
             // 

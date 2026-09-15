@@ -175,6 +175,22 @@ namespace TDJS_Vision.Node
                 InitProperties(_selectedNode, _text2);
         }
 
+        /// <summary>
+        /// 设置结果下拉框是否默认展开高级结果，供共享变量这类通用订阅节点直接选择图像等复杂结果。
+        /// </summary>
+        /// <param name="showAdvancedResults">为 true 时默认显示高级结果。</param>
+        public void SetShowAdvancedResults(bool showAdvancedResults)
+        {
+            if (toolStripMenuItemShowAdvancedResults.Checked == showAdvancedResults)
+            {
+                if (_selectedNode != null)
+                    InitProperties(_selectedNode, _text2);
+                return;
+            }
+
+            toolStripMenuItemShowAdvancedResults.Checked = showAdvancedResults;
+        }
+
         private void Process_ConnectionsChanged(object sender, EventArgs e)
         {
             RefreshNodeIdList(true);

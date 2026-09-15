@@ -8,6 +8,7 @@ using System.Windows.Forms;
 using TDJS_Vision.Device.Camera;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node;
+using TDJS_Vision.Node._1_Acquisition.CameraExposureGain;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._1_Acquisition.ImageSource3D;
 using TDJS_Vision.Node._1_Acquisition.ImageShow3D;
@@ -25,6 +26,7 @@ using TDJS_Vision.Node._3_Detection.MatchTemplate;
 using TDJS_Vision.Node._3_Detection.QRScan;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._3_Detection.Unsupervised;
+using TDJS_Vision.Node._4_Measurement.BlobAnalysis;
 using TDJS_Vision.Node._4_Measurement.CaliperCircle;
 using TDJS_Vision.Node._4_Measurement.CaliperEllipse;
 using TDJS_Vision.Node._4_Measurement.CaliperLine;
@@ -728,6 +730,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.CameraIO:
                     node = new NodeCameraIO(nodeId, nodeName, _process, nodeType);
                     break;
+                case NodeType.CameraExposureGain:
+                    node = new NodeCameraExposureGain(nodeId, nodeName, _process, nodeType);
+                    break;
                 case NodeType.ImageSource:
                     node = new NodeImageSource(nodeId, nodeName, _process, nodeType);
                     break;
@@ -746,6 +751,12 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.MatchTemplate:
                     node = new NodeMatchTemplate(nodeId, nodeName, _process, nodeType);
                     break;
+                case NodeType.NccMatchTemplate:
+                    node = new NodeNccMatchTemplate(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.BlobAnalysis:
+                    node = new NodeBlobAnalysis(nodeId, nodeName, _process, nodeType);
+                    break;
                 case NodeType.ImageFileDelete:
                     node = new NodeImageDelete(nodeId, nodeName, _process, nodeType);
                     break;
@@ -754,6 +765,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.GenerateExcel:
                     node = new NodeGenerateExcel(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.ResultSend:
+                    node = new TDJS_Vision.Node._7_ResultProcessing.ResultSend.NodeResultSend(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.DrawAIResult:
                     node = new NodeImageDraw(nodeId, nodeName, _process, nodeType);
@@ -989,12 +1003,13 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (!ValidateCameraConfigurationBeforeRun())
                 return;
 
+            if (!Solution.Instance.TryBeginExternalRunSession())
+                return;
+
             bool listenStarted = false;
             List<ICamera> startedCallbackCameras = null;
             try
             {
-                // 重置运行取消令牌
-                Solution.Instance.ResetTokenSource();
                 startedCallbackCameras = Solution.Instance.StartCameraCallbackGrabbingForProcess(_process);
                 FormGlobalSignal.StartListenSignals();
                 listenStarted = true;
@@ -1004,12 +1019,19 @@ namespace TDJS_Vision.Forms.ProcessNew
             catch (Exception) { }
             finally
             {
-                Solution.Instance.StopStartedCameraCallbackGrabbing(startedCallbackCameras);
-                _process.IsHandRun = false;
-                if (listenStarted)
-                    FormGlobalSignal.StopListenSignals();
+                try
+                {
+                    Solution.Instance.StopStartedCameraCallbackGrabbing(startedCallbackCameras);
+                    _process.IsHandRun = false;
+                    if (listenStarted)
+                        FormGlobalSignal.StopListenSignals();
 
-                RefreshRuntimeCanvasState();
+                    RefreshRuntimeCanvasState();
+                }
+                finally
+                {
+                    Solution.Instance.EndExternalRunSession();
+                }
             }
         }
 
@@ -1024,12 +1046,13 @@ namespace TDJS_Vision.Forms.ProcessNew
             if (!ValidateCameraConfigurationBeforeRun())
                 return;
 
+            if (!Solution.Instance.TryBeginExternalRunSession())
+                return;
+
             _isLoopRunRequested = true;
             buttonRun.Enabled = false;
             buttonLoop.Enabled = false;
             buttonStop.Enabled = true;
-            Solution.Instance.ResetTokenSource();
-
             bool listenStarted = false;
             List<ICamera> startedCallbackCameras = null;
             try
@@ -1057,16 +1080,23 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
             finally
             {
-                Solution.Instance.StopStartedCameraCallbackGrabbing(startedCallbackCameras);
-                _process.IsHandRun = false;
-                if (listenStarted)
-                    FormGlobalSignal.StopListenSignals();
+                try
+                {
+                    Solution.Instance.StopStartedCameraCallbackGrabbing(startedCallbackCameras);
+                    _process.IsHandRun = false;
+                    if (listenStarted)
+                        FormGlobalSignal.StopListenSignals();
 
-                _isLoopRunRequested = false;
-                buttonRun.Enabled = true;
-                buttonLoop.Enabled = true;
-                buttonStop.Enabled = false;
-                RefreshRuntimeCanvasState();
+                    _isLoopRunRequested = false;
+                    buttonRun.Enabled = true;
+                    buttonLoop.Enabled = true;
+                    buttonStop.Enabled = false;
+                    RefreshRuntimeCanvasState();
+                }
+                finally
+                {
+                    Solution.Instance.EndExternalRunSession();
+                }
             }
         }
 
@@ -1616,7 +1646,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     foreach (NodeBase pastedNode in new List<NodeBase>(pastedNodes))
                     {
                         if (pastedNode != null && _process.Nodes.Contains(pastedNode))
-                            pastedNode.DeleteFromProcess(false);
+                            pastedNode.DeleteFromProcess(true);
                     }
 
                     UpdateNode();

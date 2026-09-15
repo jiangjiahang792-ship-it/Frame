@@ -13,9 +13,10 @@
         /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
+            if (disposing)
             {
-                components.Dispose();
+                ReleaseImageResources();
+                components?.Dispose();
             }
             base.Dispose(disposing);
         }
@@ -49,9 +50,13 @@
             this.label7 = new System.Windows.Forms.Label();
             this.checkBox1 = new System.Windows.Forms.CheckBox();
             this.comboBox1 = new System.Windows.Forms.ComboBox();
+            this.groupBoxPositionCorrection = new System.Windows.Forms.GroupBox();
+            this.checkBoxUsePositionCorrection = new System.Windows.Forms.CheckBox();
+            this.nodeSubscriptionPositionCorrection = new TDJS_Vision.Node.NodeSubscription();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
             this.tableLayoutPanel1.SuspendLayout();
+            this.groupBoxPositionCorrection.SuspendLayout();
             this.SuspendLayout();
             // 
             // button3
@@ -117,6 +122,7 @@
             this.tableLayoutPanel1.Controls.Add(this.label7, 2, 4);
             this.tableLayoutPanel1.Controls.Add(this.checkBox1, 1, 2);
             this.tableLayoutPanel1.Controls.Add(this.comboBox1, 2, 2);
+            this.tableLayoutPanel1.Controls.Add(this.groupBoxPositionCorrection, 0, 3);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 38);
@@ -126,7 +132,7 @@
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 67F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 67F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 67F));
-            this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 58F));
+            this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 82F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 58F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 56F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
@@ -199,11 +205,11 @@
             this.showImageControl1.BackgroundTransparency = 1F;
             this.tableLayoutPanel1.SetColumnSpan(this.showImageControl1, 6);
             this.showImageControl1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.showImageControl1.Location = new System.Drawing.Point(3, 376);
+            this.showImageControl1.Location = new System.Drawing.Point(3, 400);
             this.showImageControl1.Name = "showImageControl1";
             this.showImageControl1.RoiColor = System.Drawing.Color.Lime;
             this.showImageControl1.ShowCheckerBackground = false;
-            this.showImageControl1.Size = new System.Drawing.Size(1112, 373);
+            this.showImageControl1.Size = new System.Drawing.Size(1112, 349);
             this.showImageControl1.StaticShapeColor = System.Drawing.Color.Red;
             this.showImageControl1.TabIndex = 9;
             // 
@@ -320,6 +326,40 @@
             this.comboBox1.TabIndex = 21;
             this.comboBox1.SelectedIndexChanged += new System.EventHandler(this.comboBox1_SelectedIndexChanged);
             // 
+            // groupBoxPositionCorrection
+            // 
+            this.groupBoxPositionCorrection.Anchor = System.Windows.Forms.AnchorStyles.Left;
+            this.tableLayoutPanel1.SetColumnSpan(this.groupBoxPositionCorrection, 4);
+            this.groupBoxPositionCorrection.Controls.Add(this.checkBoxUsePositionCorrection);
+            this.groupBoxPositionCorrection.Controls.Add(this.nodeSubscriptionPositionCorrection);
+            this.groupBoxPositionCorrection.Location = new System.Drawing.Point(3, 204);
+            this.groupBoxPositionCorrection.Name = "groupBoxPositionCorrection";
+            this.groupBoxPositionCorrection.Size = new System.Drawing.Size(770, 76);
+            this.groupBoxPositionCorrection.TabIndex = 24;
+            this.groupBoxPositionCorrection.TabStop = false;
+            this.groupBoxPositionCorrection.Text = "位置修正";
+            // 
+            // checkBoxUsePositionCorrection
+            // 
+            this.checkBoxUsePositionCorrection.AutoSize = true;
+            this.checkBoxUsePositionCorrection.Location = new System.Drawing.Point(18, 31);
+            this.checkBoxUsePositionCorrection.Name = "checkBoxUsePositionCorrection";
+            this.checkBoxUsePositionCorrection.Size = new System.Drawing.Size(120, 25);
+            this.checkBoxUsePositionCorrection.TabIndex = 0;
+            this.checkBoxUsePositionCorrection.Text = "启用修正";
+            this.checkBoxUsePositionCorrection.UseVisualStyleBackColor = true;
+            this.checkBoxUsePositionCorrection.CheckedChanged += new System.EventHandler(this.checkBoxUsePositionCorrection_CheckedChanged);
+            // 
+            // nodeSubscriptionPositionCorrection
+            // 
+            this.nodeSubscriptionPositionCorrection.Enabled = false;
+            this.nodeSubscriptionPositionCorrection.Location = new System.Drawing.Point(154, 13);
+            this.nodeSubscriptionPositionCorrection.Margin = new System.Windows.Forms.Padding(2);
+            this.nodeSubscriptionPositionCorrection.MinimumSize = new System.Drawing.Size(260, 59);
+            this.nodeSubscriptionPositionCorrection.Name = "nodeSubscriptionPositionCorrection";
+            this.nodeSubscriptionPositionCorrection.Size = new System.Drawing.Size(406, 59);
+            this.nodeSubscriptionPositionCorrection.TabIndex = 1;
+            // 
             // openFileDialog1
             // 
             this.openFileDialog1.FileName = "openFileDialog1";
@@ -348,6 +388,8 @@
             this.Controls.SetChildIndex(this.tableLayoutPanel1, 0);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();
+            this.groupBoxPositionCorrection.ResumeLayout(false);
+            this.groupBoxPositionCorrection.PerformLayout();
             this.ResumeLayout(false);
 
         }
@@ -374,5 +416,8 @@
         private System.Windows.Forms.Label label9;
         private System.Windows.Forms.CheckBox checkBox1;
         private System.Windows.Forms.ComboBox comboBox1;
+        private System.Windows.Forms.GroupBox groupBoxPositionCorrection;
+        private System.Windows.Forms.CheckBox checkBoxUsePositionCorrection;
+        private NodeSubscription nodeSubscriptionPositionCorrection;
     }
 }

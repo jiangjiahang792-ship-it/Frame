@@ -1,4 +1,4 @@
-﻿using TDJS_Vision.Forms.ShapeDraw;
+﻿using TDJS_Vision.Forms.DispShowImage;
 
 namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
 {
@@ -15,9 +15,10 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
         /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
+            if (disposing)
             {
-                components.Dispose();
+                TDJS_Vision.Forms.SolRunParam.SolRunParamControl.RefreshParamView -= SolRunParamControl_RefreshParamView;
+                components?.Dispose();
             }
             base.Dispose(disposing);
         }
@@ -40,8 +41,10 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
             this.nodeSubscription1 = new TDJS_Vision.Node.NodeSubscription();
             this.button2 = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
-            this.imageROIEditControl1 = new TDJS_Vision.Forms.ShapeDraw.ImageROIEditControl();
+            this.showImageControl1 = new TDJS_Vision.Forms.DispShowImage.ShowImageControl();
             this.uiSwitch1 = new Sunny.UI.UISwitch();
+            this.buttonClearRois = new System.Windows.Forms.Button();
+            this.labelRoiHelp = new System.Windows.Forms.Label();
             this.tableLayoutPanel1.SuspendLayout();
             this.panel1.SuspendLayout();
             this.tableLayoutPanel5.SuspendLayout();
@@ -55,7 +58,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
             this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 65F));
             this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 35F));
             this.tableLayoutPanel1.Controls.Add(this.panel1, 1, 0);
-            this.tableLayoutPanel1.Controls.Add(this.imageROIEditControl1, 0, 0);
+            this.tableLayoutPanel1.Controls.Add(this.showImageControl1, 0, 0);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 32);
             this.tableLayoutPanel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
@@ -81,17 +84,19 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
             this.tableLayoutPanel5.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanel5.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.tableLayoutPanel5.Controls.Add(this.groupBox2, 0, 0);
-            this.tableLayoutPanel5.Controls.Add(this.button2, 0, 2);
+            this.tableLayoutPanel5.Controls.Add(this.button2, 0, 4);
             this.tableLayoutPanel5.Controls.Add(this.label1, 0, 1);
             this.tableLayoutPanel5.Controls.Add(this.uiSwitch1, 1, 1);
             this.tableLayoutPanel5.Dock = System.Windows.Forms.DockStyle.Top;
             this.tableLayoutPanel5.Location = new System.Drawing.Point(0, 0);
             this.tableLayoutPanel5.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.tableLayoutPanel5.Name = "tableLayoutPanel5";
-            this.tableLayoutPanel5.RowCount = 3;
-            this.tableLayoutPanel5.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 40F));
-            this.tableLayoutPanel5.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
-            this.tableLayoutPanel5.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 35F));
+            this.tableLayoutPanel5.RowCount = 5;
+            this.tableLayoutPanel5.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 150F));
+            this.tableLayoutPanel5.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 55F));
+            this.tableLayoutPanel5.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 90F));
+            this.tableLayoutPanel5.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 45F));
+            this.tableLayoutPanel5.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 56F));
             this.tableLayoutPanel5.Size = new System.Drawing.Size(352, 396);
             this.tableLayoutPanel5.TabIndex = 3;
             // 
@@ -174,15 +179,16 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
             this.label1.TabIndex = 3;
             this.label1.Text = "ROI是否启用";
             // 
-            // imageROIEditControl1
+            // showImageControl1
             // 
-            this.imageROIEditControl1.BackColor = System.Drawing.SystemColors.ActiveCaptionText;
-            this.imageROIEditControl1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.imageROIEditControl1.Location = new System.Drawing.Point(3, 2);
-            this.imageROIEditControl1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.imageROIEditControl1.Name = "imageROIEditControl1";
-            this.imageROIEditControl1.Size = new System.Drawing.Size(658, 442);
-            this.imageROIEditControl1.TabIndex = 2;
+            this.showImageControl1.BackColor = System.Drawing.SystemColors.ActiveCaptionText;
+            this.showImageControl1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.showImageControl1.Location = new System.Drawing.Point(3, 2);
+            this.showImageControl1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.showImageControl1.Name = "showImageControl1";
+            this.showImageControl1.Size = new System.Drawing.Size(658, 442);
+            this.showImageControl1.TabIndex = 2;
+            this.showImageControl1.EnableRectangleRoiDrawing = true;
             // 
             // uiSwitch1
             // 
@@ -195,8 +201,24 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
             this.uiSwitch1.Name = "uiSwitch1";
             this.uiSwitch1.Size = new System.Drawing.Size(92, 29);
             this.uiSwitch1.TabIndex = 4;
-            this.uiSwitch1.Text = "uiSwitch1";
+            this.uiSwitch1.Text = "启用裁剪";
             // 
+            // 操作说明及清空按钮均保留在设计器中，便于直接查看和调整布局。
+            this.tableLayoutPanel5.Controls.Add(this.labelRoiHelp, 0, 2);
+            this.tableLayoutPanel5.SetColumnSpan(this.labelRoiHelp, 2);
+            this.labelRoiHelp.Name = "labelRoiHelp";
+            this.labelRoiHelp.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.labelRoiHelp.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.labelRoiHelp.Padding = new System.Windows.Forms.Padding(10, 0, 10, 0);
+            this.labelRoiHelp.Text = "左键拖动绘制ROI，松开后可直接编辑。\r\n框内拖动；角点缩放；右上弧形手柄旋转。\r\n滚轮缩放图像，Delete删除选中框。\r\n自动摆正，越界部分按边缘像素补齐。";
+            this.tableLayoutPanel5.Controls.Add(this.buttonClearRois, 0, 3);
+            this.tableLayoutPanel5.SetColumnSpan(this.buttonClearRois, 2);
+            this.buttonClearRois.Name = "buttonClearRois";
+            this.buttonClearRois.Text = "清空ROI";
+            this.buttonClearRois.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.buttonClearRois.Size = new System.Drawing.Size(100, 30);
+            this.buttonClearRois.UseVisualStyleBackColor = true;
+            this.buttonClearRois.Click += new System.EventHandler(this.buttonClearRois_Click);
             // NodeParamFormImageCrop
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
@@ -226,7 +248,12 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
         private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.Button button2;
-        private ImageROIEditControl imageROIEditControl1;
+        /// <summary>常用图像显示控件，提供矩形绘制和旋转编辑。</summary>
+        private ShowImageControl showImageControl1;
+        /// <summary>清空全部裁剪区域按钮。</summary>
+        private System.Windows.Forms.Button buttonClearRois;
+        /// <summary>矩形编辑及裁剪规则提示。</summary>
+        private System.Windows.Forms.Label labelRoiHelp;
         private System.Windows.Forms.GroupBox groupBox2;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel4;
         private NodeSubscription nodeSubscription1;
