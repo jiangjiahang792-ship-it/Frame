@@ -327,5 +327,11 @@
   "ImageViewer.SubscribeImage": "订阅图像",
   "ImageViewer.WindowNameNotFound": "找不到对应图像窗口名称！",
   "ImageViewer.NoSubscribedResult": "未订阅任何结果！",
-  "ImageViewer.WindowNameRequired": "图像窗口名称不能为空！"
+  "ImageViewer.WindowNameRequired": "图像窗口名称不能为空！",
+  "左线芯长度": "左线芯长度",
+  "左线芯宽度": "左线芯宽度",
+  "焊接区域长度": "焊接区域长度",
+  "焊接区域宽度": "焊接区域宽度",
+  "右线芯长度": "右线芯长度",
+  "右线芯宽度": "右线芯宽度"
 }

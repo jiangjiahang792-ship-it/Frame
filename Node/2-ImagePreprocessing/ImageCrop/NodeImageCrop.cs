@@ -107,11 +107,14 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
                 bool rectified = false;
                 if (hasRegions)
                     foreach (ImageCropRoiRegion region in regions)
-                        rectified |= region.RequiresRectification;
+                        rectified |= region.RequiresOutputCoordinates(source.Width, source.Height);
+                else
+                    foreach (Rect rect in rects)
+                        rectified |= ImageCropRoiRegion.FromRectangle(rect).RequiresOutputCoordinates(source.Width, source.Height);
 
                 if (rectified)
                 {
-                    // 旋转纠正不能再使用源图外接矩形的平移偏移，否则下游检测框会错位。
+                    // 旋转或越界补边后使用独立基准，避免下游检测框错位或出现负坐标。
                     // 单ROI直接使用裁图作为基准；多ROI纵向拼接预览，使每张图都有独立坐标区。
                     output.SrcImg = BuildRectifiedPreview(roiImg, out List<Rect> outputRects);
                     output.TakeOwnership(output.SrcImg);
@@ -200,7 +203,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
         /// <param name="source">源图像。</param>
         /// <param name="rects">ROI 矩形列表。</param>
         /// <returns>裁剪后的图像列表。</returns>
-        private static List<Mat> CropImages(Mat source, List<Rect> rects)
+        internal static List<Mat> CropImages(Mat source, List<Rect> rects)
         {
             if (!OutputImage.HasValidImage(source))
                 throw new Exception("订阅的图像为null！");
@@ -212,11 +215,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
             {
                 foreach (Rect rect in rects)
                 {
-                    EnsureRoiInsideImage(rect, source);
-                    using (Mat roi = new Mat(source, rect))
-                    {
-                        images.Add(roi.Clone());
-                    }
+                    images.Add(ImageCropRoiRegion.FromRectangle(rect).CropRectified(source));
                 }
             }
             catch
@@ -241,11 +240,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
         {
             if (rects != null && rects.Count > 0 && OutputImage.HasValidImage(inputImage?.GrayImg))
             {
-                EnsureRoiInsideImage(rects[0], inputImage.GrayImg);
-                using (Mat grayRoi = new Mat(inputImage.GrayImg, rects[0]))
-                {
-                    return grayRoi.Clone();
-                }
+                return ImageCropRoiRegion.FromRectangle(rects[0]).CropRectified(inputImage.GrayImg);
             }
 
             if (croppedImages != null && croppedImages.Count > 0)
@@ -254,20 +249,5 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
             return new Mat();
         }
 
-        /// <summary>
-        /// 校验 ROI 是否完全位于图像范围内。
-        /// </summary>
-        /// <param name="rect">待校验的 ROI 矩形。</param>
-        /// <param name="source">源图像。</param>
-        private static void EnsureRoiInsideImage(Rect rect, Mat source)
-        {
-            if (rect.Width <= 0 || rect.Height <= 0 ||
-                rect.X < 0 || rect.Y < 0 ||
-                rect.X + rect.Width > source.Width ||
-                rect.Y + rect.Height > source.Height)
-            {
-                throw new Exception("裁切的图像为空，请检查是否超出图像区域！");
-            }
-        }
     }
 }

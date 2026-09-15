@@ -189,6 +189,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                         case ModelName.多端子模型:
                                             MultiTerminalParse.Parse(det_results, result_count, param, Process,ref res);
                                             break;
+                                        case ModelName.超声波焊接侧面三类模型:
+                                            Ultrasound_Side_3Class.Parse(det_results, det_results.Count, param, ref res);
+                                            break;
                                         default:
                                             throw new Exception("不存在的模型名称！");
                                     }

@@ -124,20 +124,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
             Mat source = GetInputMat(GetInputOutputImage());
             if (Params is NodeParamImageCrop param && param.ImageRois != null && param.ImageRois.Count > 0)
                 return NodeImageCrop.CropRectifiedImages(source, param.ImageRois);
-            var images = new List<Mat>();
-            try
-            {
-                foreach (Rect rect in GetImageROIRects(source))
-                    using (var roi = new Mat(source, rect))
-                        images.Add(roi.Clone());
-                return images;
-            }
-            catch
-            {
-                foreach (Mat image in images)
-                    image.Dispose();
-                throw;
-            }
+            return NodeImageCrop.CropImages(source, GetImageROIRects(source));
         }
 
         /// <summary>根据当前上游图像取得已保存的裁剪区域。</summary>

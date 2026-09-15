@@ -327,5 +327,11 @@
   "ImageViewer.SubscribeImage": "Subscribe Image",
   "ImageViewer.WindowNameNotFound": "The corresponding image window name was not found.",
   "ImageViewer.NoSubscribedResult": "No result has been subscribed.",
-  "ImageViewer.WindowNameRequired": "Image window name cannot be empty."
+  "ImageViewer.WindowNameRequired": "Image window name cannot be empty.",
+  "左线芯长度": "Left core length",
+  "左线芯宽度": "Left core width",
+  "焊接区域长度": "Weld region length",
+  "焊接区域宽度": "Weld region width",
+  "右线芯长度": "Right core length",
+  "右线芯宽度": "Right core width"
 }

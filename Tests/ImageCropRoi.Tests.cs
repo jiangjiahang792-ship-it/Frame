@@ -56,6 +56,7 @@ internal static class ImageCropRoiTests
             Application.EnableVisualStyles();
             Geometry();
             Rectification();
+            OutOfBounds();
             if (args.Length > 0)
             {
                 // 用户提供的是带界面的截图；按截图内绿色ROI位置验证实际裁剪形状。
@@ -142,7 +143,7 @@ internal static class ImageCropRoiTests
                 Check(viewer.DynamicRoiCount == 1, "混合按键后绘制失败。");
             }
             Legacy();
-            Console.WriteLine("通过：ROI交互/保存恢复/旧参数兼容/0度逐像素一致/90与180度方向/任意角度无黑边/亚像素采样/灰度对齐/单图及多图坐标/资源释放/越界拒绝。");
+            Console.WriteLine("通过：ROI交互/保存恢复/旧参数兼容/0度逐像素一致/90与180度方向/任意角度无黑边/亚像素采样/灰度对齐/单图及多图坐标/资源释放/越界补边。");
             return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
@@ -155,7 +156,7 @@ internal static class ImageCropRoiTests
         roi.Angle = 90; Check(roi.GetImageRect(400, 300) == new Rect(180, 100, 40, 100), "90度宽高错误。");
         roi.Angle = 45; Check(roi.GetImageRect(400, 300) == new Rect(150, 100, 100, 100), "45度外接框错误。");
         roi.Angle = -45; Check(roi.GetImageRect(400, 300) == new Rect(150, 100, 100, 100), "负角度错误。");
-        roi.CenterX = 0; Reject(roi); roi.CenterX = float.NaN; Reject(roi);
+        roi.CenterX = 0; Check(roi.GetImageRect(400, 300).X < 0, "越界ROI被截断或改变位置。"); roi.CenterX = float.NaN; Reject(roi);
         roi.CenterX = 200; roi.Width = 0; Reject(roi);
     }
     /// <summary>验证实际执行节点的独立Mat与灰度快速路径。</summary>
@@ -269,13 +270,77 @@ internal static class ImageCropRoiTests
             using (OutputImage output = BuildOutput(grayInput, gray, regions))
                 Check(ReferenceEquals(output.GrayImg, output.Bitmaps[0]), "单通道ROI未复用灰度图。");
             regions[0] = new ImageCropRoiRegion { CenterX = 100, CenterY = 100, Width = 40, Height = 50 };
-            regions[1] = new ImageCropRoiRegion { CenterX = 0, CenterY = 0, Width = 40, Height = 50, Angle = 45 };
-            roi.CenterX = 0;
+            regions[1] = new ImageCropRoiRegion { CenterX = 0, CenterY = 0, Width = 0, Height = 50, Angle = 45 };
+            roi.CenterX = float.NaN;
             Reject(roi);
             bool rejected = false;
             try { using (var invalid = BuildOutput(input, color, regions)) { } }
             catch (TargetInvocationException) { rejected = true; }
             Check(rejected && input.ActiveLeaseCount == 0, "失败输出未释放资源。");
+        }
+    }
+
+    /// <summary>验证四边、四角与完全越界时不报错，有效像素不偏移，缺失像素复制最近边缘。</summary>
+    private static void OutOfBounds()
+    {
+        using (var source = new Mat(60, 80, MatType.CV_32FC1))
+        using (var input = new OutputImage { SrcImg = source, Bitmaps = new List<Mat> { source } })
+        {
+            for (int y = 0; y < source.Height; y++)
+                for (int x = 0; x < source.Width; x++)
+                    source.Set(y, x, (float)(x + 3 * y + 10));
+            var centers = new[] { new PointF(0, 30), new PointF(80, 30), new PointF(40, 0), new PointF(40, 60),
+                new PointF(0, 0), new PointF(80, 0), new PointF(0, 60), new PointF(80, 60),
+                new PointF(-100, -100), new PointF(180, 160) };
+            foreach (PointF center in centers)
+                foreach (float angle in new[] { 0F, 45F, -30F, 90F })
+                {
+                    var region = new ImageCropRoiRegion { CenterX = center.X, CenterY = center.Y, Width = 40, Height = 30, Angle = angle };
+                    using (OutputImage output = BuildOutput(input, source, new List<ImageCropRoiRegion> { region }))
+                    {
+                        Mat image = output.Bitmaps[0];
+                        Check(image.Width == 40 && image.Height == 30, "越界后ROI尺寸变化。");
+                        Check(ReferenceEquals(output.SrcImg, image) && ReferenceEquals(output.GrayImg, image), "越界输出坐标或灰度基准错误。");
+                        Check(output.Rectangles[0] == new Rect(0, 0, 40, 30), "越界输出保留了错误偏移。");
+                        double radians = angle * Math.PI / 180;
+                        for (int y = 0; y < 30; y++)
+                            for (int x = 0; x < 40; x++)
+                            {
+                                double localX = x - 19.5, localY = y - 14.5;
+                                double sx = center.X - 0.5 + Math.Cos(radians) * localX - Math.Sin(radians) * localY;
+                                double sy = center.Y - 0.5 + Math.Sin(radians) * localX + Math.Cos(radians) * localY;
+                                double expected = Math.Max(0, Math.Min(79, sx)) + 3 * Math.Max(0, Math.Min(59, sy)) + 10;
+                                Check(Math.Abs(image.At<float>(y, x) - expected) < 0.08, "越界像素补齐或图内采样发生偏移。");
+                            }
+                    }
+                }
+            // 旧方案的轴对齐裁剪路径必须与新ROI一致，不能残留越界异常。
+            var rects = new List<Rect> { new Rect(-10, -20, 40, 50) };
+            using (var output = (OutputImage)typeof(NodeImageCrop).GetMethod("BuildCroppedOutput", BindingFlags.NonPublic | BindingFlags.Static)
+                .Invoke(null, new object[] { input, source, null, rects }))
+            {
+                Check(output.Bitmaps[0].At<float>(20, 10) == source.At<float>(0, 0), "旧ROI越界后有效像素错位。");
+                Check(output.Bitmaps[0].At<float>(0, 0) == 10, "旧ROI未补齐左上角。");
+            }
+            Check(input.ActiveLeaseCount == 0, "越界裁剪释放后仍持有源图租约。");
+        }
+        using (var color = new Mat(60, 80, MatType.CV_8UC3, new Scalar(80, 140, 200)))
+        using (var gray = new Mat(60, 80, MatType.CV_8UC1, new Scalar(123)))
+        using (var input = new OutputImage { SrcImg = color, Bitmaps = new List<Mat> { color }, GrayImg = gray })
+        using (var output = BuildOutput(input, color, new List<ImageCropRoiRegion>
+        {
+            new ImageCropRoiRegion { CenterX = -10, CenterY = 0, Width = 50, Height = 40, Angle = 45 }
+        }))
+            Check(output.GrayImg.Size() == output.Bitmaps[0].Size() && Cv2.Mean(output.GrayImg).Val0 == 123,
+                "越界彩色图与灰度补边不同步。");
+        using (var form = new NodeParamFormImageCrop(null, null))
+        {
+            var viewer = Field<ShowImageControl>(form, "showImageControl1");
+            viewer.ImageBitmap = new Bitmap(80, 60);
+            viewer.AddRoiRotatedRect(-10, -10, (float)Math.PI / 4, 25, 20);
+            Field<Sunny.UI.UISwitch>(form, "uiSwitch1").Active = true;
+            Click(form, "button2_Click");
+            Check(((NodeParamImageCrop)form.Params).ImageRois.Count == 1, "越界ROI未能保存。");
         }
     }
 

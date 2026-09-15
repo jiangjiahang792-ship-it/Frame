@@ -269,8 +269,9 @@
             // 
             // comboBoxModelName
             // 
-            this.comboBoxModelName.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.comboBoxModelName.Anchor = System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
             this.comboBoxModelName.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxModelName.DropDownWidth = 280;
             this.comboBoxModelName.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.comboBoxModelName.FormattingEnabled = true;
             this.comboBoxModelName.Items.AddRange(new object[] {
@@ -278,7 +279,8 @@
             "RL_线芯截面",
             "XM_Fakra模型",
             "合压模型",
-            "多端子模型"});
+            "多端子模型",
+            "超声波焊接侧面三类模型"});
             this.comboBoxModelName.Location = new System.Drawing.Point(183, 331);
             this.comboBoxModelName.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxModelName.Name = "comboBoxModelName";

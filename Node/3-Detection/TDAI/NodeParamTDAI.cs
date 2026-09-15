@@ -213,5 +213,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         合压模型,
         XM_Fakra模型,
         多端子模型,
+        /// <summary>
+        /// 超声波焊接侧面三类检测：线芯、焊接区域和飞丝。
+        /// </summary>
+        超声波焊接侧面三类模型,
     }
 }

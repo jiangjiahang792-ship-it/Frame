@@ -210,7 +210,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
             this.labelRoiHelp.Dock = System.Windows.Forms.DockStyle.Fill;
             this.labelRoiHelp.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             this.labelRoiHelp.Padding = new System.Windows.Forms.Padding(10, 0, 10, 0);
-            this.labelRoiHelp.Text = "左键拖动绘制ROI，松开后可直接编辑。\r\n框内拖动；角点缩放；右上弧形手柄旋转。\r\n滚轮缩放图像，Delete删除选中框。\r\n按ROI宽高裁剪并自动摆正，不增加黑边。";
+            this.labelRoiHelp.Text = "左键拖动绘制ROI，松开后可直接编辑。\r\n框内拖动；角点缩放；右上弧形手柄旋转。\r\n滚轮缩放图像，Delete删除选中框。\r\n自动摆正，越界部分按边缘像素补齐。";
             this.tableLayoutPanel5.Controls.Add(this.buttonClearRois, 0, 3);
             this.tableLayoutPanel5.SetColumnSpan(this.buttonClearRois, 2);
             this.buttonClearRois.Name = "buttonClearRois";

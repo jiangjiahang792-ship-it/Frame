@@ -368,6 +368,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     case "多端子模型":
                         nodeParamTDAI.ModelName = ModelName.多端子模型;
                         break;
+                    case "超声波焊接侧面三类模型":
+                        nodeParamTDAI.ModelName = ModelName.超声波焊接侧面三类模型;
+                        break;
                     default:
                         throw new Exception($"未知的模型名称：{comboBoxModelName.Text}");
                 }
