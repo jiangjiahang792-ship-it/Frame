@@ -33,6 +33,9 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
         public void SetParam2Form()
         {
             var parameters = SavedParameters; if (parameters == null) return;
+            _refreshingRegionUi = true;
+            try
+            {
             var options = parameters.CreateOptions ?? parameters.ModelOptions;
             NativeShapeMatcher.ValidateCreate(options);
             modelLevelsNumeric.Value = options.PyramidLevels; modelAngleStartNumeric.Value = (decimal)options.AngleStartDegrees;
@@ -42,6 +45,8 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             autoContrastCheckBox.Checked = options.AutoContrast;
             brushSizeNumeric.Value = ContourCompatibility.Clamp(parameters.BrushSize, (int)brushSizeNumeric.Minimum, (int)brushSizeNumeric.Maximum);
             _needsModelRestore = true;
+            }
+            finally { _refreshingRegionUi = false; }
         }
         /// <summary>打开独立窗口后延迟恢复原生模板。</summary>
         private async void Form_Shown(object sender, EventArgs e)
@@ -66,9 +71,15 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
                 _modelOptions = NodeParamContourMatch.CopyCreate(parameters.ModelOptions);
                 _eraseMasks.Clear();
                 _eraseMasks.AddRange(parameters.EraseMasks.Select(mask => (byte[])mask.Clone()));
-                _modelOnCurrentImage = false;
-                imageCanvas.SetImage(_modelImage);
+                _modelOnCurrentImage = true;
+                _image?.Dispose(); _image = ImageFrame.CopyFrom(_modelImage.Mat);
+                imageCanvas.SetImage(_image);
+                _confirmedRegions = parameters.ModelRegions?.Select(region => region.Copy()).ToList();
+                imageCanvas.SetRegions(_confirmedRegions ?? new List<TemplateRegion> { new TemplateRegion {
+                    Kind = TemplateRegionKind.矩形, Name = "矩形 1", CenterX = _modelRoi.X + _modelRoi.Width / 2F,
+                    CenterY = _modelRoi.Y + _modelRoi.Height / 2F, Width = _modelRoi.Width, Height = _modelRoi.Height } });
                 imageCanvas.SetModel(_modelRoi, _matcher.GetModelFeatures(), _matcher.GetModelContours());
+                _templateDirty = false; RefreshRegionList();
                 _needsModelRestore = false;
                 statusLabel.Text = "已恢复模板，可修改创建参数后重新建模，或涂抹删除轮廓";
             }
@@ -79,17 +90,25 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
         /// <summary>保存已确认模板，不隐式提交ROI或涂抹。</summary>
         internal void SaveParameters()
         {
-            if (_busy || imageCanvas.EditorMode != CanvasEditorMode.查看) throw new InvalidOperationException("请先右键确认或按Esc取消当前编辑。");
+            if (_busy || imageCanvas.EditorMode != CanvasEditorMode.查看 || imageCanvas.HasRegionGesture) throw new InvalidOperationException("请先完成区域绘制，或右键确认当前轮廓擦除。");
+            if (_templateDirty) throw new InvalidOperationException("区域或创建参数已改变，请先重新创建模板。");
             if (!_matcher.HasModel || _modelImage == null || _modelOptions == null) throw new InvalidOperationException("请先创建并确认模板。");
             var create = ReadCreateModelOptions(); NativeShapeMatcher.ValidateCreate(create);
             Params = new NodeParamContourMatch { ModelImageBytes = _modelImage.Encode(), ModelRoi = _modelRoi,
+                ModelRegions = _confirmedRegions?.Select(region => region.Copy()).ToList(),
                 ModelOptions = NodeParamContourMatch.CopyCreate(_modelOptions), CreateOptions = create,
                 EraseMasks = _eraseMasks.Select(mask => (byte[])mask.Clone()).ToList(), BrushSize = (int)brushSizeNumeric.Value };
         }
         /// <summary>确认模板后交给父窗口管理，并即时应用到节点参数。</summary>
-        private void SaveButton_Click(object sender, EventArgs e)
+        private async void SaveButton_Click(object sender, EventArgs e)
         {
-            try { SaveParameters(); DialogResult = DialogResult.OK; Close(); }
+            if (_busy || imageCanvas.HasRegionGesture) return;
+            try
+            {
+                if (_templateDirty) await ConfirmCreateAsync();
+                if (_templateDirty) return;
+                SaveParameters(); DialogResult = DialogResult.OK; Close();
+            }
             catch (Exception exception) { ShowError(exception, "保存模板失败"); }
         }
         /// <summary>关闭独立窗口，不提交未确认的修改。</summary>

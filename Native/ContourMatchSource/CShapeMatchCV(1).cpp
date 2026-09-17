@@ -1265,7 +1265,10 @@ bool CShapeMatchCV::createModel(
             if (area >= minimumLoopArea)
                 loopAreas.push_back(area);
         }
-        if (!loopAreas.empty()) {
+        // 非矩形掩膜可能截断闭环，多个不相连区域还会被凸包裁出新的局部闭环。
+        // 这些局部闭环不能与搜索整图的完整闭环数量直接比较。仅全矩形模板
+        // 使用拓扑数量约束；掩膜模板仍保留掩膜内的正向、反向与缺失轮廓评分。
+        if (impl_->intensityRefinementAllowed && !loopAreas.empty()) {
             const double largest = *std::max_element(loopAreas.begin(), loopAreas.end());
             loopAreas.erase(std::remove_if(loopAreas.begin(), loopAreas.end(),
                 [&](double area) { return area < largest * 0.15; }), loopAreas.end());
@@ -1399,9 +1402,23 @@ bool CShapeMatchCV::find(
             message = "No shape match met the score.";
             return false;
         }
-        const std::size_t coarseAngleStride = profile.coarseAngleMultiplier
-            * (std::size_t(1)
-               << static_cast<unsigned>(std::min(3, levelCount - 1)));
+        // 角度抽样必须受当前层的模板半径约束。大跨度组合区域即使在粗层，
+        // 跳过数度也会让边缘移动多个像素，导致正确姿态在进入精修前就丢失。
+        // 在建模角度步长允许的范围内，将相邻抽样的最远点位移限制为两像素。
+        // 间隔保持二的幂，保证各层角度网格一致，同时保留小模板的快速抽样预算。
+        const auto angularStrideForLevel = [&](int level, std::size_t requested) {
+            const double radius = std::hypot(impl_->modelSize.width, impl_->modelSize.height)
+                * 0.5 / std::pow(2.0, level);
+            const double maximumStep = 2.0 / std::max(1.0, radius) * 180.0 / CV_PI;
+            const std::size_t spatialLimit = static_cast<std::size_t>(std::max(
+                1.0, std::floor(maximumStep / impl_->angleStepDegrees)));
+            std::size_t stride = requested;
+            while (stride > spatialLimit && stride > 1) stride /= 2;
+            return stride;
+        };
+        const std::size_t coarseAngleStride = angularStrideForLevel(levelCount - 1,
+            profile.coarseAngleMultiplier * (std::size_t(1)
+               << static_cast<unsigned>(std::min(3, levelCount - 1))));
         std::vector<std::size_t> coarseAngles;
         for (std::size_t position = 0;
              position < eligibleAngles.size();
@@ -1533,9 +1550,9 @@ bool CShapeMatchCV::find(
                 Candidate best;
                 best.level = nextLevel;
                 best.score = -1.0F;
-                const std::size_t angleStride =
-                    std::size_t(1)
-                    << static_cast<unsigned>(nextLevel);
+                // 逐层角度精修也采用空间约束，防止大模板直到原图层才补到正确角度。
+                const std::size_t angleStride = angularStrideForLevel(nextLevel,
+                    std::size_t(1) << static_cast<unsigned>(nextLevel));
                 const std::size_t firstAngle =
                     candidate.templateIndex >= angleStride
                     ? candidate.templateIndex - angleStride

@@ -80,6 +80,7 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
                 Mode = (ShapeMatchMode)modeComboBox.SelectedIndex, SubPixel = subPixelCheckBox.Checked };
             // 新版只保存模板列表；清理旧单模板字段以免重复源图或删除后恢复旧模板。
             value.ModelImageBytes = null; value.ModelOptions = null; value.EraseMasks.Clear(); value.ModelRoi = System.Drawing.Rectangle.Empty;
+            value.ModelRegions = null;
             return value;
         }
         /// <summary>控件已完成恢复，避免初始化过程覆盖节点参数。</summary>

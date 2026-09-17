@@ -5,16 +5,17 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Logger;
 using System.Diagnostics;
+using System.Linq;
 
 namespace TDJS_Vision.Node._3_Detection.ContourMatch
 {
 
-/// <summary>单图框选、右键建模、涂抹删除及右键确认的主窗体。</summary>
+/// <summary>多区域组合建模、可视化几何编辑与轮廓擦除的独立窗体。</summary>
 public partial class ContourTemplateEditor : FormBase
 {
     /// <summary>可替换的匹配算法服务。</summary>
     private IShapeMatcher _matcher;
-    /// <summary>当前搜索图像。</summary>
+    /// <summary>当前显示及绘制区域所使用的模板源图像。</summary>
     private ImageFrame _image;
     /// <summary>模型来源图像快照，重新加载搜索图后仍可编辑模型。</summary>
     private ImageFrame _modelImage;
@@ -30,6 +31,7 @@ public partial class ContourTemplateEditor : FormBase
     {
         _matcher = new NativeShapeMatcher();
         InitializeComponent();
+        InitializeRegionEditing();
         Shown += Form_Shown;
         UpdateActionState();
     }
@@ -55,8 +57,8 @@ public partial class ContourTemplateEditor : FormBase
             return;
         float scale = DeviceDpi / 96F;
         MinimumSize = new Size(
-            Math.Min((int)Math.Round(800 * scale), (int)Math.Round(workingArea.Width * 0.75)),
-            Math.Min((int)Math.Round(540 * scale), (int)Math.Round(workingArea.Height * 0.75)));
+            Math.Min((int)Math.Round(900 * scale), (int)Math.Round(workingArea.Width * 0.85)),
+            Math.Min((int)Math.Round(600 * scale), (int)Math.Round(workingArea.Height * 0.85)));
         if (WindowState != FormWindowState.Normal)
             return;
         Size = new Size(Math.Min(Width, workingArea.Width), Math.Min(Height, workingArea.Height));
@@ -66,7 +68,7 @@ public partial class ContourTemplateEditor : FormBase
         PerformLayout();
     }
 
-    /// <summary>加载搜索图像；保留已有模板，以便在另一张图中匹配。</summary>
+    /// <summary>选择新的模板源图，重新绘制区域后才可保存。</summary>
     private void LoadImageButton_Click(object sender, EventArgs e)
     {
         if (imageOpenFileDialog.ShowDialog(this) != DialogResult.OK)
@@ -79,10 +81,10 @@ public partial class ContourTemplateEditor : FormBase
             imageCanvas.SetImage(loaded);
             previous?.Dispose();
             _modelOnCurrentImage = false;
+            _templateDirty = true;
+            RefreshRegionList();
             ClearResults();
-            statusLabel.Text = _matcher.HasModel
-                ? "模板图像已加载；点击“创建模板”重新框选"
-                : "点击“创建模板”，左键拖动 ROI，右键确认";
+            statusLabel.Text = "选择顶部绘制工具添加区域，多个区域合并创建模板";
             UpdateActionState();
         }
         catch (Exception exception)
@@ -91,22 +93,26 @@ public partial class ContourTemplateEditor : FormBase
         }
     }
 
-    /// <summary>点击创建模板仅进入框选状态，右键才调用算法建模。</summary>
-    private void CreateModelButton_Click(object sender, EventArgs e)
+    /// <summary>创建组合模板；尚无区域时先启动矩形工具。</summary>
+    private async void CreateModelButton_Click(object sender, EventArgs e)
     {
         if (_image == null || _busy)
             return;
-        ShowSearchImage();
         ClearResults();
-        imageCanvas.BeginCreate();
-        statusLabel.Text = "创建模板：左键拖动 ROI，右键确认建模，Esc 取消";
+        if (imageCanvas.HasRegionGesture) { statusLabel.Text = "请先结束当前区域绘制，或按Esc取消"; return; }
+        if (imageCanvas.RegionCount == 0)
+        {
+            imageCanvas.SetRegionTool(TemplateRegionKind.矩形);
+            statusLabel.Text = "左键拖动绘制矩形，松开生成；再次点击“创建模板”组合建模";
+        }
+        else await ConfirmCreateAsync();
         UpdateActionState();
     }
 
     /// <summary>显示模型来源图及实际轮廓点，进入待提交的删除模式。</summary>
     private void EraseButton_Click(object sender, EventArgs e)
     {
-        if (_modelImage == null || !_matcher.HasModel || _busy)
+        if (_modelImage == null || !_matcher.HasModel || _busy || _templateDirty)
             return;
         // 当前显示的是同源图或同一模板快照时保留放大位置，避免进入涂抹突然回到整图。
         if (!_modelOnCurrentImage) imageCanvas.SetImage(_modelImage);
@@ -158,21 +164,22 @@ public partial class ContourTemplateEditor : FormBase
     {
         if (_busy)
             return;
-        if (imageCanvas.EditorMode == CanvasEditorMode.创建模板)
-            await ConfirmCreateAsync();
-        else if (imageCanvas.EditorMode == CanvasEditorMode.涂抹)
+        if (imageCanvas.EditorMode == CanvasEditorMode.涂抹)
             await ConfirmEraseAsync();
     }
 
-    /// <summary>右键建模，成功后替换来源快照和显示轮廓。</summary>
+    /// <summary>组合区域构建成功后原子替换模型；失败保留旧模型但禁止保存过期结果。</summary>
     private async Task ConfirmCreateAsync()
     {
         if (_image == null)
             return;
-        Rectangle roi = imageCanvas.Roi;
+        List<TemplateRegion> regions = imageCanvas.CopyRegions();
+        Rectangle roi;
+        try { roi = TemplateRegionMask.Bounds(regions, _image.Width, _image.Height); }
+        catch (Exception exception) { statusLabel.Text = exception.Message; return; }
         if (roi.Width < 8 || roi.Height < 8)
         {
-            statusLabel.Text = "请先拖动框选至少 8 × 8 像素的 ROI，再右键确认";
+            statusLabel.Text = "组合区域的外接范围至少需要 8 × 8 像素";
             return;
         }
         ImageFrame source = _image;
@@ -186,12 +193,14 @@ public partial class ContourTemplateEditor : FormBase
             TimeSpan elapsed = await Task.Run(() =>
             {
                 long started = Stopwatch.GetTimestamp();
-                candidate.CreateModel(source.Mat, roi, options);
+                TemplateRegionMask.Create(candidate, source.Mat, roi, options, regions);
                 return TimeSpan.FromSeconds((Stopwatch.GetTimestamp() - started) / (double)Stopwatch.Frequency);
             });
             _matcher.Dispose(); _matcher = candidate; candidate = null;
             _modelOptions = NodeParamContourMatch.CopyCreate(options);
             _eraseMasks.Clear();
+            _confirmedRegions = regions;
+            _templateDirty = false;
             _modelImage?.Dispose();
             _modelImage = snapshot;
             snapshot = null;
@@ -203,7 +212,7 @@ public partial class ContourTemplateEditor : FormBase
                 contrastNumeric.Value = ContourCompatibility.Clamp((decimal)usedContrast, contrastNumeric.Minimum, contrastNumeric.Maximum);
             modelTimeLabel.Text = $"建模耗时：{elapsed.TotalMilliseconds:F2} ms";
             statusLabel.Text = $"模板已确认（{_matcher.GetModelFeatures().Count} 个特征）；"
-                + $"{(options.AutoContrast ? "自动" : "手动")}阈值：{usedContrast:F1}；可涂抹细节或保存模板";
+                + $"组合 {regions.Count(region => region.Enabled)} 个区域；可擦除细节或点击“确定”完成";
         }
         catch (Exception exception)
         {
@@ -254,12 +263,12 @@ public partial class ContourTemplateEditor : FormBase
         }
     }
 
-    /// <summary>显示拖框尺寸或本次待删除特征数量。</summary>
+    /// <summary>显示本次待删除特征数量。</summary>
     private void ImageCanvas_EditChanged(object sender, EventArgs e)
     {
         statusLabel.Text = imageCanvas.EditorMode == CanvasEditorMode.涂抹
             ? $"待删除 {imageCanvas.PendingFeatureCount} 个特征；右键确认删除，Esc 取消"
-            : $"ROI：{imageCanvas.Roi.Width} × {imageCanvas.Roi.Height}；右键确认建模";
+            : $"共 {imageCanvas.RegionCount} 个区域；点击“创建模板”组合建模";
     }
 
     /// <summary>取消临时编辑后恢复操作按钮。</summary>
@@ -278,16 +287,6 @@ public partial class ContourTemplateEditor : FormBase
             statusLabel.Text = "当前操作尚未结束，请完成后关闭";
         }
         base.OnFormClosing(e);
-    }
-
-    /// <summary>切换到当前搜索图，仅在模型与搜索图同源时叠加模型特征。</summary>
-    private void ShowSearchImage()
-    {
-        if (_image == null)
-            return;
-        imageCanvas.SetImage(_image);
-        if (_modelOnCurrentImage && _matcher.HasModel)
-            imageCanvas.SetModel(_modelRoi, _matcher.GetModelFeatures(), _matcher.GetModelContours());
     }
 
     /// <summary>清理过期匹配结果。</summary>
@@ -325,7 +324,7 @@ public partial class ContourTemplateEditor : FormBase
         if (!busy) _busy = false;
     }
 
-    /// <summary>编辑过程中只允许画布右键确认，避免按钮隐式提交。</summary>
+    /// <summary>更新绘制、创建和确认操作状态。</summary>
     private void UpdateActionState() { UpdateActionStateForBusy(_busy); }
 
     /// <summary>按目标忙碌状态更新控件，完成后再发布结束标记。</summary>
@@ -333,16 +332,13 @@ public partial class ContourTemplateEditor : FormBase
     {
         bool idle = !busy && imageCanvas.EditorMode == CanvasEditorMode.查看;
         loadImageButton.Enabled = idle;
-        saveButton.Enabled = idle && _matcher.HasModel;
+        bool ready = idle && !imageCanvas.HasRegionGesture;
+        saveButton.Enabled = ready && ((!_templateDirty && _matcher.HasModel) || imageCanvas.RegionCount > 0);
         closeButton.Enabled = !busy;
-        createModelButton.Enabled = idle && _image != null;
-        eraseButton.Enabled = idle && _matcher.HasModel && _modelImage != null;
+        createModelButton.Enabled = ready && _image != null;
         brushSizeNumeric.Enabled = !busy;
         contrastNumeric.Enabled = !busy && !autoContrastCheckBox.Checked;
-        createModelButton.BackColor = imageCanvas.EditorMode == CanvasEditorMode.创建模板
-            ? Color.LightSteelBlue : SystemColors.Control;
-        eraseButton.BackColor = imageCanvas.EditorMode == CanvasEditorMode.涂抹
-            ? Color.MistyRose : SystemColors.Control;
+        UpdateRegionActions(busy);
     }
 
     /// <summary>显示错误并记录诊断信息。</summary>

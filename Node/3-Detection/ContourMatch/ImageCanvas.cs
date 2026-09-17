@@ -20,7 +20,7 @@ public enum CanvasEditorMode
 }
 
 /// <summary>单图显示、ROI 框选、真实模型特征预览与删除交互。</summary>
-public sealed class ImageCanvas : Control
+public sealed partial class ImageCanvas : Control
 {
     /// <summary>借用窗体拥有的图像。</summary>
     private ImageFrame _frame;
@@ -96,6 +96,7 @@ public sealed class ImageCanvas : Control
     {
         bool changed = !ReferenceEquals(_frame, frame);
         _frame = frame;
+        if (changed && RegionEditingEnabled) SetRegions(null);
         _modelRoi = Rectangle.Empty;
         _modelPaths = Array.Empty<PointF[]>();
         _matchPaths = Array.Empty<PointF[][]>();
@@ -136,8 +137,11 @@ public sealed class ImageCanvas : Control
     /// <summary>结束笔画或导航，防止变换后把两个不同视口的点连接成删除线。</summary>
     private void StopPointerGesture()
     {
+        bool pendingRegion = HasRegionGesture;
+        CancelRegionGesture();
         _dragging = false; _panning = false; Capture = false;
         Cursor = _mode == CanvasEditorMode.查看 ? Cursors.Default : Cursors.Cross;
+        if (pendingRegion) RegionSelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>滚轮以鼠标为中心缩放；不把滚轮传播到外层参数滚动容器。</summary>
@@ -251,6 +255,7 @@ public sealed class ImageCanvas : Control
             _panning = true; _lastPanPoint = e.Location; Capture = true; Cursor = Cursors.SizeAll;
             return;
         }
+        if (RegionEditingEnabled && _mode == CanvasEditorMode.查看 && !_panning) { RegionMouseDown(e); return; }
         if (_panning || _mode == CanvasEditorMode.查看) return;
         if (e.Button == MouseButtons.Right)
         {
@@ -294,6 +299,7 @@ public sealed class ImageCanvas : Control
         }
         if (_dragging && TryImagePoint(e.Location, true, out Point point))
             UpdateDrag(point);
+        if (RegionEditingEnabled && _mode == CanvasEditorMode.查看) RegionMouseMove(e);
         if (_mode == CanvasEditorMode.涂抹)
             Invalidate();
     }
@@ -303,6 +309,7 @@ public sealed class ImageCanvas : Control
     {
         base.OnMouseUp(e);
         if (e.Button == MouseButtons.Middle && _panning) { StopPointerGesture(); Invalidate(); return; }
+        if (RegionEditingEnabled && _mode == CanvasEditorMode.查看) { RegionMouseUp(e); return; }
         if (e.Button != MouseButtons.Left || !_dragging)
             return;
         if (TryImagePoint(e.Location, true, out Point point))
@@ -317,6 +324,7 @@ public sealed class ImageCanvas : Control
         base.OnMouseCaptureChanged(e);
         if (!Capture)
         {
+            if (_regionPointerDown) { CancelRegionGesture(); RegionSelectionChanged?.Invoke(this, EventArgs.Empty); }
             _dragging = false; _panning = false;
             Cursor = _mode == CanvasEditorMode.查看 ? Cursors.Default : Cursors.Cross;
         }
@@ -343,6 +351,7 @@ public sealed class ImageCanvas : Control
     /// <summary>Esc 撤销当前框选或尚未提交的涂抹。</summary>
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
+        if (ProcessRegionKey(keyData)) return true;
         if (keyData == Keys.Escape && _mode != CanvasEditorMode.查看)
         {
             EndEdit();
@@ -425,7 +434,7 @@ public sealed class ImageCanvas : Control
             return;
         g.InterpolationMode = InterpolationMode.NearestNeighbor;
         g.DrawImage(_frame.DisplayBitmap, bounds);
-        if (!Roi.IsEmpty && _matches.Count == 0)
+        if (!RegionEditingEnabled && !Roi.IsEmpty && _matches.Count == 0)
         {
             using (Pen roiPen = new Pen(Color.Gold, 1.5F) { DashStyle = DashStyle.Dash })
             g.DrawRectangle(roiPen, Rectangle.Round(RectangleF.FromLTRB(
@@ -446,6 +455,7 @@ public sealed class ImageCanvas : Control
             }
         }
         DrawMatches(g);
+        DrawTemplateRegions(g);
         if (_mode == CanvasEditorMode.涂抹 && !_panning && _pointer is Point pointer)
         {
             float diameter = BrushSize * ImageBounds().Width / _frame.Width;

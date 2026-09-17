@@ -27,7 +27,7 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
     }
 
     /// <summary>Demo原生C ABI适配器，句柄延迟创建以支持WinForms设计器及无模型方案。</summary>
-    public sealed class NativeShapeMatcher : IShapeMatcher
+    public sealed class NativeShapeMatcher : IMaskedShapeMatcher
     {
         /// <summary>由SafeHandle独占的原生模型。</summary>
         private ShapeMatcherSafeHandle _handle;
@@ -102,17 +102,32 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
         /// <summary>按Demo参数直接创建模型；生产会话使用新实例成功后再替换旧实例。</summary>
         public void CreateModel(Mat image, Rectangle roi, CreateModelOptions options)
         {
+            CreateMaskedModel(image, roi, options, null);
+        }
+
+        /// <summary>复用原生已有整图掩膜入口，固定内存仅覆盖同步建模调用。</summary>
+        public void CreateMaskedModel(Mat image, Rectangle roi, CreateModelOptions options, byte[] mask)
+        {
             ValidateImage(image); ValidateCreate(options);
+            if (mask != null && mask.Length != checked(image.Width * image.Height))
+                throw new ArgumentException("模板掩膜必须与来源图像尺寸一致。");
             if (roi.Width < 8 || roi.Height < 8 || roi.X < 0 || roi.Y < 0 ||
                 (long)roi.X + roi.Width > image.Width || (long)roi.Y + roi.Height > image.Height)
                 throw new ArgumentException("模板ROI必须位于图像内，且至少为8×8像素。");
             EnsureHandle();
+            GCHandle pinned = default(GCHandle);
+            try
+            {
+            if (mask != null) pinned = GCHandle.Alloc(mask, GCHandleType.Pinned);
             if (NativeMethods.CreateModel(_handle, image.Data, image.Width, image.Height, checked((int)image.Step()), image.Channels(),
                 roi.X, roi.Y, roi.Width, roi.Height, options.PyramidLevels, options.AngleStartDegrees, options.AngleEndDegrees,
                 options.AngleStepDegrees, options.Metric == ShapeMetric.忽略极性 ? "ignore_polarity" : "use_polarity",
-                options.AutoContrast ? 0 : options.Contrast, options.MinimumContrast, options.FeatureCount, IntPtr.Zero, 0) == 0)
+                options.AutoContrast ? 0 : options.Contrast, options.MinimumContrast, options.FeatureCount,
+                mask == null ? IntPtr.Zero : pinned.AddrOfPinnedObject(), mask == null ? 0 : image.Width) == 0)
                 throw NativeError("创建轮廓模板失败");
             GC.KeepAlive(image);
+            }
+            finally { if (pinned.IsAllocated) pinned.Free(); }
         }
 
         /// <summary>删除ROI局部特征；原生接口确保失败时旧模型保持有效。</summary>

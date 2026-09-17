@@ -1202,6 +1202,13 @@
     </Compile>
     <Compile Include="Node\3-Detection\LargeModel\LargeModelDetectionRuntime.cs" />
     <Compile Include="Node\3-Detection\ContourMatch\ContourMatchSession.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\TemplateRegion.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\ImageCanvas.Regions.cs">
+      <DependentUpon>ImageCanvas.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\ContourTemplateEditor.Regions.cs">
+      <DependentUpon>ContourTemplateEditor.cs</DependentUpon>
+    </Compile>
     <Compile Include="Node\3-Detection\ContourMatch\ContourTemplateDefinition.cs" />
     <Compile Include="Node\3-Detection\ContourMatch\ContourTemplateEditor.cs">
       <SubType>Form</SubType>

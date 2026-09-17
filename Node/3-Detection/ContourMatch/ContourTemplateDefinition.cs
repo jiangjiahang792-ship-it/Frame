@@ -24,6 +24,7 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             return new ContourTemplateDefinition { Id = id ?? Guid.NewGuid().ToString("N"), Name = name,
                 Model = new NodeParamContourMatch { ModelImageBytes = value.ModelImageBytes == null ? null : (byte[])value.ModelImageBytes.Clone(),
                     ModelRoi = value.ModelRoi, ModelOptions = NodeParamContourMatch.CopyCreate(value.ModelOptions),
+                    ModelRegions = value.ModelRegions?.Select(region => region.Copy()).ToList(),
                     CreateOptions = NodeParamContourMatch.CopyCreate(value.CreateOptions), BrushSize = value.BrushSize,
                     EraseMasks = (value.EraseMasks ?? new List<byte[]>()).Select(mask => (byte[])mask.Clone()).ToList() } };
         }

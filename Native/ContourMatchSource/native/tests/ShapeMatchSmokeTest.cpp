@@ -242,10 +242,96 @@ bool verifyStructureDiscrimination()
     return valid;
 }
 
+/// <summary>两个分离取样区域不应因凸包局部闭环被误判；忽略区变化不影响匹配。</summary>
+bool verifyDisjointRegionMask()
+{
+    cv::Mat image(240, 320, CV_8U, cv::Scalar(20));
+    cv::rectangle(image, cv::Rect(32, 40, 58, 55), cv::Scalar(235), 4);
+    cv::line(image, cv::Point(40, 50), cv::Point(75, 80), cv::Scalar(170), 3);
+    cv::circle(image, cv::Point(250, 140), 29, cv::Scalar(225), 4);
+    cv::line(image, cv::Point(236, 130), cv::Point(263, 150), cv::Scalar(190), 3);
+    cv::rectangle(image, cv::Rect(134, 65, 43, 91), cv::Scalar(250), 4);
+    cv::Mat mask = cv::Mat::zeros(image.size(), CV_8U);
+    mask(cv::Rect(19, 25, 85, 85)).setTo(255);
+    mask(cv::Rect(208, 98, 82, 82)).setTo(255);
+    SM_Handle handle = sm_create();
+    if (!handle) return false;
+    bool valid = sm_create_model(handle, image.data, image.cols, image.rows, static_cast<int>(image.step),
+        1, 19, 25, 271, 155, 1, -30, 30, 1, "use_polarity", 0, 10, 0, mask.data, static_cast<int>(mask.step)) != 0;
+    const auto check = [&](const cv::Mat& search, bool expected, double x, double y, double angle) {
+        SM_Match matches[1]{};
+        std::int32_t count = 0;
+        const bool found = sm_find(handle, search.data, search.cols, search.rows, static_cast<int>(search.step),
+            1, -30, 30, 0.65, 1, 0.3, 1, 1, 1, matches, 1, &count) != 0;
+        const bool correct = found && (expected ? count == 1 && matches[0].score > 0.85
+            && std::hypot(matches[0].centerX - x, matches[0].centerY - y) < 2
+            && std::abs(matches[0].angleDegrees - angle) < 1.5 : count == 0);
+        if (!correct) std::cerr << "Disjoint mask failed: count=" << count << ", score=" << matches[0].score << '\n';
+        return correct;
+    };
+    valid = check(image, true, 154.5, 102.5, 0) && valid;
+    cv::Mat changed = image.clone();
+    changed(cv::Rect(115, 20, 80, 180)).setTo(20);
+    valid = check(changed, true, 154.5, 102.5, 0) && valid;
+    cv::Mat transform = cv::getRotationMatrix2D(cv::Point2f(154.5F,102.5F), -13, 1);
+    transform.at<double>(0,2) += 55.5; transform.at<double>(1,2) += 57.5;
+    cv::Mat rotated;
+    cv::warpAffine(changed, rotated, transform, cv::Size(440,340), cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(20));
+    valid = check(rotated, true, 210, 160, 13) && valid;
+    changed(cv::Rect(200, 90, 110, 110)).setTo(20);
+    valid = check(changed, false, 0, 0, 0) && valid;
+    sm_destroy(handle);
+    std::cout << "Disjoint ROI mask, ignored background, rotation and missing region: " << (valid ? "passed" : "FAILED") << '\n';
+    return valid;
+}
+
+/// <summary>大跨度稀疏组合区域的角度抽样必须考虑空间位移，自动金字塔不能漏掉原图。</summary>
+bool verifyWideRegionMask()
+{
+    cv::Mat image(2048, 3072, CV_8U, cv::Scalar(20));
+    cv::Mat mask = cv::Mat::zeros(image.size(), CV_8U);
+    const cv::Rect regions[] = { {265, 171, 211, 378}, {229, 1708, 228, 339}, {2034, 976, 405, 425} };
+    for (const auto& region : regions) {
+        mask(region).setTo(255);
+        cv::rectangle(image, cv::Rect(region.x + 20, region.y + 20, region.width - 40, region.height - 40), cv::Scalar(230), 6);
+        cv::circle(image, cv::Point(region.x + region.width / 2, region.y + region.height / 2), 63, cv::Scalar(200), 5);
+        cv::line(image, cv::Point(region.x + 35, region.y + 60),
+            cv::Point(region.x + region.width - 30, region.y + region.height - 50), cv::Scalar(150), 7);
+    }
+    SM_Handle handle = sm_create();
+    if (!handle) return false;
+    bool valid = sm_create_model(handle, image.data, image.cols, image.rows, static_cast<int>(image.step),
+        1, 229, 171, 2210, 1876, 0, -30, 30, 1, "use_polarity", 0, 10, 300, mask.data, static_cast<int>(mask.step)) != 0;
+    const auto check = [&](const cv::Mat& search, double x, double y, double angle) {
+        SM_Match matches[1]{};
+        std::int32_t count = 0;
+        const bool found = sm_find(handle, search.data, search.cols, search.rows, static_cast<int>(search.step),
+            1, -30, 30, 0.8, 1, 0.3, 1, 0, 0, matches, 1, &count) != 0;
+        const bool correct = found && count == 1 && matches[0].score >= 0.8
+            && std::hypot(matches[0].centerX - x, matches[0].centerY - y) < 3
+            && std::abs(matches[0].angleDegrees - angle) < 0.5;
+        if (!correct) std::cerr << "Wide mask failed: angle=" << angle << ", count=" << count
+            << ", score=" << matches[0].score << '\n';
+        return correct;
+    };
+    valid = check(image, 1334, 1109, 0) && valid;
+    for (double angle : {13.0, -7.0}) {
+        cv::Mat transform = cv::getRotationMatrix2D(cv::Point2f(1334, 1109), -angle, 1);
+        transform.at<double>(0, 2) += 300; transform.at<double>(1, 2) += 400;
+        cv::Mat shifted;
+        cv::warpAffine(image, shifted, transform, cv::Size(3600, 3200), cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(20));
+        valid = check(shifted, 1634, 1509, angle) && valid;
+    }
+    sm_destroy(handle);
+    std::cout << "Wide ROI automatic pyramid and rotation: " << (valid ? "passed" : "FAILED") << '\n';
+    return valid;
+}
+
 /// <summary>验证 DLL 的自动阈值、建模、搜索、结果传输和句柄生命周期。</summary>
 int main()
 {
-    if (!verifyCannyFeatures() || !verifyAutomaticContrast() || !verifyStructureDiscrimination())
+    if (!verifyCannyFeatures() || !verifyAutomaticContrast() || !verifyStructureDiscrimination()
+        || !verifyDisjointRegionMask() || !verifyWideRegionMask())
         return 1;
     constexpr int templateWidth = 96;
     constexpr int templateHeight = 88;

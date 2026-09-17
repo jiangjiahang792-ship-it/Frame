@@ -19,6 +19,8 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
         public byte[] ModelImageBytes { get; set; }
         /// <summary>已确认的模板ROI，使用来源图像素坐标。</summary>
         public Rectangle ModelRoi { get; set; }
+        /// <summary>已确认的组合区域；null兼容旧矩形模板，空列表不代表全图。</summary>
+        public List<TemplateRegion> ModelRegions { get; set; }
         /// <summary>界面当前创建参数；修改后仅在重新创建模型时生效。</summary>
         public CreateModelOptions CreateOptions { get; set; } = new CreateModelOptions { AutoContrast = true };
         /// <summary>已确认模板实际使用的创建参数，避免未重建的参数改变现有模型。</summary>
@@ -58,6 +60,7 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
                 Templates = Templates?.Select(item => item.Copy()).ToList(), AllSearch = AllSearch, SearchRegion = SearchRegion,
                 UsePositionCorrection = UsePositionCorrection, CorrectionText1 = CorrectionText1, CorrectionText2 = CorrectionText2,
                 ModelImageBytes = ModelImageBytes == null ? null : (byte[])ModelImageBytes.Clone(), ModelRoi = ModelRoi,
+                ModelRegions = ModelRegions?.Select(region => region.Copy()).ToList(),
                 CreateOptions = CopyCreate(CreateOptions), ModelOptions = CopyCreate(ModelOptions),
                 FindOptions = CopyFind(FindOptions), BrushSize = BrushSize,
                 EraseMasks = (EraseMasks ?? new List<byte[]>()).Select(mask => mask == null ? null : (byte[])mask.Clone()).ToList() };

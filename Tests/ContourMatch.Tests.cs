@@ -71,7 +71,8 @@ internal static class ContourMatchTests
                 var result = matcher.Find(search, find);
                 Check(result.Count == 1, "Demo模式未准确找到单目标：" + mode);
                 Check(Math.Abs(result[0].CenterX - 152) < 1.5 && Math.Abs(result[0].CenterY - 102) < 1.5, "中心坐标偏差过大。");
-                Check(result[0].Score >= find.MinimumScore && result[0].Score <= 1 && Math.Abs(result[0].AngleDegrees) < 2, "分数或角度语义改变。");
+                Check(result[0].Score >= find.MinimumScore && result[0].Score <= 1 && Math.Abs(result[0].AngleDegrees) < 2,
+                    string.Format("分数或角度语义改变：模式={0}，分数={1:F4}，角度={2:F3}。", mode, result[0].Score, result[0].AngleDegrees));
             }
             using (var gray = new Mat())
             using (var bgra = new Mat())
@@ -297,9 +298,9 @@ internal static class ContourMatchTests
             Mouse(canvas,"OnMouseDown",CanvasPoint(canvas,0.5,0.5),MouseButtons.Left);
             Mouse(canvas,"OnMouseUp",CanvasPoint(canvas,95,87),MouseButtons.Left);
             Check(!Field<IShapeMatcher>(form,"_matcher").HasModel, "左键松开错误地自动提交建模。");
-            Check(!Field<Button>(form,"saveButton").Enabled, "未确认ROI时允许保存。");
-            Mouse(canvas,"OnMouseDown",CanvasPoint(canvas,40,40),MouseButtons.Right); WaitEditor(form);
-            var matcher = Field<IShapeMatcher>(form,"_matcher"); Check(matcher.HasModel, "右键未建立真实模板：" + Field<Label>(form,"statusLabel").Text);
+            Check(canvas.RegionCount == 1 && Field<Button>(form,"saveButton").Enabled, "松开后区域未生成或不能确定组合建模。");
+            Click(form,"CreateModelButton_Click"); WaitEditor(form);
+            var matcher = Field<IShapeMatcher>(form,"_matcher"); Check(matcher.HasModel, "创建按钮未建立真实模板：" + Field<Label>(form,"statusLabel").Text);
             int before = matcher.GetModelFeatures().Count;
             PointF feature = matcher.GetModelFeatures().First(point => point.X > 27 && point.X < 48 && point.Y > 25 && point.Y < 59);
             var zoomAnchor = CanvasPoint(canvas, feature.X, feature.Y);
@@ -317,10 +318,9 @@ internal static class ContourMatchTests
             Check(Math.Abs(canvas.ImageScale - enlargedScale) < 0.001, "确认删除后丢失放大位置。");
             Click(form,"FitImageButton_Click");
             Check(canvas.ImageScale < enlargedScale, "适应按钮没有恢复整图显示。");
-            Field<NumericUpDown>(form,"modelAngleStartNumeric").Value = -180;
             Call(form,"SaveParameters");
             var saved = (NodeParamContourMatch)form.Params;
-            Check(saved.CreateOptions.AngleStartDegrees == -180 && saved.ModelOptions.AngleStartDegrees == -30, "未重新建模的创建参数污染已确认模型。");
+            Check(saved.CreateOptions.AngleStartDegrees == -30 && saved.ModelOptions.AngleStartDegrees == -30 && saved.ModelRegions.Count == 1, "已确认模型参数或可编辑区域未正确保存。");
             Check(saved.EraseMasks.Count == 1 && saved.ModelImageBytes.Length > 0, "模型及删除记录未保存。");
             var isolated = (NodeParamContourMatch)form.Params; isolated.FindOptions.MinimumScore = 0.9;
             Check(((NodeParamContourMatch)form.Params).FindOptions.MinimumScore == 0.65, "UI参数副本不独立。");
@@ -476,7 +476,7 @@ internal static class ContourMatchTests
                 ManualModel(template,search); NodeChecks(parameters,search); Console.WriteLine("节点执行、方案恢复、参数隔离、缓存与图像租约通过。");
                 MultiTemplateChecks(parameters,template,artifacts); Console.WriteLine("三页、多模板、搜索区域、位置修正和模板交换通过。");
                 CanvasNavigationChecks(template); Console.WriteLine("图像缩放锚点、中键平移与原图涂抹坐标通过。");
-                EditorChecks(template,artifacts); Console.WriteLine("真实Designer窗体、左右键交互、保存与恢复通过。");
+                EditorChecks(template,artifacts); Console.WriteLine("真实Designer窗体、区域生成、建模、擦除与保存恢复通过。");
             }
             Console.WriteLine("轮廓模板匹配验证通过，断言数：" + _checks); return 0;
         }

@@ -133,7 +133,7 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             try
             {
                 using (ImageFrame image = ImageFrame.Decode(parameters.ModelImageBytes))
-                    candidate.CreateModel(image.Mat, parameters.ModelRoi, parameters.ModelOptions);
+                    TemplateRegionMask.Create(candidate, image.Mat, parameters.ModelRoi, parameters.ModelOptions, parameters.ModelRegions);
                 foreach (byte[] mask in parameters.EraseMasks ?? new List<byte[]>())
                     candidate.EraseModelFeatures(mask, parameters.ModelRoi.Width, parameters.ModelRoi.Height);
                 return candidate;
