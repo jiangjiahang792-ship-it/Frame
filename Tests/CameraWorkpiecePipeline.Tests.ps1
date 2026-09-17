@@ -290,6 +290,54 @@ Assert-True ($envelope2.Identity.Equals($context2.Identity)) '第二帧必须绑
 $envelope2.Dispose()
 Assert-True ($budget.GetSnapshot().ReservedBytes -eq 0) '全部帧释放后实际字节预算必须归零。'
 
+# 连续采集不发送软件命令、不缓存空闲帧，并允许两轮节点运行间主动跳帧。
+$earlyContinuousTimestamp = [Diagnostics.Stopwatch]::GetTimestamp()
+$continuousTicket = $registry.RegisterContinuousWait('CAMERA-CONTINUOUS', (New-Context '连续采集'), [DateTime]::UtcNow.AddSeconds(10), [long]256, [long]4096)
+Assert-True ($continuousTicket.TriggerKind.ToString() -eq 'Continuous') '连续采集票据类型错误。'
+$continuousCommandRejected = $false
+try { $continuousTicket.IssueSoftwareTrigger($noOpTrigger) } catch { $continuousCommandRejected = $true }
+Assert-True $continuousCommandRejected '连续采集不得发送软件触发命令。'
+$oldContinuousFrame = New-TestMat
+Assert-True (-not $registry.TryPublishFrame('CAMERA-CONTINUOUS', [long]1, [uint32]1, $earlyContinuousTimestamp, $oldContinuousFrame, $null)) '连续采集错误接管等待前的旧回调。'
+$oldContinuousFrame.Dispose()
+Assert-True (-not $continuousTicket.Completion.IsCompleted) '丢弃旧回调不应结束当前等待。'
+$continuousFrame = New-TestMat
+Assert-True ($registry.TryPublishFrame('CAMERA-CONTINUOUS', [long]2, [uint32]2, [Diagnostics.Stopwatch]::GetTimestamp(), $continuousFrame, $null)) '连续采集未接管新帧。'
+$continuousTicket.Completion.GetAwaiter().GetResult().Dispose()
+$continuousTicket.Dispose()
+Assert-True (-not $registry.ShouldCaptureBufferedHardwareFrame('CAMERA-CONTINUOUS')) '连续采集不得开启硬触发积压队列。'
+$idleContinuousFrame = New-TestMat
+Assert-True (-not $registry.TryPublishFrame('CAMERA-CONTINUOUS', [long]3, [uint32]3, [Diagnostics.Stopwatch]::GetTimestamp(), $idleContinuousFrame, $null)) '空闲连续帧不应进入缓存。'
+$idleContinuousFrame.Dispose()
+$continuousTicket2 = $registry.RegisterContinuousWait('CAMERA-CONTINUOUS', (New-Context '连续采集第二轮'), [DateTime]::UtcNow.AddSeconds(10), [long]256, [long]4096)
+$continuousFrame2 = New-TestMat
+Assert-True ($registry.TryPublishFrame('CAMERA-CONTINUOUS', [long]20, [uint32]20, [Diagnostics.Stopwatch]::GetTimestamp(), $continuousFrame2, $null)) '连续采集应允许跳过空闲帧。'
+$continuousTicket2.Completion.GetAwaiter().GetResult().Dispose()
+$continuousTicket2.Dispose()
+Assert-True ($budget.GetSnapshot().ReservedBytes -eq 0) '连续帧释放后预算必须归零。'
+$continuousTimeoutTicket = $registry.RegisterContinuousWait('CAMERA-CONTINUOUS-TIMEOUT', (New-Context '连续采集超时'), [DateTime]::UtcNow.AddSeconds(10), [long]256, [long]4096)
+$continuousTimeoutTask = $waitForProductionFrameMethod.Invoke($null, @($registry, $continuousTimeoutTicket, [Threading.Tasks.Task]::CompletedTask, [int]20, $none))
+$continuousTimedOut = $false
+try { $null = $continuousTimeoutTask.GetAwaiter().GetResult() } catch {
+    $continuousTimedOut = (Get-InnermostException $_.Exception) -is [TimeoutException]
+}
+Assert-True $continuousTimedOut '连续采集没有遵循节点采图超时。'
+$continuousTimeoutTicket.Dispose()
+Confirm-CameraStreamReset 'CAMERA-CONTINUOUS-TIMEOUT'
+$continuousStopTicket = $registry.RegisterContinuousWait('CAMERA-CONTINUOUS-STOP', (New-Context '连续采集停止'), [DateTime]::UtcNow.AddSeconds(10), [long]256, [long]4096)
+$continuousCancellation = [Threading.CancellationTokenSource]::new()
+$continuousStopTask = $waitForProductionFrameMethod.Invoke($null, @($registry, $continuousStopTicket, [Threading.Tasks.Task]::CompletedTask, [int]5000, $continuousCancellation.Token))
+$continuousCancellation.Cancel()
+$continuousCancelled = $false
+try { $null = $continuousStopTask.GetAwaiter().GetResult() } catch {
+    $continuousCancelled = (Get-InnermostException $_.Exception) -is [OperationCanceledException]
+}
+Assert-True $continuousCancelled '停止未解除连续采集等待。'
+$continuousStopTicket.Dispose()
+$continuousCancellation.Dispose()
+Confirm-CameraStreamReset 'CAMERA-CONTINUOUS-STOP'
+Assert-True ($budget.GetSnapshot().ReservedBytes -eq 0) '连续采集超时或停止后预算未释放。'
+
 # 线路硬触发票据必须在一个相机临界区内完成登记与武装，并只等待物理帧。
 $hardwareContext = New-Context '产线硬触发'
 $hardwareTicket = $registry.RegisterHardwareWait(

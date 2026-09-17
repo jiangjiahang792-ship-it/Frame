@@ -33,6 +33,7 @@ namespace TDJS_Vision.ResourceManagement
                 case NodeType.ImageSplit:
                 case NodeType.QRScan:
                 case NodeType.MatchTemplate:
+                case NodeType.ContourMatch:
                 case NodeType.NccMatchTemplate:
                 case NodeType.DrawAIResult:
                 case NodeType.ResultOverlayDraw:

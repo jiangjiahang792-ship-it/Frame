@@ -200,6 +200,8 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
                     return typeof(long);
                 case RegistersType.ULong:
                     return typeof(ulong);
+                case RegistersType.String:
+                    return typeof(string);
                 default:
                     return typeof(object);
             }

@@ -32,7 +32,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
             if (param == null)
                 return new string[0];
 
-            return ModbusReadDynamicVariable.BuildNames(param.StartAddress, param.Count);
+            return ModbusReadDynamicVariable.BuildNames(param.StartAddress, param.OutputValueCount);
         }
 
         /// <summary>
@@ -43,7 +43,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
             valueType = typeof(object);
             NodeParamModbusRead param = ParamForm == null ? null : ParamForm.Params as NodeParamModbusRead;
             if (param == null ||
-                !ModbusReadDynamicVariable.ContainsVariable(param.StartAddress, param.Count, variableName))
+                !ModbusReadDynamicVariable.ContainsVariable(param.StartAddress, param.OutputValueCount, variableName))
             {
                 return false;
             }
@@ -61,6 +61,10 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
         private async Task RunHandler(object sender, EventArgs e)
         {
             await Run(CancellationToken.None, _process != null && _process.ShowLog && OutputLog);
+            // 手动执行后在界面显示读取值；自动运行不更新界面，避免增加每帧开销。
+            NodeResultModbusRead result = Result as NodeResultModbusRead;
+            if (ParamForm is ParamFormModbusRead form && result?.ReadData != null)
+                form.SetReadResult(result.ReadData.StartAddress + ": " + ArrayObjectToString(result.ReadData.Data));
         }
 
         /// <summary>
@@ -69,6 +73,10 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
         public override async Task<NodeReturn> Run(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+
+            // 每次读取先清除上次结果，取消或解码失败时不能让下游使用上一件的条码。
+            if (Result is NodeResultModbusRead previousResult)
+                previousResult.ReadData = null;
 
             if (!Active)
             {
@@ -129,25 +137,16 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
                     case RegistersType.离散输入:
                         data = modbus.ReadDiscretes(param.StartAddress, param.Count);
                         break;
-                    default:
+                    case RegistersType.String:
+                        // 沿用结果数组协议，仅发布一个完整字符串，避免把寄存器数量当成字符串数量。
+                        data = new[] { modbus.ReadString(param.StartAddress, param.Count,
+                            param.StringEncodingName, param.StringLowByteFirst) };
                         break;
+                    default:
+                        throw new InvalidOperationException("不支持的 Modbus 读取类型。");
                 }
 
-                #region 数据显示
 
-                string resultStr = string.Empty;
-                //if (showLog)
-                //{
-                //    if (ParamForm is ParamFormModbusRead form)
-                //    {
-                //        form.SetReadResult("[开始]");
-                //        resultStr = ArrayObjectToString(data);
-                //        form.SetReadResult($"{param.StartAddress}: {resultStr}");
-                //        form.SetReadResult("[结束]");
-                //        form.SetReadResult("-------------------------------");
-                //    }
-                //}
-                #endregion
 
                 if (Result is NodeResultModbusRead result)
                 {
@@ -160,7 +159,10 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
                 var time = SetRunResult(startTime, NodeStatus.Successful);
                 Result.RunTime = time;
                 if(showLog)
+                {
+                    string resultStr = ArrayObjectToString(data);
                     LogHelper.AddLog(MsgLevel.Info, $"节点({ID}.{NodeName})运行成功！({time} ms, 读取结果：{resultStr})", true);
+                }
                 return new NodeReturn(NodeRunFlag.ContinueRun);
 
             }

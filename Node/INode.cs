@@ -1,4 +1,4 @@
-﻿
+
 using System;
 using System.IO.Ports;
 
@@ -487,5 +487,7 @@ namespace TDJS_Vision.Node
         CameraExposureGain,
         /// <summary>将上游基础结果写入PLC或Modbus设备。</summary>
         ResultSend,
+        /// <summary>保留原生Demo创建与搜索参数的轮廓模板匹配。</summary>
+        ContourMatch,
     }
 }

@@ -68,7 +68,10 @@ namespace TDJS_Vision.ResourceManagement
         Software = 0,
 
         /// <summary>外部线路硬触发。</summary>
-        Hardware = 1
+        Hardware = 1,
+
+        /// <summary>连续采集，只接管当前节点等待期间的新帧。</summary>
+        Continuous = 2
     }
 
     /// <summary>工件图像内存预算不足时抛出的生产准入异常。</summary>
@@ -1176,11 +1179,11 @@ namespace TDJS_Vision.ResourceManagement
                         throw new InvalidOperationException(
                             $"相机{normalizedCameraKey}仍有预览软件触发或待返回预览帧，禁止登记生产工件。 ");
                     }
-                    if (triggerKind == CameraTriggerKind.Software &&
+                    if (triggerKind != CameraTriggerKind.Hardware &&
                         (state.HardwareFrameBufferingEnabled || state.BufferedHardwareFrames.Count != 0))
                     {
                         throw new InvalidOperationException(
-                            $"相机{normalizedCameraKey}已经进入生产硬触发持续接管，停流排空并重启前禁止登记软件触发工件。 ");
+                            $"相机{normalizedCameraKey}已经进入生产硬触发持续接管，停流排空并重启前禁止切换采集模式。 ");
                     }
                     int occupancy = state.PendingTickets.Count + (state.InFlightTicket == null ? 0 : 1);
                     if (occupancy >= MaximumPendingTicketsPerCamera)
@@ -1211,6 +1214,38 @@ namespace TDJS_Vision.ResourceManagement
                 }
                 throw;
             }
+        }
+
+        /// <summary>原子登记连续采集等待；空闲帧不缓存，预算租约仍随输出图像释放。</summary>
+        /// <param name="cameraKey">稳定相机键。</param>
+        /// <param name="context">当前工件上下文。</param>
+        /// <param name="deadlineUtc">本轮采图截止时间。</param>
+        /// <param name="estimatedFrameBytes">预留的估算图像字节数。</param>
+        /// <param name="memoryBudgetBytes">图像总预算。</param>
+        /// <returns>已就绪的连续采集票据。</returns>
+        public CameraTriggerTicket RegisterContinuousWait(
+            string cameraKey,
+            WorkpieceExecutionContext context,
+            DateTime deadlineUtc,
+            long estimatedFrameBytes,
+            long memoryBudgetBytes)
+        {
+            string normalizedCameraKey = NormalizeCameraKey(cameraKey);
+            return ExecuteCameraSynchronized(normalizedCameraKey, () =>
+            {
+                CameraTriggerTicket ticket = Register(normalizedCameraKey, context,
+                    CameraTriggerKind.Continuous, deadlineUtc, estimatedFrameBytes, memoryBudgetBytes);
+                try
+                {
+                    MarkReadyForFrameCore(ticket, DateTime.UtcNow, false);
+                    return ticket;
+                }
+                catch
+                {
+                    ticket.Dispose();
+                    throw;
+                }
+            });
         }
 
         /// <summary>原子登记并武装线路硬触发票据，确保物理帧不能穿过登记与就绪之间的空窗。</summary>
@@ -1481,6 +1516,11 @@ namespace TDJS_Vision.ResourceManagement
                 else
                 {
                     ticket = state.PendingTickets.First.Value;
+                    // 连续流允许跳过空闲帧，但不把本轮等待之前已进入回调的帧交给当前节点。
+                    if (ticket.TriggerKind == CameraTriggerKind.Continuous &&
+                        (callbackStartedTimestamp < ticket.TriggerIssuedTimestamp ||
+                            (state.HasAcceptedFrame && frameId <= state.LastFrameId)))
+                        return false;
                     if (!ticket.TriggerIssuedAtUtc.HasValue)
                     {
                         state.Faulted = true;
@@ -1500,7 +1540,8 @@ namespace TDJS_Vision.ResourceManagement
                         _timedOutTicketCount++;
                         failure = new TimeoutException($"相机{normalizedCameraKey}等待工件{ticket.Context.Identity}帧超时。 ");
                     }
-                    else if (!IsNextFrameNumber(state, frameId, sdkFrameNumber, out string sequenceReason))
+                    else if (ticket.TriggerKind != CameraTriggerKind.Continuous &&
+                        !IsNextFrameNumber(state, frameId, sdkFrameNumber, out string sequenceReason))
                     {
                         state.Faulted = true;
                         _frameSequenceFaultCount++;

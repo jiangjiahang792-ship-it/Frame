@@ -53,6 +53,20 @@ namespace TDJS_Vision.Node
         /// </summary>
         private SubscriptionOutputDescriptor _selectedOutput;
 
+        /// <summary>订阅节点或结果路径完成变更后通知调用方，程序恢复和清空同样生效。</summary>
+        public event EventHandler SelectionChanged;
+        /// <summary>上次通知的节点路径，用于过滤刷新下拉列表产生的重复通知。</summary>
+        private string _notifiedNodeText;
+        /// <summary>上次通知的结果路径。</summary>
+        private string _notifiedResultText;
+        /// <summary>仅在完整订阅路径发生变化后发布事件。</summary>
+        private void NotifySelectionChanged()
+        {
+            if (_notifiedNodeText == _text1 && _notifiedResultText == _text2) return;
+            _notifiedNodeText = _text1; _notifiedResultText = _text2;
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         public NodeSubscription()
         {
             InitializeComponent();
@@ -336,6 +350,7 @@ namespace TDJS_Vision.Node
             {
                 comboBox2.EndUpdate();
                 _isUpdatingResultCombo = false;
+                NotifySelectionChanged();
             }
         }
         /// <summary>
@@ -459,6 +474,7 @@ namespace TDJS_Vision.Node
             SetNodeComboSelectedIndex(-1);
             comboBox2.Items.Clear();
             comboBox2.Text = string.Empty;
+            NotifySelectionChanged();
         }
 
         /// <summary>
@@ -495,6 +511,7 @@ namespace TDJS_Vision.Node
                 }));
                 comboBox2.SelectedIndex = 0;
             }
+            NotifySelectionChanged();
         }
 
         /// <summary>
@@ -611,6 +628,7 @@ namespace TDJS_Vision.Node
 
             _text2 = item.PersistedText;
             _selectedOutput = item.Descriptor;
+            if (!_isUpdatingResultCombo) NotifySelectionChanged();
         }
 
         private void EnsureSelectedNodeFresh()

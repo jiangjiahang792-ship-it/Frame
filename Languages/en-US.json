@@ -333,5 +333,6 @@
   "焊接区域长度": "Weld region length",
   "焊接区域宽度": "Weld region width",
   "右线芯长度": "Right core length",
-  "右线芯宽度": "Right core width"
+  "右线芯宽度": "Right core width",
+  "轮廓模板匹配": "Contour Template Matching"
 }

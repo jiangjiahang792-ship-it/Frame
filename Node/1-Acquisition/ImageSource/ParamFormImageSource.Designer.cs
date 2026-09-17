@@ -53,6 +53,8 @@
             this.labelTriggerDelay = new System.Windows.Forms.Label();
             this.labelHardTrigger = new System.Windows.Forms.Label();
             this.comboBoxTriggerEdge = new System.Windows.Forms.ComboBox();
+            this.labelTriggerModel = new System.Windows.Forms.Label();
+            this.comboBoxTriggerModel = new System.Windows.Forms.ComboBox();
             this.labelTriggerMode = new System.Windows.Forms.Label();
             this.comboBoxTriggerMode = new System.Windows.Forms.ComboBox();
             this.tableLayoutPanelSharedVariable = new System.Windows.Forms.TableLayoutPanel();
@@ -209,36 +211,58 @@
             this.tableLayoutPanelCamera.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50.00001F));
             this.tableLayoutPanelCamera.Controls.Add(this.labelChoiceCamera, 0, 0);
             this.tableLayoutPanelCamera.Controls.Add(this.comboBoxChoiceCamera, 1, 0);
-            this.tableLayoutPanelCamera.Controls.Add(this.labelStrobe, 0, 7);
-            this.tableLayoutPanelCamera.Controls.Add(this.comboBoxStrobe, 1, 7);
-            this.tableLayoutPanelCamera.Controls.Add(this.label1, 0, 6);
-            this.tableLayoutPanelCamera.Controls.Add(this.numericUpDownTimeOut, 1, 6);
-            this.tableLayoutPanelCamera.Controls.Add(this.labelGain, 0, 5);
-            this.tableLayoutPanelCamera.Controls.Add(this.numericUpDownGain, 1, 5);
-            this.tableLayoutPanelCamera.Controls.Add(this.labelExposureTime, 0, 4);
-            this.tableLayoutPanelCamera.Controls.Add(this.numericUpDownExposureTime, 1, 4);
-            this.tableLayoutPanelCamera.Controls.Add(this.numericUpDownTriggerDelay, 1, 3);
-            this.tableLayoutPanelCamera.Controls.Add(this.labelTriggerDelay, 0, 3);
-            this.tableLayoutPanelCamera.Controls.Add(this.labelHardTrigger, 0, 2);
-            this.tableLayoutPanelCamera.Controls.Add(this.comboBoxTriggerEdge, 1, 2);
-            this.tableLayoutPanelCamera.Controls.Add(this.labelTriggerMode, 0, 1);
-            this.tableLayoutPanelCamera.Controls.Add(this.comboBoxTriggerMode, 1, 1);
+            this.tableLayoutPanelCamera.Controls.Add(this.labelStrobe, 0, 8);
+            this.tableLayoutPanelCamera.Controls.Add(this.comboBoxStrobe, 1, 8);
+            this.tableLayoutPanelCamera.Controls.Add(this.label1, 0, 7);
+            this.tableLayoutPanelCamera.Controls.Add(this.numericUpDownTimeOut, 1, 7);
+            this.tableLayoutPanelCamera.Controls.Add(this.labelGain, 0, 6);
+            this.tableLayoutPanelCamera.Controls.Add(this.numericUpDownGain, 1, 6);
+            this.tableLayoutPanelCamera.Controls.Add(this.labelExposureTime, 0, 5);
+            this.tableLayoutPanelCamera.Controls.Add(this.numericUpDownExposureTime, 1, 5);
+            this.tableLayoutPanelCamera.Controls.Add(this.numericUpDownTriggerDelay, 1, 4);
+            this.tableLayoutPanelCamera.Controls.Add(this.labelTriggerDelay, 0, 4);
+            this.tableLayoutPanelCamera.Controls.Add(this.labelHardTrigger, 0, 3);
+            this.tableLayoutPanelCamera.Controls.Add(this.comboBoxTriggerEdge, 1, 3);
+            this.tableLayoutPanelCamera.Controls.Add(this.labelTriggerMode, 0, 2);
+            this.tableLayoutPanelCamera.Controls.Add(this.comboBoxTriggerMode, 1, 2);
+            this.tableLayoutPanelCamera.Controls.Add(this.labelTriggerModel, 0, 1);
+            this.tableLayoutPanelCamera.Controls.Add(this.comboBoxTriggerModel, 1, 1);
             this.tableLayoutPanelCamera.Font = new System.Drawing.Font("宋体", 10.5F);
             this.tableLayoutPanelCamera.Location = new System.Drawing.Point(3, 256);
             this.tableLayoutPanelCamera.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.tableLayoutPanelCamera.Name = "tableLayoutPanelCamera";
-            this.tableLayoutPanelCamera.RowCount = 8;
-            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
-            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
-            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
-            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
-            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
-            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
-            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
-            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 12.5F));
-            this.tableLayoutPanelCamera.Size = new System.Drawing.Size(674, 416);
+            this.tableLayoutPanelCamera.RowCount = 9;
+            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 11.11111F));
+            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 11.11111F));
+            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 11.11111F));
+            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 11.11111F));
+            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 11.11111F));
+            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 11.11111F));
+            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 11.11111F));
+            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 11.11111F));
+            this.tableLayoutPanelCamera.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 11.11111F));
+            this.tableLayoutPanelCamera.Size = new System.Drawing.Size(674, 468);
             this.tableLayoutPanelCamera.TabIndex = 2;
             // 
+            // labelTriggerModel
+            //
+            this.labelTriggerModel.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.labelTriggerModel.AutoSize = true;
+            this.labelTriggerModel.Font = new System.Drawing.Font("宋体", 10.5F);
+            this.labelTriggerModel.Name = "labelTriggerModel";
+            this.labelTriggerModel.Text = "触发模式";
+            //
+            // comboBoxTriggerModel
+            //
+            this.comboBoxTriggerModel.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.comboBoxTriggerModel.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxTriggerModel.Font = new System.Drawing.Font("宋体", 10.5F);
+            this.comboBoxTriggerModel.Items.AddRange(new object[] { "开启", "关闭（连续采集）" });
+            this.comboBoxTriggerModel.Name = "comboBoxTriggerModel";
+            this.comboBoxTriggerModel.Size = new System.Drawing.Size(211, 29);
+            this.comboBoxTriggerModel.TabIndex = 1;
+            this.comboBoxTriggerModel.SelectedIndexChanged += new System.EventHandler(this.comboBoxTriggerModel_SelectedIndexChanged);
+            //
             // labelChoiceCamera
             // 
             this.labelChoiceCamera.Anchor = System.Windows.Forms.AnchorStyles.None;
@@ -442,7 +466,7 @@
             this.labelTriggerMode.Name = "labelTriggerMode";
             this.labelTriggerMode.Size = new System.Drawing.Size(94, 21);
             this.labelTriggerMode.TabIndex = 0;
-            this.labelTriggerMode.Text = "触发方式";
+            this.labelTriggerMode.Text = "触发源";
             // 
             // comboBoxTriggerMode
             // 
@@ -540,7 +564,7 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.AutoSize = true;
-            this.ClientSize = new System.Drawing.Size(682, 948);
+            this.ClientSize = new System.Drawing.Size(682, 1000);
             this.Controls.Add(this.flowLayoutPanel1);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Margin = new System.Windows.Forms.Padding(3, 5, 3, 5);
@@ -582,6 +606,10 @@
         private System.Windows.Forms.Label labelChoiceCamera;
         private System.Windows.Forms.ComboBox comboBoxChoiceCamera;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanelSave;
+        /// <summary>相机触发模式标签。</summary>
+        private System.Windows.Forms.Label labelTriggerModel;
+        /// <summary>开启触发或关闭触发并连续采集的选择控件。</summary>
+        private System.Windows.Forms.ComboBox comboBoxTriggerModel;
         private System.Windows.Forms.Label labelTriggerMode;
         private System.Windows.Forms.ComboBox comboBoxTriggerMode;
         private System.Windows.Forms.Label labelHardTrigger;

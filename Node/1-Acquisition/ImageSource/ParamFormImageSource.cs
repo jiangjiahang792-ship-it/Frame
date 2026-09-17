@@ -42,6 +42,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         public ParamFormImageSource(NodeBase node)
         {
             InitializeComponent();
+            comboBoxTriggerModel.SelectedIndex = 0;
             // 获取最初窗口高度
             _formHeight = this.Height;
             _node = node;
@@ -122,15 +123,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     }
                     else if (param.ImageSource == "相机")
                     {
-                        // 旧方案可能保存了连续取流模式；新版本统一迁移为回调触发模式。
-                        if (param.TriggerModel == TriggerModel.Off)
-                        {
-                            param.TriggerModel = TriggerModel.On;
-                            LogHelper.AddLog(
-                                MsgLevel.Info,
-                                $"流程【{_imageSourceNode?.Process?.ProcessName}】图像源节点({_imageSourceNode?.ID}.{_imageSourceNode?.NodeName})的旧触发模式 Off 已迁移为 On。",
-                                true);
-                        }
+                        // 保留方案的连续采集或触发采集选择，打开窗口不修改参数。
+                        comboBoxTriggerModel.SelectedIndex = param.TriggerModel == TriggerModel.Off ? 1 : 0;
 
                         // 先按方案中的相机名称绑定当前设备对象，不能依赖上次运行留下的对象引用。
                         cameraToConfigure = Solution.Instance.ResolveImageSourceCamera(param);
@@ -324,12 +318,23 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// <param name="e"></param>
         private void comboBoxTriggerMode_SelectedIndexChanged(object sender, EventArgs e)
         {
-            // 软触发
-            if (0 == comboBoxTriggerMode.SelectedIndex)
-                comboBoxTriggerEdge.Enabled = false;
-            // 硬触发（Line0-Line4）
-            else
-                comboBoxTriggerEdge.Enabled = true;
+            UpdateTriggerControls();
+        }
+
+        /// <summary>切换触发模式时保留触发参数，仅更新适用控件的可用状态。</summary>
+        private void comboBoxTriggerModel_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            UpdateTriggerControls();
+        }
+
+        /// <summary>连续采集不使用触发参数，触发采集仅在线路源下启用触发沿。</summary>
+        private void UpdateTriggerControls()
+        {
+            bool triggerEnabled = comboBoxTriggerModel.SelectedIndex != 1;
+            comboBoxTriggerMode.Enabled = triggerEnabled;
+            numericUpDownTriggerDelay.Enabled = triggerEnabled;
+            comboBoxTriggerEdge.Enabled = triggerEnabled &&
+                IsHardwareTriggerSource(ParseTriggerSourceText(comboBoxTriggerMode.Text));
         }
 
         /// <summary>
@@ -350,12 +355,13 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 ? TriggerSource.SOFT
                 : triggerSource;
             camera.SetTriggerMode(triggerModel);        // 设置触发模式
-            camera.SetTriggerSource(effectiveTriggerSource); // 设置触发源
-            if (IsHardwareTriggerSource(effectiveTriggerSource))
-                camera.SetTriggerEdge(triggerEdge);     // 只有线路硬触发存在触发极性
-            //if (triggerSource != TriggerSource.Auto)
-            //    camera.SetTriggerMode(true);                // 设置触发模式（除了自动取流外均设置）
-            camera.SetTriggerDelay(delay);              // 设置触发延迟
+            if (triggerModel == TriggerModel.On)
+            {
+                camera.SetTriggerSource(effectiveTriggerSource);
+                if (IsHardwareTriggerSource(effectiveTriggerSource))
+                    camera.SetTriggerEdge(triggerEdge);
+                camera.SetTriggerDelay(delay);
+            }
             camera.SetExposureTime(exposureTime);       // 设置曝光时间
             camera.SetGain(gain);                       // 设置增益
             camera.GetImageTimeOut = timeOut;           // 设置采图超时xw
@@ -381,7 +387,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 
                 SetCameraParams(
                     camera,
-                    TriggerModel.On,
+                    param.TriggerModel,
                     param.TriggerSource,
                     param.TriggerEdge,
                     param.TriggerDelay,
@@ -561,8 +567,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     return false;
                 }
 
-                // 相机图像源统一使用回调触发模式。
-                _nodeParamImageSource.TriggerModel = TriggerModel.On;
+                // 模式与触发源分别保存，关闭后再次开启仍可恢复原触发配置。
+                _nodeParamImageSource.TriggerModel = comboBoxTriggerModel.SelectedIndex == 1
+                    ? TriggerModel.Off : TriggerModel.On;
 
                 _nodeParamImageSource.TriggerSource = ParseTriggerSourceText(comboBoxTriggerMode.Text);
 

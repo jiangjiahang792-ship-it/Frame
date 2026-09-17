@@ -528,7 +528,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                     MsgLevel.Debug,
                     () => $"【完整耗时-相机帧】流程={Process?.ProcessName}；TraceId={Process?.CurrentPerformanceTraceId}；RunId={Process?.CurrentRunId}；节点={ID}.{NodeName}；阶段=等待器就绪；相机={camera.DevName}；触发源={param.TriggerSource}",
                     true);
-                if (GetEffectiveTriggerSource(param.TriggerSource) == TriggerSource.SOFT)
+                if (param.TriggerModel == TriggerModel.On &&
+                    GetEffectiveTriggerSource(param.TriggerSource) == TriggerSource.SOFT)
                     camera.GrabOne();
 
                 callbackMat = await frameTask.ConfigureAwait(false);
@@ -600,7 +601,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             int timeoutMilliseconds = configuredTimeoutMilliseconds;
             long memoryBudgetBytes = GetWorkpieceFrameMemoryBudgetBytes();
             long estimatedFrameBytes = GetEstimatedCameraFrameBytes(camera);
-            CameraTriggerKind triggerKind = GetProductionCameraTriggerKind(param.TriggerSource);
+            CameraTriggerKind triggerKind = param.TriggerModel == TriggerModel.Off
+                ? CameraTriggerKind.Continuous
+                : GetProductionCameraTriggerKind(param.TriggerSource);
             bool isSoftwareTrigger = triggerKind == CameraTriggerKind.Software;
             bool initialFrameStartupGraceApplied = false;
 
@@ -640,16 +643,23 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 timeoutMilliseconds = AddInitialProductionFrameStartupGrace(
                     configuredTimeoutMilliseconds,
                     initialFrameStartupGraceApplied);
-                // 线路硬触发由外部设备决定到帧时刻，只允许停止令牌结束等待；节点超时仅约束软件触发。
-                DateTime deadlineUtc = isSoftwareTrigger
-                    ? DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds)
-                    : DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
+                // 线路硬触发等待外部信号；连续采集和软件触发均受节点超时约束。
+                DateTime deadlineUtc = triggerKind == CameraTriggerKind.Hardware
+                    ? DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc)
+                    : DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds);
 
                 ticket = isSoftwareTrigger
                     ? registry.Register(
                         cameraKey,
                         workpieceContext,
                         triggerKind,
+                        deadlineUtc,
+                        estimatedFrameBytes,
+                        memoryBudgetBytes)
+                    : triggerKind == CameraTriggerKind.Continuous
+                    ? registry.RegisterContinuousWait(
+                        cameraKey,
+                        workpieceContext,
                         deadlineUtc,
                         estimatedFrameBytes,
                         memoryBudgetBytes)
@@ -725,7 +735,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 return outputImage;
             }
             catch (TimeoutException timeoutException) when (
-                isSoftwareTrigger &&
+                triggerKind != CameraTriggerKind.Hardware &&
                 !(timeoutException is SoftwareTriggerCommandTimeoutException) &&
                 !productionCancellation.IsCancellationRequested)
             {
@@ -736,7 +746,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         productionCancellation.Token);
                     LogHelper.AddLog(
                         MsgLevel.Warn,
-                        $"相机【{camera.UserDefinedName}】本次软件触发等待超过{timeoutMilliseconds}ms" +
+                        $"相机【{camera.UserDefinedName}】本次采图等待超过{timeoutMilliseconds}ms" +
                         (initialFrameStartupGraceApplied
                             ? $"（方案超时{configuredTimeoutMilliseconds}ms+首次启动宽限{InitialProductionFrameStartupGraceMilliseconds}ms）"
                             : string.Empty) + "，" +
@@ -751,7 +761,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 {
                     LogHelper.AddLog(
                         MsgLevel.Exception,
-                        $"相机【{camera.UserDefinedName}】本次软件触发等待超过{timeoutMilliseconds}ms，" +
+                        $"相机【{camera.UserDefinedName}】本次采图等待超过{timeoutMilliseconds}ms，" +
                         $"随后执行单相机停流恢复失败：{recoveryException.Message}；方案未因普通取帧超时主动停止。",
                         true);
                     throw new InvalidOperationException(
@@ -782,7 +792,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             }
         }
 
-        /// <summary>普通软件触发取帧超时后只重启当前相机，排空可能迟到的旧帧并恢复下一轮采集。</summary>
+        /// <summary>普通取帧超时后只重启当前相机，排空可能迟到的旧帧并恢复下一轮采集。</summary>
         private static void RecoverProductionCameraAfterFrameTimeout(
             ICamera camera,
             CancellationToken token)
@@ -799,7 +809,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             camera.StartGrabbing();
         }
 
-        /// <summary>等待票据完成或流程取消；只有软件触发受节点采图超时约束。</summary>
+        /// <summary>等待票据完成或流程取消；连续采集和软件触发受节点采图超时约束。</summary>
         private static async Task<CameraFrameEnvelope> WaitForProductionFrameAsync(
             CameraTriggerTicketRegistry registry,
             CameraTriggerTicket ticket,
@@ -1090,11 +1100,14 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                             if (param.IsEveryTime)
                             {
                                 TriggerSource effectiveTriggerSource = GetEffectiveTriggerSource(param.TriggerSource);
-                                camera.SetTriggerMode(TriggerModel.On);
-                                camera.SetTriggerSource(effectiveTriggerSource);
-                                if (effectiveTriggerSource >= TriggerSource.LINE0 && effectiveTriggerSource <= TriggerSource.LINE4)
-                                    camera.SetTriggerEdge(param.TriggerEdge);
-                                camera.SetTriggerDelay(param.TriggerDelay);
+                                camera.SetTriggerMode(param.TriggerModel);
+                                if (param.TriggerModel == TriggerModel.On)
+                                {
+                                    camera.SetTriggerSource(effectiveTriggerSource);
+                                    if (effectiveTriggerSource >= TriggerSource.LINE0 && effectiveTriggerSource <= TriggerSource.LINE4)
+                                        camera.SetTriggerEdge(param.TriggerEdge);
+                                    camera.SetTriggerDelay(param.TriggerDelay);
+                                }
                                 camera.SetExposureTime(param.ExposureTime);
                                 camera.SetGain(param.Gain);
                                 camera.GetImageTimeOut = param.TimeOut;

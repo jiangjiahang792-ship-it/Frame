@@ -18,11 +18,17 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
         // 定义事件
         public event AsyncEventHandler<EventArgs> RunHandler;
 
+        /// <summary>编码下拉项对应的持久化名称，顺序与设计器一致。</summary>
+        private static readonly string[] StringEncodingNames = { "us-ascii", "utf-8", "gb18030", "utf-16" };
+
         public ParamFormModbusRead()
         {
             InitializeComponent();
             InitModbusComboBox();
             comboBoxModbusDev.SelectedIndex = 0;
+            comboBoxStringEncoding.SelectedIndex = 0;
+            comboBoxStringByteOrder.SelectedIndex = 0;
+            UpdateStringOptions();
         }
 
         public void SetReadResult(string result)
@@ -61,17 +67,19 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
         /// <param name="e"></param>
         private void button1_Click(object sender, EventArgs e)
         {
-            SaveParams();
-            Hide();
+            if (SaveParams())
+                Hide();
         }
 
-        private void SaveParams()
+        /// <summary>校验并保存参数；失败时阻止关闭窗体或按旧参数执行。</summary>
+        /// <returns>是否保存成功。</returns>
+        private bool SaveParams()
         {
             if (comboBoxModbusDev.Text.IsNullOrEmpty() || comboBoxModbusDev.Text == "[未设置]")
             {
                 LogHelper.AddLog(MsgLevel.Exception, "Modbus不能为空！", true);
                 MessageBoxTD.Show("Modbus不能为空！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                return false;
             }
             ushort adress, length;
             try
@@ -85,9 +93,22 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
             {
                 LogHelper.AddLog(MsgLevel.Exception, "无效的起始地址或读取个数", true);
                 MessageBoxTD.Show("无效的起始地址或读取个数", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                return false;
             }
 
+            if (comboBox2.SelectedIndex < 0)
+            {
+                MessageBoxTD.Show("请选择读取数据类型。", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+            if (comboBox2.Text == "字符串" &&
+                (length > 125 || (int)adress + length > 65536 ||
+                 comboBoxStringEncoding.SelectedIndex < 0 || comboBoxStringByteOrder.SelectedIndex < 0))
+            {
+                MessageBoxTD.Show("请选择字符串编码和字节顺序；寄存器个数必须为 1 至 125，且不能超过地址范围。",
+                    "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
 
             //查找当前选择的Modbus
             IModbus modbus = null;
@@ -98,6 +119,12 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
                     modbus = dev;
                     break;
                 }
+            }
+
+            if (modbus == null)
+            {
+                MessageBoxTD.Show("所选 Modbus 设备不存在，请重新选择。", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
             }
 
             NodeParamModbusRead nodeParamRead = new NodeParamModbusRead();
@@ -139,11 +166,34 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
                 case "离散输入":
                     nodeParamRead.DataType = RegistersType.离散输入;
                     break;
+                case "字符串":
+                    nodeParamRead.DataType = RegistersType.String;
+                    break;
                 default:
                     break;
             }
             nodeParamRead.Count = length;
+            nodeParamRead.StringEncodingName = StringEncodingNames[Math.Max(0, comboBoxStringEncoding.SelectedIndex)];
+            nodeParamRead.StringLowByteFirst = comboBoxStringByteOrder.SelectedIndex == 1;
             Params = nodeParamRead;
+            return true;
+        }
+
+        /// <summary>类型切换时刷新字符串专用参数的启用状态。</summary>
+        /// <param name="sender">数据类型下拉框。</param>
+        /// <param name="e">选择变更事件。</param>
+        private void comboBox2_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            UpdateStringOptions();
+        }
+
+        /// <summary>说明字符串长度的单位，并仅在字符串类型下启用编码和字节顺序。</summary>
+        private void UpdateStringOptions()
+        {
+            bool isString = comboBox2.Text == "字符串";
+            label4.Text = isString ? "寄存器个数：\r\n（每个两字节）" : "读取个数：";
+            labelStringEncoding.Enabled = comboBoxStringEncoding.Enabled = isString;
+            labelStringByteOrder.Enabled = comboBoxStringByteOrder.Enabled = isString;
         }
 
         /// <summary>
@@ -210,18 +260,41 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
                     case RegistersType.离散输入:
                         comboBox2.SelectedIndex = 10;
                         break;
+                    case RegistersType.String:
+                        comboBox2.SelectedIndex = 11;
+                        break;
                     default:
                         comboBox2.SelectedIndex = -1;
                         break;
                 }
                 textBoxLength.Text = param.Count.ToString();
+                comboBoxStringEncoding.SelectedIndex = Array.IndexOf(StringEncodingNames, param.StringEncodingName);
+                comboBoxStringByteOrder.SelectedIndex = param.StringLowByteFirst ? 1 : 0;
+                UpdateStringOptions();
             }
         }
 
-        private void buttonRun_Click(object sender, EventArgs e)
+        /// <summary>使用当前合法参数执行读取，并显示结果或错误。</summary>
+        /// <param name="sender">执行按钮。</param>
+        /// <param name="e">点击事件。</param>
+        private async void buttonRun_Click(object sender, EventArgs e)
         {
-            SaveParams();
-            RunHandler?.Invoke(this, EventArgs.Empty);
+            if (!SaveParams() || RunHandler == null)
+                return;
+
+            buttonRun.Enabled = false;
+            try
+            {
+                await RunHandler.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                SetReadResult("读取失败：" + ex.Message);
+            }
+            finally
+            {
+                buttonRun.Enabled = true;
+            }
         }
 
         private void 清空ToolStripMenuItem_Click(object sender, EventArgs e)

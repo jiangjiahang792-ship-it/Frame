@@ -4515,6 +4515,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return Color.FromArgb(226, 140, 32);
                 case NodeType.LineMergeFit:
                     return Color.FromArgb(64, 170, 112);
+                case NodeType.ContourMatch:
                 case NodeType.NccMatchTemplate:
                     return Color.FromArgb(42, 157, 143);
                 default:

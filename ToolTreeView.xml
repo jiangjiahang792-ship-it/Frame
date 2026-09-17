@@ -28,6 +28,7 @@
     <Node Text="定位工具" ImageName="测量工具" Tag="UNKNOWN" SelectedImageName="测量工具">
       <Nodes>
         <Node Text="模板匹配" ImageName="模版匹配" Tag="MatchTemplate" SelectedImageName="模版匹配" />
+        <Node Text="轮廓模板匹配" ImageName="模版匹配" Tag="ContourMatch" SelectedImageName="模版匹配" />
         <Node Text="NCC模板匹配" ImageName="模版匹配" Tag="NccMatchTemplate" SelectedImageName="模版匹配" />
         <Node Text="位置修正" ImageName="测量工具" Tag="PositionCorrection" SelectedImageName="测量工具" />
       </Nodes>

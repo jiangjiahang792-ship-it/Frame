@@ -1186,9 +1186,9 @@ namespace TDJS_Vision
             TriggerSource rightSource = NormalizeImageSourceTriggerSource(right.TriggerSource);
             bool triggerEdgeMatches = !IsImageSourceHardwareTrigger(leftSource) ||
                 left.TriggerEdge == right.TriggerEdge;
-            return leftSource == rightSource &&
-                triggerEdgeMatches &&
-                left.TriggerDelay == right.TriggerDelay &&
+            return left.TriggerModel == right.TriggerModel &&
+                (left.TriggerModel == TriggerModel.Off ||
+                    (leftSource == rightSource && triggerEdgeMatches && left.TriggerDelay == right.TriggerDelay)) &&
                 left.ExposureTime.Equals(right.ExposureTime) &&
                 left.Gain.Equals(right.Gain) &&
                 left.TimeOut == right.TimeOut;
@@ -1241,10 +1241,13 @@ namespace TDJS_Vision
                 ? TriggerSource.SOFT
                 : param.TriggerSource;
             camera.SetTriggerMode(param.TriggerModel);
-            camera.SetTriggerSource(effectiveTriggerSource);
-            if (effectiveTriggerSource >= TriggerSource.LINE0 && effectiveTriggerSource <= TriggerSource.LINE4)
-                camera.SetTriggerEdge(param.TriggerEdge);
-            camera.SetTriggerDelay(param.TriggerDelay);
+            if (param.TriggerModel == TriggerModel.On)
+            {
+                camera.SetTriggerSource(effectiveTriggerSource);
+                if (effectiveTriggerSource >= TriggerSource.LINE0 && effectiveTriggerSource <= TriggerSource.LINE4)
+                    camera.SetTriggerEdge(param.TriggerEdge);
+                camera.SetTriggerDelay(param.TriggerDelay);
+            }
             camera.SetExposureTime(param.ExposureTime);
             camera.SetGain(param.Gain);
             camera.GetImageTimeOut = param.TimeOut;

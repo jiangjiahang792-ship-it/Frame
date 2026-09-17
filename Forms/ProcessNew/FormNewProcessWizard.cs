@@ -1,4 +1,4 @@
-﻿using gCursorLib;
+using gCursorLib;
 using Logger;
 using Sunny.UI;
 using System;
@@ -828,6 +828,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.UnsupervisedDetection:
                 case NodeType.LargeModelDetection:
                     return Color.FromArgb(125, 84, 188);
+                case NodeType.ContourMatch:
                 case NodeType.MatchTemplate:
                 case NodeType.NccMatchTemplate:
                 case NodeType.PositionCorrection:
@@ -946,6 +947,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return "QR";
                 case NodeType.MatchTemplate:
                     return "MT";
+                case NodeType.ContourMatch:
+                    return "CM";
                 case NodeType.NccMatchTemplate:
                     return "NCC";
                 case NodeType.BatteryEar:

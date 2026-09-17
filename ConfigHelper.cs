@@ -799,8 +799,13 @@ namespace TDJS_Vision
             return true;
         }
 
+        /// <summary>还原旧版 ROI 列表，允许新版参数将不再使用的旧字段保存为空值。</summary>
         public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
         {
+            // null 是合法的旧字段状态，必须在按对象读取前处理，并保留其原始语义。
+            if (reader.TokenType == JsonToken.Null)
+                return null;
+
             try
             {
                 var jObject = JObject.Load(reader);
