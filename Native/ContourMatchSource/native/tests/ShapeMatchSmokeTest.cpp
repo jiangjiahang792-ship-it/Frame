@@ -315,13 +315,43 @@ bool verifyWideRegionMask()
         return correct;
     };
     valid = check(image, 1334, 1109, 0) && valid;
-    for (double angle : {13.0, -7.0}) {
+    for (double angle : {13.0, -7.0, 0.3, -0.5}) {
         cv::Mat transform = cv::getRotationMatrix2D(cv::Point2f(1334, 1109), -angle, 1);
         transform.at<double>(0, 2) += 300; transform.at<double>(1, 2) += 400;
         cv::Mat shifted;
         cv::warpAffine(image, shifted, transform, cv::Size(3600, 3200), cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(20));
         valid = check(shifted, 1634, 1509, angle) && valid;
     }
+    // 未见过的无目标输入和缺失组合区域必须拒绝，不能靠低分辨率局部轮廓过关。
+    const auto reject = [&](const cv::Mat& search) {
+        SM_Match matches[2]{}; std::int32_t count = 0;
+        sm_find(handle, search.data, search.cols, search.rows, static_cast<int>(search.step),
+            1, -30, 30, 0.8, 2, 0.3, 1, 0, 0, matches, 2, &count);
+        if (count != 0) std::cerr << "Unexpected wide ROI detection: " << matches[0].score << '\n';
+        return count == 0;
+    };
+    cv::Mat blank(image.size(), CV_8U, cv::Scalar(20));
+    valid = reject(blank) && valid;
+    cv::Mat noise(image.size(), CV_8U); cv::RNG random(31987); random.fill(noise, cv::RNG::UNIFORM, 0, 256);
+    valid = reject(noise) && valid;
+    for (const auto& region : regions) {
+        cv::Mat missing = image.clone(); missing(region).setTo(20);
+        valid = reject(missing) && valid;
+    }
+    // 多目标必须按最终精修分数排序，返回数量受调用参数和输出缓冲区共同约束。
+    cv::Mat doubleImage(image.rows, image.cols * 2, CV_8U, cv::Scalar(20));
+    image.copyTo(doubleImage(cv::Rect(0, 0, image.cols, image.rows)));
+    image.copyTo(doubleImage(cv::Rect(image.cols, 0, image.cols, image.rows)));
+    SM_Match repeated[4]{}; std::int32_t repeatedCount = 0;
+    sm_find(handle, doubleImage.data, doubleImage.cols, doubleImage.rows, static_cast<int>(doubleImage.step),
+        1, -30, 30, 0.8, 2, 0.3, 1, 0, 0, repeated, 4, &repeatedCount);
+    valid = repeatedCount == 2 && repeated[0].score >= repeated[1].score && valid;
+    if (repeatedCount != 2) std::cerr << "Wide ROI two targets: " << repeatedCount << '\n';
+    std::int32_t integerCount = 0;
+    sm_find(handle, image.data, image.cols, image.rows, static_cast<int>(image.step),
+        1, -30, 30, 0.8, 1, 0.3, 0, 0, 0, repeated, 4, &integerCount);
+    valid = integerCount == 1 && repeated[0].centerX == std::round(repeated[0].centerX)
+        && repeated[0].centerY == std::round(repeated[0].centerY) && valid;
     sm_destroy(handle);
     std::cout << "Wide ROI automatic pyramid and rotation: " << (valid ? "passed" : "FAILED") << '\n';
     return valid;

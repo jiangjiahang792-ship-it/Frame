@@ -840,6 +840,140 @@ struct ContinuousPose
     double score = 0.0;
 };
 
+/// <summary>用三个相邻样本估计局部抛物线顶点。</summary>
+double parabolicOffset(double before, double center, double after);
+
+/// <summary>只在候选轮廓附近计算双线性 Sobel 梯度，避免为大图分配整幅原分辨率响应图。</summary>
+bool sparseGradient(const cv::Mat& gray, double x, double y, double& gx, double& gy)
+{
+    const int ix = cvFloor(x), iy = cvFloor(y);
+    if (ix < 1 || iy < 1 || ix + 2 >= gray.cols || iy + 2 >= gray.rows) return false;
+    gx = gy = 0.0;
+    for (int dy = 0; dy <= 1; ++dy) for (int dx = 0; dx <= 1; ++dx) {
+        const int px = ix + dx, py = iy + dy;
+        const auto* above = gray.ptr<unsigned char>(py - 1);
+        const auto* row = gray.ptr<unsigned char>(py);
+        const auto* below = gray.ptr<unsigned char>(py + 1);
+        const double weight = (dx ? x - ix : 1.0 - x + ix) * (dy ? y - iy : 1.0 - y + iy);
+        gx += weight * (above[px + 1] + 2 * row[px + 1] + below[px + 1]
+            - above[px - 1] - 2 * row[px - 1] - below[px - 1]);
+        gy += weight * (below[px - 1] + 2 * below[px] + below[px + 1]
+            - above[px - 1] - 2 * above[px] - above[px + 1]);
+    }
+    return true;
+}
+
+/// <summary>沿模型法线寻找同极性的边缘峰值，并在相邻采样之间拟合亚像素位置。</summary>
+bool sparseEdgeOffset(const cv::Mat& gray, double x, double y, double nx, double ny,
+    double radius, double threshold, bool ignorePolarity, double& offset, double& quality)
+{
+    double best = 0.0;
+    offset = quality = 0.0;
+    const int steps = cvCeil(radius);
+    for (int step = -steps; step <= steps; ++step) {
+        double gx, gy;
+        if (!sparseGradient(gray, x + nx * step, y + ny * step, gx, gy)) continue;
+        const double magnitude = std::hypot(gx, gy);
+        double projection = gx * nx + gy * ny;
+        if (ignorePolarity) projection = std::abs(projection);
+        if (magnitude < threshold || projection < magnitude * 0.95) continue;
+        const double score = projection / (1.0 + 0.04 * step * step);
+        if (score > best) { best = score; offset = step; quality = projection / magnitude; }
+    }
+    if (best <= 0.0) return false;
+    const auto projected = [&](double shift) {
+        double gx, gy;
+        if (!sparseGradient(gray, x + nx * shift, y + ny * shift, gx, gy)) return 0.0;
+        const double value = gx * nx + gy * ny;
+        return ignorePolarity ? std::abs(value) : value;
+    };
+    offset += 0.5 * parabolicOffset(projected(offset - 0.5), projected(offset), projected(offset + 0.5));
+    return true;
+}
+
+/// <summary>将模型整数 Canny 点校准到其自身灰度边缘峰值，消除原图定位的固有量化偏差。</summary>
+std::vector<BaseFeature> precisionFeatures(const cv::Mat& gray, const std::vector<BaseFeature>& features)
+{
+    auto result = features;
+    for (auto& feature : result) {
+        double offset, quality;
+        if (sparseEdgeOffset(gray, feature.x + gray.cols * 0.5, feature.y + gray.rows * 0.5,
+                feature.gradientX, feature.gradientY, 1.0, 1.0, false, offset, quality)) {
+            feature.x += static_cast<float>(feature.gradientX * offset);
+            feature.y += static_cast<float>(feature.gradientY * offset);
+        }
+    }
+    return result;
+}
+
+/// <summary>原分辨率稳健点到法线配准；搜索窗口逐步收敛，变换只含平移与旋转。</summary>
+ContinuousPose refineSparsePose(const cv::Mat& gray, const std::vector<BaseFeature>& features,
+    ContinuousPose pose, int scale, double threshold, bool ignorePolarity, double lowAngle, double highAngle,
+    bool subPixel)
+{
+    const auto constrainAngle = [&](double angle) {
+        if (highAngle - lowAngle >= 359.0) return std::remainder(angle, 360.0);
+        return std::clamp(angle, lowAngle, highAngle);
+    };
+    for (int iteration = 0; iteration < 8; ++iteration) {
+        const double radius = std::max(2.0, scale * 1.5 / std::pow(1.6, iteration));
+        const double radians = pose.angle * kPi / 180.0;
+        const double cosine = std::cos(radians), sine = std::sin(radians);
+        cv::Matx33d normal = cv::Matx33d::zeros();
+        cv::Vec3d rhs(0, 0, 0);
+        int supported = 0;
+        for (const auto& feature : features) {
+            const double rx = cosine * feature.x - sine * feature.y, ry = sine * feature.x + cosine * feature.y;
+            const double nx = cosine * feature.gradientX - sine * feature.gradientY;
+            const double ny = sine * feature.gradientX + cosine * feature.gradientY;
+            double offset, quality;
+            if (!sparseEdgeOffset(gray, pose.x + rx, pose.y + ry, nx, ny, radius, threshold, ignorePolarity, offset, quality)) continue;
+            const double weight = quality * quality / (1.0 + offset * offset / 9.0);
+            const cv::Vec3d equation(nx, ny, -nx * ry + ny * rx);
+            for (int row = 0; row < 3; ++row) {
+                rhs[row] += weight * equation[row] * offset;
+                for (int col = 0; col < 3; ++col) normal(row, col) += weight * equation[row] * equation[col];
+            }
+            ++supported;
+        }
+        if (supported < 8) break;
+        normal(0, 0) += 1e-6; normal(1, 1) += 1e-6; normal(2, 2) += 1e-4;
+        const cv::Vec3d delta = normal.inv(cv::DECOMP_SVD) * rhs;
+        pose.x += std::clamp(delta[0], -radius, radius); pose.y += std::clamp(delta[1], -radius, radius);
+        pose.angle = constrainAngle(pose.angle + std::clamp(delta[2] * 180.0 / kPi, -1.0, 1.0));
+        if (iteration >= 3 && std::abs(delta[0]) < 0.005 && std::abs(delta[1]) < 0.005 && std::abs(delta[2]) < 1e-5) break;
+    }
+    if (!subPixel) { pose.x = std::round(pose.x); pose.y = std::round(pose.y); pose.angle = constrainAngle(std::round(pose.angle)); }
+    const double radians = pose.angle * kPi / 180.0, cosine = std::cos(radians), sine = std::sin(radians);
+    double supported = 0.0;
+    // 分区覆盖防止局部圆孔或长直边解释整个组合模板；小分区不作为独立判据。
+    std::array<double, 16> support{};
+    std::array<int, 16> counts{};
+    double minX = 0, maxX = 0, minY = 0, maxY = 0;
+    for (const auto& feature : features) {
+        minX = std::min(minX, static_cast<double>(feature.x)); maxX = std::max(maxX, static_cast<double>(feature.x));
+        minY = std::min(minY, static_cast<double>(feature.y)); maxY = std::max(maxY, static_cast<double>(feature.y));
+    }
+    for (const auto& feature : features) {
+        const int binX = std::clamp(static_cast<int>(4 * (feature.x - minX) / std::max(1.0, maxX - minX)), 0, 3);
+        const int binY = std::clamp(static_cast<int>(4 * (feature.y - minY) / std::max(1.0, maxY - minY)), 0, 3);
+        const int bin = binY * 4 + binX;
+        ++counts[bin];
+        double offset, quality;
+        if (sparseEdgeOffset(gray, pose.x + cosine * feature.x - sine * feature.y,
+            pose.y + sine * feature.x + cosine * feature.y,
+            cosine * feature.gradientX - sine * feature.gradientY, sine * feature.gradientX + cosine * feature.gradientY,
+            2.0, threshold, ignorePolarity, offset, quality)) { supported += quality; support[bin] += quality; }
+    }
+    pose.score = supported / std::max<std::size_t>(1, features.size());
+    double weakest = 1.0;
+    for (std::size_t bin = 0; bin < counts.size(); ++bin)
+        if (counts[bin] >= std::max(8, static_cast<int>(features.size() / 12)))
+            weakest = std::min(weakest, support[bin] / counts[bin]);
+    pose.score *= std::min(1.0, weakest / 0.4);
+    return pose;
+}
+
 ContinuousPose refineContinuousPose(
     const ResponseLevel& response,
     const std::vector<BaseFeature>& features,
@@ -1067,6 +1201,14 @@ double parabolicOffset(double before, double center, double after)
 
 struct CShapeMatchCV::Impl
 {
+    /// <summary>大模板的低分辨率候选模型；小模板不使用该入口。</summary>
+    std::unique_ptr<CShapeMatchCV> coarseModel;
+    /// <summary>原图到候选图的二次幂比例。</summary>
+    int coarseScale = 1;
+    /// <summary>奇数模板尺寸在降采样后的模型中心偏移。</summary>
+    cv::Point2d coarseCenterOffset;
+    /// <summary>用于原分辨率精修的模型亚像素边缘。</summary>
+    std::vector<BaseFeature> preciseFeatures;
     /// <summary>按用户建模阈值提取的完整边缘，与搜索采样预算分开保存。</summary>
     cv::Mat contourEdges;
     /// <summary>完整边缘的有序路径，只在建模/编辑时更新，不在每次搜索时提取。</summary>
@@ -1313,6 +1455,34 @@ bool CShapeMatchCV::createModel(
         impl_->angleStepDegrees = angleStepDegrees;
         impl_->minContrast = minContrast;
         impl_->ignorePolarity = metric.find("ignore") != std::string::npos;
+        // 空白间隔占多数的大跨度组合模板才走稀疏路径。
+        // 忽略极性、完整矩形和重复孔洞模型继续使用完整反向结构检查，避免扩大近似适用范围。
+        const cv::Mat selectedMask = mask8(selected, roi.size());
+        const bool sparseSelection = cv::countNonZero(selectedMask) < selectedMask.total() * 0.6;
+        if (numLevels == 0 && !impl_->ignorePolarity && sparseSelection
+            && impl_->closedStructureCount == 0 && std::max(roi.width, roi.height) >= 768) {
+            cv::Mat coarseGray = impl_->modelGray, coarseMask = mask8(selected, roi.size());
+            int scale = 1;
+            while (std::max(coarseGray.cols, coarseGray.rows) > 192) {
+                cv::Mat nextGray, nextMask;
+                cv::pyrDown(coarseGray, nextGray);
+                cv::resize(coarseMask, nextMask, nextGray.size(), 0, 0, cv::INTER_NEAREST);
+                coarseGray = std::move(nextGray); coarseMask = std::move(nextMask); scale *= 2;
+            }
+            auto coarse = std::make_unique<CShapeMatchCV>();
+            std::string coarseMessage;
+            if (coarse->createModel(coarseGray, 0, 0, coarseGray.cols, coarseGray.rows, 0,
+                angleStartDegrees, angleEndDegrees, angleStepDegrees, metric,
+                contrast == 0.0 ? 0.0 : contrast / std::sqrt(scale), minContrast / std::sqrt(scale),
+                featureCount == 0 ? 128 : std::min(featureCount, 128), coarseMask, coarseMessage)) {
+                // 候选层的闭环会因缩小合并，不以其数量淘汰原图仍可解释的形状。
+                coarse->impl_->closedStructureCount = 0;
+                impl_->coarseCenterOffset = cv::Point2d(roi.width * 0.5 - coarseGray.cols * scale * 0.5,
+                    roi.height * 0.5 - coarseGray.rows * scale * 0.5);
+                impl_->coarseScale = scale; impl_->coarseModel = std::move(coarse);
+                impl_->preciseFeatures = precisionFeatures(impl_->modelGray, impl_->baseFeatures);
+            }
+        }
         (void)bitSimilarityTables(impl_->ignorePolarity);
         message = "OK";
         return true;
@@ -1360,6 +1530,47 @@ bool CShapeMatchCV::find(
     }
 
     try {
+        if (impl_->coarseModel && numLevels == 0) {
+            cv::Mat reduced = gray;
+            for (int scale = 1; scale < impl_->coarseScale; scale *= 2) { cv::Mat next; cv::pyrDown(reduced, next); reduced = std::move(next); }
+            std::vector<cv::Point2d> foundCenters;
+            std::vector<double> foundAngles, foundScores, foundWidths, foundHeights;
+            // 多留少量候选供原图复核；大批量调用不隐式截断用户请求的数量。
+            const int candidateCount = std::min(100, std::max(2, maxMatches * 2));
+            impl_->coarseModel->find(reduced, angleStartDegrees, angleEndDegrees, minScore * 0.9,
+                candidateCount, maxOverlap, true, 0, mode == 2 ? 2 : 1, message, foundCenters, foundAngles, foundScores, foundWidths, foundHeights);
+            std::vector<MatchPose> poses;
+            for (std::size_t index = 0; index < foundCenters.size(); ++index) {
+                const double angle = foundAngles[index] * kPi / 180.0;
+                const cv::Point2d offset(std::cos(angle) * impl_->coarseCenterOffset.x - std::sin(angle) * impl_->coarseCenterOffset.y,
+                    std::sin(angle) * impl_->coarseCenterOffset.x + std::cos(angle) * impl_->coarseCenterOffset.y);
+                const cv::Point2d initial = foundCenters[index] * impl_->coarseScale + offset;
+                auto pose = refineSparsePose(gray, impl_->preciseFeatures,
+                    ContinuousPose{initial.x, initial.y, foundAngles[index], 0.0}, impl_->coarseScale,
+                    impl_->minContrast, impl_->ignorePolarity, std::min(angleStartDegrees, angleEndDegrees),
+                    std::max(angleStartDegrees, angleEndDegrees), subPixel);
+                const double score = 0.6 * foundScores[index] + 0.4 * pose.score;
+                if (score < minScore || pose.score < minScore) continue;
+                poses.push_back(MatchPose{cv::Point2d(pose.x, pose.y), pose.angle, score,
+                    static_cast<double>(impl_->modelSize.width), static_cast<double>(impl_->modelSize.height)});
+            }
+            std::sort(poses.begin(), poses.end(), [](const MatchPose& a, const MatchPose& b) { return a.score > b.score; });
+            std::vector<MatchPose> accepted;
+            for (const auto& pose : poses) {
+                bool suppressed = false;
+                for (const auto& previous : accepted) {
+                    if (rotatedOverlap(pose, previous) > maxOverlap || (cv::norm(pose.center - previous.center) < 0.25 * std::min(pose.width, pose.height)
+                        && std::abs(std::remainder(pose.angleDegrees - previous.angleDegrees, 360.0)) <= 10.0)) { suppressed = true; break; }
+                }
+                if (suppressed) continue;
+                accepted.push_back(pose);
+                centers.push_back(pose.center); anglesDegrees.push_back(pose.angleDegrees); scores.push_back(pose.score);
+                widths.push_back(pose.width); heights.push_back(pose.height);
+                if (static_cast<int>(accepted.size()) >= maxMatches) break;
+            }
+            message = centers.empty() ? "No shape match met the score." : "OK";
+            return !centers.empty();
+        }
         const ShapeMatchProfile profile = profileFor(mode);
         const int levelCount = numLevels > 0
             ? std::min(numLevels, impl_->levels)
@@ -2051,6 +2262,7 @@ void CShapeMatchCV::clear()
     if (!impl_)
         return;
     impl_->templates.clear();
+    impl_->coarseModel.reset(); impl_->coarseScale = 1; impl_->preciseFeatures.clear();
     impl_->contourEdges.release();
     impl_->contourPaths.clear();
     impl_->structureEdges.release();
@@ -2177,6 +2389,19 @@ bool CShapeMatchCV::eraseFeatures(const cv::Mat& eraseMask, std::string& message
     impl_->levels = static_cast<int>(impl_->editableLevels.size());
     // 灰度 ECC 使用整块模板，编辑后禁用，防止删除的细节通过灰度精修重新影响姿态。
     impl_->intensityRefinementAllowed = false;
+    if (impl_->coarseModel) {
+        // 降采样足迹内只要有擦除像素就屏蔽候选特征，细小笔画不能被最近邻缩放漏掉。
+        cv::Mat expandedErase;
+        cv::dilate(eraseMask, expandedErase, cv::getStructuringElement(cv::MORPH_RECT,
+            cv::Size(impl_->coarseScale * 2 + 1, impl_->coarseScale * 2 + 1)));
+        cv::Mat coarseErase(impl_->coarseModel->impl_->modelSize, CV_8U);
+        for (int y = 0; y < coarseErase.rows; ++y) for (int x = 0; x < coarseErase.cols; ++x)
+            coarseErase.at<unsigned char>(y, x) = expandedErase.at<unsigned char>(
+                std::min(y * impl_->coarseScale, expandedErase.rows - 1), std::min(x * impl_->coarseScale, expandedErase.cols - 1));
+        std::string coarseMessage;
+        if (!impl_->coarseModel->eraseFeatures(coarseErase, coarseMessage)) impl_->coarseModel.reset();
+        impl_->preciseFeatures = precisionFeatures(impl_->modelGray, impl_->baseFeatures);
+    }
     message = "OK";
     return true;
 }

@@ -19,7 +19,7 @@ public enum ShapeMetric
 /// <summary>搜索速度与精度配置。</summary>
 public enum ShapeMatchMode
 {
-    /// <summary>跳过部分角度和特征，不执行亚像素精修。</summary>
+    /// <summary>减少搜索预算；大组合模板按亚像素开关执行稀疏精修，小模板保留快速离散搜索。</summary>
     快速 = 0,
 
     /// <summary>执行轮廓亚像素精修，但不执行灰度 ECC。</summary>
