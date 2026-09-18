@@ -94,6 +94,7 @@ namespace TDJS_Vision
                     NodeParamImageSoucre param = imageSource.ParamForm?.Params as NodeParamImageSoucre;
                     if (param == null ||
                         param.ImageSource != "相机" ||
+                        param.TriggerModel == TriggerModel.Off ||
                         IsSoftwareTriggerSource(param.TriggerSource) ||
                         !HasActiveUpstreamNode(process, imageSource))
                     {

@@ -856,6 +856,7 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Device\Modbus\IModbus.cs" />
+    <Compile Include="Device\Modbus\ModbusStringReader.cs" />
     <Compile Include="Device\Modbus\ModbusTcpSlave.cs" />
     <Compile Include="Device\PLC\PlcResult.cs" />
     <Compile Include="Device\TCP\ITcp.cs" />
@@ -1200,6 +1201,46 @@
       <DependentUpon>ParamFormLargeModelDetection.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\3-Detection\LargeModel\LargeModelDetectionRuntime.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\ContourMatchSession.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\TemplateRegion.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\ImageCanvas.Regions.cs">
+      <DependentUpon>ImageCanvas.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\ContourTemplateEditor.Regions.cs">
+      <DependentUpon>ContourTemplateEditor.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\ContourTemplateDefinition.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\ContourTemplateEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\ContourTemplateEditor.Designer.cs">
+      <DependentUpon>ContourTemplateEditor.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\ContourTemplateEditor.Integration.cs">
+      <DependentUpon>ContourTemplateEditor.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\ImageCanvas.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\ImageFrame.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\NativeMethods.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\NativeShapeMatcher.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\NodeContourMatch.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\NodeParamContourMatch.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\NodeParamFormContourMatch.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\NodeParamFormContourMatch.Designer.cs">
+      <DependentUpon>NodeParamFormContourMatch.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\NodeParamFormContourMatch.Integration.cs">
+      <DependentUpon>NodeParamFormContourMatch.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\ShapeMatchModels.cs" />
     <Compile Include="Node\3-Detection\MatchTemplate\FastTemplateMatcher.cs" />
     <Compile Include="Node\3-Detection\MatchTemplate\TemplateMatchPose.cs" />
     <Compile Include="Node\3-Detection\MatchTemplate\NodeParamFormMatchTemplate.cs">
@@ -2074,6 +2115,11 @@
     <Content Include="dll\FastColoredTextBox.dll" />
     <Content Include="dll\HslCommunication.dll" />
     <Content Include="dll\Mv3dLpNet.dll" />
+    <Content Include="Native\ShapeMatchNative.dll">
+      <Link>ShapeMatchNative.dll</Link>
+      <TargetPath>ShapeMatchNative.dll</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Native\MatchTool.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

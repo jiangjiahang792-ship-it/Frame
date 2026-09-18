@@ -40,6 +40,10 @@
             this.buttonSave = new System.Windows.Forms.Button();
             this.textBoxLength = new System.Windows.Forms.TextBox();
             this.comboBox2 = new System.Windows.Forms.ComboBox();
+            this.labelStringEncoding = new System.Windows.Forms.Label();
+            this.comboBoxStringEncoding = new System.Windows.Forms.ComboBox();
+            this.labelStringByteOrder = new System.Windows.Forms.Label();
+            this.comboBoxStringByteOrder = new System.Windows.Forms.ComboBox();
             this.buttonRun = new System.Windows.Forms.Button();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.listBox1 = new System.Windows.Forms.ListBox();
@@ -62,15 +66,21 @@
             this.tableLayoutPanel1.Controls.Add(this.label3, 1, 2);
             this.tableLayoutPanel1.Controls.Add(this.label4, 1, 3);
             this.tableLayoutPanel1.Controls.Add(this.textBoxAddress, 2, 1);
-            this.tableLayoutPanel1.Controls.Add(this.buttonSave, 2, 4);
+            this.tableLayoutPanel1.Controls.Add(this.buttonSave, 2, 6);
             this.tableLayoutPanel1.Controls.Add(this.textBoxLength, 2, 3);
             this.tableLayoutPanel1.Controls.Add(this.comboBox2, 2, 2);
-            this.tableLayoutPanel1.Controls.Add(this.buttonRun, 1, 4);
+            this.tableLayoutPanel1.Controls.Add(this.buttonRun, 1, 6);
+            this.tableLayoutPanel1.Controls.Add(this.labelStringEncoding, 1, 4);
+            this.tableLayoutPanel1.Controls.Add(this.comboBoxStringEncoding, 2, 4);
+            this.tableLayoutPanel1.Controls.Add(this.labelStringByteOrder, 1, 5);
+            this.tableLayoutPanel1.Controls.Add(this.comboBoxStringByteOrder, 2, 5);
             this.tableLayoutPanel1.Controls.Add(this.groupBox1, 0, 0);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 32);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
-            this.tableLayoutPanel1.RowCount = 5;
+            this.tableLayoutPanel1.RowCount = 7;
+            this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
+            this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 25F));
@@ -181,11 +191,48 @@
             "Long",
             "ULong",
             "线圈",
-            "离散输入"});
+            "离散输入",
+            "字符串"});
             this.comboBox2.Location = new System.Drawing.Point(795, 209);
             this.comboBox2.Name = "comboBox2";
             this.comboBox2.Size = new System.Drawing.Size(170, 25);
             this.comboBox2.TabIndex = 1;
+            this.comboBox2.SelectedIndexChanged += new System.EventHandler(this.comboBox2_SelectedIndexChanged);
+            //
+            // labelStringEncoding
+            //
+            this.labelStringEncoding.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.labelStringEncoding.AutoSize = true;
+            this.labelStringEncoding.Name = "labelStringEncoding";
+            this.labelStringEncoding.Text = "字符串编码：";
+            this.labelStringEncoding.TabIndex = 6;
+            //
+            // comboBoxStringEncoding
+            //
+            this.comboBoxStringEncoding.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.comboBoxStringEncoding.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxStringEncoding.Items.AddRange(new object[] {
+            "ASCII（英文数字）", "UTF-8（中英文）", "GB18030（中文）", "UTF-16（小端）"});
+            this.comboBoxStringEncoding.Name = "comboBoxStringEncoding";
+            this.comboBoxStringEncoding.Size = new System.Drawing.Size(190, 25);
+            this.comboBoxStringEncoding.TabIndex = 7;
+            //
+            // labelStringByteOrder
+            //
+            this.labelStringByteOrder.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.labelStringByteOrder.AutoSize = true;
+            this.labelStringByteOrder.Name = "labelStringByteOrder";
+            this.labelStringByteOrder.Text = "寄存器内字节顺序：";
+            this.labelStringByteOrder.TabIndex = 8;
+            //
+            // comboBoxStringByteOrder
+            //
+            this.comboBoxStringByteOrder.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.comboBoxStringByteOrder.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxStringByteOrder.Items.AddRange(new object[] { "高字节在前", "低字节在前" });
+            this.comboBoxStringByteOrder.Name = "comboBoxStringByteOrder";
+            this.comboBoxStringByteOrder.Size = new System.Drawing.Size(190, 25);
+            this.comboBoxStringByteOrder.TabIndex = 9;
             // 
             // buttonRun
             // 
@@ -208,7 +255,7 @@
             this.groupBox1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.groupBox1.Name = "groupBox1";
             this.groupBox1.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.tableLayoutPanel1.SetRowSpan(this.groupBox1, 5);
+            this.tableLayoutPanel1.SetRowSpan(this.groupBox1, 7);
             this.groupBox1.Size = new System.Drawing.Size(574, 417);
             this.groupBox1.TabIndex = 5;
             this.groupBox1.TabStop = false;
@@ -276,6 +323,14 @@
         private System.Windows.Forms.Button buttonSave;
         private System.Windows.Forms.TextBox textBoxLength;
         private System.Windows.Forms.ComboBox comboBox2;
+        /// <summary>字符串编码配置标签。</summary>
+        private System.Windows.Forms.Label labelStringEncoding;
+        /// <summary>字符串编码选择控件。</summary>
+        private System.Windows.Forms.ComboBox comboBoxStringEncoding;
+        /// <summary>寄存器内字节顺序标签。</summary>
+        private System.Windows.Forms.Label labelStringByteOrder;
+        /// <summary>寄存器内高低字节顺序选择控件。</summary>
+        private System.Windows.Forms.ComboBox comboBoxStringByteOrder;
         private System.Windows.Forms.Button buttonRun;
         private System.Windows.Forms.GroupBox groupBox1;
         private System.Windows.Forms.ListBox listBox1;

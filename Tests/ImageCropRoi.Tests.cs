@@ -47,6 +47,32 @@ internal static class ImageCropRoiTests
         catch (InvalidOperationException) { return; }
         throw new InvalidOperationException("无效区域没有被拒绝。");
     }
+    /// <summary>验证合法旧 ROI 空值不会产生被转换器内部捕获的 JSON 异常。</summary>
+    private static void NullRoiSerialization()
+    {
+        int jsonErrors = 0;
+        EventHandler<System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs> handler = (sender, e) =>
+        {
+            if (e.Exception is JsonException) jsonErrors++;
+        };
+        AppDomain.CurrentDomain.FirstChanceException += handler;
+        try
+        {
+            var param = JsonConvert.DeserializeObject<NodeParamImageCrop>(
+                "{\"ROIs\":null,\"ImageRois\":[{\"CenterX\":794.169434,\"CenterY\":793.305054,\"Width\":1500.84741,\"Height\":1432.2373,\"Angle\":0}],\"RoiEnable\":true}");
+            Check(param.ROIs == null && param.ImageRois.Count == 1 && param.RoiEnable, "新版裁剪参数还原失败。");
+            var restored = JsonConvert.DeserializeObject<NodeParamImageCrop>(JsonConvert.SerializeObject(param));
+            Check(restored.ROIs == null && restored.ImageRois[0].Width == param.ImageRois[0].Width &&
+                restored.ImageRois[0].CenterX == param.ImageRois[0].CenterX, "保存再读取改变了新版裁剪区域。");
+            var empty = JsonConvert.DeserializeObject<NodeParamImageCrop>("{\"ROIs\":{},\"ImageRois\":null}");
+            Check(empty.ROIs != null && empty.ROIs.Count == 0 && empty.ImageRois == null, "旧版空对象语义改变。");
+            var missing = JsonConvert.DeserializeObject<NodeParamImageCrop>("{}");
+            Check(missing.ROIs == null && missing.ImageRois == null, "缺失字段默认值改变。");
+            Check(jsonErrors == 0, "合法空值在读取过程中仍触发了 JSON 异常。");
+        }
+        finally { AppDomain.CurrentDomain.FirstChanceException -= handler; }
+    }
+
     /// <summary>运行真实控件和裁剪验证，不连接任何设备。</summary>
     [STAThread]
     private static int Main(string[] args)
@@ -54,6 +80,7 @@ internal static class ImageCropRoiTests
         try
         {
             Application.EnableVisualStyles();
+            NullRoiSerialization();
             Geometry();
             Rectification();
             OutOfBounds();

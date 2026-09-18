@@ -1,4 +1,5 @@
-﻿using Logger;
+using TDJS_Vision.Node._3_Detection.ContourMatch;
+using Logger;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -750,6 +751,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.MatchTemplate:
                     node = new NodeMatchTemplate(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.ContourMatch:
+                    node = new NodeContourMatch(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.NccMatchTemplate:
                     node = new NodeNccMatchTemplate(nodeId, nodeName, _process, nodeType);

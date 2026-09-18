@@ -15,6 +15,16 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
         [JsonConverter(typeof(StringEnumConverter))]
         public RegistersType DataType { get; set; }
 
+        /// <summary>字符串编码名称，旧方案默认使用 ASCII。</summary>
+        public string StringEncodingName { get; set; } = "us-ascii";
+
+        /// <summary>字符串读取时是否将寄存器低字节放在前面，默认高字节在前。</summary>
+        public bool StringLowByteFirst { get; set; }
+
+        /// <summary>可订阅值的数量；字符串占用多个寄存器但仅输出一个完整值。</summary>
+        [JsonIgnore]
+        public int OutputValueCount => DataType == RegistersType.String ? (Count > 0 ? 1 : 0) : Count;
+
     }
 
     /// <summary>
@@ -32,7 +42,9 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.ModbusRead
         Long,
         ULong,
         线圈,
-        离散输入
+        离散输入,
+        /// <summary>将连续保持寄存器解码成一个字符串；Count 表示寄存器个数。</summary>
+        String
     }
 
 }
