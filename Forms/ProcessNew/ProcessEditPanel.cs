@@ -292,6 +292,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             buttonStop.Enabled = false;
             UpdateNodeCountText();
             UpdateRunTimeText();
+            processFlowCanvas?.Invalidate();
         }
 
         private void ConfigureCommandButtons()
@@ -682,6 +683,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.PositionCorrection:
                     node = new NodePositionCorrection(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.TerminalAngle:
+                    node = new TDJS_Vision.Node._4_Measurement.TerminalAngle.NodeTerminalAngle(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.LineLineAngle:
                     node = new NodeLineLineAngle(nodeId, nodeName, _process, nodeType);

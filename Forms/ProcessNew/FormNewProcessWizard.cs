@@ -142,7 +142,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
             if (node.Tag is NodeType nodeType && nodeType != NodeType.UNKNOWN)
             {
-                node.Text = nodeType == NodeType.ResultSend ? "结果发送" : LanguageManager.T("ProcessNew.NodeType." + nodeType);
+                node.Text = NodeDisplayText.GetTypeName(nodeType);
             }
             else
             {
@@ -837,6 +837,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.CaliperCircle:
                 case NodeType.CaliperEllipse:
                 case NodeType.FindPoint:
+                case NodeType.TerminalAngle:
                 case NodeType.LineLineAngle:
                 case NodeType.PointPointDistance:
                 case NodeType.PointLineDistance:
@@ -931,6 +932,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return "CE";
                 case NodeType.FindPoint:
                     return "FP";
+                case NodeType.TerminalAngle:
+                    return "TA";
                 case NodeType.LineLineAngle:
                     return "LA";
                 case NodeType.PointPointDistance:

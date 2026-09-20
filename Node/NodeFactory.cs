@@ -123,6 +123,8 @@ namespace TDJS_Vision.Node
                     return new NodeBlobAnalysis(nodeId, nodeName, process, nodeType);
                 case NodeType.PositionCorrection:
                     return new NodePositionCorrection(nodeId, nodeName, process, nodeType);
+                case NodeType.TerminalAngle:
+                    return new TDJS_Vision.Node._4_Measurement.TerminalAngle.NodeTerminalAngle(nodeId, nodeName, process, nodeType);
                 case NodeType.LineLineAngle:
                     return new NodeLineLineAngle(nodeId, nodeName, process, nodeType);
                 case NodeType.PointPointDistance:

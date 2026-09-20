@@ -5,7 +5,6 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
-using TDJS_Vision.Node._4_Measurement.Common;
 
 namespace TDJS_Vision.Node._3_Detection.ContourMatch
 {
@@ -26,11 +25,10 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
         }
         /// <summary>生产路径只读取引用，不每帧复制模板图像。</summary>
         internal NodeParamContourMatch SavedParameters { get { return Volatile.Read(ref _savedParameters); } }
-        /// <summary>注册图像和位置修正类型订阅。</summary>
+        /// <summary>注册输入图像类型订阅。</summary>
         public void SetNodeBelong(NodeBase node)
         {
             _node = node; imageSubscription.SetExpectedValueType<OutputImage>(); imageSubscription.Init(node);
-            correctionSubscription.SetExpectedValueType<List<PositionCorrectionInfo>>(); correctionSubscription.Init(node);
         }
         /// <summary>恢复三页控件，并兼容旧单模板方案。</summary>
         public void SetParam2Form()
@@ -42,8 +40,7 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             try
             {
                 imageSubscription.SetText(_draft.Text1 ?? "", _draft.Text2 ?? "");
-                correctionSubscription.SetText(_draft.CorrectionText1 ?? "", _draft.CorrectionText2 ?? "");
-                allSearchCheckBox.Checked = _draft.AllSearch; correctionCheckBox.Checked = _draft.UsePositionCorrection;
+                allSearchCheckBox.Checked = _draft.AllSearch;
                 var find = _draft.FindOptions ?? new FindOptions();
                 findAngleStartNumeric.Value = (decimal)find.AngleStartDegrees; findAngleEndNumeric.Value = (decimal)find.AngleEndDegrees;
                 minimumScoreNumeric.Value = (decimal)find.MinimumScore; maximumMatchesNumeric.Value = find.MaximumMatches;
@@ -53,7 +50,10 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             finally { _populating = false; }
             RefreshTemplateList(); ShowSearchRegion();
             _parametersReady = true;
-            if (SavedParameters == null) ApplyParameters();
+            // 只在补齐空订阅时发布新快照，恢复已有方案时保留原模型和数值精度。
+            var saved = SavedParameters;
+            if (saved == null || saved.Text1 != imageSubscription.GetText1() || saved.Text2 != imageSubscription.GetText2())
+                ApplyParameters();
         }
         /// <summary>读取并验证当前页面参数，仅在执行时检查配置是否完整。</summary>
         internal NodeParamContourMatch ReadDraft()
@@ -63,7 +63,6 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             var value = CaptureParameters();
             NativeShapeMatcher.ValidateFind(value.FindOptions);
             if (!value.AllSearch && (value.SearchRegion.Width < 8 || value.SearchRegion.Height < 8)) throw new InvalidOperationException("请先绘制并确认搜索区域。");
-            if (value.UsePositionCorrection && (string.IsNullOrWhiteSpace(value.CorrectionText1) || string.IsNullOrWhiteSpace(value.CorrectionText2))) throw new InvalidOperationException("请选择位置修正订阅。");
             return value;
         }
         /// <summary>读取当前配置，不把填写过程中的暂时无效值误当成旧的有效参数。</summary>
@@ -72,8 +71,7 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             var value = _draft.Copy(); value.Text1 = imageSubscription.GetText1(); value.Text2 = imageSubscription.GetText2();
             int separator = (value.Text1 ?? "").IndexOf('.'); int sourceId;
             value.SourceNodeId = separator > 0 && int.TryParse(value.Text1.Substring(0, separator), out sourceId) ? sourceId : -1;
-            value.AllSearch = allSearchCheckBox.Checked; value.UsePositionCorrection = correctionCheckBox.Checked;
-            value.CorrectionText1 = correctionSubscription.GetText1(); value.CorrectionText2 = correctionSubscription.GetText2();
+            value.AllSearch = allSearchCheckBox.Checked;
             value.FindOptions = new FindOptions { AngleStartDegrees = (double)findAngleStartNumeric.Value, AngleEndDegrees = (double)findAngleEndNumeric.Value,
                 MinimumScore = (double)minimumScoreNumeric.Value, MaximumMatches = (int)maximumMatchesNumeric.Value,
                 MaximumOverlap = (double)maximumOverlapNumeric.Value, PyramidLevels = (int)findLevelsNumeric.Value,
@@ -125,23 +123,10 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
         {
             return ResolveValue(parameters.Text1, parameters.Text2, parameters.SourceNodeId) as OutputImage ?? throw new InvalidOperationException("订阅的图像输出不存在或为空。");
         }
-        /// <summary>读取位置修正单值或列表，复制位姿以免上游后续运行修改数据。</summary>
-        internal IReadOnlyList<PositionCorrectionInfo> ResolveCorrections(NodeParamContourMatch parameters)
-        {
-            if (!parameters.UsePositionCorrection) return null;
-            object value = ResolveValue(parameters.CorrectionText1, parameters.CorrectionText2);
-            var single = value as PositionCorrectionInfo;
-            var items = value as IEnumerable<PositionCorrectionInfo> ?? (value as MultiTargetPositionCorrectionResult)?.Items;
-            if (single != null) items = new[] { single };
-            if (items == null) throw new InvalidOperationException("订阅的位置修正输出无效。");
-            return items.Select(item => item == null ? null : new PositionCorrectionInfo { IsValid = item.IsValid, TargetIndex = item.TargetIndex,
-                BaseX = item.BaseX, BaseY = item.BaseY, BaseAngle = item.BaseAngle, BaseScaleX = item.BaseScaleX, BaseScaleY = item.BaseScaleY,
-                CurrentX = item.CurrentX, CurrentY = item.CurrentY, CurrentAngle = item.CurrentAngle, CurrentScaleX = item.CurrentScaleX, CurrentScaleY = item.CurrentScaleY }).ToList();
-        }
         /// <summary>使用生产模型缓存执行当前参数快照。</summary>
         internal ContourMatchExecution Execute(OpenCvSharp.Mat source, NodeParamContourMatch parameters, CancellationToken token)
         {
-            return _runtimeSession.Execute(source, parameters, token, ResolveCorrections(parameters));
+            return _runtimeSession.Execute(source, parameters, token);
         }
     }
 }

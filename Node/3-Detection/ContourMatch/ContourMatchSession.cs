@@ -5,7 +5,6 @@ using System.Drawing;
 using System.Linq;
 using System.Threading;
 using OpenCvSharp;
-using TDJS_Vision.Node._4_Measurement.Common;
 
 namespace TDJS_Vision.Node._3_Detection.ContourMatch
 {
@@ -26,7 +25,7 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
         internal ContourMatchSession(Func<IShapeMatcher> factory = null) { _factory = factory ?? (() => new NativeShapeMatcher()); }
 
         /// <summary>按区域搜索各启用模板，将坐标恢复至原图后统一排序、去重和限数。</summary>
-        internal ContourMatchExecution Execute(Mat source, NodeParamContourMatch parameters, CancellationToken token, IReadOnlyList<PositionCorrectionInfo> corrections = null)
+        internal ContourMatchExecution Execute(Mat source, NodeParamContourMatch parameters, CancellationToken token)
         {
             lock (_gate)
             {
@@ -37,7 +36,7 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
                 EnsureModels(parameters, token);
                 var timer = Stopwatch.StartNew();
                 var candidates = new List<ShapeMatchResult>();
-                var regions = GetSearchRegions(source, parameters, corrections);
+                var regions = GetSearchRegions(parameters);
                 foreach (var polygon in regions)
                 {
                     Rect bounds = polygon == null ? new Rect(0, 0, source.Width, source.Height) : Cv2.BoundingRect(polygon);
@@ -92,28 +91,15 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             finally { if (pending != null) foreach (var model in pending) model.Matcher.Dispose(); }
         }
 
-        /// <summary>生成原图中的搜索四边形，支持位置修正的多目标平移、旋转与尺度变换。</summary>
-        internal static List<Point2f[]> GetSearchRegions(Mat source, NodeParamContourMatch parameters, IReadOnlyList<PositionCorrectionInfo> corrections)
+        /// <summary>生成输入图像中的固定搜索四边形，全图搜索使用空区域标记。</summary>
+        internal static List<Point2f[]> GetSearchRegions(NodeParamContourMatch parameters)
         {
-            if (parameters.AllSearch)
-            {
-                if (parameters.UsePositionCorrection) throw new InvalidOperationException("位置修正需要先绘制搜索区域。");
-                return new List<Point2f[]> { null };
-            }
+            if (parameters.AllSearch) return new List<Point2f[]> { null };
             Rectangle region = parameters.SearchRegion;
             if (region.Width < 8 || region.Height < 8) throw new InvalidOperationException("请绘制至少8×8像素的搜索区域。");
-            var corners = new[] { new PointF(region.Left, region.Top), new PointF(region.Right, region.Top), new PointF(region.Right, region.Bottom), new PointF(region.Left, region.Bottom) };
-            if (!parameters.UsePositionCorrection) return new List<Point2f[]> { corners.Select(point => new Point2f(point.X, point.Y)).ToArray() };
-            if (corrections == null || corrections.Count == 0 || corrections.Any(item => item == null || !item.IsValid))
-                throw new InvalidOperationException("位置修正信息为空或无效，请先运行上游位置修正节点。");
-            return corrections.Select(info => corners.Select(point =>
-            {
-                var corrected = info.TransformPoint(point.X, point.Y);
-                if (!ContourCompatibility.IsFinite(corrected.X) || !ContourCompatibility.IsFinite(corrected.Y)) throw new InvalidOperationException("位置修正产生了无效坐标。");
-                return new Point2f(corrected.X, corrected.Y);
-            }).ToArray()).ToList();
+            return new List<Point2f[]> { new[] { new Point2f(region.Left, region.Top), new Point2f(region.Right, region.Top),
+                new Point2f(region.Right, region.Bottom), new Point2f(region.Left, region.Bottom) } };
         }
-
         /// <summary>与Demo一致，以旋转框交集除以较小框面积判断重复目标。</summary>
         private static double Overlap(ShapeMatchResult first, ShapeMatchResult second)
         {

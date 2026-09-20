@@ -41,6 +41,7 @@ namespace TDJS_Vision.ResourceManagement
                 case NodeType.BatteryEar:
                 case NodeType.RGBDiscern:
                 case NodeType.BinarizationAnalysis:
+                case NodeType.TerminalAngle:
                 case NodeType.LineLineAngle:
                 case NodeType.PointPointDistance:
                 case NodeType.PointLineDistance:

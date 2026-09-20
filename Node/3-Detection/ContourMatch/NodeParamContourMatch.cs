@@ -36,14 +36,8 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
         public List<ContourTemplateDefinition> Templates { get; set; }
         /// <summary>是否搜索整幅输入图像。</summary>
         public bool AllSearch { get; set; } = true;
-        /// <summary>基准图像中的矩形搜索范围。</summary>
+        /// <summary>输入图像坐标系中的固定矩形搜索范围。</summary>
         public Rectangle SearchRegion { get; set; }
-        /// <summary>是否从上游位置修正信息变换搜索范围。</summary>
-        public bool UsePositionCorrection { get; set; }
-        /// <summary>位置修正订阅节点文本，兼容流程引用重映射。</summary>
-        public string CorrectionText1 { get; set; }
-        /// <summary>位置修正订阅输出名称。</summary>
-        public string CorrectionText2 { get; set; }
 
         /// <summary>读取多模板列表，兼容第一次集成保存的单模板方案。</summary>
         internal List<ContourTemplateDefinition> GetTemplates()
@@ -58,7 +52,6 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
         {
             return new NodeParamContourMatch { Text1 = Text1, Text2 = Text2, SourceNodeId = SourceNodeId,
                 Templates = Templates?.Select(item => item.Copy()).ToList(), AllSearch = AllSearch, SearchRegion = SearchRegion,
-                UsePositionCorrection = UsePositionCorrection, CorrectionText1 = CorrectionText1, CorrectionText2 = CorrectionText2,
                 ModelImageBytes = ModelImageBytes == null ? null : (byte[])ModelImageBytes.Clone(), ModelRoi = ModelRoi,
                 ModelRegions = ModelRegions?.Select(region => region.Copy()).ToList(),
                 CreateOptions = CopyCreate(CreateOptions), ModelOptions = CopyCreate(ModelOptions),

@@ -37,12 +37,6 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
         private Button drawRegionButton;
         /// <summary>已确认搜索区域说明。</summary>
         private Label regionLabel;
-        /// <summary>位置修正启用。</summary>
-        private CheckBox correctionCheckBox;
-        /// <summary>位置修正数据订阅。</summary>
-        private NodeSubscription correctionSubscription;
-        /// <summary>位置修正说明。</summary>
-        private Label correctionHint;
         /// <summary>模板管理布局。</summary>
         private TableLayoutPanel templatesLayout;
         /// <summary>模板管理工具栏。</summary>
@@ -208,20 +202,6 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             regionLabel.AutoSize = true;
             regionLabel.MaximumSize = new Size(375, 0);
             regionLabel.Margin = new Padding(3, 8, 3, 18);
-            correctionCheckBox = new CheckBox();
-            correctionCheckBox.Text = "启用位置修正";
-            correctionCheckBox.AutoSize = true;
-            correctionCheckBox.CheckedChanged += CorrectionCheckBox_Changed;
-            correctionSubscription = new NodeSubscription();
-            correctionSubscription.Dock = DockStyle.Top;
-            correctionSubscription.Height = 58;
-            correctionSubscription.Enabled = false;
-            correctionHint = new Label();
-            correctionHint.Text = "先在基准图上绘制搜索区域，再订阅位置修正信息。运行时区域跟随目标移动和旋转。";
-            correctionHint.AutoSize = true;
-            correctionHint.MaximumSize = new Size(375, 0);
-            correctionHint.ForeColor = Color.DimGray;
-            correctionHint.Margin = new Padding(3, 8, 3, 3);
             basicLayout.Controls.Add(inputLabel);
             basicLayout.Controls.Add(imageSubscription);
             basicLayout.Controls.Add(inputActions);
@@ -229,9 +209,6 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             basicLayout.Controls.Add(allSearchCheckBox);
             basicLayout.Controls.Add(drawRegionButton);
             basicLayout.Controls.Add(regionLabel);
-            basicLayout.Controls.Add(correctionCheckBox);
-            basicLayout.Controls.Add(correctionSubscription);
-            basicLayout.Controls.Add(correctionHint);
             templatesLayout = new TableLayoutPanel();
             templatesLayout.Dock = DockStyle.Fill;
             templatesLayout.ColumnCount = 1;
@@ -450,7 +427,7 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             maximumOverlapNumeric.ValueChanged += ParameterValue_Changed;
             findLevelsNumeric.ValueChanged += ParameterValue_Changed;
             modeComboBox.SelectedIndexChanged += ParameterValue_Changed; subPixelCheckBox.CheckedChanged += ParameterValue_Changed;
-            imageSubscription.SelectionChanged += ParameterValue_Changed; correctionSubscription.SelectionChanged += ParameterValue_Changed;
+            imageSubscription.SelectionChanged += ParameterValue_Changed;
             AutoScaleDimensions = new SizeF(96, 96); AutoScaleMode = AutoScaleMode.Dpi;
             Font = new Font("Microsoft YaHei UI", 9F); Text = "轮廓模板匹配";
             ClientSize = new Size(980, 680); MinimumSize = new Size(920, 640);

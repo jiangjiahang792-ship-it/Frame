@@ -401,7 +401,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                         RotatePoint(line.P2, imageWidth, imageHeight, rotationAngle),
                         line.Color)
                     {
-                        LineWidth = line.LineWidth
+                        LineWidth = line.LineWidth,
+                        ShowCenterCross = line.ShowCenterCross
                     });
                 }
             }
@@ -920,7 +921,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 {
                     displayResult.Lines.Add(new ColorLine(line.P1, line.P2, drawColor)
                     {
-                        LineWidth = Math.Max(1, item.LineWidth)
+                        LineWidth = Math.Max(1, item.LineWidth),
+                        ShowCenterCross = line.ShowCenterCross
                     });
                 }
                 return;
@@ -1499,6 +1501,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             if (TryAddMultiTargetTextLines(texts, sourceResult, selectedResultText))
                 return texts;
 
+            var formatter = sourceResult as ISubscriptionTextFormatter;
+            if (formatter != null && formatter.TryFormatSubscriptionText(selectedResultText, selectedValue, out string formatted))
+            {
+                if (!string.IsNullOrEmpty(formatted)) texts.Add(formatted);
+                return texts;
+            }
             AddTextFromValue(texts, selectedValue);
             return texts;
         }
@@ -1541,7 +1549,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     return false;
 
                 object targetValue = accessor.TargetProperty.GetValue(targetItem, null);
-                targetValues.Add(Convert.ToString(targetValue));
+                var formatter = sourceResult as ISubscriptionTextFormatter;
+                targetValues.Add(formatter != null && formatter.TryFormatSubscriptionText(selectedResultText, targetValue, out string formatted)
+                    ? formatted : Convert.ToString(targetValue));
             }
 
             if (targetValues.Count == 0)

@@ -185,7 +185,8 @@
 
         #endregion
 
-        private System.Windows.Forms.TableLayoutPanel tableLayoutPanelTiltle;
+        /// <summary>自定义标题栏，允许派生窗体在设计器中调整自适应布局。</summary>
+        protected System.Windows.Forms.TableLayoutPanel tableLayoutPanelTiltle;
         private System.Windows.Forms.Label labelMinBox;
         private System.Windows.Forms.Label labelMaxBox;
         private System.Windows.Forms.Label labelClose;
