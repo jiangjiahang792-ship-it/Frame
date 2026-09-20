@@ -60,6 +60,26 @@ internal static class TerminalAngleTests
             new OpenCvSharp.Point((int)Math.Round(200 + 410*slope + 20),860),new OpenCvSharp.Point((int)Math.Round(200 + 410*slope - 20),860) };
         Cv2.FillConvexPoly(image, vertices, new Scalar(20,100,160)); return image;
     }
+    /// <summary>创建被反光分割成多段的端子，用于验证左右轮廓拟合不依赖最大连通域。</summary>
+    private static Mat SyntheticBroken(double angle)
+    {
+        var image = new Mat(950, 410, MatType.CV_8UC3, Scalar.White);
+        double slope = -Math.Tan(angle * Math.PI / 180);
+        Func<double,double> center = y => 200 + (y - 450) * slope;
+        foreach (var segment in new[] { Tuple.Create(40.0, 250.0), Tuple.Create(330.0, 600.0), Tuple.Create(680.0, 860.0) })
+        {
+            double top = segment.Item1, bottom = segment.Item2;
+            var vertices = new[]
+            {
+                new OpenCvSharp.Point((int)Math.Round(center(top) - 20), (int)top),
+                new OpenCvSharp.Point((int)Math.Round(center(top) + 20), (int)top),
+                new OpenCvSharp.Point((int)Math.Round(center(bottom) + 20), (int)bottom),
+                new OpenCvSharp.Point((int)Math.Round(center(bottom) - 20), (int)bottom)
+            };
+            Cv2.FillConvexPoly(image, vertices, new Scalar(20, 100, 160));
+        }
+        return image;
+    }
     /// <summary>验证符号、独立基准、非法输入与失败空值。</summary>
     private static void Geometry()
     {
@@ -75,6 +95,11 @@ internal static class TerminalAngleTests
                 var shifted = algorithm.Measure(image,config,CancellationToken.None);
                 Check(shifted.Angle == r.Angle, "移动基座 ROI 改变了固定垂线倾角。");
             }
+        using (var broken = SyntheticBroken(7.0))
+        {
+            var r = algorithm.Measure(broken, Settings(), CancellationToken.None);
+            Check(r.Success && Math.Abs(r.Angle.Value - 7.0) < 0.18, "分段端子左右轮廓拟合失败：" + r.Angle + " / " + r.Message);
+        }
         using(var blank = new Mat(950,410,MatType.CV_8UC1,Scalar.White))
         {
             var r=algorithm.Measure(blank,Settings(),CancellationToken.None);
@@ -511,6 +536,7 @@ internal static class TerminalAngleTests
         {
             Console.OutputEncoding=System.Text.Encoding.UTF8;Application.EnableVisualStyles();Directory.CreateDirectory(args[1]);
             string scope=args.Length>2?args[2]:"all";
+            if(scope=="geometry") {Geometry();Console.WriteLine("端子角度几何专项通过，断言数："+_checks);return 0;}
             if(scope!="confirm-close")SubscriptionText();
             if(scope!="subscription-text")ConfirmCloses();
             if(scope=="all") {Geometry();NodeAndUi(args[1]);PositionCorrection(args[1]);ActualImages(args[0],args[1]);}

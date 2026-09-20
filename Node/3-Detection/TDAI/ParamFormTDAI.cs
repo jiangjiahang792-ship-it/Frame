@@ -124,7 +124,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <param name="e"></param>
         private void ParamFormTDAI_CloseAutoStudyEvent(object sender, string e)
         {
-            if (_node.NodeName == e)
+            // 新解析器携带参数实例，防止不同流程的同名节点一起停止学习；旧事件仍按名称匹配。
+            bool isCurrentNode = sender is NodeParamTDAI source
+                ? ReferenceEquals(Params, source)
+                : _node != null && _node.NodeName == e;
+            if (isCurrentNode)
             {
                 if (Params is NodeParamTDAI param)
                 {
@@ -263,6 +267,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         private void SetComboBoxToEnumValue<T>(ComboBox comboBox, T enumValue)
         {
             string enumString = enumValue.ToString();
+            // 枚举标识符不能包含连字符，恢复时映射到用户指定的界面名称。
+            if (enumValue is ModelName && enumString == nameof(ModelName.AST_工位1模型))
+                enumString = "AST-工位1模型";
 
             for (int i = 0; i < comboBox.Items.Count; i++)
             {
@@ -370,6 +377,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         break;
                     case "超声波焊接侧面三类模型":
                         nodeParamTDAI.ModelName = ModelName.超声波焊接侧面三类模型;
+                        break;
+                    case "AST-工位1模型":
+                        nodeParamTDAI.ModelName = ModelName.AST_工位1模型;
                         break;
                     default:
                         throw new Exception($"未知的模型名称：{comboBoxModelName.Text}");

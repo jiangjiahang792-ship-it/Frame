@@ -1,0 +1,20 @@
+{
+  "ModelName": "AST-工位1模型",
+  "ModelSize": 640,
+  "ScoreThreshold": 0.5,
+  "ScoreNMS": 0.5,
+  "ModelInfo": {
+    "ModelType": "DET",
+    "DeviceType": "GPU",
+    "IsEncrypted": true,
+    "ModelPath": "D:\\项目\\AST-Fakra\\软件数据\\Model\\FAKRA（AST-CCD1）\\work1.onnx.encrypted",
+    "KeyPointNum": 0
+  },
+  "ClassNames": [
+    "insulation_glue",
+    "shielding_mesh",
+    "copper_ring",
+    "rubber",
+    "fly_line"
+  ]
+}

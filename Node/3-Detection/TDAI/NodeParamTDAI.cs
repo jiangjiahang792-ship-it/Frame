@@ -217,5 +217,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// 超声波焊接侧面三类检测：线芯、焊接区域和飞丝。
         /// </summary>
         超声波焊接侧面三类模型,
+        /// <summary>AST工位1五类目标检测模型，输入尺寸为640。</summary>
+        AST_工位1模型,
     }
 }
