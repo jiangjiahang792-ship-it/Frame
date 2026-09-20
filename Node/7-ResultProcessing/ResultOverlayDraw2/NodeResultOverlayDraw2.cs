@@ -865,7 +865,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 }
 
                 AlgorithmResult sourceAlgorithmResult = TryGetAlgorithmResult(sourceValue) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
-                bool preserveSourceTextColor = sourceAlgorithmResult != null &&
+                // 数值订阅优先采用来源指定格式，避免被整个算法结果的文字替换。
+                var formatter = sourceNode?.Result as ISubscriptionTextFormatter;
+                bool hasSourceFormat = formatter != null && formatter.TryFormatSubscriptionText(item.SourceText2, sourceValue, out _);
+                bool preserveSourceTextColor = !hasSourceFormat && sourceAlgorithmResult != null &&
                     (!colorState.OverrideSourceColor ||
                         (colorState.UseLegacyColorRules && ShouldPreserveAlgorithmResultElementColor(sourceAlgorithmResult)));
                 if (preserveSourceTextColor)
@@ -874,7 +877,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                     return;
                 }
 
-                AddTextFromValue(texts, sourceValue);
+                if (hasSourceFormat)
+                    texts.AddRange(ResultOverlayDraw.ResultOverlayDrawBuilder.BuildTextValueLines(sourceNode.Result, item.SourceText2, sourceValue));
+                else
+                    AddTextFromValue(texts, sourceValue);
                 if (texts.Count == 0 && sourceNode != null)
                     AddTextFromValue(texts, sourceNode.Result);
 
@@ -1008,7 +1014,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 {
                     displayResult.Lines.Add(new ColorLine(line.P1, line.P2, drawColor)
                     {
-                        LineWidth = Math.Max(1, item.LineWidth)
+                        LineWidth = Math.Max(1, item.LineWidth),
+                        ShowCenterCross = line.ShowCenterCross
                     });
                 }
                 return;

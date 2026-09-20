@@ -21,6 +21,8 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
         {
             var form = new NodeParamFormContourMatch(); form.SetNodeBelong(this);
             ParamForm = form; Result = new NodeResultContourMatch();
+            // 创建时即建立快照，使首次连线的自动订阅无需打开窗口也能同步到参数。
+            form.SetParam2Form();
         }
 
         /// <summary>运行期间借用上游Mat，保护输入租约并在失败或取消时清除旧结果。</summary>

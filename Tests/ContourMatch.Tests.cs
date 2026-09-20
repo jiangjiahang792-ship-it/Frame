@@ -184,28 +184,26 @@ internal static class ContourMatchTests
             var session = Field<object>(form, "_runtimeSession"); var matcher = Field<object>(session, "_models");
             contour.Run(CancellationToken.None, false).GetAwaiter().GetResult();
             Check(ReferenceEquals(matcher, Field<object>(session, "_models")), "每帧重复创建了原生模型。");
-            var correctionNode = new NodeBase(3,"定位",process,NodeType.PositionCorrection);
-            process.Nodes.Add(correctionNode); process.Connections.Add(new ProcessConnection { FromNodeId=3,ToNodeId=2 });
-            var originalParameters=(NodeParamContourMatch)form.Params;
+            var originalParameters = (NodeParamContourMatch)form.Params;
             try
             {
-                var info=new TDJS_Vision.Node._4_Measurement.Common.PositionCorrectionInfo { IsValid=true, CurrentX=84, CurrentY=38 };
-                SetResult(correctionNode,new TDJS_Vision.Node._4_Measurement.PositionCorrection.NodeResultPositionCorrection { CorrectionInfo=info });
-                var corrected=originalParameters.Copy(); corrected.AllSearch=false; corrected.SearchRegion=new DrawingRectangle(0,0,130,125);
-                corrected.UsePositionCorrection=true; corrected.CorrectionText1="3.定位"; corrected.CorrectionText2="位置修正信息";
-                form.Params=corrected; form.SetParam2Form();
-                var correctionSubscription=Field<NodeSubscription>(form,"correctionSubscription");
-                correctionSubscription.ClearText();
-                Check(string.IsNullOrEmpty(((NodeParamContourMatch)form.Params).CorrectionText1),"位置修正订阅清空后未即时生效。");
-                correctionSubscription.SetText("3.定位","位置修正信息");
-                Check(((NodeParamContourMatch)form.Params).CorrectionText1=="3.定位","位置修正订阅选择未即时生效。");
-                contour.Run(CancellationToken.None,false).GetAwaiter().GetResult();
-                Check(((NodeResultContourMatch)contour.Result).MatchCount==1,"节点未从上游订阅读取位置修正。");
-                info.IsValid=false; bool failedCorrection=false;
-                try { contour.Run(CancellationToken.None,false).GetAwaiter().GetResult(); } catch(InvalidOperationException) { failedCorrection=true; }
-                Check(failedCorrection && ((NodeResultContourMatch)contour.Result).MatchCount==0,"修正输入失效后仍返回历史结果。");
+                // 旧方案保留的修正开关和不存在的订阅应被忽略，不产生额外依赖。
+                var legacy = Newtonsoft.Json.Linq.JObject.FromObject(originalParameters);
+                legacy["UsePositionCorrection"] = true;
+                legacy["CorrectionText1"] = "999.已删除的定位";
+                legacy["CorrectionText2"] = "位置修正信息";
+                form.Params = legacy.ToObject<NodeParamContourMatch>(); form.SetParam2Form();
+                contour.Run(CancellationToken.None, false).GetAwaiter().GetResult();
+                Check(((NodeResultContourMatch)contour.Result).MatchCount == 1, "旧方案修正字段影响全图匹配。");
+                var fixedRegion = (NodeParamContourMatch)form.Params;
+                fixedRegion.AllSearch = false; fixedRegion.SearchRegion = new DrawingRectangle(0, 0, 130, 125);
+                form.Params = fixedRegion; form.SetParam2Form();
+                contour.Run(CancellationToken.None, false).GetAwaiter().GetResult();
+                Check(((NodeResultContourMatch)contour.Result).MatchCount == 0, "固定搜索区域仍被旧位置修正移动。");
+                Check(!JsonConvert.SerializeObject(form.Params).Contains("CorrectionText"), "保存时仍写出位置修正订阅。");
+                Check(!Field<TableLayoutPanel>(form, "basicLayout").Controls.Cast<Control>().Any(control => control.Text.Contains("位置修正")), "基础参数仍显示位置修正控件。");
             }
-            finally { form.Params=originalParameters; correctionNode.Dispose(); }
+            finally { form.Params = originalParameters; form.SetParam2Form(); }
             var token = new CancellationToken(true); bool cancelled = false;
             try { contour.Run(token, false).GetAwaiter().GetResult(); } catch (OperationCanceledException) { cancelled = true; }
             Check(cancelled && ((NodeResultContourMatch)contour.Result).MatchCount == 0, "取消后仍保留旧匹配结果。");
@@ -349,12 +347,12 @@ internal static class ContourMatchTests
         return new ContourTemplateDefinition { Name = name, Model = copy };
     }
     /// <summary>从内部生产会话取得真实匹配结果。</summary>
-    private static IReadOnlyList<ShapeMatchResult> SearchSession(object session, Mat image, NodeParamContourMatch parameters, IReadOnlyList<TDJS_Vision.Node._4_Measurement.Common.PositionCorrectionInfo> corrections = null)
+    private static IReadOnlyList<ShapeMatchResult> SearchSession(object session, Mat image, NodeParamContourMatch parameters)
     {
-        object result = Call(session, "Execute", image, parameters, CancellationToken.None, corrections);
+        object result = Call(session, "Execute", image, parameters, CancellationToken.None);
         return (IReadOnlyList<ShapeMatchResult>)result.GetType().GetProperty("Matches", Flags).GetValue(result);
     }
-    /// <summary>验证多模板启停、搜索区域、位置修正、多目标去重及交换文件。</summary>
+    /// <summary>验证多模板启停、搜索区域、旧方案兼容、多目标去重及交换文件。</summary>
     private static void MultiTemplateChecks(NodeParamContourMatch model, Mat template, string artifactDirectory)
     {
         using (var other = new Mat(88, 96, MatType.CV_8UC3, Scalar.All(20)))
@@ -378,23 +376,15 @@ internal static class ContourMatchTests
                 var region = parameters.Copy(); region.AllSearch = false; region.SearchRegion = new DrawingRectangle(30,50,130,125);
                 matches = SearchSession(session,scene,region);
                 Check(matches.Count == 1 && matches[0].TemplateName=="折线模板" && Math.Abs(matches[0].CenterX-98)<2, "搜索区域限制或ROI坐标回填错误。");
-                region = region.Copy(); region.UsePositionCorrection = true;
-                var correction = new TDJS_Vision.Node._4_Measurement.Common.PositionCorrectionInfo { IsValid=true, CurrentX=210, CurrentY=10 };
-                matches = SearchSession(session,scene,region,new[]{correction});
-                Check(matches.Count == 1 && matches[0].TemplateName=="圆形模板", "位置修正没有移动实际搜索区域。");
-                bool rejected = false;
-                try { SearchSession(session,scene,region,new[]{new TDJS_Vision.Node._4_Measurement.Common.PositionCorrectionInfo()}); } catch(TargetInvocationException) { rejected=true; }
-                Check(rejected, "无效位置修正被当作有效区域执行。");
                 var limit = parameters.Copy(); limit.FindOptions.MaximumMatches=1;
                 Check(SearchSession(session,scene,limit).Count==1,"最大结果数没有在模板合并后统一生效。");
                 var duplicate = parameters.Copy(); duplicate.Templates.Add(Definition(model,"重复折线"));
                 Check(SearchSession(session,scene,duplicate).Count==2,"不同模板对同一目标的结果未按重叠率去重。");
                 var cleared = parameters.Copy(); cleared.Templates.Clear(); cleared.ModelImageBytes=model.ModelImageBytes; cleared.ModelOptions=model.ModelOptions;
-                rejected=false; try { SearchSession(session,scene,cleared); } catch(TargetInvocationException) { rejected=true; }
+                bool rejected=false; try { SearchSession(session,scene,cleared); } catch(TargetInvocationException) { rejected=true; }
                 Check(rejected,"删除全部模板后旧单模板字段错误复活。");
-                var transform = new TDJS_Vision.Node._4_Measurement.Common.PositionCorrectionInfo { IsValid=true, CurrentAngle=90, CurrentX=240 };
-                var polygons=(List<Point2f[]>)sessionType.GetMethod("GetSearchRegions", BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,new object[]{scene,region,new[]{transform}});
-                Check(Math.Abs(polygons[0][0].X-190)<0.01 && Math.Abs(polygons[0][0].Y-30)<0.01,"位置修正旋转未作用于搜索区域角点。");
+                var polygons=(List<Point2f[]>)sessionType.GetMethod("GetSearchRegions", BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,new object[]{region});
+                Check(Math.Abs(polygons[0][0].X-30)<0.01 && Math.Abs(polygons[0][0].Y-50)<0.01,"固定搜索区域角点与输入图像坐标不一致。");
             }
             var package = new ContourTemplatePackage { Templates=parameters.Templates };
             var decoded=ContourTemplatePackage.Decode(package.Encode());
@@ -474,7 +464,7 @@ internal static class ContourMatchTests
             {
                 NodeParamContourMatch parameters = NativeChecks(template,search); Console.WriteLine("原生参数、模式、多目标、旋转及涂抹通过。");
                 ManualModel(template,search); NodeChecks(parameters,search); Console.WriteLine("节点执行、方案恢复、参数隔离、缓存与图像租约通过。");
-                MultiTemplateChecks(parameters,template,artifacts); Console.WriteLine("三页、多模板、搜索区域、位置修正和模板交换通过。");
+                MultiTemplateChecks(parameters,template,artifacts); Console.WriteLine("三页、多模板、搜索区域、旧方案兼容和模板交换通过。");
                 CanvasNavigationChecks(template); Console.WriteLine("图像缩放锚点、中键平移与原图涂抹坐标通过。");
                 EditorChecks(template,artifacts); Console.WriteLine("真实Designer窗体、区域生成、建模、擦除与保存恢复通过。");
             }

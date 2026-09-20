@@ -586,6 +586,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                     {
                         ShapeColor = line.Color,
                         StrokeWidth = line.LineWidth,
+                        ShowCenterCross = line.ShowCenterCross,
                         IsStatic = true
                     });
                 }
@@ -2191,10 +2192,12 @@ namespace TDJS_Vision.Forms.DispShowImage
 
         public class RoiLine : IRoiShape
         {
+            /// <summary>是否显示中心十字，动态编辑和既有结果默认保留。</summary>
+            public bool ShowCenterCross { get; set; } = true;
             public PointF P1, P2; public bool IsSelected { get; set; } public bool IsStatic { get; set; } public string Label { get; set; } public Color ShapeColor { get; set; } public float StrokeWidth { get; set; } = 2F; private PointF _oP1, _oP2, _sPt;
             public RoiLine(float x1, float y1, float x2, float y2) { P1 = new PointF(x1, y1); P2 = new PointF(x2, y2); ShapeColor = Color.Lime; }
             public PointF GetCenter() => new PointF((P1.X + P2.X) / 2, (P1.Y + P2.Y) / 2);
-            public void Draw(Graphics g, float s, PointF o) { PointF sp1 = new PointF(P1.X * s + o.X, P1.Y * s + o.Y), sp2 = new PointF(P2.X * s + o.X, P2.Y * s + o.Y); Color drawCol = (IsSelected && !IsStatic) ? Color.Cyan : ShapeColor; using (Pen p = new Pen(drawCol, Math.Max(1F, StrokeWidth))) { g.DrawLine(p, sp1, sp2); if (!IsStatic) using (Pen d = new Pen(Color.Black, 1.5f) { DashStyle = DashStyle.Dash }) g.DrawLine(d, sp1, sp2); } if (!IsStatic && IsSelected) { using (Brush orb = new SolidBrush(Color.Orange)) { g.FillRectangle(orb, sp1.X - 5, sp1.Y - 5, 10, 10); g.FillRectangle(orb, sp2.X - 5, sp2.Y - 5, 10, 10); } } PointF sc = new PointF((sp1.X + sp2.X) / 2, (sp1.Y + sp2.Y) / 2); DrawCross(g, sc); DrawLabel(g, Label, sc); }
+            public void Draw(Graphics g, float s, PointF o) { PointF sp1 = new PointF(P1.X * s + o.X, P1.Y * s + o.Y), sp2 = new PointF(P2.X * s + o.X, P2.Y * s + o.Y); Color drawCol = (IsSelected && !IsStatic) ? Color.Cyan : ShapeColor; using (Pen p = new Pen(drawCol, Math.Max(1F, StrokeWidth))) { g.DrawLine(p, sp1, sp2); if (!IsStatic) using (Pen d = new Pen(Color.Black, 1.5f) { DashStyle = DashStyle.Dash }) g.DrawLine(d, sp1, sp2); } if (!IsStatic && IsSelected) { using (Brush orb = new SolidBrush(Color.Orange)) { g.FillRectangle(orb, sp1.X - 5, sp1.Y - 5, 10, 10); g.FillRectangle(orb, sp2.X - 5, sp2.Y - 5, 10, 10); } } PointF sc = new PointF((sp1.X + sp2.X) / 2, (sp1.Y + sp2.Y) / 2); if (ShowCenterCross) DrawCross(g, sc); DrawLabel(g, Label, sc); }
             public int HitTest(Point p, float s, PointF o) { if (IsStatic) return -1; PointF sp1 = new PointF(P1.X * s + o.X, P1.Y * s + o.Y), sp2 = new PointF(P2.X * s + o.X, P2.Y * s + o.Y); if (Dist(p, sp1) < 8) return 1; if (Dist(p, sp2) < 8) return 2; if (DistToSegment(p, sp1, sp2) < 8) return 0; return -1; }
             public void BeginDrag(PointF p) { _sPt = p; _oP1 = P1; _oP2 = P2; }
             public void DragTo(PointF p, int h) { float dx = p.X - _sPt.X, dy = p.Y - _sPt.Y; if (h == 0) { P1 = new PointF(_oP1.X + dx, _oP1.Y + dy); P2 = new PointF(_oP2.X + dx, _oP2.Y + dy); } else if (h == 1) { P1 = p; } else if (h == 2) { P2 = p; } }

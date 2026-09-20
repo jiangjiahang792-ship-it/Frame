@@ -489,5 +489,7 @@ namespace TDJS_Vision.Node
         ResultSend,
         /// <summary>保留原生Demo创建与搜索参数的轮廓模板匹配。</summary>
         ContourMatch,
+        /// <summary>两个 ROI 定义端子与固定基座基准，测量端子矩形中线倾角。</summary>
+        TerminalAngle,
     }
 }

@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using TDJS_Vision.Node._4_Measurement.Common;
 
 namespace TDJS_Vision.Node._3_Detection.ContourMatch
 {
@@ -88,7 +87,6 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
         {
             if (_populating) return;
             _draft.AllSearch = allSearchCheckBox.Checked;
-            if (_draft.AllSearch) correctionCheckBox.Checked = false;
             ShowSearchRegion(); ApplyParameters();
         }
         /// <summary>显示已确认区域，不将它混入模板的建模ROI。</summary>
@@ -97,14 +95,6 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             var region = _draft.SearchRegion;
             regionLabel.Text = allSearchCheckBox.Checked ? "当前搜索整幅图像" : region.IsEmpty ? "尚未绘制搜索区域" : $"X={region.X}，Y={region.Y}，宽={region.Width}，高={region.Height}";
             if (_image != null) imageCanvas.SetModel(allSearchCheckBox.Checked ? Rectangle.Empty : region, Array.Empty<PointF>());
-        }
-        /// <summary>启用位置修正时要求使用已绘制的搜索区域。</summary>
-        private void CorrectionCheckBox_Changed(object sender, EventArgs e)
-        {
-            correctionSubscription.Enabled = correctionCheckBox.Checked;
-            if (_populating) return;
-            if (correctionCheckBox.Checked) allSearchCheckBox.Checked = false;
-            ApplyParameters();
         }
         /// <summary>读取当前选中的模板，不隐式选择其他条目。</summary>
         private ContourTemplateDefinition SelectedTemplate { get { return templatesGrid.CurrentRow?.Tag as ContourTemplateDefinition; } }
@@ -239,10 +229,10 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             {
                 if (!string.IsNullOrWhiteSpace(imageSubscription.GetText1())) RefreshSubscribedImage();
                 if (_image == null) throw new InvalidOperationException("请先选择输入图像。");
-                var snapshot = ReadDraft(); var corrections = ResolveCorrections(snapshot);
+                var snapshot = ReadDraft();
                 parameterTabs.SelectedTab = runtimePage;
                 SetBusy(true);
-                var result = await Task.Run(() => _previewSession.Execute(_image.Mat, snapshot, CancellationToken.None, corrections));
+                var result = await Task.Run(() => _previewSession.Execute(_image.Mat, snapshot, CancellationToken.None));
                 imageCanvas.SetMatches(result.Matches); resultsGrid.Rows.Clear();
                 foreach (var match in result.Matches) resultsGrid.Rows.Add(match.TemplateName, match.CenterX.ToString("F3"), match.CenterY.ToString("F3"), match.AngleDegrees.ToString("F3"), match.Score.ToString("F4"));
                 statusLabel.Text = $"匹配完成：{result.Matches.Count}个目标，耗时{result.Milliseconds:F2}毫秒";
