@@ -327,14 +327,22 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             UpdateTriggerControls();
         }
 
-        /// <summary>连续采集不使用触发参数，触发采集仅在线路源下启用触发沿。</summary>
+        /// <summary>切换触发极性后立即更新延时输入的可用状态，保留原延时数值。</summary>
+        private void comboBoxTriggerEdge_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            UpdateTriggerControls();
+        }
+
+        /// <summary>连续采集不使用触发参数，线路电平触发禁用延时输入。</summary>
         private void UpdateTriggerControls()
         {
             bool triggerEnabled = comboBoxTriggerModel.SelectedIndex != 1;
+            TriggerSource triggerSource = ParseTriggerSourceText(comboBoxTriggerMode.Text);
             comboBoxTriggerMode.Enabled = triggerEnabled;
-            numericUpDownTriggerDelay.Enabled = triggerEnabled;
+            numericUpDownTriggerDelay.Enabled = triggerEnabled &&
+                CameraTriggerSettings.SupportsTriggerDelay(triggerSource, (TriggerEdge)comboBoxTriggerEdge.SelectedIndex);
             comboBoxTriggerEdge.Enabled = triggerEnabled &&
-                IsHardwareTriggerSource(ParseTriggerSourceText(comboBoxTriggerMode.Text));
+                IsHardwareTriggerSource(triggerSource);
         }
 
         /// <summary>
@@ -360,7 +368,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 camera.SetTriggerSource(effectiveTriggerSource);
                 if (IsHardwareTriggerSource(effectiveTriggerSource))
                     camera.SetTriggerEdge(triggerEdge);
-                camera.SetTriggerDelay(delay);
+                // 与自动重连使用同一规则，避免电平触发写入设备不支持的参数。
+                if (CameraTriggerSettings.SupportsTriggerDelay(effectiveTriggerSource, triggerEdge))
+                    camera.SetTriggerDelay(delay);
             }
             camera.SetExposureTime(exposureTime);       // 设置曝光时间
             camera.SetGain(gain);                       // 设置增益

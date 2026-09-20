@@ -456,6 +456,7 @@
             this.comboBoxTriggerEdge.Name = "comboBoxTriggerEdge";
             this.comboBoxTriggerEdge.Size = new System.Drawing.Size(211, 29);
             this.comboBoxTriggerEdge.TabIndex = 1;
+            this.comboBoxTriggerEdge.SelectedIndexChanged += new System.EventHandler(this.comboBoxTriggerEdge_SelectedIndexChanged);
             // 
             // labelTriggerMode
             // 

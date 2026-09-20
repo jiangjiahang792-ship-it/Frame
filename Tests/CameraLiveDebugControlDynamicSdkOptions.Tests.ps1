@@ -55,7 +55,8 @@ Assert-Contains $control "comboLineMode.Text" "线路模式写入必须使用界
 
 Assert-Contains $cameraInterface "CameraEnumValue GetTriggerSourceOptions();" "相机接口必须暴露触发源 SDK 可选枚举。"
 Assert-Contains $cameraInterface "CameraEnumValue GetTriggerActivationOptions();" "相机接口必须暴露触发极性 SDK 可选枚举。"
-Assert-Regex $cameraHik "if\s*\(\s*GetTriggerMode\(\)\s*==\s*TriggerModel\.Off\s*\)\s*\{[\s\S]*?return\s+TriggerSource\.Auto;" "触发模式关闭时才应返回连续采集，不能在触发打开时返回 Auto。"
+# Open事务已改为Core读取模式；兼容当前字段判断与早期方法调用，不依赖可选的大括号。
+Assert-Regex $cameraHik "if\s*\(\s*(?:GetTriggerMode\(\)|TriggerModel)\s*==\s*TriggerModel\.Off\s*\)\s*\{?\s*return\s+TriggerSource\.Auto;" "触发模式关闭时才应返回连续采集，不能在触发打开时返回 Auto。"
 Assert-Contains $cameraHik "SupportEnumEntries" "相机实现必须保留 SDK 枚举支持项，供界面按真实能力显示。"
 Assert-Contains $control "if (IsHardwareTriggerSource(currentTriggerSource))" "初始化调试界面时只有线路硬触发才允许读取触发极性。"
 Assert-Contains $control "TriggerEdge = IsHardwareTriggerSource(triggerSource) ? TryGetCurrent2DTriggerEdge() : null" "保存调试状态时软触发不能读取触发极性。"

@@ -28,6 +28,8 @@ namespace TDJS_Vision.Forms.SolRunParam
         NodeTDAI _nodeTDAI;//AI节点
         NodeTDAI _targetAiNode;//外部指定的AI节点
         NodeImageSource _nodeSource;//图像源节点
+        /// <summary>手动图像测试运行门闩，阻止重复点击覆盖临时图像源参数。</summary>
+        private int _manualImageTestRunning;
         NodeImageCrop _nodeCrop;//图像裁剪节点
         /// <summary>
         /// 当前流程中可写入运行参数表的多条件节点。
@@ -677,95 +679,113 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void buttonSingleImg_Click(object sender, EventArgs e)
+        private async void buttonSingleImg_Click(object sender, EventArgs e)
         {
-            //实现方法;找到流程中的图像源节点，将图像路径参数设置为当前选择的图像路径
-            //最后运行流程即可，并恢复原来的图像路径
-            foreach (var node in process.Nodes)
+            try
             {
-                if (node is NodeImageSource nodeImage)
-                {
-                    if (nodeImage.ParamForm.Params is NodeParamImageSoucre nodeParam)
-                    {
-                        var imgSrc = nodeParam.ImageSource;
-                        nodeParam.ImageSource = "本地图像";
-                        //打开文件对话框，选择图像文件
-                        openFileDialog1.Filter = LanguageManager.T("SolRunParam.ImageFileFilter");
-                        openFileDialog1.Title = LanguageManager.T("SolRunParam.SelectImageFile");
-                        string modelOldPath = nodeParam.ImagePath;
-                        if (openFileDialog1.ShowDialog() == DialogResult.OK)
-                        {
-                            //设置当前图像路径
-                            nodeParam.ImagePath = openFileDialog1.FileName;
-                            //运行流程
-                            process.Run(false);
-                            //恢复原来的图像路径
-                            nodeParam.ImagePath = modelOldPath;
-                        }
-                        nodeParam.ImageSource = imgSrc;
-                        nodeImage.ParamForm.Params = nodeParam;
-                    }
-                }
+                if (_nodeSource == null)
+                    return;
+                openFileDialog1.Filter = LanguageManager.T("SolRunParam.ImageFileFilter");
+                openFileDialog1.Title = LanguageManager.T("SolRunParam.SelectImageFile");
+                // 用户确认文件之前不修改方案，取消文件选择不会影响相机配置。
+                if (openFileDialog1.ShowDialog() == DialogResult.OK)
+                    await RunImageSourceOnceAsync(_nodeSource, "本地图像", openFileDialog1.FileName);
             }
+            catch (OperationCanceledException) { LogHelper.AddLog(MsgLevel.Info, "单图测试已取消。", true); }
+            catch (Exception ex) { ReportManualImageTestFailure("单图测试", ex); }
+        }
+
+        /// <summary>等待完整流程结束后恢复临时图像源参数，异常和取消也必须恢复。</summary>
+        /// <param name="nodeImage">本次测试使用的真实图像源节点。</param>
+        /// <param name="imageSource">本地图像或相机。</param>
+        /// <param name="imagePath">本次测试的图像路径，相机模式保留原值。</param>
+        private async Task RunImageSourceOnceAsync(NodeImageSource nodeImage, string imageSource, string imagePath)
+        {
+            if (Interlocked.CompareExchange(ref _manualImageTestRunning, 1, 0) != 0)
+                throw new InvalidOperationException("图像测试正在运行，请等待本次测试完成。");
+
+            NodeParamImageSoucre nodeParam = null;
+            bool parametersChanged = false;
+            bool onceEnabled = buttonOnce.Enabled;
+            bool singleEnabled = buttonSingleImg.Enabled;
+            bool catalogueEnabled = buttonCatalogueImg.Enabled;
+            try
+            {
+                if (Solution.Instance.IsRunning)
+                    throw new InvalidOperationException("方案仍在运行，请先停止运行后再测试图像。");
+                nodeParam = nodeImage?.ParamForm?.Params as NodeParamImageSoucre;
+                if (nodeParam == null || process == null || !process.Enable)
+                    throw new InvalidOperationException("当前流程未启用或没有有效的图像源参数。");
+                if (imageSource == "本地图像" && !File.Exists(imagePath))
+                    throw new FileNotFoundException("测试图像不存在或无法访问。", imagePath);
+
+                nodeParam.BeginImageTestOverride(imageSource, imagePath);
+                parametersChanged = true;
+                buttonOnce.Enabled = buttonSingleImg.Enabled = buttonCatalogueImg.Enabled = false;
+                await process.Run(false);
+                if (!process.Success)
+                    throw new InvalidOperationException("图像测试未完成，请查看流程运行日志中的失败节点。");
+            }
+            finally
+            {
+                // 只有完整流程退出后才恢复，防止后台图像节点误读回相机并等待硬触发。
+                if (parametersChanged)
+                {
+                    nodeParam.EndImageTestOverride();
+                }
+                if (!IsDisposed)
+                {
+                    buttonOnce.Enabled = onceEnabled;
+                    buttonSingleImg.Enabled = singleEnabled;
+                    buttonCatalogueImg.Enabled = catalogueEnabled;
+                }
+                Interlocked.Exchange(ref _manualImageTestRunning, 0);
+            }
+        }
+
+        /// <summary>记录并显示手动测试失败，避免异步异常被忽略后表现为点击无响应。</summary>
+        /// <param name="operation">中文操作名称。</param>
+        /// <param name="exception">本次测试异常。</param>
+        private void ReportManualImageTestFailure(string operation, Exception exception)
+        {
+            LogHelper.AddLog(MsgLevel.Exception, $"{operation}失败：{exception}", true);
+            if (!IsDisposed)
+                MessageBoxTD.Show($"{operation}失败：{exception.Message}");
         }
         /// <summary>
         /// 多图点检
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void buttonCatalogueImg_Click(object sender, EventArgs e)
+        private async void buttonCatalogueImg_Click(object sender, EventArgs e)
         {
-            //实现方法;找到流程中的图像源节点，将图像路径参数设置为当前选择的图像目录
-            foreach (var node in process.Nodes)
+            try
             {
-                if (node is NodeImageSource nodeImage)
+                if (_nodeSource == null)
+                    return;
+                folderBrowserDialog1.Description = LanguageManager.T("SolRunParam.SelectImageFolder");
+                if (folderBrowserDialog1.ShowDialog() != DialogResult.OK)
+                    return;
+                if (string.IsNullOrEmpty(folderBrowserDialog1.SelectedPath))
                 {
-                    if (nodeImage.ParamForm.Params is NodeParamImageSoucre nodeParam)
-                    {
-                        folderBrowserDialog1.Description = LanguageManager.T("SolRunParam.SelectImageFolder");
-
-                        if (folderBrowserDialog1.ShowDialog() == DialogResult.OK)
-                        {
-                            if (string.IsNullOrEmpty(folderBrowserDialog1.SelectedPath))
-                            {
-                                MessageBoxTD.Show(LanguageManager.T("SolRunParam.FolderPathRequired"));
-                                return;
-                            }
-                            // 定义支持的图像扩展名（全部小写，便于比较）
-                            string[] imageExtensions = { ".bmp", ".jpg", ".jpeg", ".png" };
-
-                            string folderPath = folderBrowserDialog1.SelectedPath;
-
-                            // 获取指定目录下所有文件，并筛选出符合条件的
-                            var files = Directory.GetFiles(folderPath)
-                                .Where(file => imageExtensions.Contains(Path.GetExtension(file).ToLower())).ToArray();
-                            // 临时保存原目录
-                            var imgFiles = new List<string>(nodeParam.ImagePaths);
-                            var imgPath = nodeParam.ImagePath;
-                            var imageSource = nodeParam.ImageSource;
-                            // 设置当前运行参数
-                            nodeParam.ImagePath = null;
-                            nodeParam.ImagePaths = new List<string>(files);
-                            nodeParam.IsAutoLoop = true;
-                            nodeImage.LastIndex = 0;
-                            nodeParam.ImageSource = "本地图像";
-                            //运行流程
-                            for (int i = 0; i < files.Length; i++)
-                            {
-                                process.Run(false);
-                                MessageBoxTD.Show(LanguageManager.Format("SolRunParam.ImageDetectionComplete", files[nodeImage.LastIndex]));
-                            }
-                            //恢复原来的图像路径
-                            nodeParam.ImagePaths = imgFiles;
-                            nodeParam.ImagePath = imgPath;
-                            nodeImage.ParamForm.Params = nodeParam;
-                            nodeParam.ImageSource = imageSource;
-                            nodeImage.ParamForm.Params = nodeParam;
-                        }
+                    MessageBoxTD.Show(LanguageManager.T("SolRunParam.FolderPathRequired"));
+                    return;
+                }
+                string[] imageExtensions = { ".bmp", ".jpg", ".jpeg", ".png" };
+                var files = Directory.GetFiles(folderBrowserDialog1.SelectedPath)
+                    .Where(file => imageExtensions.Contains(Path.GetExtension(file).ToLowerInvariant())).ToArray();
+                foreach (string file in files)
+                {
+                    if (IsDisposed)
                         break;
-                    }
+                    // 显式逐张等待，不改写原图像列表、循环设置和当前位置。
+                    await RunImageSourceOnceAsync(_nodeSource, "本地图像", file);
+                    if (!IsDisposed)
+                        MessageBoxTD.Show(LanguageManager.Format("SolRunParam.ImageDetectionComplete", file));
                 }
             }
+            catch (OperationCanceledException) { LogHelper.AddLog(MsgLevel.Info, "多图测试已取消。", true); }
+            catch (Exception ex) { ReportManualImageTestFailure("多图测试", ex); }
         }
 
         /// <summary>
@@ -1122,20 +1142,18 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <param name="e"></param>
         private async void buttonOnce_Click(object sender, EventArgs e)
         {
-            if (uiSwitchContinue.Active)
-                uiSwitchContinue.Active = false;
-
-            if (_nodeSource.ParamForm.Params is NodeParamImageSoucre imageSrcParams)
+            try
             {
-                var imgSrc = imageSrcParams.ImageSource;
-                imageSrcParams.ImageSource = "相机";
-                imageSrcParams.ExposureTime = double.Parse(textBoxExposureTime.Text);
-
-                //运行流程
-                process.Run(false);
-                imageSrcParams.ImageSource = imgSrc;
-                _nodeSource.ParamForm.Params = imageSrcParams;
+                if (uiSwitchContinue.Active)
+                    uiSwitchContinue.Active = false;
+                if (_nodeSource?.ParamForm?.Params is NodeParamImageSoucre imageSrcParams)
+                {
+                    imageSrcParams.ExposureTime = double.Parse(textBoxExposureTime.Text);
+                    await RunImageSourceOnceAsync(_nodeSource, "相机", imageSrcParams.ImagePath);
+                }
             }
+            catch (OperationCanceledException) { LogHelper.AddLog(MsgLevel.Info, "单次采图已取消。", true); }
+            catch (Exception ex) { ReportManualImageTestFailure("单次采图", ex); }
         }
 
         /// <summary>

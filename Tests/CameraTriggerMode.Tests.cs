@@ -9,6 +9,7 @@ using System.Windows.Forms;
 using Newtonsoft.Json;
 using TDJS_Vision;
 using TDJS_Vision.Device.Camera;
+using TDJS_Vision.Forms.CameraAdd;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 
 /// <summary>真实参数窗体及硬件参数写入验证，全程使用离线设备和接口替身。</summary>
@@ -41,6 +42,12 @@ internal static class CameraTriggerModeTests
         public readonly List<string> Calls = new List<string>();
         /// <summary>最后写入的触发模式。</summary>
         public TriggerModel Mode;
+        /// <summary>相机当前触发源。</summary>
+        public TriggerSource Source = TriggerSource.LINE0;
+        /// <summary>相机当前触发极性。</summary>
+        public TriggerEdge Edge = TriggerEdge.Rising;
+        /// <summary>尝试访问当前模式不支持的延时节点次数。</summary>
+        public int InvalidDelayAccesses;
         /// <summary>创建相机接口替身。</summary>
         public CameraProbe() : base(typeof(ICamera)) { }
         /// <summary>记录接口调用并返回无设备默认值。</summary>
@@ -49,8 +56,27 @@ internal static class CameraTriggerModeTests
             var call = (IMethodCallMessage)message;
             Calls.Add(call.MethodName);
             if (call.MethodName == "SetTriggerMode") Mode = (TriggerModel)call.Args[0];
+            if (call.MethodName == "SetTriggerSource") Source = (TriggerSource)call.Args[0];
+            if (call.MethodName == "SetTriggerEdge") Edge = (TriggerEdge)call.Args[0];
             Type resultType = ((MethodInfo)call.MethodBase).ReturnType;
             object result = resultType == typeof(void) || !resultType.IsValueType ? null : Activator.CreateInstance(resultType);
+            if (call.MethodName == "get_IsOpen") result = true;
+            if (call.MethodName == "GetTriggerMode") result = Mode;
+            if (call.MethodName == "GetTriggerSource") result = Source;
+            if (call.MethodName == "GetTriggerActivationOptions")
+            {
+                string[] names = { "RisingEdge", "FallingEdge", "LevelHigh", "LevelLow", "AnyEdge" };
+                var entries = new CameraEnumEntry[names.Length];
+                for (int i = 0; i < names.Length; i++) entries[i] = new CameraEnumEntry { Value = (uint)i, Symbolic = names[i] };
+                result = new CameraEnumValue { CurEnumEntry = entries[(int)Edge], SupportEnumEntries = entries, SupportedNum = (uint)entries.Length };
+            }
+            if (resultType == typeof(CameraFloatValue)) result = new CameraFloatValue { CurValue = 123, Min = 0, Max = 100000 };
+            if ((call.MethodName == "GetTriggerDelay" || call.MethodName == "SetTriggerDelay") &&
+                Source >= TriggerSource.LINE0 && Source <= TriggerSource.LINE4 && (Edge == TriggerEdge.Hight || Edge == TriggerEdge.Low))
+            {
+                InvalidDelayAccesses++;
+                return new ReturnMessage(new InvalidOperationException("电平触发没有延时节点。"), call);
+            }
             return new ReturnMessage(result, null, 0, call.LogicalCallContext, call);
         }
     }
@@ -128,6 +154,44 @@ internal static class CameraTriggerModeTests
                         Check(probe.Calls.Contains("SetExposureTime") && probe.Calls.Contains("SetGain"), "模式切换丢失曝光或增益设置。");
                     }
                 }
+                // 电平触发没有延时节点；恢复参数必须继续完成曝光、增益和超时设置。
+                foreach (bool solutionEntry in new[] { true, false })
+                {
+                    foreach (TriggerSource triggerSource in new[] { TriggerSource.LINE0, TriggerSource.LINE4, TriggerSource.SOFT, TriggerSource.Auto })
+                    {
+                        foreach (TriggerEdge triggerEdge in new[] { TriggerEdge.Hight, TriggerEdge.Low, TriggerEdge.Rising, TriggerEdge.Falling, TriggerEdge.Any })
+                        {
+                            probe.Calls.Clear();
+                            other.TriggerModel = TriggerModel.On;
+                            other.TriggerSource = triggerSource;
+                            other.TriggerEdge = triggerEdge;
+                            other.TriggerDelay = 123;
+                            if (solutionEntry) apply.Invoke(null, new object[] { fake, other });
+                            else Call(form, "SetCameraParams", fake, TriggerModel.On, triggerSource, triggerEdge, 123, 1000D, 2D, (uint)500);
+                            bool softwareTrigger = triggerSource == TriggerSource.SOFT || triggerSource == TriggerSource.Auto;
+                            bool expectedDelay = softwareTrigger || triggerEdge == TriggerEdge.Rising || triggerEdge == TriggerEdge.Falling || triggerEdge == TriggerEdge.Any;
+                            Check(probe.Calls.Contains("SetTriggerDelay") == expectedDelay,
+                                "触发延时写入不符合极性：入口=" + solutionEntry + "，触发源=" + triggerSource + "，极性=" + triggerEdge);
+                            Check(probe.Calls.Contains("SetExposureTime") && probe.Calls.Contains("SetGain") && probe.Calls.Contains("set_GetImageTimeOut"),
+                                "跳过触发延时后必须继续恢复其他采图参数。");
+                        }
+                    }
+                }
+                source.SelectedIndex = 1;
+                foreach (TriggerEdge level in new[] { TriggerEdge.Hight, TriggerEdge.Low })
+                {
+                    edge.SelectedIndex = (int)level;
+                    Check(!delay.Enabled, "高、低电平触发必须禁用延时输入。");
+                    other.TriggerSource = roundTrip.TriggerSource = TriggerSource.LINE1;
+                    other.TriggerModel = roundTrip.TriggerModel = TriggerModel.On;
+                    other.TriggerEdge = roundTrip.TriggerEdge = level;
+                    other.TriggerDelay = 999;
+                    Check((bool)equivalent.Invoke(null, new object[] { roundTrip, other }), "电平触发下无效延时差异不应阻止重连。");
+                }
+                edge.SelectedIndex = (int)TriggerEdge.Rising;
+                Check(delay.Enabled && delay.Value == 123, "切回边沿触发必须恢复延时输入并保留数值。");
+                other.TriggerEdge = roundTrip.TriggerEdge = TriggerEdge.Rising;
+                Check(!(bool)equivalent.Invoke(null, new object[] { roundTrip, other }), "边沿触发仍需检查延时冲突。");
                 form.Show();
                 Application.DoEvents();
                 Check(mode.Visible && mode.Parent.ClientRectangle.Contains(mode.Bounds), "触发模式控件被裁切。");
@@ -149,6 +213,33 @@ internal static class CameraTriggerModeTests
                 form.Close();
             }
             Solution.Instance.AllDevices.Remove(camera);
+            foreach (TriggerSource originalSource in new[] { TriggerSource.LINE0, TriggerSource.SOFT, TriggerSource.Auto })
+            foreach (TriggerEdge originalEdge in new[] { TriggerEdge.Hight, TriggerEdge.Low, TriggerEdge.Rising, TriggerEdge.Falling })
+            {
+                TriggerModel originalMode = originalSource == TriggerSource.Auto ? TriggerModel.Off : TriggerModel.On;
+                var probe = new CameraProbe { Mode = originalMode, Source = originalSource, Edge = originalEdge };
+                using (var debug = new CameraLiveDebugControl((ICamera)probe.GetTransparentProxy()))
+                {
+                    Check(probe.InvalidDelayAccesses == 0, "打开相机调试窗口时读取了电平模式不存在的延时节点。");
+                    Check(Field<object>(debug, "_camera2DDebugStateSnapshot") != null, "相机调试前的触发快照不能因不支持延时而丢失。");
+                    typeof(CameraLiveDebugControl).GetField("_isInitializingParameters", InstanceFlags).SetValue(debug, true);
+                    Field<ComboBox>(debug, "comboTriggerMode").SelectedItem = "打开";
+                    Field<ComboBox>(debug, "comboTriggerSource").SelectedItem = "线路0";
+                    Field<ComboBox>(debug, "comboTriggerEdge").SelectedItem = "高电平";
+                    Check(Field<TableLayoutPanel>(debug, "tableLayoutPanelTrigger").RowStyles[4].Height == 0,
+                        "选择高电平后必须立即隐藏不适用的延时输入。");
+                    typeof(CameraLiveDebugControl).GetField("_isInitializingParameters", InstanceFlags).SetValue(debug, false);
+                    probe.Calls.Clear();
+                    Call(debug, "Apply2DTriggerSettingsBeforeCollecting");
+                    Check(probe.Edge == TriggerEdge.Hight && !probe.Calls.Contains("SetTriggerDelay"), "高电平预览不能写入触发延时。");
+                    probe.Calls.Clear();
+                    Call(debug, "Restore2DDebugStateAfterDebug");
+                    Check(probe.Mode == originalMode && probe.Source == originalSource &&
+                        (originalSource != TriggerSource.LINE0 || probe.Edge == originalEdge),
+                        "关闭调试后没有完整恢复原触发模式、线路和极性。");
+                    Check(probe.InvalidDelayAccesses == 0, "从电平切回边沿时必须先恢复极性再恢复延时。");
+                }
+            }
             Console.WriteLine("相机触发模式验证通过：" + _checks + "项。");
             return 0;
         }

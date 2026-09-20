@@ -1,0 +1,42 @@
+[
+  {
+    "Name": "铜环底部到端子头顶部的距离",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "铜环底部到绝缘体顶部的距离",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "铜环底部到屏蔽网顶部距离",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "露线芯宽度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "露线芯长度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  }
+]

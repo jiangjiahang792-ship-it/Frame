@@ -186,6 +186,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                         case ModelName.AST_工位1模型:
                                             ASTStation1Parse.Parse(det_results, result_count, param, Process, ref res);
                                             break;
+                                        case ModelName.AST_工位2模型:
+                                            ASTStation2Parse.Parse(det_results, result_count, param, Process, ref res);
+                                            break;
                                         case ModelName.XM_Fakra模型:
                                             XMSGParse.Parse(det_results, result_count, param, Process,ref res);
                                             break;

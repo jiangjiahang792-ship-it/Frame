@@ -344,5 +344,10 @@
   "铜环高度": "Copper ring height",
   "铜环宽度": "Copper ring width",
   "绝缘胶高度": "Insulation glue height",
-  "绝缘胶宽度": "Insulation glue width"
+  "绝缘胶宽度": "Insulation glue width",
+  "铜环底部到端子头顶部的距离": "Copper ring bottom to terminal head top distance",
+  "铜环底部到绝缘体顶部的距离": "Copper ring bottom to insulator top distance",
+  "铜环底部到屏蔽网顶部距离": "Copper ring bottom to shielding mesh top distance",
+  "露线芯宽度": "Exposed wire core width",
+  "露线芯长度": "Exposed wire core length"
 }

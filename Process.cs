@@ -3167,7 +3167,8 @@ namespace TDJS_Vision
         /// <param name="isCyclical">是否按循环运行语义记录。</param>
         public async Task Run(bool isCyclical)
         {
-            await RunWithResultAsync(isCyclical, Solution.Instance.CancellationToken).ConfigureAwait(false);
+            // 先由运行入口建立新会话，再读取其令牌，避免复用上一轮停止后已取消的令牌。
+            await RunWithResultAsync(isCyclical, CancellationToken.None).ConfigureAwait(false);
         }
 
 

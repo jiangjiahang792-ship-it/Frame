@@ -261,6 +261,7 @@
     <Compile Include="ExternalProgramLauncher.cs" />
     <Compile Include="Forms\Workspace\IExclusiveWorkspacePresenter.cs" />
     <Compile Include="Forms\Workspace\ExclusiveWorkspacePresenter.cs" />
+    <Compile Include="Forms\Common\WindowIconProvider.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\MultiTerminalParse.cs" />
     <Compile Include="Startup\IStartupProgressReporter.cs" />
     <Compile Include="Startup\ISolutionLoadingCoordinator.cs" />
@@ -618,6 +619,7 @@
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12angondingParse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation1Parse.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation2Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_Filling_rubber_Back.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_Filling_rubber_Front.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_More_Terminal_9Class.cs" />
@@ -2183,6 +2185,15 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Template\TDAI\AST-工位1模型配置.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\AST-工位2检测项.items">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\AST-工位2模型.ai">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\AST-工位2模型配置.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Languages\en-US.json">

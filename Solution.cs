@@ -1186,9 +1186,12 @@ namespace TDJS_Vision
             TriggerSource rightSource = NormalizeImageSourceTriggerSource(right.TriggerSource);
             bool triggerEdgeMatches = !IsImageSourceHardwareTrigger(leftSource) ||
                 left.TriggerEdge == right.TriggerEdge;
+            // 电平触发没有延时参数，旧方案保留的延时差异不能阻止自动重连。
+            bool triggerDelayMatches = !CameraTriggerSettings.SupportsTriggerDelay(leftSource, left.TriggerEdge) ||
+                left.TriggerDelay == right.TriggerDelay;
             return left.TriggerModel == right.TriggerModel &&
                 (left.TriggerModel == TriggerModel.Off ||
-                    (leftSource == rightSource && triggerEdgeMatches && left.TriggerDelay == right.TriggerDelay)) &&
+                    (leftSource == rightSource && triggerEdgeMatches && triggerDelayMatches)) &&
                 left.ExposureTime.Equals(right.ExposureTime) &&
                 left.Gain.Equals(right.Gain) &&
                 left.TimeOut == right.TimeOut;
@@ -1246,7 +1249,9 @@ namespace TDJS_Vision
                 camera.SetTriggerSource(effectiveTriggerSource);
                 if (effectiveTriggerSource >= TriggerSource.LINE0 && effectiveTriggerSource <= TriggerSource.LINE4)
                     camera.SetTriggerEdge(param.TriggerEdge);
-                camera.SetTriggerDelay(param.TriggerDelay);
+                // 高、低电平下不存在触发延时节点，不能向设备写入该参数。
+                if (CameraTriggerSettings.SupportsTriggerDelay(effectiveTriggerSource, param.TriggerEdge))
+                    camera.SetTriggerDelay(param.TriggerDelay);
             }
             camera.SetExposureTime(param.ExposureTime);
             camera.SetGain(param.Gain);

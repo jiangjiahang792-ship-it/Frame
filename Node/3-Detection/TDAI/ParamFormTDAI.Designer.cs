@@ -281,7 +281,8 @@
             "合压模型",
             "多端子模型",
             "超声波焊接侧面三类模型",
-            "AST-工位1模型"});
+            "AST-工位1模型",
+            "AST-工位2模型"});
             this.comboBoxModelName.Location = new System.Drawing.Point(183, 331);
             this.comboBoxModelName.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxModelName.Name = "comboBoxModelName";

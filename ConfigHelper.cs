@@ -10,6 +10,7 @@ using System.Text;
 using TDJS_Vision.Forms.GlobalSignalSettings;
 using TDJS_Vision.Forms.ImageViewer;
 using TDJS_Vision.Node;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Startup;
 
@@ -80,7 +81,13 @@ namespace TDJS_Vision
                         node.CanvasHeight = nodeConfig.CanvasSize.Height;
                         node.IsStartNode = nodeConfig.IsStartNode;
                         if (nodeConfig.ParamForm != null && nodeConfig.ParamForm.Params != null)
-                            node.NodeParam = nodeConfig.ParamForm.Params;
+                        {
+                            // 手动图像测试的临时来源只用于运行，任何保存入口都持久化原始配置。
+                            NodeParamImageSoucre imageParam = nodeConfig.ParamForm.Params as NodeParamImageSoucre;
+                            node.NodeParam = imageParam != null
+                                ? imageParam.CreatePersistenceSnapshot()
+                                : nodeConfig.ParamForm.Params;
+                        }
                         processConfig.NodeInfos.Add(node);
                     }
                     processConfig.ConnectionInfos.Clear();

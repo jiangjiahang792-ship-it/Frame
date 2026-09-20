@@ -1,0 +1,22 @@
+{
+  "ModelName": "AST-工位2模型",
+  "ModelSize": 640,
+  "ScoreThreshold": 0.5,
+  "ScoreNMS": 0.5,
+  "ModelInfo": {
+    "ModelType": "DET",
+    "DeviceType": "CPU",
+    "IsEncrypted": true,
+    "ModelPath": "D:\\项目\\AST-Fakra\\软件数据\\Model\\FAKRA（AST-CCD2）\\model_encrypted.onnx",
+    "KeyPointNum": 0
+  },
+  "ClassNames": [
+    "terminal head",
+    "exposed_wire_core",
+    "insulation_glue",
+    "shielding_mesh",
+    "copper_ring",
+    "rubber",
+    "fly_line"
+  ]
+}

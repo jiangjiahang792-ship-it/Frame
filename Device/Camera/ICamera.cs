@@ -351,6 +351,20 @@ namespace TDJS_Vision.Device.Camera
         Any,
     }
 
+    /// <summary>图像源共用的相机触发参数适用性规则。</summary>
+    public static class CameraTriggerSettings
+    {
+        /// <summary>线路高、低电平触发不支持延时；软件触发不使用保存的硬触发极性。</summary>
+        /// <param name="source">触发源，兼容旧方案的自动模式。</param>
+        /// <param name="edge">保存的硬触发极性。</param>
+        /// <returns>当前触发配置是否允许设置延时。</returns>
+        public static bool SupportsTriggerDelay(TriggerSource source, TriggerEdge edge)
+        {
+            bool isHardwareTrigger = source >= TriggerSource.LINE0 && source <= TriggerSource.LINE4;
+            return !isHardwareTrigger || (edge != TriggerEdge.Hight && edge != TriggerEdge.Low);
+        }
+    }
+
     /// <summary>
     /// 相机品牌
     /// </summary>

@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Drawing;
-using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using TDJS_Vision.Forms.Common;
 
 namespace TDJS_Vision
 {
@@ -105,10 +105,7 @@ namespace TDJS_Vision
 
             // 确保此时 Icon 已经被子类设置
             pictureBoxIcon.Image = Properties.Resources.TDJSLog;
-            using (MemoryStream ms = new MemoryStream(Properties.Resources.TDJSIco))
-            {
-                this.Icon = new Icon(ms);
-            }
+            WindowIconProvider.Apply(this);
             labelTitle.Text = Text; // 设置标题栏文本为窗体标题
             labelMinBox.Visible = MinimizeBox;
             labelMaxBox.Visible = MaximizeBox;

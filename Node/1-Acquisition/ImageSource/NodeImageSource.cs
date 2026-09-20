@@ -1106,7 +1106,9 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                                     camera.SetTriggerSource(effectiveTriggerSource);
                                     if (effectiveTriggerSource >= TriggerSource.LINE0 && effectiveTriggerSource <= TriggerSource.LINE4)
                                         camera.SetTriggerEdge(param.TriggerEdge);
-                                    camera.SetTriggerDelay(param.TriggerDelay);
+                                    // 与连接恢复保持一致，电平触发跳过不适用的延时参数。
+                                    if (CameraTriggerSettings.SupportsTriggerDelay(effectiveTriggerSource, param.TriggerEdge))
+                                        camera.SetTriggerDelay(param.TriggerDelay);
                                 }
                                 camera.SetExposureTime(param.ExposureTime);
                                 camera.SetGain(param.Gain);

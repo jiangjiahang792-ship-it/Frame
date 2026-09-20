@@ -10,6 +10,7 @@ using System.Windows.Forms;
 using TDJS_Vision.Device;
 using TDJS_Vision.Device.Modbus;
 using TDJS_Vision.Device.PLC;
+using TDJS_Vision.Forms.Common;
 
 namespace TDJS_Vision.Forms.GlobalSignalSettings
 {
@@ -26,6 +27,7 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
         public FormGlobalSignal()
         {
             InitializeComponent();
+            WindowIconProvider.Apply(this);
             Shown += FormGlobalSignal_Shown;
             dataGridView1.Leave += DataGridView1_Leave;
             dataGridView2.Leave += DataGridView2_Leave;

@@ -225,6 +225,9 @@ namespace TDJS_Vision.Forms.CameraAdd
             /// </summary>
             public double TriggerDelay { get; set; }
 
+            /// <summary>原模式是否存在可恢复的触发延时参数。</summary>
+            public bool HasTriggerDelay { get; set; }
+
             /// <summary>
             /// 原始触发极性，读取失败时为空。
             /// </summary>
@@ -493,9 +496,13 @@ namespace TDJS_Vision.Forms.CameraAdd
                 if (double.IsNaN(gainValue))
                     gainValue = GetSdkNumericValue(gain.Item2, (double)numericGain.Value);
                 SetNumericValue(numericGain, gainValue);
-                SetNumericValue(numericTriggerDelay, GetSdkNumericValue(_camera.GetTriggerDelay(), (double)numericTriggerDelay.Value));
-                comboTriggerSource.SelectedItem = GetTriggerSourceText(_camera.GetTriggerSource());
-                comboTriggerMode.SelectedItem = _camera.GetTriggerMode() == TriggerModel.On ? "打开" : "关闭";
+                TriggerSource triggerSource = _camera.GetTriggerSource();
+                TriggerModel triggerMode = _camera.GetTriggerMode();
+                TriggerEdge? triggerEdge = IsHardwareTriggerSource(triggerSource) ? TryGetCurrent2DTriggerEdge() : null;
+                if (Supports2DTriggerDelay(triggerMode, triggerSource, triggerEdge))
+                    SetNumericValue(numericTriggerDelay, GetSdkNumericValue(_camera.GetTriggerDelay(), (double)numericTriggerDelay.Value));
+                comboTriggerSource.SelectedItem = GetTriggerSourceText(triggerSource);
+                comboTriggerMode.SelectedItem = triggerMode == TriggerModel.On ? "打开" : "关闭";
             }
             catch (Exception ex)
             {
@@ -575,10 +582,12 @@ namespace TDJS_Vision.Forms.CameraAdd
         {
             bool triggerEnabled = comboTriggerMode.Text == "打开";
             bool softwareTriggerSource = comboTriggerSource.Text == "软件触发";
+            bool delaySupported = _camera3D != null || CameraTriggerSettings.SupportsTriggerDelay(
+                Get2DTriggerSource(comboTriggerSource.Text), Get2DTriggerEdge(comboTriggerEdge.Text));
             _isSoftwareTriggerSourceSelected = softwareTriggerSource;
             SetTableRowVisible(tableLayoutPanelTrigger, 2, triggerEnabled, 46F, labelTriggerSource, comboTriggerSource);
             SetTableRowVisible(tableLayoutPanelTrigger, 3, triggerEnabled && IsHardwareTriggerSource(), 46F, labelTriggerEdge, comboTriggerEdge);
-            SetTableRowVisible(tableLayoutPanelTrigger, 4, triggerEnabled, 46F, labelTriggerDelay, numericTriggerDelay);
+            SetTableRowVisible(tableLayoutPanelTrigger, 4, triggerEnabled && delaySupported, 46F, labelTriggerDelay, numericTriggerDelay);
             SetTableRowVisible(tableLayoutPanelTrigger, 5, triggerEnabled && softwareTriggerSource, 46F, labelSoftTrigger, buttonSoftTrigger);
             RefreshTableHeight(tableLayoutPanelTrigger);
         }
@@ -800,9 +809,11 @@ namespace TDJS_Vision.Forms.CameraAdd
 
             _camera.SetTriggerMode(TriggerModel.On);
             _camera.SetTriggerSource(Get2DTriggerSource(comboTriggerSource.Text));
-            _camera.SetTriggerDelay((double)numericTriggerDelay.Value);
             if (IsHardwareTriggerSource())
                 _camera.SetTriggerEdge(Get2DTriggerEdge(comboTriggerEdge.Text));
+            // 先切换极性，再决定是否写入延时，避免由电平切回边沿时访问仍不可用的节点。
+            if (CameraTriggerSettings.SupportsTriggerDelay(Get2DTriggerSource(comboTriggerSource.Text), Get2DTriggerEdge(comboTriggerEdge.Text)))
+                _camera.SetTriggerDelay((double)numericTriggerDelay.Value);
         }
 
         /// <summary>
@@ -821,9 +832,12 @@ namespace TDJS_Vision.Forms.CameraAdd
                 {
                     TriggerMode = triggerMode,
                     TriggerSource = triggerSource,
-                    TriggerDelay = GetSdkNumericValue(_camera.GetTriggerDelay(), (double)numericTriggerDelay.Value),
                     TriggerEdge = IsHardwareTriggerSource(triggerSource) ? TryGetCurrent2DTriggerEdge() : null
                 };
+                _camera2DDebugStateSnapshot.HasTriggerDelay = Supports2DTriggerDelay(
+                    triggerMode, triggerSource, _camera2DDebugStateSnapshot.TriggerEdge);
+                if (_camera2DDebugStateSnapshot.HasTriggerDelay)
+                    _camera2DDebugStateSnapshot.TriggerDelay = GetSdkNumericValue(_camera.GetTriggerDelay(), (double)numericTriggerDelay.Value);
             }
             catch (Exception ex)
             {
@@ -844,9 +858,10 @@ namespace TDJS_Vision.Forms.CameraAdd
             {
                 _camera.SetTriggerMode(_camera2DDebugStateSnapshot.TriggerMode);
                 _camera.SetTriggerSource(_camera2DDebugStateSnapshot.TriggerSource);
-                _camera.SetTriggerDelay(_camera2DDebugStateSnapshot.TriggerDelay);
                 if (IsHardwareTriggerSource(_camera2DDebugStateSnapshot.TriggerSource) && _camera2DDebugStateSnapshot.TriggerEdge.HasValue)
                     _camera.SetTriggerEdge(_camera2DDebugStateSnapshot.TriggerEdge.Value);
+                if (_camera2DDebugStateSnapshot.HasTriggerDelay)
+                    _camera.SetTriggerDelay(_camera2DDebugStateSnapshot.TriggerDelay);
             }
             catch (Exception ex)
             {
@@ -856,6 +871,17 @@ namespace TDJS_Vision.Forms.CameraAdd
             {
                 _camera2DDebugStateSnapshot = null;
             }
+        }
+
+        /// <summary>判断读取到的二维相机触发状态是否支持延时；线路极性未知时不访问延时节点。</summary>
+        /// <param name="mode">实际触发模式。</param>
+        /// <param name="source">实际触发源。</param>
+        /// <param name="edge">实际线路极性，读取失败时为空。</param>
+        /// <returns>当前状态允许读取或恢复延时。</returns>
+        private static bool Supports2DTriggerDelay(TriggerModel mode, TriggerSource source, TriggerEdge? edge)
+        {
+            return mode == TriggerModel.On && (!IsHardwareTriggerSource(source) ||
+                (edge.HasValue && CameraTriggerSettings.SupportsTriggerDelay(source, edge.Value)));
         }
 
         /// <summary>
@@ -1998,7 +2024,9 @@ namespace TDJS_Vision.Forms.CameraAdd
                 return;
             }
 
-            Execute2DCameraAction("触发延迟", () => _camera.SetTriggerDelay((double)numericTriggerDelay.Value));
+            if (comboTriggerMode.Text == "打开" && CameraTriggerSettings.SupportsTriggerDelay(
+                Get2DTriggerSource(comboTriggerSource.Text), Get2DTriggerEdge(comboTriggerEdge.Text)))
+                Execute2DCameraAction("触发延迟", () => _camera.SetTriggerDelay((double)numericTriggerDelay.Value));
         }
 
         /// <summary>
@@ -2063,6 +2091,7 @@ namespace TDJS_Vision.Forms.CameraAdd
             if (!IsHardwareTriggerSource())
                 return;
             Execute2DCameraAction("触发极性", () => _camera.SetTriggerEdge(Get2DTriggerEdge(comboTriggerEdge.Text)));
+            ApplyTriggerParameterVisibility();
         }
 
         /// <summary>
