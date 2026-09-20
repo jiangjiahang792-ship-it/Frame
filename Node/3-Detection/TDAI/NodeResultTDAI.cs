@@ -402,6 +402,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     /// </summary>
     public class ColorLine
     {
+        /// <summary>是否绘制中心十字，默认兼容既有节点；纯中线结果可关闭。</summary>
+        public bool ShowCenterCross { get; set; } = true;
         public PointF P1 { get; set; }
         public PointF P2 { get; set; }
         public Color Color { get; set; }

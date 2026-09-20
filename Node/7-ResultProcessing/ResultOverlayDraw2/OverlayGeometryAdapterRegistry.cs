@@ -321,7 +321,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             {
                 target.Lines.Add(new ColorLine(line.P1, line.P2, context.ResolveColor(line.Color))
                 {
-                    LineWidth = lineWidth
+                    LineWidth = lineWidth,
+                    ShowCenterCross = line.ShowCenterCross
                 });
                 addedCount++;
             }
@@ -470,7 +471,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
             {
                 target.Lines.Add(new ColorLine(line.P1, line.P2, context.ResolveColor(line.Color))
                 {
-                    LineWidth = lineWidth
+                    LineWidth = lineWidth,
+                    ShowCenterCross = line.ShowCenterCross
                 });
                 return true;
             }

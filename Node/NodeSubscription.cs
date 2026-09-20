@@ -53,11 +53,49 @@ namespace TDJS_Vision.Node
         /// </summary>
         private SubscriptionOutputDescriptor _selectedOutput;
 
-        public NodeSubscription()
+        /// <summary>统一上游选择策略，允许专用宿主替换实现。</summary>
+        private readonly ISubscriptionSourceSelector _sourceSelector;
+        /// <summary>新订阅默认自动跟随最近兼容来源；手选和恢复明确配置后保留原选择。</summary>
+        private bool _automaticSelection = true;
+        /// <summary>区分用户主动清空与新节点尚无配置，主动清空不立即重新填充。</summary>
+        private bool _clearedByUser;
+        /// <summary>仅选择节点的控件不要求该节点存在兼容输出端口。</summary>
+        private bool _nodeOnly;
+
+        /// <summary>订阅节点或结果路径完成变更后通知调用方，程序恢复和清空同样生效。</summary>
+        public event EventHandler SelectionChanged;
+        /// <summary>上次通知的节点路径，用于过滤刷新下拉列表产生的重复通知。</summary>
+        private string _notifiedNodeText;
+        /// <summary>上次通知的结果路径。</summary>
+        private string _notifiedResultText;
+        /// <summary>仅在完整订阅路径发生变化后发布事件。</summary>
+        private void NotifySelectionChanged()
         {
+            if (_notifiedNodeText == _text1 && _notifiedResultText == _text2) return;
+            _notifiedNodeText = _text1; _notifiedResultText = _text2;
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>设计器入口，所有新增标准订阅默认采用最近兼容上游规则。</summary>
+        public NodeSubscription() : this(NearestSubscriptionSourceSelector.Instance) { }
+
+        /// <summary>注入可替换的来源选择策略并注册配置变更通知。</summary>
+        public NodeSubscription(ISubscriptionSourceSelector sourceSelector)
+        {
+            _sourceSelector = sourceSelector ?? throw new ArgumentNullException(nameof(sourceSelector));
             InitializeComponent();
             NodeBase.RefreshNodeSubControl += RenameChangeEvent;
             NodeBase.OutputDefinitionChanged += NodeBase_OutputDefinitionChanged;
+            Disposed += Subscription_Disposed;
+        }
+
+        /// <summary>释放全局及流程事件订阅，避免关闭节点后继续响应连线。</summary>
+        private void Subscription_Disposed(object sender, EventArgs e)
+        {
+            NodeBase.RefreshNodeSubControl -= RenameChangeEvent;
+            NodeBase.OutputDefinitionChanged -= NodeBase_OutputDefinitionChanged;
+            NodeBase.NodeDeletedEvent -= NodeBase_NodeDeletedEvent;
+            if (_node?.Process != null) _node.Process.ConnectionsChanged -= Process_ConnectionsChanged;
         }
 
         /// <summary>
@@ -67,6 +105,11 @@ namespace TDJS_Vision.Node
         /// <param name="sourceNode">输出定义发生变化的节点。</param>
         private void NodeBase_OutputDefinitionChanged(object sender, NodeBase sourceNode)
         {
+            if (_automaticSelection && sourceNode?.Process == _node?.Process)
+            {
+                RefreshNodeIdList(true);
+                return;
+            }
             if (sourceNode == null || _selectedNode == null || sourceNode.ID != _selectedNode.ID)
                 return;
             if (sourceNode.Process != _selectedNode.Process || sourceNode.Result == null)
@@ -171,7 +214,8 @@ namespace TDJS_Vision.Node
         public void SetInputContract(SubscriptionInputContract inputContract)
         {
             _inputContract = inputContract ?? SubscriptionInputContract.AnyVisible();
-            if (_selectedNode != null)
+            if (_automaticSelection) RefreshNodeIdList(true);
+            else if (_selectedNode != null)
                 InitProperties(_selectedNode, _text2);
         }
 
@@ -225,7 +269,7 @@ namespace TDJS_Vision.Node
         /// <param name="ids"></param>
         private void InitNodeIdList()
         {
-            RefreshNodeIdList(false);
+            RefreshNodeIdList(true);
         }
 
         private void RefreshNodeIdList(bool preserveSelection)
@@ -233,13 +277,16 @@ namespace TDJS_Vision.Node
             if (_node == null || _node.Process == null)
                 return;
 
-            string selectedNodeText = preserveSelection ? _text1 : string.Empty;
+            string selectedNodeText = preserveSelection && !_automaticSelection ? _text1 : string.Empty;
             string selectedResultText = _text2;
-            comboBox1.Items.Clear();
-
-            List<NodeBase> upstreamNodes = _node.Process.GetUpstreamNodes(_node);
-            foreach (NodeBase node in upstreamNodes)
-                comboBox1.Items.Add(GetNodeText(node));
+            IReadOnlyList<NodeBase> upstreamNodes = _sourceSelector.GetUpstreamNodes(_node);
+            _isUpdatingNodeCombo = true;
+            try
+            {
+                comboBox1.Items.Clear();
+                foreach (NodeBase node in upstreamNodes) comboBox1.Items.Add(GetNodeText(node));
+            }
+            finally { _isUpdatingNodeCombo = false; }
 
             if (!selectedNodeText.IsNullOrEmpty())
             {
@@ -256,15 +303,22 @@ namespace TDJS_Vision.Node
                 return;
             }
 
-            if (comboBox1.Items.Count == 0)
+            // 显式清空保持为空；自动订阅才逐层寻找符合该输入类型的输出。
+            if (!_automaticSelection)
             {
                 ClearSelectedNode();
                 return;
             }
-
-            SetNodeComboSelectedIndex(0);
-            _text1 = (string)comboBox1.Items[0];
-            SetSelectedNode(_text1, string.Empty, true);
+            for (int index = 0; index < upstreamNodes.Count; index++)
+            {
+                var source = upstreamNodes[index];
+                var output = _sourceSelector.SelectOutput(source, _inputContract, toolStripMenuItemShowAdvancedResults.Checked);
+                if (!_nodeOnly && output == null) continue;
+                SetNodeComboSelectedIndex(index);
+                SetSelectedNode(GetNodeText(source), output?.DisplayName ?? output?.PropertyPath, _nodeOnly);
+                return;
+            }
+            ClearSelectedNode();
         }
 
         /// <summary>
@@ -276,8 +330,9 @@ namespace TDJS_Vision.Node
         {
             if (_isUpdatingNodeCombo)
                 return;
-
-            SetSelectedNode(comboBox1.Text, _text2);
+            _automaticSelection = false;
+            _clearedByUser = false;
+            SetSelectedNode(comboBox1.Text, null, true);
         }
 
         /// <summary>
@@ -336,6 +391,7 @@ namespace TDJS_Vision.Node
             {
                 comboBox2.EndUpdate();
                 _isUpdatingResultCombo = false;
+                NotifySelectionChanged();
             }
         }
         /// <summary>
@@ -406,18 +462,31 @@ namespace TDJS_Vision.Node
 
         public void HideText2()
         {
+            _nodeOnly = true;
             label2.Visible = false;
             comboBox2.Visible = false;
+            if (_automaticSelection) RefreshNodeIdList(true);
         }
 
         public void ClearText()
         {
+            _automaticSelection = false;
+            _clearedByUser = true;
             ClearSelectedNode();
         }
 
         //反序列化使用
         public void SetText(string text1, string text2)
         {
+            // 新节点尚无保存值时保留公共自动选择，防止打开参数窗口把连线结果清空。
+            if (string.IsNullOrWhiteSpace(text1) && string.IsNullOrWhiteSpace(text2))
+            {
+                if (!_clearedByUser) _automaticSelection = true;
+                RefreshNodeIdList(true);
+                return;
+            }
+            _clearedByUser = false;
+            if (_text1 != text1 || _text2 != text2) _automaticSelection = false;
             _text1 = text1;
             _text2 = text2;
             int index = comboBox1.Items.IndexOf(text1);
@@ -459,6 +528,7 @@ namespace TDJS_Vision.Node
             SetNodeComboSelectedIndex(-1);
             comboBox2.Items.Clear();
             comboBox2.Text = string.Empty;
+            NotifySelectionChanged();
         }
 
         /// <summary>
@@ -495,6 +565,7 @@ namespace TDJS_Vision.Node
                 }));
                 comboBox2.SelectedIndex = 0;
             }
+            NotifySelectionChanged();
         }
 
         /// <summary>
@@ -552,9 +623,10 @@ namespace TDJS_Vision.Node
 
         private void comboBox2_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (_isUpdatingResultCombo)
+            if (_isUpdatingResultCombo || comboBox2.SelectedItem == null)
                 return;
-
+            _automaticSelection = false;
+            _clearedByUser = false;
             ApplySelectedResultItem();
         }
 
@@ -611,6 +683,7 @@ namespace TDJS_Vision.Node
 
             _text2 = item.PersistedText;
             _selectedOutput = item.Descriptor;
+            if (!_isUpdatingResultCombo) NotifySelectionChanged();
         }
 
         private void EnsureSelectedNodeFresh()

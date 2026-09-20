@@ -1,4 +1,5 @@
-﻿using Logger;
+using TDJS_Vision.Node._3_Detection.ContourMatch;
+using Logger;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -291,6 +292,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             buttonStop.Enabled = false;
             UpdateNodeCountText();
             UpdateRunTimeText();
+            processFlowCanvas?.Invalidate();
         }
 
         private void ConfigureCommandButtons()
@@ -682,6 +684,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.PositionCorrection:
                     node = new NodePositionCorrection(nodeId, nodeName, _process, nodeType);
                     break;
+                case NodeType.TerminalAngle:
+                    node = new TDJS_Vision.Node._4_Measurement.TerminalAngle.NodeTerminalAngle(nodeId, nodeName, _process, nodeType);
+                    break;
                 case NodeType.LineLineAngle:
                     node = new NodeLineLineAngle(nodeId, nodeName, _process, nodeType);
                     break;
@@ -750,6 +755,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.MatchTemplate:
                     node = new NodeMatchTemplate(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.ContourMatch:
+                    node = new NodeContourMatch(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.NccMatchTemplate:
                     node = new NodeNccMatchTemplate(nodeId, nodeName, _process, nodeType);

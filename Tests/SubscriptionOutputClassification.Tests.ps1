@@ -46,9 +46,10 @@ foreach ($file in $files) {
     }
 }
 
-Assert-True ($displayCount -eq 251) "当前静态公开结果数量应为 251，实际为 $displayCount。"
+# 原基线已有 256 个结果，端子角度六个原输出加一个多目标结果；继续逐项验证全部分类。
+Assert-True ($displayCount -eq 263) "当前静态公开结果数量应为 263，实际为 $displayCount。"
 Assert-True ($classifiedCount -eq $displayCount) ("存在未分类输出：" + ($unclassified -join ', '))
-Assert-True ($hiddenCount -eq 48) "隐藏结果数量应为 48，实际为 $hiddenCount。"
+Assert-True ($hiddenCount -eq 49) "隐藏结果数量应为 49，实际为 $hiddenCount。"
 
 $caliperLine = Get-Content -LiteralPath (Join-Path $nodeRoot '4-Measurement\CaliperLine\NodeResultCaliperLine.cs') -Raw -Encoding UTF8
 $findPoint = Get-Content -LiteralPath (Join-Path $nodeRoot '4-Measurement\FindPoint\NodeResultFindPoint.cs') -Raw -Encoding UTF8

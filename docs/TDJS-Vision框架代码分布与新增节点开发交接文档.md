@@ -308,22 +308,25 @@ WinForms 强制规则：
 public int RunTime { get; set; }
 ```
 
-供下游订阅的属性必须使用中文显示名：
+供下游订阅的属性必须声明输出契约并使用中文显示名：
 
 ```csharp
+[SubscriptionOutput]
 [DisplayName("处理后图像")]
 public OutputImage OutputImage { get; set; }
 ```
 
 `NodeSubscription` 的行为：
 
-1. 只列出当前节点在图结构中的上游节点。
-2. 反射上游 `Result` 的公开属性。
-3. 只有带 `DisplayNameAttribute` 的属性进入下拉框。
+1. 只列出当前节点在图结构中的上游节点，按反向连线距离由近到远排列。
+2. 新订阅从最近上游开始，按输入契约寻找兼容输出；不匹配时继续向前查找。同层按节点编号稳定排序。
+3. 通过统一端口目录发现和缓存静态及动态输出，按类型、集合形态和可见性筛选。输入须在 `Init` 前声明契约。
 4. 运行期通过 `GetValue<T>()` 取值并检查类型。
 5. 当前流程正在运行时，上游必须在本轮 `CurrentRunId` 成功执行，否则拒绝读取旧结果。
 
 因此更改 `[DisplayName]` 会影响旧方案中保存的 `Text2`。如确需改名，应在 `SetParam2Form` 或订阅恢复逻辑中提供旧名称迁移。
+
+新增节点统一遵循[节点自动订阅规则](节点自动订阅规则.md)。图像源→图像裁切→卡尺默认订阅裁切输出；位置修正和其他类型使用相同查找策略。空参数恢复不能清除自动选择，使用运行参数快照的节点必须在 `SelectionChanged` 时同步订阅。
 
 ### 8.6 资源所有权
 
@@ -437,6 +440,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ExampleProcess
         /// <summary>
         /// 处理后的图像，供下游节点订阅。
         /// </summary>
+        [SubscriptionOutput]
         [DisplayName("处理后图像")]
         public OutputImage OutputImage { get; set; } = new OutputImage();
     }
@@ -462,6 +466,7 @@ public partial class NodeParamFormExampleProcess : FormBase, INodeParamForm
     /// </summary>
     public void SetNodeBelong(NodeBase node)
     {
+        nodeSubscription1.SetExpectedValueType<OutputImage>();
         nodeSubscription1.Init(node);
     }
 
@@ -817,4 +822,3 @@ git diff --check
 10. `Node/3-Detection/Unsupervised` 或 `LargeModel`：学习复杂算法节点与资源管理。
 11. `流程图连线逻辑与执行架构说明.md`：深入图执行细节。
 12. `Tests`：了解当前回归门禁和已知约束。
-

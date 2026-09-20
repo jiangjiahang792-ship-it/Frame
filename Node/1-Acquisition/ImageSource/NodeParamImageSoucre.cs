@@ -44,10 +44,10 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
         /// </summary>
         public string CameraName { get; set; }
         /// <summary>
-        /// 触发方式
+        /// 触发模式；新节点默认开启，旧方案显式保存的关闭模式仍保留。
         /// </summary>
         [JsonConverter(typeof(StringEnumConverter))]
-        public TriggerModel TriggerModel { get; set; }
+        public TriggerModel TriggerModel { get; set; } = TriggerModel.On;
         /// <summary>
         /// 触发方式
         /// </summary>

@@ -1,3 +1,4 @@
+using TDJS_Vision.Node._3_Detection.ContourMatch;
 using System;
 using TDJS_Vision.Node._1_Acquisition.CameraExposureGain;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
@@ -122,6 +123,8 @@ namespace TDJS_Vision.Node
                     return new NodeBlobAnalysis(nodeId, nodeName, process, nodeType);
                 case NodeType.PositionCorrection:
                     return new NodePositionCorrection(nodeId, nodeName, process, nodeType);
+                case NodeType.TerminalAngle:
+                    return new TDJS_Vision.Node._4_Measurement.TerminalAngle.NodeTerminalAngle(nodeId, nodeName, process, nodeType);
                 case NodeType.LineLineAngle:
                     return new NodeLineLineAngle(nodeId, nodeName, process, nodeType);
                 case NodeType.PointPointDistance:
@@ -168,6 +171,8 @@ namespace TDJS_Vision.Node
                     return new NodeQRScan(nodeId, nodeName, process, nodeType);
                 case NodeType.MatchTemplate:
                     return new NodeMatchTemplate(nodeId, nodeName, process, nodeType);
+                case NodeType.ContourMatch:
+                    return new NodeContourMatch(nodeId, nodeName, process, nodeType);
                 case NodeType.NccMatchTemplate:
                     return new NodeNccMatchTemplate(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageFileDelete:

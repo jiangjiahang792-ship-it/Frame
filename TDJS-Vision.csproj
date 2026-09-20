@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="packages\OpenCvSharp4.runtime.win.4.10.0.20240616\build\net48\OpenCvSharp4.runtime.win.props" Condition="Exists('packages\OpenCvSharp4.runtime.win.4.10.0.20240616\build\net48\OpenCvSharp4.runtime.win.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
@@ -500,6 +500,20 @@
     <Compile Include="Node\4-Measurement\LineLineAngle\NodeLineLineAngle.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="Node\4-Measurement\TerminalAngle\NodeParamTerminalAngle.cs" />
+    <Compile Include="Node\4-Measurement\TerminalAngle\TerminalAngleMeasurer.cs" />
+    <Compile Include="Node\4-Measurement\TerminalAngle\TerminalAnglePositionCorrection.cs" />
+    <Compile Include="Node\4-Measurement\TerminalAngle\TerminalAngleDisplay.cs" />
+    <Compile Include="Node\4-Measurement\TerminalAngle\NodeResultTerminalAngle.cs" />
+    <Compile Include="Node\4-Measurement\TerminalAngle\NodeTerminalAngle.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\TerminalAngle\NodeParamFormTerminalAngle.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\4-Measurement\TerminalAngle\NodeParamFormTerminalAngle.Designer.cs">
+      <DependentUpon>NodeParamFormTerminalAngle.cs</DependentUpon>
+    </Compile>
     <Compile Include="Node\4-Measurement\LineLineAngle\NodeParamLineLineAngle.cs" />
     <Compile Include="Node\4-Measurement\LineLineAngle\NodeParamFormLineLineAngle.cs">
       <SubType>Form</SubType>
@@ -603,6 +617,7 @@
     <Compile Include="Node\3-Detection\TDAI\Parse\ParseCommon.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12angondingParse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12Parse.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation1Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_Filling_rubber_Back.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_Filling_rubber_Front.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_More_Terminal_9Class.cs" />
@@ -856,6 +871,7 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Device\Modbus\IModbus.cs" />
+    <Compile Include="Device\Modbus\ModbusStringReader.cs" />
     <Compile Include="Device\Modbus\ModbusTcpSlave.cs" />
     <Compile Include="Device\PLC\PlcResult.cs" />
     <Compile Include="Device\TCP\ITcp.cs" />
@@ -1200,6 +1216,48 @@
       <DependentUpon>ParamFormLargeModelDetection.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\3-Detection\LargeModel\LargeModelDetectionRuntime.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\ContourMatchSession.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\TemplateRegion.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\ImageCanvas.Regions.cs">
+      <DependentUpon>ImageCanvas.cs</DependentUpon>
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\ContourTemplateEditor.Regions.cs">
+      <DependentUpon>ContourTemplateEditor.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\ContourTemplateDefinition.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\ContourTemplateEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\ContourTemplateEditor.Designer.cs">
+      <DependentUpon>ContourTemplateEditor.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\ContourTemplateEditor.Integration.cs">
+      <DependentUpon>ContourTemplateEditor.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\ImageCanvas.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\ImageFrame.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\NativeMethods.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\NativeShapeMatcher.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\NodeContourMatch.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\NodeParamContourMatch.cs" />
+    <Compile Include="Node\3-Detection\ContourMatch\NodeParamFormContourMatch.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\NodeParamFormContourMatch.Designer.cs">
+      <DependentUpon>NodeParamFormContourMatch.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\NodeParamFormContourMatch.Integration.cs">
+      <DependentUpon>NodeParamFormContourMatch.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\ContourMatch\ShapeMatchModels.cs" />
     <Compile Include="Node\3-Detection\MatchTemplate\FastTemplateMatcher.cs" />
     <Compile Include="Node\3-Detection\MatchTemplate\TemplateMatchPose.cs" />
     <Compile Include="Node\3-Detection\MatchTemplate\NodeParamFormMatchTemplate.cs">
@@ -1524,8 +1582,11 @@
     <Compile Include="Node\DynamicResultVariable.cs" />
     <Compile Include="Node\SubscriptionPortContracts.cs" />
     <Compile Include="Node\SubscriptionPortCatalog.cs" />
+    <Compile Include="Node\SubscriptionSourceSelector.cs" />
     <Compile Include="Node\SubscriptionTypeCompatibility.cs" />
     <Compile Include="Node\INode.cs" />
+    <Compile Include="Node\NodeDisplayText.cs" />
+    <Compile Include="Node\ISubscriptionTextFormatter.cs" />
     <Compile Include="Node\NodeResultResourceManager.cs" />
     <Compile Include="Node\NodeFactory.cs" />
     <Compile Include="Forms\ProcessNew\ProcessFlowCanvas.cs">
@@ -1860,6 +1921,9 @@
     <EmbeddedResource Include="Node\4-Measurement\LineLineAngle\NodeParamFormLineLineAngle.resx">
       <DependentUpon>NodeParamFormLineLineAngle.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Node\4-Measurement\TerminalAngle\NodeParamFormTerminalAngle.resx">
+      <DependentUpon>NodeParamFormTerminalAngle.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Node\5-EquipmentCommunication\AIResultSend\ParamFormSignalSend.resx">
       <DependentUpon>ParamFormSignalSend.cs</DependentUpon>
     </EmbeddedResource>
@@ -2074,6 +2138,11 @@
     <Content Include="dll\FastColoredTextBox.dll" />
     <Content Include="dll\HslCommunication.dll" />
     <Content Include="dll\Mv3dLpNet.dll" />
+    <Content Include="Native\ShapeMatchNative.dll">
+      <Link>ShapeMatchNative.dll</Link>
+      <TargetPath>ShapeMatchNative.dll</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Native\MatchTool.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -2105,6 +2174,15 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Template\TDAI\超声波焊接侧面三类检测项.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\AST-工位1检测项.items">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\AST-工位1模型.ai">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\AST-工位1模型配置.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Languages\en-US.json">

@@ -2623,7 +2623,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 if (output == null)
                     continue;
 
-                string prefix = node.ID + "." + node.NodeName;
+                string prefix = node.ID + "." + NodeDisplayText.GetTitle(node.NodeType, node.NodeName);
                 if (IsUsableMat(output.SrcImg))
                     items.Add(new PreviewImageInfo(node, output.SrcImg, node.ID + ":src", prefix + " - 原图"));
 
@@ -3146,7 +3146,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 Rectangle statusDot = new Rectangle(bounds.X + 14, bounds.Y + 44, 9, 9);
                 string metaText = GetNodeMetaText(node);
 
-                graphics.DrawString(node.ID + "." + node.NodeName, titleFont, titleBrush, titleRect, textFormat);
+                graphics.DrawString(node.ID + "." + NodeDisplayText.GetTitle(node.NodeType, node.NodeName), titleFont, titleBrush, titleRect, textFormat);
                 graphics.FillEllipse(statusBrush, statusDot);
                 graphics.DrawString(metaText, metaFont, metaBrush, metaRect, textFormat);
             }
@@ -4418,7 +4418,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             string statusText = node.Active ? GetNodeStatusText(node) : "已禁用";
             string timeText = GetNodeTimeText(node);
-            return $"{node.NodeType}  {statusText}  {timeText}";
+            return $"{NodeDisplayText.GetTypeName(node.NodeType)}  {statusText}  {timeText}";
         }
 
         private static bool IsNodeResultNg(NodeBase node)
@@ -4515,6 +4515,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return Color.FromArgb(226, 140, 32);
                 case NodeType.LineMergeFit:
                     return Color.FromArgb(64, 170, 112);
+                case NodeType.ContourMatch:
                 case NodeType.NccMatchTemplate:
                     return Color.FromArgb(42, 157, 143);
                 default:

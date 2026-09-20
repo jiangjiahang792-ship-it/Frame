@@ -28,6 +28,7 @@
     <Node Text="定位工具" ImageName="测量工具" Tag="UNKNOWN" SelectedImageName="测量工具">
       <Nodes>
         <Node Text="模板匹配" ImageName="模版匹配" Tag="MatchTemplate" SelectedImageName="模版匹配" />
+        <Node Text="轮廓模板匹配" ImageName="模版匹配" Tag="ContourMatch" SelectedImageName="模版匹配" />
         <Node Text="NCC模板匹配" ImageName="模版匹配" Tag="NccMatchTemplate" SelectedImageName="模版匹配" />
         <Node Text="位置修正" ImageName="测量工具" Tag="PositionCorrection" SelectedImageName="测量工具" />
       </Nodes>
@@ -39,6 +40,7 @@
         <Node Text="卡尺找椭圆" ImageName="卡尺找椭圆" Tag="CaliperEllipse" SelectedImageName="卡尺找椭圆" />
         <Node Text="找点" ImageName="测量工具" Tag="FindPoint" SelectedImageName="测量工具" />
         <Node Text="线到线夹角" ImageName="测量工具" Tag="LineLineAngle" SelectedImageName="测量工具" />
+        <Node Text="端子角度" ImageName="测量工具" Tag="TerminalAngle" SelectedImageName="测量工具" />
         <Node Text="点到点距离" ImageName="测量工具" Tag="PointPointDistance" SelectedImageName="测量工具" />
         <Node Text="点到线距离" ImageName="测量工具" Tag="PointLineDistance" SelectedImageName="测量工具" />
         <Node Text="点到区域距离" ImageName="测量工具" Tag="PointRegionDistance" SelectedImageName="测量工具" />

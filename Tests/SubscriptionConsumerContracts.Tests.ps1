@@ -106,21 +106,23 @@ foreach ($relativePath in $multiCategoryForms) {
 
 $subscriptionFiles = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'Node') -Recurse -Filter '*.cs' -File
 $unconfiguredControls = New-Object System.Collections.Generic.List[string]
-foreach ($file in $subscriptionFiles) {
-    $content = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8
-    $matches = [regex]::Matches($content, '(nodeSubscription\w*|nodeSub\w*)\.Init\(node\);')
-    foreach ($match in $matches) {
-        $control = $match.Groups[1].Value
+# 按同目录的部分类型源码收集真实控件声明，覆盖 imageSubscription 等任意命名。
+foreach ($group in ($subscriptionFiles | Group-Object DirectoryName)) {
+    $content = ($group.Group | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8 }) -join "`n"
+    $controls = [regex]::Matches($content, '(?:private|protected|public|internal)\s+(?:readonly\s+)?(?:[\w.]+\.)?NodeSubscription\s+(\w+)\s*[;=]') |
+        ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
+    foreach ($control in $controls) {
         $hasContract = $content.Contains("$control.SetExpectedValueType") -or
             $content.Contains("$control.SetInputContract")
         $isNodeOnlySelector = $content.Contains("$control.HideText2();")
         if (-not $hasContract -and -not $isNodeOnlySelector) {
-            $relative = $file.FullName.Substring($projectRoot.Length + 1)
+            $relative = $group.Name.Substring($projectRoot.Length + 1)
             $unconfiguredControls.Add("$relative::$control")
         }
     }
 }
 Assert-True ($unconfiguredControls.Count -eq 0) ("以下结果订阅控件没有明确输入契约：" + (($unconfiguredControls | Sort-Object -Unique) -join ', '))
+Assert-ContainsText $source 'NearestSubscriptionSourceSelector.Instance' '新增标准订阅必须默认使用统一最近上游选择策略。'
 
 $customSelectors = @(
     @('Node\6-LogicTool\ArithmeticOperation\NodeParamFormArithmeticOperation.cs', 'ArithmeticOperationAlgorithm.GetReadableMembers(ownerType)'),

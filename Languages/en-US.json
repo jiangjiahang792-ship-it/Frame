@@ -333,5 +333,16 @@
   "焊接区域长度": "Weld region length",
   "焊接区域宽度": "Weld region width",
   "右线芯长度": "Right core length",
-  "右线芯宽度": "Right core width"
+  "右线芯宽度": "Right core width",
+  "轮廓模板匹配": "Contour Template Matching",
+  "端子角度": "Terminal Angle",
+  "胶皮到铜环的距离": "Rubber to copper ring distance",
+  "胶皮到屏蔽网的距离": "Rubber to shielding mesh distance",
+  "胶皮到绝缘胶的位置": "Rubber to insulation glue position",
+  "屏蔽网高度": "Shielding mesh height",
+  "屏蔽网宽度": "Shielding mesh width",
+  "铜环高度": "Copper ring height",
+  "铜环宽度": "Copper ring width",
+  "绝缘胶高度": "Insulation glue height",
+  "绝缘胶宽度": "Insulation glue width"
 }
