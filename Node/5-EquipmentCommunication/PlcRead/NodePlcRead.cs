@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Device.PLC;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
 {
@@ -165,9 +166,10 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                         }
                         else
                         {
-                            var result = await param.Plc.ReadStringAsync(param.Address, param.Length);
+                            var result = await param.Plc.ReadStringAsync(param.Address, param.Length, param.StringByteOrder);
                             if (!result.IsSuccess) throw new Exception("读取失败！");
-                            res.ReadResult = new PlcReadResult(result.Content, type, param.Address);
+                            // 统一清理PLC字符串的首尾空白，保留中间空格和前导零，所有下游订阅共用处理结果。
+                            res.ReadResult = new PlcReadResult(result.Content?.Trim(), type, param.Address);
                         }
                     }
                     else

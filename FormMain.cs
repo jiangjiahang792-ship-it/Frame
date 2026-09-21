@@ -1,4 +1,4 @@
-using Logger;
+﻿using Logger;
 using Sunny.UI;
 using System;
 using System.Collections.Generic;
@@ -540,10 +540,14 @@ namespace TDJS_Vision
         private async void RunAutoSolutionInBackgroundAsync()
         {
             SetLockStatus(UserRole.Low);
-            SetRunStatus(true);
+            bool shouldSendOfflineSignal = false;
             try
             {
+                await FormGlobalSignal.SendGlobalSignals(this, true);
+                shouldSendOfflineSignal = true;
                 FormGlobalSignal.StartListenSignals();
+                FormGlobalSignal.StartHeartbeatSignals();
+                SetRunStatus(true);
                 await Solution.Instance.Run(true);
             }
             catch (Exception ex)
@@ -554,6 +558,17 @@ namespace TDJS_Vision
             {
                 FormGlobalSignal.StopListenSignals();
                 SetRunStatus(false);
+                if (shouldSendOfflineSignal)
+                {
+                    try
+                    {
+                        await FormGlobalSignal.SendGlobalSignals(this, false);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.AddLog(MsgLevel.Exception, $"方案自动运行结束信号发送失败：{ex}", true);
+                    }
+                }
             }
         }
 
@@ -814,6 +829,7 @@ namespace TDJS_Vision
 
             // 保存主窗口布局
             this.dockPanel1.SaveAsXml(DockPanelConfig);
+            FormGlobalSignal.StopHeartbeatSignals();
 
             bool solutionResourcesReleased = false;
             try
@@ -895,7 +911,7 @@ namespace TDJS_Vision
         {
             FrmImgeDlg.Show(dockPanel1, DockState.Document);
             FrmResultDlg.Show(FrmImgeDlg.Pane, DockAlignment.Right, 0.25);
-            
+
             // 运行状态下不默认打开日志窗口
             if (!Solution.Instance.IsRunning)
             {
@@ -910,7 +926,7 @@ namespace TDJS_Vision
                 }
                 运行日志ToolStripMenuItem.Checked = false;
             }
-            
+
             FrmLogoDlg.Show(FrmResultDlg.Pane, DockAlignment.Top, 0.5);
             图像显示ToolStripMenuItem.Checked = true;
             检测结果ToolStripMenuItem.Checked = true;
@@ -1288,7 +1304,7 @@ namespace TDJS_Vision
         {
             FrmModbusAdd.ShowDialog();
         }
-        
+
         private void TCP设备ToolStripMenuItem_Click(object value1, object value2)
         {
             FrmTcpAdd.ShowDialog();

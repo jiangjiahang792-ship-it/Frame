@@ -220,7 +220,8 @@
   "ProcessNew.Priority": "Priority?",
   "ProcessNew.LevelName": "Level {0}",
   "ProcessNew.NewProcessName": "New Process Name",
-  "ProcessNew.InvalidProcessName": "Process name cannot be empty or contain \".\".",
+  "ProcessNew.InvalidProcessName": "Process name cannot be empty.",
+  "流程名称不能为空！": "Process name cannot be empty.",
   "ProcessNew.Category.ImageAcquisition": "Image Acquisition",
   "ProcessNew.Category.ImageProcessing": "Image Processing",
   "ProcessNew.Category.Detection": "Deep Learning",
@@ -349,5 +350,6 @@
   "铜环底部到绝缘体顶部的距离": "Copper ring bottom to insulator top distance",
   "铜环底部到屏蔽网顶部距离": "Copper ring bottom to shielding mesh top distance",
   "露线芯宽度": "Exposed wire core width",
-  "露线芯长度": "Exposed wire core length"
+  "露线芯长度": "Exposed wire core length",
+  "命名存图": "Named Image Save"
 }

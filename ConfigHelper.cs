@@ -184,6 +184,7 @@ namespace TDJS_Vision
                         StartupAiRuntimeLoadGate.FlushDeferredTDAILoads();
                     }
                     Solution.Instance.NodeCount = SolConfig.NodeCount;
+                    FormGlobalSignal.StartHeartbeatSignals();
                 }
                 finally
                 {
@@ -703,7 +704,7 @@ namespace TDJS_Vision
             return true;
         }
         #pragma warning disable CS8600 // 将 null 字面量或可能为 null 的值转换为非 null 类型。
-        #pragma warning disable CS8765 // 参数类型的为 Null 性与重写成员不匹配(可能是由于为 Null 性特性)。 
+        #pragma warning disable CS8765 // 参数类型的为 Null 性与重写成员不匹配(可能是由于为 Null 性特性)。
         #pragma warning disable CS8604 // 引用类型参数可能为 null。
         #pragma warning disable CS8603 // 可能返回 null 引用。
         public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
@@ -751,7 +752,7 @@ namespace TDJS_Vision
     public class DeviceListConverter<T> : JsonConverter
     {
         #pragma warning disable CS8600 // 将 null 字面量或可能为 null 的值转换为非 null 类型。
-        #pragma warning disable CS8765 // 参数类型的为 Null 性与重写成员不匹配(可能是由于为 Null 性特性)。 
+        #pragma warning disable CS8765 // 参数类型的为 Null 性与重写成员不匹配(可能是由于为 Null 性特性)。
         #pragma warning disable CS8604 // 引用类型参数可能为 null。
         #pragma warning disable CS8603 // 可能返回 null 引用。
         public override bool CanConvert(Type objectType)

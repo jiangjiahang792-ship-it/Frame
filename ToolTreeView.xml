@@ -103,6 +103,7 @@
         <Node Text="发送AI结果" ImageName="发送AI结果" Tag="AIResultSend" SelectedImageName="发送AI结果" />
         <Node Text="结果发送" ImageName="发送AI结果" Tag="ResultSend" SelectedImageName="发送AI结果" />
         <Node Text="保存图片" ImageName="保存图片" Tag="ImageSave" SelectedImageName="保存图片" />
+        <Node Text="命名存图" ImageName="保存图片" Tag="NamedImageSave" SelectedImageName="保存图片" />
         <Node Text="定期删除图片" ImageName="图片删除" Tag="ImageFileDelete" SelectedImageName="图片删除" />
         <Node Text="结果汇总" ImageName="结果汇总" Tag="Summarize" SelectedImageName="结果汇总" />
         <Node Text="检测结果显示" ImageName="检测结果显示" Tag="DetectResultShow" SelectedImageName="检测结果显示" />

@@ -1624,6 +1624,7 @@
       <DependentUpon>LogHelper.cs</DependentUpon>
     </Compile>
     <Compile Include="Device\PLC\IPlc.cs" />
+    <Compile Include="Device\PLC\PlcStringReader.cs" />
     <Compile Include="Device\PLC\PlcPanasonic.cs" />
     <Compile Include="Node\NodeBase.cs">
       <SubType>UserControl</SubType>
@@ -1663,6 +1664,18 @@
     <Compile Include="Node\7-ResultProcessing\DataShow\NodeResultDataShow.cs" />
     <Compile Include="Node\7-ResultProcessing\ImageSave\ImageSaveJudgment.cs" />
     <Compile Include="Node\7-ResultProcessing\ImageSave\NodeParamSaveImage.cs" />
+    <Compile Include="Node\7-ResultProcessing\NamedImageSave\NamedImageSaveConfiguration.cs" />
+    <Compile Include="Node\7-ResultProcessing\NamedImageSave\NamedImagePathBuilder.cs" />
+    <Compile Include="Node\7-ResultProcessing\NamedImageSave\NamedImageSubscriptions.cs" />
+    <Compile Include="Node\7-ResultProcessing\NamedImageSave\NodeNamedImageSave.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\7-ResultProcessing\NamedImageSave\ParamFormNamedImageSave.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\7-ResultProcessing\NamedImageSave\ParamFormNamedImageSave.Designer.cs">
+      <DependentUpon>ParamFormNamedImageSave.cs</DependentUpon>
+    </Compile>
     <Compile Include="Node\7-ResultProcessing\ImageSave\NodeResultSaveImage.cs" />
     <Compile Include="Node\7-ResultProcessing\ImageSave\NodeSaveImage.cs">
       <SubType>UserControl</SubType>

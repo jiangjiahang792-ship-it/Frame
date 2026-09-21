@@ -103,12 +103,15 @@ namespace TDJS_Vision.Forms.ProcessNew
             // 遍历 TabPages 集合
             foreach (TabPage tabPage in tabControl.TabPages)
             {
-                // 检查 TabPage 的 Text 属性是否等于 oldName
-                var splitArr = tabPage.Text.Split('.');
-                if (splitArr[1] == oldName)
+                // 只有第一个句点分隔流程编号，后面的句点都属于名称，连续改名时必须完整匹配。
+                int separator = tabPage.Text.IndexOf('.');
+                if (separator < 0) continue;
+                string processName = tabPage.Text.Substring(separator + 1);
+                if (string.Equals(processName, oldName, StringComparison.Ordinal))
                 {
                     // 更改 TabPage 的名称
-                    tabPage.Text = $"{splitArr[0]}.{newName}";
+                    tabPage.Text = tabPage.Text.Substring(0, separator + 1) + newName;
+                    tabPage.Name = newName;
                     tabControl.Invalidate();
                     return; // 找到并重命名后退出循环
                 }
@@ -883,6 +886,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.AIResultSend:
                 case NodeType.ImageSave:
                 case NodeType.ImageFileDelete:
+                case NodeType.NamedImageSave:
                 case NodeType.Summarize:
                 case NodeType.DetectResultShow:
                 case NodeType.GenerateExcel:
@@ -1024,6 +1028,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                     return "TX";
                 case NodeType.ImageSave:
                     return "SV";
+                case NodeType.NamedImageSave:
+                    return "NS";
                 case NodeType.ImageFileDelete:
                     return "DEL";
                 case NodeType.Summarize:

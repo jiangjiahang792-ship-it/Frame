@@ -416,6 +416,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
     /// </summary>
     public class ImageQueueProcessor
     {
+        /// <summary>缓存Windows文件名非法字符，避免每张图重复分配校验数组。</summary>
+        private static readonly char[] InvalidImageNameCharacters = Path.GetInvalidFileNameChars();
+
         /// <summary>保存任务使用的容量与字节双重有界队列。</summary>
         private readonly BoundedPriorityWorkQueue<SaveImageTask> _imageQueue;
 
@@ -1101,6 +1104,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                     }
                     long afterEncode = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
 
+                    // 每个任务只回退和记录一次，多目录复用名称，防止命名异常丢弃已经编码的图片。
+                    string safeImageName = ResolveImageName(saveImagedata);
                     foreach (string targetDirectory in saveImagedata.TargetDirectories)
                     {
                         long beforePath = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
@@ -1112,7 +1117,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
                         string fileName = SaveEncodedImage(
                             encodedImage,
                             targetDirectory,
-                            saveImagedata.ImageName);
+                            safeImageName);
                         committedImagePaths.Add(fileName);
                         long writeElapsedMilliseconds = GetElapsedMilliseconds(writeStartedTimestamp);
                         UpdateMaximum(ref _maximumWriteElapsedMilliseconds, writeElapsedMilliseconds);
@@ -1402,6 +1407,40 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             return new EncodedImageBuffer(
                 memoryStream.GetBuffer(),
                 checked((int)memoryStream.Length));
+        }
+
+        /// <summary>检查图片名称，异常时保留错误日志并回退到安全的日期时间名称。</summary>
+        private string ResolveImageName(SaveImageTask task)
+        {
+            string imageName = task.ImageName;
+            if (!string.IsNullOrWhiteSpace(imageName) &&
+                imageName.IndexOfAny(InvalidImageNameCharacters) < 0 && !IsReservedImageName(imageName))
+                return imageName;
+
+            string fallbackName = "非法字符_" + DateTime.Now.ToString(
+                "yyyy-MM-dd_HH-mm-ss-fff", System.Globalization.CultureInfo.InvariantCulture);
+            // PLC字符串可能含空字符、换行等控制字符，转义后日志仍为一行且能定位原始数据。
+            string originalName = Newtonsoft.Json.JsonConvert.SerializeObject(imageName);
+            TryWriteLog(MsgLevel.Exception,
+                $"保存图像命名异常：{task.TraceContext?.ToLogText() ?? $"节点={_ownerText}"}；原名称={originalName}；名称含非法字符或为无效文件名，改用备用名称={fallbackName}，继续保存图片。",
+                true);
+            return fallbackName;
+        }
+
+        /// <summary>Windows设备保留名即使带.jpg扩展名也不能用作普通文件，需使用备用名称。</summary>
+        private static bool IsReservedImageName(string imageName)
+        {
+            int separator = imageName.IndexOf('.');
+            string stem = (separator < 0 ? imageName : imageName.Substring(0, separator)).TrimEnd(' ');
+            if (string.Equals(stem, "CON", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(stem, "PRN", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(stem, "AUX", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(stem, "NUL", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(stem, "CONIN$", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(stem, "CONOUT$", StringComparison.OrdinalIgnoreCase)) return true;
+            // Windows也将上标数字形式的COM/LPT名称视为设备名，统一回退以兼容不同文件API。
+            return stem.Length == 4 && ((stem[3] >= '1' && stem[3] <= '9') || "¹²³".IndexOf(stem[3]) >= 0) &&
+                (stem.StartsWith("COM", StringComparison.OrdinalIgnoreCase) || stem.StartsWith("LPT", StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>

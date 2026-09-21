@@ -125,6 +125,14 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
                         signalSnapshot.Address,
                         (bool[])signalSnapshot.Value).ConfigureAwait(false);
                     break;
+                case PlcWriteValueKind.Int16Values:
+                case PlcWriteValueKind.UInt16Values:
+                case PlcWriteValueKind.UInt32Values:
+                    result = await WriteTypedIntegerValuesAsync(
+                        signalSnapshot.Plc,
+                        signalSnapshot.Address,
+                        (Array)signalSnapshot.Value).ConfigureAwait(false);
+                    break;
                 case PlcWriteValueKind.Int32:
                     result = await signalSnapshot.Plc.WriteIntAsync(
                         signalSnapshot.Address,
@@ -203,6 +211,20 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
                 valueKind = PlcWriteValueKind.BooleanValues;
                 return ParseBooleanValues(rawValue);
             }
+            if (dataType == typeof(short).Name)
+            {
+                valueKind = PlcWriteValueKind.Int16Values;
+                return SplitNumericValues(rawValue)
+                    .Select(value => short.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture))
+                    .ToArray();
+            }
+            if (dataType == typeof(ushort).Name)
+            {
+                valueKind = PlcWriteValueKind.UInt16Values;
+                return SplitNumericValues(rawValue)
+                    .Select(value => ushort.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture))
+                    .ToArray();
+            }
             if (dataType == typeof(int).Name)
             {
                 string[] tokens = SplitNumericValues(rawValue);
@@ -214,6 +236,13 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
                 valueKind = PlcWriteValueKind.Int32Values;
                 return tokens.Select(value =>
                     int.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture)).ToArray();
+            }
+            if (dataType == typeof(uint).Name)
+            {
+                valueKind = PlcWriteValueKind.UInt32Values;
+                return SplitNumericValues(rawValue)
+                    .Select(value => uint.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture))
+                    .ToArray();
             }
             if (dataType == typeof(float).Name)
             {
@@ -232,6 +261,21 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
                 return rawValue;
             }
             throw new InvalidOperationException($"PLC写入不支持的数据类型：{dataType}");
+        }
+
+        /// <summary>
+        /// 通过PLC显式类型接口写入16位整数或无符号32位整数数组，避免整数位宽被Int32接口吞掉。
+        /// </summary>
+        /// <param name="plc">目标PLC设备。</param>
+        /// <param name="address">写入起始地址。</param>
+        /// <param name="values">已经按目标位宽解析好的数组。</param>
+        /// <returns>PLC协议写入结果。</returns>
+        private static Task<OperateResult> WriteTypedIntegerValuesAsync(IPlc plc, string address, Array values)
+        {
+            if (!(plc is IResultSendTypedPlc typedPlc))
+                throw new NotSupportedException("当前PLC设备不支持Int16、UInt16或UInt32写入，请改用支持显式位宽写入的PLC驱动。");
+
+            return typedPlc.WriteTypedValuesAsync(address, values);
         }
 
         /// <summary>把布尔文本严格解析为至少一个布尔值。</summary>
@@ -335,20 +379,29 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
             /// <summary>一个或多个布尔值。</summary>
             BooleanValues = 1,
 
+            /// <summary>一个或多个16位有符号整数。</summary>
+            Int16Values = 2,
+
+            /// <summary>一个或多个16位无符号整数。</summary>
+            UInt16Values = 3,
+
             /// <summary>单个32位整数。</summary>
-            Int32 = 2,
+            Int32 = 4,
 
             /// <summary>一个或多个32位整数。</summary>
-            Int32Values = 3,
+            Int32Values = 5,
+
+            /// <summary>一个或多个32位无符号整数。</summary>
+            UInt32Values = 6,
 
             /// <summary>单个单精度浮点数。</summary>
-            Single = 4,
+            Single = 7,
 
             /// <summary>一个或多个单精度浮点数。</summary>
-            SingleValues = 5,
+            SingleValues = 8,
 
             /// <summary>单个字符串。</summary>
-            String = 6
+            String = 9
         }
 
         /// <summary>保存PLC写入节点到达时冻结的全部动态值。</summary>

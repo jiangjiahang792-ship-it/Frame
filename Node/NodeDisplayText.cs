@@ -10,7 +10,8 @@ namespace TDJS_Vision.Node
         private static readonly Dictionary<NodeType, string> ChineseKeys = new Dictionary<NodeType, string>
         {
             { NodeType.ContourMatch, "轮廓模板匹配" },
-            { NodeType.TerminalAngle, "端子角度" }
+            { NodeType.TerminalAngle, "端子角度" },
+            { NodeType.NamedImageSave, "命名存图" }
         };
 
         /// <summary>取得工具箱及节点类型说明文字，资源缺失时避免显示内部资源键。</summary>
@@ -28,7 +29,8 @@ namespace TDJS_Vision.Node
         {
             if (string.IsNullOrEmpty(name) || !ChineseKeys.TryGetValue(type, out string chineseKey)) return name;
             string legacyKey = "ProcessNew.NodeType." + type;
-            string englishName = type == NodeType.ContourMatch ? "Contour Template Matching" : "Terminal Angle";
+            string englishName = type == NodeType.ContourMatch ? "Contour Template Matching" :
+                type == NodeType.NamedImageSave ? "Named Image Save" : "Terminal Angle";
             string prefix = name.StartsWith(legacyKey, StringComparison.Ordinal) ? legacyKey :
                 name.StartsWith(englishName, StringComparison.Ordinal) ? englishName : chineseKey;
             if (name == prefix) return GetTypeName(type);

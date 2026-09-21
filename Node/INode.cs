@@ -491,5 +491,7 @@ namespace TDJS_Vision.Node
         ContourMatch,
         /// <summary>两个 ROI 定义端子与固定基座基准，测量端子矩形中线倾角。</summary>
         TerminalAngle,
+        /// <summary>按逐行配置的多级文件夹及动态名称保存图像。</summary>
+        NamedImageSave,
     }
 }

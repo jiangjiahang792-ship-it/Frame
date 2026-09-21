@@ -42,9 +42,13 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PanasonicWirte
             string text2 = comboBoxDataType.Text;
             comboBoxDataType.Items.Clear();
             comboBoxDataType.Items.Add("布尔");
-            comboBoxDataType.Items.Add("整数");
+            comboBoxDataType.Items.Add("Int16");
+            comboBoxDataType.Items.Add("UInt16");
+            comboBoxDataType.Items.Add("Int32");
+            comboBoxDataType.Items.Add("UInt32");
             comboBoxDataType.Items.Add("浮点");
             comboBoxDataType.Items.Add("字符串");
+            text2 = NormalizeDataTypeDisplayText(text2);
             int index2 = comboBoxDataType.Items.IndexOf(text2);
             if (index2 == -1)
                 comboBoxDataType.SelectedIndex = 0;
@@ -99,8 +103,17 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PanasonicWirte
                 case "布尔":
                     nodeParamPlcWrite.DataType = typeof(bool).Name;
                     break;
-                case "整数":
+                case "Int16":
+                    nodeParamPlcWrite.DataType = typeof(short).Name;
+                    break;
+                case "UInt16":
+                    nodeParamPlcWrite.DataType = typeof(ushort).Name;
+                    break;
+                case "Int32":
                     nodeParamPlcWrite.DataType = typeof(int).Name;
+                    break;
+                case "UInt32":
+                    nodeParamPlcWrite.DataType = typeof(uint).Name;
                     break;
                 case "浮点":
                     nodeParamPlcWrite.DataType = typeof(float).Name;
@@ -145,23 +158,40 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PanasonicWirte
                 }
                 textBoxAddress.Text = param.Address;
                 textBoxValue.Text = param.Value;
-                if(param.DataType == typeof(bool).Name)
-                {
+                comboBoxDataType.SelectedItem = GetDisplayTextByDataType(param.DataType);
+                if (comboBoxDataType.SelectedIndex < 0)
                     comboBoxDataType.SelectedIndex = 0;
-                }
-                else if (param.DataType == typeof(int).Name)
-                {
-                    comboBoxDataType.SelectedIndex = 1;
-                }
-                else if (param.DataType == typeof(float).Name)
-                {
-                    comboBoxDataType.SelectedIndex = 2;
-                }
-                else if (param.DataType == typeof(string).Name)
-                {
-                    comboBoxDataType.SelectedIndex = 3;
-                }
             }
+        }
+
+        /// <summary>
+        /// 将旧界面文本归一为当前明确位宽的显示文本。
+        /// </summary>
+        /// <param name="displayText">界面下拉框原文本。</param>
+        /// <returns>统一后的显示文本。</returns>
+        private static string NormalizeDataTypeDisplayText(string displayText)
+        {
+            if (string.IsNullOrWhiteSpace(displayText))
+                return displayText;
+            string trimmed = displayText.Trim();
+            return trimmed == "整数" ? "Int32" : trimmed;
+        }
+
+        /// <summary>
+        /// 根据节点参数保存的数据类型名称返回界面显示文本。
+        /// </summary>
+        /// <param name="dataType">节点参数中的.NET类型名称。</param>
+        /// <returns>写入类型下拉框显示文本。</returns>
+        private static string GetDisplayTextByDataType(string dataType)
+        {
+            if (dataType == typeof(bool).Name) return "布尔";
+            if (dataType == typeof(short).Name) return "Int16";
+            if (dataType == typeof(ushort).Name) return "UInt16";
+            if (dataType == typeof(int).Name) return "Int32";
+            if (dataType == typeof(uint).Name) return "UInt32";
+            if (dataType == typeof(float).Name) return "浮点";
+            if (dataType == typeof(string).Name) return "字符串";
+            return NormalizeDataTypeDisplayText(dataType);
         }
     }
 }

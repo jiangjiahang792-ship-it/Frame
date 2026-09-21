@@ -651,6 +651,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.ImageSave:
                     node = new NodeImageSave(nodeId, nodeName, _process, nodeType);
                     break;
+                case NodeType.NamedImageSave:
+                    node = NodeFactory.CreateNode(nodeId, nodeName, _process, nodeType);
+                    break;
                 case NodeType.SleepTool:
                     node = new NodeSleepTool(nodeId, nodeName, _process, nodeType);
                     break;
@@ -1819,6 +1822,13 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             if (target == null || depth > 8)
                 return;
+
+            // 命名存图的手填文字属于业务数据，即使恰好等于节点名称也不能改写；只迁移显式订阅。
+            if (target is TDJS_Vision.Node._7_ResultProcessing.NamedImageSave.NamedImageValue namedValue)
+            {
+                RemapInternalNodeReferences(namedValue.Source, nodeTextMap, nodeIdMap, sourceNodeTextMap, unresolvedReferences, depth + 1);
+                return;
+            }
 
             Type type = target.GetType();
             if (type == typeof(string) ||

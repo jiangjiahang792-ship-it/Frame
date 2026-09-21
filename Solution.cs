@@ -42,7 +42,7 @@ namespace TDJS_Vision
 
         private static readonly Lazy<Solution> _lazy = new Lazy<Solution>(() => new Solution());
 
-        private Solution() 
+        private Solution()
         {
             AllDevices = new List<IDevice>();
             CameraRawFrameMemoryBudgetManager = new CameraRawFrameMemoryBudgetManager();
@@ -288,7 +288,7 @@ namespace TDJS_Vision
         /// 方案是否正在运行
         /// </summary>
         public bool IsRunning { get; set; } = false;
-        
+
         /// <summary>
         /// 方案总耗时
         /// </summary>
@@ -621,7 +621,7 @@ namespace TDJS_Vision
                             {
                                 break;
                             }
-                            
+
                         }
                     }, _cts.Token);
 
@@ -2469,6 +2469,8 @@ namespace TDJS_Vision
         /// <returns>全部运行与后台任务均退出并完成资源清理时返回true。</returns>
         private bool SolResetCore(bool releaseRunGateOnSuccess)
         {
+            FormGlobalSignal.StopHeartbeatSignals();
+
             int drainTimeoutMilliseconds = Math.Max(
                 0,
                 Math.Min(60000, CurrentResourceProfile?.ShutdownResourceDrainTimeoutMs ?? 5000));

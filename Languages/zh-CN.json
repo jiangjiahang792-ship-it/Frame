@@ -220,7 +220,8 @@
   "ProcessNew.Priority": "优先级？",
   "ProcessNew.LevelName": "{0}级",
   "ProcessNew.NewProcessName": "流程新名称",
-  "ProcessNew.InvalidProcessName": "流程名称不能为空或者带有“.”！",
+  "ProcessNew.InvalidProcessName": "流程名称不能为空！",
+  "流程名称不能为空！": "流程名称不能为空！",
   "ProcessNew.Category.ImageAcquisition": "图像采集",
   "ProcessNew.Category.ImageProcessing": "图像处理",
   "ProcessNew.Category.Detection": "深度学习",
@@ -349,5 +350,6 @@
   "铜环底部到绝缘体顶部的距离": "铜环底部到绝缘体顶部的距离",
   "铜环底部到屏蔽网顶部距离": "铜环底部到屏蔽网顶部距离",
   "露线芯宽度": "露线芯宽度",
-  "露线芯长度": "露线芯长度"
+  "露线芯长度": "露线芯长度",
+  "命名存图": "命名存图"
 }

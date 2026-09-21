@@ -38,6 +38,8 @@
             this.textBoxAddress = new System.Windows.Forms.TextBox();
             this.textBoxStringLength = new System.Windows.Forms.TextBox();
             this.comboBoxDataType = new System.Windows.Forms.ComboBox();
+            this.labelStringByteOrder = new System.Windows.Forms.Label();
+            this.comboBoxStringByteOrder = new System.Windows.Forms.ComboBox();
             this.button1 = new System.Windows.Forms.Button();
             this.tableLayoutPanel1.SuspendLayout();
             this.SuspendLayout();
@@ -55,18 +57,21 @@
             this.tableLayoutPanel1.Controls.Add(this.textBoxAddress, 1, 1);
             this.tableLayoutPanel1.Controls.Add(this.textBoxStringLength, 1, 3);
             this.tableLayoutPanel1.Controls.Add(this.comboBoxDataType, 1, 2);
-            this.tableLayoutPanel1.Controls.Add(this.button1, 0, 4);
+            this.tableLayoutPanel1.Controls.Add(this.labelStringByteOrder, 0, 4);
+            this.tableLayoutPanel1.Controls.Add(this.comboBoxStringByteOrder, 1, 4);
+            this.tableLayoutPanel1.Controls.Add(this.button1, 0, 5);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.tableLayoutPanel1.Location = new System.Drawing.Point(2, 32);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
-            this.tableLayoutPanel1.RowCount = 5;
+            this.tableLayoutPanel1.RowCount = 6;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(480, 411);
+            this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 20F));
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(480, 493);
             this.tableLayoutPanel1.TabIndex = 0;
             // 
             // label1
@@ -155,15 +160,42 @@
             this.comboBoxDataType.TabIndex = 1;
             this.comboBoxDataType.SelectedIndexChanged += new System.EventHandler(this.comboBox2_SelectedIndexChanged);
             // 
+            // labelStringByteOrder
+            //
+            this.labelStringByteOrder.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.labelStringByteOrder.AutoSize = true;
+            this.labelStringByteOrder.Enabled = false;
+            this.labelStringByteOrder.Location = new System.Drawing.Point(62, 360);
+            this.labelStringByteOrder.Name = "labelStringByteOrder";
+            this.labelStringByteOrder.Size = new System.Drawing.Size(116, 18);
+            this.labelStringByteOrder.TabIndex = 4;
+            this.labelStringByteOrder.Text = "字符串字节顺序";
+            //
+            // comboBoxStringByteOrder
+            //
+            this.comboBoxStringByteOrder.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.comboBoxStringByteOrder.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxStringByteOrder.Enabled = false;
+            this.comboBoxStringByteOrder.FormattingEnabled = true;
+            this.comboBoxStringByteOrder.Items.AddRange(new object[] {
+            "默认（兼容旧方案）",
+            "高位在前",
+            "低位在前"});
+            this.comboBoxStringByteOrder.Location = new System.Drawing.Point(251, 356);
+            this.comboBoxStringByteOrder.Name = "comboBoxStringByteOrder";
+            this.comboBoxStringByteOrder.Size = new System.Drawing.Size(218, 25);
+            this.comboBoxStringByteOrder.TabIndex = 5;
+            this.comboBoxStringByteOrder.SelectedIndexChanged += new System.EventHandler(this.comboBoxStringByteOrder_SelectedIndexChanged);
+            //
             // button1
             // 
             this.button1.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.tableLayoutPanel1.SetColumnSpan(this.button1, 2);
             this.button1.Font = new System.Drawing.Font("宋体", 10.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.button1.Location = new System.Drawing.Point(194, 351);
+            this.button1.Location = new System.Drawing.Point(194, 434);
             this.button1.Name = "button1";
             this.button1.Size = new System.Drawing.Size(92, 37);
-            this.button1.TabIndex = 2;
+            this.button1.TabIndex = 6;
             this.button1.Text = "保存";
             this.button1.UseVisualStyleBackColor = true;
             this.button1.Click += new System.EventHandler(this.button1_Click);
@@ -172,7 +204,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(484, 445);
+            this.ClientSize = new System.Drawing.Size(484, 527);
             this.Controls.Add(this.tableLayoutPanel1);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MaximizeBox = false;
@@ -200,5 +232,9 @@
         private System.Windows.Forms.Button button1;
         private System.Windows.Forms.TextBox textBoxStringLength;
         private System.Windows.Forms.ComboBox comboBoxDataType;
+        /// <summary>字符串字节顺序的中文提示。</summary>
+        private System.Windows.Forms.Label labelStringByteOrder;
+        /// <summary>每个节点独立保存的字符串高低位选择。</summary>
+        private System.Windows.Forms.ComboBox comboBoxStringByteOrder;
     }
 }

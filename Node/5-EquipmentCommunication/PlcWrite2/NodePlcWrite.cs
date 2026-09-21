@@ -1,9 +1,11 @@
-﻿using HslCommunication;
+using HslCommunication;
 using Logger;
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TDJS_Vision.Device.PLC;
 
 namespace TDJS_Vision.Node._5_EquipmentCommunication.PanasonicWirte
 {
@@ -78,6 +80,27 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PanasonicWirte
                     else
                         res = await param.Plc.WriteIntAsync(param.Address, int.Parse(param.Value));
                 }
+                else if (param.DataType == typeof(short).Name)
+                {
+                    short[] vals = SplitIntegerValues(param.Value)
+                        .Select(value => short.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture))
+                        .ToArray();
+                    res = await WriteTypedIntegerValuesAsync(param.Plc, param.Address, vals);
+                }
+                else if (param.DataType == typeof(ushort).Name)
+                {
+                    ushort[] vals = SplitIntegerValues(param.Value)
+                        .Select(value => ushort.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture))
+                        .ToArray();
+                    res = await WriteTypedIntegerValuesAsync(param.Plc, param.Address, vals);
+                }
+                else if (param.DataType == typeof(uint).Name)
+                {
+                    uint[] vals = SplitIntegerValues(param.Value)
+                        .Select(value => uint.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture))
+                        .ToArray();
+                    res = await WriteTypedIntegerValuesAsync(param.Plc, param.Address, vals);
+                }
                 else if (param.DataType == typeof(float).Name)
                 {
                     // 包含间隔符号-的是写入多个值
@@ -146,6 +169,36 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PanasonicWirte
             // 可选：严格模式下，遇到非 "1"/"0" 抛异常或返回 false
             return value == "1" || value.Equals("True", StringComparison.OrdinalIgnoreCase);
             // 说明：只有 "1" 和忽略大小写的“True”都返回 true，其余所有情况（包括 "0"、"abc"、""）都返回 false
+        }
+
+        /// <summary>
+        /// 拆分整数写入数组，兼容逗号、中文逗号、分号和旧连字符分隔。
+        /// </summary>
+        /// <param name="input">用户填写的整数文本。</param>
+        /// <returns>清理后的整数文本数组。</returns>
+        private static string[] SplitIntegerValues(string input)
+        {
+            string[] values = input.Split(new[] { ',', '，', ';', '-' }, StringSplitOptions.None)
+                .Select(value => value.Trim())
+                .ToArray();
+            if (values.Length == 0 || values.Any(string.IsNullOrEmpty))
+                throw new FormatException("PLC写入数组包含空值。");
+            return values;
+        }
+
+        /// <summary>
+        /// 通过PLC显式类型接口写入16位整数或无符号32位整数数组。
+        /// </summary>
+        /// <param name="plc">目标PLC设备。</param>
+        /// <param name="address">写入地址。</param>
+        /// <param name="values">已经按目标位宽解析好的数组。</param>
+        /// <returns>PLC协议写入结果。</returns>
+        private static Task<OperateResult> WriteTypedIntegerValuesAsync(IPlc plc, string address, Array values)
+        {
+            if (!(plc is IResultSendTypedPlc typedPlc))
+                throw new NotSupportedException("当前PLC设备不支持Int16、UInt16或UInt32写入，请改用支持显式位宽写入的PLC驱动。");
+
+            return typedPlc.WriteTypedValuesAsync(address, values);
         }
     }
 }

@@ -10,6 +10,9 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
         // 前一个变量名称
         private string _preVariable = null;
 
+        /// <summary>所属节点，用于恢复改名后的上游订阅。</summary>
+        private NodeSharedVariable _node;
+
         public NodeParamFormSharedVariable()
         {
             InitializeComponent();
@@ -94,6 +97,7 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
         /// <param name="node"></param>
         void INodeParamForm.SetNodeBelong(NodeBase node) 
         {
+            _node = node as NodeSharedVariable;
             nodeSubscription1.SetInputContract(SubscriptionInputContract.AnyVisible());
             nodeSubscription1.SetShowAdvancedResults(true);
             nodeSubscription1.Init(node);
@@ -115,6 +119,13 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
 
                 checkBox1.Checked = param.Flag;
                 comboBoxWhichOne.SelectedIndex = param.Index;
+                if (_node != null)
+                {
+                    NodeBase source = _node.ResolveWriteSource(param);
+                    if (source != null) param.Text1 = source.ID + "." + source.NodeName;
+                    // 反序列化恢复时连线可能晚于窗体创建，先同步完整的上游列表。
+                    nodeSubscription1.Init(_node);
+                }
                 nodeSubscription1.SetText(param.Text1, param.Text2);
                 textBox1.Text = param.WriteName;
                 if (!param.WriteName.IsNullOrEmpty())

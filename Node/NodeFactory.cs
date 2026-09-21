@@ -99,6 +99,8 @@ namespace TDJS_Vision.Node
                     return new NodeLargeModelDetection(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageSave:
                     return new NodeImageSave(nodeId, nodeName, process, nodeType);
+                case NodeType.NamedImageSave:
+                    return new _7_ResultProcessing.NamedImageSave.NodeNamedImageSave(nodeId, nodeName, process, nodeType);
                 case NodeType.SleepTool:
                     return new NodeSleepTool(nodeId, nodeName, process, nodeType);
                 case NodeType.WaitSoftTrigger:

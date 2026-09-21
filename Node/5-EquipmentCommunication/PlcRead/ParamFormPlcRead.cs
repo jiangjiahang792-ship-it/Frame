@@ -14,6 +14,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
         public ParamFormPlcRead()
         {
             InitializeComponent();
+            comboBoxStringByteOrder.SelectedIndex = 0;
             InitPLCComboBox();
         }
 
@@ -76,10 +77,12 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                     MessageBoxTD.Show("信号地址为空", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
-                if (this.comboBoxDataType.Text == "字符串类型" && string.IsNullOrEmpty(this.textBoxStringLength.Text))
+                ushort stringLength = 0;
+                if (this.comboBoxDataType.Text == "字符串" &&
+                    (!ushort.TryParse(this.textBoxStringLength.Text, out stringLength) || stringLength == 0))
                 {
-                    LogHelper.AddLog(MsgLevel.Exception, "读取字符串类型需要设置读取长度", true);
-                    MessageBoxTD.Show("读取字符串类型需要设置读取长度", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    LogHelper.AddLog(MsgLevel.Exception, "字符串读取长度必须为1到65535的整数！", true);
+                    MessageBoxTD.Show("字符串读取长度必须为1到65535的整数！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
@@ -99,6 +102,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                 nodeParamRead.Plc = plc;
                 nodeParamRead.PlcName = plc.UserDefinedName;
                 nodeParamRead.Address = this.textBoxAddress.Text;
+                nodeParamRead.StringByteOrder = (PlcStringByteOrder)Math.Max(0, comboBoxStringByteOrder.SelectedIndex);
                 switch (this.comboBoxDataType.Text)
                 {
                     case "布尔":
@@ -118,7 +122,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                         break;
                     case "字符串":
                         nodeParamRead.DataType = typeof(string).Name;
-                        nodeParamRead.Length = ushort.Parse(this.textBoxStringLength.Text);
+                        nodeParamRead.Length = stringLength;
                         break;
                     default:
                         break;
@@ -144,10 +148,19 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
             InitPLCComboBox();
         }
 
+        /// <summary>只有字符串类型启用长度和字节顺序配置。</summary>
         private void comboBox2_SelectedIndexChanged(object sender, EventArgs e)
         {
-            // 只有字符串/字符串数组需要设置长度
-            textBoxStringLength.Enabled = comboBoxDataType.Text.Contains("字符串") ? true : false;
+            bool isString = comboBoxDataType.Text == "字符串";
+            textBoxStringLength.Enabled = isString;
+            comboBoxStringByteOrder.Enabled = isString;
+            labelStringByteOrder.Enabled = isString;
+        }
+
+        /// <summary>显式选择高低位时提示长度单位为16位寄存器字数。</summary>
+        private void comboBoxStringByteOrder_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            label4.Text = comboBoxStringByteOrder.SelectedIndex > 0 ? "读取长度（字）" : "读取长度";
         }
         /// <summary>
         /// 反序列化需要设置参数给回界面
@@ -157,6 +170,8 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
         {
             if (Params is NodeParamPlcRead param)
             {
+                comboBoxStringByteOrder.SelectedIndex = Enum.IsDefined(typeof(PlcStringByteOrder), param.StringByteOrder)
+                    ? (int)param.StringByteOrder : 0;
                 int index1 = comboBoxPlcList.Items.IndexOf(param.PlcName);
                 comboBoxPlcList.SelectedIndex = index1;
                 // 反序列化后方案中的PLC设备对象才是完整的，需要赋值给用到PLC的节点参数中
