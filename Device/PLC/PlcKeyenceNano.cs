@@ -84,14 +84,11 @@ namespace TDJS_Vision.Device.PLC
         }
 
         /// <summary>异步读取单个 DM 字内位；其他地址继续交给 HSL 原生布尔读取。</summary>
-        public override async Task<OperateResult<bool>> ReadBoolAsync(string address)
+        public override Task<OperateResult<bool>> ReadBoolAsync(string address)
         {
             if (address == null || !address.Contains("."))
-                return await base.ReadBoolAsync(address).ConfigureAwait(false);
-            var result = await ReadBoolAsync(address, 1).ConfigureAwait(false);
-            return result.IsSuccess
-                ? OperateResult.CreateSuccessResult(result.Content[0])
-                : OperateResult.CreateFailedResult<bool>(result);
+                return base.ReadBoolAsync(address);
+            return Task.FromResult(ReadBool(address));
         }
 
         /// <summary>读取 DM 字内连续位，跨过第 15 位时继续读取下一个 DM 字。</summary>
@@ -109,18 +106,11 @@ namespace TDJS_Vision.Device.PLC
         }
 
         /// <summary>异步读取 DM 字内连续位，按实际覆盖范围读取需要的字。</summary>
-        public override async Task<OperateResult<bool[]>> ReadBoolAsync(string address, ushort length)
+        public override Task<OperateResult<bool[]>> ReadBoolAsync(string address, ushort length)
         {
             if (address == null || !address.Contains("."))
-                return await base.ReadBoolAsync(address, length).ConfigureAwait(false);
-            var parsed = ParseDmBitAddress(address);
-            if (!parsed.IsSuccess)
-                return OperateResult.CreateFailedResult<bool[]>(parsed);
-            if (length == 0)
-                return new OperateResult<bool[]>("DM位读取长度必须大于0！");
-            ushort wordCount = (ushort)((parsed.Content2 + length + 15) / 16);
-            var read = await Client.ReadUInt16Async(parsed.Content1, wordCount).ConfigureAwait(false);
-            return ExtractBits(read, parsed.Content2, length);
+                return base.ReadBoolAsync(address, length);
+            return Task.FromResult(ReadBool(address, length));
         }
 
         /// <summary>按输入顺序读取离散布尔地址，确保 DM 字内位地址也走兼容逻辑。</summary>
@@ -142,21 +132,9 @@ namespace TDJS_Vision.Device.PLC
         }
 
         /// <summary>异步按输入顺序读取离散布尔地址，确保 DM 字内位地址也走兼容逻辑。</summary>
-        public override async Task<OperateResult<bool[]>> ReadBoolAsync(string[] address)
+        public override Task<OperateResult<bool[]>> ReadBoolAsync(string[] address)
         {
-            if (address == null || address.Length == 0)
-                return new OperateResult<bool[]>("读取地址不能为空！");
-            var values = new bool[address.Length];
-            for (int i = 0; i < address.Length; i++)
-            {
-                if (string.IsNullOrWhiteSpace(address[i]))
-                    return new OperateResult<bool[]>($"读取地址不能为空，索引：{i}！");
-                var result = await ReadBoolAsync(address[i]).ConfigureAwait(false);
-                if (!result.IsSuccess)
-                    return OperateResult.CreateFailedResult<bool[]>(result);
-                values[i] = result.Content;
-            }
-            return OperateResult.CreateSuccessResult(values);
+            return Task.FromResult(ReadBool(address));
         }
 
         /// <summary>写入单个 DM 字内位；只写目标值，不做先置位再复位的测试动作。</summary>

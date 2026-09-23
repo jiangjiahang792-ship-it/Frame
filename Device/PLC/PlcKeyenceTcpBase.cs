@@ -188,97 +188,97 @@ namespace TDJS_Vision.Device.PLC
         public OperateResult<byte[]> ReadBytes(string address, ushort length) => _client.Read(address, length);
 
         /// <inheritdoc />
-        public Task<OperateResult<byte[]>> ReadBytesAsync(string address, ushort length) => _client.ReadAsync(address, length);
+        public Task<OperateResult<byte[]>> ReadBytesAsync(string address, ushort length) => Task.FromResult(_client.Read(address, length));
 
         /// <inheritdoc />
         public virtual OperateResult<bool> ReadBool(string address) => _client.ReadBool(address);
 
         /// <inheritdoc />
-        public virtual Task<OperateResult<bool>> ReadBoolAsync(string address) => _client.ReadBoolAsync(address);
+        public virtual Task<OperateResult<bool>> ReadBoolAsync(string address) => Task.FromResult(_client.ReadBool(address));
 
         /// <inheritdoc />
         public virtual OperateResult<bool[]> ReadBool(string address, ushort length) => _client.ReadBool(address, length);
 
         /// <inheritdoc />
-        public virtual Task<OperateResult<bool[]>> ReadBoolAsync(string address, ushort length) => _client.ReadBoolAsync(address, length);
+        public virtual Task<OperateResult<bool[]>> ReadBoolAsync(string address, ushort length) => Task.FromResult(_client.ReadBool(address, length));
 
         /// <inheritdoc />
         public virtual OperateResult<bool[]> ReadBool(string[] address) => ReadAddresses<bool>(address, item => _client.ReadBool(item));
 
         /// <inheritdoc />
-        public virtual Task<OperateResult<bool[]>> ReadBoolAsync(string[] address) => ReadAddressesAsync<bool>(address, item => _client.ReadBoolAsync(item));
+        public virtual Task<OperateResult<bool[]>> ReadBoolAsync(string[] address) => Task.FromResult(ReadAddresses<bool>(address, item => _client.ReadBool(item)));
 
         /// <inheritdoc />
         public OperateResult<short> ReadInt16(string address) => _client.ReadInt16(address);
 
         /// <inheritdoc />
-        public Task<OperateResult<short>> ReadInt16Async(string address) => _client.ReadInt16Async(address);
+        public Task<OperateResult<short>> ReadInt16Async(string address) => Task.FromResult(_client.ReadInt16(address));
 
         /// <inheritdoc />
         public OperateResult<int> ReadInt32(string address) => _client.ReadInt32(address);
 
         /// <inheritdoc />
-        public Task<OperateResult<int>> ReadInt32Async(string address) => _client.ReadInt32Async(address);
+        public Task<OperateResult<int>> ReadInt32Async(string address) => Task.FromResult(_client.ReadInt32(address));
 
         /// <inheritdoc />
         public OperateResult<long> ReadInt64(string address) => _client.ReadInt64(address);
 
         /// <inheritdoc />
-        public Task<OperateResult<long>> ReadInt64Async(string address) => _client.ReadInt64Async(address);
+        public Task<OperateResult<long>> ReadInt64Async(string address) => Task.FromResult(_client.ReadInt64(address));
 
         /// <inheritdoc />
         public OperateResult<short[]> ReadInt16(string address, ushort length) => _client.ReadInt16(address, length);
 
         /// <inheritdoc />
-        public Task<OperateResult<short[]>> ReadInt16Async(string address, ushort length) => _client.ReadInt16Async(address, length);
+        public Task<OperateResult<short[]>> ReadInt16Async(string address, ushort length) => Task.FromResult(_client.ReadInt16(address, length));
 
         /// <inheritdoc />
         public OperateResult<int[]> ReadInt32(string address, ushort length) => _client.ReadInt32(address, length);
 
         /// <inheritdoc />
-        public Task<OperateResult<int[]>> ReadInt32Async(string address, ushort length) => _client.ReadInt32Async(address, length);
+        public Task<OperateResult<int[]>> ReadInt32Async(string address, ushort length) => Task.FromResult(_client.ReadInt32(address, length));
 
         /// <inheritdoc />
         public OperateResult<long[]> ReadInt64(string address, ushort length) => _client.ReadInt64(address, length);
 
         /// <inheritdoc />
-        public Task<OperateResult<long[]>> ReadInt64Async(string address, ushort length) => _client.ReadInt64Async(address, length);
+        public Task<OperateResult<long[]>> ReadInt64Async(string address, ushort length) => Task.FromResult(_client.ReadInt64(address, length));
 
         /// <inheritdoc />
         public OperateResult<short[]> ReadInt16(string[] address) => ReadAddresses<short>(address, item => _client.ReadInt16(item));
 
         /// <inheritdoc />
-        public Task<OperateResult<short[]>> ReadInt16Async(string[] address) => ReadAddressesAsync<short>(address, item => _client.ReadInt16Async(item));
+        public Task<OperateResult<short[]>> ReadInt16Async(string[] address) => Task.FromResult(ReadAddresses<short>(address, item => _client.ReadInt16(item)));
 
         /// <inheritdoc />
         public OperateResult<int[]> ReadInt32(string[] address) => ReadAddresses<int>(address, item => _client.ReadInt32(item));
 
         /// <inheritdoc />
-        public Task<OperateResult<int[]>> ReadInt32Async(string[] address) => ReadAddressesAsync<int>(address, item => _client.ReadInt32Async(item));
+        public Task<OperateResult<int[]>> ReadInt32Async(string[] address) => Task.FromResult(ReadAddresses<int>(address, item => _client.ReadInt32(item)));
 
         /// <inheritdoc />
         public OperateResult<long[]> ReadInt64(string[] address) => ReadAddresses<long>(address, item => _client.ReadInt64(item));
 
         /// <inheritdoc />
-        public Task<OperateResult<long[]>> ReadInt64Async(string[] address) => ReadAddressesAsync<long>(address, item => _client.ReadInt64Async(item));
+        public Task<OperateResult<long[]>> ReadInt64Async(string[] address) => Task.FromResult(ReadAddresses<long>(address, item => _client.ReadInt64(item)));
 
         /// <inheritdoc />
         public OperateResult<float> ReadFloat(string address) => _client.ReadFloat(address);
 
         /// <inheritdoc />
-        public Task<OperateResult<float>> ReadFloatAsync(string address) => _client.ReadFloatAsync(address);
+        public Task<OperateResult<float>> ReadFloatAsync(string address) => Task.FromResult(_client.ReadFloat(address));
 
         /// <inheritdoc />
         public OperateResult<float[]> ReadFloat(string address, ushort length) => _client.ReadFloat(address, length);
 
         /// <inheritdoc />
-        public Task<OperateResult<float[]>> ReadFloatAsync(string address, ushort length) => _client.ReadFloatAsync(address, length);
+        public Task<OperateResult<float[]>> ReadFloatAsync(string address, ushort length) => Task.FromResult(_client.ReadFloat(address, length));
 
         /// <inheritdoc />
         public OperateResult<string> ReadString(string address, ushort length) => _client.ReadString(address, length);
 
         /// <inheritdoc />
-        public Task<OperateResult<string>> ReadStringAsync(string address, ushort length) => _client.ReadStringAsync(address, length);
+        public Task<OperateResult<string>> ReadStringAsync(string address, ushort length) => Task.FromResult(_client.ReadString(address, length));
 
         /// <inheritdoc />
         public OperateResult WriteBytes(string address, byte[] value) => _client.Write(address, value);
