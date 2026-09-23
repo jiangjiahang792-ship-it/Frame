@@ -1,6 +1,7 @@
 using HslCommunication;
 using Logger;
 using System;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -66,12 +67,27 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
         }
 
         /// <summary>冻结并预检本轮写入值，直接调用设备，不等待工件或端点发送权。</summary>
-        public Task<OrderedSignalSendResult> ExecuteDirectWriteAsync(CancellationToken token)
+        public async Task<OrderedSignalSendResult> ExecuteDirectWriteAsync(CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
+            bool debugEnabled = LogHelper.CanRecord(MsgLevel.Debug);
+            Stopwatch totalStopwatch = debugEnabled ? Stopwatch.StartNew() : null;
+            Stopwatch captureStopwatch = debugEnabled ? Stopwatch.StartNew() : null;
             PlcWriteSignalSnapshot signalSnapshot = CaptureSignalSnapshot();
+            captureStopwatch?.Stop();
             token.ThrowIfCancellationRequested();
-            return ExecuteWriteSnapshotAsync(signalSnapshot);
+            Stopwatch writeStopwatch = debugEnabled ? Stopwatch.StartNew() : null;
+            OrderedSignalSendResult result = await ExecuteWriteSnapshotAsync(signalSnapshot).ConfigureAwait(false);
+            writeStopwatch?.Stop();
+            totalStopwatch?.Stop();
+            if (debugEnabled)
+            {
+                LogHelper.AddLog(
+                    MsgLevel.Debug,
+                    $"PLC写入诊断：节点({ID}.{NodeName})，设备={signalSnapshot.Plc?.UserDefinedName}，地址={signalSnapshot.Address}，类型={signalSnapshot.ValueKind}，数量={GetValueCount(signalSnapshot.Value)}，参数冻结={captureStopwatch.ElapsedMilliseconds} ms，PLC写入调用={writeStopwatch.ElapsedMilliseconds} ms，直接写入总耗时={totalStopwatch.ElapsedMilliseconds} ms，状态={result.Status}，消息={result.Message}",
+                    true);
+            }
+            return result;
         }
 
         /// <summary>只读取一次当前参数对象，并在发送前完成全部值解析。</summary>
@@ -276,6 +292,12 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcWirte
                 throw new NotSupportedException("当前PLC设备不支持Int16、UInt16或UInt32写入，请改用支持显式位宽写入的PLC驱动。");
 
             return typedPlc.WriteTypedValuesAsync(address, values);
+        }
+
+        /// <summary>获取已经解析的写入值数量，用于性能诊断日志。</summary>
+        private static int GetValueCount(object value)
+        {
+            return value is Array array ? array.Length : 1;
         }
 
         /// <summary>把布尔文本严格解析为至少一个布尔值。</summary>

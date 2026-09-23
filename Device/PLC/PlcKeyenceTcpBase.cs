@@ -12,16 +12,19 @@ namespace TDJS_Vision.Device.PLC
     /// <summary>将基恩士上位链路 TCP 协议适配为项目统一的 PLC 设备接口。</summary>
     public abstract class PlcKeyenceTcpBase : ReconnectingCommunicationDevice, IPlc, IResultSendTypedPlc
     {
-        /// <summary>当前设备独享的通信客户端，复用长连接并由通信库串行处理报文。</summary>
+        /// <summary>当前设备独享的通信客户端，复用长连接执行读写指令。</summary>
         private DeviceTcpNet _client;
+
+        /// <summary>提供给具体协议适配器的底层通信客户端。</summary>
+        protected DeviceTcpNet Client => _client;
 
         /// <summary>按底层协议字节序写入结果发送节点的额外数值类型。</summary>
         public Task<OperateResult> WriteTypedValuesAsync(string address, Array values)
         {
-            if (values is short[] signedWords) return _client.WriteAsync(address, signedWords);
-            if (values is ushort[] words) return _client.WriteAsync(address, words);
-            if (values is uint[] integers) return _client.WriteAsync(address, integers);
-            if (values is double[] doubles) return _client.WriteAsync(address, doubles);
+            if (values is short[] signedWords) return Task.FromResult(_client.Write(address, signedWords));
+            if (values is ushort[] words) return Task.FromResult(_client.Write(address, words));
+            if (values is uint[] integers) return Task.FromResult(_client.Write(address, integers));
+            if (values is double[] doubles) return Task.FromResult(_client.Write(address, doubles));
             throw new NotSupportedException("不支持的PLC扩展写入类型。");
         }
 
@@ -188,10 +191,10 @@ namespace TDJS_Vision.Device.PLC
         public Task<OperateResult<byte[]>> ReadBytesAsync(string address, ushort length) => _client.ReadAsync(address, length);
 
         /// <inheritdoc />
-        public OperateResult<bool> ReadBool(string address) => _client.ReadBool(address);
+        public virtual OperateResult<bool> ReadBool(string address) => _client.ReadBool(address);
 
         /// <inheritdoc />
-        public Task<OperateResult<bool>> ReadBoolAsync(string address) => _client.ReadBoolAsync(address);
+        public virtual Task<OperateResult<bool>> ReadBoolAsync(string address) => _client.ReadBoolAsync(address);
 
         /// <inheritdoc />
         public virtual OperateResult<bool[]> ReadBool(string address, ushort length) => _client.ReadBool(address, length);
@@ -200,10 +203,10 @@ namespace TDJS_Vision.Device.PLC
         public virtual Task<OperateResult<bool[]>> ReadBoolAsync(string address, ushort length) => _client.ReadBoolAsync(address, length);
 
         /// <inheritdoc />
-        public OperateResult<bool[]> ReadBool(string[] address) => ReadAddresses<bool>(address, item => _client.ReadBool(item));
+        public virtual OperateResult<bool[]> ReadBool(string[] address) => ReadAddresses<bool>(address, item => _client.ReadBool(item));
 
         /// <inheritdoc />
-        public Task<OperateResult<bool[]>> ReadBoolAsync(string[] address) => ReadAddressesAsync<bool>(address, item => _client.ReadBoolAsync(item));
+        public virtual Task<OperateResult<bool[]>> ReadBoolAsync(string[] address) => ReadAddressesAsync<bool>(address, item => _client.ReadBoolAsync(item));
 
         /// <inheritdoc />
         public OperateResult<short> ReadInt16(string address) => _client.ReadInt16(address);
@@ -281,49 +284,49 @@ namespace TDJS_Vision.Device.PLC
         public OperateResult WriteBytes(string address, byte[] value) => _client.Write(address, value);
 
         /// <inheritdoc />
-        public Task<OperateResult> WriteBytesAsync(string address, byte[] value) => _client.WriteAsync(address, value);
+        public Task<OperateResult> WriteBytesAsync(string address, byte[] value) => Task.FromResult(_client.Write(address, value));
 
         /// <inheritdoc />
-        public OperateResult WriteBool(string address, bool value) => _client.Write(address, value);
+        public virtual OperateResult WriteBool(string address, bool value) => _client.Write(address, value);
 
         /// <inheritdoc />
-        public Task<OperateResult> WriteBoolAsync(string address, bool value) => _client.WriteAsync(address, value);
+        public virtual Task<OperateResult> WriteBoolAsync(string address, bool value) => Task.FromResult(_client.Write(address, value));
 
         /// <inheritdoc />
-        public OperateResult WriteBool(string address, bool[] value) => _client.Write(address, value);
+        public virtual OperateResult WriteBool(string address, bool[] value) => _client.Write(address, value);
 
         /// <inheritdoc />
-        public Task<OperateResult> WriteBoolAsync(string address, bool[] value) => _client.WriteAsync(address, value);
+        public virtual Task<OperateResult> WriteBoolAsync(string address, bool[] value) => Task.FromResult(_client.Write(address, value));
 
         /// <inheritdoc />
         public OperateResult WriteInt(string address, int value) => _client.Write(address, value);
 
         /// <inheritdoc />
-        public Task<OperateResult> WriteIntAsync(string address, int value) => _client.WriteAsync(address, value);
+        public Task<OperateResult> WriteIntAsync(string address, int value) => Task.FromResult(_client.Write(address, value));
 
         /// <inheritdoc />
         public OperateResult WriteInt(string address, int[] value) => _client.Write(address, value);
 
         /// <inheritdoc />
-        public Task<OperateResult> WriteIntAsync(string address, int[] value) => _client.WriteAsync(address, value);
+        public Task<OperateResult> WriteIntAsync(string address, int[] value) => Task.FromResult(_client.Write(address, value));
 
         /// <inheritdoc />
         public OperateResult WriteFloat(string address, float value) => _client.Write(address, value);
 
         /// <inheritdoc />
-        public Task<OperateResult> WriteFloatAsync(string address, float value) => _client.WriteAsync(address, value);
+        public Task<OperateResult> WriteFloatAsync(string address, float value) => Task.FromResult(_client.Write(address, value));
 
         /// <inheritdoc />
         public OperateResult WriteFloat(string address, float[] value) => _client.Write(address, value);
 
         /// <inheritdoc />
-        public Task<OperateResult> WriteFloatAsync(string address, float[] value) => _client.WriteAsync(address, value);
+        public Task<OperateResult> WriteFloatAsync(string address, float[] value) => Task.FromResult(_client.Write(address, value));
 
         /// <inheritdoc />
         public OperateResult WriteString(string address, string value) => _client.Write(address, value);
 
         /// <inheritdoc />
-        public Task<OperateResult> WriteStringAsync(string address, string value) => _client.WriteAsync(address, value);
+        public Task<OperateResult> WriteStringAsync(string address, string value) => Task.FromResult(_client.Write(address, value));
 
         /// <inheritdoc />
         public Task<OperateResult<TimeSpan>> WaitAsync(string address, bool waitValue, int readInterval = 100, int waitTimeout = -1) => _client.WaitAsync(address, waitValue, readInterval, waitTimeout);
