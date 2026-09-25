@@ -192,6 +192,9 @@ namespace TDJS_Vision
         private ToolStripComboBox languageToolStripComboBox;
         private bool isApplyingLanguage;
 
+        /// <summary>停止清理尚未完成时禁止重新运行，避免界面提前解锁。</summary>
+        private bool _stopInProgress;
+
         /// <summary>
         /// 用于启动授权程序的外部程序启动器。
         /// </summary>
@@ -1022,10 +1025,24 @@ namespace TDJS_Vision
 
         private async void 停止运行ToolStripMenuItem_Click(object value1, object value2)
         {
-            Solution.Instance.Stop();
+            if (_stopInProgress) return;
+            _stopInProgress = true;
+            SetRunStatus(true);
             FormGlobalSignal.StopListenSignals();
-            SetRunStatus(false);
-            await FormGlobalSignal.SendGlobalSignals(this, false);
+            try
+            {
+                await Solution.Instance.StopAsync();
+                await FormGlobalSignal.SendGlobalSignals(this, false);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, "停止方案失败：" + ex.Message, true);
+            }
+            finally
+            {
+                _stopInProgress = false;
+                SetRunStatus(Solution.Instance.IsRunning);
+            }
         }
 
         private async void 循环运行ToolStripMenuItem_Click(object value1, object value2)
@@ -1242,6 +1259,8 @@ namespace TDJS_Vision
         // 实际更新 UI 的方法
         private void UpdateUI(bool isRun)
         {
+            // 任何运行入口的 finally 都不能覆盖其他尚在清理的会话状态。
+            isRun = isRun || _stopInProgress || Solution.Instance.IsRunning;
             if (!isRun)
             {
                 FrmLoggerDlg.FlushLogs();
@@ -1250,7 +1269,7 @@ namespace TDJS_Vision
             // 运行和停止按钮
             tsbt_SolRunOnce.Enabled = !isRun;
             tsbt_SolRunLoop.Enabled = !isRun;
-            tsbt_SolRunStop.Enabled = isRun;
+            tsbt_SolRunStop.Enabled = isRun && !_stopInProgress;
             登录ToolStripMenuItem.Enabled = !isRun;
 
             switch (Role)

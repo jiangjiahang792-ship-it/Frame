@@ -44,7 +44,8 @@ namespace TDJS_Vision.Node
             string selectedPath)
         {
             var allOutputs = new List<SubscriptionOutputDescriptor>();
-            if (node != null && node.Result != null)
+            // 模块作用域输入只公开声明变量，避免把适配器运行状态误当作布尔输入。
+            if (node != null && node.Result != null && node.Process?.ModuleInputSource?.SubscriptionNode.ID != node.ID)
             {
                 foreach (SubscriptionOutputDescriptor descriptor in GetStaticOutputs(node.Result.GetType()))
                 {

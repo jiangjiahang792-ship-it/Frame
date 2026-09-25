@@ -1,0 +1,42 @@
+[
+  {
+    "Name": "露线芯宽度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "露线芯高度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "压接区宽度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "压接区域高度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "飞丝",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0"
+  }
+]

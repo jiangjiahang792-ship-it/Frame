@@ -13,6 +13,7 @@ using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Node._6_LogicTool.CompositeModule;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node;
 using TDJS_Vision.Node._7_ResultProcessing.ImageDraw;
@@ -531,15 +532,18 @@ namespace TDJS_Vision.Forms.ImageViewer
             if (_process != null)
                 return _process;
 
+            if (Solution.Instance.AllProcesses == null)
+                return null;
+
             foreach (var process in Solution.Instance.AllProcesses)
             {
-                foreach (var node in process.Nodes)
+                foreach (var node in EnumerateViewerNodes(process))
                 {
                     if (node is NodeImageShow nodeShow &&
                         nodeShow.ParamForm.Params is NodeParamImageShow showParam &&
                         NormalizeWindowKey(showParam.WindowName) == FormName)
                     {
-                        _process = process;
+                        _process = nodeShow.Process ?? process;
                         return _process;
                     }
                 }
@@ -613,7 +617,7 @@ namespace TDJS_Vision.Forms.ImageViewer
 
             if (_lastImageShowNodeId.HasValue)
             {
-                NodeImageShow lastShowNode = process.Nodes
+                NodeImageShow lastShowNode = EnumerateViewerNodes(process)
                     .OfType<NodeImageShow>()
                     .FirstOrDefault(node => node.ID == _lastImageShowNodeId.Value);
 
@@ -625,7 +629,7 @@ namespace TDJS_Vision.Forms.ImageViewer
                 }
             }
 
-            foreach (var node in process.Nodes)
+            foreach (var node in EnumerateViewerNodes(process))
             {
                 if (!(node is NodeImageShow nodeShow) ||
                     !(nodeShow.ParamForm.Params is NodeParamImageShow showParam) ||
@@ -691,7 +695,7 @@ namespace TDJS_Vision.Forms.ImageViewer
 
             if (_lastImageShowNodeId.HasValue)
             {
-                NodeImageShow lastShowNode = process.Nodes
+                NodeImageShow lastShowNode = EnumerateViewerNodes(process)
                     .OfType<NodeImageShow>()
                     .FirstOrDefault(node => node.ID == _lastImageShowNodeId.Value);
 
@@ -703,7 +707,7 @@ namespace TDJS_Vision.Forms.ImageViewer
                 }
             }
 
-            foreach (var node in process.Nodes)
+            foreach (var node in EnumerateViewerNodes(process))
             {
                 if (!(node is NodeImageShow nodeShow) ||
                     !(nodeShow.ParamForm.Params is NodeParamImageShow showParam) ||
@@ -875,7 +879,7 @@ namespace TDJS_Vision.Forms.ImageViewer
             if (process == null || filter == null || !filter.IsSourceNodeLimited)
                 return new List<NodeTDAI>();
 
-            return process.Nodes
+            return EnumerateViewerNodes(process)
                 .OfType<NodeTDAI>()
                 .Where(node => filter.ContainsSourceNode(node.ID))
                 .ToList();
@@ -888,11 +892,60 @@ namespace TDJS_Vision.Forms.ImageViewer
         /// <returns></returns>
         private static List<NodeTDAI> GetAllAiNodes(Process process)
         {
-            return process.Nodes.OfType<NodeTDAI>().ToList();
+            return EnumerateViewerNodes(process).OfType<NodeTDAI>().ToList();
         }
 
         /// <summary>
-        /// 按节点ID去重AI检测节点。
+        /// 递归枚举流程和组合模块内部节点，保证图像窗口手动调参能定位组合模块内节点。
+        /// </summary>
+        /// <param name="sourceProcess">待枚举流程。</param>
+        /// <returns>流程中可被图像窗口解析的节点。</returns>
+        private static IEnumerable<NodeBase> EnumerateViewerNodes(Process sourceProcess)
+        {
+            HashSet<Process> visitedProcesses = new HashSet<Process>();
+            return EnumerateViewerNodesCore(sourceProcess, visitedProcesses).ToList();
+        }
+
+        /// <summary>
+        /// 递归枚举流程节点的内部实现，用流程引用防止循环组合模块导致重复遍历。
+        /// </summary>
+        /// <param name="sourceProcess">当前流程。</param>
+        /// <param name="visitedProcesses">已访问流程集合。</param>
+        /// <returns>当前流程及其组合模块内部节点。</returns>
+        private static IEnumerable<NodeBase> EnumerateViewerNodesCore(Process sourceProcess, HashSet<Process> visitedProcesses)
+        {
+            if (sourceProcess == null || sourceProcess.Nodes == null || !visitedProcesses.Add(sourceProcess))
+                yield break;
+
+            foreach (NodeBase node in sourceProcess.Nodes)
+            {
+                if (node == null)
+                    continue;
+
+                yield return node;
+
+                NodeCompositeModule module = node as NodeCompositeModule;
+                if (module == null)
+                    continue;
+
+                Process innerProcess;
+                try
+                {
+                    innerProcess = module.GetEditableProcess();
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.AddLog(MsgLevel.Warn, $"【手动调参诊断】图像窗口读取组合模块内部流程失败，节点={module.ID}.{module.NodeName}，原因={ex.Message}。", true);
+                    continue;
+                }
+
+                foreach (NodeBase innerNode in EnumerateViewerNodesCore(innerProcess, visitedProcesses))
+                    yield return innerNode;
+            }
+        }
+
+        /// <summary>
+        /// 按节点对象去重AI检测节点，组合模块内部节点编号可能重复，不能只按ID去重。
         /// </summary>
         /// <param name="nodes"></param>
         /// <returns></returns>
@@ -900,8 +953,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         {
             return nodes
                 .Where(node => node != null)
-                .GroupBy(node => node.ID)
-                .Select(group => group.First())
+                .Distinct()
                 .ToList();
         }
 
@@ -918,12 +970,13 @@ namespace TDJS_Vision.Forms.ImageViewer
             if (process == null || string.IsNullOrWhiteSpace(nodeText))
                 return false;
 
+            List<NodeBase> nodes = EnumerateViewerNodes(process).ToList();
             int dotIndex = nodeText.IndexOf('.');
             if (dotIndex > 0 && int.TryParse(nodeText.Substring(0, dotIndex), out int nodeId))
-                node = process.Nodes.FirstOrDefault(item => item.ID == nodeId);
+                node = nodes.FirstOrDefault(item => item.ID == nodeId);
 
             if (node == null)
-                node = process.Nodes.FirstOrDefault(item => $"{item.ID}.{item.NodeName}" == nodeText);
+                node = nodes.FirstOrDefault(item => $"{item.ID}.{item.NodeName}" == nodeText);
 
             return node != null;
         }
@@ -1079,7 +1132,7 @@ namespace TDJS_Vision.Forms.ImageViewer
                     $"【手动调参诊断】AI节点解析完成，节点={(targetAiNode == null ? "空" : targetAiNode.ID + "." + targetAiNode.NodeName)}，耗时={stopwatch.ElapsedMilliseconds}ms。",
                     true);
 
-                using (var form = new FormSolRunParam(process.ProcessName, targetAiNode, runParamDisplayFilter))
+                using (var form = new FormSolRunParam(process, targetAiNode, runParamDisplayFilter))
                 {
                     LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】开始打开运行参数窗体，流程={process.ProcessName}。", true);
                     form.ShowDialog(this);

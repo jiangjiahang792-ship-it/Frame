@@ -231,6 +231,10 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         public event EventHandler HistoryChanged;
         public event EventHandler NodeCollectionChanged;
+        /// <summary>双击组合节点时请求编辑器原位进入内部流程。</summary>
+        public event Action<NodeBase> CompositeModuleOpenRequested;
+        /// <summary>组合模块右侧齿轮打开输入输出配置。</summary>
+        public event Action<NodeBase> CompositeModulePortsRequested;
         public event EventHandler ZoomChanged;
         public event EventHandler<FlowCanvasOverlayInvalidatedEventArgs> OverlayInvalidated;
 
@@ -729,7 +733,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         public bool Undo()
         {
-            if (!CanUndo)
+            if (Solution.Instance.IsRunning || !CanUndo)
                 return false;
 
             ICanvasEdit edit = _undoStack.Pop();
@@ -750,7 +754,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         public bool Redo()
         {
-            if (!CanRedo)
+            if (Solution.Instance.IsRunning || !CanRedo)
                 return false;
 
             ICanvasEdit edit = _redoStack.Pop();
@@ -826,11 +830,20 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             base.OnMouseDown(e);
 
-            if (_process == null)
+            if (_process == null || Solution.Instance.IsRunning)
                 return;
 
             Focus();
             Point canvasPoint = ToCanvasPoint(e.Location);
+
+            NodeBase gearNode = HitNode(canvasPoint);
+            if (e.Button == MouseButtons.Left && gearNode?.NodeType == NodeType.CompositeModule &&
+                GetCompositeGearBounds(gearNode).Contains(canvasPoint))
+            {
+                SelectOnly(gearNode);
+                CompositeModulePortsRequested?.Invoke(gearNode);
+                return;
+            }
 
             if (e.Button == MouseButtons.Right)
             {
@@ -1010,9 +1023,16 @@ namespace TDJS_Vision.Forms.ProcessNew
                 return;
 
             NodeBase node = HitNode(ToCanvasPoint(e.Location));
+            if (node?.NodeType == NodeType.CompositeModule && GetCompositeGearBounds(node).Contains(ToCanvasPoint(e.Location))) return;
             if (node != null)
             {
                 SelectOnly(node);
+                if (Solution.Instance.IsRunning) return;
+                if (node.NodeType == NodeType.CompositeModule && CompositeModuleOpenRequested != null)
+                {
+                    CompositeModuleOpenRequested(node);
+                    return;
+                }
                 OpenNodeParameters(node);
             }
         }
@@ -1139,7 +1159,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         private bool ExecuteEdit(ICanvasEdit edit)
         {
-            if (edit == null)
+            if (edit == null || Solution.Instance.IsRunning)
                 return false;
 
             _isApplyingHistory = true;
@@ -1404,7 +1424,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 _process.Nodes.Insert(insertIndex, node);
             }
 
-            if (!Solution.Instance.Nodes.Contains(node))
+            if (Solution.Instance.AllProcesses.Contains(_process) && !Solution.Instance.Nodes.Contains(node))
             {
                 int insertIndex = Math.Max(0, Math.Min(solutionIndex, Solution.Instance.Nodes.Count));
                 Solution.Instance.Nodes.Insert(insertIndex, node);
@@ -2076,7 +2096,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     _process.Nodes.Insert(insertIndex, snapshot.Node);
                 }
 
-                if (!Solution.Instance.Nodes.Contains(snapshot.Node))
+                if (Solution.Instance.AllProcesses.Contains(_process) && !Solution.Instance.Nodes.Contains(snapshot.Node))
                 {
                     int insertIndex = Math.Max(0, Math.Min(snapshot.SolutionIndex, Solution.Instance.Nodes.Count));
                     Solution.Instance.Nodes.Insert(insertIndex, snapshot.Node);
@@ -3140,7 +3160,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             using (SolidBrush statusBrush = new SolidBrush(statusColor))
             using (StringFormat textFormat = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap })
             {
-                int titleRightPadding = node.IsStartNode ? 58 : 28;
+                int titleRightPadding = (node.IsStartNode ? 58 : 28) + (node.NodeType == NodeType.CompositeModule ? 28 : 0);
                 RectangleF titleRect = new RectangleF(bounds.X + 14, bounds.Y + 19, bounds.Width - 14 - titleRightPadding, 20);
                 RectangleF metaRect = new RectangleF(bounds.X + 30, bounds.Y + 40, bounds.Width - 44, 15);
                 Rectangle statusDot = new Rectangle(bounds.X + 14, bounds.Y + 44, 9, 9);
@@ -3152,10 +3172,12 @@ namespace TDJS_Vision.Forms.ProcessNew
             }
 
             DrawNodeParameterSummary(graphics, node, bounds);
+            if (node.NodeType == NodeType.CompositeModule) DrawCompositeGear(graphics, node);
 
             if (node.IsStartNode)
             {
                 Rectangle badge = new Rectangle(bounds.Right - 47, bounds.Y + 18, 34, 16);
+                if (node.NodeType == NodeType.CompositeModule) badge.Offset(-28, 0);
                 using (SolidBrush badgeBrush = new SolidBrush(Color.FromArgb(47, 158, 68)))
                 using (Font badgeFont = new Font("Segoe UI", 6.5F, FontStyle.Bold))
                 {
@@ -3169,6 +3191,29 @@ namespace TDJS_Vision.Forms.ProcessNew
             DrawAnchor(graphics, node, "Right", conditionalBranchNode ? "T" : null);
             DrawAnchor(graphics, node, "Bottom", conditionalBranchNode ? "F" : null);
             DrawAnchor(graphics, node, "Left");
+        }
+
+        /// <summary>齿轮位于节点右上方，避开右侧连线锚点。</summary>
+        private Rectangle GetCompositeGearBounds(NodeBase node)
+        {
+            Rectangle bounds = GetNodeBounds(node);
+            return new Rectangle(bounds.Right - 34, bounds.Top + 16, 24, 24);
+        }
+
+        /// <summary>以矢量绘制小齿轮，在画布缩放时保持清晰。</summary>
+        private void DrawCompositeGear(Graphics graphics, NodeBase node)
+        {
+            Rectangle bounds = GetCompositeGearBounds(node);
+            float x = bounds.Left + 12, y = bounds.Top + 12;
+            var points = new PointF[32];
+            for (int index = 0; index < points.Length; index++)
+            {
+                double angle = index * Math.PI / 16;
+                float radius = index % 4 < 2 ? 9 : 7;
+                points[index] = new PointF(x + (float)Math.Cos(angle) * radius, y + (float)Math.Sin(angle) * radius);
+            }
+            using (var brush = new SolidBrush(NodeMetaTextColor)) graphics.FillPolygon(brush, points);
+            using (var brush = new SolidBrush(GetNodeFillColor(node))) graphics.FillEllipse(brush, x - 3, y - 3, 6, 6);
         }
 
         /// <summary>
@@ -4167,7 +4212,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         private bool OpenNodeParameters(NodeBase node)
         {
             Form form = node == null ? null : node.ParamForm as Form;
-            if (node == null || !node.Active || form == null)
+            if (Solution.Instance.IsRunning || node == null || !node.Active || form == null)
                 return false;
 
             form.ShowDialog();

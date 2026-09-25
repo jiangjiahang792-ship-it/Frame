@@ -13,6 +13,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// <param name="disposing">如果应释放托管资源，为 true；否则为 false。</param>
         protected override void Dispose(bool disposing)
         {
+            if (disposing) ReleaseSubscriptions();
             if (disposing && (components != null))
             {
                 components.Dispose();
@@ -88,7 +89,8 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             // splitContainerMain
             // 
             this.splitContainerMain.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.splitContainerMain.FixedPanel = System.Windows.Forms.FixedPanel.Panel2;
+            this.splitContainerMain.FixedPanel = System.Windows.Forms.FixedPanel.None;
+            this.splitContainerMain.SizeChanged += new System.EventHandler(this.splitContainerMain_SizeChanged);
             this.splitContainerMain.Location = new System.Drawing.Point(3, 45);
             this.splitContainerMain.Name = "splitContainerMain";
             // 

@@ -66,9 +66,11 @@ namespace TDJS_Vision.Node._6_LogicTool.ProcessSignal
                             }
                             await Task.Run(() => 
                             {
-                                signal?.Wait();
-                                signal?.Reset();
-                            });
+                                // 停止时退出等待，不伪造信号，也不重置尚未消费的信号。
+                                signal.Wait(token);
+                                token.ThrowIfCancellationRequested();
+                                signal.Reset();
+                            }, token).ConfigureAwait(false);
                         }
 
                         var time = SetRunResult(startTime, NodeStatus.Successful);

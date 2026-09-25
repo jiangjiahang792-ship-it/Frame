@@ -57,7 +57,8 @@ namespace TDJS_Vision.Forms.CameraAdd
             Camera3D = camera ?? throw new ArgumentNullException(nameof(camera));
             Camera3D.ConnectStatusEvent += Camera3D_ConnectStatusEvent;
             labelCameraName.Text = Camera3D.UserDefinedName;
-            Solution.Instance.AllDevices.Add(Camera3D);
+            if (!Solution.Instance.AllDevices.Contains(Camera3D))
+                Solution.Instance.AllDevices.Add(Camera3D);
             SingleCamera3DList.Add(this);
             StartAutoConnectIfNeeded();
         }

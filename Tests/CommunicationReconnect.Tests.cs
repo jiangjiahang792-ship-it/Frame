@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO.Ports;
 using System.Linq;
@@ -17,6 +18,7 @@ using Newtonsoft.Json.Linq;
 using TDJS_Vision.Device;
 using TDJS_Vision.Device.Modbus;
 using TDJS_Vision.Device.PLC;
+using TDJS_Vision.Node;
 using TDJS_Vision.Node._7_ResultProcessing.ResultSend;
 using TDJS_Vision.ResourceManagement;
 using IModbus = TDJS_Vision.Device.Modbus.IModbus;
@@ -131,6 +133,27 @@ internal static class CommunicationReconnectTests
         }
     }
 
+    /// <summary>测试用标量结果，模拟两个上游检测节点分别产出一个检测值。</summary>
+    private sealed class ScalarResult : INodeResult
+    {
+        /// <summary>测试结果耗时。</summary>
+        public int RunTime { get; set; }
+        /// <summary>可被结果发送订阅的标量检测值。</summary>
+        [SubscriptionOutput, DisplayName("检测值")]
+        public double Value { get; set; }
+    }
+
+    /// <summary>测试用结果节点，允许离线设置运行结果。</summary>
+    private sealed class ScalarNode : NodeBase
+    {
+        /// <summary>创建带固定结果值的上游节点。</summary>
+        public ScalarNode(int nodeId, string nodeName, TDJS_Vision.Process process, double value)
+            : base(nodeId, nodeName, process, NodeType.ProcessSignal)
+        {
+            Result = new ScalarResult { Value = value };
+        }
+    }
+
     /// <summary>创建发送快照，不需要启动界面或连接真实设备。</summary>
     private static ResultSendPreparedRow Row(ResultSendMode mode = ResultSendMode.Single) =>
         ResultSendValueConverter.Prepare(new ResultSendRow {
@@ -176,7 +199,64 @@ internal static class CommunicationReconnectTests
                 }
             }
         }
+        VerifyMultiSourceAggregate();
+        VerifyBooleanAggregateCustomValues();
         Console.WriteLine("Send classification: no-side-effect rejection and partial-write protection passed.");
+    }
+
+    /// <summary>验证“汇总为单值”可以从多个上游节点汇总，而不是局限在单个订阅源内部。</summary>
+    private static void VerifyMultiSourceAggregate()
+    {
+        var process = new TDJS_Vision.Process("多来源汇总验证");
+        using (var first = new ScalarNode(1, "检测一", process, 12.5))
+        using (var second = new ScalarNode(2, "检测二", process, 7.5))
+        using (var sender = new NodeResultSend(3, "结果发送", process, NodeType.ResultSend))
+        {
+            process.AddNode(first);
+            process.AddNode(second);
+            process.AddNode(sender);
+            process.AddConnection(new TDJS_Vision.ProcessConnection { FromNodeId = first.ID, ToNodeId = sender.ID });
+            process.AddConnection(new TDJS_Vision.ProcessConnection { FromNodeId = second.ID, ToNodeId = sender.ID });
+
+            var firstSource = new ResultSendSource { NodeId = first.ID, Path = "Value", Kind = ResultSendSourceKind.Property, DisplayName = "1.检测一 → 检测值" };
+            var secondSource = new ResultSendSource { NodeId = second.ID, Path = "Value", Kind = ResultSendSourceKind.Property, DisplayName = "2.检测二 → 检测值" };
+            var row = new ResultSendRow
+            {
+                Source = firstSource,
+                Sources = new List<ResultSendSource> { firstSource, secondSource },
+                Address = "D0",
+                DataType = ResultSendType.Double,
+                Mode = ResultSendMode.Aggregate,
+                Aggregate = ResultSendAggregate.Sum
+            };
+            var param = new NodeParamResultSend { DeviceName = "离线", Rows = new List<ResultSendRow> { row } };
+            ((ParamFormResultSend)sender.ParamForm).Params = param;
+
+            var prepared = sender.PrepareRows(param, new OfflineWriter(), false);
+            Check(prepared.Count == 1, "多来源汇总应只生成一行发送数据。");
+            Check(Math.Abs((double)prepared[0].Values.GetValue(0) - 20.0) < 0.000001, "多来源汇总没有把两个节点的值求和。");
+            Check(sender.GetSubscriptionDependencyNodeIds().OrderBy(id => id).SequenceEqual(new[] { 1, 2 }), "多来源汇总没有声明全部上游依赖。");
+        }
+    }
+
+    /// <summary>验证布尔汇总可以按真假结果发送用户自定义数据。</summary>
+    private static void VerifyBooleanAggregateCustomValues()
+    {
+        var row = new ResultSendRow
+        {
+            Source = new ResultSendSource { NodeId = 1, Path = "Value", Kind = ResultSendSourceKind.Property, DisplayName = "1.检测一 → 判定" },
+            Address = "D10",
+            DataType = ResultSendType.Int16,
+            Mode = ResultSendMode.Aggregate,
+            Aggregate = ResultSendAggregate.AllTrue,
+            TrueValue = "100",
+            FalseValue = "200"
+        };
+        var falsePrepared = ResultSendValueConverter.Prepare(row, new List<object> { true, false }, 1);
+        Check((short)falsePrepared.Values.GetValue(0) == 200, "全部为真为假时没有发送自定义假值。");
+        row.Aggregate = ResultSendAggregate.AnyTrue;
+        var truePrepared = ResultSendValueConverter.Prepare(row, new List<object> { false, true }, 1);
+        Check((short)truePrepared.Values.GetValue(0) == 100, "任意为真为真时没有发送自定义真值。");
     }
 
     /// <summary>仅使用不存在的串口验证失败不会冒充在线，以及用户能够停止重试。</summary>

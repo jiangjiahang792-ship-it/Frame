@@ -351,5 +351,15 @@
   "铜环底部到屏蔽网顶部距离": "Copper ring bottom to shielding mesh top distance",
   "露线芯宽度": "Exposed wire core width",
   "露线芯长度": "Exposed wire core length",
-  "命名存图": "Named Image Save"
+  "胶皮顶部到屏蔽网顶部的距离": "Rubber top to shielding mesh top distance",
+  "胶皮顶部到屏蔽网底部的距离": "Rubber top to shielding mesh bottom distance",
+  "胶皮顶部到绝缘体顶部的距离": "Rubber top to insulator top distance",
+  "胶皮顶部到绝缘体底部的距离": "Rubber top to insulator bottom distance",
+  "命名存图": "Named Image Save",
+  "胶皮宽度": "Rubber width",
+  "胶皮高度": "Rubber height",
+  "飞胶": "Flying rubber",
+  "露线芯高度": "Exposed wire core height",
+  "压接区宽度": "Crimp area width",
+  "压接区域高度": "Crimp area height"
 }

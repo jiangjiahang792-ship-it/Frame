@@ -286,8 +286,14 @@ internal static class ResultSendTests
             Check(Control<TreeView>(form, "treeSources").Nodes.Count == 4, "真实结果树没有四个节点。");
             Check(Control<DataGridView>(form, "gridRows").Rows.Count == 4, "保存恢复后表格行数错误。");
             var writer = new PlcResultSendWriter(plc);
-            Reject(() => sender.PrepareRows(param, writer, true), "不能发送没有本轮成功标记的旧结果。");
             typeof(TDJS_Vision.Process).GetProperty("CurrentRunId").SetValue(process, 1);
+            var defaultRows = sender.PrepareRows(param, writer, true);
+            Check(((double[])defaultRows[0].Values)[0] == 0 &&
+                ((float[])defaultRows[1].Values).All(value => value == 0f) &&
+                defaultRows[1].Count == 0 &&
+                ((double[])defaultRows[2].Values)[0] == 0 &&
+                ((bool[])defaultRows[3].Values)[0],
+                "上游本轮未成功或未生成变量时，结果发送应使用默认值而不是失败。");
             foreach (var node in nodes.Take(4)) node.SetRunResult(DateTime.Now, NodeStatus.Successful);
             VerifyMissingAi(sender, aiResult, aiSource, writer);
             var prepared = sender.PrepareRows(param, writer, true);

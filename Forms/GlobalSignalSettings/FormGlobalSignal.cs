@@ -57,6 +57,10 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
             dataGridView4.CellValueChanged += DataGridView4_CellValueChanged;
             dataGridView4.CurrentCellDirtyStateChanged += DataGridView4_CurrentCellDirtyStateChanged;
             dataGridView4.RowsRemoved += DataGridView4_RowsRemoved;
+            dataGridView1.DataError += DataGridView_DataError;
+            dataGridView2.DataError += DataGridView_DataError;
+            dataGridView3.DataError += DataGridView_DataError;
+            dataGridView4.DataError += DataGridView_DataError;
         }
         /// <summary>
         /// 点击删除按钮
@@ -941,6 +945,19 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
             SaveHeartbeatSignalsAndRefresh();
         }
 
+        /// <summary>
+        /// 拦截表格下拉值不在候选项中的格式化异常，避免 WinForms 弹出默认 ERR 对话框。
+        /// </summary>
+        /// <param name="sender">触发异常的表格。</param>
+        /// <param name="e">表格数据错误事件参数。</param>
+        private void DataGridView_DataError(object sender, DataGridViewDataErrorEventArgs e)
+        {
+            e.ThrowException = false;
+            string gridName = sender is DataGridView grid ? grid.Name : "未知表格";
+            string message = e.Exception == null ? "未知数据格式错误" : e.Exception.Message;
+            LogHelper.AddLog(MsgLevel.Warn, $"全局信号表格({gridName})数据格式已自动忽略：行={e.RowIndex}，列={e.ColumnIndex}，原因={message}", true);
+        }
+
         private void SaveListenSignalsAndRefresh()
         {
             if (_isLoadingConfig)
@@ -1013,12 +1030,12 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
             try
             {
                 _isLoadingConfig = true;
-                var deviceNames = Solution.Instance.AllDevices.Where(d => d is IPlc || d is IModbus).Select(d => d.DevName).ToList();
+                var deviceNames = BuildCommunicationDeviceNameOptions();
                 deviceColumn1.DataSource = deviceNames;
                 deviceColumn2.DataSource = deviceNames;
                 dataGridViewComboBoxColumn1.DataSource = deviceNames;
                 heartbeatDeviceColumn.DataSource = deviceNames;
-                var cameraNames = Solution.Instance.CameraDevices.Select(d => d.DevName).ToList();
+                var cameraNames = BuildHeartbeatCameraNameOptions();
                 heartbeatCameraColumn.DataSource = cameraNames;
                 if (Solution.Instance.GlobalSignal != null)
                 {
@@ -1088,6 +1105,89 @@ namespace TDJS_Vision.Forms.GlobalSignalSettings
 
                 dataGridView.Rows.Add(row);
             }
+        }
+
+        /// <summary>
+        /// 构建通信设备下拉候选，额外保留方案中已保存的旧名称，避免下拉单元格显示时报错。
+        /// </summary>
+        /// <returns>通信设备名称候选列表。</returns>
+        private static List<string> BuildCommunicationDeviceNameOptions()
+        {
+            var names = new List<string>();
+            foreach (IDevice device in Solution.Instance.AllDevices.Where(d => d is IPlc || d is IModbus))
+            {
+                AddUniqueNonEmpty(names, device.DevName);
+                AddUniqueNonEmpty(names, device.UserDefinedName);
+            }
+
+            GlobalSignal globalSignal = Solution.Instance.GlobalSignal;
+            if (globalSignal == null)
+                return names;
+
+            AddGlobalSignalDeviceNames(names, globalSignal.ReadySignals);
+            AddGlobalSignalDeviceNames(names, globalSignal.StopSignals);
+            AddGlobalSignalDeviceNames(names, globalSignal.ListenSignals);
+            if (globalSignal.HeartbeatSignals != null)
+            {
+                foreach (HeartbeatGlobalSignalSettings signal in globalSignal.HeartbeatSignals)
+                    AddUniqueNonEmpty(names, signal.DeviceName);
+            }
+
+            return names;
+        }
+
+        /// <summary>
+        /// 构建心跳相机下拉候选，额外保留方案中已保存的旧相机名，避免下拉单元格显示时报错。
+        /// </summary>
+        /// <returns>相机名称候选列表。</returns>
+        private static List<string> BuildHeartbeatCameraNameOptions()
+        {
+            var names = new List<string>();
+            foreach (ICamera camera in Solution.Instance.CameraDevices)
+            {
+                AddUniqueNonEmpty(names, camera.DevName);
+                AddUniqueNonEmpty(names, camera.UserDefinedName);
+            }
+
+            GlobalSignal globalSignal = Solution.Instance.GlobalSignal;
+            if (globalSignal?.HeartbeatSignals == null)
+                return names;
+
+            foreach (HeartbeatGlobalSignalSettings signal in globalSignal.HeartbeatSignals)
+                AddUniqueNonEmpty(names, signal.CameraName);
+
+            return names;
+        }
+
+        /// <summary>
+        /// 将全局信号配置中的通信设备名加入下拉候选。
+        /// </summary>
+        /// <param name="names">待补充的候选列表。</param>
+        /// <param name="signals">全局信号配置集合。</param>
+        private static void AddGlobalSignalDeviceNames(List<string> names, IEnumerable<SingleGlobalSignalSettings> signals)
+        {
+            if (signals == null)
+                return;
+
+            foreach (SingleGlobalSignalSettings signal in signals)
+                AddUniqueNonEmpty(names, signal.DeviceName);
+        }
+
+        /// <summary>
+        /// 向候选列表追加非空且不重复的文本。
+        /// </summary>
+        /// <param name="values">候选列表。</param>
+        /// <param name="value">待追加文本。</param>
+        private static void AddUniqueNonEmpty(List<string> values, string value)
+        {
+            if (values == null || string.IsNullOrWhiteSpace(value))
+                return;
+
+            string normalized = value.Trim();
+            if (values.Any(item => string.Equals(item, normalized, StringComparison.OrdinalIgnoreCase)))
+                return;
+
+            values.Add(normalized);
         }
 
         private List<SingleGlobalSignalSettings> GetListenConfig()

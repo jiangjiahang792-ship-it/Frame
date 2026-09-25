@@ -38,5 +38,61 @@
     "Enable": true,
     "IsCountItem": false,
     "CurValue": "0"
+  },
+  {
+    "Name": "胶皮顶部到屏蔽网顶部的距离",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "胶皮顶部到屏蔽网底部的距离",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "胶皮顶部到绝缘体顶部的距离",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "胶皮顶部到绝缘体底部的距离",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "飞丝",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0"
+  },
+  {
+    "Name": "屏蔽网高度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "屏蔽网宽度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
   }
 ]

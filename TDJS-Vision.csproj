@@ -620,6 +620,7 @@
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation1Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation2Parse.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation3Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_Filling_rubber_Back.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_Filling_rubber_Front.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_More_Terminal_9Class.cs" />
@@ -1020,6 +1021,12 @@
     <Compile Include="Forms\Login\UserPermissionContext.cs" />
     <Compile Include="Forms\Login\FormLogin.Designer.cs">
       <DependentUpon>FormLogin.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\ProcessNew\FormNewProcessWizard.Navigation.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\ProcessNew\ProcessEditPanel.Navigation.cs">
+      <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Forms\ProcessNew\FormNewProcessWizard.cs">
       <SubType>Form</SubType>
@@ -1645,6 +1652,7 @@
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Node\5-EquipmentCommunication\PLCSoftTrigger\NodeResultWaitSoftTrigger.cs" />
+    <Compile Include="Node\5-EquipmentCommunication\PLCSoftTrigger\PlcSoftTriggerValueMatcher.cs" />
     <Compile Include="Node\5-EquipmentCommunication\PLCSoftTrigger\ParamFormWaitSoftTrigger.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -2207,6 +2215,15 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Template\TDAI\AST-工位2模型配置.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\AST-工位3检测项.items">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\AST-工位3模型.ai">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\AST-工位3模型配置.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Languages\en-US.json">

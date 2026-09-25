@@ -36,6 +36,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             comboEncoding.SelectedIndex = 0;
             gridRows.DataSource = _rows;
             _updating = false;
+            UpdateSourceButtonState();
             NodeBase.RefreshNodeSubControl += OnNodeRenamed;
             NodeBase.OutputDefinitionChanged += OnNodeChanged;
             NodeBase.NodeDeletedEvent += OnNodeChanged;
@@ -147,7 +148,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
         {
             _current = gridRows.CurrentRow?.DataBoundItem as ResultSendRow;
             groupEditor.Enabled = _current != null;
-            if (_current == null) return;
+            if (_current == null) { UpdateSourceButtonState(); return; }
             _updating = true;
             try
             {
@@ -155,6 +156,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
                 comboMode.SelectedValue = _current.Mode;
                 comboAggregate.SelectedValue = _current.Aggregate;
                 textAddress.Text = _current.Address;
+                textTrueValue.Text = _current.TrueValue ?? string.Empty;
+                textFalseValue.Text = _current.FalseValue ?? string.Empty;
                 textItem.Text = DetectItemLanguage.GetDisplayName(_current.Source?.ItemName);
                 textCount.Text = _current.CountAddress;
                 numberIndex.Value = Clamp(numberIndex, _current.Index);
@@ -164,6 +167,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
                 comboEncoding.SelectedItem = _current.EncodingName;
                 labelPreview.Text = _current.SourceText;
                 UpdateEditorState();
+                UpdateSourceButtonState();
             }
             finally { _updating = false; }
         }
@@ -179,8 +183,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             if (_current == null) return;
             bool all = _current.Mode == ResultSendMode.All;
             bool text = _current.DataType == ResultSendType.String;
-            Control[] fields = { numberIndex, comboAggregate, numberCapacity, textCount, checkClear, numberStringBytes, comboEncoding };
-            bool[] visible = { _current.Mode == ResultSendMode.Index, _current.Mode == ResultSendMode.Aggregate, all, all, all, text, text };
+            bool boolAggregate = _current.Mode == ResultSendMode.Aggregate &&
+                (_current.Aggregate == ResultSendAggregate.AllTrue || _current.Aggregate == ResultSendAggregate.AnyTrue);
+            var sources = _current.GetEffectiveSources();
+            Control[] fields = { numberIndex, comboAggregate, textTrueValue, textFalseValue, numberCapacity, textCount, checkClear, numberStringBytes, comboEncoding };
+            bool[] visible = { _current.Mode == ResultSendMode.Index, _current.Mode == ResultSendMode.Aggregate, boolAggregate, boolAggregate, all, all, all, text, text };
             editorLayout.SuspendLayout();
             try
             {
@@ -194,11 +201,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
                     SetFieldVisible(control, visible[index]);
                     position++;
                 }
-                SetFieldVisible(textItem, _current.Source != null && _current.Source.Kind >= ResultSendSourceKind.AiValues);
+                SetFieldVisible(textItem, sources.Count == 1 && sources[0].Kind >= ResultSendSourceKind.AiValues);
                 int count = visible.Count(value => value);
                 editorLayout.RowStyles[1].Height = count > 0 ? 46 : 0;
                 editorLayout.RowStyles[2].Height = count > 4 ? 46 : 0;
-                mainLayout.RowStyles[2].Height = 80 + editorLayout.RowStyles[1].Height + editorLayout.RowStyles[2].Height;
+                editorLayout.RowStyles[3].Height = count > 8 ? 46 : 0;
+                mainLayout.RowStyles[2].Height = 80 + editorLayout.RowStyles[1].Height + editorLayout.RowStyles[2].Height + editorLayout.RowStyles[3].Height;
             }
             finally { editorLayout.ResumeLayout(true); }
         }
@@ -217,6 +225,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             _current.Mode = (ResultSendMode)comboMode.SelectedValue;
             _current.Aggregate = (ResultSendAggregate)comboAggregate.SelectedValue;
             _current.Address = textAddress.Text.Trim();
+            _current.TrueValue = textTrueValue.Text.Trim();
+            _current.FalseValue = textFalseValue.Text.Trim();
             // 只有用户改动检测项输入框才更新键，避免切换类型时把已有订阅键覆盖为显示文字。
             if (ReferenceEquals(sender, textItem)) _current.Source.ItemName = DetectItemLanguage.NormalizeName(textItem.Text.Trim());
             _current.CountAddress = textCount.Text.Trim();
@@ -229,6 +239,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             _rows.ResetItem(_rows.IndexOf(_current));
             _updating = false;
             UpdateEditorState();
+            UpdateSourceButtonState();
         }
         /// <summary>使勾选启用状态立即提交到编辑列表。</summary>
         private void GridDirtyChanged(object sender, EventArgs e)
@@ -280,19 +291,88 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             var source = treeSources.SelectedNode?.Tag as ResultSendSource;
             if (source == null) { MessageBoxTD.Show(this, "请选择右侧具体结果字段。"); return; }
             if (_current == null) { AddClicked(sender, e); return; }
-            AssignSource(_current, source);
+            AssignSource(_current, source, _current.Mode == ResultSendMode.Aggregate);
+            _rows.ResetBindings();
+            SelectCurrentRow();
+        }
+        /// <summary>将右侧结果追加到当前行的多来源汇总列表。</summary>
+        private void AddAggregateSourceClicked(object sender, EventArgs e)
+        {
+            var source = treeSources.SelectedNode?.Tag as ResultSendSource;
+            if (source == null) { MessageBoxTD.Show(this, "请选择右侧具体结果字段。"); return; }
+            if (_current == null)
+            {
+                var row = new ResultSendRow { Mode = ResultSendMode.Aggregate };
+                _rows.Add(row);
+                gridRows.CurrentCell = gridRows.Rows[_rows.Count - 1].Cells[1];
+                _current = row;
+            }
+            EnsureAggregateSources(_current);
+            var copy = source.Copy();
+            if (!_current.Sources.Any(item => SameSource(item, copy)))
+                _current.Sources.Add(copy);
+            if (!ResultSendRow.IsConfiguredSource(_current.Source))
+                _current.Source = copy.Copy();
+            _current.Mode = ResultSendMode.Aggregate;
+            if (_current.Sources.Count == 1)
+            {
+                _current.DataType = copy.Boolean ? ResultSendType.Boolean : ResultSendType.Double;
+                _current.Aggregate = copy.Boolean ? ResultSendAggregate.AllTrue : ResultSendAggregate.Maximum;
+            }
+            _rows.ResetBindings();
+            SelectCurrentRow();
+        }
+        /// <summary>清空当前行的多来源列表，保留旧版单一来源以便快速重新配置。</summary>
+        private void ClearAggregateSourcesClicked(object sender, EventArgs e)
+        {
+            if (_current == null) return;
+            _current.Sources = new List<ResultSendSource>();
             _rows.ResetBindings();
             SelectCurrentRow();
         }
         /// <summary>双击字段直接订阅。</summary>
         private void SourceDoubleClicked(object sender, TreeNodeMouseClickEventArgs e) => SubscribeClicked(sender, e);
         /// <summary>切换订阅来源时设置安全的默认取值方式。</summary>
-        private static void AssignSource(ResultSendRow row, ResultSendSource source)
+        private static void AssignSource(ResultSendRow row, ResultSendSource source, bool keepAggregate = false)
         {
             row.Source = source.Copy();
-            row.Mode = source.Multiple ? ResultSendMode.Index : ResultSendMode.Single;
+            row.Sources = new List<ResultSendSource>();
+            if (keepAggregate)
+            {
+                row.Sources.Add(source.Copy());
+                row.Mode = ResultSendMode.Aggregate;
+            }
+            else
+            {
+                row.Mode = source.Multiple ? ResultSendMode.Index : ResultSendMode.Single;
+            }
             row.DataType = source.Boolean ? ResultSendType.Boolean : ResultSendType.Double;
             row.Aggregate = source.Boolean ? ResultSendAggregate.AllTrue : ResultSendAggregate.Maximum;
+        }
+        /// <summary>确保汇总来源列表已包含旧版单一来源，便于在旧方案上追加第二个来源。</summary>
+        private static void EnsureAggregateSources(ResultSendRow row)
+        {
+            if (row.Sources == null) row.Sources = new List<ResultSendSource>();
+            if (row.Sources.Count == 0 && ResultSendRow.IsConfiguredSource(row.Source))
+                row.Sources.Add(row.Source.Copy());
+        }
+        /// <summary>按持久化字段判断两个订阅源是否为同一个结果。</summary>
+        private static bool SameSource(ResultSendSource left, ResultSendSource right)
+        {
+            return left != null && right != null &&
+                left.NodeId == right.NodeId &&
+                string.Equals(left.Path, right.Path, StringComparison.Ordinal) &&
+                string.Equals(left.Member, right.Member, StringComparison.Ordinal) &&
+                string.Equals(left.ItemName, right.ItemName, StringComparison.Ordinal) &&
+                left.Kind == right.Kind;
+        }
+        /// <summary>根据当前行取值方式控制多来源按钮可用性。</summary>
+        private void UpdateSourceButtonState()
+        {
+            bool hasRow = _current != null;
+            bool aggregate = hasRow && _current.Mode == ResultSendMode.Aggregate;
+            buttonAddAggregateSource.Enabled = !hasRow || aggregate;
+            buttonClearAggregateSources.Enabled = aggregate && _current.GetEffectiveSources().Count > 1;
         }
         /// <summary>构建保存或预览用的独立参数。</summary>
         private NodeParamResultSend GetEditingParameters()
@@ -312,7 +392,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
                 foreach (var row in param.Rows.Where(row => row.Enabled))
                 {
                     ResultSendValueConverter.ValidateConfiguration(row);
-                    if (!_node.Process.GetUpstreamNodes(_node).Any(node => node.ID == row.Source.NodeId)) throw new InvalidOperationException("订阅源不再是上游节点。");
+                    var upstreamIds = new HashSet<int>(_node.Process.GetUpstreamNodes(_node).Select(node => node.ID));
+                    foreach (var source in row.GetEffectiveSources())
+                        if (!upstreamIds.Contains(source.NodeId)) throw new InvalidOperationException("订阅源不再是上游节点。");
                     writer.Validate(row.Address, row.DataType, Array.CreateInstance(ResultSendValueConverter.GetValueType(row.DataType), 0));
                     if (row.Mode == ResultSendMode.All) writer.Validate(row.CountAddress, ResultSendType.UInt16, new ushort[1]);
                 }

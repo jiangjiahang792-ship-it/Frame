@@ -1,4 +1,4 @@
-﻿namespace TDJS_Vision.Forms.ProcessNew
+namespace TDJS_Vision.Forms.ProcessNew
 {
     partial class ProcessEditPanel
     {
@@ -29,6 +29,11 @@
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
+            this.panelCompositeNavigation = new System.Windows.Forms.Panel();
+            this.labelCompositePath = new System.Windows.Forms.Label();
+            this.buttonCompositeBack = new System.Windows.Forms.Button();
+            this.buttonCompositeInputs = new System.Windows.Forms.Button();
+            this.buttonCompositeOutputs = new System.Windows.Forms.Button();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.buttonStop = new System.Windows.Forms.Button();
             this.buttonLoop = new System.Windows.Forms.Button();
@@ -498,10 +503,46 @@
             // 
             // ProcessEditPanel
             // 
+            this.panelCompositeNavigation.Dock = System.Windows.Forms.DockStyle.Top;
+            this.panelCompositeNavigation.Height = 38;
+            this.panelCompositeNavigation.BackColor = System.Drawing.Color.FromArgb(43, 47, 52);
+            this.panelCompositeNavigation.Name = "panelCompositeNavigation";
+            this.panelCompositeNavigation.Controls.Add(this.labelCompositePath);
+            this.panelCompositeNavigation.Controls.Add(this.buttonCompositeOutputs);
+            this.panelCompositeNavigation.Controls.Add(this.buttonCompositeInputs);
+            this.panelCompositeNavigation.Controls.Add(this.buttonCompositeBack);
+            this.labelCompositePath.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.labelCompositePath.AutoEllipsis = true;
+            this.labelCompositePath.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.labelCompositePath.ForeColor = System.Drawing.Color.Gainsboro;
+            this.labelCompositePath.Text = "流程路径";
+            this.labelCompositePath.Name = "labelCompositePath";
+            this.buttonCompositeBack.Dock = System.Windows.Forms.DockStyle.Left;
+            this.buttonCompositeBack.Width = 86;
+            this.buttonCompositeBack.Text = "返回上层";
+            this.buttonCompositeBack.ForeColor = System.Drawing.Color.Gainsboro;
+            this.buttonCompositeBack.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.buttonCompositeBack.Name = "buttonCompositeBack";
+            this.buttonCompositeBack.Click += new System.EventHandler(this.buttonCompositeBack_Click);
+            this.buttonCompositeInputs.Dock = System.Windows.Forms.DockStyle.Right;
+            this.buttonCompositeInputs.Width = 86;
+            this.buttonCompositeInputs.Text = "输入端口";
+            this.buttonCompositeInputs.ForeColor = System.Drawing.Color.Gainsboro;
+            this.buttonCompositeInputs.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.buttonCompositeInputs.Name = "buttonCompositeInputs";
+            this.buttonCompositeInputs.Click += new System.EventHandler(this.buttonCompositeInputs_Click);
+            this.buttonCompositeOutputs.Dock = System.Windows.Forms.DockStyle.Right;
+            this.buttonCompositeOutputs.Width = 86;
+            this.buttonCompositeOutputs.Text = "输出端口";
+            this.buttonCompositeOutputs.ForeColor = System.Drawing.Color.Gainsboro;
+            this.buttonCompositeOutputs.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.buttonCompositeOutputs.Name = "buttonCompositeOutputs";
+            this.buttonCompositeOutputs.Click += new System.EventHandler(this.buttonCompositeOutputs_Click);
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.ButtonHighlight;
             this.Controls.Add(this.panelCanvasHost);
+            this.Controls.Add(this.panelCompositeNavigation);
             this.Controls.Add(this.tableLayoutPanel1);
             this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.Name = "ProcessEditPanel";
@@ -519,6 +560,17 @@
         }
 
         #endregion
+
+        /// <summary>组合模块原位导航工具栏。</summary>
+        private System.Windows.Forms.Panel panelCompositeNavigation;
+        /// <summary>当前完整层级路径。</summary>
+        private System.Windows.Forms.Label labelCompositePath;
+        /// <summary>返回父流程按钮。</summary>
+        private System.Windows.Forms.Button buttonCompositeBack;
+        /// <summary>输入端口配置按钮。</summary>
+        private System.Windows.Forms.Button buttonCompositeInputs;
+        /// <summary>输出端口配置按钮。</summary>
+        private System.Windows.Forms.Button buttonCompositeOutputs;
 
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
         private Sunny.UI.UISwitch uiSwitchEnable;

@@ -221,5 +221,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         AST_工位1模型,
         /// <summary>AST工位2七类CPU目标检测模型，输入尺寸为640。</summary>
         AST_工位2模型,
+        /// <summary>AST工位3三类CPU目标检测模型，输入尺寸为640。</summary>
+        AST_工位3模型,
     }
 }

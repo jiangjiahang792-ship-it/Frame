@@ -10,7 +10,13 @@ namespace TDJS_Vision.Node._6_LogicTool.WaitProcessComplete
         /// <summary>
         /// 自己控制任务完成
         /// </summary>
-        private TaskCompletionSource<bool> _tcs = new TaskCompletionSource<bool>();
+        private TaskCompletionSource<bool> _tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        /// <summary>串行保护结束通知、取消清理和下一轮等待源切换。</summary>
+        private readonly object _completionSync = new object();
+        /// <summary>本轮取消后忽略仍在退出的依赖流程通知，直到下一次运行。</summary>
+        private bool _discardCompletions;
+        /// <summary>取消时的方案令牌，用于识别重新启动后的真实新一轮通知。</summary>
+        private CancellationToken _cancelledSessionToken;
         /// <summary>
         /// 每个节点拥有独立的 tracker
         /// </summary>
@@ -26,7 +32,19 @@ namespace TDJS_Vision.Node._6_LogicTool.WaitProcessComplete
 
             ProcessEvents.ProcessEnded += (id, status, ex) =>
             {
-                _tracker.MarkCompleted(id, status, ex); // 转发
+                lock (_completionSync)
+                {
+                    if (_discardCompletions)
+                    {
+                        if (_cancelledSessionToken == Solution.Instance.CancellationToken) return;
+                        // 新方案会话可能先完成高优先级依赖，再运行本等待节点。
+                        // 这些新通知必须保留，不能等到节点启动后才开放接收。
+                        _tracker.Reset();
+                        _tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                        _discardCompletions = false;
+                    }
+                    _tracker.MarkCompleted(id, status, ex);
+                }
             };
         }
 
@@ -79,6 +97,15 @@ namespace TDJS_Vision.Node._6_LogicTool.WaitProcessComplete
                     {
                         SetStatus(NodeStatus.Unexecuted, "*");
                         base.CheckTokenCancel(token);
+                        lock (_completionSync)
+                        {
+                            if (_discardCompletions)
+                            {
+                                _tracker.Reset();
+                                _tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                                _discardCompletions = false;
+                            }
+                        }
 
                         // 判断流程是否不存在了
                         foreach (var id in param.ProcessIDs)
@@ -89,12 +116,25 @@ namespace TDJS_Vision.Node._6_LogicTool.WaitProcessComplete
                             }
                         }
 
-                        // 真正的“即时唤醒”等待
-                        await _tcs.Task;
-
-                        // 重置 TaskCompletionSource 以便下次运行
-                        _tcs = new TaskCompletionSource<bool>();
-                        _tracker.Reset();
+                        // 取消回调绑定本轮完成源，不能误取消下一轮等待。
+                        TaskCompletionSource<bool> completion = _tcs;
+                        try
+                        {
+                            using (token.Register(() => completion.TrySetCanceled()))
+                                await completion.Task.ConfigureAwait(false);
+                            token.ThrowIfCancellationRequested();
+                        }
+                        finally
+                        {
+                            // 取消和正常完成都必须清空本轮状态，保证停止后可以重新运行。
+                            lock (_completionSync)
+                            {
+                                _discardCompletions = token.IsCancellationRequested;
+                                _cancelledSessionToken = Solution.Instance.CancellationToken;
+                                _tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                                _tracker.Reset();
+                            }
+                        }
 
                         startTime = DateTime.Now;
                         var time = SetRunResult(startTime, NodeStatus.Successful);

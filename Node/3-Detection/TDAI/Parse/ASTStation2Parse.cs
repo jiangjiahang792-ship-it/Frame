@@ -29,7 +29,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             public readonly Dictionary<string, List<float>> Values = new Dictionary<string, List<float>>();
         }
 
-        /// <summary>解析检测框，输出五项测量、上下限判定、带颜色的矩形和文本。</summary>
+        /// <summary>解析检测框，输出十二项测量、上下限判定、带颜色的矩形和文本。</summary>
         /// <param name="results">已还原到原图坐标的检测列表。</param>
         /// <param name="resultCount">兼容RL12调用签名，以列表实际数量为准。</param>
         /// <param name="param">检测配置、物理比例及学习参数。</param>
@@ -64,10 +64,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             }
             else StudySessions.Remove(param);
 
-            // 一次过滤无效框并收集铜环，避免每个检测项反复分配依赖列表。
+            // 一次过滤无效框并收集距离依赖，避免每个检测项反复分配依赖列表。
             results = results == null ? new List<DetResult>() :
                 results.Where(r => r.Box.Width > 0 && r.Box.Height > 0).ToList();
             var copperRings = results.Where(r => r.ClassId == 4).ToList();
+            var rubbers = results.Where(r => r.ClassId == 5).ToList();
             var detectResults = new Dictionary<string, List<SingleDetectResult>>();
             var texts = new List<ColorText>();
             var addedRectKeys = new HashSet<string>();
@@ -79,6 +80,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 string itemName = item.Name;
                 bool isCountItem = item.IsCountItem;
                 bool isDistanceItem = false;
+                Func<Rect, Rect?> findDependencyRectFunc = null;
 
                 #region 提取函数定义，某个检测项的值取自哪个ClassId结果的什么属性
 
@@ -87,14 +89,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 {
                     case "铜环底部到端子头顶部的距离":
                         isDistanceItem = true;
+                        findDependencyRectFunc = target => FindNearestCopperRing(target, copperRings);
                         extractValueFunc = r => r.ClassId == 0 ? GetCopperRingDistance(r.Box, copperRings) : null;
                         break;
                     case "铜环底部到绝缘体顶部的距离":
                         isDistanceItem = true;
+                        findDependencyRectFunc = target => FindNearestCopperRing(target, copperRings);
                         extractValueFunc = r => r.ClassId == 2 ? GetCopperRingDistance(r.Box, copperRings) : null;
                         break;
                     case "铜环底部到屏蔽网顶部距离":
                         isDistanceItem = true;
+                        findDependencyRectFunc = target => FindNearestCopperRing(target, copperRings);
                         extractValueFunc = r => r.ClassId == 3 ? GetCopperRingDistance(r.Box, copperRings) : null;
                         break;
                     case "露线芯宽度":
@@ -104,6 +109,39 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     // 公共归一化会将旧中文名称转为内部键，保持已有方案/订阅兼容。
                     case "DetectItem.ExposedCoreLength":
                         extractValueFunc = r => r.ClassId == 1 ? (float?)r.Box.Height : null;
+                        break;
+                    case "胶皮顶部到屏蔽网顶部的距离":
+                        isDistanceItem = true;
+                        findDependencyRectFunc = target => FindNearestRubber(target, rubbers);
+                        extractValueFunc = r => r.ClassId == 3 ? GetRubberTopDistance(r.Box, rubbers, false) : null;
+                        break;
+                    case "胶皮顶部到屏蔽网底部的距离":
+                        isDistanceItem = true;
+                        findDependencyRectFunc = target => FindNearestRubber(target, rubbers);
+                        extractValueFunc = r => r.ClassId == 3 ? GetRubberTopDistance(r.Box, rubbers, true) : null;
+                        break;
+                    case "胶皮顶部到绝缘体顶部的距离":
+                        isDistanceItem = true;
+                        findDependencyRectFunc = target => FindNearestRubber(target, rubbers);
+                        extractValueFunc = r => r.ClassId == 2 ? GetRubberTopDistance(r.Box, rubbers, false) : null;
+                        break;
+                    case "胶皮顶部到绝缘体底部的距离":
+                        isDistanceItem = true;
+                        findDependencyRectFunc = target => FindNearestRubber(target, rubbers);
+                        extractValueFunc = r => r.ClassId == 2 ? GetRubberTopDistance(r.Box, rubbers, true) : null;
+                        break;
+                    case "飞丝":
+                    // 公共归一化会将旧中文名称转为内部键，保持已有方案/订阅兼容。
+                    case "DetectItem.FlyingWire":
+                        // 飞丝是数量型检测项，模板配置错误时也按数量统计，避免输出单个框的伪尺寸。
+                        isCountItem = true;
+                        extractValueFunc = r => r.ClassId == 6 ? (float?)1F : null;
+                        break;
+                    case "屏蔽网高度":
+                        extractValueFunc = r => r.ClassId == 3 ? (float?)r.Box.Height : null;
+                        break;
+                    case "屏蔽网宽度":
+                        extractValueFunc = r => r.ClassId == 3 ? (float?)r.Box.Width : null;
                         break;
                     default:
                         throw new InvalidOperationException($"AST工位2模型不支持检测项：{ParseCommon.GetDisplayName(itemName)}。");
@@ -139,16 +177,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         if (isDistanceItem)
                         {
                             // 距离由两个框共同决定，任一距离NG时两个参与框均标红。
-                            Rect? copperRing = FindNearestCopperRing(match.Result.Box, copperRings);
-                            if (copperRing.HasValue)
-                                ParseCommon.AddRect(addedRectKeys, copperRing.Value, isOk, ref nodeResult);
+                            Rect? dependencyRect = findDependencyRectFunc?.Invoke(match.Result.Box);
+                            if (dependencyRect.HasValue)
+                                ParseCommon.AddRect(addedRectKeys, dependencyRect.Value, isOk, ref nodeResult);
                         }
                     }
                 }
 
                 #endregion
 
-                #region 特殊情况处理：检测项已启用，但模型未检出目标或缺少铜环依赖
+                #region 特殊情况处理：检测项已启用，但模型未检出目标或缺少距离依赖
 
                 if (matchedResults.Count == 0 && !isCountItem)
                 {
@@ -216,12 +254,33 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             return (float)Math.Abs((double)copperRing.Value.Bottom - target.Top);
         }
 
+        /// <summary>固定测最近胶皮顶边与目标顶边或底边的Y坐标差绝对值；缺少胶皮返回空值。</summary>
+        private static float? GetRubberTopDistance(Rect target, List<DetResult> rubbers, bool useTargetBottom)
+        {
+            Rect? rubber = FindNearestRubber(target, rubbers);
+            if (!rubber.HasValue) return null;
+            int targetEdge = useTargetBottom ? target.Bottom : target.Top;
+            return (float)Math.Abs((double)rubber.Value.Top - targetEdge);
+        }
+
         /// <summary>为每个部件选择中心最近的铜环；同距时按坐标稳定选择，避免依赖模型输出顺序。</summary>
         private static Rect? FindNearestCopperRing(Rect target, List<DetResult> copperRings)
         {
+            return FindNearestBox(target, copperRings);
+        }
+
+        /// <summary>为每个部件选择中心最近的胶皮；同距时按坐标稳定选择，避免依赖模型输出顺序。</summary>
+        private static Rect? FindNearestRubber(Rect target, List<DetResult> rubbers)
+        {
+            return FindNearestBox(target, rubbers);
+        }
+
+        /// <summary>按中心距离选择最近依赖框；同距时优先左上角坐标更小的框。</summary>
+        private static Rect? FindNearestBox(Rect target, List<DetResult> detections)
+        {
             Rect? nearest = null;
             double minDistance = double.MaxValue;
-            foreach (var detection in copperRings)
+            foreach (var detection in detections)
             {
                 Rect box = detection.Box;
                 double dx = box.X + box.Width / 2.0 - target.X - target.Width / 2.0;

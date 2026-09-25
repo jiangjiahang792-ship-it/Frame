@@ -65,7 +65,11 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
                         Mat srcImg = form.GetInputMat(inputImage); 
                         long afterGetSource = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                         Mat rotatedImage = form.ImageRotateForRun(srcImg, param.Angle);
-                        nodeResultImageRotate.OutputImage.TakeOwnership(rotatedImage);
+                        // 零角度直接透传上游 Mat，只持有租约，不能把借用图像当成本节点所有。
+                        if (ReferenceEquals(rotatedImage, srcImg))
+                            nodeResultImageRotate.OutputImage.TakeDependency(inputImage);
+                        else
+                            nodeResultImageRotate.OutputImage.TakeOwnership(rotatedImage);
                         long afterRotateColor = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                         Mat inputGrayImage = form.GetInputGrayMat(inputImage);
                         long afterGetGray = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
@@ -74,7 +78,10 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate
                             : OutputImage.HasValidImage(inputGrayImage)
                                 ? form.ImageRotateForRun(inputGrayImage, param.Angle)
                                 : OutputImage.BuildGrayImage(rotatedImage);
-                        nodeResultImageRotate.OutputImage.TakeOwnership(rotatedGrayImage);
+                        if (ReferenceEquals(rotatedGrayImage, srcImg) || ReferenceEquals(rotatedGrayImage, inputGrayImage))
+                            nodeResultImageRotate.OutputImage.TakeDependency(inputImage);
+                        else
+                            nodeResultImageRotate.OutputImage.TakeOwnership(rotatedGrayImage);
                         long afterRotateGray = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(performanceStopwatch);
                         nodeResultImageRotate.OutputImage.SrcImg = rotatedImage;
                         nodeResultImageRotate.OutputImage.Bitmaps = new System.Collections.Generic.List<Mat> { rotatedImage };

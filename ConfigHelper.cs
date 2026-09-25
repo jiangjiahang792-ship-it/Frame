@@ -41,6 +41,10 @@ namespace TDJS_Vision
             {
                 //保存窗体布局
                 CanvasSet.SaveDockPanelEvent?.Invoke(null, EventArgs.Empty);
+                // 保存已打开组合模块的内部编辑，未打开模块不实例化，按层级递归保留快照。
+                foreach (var process in Solution.Instance.AllProcesses)
+                    foreach (var node in process.Nodes)
+                        (node as TDJS_Vision.Node._6_LogicTool.CompositeModule.NodeCompositeModule)?.SaveEditableProcess();
 
                 SolConfig.SolVer = VersionInfo.VersionInfo.GetExeVer();
                 SolConfig.SolName = solFile;

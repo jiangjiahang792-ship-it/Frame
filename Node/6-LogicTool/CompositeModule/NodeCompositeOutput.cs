@@ -1,4 +1,4 @@
-using Logger;
+﻿using Logger;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -92,7 +92,10 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                         continue;
                     }
 
-                    valueType = CompositePortValueHelper.GetRuntimeType(port.ValueType);
+                    valueType = CompositePortValueHelper.GetOutputRuntimeType(port);
+                    object actualValue;
+                    if (port.ValueType == CompositePortValueType.Any && DynamicResultVariableResolver.TryGetValue(Result, name, out actualValue) && actualValue != null)
+                        valueType = actualValue.GetType();
                     return true;
                 }
             }

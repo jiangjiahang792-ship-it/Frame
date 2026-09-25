@@ -2,6 +2,7 @@ using Logger;
 using System;
 using System.Collections.Generic;
 using TDJS_Vision.Node;
+using TDJS_Vision.Node._6_LogicTool.CompositeModule;
 
 namespace TDJS_Vision.Startup
 {
@@ -19,6 +20,11 @@ namespace TDJS_Vision.Startup
         /// 预加载阶段在启动页中的结束进度。
         /// </summary>
         private const int PreloadProgressEnd = 99;
+
+        /// <summary>
+        /// 组合模块递归扫描的最大层级，防止异常快照形成过深或循环结构时拖住启动。
+        /// </summary>
+        private const int MaxCompositePreloadDepth = 16;
 
         /// <summary>
         /// 按流程和节点顺序预加载所有已启用且已配置的 AI 节点。
@@ -90,25 +96,90 @@ namespace TDJS_Vision.Startup
                     continue;
                 if (!process.Enable)
                     continue;
-                if (process.Nodes == null)
-                    continue;
 
-                foreach (NodeBase node in process.Nodes)
-                {
-                    if (node == null)
-                        continue;
-                    if (!node.Active)
-                        continue;
-
-                    INodeRuntimePreloader preloader = node as INodeRuntimePreloader;
-                    if (preloader == null || !preloader.HasSavedRuntimeConfiguration)
-                        continue;
-
-                    targets.Add(new RuntimePreloadTarget(process.ProcessName, node, preloader));
-                }
+                CollectProcessTargets(process, process.ProcessName, targets, 0);
             }
 
             return targets;
+        }
+
+        /// <summary>
+        /// 递归收集流程及组合模块内部流程中的预加载节点。
+        /// </summary>
+        /// <param name="process">当前扫描流程。</param>
+        /// <param name="processName">当前流程显示名称。</param>
+        /// <param name="targets">待预加载目标集合。</param>
+        /// <param name="depth">组合模块递归深度。</param>
+        private static void CollectProcessTargets(Process process, string processName, List<RuntimePreloadTarget> targets, int depth)
+        {
+            if (process == null || process.Nodes == null)
+                return;
+
+            foreach (NodeBase node in process.Nodes)
+            {
+                if (node == null)
+                    continue;
+                if (!node.Active)
+                    continue;
+
+                INodeRuntimePreloader preloader = node as INodeRuntimePreloader;
+                if (preloader != null && preloader.HasSavedRuntimeConfiguration)
+                    targets.Add(new RuntimePreloadTarget(processName, node, preloader));
+
+                NodeCompositeModule compositeModule = node as NodeCompositeModule;
+                if (compositeModule != null)
+                    CollectCompositeModuleTargets(compositeModule, processName, targets, depth);
+            }
+        }
+
+        /// <summary>
+        /// 构建组合模块内部流程并继续收集内部预加载节点。
+        /// </summary>
+        /// <param name="module">组合模块节点。</param>
+        /// <param name="ownerProcessName">外层流程显示名称。</param>
+        /// <param name="targets">待预加载目标集合。</param>
+        /// <param name="depth">当前组合模块递归深度。</param>
+        private static void CollectCompositeModuleTargets(NodeCompositeModule module, string ownerProcessName, List<RuntimePreloadTarget> targets, int depth)
+        {
+            if (depth >= MaxCompositePreloadDepth)
+            {
+                LogHelper.AddLog(
+                    MsgLevel.Warn,
+                    $"组合模块 AI 预加载扫描已达到最大层级 {MaxCompositePreloadDepth}，已跳过：{BuildNodeText(ownerProcessName, module)}",
+                    true);
+                return;
+            }
+
+            try
+            {
+                Process innerProcess = module.PrepareRuntimeProcessForStartupPreload();
+                if (innerProcess == null)
+                    return;
+
+                string innerProcessName = BuildNodeText(ownerProcessName, module);
+                CollectProcessTargets(innerProcess, innerProcessName, targets, depth + 1);
+            }
+            catch (Exception ex)
+            {
+                Exception preloadException = new InvalidOperationException(
+                    $"流程“{ownerProcessName}”的组合模块“{module.ID}.{module.NodeName}”内部 AI 预加载扫描失败：{ex.Message}",
+                    ex);
+                StartupProgressContext.ReportFailure("扫描组合模块 AI 模型", preloadException);
+                LogHelper.AddLog(MsgLevel.Exception, preloadException.ToString(), true);
+            }
+        }
+
+        /// <summary>
+        /// 构建包含外层流程和组合模块节点的显示文本。
+        /// </summary>
+        /// <param name="ownerProcessName">外层流程显示名称。</param>
+        /// <param name="node">当前组合模块节点。</param>
+        /// <returns>用于进度和日志显示的节点路径。</returns>
+        private static string BuildNodeText(string ownerProcessName, NodeBase node)
+        {
+            string processName = string.IsNullOrWhiteSpace(ownerProcessName) ? "未命名流程" : ownerProcessName;
+            string nodeName = string.IsNullOrWhiteSpace(node.NodeName) ? "未命名节点" : node.NodeName;
+            return $"{processName} / {node.ID}.{nodeName}";
         }
 
         /// <summary>

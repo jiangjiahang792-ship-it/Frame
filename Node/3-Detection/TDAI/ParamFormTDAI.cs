@@ -272,6 +272,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 enumString = "AST-工位1模型";
             else if (enumValue is ModelName && enumString == nameof(ModelName.AST_工位2模型))
                 enumString = "AST-工位2模型";
+            else if (enumValue is ModelName && enumString == nameof(ModelName.AST_工位3模型))
+                enumString = "AST-工位3模型";
 
             for (int i = 0; i < comboBox.Items.Count; i++)
             {
@@ -385,6 +387,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         break;
                     case "AST-工位2模型":
                         nodeParamTDAI.ModelName = ModelName.AST_工位2模型;
+                        break;
+                    case "AST-工位3模型":
+                        nodeParamTDAI.ModelName = ModelName.AST_工位3模型;
                         break;
                     default:
                         throw new Exception($"未知的模型名称：{comboBoxModelName.Text}");

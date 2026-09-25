@@ -1,5 +1,4 @@
 using System;
-using System.Threading;
 
 namespace TDJS_Vision.ResourceManagement
 {
@@ -14,6 +13,10 @@ namespace TDJS_Vision.ResourceManagement
 
         /// <summary>获取本租约实际预留的字节数。</summary>
         long ReservedBytes { get; }
+
+        /// <summary>在对应物理缓冲已释放后归还部分预算，保留启动所需的最少缓冲。</summary>
+        /// <param name="bufferCount">已经安全释放的缓冲块数。</param>
+        void ReleaseBuffers(int bufferCount);
     }
 
     /// <summary>定义全方案相机原始帧非托管内存预算管理器。</summary>
@@ -107,7 +110,8 @@ namespace TDJS_Vision.ResourceManagement
 
             lock (_syncRoot)
             {
-                if (_activeReservationCount == 0)
+                // 预览可能先使用保守预算；资源档案更新后允许在不停止已有相机的情况下采用新上限。
+                if (_activeReservationCount == 0 || totalBudgetBytes > _currentBudgetBytes)
                 {
                     _currentBudgetBytes = totalBudgetBytes;
                 }
@@ -148,7 +152,8 @@ namespace TDJS_Vision.ResourceManagement
                     this,
                     string.IsNullOrWhiteSpace(ownerName) ? "未命名" : ownerName,
                     grantedBufferCount,
-                    reservedBytes);
+                    bytesPerBuffer,
+                    minimumBufferCount);
             }
         }
 
@@ -168,39 +173,76 @@ namespace TDJS_Vision.ResourceManagement
             }
         }
 
+        /// <summary>归还仍在活动中的租约的部分预算，不改变活动相机数量。</summary>
+        /// <param name="bytes">已释放缓冲对应的字节数。</param>
+        private void ReleasePartial(long bytes)
+        {
+            lock (_syncRoot)
+                _currentReservedBytes -= bytes;
+        }
+
         /// <summary>默认的相机原始帧内存预算租约。</summary>
         private sealed class CameraRawFrameMemoryLease : ICameraRawFrameMemoryLease
         {
             /// <summary>创建租约的预算管理器。</summary>
             private CameraRawFrameMemoryBudgetManager _owner;
 
+            /// <summary>串行化部分归还与整体释放，避免重复记账。</summary>
+            private readonly object _leaseLock = new object();
+            /// <summary>单块缓冲字节数。</summary>
+            private readonly int _bytesPerBuffer;
+            /// <summary>启动所需的最少缓冲块数。</summary>
+            private readonly int _minimumBufferCount;
+            /// <summary>尚未归还的缓冲块数。</summary>
+            private int _bufferCount;
+
             /// <summary>创建一个原始帧内存预算租约。</summary>
             public CameraRawFrameMemoryLease(
                 CameraRawFrameMemoryBudgetManager owner,
                 string ownerName,
                 int bufferCount,
-                long reservedBytes)
+                int bytesPerBuffer,
+                int minimumBufferCount)
             {
                 _owner = owner ?? throw new ArgumentNullException(nameof(owner));
                 OwnerName = ownerName;
-                BufferCount = bufferCount;
-                ReservedBytes = reservedBytes;
+                _bufferCount = bufferCount;
+                _bytesPerBuffer = bytesPerBuffer;
+                _minimumBufferCount = minimumBufferCount;
             }
 
             /// <summary>获取预算拥有者名称。</summary>
             public string OwnerName { get; }
 
             /// <summary>获取允许分配的原始帧缓冲数量。</summary>
-            public int BufferCount { get; }
+            public int BufferCount { get { lock (_leaseLock) return _bufferCount; } }
 
             /// <summary>获取本租约实际预留的字节数。</summary>
-            public long ReservedBytes { get; }
+            public long ReservedBytes { get { lock (_leaseLock) return (long)_bytesPerBuffer * _bufferCount; } }
+
+            /// <summary>原子归还已经释放的空闲缓冲预算，不允许收缩到启动下限以下。</summary>
+            public void ReleaseBuffers(int bufferCount)
+            {
+                lock (_leaseLock)
+                {
+                    if (_owner == null) throw new ObjectDisposedException(nameof(CameraRawFrameMemoryLease));
+                    if (bufferCount < 0 || bufferCount > _bufferCount - _minimumBufferCount)
+                        throw new ArgumentOutOfRangeException(nameof(bufferCount));
+                    _owner.ReleasePartial((long)_bytesPerBuffer * bufferCount);
+                    _bufferCount -= bufferCount;
+                }
+            }
 
             /// <summary>幂等归还当前租约预留的全局内存预算。</summary>
             public void Dispose()
             {
-                CameraRawFrameMemoryBudgetManager owner = Interlocked.Exchange(ref _owner, null);
-                owner?.Release(ReservedBytes);
+                lock (_leaseLock)
+                {
+                    if (_owner == null) return;
+                    _owner.Release((long)_bytesPerBuffer * _bufferCount);
+                    _owner = null;
+                    _bufferCount = 0;
+                }
             }
         }
     }

@@ -35,6 +35,15 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>尚未生成运行资源档案时使用的全方案原始帧保守预算。</summary>
         private const int RawFrameFallbackMemoryBudgetMb = 256;
 
+        /// <summary>新相机建池时等待在用帧归还的最长时间，避免瞬时忙碌导致连接失败。</summary>
+        private const int RawFrameRebalanceTimeoutMilliseconds = 1000;
+
+        /// <summary>只在建池时串行化跨相机预算调整，正常逐帧回调不获取此锁。</summary>
+        private static readonly object RawFrameAllocationLock = new object();
+
+        /// <summary>持有原始帧池的相机；停流时移除，动态新增时可回收其多余空闲缓冲。</summary>
+        private static readonly ConcurrentDictionary<CameraHik, byte> ActiveRawFramePools = new ConcurrentDictionary<CameraHik, byte>();
+
         /// <summary>GigE相机断线检测心跳超时，单位毫秒。</summary>
         private const long GigEHeartbeatTimeoutMilliseconds = 1000L;
 
@@ -1327,6 +1336,7 @@ namespace TDJS_Vision.Device.Camera
             if (Volatile.Read(ref _rawFrameBufferSize) >= requiredSize)
                 return;
 
+            lock (RawFrameAllocationLock)
             lock (_rawFramePipelineLock)
             {
                 if (_rawFrameBufferSize >= requiredSize)
@@ -1336,6 +1346,9 @@ namespace TDJS_Vision.Device.Camera
 
                 int desiredRawFrameBufferCount = CalculateRawFrameBufferCount(requiredSize);
                 long totalRawFrameBudgetBytes = GetRawFrameMemoryBudgetBytes();
+                // 相机可在管理界面动态新增或重连，旧池不会因相机数变化自动缩小，建池前重平衡。
+                int configuredCameraCount = GetConfiguredCameraCount();
+                RebalanceRawFramePools(totalRawFrameBudgetBytes, configuredCameraCount, requiredSize);
                 ICameraRawFrameMemoryLease memoryLease =
                     Solution.Instance.CameraRawFrameMemoryBudgetManager.Reserve(
                         DevName,
@@ -1362,6 +1375,7 @@ namespace TDJS_Vision.Device.Camera
                 _rawFrameMemoryLease = memoryLease;
                 Volatile.Write(ref _rawFrameBufferCount, rawFrameBufferCount);
                 Volatile.Write(ref _rawFrameBufferSize, requiredSize);
+                ActiveRawFramePools.TryAdd(this, 0);
                 PerformanceSpikeDiagnostics.LogIfEnabled(
                     MsgLevel.Debug,
                     () => string.Format(
@@ -1375,6 +1389,52 @@ namespace TDJS_Vision.Device.Camera
                         Solution.Instance.CameraRawFrameMemoryBudgetManager.CurrentReservedBytes / 1024D / 1024D,
                         Solution.Instance.CameraRawFrameMemoryBudgetManager.CurrentBudgetBytes / 1024D / 1024D),
                     true);
+            }
+        }
+
+        /// <summary>在启动路径等待其他相机归还多占的空闲帧；超时后由预算管理器报告实际不足。</summary>
+        /// <param name="totalBudgetBytes">当前方案原始帧总预算。</param>
+        /// <param name="cameraCount">完整配置相机数量。</param>
+        /// <param name="requiredSize">新相机单帧字节数。</param>
+        private static void RebalanceRawFramePools(long totalBudgetBytes, int cameraCount, int requiredSize)
+        {
+            ICameraRawFrameMemoryBudgetManager manager = Solution.Instance.CameraRawFrameMemoryBudgetManager;
+            long minimumBytes = (long)requiredSize * RawFrameBufferCountMinimum;
+            long perCameraBudgetBytes = totalBudgetBytes / cameraCount;
+            Stopwatch wait = Stopwatch.StartNew();
+            while (true)
+            {
+                bool hasBusyExcess = false;
+                foreach (CameraHik camera in ActiveRawFramePools.Keys)
+                    hasBusyExcess |= camera.TrimIdleRawFrameBuffers(perCameraBudgetBytes);
+                if (totalBudgetBytes - manager.CurrentReservedBytes >= minimumBytes || !hasBusyExcess ||
+                    wait.ElapsedMilliseconds >= RawFrameRebalanceTimeoutMilliseconds)
+                    return;
+                // 正常取流只在无锁队列中归还帧，不依赖全局建池锁，可在此安全等待。
+                Thread.Sleep(10);
+            }
+        }
+
+        /// <summary>按最新份额回收多余空闲原始帧；队列原子出队确保绝不释放正在使用的帧。</summary>
+        /// <param name="perCameraBudgetBytes">当前相机可使用的公平预算份额。</param>
+        /// <returns>仍有超出份额的在用帧时返回true，允许新相机短暂等待。</returns>
+        private bool TrimIdleRawFrameBuffers(long perCameraBudgetBytes)
+        {
+            lock (_rawFramePipelineLock)
+            {
+                if (_rawFrameBufferSize <= 0 || _rawFrameMemoryLease == null)
+                    return false;
+                int targetCount = (int)Math.Max(RawFrameBufferCountMinimum,
+                    Math.Min(RawFrameBufferCountMaximum, perCameraBudgetBytes / _rawFrameBufferSize));
+                HikRawFramePacket packet;
+                while (_rawFrameBufferCount > targetCount && _availableRawFrames.TryDequeue(out packet))
+                {
+                    // 先释放物理内存，再归还租约记账，避免短暂超出全局预算。
+                    packet.Dispose();
+                    _rawFrameMemoryLease.ReleaseBuffers(1);
+                    Interlocked.Decrement(ref _rawFrameBufferCount);
+                }
+                return _rawFrameBufferCount > targetCount;
             }
         }
 
@@ -1417,14 +1477,14 @@ namespace TDJS_Vision.Device.Camera
                 flowImageBudgetMb * 1024D * 1024D * RawFrameMemoryBudgetRatio);
         }
 
-        /// <summary>读取资源档案中的二维与三维相机总数，缺少档案时使用当前设备列表。</summary>
+        /// <summary>读取资源档案与当前设备列表中较大的相机总数，覆盖动态新增设备。</summary>
         /// <returns>至少为1的配置相机数量。</returns>
         private static int GetConfiguredCameraCount()
         {
             int profileCameraCount = Solution.Instance.CurrentResourceProfile?.Workload?.CameraCount ?? 0;
-            if (profileCameraCount > 0)
-                return profileCameraCount;
-            return Math.Max(1, Solution.Instance.CameraDevices.Count + Solution.Instance.Camera3DDevices.Count);
+            int liveCameraCount = Solution.Instance.CameraDevices.Count + Solution.Instance.Camera3DDevices.Count;
+            // 资源档案可能来自上一轮方案或运行安全点之前，预算必须覆盖当前已经加载的真实相机数量。
+            return Math.Max(1, Math.Max(profileCameraCount, liveCameraCount));
         }
 
         /// <summary>开始本轮取流前清理已经退出的旧转换线程，活动旧线程一律拒绝重入。</summary>
@@ -1805,6 +1865,7 @@ namespace TDJS_Vision.Device.Camera
         /// <summary>释放待转换队列和可用池中的全部非托管原始帧缓冲。</summary>
         private void ReleaseRawFrameBuffersCore()
         {
+            ActiveRawFramePools.TryRemove(this, out _);
             HikRawFramePacket packet;
             while (_pendingRawFrames.TryDequeue(out packet))
                 packet.Dispose();

@@ -1,4 +1,4 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -48,6 +48,11 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// 来源流程内声明的组合模块输入端口。
         /// </summary>
         public List<CompositeInputPortDefinition> InputPorts { get; set; } = new List<CompositeInputPortDefinition>();
+
+        /// <summary>输入由模块自身声明；旧方案默认继续从组合输入节点采集。</summary>
+        public bool UsesDirectInputs { get; set; }
+        /// <summary>输出由模块自身配置，在内部执行完成后读取来源结果。</summary>
+        public bool UsesDirectOutputs { get; set; }
 
         /// <summary>
         /// 当前组合模块实例对输入端口的外部绑定。
@@ -240,6 +245,21 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
     /// </summary>
     internal static class CompositePortValueHelper
     {
+        /// <summary>自动端口优先使用保存的源类型，兼容旧版只保存类型全名的快照。</summary>
+        public static Type GetOutputRuntimeType(CompositeOutputPortDefinition port)
+        {
+            if (port.ValueType != CompositePortValueType.Any || string.IsNullOrWhiteSpace(port.ValueTypeName))
+                return GetRuntimeType(port.ValueType);
+            Type type = Type.GetType(port.ValueTypeName, false);
+            if (type != null) return type;
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                type = assembly.GetType(port.ValueTypeName, false);
+                if (type != null) return type;
+            }
+            return typeof(object);
+        }
+
         /// <summary>
         /// 获取端口类型的中文显示文本。
         /// </summary>
@@ -437,6 +457,9 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                 throw new Exception("当前节点未绑定到流程。");
 
             NodeBase sourceNode = FindSourceNode(currentNode.Process.Nodes, sourceNodeId, sourceNodeText);
+            var moduleInput = currentNode.Process.ModuleInputSource?.SubscriptionNode;
+            if (sourceNode == null && moduleInput != null && moduleInput.ID == sourceNodeId)
+                sourceNode = moduleInput;
             if (sourceNode == null)
                 throw new Exception("找不到订阅来源节点：" + sourceNodeText);
             if (!sourceNode.Active)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -21,6 +21,57 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// 输出端口绑定列表。
         /// </summary>
         private BindingList<OutputPortViewModel> _ports;
+        /// <summary>嵌入统一变量窗口时，保存与取消交给宿主处理。</summary>
+        private bool _embedded;
+
+        /// <summary>嵌入分页后按实际宽度分配输出表格和来源树。</summary>
+        private void splitContainerMain_SizeChanged(object sender, EventArgs e)
+        {
+            if (splitContainerMain.Width > 200) splitContainerMain.SplitterDistance = splitContainerMain.Width * 2 / 3;
+        }
+        /// <summary>统一窗口尚未保存的输入声明预览，不写入内部流程。</summary>
+        private NodeCompositeInput _inputPreview;
+
+        /// <summary>输出页可立即选择同一窗口中新建的输入变量。</summary>
+        public void SetInputPreview(List<CompositeInputPortDefinition> ports)
+        {
+            var source = _node?.Process?.ModuleInputSource?.SubscriptionNode;
+            if (source == null) return;
+            if (_inputPreview == null || _inputPreview.Process != source.Process)
+            {
+                _inputPreview?.Dispose();
+                _inputPreview = new NodeCompositeInput(source.ID, "模块输入", source.Process, NodeType.CompositeInput);
+            }
+            _inputPreview.ParamForm.Params = new NodeParamCompositeInput { Ports = ports };
+            RefreshSourceTree();
+        }
+
+        /// <summary>解除事件与预览资源，嵌入控件被释放时同样执行。</summary>
+        private void ReleaseSubscriptions()
+        {
+            if (_node?.Process != null) _node.Process.ConnectionsChanged -= Process_ConnectionsChanged;
+            NodeBase.RefreshNodeSubControl -= NodeBase_RefreshNodeSubControl;
+            NodeBase.OutputDefinitionChanged -= NodeBase_OutputDefinitionChanged;
+            NodeBase.NodeDeletedEvent -= NodeBase_NodeDeletedEvent;
+            _inputPreview?.Dispose();
+            _inputPreview = null;
+        }
+
+        /// <summary>作为输出变量页使用，允许尚未声明任何输出。</summary>
+        public void ConfigureEmbedded(NodeBase context, List<CompositeOutputPortDefinition> ports)
+        {
+            _embedded = true;
+            foreach (Control control in Controls) control.Visible = control == tableLayoutPanelMain;
+            Padding = Padding.Empty;
+            tableLayoutPanelMain.BringToFront();
+            buttonSave.Visible = buttonCancel.Visible = false;
+            SetNodeBelong(context);
+            Params = new NodeParamCompositeOutput { Ports = ports ?? new List<CompositeOutputPortDefinition>() };
+            SetParam2Form();
+        }
+
+        /// <summary>由统一窗口验证并取得尚未提交的输出变量。</summary>
+        public List<CompositeOutputPortDefinition> GetEditedPorts() { return BuildParamFromForm().Ports; }
 
         /// <summary>
         /// 创建组合输出参数窗体。
@@ -32,7 +83,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             ConfigureGrid();
             BindValueTypeColumn();
             dataGridViewPorts.DataSource = _ports;
-            if (_ports.Count == 0)
+            if (_ports.Count == 0 && !_embedded)
                 _ports.Add(CreateDefaultPort(0));
 
             NodeBase.RefreshNodeSubControl += NodeBase_RefreshNodeSubControl;
@@ -74,7 +125,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                     _ports.Add(OutputPortViewModel.FromPort(param.Ports[index], index));
             }
 
-            if (_ports.Count == 0)
+            if (_ports.Count == 0 && !_embedded)
                 _ports.Add(CreateDefaultPort(0));
 
             dataGridViewPorts.DataSource = _ports;
@@ -141,7 +192,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                 return;
 
             _ports.RemoveAt(index);
-            if (_ports.Count == 0)
+            if (_ports.Count == 0 && !_embedded)
                 _ports.Add(CreateDefaultPort(0));
 
             SelectRow(Math.Min(index, _ports.Count - 1));
@@ -277,7 +328,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             row.SourceNodeText = option.SourceNodeText;
             row.PropertyPath = option.PropertyPath;
             row.PropertyDisplayName = option.PropertyDisplayName;
-            row.ValueTypeName = option.ValueType == null ? string.Empty : option.ValueType.FullName;
+            row.ValueTypeName = option.ValueType == null ? string.Empty : option.ValueType.AssemblyQualifiedName;
             if (row.ValueType == CompositePortValueType.Any)
                 row.ValueType = CompositePortValueHelper.InferValueType(option.ValueType);
 
@@ -295,10 +346,14 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
 
             if (_node != null && _node.Process != null)
             {
-                List<NodeBase> upstreamNodes = _node.Process.GetUpstreamNodes(_node);
+                // 模块输出可以订阅任意内部结果，保存模块时自动补齐执行依赖。
+                List<NodeBase> upstreamNodes = _node.Process.Nodes.Where(item => item != _node && !(item is NodeCompositeOutput)).ToList();
+                if (_node.Process.ModuleInputSource != null)
+                    upstreamNodes.Insert(0, _inputPreview ?? _node.Process.ModuleInputSource.SubscriptionNode);
                 foreach (NodeBase sourceNode in upstreamNodes)
                 {
-                    TreeNode sourceTreeNode = new TreeNode(CompositePortValueHelper.GetNodeText(sourceNode));
+                    TreeNode sourceTreeNode = new TreeNode(sourceNode.ID == _node.Process.ModuleInputSource?.SubscriptionNode.ID
+                        ? "模块输入" : CompositePortValueHelper.GetNodeText(sourceNode));
                     treeViewSources.Nodes.Add(sourceTreeNode);
                     AddCatalogOutputNodes(sourceTreeNode, sourceNode);
                     if (sourceTreeNode.Nodes.Count == 0)
@@ -360,7 +415,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                 param.Ports.Add(row.ToPort());
             }
 
-            if (param.Ports.Count == 0)
+            if (param.Ports.Count == 0 && !_embedded)
                 throw new Exception("至少需要配置一个输出端口。");
 
             return param;

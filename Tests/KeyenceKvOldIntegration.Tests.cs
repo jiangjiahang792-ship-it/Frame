@@ -188,7 +188,11 @@ internal static class KeyenceKvOldIntegrationTests
         var server = new KeyenceNanoServer();
         var plc = new PlcKeyenceKvOld(Parameters(port));
         var states = new List<bool>();
-        plc.ConnectStatusEvent += (sender, connected) => states.Add(connected);
+        var statesLock = new object();
+        plc.ConnectStatusEvent += (sender, connected) =>
+        {
+            lock (statesLock) states.Add(connected);
+        };
         try
         {
             server.ServerStart(port);
@@ -222,7 +226,7 @@ internal static class KeyenceKvOldIntegrationTests
             {
                 restored.CreateDevice();
                 Check(restored.PLCParms.KeyenceProtocol == KeyenceProtocol.Kv300Older, "恢复时协议标识错误。");
-                Check(restored.IsConnect, "恢复客户端时丢失已连接状态。");
+                Check(restored.RestoreConnectionRequested, "恢复客户端时丢失连接恢复意图。");
                 using (var single = new SinglePLC(restored))
                 {
                     Check(restored.IsConnect && restored.ReadInt32("DM100").Content == 123456, "现有恢复流程无法重连。");
@@ -232,7 +236,16 @@ internal static class KeyenceKvOldIntegrationTests
             }
             finally { restored.Release(); }
             plc.Disconnect();
-            Check(!plc.IsConnect && states.SequenceEqual(new[] { true, false }), "连接状态事件错误。");
+            bool[] statesSnapshot = new bool[0];
+            for (int i = 0; i < 20; i++)
+            {
+                lock (statesLock) statesSnapshot = states.ToArray();
+                if (statesSnapshot.Length > 0 && statesSnapshot.Contains(true) && statesSnapshot[statesSnapshot.Length - 1] == false)
+                    break;
+                System.Threading.Thread.Sleep(50);
+            }
+            Check(!plc.IsConnect && statesSnapshot.Length > 0 && statesSnapshot.Contains(true) && statesSnapshot[statesSnapshot.Length - 1] == false,
+                "连接状态事件错误，实际序列：" + string.Join(",", statesSnapshot.Select(item => item.ToString())));
             server.ServerClose();
             plc.OperationTimeoutMs = 100;
             Check(!plc.Connect() && !plc.IsConnect, "连接失败未同步设备状态。");

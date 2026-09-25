@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
@@ -142,7 +142,9 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             if (!OutputValueTypes.TryGetValue(name, out portValueType))
                 return false;
 
-            valueType = CompositePortValueHelper.GetRuntimeType(portValueType);
+            object actualValue;
+            valueType = portValueType == CompositePortValueType.Any && TryGetDynamicVariable(name, out actualValue) && actualValue != null
+                ? actualValue.GetType() : CompositePortValueHelper.GetRuntimeType(portValueType);
             return true;
         }
 

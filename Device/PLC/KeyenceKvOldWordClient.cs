@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Globalization;
-using System.Threading;
 using System.Threading.Tasks;
 using HslCommunication;
 using HslCommunication.Profinet.Keyence;
@@ -13,12 +12,6 @@ namespace TDJS_Vision.Device.PLC
     /// </summary>
     internal sealed class KeyenceKvOldWordClient : KeyenceKvOld
     {
-        /// <summary>
-        /// 本客户端的同步、异步和整字写入共用锁，防止读改写期间被另一个本地写入覆盖。
-        /// 该锁不能阻止PLC程序或其他客户端同时修改同一DM字。
-        /// </summary>
-        private readonly SemaphoreSlim _writeGate = new SemaphoreSlim(1, 1);
-
         /// <summary>创建旧系列客户端，沿用库的字节转换和长连接管理。</summary>
         public KeyenceKvOldWordClient(string ip, int port) : base(ip, port) { }
 
@@ -135,7 +128,7 @@ namespace TDJS_Vision.Device.PLC
                 : base.WriteAsync(address, value);
         }
 
-        /// <summary>在同一个写入锁内读改写DM连续位；读取失败时绝不发出写入。</summary>
+        /// <summary>直接读改写DM连续位；读取失败时绝不发出写入。</summary>
         public override OperateResult Write(string address, bool[] value)
         {
             if (value == null || value.Length == 0 || value.Length > ushort.MaxValue)
@@ -146,19 +139,14 @@ namespace TDJS_Vision.Device.PLC
             if (!parsed.IsSuccess)
                 return parsed;
             ushort wordCount = (ushort)((parsed.Content2 + value.Length + 15) / 16);
-            _writeGate.Wait();
-            try
-            {
-                var read = Read(parsed.Content1, wordCount);
-                if (!read.IsSuccess)
-                    return read;
-                SetBits(read.Content, parsed.Content2, value);
-                return WriteWordsCore(parsed.Content1, read.Content);
-            }
-            finally { _writeGate.Release(); }
+            var read = Read(parsed.Content1, wordCount);
+            if (!read.IsSuccess)
+                return read;
+            SetBits(read.Content, parsed.Content2, value);
+            return WriteWordsCore(parsed.Content1, read.Content);
         }
 
-        /// <summary>异步串行完成DM连续位的读取、修改和写回，不占用额外工作线程。</summary>
+        /// <summary>异步直接完成DM连续位的读取、修改和写回。</summary>
         public override async Task<OperateResult> WriteAsync(string address, bool[] value)
         {
             if (value == null || value.Length == 0 || value.Length > ushort.MaxValue)
@@ -171,16 +159,11 @@ namespace TDJS_Vision.Device.PLC
             if (!parsed.IsSuccess)
                 return parsed;
             ushort wordCount = (ushort)((parsed.Content2 + value.Length + 15) / 16);
-            await _writeGate.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                var read = await ReadAsync(parsed.Content1, wordCount).ConfigureAwait(false);
-                if (!read.IsSuccess)
-                    return read;
-                SetBits(read.Content, parsed.Content2, value);
-                return await WriteWordsCoreAsync(parsed.Content1, read.Content).ConfigureAwait(false);
-            }
-            finally { _writeGate.Release(); }
+            var read = await ReadAsync(parsed.Content1, wordCount).ConfigureAwait(false);
+            if (!read.IsSuccess)
+                return read;
+            SetBits(read.Content, parsed.Content2, value);
+            return await WriteWordsCoreAsync(parsed.Content1, read.Content).ConfigureAwait(false);
         }
 
         /// <summary>生成单字请求地址；仅明确支持连续 DM 区的多字操作。</summary>
@@ -242,12 +225,10 @@ namespace TDJS_Vision.Device.PLC
         /// <summary>逐字写入，拒绝不完整字节以避免库静默截断数据。</summary>
         public override OperateResult Write(string address, byte[] value)
         {
-            _writeGate.Wait();
-            try { return WriteWordsCore(address, value); }
-            finally { _writeGate.Release(); }
+            return WriteWordsCore(address, value);
         }
 
-        /// <summary>调用方持有写入锁时执行完整字写入，避免读改写重入同一锁。</summary>
+        /// <summary>执行完整字写入。</summary>
         private OperateResult WriteWordsCore(string address, byte[] value)
         {
             if (value == null || value.Length == 0 || value.Length % 2 != 0)
@@ -266,15 +247,13 @@ namespace TDJS_Vision.Device.PLC
             return OperateResult.CreateSuccessResult();
         }
 
-        /// <summary>异步逐字写入，不并行发送同一连接上的多个字。</summary>
+        /// <summary>异步逐字写入。</summary>
         public override async Task<OperateResult> WriteAsync(string address, byte[] value)
         {
-            await _writeGate.WaitAsync().ConfigureAwait(false);
-            try { return await WriteWordsCoreAsync(address, value).ConfigureAwait(false); }
-            finally { _writeGate.Release(); }
+            return await WriteWordsCoreAsync(address, value).ConfigureAwait(false);
         }
 
-        /// <summary>调用方持有写入锁时异步执行完整字写入。</summary>
+        /// <summary>异步执行完整字写入。</summary>
         private async Task<OperateResult> WriteWordsCoreAsync(string address, byte[] value)
         {
             if (value == null || value.Length == 0 || value.Length % 2 != 0)

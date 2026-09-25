@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260602" />
+    <PackageReference Include="OpenCvSharp4.Extensions" Version="4.13.0.20260602" />
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.13.0.20260602" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\samples\扎带右端样图.png" Link="samples\扎带右端样图.png" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\samples\扎带右端样图.png')" />
+    <None Include="..\..\samples\扎带右端斜切异常样图.jpg" Link="samples\扎带右端斜切异常样图.jpg" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\samples\扎带右端斜切异常样图.jpg')" />
+  </ItemGroup>
+</Project>

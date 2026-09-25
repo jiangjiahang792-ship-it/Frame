@@ -86,6 +86,12 @@ namespace TDJS_Vision.Forms.CameraAdd
                 var cameras = ConfigHelper.SolConfig.Devices
                     .Where(dev => dev is I3DCamera || dev is ICamera)
                     .ToList();
+                // 先登记完整相机集合，避免前几台恢复取流时按不完整数量独占缓冲预算。
+                foreach (var cameraDevice in cameras)
+                {
+                    if (!Solution.Instance.AllDevices.Contains(cameraDevice))
+                        Solution.Instance.AllDevices.Add(cameraDevice);
+                }
                 if (cameras.Count == 0)
                     StartupProgressContext.ReportItem("正在恢复相机设备", "没有需要恢复的相机", 0, 0, 43, 55);
                 for (int index = 0; index < cameras.Count; index++)

@@ -12,14 +12,20 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
         /// <summary>验证不依赖本轮结果的配置。</summary>
         public static void ValidateConfiguration(ResultSendRow row)
         {
-            if (row?.Source == null || row.Source.NodeId <= 0 || string.IsNullOrWhiteSpace(row.Source.Path))
+            var sources = row?.GetEffectiveSources() ?? new List<ResultSendSource>();
+            if (sources.Count == 0)
                 throw new InvalidOperationException("请选择订阅结果。");
             if (string.IsNullOrWhiteSpace(row.Address)) throw new InvalidOperationException("目标地址不能为空。");
             if (!Enum.IsDefined(typeof(ResultSendMode), row.Mode) || !Enum.IsDefined(typeof(ResultSendType), row.DataType) ||
-                !Enum.IsDefined(typeof(ResultSendAggregate), row.Aggregate) ||
-                !Enum.IsDefined(typeof(ResultSendSourceKind), row.Source.Kind)) throw new InvalidOperationException("配置包含未知类型。");
-            if (row.Source.Kind >= ResultSendSourceKind.AiValues && string.IsNullOrWhiteSpace(row.Source.ItemName))
-                throw new InvalidOperationException("请填写AI检测项名称。");
+                !Enum.IsDefined(typeof(ResultSendAggregate), row.Aggregate)) throw new InvalidOperationException("配置包含未知类型。");
+            if (row.Mode != ResultSendMode.Aggregate && sources.Count > 1)
+                throw new InvalidOperationException("多来源订阅只支持“汇总为单值”。");
+            foreach (var source in sources)
+            {
+                if (!Enum.IsDefined(typeof(ResultSendSourceKind), source.Kind)) throw new InvalidOperationException("配置包含未知类型。");
+                if (source.Kind >= ResultSendSourceKind.AiValues && string.IsNullOrWhiteSpace(source.ItemName))
+                    throw new InvalidOperationException("请填写AI检测项名称。");
+            }
             if (row.Index < 1) throw new InvalidOperationException("明细序号必须从1开始。");
             if (row.Mode == ResultSendMode.All && (row.Capacity < 1 || row.Capacity > 1024 || string.IsNullOrWhiteSpace(row.CountAddress)))
                 throw new InvalidOperationException("连续发送容量必须为1至1024，且必须填写数量地址（ushort）。");
@@ -53,7 +59,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
                     break;
                 case ResultSendMode.Aggregate:
                     var detected = selected.Where(value => value != null).ToList();
-                    selected = new List<object> { detected.Count == 0 ? null : Aggregate(detected, row.Aggregate) };
+                    selected = new List<object> { detected.Count == 0 ? null : Aggregate(detected, row) };
                     break;
             }
             int count = selected.Count;
@@ -99,12 +105,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
         }
 
         /// <summary>按所选方式合并多个值。</summary>
-        private static object Aggregate(List<object> values, ResultSendAggregate mode)
+        private static object Aggregate(List<object> values, ResultSendRow row)
         {
+            var mode = row.Aggregate;
             if (mode == ResultSendAggregate.AllTrue || mode == ResultSendAggregate.AnyTrue)
             {
                 var flags = values.Select(Boolean).ToArray();
-                return mode == ResultSendAggregate.AllTrue ? flags.All(value => value) : flags.Any(value => value);
+                bool result = mode == ResultSendAggregate.AllTrue ? flags.All(value => value) : flags.Any(value => value);
+                return ApplyBooleanAggregateCustomValue(result, row);
             }
             double[] numbers = values.Select(Number).ToArray();
             switch (mode)
@@ -114,6 +122,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
                 case ResultSendAggregate.Average: return Finite(numbers.Average());
                 default: return Finite(numbers.Sum());
             }
+        }
+
+        /// <summary>布尔汇总支持把真/假映射成用户希望写入的业务值。</summary>
+        private static object ApplyBooleanAggregateCustomValue(bool result, ResultSendRow row)
+        {
+            string customValue = result ? row.TrueValue : row.FalseValue;
+            return string.IsNullOrWhiteSpace(customValue) ? (object)result : customValue.Trim();
         }
 
         /// <summary>严格转换成指定基础类型，拒绝小数截断、溢出和非有限数。</summary>

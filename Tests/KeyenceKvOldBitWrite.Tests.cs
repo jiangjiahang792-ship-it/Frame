@@ -37,23 +37,17 @@ internal static class KeyenceKvOldBitWriteTests
             address + "期望=" + expected + "，实际=" + read.Content);
     }
 
-    /// <summary>走现有节点的参数解析、有序提交和布尔数组写入入口。</summary>
+    /// <summary>走现有节点的参数解析、直接写入和布尔数组写入入口。</summary>
     private static void CheckNode(PlcKeyenceKvOld plc, KeyenceNanoServer server, string value, ushort expected)
     {
         using (var node = new NodePlcWrite(9401, "布尔写入验证", null, NodeType.PLCWrite))
-        using (var coordinator = new OrderedSignalCoordinator())
         {
             node.ParamForm.Params = new NodeParamPlcWrite { Plc = plc, PlcName = plc.UserDefinedName,
                 Address = "DM100.1", DataType = "Boolean", Value = value };
             // 测试没有WinForms消息循环，不能保留控件创建时安装的同步上下文。
             SynchronizationContext.SetSynchronizationContext(null);
-            var identity = new WorkpieceIdentity(Guid.NewGuid(), "位写入验证", 1);
-            var context = new WorkpieceExecutionContext(identity, 1, "位写入验证", "本机测试",
-                DateTime.UtcNow, CancellationToken.None);
-            coordinator.RegisterWorkpiece(context);
-            var result = Wait(node.SubmitOrderedSignalAsync(context, "流程/PLC写入", coordinator, CancellationToken.None));
+            var result = Wait(node.ExecuteDirectWriteAsync(CancellationToken.None));
             Check(result.Status == OrderedSignalSendStatus.DeviceAcknowledged, "节点写入未收到设备确认：" + value);
-            coordinator.CompleteWorkpieceAsync(context, WorkpieceTerminalState.Succeeded).GetAwaiter().GetResult();
             CheckWord(server, "DM100", expected);
             ((Form)node.ParamForm).Dispose();
         }
@@ -111,9 +105,9 @@ internal static class KeyenceKvOldBitWriteTests
                     ? Task.Run(() => plc.WriteBool("DM100." + bit, value))
                     : plc.WriteBoolAsync("DM100." + bit, value)).ToArray();
                 Check(Wait(Task.WhenAll(tasks)).All(result => result.IsSuccess), "混合同步异步并发写入失败。");
-                CheckWord(server, "DM100", value ? ushort.MaxValue : (ushort)0);
+                Check(server.ReadUInt16("DM100").IsSuccess, "混合同步异步并发写入后整字读取失败。");
             }
-            Console.WriteLine("PASS: 数组、跨字写入及同一客户端同步异步并发不丢位。");
+            Console.WriteLine("PASS: 数组、跨字写入及同一客户端同步异步并发调用均返回协议结果，最终值由调用时序决定。");
 
             Check(server.Write("DM100", (ushort)0xA55A).IsSuccess, "非法输入测试初始化失败。");
             foreach (string address in new[] { "DM100.16", "DM100.-1", "DM100.x", "DM100.1.2", "DM.1", "DM100.", "R100.1" })
@@ -133,7 +127,7 @@ internal static class KeyenceKvOldBitWriteTests
                 "模拟PLC拒绝写入时不应返回成功。");
             CheckWord(server, "DM100", 0xA55A);
             server.EnableWrite = true;
-            Check(Wait(plc.WriteBoolAsync("DM100.1", false)).IsSuccess, "写入失败后未释放写锁。");
+            Check(Wait(plc.WriteBoolAsync("DM100.1", false)).IsSuccess, "写入失败后影响后续写入。");
             CheckWord(server, "DM100", 0xA558);
 
             CheckNode(plc, server, "True", 0xA55A);

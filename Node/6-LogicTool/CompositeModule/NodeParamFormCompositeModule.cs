@@ -36,6 +36,61 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// 输入端口绑定表格数据。
         /// </summary>
         private BindingList<InputBindingViewModel> _inputBindings;
+        /// <summary>齿轮入口仅显示变量配置。</summary>
+        private bool _portsOnly;
+
+        /// <summary>释放隐藏参数窗体时解除事件，避免被全局事件长期持有。</summary>
+        private void ReleaseSubscriptions()
+        {
+            if (_ownerProcess != null) _ownerProcess.ConnectionsChanged -= Process_ConnectionsChanged;
+            NodeBase.RefreshNodeSubControl -= NodeBase_RefreshNodeSubControl;
+            NodeBase.OutputDefinitionChanged -= NodeBase_OutputDefinitionChanged;
+            NodeBase.NodeDeletedEvent -= NodeBase_NodeDeletedEvent;
+        }
+
+        /// <summary>分页布局或 DPI 变化后为外部订阅树保留稳定宽度。</summary>
+        private void splitContainerPorts_SizeChanged(object sender, EventArgs e)
+        {
+            if (splitContainerPorts.Width > 200) splitContainerPorts.SplitterDistance = splitContainerPorts.Width * 2 / 3;
+        }
+
+        /// <summary>切换输入输出变量专用视图。</summary>
+        public void ShowVariablesOnly(bool enabled)
+        {
+            _portsOnly = enabled;
+            Text = enabled ? "输入输出变量" : "组合模块";
+            groupBoxSnapshot.Visible = !enabled;
+            tableLayoutPanelRoot.RowStyles[0].Height = enabled ? 0 : 204;
+        }
+
+        /// <summary>从内部工具栏打开时直接定位相应变量页。</summary>
+        public void SelectVariablePage(bool output) { tabVariables.SelectedTab = output ? tabOutputs : tabInputs; }
+
+        /// <summary>切换输出页时预览当前输入声明；在保存前不修改运行参数。</summary>
+        private void tabVariables_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (_inputBindings == null || outputEditor == null) return;
+            buttonAddInput.Visible = buttonRemoveInput.Visible = tabVariables.SelectedTab == tabInputs;
+            EndInputGridEdit();
+            outputEditor.SetInputPreview(_inputBindings.Select(row => new CompositeInputPortDefinition
+                { Name = row.PortName, ValueType = row.ValueType, DefaultValue = row.ConstantText, Note = row.Note }).ToList());
+        }
+
+        /// <summary>新增模块输入，不创建画布节点。</summary>
+        private void buttonAddInput_Click(object sender, EventArgs e)
+        {
+            EndInputGridEdit();
+            int index = 1;
+            while (_inputBindings.Any(row => row.PortName == "输入" + index)) index++;
+            _inputBindings.Add(new InputBindingViewModel { PortName = "输入" + index, ValueType = CompositePortValueType.Number, ConstantText = "0" });
+        }
+
+        /// <summary>删除暂存输入声明，取消不影响实际参数。</summary>
+        private void buttonRemoveInput_Click(object sender, EventArgs e)
+        {
+            var row = dataGridViewInputBindings.CurrentRow?.DataBoundItem as InputBindingViewModel;
+            if (row != null) _inputBindings.Remove(row);
+        }
 
         /// <summary>
         /// 创建组合模块参数配置窗口。
@@ -48,6 +103,10 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             _inputBindings = new BindingList<InputBindingViewModel>();
             ConfigureInputGrid();
             BindSourceModeColumn();
+            ColumnInputType.DataSource = Enum.GetValues(typeof(CompositePortValueType)).Cast<CompositePortValueType>()
+                .Select(value => new { Value = value, Text = CompositePortValueHelper.GetValueTypeText(value) }).ToList();
+            ColumnInputType.DisplayMember = "Text";
+            ColumnInputType.ValueMember = "Value";
             dataGridViewInputBindings.DataSource = _inputBindings;
             UpdatePreviewFromParam(null);
             NodeBase.RefreshNodeSubControl += NodeBase_RefreshNodeSubControl;
@@ -130,27 +189,40 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// <param name="e">事件参数。</param>
         private void buttonSave_Click(object sender, EventArgs e)
         {
-            if (ShouldImportSelectedProcess() && !ImportSelectedProcess(false))
-                return;
-
-            if (_pendingParam == null || _pendingParam.NodeInfos == null || _pendingParam.NodeInfos.Count == 0)
+            if (!_portsOnly && ShouldImportSelectedProcess() && !ImportSelectedProcess(false)) return;
+            try
             {
-                MessageBoxTD.Show("请先导入来源流程快照！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
+                var param = CompositeModuleSnapshotBuilder.Clone(_pendingParam) ?? new NodeParamCompositeModule();
+                EndInputGridEdit();
+                var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                param.InputPorts = _inputBindings.Select(row =>
+                {
+                    row.PortName = (row.PortName ?? string.Empty).Trim();
+                    string reason;
+                    if (!DynamicResultVariableResolver.IsValidVariableName(row.PortName, out reason) || !names.Add(row.PortName))
+                        throw new Exception("输入变量名无效或重复：" + row.PortName);
+                    return new CompositeInputPortDefinition { Name = row.PortName, ValueType = row.ValueType, DefaultValue = row.ConstantText, Note = row.Note };
+                }).ToList();
+                var outputs = outputEditor.GetEditedPorts();
+                param.InputBindings = BuildInputBindingsFromForm(param);
+                var module = _ownerNode as NodeCompositeModule;
+                if (module != null && _portsOnly)
+                {
+                    module.UpdateModulePorts(param.InputPorts, param.InputBindings, outputs);
+                    param = (NodeParamCompositeModule)Params;
+                }
+                else
+                {
+                    param.ModuleName = (textBoxModuleName.Text ?? string.Empty).Trim();
+                    param.UsesDirectInputs = param.UsesDirectOutputs = true;
+                    param.OutputPorts = outputs;
+                    Params = param;
+                }
+                _pendingParam = CompositeModuleSnapshotBuilder.Clone(param);
+                Hide();
             }
-
-            NodeParamCompositeModule param = CompositeModuleSnapshotBuilder.Clone(_pendingParam);
-            string moduleName = (textBoxModuleName.Text ?? string.Empty).Trim();
-            param.ModuleName = string.IsNullOrWhiteSpace(moduleName)
-                ? (string.IsNullOrWhiteSpace(param.SourceProcessName) ? "组合模块" : param.SourceProcessName)
-                : moduleName;
-            param.InputBindings = BuildInputBindingsFromForm(param);
-
-            Params = param;
-            _pendingParam = CompositeModuleSnapshotBuilder.Clone(param);
-            Hide();
+            catch (Exception ex) { MessageBoxTD.Show(ex.Message, "变量配置", MessageBoxButtons.OK, MessageBoxIcon.Information); }
         }
-
         /// <summary>
         /// 取消按钮点击事件。
         /// </summary>
@@ -195,6 +267,18 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         private void Process_ConnectionsChanged(object sender, EventArgs e)
         {
             RefreshSourceTree();
+        }
+
+        /// <summary>只在实际打开编辑器时准备输出页，不在方案反序列化时展开内部流程。</summary>
+        protected override void OnVisibleChanged(EventArgs e)
+        {
+            base.OnVisibleChanged(e);
+            var module = _ownerNode as NodeCompositeModule;
+            if (Visible && module != null)
+            {
+                outputEditor.ConfigureEmbedded(module.GetEditableProcess().ModuleInputSource.SubscriptionNode, _pendingParam?.OutputPorts);
+                tabVariables_SelectedIndexChanged(this, EventArgs.Empty);
+            }
         }
 
         /// <summary>
@@ -428,7 +512,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             dataGridViewInputBindings.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             dataGridViewInputBindings.RowTemplate.Height = 30;
             ColumnInputName.DataPropertyName = "PortName";
-            ColumnInputType.DataPropertyName = "ValueTypeText";
+            ColumnInputType.DataPropertyName = "ValueType";
             ColumnInputMode.DataPropertyName = "SourceMode";
             ColumnInputConstant.DataPropertyName = "ConstantText";
             ColumnInputSource.DataPropertyName = "SourceSummary";

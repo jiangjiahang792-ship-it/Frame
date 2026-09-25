@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using TDJS_Vision.Device;
@@ -101,20 +102,20 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
     {
         /// <summary>是否启用本行。</summary>
         public bool Enabled { get; set; } = true;
-        /// <summary>上游订阅引用。</summary>
+        /// <summary>旧版单一上游订阅引用，保留用于兼容已保存方案。</summary>
         public ResultSendSource Source { get; set; } = new ResultSendSource();
+        /// <summary>汇总模式使用的多个上游订阅引用；为空时自动回退到旧版Source。</summary>
+        public List<ResultSendSource> Sources { get; set; } = new List<ResultSendSource>();
         /// <summary>显示完整来源名称。</summary>
         [JsonIgnore]
         public string SourceText
         {
             get
             {
-                if (Source == null || string.IsNullOrEmpty(Source.DisplayName)) return "未选择订阅结果";
-                if (Source.Kind < ResultSendSourceKind.AiValues) return Source.DisplayName;
-                int separator = Source.DisplayName.IndexOf(" → ", StringComparison.Ordinal);
-                string node = separator < 0 ? Source.NodeId.ToString() : Source.DisplayName.Substring(0, separator);
-                string field = Source.Kind == ResultSendSourceKind.AiValues ? "明细检测值" : Source.Kind == ResultSendSourceKind.AiFlags ? "明细判定" : "检测项判定";
-                return node + " → " + (string.IsNullOrWhiteSpace(Source.ItemName) ? "指定检测项" : DetectItemLanguage.GetDisplayName(Source.ItemName)) + " / " + field;
+                var sources = GetEffectiveSources();
+                if (sources.Count == 0) return "未选择订阅结果";
+                if (sources.Count == 1) return FormatSourceText(sources[0]);
+                return "多来源汇总(" + sources.Count + ")：" + string.Join("；", sources.Select(FormatSourceText));
             }
         }
         /// <summary>目标地址，交由协议解释。</summary>
@@ -127,6 +128,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
         public int Index { get; set; } = 1;
         /// <summary>汇总方式。</summary>
         public ResultSendAggregate Aggregate { get; set; }
+        /// <summary>布尔汇总结果为真时发送的自定义值；为空时沿用布尔true。</summary>
+        public string TrueValue { get; set; } = string.Empty;
+        /// <summary>布尔汇总结果为假时发送的自定义值；为空时沿用布尔false。</summary>
+        public string FalseValue { get; set; } = string.Empty;
         /// <summary>连续发送预留元素数量，超出时失败。</summary>
         public int Capacity { get; set; } = 10;
         /// <summary>实际数量寄存器，固定写入ushort，数据完成后发送。</summary>
@@ -137,11 +142,34 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
         public int StringBytes { get; set; } = 32;
         /// <summary>字符串编码名称。</summary>
         public string EncodingName { get; set; } = "UTF-8";
+        /// <summary>取得本行实际使用的订阅源，兼容旧方案只保存Source的情况。</summary>
+        public List<ResultSendSource> GetEffectiveSources()
+        {
+            var validSources = Sources == null ? new List<ResultSendSource>() :
+                Sources.Where(IsConfiguredSource).Select(source => source.Copy()).ToList();
+            if (validSources.Count == 0 && IsConfiguredSource(Source))
+                validSources.Add(Source.Copy());
+            return validSources;
+        }
+        /// <summary>判断订阅源是否具备读取所需的基础字段。</summary>
+        public static bool IsConfiguredSource(ResultSendSource source) =>
+            source != null && source.NodeId > 0 && !string.IsNullOrWhiteSpace(source.Path);
+        /// <summary>把一个订阅源转换成稳定的中文显示文本。</summary>
+        private static string FormatSourceText(ResultSendSource source)
+        {
+            if (source == null || string.IsNullOrEmpty(source.DisplayName)) return "未选择订阅结果";
+            if (source.Kind < ResultSendSourceKind.AiValues) return source.DisplayName;
+            int separator = source.DisplayName.IndexOf(" → ", StringComparison.Ordinal);
+            string node = separator < 0 ? source.NodeId.ToString() : source.DisplayName.Substring(0, separator);
+            string field = source.Kind == ResultSendSourceKind.AiValues ? "明细检测值" : source.Kind == ResultSendSourceKind.AiFlags ? "明细判定" : "检测项判定";
+            return node + " → " + (string.IsNullOrWhiteSpace(source.ItemName) ? "指定检测项" : DetectItemLanguage.GetDisplayName(source.ItemName)) + " / " + field;
+        }
         /// <summary>复制配置，防止发送排队期间界面修改影响已冻结数据。</summary>
         public ResultSendRow Copy()
         {
             var copy = (ResultSendRow)MemberwiseClone();
             copy.Source = Source?.Copy();
+            copy.Sources = Sources == null ? new List<ResultSendSource>() : Sources.Where(IsConfiguredSource).Select(source => source.Copy()).ToList();
             return copy;
         }
     }

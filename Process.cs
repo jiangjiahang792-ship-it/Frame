@@ -153,6 +153,10 @@ namespace TDJS_Vision
         /// </summary>
         public int CurrentRunId { get; private set; }
 
+        /// <summary>组合模块作用域输入，不加入节点列表或方案序列化。</summary>
+        [Newtonsoft.Json.JsonIgnore]
+        public IProcessInputSource ModuleInputSource { get; set; }
+
         /// <summary>获取当前流程定义版本。</summary>
         public long FlowRevision => Volatile.Read(ref _flowRevision);
 
@@ -344,6 +348,8 @@ namespace TDJS_Vision
             List<NodeBase> upstreamNodes = new List<NodeBase>();
             if (node == null)
                 return upstreamNodes;
+            if (ModuleInputSource != null && ModuleInputSource.SubscriptionNode != node)
+                upstreamNodes.Add(ModuleInputSource.SubscriptionNode);
 
             HashSet<int> upstreamNodeIds = new HashSet<int>();
             Queue<int> pendingNodeIds = new Queue<int>();
@@ -2017,7 +2023,8 @@ namespace TDJS_Vision
             NodeBase node = GetNodeById(nodeId);
             return node != null &&
                 (node.NodeType == NodeType.MultiCondition ||
-                 node.NodeType == NodeType.ResultOverlayDraw);
+                 node.NodeType == NodeType.ResultOverlayDraw ||
+                 node.NodeType == NodeType.ResultSend);
         }
 
         private bool HasIncomingConnection(int nodeId)
@@ -2172,6 +2179,7 @@ namespace TDJS_Vision
             CurrentRunId = CurrentRunId == int.MaxValue ? 1 : CurrentRunId + 1;
             foreach (var node in Nodes)
                 node.BeginProcessRun(CurrentRunId);
+            ModuleInputSource?.PrepareRun();
 
             _performanceTrace = ProcessPerformanceTrace.CreateIfEnabled(
                 ID,
@@ -2999,7 +3007,7 @@ namespace TDJS_Vision
             bool isCyclical,
             CancellationToken cancellationToken)
         {
-            if (Nodes.Count == 0 || !Enable)
+            if ((Nodes.Count == 0 && ModuleInputSource == null) || !Enable)
                 return false;
 
             if (!Solution.Instance.TryBeginExternalRunSession())

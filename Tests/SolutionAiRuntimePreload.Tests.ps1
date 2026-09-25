@@ -7,6 +7,7 @@ $loadGatePath = Join-Path $root "Startup\StartupAiRuntimeLoadGate.cs"
 $largeNodePath = Join-Path $root "Node\3-Detection\LargeModel\NodeLargeModelDetection.cs"
 $unsupervisedNodePath = Join-Path $root "Node\3-Detection\Unsupervised\NodeUnsupervisedDetection.cs"
 $tdaiParamFormPath = Join-Path $root "Node\3-Detection\TDAI\ParamFormTDAI.cs"
+$compositeModulePath = Join-Path $root "Node\6-LogicTool\CompositeModule\NodeCompositeModule.cs"
 $configPath = Join-Path $root "ConfigHelper.cs"
 $projectPath = Join-Path $root "TDJS-Vision.csproj"
 
@@ -40,6 +41,7 @@ $loadGate = Get-Content -LiteralPath $loadGatePath -Encoding UTF8 -Raw
 $largeNode = Get-Content -LiteralPath $largeNodePath -Encoding UTF8 -Raw
 $unsupervisedNode = Get-Content -LiteralPath $unsupervisedNodePath -Encoding UTF8 -Raw
 $tdaiParamForm = Get-Content -LiteralPath $tdaiParamFormPath -Encoding UTF8 -Raw
+$compositeModule = Get-Content -LiteralPath $compositeModulePath -Encoding UTF8 -Raw
 $config = Get-Content -LiteralPath $configPath -Encoding UTF8 -Raw
 $project = Get-Content -LiteralPath $projectPath -Encoding UTF8 -Raw
 
@@ -52,6 +54,9 @@ Assert-Contains $coordinator "if (!process.Enable)" "Coordinator must skip disab
 Assert-Contains $coordinator "if (!node.Active)" "Coordinator must skip disabled nodes."
 Assert-Contains $coordinator "INodeRuntimePreloader preloader" "Coordinator must depend on the shared preload contract."
 Assert-Contains $coordinator "preloader.HasSavedRuntimeConfiguration" "Coordinator must skip unconfigured AI nodes."
+Assert-Contains $coordinator "NodeCompositeModule compositeModule" "Coordinator must scan composite modules for nested AI nodes."
+Assert-Contains $coordinator "CollectCompositeModuleTargets" "Coordinator must recurse into composite modules."
+Assert-Contains $coordinator "PrepareRuntimeProcessForStartupPreload()" "Coordinator must build composite runtime snapshots during startup preload."
 Assert-Contains $coordinator "PreloadSavedRuntimeAsync().GetAwaiter().GetResult()" "Coordinator must await each preload before starting the next one."
 Assert-NotContains $coordinator "Task.WhenAll" "Solution preload must not initialize GPU models in parallel."
 Assert-Contains $coordinator "StartupProgressContext.ReportItem" "Coordinator must report preload progress on the loading screen."
@@ -62,6 +67,8 @@ Assert-Contains $loadGate "Queue<DeferredRuntimeLoad>" "Startup load gate must q
 Assert-Contains $loadGate "BeginTDAIDeferral()" "Startup load gate must expose a deferral scope."
 Assert-Contains $loadGate "FlushDeferredTDAILoads()" "Startup load gate must release delayed TDAI loads after preload."
 Assert-Contains $tdaiParamForm "StartupAiRuntimeLoadGate.RunOrDeferTDAILoad" "TDAI restored parameters must defer auto loading during solution restore."
+Assert-Contains $compositeModule "internal Process PrepareRuntimeProcessForStartupPreload()" "Composite modules must expose a startup preload runtime builder."
+Assert-Contains $compositeModule "GetOrCreateRuntimeProcess(param, false)" "Composite startup preload must restore internal node parameters without running nodes."
 
 Assert-Contains $largeNode "NodeLargeModelDetection : NodeBase, INodeRuntimePreloader" "Large-model node must implement the shared preload contract."
 Assert-Contains $largeNode "public Task PreloadSavedRuntimeAsync()" "Large-model node must preload restored parameters."

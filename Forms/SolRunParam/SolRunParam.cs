@@ -14,7 +14,9 @@ using TDJS_Vision.Forms.ImageViewer;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop;
+using TDJS_Vision.Node;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Node._6_LogicTool.CompositeModule;
 using TDJS_Vision.Node._6_LogicTool.MultiCondition;
 using static OpenCvSharp.ML.DTrees;
 
@@ -132,7 +134,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 _windowsName = null;
                 SetEnable(false);
                 List<NodeMultiCondition> multiConditionNodes = new List<NodeMultiCondition>();
-                foreach (var node in process.Nodes)
+                foreach (var node in EnumerateRunParamNodes(process))
                 {
                     if (node is NodeMultiCondition nodeMultiCondition)
                         multiConditionNodes.Add(nodeMultiCondition);
@@ -193,13 +195,16 @@ namespace TDJS_Vision.Forms.SolRunParam
                         if (!IsSourceNodeAllowedByRunParamFilter(nodeTDAI.ID))
                             continue;
 
-                        if (_targetAiNode != null && nodeTDAI.ID != _targetAiNode.ID)
+                        if (_targetAiNode != null && !ReferenceEquals(nodeTDAI, _targetAiNode) && nodeTDAI.ID != _targetAiNode.ID)
                             continue;
 
                         SetCurrentAiNode(nodeTDAI);//临时保存AI节点
                         if (paramTDAI != null)
                         {
                             //设置参数
+                            if (paramTDAI.AIInputInfo == null)
+                                continue;
+
                             textBoxScoreThreshold.Text = paramTDAI.AIInputInfo.ScoreThreshold.ToString();
                             textBoxScoreNMS.Text = paramTDAI.AIInputInfo.ScoreNMS.ToString();
                             uiSwitch_Learning.Active = paramTDAI.IsAutoStudy;
@@ -244,6 +249,54 @@ namespace TDJS_Vision.Forms.SolRunParam
             }
         }
 
+        /// <summary>
+        /// 递归枚举流程和组合模块内部节点，使手动调参支持组合模块版方案。
+        /// </summary>
+        /// <param name="sourceProcess">待枚举流程。</param>
+        /// <returns>流程内可用于运行参数界面的节点。</returns>
+        private static IEnumerable<NodeBase> EnumerateRunParamNodes(Process sourceProcess)
+        {
+            HashSet<Process> visitedProcesses = new HashSet<Process>();
+            return EnumerateRunParamNodesCore(sourceProcess, visitedProcesses).ToList();
+        }
+
+        /// <summary>
+        /// 递归枚举流程节点，遇到组合模块时进入其可编辑内部流程。
+        /// </summary>
+        /// <param name="sourceProcess">当前流程。</param>
+        /// <param name="visitedProcesses">已访问流程集合，防止异常引用造成递归。</param>
+        /// <returns>节点集合。</returns>
+        private static IEnumerable<NodeBase> EnumerateRunParamNodesCore(Process sourceProcess, HashSet<Process> visitedProcesses)
+        {
+            if (sourceProcess == null || sourceProcess.Nodes == null || !visitedProcesses.Add(sourceProcess))
+                yield break;
+
+            foreach (NodeBase node in sourceProcess.Nodes)
+            {
+                if (node == null)
+                    continue;
+
+                yield return node;
+
+                NodeCompositeModule module = node as NodeCompositeModule;
+                if (module == null)
+                    continue;
+
+                Process innerProcess;
+                try
+                {
+                    innerProcess = module.GetEditableProcess();
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.AddLog(MsgLevel.Warn, $"【手动调参诊断】读取组合模块内部流程失败，节点={module.ID}.{module.NodeName}，原因={ex.Message}。", true);
+                    continue;
+                }
+
+                foreach (NodeBase innerNode in EnumerateRunParamNodesCore(innerProcess, visitedProcesses))
+                    yield return innerNode;
+            }
+        }
         /// <summary>
         /// 加载检测内容
         /// </summary>
@@ -511,6 +564,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 {
                     SourceType = RunParamGridSourceType.MultiCondition,
                     SourceNodeId = node.ID,
+                    SourceNode = node,
                     SourceIndex = index,
                     DisplayName = GetMultiConditionDisplayName(node, condition, index),
                     Info = new DetectItemInfo
@@ -871,6 +925,8 @@ namespace TDJS_Vision.Forms.SolRunParam
                 //2025年5月27日 节点参数有更新，应该触发节点参数界面刷新当前设置的值
                 saveStage = "刷新节点参数界面";
                 RefreshParamView?.Invoke(this, EventArgs.Empty);
+                saveStage = "同步组合模块内部参数";
+                SaveCompositeModuleRuntimeSnapshots();
                 saveStage = "保存方案文件";
                 Solution.Instance.Save(Solution.Instance.SolFileName);
                 saveStage = "记录保存成功日志";
@@ -883,6 +939,23 @@ namespace TDJS_Vision.Forms.SolRunParam
             }
         }
 
+        /// <summary>
+        /// 将所有已打开组合模块内部流程回写到组合模块快照，确保手动调参保存能落入方案文件。
+        /// </summary>
+        private static void SaveCompositeModuleRuntimeSnapshots()
+        {
+            if (Solution.Instance.AllProcesses == null)
+                return;
+
+            foreach (Process rootProcess in Solution.Instance.AllProcesses)
+            {
+                if (rootProcess == null || rootProcess.Nodes == null)
+                    continue;
+
+                foreach (NodeCompositeModule module in rootProcess.Nodes.OfType<NodeCompositeModule>())
+                    module.SaveEditableProcess();
+            }
+        }
         /// <summary>
         /// 安全记录手动调参保存失败的完整上下文，日志组件异常不能覆盖原始保存异常。
         /// </summary>
@@ -990,7 +1063,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 if (item == null || item.SourceType != RunParamGridSourceType.MultiCondition || item.Info == null)
                     continue;
 
-                NodeMultiCondition node = FindMultiConditionNode(item.SourceNodeId);
+                NodeMultiCondition node = item.SourceNode as NodeMultiCondition ?? FindMultiConditionNode(item.SourceNodeId);
                 if (node == null || node.ParamForm == null)
                     continue;
 

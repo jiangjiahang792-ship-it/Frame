@@ -17,9 +17,11 @@ internal static class ASTStation2Tests
 {
     /// <summary>已通过的断言数量。</summary>
     private static int _checks;
-    /// <summary>用户要求的五个检测项。</summary>
+    /// <summary>用户要求的十二个检测项，前九项保持既有顺序，末尾补齐飞丝数量和屏蔽网尺寸。</summary>
     private static readonly string[] Names = { "铜环底部到端子头顶部的距离", "铜环底部到绝缘体顶部的距离",
-        "铜环底部到屏蔽网顶部距离", "露线芯宽度", "露线芯长度" };
+        "铜环底部到屏蔽网顶部距离", "露线芯宽度", "露线芯长度", "胶皮顶部到屏蔽网顶部的距离",
+        "胶皮顶部到屏蔽网底部的距离", "胶皮顶部到绝缘体顶部的距离", "胶皮顶部到绝缘体底部的距离",
+        "飞丝", "屏蔽网高度", "屏蔽网宽度" };
     /// <summary>验证业务行为，失败时输出场景。</summary>
     private static void Check(bool value, string message)
     {
@@ -34,7 +36,7 @@ internal static class ASTStation2Tests
         return new NodeParamTDAI { CurDetectItemName = name, DetectItemName1 = name, IsFixed = true,
             NodeName = name, StudyNum = 2, StudyPercentage = 10, Scale = 1 };
     }
-    /// <summary>铜环底边380，三个目标顶边100、210、290，距离分别280、170、90。</summary>
+    /// <summary>铜环底边380，胶皮顶边410，用固定Y边缘差验证距离项。</summary>
     private static List<DetResult> Detections()
     {
         return new List<DetResult> {
@@ -67,26 +69,45 @@ internal static class ASTStation2Tests
         var parameter = Parameter("解析");
         var detections = Detections();
         var result = Parse(parameter, detections);
-        float[] expected = { 280, 170, 90, 18, 27 };
-        Check(result.DetectItemCount == 5 && result.IsOk, "五项结果不完整或判定错误。");
+        float[] expected = { 280, 170, 90, 18, 27, 120, 85, 200, 160, 1, 35, 38 };
+        Check(result.DetectItemCount == 12 && result.IsOk, "十二项结果不完整或判定错误。");
         for (int i = 0; i < Names.Length; i++) Check(Value(result, Names[i]) == expected[i], Names[i] + "数值错误。");
-        Check(result.AlgorithmResult.Rects.Count == 5, "参与框去重错误或额外绘制了胶皮/飞丝。");
+        Check(result.AlgorithmResult.Rects.Count == 7, "参与框去重错误或漏绘了飞丝。");
         Check(result.AlgorithmResult.DetectResults.ContainsKey("DetectItem.ExposedCoreLength"), "露线芯长度未兼容既有存储键。");
         parameter.NeedConvert = true; parameter.Scale = 0.1f;
         result = Parse(parameter, detections);
         Check(Value(result, Names[0]) == 28, "Y距离换算错误。");
         Check(Math.Abs(Value(result, Names[4]) - 2.7f) < 0.001f, "露线芯长度换算错误。");
+        Check(Value(result, Names[5]) == 12 && Value(result, Names[8]) == 16, "胶皮距离换算错误。");
         parameter.NeedConvert = false;
         detections.RemoveAll(d => d.ClassId == 4);
         result = Parse(parameter, detections);
         Check(!result.IsOk && Names.Take(3).All(n => Value(result, n) == 0), "缺少铜环未将三项清零。");
         Check(Value(result, Names[3]) == 18 && Value(result, Names[4]) == 27, "缺少铜环中断了露线芯解析。");
+        Check(Value(result, Names[5]) == 120 && Value(result, Names[8]) == 160, "缺少铜环影响了胶皮距离解析。");
+        detections = Detections();
+        detections.RemoveAll(d => d.ClassId == 5);
+        result = Parse(parameter, detections);
+        Check(!result.IsOk && Names.Skip(5).Take(4).All(n => Value(result, n) == 0), "缺少胶皮未将四项清零。");
+        Check(Value(result, Names[0]) == 280 && Value(result, Names[3]) == 18, "缺少胶皮影响了其他检测项。");
+        detections = Detections();
+        detections.RemoveAll(d => d.ClassId == 6);
+        result = Parse(parameter, detections);
+        Check(!result.IsOk && Value(result, "飞丝") == 0, "缺少飞丝未将数量项清零。");
+        Check(Value(result, "屏蔽网高度") == 35 && Value(result, "屏蔽网宽度") == 38, "缺少飞丝影响了屏蔽网尺寸。");
+        detections = Detections();
+        detections.RemoveAll(d => d.ClassId == 3);
+        result = Parse(parameter, detections);
+        Check(!result.IsOk && Value(result, Names[2]) == 0 && Value(result, Names[5]) == 0 &&
+            Value(result, "屏蔽网高度") == 0 && Value(result, "屏蔽网宽度") == 0, "缺少屏蔽网未将关联项清零。");
         var items = Solution.Instance.DetectItemDic["解析"];
         items[0].MinValue = items[0].MaxValue = "0";
+        detections = Detections();
+        detections.RemoveAll(d => d.ClassId == 4);
         Check(Parse(parameter, detections).AlgorithmResult.DetectResults[Names[0]][0].IsOk, "未检出0值上下限判定错误。");
         items[0].Enable = false; items[3].MaxValue = "10";
         result = Parse(parameter, Detections());
-        Check(result.DetectItemCount == 4, "禁用项仍输出。");
+        Check(result.DetectItemCount == 11, "禁用项仍输出。");
         Check(result.AlgorithmResult.Rects.Single(r => r.RotatedRect.size.width == 18).Color == Color.Red, "同框尺寸NG未合并。");
         result = Parse(parameter, null);
         Check(items.Where(i => i.Enable).All(i => i.CurValue == "0"), "未检出保留旧值。");
@@ -183,6 +204,7 @@ internal static class ASTStation2Tests
         }
         var template = JsonConvert.DeserializeObject<List<DetectItemInfo>>(File.ReadAllText("Template/TDAI/AST-工位2检测项.items"));
         Check(template.Select(i => i.Name).SequenceEqual(Names), "发布模板检测项错误。");
+        Check(template.Single(i => i.Name == "飞丝").IsCountItem, "飞丝模板未设置为数量型。");
         Check((int)ModelName.超声波焊接侧面三类模型 == 5, "旧模型枚举值发生变化。");
     }
     /// <summary>验证参数窗体可直接读取的加密配置、输入尺寸及完整类别顺序。</summary>

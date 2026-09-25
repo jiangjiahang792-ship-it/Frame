@@ -3,6 +3,14 @@ using System.Linq;
 
 namespace TDJS_Vision.Node
 {
+    /// <summary>流程作用域的输入来源，不属于画布节点或执行连线。</summary>
+    public interface IProcessInputSource
+    {
+        /// <summary>提供给现有订阅控件的稳定来源对象。</summary>
+        NodeBase SubscriptionNode { get; }
+        /// <summary>在本轮节点执行前发布输入，并标记当前运行批次。</summary>
+        void PrepareRun();
+    }
     /// <summary>定义公共订阅的上游排序和兼容输出选择策略，供新增节点直接复用。</summary>
     public interface ISubscriptionSourceSelector
     {
@@ -24,6 +32,8 @@ namespace TDJS_Vision.Node
         {
             var result = new List<NodeBase>();
             if (target?.Process == null) return result;
+            if (target.Process.ModuleInputSource != null)
+                result.Add(target.Process.ModuleInputSource.SubscriptionNode);
             var nodes = target.Process.Nodes.ToDictionary(node => node.ID);
             var parents = target.Process.Connections.ToLookup(edge => edge.ToNodeId, edge => edge.FromNodeId);
             var visited = new HashSet<int> { target.ID };

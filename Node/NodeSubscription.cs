@@ -84,9 +84,18 @@ namespace TDJS_Vision.Node
         {
             _sourceSelector = sourceSelector ?? throw new ArgumentNullException(nameof(sourceSelector));
             InitializeComponent();
+            comboBox1.FormattingEnabled = true;
+            comboBox1.Format += FormatSourceDisplay;
             NodeBase.RefreshNodeSubControl += RenameChangeEvent;
             NodeBase.OutputDefinitionChanged += NodeBase_OutputDefinitionChanged;
             Disposed += Subscription_Disposed;
+        }
+
+        /// <summary>模块输入显示作用域名称，内部仍保留兼容旧订阅协议的稳定编号。</summary>
+        private void FormatSourceDisplay(object sender, ListControlConvertEventArgs e)
+        {
+            var input = _node?.Process?.ModuleInputSource?.SubscriptionNode;
+            if (input != null && Convert.ToString(e.ListItem) == GetNodeText(input)) e.Value = "模块输入";
         }
 
         /// <summary>释放全局及流程事件订阅，避免关闭节点后继续响应连线。</summary>
@@ -290,6 +299,10 @@ namespace TDJS_Vision.Node
 
             if (!selectedNodeText.IsNullOrEmpty())
             {
+                string canonicalNodeText;
+                NodeBase restoredNode;
+                if (TryResolveUpstreamNodeText(selectedNodeText, out restoredNode, out canonicalNodeText))
+                    selectedNodeText = canonicalNodeText;
                 int selectedIndex = comboBox1.Items.IndexOf(selectedNodeText);
                 if (selectedIndex >= 0)
                 {
@@ -328,11 +341,12 @@ namespace TDJS_Vision.Node
         /// <param name="e"></param>
         private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (_isUpdatingNodeCombo)
+            if (_isUpdatingNodeCombo || comboBox1.SelectedItem == null)
                 return;
             _automaticSelection = false;
             _clearedByUser = false;
-            SetSelectedNode(comboBox1.Text, null, true);
+            // 显示名可能被 Format 简化；订阅必须使用列表项保留的稳定编号。
+            SetSelectedNode(Convert.ToString(comboBox1.SelectedItem), null, true);
         }
 
         /// <summary>
@@ -478,6 +492,13 @@ namespace TDJS_Vision.Node
         //反序列化使用
         public void SetText(string text1, string text2)
         {
+            // 修复旧版本误存的显示名称，恢复同一模块作用域内的真实来源。
+            var moduleInput = _node?.Process?.ModuleInputSource?.SubscriptionNode;
+            if (text1 == "模块输入" && moduleInput != null)
+            {
+                text1 = GetNodeText(moduleInput);
+                if (string.IsNullOrWhiteSpace(text2)) text2 = null;
+            }
             // 新节点尚无保存值时保留公共自动选择，防止打开参数窗口把连线结果清空。
             if (string.IsNullOrWhiteSpace(text1) && string.IsNullOrWhiteSpace(text2))
             {
@@ -489,6 +510,13 @@ namespace TDJS_Vision.Node
             if (_text1 != text1 || _text2 != text2) _automaticSelection = false;
             _text1 = text1;
             _text2 = text2;
+            string canonicalNodeText;
+            NodeBase restoredNode;
+            if (TryResolveUpstreamNodeText(text1, out restoredNode, out canonicalNodeText))
+            {
+                text1 = canonicalNodeText;
+                _text1 = canonicalNodeText;
+            }
             int index = comboBox1.Items.IndexOf(text1);
             if (index >= 0)
             {
@@ -505,14 +533,13 @@ namespace TDJS_Vision.Node
             if (_node == null || _node.Process == null || nodeText.IsNullOrEmpty())
                 return;
 
-            foreach (NodeBase node in _node.Process.GetUpstreamNodes(_node))
+            string canonicalNodeText;
+            NodeBase selectedNode;
+            if (TryResolveUpstreamNodeText(nodeText, out selectedNode, out canonicalNodeText))
             {
-                if (GetNodeText(node) != nodeText)
-                    continue;
-
-                _selectedNode = node;
-                _text1 = nodeText;
-                InitProperties(node, resultText, needRefresh);
+                _selectedNode = selectedNode;
+                _text1 = canonicalNodeText;
+                InitProperties(selectedNode, resultText, needRefresh);
                 return;
             }
 
@@ -614,6 +641,44 @@ namespace TDJS_Vision.Node
                 return false;
 
             return int.TryParse(nodeText.Substring(0, dotIndex), out nodeId);
+        }
+
+        /// <summary>
+        /// 按订阅文本恢复当前真实上游节点；优先精确匹配，名称变化时按稳定节点编号匹配并返回当前名称。
+        /// </summary>
+        /// <param name="nodeText">旧方案保存的订阅来源文本。</param>
+        /// <param name="node">恢复到的真实上游节点。</param>
+        /// <param name="canonicalText">当前应保存的“编号.节点名”文本。</param>
+        /// <returns>找到真实上游节点时返回 true。</returns>
+        private bool TryResolveUpstreamNodeText(string nodeText, out NodeBase node, out string canonicalText)
+        {
+            node = null;
+            canonicalText = nodeText;
+            if (_node == null || _node.Process == null || string.IsNullOrWhiteSpace(nodeText))
+                return false;
+
+            IReadOnlyList<NodeBase> upstreamNodes = _sourceSelector.GetUpstreamNodes(_node);
+            foreach (NodeBase upstreamNode in upstreamNodes)
+            {
+                string upstreamText = GetNodeText(upstreamNode);
+                if (!string.Equals(upstreamText, nodeText, StringComparison.Ordinal))
+                    continue;
+
+                node = upstreamNode;
+                canonicalText = upstreamText;
+                return true;
+            }
+
+            int nodeId;
+            if (!TryGetNodeIdFromText(nodeText, out nodeId))
+                return false;
+
+            node = upstreamNodes.FirstOrDefault(upstreamNode => upstreamNode.ID == nodeId);
+            if (node == null)
+                return false;
+
+            canonicalText = GetNodeText(node);
+            return true;
         }
 
         private static string GetNodeText(NodeBase node)

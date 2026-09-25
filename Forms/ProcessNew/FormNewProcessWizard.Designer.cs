@@ -31,6 +31,10 @@ namespace TDJS_Vision.Forms.ProcessNew
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
+            this.buttonProcessNavigation = new System.Windows.Forms.Button();
+            this.panelProcessNavigation = new System.Windows.Forms.Panel();
+            this.treeProcessNavigation = new System.Windows.Forms.TreeView();
+            this.toolTipNavigation = new System.Windows.Forms.ToolTip(this.components);
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FormNewProcessWizard));
             gCursorLib.TextShadower textShadower1 = new gCursorLib.TextShadower();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
@@ -60,6 +64,37 @@ namespace TDJS_Vision.Forms.ProcessNew
             this.panelToolboxHeader.SuspendLayout();
             this.contextMenuStrip1.SuspendLayout();
             this.panelEditorSurface.SuspendLayout();
+            this.panelEditorSurface.Controls.Add(this.buttonProcessNavigation);
+            this.panelEditorSurface.Controls.Add(this.panelProcessNavigation);
+            this.buttonProcessNavigation.Name = "buttonProcessNavigation";
+            this.buttonProcessNavigation.Size = new System.Drawing.Size(116, 40);
+            this.buttonProcessNavigation.Location = new System.Drawing.Point(1120, 0);
+            this.buttonProcessNavigation.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            this.buttonProcessNavigation.Text = "流程导航 ▾";
+            this.buttonProcessNavigation.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.buttonProcessNavigation.FlatAppearance.BorderSize = 0;
+            this.buttonProcessNavigation.BackColor = System.Drawing.Color.FromArgb(47, 50, 53);
+            this.buttonProcessNavigation.ForeColor = System.Drawing.Color.Gainsboro;
+            this.buttonProcessNavigation.Click += new System.EventHandler(this.buttonProcessNavigation_Click);
+            this.panelProcessNavigation.Name = "panelProcessNavigation";
+            this.panelProcessNavigation.Size = new System.Drawing.Size(360, 420);
+            this.panelProcessNavigation.Location = new System.Drawing.Point(876, 40);
+            this.panelProcessNavigation.Visible = false;
+            this.panelProcessNavigation.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.panelProcessNavigation.Controls.Add(this.treeProcessNavigation);
+            this.treeProcessNavigation.Name = "treeProcessNavigation";
+            this.treeProcessNavigation.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.treeProcessNavigation.BackColor = System.Drawing.Color.FromArgb(43, 47, 52);
+            this.treeProcessNavigation.ForeColor = System.Drawing.Color.Gainsboro;
+            this.treeProcessNavigation.BorderStyle = System.Windows.Forms.BorderStyle.None;
+            this.treeProcessNavigation.Font = new System.Drawing.Font("微软雅黑", 10F);
+            this.treeProcessNavigation.ItemHeight = 32;
+            this.treeProcessNavigation.Indent = 22;
+            this.treeProcessNavigation.ShowLines = false;
+            this.treeProcessNavigation.ShowPlusMinus = true;
+            this.treeProcessNavigation.HideSelection = false;
+            this.treeProcessNavigation.NodeMouseClick += new System.Windows.Forms.TreeNodeMouseClickEventHandler(this.treeProcessNavigation_NodeMouseClick);
+            this.treeProcessNavigation.KeyDown += new System.Windows.Forms.KeyEventHandler(this.treeProcessNavigation_KeyDown);
             this.panelModuleArea.SuspendLayout();
             this.panelProcessActions.SuspendLayout();
             this.flowLayoutPanelProcessActions.SuspendLayout();
@@ -445,6 +480,15 @@ namespace TDJS_Vision.Forms.ProcessNew
         }
 
         #endregion
+
+        /// <summary>固定在顶部右侧的流程层级导航入口。</summary>
+        private System.Windows.Forms.Button buttonProcessNavigation;
+        /// <summary>可滚动流程树弹层。</summary>
+        private System.Windows.Forms.Panel panelProcessNavigation;
+        /// <summary>流程与组合模块折叠树。</summary>
+        private System.Windows.Forms.TreeView treeProcessNavigation;
+        /// <summary>当前流程完整路径提示。</summary>
+        private System.Windows.Forms.ToolTip toolTipNavigation;
 
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
         private System.Windows.Forms.TabControl tabControl1;

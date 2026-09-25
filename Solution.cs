@@ -528,7 +528,9 @@ namespace TDJS_Vision
 
             if (!TryBeginRunSession())
             {
-                LogHelper.AddLog(MsgLevel.Warn, "方案正在重置，已拒绝启动新的运行任务。", true);
+                LogHelper.AddLog(MsgLevel.Warn, _isResetting
+                    ? "方案正在重置，已拒绝启动新的运行任务。"
+                    : "方案正在停止，等待当前任务退出后才能重新运行。", true);
                 return;
             }
 
@@ -687,6 +689,12 @@ namespace TDJS_Vision
                     NodeParamImageSoucre param = imageSource.ParamForm == null
                         ? null
                         : imageSource.ParamForm.Params as NodeParamImageSoucre;
+                    if (param == null || param.ImageSource != "相机")
+                    {
+                        // 只有相机图像源需要启动回调取流，本地图像和共享变量不参与相机资源检查。
+                        continue;
+                    }
+
                     ICamera camera = GetCameraCallbackCamera(param);
                     if (camera == null)
                     {
@@ -1545,6 +1553,28 @@ namespace TDJS_Vision
         {
             TryCommitRunStop(out CancellationTokenSource tokenSource);
             CancelTokenSourceNoThrow(tokenSource, "方案停止");
+        }
+
+        /// <summary>取消所有运行入口，并异步等待节点、子流程及组合模块完成清理。</summary>
+        /// <param name="millisecondsTimeout">等待上限，超时后保留真实运行状态。</param>
+        /// <returns>所有运行会话已经退出时返回 true。</returns>
+        public async Task<bool> StopAsync(int millisecondsTimeout = 5000)
+        {
+            if (millisecondsTimeout < 0)
+                throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
+            Stop();
+            var elapsed = System.Diagnostics.Stopwatch.StartNew();
+            while (!_allRunsStopped.IsSet)
+            {
+                if (elapsed.ElapsedMilliseconds >= millisecondsTimeout)
+                {
+                    LogHelper.AddLog(MsgLevel.Warn, "正在等待节点退出，请勿重新启动；任务退出后将恢复编辑和关闭。", true);
+                    return false;
+                }
+                // 不阻塞界面消息循环，允许节点界面刷新和运行入口的 finally 完成。
+                await Task.Delay(25).ConfigureAwait(false);
+            }
+            return true;
         }
 
         /// <summary>在执行可能较慢的取消回调前提交停机门闩，阻止新入口复用当前会话令牌。</summary>

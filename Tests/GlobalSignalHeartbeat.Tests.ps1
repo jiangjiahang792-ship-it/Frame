@@ -71,6 +71,12 @@ Assert-Contains $formSource 'case "UInt32":' '心跳PLC/Modbus写入必须支持
 Assert-Contains $formSource 'if (!IsHeartbeatCameraReady(signal))' '相机掉线时必须暂停心跳发送，重连后循环继续。'
 Assert-Contains $formSource 'SaveHeartbeatSignalsAndRefresh();' '心跳配置保存后必须刷新后台发送线程。'
 Assert-Contains $formSource 'LoadHeartbeatConfig(dataGridView4, Solution.Instance.GlobalSignal.HeartbeatSignals);' '打开心跳界面时必须加载已保存配置。'
+Assert-Contains $formSource 'dataGridView4.DataError += DataGridView_DataError;' '心跳表格必须拦截DataGridView默认错误弹窗。'
+Assert-Contains $formSource 'e.ThrowException = false;' '全局信号表格DataError必须禁止继续抛出默认异常对话框。'
+Assert-Contains $formSource 'BuildCommunicationDeviceNameOptions()' '通信设备下拉必须补齐方案中已保存的旧设备名。'
+Assert-Contains $formSource 'BuildHeartbeatCameraNameOptions()' '心跳相机下拉必须补齐方案中已保存的旧相机名。'
+Assert-Contains $formSource 'AddUniqueNonEmpty(names, signal.CameraName);' '心跳相机下拉必须包含已保存但当前设备列表中不存在的相机名。'
+Assert-Contains $formSource 'AddUniqueNonEmpty(names, signal.DeviceName);' '心跳通信设备下拉必须包含已保存但当前设备列表中不存在的设备名。'
 
 Assert-Contains $configHelperSource 'FormGlobalSignal.StartHeartbeatSignals();' '方案加载成功后必须在统一加载入口自动启动心跳。'
 Assert-Contains $formMainSource 'FormGlobalSignal.StopHeartbeatSignals();' '主窗体关闭前必须停止心跳线程。'

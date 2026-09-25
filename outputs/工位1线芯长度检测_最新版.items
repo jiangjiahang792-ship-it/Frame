@@ -1,0 +1,82 @@
+[
+  {
+    "Name": "线芯长度",
+    "MinValue": "375",
+    "MaxValue": "400",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "线芯高度",
+    "MinValue": "375",
+    "MaxValue": "400",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "正插防水栓面积",
+    "MinValue": "375",
+    "MaxValue": "400",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "反插防水栓",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0"
+  },
+  {
+    "Name": "防水栓破损",
+    "MinValue": "375",
+    "MaxValue": "400",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "正插防水栓长度",
+    "MinValue": "375",
+    "MaxValue": "400",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "正插防水栓高度",
+    "MinValue": "375",
+    "MaxValue": "400",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "胶皮宽度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "胶皮高度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "飞胶",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0"
+  }
+]

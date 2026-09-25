@@ -30,7 +30,10 @@
             this.groupSources = new System.Windows.Forms.GroupBox();
             this.sourcesLayout = new System.Windows.Forms.TableLayoutPanel();
             this.treeSources = new System.Windows.Forms.TreeView();
+            this.sourceButtons = new System.Windows.Forms.FlowLayoutPanel();
             this.buttonSubscribe = new System.Windows.Forms.Button();
+            this.buttonAddAggregateSource = new System.Windows.Forms.Button();
+            this.buttonClearAggregateSources = new System.Windows.Forms.Button();
             this.groupEditor = new System.Windows.Forms.GroupBox();
             this.editorLayout = new System.Windows.Forms.TableLayoutPanel();
             this.bottomLayout = new System.Windows.Forms.TableLayoutPanel();
@@ -49,6 +52,10 @@
             this.labelnumberIndex = new System.Windows.Forms.Label();
             this.comboAggregate = new System.Windows.Forms.ComboBox();
             this.labelcomboAggregate = new System.Windows.Forms.Label();
+            this.textTrueValue = new System.Windows.Forms.TextBox();
+            this.labeltextTrueValue = new System.Windows.Forms.Label();
+            this.textFalseValue = new System.Windows.Forms.TextBox();
+            this.labeltextFalseValue = new System.Windows.Forms.Label();
             this.numberCapacity = new System.Windows.Forms.NumericUpDown();
             this.labelnumberCapacity = new System.Windows.Forms.Label();
             this.textCount = new System.Windows.Forms.TextBox();
@@ -106,71 +113,86 @@
             this.treeSources.Name = "treeSources";
             this.treeSources.TabIndex = 15;
             this.treeSources.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.sourceButtons.Name = "sourceButtons";
+            this.sourceButtons.TabIndex = 16;
+            this.sourceButtons.Dock = System.Windows.Forms.DockStyle.Fill;
             this.buttonSubscribe.Name = "buttonSubscribe";
-            this.buttonSubscribe.TabIndex = 16;
+            this.buttonSubscribe.TabIndex = 17;
+            this.buttonAddAggregateSource.Name = "buttonAddAggregateSource";
+            this.buttonAddAggregateSource.TabIndex = 18;
+            this.buttonClearAggregateSources.Name = "buttonClearAggregateSources";
+            this.buttonClearAggregateSources.TabIndex = 19;
             this.groupEditor.Name = "groupEditor";
-            this.groupEditor.TabIndex = 17;
+            this.groupEditor.TabIndex = 20;
             this.groupEditor.Dock = System.Windows.Forms.DockStyle.Fill;
             this.editorLayout.Name = "editorLayout";
-            this.editorLayout.TabIndex = 18;
+            this.editorLayout.TabIndex = 21;
             this.editorLayout.Dock = System.Windows.Forms.DockStyle.Fill;
             this.bottomLayout.Name = "bottomLayout";
-            this.bottomLayout.TabIndex = 19;
+            this.bottomLayout.TabIndex = 22;
             this.bottomLayout.Dock = System.Windows.Forms.DockStyle.Fill;
             this.labelPreview.Name = "labelPreview";
-            this.labelPreview.TabIndex = 20;
+            this.labelPreview.TabIndex = 23;
             this.buttonPreview.Name = "buttonPreview";
-            this.buttonPreview.TabIndex = 21;
+            this.buttonPreview.TabIndex = 24;
             this.buttonSave.Name = "buttonSave";
-            this.buttonSave.TabIndex = 22;
+            this.buttonSave.TabIndex = 25;
             this.comboMode.Name = "comboMode";
-            this.comboMode.TabIndex = 23;
+            this.comboMode.TabIndex = 26;
             this.comboMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.labelcomboMode.Name = "labelcomboMode";
-            this.labelcomboMode.TabIndex = 24;
+            this.labelcomboMode.TabIndex = 27;
             this.textAddress.Name = "textAddress";
-            this.textAddress.TabIndex = 25;
+            this.textAddress.TabIndex = 28;
             this.labeltextAddress.Name = "labeltextAddress";
-            this.labeltextAddress.TabIndex = 26;
+            this.labeltextAddress.TabIndex = 29;
             this.comboType.Name = "comboType";
-            this.comboType.TabIndex = 27;
+            this.comboType.TabIndex = 30;
             this.comboType.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.labelcomboType.Name = "labelcomboType";
-            this.labelcomboType.TabIndex = 28;
+            this.labelcomboType.TabIndex = 31;
             this.textItem.Name = "textItem";
-            this.textItem.TabIndex = 29;
+            this.textItem.TabIndex = 32;
             this.labeltextItem.Name = "labeltextItem";
-            this.labeltextItem.TabIndex = 30;
+            this.labeltextItem.TabIndex = 33;
             this.numberIndex.Name = "numberIndex";
-            this.numberIndex.TabIndex = 31;
+            this.numberIndex.TabIndex = 34;
             this.labelnumberIndex.Name = "labelnumberIndex";
-            this.labelnumberIndex.TabIndex = 32;
+            this.labelnumberIndex.TabIndex = 35;
             this.comboAggregate.Name = "comboAggregate";
-            this.comboAggregate.TabIndex = 33;
+            this.comboAggregate.TabIndex = 36;
             this.comboAggregate.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.labelcomboAggregate.Name = "labelcomboAggregate";
-            this.labelcomboAggregate.TabIndex = 34;
+            this.labelcomboAggregate.TabIndex = 37;
+            this.textTrueValue.Name = "textTrueValue";
+            this.textTrueValue.TabIndex = 38;
+            this.labeltextTrueValue.Name = "labeltextTrueValue";
+            this.labeltextTrueValue.TabIndex = 39;
+            this.textFalseValue.Name = "textFalseValue";
+            this.textFalseValue.TabIndex = 40;
+            this.labeltextFalseValue.Name = "labeltextFalseValue";
+            this.labeltextFalseValue.TabIndex = 41;
             this.numberCapacity.Name = "numberCapacity";
-            this.numberCapacity.TabIndex = 35;
+            this.numberCapacity.TabIndex = 42;
             this.labelnumberCapacity.Name = "labelnumberCapacity";
-            this.labelnumberCapacity.TabIndex = 36;
+            this.labelnumberCapacity.TabIndex = 43;
             this.textCount.Name = "textCount";
-            this.textCount.TabIndex = 37;
+            this.textCount.TabIndex = 44;
             this.labeltextCount.Name = "labeltextCount";
-            this.labeltextCount.TabIndex = 38;
+            this.labeltextCount.TabIndex = 45;
             this.checkClear.Name = "checkClear";
-            this.checkClear.TabIndex = 39;
+            this.checkClear.TabIndex = 46;
             this.labelcheckClear.Name = "labelcheckClear";
-            this.labelcheckClear.TabIndex = 40;
+            this.labelcheckClear.TabIndex = 47;
             this.numberStringBytes.Name = "numberStringBytes";
-            this.numberStringBytes.TabIndex = 41;
+            this.numberStringBytes.TabIndex = 48;
             this.labelnumberStringBytes.Name = "labelnumberStringBytes";
-            this.labelnumberStringBytes.TabIndex = 42;
+            this.labelnumberStringBytes.TabIndex = 49;
             this.comboEncoding.Name = "comboEncoding";
-            this.comboEncoding.TabIndex = 43;
+            this.comboEncoding.TabIndex = 50;
             this.comboEncoding.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.labelcomboEncoding.Name = "labelcomboEncoding";
-            this.labelcomboEncoding.TabIndex = 44;
+            this.labelcomboEncoding.TabIndex = 51;
             this.columnEnabled.Name = "columnEnabled";
             this.columnSource.Name = "columnSource";
             this.columnMode.Name = "columnMode";
@@ -194,13 +216,13 @@
             this.sourcesLayout.ColumnCount = 1; this.sourcesLayout.RowCount = 2;
             this.sourcesLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
             this.sourcesLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.sourcesLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 40F));
+            this.sourcesLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 76F));
             this.bottomLayout.ColumnCount = 3; this.bottomLayout.RowCount = 1;
             this.bottomLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
             this.bottomLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 120F));
             this.bottomLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 100F));
             this.bottomLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.editorLayout.ColumnCount = 8; this.editorLayout.RowCount = 3;
+            this.editorLayout.ColumnCount = 8; this.editorLayout.RowCount = 4;
             this.editorLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 135F));
             this.editorLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 25F));
             this.editorLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 110F));
@@ -212,6 +234,7 @@
             this.editorLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 46F));
             this.editorLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 46F));
             this.editorLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 46F));
+            this.editorLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 0F));
             this.mainLayout.Controls.Add(this.topLayout, 0, 0);
             this.mainLayout.Controls.Add(this.middleLayout, 0, 1);
             this.mainLayout.Controls.Add(this.groupEditor, 0, 2);
@@ -242,6 +265,10 @@
             this.rowButtons.Controls.Add(this.buttonDown);
             this.buttonSubscribe.Text = "订阅到当前行"; this.buttonSubscribe.Size = new System.Drawing.Size(160, 32);
             this.buttonSubscribe.UseVisualStyleBackColor = true; this.buttonSubscribe.Click += new System.EventHandler(this.SubscribeClicked);
+            this.buttonAddAggregateSource.Text = "添加到汇总"; this.buttonAddAggregateSource.Size = new System.Drawing.Size(120, 32);
+            this.buttonAddAggregateSource.UseVisualStyleBackColor = true; this.buttonAddAggregateSource.Click += new System.EventHandler(this.AddAggregateSourceClicked);
+            this.buttonClearAggregateSources.Text = "清空多来源"; this.buttonClearAggregateSources.Size = new System.Drawing.Size(120, 32);
+            this.buttonClearAggregateSources.UseVisualStyleBackColor = true; this.buttonClearAggregateSources.Click += new System.EventHandler(this.ClearAggregateSourcesClicked);
             this.buttonPreview.Text = "预览发送值"; this.buttonPreview.Size = new System.Drawing.Size(110, 32);
             this.buttonPreview.UseVisualStyleBackColor = true; this.buttonPreview.Click += new System.EventHandler(this.PreviewClicked);
             this.buttonSave.Text = "保存"; this.buttonSave.Size = new System.Drawing.Size(85, 32);
@@ -272,7 +299,10 @@
             this.gridRows.CellFormatting += new System.Windows.Forms.DataGridViewCellFormattingEventHandler(this.GridCellFormatting);
             this.groupSources.Controls.Add(this.sourcesLayout);
             this.sourcesLayout.Controls.Add(this.treeSources, 0, 0);
-            this.sourcesLayout.Controls.Add(this.buttonSubscribe, 0, 1);
+            this.sourcesLayout.Controls.Add(this.sourceButtons, 0, 1);
+            this.sourceButtons.Controls.Add(this.buttonSubscribe);
+            this.sourceButtons.Controls.Add(this.buttonAddAggregateSource);
+            this.sourceButtons.Controls.Add(this.buttonClearAggregateSources);
             this.treeSources.HideSelection = false; this.treeSources.NodeMouseDoubleClick += new System.Windows.Forms.TreeNodeMouseClickEventHandler(this.SourceDoubleClicked);
             this.groupEditor.Controls.Add(this.editorLayout);
             this.labelcomboMode.Text = "取值方式"; this.labelcomboMode.AutoSize = true; this.labelcomboMode.Anchor = System.Windows.Forms.AnchorStyles.Left;
@@ -306,6 +336,16 @@
             this.comboAggregate.SelectedIndexChanged += new System.EventHandler(this.EditorChanged);
             this.editorLayout.Controls.Add(this.labelcomboAggregate, 2, 1);
             this.editorLayout.Controls.Add(this.comboAggregate, 3, 1);
+            this.labeltextTrueValue.Text = "为真发送"; this.labeltextTrueValue.AutoSize = true; this.labeltextTrueValue.Anchor = System.Windows.Forms.AnchorStyles.Left;
+            this.textTrueValue.Anchor = System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            this.textTrueValue.TextChanged += new System.EventHandler(this.EditorChanged);
+            this.editorLayout.Controls.Add(this.labeltextTrueValue, 4, 1);
+            this.editorLayout.Controls.Add(this.textTrueValue, 5, 1);
+            this.labeltextFalseValue.Text = "为假发送"; this.labeltextFalseValue.AutoSize = true; this.labeltextFalseValue.Anchor = System.Windows.Forms.AnchorStyles.Left;
+            this.textFalseValue.Anchor = System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            this.textFalseValue.TextChanged += new System.EventHandler(this.EditorChanged);
+            this.editorLayout.Controls.Add(this.labeltextFalseValue, 6, 1);
+            this.editorLayout.Controls.Add(this.textFalseValue, 7, 1);
             this.labelnumberCapacity.Text = "预留容量"; this.labelnumberCapacity.AutoSize = true; this.labelnumberCapacity.Anchor = System.Windows.Forms.AnchorStyles.Left;
             this.numberCapacity.Anchor = System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
             this.numberCapacity.Minimum = 1; this.numberCapacity.Maximum = 1024;
@@ -376,8 +416,14 @@
         private System.Windows.Forms.TableLayoutPanel sourcesLayout;
         /// <summary>上游节点结果树。</summary>
         private System.Windows.Forms.TreeView treeSources;
+        /// <summary>订阅来源按钮栏。</summary>
+        private System.Windows.Forms.FlowLayoutPanel sourceButtons;
         /// <summary>订阅选中字段。</summary>
         private System.Windows.Forms.Button buttonSubscribe;
+        /// <summary>追加选中字段到多来源汇总。</summary>
+        private System.Windows.Forms.Button buttonAddAggregateSource;
+        /// <summary>清空当前行多来源汇总。</summary>
+        private System.Windows.Forms.Button buttonClearAggregateSources;
         /// <summary>当前行参数分组。</summary>
         private System.Windows.Forms.GroupBox groupEditor;
         /// <summary>参数编辑布局。</summary>
@@ -414,6 +460,14 @@
         private System.Windows.Forms.ComboBox comboAggregate;
         /// <summary>汇总方式标签。</summary>
         private System.Windows.Forms.Label labelcomboAggregate;
+        /// <summary>布尔汇总为真时发送的数据。</summary>
+        private System.Windows.Forms.TextBox textTrueValue;
+        /// <summary>布尔汇总为真发送标签。</summary>
+        private System.Windows.Forms.Label labeltextTrueValue;
+        /// <summary>布尔汇总为假时发送的数据。</summary>
+        private System.Windows.Forms.TextBox textFalseValue;
+        /// <summary>布尔汇总为假发送标签。</summary>
+        private System.Windows.Forms.Label labeltextFalseValue;
         /// <summary>预留容量。</summary>
         private System.Windows.Forms.NumericUpDown numberCapacity;
         /// <summary>预留容量标签。</summary>

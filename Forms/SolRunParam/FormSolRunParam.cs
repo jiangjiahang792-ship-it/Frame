@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.IO.Ports;
 using System.Windows.Forms;
 using Logger;
@@ -14,6 +16,7 @@ namespace TDJS_Vision.Forms.SolRunParam
     {
         private IDevice curDevice = null;
         private string selectedProcessName = string.Empty;
+        private Process selectedProcess;
         private bool showSingleProcessOnly = false;
         // 外部指定的AI检测节点，用于多个AI节点时精准打开对应参数。
         private NodeTDAI targetAiNode = null;
@@ -64,6 +67,17 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             this.runParamDisplayFilter = runParamDisplayFilter;
         }
+
+        /// <summary>
+        /// 初始化只显示指定流程对象的参数窗体，支持组合模块内部流程。
+        /// </summary>
+        /// <param name="process">指定流程对象。</param>
+        /// <param name="targetAiNode">目标AI检测节点。</param>
+        /// <param name="runParamDisplayFilter">运行参数显示范围。</param>
+        public FormSolRunParam(Process process, NodeTDAI targetAiNode, RunParamDisplayFilter runParamDisplayFilter) : this(process == null ? string.Empty : process.ProcessName, targetAiNode, runParamDisplayFilter)
+        {
+            selectedProcess = process;
+        }
         /// <summary>
         /// 窗体显示事件
         /// </summary>
@@ -84,9 +98,9 @@ namespace TDJS_Vision.Forms.SolRunParam
             {
                 RemoveAllTabPages(tabControl1);
             }
-            foreach (var process in Solution.Instance.AllProcesses)
+            foreach (var process in GetDisplayProcesses())
             {
-                if (showSingleProcessOnly && process.ProcessName != selectedProcessName)
+                if (selectedProcess == null && showSingleProcessOnly && process.ProcessName != selectedProcessName)
                     continue;
 
                 SolRunParamControl solRunParam = new SolRunParamControl();
@@ -97,11 +111,11 @@ namespace TDJS_Vision.Forms.SolRunParam
                 Stopwatch processStopwatch = Stopwatch.StartNew();
                 LogHelper.AddLog(
                     MsgLevel.Info,
-                    $"【手动调参诊断】开始初始化流程运行参数，流程={process.ProcessName}，节点数={process.Nodes.Count}，过滤范围={(runParamDisplayFilter == null ? "空" : runParamDisplayFilter.ToLogText())}。",
+                    $"【手动调参诊断】开始初始化流程运行参数，流程={process.ProcessName}，节点数={(process.Nodes == null ? 0 : process.Nodes.Count)}，过滤范围={(runParamDisplayFilter == null ? "空" : runParamDisplayFilter.ToLogText())}。",
                     true);
                 try
                 {
-                    RunParamDisplayFilter processFilter = showSingleProcessOnly && process.ProcessName == selectedProcessName
+                    RunParamDisplayFilter processFilter = selectedProcess != null || showSingleProcessOnly && process.ProcessName == selectedProcessName
                         ? runParamDisplayFilter
                         : null;
                     solRunParam.Init(process, process == targetAiNode?.Process ? targetAiNode : null, processFilter);
@@ -225,6 +239,19 @@ namespace TDJS_Vision.Forms.SolRunParam
                 }
             }
         }
+
+        /// <summary>
+        /// 获取当前窗体需要展示的流程集合，支持直接打开组合模块内部流程。
+        /// </summary>
+        /// <returns>待展示的流程集合。</returns>
+        private IEnumerable<Process> GetDisplayProcesses()
+        {
+            if (selectedProcess != null)
+                return new[] { selectedProcess };
+
+            return Solution.Instance.AllProcesses ?? Enumerable.Empty<Process>();
+        }
+
         private void RemoveAllTabPages(TabControl tabControl)
         {
             for (int i = tabControl.TabPages.Count - 1; i >= 0; i--)

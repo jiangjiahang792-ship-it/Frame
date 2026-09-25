@@ -143,6 +143,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             ConfigureCommandButtons();
             BindLanguage();
             _process = new Process(processName);
+            InitializeCompositeNavigation();
             processFlowCanvas.BindProcess(_process);
             processFlowCanvas.NodeCollectionChanged += ProcessFlowCanvas_NodeCollectionChanged;
             InitializeFlowCanvasOverlays();
@@ -189,6 +190,11 @@ namespace TDJS_Vision.Forms.ProcessNew
             Disposed += (s, e) =>
             {
                 LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+                Process.UpdateRunStatus -= RunStatusChange;
+                Solution.Instance.UpdateRunStatus -= RunStatusChange;
+                NodeBase.NodeDeletedEvent -= NewNode_NodeDeletedEvent;
+                processFlowCanvas.CompositeModuleOpenRequested -= OpenCompositeModule;
+                processFlowCanvas.CompositeModulePortsRequested -= ConfigureCompositeVariables;
                 processFlowCanvas.NodeCollectionChanged -= ProcessFlowCanvas_NodeCollectionChanged;
                 processFlowCanvas.OverlayInvalidated -= ProcessFlowCanvas_OverlayInvalidated;
                 processFlowCanvas.SizeChanged -= ProcessFlowCanvas_SizeChanged;
@@ -451,7 +457,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         private void RunStatusChange(object sender, ProcessRunResult e)
         {
             // 线程安全判断 + 操作UI控件
-            if (_process.ProcessName == e.ProcessName)
+            if (!IsDisposed && ReferenceEquals(sender, _process))
             {
                 // 跨线程操作UI，必须用 Invoke
                 if (this.InvokeRequired)
@@ -459,8 +465,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                     this.Invoke(new Action(() =>
                     {
                         UpdateRunTimeText();
-                        buttonRun.Enabled = !e.IsRunning && !_isLoopRunRequested;
-                        buttonLoop.Enabled = !e.IsRunning && !_isLoopRunRequested;
+                        buttonRun.Enabled = !e.IsRunning && !_isLoopRunRequested && !_compositeRunInProgress;
+                        buttonLoop.Enabled = !e.IsRunning && !_isLoopRunRequested && !_compositeRunInProgress;
                         buttonStop.Enabled = e.IsRunning || _isLoopRunRequested;
                         uiSwitchEnable.Enabled = !e.IsRunning;
                         uiLedBulb1.Color = e.IsRunning ? Color.DarkGray : e.IsSuccess ? Color.LawnGreen : Color.Red;
@@ -470,8 +476,8 @@ namespace TDJS_Vision.Forms.ProcessNew
                 else
                 {
                     UpdateRunTimeText();
-                    buttonRun.Enabled = !e.IsRunning && !_isLoopRunRequested;
-                    buttonLoop.Enabled = !e.IsRunning && !_isLoopRunRequested;
+                    buttonRun.Enabled = !e.IsRunning && !_isLoopRunRequested && !_compositeRunInProgress;
+                    buttonLoop.Enabled = !e.IsRunning && !_isLoopRunRequested && !_compositeRunInProgress;
                     buttonStop.Enabled = e.IsRunning || _isLoopRunRequested;
                     uiSwitchEnable.Enabled = !e.IsRunning;
                     uiLedBulb1.Color = e.IsRunning ? Color.DarkGray : e.IsSuccess ? Color.LawnGreen : Color.Red;
@@ -514,6 +520,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// <param name="e"></param>
         private void NodeEditPanel_DragDrop(object sender, DragEventArgs e)
         {
+            if (Solution.Instance.IsRunning) return;
             if (e.Data.GetDataPresent(DragDataFormat))
             {
                 DragData data = (DragData)e.Data.GetData(DragDataFormat);
@@ -624,7 +631,13 @@ namespace TDJS_Vision.Forms.ProcessNew
             // 而正常创建节点使用新id
             int nodeId = id;
             if (id == -1) //表示不是反序列化，正常创建对象
-                nodeId = ++Solution.Instance.NodeCount;
+            {
+                // 导入的组合模块可含独立编号，新增节点同时避开内部现有编号。
+                int localMaximum = System.Linq.Enumerable.Any(_process.Nodes)
+                    ? System.Linq.Enumerable.Max(_process.Nodes, item => item.ID) : 0;
+                nodeId = Math.Max(Solution.Instance.NodeCount, localMaximum) + 1;
+                Solution.Instance.NodeCount = nodeId;
+            }
 
             #region 根据text创建对应类型的节点
 
@@ -873,9 +886,10 @@ namespace TDJS_Vision.Forms.ProcessNew
             foreach (NodeBase processNode in _process.Nodes)
                 processNode.Selected = false;
             node.Selected = true;
+            NodeBase.NodeDeletedEvent -= NewNode_NodeDeletedEvent;
             NodeBase.NodeDeletedEvent += NewNode_NodeDeletedEvent;
             _stack.Push(node);
-            Solution.Instance.Nodes.Add(node);
+            if (ReferenceEquals(_process, _rootProcess)) Solution.Instance.Nodes.Add(node);
             _process.AddNode(node);
             processFlowCanvas.AddNode(node, location);
             if (trackUndo)
@@ -897,6 +911,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// <param name="e"></param>
         private void NewNode_NodeDeletedEvent(object sender, NodeBase e)
         {
+            if (e == null || !ReferenceEquals(e.Process, _process)) return;
             //使用Stack<Node> 来临时存储控件，因为不能在迭代Stack时修改它
             Stack<NodeBase> tmp = new Stack<NodeBase>(_stack);
             // 清空原栈
@@ -1008,6 +1023,8 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// <param name="e"></param>
         private async void button1_Click(object sender, EventArgs e)
         {
+            if (_compositePath.Count > 0) { await RunCurrentCompositeAsync(false); return; }
+            FlushCompositeEdits();
             if (_isLoopRunRequested)
                 return;
 
@@ -1051,6 +1068,8 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// </summary>
         private async void buttonLoop_Click(object sender, EventArgs e)
         {
+            if (_compositePath.Count > 0) { await RunCurrentCompositeAsync(true); return; }
+            FlushCompositeEdits();
             if (_isLoopRunRequested)
                 return;
 
@@ -1169,14 +1188,27 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void buttonStop_Click(object sender, EventArgs e)
+        private async void buttonStop_Click(object sender, EventArgs e)
         {
-            Solution.Instance.CancelToken();
             FormGlobalSignal.StopListenSignals();
-            _isLoopRunRequested = false;
-            buttonRun.Enabled = true;
-            buttonLoop.Enabled = true;
+            buttonRun.Enabled = false;
+            buttonLoop.Enabled = false;
             buttonStop.Enabled = false;
+            try
+            {
+                await Solution.Instance.StopAsync();
+            }
+            finally
+            {
+                if (!IsDisposed)
+                {
+                    bool running = Solution.Instance.IsRunning;
+                    buttonRun.Enabled = !running;
+                    buttonLoop.Enabled = !running;
+                    buttonStop.Enabled = running;
+                    RefreshRuntimeCanvasState();
+                }
+            }
         }
 
         /// <summary>
@@ -1276,12 +1308,14 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// </summary>
         private void label1_MouseClick(object sender, MouseEventArgs e)
         {
+            if (_compositePath.Count > 0 || Solution.Instance.IsRunning) return;
             if (e.Button == MouseButtons.Right)
                 contextMenuStrip1.Show(Cursor.Position);
         }
 
         private void contextMenuStripFlowCanvas_Opening(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            if (Solution.Instance.IsRunning) { e.Cancel = true; return; }
             NodeBase selectedNode = processFlowCanvas.SelectedNode;
             int selectedNodeCount = processFlowCanvas.SelectedNodeCount;
             bool hasNode = selectedNodeCount > 0;
@@ -1488,6 +1522,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             {
                 CopySequence = ++_copySnapshotSeed,
                 SourceProcessId = _process == null ? -1 : _process.ID,
+                SourceProcess = _process,
                 SourceProcessName = _process == null ? string.Empty : _process.ProcessName,
                 SourceNodeTexts = new Dictionary<int, string>(),
                 Nodes = new List<NodeCopyItem>(),
@@ -2029,6 +2064,8 @@ namespace TDJS_Vision.Forms.ProcessNew
             /// 源流程编号。
             /// </summary>
             public int SourceProcessId;
+            /// <summary>复制来源实例，区分具有相同编号的不同组合模块内部流程。</summary>
+            public Process SourceProcess;
             /// <summary>
             /// 源流程名称。
             /// </summary>
@@ -2053,7 +2090,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             /// <returns>目标流程与来源流程一致时返回 true。</returns>
             public bool IsSourceProcess(Process process)
             {
-                return process != null && process.ID == SourceProcessId;
+                return process != null && ReferenceEquals(process, SourceProcess);
             }
         }
 

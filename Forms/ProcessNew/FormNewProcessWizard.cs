@@ -36,6 +36,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         public FormNewProcessWizard()
         {
             InitializeComponent();
+            InitializeProcessNavigation();
             ConfigureToolboxLayout();
             FrmCOMListView.OnCOMDeserializationCompletionEvent += Deserialization;
             this.KeyPreview = true;
@@ -273,14 +274,28 @@ namespace TDJS_Vision.Forms.ProcessNew
             else
                 left = tabControl1.ItemSize.Width * Math.Max(1, tabControl1.TabPages.Count);
 
-            int maxLeft = Math.Max(0, panelEditorSurface.ClientSize.Width - actionContentSize.Width);
+            int headerHeight = GetProcessHeaderHeight();
+            int navigationWidth = buttonProcessNavigation.Width;
+            buttonProcessNavigation.Height = headerHeight;
+            buttonProcessNavigation.Location = new Point(Math.Max(0, panelEditorSurface.ClientSize.Width - navigationWidth), 0);
+            int maxLeft = Math.Max(0, panelEditorSurface.ClientSize.Width - actionContentSize.Width - navigationWidth);
             left = Math.Min(left, maxLeft);
             panelProcessActions.Location = new Point(left, 0);
             panelProcessActions.Size = new Size(
-                Math.Max(actionContentSize.Width, panelEditorSurface.ClientSize.Width - left),
-                tabControl1.ItemSize.Height);
+                Math.Max(actionContentSize.Width, panelEditorSurface.ClientSize.Width - left - navigationWidth),
+                headerHeight);
             flowLayoutPanelProcessActions.Location = Point.Empty;
             panelProcessActions.BringToFront();
+            buttonProcessNavigation.BringToFront();
+            if (panelProcessNavigation.Visible) panelProcessNavigation.BringToFront();
+        }
+
+        /// <summary>按实际选项卡边界计算标题高度，兼容高 DPI 缩放。</summary>
+        private int GetProcessHeaderHeight()
+        {
+            return tabControl1.IsHandleCreated && tabControl1.TabCount > 0
+                ? Math.Max(tabControl1.ItemSize.Height, tabControl1.GetTabRect(0).Bottom)
+                : tabControl1.ItemSize.Height;
         }
 
         private void PositionToolboxFlyout()
@@ -1215,6 +1230,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                         startupNodeTotal);
                     startupNodeOffset += processInfo.NodeInfos?.Count ?? 0;
                     nodeEditPanel.Dock = DockStyle.Fill;
+                    AttachProcessNavigation(nodeEditPanel);
                     tabPage.Controls.Add(nodeEditPanel);
                     tabControl1.Controls.Add(tabPage);
                 }
@@ -1257,6 +1273,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             tabPage.UseVisualStyleBackColor = true;
 
             ProcessEditPanel nodeEditPanel = new ProcessEditPanel(LanguageManager.Format("ProcessNew.DefaultProcessName", Solution.Instance.ProcessCount));
+            AttachProcessNavigation(nodeEditPanel);
             nodeEditPanel.Dock = DockStyle.Fill;
             tabPage.Controls.Add(nodeEditPanel);
             tabControl1.Controls.Add(tabPage);

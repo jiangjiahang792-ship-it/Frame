@@ -52,6 +52,23 @@ function Assert-Order {
     }
 }
 
+function Select-MethodSlice {
+    param(
+        [string]$Text,
+        [string]$StartPattern,
+        [string]$EndPattern,
+        [string]$Message
+    )
+
+    $startIndex = $Text.IndexOf($StartPattern)
+    $endIndex = $Text.IndexOf($EndPattern)
+    if ($startIndex -lt 0 -or $endIndex -lt 0 -or $startIndex -ge $endIndex) {
+        throw $Message
+    }
+
+    return $Text.Substring($startIndex, $endIndex - $startIndex)
+}
+
 $nodeSource = Get-ProjectSource 'Node\1-Acquisition\ImageSource\NodeImageSource.cs'
 $awaiterSource = Get-ProjectSource 'Node\1-Acquisition\ImageSource\CameraFrameAwaiter.cs'
 $paramSource = Get-ProjectSource 'Node\1-Acquisition\ImageSource\ParamFormImageSource.cs'
@@ -61,6 +78,11 @@ $processPanelSource = Get-ProjectSource 'Forms\ProcessNew\ProcessEditPanel.cs'
 $processDesignerSource = Get-ProjectSource 'Forms\ProcessNew\ProcessEditPanel.Designer.cs'
 $solutionSource = Get-ProjectSource 'Solution.cs'
 $mainSource = Get-ProjectSource 'FormMain.cs'
+$startCallbackMethod = Select-MethodSlice `
+    -Text $solutionSource `
+    -StartPattern 'public List<ICamera> StartCameraCallbackGrabbingForProcesses(IEnumerable<Process> processes)' `
+    -EndPattern 'public List<ICamera> StartCameraCallbackGrabbingForProcess(Process process)' `
+    -Message '未找到启动相机回调取流方法。'
 
 Assert-Contains $awaiterSource 'public interface ICameraFrameAwaiter' 'A replaceable camera frame awaiter interface is required.'
 Assert-Contains $awaiterSource 'Task<Mat> BeginWaitAsync(CancellationToken cancellationToken)' 'The frame wait API must accept a cancellation token.'
@@ -114,5 +136,7 @@ Assert-Contains $mainSource 'TryValidateCameraConfiguration' 'FormMain must vali
 Assert-NotContains $solutionSource 'TriggerSoftCameraCallbacksForProcesses(groupCopy)' 'The solution loop must not duplicate soft triggers.'
 Assert-NotContains $solutionSource '.IsCameraCallbackTriggered' 'Runtime acquisition must not depend on the legacy process compatibility flag.'
 Assert-Contains $solutionSource 'startedCallbackCameras = StartCameraCallbackGrabbingForProcesses(AllProcesses);' 'Single and loop solution runs must both start callback grabbing.'
+Assert-Contains $startCallbackMethod 'param.ImageSource != "相机"' '本地图像和共享变量图像源必须跳过相机回调启动，不能记录无相机警告。'
+Assert-Order $startCallbackMethod 'param.ImageSource != "相机"' '没有可用相机，无法启动相机回调。' '必须先排除非相机图像源，再记录缺失相机警告。'
 
 Write-Host 'Camera image-source unified callback regression checks passed.'

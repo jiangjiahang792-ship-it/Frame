@@ -197,7 +197,11 @@ internal static class KeyenceNanoIntegrationTests
         var server = new KeyenceNanoServer();
         var plc = new PlcKeyenceNano(Parameters(port));
         var states = new List<bool>();
-        plc.ConnectStatusEvent += (sender, connected) => states.Add(connected);
+        var statesLock = new object();
+        plc.ConnectStatusEvent += (sender, connected) =>
+        {
+            lock (statesLock) states.Add(connected);
+        };
         try
         {
             server.ServerStart(port);
@@ -207,6 +211,16 @@ internal static class KeyenceNanoIntegrationTests
             Check(plc.WriteBoolAsync("MR100", true).GetAwaiter().GetResult().IsSuccess, "异步写入位失败。");
             var bits = plc.ReadBoolAsync(new[] { "MR100", "MR101", "MR100" }).GetAwaiter().GetResult();
             Check(bits.IsSuccess && bits.Content.SequenceEqual(new[] { true, false, true }), "离散位地址顺序错误。");
+            Check(plc.WriteInt("DM130", 0).IsSuccess, "初始化DM位测试字失败。");
+            Check(plc.WriteBoolAsync("DM130.0", true).GetAwaiter().GetResult().IsSuccess, "DM字内位异步写入True失败。");
+            Check(plc.ReadBool("DM130.0").Content, "DM字内位读取True失败。");
+            Check(plc.ReadInt16("DM130").Content == 1, "DM字内位写入没有置位目标bit。");
+            Check(plc.WriteInt("DM130", 2).IsSuccess, "初始化DM位保留测试字失败。");
+            Check(plc.WriteBool("DM130.0", true).IsSuccess, "DM字内位同步写入True失败。");
+            Check(plc.ReadInt16("DM130").Content == 3, "DM字内位写入没有保留同字其他bit。");
+            Check(plc.WriteBoolAsync("DM130.0", new[] { false }).GetAwaiter().GetResult().IsSuccess, "DM字内位数组异步写入False失败。");
+            Check(!plc.ReadBoolAsync("DM130.0").GetAwaiter().GetResult().Content, "DM字内位读取False失败。");
+            Check(plc.ReadInt16("DM130").Content == 2, "DM字内位复位错误或覆盖了同字其他bit。");
             Check(plc.WriteFloat("DM110", 12.5f).IsSuccess, "写入浮点数失败。");
             Check(plc.ReadFloatAsync("DM110").GetAwaiter().GetResult().Content == 12.5f, "异步读取浮点数错误。");
             Check(plc.WriteIntAsync("DM120", new[] { 7, 8, 9 }).GetAwaiter().GetResult().IsSuccess, "批量写入失败。");
@@ -220,7 +234,7 @@ internal static class KeyenceNanoIntegrationTests
             try
             {
                 restored.CreateDevice();
-                Check(restored.IsConnect, "恢复客户端时丢失已连接状态。");
+                Check(restored.RestoreConnectionRequested, "恢复客户端时丢失连接恢复意图。");
                 using (var single = new SinglePLC(restored))
                 {
                     Check(restored.IsConnect && restored.ReadInt32("DM100").Content == 123456, "现有恢复流程无法重连。");
@@ -230,7 +244,16 @@ internal static class KeyenceNanoIntegrationTests
             }
             finally { restored.Release(); }
             plc.Disconnect();
-            Check(!plc.IsConnect && states.SequenceEqual(new[] { true, false }), "连接状态事件错误。");
+            bool[] statesSnapshot = new bool[0];
+            for (int i = 0; i < 20; i++)
+            {
+                lock (statesLock) statesSnapshot = states.ToArray();
+                if (statesSnapshot.Length > 0 && statesSnapshot.Contains(true) && statesSnapshot[statesSnapshot.Length - 1] == false)
+                    break;
+                System.Threading.Thread.Sleep(50);
+            }
+            Check(!plc.IsConnect && statesSnapshot.Length > 0 && statesSnapshot.Contains(true) && statesSnapshot[statesSnapshot.Length - 1] == false,
+                "连接状态事件错误，实际序列：" + string.Join(",", statesSnapshot.Select(item => item.ToString())));
             server.ServerClose();
             plc.OperationTimeoutMs = 100;
             Check(!plc.Connect() && !plc.IsConnect, "连接失败未同步设备状态。");

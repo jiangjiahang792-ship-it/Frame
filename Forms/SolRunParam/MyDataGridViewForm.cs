@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Logger;
 using Sunny.UI;
+using TDJS_Vision.Node;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
 namespace TDJS_Vision.Forms.SolRunParam
@@ -43,6 +44,11 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// 来源节点ID，多条件行用于保存时定位节点。
         /// </summary>
         public int SourceNodeId { get; set; }
+
+        /// <summary>
+        /// 来源节点对象，多条件行用于区分组合模块内部重复编号节点。
+        /// </summary>
+        public NodeBase SourceNode { get; set; }
 
         /// <summary>
         /// 来源条件索引，多条件行用于保存时定位条件。

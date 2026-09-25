@@ -13,6 +13,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// <param name="disposing">如果应释放托管资源，为 true；否则为 false。</param>
         protected override void Dispose(bool disposing)
         {
+            if (disposing) ReleaseSubscriptions();
             if (disposing && (components != null))
             {
                 components.Dispose();
@@ -49,7 +50,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             this.groupBoxInputBindings = new System.Windows.Forms.GroupBox();
             this.dataGridViewInputBindings = new System.Windows.Forms.DataGridView();
             this.ColumnInputName = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.ColumnInputType = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.ColumnInputType = new System.Windows.Forms.DataGridViewComboBoxColumn();
             this.ColumnInputMode = new System.Windows.Forms.DataGridViewComboBoxColumn();
             this.ColumnInputConstant = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.ColumnInputSource = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -61,6 +62,12 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             this.flowLayoutPanelButtons = new System.Windows.Forms.FlowLayoutPanel();
             this.buttonCancel = new System.Windows.Forms.Button();
             this.buttonSave = new System.Windows.Forms.Button();
+            this.tabVariables = new System.Windows.Forms.TabControl();
+            this.tabInputs = new System.Windows.Forms.TabPage("输入变量");
+            this.tabOutputs = new System.Windows.Forms.TabPage("输出变量");
+            this.outputEditor = new NodeParamFormCompositeOutput();
+            this.buttonAddInput = new System.Windows.Forms.Button();
+            this.buttonRemoveInput = new System.Windows.Forms.Button();
             this.tableLayoutPanelRoot.SuspendLayout();
             this.groupBoxSnapshot.SuspendLayout();
             this.tableLayoutPanelSnapshot.SuspendLayout();
@@ -80,7 +87,17 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             this.tableLayoutPanelRoot.ColumnCount = 1;
             this.tableLayoutPanelRoot.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
             this.tableLayoutPanelRoot.Controls.Add(this.groupBoxSnapshot, 0, 0);
-            this.tableLayoutPanelRoot.Controls.Add(this.splitContainerPorts, 0, 1);
+            this.tableLayoutPanelRoot.Controls.Add(this.tabVariables, 0, 1);
+            this.tabVariables.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.tabVariables.SelectedIndexChanged += new System.EventHandler(this.tabVariables_SelectedIndexChanged);
+            this.tabVariables.Controls.Add(this.tabInputs);
+            this.tabVariables.Controls.Add(this.tabOutputs);
+            this.tabInputs.Controls.Add(this.splitContainerPorts);
+            this.outputEditor.TopLevel = false;
+            this.outputEditor.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
+            this.outputEditor.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.tabOutputs.Controls.Add(this.outputEditor);
+            this.outputEditor.Visible = true;
             this.tableLayoutPanelRoot.Controls.Add(this.flowLayoutPanelButtons, 0, 2);
             this.tableLayoutPanelRoot.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanelRoot.Location = new System.Drawing.Point(16, 52);
@@ -292,7 +309,8 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             // splitContainerPorts
             // 
             this.splitContainerPorts.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.splitContainerPorts.FixedPanel = System.Windows.Forms.FixedPanel.Panel2;
+            this.splitContainerPorts.FixedPanel = System.Windows.Forms.FixedPanel.None;
+            this.splitContainerPorts.SizeChanged += new System.EventHandler(this.splitContainerPorts_SizeChanged);
             this.splitContainerPorts.Location = new System.Drawing.Point(3, 208);
             this.splitContainerPorts.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.splitContainerPorts.Name = "splitContainerPorts";
@@ -351,7 +369,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             this.ColumnInputName.HeaderText = "端口名";
             this.ColumnInputName.MinimumWidth = 90;
             this.ColumnInputName.Name = "ColumnInputName";
-            this.ColumnInputName.ReadOnly = true;
+            this.ColumnInputName.ReadOnly = false;
             this.ColumnInputName.Width = 150;
             // 
             // ColumnInputType
@@ -360,7 +378,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             this.ColumnInputType.HeaderText = "类型";
             this.ColumnInputType.MinimumWidth = 70;
             this.ColumnInputType.Name = "ColumnInputType";
-            this.ColumnInputType.ReadOnly = true;
+            this.ColumnInputType.ReadOnly = false;
             this.ColumnInputType.Width = 150;
             // 
             // ColumnInputMode
@@ -447,6 +465,16 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             // 
             this.flowLayoutPanelButtons.Controls.Add(this.buttonCancel);
             this.flowLayoutPanelButtons.Controls.Add(this.buttonSave);
+            this.flowLayoutPanelButtons.Controls.Add(this.buttonRemoveInput);
+            this.flowLayoutPanelButtons.Controls.Add(this.buttonAddInput);
+            this.buttonAddInput.Text = "新增输入";
+            this.buttonAddInput.Size = new System.Drawing.Size(96, 34);
+            this.buttonAddInput.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.buttonAddInput.Click += new System.EventHandler(this.buttonAddInput_Click);
+            this.buttonRemoveInput.Text = "删除输入";
+            this.buttonRemoveInput.Size = new System.Drawing.Size(96, 34);
+            this.buttonRemoveInput.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
+            this.buttonRemoveInput.Click += new System.EventHandler(this.buttonRemoveInput_Click);
             this.flowLayoutPanelButtons.Dock = System.Windows.Forms.DockStyle.Fill;
             this.flowLayoutPanelButtons.FlowDirection = System.Windows.Forms.FlowDirection.RightToLeft;
             this.flowLayoutPanelButtons.Location = new System.Drawing.Point(3, 646);
@@ -490,7 +518,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.Name = "NodeParamFormCompositeModule";
-            this.Padding = new System.Windows.Forms.Padding(14);
+            this.Padding = new System.Windows.Forms.Padding(0);
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "组合模块";
             this.Shown += new System.EventHandler(this.NodeParamFormCompositeModule_Shown);
@@ -535,7 +563,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         private System.Windows.Forms.GroupBox groupBoxInputBindings;
         private System.Windows.Forms.DataGridView dataGridViewInputBindings;
         private System.Windows.Forms.DataGridViewTextBoxColumn ColumnInputName;
-        private System.Windows.Forms.DataGridViewTextBoxColumn ColumnInputType;
+        private System.Windows.Forms.DataGridViewComboBoxColumn ColumnInputType;
         private System.Windows.Forms.DataGridViewComboBoxColumn ColumnInputMode;
         private System.Windows.Forms.DataGridViewTextBoxColumn ColumnInputConstant;
         private System.Windows.Forms.DataGridViewTextBoxColumn ColumnInputSource;
@@ -547,5 +575,17 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         private System.Windows.Forms.FlowLayoutPanel flowLayoutPanelButtons;
         private System.Windows.Forms.Button buttonSave;
         private System.Windows.Forms.Button buttonCancel;
+        /// <summary>输入输出变量分页。</summary>
+        private System.Windows.Forms.TabControl tabVariables;
+        /// <summary>直接输入声明及外部绑定。</summary>
+        private System.Windows.Forms.TabPage tabInputs;
+        /// <summary>输出变量映射页。</summary>
+        private System.Windows.Forms.TabPage tabOutputs;
+        /// <summary>复用输出编辑器的表格与来源选择。</summary>
+        private NodeParamFormCompositeOutput outputEditor;
+        /// <summary>新增模块输入变量。</summary>
+        private System.Windows.Forms.Button buttonAddInput;
+        /// <summary>删除选定模块输入变量。</summary>
+        private System.Windows.Forms.Button buttonRemoveInput;
     }
 }

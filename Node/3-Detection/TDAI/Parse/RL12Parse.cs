@@ -20,7 +20,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
     public class RL12Parse
     {
         /// <summary>
-        /// 端子数量检测项内部键，作为除飞丝外其它检测项的公共数量上下限配置。
+        /// 端子数量检测项内部键，作为除飞丝、飞胶外其它检测项的公共数量上下限配置。
         /// </summary>
         private const string 端子数量内部键 = "DetectItem.TerminalCount";
 
@@ -28,6 +28,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         /// 飞丝检测项内部键，飞丝按自身存在即NG逻辑处理，不参与端子数量公共校验。
         /// </summary>
         private const string 飞丝内部键 = "DetectItem.FlyingWire";
+
+        /// <summary>
+        /// 飞胶检测项使用中文键，与飞丝一样独立计数，不参与端子数量公共校验。
+        /// </summary>
+        private const string 飞胶内部键 = "飞胶";
 
         /// <summary>
         /// 用于记录检测结果数量，自动学习模式下使用
@@ -75,7 +80,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 // 检测项没启用就不用处理
                 if (!item.Enable) continue;
 
-                // 端子数量只作为除飞丝外其它检测项的公共数量上下限，不单独绑定模型类别解析。
+                // 端子数量只作为除飞丝、飞胶外其它检测项的公共数量上下限，不单独绑定模型类别解析。
                 if (itemName == 端子数量内部键)
                     continue;
 
@@ -109,6 +114,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     case "DetectItem.FlyingWire":
                         extractValueFunc = r => r.ClassId == 8 ? "1" : null;
                         break;
+                    case 飞胶内部键:
+                        // fly_rubber 为类别9，每个模型结果计为一个飞胶，沿用数量型上下限判断。
+                        extractValueFunc = r => r.ClassId == 9 ? "1" : null;
+                        break;
                     case "DetectItem.ReverseWaterproofPlug":
                         extractValueFunc = r => r.ClassId == 10 ? "1" : null;
                         break;
@@ -140,6 +149,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         extractValueFunc = r => r.ClassId == 7 ? r.Box.Height.ToString("F2") : null;
                         break;
 
+                    case "胶皮宽度":
+                        // only_rubber 为类别6，取模型框的水平宽度，后续统一按比例换算。
+                        extractValueFunc = r => r.ClassId == 6 ? r.Box.Width.ToString("F2") : null;
+                        break;
+
+                    case "胶皮高度":
+                        // 与胶皮宽度取自同一类别，取模型框的垂直高度。
+                        extractValueFunc = r => r.ClassId == 6 ? r.Box.Height.ToString("F2") : null;
+                        break;
+
                     case "DetectItem.ForwardWaterproofPlugLength":
                         extractValueFunc = r => r.ClassId == 5 ? r.Box.Width.ToString("F2") : null;
                         break;
@@ -167,12 +186,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                 #endregion
 
-                // 端子数量没有独立模型类别，使用除飞丝外检测项的最大匹配数量作为可绘制文本值。
-                if (!IsFlyingWireItem(itemName))
+                // 飞丝和飞胶是独立缺陷数量，不能抬高端子数量或受到端子数量范围约束。
+                if (!IsIndependentDefectCountItem(itemName))
                     端子数量当前值 = Math.Max(端子数量当前值, matchedResults.Count);
 
                 var singleResults = new List<SingleDetectResult>();
-                bool countLimitOk = IsFlyingWireItem(itemName)
+                bool countLimitOk = IsIndependentDefectCountItem(itemName)
                     ? true
                     : 端子数量检测项 == null || ParseCommon.IsValueWithinLimits(端子数量检测项, matchedResults.Count);
 
@@ -472,7 +491,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         /// 写入端子数量检测项结果和绘制文本，供ROI结果绘制按检测项订阅输出。
         /// </summary>
         /// <param name="item">启用的端子数量配置。</param>
-        /// <param name="count">除飞丝外检测项匹配数量的代表值。</param>
+        /// <param name="count">除飞丝、飞胶外检测项匹配数量的代表值。</param>
         /// <param name="detectItemInfos">当前方案检测项集合。</param>
         /// <param name="isAutoStudy">是否处于自动学习模式。</param>
         /// <param name="param">AI检测节点参数。</param>
@@ -524,13 +543,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         }
 
         /// <summary>
-        /// 判断当前检测项是否为飞丝检测项。
+        /// 判断当前检测项是否为不参与端子数量公共校验的独立缺陷计数项。
         /// </summary>
         /// <param name="itemName">当前检测项内部键。</param>
-        /// <returns>是飞丝检测项时返回 true。</returns>
-        private static bool IsFlyingWireItem(string itemName)
+        /// <returns>是飞丝或飞胶检测项时返回 true。</returns>
+        private static bool IsIndependentDefectCountItem(string itemName)
         {
-            return string.Equals(itemName, 飞丝内部键, StringComparison.Ordinal);
+            return string.Equals(itemName, 飞丝内部键, StringComparison.Ordinal)
+                || string.Equals(itemName, 飞胶内部键, StringComparison.Ordinal);
         }
 
         /// <summary>

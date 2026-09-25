@@ -1,0 +1,18 @@
+{
+  "ModelName": "AST-工位3模型",
+  "ModelSize": 640,
+  "ScoreThreshold": 0.5,
+  "ScoreNMS": 0.5,
+  "ModelInfo": {
+    "ModelType": "DET",
+    "DeviceType": "CPU",
+    "IsEncrypted": true,
+    "ModelPath": "D:\\项目\\AST-Fakra\\软件数据\\Model\\FAKRA（AST-CCD3-CCD5）\\FAKRA（AST-CCD3-CCD5）20260916\\model_encrypted.onnx",
+    "KeyPointNum": 0
+  },
+  "ClassNames": [
+    "female_copper_wire",
+    "closed_opening",
+    "fly_line"
+  ]
+}

@@ -21,8 +21,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
 
         /// <summary>为图调度器声明全部启用订阅依赖。</summary>
         public IEnumerable<int> GetSubscriptionDependencyNodeIds() =>
-            (ParamForm.Params as NodeParamResultSend)?.Rows?.Where(row => row != null && row.Enabled && row.Source != null && row.Source.NodeId > 0 && row.Source.NodeId != ID)
-                .Select(row => row.Source.NodeId).Distinct().ToArray() ?? new int[0];
+            (ParamForm.Params as NodeParamResultSend)?.Rows?
+                .Where(row => row != null && row.Enabled)
+                .SelectMany(row => row.GetEffectiveSources())
+                .Where(source => source.NodeId > 0 && source.NodeId != ID)
+                .Select(source => source.NodeId).Distinct().ToArray() ?? new int[0];
 
         /// <summary>按设备名称解析唯一现有设备，不自行创建额外连接。</summary>
         public static IResultSendWriter GetWriter(NodeParamResultSend param)
@@ -47,7 +50,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
                 try
                 {
                     ResultSendValueConverter.ValidateConfiguration(row);
-                    var values = ResultSendSourceReader.Read(this, row.Source, requireCurrentRun, upstream);
+                    var values = ReadRowValues(row, requireCurrentRun, upstream);
                     var item = ResultSendValueConverter.Prepare(row, values, index + 1);
                     writer.Validate(row.Address, row.DataType, item.Values);
                     if (row.Mode == ResultSendMode.All) writer.Validate(row.CountAddress, ResultSendType.UInt16, new ushort[] { item.Count });
@@ -60,6 +63,18 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             }
             ResultSendAddressValidator.Validate(prepared, writer);
             return prepared;
+        }
+
+        /// <summary>读取一行的全部订阅值；汇总模式合并多个来源，其他模式只读取单一来源。</summary>
+        private List<object> ReadRowValues(ResultSendRow row, bool requireCurrentRun, IReadOnlyDictionary<int, NodeBase> upstream)
+        {
+            var sources = row.GetEffectiveSources();
+            if (row.Mode != ResultSendMode.Aggregate)
+                sources = sources.Take(1).ToList();
+            var values = new List<object>();
+            foreach (var source in sources)
+                values.AddRange(ResultSendSourceReader.Read(this, source, requireCurrentRun, upstream));
+            return values;
         }
 
         /// <summary>冻结并预检本轮结果后直接发送，不等待工件顺序或获取有序端点租约。</summary>

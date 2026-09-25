@@ -47,6 +47,9 @@ namespace TDJS_Vision.Forms.CameraAdd
             InitializeComponent();
             Camera = camera;
             Camera.ConnectStatusEvent += Camera_ConnectStatusEvent;
+            // 批量恢复已提前登记；单独创建控件也必须在取流前登记，且不能重复加入。
+            if (!Solution.Instance.AllDevices.Contains(Camera))
+                Solution.Instance.AllDevices.Add(Camera);
             if (camera.IsOpen || camera.RestoreConnectionRequested)
             {
                 try
@@ -63,7 +66,6 @@ namespace TDJS_Vision.Forms.CameraAdd
                 }
             }
             this.label1.Text = camera.UserDefinedName;
-            Solution.Instance.AllDevices.Add(Camera);
             // 保存所有的实例
             SingleCameraList.Add(this);
         }

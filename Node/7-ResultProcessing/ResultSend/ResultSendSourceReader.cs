@@ -176,7 +176,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             return property.GetValue(value);
         }
 
-        /// <summary>读取来源并冻结为独立列表；生产发送要求本轮成功，预览允许读取最近结果。</summary>
+        /// <summary>读取来源并冻结为独立列表；源节点本轮未成功或动态变量缺失时交给转换层写默认值。</summary>
         public static List<object> Read(NodeBase owner, ResultSendSource source, bool requireCurrentRun, IReadOnlyDictionary<int, NodeBase> upstream = null)
         {
             if (owner?.Process == null || source == null) throw new InvalidOperationException("订阅配置不完整。");
@@ -184,16 +184,19 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             if (upstream != null) upstream.TryGetValue(source.NodeId, out node);
             else node = owner.Process.GetUpstreamNodes(owner).FirstOrDefault(item => item.ID == source.NodeId);
             if (node == null || !node.Active) throw new InvalidOperationException("订阅源已删除、禁用或不再是上游节点。");
+            // 检测、测量或运算节点在本轮没有成功结果时，结果发送仍要写入对应类型默认值，
+            // 避免 PLC 沿用上一轮数据，也避免“未检出”把通信发送节点判为失败。
             if (requireCurrentRun && !node.HasSuccessfulResultForRun(owner.Process.CurrentRunId))
-                throw new InvalidOperationException("上游节点“" + node.NodeName + "”本轮尚未成功产生结果。");
+                return new List<object>();
             object value;
             if (DynamicResultVariableResolver.IsDynamicVariablePath(source.Path))
             {
+                // 动态变量未生成等同于本轮没有有效测量值，由转换层按写入类型补默认值。
                 if (!DynamicResultVariableResolver.TryGetValue(node.Result, source.Path, out value))
-                    throw new InvalidOperationException("动态变量本轮未生成：" + source.DisplayName);
+                    return new List<object>();
             }
             else value = ReadProperty(node.Result, source.Path);
-            // 空结果交由转换层按写入类型补默认值，仍保留上游本轮成功检查。
+            // 空结果交由转换层按写入类型补默认值。
             if (value == null) return new List<object>();
             if (source.Kind == ResultSendSourceKind.AiValues || source.Kind == ResultSendSourceKind.AiFlags || source.Kind == ResultSendSourceKind.AiJudgment)
             {
