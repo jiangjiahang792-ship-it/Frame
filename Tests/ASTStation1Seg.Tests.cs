@@ -74,7 +74,13 @@ internal static class ASTStation1SegTests
         Check(result.AlgorithmResult.Rects[0].RotatedRect.size.width == segments[0].Rect.Width &&
             result.AlgorithmResult.Rects[0].RotatedRect.size.height == segments[0].Rect.Height,
             "显示矩形框应使用模型检测框尺寸。");
-        Check(!result.AlgorithmResult.Texts.Any(t => t.Color == Color.Yellow) && result.AlgorithmResult.Texts.Any(t => t.Text.Contains("像素")), "黄色数字未移除或未标定时显示了mm。");
+        Check(!result.AlgorithmResult.Texts.Any(t => t.Color == Color.Yellow) &&
+            result.AlgorithmResult.Texts.Any(t => t.Text.Contains("40.00mm")) &&
+            !result.AlgorithmResult.Texts.Any(t => t.Text.Contains("像素")),
+            "黄色数字未移除，或非数量型检测项没有统一显示mm。");
+        string flyingWireDisplayName = ParseCommon.GetDisplayName(Names[2]);
+        Check(result.AlgorithmResult.Texts.Any(t => t.Text.Contains(flyingWireDisplayName) && t.Text.EndsWith(": 0")),
+            "数量型检测项不应追加mm单位。");
         p.NeedConvert = true; p.Scale = 0.1f;
         result = Parse(p, segments);
         Check(result.AlgorithmResult.DetectResults[Names[1]][0].Value == "9.00" && result.AlgorithmResult.Texts.Any(t => t.Text.Contains("9.00mm")), "毫米换算错误。");
@@ -86,9 +92,9 @@ internal static class ASTStation1SegTests
         segments.RemoveAll(r => r.ClassId == 1);
         result = Parse(p, segments);
         Check(!result.IsOk && result.AlgorithmResult.Lines.Count == 5 &&
-            result.AlgorithmResult.Texts.Any(t => t.Text.EndsWith(": 0")) &&
+            result.AlgorithmResult.Texts.Any(t => t.Text.EndsWith(": 0mm")) &&
             !result.AlgorithmResult.Texts.Any(t => t.Text.Contains("无法测量")),
-            "缺少屏蔽网时未显示0，或影响其它测量。");
+            "缺少屏蔽网时未显示0mm，或影响其它测量。");
         result = Parse(p, new List<SegResult> { new SegResult { ClassId = 0, Rect = new Rect(1, 2, 40, 50) } });
         Check(!result.IsOk && result.AlgorithmResult.Lines.Count == 0 && result.AlgorithmResult.Rects.Count == 0,
             "没有掩膜时错误地使用检测框测量或显示无效目标。");

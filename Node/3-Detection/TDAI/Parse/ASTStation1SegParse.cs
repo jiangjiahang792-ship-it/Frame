@@ -123,8 +123,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 output.DetectResults[item.Name] = new List<SingleDetectResult> {
                     new SingleDetectResult { Name = item.Name, Value = valueText, IsOk = isOk } };
                 ParseCommon.SetDetectItemCurValue(ref param, item.Name, valueText);
-                string unit = count ? string.Empty : param.NeedConvert ? "mm" : "像素";
-                string displayValue = hasValue ? valueText + unit : "0";
+                // 现场界面统一以毫米展示尺寸项；数量型检测项保持纯数字，便于直接读取数量。
+                bool isCountItem = count || item.IsCountItem;
+                string displayValue = isCountItem ? valueText : (hasValue ? valueText : "0") + "mm";
                 output.Texts.Add(new ColorText($"{number}. {ParseCommon.GetDisplayName(item.Name)}: {displayValue}",
                     isOk ? Color.Green : Color.Red));
                 if (!isOk)
