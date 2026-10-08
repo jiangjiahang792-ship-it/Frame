@@ -43,6 +43,21 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         public float NMSThreshold { get; set; }
 
         /// <summary>
+        /// 参数变更时更新本地阈值和隔离worker阈值。
+        /// </summary>
+        /// <param name="scoreThreshold">得分阈值。</param>
+        /// <param name="nmsThreshold">NMS阈值。</param>
+        public void UpdateThresholds(float scoreThreshold, float nmsThreshold)
+        {
+            if (ScoreThreshold == scoreThreshold && NMSThreshold == nmsThreshold)
+                return;
+
+            _isolatedSession?.UpdateThresholds(scoreThreshold, nmsThreshold);
+            ScoreThreshold = scoreThreshold;
+            NMSThreshold = nmsThreshold;
+        }
+
+        /// <summary>
         /// 初始化模型
         /// </summary>
         public void Init(string model_path, DeviceType deviceType,string[] class_names, int input_size, float score_threshold, float nms_threshold, int key_point_num = 0)
@@ -99,7 +114,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         public List<SegResult> Detect(Mat image, int deltaX = 0, int deltaY = 0, bool needMaskBox = true)
         {
             if (_isolatedSession != null)
-                return _isolatedSession.DetectSeg(image, ScoreThreshold, NMSThreshold, deltaX, deltaY, needMaskBox);
+                return _isolatedSession.DetectSeg(image, deltaX, deltaY, needMaskBox);
 
             switch (DeviceType)
             {

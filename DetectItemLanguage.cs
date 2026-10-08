@@ -67,6 +67,36 @@ namespace TDJS_Vision
             { "焊锡面积", "DetectItem.SolderArea" }
         };
 
+        /// <summary>
+        /// 由现有中文名称映射生成导出用反向索引，避免把内部键写入检测项文件。
+        /// </summary>
+        private static readonly Dictionary<string, string> KeyToChineseName = CreateKeyToChineseName();
+
+        /// <summary>
+        /// 构建内部键到中文检测项名称的索引。
+        /// </summary>
+        /// <returns>导出名称索引。</returns>
+        private static Dictionary<string, string> CreateKeyToChineseName()
+        {
+            var names = new Dictionary<string, string>();
+            foreach (var pair in LegacyNameToKey)
+                names[pair.Value] = pair.Key;
+            return names;
+        }
+
+        /// <summary>
+        /// 获取检测项文件应保存的中文名称，不改变内存中的解析键。
+        /// </summary>
+        /// <param name="name">内部键或中文名称。</param>
+        /// <returns>对应的中文名称。</returns>
+        public static string GetConfigName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return name;
+
+            return KeyToChineseName.TryGetValue(name, out var chineseName) ? chineseName : name;
+        }
+
         public static string NormalizeName(string name)
         {
             if (string.IsNullOrWhiteSpace(name))

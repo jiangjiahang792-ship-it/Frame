@@ -30,7 +30,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             public readonly Dictionary<string, List<float>> Values = new Dictionary<string, List<float>>();
         }
 
-        /// <summary>解析分割边界，输出测量判定、轮廓、黄色箭头和学习数据。</summary>
+        /// <summary>解析分割边界，输出测量判定、目标矩形框、黄色箭头和学习数据。</summary>
         public static void Parse(List<SegResult> results, int resultCount, NodeParamTDAI param,
             Process process, ref NodeResultTDAI nodeResult)
         {
@@ -124,7 +124,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     new SingleDetectResult { Name = item.Name, Value = valueText, IsOk = isOk } };
                 ParseCommon.SetDetectItemCurValue(ref param, item.Name, valueText);
                 string unit = count ? string.Empty : param.NeedConvert ? "mm" : "像素";
-                output.Texts.Add(new ColorText($"{number}. {ParseCommon.GetDisplayName(item.Name)}: {(hasValue ? valueText + unit : "无法测量（缺少目标或有效掩膜）")}",
+                string displayValue = hasValue ? valueText + unit : "0";
+                output.Texts.Add(new ColorText($"{number}. {ParseCommon.GetDisplayName(item.Name)}: {displayValue}",
                     isOk ? Color.Green : Color.Red));
                 if (!isOk)
                 {
@@ -150,10 +151,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     values.Add(value);
                 }
             }
-            // 所有类别都可观察到真实分割轮廓，不把四角多边形伪装成掩膜。
+            // 显示层使用模型检测框；掩膜仅用于前面的测量和有效性判定。
             foreach (SegResult result in valid)
-                foreach (PointF[] contour in result.MaskGeometry.Contours ?? new PointF[0][])
-                    output.Contours.Add(new ColorContour(contour.ToList(), colors[result.ClassId]));
+                output.Rects.Add(new ColorRotatedRect(result.Rect, colors[result.ClassId]));
             nodeResult.AlgorithmResult = output;
             bool allOk = output.IsAllOk;
             if (allOk) process.OKNumber++; else process.NGNumber++;

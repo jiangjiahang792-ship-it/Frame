@@ -480,6 +480,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     return;
                 }
 
+                // 加载期间可能已在手动调参中修改阈值，发布句柄前同步最新配置。
+                newModel.UpdateThresholds(param.AIInputInfo.ScoreThreshold, param.AIInputInfo.ScoreNMS);
+
                 var oldModel = param.Yolo8;
 
                 // 统一注册模型句柄到模型管理，替换成功后释放旧句柄。

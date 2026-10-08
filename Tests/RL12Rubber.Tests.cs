@@ -103,6 +103,66 @@ internal static class RL12RubberTests
         Check(!Parse(items, boxes).AlgorithmResult.DetectResults.ContainsKey("飞胶"), "禁用飞胶仍输出结果。");
     }
 
+    /// <summary>验证线芯、胶皮和正插防水栓各自按对应模型类别计数。</summary>
+    private static void VerifyComponentCounts()
+    {
+        var items = new List<DetectItemInfo> { Item("线芯长度", "1", "100"),
+            Item("端子数量", "2", "2", true), Item("线芯数量", "2", "2", true),
+            Item("胶皮数量", "1", "1", true), Item("防水栓数量", "2", "2", true) };
+        var boxes = new List<DetResult> { Box(7, 40, 12), Box(7, 42, 13, 100),
+            Box(6, 30, 20, 200), Box(5, 60, 25, 300), Box(5, 62, 26, 400) };
+
+        var result = Parse(items, boxes);
+        Check(result.IsOk, "目标数量符合2/1/2时应判OK。");
+        Check(Value(result, "线芯数量").Value == "2", "线芯未按类别7计数。");
+        Check(Value(result, "胶皮数量").Value == "1", "胶皮未按类别6计数。");
+        Check(Value(result, "防水栓数量").Value == "2", "防水栓未按类别5计数。");
+        Check(Value(result, "端子数量").Value == "2", "新增数量项污染端子数量。");
+        Check(items[2].CurValue == "2" && items[3].CurValue == "1" && items[4].CurValue == "2",
+            "数量检测项当前值未更新。");
+
+        items[1].Enable = false;
+        boxes.RemoveAt(1);
+        result = Parse(items, boxes);
+        Check(Value(result, "线芯数量").Value == "1" && !Value(result, "线芯数量").IsOk,
+            "缺少线芯时未按自身数量下限判NG。");
+
+        boxes.Add(Box(6, 31, 21, 500));
+        result = Parse(items, boxes);
+        Check(Value(result, "胶皮数量").Value == "2" && !Value(result, "胶皮数量").IsOk,
+            "胶皮过多时未按自身数量上限判NG。");
+
+        boxes.RemoveAll(box => box.ClassId == 5);
+        result = Parse(items, boxes);
+        Check(Value(result, "防水栓数量").Value == "0" && !Value(result, "防水栓数量").IsOk,
+            "无正插防水栓时未输出0并判NG。");
+    }
+
+    /// <summary>验证检测项文件使用中文名称，解析和界面翻译仍由软件处理。</summary>
+    private static void VerifyConfigNames()
+    {
+        Check(DetectItemLanguage.GetConfigName("DetectItem.CoreLength") == "线芯长度",
+            "导出时未将线芯长度内部键还原为中文。");
+        Check(DetectItemLanguage.GetConfigName("DetectItem.ForwardWaterproofPlugHeight") == "正插防水栓高度",
+            "导出时未将防水栓高度内部键还原为中文。");
+        Check(DetectItemLanguage.GetConfigName("胶皮数量") == "胶皮数量",
+            "中文检测项名称在导出时发生变化。");
+        Check(DetectItemLanguage.NormalizeName("线芯数量") == "DetectItem.CoreCount",
+            "中文线芯数量未映射到解析器内部键。");
+        LanguageManager.SetLanguage("en-US", false);
+        try
+        {
+            Check(DetectItemLanguage.GetDisplayName("胶皮数量") == "Rubber count",
+                "胶皮数量的英文翻译未从软件语言资源读取。");
+            Check(DetectItemLanguage.GetDisplayName("防水栓数量") == "Waterproof plug count",
+                "防水栓数量的英文翻译未从软件语言资源读取。");
+        }
+        finally
+        {
+            LanguageManager.SetLanguage("zh-CN", false);
+        }
+    }
+
     /// <summary>验证新增项沿用尺寸区间和数量众数的自动学习流程。</summary>
     private static void VerifyStudy()
     {
@@ -122,8 +182,8 @@ internal static class RL12RubberTests
         try
         {
             LanguageManager.SetLanguage("zh-CN", false);
-            VerifyDimensions(); VerifyCounts(); VerifyStudy();
-            Console.WriteLine("RL12胶皮与飞胶验证通过，共" + _checks + "项断言。");
+            VerifyDimensions(); VerifyCounts(); VerifyComponentCounts(); VerifyConfigNames(); VerifyStudy();
+            Console.WriteLine("RL12胶皮、飞胶与部件数量验证通过，共" + _checks + "项断言。");
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }

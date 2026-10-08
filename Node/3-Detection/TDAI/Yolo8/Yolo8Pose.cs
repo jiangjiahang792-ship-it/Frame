@@ -44,6 +44,21 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         public float NMSThreshold { get; set; }
 
         /// <summary>
+        /// 参数变更时更新本地阈值和隔离worker阈值。
+        /// </summary>
+        /// <param name="scoreThreshold">得分阈值。</param>
+        /// <param name="nmsThreshold">NMS阈值。</param>
+        public void UpdateThresholds(float scoreThreshold, float nmsThreshold)
+        {
+            if (ScoreThreshold == scoreThreshold && NMSThreshold == nmsThreshold)
+                return;
+
+            _isolatedSession?.UpdateThresholds(scoreThreshold, nmsThreshold);
+            ScoreThreshold = scoreThreshold;
+            NMSThreshold = nmsThreshold;
+        }
+
+        /// <summary>
         /// 初始化YOLO姿态模型。
         /// </summary>
         /// <param name="model_path">模型路径。</param>
@@ -102,7 +117,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         public PoseResult Detect(Mat image, int deltaX = 0, int deltaY = 0)
         {
             if (_isolatedSession != null)
-                return _isolatedSession.DetectPose(image, ScoreThreshold, NMSThreshold, deltaX, deltaY);
+                return _isolatedSession.DetectPose(image, deltaX, deltaY);
 
             switch (DeviceType)
             {

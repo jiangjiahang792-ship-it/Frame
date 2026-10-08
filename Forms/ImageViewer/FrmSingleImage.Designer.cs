@@ -67,7 +67,7 @@
             this.showImageControl1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.showImageControl1.Name = "showImageControl1";
             this.showImageControl1.RoiColor = System.Drawing.Color.Lime;
-            this.showImageControl1.ShowCheckerBackground = true;
+            this.showImageControl1.ShowCheckerBackground = false;
             this.showImageControl1.ShowPixelInfo = false;
             this.showImageControl1.ShowStatusBar = false;
             this.showImageControl1.SingleDynamicRoiMode = false;

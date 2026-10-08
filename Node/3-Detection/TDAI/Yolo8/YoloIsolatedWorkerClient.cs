@@ -149,14 +149,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// 执行DET检测。
         /// </summary>
         /// <param name="image">输入图像。</param>
-        /// <param name="scoreThreshold">置信度阈值。</param>
-        /// <param name="nmsThreshold">NMS阈值。</param>
         /// <param name="deltaX">X方向偏移。</param>
         /// <param name="deltaY">Y方向偏移。</param>
         /// <returns>DET结果。</returns>
-        public List<DetResult> DetectDet(Mat image, float scoreThreshold, float nmsThreshold, int deltaX, int deltaY)
+        public List<DetResult> DetectDet(Mat image, int deltaX, int deltaY)
         {
-            YoloIsolatedResponse response = SendDetectRequest(image, scoreThreshold, nmsThreshold, deltaX, deltaY, true);
+            YoloIsolatedResponse response = SendDetectRequest(image, deltaX, deltaY, true);
             List<DetResult> results = new List<DetResult>();
             if (response.DetResults == null)
                 return results;
@@ -178,14 +176,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// 执行OBB检测。
         /// </summary>
         /// <param name="image">输入图像。</param>
-        /// <param name="scoreThreshold">置信度阈值。</param>
-        /// <param name="nmsThreshold">NMS阈值。</param>
         /// <param name="deltaX">X方向偏移。</param>
         /// <param name="deltaY">Y方向偏移。</param>
         /// <returns>OBB结果。</returns>
-        public List<ObbResult> DetectObb(Mat image, float scoreThreshold, float nmsThreshold, int deltaX, int deltaY)
+        public List<ObbResult> DetectObb(Mat image, int deltaX, int deltaY)
         {
-            YoloIsolatedResponse response = SendDetectRequest(image, scoreThreshold, nmsThreshold, deltaX, deltaY, true);
+            YoloIsolatedResponse response = SendDetectRequest(image, deltaX, deltaY, true);
             List<ObbResult> results = new List<ObbResult>();
             if (response.ObbResults == null)
                 return results;
@@ -211,15 +207,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// 执行SEG检测。
         /// </summary>
         /// <param name="image">输入图像。</param>
-        /// <param name="scoreThreshold">置信度阈值。</param>
-        /// <param name="nmsThreshold">NMS阈值。</param>
         /// <param name="deltaX">X方向偏移。</param>
         /// <param name="deltaY">Y方向偏移。</param>
         /// <param name="needMaskBox">是否需要掩膜不规则框。</param>
         /// <returns>SEG结果。</returns>
-        public List<SegResult> DetectSeg(Mat image, float scoreThreshold, float nmsThreshold, int deltaX, int deltaY, bool needMaskBox)
+        public List<SegResult> DetectSeg(Mat image, int deltaX, int deltaY, bool needMaskBox)
         {
-            YoloIsolatedResponse response = SendDetectRequest(image, scoreThreshold, nmsThreshold, deltaX, deltaY, needMaskBox);
+            YoloIsolatedResponse response = SendDetectRequest(image, deltaX, deltaY, needMaskBox);
             List<SegResult> results = new List<SegResult>();
             if (response.SegResults == null)
                 return results;
@@ -247,14 +241,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// 执行POSE检测。
         /// </summary>
         /// <param name="image">输入图像。</param>
-        /// <param name="scoreThreshold">置信度阈值。</param>
-        /// <param name="nmsThreshold">NMS阈值。</param>
         /// <param name="deltaX">X方向偏移。</param>
         /// <param name="deltaY">Y方向偏移。</param>
         /// <returns>POSE结果。</returns>
-        public PoseResult DetectPose(Mat image, float scoreThreshold, float nmsThreshold, int deltaX, int deltaY)
+        public PoseResult DetectPose(Mat image, int deltaX, int deltaY)
         {
-            YoloIsolatedResponse response = SendDetectRequest(image, scoreThreshold, nmsThreshold, deltaX, deltaY, true);
+            YoloIsolatedResponse response = SendDetectRequest(image, deltaX, deltaY, true);
             PoseResult result = new PoseResult
             {
                 Boxs = new List<Rect>(),
@@ -326,6 +318,21 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                     // 关闭阶段逐资源尽力释放，避免影响主流程退出。
                 }
             }
+        }
+
+        /// <summary>
+        /// 参数变更时向worker发送一次阈值更新，等待应用成功后返回。
+        /// </summary>
+        /// <param name="scoreThreshold">得分阈值。</param>
+        /// <param name="nmsThreshold">NMS阈值。</param>
+        public void UpdateThresholds(float scoreThreshold, float nmsThreshold)
+        {
+            SendRequest(new YoloIsolatedRequest
+            {
+                Command = "update-thresholds",
+                ScoreThreshold = scoreThreshold,
+                NmsThreshold = nmsThreshold
+            });
         }
 
         /// <summary>
@@ -420,13 +427,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// 将图像写入当前模型独享的共享内存并执行推理请求。
         /// </summary>
         /// <param name="image">输入图像。</param>
-        /// <param name="scoreThreshold">置信度阈值。</param>
-        /// <param name="nmsThreshold">NMS阈值。</param>
         /// <param name="deltaX">X方向偏移。</param>
         /// <param name="deltaY">Y方向偏移。</param>
         /// <param name="needMaskBox">是否需要掩膜不规则框。</param>
         /// <returns>推理响应。</returns>
-        private YoloIsolatedResponse SendDetectRequest(Mat image, float scoreThreshold, float nmsThreshold, int deltaX, int deltaY, bool needMaskBox)
+        private YoloIsolatedResponse SendDetectRequest(Mat image, int deltaX, int deltaY, bool needMaskBox)
         {
             if (image == null || image.Empty())
                 throw new InvalidOperationException("YOLO隔离worker输入图像为空。");
@@ -446,8 +451,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                     Command = "detect",
                     ModelType = modelType,
                     DeviceType = deviceType,
-                    ScoreThreshold = scoreThreshold,
-                    NmsThreshold = nmsThreshold,
                     Rows = image.Rows,
                     Cols = image.Cols,
                     MatType = (int)image.Type(),

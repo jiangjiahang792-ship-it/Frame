@@ -260,8 +260,17 @@ namespace TDJS_Vision.Forms.DetectItemManager
                     {
                         string fileName = $"{kvp.Key}.items";
                         string fullFilePath = Path.Combine(selectPath, fileName);
+                        List<DetectItemInfo> exportedItems = kvp.Value.Select(item => new DetectItemInfo
+                        {
+                            Name = DetectItemLanguage.GetConfigName(item.Name),
+                            MinValue = item.MinValue,
+                            MaxValue = item.MaxValue,
+                            Enable = item.Enable,
+                            IsCountItem = item.IsCountItem,
+                            CurValue = item.CurValue
+                        }).ToList();
                         string jsonContent = JsonConvert.SerializeObject(
-                            kvp.Value,
+                            exportedItems,
                             Formatting.Indented, 
                             new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }
                         );

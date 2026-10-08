@@ -134,6 +134,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                 case "init":
                     InitializeModel(request);
                     return Success();
+                case "update-thresholds":
+                    UpdateThresholds(request);
+                    return Success();
                 case "detect":
                     return Detect(request);
                 case "destroy":
@@ -163,6 +166,18 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                 request.KeyPointNum);
 
             currentModel = model;
+        }
+
+        /// <summary>
+        /// 更新worker模型保存的阈值，后续推理直接读取新值。
+        /// </summary>
+        /// <param name="request">阈值更新请求。</param>
+        private static void UpdateThresholds(YoloIsolatedRequest request)
+        {
+            if (currentModel == null)
+                throw new InvalidOperationException("YOLO worker模型尚未初始化。");
+
+            currentModel.UpdateThresholds(request.ScoreThreshold, request.NmsThreshold);
         }
 
         /// <summary>

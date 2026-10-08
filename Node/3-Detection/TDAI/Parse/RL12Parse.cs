@@ -149,6 +149,18 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         extractValueFunc = r => r.ClassId == 7 ? r.Box.Height.ToString("F2") : null;
                         break;
 
+                    case "DetectItem.CoreCount":
+                        extractValueFunc = r => r.ClassId == 7 ? "1" : null;
+                        break;
+
+                    case "胶皮数量":
+                        extractValueFunc = r => r.ClassId == 6 ? "1" : null;
+                        break;
+
+                    case "防水栓数量":
+                        extractValueFunc = r => r.ClassId == 5 ? "1" : null;
+                        break;
+
                     case "胶皮宽度":
                         // only_rubber 为类别6，取模型框的水平宽度，后续统一按比例换算。
                         extractValueFunc = r => r.ClassId == 6 ? r.Box.Width.ToString("F2") : null;
@@ -186,12 +198,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                 #endregion
 
-                // 飞丝和飞胶是独立缺陷数量，不能抬高端子数量或受到端子数量范围约束。
-                if (!IsIndependentDefectCountItem(itemName))
+                // 独立数量项使用自身上下限，不参与端子数量的公共校验。
+                if (!IsIndependentCountItem(itemName))
                     端子数量当前值 = Math.Max(端子数量当前值, matchedResults.Count);
 
                 var singleResults = new List<SingleDetectResult>();
-                bool countLimitOk = IsIndependentDefectCountItem(itemName)
+                bool countLimitOk = IsIndependentCountItem(itemName)
                     ? true
                     : 端子数量检测项 == null || ParseCommon.IsValueWithinLimits(端子数量检测项, matchedResults.Count);
 
@@ -543,14 +555,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         }
 
         /// <summary>
-        /// 判断当前检测项是否为不参与端子数量公共校验的独立缺陷计数项。
+        /// 判断当前检测项是否使用自身上下限独立校验数量。
         /// </summary>
         /// <param name="itemName">当前检测项内部键。</param>
-        /// <returns>是飞丝或飞胶检测项时返回 true。</returns>
-        private static bool IsIndependentDefectCountItem(string itemName)
+        /// <returns>独立计数项返回 true。</returns>
+        private static bool IsIndependentCountItem(string itemName)
         {
             return string.Equals(itemName, 飞丝内部键, StringComparison.Ordinal)
-                || string.Equals(itemName, 飞胶内部键, StringComparison.Ordinal);
+                || string.Equals(itemName, 飞胶内部键, StringComparison.Ordinal)
+                || string.Equals(itemName, "DetectItem.CoreCount", StringComparison.Ordinal)
+                || string.Equals(itemName, "胶皮数量", StringComparison.Ordinal)
+                || string.Equals(itemName, "防水栓数量", StringComparison.Ordinal);
         }
 
         /// <summary>

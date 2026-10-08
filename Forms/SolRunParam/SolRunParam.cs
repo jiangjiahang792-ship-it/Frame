@@ -1039,14 +1039,11 @@ namespace TDJS_Vision.Forms.SolRunParam
             if (aiParams == null || aiParams.AIInputInfo == null)
                 return;
 
+            if (aiParams.Yolo8 != null)
+                aiParams.Yolo8.UpdateThresholds(scoreThreshold, scoreNms);
+
             aiParams.AIInputInfo.ScoreThreshold = scoreThreshold;
             aiParams.AIInputInfo.ScoreNMS = scoreNms;
-
-            if (aiParams.Yolo8 != null)
-            {
-                aiParams.Yolo8.ScoreThreshold = scoreThreshold;
-                aiParams.Yolo8.NMSThreshold = scoreNms;
-            }
         }
 
         /// <summary>
@@ -1064,7 +1061,17 @@ namespace TDJS_Vision.Forms.SolRunParam
             }
 
             if (_nodeTDAI.ParamForm.Params is NodeParamTDAI aiParams)
-                ApplyAiScoreThresholds(aiParams, scoreThreshold, scoreNms);
+            {
+                try
+                {
+                    ApplyAiScoreThresholds(aiParams, scoreThreshold, scoreNms);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "AI阈值同步失败：" + ex.Message, "参数更新失败",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
         }
 
         /// <summary>

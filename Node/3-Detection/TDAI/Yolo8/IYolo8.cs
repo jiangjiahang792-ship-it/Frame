@@ -21,6 +21,13 @@
         float NMSThreshold { get; set; }
 
         /// <summary>
+        /// 更新当前模型的得分和NMS阈值，并同步到隔离worker。
+        /// </summary>
+        /// <param name="scoreThreshold">得分阈值。</param>
+        /// <param name="nmsThreshold">NMS阈值。</param>
+        void UpdateThresholds(float scoreThreshold, float nmsThreshold);
+
+        /// <summary>
         /// 初始化模型
         /// </summary>
         /// <param name="model_path"></param>

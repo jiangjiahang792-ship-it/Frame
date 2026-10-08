@@ -69,7 +69,11 @@ internal static class ASTStation1SegTests
         Check(result.AlgorithmResult.Lines.Count == 10 && result.AlgorithmResult.Lines.All(l => l.Color == Color.Yellow), "黄色箭头数量错误。");
         Check(result.AlgorithmResult.Lines[0].P1.Y == 212 && result.AlgorithmResult.Lines[0].P2.Y == 252, "箭头取点与第一项测量不一致。");
         Check(result.AlgorithmResult.Lines[5].P1.Y == 210 && result.AlgorithmResult.Lines[5].P2.Y == 300, "箭头取点与第二项测量不一致。");
-        Check(result.AlgorithmResult.Contours.Count == 5 && result.AlgorithmResult.Rects.Count == 0, "未输出真实分割轮廓。");
+        Check(result.AlgorithmResult.Rects.Count == 5 && result.AlgorithmResult.Contours.Count == 0,
+            "SEG显示层应只输出检测矩形框，不输出轮廓。");
+        Check(result.AlgorithmResult.Rects[0].RotatedRect.size.width == segments[0].Rect.Width &&
+            result.AlgorithmResult.Rects[0].RotatedRect.size.height == segments[0].Rect.Height,
+            "显示矩形框应使用模型检测框尺寸。");
         Check(!result.AlgorithmResult.Texts.Any(t => t.Color == Color.Yellow) && result.AlgorithmResult.Texts.Any(t => t.Text.Contains("像素")), "黄色数字未移除或未标定时显示了mm。");
         p.NeedConvert = true; p.Scale = 0.1f;
         result = Parse(p, segments);
@@ -77,11 +81,17 @@ internal static class ASTStation1SegTests
         segments.Add(Segment(4, 40, 60));
         result = Parse(p, segments);
         Check(!result.IsOk && result.AlgorithmResult.DetectResults["DetectItem.FlyingWire"][0].Value == "1", "飞丝类别没有按标签4判定。");
+        Check(result.AlgorithmResult.Rects.Last().Color == Color.Red,
+            "飞丝NG目标的矩形框颜色错误。");
         segments.RemoveAll(r => r.ClassId == 1);
         result = Parse(p, segments);
-        Check(!result.IsOk && result.AlgorithmResult.Lines.Count == 5 && result.AlgorithmResult.Texts.Any(t => t.Text.Contains("无法测量")), "缺少屏蔽网没有明确失败或影响其它测量。");
+        Check(!result.IsOk && result.AlgorithmResult.Lines.Count == 5 &&
+            result.AlgorithmResult.Texts.Any(t => t.Text.EndsWith(": 0")) &&
+            !result.AlgorithmResult.Texts.Any(t => t.Text.Contains("无法测量")),
+            "缺少屏蔽网时未显示0，或影响其它测量。");
         result = Parse(p, new List<SegResult> { new SegResult { ClassId = 0, Rect = new Rect(1, 2, 40, 50) } });
-        Check(!result.IsOk && result.AlgorithmResult.Lines.Count == 0, "没有掩膜时错误地使用检测框测量。");
+        Check(!result.IsOk && result.AlgorithmResult.Lines.Count == 0 && result.AlgorithmResult.Rects.Count == 0,
+            "没有掩膜时错误地使用检测框测量或显示无效目标。");
         result = Parse(p, new List<SegResult> { new SegResult { ClassId = 4, Rect = new Rect(1, 2, 3, 4) } });
         Check(!result.AlgorithmResult.DetectResults["DetectItem.FlyingWire"][0].IsOk, "飞丝缺少掩膜不应伪判为零个OK。");
         Solution.Instance.DetectItemDic[p.CurDetectItemName][0].Enable = false;
