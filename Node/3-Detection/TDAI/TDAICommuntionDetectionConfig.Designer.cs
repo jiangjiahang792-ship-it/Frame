@@ -40,6 +40,15 @@
             this.button3 = new System.Windows.Forms.Button();
             this.openFileDialog2 = new System.Windows.Forms.OpenFileDialog();
             this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
+            this.labelReadType = new System.Windows.Forms.Label();
+            this.comboBoxReadType = new System.Windows.Forms.ComboBox();
+            this.labelRegisterCount = new System.Windows.Forms.Label();
+            this.numericRegisterCount = new System.Windows.Forms.NumericUpDown();
+            this.labelEncoding = new System.Windows.Forms.Label();
+            this.comboBoxEncoding = new System.Windows.Forms.ComboBox();
+            this.checkBoxLowByteFirst = new System.Windows.Forms.CheckBox();
+            this.labelReadHint = new System.Windows.Forms.Label();
+            ((System.ComponentModel.ISupportInitialize)(this.numericRegisterCount)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.dgvAIParam)).BeginInit();
             this.SuspendLayout();
             // 
@@ -48,11 +57,11 @@
             this.dgvAIParam.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.Fill;
             this.dgvAIParam.AutoSizeRowsMode = System.Windows.Forms.DataGridViewAutoSizeRowsMode.AllCells;
             this.dgvAIParam.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            this.dgvAIParam.Location = new System.Drawing.Point(8, 131);
+            this.dgvAIParam.Location = new System.Drawing.Point(8, 240);
             this.dgvAIParam.Name = "dgvAIParam";
             this.dgvAIParam.RowHeadersWidth = 62;
             this.dgvAIParam.RowTemplate.Height = 30;
-            this.dgvAIParam.Size = new System.Drawing.Size(674, 462);
+            this.dgvAIParam.Size = new System.Drawing.Size(674, 353);
             this.dgvAIParam.TabIndex = 2;
             // 
             // label1
@@ -153,6 +162,59 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(694, 605);
+            // 读取类型：
+            this.labelReadType.Name = "labelReadType";
+            this.labelReadType.Location = new System.Drawing.Point(10, 135);
+            this.labelReadType.Size = new System.Drawing.Size(100, 25);
+            this.labelReadType.Text = "读取类型：";
+            // comboBoxReadType
+            this.comboBoxReadType.Name = "comboBoxReadType";
+            this.comboBoxReadType.Location = new System.Drawing.Point(120, 132);
+            this.comboBoxReadType.Size = new System.Drawing.Size(190, 28);
+            // 寄存器数量：
+            this.labelRegisterCount.Name = "labelRegisterCount";
+            this.labelRegisterCount.Location = new System.Drawing.Point(330, 135);
+            this.labelRegisterCount.Size = new System.Drawing.Size(115, 25);
+            this.labelRegisterCount.Text = "寄存器数量：";
+            // numericRegisterCount
+            this.numericRegisterCount.Name = "numericRegisterCount";
+            this.numericRegisterCount.Location = new System.Drawing.Point(450, 132);
+            this.numericRegisterCount.Size = new System.Drawing.Size(90, 28);
+            // 字符串编码：
+            this.labelEncoding.Name = "labelEncoding";
+            this.labelEncoding.Location = new System.Drawing.Point(10, 175);
+            this.labelEncoding.Size = new System.Drawing.Size(110, 25);
+            this.labelEncoding.Text = "字符串编码：";
+            // comboBoxEncoding
+            this.comboBoxEncoding.Name = "comboBoxEncoding";
+            this.comboBoxEncoding.Location = new System.Drawing.Point(120, 172);
+            this.comboBoxEncoding.Size = new System.Drawing.Size(190, 28);
+            // 低字节在前
+            this.checkBoxLowByteFirst.Name = "checkBoxLowByteFirst";
+            this.checkBoxLowByteFirst.Location = new System.Drawing.Point(330, 175);
+            this.checkBoxLowByteFirst.Size = new System.Drawing.Size(180, 25);
+            this.checkBoxLowByteFirst.Text = "低字节在前";
+            // 布尔触发值：true/false 或 1/0；字符串每个寄存器占两个字节。
+            this.labelReadHint.Name = "labelReadHint";
+            this.labelReadHint.Location = new System.Drawing.Point(10, 210);
+            this.labelReadHint.Size = new System.Drawing.Size(674, 25);
+            this.labelReadHint.Text = "布尔触发值：true/false 或 1/0；字符串每个寄存器占两个字节。";
+            this.comboBoxReadType.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxReadType.Items.AddRange(new object[] { "无符号整数（ushort）", "字符串", "布尔值（bool）" });
+            this.comboBoxReadType.SelectedIndexChanged += new System.EventHandler(this.ComboBoxReadType_SelectedIndexChanged);
+            this.comboBoxEncoding.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxEncoding.Items.AddRange(new object[] { "英文（ASCII）", "通用（UTF-8）", "中文（GB18030）", "双字节（UTF-16小端）" });
+            this.numericRegisterCount.Minimum = 1;
+            this.numericRegisterCount.Maximum = 125;
+            this.numericRegisterCount.Value = 10;
+            this.Controls.Add(this.labelReadType);
+            this.Controls.Add(this.comboBoxReadType);
+            this.Controls.Add(this.labelRegisterCount);
+            this.Controls.Add(this.numericRegisterCount);
+            this.Controls.Add(this.labelEncoding);
+            this.Controls.Add(this.comboBoxEncoding);
+            this.Controls.Add(this.checkBoxLowByteFirst);
+            this.Controls.Add(this.labelReadHint);
             this.Controls.Add(this.textBox1);
             this.Controls.Add(this.button4);
             this.Controls.Add(this.button3);
@@ -177,6 +239,7 @@
             this.Controls.SetChildIndex(this.textBox1, 0);
             ((System.ComponentModel.ISupportInitialize)(this.dgvAIParam)).EndInit();
             this.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.numericRegisterCount)).EndInit();
             this.PerformLayout();
 
         }
@@ -194,5 +257,21 @@
         private System.Windows.Forms.Button button3;
         private System.Windows.Forms.OpenFileDialog openFileDialog2;
         private System.Windows.Forms.SaveFileDialog saveFileDialog1;
+        /// <summary>读取类型：。</summary>
+        private System.Windows.Forms.Label labelReadType;
+        /// <summary>通信读取类型选项。</summary>
+        private System.Windows.Forms.ComboBox comboBoxReadType;
+        /// <summary>寄存器数量：。</summary>
+        private System.Windows.Forms.Label labelRegisterCount;
+        /// <summary>字符串寄存器数量。</summary>
+        private System.Windows.Forms.NumericUpDown numericRegisterCount;
+        /// <summary>字符串编码：。</summary>
+        private System.Windows.Forms.Label labelEncoding;
+        /// <summary>字符串编码选项。</summary>
+        private System.Windows.Forms.ComboBox comboBoxEncoding;
+        /// <summary>低字节在前。</summary>
+        private System.Windows.Forms.CheckBox checkBoxLowByteFirst;
+        /// <summary>布尔触发值：true/false 或 1/0；字符串每个寄存器占两个字节。。</summary>
+        private System.Windows.Forms.Label labelReadHint;
     }
 }

@@ -114,6 +114,9 @@ namespace Logger
             this.listBoxAll.Size = new System.Drawing.Size(662, 310);
             this.listBoxAll.TabIndex = 0;
             this.listBoxAll.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.listBox1_DrawItem);
+            this.listBoxAll.HandleCreated += new System.EventHandler(this.LogList_DisplayMetricsChanged);
+            this.listBoxAll.FontChanged += new System.EventHandler(this.LogList_DisplayMetricsChanged);
+            this.listBoxAll.DpiChangedAfterParent += new System.EventHandler(this.LogList_DisplayMetricsChanged);
             // 
             // tabControl1
             // 
@@ -171,6 +174,9 @@ namespace Logger
             this.listBoxInfo.Size = new System.Drawing.Size(662, 310);
             this.listBoxInfo.TabIndex = 1;
             this.listBoxInfo.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.listBox1_DrawItem);
+            this.listBoxInfo.HandleCreated += new System.EventHandler(this.LogList_DisplayMetricsChanged);
+            this.listBoxInfo.FontChanged += new System.EventHandler(this.LogList_DisplayMetricsChanged);
+            this.listBoxInfo.DpiChangedAfterParent += new System.EventHandler(this.LogList_DisplayMetricsChanged);
             // 
             // padeDebug
             // 
@@ -198,6 +204,9 @@ namespace Logger
             this.listBoxDebug.Size = new System.Drawing.Size(668, 316);
             this.listBoxDebug.TabIndex = 1;
             this.listBoxDebug.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.listBox1_DrawItem);
+            this.listBoxDebug.HandleCreated += new System.EventHandler(this.LogList_DisplayMetricsChanged);
+            this.listBoxDebug.FontChanged += new System.EventHandler(this.LogList_DisplayMetricsChanged);
+            this.listBoxDebug.DpiChangedAfterParent += new System.EventHandler(this.LogList_DisplayMetricsChanged);
             // 
             // pageWarn
             // 
@@ -225,6 +234,9 @@ namespace Logger
             this.listBoxWarn.Size = new System.Drawing.Size(668, 316);
             this.listBoxWarn.TabIndex = 1;
             this.listBoxWarn.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.listBox1_DrawItem);
+            this.listBoxWarn.HandleCreated += new System.EventHandler(this.LogList_DisplayMetricsChanged);
+            this.listBoxWarn.FontChanged += new System.EventHandler(this.LogList_DisplayMetricsChanged);
+            this.listBoxWarn.DpiChangedAfterParent += new System.EventHandler(this.LogList_DisplayMetricsChanged);
             // 
             // pageExpection
             // 
@@ -252,6 +264,9 @@ namespace Logger
             this.listBoxExpection.Size = new System.Drawing.Size(668, 316);
             this.listBoxExpection.TabIndex = 2;
             this.listBoxExpection.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.listBox1_DrawItem);
+            this.listBoxExpection.HandleCreated += new System.EventHandler(this.LogList_DisplayMetricsChanged);
+            this.listBoxExpection.FontChanged += new System.EventHandler(this.LogList_DisplayMetricsChanged);
+            this.listBoxExpection.DpiChangedAfterParent += new System.EventHandler(this.LogList_DisplayMetricsChanged);
             // 
             // tabPageFatal
             // 
@@ -280,6 +295,9 @@ namespace Logger
             this.listBoxFatal.Size = new System.Drawing.Size(662, 310);
             this.listBoxFatal.TabIndex = 3;
             this.listBoxFatal.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.listBox1_DrawItem);
+            this.listBoxFatal.HandleCreated += new System.EventHandler(this.LogList_DisplayMetricsChanged);
+            this.listBoxFatal.FontChanged += new System.EventHandler(this.LogList_DisplayMetricsChanged);
+            this.listBoxFatal.DpiChangedAfterParent += new System.EventHandler(this.LogList_DisplayMetricsChanged);
             // 
             // imageList1
             // 

@@ -40,11 +40,32 @@ namespace TDJS_Vision.Forms.DispShowImage
         private Color _currentPixelColor = Color.Black;
         private int _currentGrayValue = 0;
         private const float PIXEL_GRID_THRESHOLD = 15f;
+        /// <summary>
+        /// 图像显示控件的纯色背景，作为无图和透明图像区域的底色。
+        /// </summary>
+        private Color _backgroundColorCustom = Color.Black;
+        /// <summary>
+        /// 图像显示控件的自定义背景图。
+        /// </summary>
+        private Image _backgroundImageCustom;
+        /// <summary>
+        /// 自定义背景图的布局方式。
+        /// </summary>
+        private BackgroundImageLayoutMode _backgroundLayoutMode = BackgroundImageLayoutMode.Fill;
+        /// <summary>
+        /// 自定义背景图透明度，范围为0到1。
+        /// </summary>
+        private float _backgroundTransparency = 1f;
+        /// <summary>
+        /// 是否显示透明背景常用的棋盘格效果。
+        /// </summary>
+        private bool _showCheckerBackground;
 
         private readonly List<IRoiShape> _dynamicRois = new List<IRoiShape>();
         private readonly List<IRoiShape> _staticRois = new List<IRoiShape>();
         private readonly List<ToolStripItem> _builtInMenuItems = new List<ToolStripItem>();
         private bool _rectangleRoiDrawingEnabled;
+        private bool _singleDynamicRoiMode;
         private bool _isDrawingRectangleRoi;
         private PointF _drawingStartImagePoint;
         private RoiRotatedRect _drawingRectangleRoi;
@@ -137,20 +158,101 @@ namespace TDJS_Vision.Forms.DispShowImage
         [Description("是否在鼠标移动时采集并显示当前像素的颜色信息（建议循环检测时关闭）")]
         public bool ShowPixelInfo { get; set; } = false;
 
+        /// <summary>
+        /// 获取或设置是否显示底部图像尺寸、像素值、坐标和缩放状态栏。
+        /// </summary>
+        [Category("Appearance")]
+        [Description("是否显示底部图像尺寸、像素值、坐标和缩放状态栏")]
+        public bool ShowStatusBar { get; set; } = true;
+
         #region Designer Compatibility Properties
+        /// <summary>
+        /// 获取或设置图像显示控件背景颜色，关闭棋盘格时直接作为背景显示。
+        /// </summary>
         [Category("Appearance")]
-        public Color BackgroundColorCustom { get; set; } = Color.Black;
+        [Description("图像显示控件背景颜色，关闭棋盘格时直接作为背景显示")]
+        public Color BackgroundColorCustom
+        {
+            get { return _backgroundColorCustom; }
+            set
+            {
+                if (_backgroundColorCustom == value) return;
+                _backgroundColorCustom = value;
+                Invalidate();
+            }
+        }
+
+        /// <summary>
+        /// 获取或设置图像显示控件背景图。
+        /// </summary>
         [Category("Appearance")]
-        public Image BackgroundImageCustom { get; set; }
+        [Description("图像显示控件背景图")]
+        public Image BackgroundImageCustom
+        {
+            get { return _backgroundImageCustom; }
+            set
+            {
+                if (ReferenceEquals(_backgroundImageCustom, value)) return;
+                _backgroundImageCustom = value;
+                Invalidate();
+            }
+        }
+
+        /// <summary>
+        /// 背景图布局方式。
+        /// </summary>
         public enum BackgroundImageLayoutMode { Fill, Center, Stretch }
+
+        /// <summary>
+        /// 获取或设置背景图布局方式。
+        /// </summary>
         [Category("Appearance")]
-        public BackgroundImageLayoutMode BackgroundLayoutMode { get; set; } = BackgroundImageLayoutMode.Fill;
+        [Description("背景图布局方式")]
+        public BackgroundImageLayoutMode BackgroundLayoutMode
+        {
+            get { return _backgroundLayoutMode; }
+            set
+            {
+                if (_backgroundLayoutMode == value) return;
+                _backgroundLayoutMode = value;
+                Invalidate();
+            }
+        }
+
+        /// <summary>
+        /// 获取或设置背景图透明度，范围为0到1。
+        /// </summary>
         [Category("Appearance")]
-        public float BackgroundTransparency { get; set; } = 1f;
+        [Description("背景图透明度，范围为0到1")]
+        public float BackgroundTransparency
+        {
+            get { return _backgroundTransparency; }
+            set
+            {
+                float clampedValue = Math.Max(0f, Math.Min(1f, value));
+                if (Math.Abs(_backgroundTransparency - clampedValue) < 0.0001f) return;
+                _backgroundTransparency = clampedValue;
+                Invalidate();
+            }
+        }
         [Category("Appearance")]
         public Color RoiColor { get; set; } = Color.Lime;
+
+        /// <summary>
+        /// 获取或设置是否显示棋盘格背景。
+        /// </summary>
         [Category("Appearance")]
-        public bool ShowCheckerBackground { get; set; } = false;
+        [Description("是否显示棋盘格背景")]
+        public bool ShowCheckerBackground
+        {
+            get { return _showCheckerBackground; }
+            set
+            {
+                if (_showCheckerBackground == value) return;
+                _showCheckerBackground = value;
+                Invalidate();
+            }
+        }
         [Category("Appearance")]
         public Color StaticShapeColor { get; set; } = Color.Red;
         #endregion
@@ -276,6 +378,10 @@ namespace TDJS_Vision.Forms.DispShowImage
         public PointF ScreenToImage(Point p) => new PointF((p.X - _offset.X) / _scale, (p.Y - _offset.Y) / _scale);
         
         public event Action<PointF> MouseImageClick;
+        /// <summary>
+        /// 动态 ROI 的数量、选中项或几何参数发生变化时触发，用于参数面板实时同步。
+        /// </summary>
+        public event EventHandler DynamicRoiChanged;
         protected override void OnMouseClick(MouseEventArgs e)
         {
             base.OnMouseClick(e);
@@ -294,9 +400,22 @@ namespace TDJS_Vision.Forms.DispShowImage
         public void ClearStaticShapes() { lock (_roiLock) ClearRoiShapes(_staticRois); SafeInvalidate(); }
 
         /// <summary>兼容旧版名称</summary>
-        public void ClearRois() { lock (_roiLock) ClearRoiShapes(_dynamicRois); SafeInvalidate(); }
+        public void ClearRois() => ClearDynamicRoi();
 
-        public void ClearDynamicRoi() { lock (_roiLock) ClearRoiShapes(_dynamicRois); SafeInvalidate(); }
+        public void ClearDynamicRoi()
+        {
+            bool changed;
+            lock (_roiLock)
+            {
+                changed = _dynamicRois.Count > 0;
+                ClearRoiShapes(_dynamicRois);
+                _activeRoi = null;
+                _drawingRectangleRoi = null;
+            }
+            SafeInvalidate();
+            if (changed)
+                OnDynamicRoiChanged();
+        }
 
         public void ClearStaticRoi() { lock (_roiLock) ClearRoiShapes(_staticRois); SafeInvalidate(); }
 
@@ -311,6 +430,22 @@ namespace TDJS_Vision.Forms.DispShowImage
         {
             get { return _rectangleRoiDrawingEnabled; }
             set { _rectangleRoiDrawingEnabled = value; }
+        }
+
+        /// <summary>
+        /// 获取或设置是否只允许保留一个动态 ROI，适用于图像裁切等单区域工具。
+        /// </summary>
+        [Category("Behavior")]
+        [Description("是否只允许保留一个动态ROI")]
+        public bool SingleDynamicRoiMode
+        {
+            get { return _singleDynamicRoiMode; }
+            set
+            {
+                _singleDynamicRoiMode = value;
+                if (value)
+                    KeepOnlyFirstDynamicRoi();
+            }
         }
 
         public IRoiShape GetDynamicRoi(int index)
@@ -342,6 +477,7 @@ namespace TDJS_Vision.Forms.DispShowImage
             }
 
             SafeInvalidate();
+            OnDynamicRoiChanged();
             return true;
         }
          
@@ -773,8 +909,14 @@ namespace TDJS_Vision.Forms.DispShowImage
         {
             float phiDeg = (float)(phiRad * 180.0 / Math.PI);
             var r = new RoiRotatedRect(column, row, length1 * 2, length2 * 2, phiDeg) { ShapeColor = color ?? Color.Lime };
-            lock (_roiLock) _dynamicRois.Add(r);
+            lock (_roiLock)
+            {
+                if (_singleDynamicRoiMode)
+                    ClearRoiShapes(_dynamicRois);
+                _dynamicRois.Add(r);
+            }
             SafeInvalidate();
+            OnDynamicRoiChanged();
             return r;
         }
 
@@ -810,6 +952,37 @@ namespace TDJS_Vision.Forms.DispShowImage
             }
         }
 
+        /// <summary>
+        /// 设置当前选中旋转矩形 ROI 的宽高，保持中心点和角度不变。
+        /// </summary>
+        /// <param name="width">新的 ROI 宽度，单位为图像像素。</param>
+        /// <param name="height">新的 ROI 高度，单位为图像像素。</param>
+        /// <returns>成功更新时返回 true。</returns>
+        public bool SetSelectedRotatedRectSize(float width, float height)
+        {
+            if (float.IsNaN(width) || float.IsInfinity(width) || float.IsNaN(height) || float.IsInfinity(height))
+                return false;
+
+            lock (_roiLock)
+            {
+                RoiRotatedRect rect = _dynamicRois.OfType<RoiRotatedRect>().FirstOrDefault(r => r.IsSelected)
+                    ?? _dynamicRois.OfType<RoiRotatedRect>().FirstOrDefault();
+                if (rect == null)
+                    return false;
+
+                rect.W = Math.Max(1F, width);
+                rect.H = Math.Max(1F, height);
+                rect.IsSelected = true;
+                foreach (IRoiShape roi in _dynamicRois)
+                    if (!ReferenceEquals(roi, rect))
+                        roi.IsSelected = false;
+            }
+
+            SafeInvalidate();
+            OnDynamicRoiChanged();
+            return true;
+        }
+
         public List<RoiRotatedRect> GetAllDynamicRects() { lock (_roiLock) return _dynamicRois.OfType<RoiRotatedRect>().ToList(); }
         public List<RoiCaliper> GetAllDynamicCalipers() { lock (_roiLock) return _dynamicRois.OfType<RoiCaliper>().ToList(); }
         public List<RoiCircleCaliper> GetAllDynamicCircleCalipers() { lock (_roiLock) return _dynamicRois.OfType<RoiCircleCaliper>().ToList(); }
@@ -833,7 +1006,17 @@ namespace TDJS_Vision.Forms.DispShowImage
         }
 
         // OpenCV 风格便捷方法
-        public void AddDynamicRect(float cx, float cy, float w, float h, Color? c = null, string l = "") { lock (_roiLock) _dynamicRois.Add(new RoiRotatedRect(cx, cy, w, h, 0) { ShapeColor = c ?? Color.Lime, Label = l }); SafeInvalidate(); }
+        public void AddDynamicRect(float cx, float cy, float w, float h, Color? c = null, string l = "")
+        {
+            lock (_roiLock)
+            {
+                if (_singleDynamicRoiMode)
+                    ClearRoiShapes(_dynamicRois);
+                _dynamicRois.Add(new RoiRotatedRect(cx, cy, w, h, 0) { ShapeColor = c ?? Color.Lime, Label = l });
+            }
+            SafeInvalidate();
+            OnDynamicRoiChanged();
+        }
         public void AddStaticRect(float cx, float cy, float w, float h, float phi = 0, Color? c = null, string l = "") { lock (_roiLock) _staticRois.Add(new RoiRotatedRect(cx, cy, w, h, phi) { ShapeColor = c ?? Color.Red, Label = l, IsStatic = true }); SafeInvalidate(); }
         public void AddDynamicCaliper(float sx, float sy, float ex, float ey, float cw, float ch, int count, Color? c = null, string l = "") { lock (_roiLock) _dynamicRois.Add(new RoiCaliper(sx, sy, ex, ey, cw, ch, count) { ShapeColor = c ?? Color.Lime, Label = l }); SafeInvalidate(); }
         public void AddStaticCaliper(float sx, float sy, float ex, float ey, float cw, float ch, int count, Color? c = null, string l = "") { lock (_roiLock) _staticRois.Add(new RoiCaliper(sx, sy, ex, ey, cw, ch, count) { ShapeColor = c ?? Color.Red, Label = l, IsStatic = true }); SafeInvalidate(); }
@@ -913,7 +1096,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                 var g = e.Graphics;
                 g.InterpolationMode = (_isInteracting || _scale > 5 || _scale < 0.5f) ? InterpolationMode.NearestNeighbor : InterpolationMode.HighQualityBicubic;
                 g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                DrawCheckerBoard(g);
+                DrawControlBackground(g);
                 lock (_imageLock)
                 {
                     if (_image != null)
@@ -948,7 +1131,8 @@ namespace TDJS_Vision.Forms.DispShowImage
                     }
                 }
                 DrawAllText(g);
-                DrawStatusBar(g);
+                if (ShowStatusBar)
+                    DrawStatusBar(g);
             }
             catch (Exception ex)
             {
@@ -987,6 +1171,87 @@ namespace TDJS_Vision.Forms.DispShowImage
             }
         }
 
+        /// <summary>
+        /// 按设计器属性绘制控件背景，可选择纯色、背景图或棋盘格。
+        /// </summary>
+        private void DrawControlBackground(Graphics g)
+        {
+            using (Brush backgroundBrush = new SolidBrush(BackgroundColorCustom))
+                g.FillRectangle(backgroundBrush, ClientRectangle);
+
+            if (ShowCheckerBackground)
+                DrawCheckerBoard(g);
+
+            DrawConfiguredBackgroundImage(g);
+        }
+
+        /// <summary>
+        /// 根据背景图布局和透明度绘制自定义背景图。
+        /// </summary>
+        private void DrawConfiguredBackgroundImage(Graphics g)
+        {
+            if (BackgroundImageCustom == null || BackgroundTransparency <= 0f || Width <= 0 || Height <= 0)
+                return;
+
+            Rectangle destinationRectangle = Rectangle.Round(GetBackgroundImageBounds());
+            if (destinationRectangle.Width <= 0 || destinationRectangle.Height <= 0)
+                return;
+
+            if (BackgroundTransparency >= 0.999f)
+            {
+                g.DrawImage(BackgroundImageCustom, destinationRectangle);
+                return;
+            }
+
+            using (ImageAttributes imageAttributes = new ImageAttributes())
+            {
+                ColorMatrix colorMatrix = new ColorMatrix
+                {
+                    Matrix33 = BackgroundTransparency
+                };
+                imageAttributes.SetColorMatrix(colorMatrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
+                g.DrawImage(
+                    BackgroundImageCustom,
+                    destinationRectangle,
+                    0,
+                    0,
+                    BackgroundImageCustom.Width,
+                    BackgroundImageCustom.Height,
+                    GraphicsUnit.Pixel,
+                    imageAttributes);
+            }
+        }
+
+        /// <summary>
+        /// 计算背景图在控件中的目标绘制区域。
+        /// </summary>
+        private RectangleF GetBackgroundImageBounds()
+        {
+            switch (BackgroundLayoutMode)
+            {
+                case BackgroundImageLayoutMode.Center:
+                    return new RectangleF(
+                        (Width - BackgroundImageCustom.Width) / 2f,
+                        (Height - BackgroundImageCustom.Height) / 2f,
+                        BackgroundImageCustom.Width,
+                        BackgroundImageCustom.Height);
+                case BackgroundImageLayoutMode.Stretch:
+                    return new RectangleF(0, 0, Width, Height);
+                default:
+                    float scale = Math.Max(Width / (float)BackgroundImageCustom.Width, Height / (float)BackgroundImageCustom.Height);
+                    float backgroundWidth = BackgroundImageCustom.Width * scale;
+                    float backgroundHeight = BackgroundImageCustom.Height * scale;
+                    return new RectangleF(
+                        (Width - backgroundWidth) / 2f,
+                        (Height - backgroundHeight) / 2f,
+                        backgroundWidth,
+                        backgroundHeight);
+            }
+        }
+
+        /// <summary>
+        /// 绘制透明背景常用的棋盘格效果。
+        /// </summary>
         private void DrawCheckerBoard(Graphics g)
         {
             int sz = 30;
@@ -1074,11 +1339,11 @@ namespace TDJS_Vision.Forms.DispShowImage
                         int h = _dynamicRois[i].HitTest(e.Location, _scale, _offset);
                         if (h != -1) { _activeRoi = _dynamicRois[i]; _handleIdx = h; break; }
                     }
-                    if (_activeRoi != null) { foreach (var r in _dynamicRois) r.IsSelected = (r == _activeRoi); _activeRoi.BeginDrag(imgPt); }
+                    if (_activeRoi != null) { foreach (var r in _dynamicRois) r.IsSelected = (r == _activeRoi); _activeRoi.BeginDrag(imgPt); OnDynamicRoiChanged(); }
                     else
                     {
                         foreach (var r in _dynamicRois) r.IsSelected = false;
-                        if (_rectangleRoiDrawingEnabled && IsImagePointInside(imgPt))
+                        if (_rectangleRoiDrawingEnabled && IsImagePointInside(imgPt) && (!_singleDynamicRoiMode || _dynamicRois.Count == 0))
                             BeginRectangleRoiDrawing(imgPt);
                     }
                 }
@@ -1112,6 +1377,7 @@ namespace TDJS_Vision.Forms.DispShowImage
             if (_isDrawingRectangleRoi && e.Button == MouseButtons.Left)
             {
                 UpdateDrawingRectangleRoi(imgPt);
+                OnDynamicRoiChanged();
                 Invalidate();
                 return;
             }
@@ -1126,7 +1392,7 @@ namespace TDJS_Vision.Forms.DispShowImage
                 }
             }
 
-            if (_activeRoi != null && e.Button == MouseButtons.Left) { _activeRoi.DragTo(imgPt, _handleIdx); Invalidate(); }
+            if (_activeRoi != null && e.Button == MouseButtons.Left) { _activeRoi.DragTo(imgPt, _handleIdx); OnDynamicRoiChanged(); Invalidate(); }
             else if (_isPanning && e.Button == MouseButtons.Left) { _offset = new PointF(_offset.X + e.X - _lastMouse.X, _offset.Y + e.Y - _lastMouse.Y); _lastMouse = e.Location; Invalidate(); }
             else
             {
@@ -1240,6 +1506,39 @@ namespace TDJS_Vision.Forms.DispShowImage
                     DisposeRoiShape(roi);
                 }
             }
+            OnDynamicRoiChanged();
+        }
+
+        /// <summary>
+        /// 单 ROI 模式启用后移除多余的动态 ROI，保留列表中的第一个区域。
+        /// </summary>
+        private void KeepOnlyFirstDynamicRoi()
+        {
+            bool changed = false;
+            lock (_roiLock)
+            {
+                while (_dynamicRois.Count > 1)
+                {
+                    IRoiShape roi = _dynamicRois[_dynamicRois.Count - 1];
+                    _dynamicRois.RemoveAt(_dynamicRois.Count - 1);
+                    DisposeRoiShape(roi);
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                SafeInvalidate();
+                OnDynamicRoiChanged();
+            }
+        }
+
+        /// <summary>
+        /// 通知外部动态 ROI 已变化。
+        /// </summary>
+        private void OnDynamicRoiChanged()
+        {
+            DynamicRoiChanged?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>

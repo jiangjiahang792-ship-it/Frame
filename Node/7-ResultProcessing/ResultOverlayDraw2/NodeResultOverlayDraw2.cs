@@ -1255,7 +1255,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                             Position = item.TextPosition,
                             CoordinateMode = item.TextCoordinateMode,
                             Margin = Math.Max(0, item.TextMargin),
-                            Title = string.Empty
+                            Title = string.Empty,
+                            UseImagePosition = textInfo.UseImagePosition,
+                            ImagePosition = textInfo.ImagePosition
                         }, IsMissingPromptText(displayText));
                         addedCount++;
                     }

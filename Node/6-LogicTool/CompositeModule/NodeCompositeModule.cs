@@ -259,6 +259,9 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// 根据快照构建的内部流程，重复运行时复用以减少控件和参数对象创建成本。
         /// </summary>
         private Process _runtimeProcess;
+        /// <summary>供只读运行界面访问已创建的内部流程；绝不触发初始化、参数保存或执行。</summary>
+        internal Process ExistingRuntimeProcess => ReferenceEquals(_cachedParam, ParamForm?.Params)
+            ? Volatile.Read(ref _runtimeProcess) : null;
 
         /// <summary>
         /// 创建组合模块节点。
@@ -454,7 +457,10 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
 
                 Process runtimeProcess = GetOrCreateRuntimeProcess(param, showLog);
                 InjectInputValues(runtimeProcess, param);
-                bool internalSucceeded = await runtimeProcess.RunWithResultAsync(false, token).ConfigureAwait(false);
+                bool internalSucceeded;
+                // 仅显式模块调用继承父根，重复内部流程编号不参与日志归属判断。
+                using (RuntimeLogContext.BeginComposite(runtimeProcess, ID + "." + NodeName))
+                    internalSucceeded = await runtimeProcess.RunWithResultAsync(false, token).ConfigureAwait(false);
                 await base.CheckTokenCancel(token);
 
                 if (!internalSucceeded || !runtimeProcess.Success)

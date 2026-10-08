@@ -10,8 +10,68 @@ using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
+    /// <summary>通信检测项触发值的读取类型，零值兼容旧方案。</summary>
+    public enum TDAIReadType
+    {
+        /// <summary>读取一个无符号十六位整数。</summary>
+        UInt16 = 0,
+        /// <summary>读取连续寄存器中的字符串。</summary>
+        String = 1,
+        /// <summary>读取一个布尔值。</summary>
+        Boolean = 2
+    }
+
+    /// <summary>通信检测项读取配置，随节点参数保存。</summary>
+    public class TDAIReadOptions
+    {
+        /// <summary>读取类型，默认兼容原有无符号整数。</summary>
+        public TDAIReadType ReadType { get; set; }
+        /// <summary>字符串占用的寄存器个数，每个寄存器两个字节。</summary>
+        public ushort RegisterCount { get; set; } = 10;
+        /// <summary>字符串编码名称。</summary>
+        public string EncodingName { get; set; } = "us-ascii";
+        /// <summary>寄存器内是否低字节在前。</summary>
+        public bool LowByteFirst { get; set; }
+
+        /// <summary>通过设备接口读取触发值；同步通信不额外创建线程。</summary>
+        public string Read(TDJS_Vision.Device.Modbus.IModbus device, string address)
+        {
+            switch (ReadType)
+            {
+                case TDAIReadType.UInt16:
+                    ushort[] values = device.ReadUInt16(address, 1);
+                    if (values == null || values.Length != 1)
+                        throw new InvalidOperationException("通信读取无符号整数失败：返回数量不正确。");
+                    return values[0].ToString(System.Globalization.CultureInfo.InvariantCulture);
+                case TDAIReadType.Boolean:
+                    bool[] bits = device.ReadBool(address, 1);
+                    if (bits == null || bits.Length != 1)
+                        throw new InvalidOperationException("通信读取布尔值失败：返回数量不正确。");
+                    return bits[0] ? "true" : "false";
+                case TDAIReadType.String:
+                    // 通信字符串仅去除首尾空白，中间空格保留，供检测项触发值匹配使用。
+                    return TDJS_Vision.Device.Modbus.ModbusStringReader.ReadString(device, address, RegisterCount, EncodingName, LowByteFirst).Trim();
+                default:
+                    throw new InvalidOperationException("不支持的通信读取类型。");
+            }
+        }
+
+        /// <summary>匹配触发值；布尔值兼容数字写法，字符串保留有效空格并区分大小写。</summary>
+        public bool Matches(string configured, string actual)
+        {
+            if (ReadType != TDAIReadType.Boolean)
+                return string.Equals(configured, actual, StringComparison.Ordinal);
+            string value = configured == null ? "" : configured.Trim();
+            if (value == "1") value = "true";
+            if (value == "0") value = "false";
+            return string.Equals(value, actual, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
     public class NodeParamTDAI : INodeParam
     {
+        /// <summary>通信读取配置，旧方案缺少该字段时使用无符号整数。</summary>
+        public TDAIReadOptions CommunicationReadOptions { get; set; } = new TDAIReadOptions();
         /// <summary>
         /// 订阅的节点文本
         /// </summary>
@@ -223,5 +283,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         AST_工位2模型,
         /// <summary>AST工位3三类CPU目标检测模型，输入尺寸为640。</summary>
         AST_工位3模型,
+        /// <summary>AST工位1五类实例分割模型，输入尺寸为640。</summary>
+        AST工位1分割模型,
     }
 }

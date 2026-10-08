@@ -483,6 +483,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                     Width = result.Rect.Width,
                     Height = result.Rect.Height,
                     TopLeftX = result.Box.TopLeft.X,
+                    MaskGeometry = result.MaskGeometry,
                     TopLeftY = result.Box.TopLeft.Y,
                     TopRightX = result.Box.TopRight.X,
                     TopRightY = result.Box.TopRight.Y,

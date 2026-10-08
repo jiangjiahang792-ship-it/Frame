@@ -30,8 +30,6 @@ namespace TDJS_Vision.Forms.ImageViewer
         private bool _isBoundToProcess;
         private Process _process;
         private int? _lastImageShowNodeId;
-        // 记录每个流程窗口上一次选择的AI节点，避免同一窗口反复弹出选择框。
-        private static readonly Dictionary<string, int> AiNodeSelectionCache = new Dictionary<string, int>();
 
         /// <summary>
         /// 当前窗口等待UI显示的最新帧，容量固定为1。
@@ -51,6 +49,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         public FrmSingleImage(string name)
         {
             InitializeComponent();
+            ShowImageStatusBar = false;
             BindLanguage();
             FormName = NormalizeWindowKey(name);
             this.Text = GetWindowDisplayName(FormName);
@@ -63,6 +62,15 @@ namespace TDJS_Vision.Forms.ImageViewer
             UserPermissionContext.RoleChanged += UserPermissionContext_RoleChanged;
             ApplyManualTuningPermission();
             FormClosed += FrmSingleImage_FormClosed;
+        }
+
+        /// <summary>
+        /// 获取或设置图像显示控件底部尺寸、像素值、坐标和缩放状态栏是否显示。
+        /// </summary>
+        public bool ShowImageStatusBar
+        {
+            get { return showImageControl1.ShowStatusBar; }
+            set { showImageControl1.ShowStatusBar = value; }
         }
 
         /// <summary>
@@ -522,15 +530,26 @@ namespace TDJS_Vision.Forms.ImageViewer
 
         private void FrmSingleImage_FormClosing(object sender, FormClosingEventArgs e)
         {
+            // 必须在隐藏和修改窗口数量之前拒绝低权限关闭。
+            if (e.CloseReason == CloseReason.UserClosing && !UserPermissionContext.CanEditWorkspaceLayout)
+            {
+                e.Cancel = true;
+                return;
+            }
             FrmImageViewer.CurWindowsNum--;
             e.Cancel = true;
             Hide();
         }
 
+        /// <summary>仅复用当前方案中的流程实例，切换方案或重建模块后重新解析画面绑定。</summary>
         private Process GetCurrentProcess()
         {
-            if (_process != null)
+            if (SolRunParamControl.IsCurrentSolutionProcess(_process))
                 return _process;
+
+            _process = null;
+            _lastImageShowNodeId = null;
+            _isBoundToProcess = false;
 
             if (Solution.Instance.AllProcesses == null)
                 return null;
@@ -565,9 +584,6 @@ namespace TDJS_Vision.Forms.ImageViewer
                 return null;
 
             List<NodeTDAI> candidates = ResolveAiNodesByWindow(process);
-            if (candidates.Count == 0)
-                candidates = GetAllAiNodes(process);
-
             return ResolveTargetAiNode(process, candidates, out selectionCanceled);
         }
 
@@ -583,27 +599,12 @@ namespace TDJS_Vision.Forms.ImageViewer
             selectionCanceled = false;
             candidates = DistinctAiNodes(candidates);
             if (candidates.Count == 0)
-                return null;
+                throw new InvalidOperationException($"画面“{GetWindowDisplayName(FormName)}”未关联到AI检测节点，请检查图像显示和ROI绘制的订阅绑定。");
 
             if (candidates.Count == 1)
-            {
-                CacheSelectedAiNode(process, candidates[0]);
                 return candidates[0];
-            }
 
-            NodeTDAI cachedNode = GetCachedAiNode(process, candidates);
-            if (cachedNode != null)
-                return cachedNode;
-
-            NodeTDAI selectedNode = FrmSelectAiNode.SelectNode(this, process.ProcessName, candidates);
-            if (selectedNode == null)
-            {
-                selectionCanceled = true;
-                return null;
-            }
-
-            CacheSelectedAiNode(process, selectedNode);
-            return selectedNode;
+            throw new InvalidOperationException($"画面“{GetWindowDisplayName(FormName)}”关联了多个AI检测节点：{string.Join("、", candidates.Select(node => node.NodeName))}。请检查订阅绑定，当前未修改任何节点。");
         }
 
         /// <summary>
@@ -614,6 +615,10 @@ namespace TDJS_Vision.Forms.ImageViewer
         private List<NodeTDAI> ResolveAiNodesByWindow(Process process)
         {
             var result = new List<NodeTDAI>();
+            // 学习与手动调参共用ROI来源，避免新版绘制链路退回整个工位选节点。
+            RunParamDisplayFilter filter = ResolveRunParamDisplayFilter(process);
+            if (filter != null && filter.IsSourceNodeLimited)
+                return GetAiNodesByRunParamFilter(process, filter);
 
             if (_lastImageShowNodeId.HasValue)
             {
@@ -879,21 +884,12 @@ namespace TDJS_Vision.Forms.ImageViewer
             if (process == null || filter == null || !filter.IsSourceNodeLimited)
                 return new List<NodeTDAI>();
 
-            return EnumerateViewerNodes(process)
+            return process.Nodes
                 .OfType<NodeTDAI>()
                 .Where(node => filter.ContainsSourceNode(node.ID))
                 .ToList();
         }
 
-        /// <summary>
-        /// 获取流程中所有AI检测节点。
-        /// </summary>
-        /// <param name="process"></param>
-        /// <returns></returns>
-        private static List<NodeTDAI> GetAllAiNodes(Process process)
-        {
-            return EnumerateViewerNodes(process).OfType<NodeTDAI>().ToList();
-        }
 
         /// <summary>
         /// 递归枚举流程和组合模块内部节点，保证图像窗口手动调参能定位组合模块内节点。
@@ -970,10 +966,16 @@ namespace TDJS_Vision.Forms.ImageViewer
             if (process == null || string.IsNullOrWhiteSpace(nodeText))
                 return false;
 
-            List<NodeBase> nodes = EnumerateViewerNodes(process).ToList();
+            // 订阅编号属于节点所在流程，不跨组合模块匹配同编号节点。
+            List<NodeBase> nodes = process.Nodes.Where(item => item != null).ToList();
             int dotIndex = nodeText.IndexOf('.');
             if (dotIndex > 0 && int.TryParse(nodeText.Substring(0, dotIndex), out int nodeId))
-                node = nodes.FirstOrDefault(item => item.ID == nodeId);
+            {
+                List<NodeBase> matches = nodes.Where(item => item.ID == nodeId).ToList();
+                if (matches.Count != 1)
+                    return false;
+                node = matches[0];
+            }
 
             if (node == null)
                 node = nodes.FirstOrDefault(item => $"{item.ID}.{item.NodeName}" == nodeText);
@@ -981,46 +983,8 @@ namespace TDJS_Vision.Forms.ImageViewer
             return node != null;
         }
 
-        /// <summary>
-        /// 获取当前窗口对应的AI节点缓存键。
-        /// </summary>
-        /// <param name="process"></param>
-        /// <returns></returns>
-        private string GetAiNodeCacheKey(Process process)
-        {
-            return $"{process.ProcessName}|{FormName}";
-        }
 
-        /// <summary>
-        /// 缓存当前窗口选择的AI检测节点。
-        /// </summary>
-        /// <param name="process"></param>
-        /// <param name="aiNode"></param>
-        private void CacheSelectedAiNode(Process process, NodeTDAI aiNode)
-        {
-            if (process == null || aiNode == null)
-                return;
-
-            AiNodeSelectionCache[GetAiNodeCacheKey(process)] = aiNode.ID;
-        }
-
-        /// <summary>
-        /// 获取当前窗口缓存的AI检测节点。
-        /// </summary>
-        /// <param name="process"></param>
-        /// <param name="candidates"></param>
-        /// <returns></returns>
-        private NodeTDAI GetCachedAiNode(Process process, List<NodeTDAI> candidates)
-        {
-            if (process == null || candidates == null)
-                return null;
-
-            if (!AiNodeSelectionCache.TryGetValue(GetAiNodeCacheKey(process), out int nodeId))
-                return null;
-
-            return candidates.FirstOrDefault(node => node.ID == nodeId);
-        }
-
+        /// <summary>只为当前画面唯一关联的AI开启学习，不再弹出节点选择窗口。</summary>
         private void button1_Click(object sender, EventArgs e)
         {
             if (!EnsureManualTuningPermission())
@@ -1044,15 +1008,12 @@ namespace TDJS_Vision.Forms.ImageViewer
                     return;
                 }
 
-                using (var solRunParam = new SolRunParamControl())
+                if (!ProcessTuningService.StartOneClickLearning(process, targetAiNode))
                 {
-                    solRunParam.Init(process, targetAiNode);
-                    if (!solRunParam.StartAutoLearning())
-                    {
-                        MessageBoxTD.Show(LanguageManager.T("ImageViewer.AINodeNotConfigured"));
-                        return;
-                    }
+                    MessageBoxTD.Show(LanguageManager.T("ImageViewer.AINodeNotConfigured"));
+                    return;
                 }
+                new TDJS_Vision.Forms.YTMessageBox.YTMessageBox($"{GetWindowDisplayName(FormName)} · {targetAiNode.NodeName}：已开启学习").Show();
             }
             catch (Exception ex)
             {
@@ -1060,6 +1021,7 @@ namespace TDJS_Vision.Forms.ImageViewer
             }
         }
 
+        /// <summary>按当前画面的订阅范围打开参数，不借用其他视角的AI。</summary>
         private void button2_Click(object sender, EventArgs e)
         {
             if (!EnsureManualTuningPermission())
@@ -1132,12 +1094,16 @@ namespace TDJS_Vision.Forms.ImageViewer
                     $"【手动调参诊断】AI节点解析完成，节点={(targetAiNode == null ? "空" : targetAiNode.ID + "." + targetAiNode.NodeName)}，耗时={stopwatch.ElapsedMilliseconds}ms。",
                     true);
 
-                using (var form = new FormSolRunParam(process, targetAiNode, runParamDisplayFilter))
+                if (runParamDisplayFilter == null)
                 {
-                    LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】开始打开运行参数窗体，流程={process.ProcessName}。", true);
-                    form.ShowDialog(this);
-                    LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】运行参数窗体已关闭，流程={process.ProcessName}，总耗时={stopwatch.ElapsedMilliseconds}ms。", true);
+                    runParamDisplayFilter = new RunParamDisplayFilter { WindowName = FormName };
+                    runParamDisplayFilter.EnableSourceNodeLimit();
+                    runParamDisplayFilter.AddSourceNodeId(targetAiNode.ID);
                 }
+
+                LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】开始打开运行参数窗体，流程={process.ProcessName}。", true);
+                ProcessTuningService.ShowManualParameters(this, process, targetAiNode, runParamDisplayFilter);
+                LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】运行参数窗体已关闭，流程={process.ProcessName}，含窗口停留时间={stopwatch.ElapsedMilliseconds}ms（非打开耗时）。", true);
             }
             catch (Exception ex)
             {

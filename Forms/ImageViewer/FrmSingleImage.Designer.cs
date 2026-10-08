@@ -30,32 +30,14 @@
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            this.showImageControl1 = new TDJS_Vision.Forms.DispShowImage.ShowImageControl();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
+            this.showImageControl1 = new TDJS_Vision.Forms.DispShowImage.ShowImageControl();
             this.panel1 = new System.Windows.Forms.Panel();
             this.button2 = new System.Windows.Forms.Button();
             this.button1 = new System.Windows.Forms.Button();
             this.tableLayoutPanel1.SuspendLayout();
             this.panel1.SuspendLayout();
             this.SuspendLayout();
-            // 
-            // showImageControl1
-            // 
-            this.showImageControl1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
-            this.showImageControl1.BackgroundColorCustom = System.Drawing.Color.Black;
-            this.showImageControl1.BackgroundImageCustom = null;
-            this.showImageControl1.BackgroundLayoutMode = TDJS_Vision.Forms.DispShowImage.ShowImageControl.BackgroundImageLayoutMode.Fill;
-            this.showImageControl1.BackgroundTransparency = 1F;
-            this.showImageControl1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.showImageControl1.Location = new System.Drawing.Point(3, 2);
-            this.showImageControl1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.showImageControl1.Name = "showImageControl1";
-            this.showImageControl1.RoiColor = System.Drawing.Color.Lime;
-            this.showImageControl1.ShowCheckerBackground = false;
-            this.showImageControl1.ShowPixelInfo = false;
-            this.showImageControl1.Size = new System.Drawing.Size(710, 566);
-            this.showImageControl1.StaticShapeColor = System.Drawing.Color.Red;
-            this.showImageControl1.TabIndex = 0;
             // 
             // tableLayoutPanel1
             // 
@@ -71,6 +53,27 @@
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.tableLayoutPanel1.Size = new System.Drawing.Size(716, 602);
             this.tableLayoutPanel1.TabIndex = 1;
+            // 
+            // showImageControl1
+            // 
+            this.showImageControl1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
+            this.showImageControl1.BackgroundColorCustom = System.Drawing.Color.White;
+            this.showImageControl1.BackgroundImageCustom = null;
+            this.showImageControl1.BackgroundLayoutMode = TDJS_Vision.Forms.DispShowImage.ShowImageControl.BackgroundImageLayoutMode.Fill;
+            this.showImageControl1.BackgroundTransparency = 1F;
+            this.showImageControl1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.showImageControl1.EnableRectangleRoiDrawing = false;
+            this.showImageControl1.Location = new System.Drawing.Point(3, 2);
+            this.showImageControl1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.showImageControl1.Name = "showImageControl1";
+            this.showImageControl1.RoiColor = System.Drawing.Color.Lime;
+            this.showImageControl1.ShowCheckerBackground = true;
+            this.showImageControl1.ShowPixelInfo = false;
+            this.showImageControl1.ShowStatusBar = false;
+            this.showImageControl1.SingleDynamicRoiMode = false;
+            this.showImageControl1.Size = new System.Drawing.Size(710, 566);
+            this.showImageControl1.StaticShapeColor = System.Drawing.Color.Red;
+            this.showImageControl1.TabIndex = 0;
             // 
             // panel1
             // 

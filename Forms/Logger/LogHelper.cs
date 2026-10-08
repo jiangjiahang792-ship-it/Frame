@@ -49,13 +49,24 @@ namespace Logger
 
         static LogHelper()
         {
-            Task.Factory.StartNew(() =>
+            // 文件线程长期存活，不能继承首次记录日志时的流程实例；来源已在入队前冻结。
+            bool suppressFlow = !ExecutionContext.IsFlowSuppressed();
+            AsyncFlowControl flow = default(AsyncFlowControl);
+            try
             {
-                foreach (var action in _logQueue.GetConsumingEnumerable())
+                if (suppressFlow) flow = ExecutionContext.SuppressFlow();
+                Task.Factory.StartNew(() =>
                 {
-                    try { action?.Invoke(); } catch { }
-                }
-            }, TaskCreationOptions.LongRunning);
+                    foreach (var action in _logQueue.GetConsumingEnumerable())
+                    {
+                        try { action?.Invoke(); } catch { }
+                    }
+                }, TaskCreationOptions.LongRunning);
+            }
+            finally
+            {
+                if (suppressFlow) flow.Undo();
+            }
         }
 
         private static bool OnlyLogException = false; // 仅记录异常日志
@@ -296,55 +307,63 @@ namespace Logger
             listBox.TopIndex = Math.Max(0, listBox.Items.Count - visibleItemCount);
         }
 
+        /// <summary>
+        /// 在列表创建句柄、字体或显示器 DPI 变化后重新测量行高，避免固定像素高度裁切文字。
+        /// </summary>
+        /// <param name="sender">发生显示变化的日志列表。</param>
+        /// <param name="e">事件参数。</param>
+        private void LogList_DisplayMetricsChanged(object sender, EventArgs e)
+        {
+            ListBox listBox = sender as ListBox;
+            if (listBox == null || listBox.IsDisposed || !listBox.IsHandleCreated)
+                return;
+
+            using (Graphics graphics = listBox.CreateGraphics())
+            {
+                // 使用与绘制一致的 GDI 测量，同时预留随 DPI 缩放的上下留白。
+                int textHeight = TextRenderer.MeasureText(graphics, "国Ag", listBox.Font,
+                    Size.Empty, TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix).Height;
+                int padding = Math.Max(2, (int)Math.Ceiling(4 * graphics.DpiY / 96f));
+                int height = Math.Max(textHeight, (int)Math.Ceiling(listBox.Font.GetHeight(graphics))) + padding;
+                if (listBox.ItemHeight != height)
+                {
+                    listBox.ItemHeight = height;
+                    listBox.Invalidate();
+                }
+            }
+        }
+
+        /// <summary>按日志等级绘制单行文字，绘制范围严格限制在当前条目内。</summary>
+        /// <param name="sender">待绘制的日志列表。</param>
+        /// <param name="e">当前条目的绘制参数。</param>
         private void listBox1_DrawItem(object sender, DrawItemEventArgs e)
         {
-            if (e.Index < 0)
+            ListBox listBox = sender as ListBox;
+            if (listBox == null || e.Index < 0 || e.Index >= listBox.Items.Count)
                 return;
-            else
+
+            string logText = listBox.GetItemText(listBox.Items[e.Index]);
+            Color color = Color.DarkGray;
+            if (logText.Contains("Info")) color = Color.DodgerBlue;
+            else if (logText.Contains("Debug")) color = Color.Green;
+            else if (logText.Contains("Warn")) color = Color.Orange;
+            else if (logText.Contains("Exception") || logText.Contains("Fatal")) color = Color.Red;
+
+            bool selected = (e.State & DrawItemState.Selected) != 0;
+            var state = e.Graphics.Save();
+            try
             {
-                ListBox seelctBox = sender as ListBox;
-                string logText = seelctBox.Items[e.Index].ToString();
-                e.DrawBackground();
-                Brush mybsh = Brushes.Black;
-                if (logText.Contains("Info"))
-                {
-                    mybsh = Brushes.DodgerBlue;
-                }
-                else if (logText.Contains("Debug"))
-                {
-                    mybsh = Brushes.Green;
-                }
-                else if (logText.Contains("Warn"))
-                {
-                    mybsh = Brushes.Orange;
-                }
-                else if (logText.Contains("Exception"))
-                {
-                    mybsh = Brushes.Red;
-                }
-                else if (logText.Contains("Fatal"))
-                {
-                    mybsh = Brushes.Red;
-                }
-                else
-                    mybsh = Brushes.DarkGray;
-
-                // 判断项是否被选中
-                bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-
-                // 配置不同状态下背景色与前景色
-                if (isSelected)
-                {
-                    e.Graphics.FillRectangle(Brushes.MediumTurquoise, e.Bounds); // 选中时背景
-                    mybsh = Brushes.White; // 选中时文字颜色
-                }
-                else
-                {
-                    e.Graphics.FillRectangle(Brushes.White, e.Bounds); // 默认背景
-                }
-
+                e.Graphics.SetClip(e.Bounds, System.Drawing.Drawing2D.CombineMode.Intersect);
+                e.Graphics.FillRectangle(selected ? Brushes.MediumTurquoise : Brushes.White, e.Bounds);
+                TextRenderer.DrawText(e.Graphics, logText, listBox.Font, e.Bounds,
+                    selected ? Color.White : color,
+                    TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter |
+                    TextFormatFlags.NoPrefix | TextFormatFlags.PreserveGraphicsClipping);
                 e.DrawFocusRectangle();
-                e.Graphics.DrawString(seelctBox.Items[e.Index].ToString(), e.Font, mybsh, e.Bounds, StringFormat.GenericDefault);
+            }
+            finally
+            {
+                e.Graphics.Restore(state);
             }
         }
 
@@ -445,6 +464,9 @@ namespace Logger
         {
             if (!CanRecord(level))
                 return false;
+
+            // 旁路在生产线程冻结来源，不等待文件落地，也不改变主日志的显示开关。
+            RuntimeLogStream.Publish(level, logInfo, _baseTime.Add(_timestampStopwatch.Elapsed));
 
             SingleLog singleLog = new SingleLog();
             singleLog.MakeLog(GetHighResTimestamp(), $"{level}", logInfo, filePath, memberName, $"{lineNumber}");

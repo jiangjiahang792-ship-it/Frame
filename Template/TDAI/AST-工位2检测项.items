@@ -94,5 +94,13 @@
     "Enable": true,
     "IsCountItem": false,
     "CurValue": "0"
+  },
+  {
+    "Name": "铜环底部到铝箔顶部的距离",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
   }
 ]

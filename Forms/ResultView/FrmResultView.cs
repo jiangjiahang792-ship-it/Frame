@@ -54,6 +54,11 @@ namespace TDJS_Vision.Forms.ResultView
 
         private void FrmResultView_FormClosing(object sender, FormClosingEventArgs e)
         {
+            if (e.CloseReason == CloseReason.UserClosing && !TDJS_Vision.Forms.Login.UserPermissionContext.CanEditWorkspaceLayout)
+            {
+                e.Cancel = true;
+                return;
+            }
             e.Cancel = true;  // 取消关闭事件，防止窗口关闭
             this.Hide(); // 隐藏窗口
             HideChangedEvent?.Invoke(this, EventArgs.Empty);

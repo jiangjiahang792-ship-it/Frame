@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using Logger;
 using OpenCvSharp;
 using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
@@ -10,7 +11,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 {
     /// <summary>
     /// AST工位2 DET/640结果解析，按RL12Parse的检测项提取、判定、绘制和学习结构实现。
-    /// 类别顺序：0端子头、1露线芯、2绝缘胶、3屏蔽网、4铜环、5胶皮、6飞丝。
+    /// 类别顺序：0端子头、1露线芯、2绝缘胶、3屏蔽网、4铜环、5胶皮、6飞丝、7铝箔。
     /// </summary>
     public class ASTStation2Parse
     {
@@ -29,7 +30,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             public readonly Dictionary<string, List<float>> Values = new Dictionary<string, List<float>>();
         }
 
-        /// <summary>解析检测框，输出十二项测量、上下限判定、带颜色的矩形和文本。</summary>
+        /// <summary>解析检测框，输出十三项测量、上下限判定、带颜色的矩形和文本。</summary>
         /// <param name="results">已还原到原图坐标的检测列表。</param>
         /// <param name="resultCount">兼容RL12调用签名，以列表实际数量为准。</param>
         /// <param name="param">检测配置、物理比例及学习参数。</param>
@@ -74,9 +75,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             var addedRectKeys = new HashSet<string>();
             nodeResult.AlgorithmResult = new AlgorithmResult();
 
+            int measurementNumber = 0;
             foreach (var item in deteItems)
             {
                 if (item == null || !item.Enable) continue;
+                int number = ++measurementNumber;
                 string itemName = item.Name;
                 bool isCountItem = item.IsCountItem;
                 bool isDistanceItem = false;
@@ -101,6 +104,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         isDistanceItem = true;
                         findDependencyRectFunc = target => FindNearestCopperRing(target, copperRings);
                         extractValueFunc = r => r.ClassId == 3 ? GetCopperRingDistance(r.Box, copperRings) : null;
+                        break;
+                    case "铜环底部到铝箔顶部的距离":
+                        isDistanceItem = true;
+                        findDependencyRectFunc = target => FindNearestCopperRing(target, copperRings);
+                        extractValueFunc = r => r.ClassId == 7 ? GetCopperRingDistance(r.Box, copperRings) : null;
                         break;
                     case "露线芯宽度":
                         extractValueFunc = r => r.ClassId == 1 ? (float?)r.Box.Width : null;
@@ -144,7 +152,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         extractValueFunc = r => r.ClassId == 3 ? (float?)r.Box.Width : null;
                         break;
                     default:
-                        throw new InvalidOperationException($"AST工位2模型不支持检测项：{ParseCommon.GetDisplayName(itemName)}。");
+                        LogUnsupportedDetectItem(itemName, param);
+                        continue;
                 }
 
                 #endregion
@@ -174,13 +183,18 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         if (param.NeedConvert) value *= param.Scale;
                         bool isOk = AddValue(item, value, false, param, study, singleResults);
                         ParseCommon.AddRect(addedRectKeys, match.Result.Box, isOk, ref nodeResult);
+                        Rect? dependencyRect = null;
                         if (isDistanceItem)
                         {
                             // 距离由两个框共同决定，任一距离NG时两个参与框均标红。
-                            Rect? dependencyRect = findDependencyRectFunc?.Invoke(match.Result.Box);
+                            dependencyRect = findDependencyRectFunc?.Invoke(match.Result.Box);
                             if (dependencyRect.HasValue)
                                 ParseCommon.AddRect(addedRectKeys, dependencyRect.Value, isOk, ref nodeResult);
                         }
+                        if (!isDistanceItem || dependencyRect.HasValue)
+                            ParseCommon.AddAstMeasurementArrow(nodeResult.AlgorithmResult, match.Result.Box,
+                                dependencyRect, itemName.EndsWith("宽度"), itemName.Contains("底部的距离") && !itemName.StartsWith("铜环"),
+                                itemName.StartsWith("铜环底部"), number, deteItems.Count);
                     }
                 }
 
@@ -200,7 +214,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 detectResults[itemName] = singleResults;
                 ParseCommon.SetDetectItemCurValue(ref param, itemName, valueStr);
                 texts.Add(new ColorText(
-                    $"{ParseCommon.GetDisplayName(itemName)}: {valueStr} 设定值: [{item.MinValue}, {item.MaxValue}]",
+                    $"{number}. {ParseCommon.GetDisplayName(itemName)}: {valueStr}{(isCountItem ? string.Empty : "mm")}",
                     singleResults.All(r => r.IsOk) ? Color.Green : Color.Red));
             }
 
@@ -294,6 +308,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 }
             }
             return nearest;
+        }
+
+        /// <summary>记录工位2解析器尚未接入的检测项，并允许其它检测项继续解析。</summary>
+        private static void LogUnsupportedDetectItem(string itemName, NodeParamTDAI param)
+        {
+            string displayName = ParseCommon.GetDisplayName(itemName);
+            string configName = param == null ? string.Empty : param.CurDetectItemName;
+            LogHelper.AddLog(MsgLevel.Warn,
+                $"AST工位2检测项“{displayName}”代码里面没有判断，已跳过该检测项，其它检测项继续检测。检测项配置：{configName}",
+                true);
         }
     }
 }

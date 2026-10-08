@@ -19,6 +19,63 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         /// </summary>
         public static EventHandler<string> CloseAutoStudyEvent { get; set; }
 
+        /// <summary>绘制AST尺寸或边缘距离的黄色双向箭头，标注位置使用原图坐标。</summary>
+        /// <param name="result">接收箭头线段的算法结果。</param>
+        /// <param name="target">当前测量目标框。</param>
+        /// <param name="dependency">距离测量使用的另一个部件框，尺寸测量为空。</param>
+        /// <param name="width">是否测量横向宽度。</param>
+        /// <param name="targetBottom">距离的目标端是否使用底边。</param>
+        /// <param name="dependencyBottom">距离的依赖端是否使用底边。</param>
+        /// <param name="number">与检测项文本对应的标注编号。</param>
+        /// <param name="total">检测项数量，用于分散箭头位置。</param>
+        public static void AddAstMeasurementArrow(AlgorithmResult result,
+            Rect target, Rect? dependency, bool width, bool targetBottom, bool dependencyBottom,
+            int number, int total)
+        {
+            float lane = 0.15F + 0.7F * number / (Math.Max(1, total) + 1F);
+            float x = target.Left + target.Width * lane;
+            float y = target.Top + target.Height * lane;
+            PointF start;
+            PointF end;
+            if (dependency.HasValue)
+            {
+                start = new PointF(x, targetBottom ? target.Bottom : target.Top);
+                end = new PointF(x, dependencyBottom ? dependency.Value.Bottom : dependency.Value.Top);
+            }
+            else if (width)
+            {
+                start = new PointF(target.Left, y);
+                end = new PointF(target.Right, y);
+            }
+            else
+            {
+                start = new PointF(x, target.Top);
+                end = new PointF(x, target.Bottom);
+            }
+
+            float dx = end.X - start.X;
+            float dy = end.Y - start.Y;
+            float length = (float)Math.Sqrt(dx * dx + dy * dy);
+            if (length > 0)
+            {
+                AddAstArrowLine(result, start, end);
+                float ux = dx / length;
+                float uy = dy / length;
+                float head = Math.Min(16F, length / 3F);
+                float wing = head * 0.45F;
+                AddAstArrowLine(result, start, new PointF(start.X + ux * head - uy * wing, start.Y + uy * head + ux * wing));
+                AddAstArrowLine(result, start, new PointF(start.X + ux * head + uy * wing, start.Y + uy * head - ux * wing));
+                AddAstArrowLine(result, end, new PointF(end.X - ux * head - uy * wing, end.Y - uy * head + ux * wing));
+                AddAstArrowLine(result, end, new PointF(end.X - ux * head + uy * wing, end.Y - uy * head - ux * wing));
+            }
+        }
+
+        /// <summary>添加不带中心十字的黄色测量线，复用现有绘图和旋转链路。</summary>
+        private static void AddAstArrowLine(AlgorithmResult result, PointF start, PointF end)
+        {
+            result.Lines.Add(new ColorLine(start, end, Color.Yellow) { ShowCenterCross = false });
+        }
+
         /// <summary>
         /// 不添加重复的旋转矩形框
         /// </summary>
@@ -196,8 +253,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     var detectItem = detectItemInfos.FirstOrDefault(x => x.Name == item.Name);
                     if (detectItem != null)
                     {
-                        detectItem.MinValue = ((int)res).ToString();
-                        detectItem.MaxValue = ((int)res).ToString();
+                        string countValue = ((int)res).ToString();
+                        detectItem.MinValue = countValue;
+                        detectItem.CurValue = countValue;
+                        detectItem.MaxValue = countValue;
                     }
                 }
                 else

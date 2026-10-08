@@ -71,9 +71,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             var addedRectKeys = new HashSet<string>();
             nodeResult.AlgorithmResult = new AlgorithmResult();
 
+            int measurementNumber = 0;
             foreach (var item in deteItems)
             {
                 if (item == null || !item.Enable) continue;
+                int number = ++measurementNumber;
                 string itemName = item.Name;
                 bool isCountItem = item.IsCountItem;
                 Func<DetResult, float?> extractValueFunc;
@@ -121,6 +123,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         if (param.NeedConvert) value *= param.Scale;
                         bool isOk = AddValue(item, value, false, param, study, singleResults);
                         ParseCommon.AddRect(addedRectKeys, match.Result.Box, isOk, ref nodeResult);
+                        ParseCommon.AddAstMeasurementArrow(nodeResult.AlgorithmResult, match.Result.Box,
+                            null, itemName.EndsWith("宽度"), false, false,
+                            number, deteItems.Count);
                     }
                 }
 
@@ -131,7 +136,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 detectResults[itemName] = singleResults;
                 ParseCommon.SetDetectItemCurValue(ref param, itemName, valueStr);
                 texts.Add(new ColorText(
-                    $"{ParseCommon.GetDisplayName(itemName)}: {valueStr} 设定值: [{item.MinValue}, {item.MaxValue}]",
+                    $"{number}. {ParseCommon.GetDisplayName(itemName)}: {valueStr}{(isCountItem ? string.Empty : "mm")}",
                     singleResults.All(r => r.IsOk) ? Color.Green : Color.Red));
             }
 

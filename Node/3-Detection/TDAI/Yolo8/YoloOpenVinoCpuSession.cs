@@ -236,14 +236,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
             foreach (YoloObject obj in inferenceResult.Objects)
             {
                 Rect rect = ToRect(obj.X1, obj.Y1, obj.X2, obj.Y2, deltaX, deltaY);
-                Box box = needMaskBox ? ExtractMaskBox(inferenceResult, obj, rect, deltaX, deltaY) : CreateBoxFromRect(rect);
+                SegMaskGeometry geometry = null;
+                Box box = needMaskBox ? ExtractMaskBox(inferenceResult, obj, rect, deltaX, deltaY, out geometry) : CreateBoxFromRect(rect);
 
                 results.Add(new SegResult
                 {
                     ClassId = obj.ClassId,
                     Score = obj.Score,
                     Rect = rect,
-                    Box = box
+                    Box = box,
+                    MaskGeometry = geometry
                 });
             }
 
@@ -455,8 +457,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         /// <param name="deltaX">结果X方向偏移。</param>
         /// <param name="deltaY">结果Y方向偏移。</param>
         /// <returns>不规则框四角。</returns>
-        private static Box ExtractMaskBox(YoloOpenVinoInferenceResult inferenceResult, YoloObject obj, Rect rect, int deltaX, int deltaY)
+        /// <param name="geometry">输出真实掩膜的测量边界与轮廓。</param>
+        private static Box ExtractMaskBox(YoloOpenVinoInferenceResult inferenceResult, YoloObject obj, Rect rect, int deltaX, int deltaY, out SegMaskGeometry geometry)
         {
+            geometry = null;
             if (obj.MaskIndex < 0 || obj.MaskIndex >= inferenceResult.Masks.Count || inferenceResult.MaskWidth <= 0 || inferenceResult.MaskHeight <= 0)
                 return CreateBoxFromRect(rect);
 
@@ -479,6 +483,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                     offsetX = rect.X;
                     offsetY = rect.Y;
                 }
+
+                geometry = SegMaskGeometry.FromMask(mask, offsetX, offsetY);
 
                 Point[] shiftedContour = OffsetContour(contour, offsetX, offsetY);
                 Point topLeft;

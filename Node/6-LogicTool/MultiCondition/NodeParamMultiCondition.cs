@@ -1065,11 +1065,18 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             }
         }
 
+        /// <summary>
+        /// 尝试数值转换，普通文本使用无异常解析，避免调试器放大转换失败的耗时。
+        /// </summary>
         private static bool TryToDecimal(object value, out decimal result)
         {
             result = 0M;
             if (value == null)
                 return false;
+
+            // 字符串也实现 IConvertible；工艺名不应先经过会抛 FormatException 的转换。
+            if (value is string text)
+                return TryParseDecimal(text, out result);
 
             if (value is IConvertible)
             {

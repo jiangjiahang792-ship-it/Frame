@@ -36,6 +36,8 @@
             this.保存方案ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.另存方案ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.视图ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.运行界面设计ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.自定义运行界面ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.默认视图ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.图像显示ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.检测结果ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -155,6 +157,8 @@
             // 视图ToolStripMenuItem
             // 
             this.视图ToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.运行界面设计ToolStripMenuItem,
+            this.自定义运行界面ToolStripMenuItem,
             this.默认视图ToolStripMenuItem,
             this.图像显示ToolStripMenuItem,
             this.检测结果ToolStripMenuItem,
@@ -163,6 +167,15 @@
             this.视图ToolStripMenuItem.Name = "视图ToolStripMenuItem";
             this.视图ToolStripMenuItem.Size = new System.Drawing.Size(62, 28);
             this.视图ToolStripMenuItem.Text = "视图";
+            //
+            // 运行界面设计ToolStripMenuItem
+            //
+            this.运行界面设计ToolStripMenuItem.Name = "运行界面设计ToolStripMenuItem";
+            this.运行界面设计ToolStripMenuItem.Text = "运行界面设计";
+            this.运行界面设计ToolStripMenuItem.Click += new System.EventHandler(this.运行界面设计ToolStripMenuItem_Click);
+            this.自定义运行界面ToolStripMenuItem.Name = "自定义运行界面ToolStripMenuItem";
+            this.自定义运行界面ToolStripMenuItem.Text = "自定义运行界面";
+            this.自定义运行界面ToolStripMenuItem.Click += new System.EventHandler(this.自定义运行界面ToolStripMenuItem_Click);
             // 
             // 默认视图ToolStripMenuItem
             // 
@@ -301,6 +314,7 @@
             this.toolStripMenuItem1.Name = "toolStripMenuItem1";
             this.toolStripMenuItem1.Size = new System.Drawing.Size(80, 28);
             this.toolStripMenuItem1.Text = "AI训练";
+            this.toolStripMenuItem1.Enabled = false;
             // 
             // toolStripMenuItem2
             // 
@@ -659,6 +673,10 @@
         private System.Windows.Forms.MenuStrip menuStrip1;
         private System.Windows.Forms.ToolStripMenuItem 文件ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 视图ToolStripMenuItem;
+        /// <summary>打开方案关联的运行界面设计器。</summary>
+        private System.Windows.Forms.ToolStripMenuItem 运行界面设计ToolStripMenuItem;
+        /// <summary>打开当前方案的只读实时运行视图。</summary>
+        private System.Windows.Forms.ToolStripMenuItem 自定义运行界面ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 设置ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 帮助ToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem 新建方案ToolStripMenuItem;

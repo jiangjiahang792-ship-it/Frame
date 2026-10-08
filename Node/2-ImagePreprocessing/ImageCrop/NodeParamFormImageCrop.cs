@@ -22,6 +22,8 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
         private readonly System.Drawing.Size legacyViewportSize;
         /// <summary>旧参数需要等源图像可用后才能转换到图像坐标。</summary>
         private bool legacyRoisPending;
+        /// <summary>正在由代码同步宽高控件，避免数值变更事件递归刷新 ROI。</summary>
+        private bool syncingRoiSizeEditors;
 
         /// <summary>初始化参数窗体及图像编辑器。</summary>
         public NodeParamFormImageCrop(Process process, NodeBase nodeBase)
@@ -30,6 +32,8 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
             this.process = process;
             node = nodeBase;
             legacyViewportSize = showImageControl1.ClientSize;
+            showImageControl1.SingleDynamicRoiMode = true;
+            showImageControl1.DynamicRoiChanged += showImageControl1_DynamicRoiChanged;
             SolRunParamControl.RefreshParamView += SolRunParamControl_RefreshParamView;
         }
 
@@ -64,9 +68,10 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
                 LoadRoiRegions(param.ImageRois);
             else if (showImageControl1.Image != null)
                 RestoreLegacyRois(showImageControl1.Image.Size);
+            SyncRoiSizeEditorsFromSelectedRoi();
         }
 
-        /// <summary>把参数副本显示为可编辑旋转矩形。</summary>
+        /// <summary>把参数副本显示为可编辑旋转矩形；裁切节点只允许一个 ROI，旧多 ROI 参数只恢复第一个。</summary>
         private void LoadRoiRegions(IEnumerable<ImageCropRoiRegion> regions)
         {
             TDJS_Vision.Forms.DispShowImage.ShowImageControl.IRoiShape selected = null;
@@ -77,10 +82,12 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
                 var roi = showImageControl1.AddRoiRotatedRect(region.CenterY, region.CenterX,
                     (float)(region.Angle * Math.PI / 180), region.Width / 2, region.Height / 2);
                 selected = roi;
+                break;
             }
             if (selected != null)
                 selected.IsSelected = true;
             showImageControl1.Invalidate();
+            SyncRoiSizeEditorsFromSelectedRoi();
         }
 
         /// <summary>旧方案保持原来的取整规则，转换后编辑不再依赖窗口大小。</summary>
@@ -109,12 +116,15 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
         {
             var regions = new List<ImageCropRoiRegion>();
             foreach (var info in showImageControl1.GetAllRotatedRectInfos())
+            {
                 regions.Add(new ImageCropRoiRegion
                 {
                     CenterX = info.Column, CenterY = info.Row,
                     Width = info.Length1 * 2, Height = info.Length2 * 2,
                     Angle = (float)(info.Phi * 180 / Math.PI)
                 });
+                break;
+            }
             return regions;
         }
 
@@ -195,6 +205,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
             showImageControl1.SetImage(image.ToBitmap());
             RestoreLegacyRois(new System.Drawing.Size(image.Width, image.Height));
             showImageControl1.ShowFit();
+            SyncRoiSizeEditorsFromSelectedRoi();
             return image;
         }
 
@@ -205,8 +216,12 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
             {
                 List<ImageCropRoiRegion> regions = legacyRoisPending ? null : ReadRoiRegions();
                 if (uiSwitch1.Active && regions != null && showImageControl1.Image != null)
+                {
+                    if (regions.Count != 1)
+                        throw new InvalidOperationException("启用裁剪时必须绘制一个ROI。");
                     foreach (ImageCropRoiRegion region in regions)
                         region.GetImageRect(showImageControl1.Image.Width, showImageControl1.Image.Height);
+                }
                 Params = new NodeParamImageCrop
                 {
                     Text1 = nodeSubscription1.GetText1(), Text2 = nodeSubscription1.GetText2(),
@@ -226,6 +241,7 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
         {
             legacyRoisPending = false;
             showImageControl1.ClearDynamicRoi();
+            SyncRoiSizeEditorsFromSelectedRoi();
             showImageControl1.Focus();
         }
 
@@ -252,6 +268,60 @@ namespace TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop
                 if (!IsDisposed)
                     button3.Enabled = true;
             }
+        }
+
+        /// <summary>显示控件 ROI 变化时，把当前宽高实时同步到参数控件。</summary>
+        private void showImageControl1_DynamicRoiChanged(object sender, EventArgs e)
+        {
+            SyncRoiSizeEditorsFromSelectedRoi();
+        }
+
+        /// <summary>宽高控件变更时，把新尺寸写回当前唯一 ROI。</summary>
+        private void RoiSizeNumeric_ValueChanged(object sender, EventArgs e)
+        {
+            if (syncingRoiSizeEditors)
+                return;
+
+            showImageControl1.SetSelectedRotatedRectSize((float)numericRoiWidth.Value, (float)numericRoiHeight.Value);
+            showImageControl1.Focus();
+        }
+
+        /// <summary>读取当前唯一 ROI 的宽高并刷新数值控件，没有 ROI 时禁用宽高编辑。</summary>
+        private void SyncRoiSizeEditorsFromSelectedRoi()
+        {
+            if (IsDisposed)
+                return;
+
+            var infos = showImageControl1.GetAllRotatedRectInfos();
+            bool hasRoi = infos.Count > 0;
+            syncingRoiSizeEditors = true;
+            try
+            {
+                numericRoiWidth.Enabled = hasRoi;
+                numericRoiHeight.Enabled = hasRoi;
+                if (!hasRoi)
+                    return;
+
+                var info = infos[0];
+                SetNumericValue(numericRoiWidth, (decimal)(info.Length1 * 2));
+                SetNumericValue(numericRoiHeight, (decimal)(info.Length2 * 2));
+            }
+            finally
+            {
+                syncingRoiSizeEditors = false;
+            }
+        }
+
+        /// <summary>把数值限制到控件范围内后写入，避免 ROI 拖动产生越界异常。</summary>
+        private static void SetNumericValue(NumericUpDown editor, decimal value)
+        {
+            decimal rounded = Math.Round(value, editor.DecimalPlaces);
+            if (rounded < editor.Minimum)
+                rounded = editor.Minimum;
+            if (rounded > editor.Maximum)
+                rounded = editor.Maximum;
+            if (editor.Value != rounded)
+                editor.Value = rounded;
         }
     }
 }

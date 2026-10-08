@@ -69,6 +69,9 @@ internal static class ASTStation1Tests
         Check(result.DetectItemCount == 9 && result.IsOk, "九项结果不完整或判定错误。");
         for (int i = 0; i < Names.Length; i++) Check(Value(result, Names[i]) == expected[i], Names[i] + "数值错误。");
         Check(result.AlgorithmResult.Rects.Count == 4, "检测框未去重或加入了未要求的飞丝。");
+        Check(result.AlgorithmResult.Lines.Count == 45 && result.AlgorithmResult.Lines.All(l => l.Color == Color.Yellow && !l.ShowCenterCross), "九项双向箭头缺失或颜色错误。");
+        Check(Math.Abs(result.AlgorithmResult.Lines[0].P2.Y - result.AlgorithmResult.Lines[0].P1.Y) == 30, "胶皮间距箭头端点与测量不一致。");
+        Check(!result.AlgorithmResult.Texts.Any(t => t.Color == Color.Yellow), "箭头不应显示黄色数值。");
         parameter.NeedConvert = true; parameter.Scale = 0.1f;
         result = Parse(parameter, detections);
         Check(Math.Abs(Value(result, Names[0]) - 3) < 0.001f, "距离换算错误。");
@@ -78,6 +81,7 @@ internal static class ASTStation1Tests
         result = Parse(parameter, detections);
         Check(Value(result, Names[0]) == 0 && !result.IsOk, "缺少胶皮仍输出旧距离。");
         Check(Value(result, Names[3]) == 14, "缺少胶皮中断了独立尺寸解析。");
+        Check(result.AlgorithmResult.Lines.Count == 30, "缺少依赖框仍显示距离箭头。");
         var items = Solution.Instance.DetectItemDic["解析"];
         items[0].MinValue = "0"; items[0].MaxValue = "0";
         Check(Parse(parameter, detections).AlgorithmResult.DetectResults[Names[0]][0].IsOk, "缺失0未按上下限判定。");

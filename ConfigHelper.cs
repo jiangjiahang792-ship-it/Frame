@@ -5,6 +5,7 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using TDJS_Vision.Forms.GlobalSignalSettings;
@@ -111,6 +112,8 @@ namespace TDJS_Vision
                 }
                 SolConfig.GlobalSignal = Solution.Instance.GlobalSignal;
                 SolConfig.DetectItemDic = Solution.Instance.DetectItemDic;
+                SolConfig.RuntimeInterfaces = Forms.RuntimeDesigner.RuntimeInterfacePage.ClonePages(Solution.Instance.RuntimeInterfaces);
+                SolConfig.RuntimeInterface = null;
 
                 // 配置持久化到本地文件
                 string json = JsonConvert.SerializeObject(SolConfig, Formatting.Indented);
@@ -167,6 +170,7 @@ namespace TDJS_Vision
 
                     Solution.Instance.SolVersion = SolConfig.SolVer;
                     Solution.Instance.SolFileName = solFile;
+                    Solution.Instance.RuntimeInterfaces = SolConfig.RuntimeInterfaces ?? new List<Forms.RuntimeDesigner.RuntimeInterfacePage>();
                     Solution.Instance.RunInterval = SolConfig.RunInterval;
                     Solution.Instance.NodeCount = SolConfig.NodeCount;
                     Solution.Instance.ProcessCount = SolConfig.ProcessCount;
@@ -456,6 +460,33 @@ namespace TDJS_Vision
 
     public class SolConfig
     {
+        /// <summary>可选的运行界面配置；缺少此字段的历史方案保持兼容。</summary>
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public Forms.RuntimeDesigner.RuntimeLayoutDocument RuntimeInterface { get; set; }
+
+        /// <summary>多个独立运行界面的持久化集合，缺失时从旧单界面字段迁移。</summary>
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public List<Forms.RuntimeDesigner.RuntimeInterfacePage> RuntimeInterfaces { get; set; }
+
+        /// <summary>新格式只保存集合，避免首个布局重复写入。</summary>
+        public bool ShouldSerializeRuntimeInterface() => RuntimeInterfaces == null && RuntimeInterface != null;
+
+        /// <summary>没有配置界面的旧方案不增加空集合字段。</summary>
+        public bool ShouldSerializeRuntimeInterfaces() => RuntimeInterfaces != null && RuntimeInterfaces.Count > 0;
+
+        /// <summary>在方案反序列化完成时校验布局，避免清理现有方案后才发现非法界面配置。</summary>
+        [System.Runtime.Serialization.OnDeserialized]
+        private void ValidateRuntimeInterface(System.Runtime.Serialization.StreamingContext context)
+        {
+            if (RuntimeInterfaces == null && RuntimeInterface != null)
+                RuntimeInterfaces = new List<Forms.RuntimeDesigner.RuntimeInterfacePage>
+                { new Forms.RuntimeDesigner.RuntimeInterfacePage { Layout = RuntimeInterface } };
+            if (RuntimeInterfaces != null)
+                RuntimeInterfaces = Forms.RuntimeDesigner.RuntimeInterfacePage.ClonePages(RuntimeInterfaces);
+            // 仅供原单界面读取者使用，新配置始终以集合为唯一持久化来源。
+            RuntimeInterface = RuntimeInterfaces?.FirstOrDefault()?.Layout;
+        }
+
         /// <summary>
         /// 方案版本
         /// </summary>

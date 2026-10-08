@@ -25,6 +25,15 @@ namespace TDJS_Vision.Forms.Login
             get { return CurrentRole == UserRole.Hight; }
         }
 
+        /// <summary>仅高级权限允许进入AI训练。</summary>
+        public static bool CanTrainAi => CurrentRole == UserRole.Hight;
+
+        /// <summary>仅高级权限允许关闭工作区窗格或拖动停靠及浮动窗口。</summary>
+        public static bool CanEditWorkspaceLayout => CurrentRole == UserRole.Hight;
+
+        /// <summary>初级与高级权限允许保存当前方案，中级维持原有的禁止保存策略。</summary>
+        public static bool CanSaveSolution => CurrentRole == UserRole.Low || CurrentRole == UserRole.Hight;
+
         /// <summary>
         /// 更新当前角色并通知所有已创建窗口立即刷新权限状态。
         /// </summary>

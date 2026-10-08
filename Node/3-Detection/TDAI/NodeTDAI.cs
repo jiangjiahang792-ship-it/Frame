@@ -88,7 +88,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
                             #region 通信获取对应检测项的配置(不是使用固定检测项时)
                             // terminalType端子型号、wireType电线型号、waterproofType防水栓型号
-                            ushort readValue = 1212;
+                            string readValue = "未读取";
                             if (!param.IsFixed)
                             {
                                 // 使用 ASCII 解码
@@ -116,10 +116,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                 }
                                 else if (param.Device is IModbus mod)
                                 {
-                                    readValue = await GetModbusCode(mod, param.Adress);
-                                    string strVal = readValue.ToString();
+                                    TDAIReadOptions readOptions = param.CommunicationReadOptions ?? new TDAIReadOptions();
+                                    readValue = readOptions.Read(mod, param.Adress);
+                                    string strVal = readValue;
 
-                                    var matchModel = param.TDAICommuntionParams.FirstOrDefault(m => m.TriggerVal == strVal);
+                                    var matchModel = param.TDAICommuntionParams.FirstOrDefault(m => readOptions.Matches(m.TriggerVal, strVal));
                                     if (matchModel == null || string.IsNullOrWhiteSpace(matchModel.DetectionName))
                                     {
                                         configName = $"{Process.ProcessName}模板{strVal}";
@@ -253,6 +254,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
                                 case ModelType.SEG:
 
+                                    if (param.ModelName == ModelName.AST工位1分割模型 &&
+                                        (param.AIInputInfo.ClassNames == null ||
+                                         !param.AIInputInfo.ClassNames.SequenceEqual(ASTStation1SegParse.ClassNames)))
+                                        throw new InvalidOperationException("AST工位1分割模型标签必须依次为insulation_glue、shielding_mesh、copper_ring、rubber、fly_line，请检查AI配置。");
+
                                     # region 执行推理
                                     List<SegResult> seg_results = new List<SegResult>();
 
@@ -284,8 +290,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                             LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测结果运算完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                                             LogAlgorithmResultSummary(Process.ProcessName, param, res);
                                             break;
+                                        case ModelName.AST工位1分割模型:
+                                            ASTStation1SegParse.Parse(seg_results, result_count, param, Process, ref res);
+                                            LogAlgorithmResultSummary(Process.ProcessName, param, res);
+                                            break;
                                         default:
-                                            throw new Exception($"SEG模型名称({param.ModelName})没有对应解析逻辑，请检查AI节点模型名称是否选择为RL_线芯截面！");
+                                            throw new Exception($"SEG模型名称({param.ModelName})没有对应解析逻辑，请选择支持SEG的模型名称！");
                                     }
                                     break;
 
@@ -905,10 +915,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             }
         }
 
-        private async Task<ushort> GetModbusCode(IModbus modbus,string address) {
-            ushort[] value = modbus.ReadUInt16(address, 1);
-            return value[0];
-        }
     }
 
     /// <summary>

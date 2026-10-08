@@ -17,11 +17,11 @@ internal static class ASTStation2Tests
 {
     /// <summary>已通过的断言数量。</summary>
     private static int _checks;
-    /// <summary>用户要求的十二个检测项，前九项保持既有顺序，末尾补齐飞丝数量和屏蔽网尺寸。</summary>
+    /// <summary>用户要求的十三个检测项，前九项保持既有顺序，末尾补齐飞丝、屏蔽网尺寸和铝箔距离。</summary>
     private static readonly string[] Names = { "铜环底部到端子头顶部的距离", "铜环底部到绝缘体顶部的距离",
         "铜环底部到屏蔽网顶部距离", "露线芯宽度", "露线芯长度", "胶皮顶部到屏蔽网顶部的距离",
         "胶皮顶部到屏蔽网底部的距离", "胶皮顶部到绝缘体顶部的距离", "胶皮顶部到绝缘体底部的距离",
-        "飞丝", "屏蔽网高度", "屏蔽网宽度" };
+        "飞丝", "屏蔽网高度", "屏蔽网宽度", "铜环底部到铝箔顶部的距离" };
     /// <summary>验证业务行为，失败时输出场景。</summary>
     private static void Check(bool value, string message)
     {
@@ -46,7 +46,8 @@ internal static class ASTStation2Tests
             new DetResult { ClassId = 6, Box = new Rect(150, 180, 3, 4) },
             new DetResult { ClassId = 3, Box = new Rect(100, 290, 38, 35) },
             new DetResult { ClassId = 1, Box = new Rect(100, 175, 18, 27) },
-            new DetResult { ClassId = 5, Box = new Rect(100, 410, 40, 60) } };
+            new DetResult { ClassId = 5, Box = new Rect(100, 410, 40, 60) },
+            new DetResult { ClassId = 7, Box = new Rect(100, 260, 36, 20) } };
     }
     /// <summary>通过实际程序集调用解析器，旧版本缺少模型时给出明确失败。</summary>
     private static NodeResultTDAI Parse(NodeParamTDAI parameter, List<DetResult> detections)
@@ -63,26 +64,65 @@ internal static class ASTStation2Tests
     {
         return float.Parse(result.AlgorithmResult.DetectResults[DetectItemLanguage.NormalizeName(name)][0].Value);
     }
+    /// <summary>验证新旧ROI文本链路保留标注位置，并用真实显示控件生成离线预览。</summary>
+    private static void VerifyAnnotationProjection(AlgorithmResult source)
+    {
+        var assembly = typeof(NodeParamTDAI).Assembly;
+        foreach (string suffix in new[] { "ResultOverlayDraw", "ResultOverlayDraw2" })
+        {
+            string ns = "TDJS_Vision.Node._7_ResultProcessing." + suffix + ".";
+            var nodeType = assembly.GetType(ns + suffix + "Builder");
+            var itemType = assembly.GetType(ns + suffix + "Item");
+            Check(nodeType != null && itemType != null, suffix + "绘图类型不存在。");
+            var projected = new AlgorithmResult();
+            var append = nodeType.GetMethod("AppendAlgorithmResultTexts", BindingFlags.Static | BindingFlags.NonPublic);
+            Check(append != null, suffix + "文本投影方法不存在。");
+            append.Invoke(null, new[] { (object)projected, source, Activator.CreateInstance(itemType) });
+            var original = source.Texts.Where(t => t.UseImagePosition).ToList();
+            var actual = projected.Texts.Where(t => t.UseImagePosition).ToList();
+            Check(actual.Count == original.Count && actual.Select(t => t.ImagePosition).SequenceEqual(original.Select(t => t.ImagePosition)), suffix + "丢失箭头文字的图像位置。");
+        }
+        using (var control = new TDJS_Vision.Forms.DispShowImage.ShowImageControl())
+        using (var bitmap = new Bitmap(640, 850))
+        {
+            control.Size = bitmap.Size;
+            control.CreateControl();
+            var background = new Bitmap(400, 550);
+            using (var graphics = Graphics.FromImage(background)) graphics.Clear(Color.FromArgb(45, 45, 45));
+            control.SetImage(background, source);
+            control.DrawToBitmap(bitmap, new System.Drawing.Rectangle(System.Drawing.Point.Empty, bitmap.Size));
+            bitmap.Save(Path.Combine(Environment.CurrentDirectory, "ASTMeasurementArrows.preview.png"));
+        }
+    }
+
     /// <summary>验证固定上下边缘距离、长度方向、缺失值、换算、颜色和多目标。</summary>
     private static void VerifyParsing()
     {
         var parameter = Parameter("解析");
         var detections = Detections();
         var result = Parse(parameter, detections);
-        float[] expected = { 280, 170, 90, 18, 27, 120, 85, 200, 160, 1, 35, 38 };
-        Check(result.DetectItemCount == 12 && result.IsOk, "十二项结果不完整或判定错误。");
+        float[] expected = { 280, 170, 90, 18, 27, 120, 85, 200, 160, 1, 35, 38, 120 };
+        Check(result.DetectItemCount == 13 && result.IsOk, "十三项结果不完整或判定错误。");
         for (int i = 0; i < Names.Length; i++) Check(Value(result, Names[i]) == expected[i], Names[i] + "数值错误。");
-        Check(result.AlgorithmResult.Rects.Count == 7, "参与框去重错误或漏绘了飞丝。");
+        Check(result.AlgorithmResult.Rects.Count == 8, "参与框去重错误或漏绘了飞丝/铝箔。");
+        Check(result.AlgorithmResult.Lines.Count == 60 && result.AlgorithmResult.Lines.All(l => l.Color == Color.Yellow && !l.ShowCenterCross), "工位2尺寸箭头缺失或错误地绘制了数量项。");
+        Check(result.AlgorithmResult.Lines[0].P1.Y == 100 && result.AlgorithmResult.Lines[0].P2.Y == 380, "铜环到端子头箭头端点错误。");
+        Check(result.AlgorithmResult.Lines[55].P1.Y == 260 && result.AlgorithmResult.Lines[55].P2.Y == 380, "铝箔距离箭头端点错误。");
+        Check(!result.AlgorithmResult.Texts.Any(t => t.Color == Color.Yellow), "箭头不应显示黄色数值。");
+        VerifyAnnotationProjection(result.AlgorithmResult);
         Check(result.AlgorithmResult.DetectResults.ContainsKey("DetectItem.ExposedCoreLength"), "露线芯长度未兼容既有存储键。");
         parameter.NeedConvert = true; parameter.Scale = 0.1f;
         result = Parse(parameter, detections);
         Check(Value(result, Names[0]) == 28, "Y距离换算错误。");
         Check(Math.Abs(Value(result, Names[4]) - 2.7f) < 0.001f, "露线芯长度换算错误。");
         Check(Value(result, Names[5]) == 12 && Value(result, Names[8]) == 16, "胶皮距离换算错误。");
+        Check(result.AlgorithmResult.Texts.Any(t => !t.UseImagePosition && t.Text.Contains("28.00mm")), "检测汇总文字未使用换算后的mm值。");
         parameter.NeedConvert = false;
         detections.RemoveAll(d => d.ClassId == 4);
         result = Parse(parameter, detections);
         Check(!result.IsOk && Names.Take(3).All(n => Value(result, n) == 0), "缺少铜环未将三项清零。");
+        Check(Value(result, Names[12]) == 0, "缺少铜环未将铝箔距离清零。");
+        Check(result.AlgorithmResult.Lines.Count == 40, "缺少铜环仍绘制依赖铜环的距离箭头。");
         Check(Value(result, Names[3]) == 18 && Value(result, Names[4]) == 27, "缺少铜环中断了露线芯解析。");
         Check(Value(result, Names[5]) == 120 && Value(result, Names[8]) == 160, "缺少铜环影响了胶皮距离解析。");
         detections = Detections();
@@ -100,6 +140,10 @@ internal static class ASTStation2Tests
         result = Parse(parameter, detections);
         Check(!result.IsOk && Value(result, Names[2]) == 0 && Value(result, Names[5]) == 0 &&
             Value(result, "屏蔽网高度") == 0 && Value(result, "屏蔽网宽度") == 0, "缺少屏蔽网未将关联项清零。");
+        detections = Detections();
+        detections.RemoveAll(d => d.ClassId == 7);
+        result = Parse(parameter, detections);
+        Check(!result.IsOk && Value(result, Names[12]) == 0, "缺少铝箔未将铜环到铝箔距离清零。");
         var items = Solution.Instance.DetectItemDic["解析"];
         items[0].MinValue = items[0].MaxValue = "0";
         detections = Detections();
@@ -107,7 +151,7 @@ internal static class ASTStation2Tests
         Check(Parse(parameter, detections).AlgorithmResult.DetectResults[Names[0]][0].IsOk, "未检出0值上下限判定错误。");
         items[0].Enable = false; items[3].MaxValue = "10";
         result = Parse(parameter, Detections());
-        Check(result.DetectItemCount == 11, "禁用项仍输出。");
+        Check(result.DetectItemCount == 12, "禁用项仍输出。");
         Check(result.AlgorithmResult.Rects.Single(r => r.RotatedRect.size.width == 18).Color == Color.Red, "同框尺寸NG未合并。");
         result = Parse(parameter, null);
         Check(items.Where(i => i.Enable).All(i => i.CurValue == "0"), "未检出保留旧值。");
@@ -127,6 +171,18 @@ internal static class ASTStation2Tests
         detections.RemoveAll(d => d.ClassId == 0);
         result = Parse(edges, detections);
         Check(Value(result, Names[0]) == 0 && Value(result, Names[1]) == 170, "缺少端子头影响了其他距离。");
+    }
+    /// <summary>检测项模板中出现暂未接入的名称时，只记录日志并继续解析其它检测项。</summary>
+    private static void VerifyUnsupportedItemDoesNotStopParsing()
+    {
+        var parameter = Parameter("未支持项容错");
+        Solution.Instance.DetectItemDic["未支持项容错"].Add(new DetectItemInfo {
+            Name = "未接入的新检测项", Enable = true, MinValue = "1", MaxValue = "99999", CurValue = "0" });
+        var result = Parse(parameter, Detections());
+        Check(result.IsOk && Value(result, Names[0]) == 280 && Value(result, Names[12]) == 120,
+            "未支持检测项影响了其它检测项解析。");
+        Check(!result.AlgorithmResult.DetectResults.ContainsKey("未接入的新检测项"),
+            "未支持检测项不应输出伪造结果。");
     }
     /// <summary>不同节点学习样本不得串用，未检出不得进入尺寸学习。</summary>
     private static void VerifyStudy()
@@ -186,7 +242,7 @@ internal static class ASTStation2Tests
             var subscription = Field<object>(form, "nodeSubscription1");
             subscription.GetType().GetMethod("SetText").Invoke(subscription, new object[] { "1.图像源", "图像" });
             typeof(ParamFormTDAI).GetField("aIInputInfo", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(form,
-                new AIInputInfo { ModelSize = 640, ClassNames = new List<string> { "terminal head", "exposed_wire_core", "insulation_glue", "shielding_mesh", "copper_ring", "rubber", "fly_line" },
+                new AIInputInfo { ModelSize = 640, ClassNames = new List<string> { "terminal head", "exposed_wire_core", "insulation_glue", "shielding_mesh", "copper_ring", "rubber", "fly_line", "aluminum_foi" },
                     ModelInfo = new ModelInfo { ModelType = ModelType.DET, ModelPath = "不存在的离线模型" } });
             Check((bool)typeof(ParamFormTDAI).GetMethod("SaveParams", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(form, null), "参数保存失败。");
             var saved = (NodeParamTDAI)form.Params; saved.ModelLoadTask.Wait();
@@ -216,7 +272,7 @@ internal static class ASTStation2Tests
         var config = JsonConvert.DeserializeObject<AIInputInfo>(decoded);
         Check(config.ModelSize == 640 && config.ModelInfo.ModelType == ModelType.DET && config.ModelInfo.DeviceType == DeviceType.CPU && config.ModelInfo.IsEncrypted,
             "模型类型、尺寸或加密标志错误。");
-        Check(config.ClassNames.SequenceEqual(new[] { "terminal head", "exposed_wire_core", "insulation_glue", "shielding_mesh", "copper_ring", "rubber", "fly_line" }),
+        Check(config.ClassNames.SequenceEqual(new[] { "terminal head", "exposed_wire_core", "insulation_glue", "shielding_mesh", "copper_ring", "rubber", "fly_line", "aluminum_foi" }),
             "配置标签顺序与模型不一致。");
         Check(config.ModelName == "AST-工位2模型" && config.ModelInfo.ModelPath.EndsWith("model_encrypted.onnx"),
             "配置模型名称或文件错误。");
@@ -232,7 +288,7 @@ internal static class ASTStation2Tests
         try
         {
             LanguageManager.SetLanguage("zh-CN", false);
-            VerifyParsing(); VerifyStudy(); VerifySameNameStudyForms(); VerifyForm(); VerifyConfiguration();
+            VerifyParsing(); VerifyUnsupportedItemDoesNotStopParsing(); VerifyStudy(); VerifySameNameStudyForms(); VerifyForm(); VerifyConfiguration();
             Console.WriteLine("AST工位2离线验证通过，共" + _checks + "项断言。"); return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }

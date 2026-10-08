@@ -2159,3 +2159,10 @@ After this milestone, the editor will visibly become a flow-canvas editor while 
 - [x] 卡尺找圆从 `MultiTargetMeasurementRunner.RunParallel` 改回串行 `Run`；八种业务测量窗体均不再调用 `RunParallel`，公共并发执行器仅保留备用。
 - [x] 使用实际程序集和 Newtonsoft.Json 反序列化空 JSON，确认七个新增采样字段均默认得到枚举值0并能序列化为0；旧 `C:\Users\34652\Desktop\222.Sol` 不包含这些字段，因此自动进入快速采样。
 - [x] 复合采样、卡尺采样、位置修正和多目标测量相关九项专项测试全部通过；`Debug|x64` 非增量构建通过，179 个项目既有警告、0 个错误。
+
+## 2026-09-26: 线芯截面数量OK显示学习值
+
+- [x] 确认 `LineCoreFront_C1_Seg` 的线芯数量来自 SEG 结果中 `ClassId == 0` 的目标数量。
+- [x] 新增 `LineCoreFrontCountDisplay.Tests.ps1` 回归检查，锁定线芯数量OK时走学习值显示逻辑。
+- [x] 调整线芯数量解析：实时数量仍用于上下限判定；正常检测OK时优先显示一键学习保存的当前值，自动学习或NG时显示实时检测数量。
+- [x] 数量型一键学习完成后同步写回 `CurValue`，避免后续正常检测缺少稳定的学习当前值。

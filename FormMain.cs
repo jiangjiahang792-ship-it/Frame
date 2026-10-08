@@ -1,6 +1,7 @@
 ﻿using Logger;
 using Sunny.UI;
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -192,9 +193,6 @@ namespace TDJS_Vision
         private ToolStripComboBox languageToolStripComboBox;
         private bool isApplyingLanguage;
 
-        /// <summary>停止清理尚未完成时禁止重新运行，避免界面提前解锁。</summary>
-        private bool _stopInProgress;
-
         /// <summary>
         /// 用于启动授权程序的外部程序启动器。
         /// </summary>
@@ -297,6 +295,8 @@ namespace TDJS_Vision
             InitializeLanguageUI();
             // 自定义主题设置
             dockPanel1.Theme = new GreenTheme();
+            dockPanel1.Theme.Extender.FloatWindowFactory = new WorkspaceFloatWindowFactory();
+            new DockPanelPermissionBinding(dockPanel1);
             this.args = args ?? string.Empty;
         }
 
@@ -543,35 +543,13 @@ namespace TDJS_Vision
         private async void RunAutoSolutionInBackgroundAsync()
         {
             SetLockStatus(UserRole.Low);
-            bool shouldSendOfflineSignal = false;
             try
             {
-                await FormGlobalSignal.SendGlobalSignals(this, true);
-                shouldSendOfflineSignal = true;
-                FormGlobalSignal.StartListenSignals();
-                FormGlobalSignal.StartHeartbeatSignals();
-                SetRunStatus(true);
-                await Solution.Instance.Run(true);
+                await RuntimeRunController.RunAsync(null, true, automatic: true);
             }
             catch (Exception ex)
             {
                 LogHelper.AddLog(MsgLevel.Exception, $"方案自动运行失败：{ex}", true);
-            }
-            finally
-            {
-                FormGlobalSignal.StopListenSignals();
-                SetRunStatus(false);
-                if (shouldSendOfflineSignal)
-                {
-                    try
-                    {
-                        await FormGlobalSignal.SendGlobalSignals(this, false);
-                    }
-                    catch (Exception ex)
-                    {
-                        LogHelper.AddLog(MsgLevel.Exception, $"方案自动运行结束信号发送失败：{ex}", true);
-                    }
-                }
             }
         }
 
@@ -714,11 +692,7 @@ namespace TDJS_Vision
         }
         private void OnLogoutEvent(object sender, EventArgs e)
         {
-            UserPermissionContext.UpdateRole(UserRole.Unknown);
-            文件ToolStripMenuItem.Enabled = false;
-            设置ToolStripMenuItem.Enabled = false;
-            toolStrip1.Enabled = false;
-            Role = UserRole.Unknown;
+            SetLockStatus(UserRole.Unknown);
         }
 
         /// <summary>
@@ -738,6 +712,7 @@ namespace TDJS_Vision
         {
             UserPermissionContext.UpdateRole(role);
             Role = role;
+            运行界面设计ToolStripMenuItem.Enabled = role == UserRole.Hight;
             toolStrip1.Enabled = true;
             switch (role)
             {
@@ -790,8 +765,29 @@ namespace TDJS_Vision
                     tsbt_RunParamSetting.Enabled = false;
                     break;
                 default:
+                    文件ToolStripMenuItem.Enabled = false;
+                    设置ToolStripMenuItem.Enabled = false;
+                    toolStrip1.Enabled = false;
                     break;
             }
+            ApplyWorkspaceCommandPermissions(runtimeRunController?.IsRunning == true || Solution.Instance.IsRunning);
+        }
+
+        /// <summary>统一训练与保存入口，角色切换和运行状态变化后均重新应用，避免相互覆盖。</summary>
+        private void ApplyWorkspaceCommandPermissions(bool isRunning)
+        {
+            bool canTrain = UserPermissionContext.CanTrainAi && !isRunning;
+            bool canSave = UserPermissionContext.CanSaveSolution && !isRunning;
+            bool canManageFiles = Role == UserRole.Hight && !isRunning;
+            toolStripMenuItem1.Enabled = canTrain;
+            toolStripMenuItem2.Enabled = canTrain;
+            toolStripMenuItem3.Enabled = canTrain;
+            tsbt_SolSave.Enabled = canSave;
+            保存方案ToolStripMenuItem.Enabled = canSave;
+            文件ToolStripMenuItem.Enabled = canManageFiles || canSave;
+            新建方案ToolStripMenuItem.Enabled = canManageFiles;
+            打开方案ToolStripMenuItem.Enabled = canManageFiles;
+            另存方案ToolStripMenuItem.Enabled = canManageFiles;
         }
 
         /// <summary>
@@ -812,12 +808,12 @@ namespace TDJS_Vision
                 }
             }
 
-            // 检测任务正在运行提示
-            if (Solution.Instance.IsRunning)
+            // 准备与结束信号等待期间也不能关闭宿主，避免迟到的启动继续访问已释放窗口。
+            if (runtimeRunController?.IsRunning == true || Solution.Instance.IsRunning)
             {
                 if (StartupDisplayMode.IsBackgroundAcceptance)
                 {
-                    Solution.Instance.Stop();
+                    停止运行ToolStripMenuItem_Click(this, EventArgs.Empty);
                     e.Cancel = true;
                     return;
                 }
@@ -829,6 +825,9 @@ namespace TDJS_Vision
                     return;
                 }
             }
+
+            // 关闭软件时同步保存图像窗口布局，避免用户只移动浮动图像窗后直接退出导致位置丢失。
+            CanvasSet.SaveDockPanelEvent?.Invoke(this, EventArgs.Empty);
 
             // 保存主窗口布局
             this.dockPanel1.SaveAsXml(DockPanelConfig);
@@ -1025,50 +1024,30 @@ namespace TDJS_Vision
 
         private async void 停止运行ToolStripMenuItem_Click(object value1, object value2)
         {
-            if (_stopInProgress) return;
-            _stopInProgress = true;
-            SetRunStatus(true);
-            FormGlobalSignal.StopListenSignals();
             try
             {
-                await Solution.Instance.StopAsync();
-                await FormGlobalSignal.SendGlobalSignals(this, false);
+                await RuntimeRunController.StopAsync();
             }
             catch (Exception ex)
             {
                 LogHelper.AddLog(MsgLevel.Exception, "停止方案失败：" + ex.Message, true);
             }
-            finally
-            {
-                _stopInProgress = false;
-                SetRunStatus(Solution.Instance.IsRunning);
-            }
         }
 
         private async void 循环运行ToolStripMenuItem_Click(object value1, object value2)
         {
-            if (!ValidateCameraConfigurationBeforeRun())
-                return;
-
-            await FormGlobalSignal.SendGlobalSignals(this, true);
-            FormGlobalSignal.StartListenSignals();
-            SetRunStatus(true);
             try
             {
-                await Solution.Instance.Run(true);
+                await RuntimeRunController.RunAsync(null, true);
             }
-            finally
+            catch (Exception ex)
             {
-                FormGlobalSignal.StopListenSignals();
-                SetRunStatus(false);
+                LogHelper.AddLog(MsgLevel.Exception, "循环方案运行失败：" + ex.Message, true);
             }
         }
 
         private async void 单次运行ToolStripMenuItem_Click(object value1, object value2)
         {
-            if (!ValidateCameraConfigurationBeforeRun())
-                return;
-
             if (TryStartSingleSolutionRun(out Task runTask))
                 await runTask;
         }
@@ -1080,7 +1059,7 @@ namespace TDJS_Vision
         /// <returns>成功取得本轮运行权返回true。</returns>
         private bool TryStartSingleSolutionRun(out Task runTask)
         {
-            if (!_singleRunAdmissionController.TryAcquire(out SolutionRunAdmissionLease lease))
+            if (!RuntimeRunController.TryRunAsync(null, false, false, out Task admittedTask))
             {
                 SolutionRunAdmissionSnapshot rejectedSnapshot = _singleRunAdmissionController.GetSnapshot();
                 if (rejectedSnapshot.BusyRejectedCount == 1 || rejectedSnapshot.BusyRejectedCount % 100 == 0)
@@ -1096,25 +1075,20 @@ namespace TDJS_Vision
                 return false;
             }
 
-            runTask = ExecuteSingleSolutionRunAsync(lease);
+            runTask = ExecuteSingleSolutionRunAsync(admittedTask);
             return true;
         }
 
         /// <summary>
         /// 执行一轮与主界面按钮相同的全局信号、完整方案和结束信号链路。
         /// </summary>
-        /// <param name="lease">本轮唯一方案运行权。</param>
+        /// <param name="admittedTask">共享控制器已经准入的完整运行任务。</param>
         /// <returns>完整运行任务。</returns>
-        private async Task ExecuteSingleSolutionRunAsync(SolutionRunAdmissionLease lease)
+        private async Task ExecuteSingleSolutionRunAsync(Task admittedTask)
         {
-            bool succeeded = false;
             try
             {
-                await FormGlobalSignal.SendGlobalSignals(this, true);
-                FormGlobalSignal.StartListenSignals();
-                SetRunStatus(true);
-                await Solution.Instance.Run(false);
-                succeeded = true;
+                await admittedTask;
             }
             catch (Exception ex)
             {
@@ -1122,19 +1096,6 @@ namespace TDJS_Vision
             }
             finally
             {
-                FormGlobalSignal.StopListenSignals();
-                SetRunStatus(false);
-                try
-                {
-                    await FormGlobalSignal.SendGlobalSignals(this, false);
-                }
-                catch (Exception ex)
-                {
-                    succeeded = false;
-                    LogHelper.AddLog(MsgLevel.Exception, $"单次方案结束信号发送失败：{ex}", true);
-                }
-
-                lease.Complete(succeeded);
                 TryLogFixedTriggerStressSummary();
             }
         }
@@ -1226,11 +1187,12 @@ namespace TDJS_Vision
         /// <summary>
         /// 校验方案内所有流程的硬触发图像源配置，并在错误时显示汇总提示。
         /// </summary>
+        /// <param name="processes">当前启动选中的流程快照。</param>
         /// <returns>方案允许启动时返回 true。</returns>
-        private bool ValidateCameraConfigurationBeforeRun()
+        private bool ValidateCameraConfigurationBeforeRun(IEnumerable<Process> processes)
         {
             string message;
-            if (Solution.Instance.TryValidateCameraConfiguration(Solution.Instance.AllProcesses, out message))
+            if (Solution.Instance.TryValidateCameraConfiguration(processes, out message))
                 return true;
 
             MessageBoxTD.Show(message, "相机触发配置错误", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -1260,7 +1222,8 @@ namespace TDJS_Vision
         private void UpdateUI(bool isRun)
         {
             // 任何运行入口的 finally 都不能覆盖其他尚在清理的会话状态。
-            isRun = isRun || _stopInProgress || Solution.Instance.IsRunning;
+            isRun = isRun || runtimeRunController?.IsRunning == true || Solution.Instance.IsRunning;
+            bool isStopping = runtimeRunController?.IsStopping == true;
             if (!isRun)
             {
                 FrmLoggerDlg.FlushLogs();
@@ -1269,7 +1232,7 @@ namespace TDJS_Vision
             // 运行和停止按钮
             tsbt_SolRunOnce.Enabled = !isRun;
             tsbt_SolRunLoop.Enabled = !isRun;
-            tsbt_SolRunStop.Enabled = isRun && !_stopInProgress;
+            tsbt_SolRunStop.Enabled = isRun && !isStopping;
             登录ToolStripMenuItem.Enabled = !isRun;
 
             switch (Role)
@@ -1307,6 +1270,7 @@ namespace TDJS_Vision
                 default:
                     break;
             }
+            ApplyWorkspaceCommandPermissions(isRun);
         }
 
         private void 用户登录ToolStripMenuItem_Click(object value1, object value2)
@@ -1379,6 +1343,9 @@ namespace TDJS_Vision
 
         private void 保存方案ToolStripMenuItem_Click(object value1, object value2)
         {
+            // 工具栏、菜单和Ctrl+S共用权限及运行态检查。
+            if (!UserPermissionContext.CanSaveSolution || runtimeRunController?.IsRunning == true || Solution.Instance.IsRunning)
+                return;
             if (Solution.Instance.SolFileName.IsNullOrEmpty())
             {
                 saveFileDialog1.Title = LanguageManager.T("Dialog.SelectSaveSolutionPath");
@@ -1456,6 +1423,97 @@ namespace TDJS_Vision
             canvasSet.ShowDialog();
         }
 
+        /// <summary>打开当前方案的运行界面编辑副本。</summary>
+        private void 运行界面设计ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (Role != UserRole.Hight)
+            {
+                MessageBoxTD.Show("当前用户没有权限编辑运行界面，请登录最高权限账号！");
+                return;
+            }
+            if (RuntimeRunController.IsRunning)
+            {
+                MessageBoxTD.Show("请先停止方案运行，再编辑运行界面。");
+                return;
+            }
+            try
+            {
+                var solution = Solution.Instance;
+                var roots = solution.AllProcesses.ToArray();
+                var originalPages = solution.RuntimeInterfaces;
+                string name = string.IsNullOrEmpty(solution.SolFileName) ? "未命名方案" : Path.GetFileName(solution.SolFileName);
+                using (var editor = Forms.RuntimeDesigner.RuntimeInterfaceEditorForm.CreateForPages(originalPages, name,
+                    pages =>
+                    {
+                        if (!ReferenceEquals(solution, Solution.Instance) || !roots.SequenceEqual(solution.AllProcesses) ||
+                            !ReferenceEquals(originalPages, solution.RuntimeInterfaces))
+                            throw new InvalidOperationException("方案已变更，请关闭设计器后重新打开，不能将旧界面保存到新方案。");
+                        if (!SaveRuntimeInterfaces(pages)) return false;
+                        originalPages = solution.RuntimeInterfaces;
+                        return true;
+                    },
+                    new Forms.RuntimeDesigner.RuntimeBindingCatalog(() => roots),
+                    layout => new Forms.RuntimeDesigner.RuntimeBindingDataSource(layout, roots), RuntimeRunController))
+                    editor.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.AddLog(MsgLevel.Exception, "运行界面设计器打开失败：" + ex.Message, true);
+                MessageBoxTD.Show("运行界面设计器打开失败：" + ex.Message);
+            }
+        }
+
+        /// <summary>通过现有安全保存管线保存界面字段，保存失败时恢复原方案的界面引用。</summary>
+        private bool SaveRuntimeInterfaces(IReadOnlyList<Forms.RuntimeDesigner.RuntimeInterfacePage> pages)
+        {
+            if (Role != UserRole.Hight || RuntimeRunController.IsRunning)
+            {
+                MessageBoxTD.Show("保存运行界面需要最高权限账号，且方案必须处于停止状态。");
+                return false;
+            }
+            var solution = Solution.Instance;
+            var roots = solution.AllProcesses.ToArray();
+            var previous = solution.RuntimeInterfaces;
+            var configuration = ConfigHelper.SolConfig;
+            string originalPath = solution.SolFileName;
+            string path = originalPath;
+            if (string.IsNullOrEmpty(path))
+            {
+                using (var dialog = new SaveFileDialog { Title = "保存方案及运行界面", Filter = "视觉方案|*.Sol", AddExtension = true })
+                {
+                    if (dialog.ShowDialog(this) != DialogResult.OK) return false;
+                    path = dialog.FileName;
+                }
+            }
+            // 文件对话框有独立消息循环，期间可能注销、启动或切换方案，提交前重新校验。
+            if (Role != UserRole.Hight || RuntimeRunController.IsRunning ||
+                !ReferenceEquals(solution, Solution.Instance) || !ReferenceEquals(previous, solution.RuntimeInterfaces) ||
+                !ReferenceEquals(configuration, ConfigHelper.SolConfig) || !roots.SequenceEqual(solution.AllProcesses) ||
+                !string.Equals(originalPath, solution.SolFileName, StringComparison.Ordinal))
+            {
+                MessageBoxTD.Show("权限、运行状态或方案已变更，本次未保存运行界面，请重新检查后保存。");
+                return false;
+            }
+            var snapshot = Forms.RuntimeDesigner.RuntimeInterfacePage.ClonePages(pages);
+            var previousConfig = configuration.RuntimeInterface;
+            var previousConfigPages = configuration.RuntimeInterfaces;
+            try
+            {
+                solution.RuntimeInterfaces = snapshot;
+                solution.Save(path);
+                solution.SolFileName = path;
+                LogHelper.AddLog(MsgLevel.Info, "运行界面已保存到方案：" + path, true);
+                return true;
+            }
+            catch
+            {
+                solution.RuntimeInterfaces = previous;
+                configuration.RuntimeInterface = previousConfig;
+                configuration.RuntimeInterfaces = previousConfigPages;
+                throw;
+            }
+        }
+
         private void 关于TDJS_VisionToolStripMenuItem1_Click(object sender, EventArgs e)
         {
             frmAbout.ShowDialog();
@@ -1487,6 +1545,7 @@ namespace TDJS_Vision
 
         private void 默认视图ToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            CloseRuntimeInterfaceWindows();
             if(默认视图ToolStripMenuItem.Checked)
                 LoadDefaultDockPanel();
         }
@@ -1626,6 +1685,8 @@ namespace TDJS_Vision
         /// </summary>
         private void OpenUnsupervisedTrainForm()
         {
+            if (!UserPermissionContext.CanTrainAi || runtimeRunController?.IsRunning == true || Solution.Instance.IsRunning)
+                return;
             try
             {
                 using (var form = new UnsupervisedTrainForm())
@@ -1645,6 +1706,8 @@ namespace TDJS_Vision
         /// </summary>
         private void OpenLargeModelTrainForm()
         {
+            if (!UserPermissionContext.CanTrainAi || runtimeRunController?.IsRunning == true || Solution.Instance.IsRunning)
+                return;
             try
             {
                 using (var form = new LargeModelTrainForm())

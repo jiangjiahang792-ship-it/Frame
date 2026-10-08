@@ -24,6 +24,8 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// 外部指定的运行参数显示范围，用于图像窗口手动调参时按ROI绘制来源过滤。
         /// </summary>
         private RunParamDisplayFilter runParamDisplayFilter = null;
+        /// <summary>从窗体构造到参数就绪的计时，不包含用户在窗口中的停留时间。</summary>
+        private readonly Stopwatch _openStopwatch = Stopwatch.StartNew();
 
         /// <summary>
         /// 初始化流程参数窗体。
@@ -85,6 +87,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <param name="e"></param>
         private void FormSolRunParam_Shown(object sender, System.EventArgs e)
         {
+            ApplyLanguage();
             Stopwatch stopwatch = Stopwatch.StartNew();
             LogHelper.AddLog(
                 MsgLevel.Info,
@@ -105,9 +108,7 @@ namespace TDJS_Vision.Forms.SolRunParam
 
                 SolRunParamControl solRunParam = new SolRunParamControl();
                 TabPage page = new TabPage();
-                page.Text = process.ProcessName;
-                page.Controls.Add(solRunParam);
-                tabControl1.Controls.Add(page);
+                page.Text = targetAiNode == null ? process.ProcessName : targetAiNode.NodeName;
                 Stopwatch processStopwatch = Stopwatch.StartNew();
                 LogHelper.AddLog(
                     MsgLevel.Info,
@@ -118,7 +119,10 @@ namespace TDJS_Vision.Forms.SolRunParam
                     RunParamDisplayFilter processFilter = selectedProcess != null || showSingleProcessOnly && process.ProcessName == selectedProcessName
                         ? runParamDisplayFilter
                         : null;
-                    solRunParam.Init(process, process == targetAiNode?.Process ? targetAiNode : null, processFilter);
+                    // 在挂入可见窗口前一次性填充数据，减少每行绑定触发布局和绘制。
+                    solRunParam.Init(process, showSingleProcessOnly ? targetAiNode : null, processFilter);
+                    page.Controls.Add(solRunParam);
+                    tabControl1.Controls.Add(page);
                     LogHelper.AddLog(
                         MsgLevel.Info,
                         $"【手动调参诊断】流程运行参数初始化完成，流程={process.ProcessName}，耗时={processStopwatch.ElapsedMilliseconds}ms。",
@@ -126,6 +130,8 @@ namespace TDJS_Vision.Forms.SolRunParam
                 }
                 catch (Exception ex)
                 {
+                    solRunParam.Dispose();
+                    page.Dispose();
                     LogHelper.AddLog(
                         MsgLevel.Exception,
                         $"【手动调参诊断】流程运行参数初始化异常，流程={process.ProcessName}，耗时={processStopwatch.ElapsedMilliseconds}ms，原因={ex.Message}",
@@ -144,7 +150,7 @@ namespace TDJS_Vision.Forms.SolRunParam
             {
                 LogHelper.AddLog(
                     MsgLevel.Info,
-                    $"【手动调参诊断】运行参数窗体Shown完成，单流程模式，耗时={stopwatch.ElapsedMilliseconds}ms。",
+                    $"【手动调参诊断】运行参数窗体已就绪，画面={runParamDisplayFilter?.WindowName}，目标AI={targetAiNode?.NodeName}，构造到就绪={_openStopwatch.ElapsedMilliseconds}ms，Shown初始化={stopwatch.ElapsedMilliseconds}ms。",
                     true);
                 return;
             }
@@ -213,6 +219,16 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             LanguageManager.Apply(this);
             ApplyParityItems();
+            if (targetAiNode != null)
+                Text = $"手动调参 - {FrmWindowName()} - {targetAiNode.NodeName}";
+        }
+
+        /// <summary>标题标明实际画面，避免组合模块内部流程名干扰操作员识别。</summary>
+        private string FrmWindowName()
+        {
+            return string.IsNullOrEmpty(runParamDisplayFilter?.WindowName)
+                ? selectedProcessName
+                : TDJS_Vision.Forms.ImageViewer.FrmSingleImage.GetWindowDisplayName(runParamDisplayFilter.WindowName);
         }
 
         private void ApplyParityItems()

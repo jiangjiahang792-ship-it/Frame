@@ -1,7 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
+using System.Xml.Linq;
+using TDJS_Vision.Forms.Workspace;
 using WeifenLuo.WinFormsUI.Docking;
 
 namespace TDJS_Vision.Forms.ImageViewer
@@ -22,6 +27,9 @@ namespace TDJS_Vision.Forms.ImageViewer
         /// 当前图像窗口管理器实例，保留给旧版独立窗口接口兼容使用。
         /// </summary>
         private static FrmImageViewer _activeViewer;
+
+        /// <summary>布局仅在宿主挂接完成后恢复一次，避免静态构造期间浮窗触发跨屏 DPI 缩放。</summary>
+        private bool layoutInitialized;
 
         public static List<FrmSingleImage> FrmSingleImages { get => _frmSingleImages; }
 
@@ -59,11 +67,23 @@ namespace TDJS_Vision.Forms.ImageViewer
         {
             InitializeComponent();
             _activeViewer = this;
-            this.dockPanel1.Theme = new GreenTheme();
+            // 仅图像浮窗使用生命周期保护，避免合并释放时的迟到激活消息触发库内空引用。
+            GreenTheme imageTheme = new GreenTheme();
+            imageTheme.Extender.FloatWindowFactory = new WorkspaceFloatWindowFactory();
+            this.dockPanel1.Theme = imageTheme;
+            new DockPanelPermissionBinding(dockPanel1);
             InitWindows();
-            InitDockPanel();
             CanvasSet.WindowNumChangeEvent += WindowNumChangeEvent;
             CanvasSet.SaveDockPanelEvent += SaveDockPanelEventHandler;
+        }
+
+        /// <summary>等待图像管理器挂入主界面后，再创建和恢复浮动窗口。</summary>
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            if (layoutInitialized) return;
+            layoutInitialized = true;
+            InitDockPanel();
         }
 
         private void WindowNumChangeEvent(object sender, int e)
@@ -80,8 +100,8 @@ namespace TDJS_Vision.Forms.ImageViewer
             {
                 if (File.Exists(DockPanelConfig))
                 {
-                    // 如果存在，则从配置文件加载布局
-                    this.dockPanel1.LoadFromXml(DockPanelConfig, DeserializeDockContent);
+                    LoadDockPanelLayout();
+                    CurWindowsNum = CountVisibleImageWindows();
                 }
                 else
                 {
@@ -90,6 +110,11 @@ namespace TDJS_Vision.Forms.ImageViewer
             }
             catch (Exception ex)
             {
+                System.Diagnostics.Trace.TraceWarning("图像布局恢复失败：{0}", ex);
+                // LoadFromXml 在创建窗格期间失败可能留下挂起的布局和部分内容。
+                foreach (IDockContent content in dockPanel1.Contents.Cast<IDockContent>().ToArray())
+                    content.DockHandler.DockPanel = null;
+                dockPanel1.ResumeLayout(true, true);
                 LoadDefaultDockPanel();
             }
         }
@@ -102,15 +127,134 @@ namespace TDJS_Vision.Forms.ImageViewer
             {
                 _frmSingleImages[i].Show(dockPanel1, DockState.Document);
             }
+
+            CurWindowsNum = 1;
         }
 
         // 处理主窗口触发的保存布局事件
         private void SaveDockPanelEventHandler(object sender, EventArgs e)
         {
+            if (!layoutInitialized || IsDisposed) return;
             this.dockPanel1.SaveAsXml(DockPanelConfig);
         }
 
-        static int count = 0;
+        /// <summary>
+        /// 修复旧清理逻辑留下的窗格编号缺口，再从内存加载；不删除原生双位置记录。
+        /// </summary>
+        private void LoadDockPanelLayout()
+        {
+            XDocument document = XDocument.Load(DockPanelConfig);
+            XElement panes = document.Root.Element("Panes");
+            if (panes != null)
+            {
+                HashSet<string> floatingContentIds = new HashSet<string>(panes.Elements("Pane")
+                    .Where(pane => (string)pane.Attribute("DockState") == "Float")
+                    .Elements("Contents").Elements("Content").Select(content => (string)content.Attribute("RefID")));
+                // 旧清理代码删除了 FloatPane 却保留 IsFloat=True；恢复到尚存的停靠位置。
+                foreach (XElement content in document.Root.Element("Contents").Elements("Content"))
+                {
+                    if (string.Equals((string)content.Attribute("IsFloat"), "True", StringComparison.OrdinalIgnoreCase) &&
+                        !floatingContentIds.Contains((string)content.Attribute("ID")))
+                    {
+                        content.SetAttributeValue("IsFloat", "False");
+                        string contentId = (string)content.Attribute("ID");
+                        if (!string.Equals((string)content.Attribute("IsHidden"), "True", StringComparison.OrdinalIgnoreCase))
+                        {
+                            foreach (XElement pane in panes.Elements("Pane"))
+                            {
+                                if ((string)pane.Attribute("ActiveContent") == "-1" && pane.Elements("Contents")
+                                    .Elements("Content").Any(item => (string)item.Attribute("RefID") == contentId))
+                                    pane.SetAttributeValue("ActiveContent", contentId);
+                            }
+                        }
+                    }
+                }
+                Dictionary<string, string> indices = panes.Elements("Pane")
+                    .Select((pane, index) => new { Old = (string)pane.Attribute("ID"), New = index.ToString() })
+                    .ToDictionary(item => item.Old, item => item.New);
+                foreach (XElement pane in panes.Elements("Pane"))
+                    pane.SetAttributeValue("ID", indices[(string)pane.Attribute("ID")]);
+                // RefID/PrevPane 在嵌套窗格中引用全局窗格，内容 RefID 引用图像，不能混改。
+                foreach (XElement nested in document.Descendants("NestedPanes").Elements("Pane"))
+                {
+                    RemapPaneIndex(nested.Attribute("RefID"), indices);
+                    RemapPaneIndex(nested.Attribute("PrevPane"), indices);
+                }
+                RemapPaneIndex(document.Root.Attribute("ActivePane"), indices);
+                RemapPaneIndex(document.Root.Attribute("ActiveDocumentPane"), indices);
+                XElement floats = document.Root.Element("FloatWindows");
+                if (floats != null)
+                {
+                    int index = 0;
+                    foreach (XElement floating in floats.Elements("FloatWindow"))
+                        floating.SetAttributeValue("ID", index++);
+                }
+            }
+            using (MemoryStream stream = new MemoryStream())
+            {
+                document.Save(stream);
+                stream.Position = 0;
+                restoredImageIndex = 0;
+                dockPanel1.LoadFromXml(stream, DeserializeDockContent);
+            }
+            Dictionary<FloatWindow, Rectangle> savedBounds = new Dictionary<FloatWindow, Rectangle>();
+            foreach (XElement element in document.Root.Element("FloatWindows").Elements("FloatWindow"))
+            {
+                XElement pane = element.Element("NestedPanes")?.Element("Pane");
+                if (pane == null) continue;
+                int paneIndex = (int)pane.Attribute("RefID");
+                FloatWindow floating = dockPanel1.Panes[paneIndex].FloatWindow;
+                if (floating == null) continue;
+                Rectangle bounds = (Rectangle)TypeDescriptor.GetConverter(typeof(Rectangle))
+                    .ConvertFromInvariantString((string)element.Attribute("Bounds"));
+                savedBounds[floating] = GetVisibleFloatBounds(bounds);
+            }
+            // 父窗体首次布局和 WM_DPICHANGED 完成后重用物理矩形，避免每次重启都按 96/144 再缩小。
+            BeginInvoke(new Action(() =>
+            {
+                if (IsDisposed) return;
+                foreach (KeyValuePair<FloatWindow, Rectangle> saved in savedBounds)
+                    if (!saved.Key.IsDisposed) saved.Key.Bounds = saved.Value;
+            }));
+        }
+
+        /// <summary>保留有效显示器上的原位置；屏幕拔除或标题越界时收回到最近的可用工作区。</summary>
+        private static Rectangle GetVisibleFloatBounds(Rectangle bounds)
+        {
+            Rectangle title = new Rectangle(bounds.X, bounds.Y, Math.Min(100, bounds.Width), SystemInformation.CaptionHeight);
+            if (Screen.AllScreens.Any(screen => screen.WorkingArea.Contains(title))) return bounds;
+            Rectangle area = Screen.FromRectangle(bounds).WorkingArea;
+            int width = Math.Min(bounds.Width, area.Width);
+            int height = Math.Min(bounds.Height, area.Height);
+            return new Rectangle(Math.Max(area.Left, Math.Min(bounds.X, area.Right - width)),
+                Math.Max(area.Top, Math.Min(bounds.Y, area.Bottom - height)), width, height);
+        }
+
+        /// <summary>将仍存在的窗格引用映射到连续编号，负一表示没有活动或前置窗格。</summary>
+        private static void RemapPaneIndex(XAttribute attribute, Dictionary<string, string> indices)
+        {
+            if (attribute != null && attribute.Value != "-1")
+                attribute.Value = indices.TryGetValue(attribute.Value, out string index) ? index : "-1";
+        }
+
+        /// <summary>
+        /// 统计当前没有隐藏的图像窗口数量，供画布设置窗体显示当前数量。
+        /// </summary>
+        /// <returns>当前显示的图像窗口数量。</returns>
+        private static int CountVisibleImageWindows()
+        {
+            int count = 0;
+            foreach (FrmSingleImage window in _frmSingleImages)
+            {
+                if (!window.IsDisposed && window.DockPanel != null && !window.IsHidden)
+                    count++;
+            }
+
+            return count;
+        }
+
+        /// <summary>旧版布局按内容顺序恢复时的索引，与当前可见窗口数独立。</summary>
+        private static int restoredImageIndex;
         /// <summary>
         /// 配置委托函数
         /// </summary>
@@ -120,7 +264,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         {
             if (persistString == typeof(FrmSingleImage).ToString())
             {
-                return _frmSingleImages[CurWindowsNum++];
+                return restoredImageIndex < _frmSingleImages.Count ? _frmSingleImages[restoredImageIndex++] : null;
             }
             if (persistString == typeof(FrmSingle3DImage).ToString())
             {
@@ -204,6 +348,8 @@ namespace TDJS_Vision.Forms.ImageViewer
         /// <param name="num">窗口数</param>
         public void SetWindowNum(int num)
         {
+            // 用户主动重排时以本次布局为准，之后首次显示不再覆盖为旧文件。
+            layoutInitialized = true;
             foreach (var win in _frmSingleImages)
             {
                 win.Hide();
@@ -555,6 +701,11 @@ namespace TDJS_Vision.Forms.ImageViewer
 
         private void FrmImageViewer_FormClosing(object sender, FormClosingEventArgs e)
         {
+            if (e.CloseReason == CloseReason.UserClosing && !TDJS_Vision.Forms.Login.UserPermissionContext.CanEditWorkspaceLayout)
+            {
+                e.Cancel = true;
+                return;
+            }
             e.Cancel = true;  // 取消关闭事件，防止窗口关闭
             this.Hide(); // 隐藏窗口
             HideChangedEvent?.Invoke(this, EventArgs.Empty);

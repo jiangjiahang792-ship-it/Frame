@@ -318,6 +318,22 @@ namespace TDJS_Vision
         /// </summary>
         public string SolFileName { get; set; }
 
+        /// <summary>方案关联的多个独立运行窗体，未配置时继续使用原运行界面。</summary>
+        public List<Forms.RuntimeDesigner.RuntimeInterfacePage> RuntimeInterfaces { get; set; } = new List<Forms.RuntimeDesigner.RuntimeInterfacePage>();
+
+        /// <summary>兼容旧单界面调用；读取首个布局，赋空时清理全部运行界面。</summary>
+        public Forms.RuntimeDesigner.RuntimeLayoutDocument RuntimeInterface
+        {
+            get { return RuntimeInterfaces?.FirstOrDefault()?.Layout; }
+            set
+            {
+                if (value == null) { RuntimeInterfaces = new List<Forms.RuntimeDesigner.RuntimeInterfacePage>(); return; }
+                if (RuntimeInterfaces == null) RuntimeInterfaces = new List<Forms.RuntimeDesigner.RuntimeInterfacePage>();
+                if (RuntimeInterfaces.Count == 0) RuntimeInterfaces.Add(new Forms.RuntimeDesigner.RuntimeInterfacePage { Layout = value });
+                else RuntimeInterfaces[0].Layout = value;
+            }
+        }
+
         /// <summary>
         /// 方案适配的软件版本
         /// </summary>
@@ -521,9 +537,19 @@ namespace TDJS_Vision
         /// </summary>
         /// <param name="isCyclical"></param>
         /// <returns></returns>
-        public async Task Run(bool isCyclical = false)
+        public Task Run(bool isCyclical = false)
         {
-            if (AllProcesses == null || AllProcesses.Count == 0)
+            return RunProcessesAsync(AllProcesses?.ToArray() ?? new Process[0], isCyclical);
+        }
+
+        /// <summary>按调用时流程快照执行原方案核心，不改变分组、优先级、被动触发和全局取消语义。</summary>
+        /// <param name="processes">本次运行的流程集合；不会重新读取全部流程作为执行目标。</param>
+        /// <param name="isCyclical">是否按原组间隔持续执行。</param>
+        internal async Task RunProcessesAsync(IEnumerable<Process> processes, bool isCyclical = false)
+        {
+            if (processes == null) throw new ArgumentNullException(nameof(processes));
+            Process[] processSnapshot = processes.ToArray();
+            if (processSnapshot.Length == 0)
                 return;
 
             if (!TryBeginRunSession())
@@ -540,17 +566,17 @@ namespace TDJS_Vision
             try
             {
                 string validationMessage;
-                if (!TryValidateCameraConfiguration(AllProcesses, out validationMessage))
+                if (!TryValidateCameraConfiguration(processSnapshot, out validationMessage))
                 {
                     LogHelper.AddLog(MsgLevel.Exception, validationMessage, true);
                     return;
                 }
 
                 _cts = CancellationTokenSource.CreateLinkedTokenSource(Solution.Instance.CancellationToken);
-                startedCallbackCameras = StartCameraCallbackGrabbingForProcesses(AllProcesses);
+                startedCallbackCameras = StartCameraCallbackGrabbingForProcesses(processSnapshot);
                 var groupTasks = new List<Task>();
 
-                foreach (var group in AllProcesses.GroupBy(p => p.Group))
+                foreach (var group in processSnapshot.GroupBy(p => p.Group))
                 {
                     var groupCopy = group.ToList(); // 立即缓存
                     var groupCts = _cts; // 使用外部取消令牌
@@ -2588,6 +2614,9 @@ namespace TDJS_Vision
                 Solution.Instance.AllProcesses.Clear();
                 Solution.Instance.NodeCount = 0;
                 Solution.Instance.Nodes.Clear();
+
+                // 运行界面与方案同生命周期，切换方案时不能沿用旧方案布局。
+                RuntimeInterface = null;
 
                 // 发送清除结果窗口事件
                 RemoveResultData?.Invoke(this, new EventArgs());

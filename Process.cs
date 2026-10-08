@@ -11,16 +11,29 @@ using TDJS_Vision.ResourceManagement;
 
 namespace TDJS_Vision
 {
+    /// <summary>流程状态通知，显式区分正常取消与异常失败，保持旧三参数调用兼容。</summary>
     public struct ProcessRunResult 
     {
+        /// <summary>流程是否仍在运行。</summary>
         public bool IsRunning;
+        /// <summary>流程是否成功结束。</summary>
         public bool IsSuccess;
+        /// <summary>用于显示的流程名称，不作为实例身份。</summary>
         public string ProcessName;
+        /// <summary>仅由取消异常结束时标记，旧通知默认为false，不能把未知失败猜成取消。</summary>
+        public bool IsCancelled { get; set; }
+        /// <summary>保留既有构造签名，未指定取消信息的失败通知仍视为真实失败。</summary>
         public ProcessRunResult(bool  isRunning, bool isSuccess, string name)
+            : this(isRunning, isSuccess, name, false)
+        { }
+
+        /// <summary>携带明确取消信息，不改变流程执行、调度或取消控制。</summary>
+        public ProcessRunResult(bool isRunning, bool isSuccess, string name, bool isCancelled)
         {
             IsRunning = isRunning;
             IsSuccess = isSuccess;
             ProcessName = name;
+            IsCancelled = isCancelled;
         }
     }
 
@@ -1371,6 +1384,9 @@ namespace TDJS_Vision
         /// <returns>节点运行控制结果。</returns>
         private static async Task<NodeReturn> RunNodeWithCpuResourcePolicy(Process process, NodeBase node)
         {
+            // 节点路径仅属于当前异步分支，包含许可等待及节点内部日志。
+            using (RuntimeLogContext.BeginNode(process, node.ID + "." + node.NodeName))
+            {
             Solution solution = Solution.Instance;
             WorkpieceExecutionContext workpieceContext = solution.WorkpieceContextAccessor.Current;
             CancellationToken cancellationToken = workpieceContext == null
@@ -1383,6 +1399,7 @@ namespace TDJS_Vision
 
             using (ICpuWorkLease lease = await solution.AcquireCpuWorkAsync(workloadKind, cancellationToken))
                 return await node.Run(cancellationToken, showLog);
+            }
         }
 
         /// <summary>
@@ -2771,6 +2788,9 @@ namespace TDJS_Vision
             bool isTriggered,
             CancellationToken ct)
         {
+            // 触发另一个根流程必须建立新身份，不能沿用触发节点所在根流程。
+            using (RuntimeLogContext.BeginProcess(this, ID + "." + ProcessName))
+            {
             CancellationToken effectiveCancellationToken = ct.CanBeCanceled
                 ? ct
                 : Solution.Instance.CancellationToken;
@@ -2791,6 +2811,7 @@ namespace TDJS_Vision
             {
                 LogHelper.AddLog(MsgLevel.Exception, $"流程【{ProcessName}】执行异常: {ex.Message}");
                 return new ProcessInvocationResult(ProcessName, false, false, ex);
+            }
             }
         }
 
@@ -2841,6 +2862,7 @@ namespace TDJS_Vision
         {
             var process = Solution.Instance.AllProcesses.Find(p => p.ID == processId);
             if (process != null)
+            using (RuntimeLogContext.BeginProcess(process, process.ID + "." + process.ProcessName))
             {
                 if (process.Nodes.Count == 0 || !process.Enable)
                     return;
@@ -2892,7 +2914,7 @@ namespace TDJS_Vision
                         process.Success = false;
                         process.IsRuning = false;
                         WriteProcessEndLog(process, ref processStartLogWritten, MsgLevel.Warn, "运行中断");
-                        UpdateRunStatus?.Invoke(process, new ProcessRunResult(false, false, process.ProcessName));
+                        UpdateRunStatus?.Invoke(process, new ProcessRunResult(false, false, process.ProcessName, isCancelled: true));
                         ProcessEvents.OnProcessEnded(process.ID, ProcessEndStatus.Cancelled);
                         throw ex;
                     }
@@ -2960,7 +2982,7 @@ namespace TDJS_Vision
                             process.Success = false;
                             process.IsRuning = false;
                             WriteProcessEndLog(process, ref processStartLogWritten, MsgLevel.Warn, "运行中断");
-                            UpdateRunStatus?.Invoke(process, new ProcessRunResult(false, false, process.ProcessName));
+                            UpdateRunStatus?.Invoke(process, new ProcessRunResult(false, false, process.ProcessName, isCancelled: true));
                             ProcessEvents.OnProcessEnded(process.ID, ProcessEndStatus.Cancelled);
                             throw ex;
                         }
@@ -3007,6 +3029,9 @@ namespace TDJS_Vision
             bool isCyclical,
             CancellationToken cancellationToken)
         {
+            // 包装入口或显式组合模块已建立的同一实例来源在此保持不变。
+            using (RuntimeLogContext.BeginProcess(this, ID + "." + ProcessName))
+            {
             if ((Nodes.Count == 0 && ModuleInputSource == null) || !Enable)
                 return false;
 
@@ -3061,7 +3086,7 @@ namespace TDJS_Vision
                     Success = false;
                     IsRuning = false;
                     WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Warn, "运行中断");
-                    UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
+                    UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName, isCancelled: true));
                     ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
                     throw ex;
                 }
@@ -3129,7 +3154,7 @@ namespace TDJS_Vision
                         Success = false;
                         IsRuning = false;
                         WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Warn, "运行中断");
-                        UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
+                        UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName, isCancelled: true));
                         ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
                         throw ex;
                     }
@@ -3167,6 +3192,7 @@ namespace TDJS_Vision
                     Solution.Instance.EndExternalRunSession();
                 }
             }
+            }
         }
 
         /// <summary>
@@ -3185,6 +3211,8 @@ namespace TDJS_Vision
         /// </summary>
         public async Task Run(NodeBase nodeImage,bool isCyclical)
         {
+            using (RuntimeLogContext.BeginProcess(this, ID + "." + ProcessName))
+            {
             if (Nodes.Count == 0 || !Enable)
                 return;
 
@@ -3248,7 +3276,7 @@ namespace TDJS_Vision
                     Success = false;
                     IsRuning = false;
                     WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Warn, "运行中断");
-                    UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
+                    UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName, isCancelled: true));
                     ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
                     throw ex;
                 }
@@ -3327,7 +3355,7 @@ namespace TDJS_Vision
                         Success = false;
                         IsRuning = false;
                         WriteProcessEndLog(this, ref processStartLogWritten, MsgLevel.Warn, "运行中断");
-                        UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
+                        UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName, isCancelled: true));
                         ProcessEvents.OnProcessEnded(ID, ProcessEndStatus.Cancelled);
                         throw ex;
                     }
@@ -3364,6 +3392,7 @@ namespace TDJS_Vision
                     Solution.Instance.EndExternalRunSession();
                 }
             }
+            }
         }
 
 
@@ -3373,6 +3402,8 @@ namespace TDJS_Vision
         /// </summary>
         public async Task RunForUpdateImages(NodeBase node2Stop)
         {
+            using (RuntimeLogContext.BeginProcess(this, ID + "." + ProcessName))
+            {
             if (Nodes.Count == 0 || !Enable)
                 return;
 
@@ -3426,7 +3457,7 @@ namespace TDJS_Vision
                     if (ShowLog)
                         LogHelper.AddLog(MsgLevel.Warn, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（运行中断）  ---------------------------------", true);
                     CompletePerformanceTrace("运行中断");
-                    UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
+                    UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName, isCancelled: true));
                     throw ex;
                 }
                 catch (Exception ex)
@@ -3496,11 +3527,11 @@ namespace TDJS_Vision
                     {
                         Success = false;
                         IsRuning = false;
-                        RunTime += node.Result.RunTime;
+                        RunTime += node.Result?.RunTime ?? 0;
                         if (ShowLog)
                             LogHelper.AddLog(MsgLevel.Warn, $"---------------------------------  【{ProcessName}】（结束） 【耗时】（{RunTime}ms） 【状态】（运行中断）  ---------------------------------", true);
                         CompletePerformanceTrace("运行中断");
-                        UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName));
+                        UpdateRunStatus?.Invoke(this, new ProcessRunResult(false, false, ProcessName, isCancelled: true));
                         throw ex;
                     }
                     catch (Exception ex)
@@ -3537,6 +3568,7 @@ namespace TDJS_Vision
                     pendingProcessPathScope?.Dispose();
                     Solution.Instance.EndExternalRunSession();
                 }
+            }
             }
         }
     }

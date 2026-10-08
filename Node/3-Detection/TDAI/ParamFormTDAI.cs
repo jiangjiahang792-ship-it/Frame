@@ -36,6 +36,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// </summary>
         private string Adress;
 
+        /// <summary>界面暂存的通信读取配置，保存时写入节点参数。</summary>
+        private TDAIReadOptions _communicationReadOptions = new TDAIReadOptions();
+
         /// <summary>
         /// TDAI检测项配置
         /// </summary>
@@ -145,6 +148,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <param name="e"></param>
         private void SolRunParamControl_RefreshParamView(object sender, EventArgs e)
         {
+            RefreshLearningState();
+        }
+
+        /// <summary>仅同步当前节点的学习开关，单画面学习无需广播刷新所有参数窗口。</summary>
+        public void RefreshLearningState()
+        {
             if(Params is NodeParamTDAI param)
             {
                 uiSwitch_Learning.Active = param.IsAutoStudy;
@@ -221,6 +230,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 InitDetectItemList(comboBoxDetectConfig2);
 
                 Adress = param.Adress;
+                _communicationReadOptions = param.CommunicationReadOptions ?? new TDAIReadOptions();
                 TDAICommuntionParams = param.TDAICommuntionParams;
 
                 radioButton1.Checked = param.IsFixed;
@@ -353,6 +363,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 nodeParamTDAI.Scale = float.Parse(textBox_Scale.Text);
                 nodeParamTDAI.NodeName = _node.NodeName;
                 nodeParamTDAI.Adress = Adress;
+                nodeParamTDAI.CommunicationReadOptions = _communicationReadOptions;
                 nodeParamTDAI.TDAICommuntionParams = TDAICommuntionParams;
                 nodeParamTDAI.RoiEnable = uiSwitch_RoiEnable.Active;
                 nodeParamTDAI.RoiRegions = CloneRoiRegions(_roiRegions);
@@ -390,6 +401,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         break;
                     case "AST-工位3模型":
                         nodeParamTDAI.ModelName = ModelName.AST_工位3模型;
+                        break;
+                    case "AST工位1分割模型":
+                        nodeParamTDAI.ModelName = ModelName.AST工位1分割模型;
                         break;
                     default:
                         throw new Exception($"未知的模型名称：{comboBoxModelName.Text}");
@@ -534,7 +548,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <returns></returns>
         private static IYolo8 CreateModelHandle(AIInputInfo modelInfo)
         {
-            if (!modelInfo.ModelInfo.IsEncrypted)
+            // 新AST分割测试模型是明文ONNX；只开放该模型的SEG入口，原模型加载规则不变。
+            bool isAstSegOnnx = modelInfo.ModelName == nameof(ModelName.AST工位1分割模型) &&
+                modelInfo.ModelInfo.ModelType == ModelType.SEG;
+            if (!modelInfo.ModelInfo.IsEncrypted && !isAstSegOnnx)
                 throw new NotImplementedException($"模型({modelInfo.ModelInfo.ModelPath})未加密，当前版本不支持加载未加密模型！");
 
             IYolo8 model = null;
@@ -757,11 +774,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     InitDetectItemList(comboBoxDetectConfig1);
                     InitDetectItemList(comboBoxDetectConfig2);
 
-                    TDAICommuntionDetectionConfig tDAICommuntionDetectionConfig = new TDAICommuntionDetectionConfig(commountionDevice, TDAICommuntionParams, Adress, comboBoxDetectConfig2.Text);
+                    TDAICommuntionDetectionConfig tDAICommuntionDetectionConfig = new TDAICommuntionDetectionConfig(commountionDevice, TDAICommuntionParams, Adress, comboBoxDetectConfig2.Text, _communicationReadOptions);
                     tDAICommuntionDetectionConfig.ShowDialog();
 
                     TDAICommuntionParams = tDAICommuntionDetectionConfig.TDAICommuntionParamsDb;
                     Adress = tDAICommuntionDetectionConfig.Adress;
+                    _communicationReadOptions = tDAICommuntionDetectionConfig.ReadOptions;
                     NodeTDAI.EnsureCommunicationDetectItemConfigs(TDAICommuntionParams, comboBoxDetectConfig2.Text);
                     InitDetectItemList(comboBoxDetectConfig1);
                     InitDetectItemList(comboBoxDetectConfig2);

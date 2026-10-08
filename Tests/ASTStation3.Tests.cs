@@ -65,6 +65,9 @@ internal static class ASTStation3Tests
         Check(result.DetectItemCount == 5 && result.IsOk, "五项结果不完整或判定错误。");
         for (int i = 0; i < Names.Length; i++) Check(Value(result, Names[i]) == expected[i], Names[i] + "数值错误。");
         Check(result.AlgorithmResult.Rects.Count == 3, "检测框未绘制或去重错误。");
+        Check(result.AlgorithmResult.Lines.Count == 20 && result.AlgorithmResult.Lines.All(l => l.Color == Color.Yellow && !l.ShowCenterCross), "工位3尺寸箭头缺失或错误地绘制了飞丝长度。");
+        Check(Math.Abs(result.AlgorithmResult.Lines[0].P2.X - result.AlgorithmResult.Lines[0].P1.X) == 18, "宽度箭头方向或长度错误。");
+        Check(Math.Abs(result.AlgorithmResult.Lines[5].P2.Y - result.AlgorithmResult.Lines[5].P1.Y) == 27, "高度箭头方向或长度错误。");
         Check(result.AlgorithmResult.DetectResults.ContainsKey("DetectItem.FlyingWire"), "飞丝未兼容既有存储键。");
         parameter.NeedConvert = true; parameter.Scale = 0.1f;
         result = Parse(parameter, Detections());

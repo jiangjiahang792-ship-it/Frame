@@ -231,6 +231,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
                     ClassId = item.ClassId,
                     Score = item.Score,
                     Rect = new Rect(item.X, item.Y, item.Width, item.Height),
+                    MaskGeometry = item.MaskGeometry,
                     Box = new Box(
                         new PointF(item.TopLeftX, item.TopLeftY),
                         new PointF(item.TopRightX, item.TopRightY),

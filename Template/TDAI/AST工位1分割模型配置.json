@@ -1,0 +1,14 @@
+{
+  "ModelName": "AST工位1分割模型",
+  "ModelSize": 640,
+  "ScoreThreshold": 0.25,
+  "ScoreNMS": 0.45,
+  "ModelInfo": {
+    "ModelType": "SEG",
+    "DeviceType": "CPU",
+    "IsEncrypted": false,
+    "ModelPath": "D:\\MyCode\\PublicWook\\Fakra_SEG模型测试\\FAKRA（AST-CCD1）-SEG20260923\\model.onnx",
+    "KeyPointNum": 0
+  },
+  "ClassNames": ["insulation_glue", "shielding_mesh", "copper_ring", "rubber", "fly_line"]
+}

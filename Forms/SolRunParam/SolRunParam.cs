@@ -14,6 +14,7 @@ using TDJS_Vision.Forms.ImageViewer;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop;
+using TDJS_Vision.Node._2_ImagePreprocessing.ImageRotate;
 using TDJS_Vision.Node;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._6_LogicTool.CompositeModule;
@@ -32,6 +33,8 @@ namespace TDJS_Vision.Forms.SolRunParam
         NodeImageSource _nodeSource;//图像源节点
         /// <summary>手动图像测试运行门闩，阻止重复点击覆盖临时图像源参数。</summary>
         private int _manualImageTestRunning;
+        /// <summary>初始化期间合并表格刷新，避免控件尚未显示时重复创建行。</summary>
+        private bool _initializing;
         NodeImageCrop _nodeCrop;//图像裁剪节点
         /// <summary>
         /// 当前流程中可写入运行参数表的多条件节点。
@@ -114,6 +117,8 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <param name="runParamDisplayFilter">运行参数显示过滤范围。</param>
         public void Init(Process process, NodeTDAI targetAiNode, RunParamDisplayFilter runParamDisplayFilter)
         {
+            _initializing = true;
+            SuspendLayout();
             try
             {
                 Stopwatch initStopwatch = Stopwatch.StartNew();
@@ -133,6 +138,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 _currentDetectItems = new List<DetectItemInfo>();
                 _windowsName = null;
                 SetEnable(false);
+                HashSet<NodeBase> inputNodes = GetTargetInputNodes(targetAiNode);
                 List<NodeMultiCondition> multiConditionNodes = new List<NodeMultiCondition>();
                 foreach (var node in EnumerateRunParamNodes(process))
                 {
@@ -140,7 +146,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                         multiConditionNodes.Add(nodeMultiCondition);
 
                     //获取相机触发模式和曝光
-                    if (node is NodeImageSource nodeSource && node.ParamForm.Params
+                    if ((inputNodes == null || inputNodes.Contains(node)) && node is NodeImageSource nodeSource && node.ParamForm.Params
                         is NodeParamImageSoucre nodeParam)
                     {
                         _nodeSource = nodeSource;
@@ -172,7 +178,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                         }
                     }
                     //获取图像裁剪节点
-                    if (node is NodeImageCrop nodeCrop && node.ParamForm.Params
+                    if ((inputNodes == null || inputNodes.Contains(node)) && node is NodeImageCrop nodeCrop && node.ParamForm.Params
                         is NodeParamImageCrop nodeCropParam)
                     {
                         _nodeCrop = nodeCrop;//临时保存图像裁剪节点
@@ -195,7 +201,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                         if (!IsSourceNodeAllowedByRunParamFilter(nodeTDAI.ID))
                             continue;
 
-                        if (_targetAiNode != null && !ReferenceEquals(nodeTDAI, _targetAiNode) && nodeTDAI.ID != _targetAiNode.ID)
+                        if (_targetAiNode != null && !ReferenceEquals(nodeTDAI, _targetAiNode))
                             continue;
 
                         SetCurrentAiNode(nodeTDAI);//临时保存AI节点
@@ -223,13 +229,16 @@ namespace TDJS_Vision.Forms.SolRunParam
                     {
                         if (nodeShow.ParamForm.Params is NodeParamImageShow showParam)
                         {
-                            _windowsName = FrmSingleImage.NormalizeWindowKey(showParam.WindowName);
-                            showParam.WindowName = _windowsName;
+                            if (_runParamDisplayFilter == null || string.IsNullOrEmpty(_runParamDisplayFilter.WindowName))
+                                _windowsName = FrmSingleImage.NormalizeWindowKey(showParam.WindowName);
                         }
                     }
                 }
 
                 SetMultiConditionNodes(multiConditionNodes);
+                if (!string.IsNullOrEmpty(_runParamDisplayFilter?.WindowName))
+                    _windowsName = _runParamDisplayFilter.WindowName;
+                _initializing = false;
                 RefreshRunParamGrid();
                 // 本地图像测试只依赖有效的图像源节点，无需相机连接成功。
                 buttonSingleImg.Enabled = _nodeSource != null;
@@ -245,8 +254,33 @@ namespace TDJS_Vision.Forms.SolRunParam
                     MsgLevel.Exception,
                     $"【手动调参诊断】SolRunParamControl.Init异常，流程={(process == null ? "空" : process.ProcessName)}，原因={e.Message}",
                     true);
-                throw new Exception(e.Message);
+                throw;
             }
+            finally
+            {
+                _initializing = false;
+                ResumeLayout(true);
+            }
+        }
+
+        /// <summary>沿指定AI的图像输入查找可调图像源和裁剪，禁止选中其他视角最后一个节点。</summary>
+        private static HashSet<NodeBase> GetTargetInputNodes(NodeTDAI target)
+        {
+            if (target == null) return null;
+            var result = new HashSet<NodeBase>();
+            NodeBase current = target;
+            while (current != null && result.Add(current))
+            {
+                object param = current.ParamForm?.Params;
+                string source = param is NodeParamTDAI ai ? ai.Text1 :
+                    param is NodeParamImageCrop crop ? crop.Text1 :
+                    param is NodeParamImageRotate rotate ? rotate.Text1 : null;
+                if (!RunParamDisplayFilter.TryGetNodeId(source, out int id) || current.Process?.Nodes == null)
+                    break;
+                var matches = current.Process.Nodes.Where(node => node != null && node.ID == id).Take(2).ToList();
+                current = matches.Count == 1 ? matches[0] : null;
+            }
+            return result;
         }
 
         /// <summary>
@@ -464,6 +498,8 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// </summary>
         private void RefreshRunParamGrid()
         {
+            if (_initializing)
+                return;
             if (myDataGridViewForm1 == null || myDataGridViewForm1.IsDisposed)
                 return;
 
@@ -925,8 +961,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 //2025年5月27日 节点参数有更新，应该触发节点参数界面刷新当前设置的值
                 saveStage = "刷新节点参数界面";
                 RefreshParamView?.Invoke(this, EventArgs.Empty);
-                saveStage = "同步组合模块内部参数";
-                SaveCompositeModuleRuntimeSnapshots();
+                // SolSave已按层级保存组合模块，不能在这里再重复生成整套快照。
                 saveStage = "保存方案文件";
                 Solution.Instance.Save(Solution.Instance.SolFileName);
                 saveStage = "记录保存成功日志";
@@ -939,23 +974,6 @@ namespace TDJS_Vision.Forms.SolRunParam
             }
         }
 
-        /// <summary>
-        /// 将所有已打开组合模块内部流程回写到组合模块快照，确保手动调参保存能落入方案文件。
-        /// </summary>
-        private static void SaveCompositeModuleRuntimeSnapshots()
-        {
-            if (Solution.Instance.AllProcesses == null)
-                return;
-
-            foreach (Process rootProcess in Solution.Instance.AllProcesses)
-            {
-                if (rootProcess == null || rootProcess.Nodes == null)
-                    continue;
-
-                foreach (NodeCompositeModule module in rootProcess.Nodes.OfType<NodeCompositeModule>())
-                    module.SaveEditableProcess();
-            }
-        }
         /// <summary>
         /// 安全记录手动调参保存失败的完整上下文，日志组件异常不能覆盖原始保存异常。
         /// </summary>
@@ -1147,6 +1165,58 @@ namespace TDJS_Vision.Forms.SolRunParam
 
             uiSwitch_Learning.Active = true;
             SaveConfigs();
+            return true;
+        }
+
+        /// <summary>按对象身份验证流程仍属于当前方案，只遍历已有模块，不触发模型初始化。</summary>
+        internal static bool IsCurrentSolutionProcess(Process candidate)
+        {
+            if (candidate == null || Solution.Instance.AllProcesses == null) return false;
+            var pending = new Stack<Process>(Solution.Instance.AllProcesses);
+            var visited = new HashSet<Process>();
+            while (pending.Count > 0)
+            {
+                Process current = pending.Pop();
+                if (current == null || !visited.Add(current)) continue;
+                if (ReferenceEquals(current, candidate)) return true;
+                if (current.Nodes == null) continue;
+                foreach (NodeCompositeModule module in current.Nodes.OfType<NodeCompositeModule>())
+                {
+                    Process child = module.ExistingRuntimeProcess;
+                    if (child != null) pending.Push(child);
+                }
+            }
+            return false;
+        }
+
+        /// <summary>直接开启指定AI的学习，不构造参数控件、不改阈值或重写AI配置文件。</summary>
+        internal static bool StartAutoLearningForNode(Process owner, NodeTDAI target)
+        {
+            if (owner?.Nodes == null || target == null || !owner.Nodes.Any(node => ReferenceEquals(node, target)))
+                return false;
+            if (!IsCurrentSolutionProcess(owner))
+                throw new InvalidOperationException("目标AI所属流程已失效，请重新打开当前画面的调参入口。");
+            var param = target.ParamForm?.Params as NodeParamTDAI;
+            if (param?.AIInputInfo == null) return false;
+            if (string.IsNullOrWhiteSpace(Solution.Instance.SolFileName))
+                throw new InvalidOperationException("请先保存方案，再开启一键学习。");
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            bool previous = param.IsAutoStudy;
+            try
+            {
+                param.IsAutoStudy = true;
+                // 保持原入口的持久化语义，模块快照统一由SolSave处理一次。
+                Solution.Instance.Save(Solution.Instance.SolFileName);
+            }
+            catch
+            {
+                param.IsAutoStudy = previous;
+                throw;
+            }
+            if (target.ParamForm is ParamFormTDAI form)
+                form.RefreshLearningState();
+            LogHelper.AddLog(MsgLevel.Info, $"【单画面学习】已开启，节点={target.ID}.{target.NodeName}，含方案保存耗时={stopwatch.ElapsedMilliseconds}ms。", true);
             return true;
         }
         CancellationTokenSource tokenSource;

@@ -7,6 +7,7 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{60ADDFFF-D34C-48AA-B84D-03EAB7518169}</ProjectGuid>
     <OutputType>WinExe</OutputType>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <RootNamespace>TDJS_Vision</RootNamespace>
     <AssemblyName>机器视觉AI检测系统V1.0</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
@@ -257,6 +258,94 @@
     <Compile Include="ResourceManagement\CpuResourceMonitor.cs" />
     <Compile Include="ResourceManagement\CameraRawFrameMemoryBudgetManager.cs" />
     <Compile Include="ResourceManagement\CameraWorkpiecePipeline.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeLayoutDocument.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeDesignWorkspace.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Forms\RuntimeDesigner\RuntimeWindowPlacement.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeWindowPlacementStore.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeWindowPlacementBinding.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeInterfacePreviewForm.Placement.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormMain.RuntimeInterface.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormMain.RuntimeTuning.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\SolRunParam\ProcessTuningService.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeInterfacePage.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeRoiSnapshot.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeDataBinding.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeRunControl.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeTuningController.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeTuningWidget.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Forms\RuntimeDesigner\RuntimeTuningWidget.Designer.cs">
+      <DependentUpon>RuntimeTuningWidget.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\RuntimeDesigner\RuntimeLog.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeLogRenderer.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimePreviewLogSource.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeFrameworkLogSource.cs" />
+    <Compile Include="Forms\Logger\RuntimeLogContext.cs" />
+    <Compile Include="Forms\Logger\RuntimeLogStream.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeLogWidget.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Forms\RuntimeDesigner\RuntimeLogWidget.Designer.cs">
+      <DependentUpon>RuntimeLogWidget.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\RuntimeDesigner\RuntimeFrameworkRunController.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeRunControlWidget.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Forms\RuntimeDesigner\RuntimeRunControlWidget.Designer.cs">
+      <DependentUpon>RuntimeRunControlWidget.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\RuntimeDesigner\RuntimeDataValue.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeBindingCatalog.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeBindingDataSource.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeLiveViewController.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeLiveWidgetRenderer.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeBindingPickerForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\RuntimeDesigner\RuntimeBindingPickerForm.Designer.cs">
+      <DependentUpon>RuntimeBindingPickerForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\RuntimeDesigner\RuntimeLayoutSerializer.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeLayoutSession.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeWidgetClipboard.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeImageViewport.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeWidgetRenderer.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeWidgetSurfaceCache.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeLayoutAlignment.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeDesignerWindowChrome.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeDesignCanvas.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Forms\RuntimeDesigner\RuntimeDesignCanvas.Designer.cs">
+      <DependentUpon>RuntimeDesignCanvas.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\RuntimeDesigner\RuntimeDesignCanvas.ImageInteraction.cs">
+      <DependentUpon>RuntimeDesignCanvas.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\RuntimeDesigner\RuntimeDesignerProperties.cs" />
+    <Compile Include="Forms\RuntimeDesigner\RuntimeInterfaceEditorForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\RuntimeDesigner\RuntimeInterfaceEditorForm.Designer.cs">
+      <DependentUpon>RuntimeInterfaceEditorForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\RuntimeDesigner\RuntimeInterfacePreviewForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\RuntimeDesigner\RuntimeInterfacePreviewForm.Designer.cs">
+      <DependentUpon>RuntimeInterfacePreviewForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="DetectItemLanguage.cs" />
     <Compile Include="ExternalProgramLauncher.cs" />
     <Compile Include="Forms\Workspace\IExclusiveWorkspacePresenter.cs" />
@@ -619,6 +708,8 @@
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12angondingParse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation1Parse.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation1SegParse.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Yolo8\SegMaskGeometry.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation2Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation3Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\YFZ_Filling_rubber_Back.cs" />
@@ -958,6 +1049,9 @@
     <Compile Include="Forms\ImageViewer\CanvasSet.Designer.cs">
       <DependentUpon>CanvasSet.cs</DependentUpon>
     </Compile>
+    <Compile Include="Forms\Workspace\WorkspaceFloatWindow.cs" />
+    <Compile Include="Forms\Workspace\DockPanelPermissionBinding.cs" />
+    <Compile Include="Forms\Workspace\WorkspaceCaptionFactory.cs" />
     <Compile Include="Forms\ImageViewer\FrmImageViewer.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -2200,6 +2294,15 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Template\TDAI\AST-工位1检测项.items">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\AST工位1分割检测项.items">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\AST工位1分割模型配置.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\AST工位1分割模型.ai">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Template\TDAI\AST-工位1模型.ai">

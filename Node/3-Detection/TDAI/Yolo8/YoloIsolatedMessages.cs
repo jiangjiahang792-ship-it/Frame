@@ -216,6 +216,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
     /// </summary>
     internal sealed class YoloIsolatedSegResult
     {
+        /// <summary>原图掩膜边界与轮廓；不传输完整像素掩膜。</summary>
+        public SegMaskGeometry MaskGeometry { get; set; }
         /// <summary>类别ID。</summary>
         public int ClassId { get; set; }
 

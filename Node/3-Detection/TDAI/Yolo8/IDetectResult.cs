@@ -43,6 +43,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Yolo8
         public float Score;
         public Rect Rect;
         public Box Box;
+        /// <summary>真实掩膜几何，未提取或掩膜为空时为null，不能用检测框替代。</summary>
+        public SegMaskGeometry MaskGeometry;
     }
     /// <summary>
     /// SEG模型的不规则框

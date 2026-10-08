@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -11,10 +11,22 @@ using TDJS_Vision.Node._3_Detection.ColorDiscern;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI
 {
+    /// <summary>配置通信触发值的读取方式及检测项映射。</summary>
     public partial class TDAICommuntionDetectionConfig : FormBase
     {
+        /// <summary>当前编辑的检测项映射。</summary>
         public BindingList<TDAICommuntionParam> TDAICommuntionParamsDb { get; set; }
+        /// <summary>通信起始地址。</summary>
         public string Adress { get; set; }
+
+        /// <summary>获取界面选择的读取配置。</summary>
+        public TDAIReadOptions ReadOptions => new TDAIReadOptions
+        {
+            ReadType = (TDAIReadType)comboBoxReadType.SelectedIndex,
+            RegisterCount = (ushort)numericRegisterCount.Value,
+            EncodingName = new[] { "us-ascii", "utf-8", "gb18030", "utf-16" }[comboBoxEncoding.SelectedIndex],
+            LowByteFirst = checkBoxLowByteFirst.Checked
+        };
 
         /// <summary>
         /// 用于自动补齐检测项配置的默认模板名称。
@@ -28,9 +40,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <param name="tDAICommuntionParams">通信触发值和检测项名称映射集合。</param>
         /// <param name="adress">通信读取地址。</param>
         /// <param name="defaultTemplateName">自动创建检测项时复制的默认模板名称。</param>
-        public TDAICommuntionDetectionConfig(IDevice device, BindingList<TDAICommuntionParam> tDAICommuntionParams, string adress, string defaultTemplateName)
+        /// <param name="readOptions">读取配置，省略时兼容旧方案。</param>
+        public TDAICommuntionDetectionConfig(IDevice device, BindingList<TDAICommuntionParam> tDAICommuntionParams, string adress, string defaultTemplateName, TDAIReadOptions readOptions = null)
         {
             InitializeComponent();
+            ApplyReadOptions(readOptions ?? new TDAIReadOptions());
             // 初始化界面文本
             label2.Text = device.UserDefinedName;
             textBox1.Text = adress;
@@ -42,6 +56,25 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             textBox1.TextChanged += TextBox1_TextChanged;
             // ✅ 必加：拦截DataGridView数据异常弹窗（彻底屏蔽报错）
             dgvAIParam.DataError += DgvAIParam_DataError;
+        }
+
+        /// <summary>回显读取配置，旧文件使用默认值。</summary>
+        private void ApplyReadOptions(TDAIReadOptions options)
+        {
+            comboBoxReadType.SelectedIndex = Enum.IsDefined(typeof(TDAIReadType), options.ReadType) ? (int)options.ReadType : 0;
+            numericRegisterCount.Value = Math.Max(1, Math.Min(125, (int)options.RegisterCount));
+            int encodingIndex = Array.IndexOf(new[] { "us-ascii", "utf-8", "gb18030", "utf-16" }, options.EncodingName);
+            comboBoxEncoding.SelectedIndex = Math.Max(0, encodingIndex);
+            checkBoxLowByteFirst.Checked = options.LowByteFirst;
+        }
+
+        /// <summary>仅字符串类型启用长度、编码和字节顺序设置。</summary>
+        private void ComboBoxReadType_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            bool isString = comboBoxReadType.SelectedIndex == (int)TDAIReadType.String;
+            numericRegisterCount.Enabled = isString;
+            comboBoxEncoding.Enabled = isString;
+            checkBoxLowByteFirst.Enabled = isString;
         }
 
         #region ✅ 基础事件：地址文本框变更、DataError异常拦截
@@ -201,6 +234,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             base.OnFormClosing(e);
+            CaptureMappings();
+        }
+
+        /// <summary>提交正在编辑的单元格，并收集当前映射用于保存或导出。</summary>
+        private void CaptureMappings()
+        {
+            dgvAIParam.EndEdit();
             // ✅ 核心：手动遍历DataGridView所有行 → 组装为新的List<TDAICommuntionParam>
             TDAICommuntionParamsDb = new BindingList<TDAICommuntionParam>();
 
@@ -234,7 +274,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             {
                 try
                 {
-                    TDAICommuntionParamsDb = JsonProjectSerializer.LoadProject<BindingList<TDAICommuntionParam>>(openFileDialog2.FileName);
+                    // 旧版文件仅包含映射数组；新版同时保存地址和读取设置。
+                    var configuration = TDAICommunicationFile.Load(openFileDialog2.FileName, Adress);
+                    TDAICommuntionParamsDb = configuration.Items ?? new BindingList<TDAICommuntionParam>();
+                    textBox1.Text = configuration.Address ?? "";
+                    ApplyReadOptions(configuration.ReadOptions ?? new TDAIReadOptions());
 
                     NodeTDAI.EnsureCommunicationDetectItemConfigs(TDAICommuntionParamsDb, _defaultTemplateName);
                     LoadComboBoxDataSource(dgvAIParam.Columns["colDetection"] as DataGridViewComboBoxColumn);
@@ -262,7 +306,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             {
                 try
                 {
-                    JsonProjectSerializer.SaveProject<BindingList<TDAICommuntionParam>>(TDAICommuntionParamsDb, saveFileDialog1.FileName);
+                    CaptureMappings();
+                    JsonProjectSerializer.SaveProject(new TDAICommunicationFile
+                    {
+                        Address = Adress,
+                        ReadOptions = ReadOptions,
+                        Items = TDAICommuntionParamsDb
+                    }, saveFileDialog1.FileName);
                 }
                 catch (Exception)
                 {
@@ -273,4 +323,31 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             }
         }
     }
+    /// <summary>通信配置导出内容，包含读取设置和触发值映射。</summary>
+    public class TDAICommunicationFile
+    {
+        /// <summary>通信起始地址。</summary>
+        public string Address { get; set; }
+        /// <summary>通信读取方式。</summary>
+        public TDAIReadOptions ReadOptions { get; set; } = new TDAIReadOptions();
+        /// <summary>触发值与检测项的映射。</summary>
+        public BindingList<TDAICommuntionParam> Items { get; set; } = new BindingList<TDAICommuntionParam>();
+
+        /// <summary>读取新旧配置文件，兼容旧序列化器带类型信息的集合包装。</summary>
+        public static TDAICommunicationFile Load(string path, string currentAddress)
+        {
+            var document = Newtonsoft.Json.Linq.JToken.Parse(System.IO.File.ReadAllText(path, System.Text.Encoding.UTF8));
+            if (document is Newtonsoft.Json.Linq.JArray || (document is Newtonsoft.Json.Linq.JObject obj && obj["$values"] != null))
+            {
+                return new TDAICommunicationFile
+                {
+                    Address = currentAddress,
+                    Items = JsonProjectSerializer.LoadProject<BindingList<TDAICommuntionParam>>(path)
+                };
+            }
+            return JsonProjectSerializer.LoadProject<TDAICommunicationFile>(path)
+                ?? throw new InvalidOperationException("通信配置文件内容为空。");
+        }
+    }
+
 }

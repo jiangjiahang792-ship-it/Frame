@@ -153,24 +153,49 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
             AddAutoStudyValue(itemName, count, param);
 
-            bool minOk = float.TryParse(item.MinValue, out float min) && count >= min;
-            bool maxOk = float.TryParse(item.MaxValue, out float max) && count <= max;
-            bool isOk = param.IsAutoStudy || (count > 0 && minOk && maxOk);
+            bool isOk = param.IsAutoStudy || (count > 0 && ParseCommon.IsValueWithinLimits(item, count));
+            string displayValueStr = ResolveCountDisplayValue(item, valueStr, param.IsAutoStudy, isOk);
 
             singleResults.Add(new SingleDetectResult
             {
                 Name = itemName,
-                Value = valueStr,
+                Value = displayValueStr,
                 IsOk = isOk
             });
 
             foreach (var aiRes in matchedResults)
                 ParseCommon.AddRect(addedRectKeys, aiRes.Rect, isOk, ref nodeResult);
 
-            AddDetectText(texts, deteItems, item, itemName, valueStr, isOk);
-            ParseCommon.SetDetectItemCurValue(ref param, itemName, valueStr);
+            AddDetectText(texts, deteItems, item, itemName, displayValueStr, isOk);
+            if (param.IsAutoStudy || isOk)
+                ParseCommon.SetDetectItemCurValue(ref param, itemName, displayValueStr);
 
             return true;
+        }
+
+        /// <summary>
+        /// 获取线芯数量最终显示值，正常检测OK时优先使用一键学习保存的当前值。
+        /// </summary>
+        /// <param name="item">线芯数量检测项配置。</param>
+        /// <param name="detectedValue">本次模型实时检测数量。</param>
+        /// <param name="isAutoStudy">是否正在一键学习。</param>
+        /// <param name="isOk">本次数量是否在设定公差范围内。</param>
+        /// <returns>用于界面、检测结果和当前值栏显示的数量文本。</returns>
+        private static string ResolveCountDisplayValue(DetectItemInfo item, string detectedValue, bool isAutoStudy, bool isOk)
+        {
+            if (isAutoStudy || !isOk)
+                return detectedValue;
+
+            if (item == null || string.IsNullOrWhiteSpace(item.CurValue))
+                return detectedValue;
+
+            string learnedValue = item.CurValue.Trim();
+            if (!float.TryParse(learnedValue, out float learnedCount))
+                return detectedValue;
+
+            return ParseCommon.IsValueWithinLimits(item, learnedCount)
+                ? learnedValue
+                : detectedValue;
         }
 
         /// <summary>

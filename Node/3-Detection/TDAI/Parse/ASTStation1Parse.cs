@@ -73,9 +73,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             var addedRectKeys = new HashSet<string>();
             nodeResult.AlgorithmResult = new AlgorithmResult();
 
+            int measurementNumber = 0;
             foreach (var item in deteItems)
             {
                 if (item == null || !item.Enable) continue;
+                int number = ++measurementNumber;
                 string itemName = item.Name;
                 bool isCountItem = item.IsCountItem;
                 bool isDistanceItem = false;
@@ -146,13 +148,24 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         if (param.NeedConvert) value *= param.Scale;
                         bool isOk = AddValue(item, value, false, param, study, singleResults);
                         ParseCommon.AddRect(addedRectKeys, match.Result.Box, isOk, ref nodeResult);
+                        Rect? dependency = null;
+                        bool targetBottom = false;
                         if (isDistanceItem)
                         {
                             // 距离由两个框共同决定，任一距离NG时两个参与框均标红。
                             Rect? rubber = FindNearestRubber(match.Result.Box, rubbers);
                             if (rubber.HasValue)
+                            {
                                 ParseCommon.AddRect(addedRectKeys, rubber.Value, isOk, ref nodeResult);
+                                // 与间距提取保持一致：重叠时距离为0，不绘制不存在的边缘间距。
+                                targetBottom = match.Result.Box.Bottom <= rubber.Value.Top;
+                                dependency = rubber;
+                            }
                         }
+                        if (!isDistanceItem || (dependency.HasValue && match.Value.Value > 0))
+                            ParseCommon.AddAstMeasurementArrow(nodeResult.AlgorithmResult, match.Result.Box,
+                                dependency, itemName.EndsWith("宽度"), targetBottom, !targetBottom,
+                                number, deteItems.Count);
                     }
                 }
 
@@ -172,7 +185,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 detectResults[itemName] = singleResults;
                 ParseCommon.SetDetectItemCurValue(ref param, itemName, valueStr);
                 texts.Add(new ColorText(
-                    $"{ParseCommon.GetDisplayName(itemName)}: {valueStr} 设定值: [{item.MinValue}, {item.MaxValue}]",
+                    $"{number}. {ParseCommon.GetDisplayName(itemName)}: {valueStr}{(isCountItem ? string.Empty : "mm")}",
                     singleResults.All(r => r.IsOk) ? Color.Green : Color.Red));
             }
 
