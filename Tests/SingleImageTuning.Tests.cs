@@ -15,6 +15,7 @@ using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._6_LogicTool.CompositeModule;
+using TDJS_Vision.Node._6_LogicTool.MultiCondition;
 using TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2;
 
 /// <summary>使用真实程序集验证单画面定位、参数隔离与学习；只保存独立临时方案。</summary>
@@ -115,6 +116,8 @@ internal static class SingleImageTuningTests
                 viewer.FormName = "ImageWindow" + (i + 1);
                 Check(ReferenceEquals(Call(viewer, "ResolveTargetAiNode", process, false), targets[i]), "画面没有定位到自身AI");
                 var filter = (RunParamDisplayFilter)Call(viewer, "ResolveRunParamDisplayFilter", process);
+                Check(ReferenceEquals(Call(viewer, "ResolveManualTuningTarget", process, filter), targets[i]),
+                    "仅AI画面没有定位到对应AI参数");
                 using (var control = new SolRunParamControl())
                 {
                     control.Init(process, targets[i], filter);
@@ -132,6 +135,54 @@ internal static class SingleImageTuningTests
             overlays[0].Items[0].Enabled = false;
             Reject(() => Call(viewer, "ResolveTargetAiNode", process, false), "禁用绘制不应成为绑定");
             overlays[0].Items[0].Enabled = true;
+
+            // 当前画面同时订阅AI和传统测量来源时，两类参数必须在同一参数页中保留。
+            Node<NodeBase>(process, 50, "角度源", new NodeParamImageCrop());
+            var conditionParam = new NodeParamMultiCondition();
+            conditionParam.Conditions.Add(new MultiConditionItem
+            {
+                Enabled = true,
+                Name = "角度",
+                SourceNodeId = 50,
+                SourceNodeText = "50.角度源",
+                Operator = MultiConditionOperator.Between,
+                Value1 = "-3",
+                Value2 = "3",
+                EnableRunParamAdjust = true
+            });
+            Node<NodeMultiCondition>(process, 60, "多条件判断", conditionParam);
+            overlays[0].Items.Add(new ResultOverlayDraw2Item
+                { Enabled = true, UseManualText = false, SourceText1 = "50.角度源" });
+            viewer.FormName = "ImageWindow1";
+            var mixedFilter = (RunParamDisplayFilter)Call(viewer, "ResolveRunParamDisplayFilter", process);
+            Check(ReferenceEquals(Call(viewer, "ResolveManualTuningTarget", process, mixedFilter), targets[0]),
+                "混合画面没有保留对应AI参数");
+            Check((bool)Call(typeof(FrmSingleImage), "HasAdjustableMultiCondition", process, mixedFilter),
+                "混合画面没有识别传统运行参数");
+
+            // 纯传统画面允许AI目标为空，但必须能生成对应的多条件运行参数行。
+            var traditionalOverlay = new NodeParamResultOverlayDraw2();
+            traditionalOverlay.Items.Add(new ResultOverlayDraw2Item
+                { Enabled = true, UseManualText = false, SourceText1 = "50.角度源" });
+            Node<NodeResultOverlayDraw2>(process, 25, "传统绘制", traditionalOverlay);
+            Node<NodeImageShow>(process, 45, "传统显示", new NodeParamImageShow
+                { Text1 = "25.传统绘制", WindowName = "ImageWindow5" });
+            viewer.FormName = "ImageWindow5";
+            var traditionalFilter = (RunParamDisplayFilter)Call(viewer, "ResolveRunParamDisplayFilter", process);
+            Check(Call(viewer, "ResolveManualTuningTarget", process, traditionalFilter) == null,
+                "纯传统画面仍然强制要求AI节点");
+            using (var control = new SolRunParamControl())
+            {
+                control.Init(process, null, traditionalFilter);
+                var rows = (System.Collections.IList)Call(control, "BuildRunParamGridItems");
+                Check(rows.Count == 1, "纯传统画面没有生成唯一的角度运行参数行");
+            }
+
+            // 画面没有AI且没有勾选可调条件时应明确拒绝，不能打开空参数页。
+            conditionParam.Conditions[0].EnableRunParamAdjust = false;
+            Reject(() => Call(viewer, "ResolveManualTuningTarget", process, traditionalFilter),
+                "无可调参数画面错误地打开了空参数页");
+            conditionParam.Conditions[0].EnableRunParamAdjust = true;
 
             // 只写入测试进程的临时方案，绝不加载或改动现场Sol/AI文件。
             string temp = Path.Combine(Path.GetTempPath(), "SingleImageTuning-" + Guid.NewGuid().ToString("N") + ".Sol");

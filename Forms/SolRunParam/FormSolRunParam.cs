@@ -33,6 +33,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         public FormSolRunParam()
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             comboBoxCoilValue.SelectedIndex = 1;
             BindLanguage();
             LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
@@ -221,6 +222,8 @@ namespace TDJS_Vision.Forms.SolRunParam
             ApplyParityItems();
             if (targetAiNode != null)
                 Text = $"手动调参 - {FrmWindowName()} - {targetAiNode.NodeName}";
+            else if (showSingleProcessOnly)
+                Text = $"手动调参 - {FrmWindowName()}";
         }
 
         /// <summary>标题标明实际画面，避免组合模块内部流程名干扰操作员识别。</summary>

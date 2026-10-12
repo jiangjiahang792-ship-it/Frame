@@ -161,7 +161,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
                 result.Error = exception.Message;
                 result.RunTime = SetRunResult(start, exception is OperationCanceledException ? NodeStatus.Unexecuted : NodeStatus.Failed);
                 LogHelper.AddLog(MsgLevel.Warn, "节点(" + ID + "." + NodeName + ")：" + exception.Message, true);
-                throw;
+                if (exception is OperationCanceledException) throw;
+                return new NodeReturn(NodeRunFlag.ContinueRun);
             }
         }
     }

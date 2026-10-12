@@ -47,6 +47,7 @@ namespace TDJS_Vision
             {
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
+                LanguageManager.Initialize();
 
                 using (Mutex singleInstanceMutex = new Mutex(false, SingleInstanceMutexName))
                 {

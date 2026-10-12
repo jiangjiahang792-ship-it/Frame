@@ -105,9 +105,9 @@ internal static class KeyenceKvOldBitWriteTests
                     ? Task.Run(() => plc.WriteBool("DM100." + bit, value))
                     : plc.WriteBoolAsync("DM100." + bit, value)).ToArray();
                 Check(Wait(Task.WhenAll(tasks)).All(result => result.IsSuccess), "混合同步异步并发写入失败。");
-                Check(server.ReadUInt16("DM100").IsSuccess, "混合同步异步并发写入后整字读取失败。");
+                CheckWord(server, "DM100", value ? ushort.MaxValue : (ushort)0);
             }
-            Console.WriteLine("PASS: 数组、跨字写入及同一客户端同步异步并发调用均返回协议结果，最终值由调用时序决定。");
+            Console.WriteLine("PASS: 数组、跨字写入及同一客户端同步异步并发调用均返回协议结果，同字位写入不会互相覆盖。");
 
             Check(server.Write("DM100", (ushort)0xA55A).IsSuccess, "非法输入测试初始化失败。");
             foreach (string address in new[] { "DM100.16", "DM100.-1", "DM100.x", "DM100.1.2", "DM.1", "DM100.", "R100.1" })

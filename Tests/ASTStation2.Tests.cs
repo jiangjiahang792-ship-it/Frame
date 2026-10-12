@@ -17,11 +17,11 @@ internal static class ASTStation2Tests
 {
     /// <summary>已通过的断言数量。</summary>
     private static int _checks;
-    /// <summary>用户要求的十三个检测项，前九项保持既有顺序，末尾补齐飞丝、屏蔽网尺寸和铝箔距离。</summary>
-    private static readonly string[] Names = { "铜环底部到端子头顶部的距离", "铜环底部到绝缘体顶部的距离",
-        "铜环底部到屏蔽网顶部距离", "露线芯宽度", "露线芯长度", "胶皮顶部到屏蔽网顶部的距离",
+    /// <summary>用户要求的十五个检测项，前十三项保持既有顺序，末尾补齐绝缘体尺寸。</summary>
+    private static readonly string[] Names = { "L1-S2(端子先端位置)", "L1-FiLay(绝缘体长度)",
+        "铜环底部到屏蔽网顶部距离", "出线芯宽度", "出线芯长度", "胶皮顶部到屏蔽网顶部的距离",
         "胶皮顶部到屏蔽网底部的距离", "胶皮顶部到绝缘体顶部的距离", "胶皮顶部到绝缘体底部的距离",
-        "飞丝", "屏蔽网高度", "屏蔽网宽度", "铜环底部到铝箔顶部的距离" };
+        "飞丝", "屏蔽网高度", "屏蔽网宽度", "L1-ALFoiLay(箔长度)", "绝缘体宽度", "绝缘体长度" };
     /// <summary>验证业务行为，失败时输出场景。</summary>
     private static void Check(bool value, string message)
     {
@@ -101,20 +101,21 @@ internal static class ASTStation2Tests
         var parameter = Parameter("解析");
         var detections = Detections();
         var result = Parse(parameter, detections);
-        float[] expected = { 280, 170, 90, 18, 27, 120, 85, 200, 160, 1, 35, 38, 120 };
-        Check(result.DetectItemCount == 13 && result.IsOk, "十三项结果不完整或判定错误。");
+        float[] expected = { 280, 170, 90, 18, 27, 120, 85, 200, 160, 1, 35, 38, 120, 30, 40 };
+        Check(result.DetectItemCount == 15 && result.IsOk, "十五项结果不完整或判定错误。");
         for (int i = 0; i < Names.Length; i++) Check(Value(result, Names[i]) == expected[i], Names[i] + "数值错误。");
         Check(result.AlgorithmResult.Rects.Count == 8, "参与框去重错误或漏绘了飞丝/铝箔。");
-        Check(result.AlgorithmResult.Lines.Count == 60 && result.AlgorithmResult.Lines.All(l => l.Color == Color.Yellow && !l.ShowCenterCross), "工位2尺寸箭头缺失或错误地绘制了数量项。");
-        Check(result.AlgorithmResult.Lines[0].P1.Y == 100 && result.AlgorithmResult.Lines[0].P2.Y == 380, "铜环到端子头箭头端点错误。");
-        Check(result.AlgorithmResult.Lines[55].P1.Y == 260 && result.AlgorithmResult.Lines[55].P2.Y == 380, "铝箔距离箭头端点错误。");
+        Check(result.AlgorithmResult.Lines.Count == 70 && result.AlgorithmResult.Lines.All(l => l.Color == Color.Yellow && !l.ShowCenterCross), "工位2尺寸箭头缺失或错误地绘制了数量项。");
+        Check(result.AlgorithmResult.Lines.Any(l => l.P1.Y == 100 && l.P2.Y == 380), "铜环到端子头箭头端点错误。");
+        Check(result.AlgorithmResult.Lines.Any(l => l.P1.Y == 260 && l.P2.Y == 380), "铝箔距离箭头端点错误。");
         Check(!result.AlgorithmResult.Texts.Any(t => t.Color == Color.Yellow), "箭头不应显示黄色数值。");
         VerifyAnnotationProjection(result.AlgorithmResult);
-        Check(result.AlgorithmResult.DetectResults.ContainsKey("DetectItem.ExposedCoreLength"), "露线芯长度未兼容既有存储键。");
+        Check(result.AlgorithmResult.DetectResults.ContainsKey("出线芯长度"), "出线芯长度未按新检测项名称输出。");
         parameter.NeedConvert = true; parameter.Scale = 0.1f;
         result = Parse(parameter, detections);
         Check(Value(result, Names[0]) == 28, "Y距离换算错误。");
-        Check(Math.Abs(Value(result, Names[4]) - 2.7f) < 0.001f, "露线芯长度换算错误。");
+        Check(Math.Abs(Value(result, Names[4]) - 2.7f) < 0.001f, "出线芯长度换算错误。");
+        Check(Value(result, "绝缘体宽度") == 3 && Value(result, "绝缘体长度") == 4, "绝缘体尺寸换算错误。");
         Check(Value(result, Names[5]) == 12 && Value(result, Names[8]) == 16, "胶皮距离换算错误。");
         Check(result.AlgorithmResult.Texts.Any(t => !t.UseImagePosition && t.Text.Contains("28.00mm")), "检测汇总文字未使用换算后的mm值。");
         parameter.NeedConvert = false;
@@ -122,9 +123,10 @@ internal static class ASTStation2Tests
         result = Parse(parameter, detections);
         Check(!result.IsOk && Names.Take(3).All(n => Value(result, n) == 0), "缺少铜环未将三项清零。");
         Check(Value(result, Names[12]) == 0, "缺少铜环未将铝箔距离清零。");
-        Check(result.AlgorithmResult.Lines.Count == 40, "缺少铜环仍绘制依赖铜环的距离箭头。");
-        Check(Value(result, Names[3]) == 18 && Value(result, Names[4]) == 27, "缺少铜环中断了露线芯解析。");
+        Check(result.AlgorithmResult.Lines.Count == 50, "缺少铜环仍绘制依赖铜环的距离箭头。");
+        Check(Value(result, Names[3]) == 18 && Value(result, Names[4]) == 27, "缺少铜环中断了出线芯解析。");
         Check(Value(result, Names[5]) == 120 && Value(result, Names[8]) == 160, "缺少铜环影响了胶皮距离解析。");
+        Check(Value(result, "绝缘体宽度") == 30 && Value(result, "绝缘体长度") == 40, "缺少铜环影响了绝缘体尺寸解析。");
         detections = Detections();
         detections.RemoveAll(d => d.ClassId == 5);
         result = Parse(parameter, detections);
@@ -141,6 +143,12 @@ internal static class ASTStation2Tests
         Check(!result.IsOk && Value(result, Names[2]) == 0 && Value(result, Names[5]) == 0 &&
             Value(result, "屏蔽网高度") == 0 && Value(result, "屏蔽网宽度") == 0, "缺少屏蔽网未将关联项清零。");
         detections = Detections();
+        detections.RemoveAll(d => d.ClassId == 2);
+        result = Parse(parameter, detections);
+        Check(!result.IsOk && Value(result, Names[1]) == 0 && Value(result, Names[7]) == 0 &&
+            Value(result, Names[8]) == 0 && Value(result, "绝缘体宽度") == 0 && Value(result, "绝缘体长度") == 0,
+            "缺少绝缘体未将关联项和绝缘体尺寸清零。");
+        detections = Detections();
         detections.RemoveAll(d => d.ClassId == 7);
         result = Parse(parameter, detections);
         Check(!result.IsOk && Value(result, Names[12]) == 0, "缺少铝箔未将铜环到铝箔距离清零。");
@@ -151,7 +159,7 @@ internal static class ASTStation2Tests
         Check(Parse(parameter, detections).AlgorithmResult.DetectResults[Names[0]][0].IsOk, "未检出0值上下限判定错误。");
         items[0].Enable = false; items[3].MaxValue = "10";
         result = Parse(parameter, Detections());
-        Check(result.DetectItemCount == 12, "禁用项仍输出。");
+        Check(result.DetectItemCount == 14, "禁用项仍输出。");
         Check(result.AlgorithmResult.Rects.Single(r => r.RotatedRect.size.width == 18).Color == Color.Red, "同框尺寸NG未合并。");
         result = Parse(parameter, null);
         Check(items.Where(i => i.Enable).All(i => i.CurValue == "0"), "未检出保留旧值。");
@@ -277,7 +285,7 @@ internal static class ASTStation2Tests
         Check(config.ModelName == "AST-工位2模型" && config.ModelInfo.ModelPath.EndsWith("model_encrypted.onnx"),
             "配置模型名称或文件错误。");
         LanguageManager.SetLanguage("en-US", false);
-        Check(DetectItemLanguage.GetDisplayName(Names[0]) == "Copper ring bottom to terminal head top distance", "英文显示未使用中文键。");
+        Check(DetectItemLanguage.GetDisplayName(Names[0]) == "L1-S2 (terminal tip position)", "英文显示未使用中文键。");
         LanguageManager.SetLanguage("zh-CN", false);
         Check(DetectItemLanguage.GetDisplayName(Names[0]) == Names[0], "切回中文后显示错误。");
     }

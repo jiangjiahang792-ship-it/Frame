@@ -17,9 +17,9 @@ internal static class ASTStation1Tests
 {
     /// <summary>已通过的断言数量。</summary>
     private static int _checks;
-    /// <summary>用户要求的九个检测项及输出顺序。</summary>
-    private static readonly string[] Names = { "胶皮到铜环的距离", "胶皮到屏蔽网的距离", "胶皮到绝缘胶的位置",
-        "屏蔽网高度", "屏蔽网宽度", "铜环高度", "铜环宽度", "绝缘胶高度", "绝缘胶宽度" };
+    /// <summary>用户要求的十个检测项及输出顺序。</summary>
+    private static readonly string[] Names = { "L1-S2", "L1-S3", "L1-S4",
+        "屏蔽网高度", "屏蔽网宽度", "铜环高度", "铜环宽度", "绝缘胶高度", "绝缘胶宽度", "飞丝" };
     /// <summary>验证业务行为，失败时输出场景。</summary>
     private static void Check(bool value, string message)
     {
@@ -57,7 +57,7 @@ internal static class ASTStation1Tests
     /// <summary>读取实际尺寸数值。</summary>
     private static float Value(NodeResultTDAI result, string name)
     {
-        return float.Parse(result.AlgorithmResult.DetectResults[name][0].Value);
+        return float.Parse(result.AlgorithmResult.DetectResults[DetectItemLanguage.NormalizeName(name)][0].Value);
     }
     /// <summary>覆盖类别映射、缺失清零、上下限、换算、禁用和颜色合并。</summary>
     private static void VerifyParsing()
@@ -65,11 +65,12 @@ internal static class ASTStation1Tests
         var parameter = Parameter("解析");
         var detections = Detections();
         var result = Parse(parameter, detections);
-        float[] expected = { 30, 60, 130, 14, 25, 16, 30, 12, 20 };
-        Check(result.DetectItemCount == 9 && result.IsOk, "九项结果不完整或判定错误。");
+        float[] expected = { 30, 60, 130, 14, 25, 16, 30, 12, 20, 1 };
+        Check(result.DetectItemCount == 10 && result.IsOk, "十项结果不完整或判定错误。");
         for (int i = 0; i < Names.Length; i++) Check(Value(result, Names[i]) == expected[i], Names[i] + "数值错误。");
-        Check(result.AlgorithmResult.Rects.Count == 4, "检测框未去重或加入了未要求的飞丝。");
-        Check(result.AlgorithmResult.Lines.Count == 45 && result.AlgorithmResult.Lines.All(l => l.Color == Color.Yellow && !l.ShowCenterCross), "九项双向箭头缺失或颜色错误。");
+        Check(result.AlgorithmResult.Rects.Count == 5, "检测框未去重或遗漏了飞丝。");
+        Check(result.AlgorithmResult.Lines.Count == 45 && result.AlgorithmResult.Lines.All(l => l.Color == Color.Yellow && !l.ShowCenterCross), "九项尺寸双向箭头缺失或颜色错误。");
+        Check(!result.AlgorithmResult.Texts.Single(t => t.Text.Contains("飞丝")).Text.EndsWith("mm"), "飞丝数量不应显示尺寸单位。");
         Check(Math.Abs(result.AlgorithmResult.Lines[0].P2.Y - result.AlgorithmResult.Lines[0].P1.Y) == 30, "胶皮间距箭头端点与测量不一致。");
         Check(!result.AlgorithmResult.Texts.Any(t => t.Color == Color.Yellow), "箭头不应显示黄色数值。");
         parameter.NeedConvert = true; parameter.Scale = 0.1f;
@@ -88,7 +89,7 @@ internal static class ASTStation1Tests
         items[0].Enable = false;
         items[4].MaxValue = "10";
         result = Parse(parameter, Detections());
-        Check(result.DetectItemCount == 8, "禁用项仍输出。");
+        Check(result.DetectItemCount == 9, "禁用项仍输出。");
         Check(result.AlgorithmResult.Rects.Single(r => r.RotatedRect.size.width == 25).Color == Color.Red,
             "同框宽度NG未合并颜色。");
         result = Parse(parameter, null);
@@ -204,7 +205,7 @@ internal static class ASTStation1Tests
         Check(config.ModelName == "AST-工位1模型" && config.ModelInfo.ModelPath.EndsWith("work1.onnx.encrypted"),
             "配置模型名称或文件错误。");
         LanguageManager.SetLanguage("en-US", false);
-        Check(DetectItemLanguage.GetDisplayName(Names[0]) == "Rubber to copper ring distance", "英文显示未使用中文键。");
+        Check(DetectItemLanguage.GetDisplayName(Names[0]) == Names[0], "英文显示未使用新检测项名称。");
         LanguageManager.SetLanguage("zh-CN", false);
         Check(DetectItemLanguage.GetDisplayName(Names[0]) == Names[0], "切回中文后显示错误。");
     }

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using HslCommunication;
 using HslCommunication.Profinet.Keyence;
@@ -221,6 +222,16 @@ internal static class KeyenceNanoIntegrationTests
             Check(plc.WriteBoolAsync("DM130.0", new[] { false }).GetAwaiter().GetResult().IsSuccess, "DM字内位数组异步写入False失败。");
             Check(!plc.ReadBoolAsync("DM130.0").GetAwaiter().GetResult().Content, "DM字内位读取False失败。");
             Check(plc.ReadInt16("DM130").Content == 2, "DM字内位复位错误或覆盖了同字其他bit。");
+            foreach (bool value in new[] { true, false })
+            {
+                Check(plc.WriteInt("DM130", value ? 0 : ushort.MaxValue).IsSuccess, "初始化DM同字并发写入测试失败。");
+                var tasks = Enumerable.Range(0, 16).Select(bit => bit % 2 == 0
+                    ? Task.Run(() => plc.WriteBool("DM130." + bit, value))
+                    : plc.WriteBoolAsync("DM130." + bit, value)).ToArray();
+                Check(Task.WaitAll(tasks, TimeSpan.FromSeconds(10)), "DM同字并发写入超时，可能存在锁重入。");
+                Check(tasks.All(task => task.Result.IsSuccess), "DM同字并发写入存在失败结果。");
+                Check(plc.ReadInt16("DM130").Content == (value ? -1 : 0), "DM同字并发写入丢失其他bit。");
+            }
             Check(plc.WriteFloat("DM110", 12.5f).IsSuccess, "写入浮点数失败。");
             Check(plc.ReadFloatAsync("DM110").GetAwaiter().GetResult().Content == 12.5f, "异步读取浮点数错误。");
             Check(plc.WriteIntAsync("DM120", new[] { 7, 8, 9 }).GetAwaiter().GetResult().IsSuccess, "批量写入失败。");

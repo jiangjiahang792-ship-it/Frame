@@ -30,7 +30,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             public readonly Dictionary<string, List<float>> Values = new Dictionary<string, List<float>>();
         }
 
-        /// <summary>解析检测框，输出十三项测量、上下限判定、带颜色的矩形和文本。</summary>
+        /// <summary>解析检测框，输出工位2尺寸、数量、上下限判定、带颜色的矩形和文本。</summary>
         /// <param name="results">已还原到原图坐标的检测列表。</param>
         /// <param name="resultCount">兼容RL12调用签名，以列表实际数量为准。</param>
         /// <param name="param">检测配置、物理比例及学习参数。</param>
@@ -83,6 +83,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 string itemName = item.Name;
                 bool isCountItem = item.IsCountItem;
                 bool isDistanceItem = false;
+                bool isWidthMeasurement = false;
+                bool useTargetBottom = false;
+                bool useDependencyBottom = false;
                 Func<Rect, Rect?> findDependencyRectFunc = null;
 
                 #region 提取函数定义，某个检测项的值取自哪个ClassId结果的什么属性
@@ -90,33 +93,50 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 Func<DetResult, float?> extractValueFunc;
                 switch (itemName)
                 {
+                    case "L1-S2(端子先端位置)":
                     case "铜环底部到端子头顶部的距离":
                         isDistanceItem = true;
+                        useDependencyBottom = true;
                         findDependencyRectFunc = target => FindNearestCopperRing(target, copperRings);
                         extractValueFunc = r => r.ClassId == 0 ? GetCopperRingDistance(r.Box, copperRings) : null;
                         break;
+                    case "L1-FiLay(绝缘体长度)":
                     case "铜环底部到绝缘体顶部的距离":
                         isDistanceItem = true;
+                        useDependencyBottom = true;
                         findDependencyRectFunc = target => FindNearestCopperRing(target, copperRings);
                         extractValueFunc = r => r.ClassId == 2 ? GetCopperRingDistance(r.Box, copperRings) : null;
                         break;
                     case "铜环底部到屏蔽网顶部距离":
                         isDistanceItem = true;
+                        useDependencyBottom = true;
                         findDependencyRectFunc = target => FindNearestCopperRing(target, copperRings);
                         extractValueFunc = r => r.ClassId == 3 ? GetCopperRingDistance(r.Box, copperRings) : null;
                         break;
+                    case "L1-ALFoiLay(箔长度)":
                     case "铜环底部到铝箔顶部的距离":
                         isDistanceItem = true;
+                        useDependencyBottom = true;
                         findDependencyRectFunc = target => FindNearestCopperRing(target, copperRings);
                         extractValueFunc = r => r.ClassId == 7 ? GetCopperRingDistance(r.Box, copperRings) : null;
                         break;
+                    case "出线芯宽度":
                     case "露线芯宽度":
+                        isWidthMeasurement = true;
                         extractValueFunc = r => r.ClassId == 1 ? (float?)r.Box.Width : null;
                         break;
+                    case "出线芯长度":
                     case "露线芯长度":
                     // 公共归一化会将旧中文名称转为内部键，保持已有方案/订阅兼容。
                     case "DetectItem.ExposedCoreLength":
                         extractValueFunc = r => r.ClassId == 1 ? (float?)r.Box.Height : null;
+                        break;
+                    case "绝缘体宽度":
+                        isWidthMeasurement = true;
+                        extractValueFunc = r => r.ClassId == 2 ? (float?)r.Box.Width : null;
+                        break;
+                    case "绝缘体长度":
+                        extractValueFunc = r => r.ClassId == 2 ? (float?)r.Box.Height : null;
                         break;
                     case "胶皮顶部到屏蔽网顶部的距离":
                         isDistanceItem = true;
@@ -125,6 +145,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         break;
                     case "胶皮顶部到屏蔽网底部的距离":
                         isDistanceItem = true;
+                        useTargetBottom = true;
                         findDependencyRectFunc = target => FindNearestRubber(target, rubbers);
                         extractValueFunc = r => r.ClassId == 3 ? GetRubberTopDistance(r.Box, rubbers, true) : null;
                         break;
@@ -135,6 +156,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         break;
                     case "胶皮顶部到绝缘体底部的距离":
                         isDistanceItem = true;
+                        useTargetBottom = true;
                         findDependencyRectFunc = target => FindNearestRubber(target, rubbers);
                         extractValueFunc = r => r.ClassId == 2 ? GetRubberTopDistance(r.Box, rubbers, true) : null;
                         break;
@@ -149,6 +171,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         extractValueFunc = r => r.ClassId == 3 ? (float?)r.Box.Height : null;
                         break;
                     case "屏蔽网宽度":
+                        isWidthMeasurement = true;
                         extractValueFunc = r => r.ClassId == 3 ? (float?)r.Box.Width : null;
                         break;
                     default:
@@ -193,8 +216,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         }
                         if (!isDistanceItem || dependencyRect.HasValue)
                             ParseCommon.AddAstMeasurementArrow(nodeResult.AlgorithmResult, match.Result.Box,
-                                dependencyRect, itemName.EndsWith("宽度"), itemName.Contains("底部的距离") && !itemName.StartsWith("铜环"),
-                                itemName.StartsWith("铜环底部"), number, deteItems.Count);
+                                dependencyRect, isWidthMeasurement, useTargetBottom, useDependencyBottom, number, deteItems.Count);
                     }
                 }
 
@@ -222,10 +244,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             bool allOk = detectResults.Values.SelectMany(list => list).All(r => r.IsOk);
             if (allOk) process.OKNumber++;
             else process.NGNumber++;
-            texts.Add(new ColorText(LanguageManager.Format("Result.TotalCount", process.OKNumber + process.NGNumber), Color.Green));
-            texts.Add(new ColorText(LanguageManager.Format("Result.OKCount", process.OKNumber), Color.Green));
-            texts.Add(new ColorText(LanguageManager.Format("Result.Yield",
-                (process.OKNumber * 100.0 / (process.OKNumber + process.NGNumber)).ToString("F2")), Color.Green));
+            // AST画面只显示最终判定结果，内部OK/NG计数仍保留给流程统计使用。
             texts.Add(new ColorText(LanguageManager.Format("Result.ProductResult", allOk ? "OK" : "NG"), allOk ? Color.Green : Color.Red));
             nodeResult.AlgorithmResult.Texts = texts;
 

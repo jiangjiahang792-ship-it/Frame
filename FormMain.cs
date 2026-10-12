@@ -292,6 +292,7 @@ namespace TDJS_Vision
             this.exclusiveWorkspacePresenter = exclusiveWorkspacePresenter ?? throw new ArgumentNullException(nameof(exclusiveWorkspacePresenter));
             this.solutionLoadingCoordinator = solutionLoadingCoordinator ?? throw new ArgumentNullException(nameof(solutionLoadingCoordinator));
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             InitializeLanguageUI();
             // 自定义主题设置
             dockPanel1.Theme = new GreenTheme();
@@ -1365,16 +1366,30 @@ namespace TDJS_Vision
             }
         }
 
+        /// <summary>通过方案列表选择文件，并复用已有加载动画及方案恢复管线。</summary>
         private void 打开方案ToolStripMenuItem_Click(object value1, object value2)
         {
-            openFileDialog1.Title = LanguageManager.T("Dialog.SelectOpenSolution");
-            if (openFileDialog1.ShowDialog()  == DialogResult.OK)
+            if (Role != UserRole.Hight || runtimeRunController?.IsRunning == true || Solution.Instance.IsRunning)
+                return;
+            var directories = new List<string> { Forms.SolutionBrowser.FileSolutionCatalog.DefaultDirectory };
+            foreach (string path in new[] { Solution.Instance.SolFileName, Settings.Default.SolutionAddress })
             {
+                if (string.IsNullOrWhiteSpace(path)) continue;
+                try { directories.Add(Path.GetDirectoryName(Path.GetFullPath(path))); }
+                catch (Exception ex) { LogHelper.AddLog(MsgLevel.Warn, "方案列表目录无效：" + ex.Message, true); }
+            }
+            using (var dialog = new Forms.SolutionBrowser.FormSolutionBrowser(Forms.SolutionBrowser.FileSolutionCatalog.Default, directories))
+            {
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                // 模态窗口有独立消息循环，确认后重新核验角色和运行状态。
+                if (Role != UserRole.Hight || runtimeRunController?.IsRunning == true || Solution.Instance.IsRunning)
+                    return;
                 toolStripLabel1.Visible = true;
                 SetRunStatus(true); // 设置为正在加载方案状态
                 try
                 {
-                    solutionLoadingCoordinator.Load(this, openFileDialog1.FileName, true);
+                    solutionLoadingCoordinator.Load(this, dialog.SelectedSolutionPath, true);
+                    Forms.SolutionBrowser.FileSolutionCatalog.Default.Remember(dialog.SelectedSolutionPath);
                 }
                 catch (Exception ex)
                 {
@@ -1479,7 +1494,7 @@ namespace TDJS_Vision
             string path = originalPath;
             if (string.IsNullOrEmpty(path))
             {
-                using (var dialog = new SaveFileDialog { Title = "保存方案及运行界面", Filter = "视觉方案|*.Sol", AddExtension = true })
+                using (var dialog = new SaveFileDialog { Title = LanguageManager.T("保存方案及运行界面"), Filter = LanguageManager.T("视觉方案|*.Sol"), AddExtension = true })
                 {
                     if (dialog.ShowDialog(this) != DialogResult.OK) return false;
                     path = dialog.FileName;

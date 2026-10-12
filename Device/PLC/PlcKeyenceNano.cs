@@ -11,6 +11,9 @@ namespace TDJS_Vision.Device.PLC
     /// <summary>基恩士 Nano OverTcp 适配器，保留既有类名以兼容已保存的方案。</summary>
     public sealed class PlcKeyenceNano : PlcKeyenceTcpBase
     {
+        /// <summary>保护同一客户端内 DM 字内位读改写，避免并行写同一字时旧快照覆盖其他 bit。</summary>
+        private readonly object _dmBitWriteSync = new object();
+
         /// <summary>供方案反序列化使用，随后由设备列表恢复客户端。</summary>
         [JsonConstructor]
         public PlcKeyenceNano() { }
@@ -163,14 +166,17 @@ namespace TDJS_Vision.Device.PLC
             var parsed = ParseDmBitAddress(address);
             if (!parsed.IsSuccess)
                 return parsed;
-            ushort wordCount = (ushort)((parsed.Content2 + value.Length + 15) / 16);
-            var read = Client.ReadUInt16(parsed.Content1, wordCount);
-            if (!read.IsSuccess)
-                return new OperateResult(read.ErrorCode, read.Message);
-            if (read.Content == null || read.Content.Length < wordCount)
-                return new OperateResult("DM位写入读取响应字数不足！");
-            SetBits(read.Content, parsed.Content2, value);
-            return Client.Write(parsed.Content1, read.Content);
+            lock (_dmBitWriteSync)
+            {
+                ushort wordCount = (ushort)((parsed.Content2 + value.Length + 15) / 16);
+                var read = Client.ReadUInt16(parsed.Content1, wordCount);
+                if (!read.IsSuccess)
+                    return new OperateResult(read.ErrorCode, read.Message);
+                if (read.Content == null || read.Content.Length < wordCount)
+                    return new OperateResult("DM位写入读取响应字数不足！");
+                SetBits(read.Content, parsed.Content2, value);
+                return Client.Write(parsed.Content1, read.Content);
+            }
         }
 
         /// <summary>异步读改写 DM 连续位，读取失败时绝不发出写入。</summary>

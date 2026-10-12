@@ -1,9 +1,10 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
 namespace TDJS_Vision
@@ -23,8 +24,16 @@ namespace TDJS_Vision
     {
         private const string DefaultCulture = "zh-CN";
         private const string ConfigFileName = "language.config";
-        private static readonly Dictionary<string, string> Texts = new Dictionary<string, string>();
+        private static Dictionary<string, string> Texts = new Dictionary<string, string>();
         private static readonly Dictionary<string, string> DefaultTexts = new Dictionary<string, string>();
+        /// <summary>启动时读取全部语言包，后续切换只使用内存快照。</summary>
+        private static readonly Dictionary<string, Dictionary<string, string>> LoadedLanguages = new Dictionary<string, Dictionary<string, string>>();
+        /// <summary>启动时解析的可用语言列表。</summary>
+        private static readonly List<LanguageInfo> AvailableLanguages = new List<LanguageInfo>();
+        /// <summary>保证多次初始化入口不会重复读取文件。</summary>
+        private static bool initialized;
+        /// <summary>初始化同步锁。</summary>
+        private static readonly object InitializationLock = new object();
 
         public static event EventHandler LanguageChanged;
 
@@ -42,23 +51,35 @@ namespace TDJS_Vision
 
         public static void Initialize()
         {
-            LoadLanguage(DefaultCulture, DefaultTexts);
-
-            var savedCulture = LoadSavedCulture();
-            if (!File.Exists(GetLanguageFile(savedCulture)))
-                savedCulture = DefaultCulture;
-
-            SetLanguage(savedCulture, false);
+            lock (InitializationLock)
+            {
+                if (initialized) return;
+                if (Directory.Exists(LanguageDirectory))
+                    foreach (string file in Directory.GetFiles(LanguageDirectory, "*.json"))
+                    {
+                        try
+                        {
+                            LanguageInfo info = ReadLanguageInfo(file);
+                            if (string.IsNullOrEmpty(info.Culture)) continue;
+                            var values = new Dictionary<string, string>();
+                            LoadLanguage(info.Culture, values);
+                            LoadedLanguages[info.Culture] = values;
+                            AvailableLanguages.Add(info);
+                        }
+                        catch (JsonException) { /* 无效语言包不阻止软件启动。 */ }
+                        catch (IOException) { /* 无法读取的语言包回退中文。 */ }
+                    }
+                if (LoadedLanguages.TryGetValue(DefaultCulture, out var defaults))
+                    foreach (var pair in defaults) DefaultTexts[pair.Key] = pair.Value;
+                initialized = true;
+                SetLanguage(LoadSavedCulture(), false);
+            }
         }
 
         public static List<LanguageInfo> GetAvailableLanguages()
         {
-            if (!Directory.Exists(LanguageDirectory))
-                return new List<LanguageInfo>();
-
-            return Directory.GetFiles(LanguageDirectory, "*.json")
-                .Select(ReadLanguageInfo)
-                .Where(info => !string.IsNullOrWhiteSpace(info.Culture))
+            Initialize();
+            return AvailableLanguages
                 .OrderBy(info => info.Culture == DefaultCulture ? 0 : 1)
                 .ThenBy(info => info.DisplayName)
                 .ToList();
@@ -66,11 +87,19 @@ namespace TDJS_Vision
 
         public static void SetLanguage(string culture, bool save = true)
         {
+            Initialize();
             if (string.IsNullOrWhiteSpace(culture))
                 culture = DefaultCulture;
 
-            LoadLanguage(culture, Texts);
+            // 先完整构造再发布，后台检测线程不会读到Clear后的中间状态。
+            if (!LoadedLanguages.TryGetValue(culture, out var nextTexts))
+            {
+                culture = DefaultCulture;
+                nextTexts = DefaultTexts;
+            }
+            Texts = nextTexts;
             CurrentCulture = culture;
+            displayTranslator = new DisplayTranslator(nextTexts, culture);
 
             if (save)
                 SaveCulture(culture);
@@ -95,6 +124,41 @@ namespace TDJS_Vision
         public static string Format(string key, params object[] args)
         {
             return string.Format(T(key), args);
+        }
+
+        /// <summary>取得默认中文资源，仅用于辨认内置默认名称，不改变方案中的名称。</summary>
+        internal static string GetDefaultText(string key)
+        {
+            return DefaultTexts.TryGetValue(key, out var value) ? value : key;
+        }
+
+        /// <summary>当前语言的只读显示词典，切换时整体替换。</summary>
+        private static IDisplayTextTranslator displayTranslator = new DisplayTranslator(new Dictionary<string, string>(), DefaultCulture);
+
+        /// <summary>翻译显示文本；不用于设备协议、配置保存、用户输入或业务比较。</summary>
+        /// <param name="text">待显示的中文文本或已经翻译的文本。</param>
+        /// <returns>当前语言的显示文字。</returns>
+        public static string TranslateDisplay(string text)
+        {
+            return displayTranslator.Translate(text);
+        }
+
+        /// <summary>翻译ROI前缀，保留冒号和空白；未知自定义前缀原样显示。</summary>
+        public static string TranslatePrefix(string prefix)
+        {
+            if (string.IsNullOrEmpty(prefix)) return prefix;
+            string translated = T(prefix);
+            if (translated != prefix) return translated;
+            string key = prefix.TrimEnd(' ', ':', '：', '\t');
+            return T(key) + prefix.Substring(key.Length);
+        }
+
+        /// <summary>翻译日志正文，保留时间、等级和落盘原文。</summary>
+        public static string TranslateLogLine(string line)
+        {
+            if (string.IsNullOrEmpty(line)) return line;
+            Match header = Regex.Match(line, @"\A(?<header>\d{4}[-/]\d{2}[-/]\d{2}[^\r\n]*?\s+(?:Info|Debug|Warn|Exception|Fatal)\s+)(?<body>[\s\S]*)\z");
+            return header.Success ? header.Groups["header"].Value + TranslateDisplay(header.Groups["body"].Value) : TranslateDisplay(line);
         }
 
         public static void Bind(Control control, string textKey)

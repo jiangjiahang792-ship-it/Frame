@@ -144,10 +144,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             bool allOk = detectResults.Values.SelectMany(list => list).All(r => r.IsOk);
             if (allOk) process.OKNumber++;
             else process.NGNumber++;
-            texts.Add(new ColorText(LanguageManager.Format("Result.TotalCount", process.OKNumber + process.NGNumber), Color.Green));
-            texts.Add(new ColorText(LanguageManager.Format("Result.OKCount", process.OKNumber), Color.Green));
-            texts.Add(new ColorText(LanguageManager.Format("Result.Yield",
-                (process.OKNumber * 100.0 / (process.OKNumber + process.NGNumber)).ToString("F2")), Color.Green));
+            // AST画面只显示最终判定结果，内部OK/NG计数仍保留给流程统计使用。
             texts.Add(new ColorText(LanguageManager.Format("Result.ProductResult", allOk ? "OK" : "NG"), allOk ? Color.Green : Color.Red));
             nodeResult.AlgorithmResult.Texts = texts;
 

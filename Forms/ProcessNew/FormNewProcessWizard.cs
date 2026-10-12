@@ -1,4 +1,4 @@
-using gCursorLib;
+﻿using gCursorLib;
 using Logger;
 using Sunny.UI;
 using System;
@@ -36,6 +36,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         public FormNewProcessWizard()
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             InitializeProcessNavigation();
             ConfigureToolboxLayout();
             FrmCOMListView.OnCOMDeserializationCompletionEvent += Deserialization;

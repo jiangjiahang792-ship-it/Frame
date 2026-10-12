@@ -16,6 +16,7 @@ namespace TDJS_Vision.Forms.YTMessageBox
         public YTMessageBox(string message, int interval = 1800)
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
 
             this.label1.Text = message;
             // 初始化计时器

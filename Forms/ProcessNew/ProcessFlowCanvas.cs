@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -2244,7 +2244,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             {
                 graphics.FillRectangle(fill, badge);
                 graphics.DrawRectangle(border, badge);
-                graphics.DrawString(text, font, textBrush, badge.X + 8, badge.Y + 3);
+                graphics.DrawString(LanguageManager.TranslateDisplay(text), font, textBrush, badge.X + 8, badge.Y + 3);
             }
         }
 
@@ -2359,7 +2359,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 graphics.DrawRectangle(border, selector);
                 graphics.DrawRectangle(border, rgb);
                 Rectangle titleBounds = new Rectangle(selector.X + 8, selector.Y + 8, selector.Width - 32, selector.Height - 12);
-                graphics.DrawString(title, font, textBrush, titleBounds, textFormat);
+                graphics.DrawString(LanguageManager.TranslateDisplay(title), font, textBrush, titleBounds, textFormat);
                 graphics.DrawString(rgbText, font, textBrush, rgb.X + 8, rgb.Y + 8);
                 graphics.DrawString("v", font, arrowTextBrush, arrow.X + 6, arrow.Y + 8);
             }
@@ -2562,7 +2562,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
                 if (showTitle)
                 {
-                    graphics.DrawString(title, titleFont, Brushes.White, new RectangleF(x, y, maxWidth, titleFont.Height + 2), format);
+                    graphics.DrawString(LanguageManager.TranslateDisplay(title), titleFont, Brushes.White, new RectangleF(x, y, maxWidth, titleFont.Height + 2), format);
                     y += graphics.MeasureString(title, titleFont).Height + 2F;
                 }
 
@@ -2601,7 +2601,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             using (SolidBrush textBrush = new SolidBrush(Color.FromArgb(136, 146, 158)))
             using (StringFormat format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
-                graphics.DrawString(text, font, textBrush, content, format);
+                graphics.DrawString(LanguageManager.TranslateDisplay(text), font, textBrush, content, format);
             }
         }
 
@@ -3182,7 +3182,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 using (Font badgeFont = new Font("Segoe UI", 6.5F, FontStyle.Bold))
                 {
                     graphics.FillRectangle(badgeBrush, badge);
-                    graphics.DrawString("Start", badgeFont, Brushes.White, badge.X + 3, badge.Y + 1);
+                    graphics.DrawString(LanguageManager.T("启动"), badgeFont, Brushes.White, badge.X + 3, badge.Y + 1);
                 }
             }
 
@@ -3233,7 +3233,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             using (StringFormat textFormat = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap })
             {
                 RectangleF summaryRect = new RectangleF(bounds.X + 14, bounds.Y + 55, bounds.Width - 28, 16);
-                graphics.DrawString(summary, summaryFont, summaryBrush, summaryRect, textFormat);
+                graphics.DrawString(LanguageManager.TranslateDisplay(summary), summaryFont, summaryBrush, summaryRect, textFormat);
             }
         }
 
@@ -4243,7 +4243,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             {
                 graphics.FillEllipse(fill, badge);
                 graphics.DrawEllipse(border, badge);
-                graphics.DrawString(label, font, textBrush, badge.X + 4, badge.Y + 2);
+                graphics.DrawString(LanguageManager.TranslateDisplay(label), font, textBrush, badge.X + 4, badge.Y + 2);
             }
         }
 
@@ -4461,7 +4461,7 @@ namespace TDJS_Vision.Forms.ProcessNew
 
         private string GetNodeMetaText(NodeBase node)
         {
-            string statusText = node.Active ? GetNodeStatusText(node) : "已禁用";
+            string statusText = node.Active ? GetNodeStatusText(node) : LanguageManager.T("已禁用");
             string timeText = GetNodeTimeText(node);
             return $"{NodeDisplayText.GetTypeName(node.NodeType)}  {statusText}  {timeText}";
         }
@@ -4492,20 +4492,20 @@ namespace TDJS_Vision.Forms.ProcessNew
             switch (status)
             {
                 case NodeStatus.Running:
-                    return "运行中";
+                    return LanguageManager.T("运行中");
                 case NodeStatus.Successful:
-                    return "成功";
+                    return LanguageManager.T("成功");
                 case NodeStatus.Failed:
-                    return "失败";
+                    return LanguageManager.T("失败");
                 default:
-                    return "未运行";
+                    return LanguageManager.T("未运行");
             }
         }
 
         private string GetNodeTimeText(NodeBase node)
         {
             if (node.RuntimeStatus == NodeStatus.Running)
-                return "计时中";
+                return LanguageManager.T("计时中");
 
             string timeText = string.IsNullOrEmpty(node.RuntimeTimeText) ? "*" : node.RuntimeTimeText;
             if (timeText == "*")

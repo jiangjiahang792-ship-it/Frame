@@ -16,6 +16,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         public FormProcessGroupSetting(Process process)
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             BindLanguage();
             Shown += FormProcessGroupSetting_show;
             _process = process;

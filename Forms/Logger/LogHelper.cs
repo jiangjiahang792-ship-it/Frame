@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -134,6 +134,7 @@ namespace Logger
         {
             _logUiBuffer = logUiBuffer ?? throw new ArgumentNullException(nameof(logUiBuffer));
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             LogAddEvent += LogHelper_LogAddEvent;
             Disposed += LogHelper_Disposed;
         }
@@ -162,7 +163,7 @@ namespace Logger
                 // 遍历寻找最长字符串
                 foreach (var item in listBox.Items)
                 {
-                    string text = item.ToString();
+                    string text = TDJS_Vision.LanguageManager.TranslateLogLine(item.ToString());
                     // 测量字符串渲染后的尺寸
                     SizeF size = g.MeasureString(text, listBox.Font);
                     if (size.Width > maxWidth)
@@ -342,7 +343,7 @@ namespace Logger
             if (listBox == null || e.Index < 0 || e.Index >= listBox.Items.Count)
                 return;
 
-            string logText = listBox.GetItemText(listBox.Items[e.Index]);
+            string logText = TDJS_Vision.LanguageManager.TranslateLogLine(listBox.GetItemText(listBox.Items[e.Index]));
             Color color = Color.DarkGray;
             if (logText.Contains("Info")) color = Color.DodgerBlue;
             else if (logText.Contains("Debug")) color = Color.Green;

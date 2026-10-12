@@ -15,6 +15,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         public FormProcessRename()
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             BindLanguage();
             Shown += FormProcessRename_Shown;
             LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;

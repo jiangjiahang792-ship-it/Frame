@@ -56,6 +56,12 @@ internal static class ResultSendTests
         Check(task.IsCompleted, "异步操作超时。");
         task.GetAwaiter().GetResult();
     }
+    /// <summary>用消息循环等待异步通信并返回结果。</summary>
+    private static T Pump<T>(Task<T> task)
+    {
+        Pump((Task)task);
+        return task.GetAwaiter().GetResult();
+    }
     /// <summary>创建独立基础测试行。</summary>
     private static ResultSendRow Row(ResultSendType type, string address = "DM100") => new ResultSendRow
     {
@@ -121,6 +127,11 @@ internal static class ResultSendTests
         Reject(() => Value(ResultSendType.Int16, 32768), "short溢出必须拒绝。");
         Reject(() => Value(ResultSendType.UInt16, -1), "无符号负值必须拒绝。");
         Reject(() => Value(ResultSendType.Int32, 1.5), "小数不能截断。");
+        var scaledInteger = Row(ResultSendType.UInt16);
+        scaledInteger.DecimalToIntegerByHundred = true;
+        Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { 0.2 }, 1).Values)[0] == 20, "小数百分位整数发送失败。");
+        Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { "48.28" }, 1).Values)[0] == 4828, "字符串小数百分位整数发送失败。");
+        Reject(() => ResultSendValueConverter.Prepare(scaledInteger, new List<object> { 0.123 }, 1), "百分位后仍有小数不能隐式发送。");
         Reject(() => Value(ResultSendType.Double, "1,2"), "错误分隔符不能吞掉。");
         Reject(() => Value(ResultSendType.Double, double.NaN), "NaN不能发送。");
         Reject(() => Value(ResultSendType.Single, double.MaxValue), "float溢出必须拒绝。");
@@ -360,13 +371,16 @@ internal static class ResultSendTests
                 Check(send.IsCanceled && recording.Calls.Count == 0, "发送前取消仍然写入了设备。");
             }
             sender.ParamForm.Params = invalid;
-            Reject(() => Pump(sender.Run(CancellationToken.None, false)), "后续行配置无效时没有拒绝整批发送。");
-            Check(recording.Calls.Count == 0 && ((NodeResultResultSend)sender.Result).FailedRow == 2, "整批预检完成前已写入设备或失败行错误。");
+            var failureReturn = Pump(sender.Run(CancellationToken.None, false));
+            var invalidResult = (NodeResultResultSend)sender.Result;
+            Check(failureReturn.Flag == NodeRunFlag.ContinueRun && !invalidResult.Success &&
+                recording.Calls.Count == 0 && invalidResult.FailedRow == 2, "整批预检失败后应记录失败并允许后续节点继续。");
             sender.ParamForm.Params = param.Copy();
             recording = new RecordingWriter { Device = plc, FailAt = 2 };
-            Reject(() => Pump(sender.Run(CancellationToken.None, false)), "实际Run吞掉了设备写入失败。");
+            failureReturn = Pump(sender.Run(CancellationToken.None, false));
             var failed = (NodeResultResultSend)sender.Result;
-            Check(!failed.Success && failed.FailedRow == 2 && failed.SentCount == 1 && recording.Calls.Count == 2, "部分失败后发生自动重试或继续发送。");
+            Check(failureReturn.Flag == NodeRunFlag.ContinueRun && !failed.Success && failed.FailedRow == 2 &&
+                failed.SentCount == 1 && recording.Calls.Count == 2, "部分失败后应记录失败并允许后续节点继续。");
             recording = new RecordingWriter { Device = plc };
             Pump(sender.Run(CancellationToken.None, false));
             Check(((NodeResultResultSend)sender.Result).Success && recording.Calls.Count == 5, "上次失败冻结了后续直接发送。");
@@ -383,14 +397,15 @@ internal static class ResultSendTests
             Control<ComboBox>(form, "comboMode").SelectedValue = ResultSendMode.Index;
             Check(Control<NumericUpDown>(form, "numberIndex").Visible && Control<ComboBox>(form, "comboEncoding").Visible && !Control<NumericUpDown>(form, "numberCapacity").Visible, "切换取值或类型后参数未正确显示。");
             Check(Control<TableLayoutPanel>(form, "editorLayout").GetCellPosition(Control<ComboBox>(form, "comboEncoding")).Row == 1, "适用参数应紧凑排布。");
-            Control<ComboBox>(form, "comboType").SelectedValue = ResultSendType.Single;
+            Control<ComboBox>(form, "comboType").SelectedValue = ResultSendType.UInt16;
             Control<ComboBox>(form, "comboMode").SelectedValue = ResultSendMode.All;
+            Control<CheckBox>(form, "checkDecimalToInteger").Checked = true;
             Control<TextBox>(form, "textAddress").Text = "DM320";
             Check(((NodeParamResultSend)form.Params).Rows[1].Address == "DM310", "未保存的编辑不能影响运行参数。");
             using (var bitmap = new Bitmap(form.Width, form.Height)) { form.DrawToBitmap(bitmap, form.ClientRectangle); bitmap.Save("ResultSend-parameters.png"); }
             Click(form, "SaveClicked");
             var saved = (NodeParamResultSend)form.Params;
-            Check(saved.Rows.Count == 4 && saved.Rows[1].Address == "DM320" && saved.Rows[0].Address == "DM300" && saved.Rows[1].DataType == ResultSendType.Single && saved.DeviceName == plc.UserDefinedName && saved.Rows[1].Source.ItemName == "DetectItem.BackRivetArea", "实际保存事件丢失参数、检测项键或修改了错误的行。");
+            Check(saved.Rows.Count == 4 && saved.Rows[1].Address == "DM320" && saved.Rows[0].Address == "DM300" && saved.Rows[1].DataType == ResultSendType.UInt16 && saved.Rows[1].DecimalToIntegerByHundred && saved.DeviceName == plc.UserDefinedName && saved.Rows[1].Source.ItemName == "DetectItem.BackRivetArea", "实际保存事件丢失参数、检测项键或修改了错误的行。");
             var stale = param.Copy(); process.Connections.RemoveAll(connection => connection.FromNodeId == 2);
             Reject(() => sender.PrepareRows(stale, writer, true), "断开上游连线后仍能发送旧订阅。");
         }

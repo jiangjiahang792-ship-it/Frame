@@ -26,6 +26,7 @@ namespace TDJS_Vision.Forms.YTMessageBox
         public MessageBoxTD()
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
         }
         /// <summary>
         /// 设置图标

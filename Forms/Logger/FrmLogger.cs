@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
@@ -32,6 +32,7 @@ namespace Logger
         public FrmLogger()
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             Instance = this;
             _timer.Interval = 20;
             _timer.Tick += _timer_Tick;

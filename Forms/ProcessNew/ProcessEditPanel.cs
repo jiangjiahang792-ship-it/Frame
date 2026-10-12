@@ -1,4 +1,4 @@
-using TDJS_Vision.Node._3_Detection.ContourMatch;
+﻿using TDJS_Vision.Node._3_Detection.ContourMatch;
 using Logger;
 using Newtonsoft.Json;
 using System;
@@ -140,6 +140,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             int startupNodeTotal = 0)
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             ConfigureCommandButtons();
             BindLanguage();
             _process = new Process(processName);

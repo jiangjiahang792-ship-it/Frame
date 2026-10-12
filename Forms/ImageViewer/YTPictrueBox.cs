@@ -19,6 +19,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         public YTPictrueBox()
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             BindLanguage();
             // 设置图像的最小尺寸防止缩小到看不见
             pictureBox1.MinimumSize = new Size(100, 100);

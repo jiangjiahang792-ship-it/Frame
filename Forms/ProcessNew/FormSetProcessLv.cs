@@ -10,6 +10,7 @@ namespace TDJS_Vision.Forms.ProcessNew
         public FormSetProcessLv(Process process)
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             BindLanguage();
             Shown += FormSetProcessLv_Shown;
             _process = process;

@@ -136,6 +136,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         public MyDataGridViewForm()
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             Init();
             LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
         }
@@ -398,7 +399,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 return string.Empty;
 
             if (item.SourceType == RunParamGridSourceType.MultiCondition)
-                return string.IsNullOrWhiteSpace(item.DisplayName) ? item.Info.Name : item.DisplayName;
+                return LanguageManager.T(string.IsNullOrWhiteSpace(item.DisplayName) ? item.Info.Name : item.DisplayName);
 
             return DetectItemLanguage.GetDisplayName(item.Info.Name);
         }

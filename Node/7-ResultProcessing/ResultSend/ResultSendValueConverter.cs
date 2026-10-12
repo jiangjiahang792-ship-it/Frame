@@ -84,7 +84,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             {
                 values = Array.CreateInstance(GetValueType(row.DataType), length);
                 for (int index = 0; index < length; index++)
-                    values.SetValue(ConvertValue(index < count ? selected[index] ?? missing : missing, row.DataType), index);
+                    values.SetValue(ConvertValue(index < count ? selected[index] ?? missing : missing, row), index);
             }
             return new ResultSendPreparedRow { RowNumber = rowNumber, Configuration = row, Values = values, Count = checked((ushort)count) };
         }
@@ -132,8 +132,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
         }
 
         /// <summary>严格转换成指定基础类型，拒绝小数截断、溢出和非有限数。</summary>
-        private static object ConvertValue(object value, ResultSendType type)
+        private static object ConvertValue(object value, ResultSendRow row)
         {
+            ResultSendType type = row.DataType;
             if (type == ResultSendType.Boolean) return Boolean(value);
             if (type == ResultSendType.Double) return Number(value);
             if (type == ResultSendType.Single)
@@ -143,7 +144,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
                 return number;
             }
             decimal integer = value is string text ? decimal.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture) : Convert.ToDecimal(value, CultureInfo.InvariantCulture);
-            if (decimal.Truncate(integer) != integer) throw new InvalidOperationException("小数不能直接写入整数，请先在四则运算中取整。");
+            if (decimal.Truncate(integer) != integer)
+            {
+                if (!row.DecimalToIntegerByHundred) throw new InvalidOperationException("小数不能直接写入整数，请先在四则运算中取整。");
+                integer *= 100m;
+                if (decimal.Truncate(integer) != integer) throw new InvalidOperationException("小数按百分位放大后仍不是整数，请先在四则运算中取整。");
+            }
             switch (type)
             {
                 case ResultSendType.Int16: return checked((short)integer);

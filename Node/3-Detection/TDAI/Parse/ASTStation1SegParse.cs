@@ -97,7 +97,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     else
                     {
                         Rect otherBounds = other.MaskGeometry.Bounds;
-                        if (id == 0 && dependency == 1)
+                        if (lowerTop)
                         {
                             startY = target.MaskGeometry.UpperEdgeLowestY;
                             endY = other.MaskGeometry.UpperEdgeLowestY;
@@ -158,9 +158,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             nodeResult.AlgorithmResult = output;
             bool allOk = output.IsAllOk;
             if (allOk) process.OKNumber++; else process.NGNumber++;
-            output.Texts.Add(new ColorText(LanguageManager.Format("Result.TotalCount", process.OKNumber + process.NGNumber), Color.Green));
-            output.Texts.Add(new ColorText(LanguageManager.Format("Result.OKCount", process.OKNumber), Color.Green));
-            output.Texts.Add(new ColorText(LanguageManager.Format("Result.Yield", (process.OKNumber * 100.0 / (process.OKNumber + process.NGNumber)).ToString("F2")), Color.Green));
+            // AST画面只显示最终判定结果，内部OK/NG计数仍保留给流程统计使用。
             output.Texts.Add(new ColorText(LanguageManager.Format("Result.ProductResult", allOk ? "OK" : "NG"), allOk ? Color.Green : Color.Red));
             if (study != null && ++study.Count >= param.StudyNum)
             {
@@ -182,9 +180,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             {
                 case "绝缘胶顶部最低点到屏蔽网顶部最低点的距离": id = 0; dependency = 1; lowerTop = true; break;
                 case "绝缘胶顶部到铜环底部的距离": id = 0; dependency = 2; break;
+                case "L1-S2":
                 case "胶皮到铜环的距离": id = 2; dependency = 3; break;
+                case "L1-S3":
                 case "胶皮到屏蔽网的距离": id = 1; dependency = 3; break;
-                case "胶皮到绝缘胶的位置": id = 0; dependency = 3; break;
+                case "L1-S4":
+                case "胶皮到绝缘胶的位置": id = 0; dependency = 3; lowerTop = true; break;
                 case "屏蔽网高度": id = 1; break;
                 case "屏蔽网宽度": id = 1; width = true; break;
                 case "铜环高度": id = 2; break;

@@ -118,6 +118,7 @@ namespace TDJS_Vision
                 // 配置持久化到本地文件
                 string json = JsonConvert.SerializeObject(SolConfig, Formatting.Indented);
                 SafeWriteSolutionFile(solFile, json, "方案保存");
+                Forms.SolutionBrowser.FileSolutionCatalog.Default.Remember(solFile);
 
             }
             catch (Exception ex)

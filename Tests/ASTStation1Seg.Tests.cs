@@ -112,6 +112,7 @@ internal static class ASTStation1SegTests
         Solution.Instance.DetectItemDic[all.CurDetectItemName] = template;
         result = Parse(all, new List<SegResult> { Segment(0, 10, 35), Segment(1, 50, 70), Segment(2, 80, 100), Segment(3, 105, 119) });
         Check(result.IsOk && result.DetectItemCount == 14 && result.AlgorithmResult.Lines.Count == 65, "兼容原工位1宽高和胶皮间距项失败。");
+        Check(result.AlgorithmResult.DetectResults["L1-S4"][0].Value == "95.00", "L1-S4未按胶皮顶部最低点到绝缘体顶部最低点计算。");
     }
     /// <summary>学习会话按节点隔离，无效缺失值不进入样本。</summary>
     private static void VerifyLearning()

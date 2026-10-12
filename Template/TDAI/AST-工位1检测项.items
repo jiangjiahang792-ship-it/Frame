@@ -1,6 +1,6 @@
 [
   {
-    "Name": "胶皮到铜环的距离",
+    "Name": "L1-S2",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -8,7 +8,7 @@
     "CurValue": "0"
   },
   {
-    "Name": "胶皮到屏蔽网的距离",
+    "Name": "L1-S3",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -16,7 +16,7 @@
     "CurValue": "0"
   },
   {
-    "Name": "胶皮到绝缘胶的位置",
+    "Name": "L1-S4",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -69,6 +69,14 @@
     "MaxValue": "99999",
     "Enable": true,
     "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "飞丝",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
     "CurValue": "0"
   }
 ]

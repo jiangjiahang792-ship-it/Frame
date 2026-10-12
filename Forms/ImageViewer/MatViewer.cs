@@ -11,6 +11,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         public MatViewer(string name)
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             LanguageManager.Bind(button1, "Common.Close");
             LanguageManager.Apply(this);
             Text = name;

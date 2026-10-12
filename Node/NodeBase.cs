@@ -73,6 +73,8 @@ namespace TDJS_Vision.Node
         public NodeBase() 
         {
             InitializeComponent();
+            UiLocalization.PreserveText(label1);
+            TDJS_Vision.UiLocalization.Attach(this);
             启用ToolStripMenuItem.Enabled = false;
         }
 
@@ -83,15 +85,39 @@ namespace TDJS_Vision.Node
         public NodeBase(int nodeId, string nodeName, Process process, NodeType nodeType)
         {
             InitializeComponent();
+            UiLocalization.PreserveText(label1);
+            TDJS_Vision.UiLocalization.Attach(this);
             启用ToolStripMenuItem.Enabled = false;
             _id = nodeId;
             _nodeName = nodeName;
-            label1.Text = $"{ID}.{_nodeName}";
+            NodeType = nodeType;
+            RefreshLocalizedTitle();
+            LanguageManager.LanguageChanged += OnDisplayLanguageChanged;
+            Disposed += (sender, args) => LanguageManager.LanguageChanged -= OnDisplayLanguageChanged;
             Process = process;
             _frmNodeRename = new FrmNodeRename(this);
             FrmNodeRename.RenameChangeEvent += RenameChangeEvent;
             NodeType = nodeType;
             toolTip1.SetToolTip(this.label3, _notes);
+        }
+
+        /// <summary>仅刷新节点标题显示，保留订阅、保存和设备使用的节点名称。</summary>
+        private void RefreshLocalizedTitle()
+        {
+            if (IsDisposed || Disposing) return;
+            label1.Text = ID + "." + NodeDisplayText.GetTitle(NodeType, _nodeName);
+        }
+
+        /// <summary>语言变更时在界面线程刷新节点标题。</summary>
+        private void OnDisplayLanguageChanged(object sender, EventArgs e)
+        {
+            if (IsDisposed) return;
+            if (IsHandleCreated && InvokeRequired)
+            {
+                try { BeginInvoke(new Action(RefreshLocalizedTitle)); }
+                catch (InvalidOperationException) { /* 关闭中的节点无需刷新。 */ }
+            }
+            else RefreshLocalizedTitle();
         }
 
         private void RenameChangeEvent(object sender, RenameResult e)
@@ -100,7 +126,7 @@ namespace TDJS_Vision.Node
             if(e.NodeId == _id)
             {
                 _nodeName = e.NodeNameNew;
-                label1.Text = ID + "." + e.NodeNameNew;
+                RefreshLocalizedTitle();
                 RefreshNodeSubControl?.Invoke(this, e);
 
                 // AI检测项也要重命名

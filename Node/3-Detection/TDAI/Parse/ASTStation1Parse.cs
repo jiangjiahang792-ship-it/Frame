@@ -29,7 +29,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             public readonly Dictionary<string, List<float>> Values = new Dictionary<string, List<float>>();
         }
 
-        /// <summary>解析检测框，输出九项测量、上下限判定、带颜色的矩形和文本。</summary>
+        /// <summary>解析检测框，输出九项尺寸和飞丝数量的测量、上下限判定、带颜色的矩形和文本。</summary>
         /// <param name="results">已还原到原图坐标的检测列表。</param>
         /// <param name="resultCount">兼容RL12调用签名，以列表实际数量为准。</param>
         /// <param name="param">检测配置、物理比例及学习参数。</param>
@@ -87,14 +87,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 Func<DetResult, float?> extractValueFunc;
                 switch (itemName)
                 {
+                    case "L1-S2":
                     case "胶皮到铜环的距离":
                         isDistanceItem = true;
                         extractValueFunc = r => r.ClassId == 2 ? GetRubberDistance(r.Box, rubbers) : null;
                         break;
+                    case "L1-S3":
                     case "胶皮到屏蔽网的距离":
                         isDistanceItem = true;
                         extractValueFunc = r => r.ClassId == 1 ? GetRubberDistance(r.Box, rubbers) : null;
                         break;
+                    case "L1-S4":
                     case "胶皮到绝缘胶的位置":
                         isDistanceItem = true;
                         extractValueFunc = r => r.ClassId == 0 ? GetRubberDistance(r.Box, rubbers) : null;
@@ -116,6 +119,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         break;
                     case "绝缘胶宽度":
                         extractValueFunc = r => r.ClassId == 0 ? (float?)r.Box.Width : null;
+                        break;
+                    case "飞丝":
+                    // 公共归一化会将旧中文名称转为内部键，保持已有方案/订阅兼容。
+                    case "DetectItem.FlyingWire":
+                        // 飞丝是数量型检测项，模板配置错误时也按数量统计，避免输出单个框的伪尺寸。
+                        isCountItem = true;
+                        extractValueFunc = r => r.ClassId == 4 ? (float?)1F : null;
                         break;
                     default:
                         throw new InvalidOperationException($"AST工位1模型不支持检测项：{ParseCommon.GetDisplayName(itemName)}。");
@@ -193,10 +203,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             bool allOk = detectResults.Values.SelectMany(list => list).All(r => r.IsOk);
             if (allOk) process.OKNumber++;
             else process.NGNumber++;
-            texts.Add(new ColorText(LanguageManager.Format("Result.TotalCount", process.OKNumber + process.NGNumber), Color.Green));
-            texts.Add(new ColorText(LanguageManager.Format("Result.OKCount", process.OKNumber), Color.Green));
-            texts.Add(new ColorText(LanguageManager.Format("Result.Yield",
-                (process.OKNumber * 100.0 / (process.OKNumber + process.NGNumber)).ToString("F2")), Color.Green));
+            // AST画面只显示最终判定结果，内部OK/NG计数仍保留给流程统计使用。
             texts.Add(new ColorText(LanguageManager.Format("Result.ProductResult", allOk ? "OK" : "NG"), allOk ? Color.Green : Color.Red));
             nodeResult.AlgorithmResult.Texts = texts;
 

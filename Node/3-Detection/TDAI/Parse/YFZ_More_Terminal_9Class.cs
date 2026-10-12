@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -393,10 +393,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     var minBlackX = blackLines.First().Box.X;
                     bool groupOk = minBlackX < maxRedX; // 按你的条件：8.X < 7.X
 
-                    if (!texts.Any(t => t.Text.StartsWith("红黑线序:")))
+                    if (!texts.Any(t => t.Text.StartsWith(LanguageManager.T("红黑线序") + ":")))
                     {
                         texts.Add(new ColorText(
-                            $"红黑线序: {(groupOk ? "OK" : "NG")}",
+                            LanguageManager.Format("红黑线序: {0}", (groupOk ? "OK" : "NG")),
                             groupOk ? Color.Green : Color.Red
                         ));
                     }

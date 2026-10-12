@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using WeifenLuo.WinFormsUI.Docking;
 using TDJS_Vision.Device._3D;
 using TDJS_Vision.Node._1_Acquisition.ImageShow3D;
@@ -22,6 +22,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         public FrmSingle3DImage(string name)
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             FormName = NormalizeWindowKey(name);
             Text = GetWindowDisplayName(FormName);
             NodeImageShow3D.Image3DShowChanged += NodeImageShow3D_Image3DShowChanged;

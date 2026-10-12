@@ -56,6 +56,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         public SolRunParamControl()
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             Dock = DockStyle.Fill;
             BindLanguage();
             LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
@@ -1068,7 +1069,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(this, "AI阈值同步失败：" + ex.Message, "参数更新失败",
+                    MessageBox.Show(this, LanguageManager.Format("AI阈值同步失败：{0}", ex.Message), LanguageManager.T("参数更新失败"),
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }

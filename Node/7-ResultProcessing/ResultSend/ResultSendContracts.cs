@@ -122,6 +122,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
         public string Address { get; set; } = string.Empty;
         /// <summary>目标基础类型。</summary>
         public ResultSendType DataType { get; set; } = ResultSendType.Double;
+        /// <summary>整数写入类型遇到小数时，是否先按百分位放大100倍再发送。</summary>
+        public bool DecimalToIntegerByHundred { get; set; }
         /// <summary>取值方式。</summary>
         public ResultSendMode Mode { get; set; }
         /// <summary>从1开始的明细序号。</summary>

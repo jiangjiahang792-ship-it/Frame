@@ -17,6 +17,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         public CanvasSet()
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             BindLanguage();
             foreach (var control in tableLayoutPanel17.Controls)
             {

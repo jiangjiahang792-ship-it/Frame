@@ -14,6 +14,7 @@ using OpenCvSharp.Extensions;
 using TDJS_Vision.Diagnostics;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._6_LogicTool.CompositeModule;
+using TDJS_Vision.Node._6_LogicTool.MultiCondition;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node;
 using TDJS_Vision.Node._7_ResultProcessing.ImageDraw;
@@ -49,6 +50,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         public FrmSingleImage(string name)
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             ShowImageStatusBar = false;
             BindLanguage();
             FormName = NormalizeWindowKey(name);
@@ -884,10 +886,86 @@ namespace TDJS_Vision.Forms.ImageViewer
             if (process == null || filter == null || !filter.IsSourceNodeLimited)
                 return new List<NodeTDAI>();
 
-            return process.Nodes
+            return EnumerateViewerNodes(process)
                 .OfType<NodeTDAI>()
                 .Where(node => filter.ContainsSourceNode(node.ID))
                 .ToList();
+        }
+
+        /// <summary>
+        /// 解析手动调参目标；当前画面只有传统检测参数时允许AI目标为空。
+        /// </summary>
+        /// <param name="process">当前图像窗口所属流程。</param>
+        /// <param name="filter">当前画面的ROI绘制来源过滤范围。</param>
+        /// <returns>当前画面唯一关联的AI节点；纯传统检测画面返回空。</returns>
+        private NodeTDAI ResolveManualTuningTarget(Process process, RunParamDisplayFilter filter)
+        {
+            if (filter == null || !filter.IsSourceNodeLimited)
+                return ResolveTargetAiNode(process, out _);
+
+            List<NodeTDAI> aiNodes = GetAiNodesByRunParamFilter(process, filter);
+            if (aiNodes.Count > 0)
+                return ResolveTargetAiNode(process, aiNodes, out _);
+
+            if (HasAdjustableMultiCondition(process, filter))
+                return null;
+
+            throw new InvalidOperationException(
+                $"画面“{GetWindowDisplayName(FormName)}”未关联可调整的运行参数，请检查ROI结果绘制订阅，或在多条件节点中勾选“允许运行参数调整”。");
+        }
+
+        /// <summary>
+        /// 判断当前画面的ROI绘制来源是否关联了允许运行参数调整的多条件项。
+        /// </summary>
+        /// <param name="process">当前图像窗口所属流程。</param>
+        /// <param name="filter">当前画面的ROI绘制来源过滤范围。</param>
+        /// <returns>存在可显示的传统检测参数时返回true。</returns>
+        private static bool HasAdjustableMultiCondition(Process process, RunParamDisplayFilter filter)
+        {
+            if (process == null || filter == null || !filter.IsSourceNodeLimited)
+                return false;
+
+            foreach (NodeMultiCondition node in EnumerateViewerNodes(process).OfType<NodeMultiCondition>())
+            {
+                NodeParamMultiCondition param = node.ParamForm?.Params as NodeParamMultiCondition;
+                if (param?.Conditions == null)
+                    continue;
+
+                foreach (MultiConditionItem condition in param.Conditions)
+                {
+                    if (condition != null && condition.EnableRunParamAdjust &&
+                        IsMultiConditionAllowedByFilter(node, condition, filter))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 判断多条件项自身或其订阅来源是否属于当前画面的ROI绘制链路。
+        /// </summary>
+        /// <param name="node">多条件节点。</param>
+        /// <param name="condition">待检查的条件项。</param>
+        /// <param name="filter">当前画面的来源过滤范围。</param>
+        /// <returns>条件属于当前画面时返回true。</returns>
+        private static bool IsMultiConditionAllowedByFilter(
+            NodeMultiCondition node,
+            MultiConditionItem condition,
+            RunParamDisplayFilter filter)
+        {
+            if (node == null || condition == null || filter == null)
+                return false;
+            if (filter.ContainsSourceNode(node.ID))
+                return true;
+
+            int sourceNodeId = condition.SourceNodeId;
+            if (sourceNodeId <= 0)
+                RunParamDisplayFilter.TryGetNodeId(condition.SourceNodeText, out sourceNodeId);
+
+            return sourceNodeId > 0 && filter.ContainsSourceNode(sourceNodeId);
         }
 
 
@@ -1070,28 +1148,12 @@ namespace TDJS_Vision.Forms.ImageViewer
                         true);
                 }
 
-                LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】开始解析AI节点，流程={process.ProcessName}。", true);
-                NodeTDAI targetAiNode;
-                bool selectionCanceled;
-                if (runParamDisplayFilter != null && runParamDisplayFilter.IsSourceNodeLimited)
-                {
-                    List<NodeTDAI> filteredAiNodes = GetAiNodesByRunParamFilter(process, runParamDisplayFilter);
-                    targetAiNode = ResolveTargetAiNode(process, filteredAiNodes, out selectionCanceled);
-                }
-                else
-                {
-                    targetAiNode = ResolveTargetAiNode(process, out selectionCanceled);
-                }
-
-                if (selectionCanceled)
-                {
-                    LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】用户取消AI节点选择，流程={process.ProcessName}。", true);
-                    return;
-                }
+                LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】开始解析当前画面运行参数，流程={process.ProcessName}。", true);
+                NodeTDAI targetAiNode = ResolveManualTuningTarget(process, runParamDisplayFilter);
 
                 LogHelper.AddLog(
                     MsgLevel.Info,
-                    $"【手动调参诊断】AI节点解析完成，节点={(targetAiNode == null ? "空" : targetAiNode.ID + "." + targetAiNode.NodeName)}，耗时={stopwatch.ElapsedMilliseconds}ms。",
+                    $"【手动调参诊断】运行参数解析完成，AI节点={(targetAiNode == null ? "无（传统检测参数）" : targetAiNode.ID + "." + targetAiNode.NodeName)}，耗时={stopwatch.ElapsedMilliseconds}ms。",
                     true);
 
                 if (runParamDisplayFilter == null)

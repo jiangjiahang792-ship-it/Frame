@@ -1,4 +1,4 @@
-using Logger;
+﻿using Logger;
 using OpenCvSharp;
 using OpenCvSharp.Dnn;
 using Sunny.UI;
@@ -124,7 +124,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     case "后铆脚面积":
                         extractValueFunc = r => r.ClassId == 4 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
                         break;
-
                     case "正插防水栓面积":
                         extractValueFunc = r => r.ClassId == 5 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
                         break;
@@ -250,8 +249,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
                     {
                         texts.Add(new ColorText(
-                            $"{itemName}: {valueStr} " +
-                            $"设定值: [{item.MinValue}, {item.MaxValue}]",
+                            LanguageManager.Format("{0}: {1} 设定值: [{2}, {3}]", itemName, valueStr, item.MinValue, item.MaxValue),
                             (param.IsAutoStudy ? true : isOk) ? Color.Green : Color.Red
                         ));
                     }
@@ -347,8 +345,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     {
                         // -------- 添加文本显示 --------0
                         texts.Add(new ColorText(
-                            $"{itemName}: {(matchedResults.Count > 0 ? valueStr : "0")} " +
-                            $"设定值: [{item.MinValue}, {item.MaxValue}]",
+                            LanguageManager.Format("{0}: {1} 设定值: [{2}, {3}]", itemName, (matchedResults.Count > 0 ? valueStr : "0"), item.MinValue, item.MaxValue),
                             (param.IsAutoStudy ? true : allOk) ? Color.Green : Color.Red
                         ));
 
@@ -389,8 +386,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
                         {
                             texts.Add(new ColorText(
-                                $"{itemName}: 0 " +
-                                $"设定值: [{item.MinValue}, {item.MaxValue}]",
+                                LanguageManager.Format("{0}: 0 设定值: [{1}, {2}]", itemName, item.MinValue, item.MaxValue),
                                 (param.IsAutoStudy ? true : zeroIsOk) ? Color.Green : Color.Red
                             ));
                         }

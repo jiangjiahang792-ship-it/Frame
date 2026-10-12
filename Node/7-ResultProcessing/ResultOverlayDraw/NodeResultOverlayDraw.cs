@@ -1,4 +1,4 @@
-using Logger;
+﻿using Logger;
 using OpenCvSharp;
 using System;
 using System.Collections;
@@ -813,7 +813,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             Color drawColor = isOk ? param.OkColor : param.NgColor;
             foreach (string text in texts.Where(t => !string.IsNullOrWhiteSpace(t)))
             {
-                string displayText = usePrefix ? item.TextPrefix + text : text;
+                string displayText = usePrefix ? LanguageManager.TranslatePrefix(item.TextPrefix) + text : text;
                 AddDisplayText(displayResult, new ColorText(displayText, drawColor)
                 {
                     FontSize = Math.Max(1, item.FontSize),
@@ -1067,16 +1067,16 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         private static string BuildMissingResultText(ResultOverlayDrawItem item, NodeBase sourceNode)
         {
             if (item.ItemType == ResultOverlayDrawItemType.Text && !string.IsNullOrEmpty(item.TextPrefix))
-                return item.TextPrefix + "未查到";
+                return LanguageManager.TranslatePrefix(item.TextPrefix) + LanguageManager.T("未查到");
 
             string sourceText = sourceNode == null ? item.SourceText1 : GetNodeText(sourceNode);
             if (!string.IsNullOrWhiteSpace(sourceText))
-                return sourceText + "：未查到";
+                return sourceText + "：" + LanguageManager.T("未查到");
 
             if (!string.IsNullOrWhiteSpace(item.Name))
-                return item.Name + "：未查到";
+                return item.Name + "：" + LanguageManager.T("未查到");
 
-            return "未查到";
+            return LanguageManager.T("未查到");
         }
 
         /// <summary>
@@ -1145,7 +1145,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                         if (string.IsNullOrWhiteSpace(line))
                             continue;
 
-                        string displayText = usePrefix ? item.TextPrefix + line : line;
+                        string displayText = usePrefix ? LanguageManager.TranslatePrefix(item.TextPrefix) + line : line;
                         AddDisplayText(displayResult, new ColorText(displayText, textInfo.Color)
                         {
                             FontSize = Math.Max(1, item.FontSize),
@@ -1175,7 +1175,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                         continue;
 
                     string text = $"{result.Name}:{result.Value} {(result.IsOk ? "OK" : "NG")}";
-                    string displayText = usePrefix ? item.TextPrefix + text : text;
+                    string displayText = usePrefix ? LanguageManager.TranslatePrefix(item.TextPrefix) + text : text;
                     AddDisplayText(displayResult, new ColorText(displayText, result.IsOk ? item.OkColor : item.NgColor)
                     {
                         FontSize = Math.Max(1, item.FontSize),
@@ -1228,7 +1228,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         private static bool IsMissingPromptText(string text)
         {
             return !string.IsNullOrWhiteSpace(text) &&
-                (text.IndexOf("未查到", StringComparison.Ordinal) >= 0 ||
+                (text.IndexOf(LanguageManager.T("未查到"), StringComparison.Ordinal) >= 0 || text.IndexOf("未查到", StringComparison.Ordinal) >= 0 ||
                  text.IndexOf("未找到", StringComparison.Ordinal) >= 0);
         }
 

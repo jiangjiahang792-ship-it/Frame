@@ -164,6 +164,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
                 numberCapacity.Value = Clamp(numberCapacity, _current.Capacity);
                 numberStringBytes.Value = Clamp(numberStringBytes, _current.StringBytes);
                 checkClear.Checked = _current.ClearRemaining;
+                checkDecimalToInteger.Checked = _current.DecimalToIntegerByHundred;
                 comboEncoding.SelectedItem = _current.EncodingName;
                 labelPreview.Text = _current.SourceText;
                 UpdateEditorState();
@@ -183,11 +184,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             if (_current == null) return;
             bool all = _current.Mode == ResultSendMode.All;
             bool text = _current.DataType == ResultSendType.String;
+            bool integer = IsIntegerType(_current.DataType);
             bool boolAggregate = _current.Mode == ResultSendMode.Aggregate &&
                 (_current.Aggregate == ResultSendAggregate.AllTrue || _current.Aggregate == ResultSendAggregate.AnyTrue);
             var sources = _current.GetEffectiveSources();
-            Control[] fields = { numberIndex, comboAggregate, textTrueValue, textFalseValue, numberCapacity, textCount, checkClear, numberStringBytes, comboEncoding };
-            bool[] visible = { _current.Mode == ResultSendMode.Index, _current.Mode == ResultSendMode.Aggregate, boolAggregate, boolAggregate, all, all, all, text, text };
+            Control[] fields = { numberIndex, comboAggregate, textTrueValue, textFalseValue, checkDecimalToInteger, numberCapacity, textCount, checkClear, numberStringBytes, comboEncoding };
+            bool[] visible = { _current.Mode == ResultSendMode.Index, _current.Mode == ResultSendMode.Aggregate, boolAggregate, boolAggregate, integer, all, all, all, text, text };
             editorLayout.SuspendLayout();
             try
             {
@@ -210,6 +212,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             }
             finally { editorLayout.ResumeLayout(true); }
         }
+
+        /// <summary>判断当前写入类型是否需要整数小数处理选项。</summary>
+        private static bool IsIntegerType(ResultSendType type) =>
+            type == ResultSendType.Int16 || type == ResultSendType.UInt16 ||
+            type == ResultSendType.Int32 || type == ResultSendType.UInt32;
 
         /// <summary>同时显示或隐藏设计器中的输入控件及对应中文标签。</summary>
         private void SetFieldVisible(Control control, bool visible)
@@ -235,6 +242,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             _current.StringBytes = (int)numberStringBytes.Value;
             _current.EncodingName = comboEncoding.Text;
             _current.ClearRemaining = checkClear.Checked;
+            _current.DecimalToIntegerByHundred = checkDecimalToInteger.Checked;
             _updating = true;
             _rows.ResetItem(_rows.IndexOf(_current));
             _updating = false;

@@ -24,6 +24,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         public FrmSelectAiNode(string processName, IEnumerable<NodeTDAI> aiNodes)
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             Text = "选择AI检测节点";
             labelMessage.Text = $"流程“{processName}”中存在多个AI检测节点，请选择本窗口按钮要操作的节点：";
 

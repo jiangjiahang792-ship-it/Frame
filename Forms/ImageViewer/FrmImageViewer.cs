@@ -66,6 +66,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         public FrmImageViewer()
         {
             InitializeComponent();
+            TDJS_Vision.UiLocalization.Attach(this);
             _activeViewer = this;
             // 仅图像浮窗使用生命周期保护，避免合并释放时的迟到激活消息触发库内空引用。
             GreenTheme imageTheme = new GreenTheme();

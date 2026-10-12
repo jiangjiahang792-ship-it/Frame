@@ -62,6 +62,8 @@
             this.labeltextCount = new System.Windows.Forms.Label();
             this.checkClear = new System.Windows.Forms.CheckBox();
             this.labelcheckClear = new System.Windows.Forms.Label();
+            this.checkDecimalToInteger = new System.Windows.Forms.CheckBox();
+            this.labelcheckDecimalToInteger = new System.Windows.Forms.Label();
             this.numberStringBytes = new System.Windows.Forms.NumericUpDown();
             this.labelnumberStringBytes = new System.Windows.Forms.Label();
             this.comboEncoding = new System.Windows.Forms.ComboBox();
@@ -184,15 +186,19 @@
             this.checkClear.TabIndex = 46;
             this.labelcheckClear.Name = "labelcheckClear";
             this.labelcheckClear.TabIndex = 47;
+            this.checkDecimalToInteger.Name = "checkDecimalToInteger";
+            this.checkDecimalToInteger.TabIndex = 48;
+            this.labelcheckDecimalToInteger.Name = "labelcheckDecimalToInteger";
+            this.labelcheckDecimalToInteger.TabIndex = 49;
             this.numberStringBytes.Name = "numberStringBytes";
-            this.numberStringBytes.TabIndex = 48;
+            this.numberStringBytes.TabIndex = 50;
             this.labelnumberStringBytes.Name = "labelnumberStringBytes";
-            this.labelnumberStringBytes.TabIndex = 49;
+            this.labelnumberStringBytes.TabIndex = 51;
             this.comboEncoding.Name = "comboEncoding";
-            this.comboEncoding.TabIndex = 50;
+            this.comboEncoding.TabIndex = 52;
             this.comboEncoding.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.labelcomboEncoding.Name = "labelcomboEncoding";
-            this.labelcomboEncoding.TabIndex = 51;
+            this.labelcomboEncoding.TabIndex = 53;
             this.columnEnabled.Name = "columnEnabled";
             this.columnSource.Name = "columnSource";
             this.columnMode.Name = "columnMode";
@@ -362,6 +368,11 @@
             this.checkClear.Text = "启用"; this.checkClear.CheckedChanged += new System.EventHandler(this.EditorChanged);
             this.editorLayout.Controls.Add(this.labelcheckClear, 0, 2);
             this.editorLayout.Controls.Add(this.checkClear, 1, 2);
+            this.labelcheckDecimalToInteger.Text = "小数按百分位"; this.labelcheckDecimalToInteger.AutoSize = true; this.labelcheckDecimalToInteger.Anchor = System.Windows.Forms.AnchorStyles.Left;
+            this.checkDecimalToInteger.Anchor = System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            this.checkDecimalToInteger.Text = "写整数"; this.checkDecimalToInteger.CheckedChanged += new System.EventHandler(this.EditorChanged);
+            this.editorLayout.Controls.Add(this.labelcheckDecimalToInteger, 2, 2);
+            this.editorLayout.Controls.Add(this.checkDecimalToInteger, 3, 2);
             this.labelnumberStringBytes.Text = "字符串字节数"; this.labelnumberStringBytes.AutoSize = true; this.labelnumberStringBytes.Anchor = System.Windows.Forms.AnchorStyles.Left;
             this.numberStringBytes.Anchor = System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
             this.numberStringBytes.Minimum = 1; this.numberStringBytes.Maximum = 4096;
@@ -480,6 +491,10 @@
         private System.Windows.Forms.CheckBox checkClear;
         /// <summary>剩余位置补默认值标签。</summary>
         private System.Windows.Forms.Label labelcheckClear;
+        /// <summary>小数按百分位写入整数。</summary>
+        private System.Windows.Forms.CheckBox checkDecimalToInteger;
+        /// <summary>小数按百分位写入整数标签。</summary>
+        private System.Windows.Forms.Label labelcheckDecimalToInteger;
         /// <summary>字符串字节数。</summary>
         private System.Windows.Forms.NumericUpDown numberStringBytes;
         /// <summary>字符串字节数标签。</summary>

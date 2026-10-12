@@ -11,14 +11,17 @@ namespace TDJS_Vision.Node
         {
             { NodeType.ContourMatch, "轮廓模板匹配" },
             { NodeType.TerminalAngle, "端子角度" },
-            { NodeType.NamedImageSave, "命名存图" }
+            { NodeType.NamedImageSave, "命名存图" },
+            { NodeType.ImageShow3D, "3D图像显示" },
+            { NodeType.ResultSend, "结果发送" },
+            { NodeType.UNKNOWN, "未知节点" }
         };
 
         /// <summary>取得工具箱及节点类型说明文字，资源缺失时避免显示内部资源键。</summary>
         public static string GetTypeName(NodeType type)
         {
             if (ChineseKeys.TryGetValue(type, out string chineseKey)) return LanguageManager.T(chineseKey);
-            if (type == NodeType.ResultSend) return "结果发送";
+            if (type == NodeType.ResultSend) return LanguageManager.T("结果发送");
             string key = "ProcessNew.NodeType." + type;
             string translated = LanguageManager.T(key);
             return translated == key ? type.ToString() : translated;
@@ -27,12 +30,15 @@ namespace TDJS_Vision.Node
         /// <summary>仅翻译默认名称及旧资源键，不改写模型名称，以免破坏已有订阅或用户自定义名称。</summary>
         public static string GetTitle(NodeType type, string name)
         {
-            if (string.IsNullOrEmpty(name) || !ChineseKeys.TryGetValue(type, out string chineseKey)) return name;
+            if (string.IsNullOrEmpty(name)) return name;
+            if (!ChineseKeys.TryGetValue(type, out string chineseKey))
+                chineseKey = LanguageManager.GetDefaultText("ProcessNew.NodeType." + type);
             string legacyKey = "ProcessNew.NodeType." + type;
             string englishName = type == NodeType.ContourMatch ? "Contour Template Matching" :
-                type == NodeType.NamedImageSave ? "Named Image Save" : "Terminal Angle";
+                type == NodeType.NamedImageSave ? "Named Image Save" :
+                type == NodeType.TerminalAngle ? "Terminal Angle" : null;
             string prefix = name.StartsWith(legacyKey, StringComparison.Ordinal) ? legacyKey :
-                name.StartsWith(englishName, StringComparison.Ordinal) ? englishName : chineseKey;
+                englishName != null && name.StartsWith(englishName, StringComparison.Ordinal) ? englishName : chineseKey;
             if (name == prefix) return GetTypeName(type);
             if (!name.StartsWith(prefix + "_", StringComparison.Ordinal)) return name;
             // 同名节点的自动编号仍显示原数字，自定义后缀保持原样。

@@ -1,6 +1,6 @@
 [
   {
-    "Name": "铜环底部到端子头顶部的距离",
+    "Name": "L1-S2(端子先端位置)",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -8,7 +8,7 @@
     "CurValue": "0"
   },
   {
-    "Name": "铜环底部到绝缘体顶部的距离",
+    "Name": "L1-FiLay(绝缘体长度)",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -24,7 +24,7 @@
     "CurValue": "0"
   },
   {
-    "Name": "露线芯宽度",
+    "Name": "出线芯宽度",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -32,7 +32,7 @@
     "CurValue": "0"
   },
   {
-    "Name": "露线芯长度",
+    "Name": "出线芯长度",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -96,7 +96,23 @@
     "CurValue": "0"
   },
   {
-    "Name": "铜环底部到铝箔顶部的距离",
+    "Name": "L1-ALFoiLay(箔长度)",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "绝缘体宽度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "绝缘体长度",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,

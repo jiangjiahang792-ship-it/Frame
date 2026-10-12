@@ -12,6 +12,9 @@ namespace TDJS_Vision.Device.PLC
     /// </summary>
     internal sealed class KeyenceKvOldWordClient : KeyenceKvOld
     {
+        /// <summary>保护同一客户端内 DM 字内位读改写，避免并行写同一字时旧快照覆盖其他 bit。</summary>
+        private readonly object _dmBitWriteSync = new object();
+
         /// <summary>创建旧系列客户端，沿用库的字节转换和长连接管理。</summary>
         public KeyenceKvOldWordClient(string ip, int port) : base(ip, port) { }
 
@@ -138,12 +141,15 @@ namespace TDJS_Vision.Device.PLC
             var parsed = ParseWordBitAddress(address);
             if (!parsed.IsSuccess)
                 return parsed;
-            ushort wordCount = (ushort)((parsed.Content2 + value.Length + 15) / 16);
-            var read = Read(parsed.Content1, wordCount);
-            if (!read.IsSuccess)
-                return read;
-            SetBits(read.Content, parsed.Content2, value);
-            return WriteWordsCore(parsed.Content1, read.Content);
+            lock (_dmBitWriteSync)
+            {
+                ushort wordCount = (ushort)((parsed.Content2 + value.Length + 15) / 16);
+                var read = Read(parsed.Content1, wordCount);
+                if (!read.IsSuccess)
+                    return read;
+                SetBits(read.Content, parsed.Content2, value);
+                return WriteWordsCore(parsed.Content1, read.Content);
+            }
         }
 
         /// <summary>异步直接完成DM连续位的读取、修改和写回。</summary>
