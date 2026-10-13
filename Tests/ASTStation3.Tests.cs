@@ -17,8 +17,8 @@ internal static class ASTStation3Tests
 {
     /// <summary>已通过的断言数量。</summary>
     private static int _checks;
-    /// <summary>用户要求的五个检测项及输出顺序。</summary>
-    private static readonly string[] Names = { "露线芯宽度", "露线芯高度", "压接区宽度", "压接区域高度", "飞丝" };
+    /// <summary>共用解析器的六个检测项及输出顺序。</summary>
+    private static readonly string[] Names = { "露线芯宽度", "露线芯高度", "压接区宽度", "压接区域高度", "飞丝", "压接不良" };
     /// <summary>验证业务行为，失败时输出场景。</summary>
     private static void Check(bool value, string message)
     {
@@ -29,7 +29,7 @@ internal static class ASTStation3Tests
     private static NodeParamTDAI Parameter(string name)
     {
         Solution.Instance.DetectItemDic[name] = Names.Select(n => new DetectItemInfo {
-            Name = n, Enable = true, MinValue = "0", MaxValue = "99999", IsCountItem = n == "飞丝", CurValue = "0" }).ToList();
+            Name = n, Enable = true, MinValue = "0", MaxValue = "99999", IsCountItem = n == "飞丝" || n == "压接不良", CurValue = "0" }).ToList();
         return new NodeParamTDAI { CurDetectItemName = name, DetectItemName1 = name, IsFixed = true,
             NodeName = name, StudyNum = 2, StudyPercentage = 10, Scale = 1 };
     }
@@ -61,8 +61,10 @@ internal static class ASTStation3Tests
     {
         var parameter = Parameter("解析");
         var result = Parse(parameter, Detections());
-        float[] expected = { 18, 27, 31, 22, 1 };
-        Check(result.DetectItemCount == 5 && result.IsOk, "五项结果不完整或判定错误。");
+        float[] expected = { 18, 27, 31, 22, 1, 0 };
+        Check(result.DetectItemCount == 6 && result.IsOk, "六项结果不完整或判定错误。");
+        Check(result.AlgorithmResult.Texts.Count == result.DetectItemCount,
+            "画面应只包含检测项文字，不应追加当前产品判定结果。");
         for (int i = 0; i < Names.Length; i++) Check(Value(result, Names[i]) == expected[i], Names[i] + "数值错误。");
         Check(result.AlgorithmResult.Rects.Count == 3, "检测框未绘制或去重错误。");
         Check(result.AlgorithmResult.Lines.Count == 20 && result.AlgorithmResult.Lines.All(l => l.Color == Color.Yellow && !l.ShowCenterCross), "工位3尺寸箭头缺失或错误地绘制了飞丝长度。");
@@ -89,11 +91,49 @@ internal static class ASTStation3Tests
         Check(!result.IsOk && !result.AlgorithmResult.DetectResults["DetectItem.FlyingWire"][0].IsOk, "飞丝超上限未判NG。");
         items[0].Enable = false; items[2].MaxValue = "10";
         result = Parse(parameter, Detections());
-        Check(result.DetectItemCount == 4, "禁用项仍输出。");
+        Check(result.DetectItemCount == 5, "禁用项仍输出。");
         Check(result.AlgorithmResult.Rects.Single(r => r.RotatedRect.size.width == 31).Color == Color.Red,
             "同框压接区宽度NG未合并颜色。");
         result = Parse(parameter, null);
         Check(items.Where(i => i.Enable).All(i => i.CurValue == "0"), "未检出保留了上次值。");
+    }
+    /// <summary>验证新增类别的零值、多目标计数、阈值、绘制、禁用及尺寸换算隔离。</summary>
+    private static void VerifyCrimpDefect()
+    {
+        var parameter = Parameter("压接不良数量");
+        var item = Solution.Instance.DetectItemDic[parameter.CurDetectItemName].Single(i => i.Name == "压接不良");
+        item.MaxValue = "0";
+        item.IsCountItem = false;
+        parameter.NeedConvert = true;
+        parameter.Scale = 0.1f;
+        var detections = Detections();
+        var result = Parse(parameter, detections);
+        Check(result.IsOk && Value(result, "压接不良") == 0, "无压接不良时应输出0并判OK。");
+        detections.Add(new DetResult { ClassId = 3, Box = new Rect(250, 180, 11, 12) });
+        result = Parse(parameter, detections);
+        Check(!result.IsOk && Value(result, "压接不良") == 1, "单个压接不良未按数量判NG。");
+        Check(result.AlgorithmResult.Texts.Count == result.DetectItemCount,
+            "NG时也不应追加当前产品判定结果文字。");
+        detections.Add(new DetResult { ClassId = 3, Box = new Rect(280, 180, 13, 14) });
+        detections.Add(new DetResult { ClassId = 3, Box = new Rect(310, 180, 0, 14) });
+        result = Parse(parameter, detections);
+        Check(Value(result, "压接不良") == 2 && !result.IsOk, "数量被换算或计入了无效框。");
+        Check(Value(result, "飞丝") == 1, "压接不良混入飞丝数量。");
+        Check(result.AlgorithmResult.Rects.Count(r => r.Color == Color.Red) == 2, "压接不良框未标红。");
+        Check(result.AlgorithmResult.Lines.Count == 20, "压接不良不应绘制尺寸箭头。");
+        Check(result.AlgorithmResult.Texts.Any(t => t.Text.EndsWith("压接不良: 2")), "数量显示不应带mm或小数。");
+        item.MaxValue = "2";
+        Check(Parse(parameter, detections).IsOk, "压接不良没有遵循配置上限。");
+        item.Enable = false;
+        Check(!Parse(parameter, detections).AlgorithmResult.DetectResults.ContainsKey("压接不良"), "禁用后仍输出压接不良。");
+        item.Enable = true;
+        item.MaxValue = "0";
+        Check(Value(Parse(parameter, null), "压接不良") == 0 && item.CurValue == "0", "空结果未清零压接不良数量。");
+        LanguageManager.SetLanguage("en-US", false);
+        Check(DetectItemLanguage.GetDisplayName("压接不良") == "Crimp defect", "压接不良英文翻译缺失。");
+        LanguageManager.SetLanguage("ja-JP", false);
+        Check(DetectItemLanguage.GetDisplayName("压接不良") == "圧着不良", "压接不良日文翻译缺失。");
+        LanguageManager.SetLanguage("zh-CN", false);
     }
     /// <summary>读取设计器实际控件。</summary>
     private static T Field<T>(object owner, string name)
@@ -133,6 +173,8 @@ internal static class ASTStation3Tests
         var template = JsonConvert.DeserializeObject<List<DetectItemInfo>>(File.ReadAllText("Template/TDAI/AST-工位3检测项.items"));
         Check(template.Select(i => i.Name).SequenceEqual(Names), "发布模板检测项错误。");
         Check(template.Single(i => i.Name == "飞丝").IsCountItem, "飞丝模板未设置为数量型。");
+        var defect = template.Single(i => i.Name == "压接不良");
+        Check(defect.IsCountItem && defect.Enable && defect.MinValue == "0" && defect.MaxValue == "0", "压接不良模板应启用数量型且上下限为0。");
         Check((int)ModelName.AST_工位2模型 == 7, "旧模型枚举值发生变化。");
     }
     /// <summary>验证参数窗体可直接读取的加密配置、输入尺寸及完整类别顺序。</summary>
@@ -160,7 +202,9 @@ internal static class ASTStation3Tests
         try
         {
             LanguageManager.SetLanguage("zh-CN", false);
-            VerifyParsing(); VerifyForm(); VerifyConfiguration();
+            VerifyParsing(); VerifyCrimpDefect(); VerifyForm();
+            Console.WriteLine("工位3/4解析及模板窗体验证通过，共" + _checks + "项断言；继续验证模型配置。");
+            VerifyConfiguration();
             Console.WriteLine("AST工位3离线验证通过，共" + _checks + "项断言。"); return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }

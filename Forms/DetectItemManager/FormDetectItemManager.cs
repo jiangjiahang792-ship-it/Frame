@@ -194,6 +194,11 @@ namespace TDJS_Vision.Forms.DetectItemManager
                 if (ctrl is DetectItemListBox listBox)
                 {
                     var (name, infos) = listBox.GetConfig();
+                    if (infos == null)
+                    {
+                        MessageBoxTD.Show(LanguageManager.T("补偿值必须是有效的有限数字。"));
+                        return;
+                    }
                     if (!dic.ContainsKey(name))
                         dic.Add(name, infos);
                 }
@@ -267,6 +272,7 @@ namespace TDJS_Vision.Forms.DetectItemManager
                             MaxValue = item.MaxValue,
                             Enable = item.Enable,
                             IsCountItem = item.IsCountItem,
+                            Compensation = item.Compensation,
                             CurValue = item.CurValue
                         }).ToList();
                         string jsonContent = JsonConvert.SerializeObject(

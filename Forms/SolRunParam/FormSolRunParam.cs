@@ -37,7 +37,27 @@ namespace TDJS_Vision.Forms.SolRunParam
             comboBoxCoilValue.SelectedIndex = 1;
             BindLanguage();
             LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
-            FormClosed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+            Disposed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+        }
+
+        /// <summary>显示非模态调参窗口，切回时拒绝已失效、运行中或权限不足的上下文。</summary>
+        /// <param name="owner">所属窗口，关闭所属窗口时一并关闭调参窗口。</param>
+        /// <param name="validate">检查当前方案、权限与流程状态的回调。</param>
+        public void ShowModeless(IWin32Window owner, Action validate)
+        {
+            if (validate == null) throw new ArgumentNullException(nameof(validate));
+            validate();
+            Activated += (sender, args) =>
+            {
+                try { validate(); }
+                catch (InvalidOperationException ex)
+                {
+                    LogHelper.AddLog(MsgLevel.Warn, "手动调参窗口已失效并关闭：" + ex.Message, true);
+                    // 激活发生在Show内部时，延迟到消息循环关闭，避免中断窗体创建。
+                    BeginInvoke(new Action(() => { if (!IsDisposed) Close(); }));
+                }
+            };
+            Show(owner);
         }
 
         /// <summary>

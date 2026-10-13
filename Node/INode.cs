@@ -157,6 +157,17 @@ namespace TDJS_Vision.Node
     }
 
     /// <summary>
+    /// 节点失败时允许流程继续放行下游的标记接口。
+    /// </summary>
+    public interface IFailedNodeCanContinueProvider
+    {
+        /// <summary>
+        /// 当前失败状态是否不应阻断下游节点运行。
+        /// </summary>
+        bool CanContinueAfterFailure { get; }
+    }
+
+    /// <summary>
     /// 节点运行状态码
     /// </summary>
     public enum NodeRunStatusCode

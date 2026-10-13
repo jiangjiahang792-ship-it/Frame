@@ -9,8 +9,8 @@ using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 {
     /// <summary>
-    /// AST工位3 DET/640结果解析。
-    /// 类别顺序：0露线芯、1压接区域、2飞丝。
+    /// AST工位3、工位4共用的DET/640结果解析。
+    /// 类别顺序：0露线芯、1压接区域、2飞丝、3压接不良（closed_opening-ng）。
     /// </summary>
     public class ASTStation3Parse
     {
@@ -29,7 +29,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             public readonly Dictionary<string, List<float>> Values = new Dictionary<string, List<float>>();
         }
 
-        /// <summary>解析检测框，输出五项测量、上下限判定、带颜色的矩形和文本。</summary>
+        /// <summary>解析检测框，输出六项尺寸或数量、上下限判定、带颜色的矩形和文本。</summary>
         /// <param name="results">已还原到原图坐标的检测列表。</param>
         /// <param name="resultCount">兼容统一调用签名，以列表实际数量为准。</param>
         /// <param name="param">检测配置、物理比例及学习参数。</param>
@@ -101,6 +101,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         isCountItem = true;
                         extractValueFunc = r => r.ClassId == 2 ? (float?)1F : null;
                         break;
+                    case "压接不良":
+                        // 按类别3的有效框数量判定，即使模板漏设数量标志也不进行尺寸换算。
+                        isCountItem = true;
+                        extractValueFunc = r => r.ClassId == 3 ? (float?)1F : null;
+                        break;
                     default:
                         throw new InvalidOperationException($"AST工位3模型不支持检测项：{ParseCommon.GetDisplayName(itemName)}。");
                 }
@@ -121,6 +126,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     {
                         float value = match.Value.Value;
                         if (param.NeedConvert) value *= param.Scale;
+                        value = ParseCommon.ApplyMeasurementCompensation(item, value);
                         bool isOk = AddValue(item, value, false, param, study, singleResults);
                         ParseCommon.AddRect(addedRectKeys, match.Result.Box, isOk, ref nodeResult);
                         ParseCommon.AddAstMeasurementArrow(nodeResult.AlgorithmResult, match.Result.Box,
@@ -144,8 +150,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             bool allOk = detectResults.Values.SelectMany(list => list).All(r => r.IsOk);
             if (allOk) process.OKNumber++;
             else process.NGNumber++;
-            // AST画面只显示最终判定结果，内部OK/NG计数仍保留给流程统计使用。
-            texts.Add(new ColorText(LanguageManager.Format("Result.ProductResult", allOk ? "OK" : "NG"), allOk ? Color.Green : Color.Red));
+            // 画面只输出各检测项文字，整体判定及OK/NG计数仍保留给流程使用。
             nodeResult.AlgorithmResult.Texts = texts;
 
             if (study != null && ++study.Count >= param.StudyNum)

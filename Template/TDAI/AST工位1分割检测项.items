@@ -4,7 +4,7 @@
   { "Name": "L1-S2", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
   { "Name": "L1-S3", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
   { "Name": "L1-S4", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "屏蔽网高度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
+  { "Name": "L2_编组切割长度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
   { "Name": "屏蔽网宽度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
   { "Name": "铜环高度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
   { "Name": "铜环宽度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },

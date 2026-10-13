@@ -1,4 +1,6 @@
 {
+  "补偿值必须是有效的有限数字。": "Compensation must be a valid finite number.",
+  "补偿值": "Compensation",
   "$meta": {
     "culture": "en-US",
     "displayName": "English"
@@ -344,8 +346,14 @@
   "L1-S3": "L1-S3",
   "L1-S4": "L1-S4",
   "屏蔽网高度": "Shielding mesh height",
+  "L2_编组切割长度": "L2_Braid cutting length",
   "屏蔽网宽度": "Shielding mesh width",
   "绝缘体宽度": "Insulator width",
+  "编组反转代-1": "Braid fold-back allowance-1",
+  "编组反转代-2": "Braid fold-back allowance-2",
+  "L5_绝缘体长度": "L5_Insulator length",
+  "L6_箔剥宽度": "L6_Foil stripping width",
+  "L6_箔剥长度": "L6_Foil stripping length",
   "绝缘体长度": "Insulator length",
   "铜环高度": "Copper ring height",
   "铜环宽度": "Copper ring width",
@@ -374,6 +382,7 @@
   "防水栓数量": "Waterproof plug count",
   "露线芯高度": "Exposed wire core height",
   "压接区宽度": "Crimp area width",
+  "压接不良": "Crimp defect",
   "压接区域高度": "Crimp area height",
   "绝缘胶顶部最低点到屏蔽网顶部最低点的距离": "Lowest upper edge distance from insulation glue to shielding mesh",
   "绝缘胶顶部到铜环底部的距离": "Insulation glue top to copper ring bottom distance",

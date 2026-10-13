@@ -95,15 +95,22 @@ namespace TDJS_Vision.Forms.SolRunParam
             EnsureStopped(process);
         }
 
-        /// <summary>调用原参数窗体；图像窗口的ROI过滤引用原样转交，运行按钮传空表示完整流程。</summary>
+        /// <summary>非模态打开参数窗体；ROI过滤原样转交，再次激活时重新校验上下文。</summary>
         public static void ShowManualParameters(IWin32Window owner, Process process, NodeTDAI target,
             RunParamDisplayFilter filter, Action validate = null)
         {
             EnsureAllowed(process, validate);
-            using (var form = new FormSolRunParam(process, target, filter))
+            var form = new FormSolRunParam(process, target, filter);
+            try
             {
                 EnsureAllowed(process, validate);
-                form.ShowDialog(owner);
+                // 非模态窗口由关闭事件释放，不能用using在Show返回后立即销毁。
+                form.ShowModeless(owner, () => EnsureAllowed(process, validate));
+            }
+            catch
+            {
+                form.Dispose();
+                throw;
             }
         }
 

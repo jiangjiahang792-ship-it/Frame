@@ -203,7 +203,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         public FormSolRunParam(Process process, NodeTDAI node, RunParamDisplayFilter filter)
         { Constructions++; LastProcess = process; LastTarget = node; LastFilter = filter; OnCreate?.Invoke(); }
         /// <summary>仅计数，不显示界面。</summary>
-        public void ShowDialog(IWin32Window owner) { Shows++; }
+        public void ShowModeless(IWin32Window owner, Action validate) { validate(); Shows++; }
         /// <summary>替身无需释放资源。</summary>
         public void Dispose() { }
     }

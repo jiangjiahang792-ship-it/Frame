@@ -739,6 +739,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                     MaxValue = info.MaxValue,
                     Enable = info.Enable,
                     IsCountItem = info.IsCountItem,
+                    Compensation = info.Compensation,
                     CurValue = info.CurValue
                 });
             }

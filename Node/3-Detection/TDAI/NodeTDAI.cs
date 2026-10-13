@@ -879,6 +879,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 MaxValue = item.MaxValue,
                 Enable = item.Enable,
                 IsCountItem = item.IsCountItem,
+                Compensation = item.Compensation,
                 CurValue = item.CurValue
             }).ToList();
         }

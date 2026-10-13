@@ -117,6 +117,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         value = Math.Abs(endY - startY);
                     }
                     if (param.NeedConvert) value *= param.Scale;
+                    value = ParseCommon.ApplyMeasurementCompensation(item, value);
                 }
                 bool isOk = hasValue && (param.IsAutoStudy || ParseCommon.IsValueWithinLimits(item, value));
                 string valueText = count || value == 0 ? value.ToString() : value.ToString("F2");
@@ -186,7 +187,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 case "胶皮到屏蔽网的距离": id = 1; dependency = 3; break;
                 case "L1-S4":
                 case "胶皮到绝缘胶的位置": id = 0; dependency = 3; lowerTop = true; break;
-                case "屏蔽网高度": id = 1; break;
+                // 屏蔽网高度按胶皮与屏蔽网上边缘最低点的Y差测量，不再取掩膜自身高度。
+                case "L2_编组切割长度":
+                case "屏蔽网高度": id = 1; dependency = 3; lowerTop = true; break;
                 case "屏蔽网宽度": id = 1; width = true; break;
                 case "铜环高度": id = 2; break;
                 case "铜环宽度": id = 2; width = true; break;

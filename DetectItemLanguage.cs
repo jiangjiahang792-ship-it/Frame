@@ -5,6 +5,17 @@ namespace TDJS_Vision
 {
     public static class DetectItemLanguage
     {
+        /// <summary>工位2检测项的新旧名称映射，供配置、显示和结果订阅统一使用。</summary>
+        private static readonly Dictionary<string, string> Station2NameAliases = new Dictionary<string, string>
+        {
+            { "胶皮顶部到屏蔽网顶部的距离", "编组反转代-1" },
+            { "胶皮顶部到屏蔽网底部的距离", "编组反转代-2" },
+            { "胶皮顶部到绝缘体顶部的距离", "L5_绝缘体长度" },
+            { "绝缘体宽度", "L6_箔剥宽度" },
+            { "绝缘体长度", "L6_箔剥长度" },
+            { "L5_绝缘体宽度", "L6_箔剥长度" }
+        };
+
         private static readonly Dictionary<string, string> LegacyNameToKey = new Dictionary<string, string>
         {
             { "胶皮长度", "DetectItem.RubberLength" },
@@ -91,6 +102,7 @@ namespace TDJS_Vision
         /// <returns>对应的中文名称。</returns>
         public static string GetConfigName(string name)
         {
+            name = NormalizeName(name);
             if (string.IsNullOrWhiteSpace(name))
                 return name;
 
@@ -101,6 +113,9 @@ namespace TDJS_Vision
         {
             if (string.IsNullOrWhiteSpace(name))
                 return name;
+
+            if (Station2NameAliases.TryGetValue(name, out var currentName))
+                return currentName;
 
             return LegacyNameToKey.TryGetValue(name, out var key) ? key : name;
         }

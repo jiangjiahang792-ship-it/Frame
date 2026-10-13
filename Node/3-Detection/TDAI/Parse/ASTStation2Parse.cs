@@ -100,26 +100,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         findDependencyRectFunc = target => FindNearestCopperRing(target, copperRings);
                         extractValueFunc = r => r.ClassId == 0 ? GetCopperRingDistance(r.Box, copperRings) : null;
                         break;
-                    case "L1-FiLay(绝缘体长度)":
-                    case "铜环底部到绝缘体顶部的距离":
-                        isDistanceItem = true;
-                        useDependencyBottom = true;
-                        findDependencyRectFunc = target => FindNearestCopperRing(target, copperRings);
-                        extractValueFunc = r => r.ClassId == 2 ? GetCopperRingDistance(r.Box, copperRings) : null;
-                        break;
-                    case "铜环底部到屏蔽网顶部距离":
-                        isDistanceItem = true;
-                        useDependencyBottom = true;
-                        findDependencyRectFunc = target => FindNearestCopperRing(target, copperRings);
-                        extractValueFunc = r => r.ClassId == 3 ? GetCopperRingDistance(r.Box, copperRings) : null;
-                        break;
-                    case "L1-ALFoiLay(箔长度)":
-                    case "铜环底部到铝箔顶部的距离":
-                        isDistanceItem = true;
-                        useDependencyBottom = true;
-                        findDependencyRectFunc = target => FindNearestCopperRing(target, copperRings);
-                        extractValueFunc = r => r.ClassId == 7 ? GetCopperRingDistance(r.Box, copperRings) : null;
-                        break;
                     case "出线芯宽度":
                     case "露线芯宽度":
                         isWidthMeasurement = true;
@@ -131,34 +111,29 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     case "DetectItem.ExposedCoreLength":
                         extractValueFunc = r => r.ClassId == 1 ? (float?)r.Box.Height : null;
                         break;
-                    case "绝缘体宽度":
+                    case "L6_箔剥宽度":
                         isWidthMeasurement = true;
                         extractValueFunc = r => r.ClassId == 2 ? (float?)r.Box.Width : null;
                         break;
-                    case "绝缘体长度":
+                    case "L6_箔剥长度":
+                        // 工艺长度对应当前图像的Y方向，仍取绝缘胶检测框的Height。
                         extractValueFunc = r => r.ClassId == 2 ? (float?)r.Box.Height : null;
                         break;
-                    case "胶皮顶部到屏蔽网顶部的距离":
+                    case "编组反转代-1":
                         isDistanceItem = true;
                         findDependencyRectFunc = target => FindNearestRubber(target, rubbers);
                         extractValueFunc = r => r.ClassId == 3 ? GetRubberTopDistance(r.Box, rubbers, false) : null;
                         break;
-                    case "胶皮顶部到屏蔽网底部的距离":
+                    case "编组反转代-2":
                         isDistanceItem = true;
                         useTargetBottom = true;
                         findDependencyRectFunc = target => FindNearestRubber(target, rubbers);
                         extractValueFunc = r => r.ClassId == 3 ? GetRubberTopDistance(r.Box, rubbers, true) : null;
                         break;
-                    case "胶皮顶部到绝缘体顶部的距离":
+                    case "L5_绝缘体长度":
                         isDistanceItem = true;
                         findDependencyRectFunc = target => FindNearestRubber(target, rubbers);
                         extractValueFunc = r => r.ClassId == 2 ? GetRubberTopDistance(r.Box, rubbers, false) : null;
-                        break;
-                    case "胶皮顶部到绝缘体底部的距离":
-                        isDistanceItem = true;
-                        useTargetBottom = true;
-                        findDependencyRectFunc = target => FindNearestRubber(target, rubbers);
-                        extractValueFunc = r => r.ClassId == 2 ? GetRubberTopDistance(r.Box, rubbers, true) : null;
                         break;
                     case "飞丝":
                     // 公共归一化会将旧中文名称转为内部键，保持已有方案/订阅兼容。
@@ -166,13 +141,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         // 飞丝是数量型检测项，模板配置错误时也按数量统计，避免输出单个框的伪尺寸。
                         isCountItem = true;
                         extractValueFunc = r => r.ClassId == 6 ? (float?)1F : null;
-                        break;
-                    case "屏蔽网高度":
-                        extractValueFunc = r => r.ClassId == 3 ? (float?)r.Box.Height : null;
-                        break;
-                    case "屏蔽网宽度":
-                        isWidthMeasurement = true;
-                        extractValueFunc = r => r.ClassId == 3 ? (float?)r.Box.Width : null;
                         break;
                     default:
                         LogUnsupportedDetectItem(itemName, param);
@@ -204,6 +172,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     {
                         float value = match.Value.Value;
                         if (param.NeedConvert) value *= param.Scale;
+                        value = ParseCommon.ApplyMeasurementCompensation(item, value);
                         bool isOk = AddValue(item, value, false, param, study, singleResults);
                         ParseCommon.AddRect(addedRectKeys, match.Result.Box, isOk, ref nodeResult);
                         Rect? dependencyRect = null;

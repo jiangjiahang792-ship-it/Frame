@@ -38,5 +38,13 @@
     "Enable": true,
     "IsCountItem": true,
     "CurValue": "0"
+  },
+  {
+    "Name": "压接不良",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0"
   }
 ]

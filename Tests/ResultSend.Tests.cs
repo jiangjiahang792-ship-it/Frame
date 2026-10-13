@@ -103,6 +103,7 @@ internal static class ResultSendTests
         var plan = new FlowExecutionPlanCompiler().Compile(config, 1, "测试域");
         Check(plan.IsProductionReady && plan.PotentialSignals.Count == 0, "结果发送仍被登记为有序外发。");
         Check(!typeof(IOrderedExternalSignalNode).IsAssignableFrom(typeof(NodeResultSend)), "结果发送仍实现有序外发接口。");
+        Check(typeof(IFailedNodeCanContinueProvider).IsAssignableFrom(typeof(NodeResultSend)), "结果发送失败状态仍会阻断下游节点。");
         config.NodeInfos[0].NodeType = NodeType.UNKNOWN;
         config.NodeInfos.Add(new NodeConfig { ID = 2, NodeType = NodeType.ResultSend, Active = true });
         config.NodeInfos.Add(new NodeConfig { ID = 3, NodeType = NodeType.ResultSend, Active = true });
@@ -131,7 +132,8 @@ internal static class ResultSendTests
         scaledInteger.DecimalToIntegerByHundred = true;
         Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { 0.2 }, 1).Values)[0] == 20, "小数百分位整数发送失败。");
         Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { "48.28" }, 1).Values)[0] == 4828, "字符串小数百分位整数发送失败。");
-        Reject(() => ResultSendValueConverter.Prepare(scaledInteger, new List<object> { 0.123 }, 1), "百分位后仍有小数不能隐式发送。");
+        Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { 0.123 }, 1).Values)[0] == 12, "三位小数没有自动保留两位后发送。");
+        Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { 48.286 }, 1).Values)[0] == 4829, "百分位整数发送没有按两位小数四舍五入。");
         Reject(() => Value(ResultSendType.Double, "1,2"), "错误分隔符不能吞掉。");
         Reject(() => Value(ResultSendType.Double, double.NaN), "NaN不能发送。");
         Reject(() => Value(ResultSendType.Single, double.MaxValue), "float溢出必须拒绝。");

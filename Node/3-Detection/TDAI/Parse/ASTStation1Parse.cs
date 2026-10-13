@@ -156,6 +156,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     {
                         float value = match.Value.Value;
                         if (param.NeedConvert) value *= param.Scale;
+                        value = ParseCommon.ApplyMeasurementCompensation(item, value);
                         bool isOk = AddValue(item, value, false, param, study, singleResults);
                         ParseCommon.AddRect(addedRectKeys, match.Result.Box, isOk, ref nodeResult);
                         Rect? dependency = null;

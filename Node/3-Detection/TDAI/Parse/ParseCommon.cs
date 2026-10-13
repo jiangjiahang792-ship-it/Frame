@@ -14,6 +14,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
     /// </summary>
     public class ParseCommon
     {
+        /// <summary>为有效尺寸叠加配置补偿，供判定、显示、发送及学习共用同一最终值。</summary>
+        /// <param name="item">当前检测项。</param>
+        /// <param name="value">已完成物理比例换算的有效测量值。</param>
+        /// <returns>补偿后的有限数值。</returns>
+        public static float ApplyMeasurementCompensation(DetectItemInfo item, float value)
+        {
+            float result = value + item.Compensation;
+            if (float.IsNaN(result) || float.IsInfinity(result))
+                throw new InvalidOperationException("检测项补偿值或补偿结果必须是有限数值：" + item.Name);
+            return result;
+        }
         /// <summary>
         /// 关闭自动学习事件
         /// </summary>

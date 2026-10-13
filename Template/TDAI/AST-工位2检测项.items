@@ -8,22 +8,6 @@
     "CurValue": "0"
   },
   {
-    "Name": "L1-FiLay(绝缘体长度)",
-    "MinValue": "1",
-    "MaxValue": "99999",
-    "Enable": true,
-    "IsCountItem": false,
-    "CurValue": "0"
-  },
-  {
-    "Name": "铜环底部到屏蔽网顶部距离",
-    "MinValue": "1",
-    "MaxValue": "99999",
-    "Enable": true,
-    "IsCountItem": false,
-    "CurValue": "0"
-  },
-  {
     "Name": "出线芯宽度",
     "MinValue": "1",
     "MaxValue": "99999",
@@ -40,7 +24,7 @@
     "CurValue": "0"
   },
   {
-    "Name": "胶皮顶部到屏蔽网顶部的距离",
+    "Name": "编组反转代-1",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -48,7 +32,7 @@
     "CurValue": "0"
   },
   {
-    "Name": "胶皮顶部到屏蔽网底部的距离",
+    "Name": "编组反转代-2",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -56,15 +40,7 @@
     "CurValue": "0"
   },
   {
-    "Name": "胶皮顶部到绝缘体顶部的距离",
-    "MinValue": "1",
-    "MaxValue": "99999",
-    "Enable": true,
-    "IsCountItem": false,
-    "CurValue": "0"
-  },
-  {
-    "Name": "胶皮顶部到绝缘体底部的距离",
+    "Name": "L5_绝缘体长度",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -80,7 +56,7 @@
     "CurValue": "0"
   },
   {
-    "Name": "屏蔽网高度",
+    "Name": "L6_箔剥宽度",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -88,31 +64,7 @@
     "CurValue": "0"
   },
   {
-    "Name": "屏蔽网宽度",
-    "MinValue": "1",
-    "MaxValue": "99999",
-    "Enable": true,
-    "IsCountItem": false,
-    "CurValue": "0"
-  },
-  {
-    "Name": "L1-ALFoiLay(箔长度)",
-    "MinValue": "1",
-    "MaxValue": "99999",
-    "Enable": true,
-    "IsCountItem": false,
-    "CurValue": "0"
-  },
-  {
-    "Name": "绝缘体宽度",
-    "MinValue": "1",
-    "MaxValue": "99999",
-    "Enable": true,
-    "IsCountItem": false,
-    "CurValue": "0"
-  },
-  {
-    "Name": "绝缘体长度",
+    "Name": "L6_箔剥长度",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,

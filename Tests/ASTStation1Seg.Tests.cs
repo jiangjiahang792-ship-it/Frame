@@ -114,6 +114,43 @@ internal static class ASTStation1SegTests
         Check(result.IsOk && result.DetectItemCount == 14 && result.AlgorithmResult.Lines.Count == 65, "兼容原工位1宽高和胶皮间距项失败。");
         Check(result.AlgorithmResult.DetectResults["L1-S4"][0].Value == "95.00", "L1-S4未按胶皮顶部最低点到绝缘体顶部最低点计算。");
     }
+    /// <summary>屏蔽网高度使用胶皮和屏蔽网中央上边缘最低点，不使用自身高度或相邻间距。</summary>
+    private static void VerifyShieldingHeight()
+    {
+        const string name = "L2_编组切割长度";
+        var p = Parameters("屏蔽网高度取点");
+        var item = new DetectItemInfo { Name = name, Enable = true, MinValue = "0", MaxValue = "1000" };
+        Solution.Instance.DetectItemDic[p.CurDetectItemName] = new List<DetectItemInfo> { item };
+        var mesh = Segment(1, 50, 70);
+        var rubber = Segment(3, 105, 119);
+        var segments = new List<SegResult> { mesh, rubber, Segment(3, 80, 100, 0.1f) };
+        var result = Parse(p, segments);
+        Check(result.IsOk && result.AlgorithmResult.DetectResults[name][0].Value == "55.00",
+            "屏蔽网高度未采用最高置信度胶皮到屏蔽网顶部最低点距离。");
+        Check(result.AlgorithmResult.Lines.Count == 5 && result.AlgorithmResult.Lines[0].P1.Y == 252 &&
+            result.AlgorithmResult.Lines[0].P2.Y == 307, "屏蔽网高度箭头与最低点不一致。");
+        p.NeedConvert = true; p.Scale = 0.1f;
+        Check(Parse(p, segments).AlgorithmResult.DetectResults[name][0].Value == "5.50", "屏蔽网高度比例换算错误。");
+        item.MaxValue = "5";
+        result = Parse(p, segments);
+        Check(!result.IsOk && result.AlgorithmResult.Rects.All(r => r.Color == Color.Red), "距离超限未将胶皮和屏蔽网标红。");
+        p.NeedConvert = false; item.MaxValue = "1000";
+        segments = new List<SegResult> { mesh, Segment(3, 40, 65) };
+        Check(Parse(p, segments).AlgorithmResult.DetectResults[name][0].Value == "10.00", "重叠或反向时应继续计算最低点差绝对值。");
+        segments = new List<SegResult> { mesh, Segment(3, 50, 65) };
+        Check(Parse(p, segments).IsOk && item.CurValue == "0", "顶部最低点同高应为有效零值。");
+        foreach (var missing in new[] { new List<SegResult> { mesh }, new List<SegResult> { rubber } })
+        {
+            result = Parse(p, missing);
+            Check(!result.IsOk && item.CurValue == "0" && result.AlgorithmResult.Lines.Count == 0,
+                "缺少胶皮或屏蔽网时不应以零值判OK或绘制箭头。");
+        }
+        rubber.MaskGeometry.UpperEdgeLowestY = -1;
+        Check(!Parse(p, new List<SegResult> { mesh, rubber }).IsOk, "缺少有效顶部取点不应判OK。");
+        item.Name = "屏蔽网高度";
+        Check(Parse(p, new List<SegResult> { mesh, Segment(3, 105, 119) })
+            .AlgorithmResult.DetectResults[item.Name][0].Value == "55.00", "旧名称的测量逻辑不兼容。");
+    }
     /// <summary>学习会话按节点隔离，无效缺失值不进入样本。</summary>
     private static void VerifyLearning()
     {
@@ -211,7 +248,9 @@ internal static class ASTStation1SegTests
                 finally { engine.Destroy(); }
                 return 0;
             }
-            VerifyParsing(); VerifyLearning(); VerifyTransport(); VerifyConfiguration();
+            VerifyParsing(); VerifyShieldingHeight(); VerifyLearning(); VerifyTransport();
+            Console.WriteLine("SEG解析、取点、学习及传输验证通过，共" + _checks + "项断言；继续验证模型配置。");
+            VerifyConfiguration();
             Console.WriteLine("AST工位1分割离线验证通过，共" + _checks + "项断言。");
             return 0;
         }

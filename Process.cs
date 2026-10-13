@@ -912,7 +912,8 @@ namespace TDJS_Vision
                 if (runResult.Exception != null && firstNodeException == null)
                     firstNodeException = runResult.Exception;
 
-                MarkFailedDownstreamInactive(node.ID, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
+                if (!CanContinueAfterFailedStatus(runResult))
+                    MarkFailedDownstreamInactive(node.ID, componentNodeIds, completedNodeIds, inactiveNodeIds, skippedEdges);
                 return false;
             }
 
@@ -936,6 +937,21 @@ namespace TDJS_Vision
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// 判断失败节点是否明确声明允许流程继续放行下游。
+        /// </summary>
+        private static bool CanContinueAfterFailedStatus(ConnectedNodeRunResult runResult)
+        {
+            if (runResult == null || runResult.Exception != null)
+                return false;
+
+            var provider = runResult.Node as IFailedNodeCanContinueProvider;
+            return provider != null &&
+                provider.CanContinueAfterFailure &&
+                runResult.Return != null &&
+                runResult.Return.Flag == NodeRunFlag.ContinueRun;
         }
 
         private async Task<ConnectedNodeRunResult> RunConnectedNode(NodeBase node, NodeBase nodeToSkip)

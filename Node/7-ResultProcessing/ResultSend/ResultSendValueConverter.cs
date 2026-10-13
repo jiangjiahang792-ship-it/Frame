@@ -147,8 +147,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             if (decimal.Truncate(integer) != integer)
             {
                 if (!row.DecimalToIntegerByHundred) throw new InvalidOperationException("小数不能直接写入整数，请先在四则运算中取整。");
-                integer *= 100m;
-                if (decimal.Truncate(integer) != integer) throw new InvalidOperationException("小数按百分位放大后仍不是整数，请先在四则运算中取整。");
+                // 结果发送按百分位写整数时，先保留两位小数，再放大为PLC整数值。
+                integer = decimal.Round(integer, 2, MidpointRounding.AwayFromZero) * 100m;
             }
             switch (type)
             {

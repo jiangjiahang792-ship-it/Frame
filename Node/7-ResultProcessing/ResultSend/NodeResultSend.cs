@@ -9,8 +9,11 @@ using TDJS_Vision.ResourceManagement;
 namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
 {
     /// <summary>整批预检多个上游基础结果，到达节点后直接逐行发送，不参与工件有序排队。</summary>
-    public sealed class NodeResultSend : NodeBase, INodeSubscriptionDependencyProvider
+    public sealed class NodeResultSend : NodeBase, INodeSubscriptionDependencyProvider, IFailedNodeCanContinueProvider
     {
+        /// <summary>结果发送失败只影响通信结果，不阻断后续节点继续运行。</summary>
+        public bool CanContinueAfterFailure => true;
+
         /// <summary>创建结果发送节点与设计器参数窗体。</summary>
         public NodeResultSend(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
         {

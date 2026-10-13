@@ -96,6 +96,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 MaxValue = info.MaxValue,
                 Enable = info.Enable,
                 IsCountItem = info.IsCountItem,
+                Compensation = info.Compensation,
                 CurValue = info.CurValue
             };
         }
@@ -131,7 +132,9 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <summary>
         /// 数量型列索引。
         /// </summary>
-        private const int CountItemColumnIndex = 5;
+        private const int CountItemColumnIndex = 6;
+        /// <summary>补偿值位于倒数第二列。</summary>
+        private const int CompensationColumnIndex = 5;
 
         public MyDataGridViewForm()
         {
@@ -139,6 +142,7 @@ namespace TDJS_Vision.Forms.SolRunParam
             TDJS_Vision.UiLocalization.Attach(this);
             Init();
             LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
+            Disposed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
         }
 
         private void LanguageManager_LanguageChanged(object sender, EventArgs e)
@@ -151,82 +155,6 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// </summary>
         private void Init()
         {
-            // 清空已有列
-            dataGridView1.Columns.Clear();
-
-            // 第一列：是否启用该检测项
-            var checkBoxColumn = new DataGridViewCheckBoxColumn
-            {
-                HeaderText = "是否启用",
-                Name = "Enable",
-                Width = 32,
-                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter },
-                HeaderCell = { Style = { Alignment = DataGridViewContentAlignment.MiddleCenter } }
-            };
-            dataGridView1.Columns.Add(checkBoxColumn);
-
-            // 第二列：检测项名称
-            var label1Column = new DataGridViewTextBoxColumn
-            {
-                HeaderText = "检测项",
-                ReadOnly = true,
-                Name = "Name",
-                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter },
-                HeaderCell = { Style = { Alignment = DataGridViewContentAlignment.MiddleCenter } }
-            };
-            dataGridView1.Columns.Add(label1Column);
-
-            // 第三列：检测项的下限值
-            var textBox1Column = new DataGridViewTextBoxColumn
-            {
-                HeaderText = "下限值",
-                Name = "MinValue",
-                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter },
-                HeaderCell = { Style = { Alignment = DataGridViewContentAlignment.MiddleCenter } }
-            };
-            dataGridView1.Columns.Add(textBox1Column);
-
-            // 第四列：检测项的当前值
-            var label2Column = new DataGridViewTextBoxColumn
-            {
-                ReadOnly = true,
-                HeaderText = "当前值",
-                Name = "Value",
-                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter },
-                HeaderCell = { Style = { Alignment = DataGridViewContentAlignment.MiddleCenter } }
-            };
-            dataGridView1.Columns.Add(label2Column);
-
-            // 第五列：检测项的上限值
-            var textBox2Column = new DataGridViewTextBoxColumn
-            {
-                HeaderText = "上限值",
-                Name = "MaxValue",
-                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter },
-                HeaderCell = { Style = { Alignment = DataGridViewContentAlignment.MiddleCenter } }
-            };
-            dataGridView1.Columns.Add(textBox2Column);
-
-            // 第六列：是否属于统计个数类的检测项
-            var checkBox2Column = new DataGridViewCheckBoxColumn
-            {
-                HeaderText = "数量型",
-                Name = "Enable",
-                Width = 32,
-                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter },
-                HeaderCell = { Style = { Alignment = DataGridViewContentAlignment.MiddleCenter } }
-            };
-            dataGridView1.Columns.Add(checkBox2Column);
-
-            // 设置列标题的高度
-            dataGridView1.ColumnHeadersHeight = 64;
-            // 设置行的高度
-            dataGridView1.RowTemplate.Height = 36;
-            //等分表格列宽
-            foreach (DataGridViewColumn column in dataGridView1.Columns)
-            {
-                column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-            }
 
             ApplyLanguage();
         }
@@ -243,8 +171,8 @@ namespace TDJS_Vision.Forms.SolRunParam
                 dataGridView1.Columns["Value"].HeaderText = LanguageManager.T("SolRunParam.CurrentValue");
             if (dataGridView1.Columns.Contains("MaxValue"))
                 dataGridView1.Columns["MaxValue"].HeaderText = LanguageManager.T("SolRunParam.MaxValue");
-            if (dataGridView1.Columns.Count > 5)
-                dataGridView1.Columns[5].HeaderText = LanguageManager.T("SolRunParam.CountItem");
+            dataGridView1.Columns[CompensationColumnIndex].HeaderText = LanguageManager.T("补偿值");
+            dataGridView1.Columns[CountItemColumnIndex].HeaderText = LanguageManager.T("SolRunParam.CountItem");
         }
 
         private void RefreshDetectItemNames()
@@ -316,6 +244,8 @@ namespace TDJS_Vision.Forms.SolRunParam
                 row.Cells[CurrentValueColumnIndex].Value = info.CurValue;
                 row.Cells[MaxValueColumnIndex].Value = info.MaxValue;
                 row.Cells[CountItemColumnIndex].Value = info.IsCountItem;
+                row.Cells[CompensationColumnIndex].Value = info.Compensation;
+                row.Cells[CompensationColumnIndex].ReadOnly = item.SourceType == RunParamGridSourceType.MultiCondition;
 
                 dataGridView1.Rows.Add(row);
             }
@@ -343,7 +273,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <returns>运行参数表格行集合。</returns>
         public List<RunParamGridItem> GetRunParamItems()
         {
-            dataGridView1.EndEdit();
+            if (!dataGridView1.EndEdit()) return null;
             var items = new List<RunParamGridItem>();
             try
             {
@@ -367,6 +297,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                         MinValue = ToCellText(row.Cells[MinValueColumnIndex].Value),
                         CurValue = ToCellText(row.Cells[CurrentValueColumnIndex].Value),
                         MaxValue = ToCellText(row.Cells[MaxValueColumnIndex].Value),
+                        Compensation = ReadCompensation(row.Cells[CompensationColumnIndex].Value),
                         IsCountItem = ToCellBool(row.Cells[CountItemColumnIndex].Value)
                     };
 
@@ -435,6 +366,33 @@ namespace TDJS_Vision.Forms.SolRunParam
         private static string ToCellText(object value)
         {
             return value == null ? string.Empty : value.ToString();
+        }
+
+        /// <summary>空补偿按0处理，拒绝无效数字及非有限值，防止保存后污染检测结果。</summary>
+        private static float ReadCompensation(object value)
+        {
+            string text = ToCellText(value);
+            if (string.IsNullOrWhiteSpace(text)) return 0;
+            if (!float.TryParse(text, out float result) || float.IsNaN(result) || float.IsInfinity(result))
+                throw new InvalidOperationException("补偿值必须是有效的有限数字。");
+            return result;
+        }
+
+        /// <summary>在编辑补偿值时即时提示无效输入，并阻止提交该单元格。</summary>
+        private void ValidateCompensationCell(object sender, DataGridViewCellValidatingEventArgs e)
+        {
+            if (e.ColumnIndex != CompensationColumnIndex || e.RowIndex < 0) return;
+            var row = dataGridView1.Rows[e.RowIndex];
+            try
+            {
+                ReadCompensation(e.FormattedValue);
+                row.ErrorText = string.Empty;
+            }
+            catch (InvalidOperationException)
+            {
+                e.Cancel = true;
+                row.ErrorText = LanguageManager.T("补偿值必须是有效的有限数字。");
+            }
         }
 
         /// <summary>

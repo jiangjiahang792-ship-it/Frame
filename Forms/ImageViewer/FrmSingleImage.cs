@@ -1164,8 +1164,12 @@ namespace TDJS_Vision.Forms.ImageViewer
                 }
 
                 LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】开始打开运行参数窗体，流程={process.ProcessName}。", true);
-                ProcessTuningService.ShowManualParameters(this, process, targetAiNode, runParamDisplayFilter);
-                LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】运行参数窗体已关闭，流程={process.ProcessName}，含窗口停留时间={stopwatch.ElapsedMilliseconds}ms（非打开耗时）。", true);
+                ProcessTuningService.ShowManualParameters(this, process, targetAiNode, runParamDisplayFilter, () =>
+                {
+                    if (IsDisposed || !ReferenceEquals(GetCurrentProcess(), process))
+                        throw new InvalidOperationException("当前图像窗口对应流程已变更，请重新打开手动调参。");
+                });
+                LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】运行参数窗体已非模态打开，流程={process.ProcessName}，耗时={stopwatch.ElapsedMilliseconds}ms。", true);
             }
             catch (Exception ex)
             {
