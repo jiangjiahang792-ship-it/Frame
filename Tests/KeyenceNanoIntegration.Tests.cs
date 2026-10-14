@@ -212,25 +212,39 @@ internal static class KeyenceNanoIntegrationTests
             Check(plc.WriteBoolAsync("MR100", true).GetAwaiter().GetResult().IsSuccess, "异步写入位失败。");
             var bits = plc.ReadBoolAsync(new[] { "MR100", "MR101", "MR100" }).GetAwaiter().GetResult();
             Check(bits.IsSuccess && bits.Content.SequenceEqual(new[] { true, false, true }), "离散位地址顺序错误。");
-            Check(plc.WriteInt("DM130", 0).IsSuccess, "初始化DM位测试字失败。");
-            Check(plc.WriteBoolAsync("DM130.0", true).GetAwaiter().GetResult().IsSuccess, "DM字内位异步写入True失败。");
-            Check(plc.ReadBool("DM130.0").Content, "DM字内位读取True失败。");
-            Check(plc.ReadInt16("DM130").Content == 1, "DM字内位写入没有置位目标bit。");
-            Check(plc.WriteInt("DM130", 2).IsSuccess, "初始化DM位保留测试字失败。");
-            Check(plc.WriteBool("DM130.0", true).IsSuccess, "DM字内位同步写入True失败。");
-            Check(plc.ReadInt16("DM130").Content == 3, "DM字内位写入没有保留同字其他bit。");
-            Check(plc.WriteBoolAsync("DM130.0", new[] { false }).GetAwaiter().GetResult().IsSuccess, "DM字内位数组异步写入False失败。");
-            Check(!plc.ReadBoolAsync("DM130.0").GetAwaiter().GetResult().Content, "DM字内位读取False失败。");
-            Check(plc.ReadInt16("DM130").Content == 2, "DM字内位复位错误或覆盖了同字其他bit。");
-            foreach (bool value in new[] { true, false })
+            // 与独立原生客户端对照：DM 位是否支持由实际 HSL 版本决定，不允许框架悄悄回退为整字读改写。
+            using (var native = new KeyenceNanoSerialOverTcp("127.0.0.1", port))
             {
-                Check(plc.WriteInt("DM130", value ? 0 : ushort.MaxValue).IsSuccess, "初始化DM同字并发写入测试失败。");
-                var tasks = Enumerable.Range(0, 16).Select(bit => bit % 2 == 0
-                    ? Task.Run(() => plc.WriteBool("DM130." + bit, value))
-                    : plc.WriteBoolAsync("DM130." + bit, value)).ToArray();
-                Check(Task.WaitAll(tasks, TimeSpan.FromSeconds(10)), "DM同字并发写入超时，可能存在锁重入。");
-                Check(tasks.All(task => task.Result.IsSuccess), "DM同字并发写入存在失败结果。");
-                Check(plc.ReadInt16("DM130").Content == (value ? -1 : 0), "DM同字并发写入丢失其他bit。");
+                Check(native.ConnectServer().IsSuccess, "原生对照客户端连接失败。");
+                foreach (string address in new[] { "DM130.0", "MR110" })
+                {
+                    foreach (bool value in new[] { true, false })
+                    {
+                        var expectedWrite = native.Write(address, value);
+                        Check(expectedWrite.IsSuccess, "新版 HSL 原生布尔写入失败：" + address + " / " + expectedWrite.Message);
+                        var actualWrite = plc.WriteBool(address, value);
+                        Check(actualWrite.IsSuccess == expectedWrite.IsSuccess && actualWrite.ErrorCode == expectedWrite.ErrorCode,
+                            "同步布尔写入与原生接口结果不同：" + address);
+                        var asyncWrite = plc.WriteBoolAsync(address, new[] { value }).GetAwaiter().GetResult();
+                        Check(asyncWrite.IsSuccess == expectedWrite.IsSuccess && asyncWrite.ErrorCode == expectedWrite.ErrorCode,
+                            "异步单元素写入与原生接口结果不同：" + address);
+                        var expectedRead = native.ReadBool(address);
+                        Check(expectedRead.IsSuccess && expectedRead.Content == value, "原生布尔读回值与写入值不同：" + address);
+                        var actualRead = plc.ReadBool(address);
+                        var asyncRead = plc.ReadBoolAsync(address, 1).GetAwaiter().GetResult();
+                        Check(actualRead.IsSuccess == expectedRead.IsSuccess && actualRead.ErrorCode == expectedRead.ErrorCode,
+                            "同步布尔读取与原生接口结果不同：" + address);
+                        Check(asyncRead.IsSuccess == expectedRead.IsSuccess && asyncRead.ErrorCode == expectedRead.ErrorCode,
+                            "异步单元素读取与原生接口结果不同：" + address);
+                        if (expectedRead.IsSuccess)
+                            Check(actualRead.Content == expectedRead.Content && asyncRead.Content[0] == expectedRead.Content,
+                                "读取的布尔值与原生接口不同：" + address);
+                        else
+                            Check(actualRead.Message == expectedRead.Message && asyncRead.Message == expectedRead.Message,
+                                "原生读取错误信息未完整保留：" + address);
+                    }
+                }
+                native.ConnectClose();
             }
             Check(plc.WriteFloat("DM110", 12.5f).IsSuccess, "写入浮点数失败。");
             Check(plc.ReadFloatAsync("DM110").GetAwaiter().GetResult().Content == 12.5f, "异步读取浮点数错误。");

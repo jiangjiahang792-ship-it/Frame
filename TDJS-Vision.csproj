@@ -107,7 +107,7 @@
     <Reference Include="gCursor">
       <HintPath>dll\gCursor.dll</HintPath>
     </Reference>
-    <Reference Include="HslCommunication, Version=12.3.0.0, Culture=neutral, PublicKeyToken=3d72ad3b6b5ec0e3, processorArchitecture=MSIL">
+    <Reference Include="HslCommunication, Version=13.0.2.0, Culture=neutral, PublicKeyToken=3d72ad3b6b5ec0e3, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>dll\HslCommunication.dll</HintPath>
     </Reference>
