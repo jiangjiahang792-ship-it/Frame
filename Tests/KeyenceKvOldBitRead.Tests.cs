@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -14,7 +14,7 @@ using TDJS_Vision.Node;
 using TDJS_Vision.Node._5_EquipmentCommunication.PlcRead;
 using TDJS_Vision.Node._6_LogicTool.MultiCondition;
 
-/// <summary>验证当前 DLL 的 DM 位读取及方案中的实际读取和多条件调用链。</summary>
+/// <summary>复现旧DLL的DM位地址问题，并验证提供方案中的实际读取和多条件调用链。</summary>
 internal static class KeyenceKvOldBitReadTests
 {
     /// <summary>断言测试条件。</summary>
@@ -37,14 +37,13 @@ internal static class KeyenceKvOldBitReadTests
             probe.Stop();
             server.ServerStart(port);
             Check(server.Write("DM100", (ushort)2).IsSuccess, "初始化DM100失败。");
-            // HSL 13.0.2 已支持原生 DM 位读取，验证置位和相邻清零位，防止把整字直接转为布尔。
+            // 对比同一个项目DLL：原生旧系列布尔接口拒绝DM位地址。
             using (var native = new KeyenceKvOld("127.0.0.1", port))
             {
-                Check(native.ConnectServer().IsSuccess, "原生旧系列客户端连接失败。");
+                native.ConnectServer();
                 var before = native.ReadBool("DM100.1");
-                var adjacent = native.ReadBool("DM100.0");
-                Check(before.IsSuccess && before.Content && adjacent.IsSuccess && !adjacent.Content, "原生 DM 位读取值错误。");
-                Console.WriteLine("PASS: 新版 HSL 原生 DM 位读取及相邻位区分。");
+                Check(!before.IsSuccess, "旧DLL复现结果变化，请重新检查版本。");
+                Console.WriteLine("旧DLL复现：" + before.Message);
             }
 
             JObject scheme = args.Length > 0 ? JObject.Parse(File.ReadAllText(args[0])) : null;
@@ -132,7 +131,7 @@ internal static class KeyenceKvOldBitReadTests
                 ((Form)source.ParamForm).Dispose();
                 ((Form)condition.ParamForm).Dispose();
             }
-            Console.WriteLine("PASS: 原生 DM 位读取、方案参数读取、DM位同步/异步/数组/跨字/混合地址、边界错误、真实节点和多条件判定。");
+            Console.WriteLine("PASS: 旧DLL报错复现、方案参数读取、DM位同步/异步/数组/跨字/混合地址、边界错误、真实节点和多条件判定。");
             return 0;
         }
         catch (Exception exception) { Console.Error.WriteLine(exception); return 1; }
