@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Threading.Tasks;
 using HslCommunication;
@@ -11,9 +11,6 @@ namespace TDJS_Vision.Device.PLC
     /// <summary>基恩士 Nano OverTcp 适配器，保留既有类名以兼容已保存的方案。</summary>
     public sealed class PlcKeyenceNano : PlcKeyenceTcpBase
     {
-        /// <summary>保护同一客户端内 DM 字内位读改写，避免并行写同一字时旧快照覆盖其他 bit。</summary>
-        private readonly object _dmBitWriteSync = new object();
-
         /// <summary>供方案反序列化使用，随后由设备列表恢复客户端。</summary>
         [JsonConstructor]
         public PlcKeyenceNano() { }
@@ -59,20 +56,6 @@ namespace TDJS_Vision.Device.PLC
                 values[i] = (read.Content[bitIndex / 16] & (1 << (bitIndex % 16))) != 0;
             }
             return OperateResult.CreateSuccessResult(values);
-        }
-
-        /// <summary>在 UInt16 字数组中设置连续位，其他位保持读取时的值。</summary>
-        private static void SetBits(ushort[] words, int startBit, bool[] values)
-        {
-            for (int i = 0; i < values.Length; i++)
-            {
-                int bitIndex = startBit + i;
-                int wordIndex = bitIndex / 16;
-                ushort mask = (ushort)(1 << (bitIndex % 16));
-                words[wordIndex] = values[i]
-                    ? (ushort)(words[wordIndex] | mask)
-                    : (ushort)(words[wordIndex] & ~mask);
-            }
         }
 
         /// <summary>读取单个 DM 字内位；其他地址继续交给 HSL 原生布尔读取。</summary>
@@ -140,55 +123,26 @@ namespace TDJS_Vision.Device.PLC
             return Task.FromResult(ReadBool(address));
         }
 
-        /// <summary>写入单个 DM 字内位；只写目标值，不做先置位再复位的测试动作。</summary>
-        public override OperateResult WriteBool(string address, bool value)
-        {
-            return address != null && address.Contains(".")
-                ? WriteBool(address, new[] { value })
-                : base.WriteBool(address, value);
-        }
+        /// <summary>直接调用 HSL 布尔写入；DM 字内位的具体写入方式由库实现。</summary>
+        public override OperateResult WriteBool(string address, bool value) => Client.Write(address, value);
 
-        /// <summary>异步写入单个 DM 字内位；只写目标值，不做额外翻转。</summary>
-        public override Task<OperateResult> WriteBoolAsync(string address, bool value)
-        {
-            return address != null && address.Contains(".")
-                ? Task.FromResult(WriteBool(address, new[] { value }))
-                : base.WriteBoolAsync(address, value);
-        }
+        /// <summary>直接调用 HSL 原生异步布尔写入，不添加框架写锁。</summary>
+        public override Task<OperateResult> WriteBoolAsync(string address, bool value) => Client.WriteAsync(address, value);
 
-        /// <summary>读改写 DM 连续位，保留同一个字里的其他位。</summary>
+        /// <summary>直接写入布尔数组，单元素使用与单点一致的原生接口。</summary>
         public override OperateResult WriteBool(string address, bool[] value)
         {
             if (value == null || value.Length == 0 || value.Length > ushort.MaxValue)
                 return new OperateResult("布尔写入数量必须在1到65535之间！");
-            if (address == null || !address.Contains("."))
-                return value.Length == 1 ? base.WriteBool(address, value[0]) : base.WriteBool(address, value);
-            var parsed = ParseDmBitAddress(address);
-            if (!parsed.IsSuccess)
-                return parsed;
-            lock (_dmBitWriteSync)
-            {
-                ushort wordCount = (ushort)((parsed.Content2 + value.Length + 15) / 16);
-                var read = Client.ReadUInt16(parsed.Content1, wordCount);
-                if (!read.IsSuccess)
-                    return new OperateResult(read.ErrorCode, read.Message);
-                if (read.Content == null || read.Content.Length < wordCount)
-                    return new OperateResult("DM位写入读取响应字数不足！");
-                SetBits(read.Content, parsed.Content2, value);
-                return Client.Write(parsed.Content1, read.Content);
-            }
+            return value.Length == 1 ? Client.Write(address, value[0]) : Client.Write(address, value);
         }
 
-        /// <summary>异步读改写 DM 连续位，读取失败时绝不发出写入。</summary>
+        /// <summary>直接异步写入布尔数组，保留底层接口的失败结果。</summary>
         public override Task<OperateResult> WriteBoolAsync(string address, bool[] value)
         {
             if (value == null || value.Length == 0 || value.Length > ushort.MaxValue)
                 return Task.FromResult(new OperateResult("布尔写入数量必须在1到65535之间！"));
-            if (address == null || !address.Contains("."))
-                return value.Length == 1
-                    ? base.WriteBoolAsync(address, value[0])
-                    : base.WriteBoolAsync(address, value);
-            return Task.FromResult(WriteBool(address, value));
+            return value.Length == 1 ? Client.WriteAsync(address, value[0]) : Client.WriteAsync(address, value);
         }
     }
 }

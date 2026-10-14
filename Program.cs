@@ -99,17 +99,6 @@ namespace TDJS_Vision
             LogHelper.AddLog(MsgLevel.Warn, $"【启动诊断-程序身份】{PerformanceSpikeDiagnostics.GetExecutableIdentityText()}；命令行={Environment.CommandLine}", true);
             SynchronizeDeviceLicense();
 
-            // HslCommunication通信库授权
-            if (!HslCommunication.Authorization.SetAuthorizationCode("d8868ab9-4494-4056-98c6-b669e2434e25"))
-            {
-                if (StartupDisplayMode.IsBackgroundAcceptance)
-                {
-                    LogHelper.AddLog(MsgLevel.Exception, "后台性能验收启动失败：HslCommunication通信库授权失败。", true);
-                    return;
-                }
-
-                MessageBoxTD.Show("HslCommunication通信库授权失败！", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
             string solutionPath = null;
 
             if (args.Length > 0 && args[0].EndsWith(".Sol", StringComparison.OrdinalIgnoreCase))
