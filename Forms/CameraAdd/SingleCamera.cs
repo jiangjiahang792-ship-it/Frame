@@ -52,19 +52,19 @@ namespace TDJS_Vision.Forms.CameraAdd
                 Solution.Instance.AllDevices.Add(Camera);
             if (camera.IsOpen || camera.RestoreConnectionRequested)
             {
-                try
+                TDJS_Vision.Startup.StartupDeviceConnectionBatch.RunOrQueue(camera.UserDefinedName, () =>
                 {
+                    Camera.CreateDevice();
                     Camera.Open();
                     Solution.Instance.TryApplyImageSourceParametersForCamera(Camera);
                     Camera.StartGrabbing();
                     Camera.SetTriggerMode(Camera.GetTriggerMode());
-                }
-                catch (Exception ex)
-                {
-                    uiSwitch1.Active = false;
-                    LogHelper.AddLog(MsgLevel.Exception, $"相机（{camera.UserDefinedName}）打开失败，请检查相机状态！原因：{ex.Message}", true);
-                }
+                    if (!Camera.IsOpen)
+                        throw new InvalidOperationException($"相机（{camera.UserDefinedName}）连接失败。");
+                });
             }
+            else
+                TDJS_Vision.Startup.StartupDeviceConnectionBatch.RunOrQueue(camera.UserDefinedName, Camera.CreateDevice);
             this.label1.Text = camera.UserDefinedName;
             // 保存所有的实例
             SingleCameraList.Add(this);
@@ -72,9 +72,23 @@ namespace TDJS_Vision.Forms.CameraAdd
 
         private void Camera_ConnectStatusEvent(object sender, bool e)
         {
+            if (IsDisposed || Disposing || !IsHandleCreated) return;
+            if (InvokeRequired)
+            {
+                try { BeginInvoke(new Action(() => Camera_ConnectStatusEvent(sender, e))); }
+                catch (InvalidOperationException) { }
+                return;
+            }
             uiSwitch1.ValueChanged -= uiSwitch1_ValueChanged;
-            uiSwitch1.Active = e;
+            uiSwitch1.Active = Camera?.IsOpen == true;
             uiSwitch1.ValueChanged += uiSwitch1_ValueChanged;
+        }
+
+        /// <summary>首次创建窗口句柄时刷新实际连接状态。</summary>
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            Camera_ConnectStatusEvent(Camera, Camera?.IsOpen == true);
         }
 
         public SingleCamera(CameraParam parms)

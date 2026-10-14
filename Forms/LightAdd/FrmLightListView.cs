@@ -67,7 +67,6 @@ namespace TDJS_Vision.Forms.LightAdd
                 {
                     ILight light = lights[index];
                     StartupProgressContext.ReportItem("正在恢复光源设备", light.DevName, index + 1, lights.Count, 35, 43);
-                    light.CreateDevice(); // 创建光源，必要的
                     SingleLight singleLight = new SingleLight(light);
                     singleLight.Anchor = AnchorStyles.Left;
                     singleLight.Anchor = AnchorStyles.Right;

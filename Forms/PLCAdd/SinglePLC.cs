@@ -44,9 +44,15 @@ namespace TDJS_Vision.Forms.PLCAdd
             plc.ConnectStatusEvent += Plc_ConnectStatusEvent;
             if (plc.IsConnect || (plc as TDJS_Vision.Device.IReconnectableCommunicationDevice)?.RestoreConnectionRequested == true)
             {
-                if (!plc.Connect())
-                    LogHelper.AddLog(MsgLevel.Exception, $"PLC（{plc.UserDefinedName}）连接失败，请检查PLC通信是否正常！", true);
+                TDJS_Vision.Startup.StartupDeviceConnectionBatch.RunOrQueue(plc.UserDefinedName, () =>
+                {
+                    plc.CreateDevice();
+                    if (!plc.Connect())
+                        throw new InvalidOperationException($"PLC（{plc.UserDefinedName}）连接失败，请检查PLC通信是否正常！");
+                });
             }
+            else
+                TDJS_Vision.Startup.StartupDeviceConnectionBatch.RunOrQueue(plc.UserDefinedName, plc.CreateDevice);
             ConType = plc.PLCParms.PlcConType;
             this.label1.Text = plc.UserDefinedName;
             Plc = plc;

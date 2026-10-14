@@ -78,6 +78,8 @@ namespace TDJS_Vision.Startup
                 failureCount == 0 ? MsgLevel.Info : MsgLevel.Warn,
                 $"方案 AI 模型预加载完成，总数={targets.Count}，成功={successCount}，失败={failureCount}。",
                 true);
+            if (failureCount > 0)
+                throw new InvalidOperationException($"方案 AI 模型预加载失败：{failureCount}个节点未准备完成。");
         }
 
         /// <summary>

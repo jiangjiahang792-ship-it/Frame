@@ -53,16 +53,16 @@ namespace TDJS_Vision.Forms.COMAdd
             com.ConnectStatusEvent += Com_ConnectStatusEvent;
             if (dev.IsOpen)
             {
-                try
+                TDJS_Vision.Startup.StartupDeviceConnectionBatch.RunOrQueue(dev.UserDefinedName, () =>
                 {
+                    dev.CreateDevice();
                     dev.Connenct();
-                }
-                catch (Exception ex)
-                {
-                    uiSwitch1.Active = false;
-                    LogHelper.AddLog(MsgLevel.Exception, $"串口（{dev.UserDefinedName}）打开失败，请检查串口状态！原因：{ex.Message}", true);
-                }
+                    if (!dev.IsOpen)
+                        throw new InvalidOperationException($"串口（{dev.UserDefinedName}）连接失败。");
+                });
             }
+            else
+                TDJS_Vision.Startup.StartupDeviceConnectionBatch.RunOrQueue(dev.UserDefinedName, dev.CreateDevice);
             this.label1.Text = $"串口[{dev.UserDefinedName}]";
             Parms = dev.ComParams;
             Solution.Instance.AllDevices.Add(dev);
@@ -72,8 +72,15 @@ namespace TDJS_Vision.Forms.COMAdd
 
         private void Com_ConnectStatusEvent(object sender, bool e)
         {
+            if (IsDisposed || Disposing || !IsHandleCreated) return;
+            if (InvokeRequired)
+            {
+                try { BeginInvoke(new Action(() => Com_ConnectStatusEvent(sender, e))); }
+                catch (InvalidOperationException) { }
+                return;
+            }
             uiSwitch1.ValueChanged -= uiSwitch1_ValueChanged;
-            uiSwitch1.Active = e;
+            uiSwitch1.Active = com?.IsOpen == true;
             uiSwitch1.ValueChanged += uiSwitch1_ValueChanged;
         }
 
@@ -81,6 +88,14 @@ namespace TDJS_Vision.Forms.COMAdd
         /// 反序列化用
         /// </summary>
         /// <param name="parms"></param>
+        /// <summary>控件创建窗口句柄后刷新实际连接状态。</summary>
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            Com_ConnectStatusEvent(com, com?.IsOpen == true);
+        }
+
+        /// <summary>使用串口参数创建控件。</summary>
         public SingleCOM(SerialPortConfig parms)
         {
             InitializeComponent();

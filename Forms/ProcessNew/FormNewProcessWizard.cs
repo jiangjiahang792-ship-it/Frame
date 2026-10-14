@@ -39,7 +39,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             TDJS_Vision.UiLocalization.Attach(this);
             InitializeProcessNavigation();
             ConfigureToolboxLayout();
-            FrmCOMListView.OnCOMDeserializationCompletionEvent += Deserialization;
+            ConfigHelper.DevicesRestored += Deserialization;
             this.KeyPreview = true;
             Init();
             BindLanguage();

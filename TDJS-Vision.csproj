@@ -360,6 +360,7 @@
     <Compile Include="Startup\SolutionLoadingCoordinator.cs" />
     <Compile Include="Startup\SolutionAiRuntimePreloader.cs" />
     <Compile Include="Startup\StartupAiRuntimeLoadGate.cs" />
+    <Compile Include="Startup\StartupDeviceConnectionBatch.cs" />
     <Compile Include="Startup\StartupApplicationContext.cs" />
     <Compile Include="Startup\BackgroundWindowActivationGuard.cs" />
     <Compile Include="Startup\StartupDisplayMode.cs" />

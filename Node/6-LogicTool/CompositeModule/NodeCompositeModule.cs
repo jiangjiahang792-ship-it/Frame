@@ -1,6 +1,7 @@
 using Logger;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Threading;
@@ -749,6 +750,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// <returns>尚未运行的内部流程。</returns>
         private Process BuildRuntimeProcessCore(NodeParamCompositeModule param)
         {
+            Stopwatch moduleWatch = Stopwatch.StartNew();
             Process runtimeProcess = new Process(BuildRuntimeProcessName(param))
             {
                 ID = -Math.Abs(ID == 0 ? 1 : ID),
@@ -770,27 +772,41 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                 if (nodeConfig == null)
                     continue;
 
-                NodeBase node = NodeFactory.CreateNode(nodeConfig.ID, nodeConfig.NodeName, runtimeProcess, nodeConfig.NodeType);
-                node.Active = nodeConfig.Active;
-                node.OutputLog = nodeConfig.OutputLog ?? true;
-                node.Selected = false;
-                node.CanvasLocation = new Point(nodeConfig.CanvasX, nodeConfig.CanvasY);
-                if (nodeConfig.CanvasWidth > 0 && nodeConfig.CanvasHeight > 0)
-                    node.CanvasSize = new Size(nodeConfig.CanvasWidth, nodeConfig.CanvasHeight);
-                node.IsStartNode = nodeConfig.IsStartNode;
-
-                if (node.ParamForm != null && nodeConfig.NodeParam != null)
+                Stopwatch nodeWatch = Stopwatch.StartNew();
+                try
                 {
-                    node.ParamForm.Params = CompositeModuleSnapshotBuilder.CloneNodeParam(nodeConfig.NodeParam);
-                    node.ParamForm.SetParam2Form();
-                }
+                    NodeBase node = NodeFactory.CreateNode(nodeConfig.ID, nodeConfig.NodeName, runtimeProcess, nodeConfig.NodeType);
+                    node.Active = nodeConfig.Active;
+                    node.OutputLog = nodeConfig.OutputLog ?? true;
+                    node.Selected = false;
+                    node.CanvasLocation = new Point(nodeConfig.CanvasX, nodeConfig.CanvasY);
+                    if (nodeConfig.CanvasWidth > 0 && nodeConfig.CanvasHeight > 0)
+                        node.CanvasSize = new Size(nodeConfig.CanvasWidth, nodeConfig.CanvasHeight);
+                    node.IsStartNode = nodeConfig.IsStartNode;
 
-                runtimeProcess.AddNode(node);
-                runtimeNodes[node.ID] = node;
+                    if (node.ParamForm != null && nodeConfig.NodeParam != null)
+                    {
+                        node.ParamForm.Params = CompositeModuleSnapshotBuilder.CloneNodeParam(nodeConfig.NodeParam);
+                        node.ParamForm.SetParam2Form();
+                    }
+
+                    runtimeProcess.AddNode(node);
+                    runtimeNodes[node.ID] = node;
+                    LogHelper.AddLog(MsgLevel.Info,
+                        $"组合模块内部节点加载成功：模块={runtimeProcess.ProcessName}，节点={node.ID}.{node.NodeName}，类型={nodeConfig.NodeType}，耗时={nodeWatch.Elapsed.TotalMilliseconds:F2}ms。", true);
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.AddLog(MsgLevel.Exception,
+                        $"组合模块内部节点加载失败：模块={runtimeProcess.ProcessName}，节点={nodeConfig.ID}.{nodeConfig.NodeName}，类型={nodeConfig.NodeType}，耗时={nodeWatch.Elapsed.TotalMilliseconds:F2}ms，原因：{ex.Message}", true);
+                    throw;
+                }
             }
 
             RestoreConnections(runtimeProcess, param, runtimeNodes);
             EnsureOutputConnections(runtimeProcess);
+            LogHelper.AddLog(MsgLevel.Info,
+                $"组合模块内部流程加载完成：模块={runtimeProcess.ProcessName}，节点数={runtimeNodes.Count}，总耗时={moduleWatch.Elapsed.TotalMilliseconds:F2}ms。", true);
             return runtimeProcess;
         }
 

@@ -1,6 +1,8 @@
 using Logger;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace TDJS_Vision.Startup
 {
@@ -23,6 +25,9 @@ namespace TDJS_Vision.Startup
         /// 方案恢复期间暂存的 TDAI 自动加载动作。
         /// </summary>
         private static readonly Queue<DeferredRuntimeLoad> DeferredTDAILoads = new Queue<DeferredRuntimeLoad>();
+
+        /// <summary>本次方案恢复启动的模型任务及失败检查。</summary>
+        private static readonly List<ModelLoadCompletion> ModelLoadCompletions = new List<ModelLoadCompletion>();
 
         /// <summary>
         /// 开始延迟 TDAI 自动加载，通常覆盖方案反序列化到 AI 预加载完成这一段。
@@ -75,6 +80,7 @@ namespace TDJS_Vision.Startup
                 DeferredTDAILoads.Clear();
             }
 
+            int dispatchFailures = 0;
             for (int i = 0; i < pendingLoads.Length; i++)
             {
                 DeferredRuntimeLoad pendingLoad = pendingLoads[i];
@@ -85,9 +91,38 @@ namespace TDJS_Vision.Startup
                 }
                 catch (Exception ex)
                 {
+                    dispatchFailures++;
                     StartupProgressContext.ReportFailure("放行TDAI模型加载", ex);
                     LogHelper.AddLog(MsgLevel.Exception, $"放行TDAI模型加载失败：{pendingLoad.Description}，原因：{ex.Message}", true);
                 }
+            }
+
+            ModelLoadCompletion[] completions;
+            lock (SyncRoot)
+            {
+                completions = ModelLoadCompletions.ToArray();
+                ModelLoadCompletions.Clear();
+            }
+            // 准备信号和自动运行必须在每个模型句柄确实可用后才能开始。
+            Task.WhenAll(completions.Select(item => item.Task)).GetAwaiter().GetResult();
+            foreach (ModelLoadCompletion completion in completions)
+            {
+                string error = completion.GetError();
+                if (!string.IsNullOrWhiteSpace(error))
+                    throw new InvalidOperationException($"方案模型加载失败：{completion.Description}，原因：{error}");
+            }
+            if (dispatchFailures > 0)
+                throw new InvalidOperationException($"方案模型启动失败：{dispatchFailures}个加载任务未能启动。");
+            LogHelper.AddLog(MsgLevel.Info, $"TDAI模型全部加载完成：数量={completions.Length}。", true);
+        }
+
+        /// <summary>登记方案恢复期的模型加载任务。</summary>
+        public static void RegisterModelLoad(string description, Task task, Func<string> getError)
+        {
+            lock (SyncRoot)
+            {
+                if (tdaiDeferralDepth > 0)
+                    ModelLoadCompletions.Add(new ModelLoadCompletion(description, task, getError));
             }
         }
 
@@ -106,6 +141,8 @@ namespace TDJS_Vision.Startup
                     LogHelper.AddLog(MsgLevel.Warn, $"TDAI延迟加载作用域结束时仍有{DeferredTDAILoads.Count}个加载请求未放行，已丢弃。", true);
                     DeferredTDAILoads.Clear();
                 }
+                if (tdaiDeferralDepth == 0)
+                    ModelLoadCompletions.Clear();
             }
         }
 
@@ -134,6 +171,25 @@ namespace TDJS_Vision.Startup
             /// 获取模型加载动作。
             /// </summary>
             public Action LoadAction { get; }
+        }
+
+        /// <summary>一个模型任务以及任务完成后读取错误的回调。</summary>
+        private sealed class ModelLoadCompletion
+        {
+            /// <summary>模型加载描述。</summary>
+            public string Description { get; }
+            /// <summary>实际模型加载任务。</summary>
+            public Task Task { get; }
+            /// <summary>模型内部捕获异常后的错误读取器。</summary>
+            public Func<string> GetError { get; }
+
+            /// <summary>创建一个模型任务记录。</summary>
+            public ModelLoadCompletion(string description, Task task, Func<string> getError)
+            {
+                Description = description;
+                Task = task;
+                GetError = getError;
+            }
         }
 
         /// <summary>

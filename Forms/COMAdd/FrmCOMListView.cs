@@ -55,7 +55,6 @@ namespace TDJS_Vision.Forms.COMAdd
                 {
                     ComDevice devCom = comDevices[index];
                     StartupProgressContext.ReportItem("正在恢复串口设备", devCom.DevName, index + 1, comDevices.Count, 77, 84);
-                    devCom.CreateDevice(); // 创建串口，必要的
                     SingleCOM singleCOM = new SingleCOM(devCom);
                     singleCOM.Anchor = AnchorStyles.Left;
                     singleCOM.Anchor = AnchorStyles.Right;

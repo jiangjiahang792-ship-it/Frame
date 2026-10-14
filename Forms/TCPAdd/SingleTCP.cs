@@ -50,18 +50,16 @@ namespace TDJS_Vision.Forms.TCPAdd
             //保存配置时是连接的，现在要还原连接状态
             if (dev.IsConnect)
             {
-                try
+                TDJS_Vision.Startup.StartupDeviceConnectionBatch.RunOrQueue(dev.UserDefinedName, () =>
                 {
+                    dev.CreateDevice();
                     dev.Connect();
-                    uiSwitch1.ValueChanged -= uiSwitch1_ValueChanged;
-                    uiSwitch1.Active = dev.IsConnect;
-                    uiSwitch1.ValueChanged += uiSwitch1_ValueChanged;
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.AddLog(MsgLevel.Exception, $"TCP设备【{dev.DevName}】连接失败，请检查TCP状态！原因：{ex.Message}", true);
-                }
+                    if (!dev.IsConnect)
+                        throw new InvalidOperationException($"TCP设备（{dev.UserDefinedName}）连接失败。");
+                });
             }
+            else
+                TDJS_Vision.Startup.StartupDeviceConnectionBatch.RunOrQueue(dev.UserDefinedName, dev.CreateDevice);
             dev.ConnectStatusEvent += TCP_ConnectStatusEvent;
             this.label1.Text = dev.UserDefinedName;
             Solution.Instance.AllDevices.Add(dev);
@@ -101,8 +99,15 @@ namespace TDJS_Vision.Forms.TCPAdd
         /// </summary>
         private void TCP_ConnectStatusEvent(object sender, bool e)
         {
+            if (IsDisposed || Disposing || !IsHandleCreated) return;
+            if (InvokeRequired)
+            {
+                try { BeginInvoke(new Action(() => TCP_ConnectStatusEvent(sender, e))); }
+                catch (InvalidOperationException) { }
+                return;
+            }
             uiSwitch1.ValueChanged -= uiSwitch1_ValueChanged;
-            uiSwitch1.Active = e;
+            uiSwitch1.Active = TcpDevice?.IsConnect == true;
             uiSwitch1.ValueChanged += uiSwitch1_ValueChanged;
         }
 
@@ -111,6 +116,14 @@ namespace TDJS_Vision.Forms.TCPAdd
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
+        /// <summary>控件创建窗口句柄后刷新实际连接状态。</summary>
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            TCP_ConnectStatusEvent(TcpDevice, TcpDevice?.IsConnect == true);
+        }
+
+        /// <summary>点击选中当前设备。</summary>
         private void SingleTCPInfo_MouseClick(object sender, MouseEventArgs e)
         {
             SetSelected();

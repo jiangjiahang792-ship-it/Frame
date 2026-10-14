@@ -50,19 +50,21 @@ namespace TDJS_Vision.Forms.LightAdd
         public SingleLight(ILight light)
         {
             InitializeComponent();
+            Light = light;
+            light.ConnectStatusEvent += Light_ConnectStatusEvent;
             if (light.IsOpen)
             {
-                try
+                TDJS_Vision.Startup.StartupDeviceConnectionBatch.RunOrQueue(light.UserDefinedName, () =>
                 {
+                    light.CreateDevice();
                     light.Connenct();
-                    light.ConnectStatusEvent += Light_ConnectStatusEvent;
                     light.TurnOn(light.Brightness);
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.AddLog(MsgLevel.Exception, $"光源（{light.UserDefinedName}）打开失败，请检查光源状态！原因：{ex.Message}", true);
-                }
+                    if (!light.IsOpen)
+                        throw new InvalidOperationException($"光源（{light.UserDefinedName}）连接失败。");
+                });
             }
+            else
+                TDJS_Vision.Startup.StartupDeviceConnectionBatch.RunOrQueue(light.UserDefinedName, light.CreateDevice);
             this.label1.Text = light.UserDefinedName;
             Light = light;
             Parms = light.LightParam;
@@ -73,9 +75,23 @@ namespace TDJS_Vision.Forms.LightAdd
 
         private void Light_ConnectStatusEvent(object sender, bool e)
         {
+            if (IsDisposed || Disposing || !IsHandleCreated) return;
+            if (InvokeRequired)
+            {
+                try { BeginInvoke(new Action(() => Light_ConnectStatusEvent(sender, e))); }
+                catch (InvalidOperationException) { }
+                return;
+            }
             uiSwitch1.ValueChanged -= uiSwitch1_ValueChanged;
-            uiSwitch1.Active = e;
+            uiSwitch1.Active = Light?.IsOpen == true;
             uiSwitch1.ValueChanged += uiSwitch1_ValueChanged;
+        }
+
+        /// <summary>首次创建窗口句柄时刷新实际连接状态。</summary>
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            Light_ConnectStatusEvent(Light, Light?.IsOpen == true);
         }
 
         public SingleLight(LightParam parms)

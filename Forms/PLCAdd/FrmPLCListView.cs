@@ -53,7 +53,6 @@ namespace TDJS_Vision.Forms.PLCAdd
                 {
                     IPlc plc = plcs[index];
                     StartupProgressContext.ReportItem("正在恢复PLC设备", plc.DevName, index + 1, plcs.Count, 55, 63);
-                    plc.CreateDevice(); // 创建PLC，必要的
                     SinglePLC singlePLC = new SinglePLC(plc);
                     singlePLC.Anchor = AnchorStyles.Left;
                     singlePLC.Anchor = AnchorStyles.Right;

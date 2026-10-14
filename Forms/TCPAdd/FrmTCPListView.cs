@@ -55,7 +55,6 @@ namespace TDJS_Vision.Forms.TCPAdd
                 {
                     ITcpDevice tcpDev = tcpDevices[index];
                     StartupProgressContext.ReportItem("正在恢复TCP设备", tcpDev.DevName, index + 1, tcpDevices.Count, 70, 77);
-                    tcpDev.CreateDevice(); // 创建tcpDev，必要的
                     SingleTcp singleTCP = new SingleTcp(tcpDev);
                     singleTCP.Anchor = AnchorStyles.Left;
                     singleTCP.Anchor = AnchorStyles.Right;

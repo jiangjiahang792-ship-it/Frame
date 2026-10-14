@@ -60,7 +60,25 @@ namespace TDJS_Vision.Forms.CameraAdd
             if (!Solution.Instance.AllDevices.Contains(Camera3D))
                 Solution.Instance.AllDevices.Add(Camera3D);
             SingleCamera3DList.Add(this);
-            StartAutoConnectIfNeeded();
+            if (Camera3D.AutoConnectOnLoad)
+                TDJS_Vision.Startup.StartupDeviceConnectionBatch.RunOrQueue(Camera3D.UserDefinedName, () =>
+                {
+                    try
+                    {
+                        Camera3D.CreateDevice();
+                        Camera3D.Open();
+                        Camera3D.StartGrabbing();
+                        if (!Camera3D.IsOpen)
+                            throw new InvalidOperationException("3D相机连接失败。");
+                    }
+                    catch
+                    {
+                        CloseCameraAfterConnectFailure();
+                        throw;
+                    }
+                });
+            else
+                TDJS_Vision.Startup.StartupDeviceConnectionBatch.RunOrQueue(Camera3D.UserDefinedName, Camera3D.CreateDevice);
         }
 
         /// <summary>
@@ -147,12 +165,13 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// <param name="isConnected">是否已连接。</param>
         private void SetConnectSwitch(bool isConnected)
         {
-            if (IsDisposed)
+            if (IsDisposed || Disposing || !IsHandleCreated)
                 return;
 
             if (InvokeRequired)
             {
-                BeginInvoke(new Action<bool>(SetConnectSwitch), isConnected);
+                try { BeginInvoke(new Action<bool>(SetConnectSwitch), isConnected); }
+                catch (InvalidOperationException) { }
                 return;
             }
 

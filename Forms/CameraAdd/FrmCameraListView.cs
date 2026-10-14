@@ -100,7 +100,6 @@ namespace TDJS_Vision.Forms.CameraAdd
                     StartupProgressContext.ReportItem("正在恢复相机设备", dev.DevName, index + 1, cameras.Count, 43, 55);
                     if (dev is I3DCamera camera3D)
                     {
-                        camera3D.CreateDevice(); // 创建 3D 相机，必要的
                         SingleCamera3D singleCamera3D = new SingleCamera3D(camera3D);
                         singleCamera3D.Anchor = AnchorStyles.Left;
                         singleCamera3D.Anchor = AnchorStyles.Right;
@@ -110,7 +109,6 @@ namespace TDJS_Vision.Forms.CameraAdd
                     }
                     else if (dev is ICamera camera)
                     {
-                        camera.CreateDevice(); // 创建相机，必要的
                         SingleCamera singleCamera = new SingleCamera(camera);
                         singleCamera.Anchor = AnchorStyles.Left;
                         singleCamera.Anchor = AnchorStyles.Right;

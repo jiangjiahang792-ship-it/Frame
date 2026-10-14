@@ -430,6 +430,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
             int modelLoadVersion = param.NextModelLoadVersion();
             param.ModelLoadTask = Task.Run(() => LoadModel(param, modelLoadVersion));
+            StartupAiRuntimeLoadGate.RegisterModelLoad(BuildStartupLoadDescription(param),
+                param.ModelLoadTask, () => param.LastModelLoadError);
         }
 
         /// <summary>

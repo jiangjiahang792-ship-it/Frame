@@ -55,7 +55,6 @@ namespace TDJS_Vision.Forms.ModbusAdd
                 {
                     IModbus modbus = modbusDevices[index];
                     StartupProgressContext.ReportItem("正在恢复Modbus设备", modbus.DevName, index + 1, modbusDevices.Count, 63, 70);
-                    modbus.CreateDevice(); // 创建modbus，必要的
                     SingleModbus singleModbus = new SingleModbus(modbus);
                     singleModbus.Anchor = AnchorStyles.Left;
                     singleModbus.Anchor = AnchorStyles.Right;

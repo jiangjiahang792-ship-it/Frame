@@ -50,15 +50,16 @@ namespace TDJS_Vision.Forms.ModbusAdd
             dev.ConnectStatusEvent += Modbus_ConnectStatusEvent;
             if (dev.IsConnect || (dev as TDJS_Vision.Device.IReconnectableCommunicationDevice)?.RestoreConnectionRequested == true)
             {
-                try
+                TDJS_Vision.Startup.StartupDeviceConnectionBatch.RunOrQueue(dev.UserDefinedName, () =>
                 {
+                    dev.CreateDevice();
                     dev.Connect();
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.AddLog(MsgLevel.Exception, $"设备连接失败！原因：{ex.Message}", true);
-                }
+                    if (!dev.IsConnect)
+                        throw new InvalidOperationException($"Modbus设备（{dev.UserDefinedName}）连接失败。");
+                });
             }
+            else
+                TDJS_Vision.Startup.StartupDeviceConnectionBatch.RunOrQueue(dev.UserDefinedName, dev.CreateDevice);
             this.label1.Text = dev.UserDefinedName;
             Solution.Instance.AllDevices.Add(dev);
             SingleModbuss.Add(this);
