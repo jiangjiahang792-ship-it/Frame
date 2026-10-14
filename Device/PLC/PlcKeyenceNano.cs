@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Globalization;
+using System.Threading;
 using System.Threading.Tasks;
 using HslCommunication;
 using HslCommunication.Core.Device;
@@ -11,6 +12,12 @@ namespace TDJS_Vision.Device.PLC
     /// <summary>基恩士 Nano OverTcp 适配器，保留既有类名以兼容已保存的方案。</summary>
     public sealed class PlcKeyenceNano : PlcKeyenceTcpBase
     {
+        /// <summary>
+        /// 同一设备的同步、异步及数组布尔写入共用此锁，保护 DLL 内部完整的读改写过程。
+        /// 按设备串行可同时覆盖跨字数组；不限制只读操作，也不能约束 PLC 自身清零。
+        /// </summary>
+        private readonly SemaphoreSlim _boolWriteGate = new SemaphoreSlim(1, 1);
+
         /// <summary>供方案反序列化使用，随后由设备列表恢复客户端。</summary>
         [JsonConstructor]
         public PlcKeyenceNano() { }
@@ -123,26 +130,45 @@ namespace TDJS_Vision.Device.PLC
             return Task.FromResult(ReadBool(address));
         }
 
-        /// <summary>直接调用 HSL 布尔写入；DM 字内位的具体写入方式由库实现。</summary>
-        public override OperateResult WriteBool(string address, bool value) => Client.Write(address, value);
+        /// <summary>持锁等待完整的原生布尔写入结束，防止其他布尔写入使用旧字值覆盖目标位。</summary>
+        public override OperateResult WriteBool(string address, bool value)
+        {
+            _boolWriteGate.Wait();
+            try { return Client.Write(address, value); }
+            finally { _boolWriteGate.Release(); }
+        }
 
-        /// <summary>直接调用 HSL 原生异步布尔写入，不添加框架写锁。</summary>
-        public override Task<OperateResult> WriteBoolAsync(string address, bool value) => Client.WriteAsync(address, value);
+        /// <summary>异步等待同一把锁，并在底层写入完成或抛出异常后释放。</summary>
+        public override async Task<OperateResult> WriteBoolAsync(string address, bool value)
+        {
+            await _boolWriteGate.WaitAsync().ConfigureAwait(false);
+            try { return await Client.WriteAsync(address, value).ConfigureAwait(false); }
+            finally { _boolWriteGate.Release(); }
+        }
 
-        /// <summary>直接写入布尔数组，单元素使用与单点一致的原生接口。</summary>
+        /// <summary>数组写入同样保护整个原生调用，避免单点或跨字数组之间交错读改写。</summary>
         public override OperateResult WriteBool(string address, bool[] value)
         {
             if (value == null || value.Length == 0 || value.Length > ushort.MaxValue)
                 return new OperateResult("布尔写入数量必须在1到65535之间！");
-            return value.Length == 1 ? Client.Write(address, value[0]) : Client.Write(address, value);
+            _boolWriteGate.Wait();
+            try { return value.Length == 1 ? Client.Write(address, value[0]) : Client.Write(address, value); }
+            finally { _boolWriteGate.Release(); }
         }
 
-        /// <summary>直接异步写入布尔数组，保留底层接口的失败结果。</summary>
-        public override Task<OperateResult> WriteBoolAsync(string address, bool[] value)
+        /// <summary>异步数组写入与单点写入共享锁，保留底层失败结果并确保锁释放。</summary>
+        public override async Task<OperateResult> WriteBoolAsync(string address, bool[] value)
         {
             if (value == null || value.Length == 0 || value.Length > ushort.MaxValue)
-                return Task.FromResult(new OperateResult("布尔写入数量必须在1到65535之间！"));
-            return value.Length == 1 ? Client.WriteAsync(address, value[0]) : Client.WriteAsync(address, value);
+                return new OperateResult("布尔写入数量必须在1到65535之间！");
+            await _boolWriteGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                return value.Length == 1
+                    ? await Client.WriteAsync(address, value[0]).ConfigureAwait(false)
+                    : await Client.WriteAsync(address, value).ConfigureAwait(false);
+            }
+            finally { _boolWriteGate.Release(); }
         }
     }
 }

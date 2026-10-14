@@ -232,6 +232,34 @@ internal static class KeyenceNanoIntegrationTests
                 Check(tasks.All(task => task.Result.IsSuccess), "DM同字并发写入存在失败结果。");
                 Check(plc.ReadInt16("DM130").Content == (value ? -1 : 0), "DM同字并发写入丢失其他bit。");
             }
+            // 四种入口必须共用同一把锁：节点通常调用数组接口，全局信号和单点入口也不能绕过保护。
+            for (int round = 0; round < 10; round++)
+            {
+                bool value = round % 2 == 0;
+                Check(plc.WriteInt("DM130", value ? 0 : ushort.MaxValue).IsSuccess, "初始化混合入口测试字失败。");
+                var tasks = Enumerable.Range(0, 16).Select(bit => Task.Run(async () =>
+                {
+                    string address = "DM130." + bit;
+                    switch (bit % 4)
+                    {
+                        case 0: return plc.WriteBool(address, value);
+                        case 1: return await plc.WriteBoolAsync(address, value).ConfigureAwait(false);
+                        case 2: return plc.WriteBool(address, new[] { value });
+                        default: return await plc.WriteBoolAsync(address, new[] { value }).ConfigureAwait(false);
+                    }
+                })).ToArray();
+                Check(Task.WaitAll(tasks, TimeSpan.FromSeconds(10)), "布尔混合入口等待超时。");
+                Check(tasks.All(task => task.Result.IsSuccess), "布尔混合入口写入失败。");
+                Check(plc.ReadInt16("DM130").Content == (value ? -1 : 0), "布尔混合入口同字并发丢位。");
+            }
+            // 底层返回失败后，后续合法异步写入必须能够取得锁。
+            Check(!plc.WriteBool("INVALID100", true).IsSuccess, "非法写入应返回失败。");
+            Check(!plc.WriteBoolAsync("INVALID100", new[] { true }).GetAwaiter().GetResult().IsSuccess,
+                "非法异步写入应返回失败。");
+            var afterFailure = plc.WriteBoolAsync("DM130.2", true);
+            Check(afterFailure.Wait(TimeSpan.FromSeconds(10)) && afterFailure.Result.IsSuccess,
+                "失败后布尔写锁未释放。");
+            Console.WriteLine("PASS: 同字并发置位/清位、四种布尔写入入口混合160次及失败后的锁释放。");
             Check(plc.WriteFloat("DM110", 12.5f).IsSuccess, "写入浮点数失败。");
             Check(plc.ReadFloatAsync("DM110").GetAwaiter().GetResult().Content == 12.5f, "异步读取浮点数错误。");
             Check(plc.WriteIntAsync("DM120", new[] { 7, 8, 9 }).GetAwaiter().GetResult().IsSuccess, "批量写入失败。");
