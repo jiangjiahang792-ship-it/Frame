@@ -345,6 +345,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     /// </summary>
     public class ColorText
     {
+        /// <summary>文本块背景色；透明表示不绘制背景，兼容已有显示结果。</summary>
+        public Color BackgroundColor { get; set; } = Color.Transparent;
+
         /// <summary>
         /// 显示文本。
         /// </summary>
@@ -518,6 +521,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     /// </summary>
     public class ColorContour
     {
+        /// <summary>是否按有序点绘制闭合轮廓；默认保留旧算法的散点显示。</summary>
+        public bool IsClosed { get; set; }
         public List<PointF> Points { get; set; }
         public Color Color { get; set; }
         public float LineWidth { get; set; } = 2F;

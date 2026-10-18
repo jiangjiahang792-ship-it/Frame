@@ -7,6 +7,16 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         /// </summary>
         private System.ComponentModel.IContainer components = null;
 
+        /// <summary>选择当前编辑区域。</summary>
+        private System.Windows.Forms.ComboBox comboBoxRegions;
+        /// <summary>添加一个检测区域。</summary>
+        private System.Windows.Forms.Button buttonAddRegion;
+        /// <summary>删除当前检测区域。</summary>
+        private System.Windows.Forms.Button buttonRemoveRegion;
+
+        /// <summary>显示本次Blob分析的实际前景像素面积。</summary>
+        private System.Windows.Forms.Label labelMeasuredArea;
+
         /// <summary>
         /// 清理所有正在使用的资源。
         /// </summary>
@@ -34,6 +44,9 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             this.checkBoxUsePositionCorrection = new System.Windows.Forms.CheckBox();
             this.nodeSubscriptionPositionCorrection = new TDJS_Vision.Node.NodeSubscription();
             this.groupBoxRegion = new System.Windows.Forms.GroupBox();
+            this.comboBoxRegions = new System.Windows.Forms.ComboBox();
+            this.buttonAddRegion = new System.Windows.Forms.Button();
+            this.buttonRemoveRegion = new System.Windows.Forms.Button();
             this.labelRegionColumn = new System.Windows.Forms.Label();
             this.textBoxRegionColumn = new System.Windows.Forms.TextBox();
             this.labelRegionRow = new System.Windows.Forms.Label();
@@ -59,6 +72,13 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             this.buttonRefresh = new System.Windows.Forms.Button();
             this.buttonRun = new System.Windows.Forms.Button();
             this.buttonSave = new System.Windows.Forms.Button();
+            this.labelMeasuredArea = new System.Windows.Forms.Label();
+            this.labelMeasuredArea.Location = new System.Drawing.Point(18, 604);
+            this.labelMeasuredArea.Size = new System.Drawing.Size(390, 28);
+            this.labelMeasuredArea.Name = "labelMeasuredArea";
+            this.labelMeasuredArea.Text = "识别区域面积：未执行";
+            this.labelMeasuredArea.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.labelMeasuredArea.ForeColor = System.Drawing.Color.DarkGreen;
             this.groupBoxInput.SuspendLayout();
             this.groupBoxPositionCorrection.SuspendLayout();
             this.groupBoxRegion.SuspendLayout();
@@ -133,6 +153,24 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             // groupBoxRegion
             // 
             this.groupBoxRegion.Controls.Add(this.labelRegionColumn);
+            this.groupBoxRegion.Controls.Add(this.comboBoxRegions);
+            this.groupBoxRegion.Controls.Add(this.buttonAddRegion);
+            this.groupBoxRegion.Controls.Add(this.buttonRemoveRegion);
+            this.comboBoxRegions.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxRegions.Location = new System.Drawing.Point(16, 150);
+            this.comboBoxRegions.Size = new System.Drawing.Size(150, 25);
+            this.comboBoxRegions.Name = "comboBoxRegions";
+            this.comboBoxRegions.SelectedIndexChanged += new System.EventHandler(this.comboBoxRegions_SelectedIndexChanged);
+            this.buttonAddRegion.Location = new System.Drawing.Point(172, 148);
+            this.buttonAddRegion.Size = new System.Drawing.Size(96, 28);
+            this.buttonAddRegion.Name = "buttonAddRegion";
+            this.buttonAddRegion.Text = "添加区域";
+            this.buttonAddRegion.Click += new System.EventHandler(this.buttonAddRegion_Click);
+            this.buttonRemoveRegion.Location = new System.Drawing.Point(274, 148);
+            this.buttonRemoveRegion.Size = new System.Drawing.Size(96, 28);
+            this.buttonRemoveRegion.Name = "buttonRemoveRegion";
+            this.buttonRemoveRegion.Text = "删除区域";
+            this.buttonRemoveRegion.Click += new System.EventHandler(this.buttonRemoveRegion_Click);
             this.groupBoxRegion.Controls.Add(this.textBoxRegionColumn);
             this.groupBoxRegion.Controls.Add(this.labelRegionRow);
             this.groupBoxRegion.Controls.Add(this.textBoxRegionRow);
@@ -144,7 +182,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             this.groupBoxRegion.Controls.Add(this.textBoxRegionPhi);
             this.groupBoxRegion.Location = new System.Drawing.Point(18, 242);
             this.groupBoxRegion.Name = "groupBoxRegion";
-            this.groupBoxRegion.Size = new System.Drawing.Size(390, 156);
+            this.groupBoxRegion.Size = new System.Drawing.Size(390, 196);
             this.groupBoxRegion.TabIndex = 2;
             this.groupBoxRegion.TabStop = false;
             this.groupBoxRegion.Text = "区域参数";
@@ -244,7 +282,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             this.groupBoxGray.Controls.Add(this.numericMinGray);
             this.groupBoxGray.Controls.Add(this.labelMaxGray);
             this.groupBoxGray.Controls.Add(this.numericMaxGray);
-            this.groupBoxGray.Location = new System.Drawing.Point(18, 404);
+            this.groupBoxGray.Location = new System.Drawing.Point(18, 444);
             this.groupBoxGray.Name = "groupBoxGray";
             this.groupBoxGray.Size = new System.Drawing.Size(390, 154);
             this.groupBoxGray.TabIndex = 3;
@@ -410,6 +448,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(962, 646);
             this.Controls.Add(this.buttonSave);
+            this.Controls.Add(this.labelMeasuredArea);
             this.Controls.Add(this.buttonRun);
             this.Controls.Add(this.buttonRefresh);
             this.Controls.Add(this.buttonConfirmRoi);

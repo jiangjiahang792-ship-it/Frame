@@ -1,4 +1,4 @@
-﻿using Logger;
+using Logger;
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
@@ -177,6 +177,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
                                     switch (param.ModelName)
                                     {
+                                        case ModelName.新端子12类模型:
+                                            NewTerminal12Parse.Parse(det_results, det_results.Count, param, Process, ref res, inputImage);
+                                            break;
                                         case ModelName.RL_12类线芯模型:
                                             RL12Parse.Parse(det_results, result_count, param, Process,ref res);
                                             LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测结果运算完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
@@ -257,7 +260,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     if (param.ModelName == ModelName.AST工位1分割模型 &&
                                         (param.AIInputInfo.ClassNames == null ||
                                          !param.AIInputInfo.ClassNames.SequenceEqual(ASTStation1SegParse.ClassNames)))
-                                        throw new InvalidOperationException("AST工位1分割模型标签必须依次为insulation_glue、shielding_mesh、copper_ring、rubber、fly_line，请检查AI配置。");
+                                    {
+                                        // 从解析器生成期望标签，防止新增类别后提示仍保留旧顺序；同时显示实际加载配置以定位旧文件或缓存。
+                                        string actualLabels = param.AIInputInfo.ClassNames == null
+                                            ? "未配置" : string.Join("、", param.AIInputInfo.ClassNames);
+                                        throw new InvalidOperationException(
+                                            $"AST工位1分割模型标签不匹配。期望顺序：{string.Join("、", ASTStation1SegParse.ClassNames)}；" +
+                                            $"实际加载：{actualLabels}；AI配置路径：{param.ConfigPath}。请重新选择正确的AI配置并保存，确保运行程序与模型版本一致。");
+                                    }
 
                                     # region 执行推理
                                     List<SegResult> seg_results = new List<SegResult>();
@@ -880,6 +890,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 Enable = item.Enable,
                 IsCountItem = item.IsCountItem,
                 Compensation = item.Compensation,
+                PlugColor = item.PlugColor?.Clone(),
                 CurValue = item.CurValue
             }).ToList();
         }

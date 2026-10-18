@@ -110,10 +110,50 @@ internal static class ASTStation1SegTests
         var template = JsonConvert.DeserializeObject<List<DetectItemInfo>>(File.ReadAllText("Template/TDAI/AST工位1分割检测项.items"));
         foreach (var item in template) item.Enable = true;
         Solution.Instance.DetectItemDic[all.CurDetectItemName] = template;
-        result = Parse(all, new List<SegResult> { Segment(0, 10, 35), Segment(1, 50, 70), Segment(2, 80, 100), Segment(3, 105, 119) });
-        Check(result.IsOk && result.DetectItemCount == 14 && result.AlgorithmResult.Lines.Count == 65, "兼容原工位1宽高和胶皮间距项失败。");
+        result = Parse(all, new List<SegResult> { Segment(0, 10, 35), Segment(1, 50, 70), Segment(2, 80, 100), Segment(3, 105, 119), Segment(5, 20, 60) });
+        Check(result.IsOk && result.DetectItemCount == 16 && result.AlgorithmResult.Lines.Count == 75, "全部检测项或铝箔箭头缺失。");
         Check(result.AlgorithmResult.DetectResults["L1-S4"][0].Value == "95.00", "L1-S4未按胶皮顶部最低点到绝缘体顶部最低点计算。");
     }
+    /// <summary>验证铝箔掩膜尺寸、最高置信度选择、补偿、缺失和学习。</summary>
+    private static void VerifyFoilMeasurements()
+    {
+        var p = Parameters("铝箔尺寸");
+        var length = new DetectItemInfo { Name = "铝箔长度", Enable = true, MinValue = "1", MaxValue = "100" };
+        var width = new DetectItemInfo { Name = "铝箔宽度", Enable = true, MinValue = "1", MaxValue = "100" };
+        Solution.Instance.DetectItemDic[p.CurDetectItemName] = new List<DetectItemInfo> { length, width };
+        var segments = new List<SegResult> { Segment(5, 20, 60), Segment(5, 10, 90, 0.1f), Segment(0, 0, 100) };
+        var result = Parse(p, segments);
+        Check(result.IsOk && result.DetectItemCount == 2, "铝箔类别5未参与检测。");
+        Check(length.CurValue == "41.00" && width.CurValue == "20.00", "铝箔未取最高置信度掩膜宽高，或误用了检测框。");
+        Check(result.AlgorithmResult.Lines.Count == 10, "铝箔长宽箭头缺失。");
+        p.NeedConvert = true; p.Scale = 0.1f; length.Compensation = 0.5f;
+        Parse(p, segments);
+        Check(length.CurValue == "4.60" && width.CurValue == "2.00", "铝箔换算或补偿顺序错误。");
+        width.MaxValue = "1";
+        result = Parse(p, segments);
+        Check(!result.IsOk && result.AlgorithmResult.Rects[0].Color == Color.Red, "铝箔宽度超限未判NG或标红。");
+        width.Enable = false;
+        Check(!Parse(p, segments).AlgorithmResult.DetectResults.ContainsKey("铝箔宽度"), "禁用铝箔项仍输出。");
+        width.Enable = true; width.MaxValue = "100";
+        result = Parse(p, new List<SegResult> { new SegResult { ClassId = 5, Rect = new Rect(0, 0, 80, 120) } });
+        Check(!result.IsOk && length.CurValue == "0" && width.CurValue == "0" && result.AlgorithmResult.Lines.Count == 0, "无掩膜时错误使用矩形或补偿伪造铝箔尺寸。");
+        length.MinValue = width.MinValue = "0";
+        result = Parse(p, new List<SegResult> { new SegResult { ClassId = 5, Rect = new Rect(0, 0, 80, 120) } });
+        Check(result.IsOk && length.CurValue == "0" && width.CurValue == "0" && result.AlgorithmResult.Lines.Count == 0,
+            "无有效掩膜且范围包含0时应判OK，缺失值不应补偿或绘制箭头。");
+        Check(Parse(p, null).IsOk, "未检出铝箔且范围包含0时应判OK。");
+        p.IsAutoStudy = true; p.StudyNum = 1;
+        Check(Parse(p, null).IsOk && length.MaxValue == "100", "缺失零值应按范围判定且不污染学习。");
+        length.MinValue = width.MinValue = "1";
+        p.IsAutoStudy = true; p.StudyNum = 1;
+        result = Parse(p, null);
+        Check(!result.IsOk && length.MaxValue == "100", "缺失铝箔未判NG或污染学习。");
+        p.NeedConvert = false; length.Compensation = 0; p.IsAutoStudy = true;
+        Parse(p, segments);
+        Check(length.MinValue == "36.90" && width.MinValue == "18.00", "铝箔自动学习范围错误。");
+        Check(ASTStation1SegParse.ClassNames.Count == 6 && ASTStation1SegParse.ClassNames[5] == "aluminum_foil", "铝箔训练标签下标错误。");
+    }
+
     /// <summary>屏蔽网高度使用胶皮和屏蔽网中央上边缘最低点，不使用自身高度或相邻间距。</summary>
     private static void VerifyShieldingHeight()
     {
@@ -142,15 +182,51 @@ internal static class ASTStation1SegTests
         foreach (var missing in new[] { new List<SegResult> { mesh }, new List<SegResult> { rubber } })
         {
             result = Parse(p, missing);
-            Check(!result.IsOk && item.CurValue == "0" && result.AlgorithmResult.Lines.Count == 0,
-                "缺少胶皮或屏蔽网时不应以零值判OK或绘制箭头。");
+            Check(result.IsOk && item.CurValue == "0" && result.AlgorithmResult.Lines.Count == 0,
+                "缺少胶皮或屏蔽网且范围包含0时应判OK，不绘制箭头。");
         }
         rubber.MaskGeometry.UpperEdgeLowestY = -1;
-        Check(!Parse(p, new List<SegResult> { mesh, rubber }).IsOk, "缺少有效顶部取点不应判OK。");
+        Check(Parse(p, new List<SegResult> { mesh, rubber }).IsOk, "缺少有效顶部取点时应按零值范围判OK。");
         item.Name = "屏蔽网高度";
         Check(Parse(p, new List<SegResult> { mesh, Segment(3, 105, 119) })
             .AlgorithmResult.DetectResults[item.Name][0].Value == "55.00", "旧名称的测量逻辑不兼容。");
     }
+    /// <summary>验证L1-S2固定使用铜环和胶皮顶部最低点，不使用相邻底边。</summary>
+    private static void VerifyCopperTopDistance()
+    {
+        var p = Parameters("铜环顶部距离");
+        var item = new DetectItemInfo { Name = "L1-S2", Enable = true, MinValue = "0", MaxValue = "1000" };
+        Solution.Instance.DetectItemDic[p.CurDetectItemName] = new List<DetectItemInfo> { item };
+        var copper = Segment(2, 50, 70);
+        var rubber = Segment(3, 105, 119);
+        var segments = new List<SegResult> { copper, rubber, Segment(2, 10, 30, 0.1f) };
+        var result = Parse(p, segments);
+        Check(result.IsOk && item.CurValue == "55.00", "L1-S2未使用最高置信度铜环与胶皮顶部最低点。");
+        Check(result.AlgorithmResult.Lines.Count == 5 && result.AlgorithmResult.Lines[0].P1.Y == 252 &&
+            result.AlgorithmResult.Lines[0].P2.Y == 307, "L1-S2箭头端点与顶部最低点不一致。");
+        p.NeedConvert = true; p.Scale = 0.1f; item.Compensation = 0.5f;
+        Parse(p, segments);
+        Check(item.CurValue == "6.00", "L1-S2换算或补偿错误。");
+        p.NeedConvert = false; item.Compensation = 0;
+        Parse(p, new List<SegResult> { copper, Segment(3, 40, 65) });
+        Check(item.CurValue == "10.00", "L1-S2重叠和反向时应保持顶部最低点差绝对值。");
+        Parse(p, new List<SegResult> { copper, Segment(3, 50, 65) });
+        Check(item.CurValue == "0", "L1-S2顶部同高应为0。");
+        foreach (var missing in new[] { new List<SegResult> { copper }, new List<SegResult> { rubber } })
+        {
+            result = Parse(p, missing);
+            Check(result.IsOk && item.CurValue == "0" && result.AlgorithmResult.Lines.Count == 0,
+                "L1-S2缺失目标应按零值判定且不绘制箭头。");
+        }
+        rubber.MaskGeometry.UpperEdgeLowestY = -1;
+        Check(Parse(p, new List<SegResult> { copper, rubber }).IsOk && item.CurValue == "0", "L1-S2无效取点应输出0。");
+        item.MinValue = "1";
+        Check(!Parse(p, new List<SegResult> { copper, rubber }).IsOk, "L1-S2缺失零值应受下限约束。");
+        item.Name = "胶皮到铜环的距离";
+        Parse(p, new List<SegResult> { copper, Segment(3, 105, 119) });
+        Check(item.CurValue == "55.00", "L1-S2旧名称未采用新测量口径。");
+    }
+
     /// <summary>学习会话按节点隔离，无效缺失值不进入样本。</summary>
     private static void VerifyLearning()
     {
@@ -248,7 +324,7 @@ internal static class ASTStation1SegTests
                 finally { engine.Destroy(); }
                 return 0;
             }
-            VerifyParsing(); VerifyShieldingHeight(); VerifyLearning(); VerifyTransport();
+            VerifyParsing(); VerifyFoilMeasurements(); VerifyShieldingHeight(); VerifyCopperTopDistance(); VerifyLearning(); VerifyTransport();
             Console.WriteLine("SEG解析、取点、学习及传输验证通过，共" + _checks + "项断言；继续验证模型配置。");
             VerifyConfiguration();
             Console.WriteLine("AST工位1分割离线验证通过，共" + _checks + "项断言。");

@@ -176,12 +176,21 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             using (Mat binary = new Mat())
             {
                 Cv2.InRange(gray, new Scalar(param.MinGray), new Scalar(param.MaxGray), binary);
-                List<PointF> regionPoints = null;
+                var regionPolygons = new List<List<PointF>>();
                 PositionCorrectionInfo correction = ResolveDetectionCorrection(param, corrections);
                 if (param.EnableDetectionRegion)
                 {
-                    regionPoints = BuildRegionPoints(param, correction);
-                    ApplyDetectionRegionMask(binary, regionPoints);
+                    if (param.Regions != null && param.Regions.Count > 0)
+                    {
+                        foreach (BlobDetectionRegion region in param.Regions)
+                        {
+                            if (region == null || region.Length1 <= 0 || region.Length2 <= 0)
+                                throw new Exception("检测区域无效，请重新确认ROI。");
+                            regionPolygons.Add(BuildRegionPoints(region.ToParameters(), correction));
+                        }
+                    }
+                    else regionPolygons.Add(BuildRegionPoints(param, correction));
+                    ApplyDetectionRegionMask(binary, regionPolygons);
                 }
                 ApplyOutputRegionMode(binary, param.OutputRegionMode);
 
@@ -191,8 +200,10 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 OutputImage outputImage = OutputImage.FromOwnedSingleImage(outputBinary, outputBinary);
                 try
                 {
-                    ColorRotatedRect detectionRegion = BuildDetectionRegionRect(regionPoints);
+                    var detectionRegions = regionPolygons.Select(BuildDetectionRegionRect).ToList();
+                    ColorRotatedRect detectionRegion = detectionRegions.FirstOrDefault();
                     AlgorithmResult displayResult = BuildDisplayResult(area, foregroundBounds.Width, foregroundBounds.Height, param, detectionRegion);
+                    displayResult.Rects.AddRange(detectionRegions.Skip(1));
                     outputImage.DisplayResult = displayResult;
 
                     return new NodeResultBlobAnalysis
@@ -203,6 +214,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                         Width = foregroundBounds.Width,
                         Height = foregroundBounds.Height,
                         DetectionRegion = detectionRegion,
+                        DetectionRegions = detectionRegions,
                         OutputImage = outputImage,
                         Result = displayResult
                     };
@@ -233,7 +245,12 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             {
                 PointF point = new PointF(vertex.X, vertex.Y);
                 if (correction != null)
+                {
+                    // ROI保存的是绘制图像坐标，先还原到公共基准，再变换到本次目标，避免重复叠加绘制时的偏移。
+                    if (param.RegionCorrectionReference != null)
+                        point = param.RegionCorrectionReference.InverseTransformPoint(point.X, point.Y);
                     point = correction.TransformPoint(point.X, point.Y);
+                }
                 points.Add(point);
             }
 
@@ -244,18 +261,24 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         /// 按指定多边形检测区域裁剪二值结果。
         /// </summary>
         /// <param name="binary">待裁剪的二值图。</param>
-        /// <param name="regionPoints">检测区域顶点。</param>
-        private static void ApplyDetectionRegionMask(Mat binary, List<PointF> regionPoints)
+        /// <param name="regions">多个区域顶点，取并集，重叠像素只计算一次。</param>
+        private static void ApplyDetectionRegionMask(Mat binary, List<List<PointF>> regions)
         {
-            if (regionPoints == null || regionPoints.Count < 3)
+            if (regions == null || regions.Count == 0)
                 throw new Exception("检测区域无效，请先绘制并确认ROI。");
 
             using (Mat mask = new Mat(binary.Size(), MatType.CV_8UC1, Scalar.Black))
             {
-                OpenCvSharp.Point[] points = regionPoints
-                    .Select(item => new OpenCvSharp.Point((int)Math.Round(item.X), (int)Math.Round(item.Y)))
-                    .ToArray();
-                Cv2.FillConvexPoly(mask, points, Scalar.White);
+                // 所有ROI共用一张掩膜，避免逐区域复制图像，也避免重叠区域重复计数。
+                foreach (var regionPoints in regions)
+                {
+                    if (regionPoints == null || regionPoints.Count < 3)
+                        throw new Exception("检测区域无效，请先绘制并确认ROI。");
+                    OpenCvSharp.Point[] points = regionPoints
+                        .Select(item => new OpenCvSharp.Point((int)Math.Round(item.X), (int)Math.Round(item.Y)))
+                        .ToArray();
+                    Cv2.FillConvexPoly(mask, points, Scalar.White);
+                }
                 Cv2.BitwiseAnd(binary, mask, binary);
             }
         }

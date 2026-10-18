@@ -80,6 +80,25 @@
             this.numericLineWidth = new System.Windows.Forms.NumericUpDown();
             this.buttonToggleAdvanced = new System.Windows.Forms.Button();
             this.panelAdvanced = new System.Windows.Forms.Panel();
+            this.buttonAddBooleanText = new System.Windows.Forms.Button();
+            this.buttonMoveUp = new System.Windows.Forms.Button();
+            this.buttonMoveDown = new System.Windows.Forms.Button();
+            this.panelBooleanText = new System.Windows.Forms.Panel();
+            this.labelBooleanOk = new System.Windows.Forms.Label();
+            this.labelBooleanNg = new System.Windows.Forms.Label();
+            this.textBoxBooleanOk = new System.Windows.Forms.TextBox();
+            this.textBoxBooleanNg = new System.Windows.Forms.TextBox();
+            this.checkBoxCornerTextBox = new System.Windows.Forms.CheckBox();
+            this.labelCornerBackground = new System.Windows.Forms.Label();
+            this.panelCornerBackground = new System.Windows.Forms.Panel();
+            this.labelCornerForeground = new System.Windows.Forms.Label();
+            this.panelCornerForeground = new System.Windows.Forms.Panel();
+            this.labelCornerHint = new System.Windows.Forms.Label();
+            this.labelCornerText = new System.Windows.Forms.Label();
+            this.textBoxCornerText = new System.Windows.Forms.TextBox();
+            this.labelCornerFontSize = new System.Windows.Forms.Label();
+            this.numericCornerFontSize = new System.Windows.Forms.NumericUpDown();
+            ((System.ComponentModel.ISupportInitialize)(this.numericCornerFontSize)).BeginInit();
             this.labelTextCoordinateMode = new System.Windows.Forms.Label();
             this.comboBoxTextCoordinateMode = new System.Windows.Forms.ComboBox();
             this.labelMargin = new System.Windows.Forms.Label();
@@ -210,7 +229,7 @@
             //
             // panelOkColor
             //
-            this.panelOkColor.BackColor = System.Drawing.Color.Lime;
+            this.panelOkColor.BackColor = System.Drawing.Color.Green;
             this.panelOkColor.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.panelOkColor.Location = new System.Drawing.Point(71, 5);
             this.panelOkColor.Margin = new System.Windows.Forms.Padding(3, 5, 3, 3);
@@ -308,7 +327,10 @@
             //
             this.flowLayoutPanelItemButtons.Controls.Add(this.buttonAddText);
             this.flowLayoutPanelItemButtons.Controls.Add(this.buttonAddRoi);
+            this.flowLayoutPanelItemButtons.Controls.Add(this.buttonAddBooleanText);
             this.flowLayoutPanelItemButtons.Controls.Add(this.buttonDeleteItem);
+            this.flowLayoutPanelItemButtons.Controls.Add(this.buttonMoveUp);
+            this.flowLayoutPanelItemButtons.Controls.Add(this.buttonMoveDown);
             this.flowLayoutPanelItemButtons.Dock = System.Windows.Forms.DockStyle.Fill;
             this.flowLayoutPanelItemButtons.Location = new System.Drawing.Point(3, 3);
             this.flowLayoutPanelItemButtons.Name = "flowLayoutPanelItemButtons";
@@ -344,6 +366,54 @@
             this.buttonDeleteItem.Text = "删除";
             this.buttonDeleteItem.UseVisualStyleBackColor = true;
             this.buttonDeleteItem.Click += new System.EventHandler(this.buttonDeleteItem_Click);
+            this.buttonMoveUp.Name = "buttonMoveUp";
+            this.buttonMoveUp.Size = new System.Drawing.Size(65, 31);
+            this.buttonMoveUp.Text = "上移";
+            this.buttonMoveUp.Enabled = false;
+            this.buttonMoveUp.TabIndex = 4;
+            this.buttonMoveUp.UseVisualStyleBackColor = true;
+            this.buttonMoveUp.Click += new System.EventHandler(this.buttonMoveUp_Click);
+            this.buttonMoveDown.Name = "buttonMoveDown";
+            this.buttonMoveDown.Size = new System.Drawing.Size(65, 31);
+            this.buttonMoveDown.Text = "下移";
+            this.buttonMoveDown.Enabled = false;
+            this.buttonMoveDown.TabIndex = 5;
+            this.buttonMoveDown.UseVisualStyleBackColor = true;
+            this.buttonMoveDown.Click += new System.EventHandler(this.buttonMoveDown_Click);
+            // 布尔文本作为独立绘制项，与固定内容和普通订阅文本分别保存。
+            this.buttonAddBooleanText.Name = "buttonAddBooleanText";
+            this.buttonAddBooleanText.Size = new System.Drawing.Size(140, 31);
+            this.buttonAddBooleanText.Text = "添加布尔文本";
+            this.buttonAddBooleanText.TabIndex = 3;
+            this.buttonAddBooleanText.UseVisualStyleBackColor = true;
+            this.buttonAddBooleanText.Click += new System.EventHandler(this.buttonAddBooleanText_Click);
+            this.panelBooleanText.Name = "panelBooleanText";
+            this.panelBooleanText.Size = new System.Drawing.Size(554, 80);
+            this.panelBooleanText.Visible = false;
+            this.panelBooleanText.Controls.Add(this.labelBooleanOk);
+            this.panelBooleanText.Controls.Add(this.labelBooleanNg);
+            this.panelBooleanText.Controls.Add(this.textBoxBooleanOk);
+            this.panelBooleanText.Controls.Add(this.textBoxBooleanNg);
+            this.labelBooleanOk.Name = "labelBooleanOk";
+            this.labelBooleanOk.Location = new System.Drawing.Point(7, 9);
+            this.labelBooleanOk.AutoSize = true;
+            this.labelBooleanOk.Text = "合格时文本";
+            this.labelBooleanNg.Name = "labelBooleanNg";
+            this.labelBooleanNg.Location = new System.Drawing.Point(7, 46);
+            this.labelBooleanNg.AutoSize = true;
+            this.labelBooleanNg.Text = "不合格时文本";
+            this.textBoxBooleanOk.Name = "textBoxBooleanOk";
+            this.textBoxBooleanOk.Location = new System.Drawing.Point(145, 4);
+            this.textBoxBooleanOk.Size = new System.Drawing.Size(390, 28);
+            this.textBoxBooleanOk.Text = "合格";
+            this.textBoxBooleanOk.TabIndex = 0;
+            this.textBoxBooleanOk.TextChanged += new System.EventHandler(this.ItemControl_ValueChanged);
+            this.textBoxBooleanNg.Name = "textBoxBooleanNg";
+            this.textBoxBooleanNg.Location = new System.Drawing.Point(145, 41);
+            this.textBoxBooleanNg.Size = new System.Drawing.Size(390, 28);
+            this.textBoxBooleanNg.Text = "不合格";
+            this.textBoxBooleanNg.TabIndex = 1;
+            this.textBoxBooleanNg.TextChanged += new System.EventHandler(this.ItemControl_ValueChanged);
             //
             // dataGridViewItems
             //
@@ -403,7 +473,7 @@
             this.groupBoxItemSetting.Size = new System.Drawing.Size(598, 381);
             this.groupBoxItemSetting.TabIndex = 2;
             this.groupBoxItemSetting.TabStop = false;
-            this.groupBoxItemSetting.Text = "当前项设置";
+            this.groupBoxItemSetting.Text = "绘制与高级设置";
             //
             // flowLayoutPanelSettings
             //
@@ -411,6 +481,7 @@
             this.flowLayoutPanelSettings.Controls.Add(this.panelCommonSetting);
             this.flowLayoutPanelSettings.Controls.Add(this.panelSourceSetting);
             this.flowLayoutPanelSettings.Controls.Add(this.panelManualText);
+            this.flowLayoutPanelSettings.Controls.Add(this.panelBooleanText);
             this.flowLayoutPanelSettings.Controls.Add(this.panelTextPrefix);
             this.flowLayoutPanelSettings.Controls.Add(this.panelTextStyle);
             this.flowLayoutPanelSettings.Controls.Add(this.panelRoiStyle);
@@ -680,10 +751,77 @@
             this.panelAdvanced.Controls.Add(this.comboBoxTextCoordinateMode);
             this.panelAdvanced.Controls.Add(this.labelMargin);
             this.panelAdvanced.Controls.Add(this.numericMargin);
+            this.panelAdvanced.Controls.Add(this.checkBoxCornerTextBox);
+            this.panelAdvanced.Controls.Add(this.labelCornerBackground);
+            this.panelAdvanced.Controls.Add(this.panelCornerBackground);
+            this.panelAdvanced.Controls.Add(this.labelCornerForeground);
+            this.panelAdvanced.Controls.Add(this.panelCornerForeground);
+            this.panelAdvanced.Controls.Add(this.labelCornerHint);
+            this.panelAdvanced.Controls.Add(this.labelCornerText);
+            this.panelAdvanced.Controls.Add(this.textBoxCornerText);
+            this.panelAdvanced.Controls.Add(this.labelCornerFontSize);
+            this.panelAdvanced.Controls.Add(this.numericCornerFontSize);
             this.panelAdvanced.Location = new System.Drawing.Point(7, 341);
             this.panelAdvanced.Name = "panelAdvanced";
-            this.panelAdvanced.Size = new System.Drawing.Size(554, 40);
+            this.panelAdvanced.Size = new System.Drawing.Size(554, 180);
             this.panelAdvanced.TabIndex = 7;
+            //
+            // 右下角文本框设置，放在高级设置内，支持设计器查看和调整。
+            //
+            this.checkBoxCornerTextBox.AutoSize = true;
+            this.checkBoxCornerTextBox.Location = new System.Drawing.Point(7, 45);
+            this.checkBoxCornerTextBox.Name = "checkBoxCornerTextBox";
+            this.checkBoxCornerTextBox.Text = "显示固定文本";
+            this.checkBoxCornerTextBox.TabIndex = 4;
+            this.labelCornerBackground.AutoSize = true;
+            this.labelCornerBackground.Location = new System.Drawing.Point(190, 48);
+            this.labelCornerBackground.Name = "labelCornerBackground";
+            this.labelCornerBackground.Text = "背景色";
+            this.panelCornerBackground.Location = new System.Drawing.Point(260, 43);
+            this.panelCornerBackground.Name = "panelCornerBackground";
+            this.panelCornerBackground.Size = new System.Drawing.Size(52, 28);
+            this.panelCornerBackground.BackColor = System.Drawing.Color.White;
+            this.panelCornerBackground.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.panelCornerBackground.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.panelCornerBackground.TabIndex = 5;
+            this.panelCornerBackground.Click += new System.EventHandler(this.CornerColor_Click);
+            this.labelCornerForeground.AutoSize = true;
+            this.labelCornerForeground.Location = new System.Drawing.Point(333, 48);
+            this.labelCornerForeground.Name = "labelCornerForeground";
+            this.labelCornerForeground.Text = "文字色";
+            this.panelCornerForeground.Location = new System.Drawing.Point(407, 43);
+            this.panelCornerForeground.Name = "panelCornerForeground";
+            this.panelCornerForeground.Size = new System.Drawing.Size(52, 28);
+            this.panelCornerForeground.BackColor = System.Drawing.Color.Green;
+            this.panelCornerForeground.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.panelCornerForeground.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.panelCornerForeground.TabIndex = 6;
+            this.panelCornerForeground.Click += new System.EventHandler(this.CornerColor_Click);
+            this.labelCornerHint.AutoSize = true;
+            this.labelCornerHint.Location = new System.Drawing.Point(7, 148);
+            this.labelCornerHint.Name = "labelCornerHint";
+            this.labelCornerHint.Text = "独立内容显示在右下角，坐标系跟随全部文本设置。";
+            this.labelCornerText.AutoSize = true;
+            this.labelCornerText.Location = new System.Drawing.Point(7, 86);
+            this.labelCornerText.Name = "labelCornerText";
+            this.labelCornerText.Text = "固定内容";
+            this.textBoxCornerText.Location = new System.Drawing.Point(95, 80);
+            this.textBoxCornerText.Name = "textBoxCornerText";
+            this.textBoxCornerText.Size = new System.Drawing.Size(220, 56);
+            this.textBoxCornerText.Multiline = true;
+            this.textBoxCornerText.Text = "0°";
+            this.textBoxCornerText.TabIndex = 7;
+            this.labelCornerFontSize.AutoSize = true;
+            this.labelCornerFontSize.Location = new System.Drawing.Point(333, 86);
+            this.labelCornerFontSize.Name = "labelCornerFontSize";
+            this.labelCornerFontSize.Text = "固定字号";
+            this.numericCornerFontSize.Location = new System.Drawing.Point(430, 80);
+            this.numericCornerFontSize.Name = "numericCornerFontSize";
+            this.numericCornerFontSize.Size = new System.Drawing.Size(90, 28);
+            this.numericCornerFontSize.Minimum = 1;
+            this.numericCornerFontSize.Maximum = 200;
+            this.numericCornerFontSize.Value = 18;
+            this.numericCornerFontSize.TabIndex = 8;
             //
             // labelTextCoordinateMode
             //
@@ -692,15 +830,15 @@
             this.labelTextCoordinateMode.Name = "labelTextCoordinateMode";
             this.labelTextCoordinateMode.Size = new System.Drawing.Size(62, 18);
             this.labelTextCoordinateMode.TabIndex = 0;
-            this.labelTextCoordinateMode.Text = "坐标系";
+            this.labelTextCoordinateMode.Text = "全部文本";
             //
             // comboBoxTextCoordinateMode
             //
             this.comboBoxTextCoordinateMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxTextCoordinateMode.FormattingEnabled = true;
-            this.comboBoxTextCoordinateMode.Location = new System.Drawing.Point(77, 6);
+            this.comboBoxTextCoordinateMode.Location = new System.Drawing.Point(95, 6);
             this.comboBoxTextCoordinateMode.Name = "comboBoxTextCoordinateMode";
-            this.comboBoxTextCoordinateMode.Size = new System.Drawing.Size(160, 26);
+            this.comboBoxTextCoordinateMode.Size = new System.Drawing.Size(142, 26);
             this.comboBoxTextCoordinateMode.TabIndex = 1;
             this.comboBoxTextCoordinateMode.SelectedIndexChanged += new System.EventHandler(this.ItemControl_ValueChanged);
             //
@@ -858,6 +996,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.numericLineWidth)).EndInit();
             this.panelAdvanced.ResumeLayout(false);
             this.panelAdvanced.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.numericCornerFontSize)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericMargin)).EndInit();
             this.flowLayoutPanelBottom.ResumeLayout(false);
             this.groupBoxPreview.ResumeLayout(false);
@@ -919,6 +1058,42 @@
         private System.Windows.Forms.NumericUpDown numericLineWidth;
         private System.Windows.Forms.Button buttonToggleAdvanced;
         private System.Windows.Forms.Panel panelAdvanced;
+        /// <summary>添加独立布尔订阅文本项。</summary>
+        private System.Windows.Forms.Button buttonAddBooleanText;
+        /// <summary>上移选中绘制项。</summary>
+        private System.Windows.Forms.Button buttonMoveUp;
+        /// <summary>下移选中绘制项。</summary>
+        private System.Windows.Forms.Button buttonMoveDown;
+        /// <summary>布尔真假显示内容编辑区域。</summary>
+        private System.Windows.Forms.Panel panelBooleanText;
+        /// <summary>真值显示内容标签。</summary>
+        private System.Windows.Forms.Label labelBooleanOk;
+        /// <summary>假值显示内容标签。</summary>
+        private System.Windows.Forms.Label labelBooleanNg;
+        /// <summary>真值时显示的固定文本。</summary>
+        private System.Windows.Forms.TextBox textBoxBooleanOk;
+        /// <summary>假值时显示的固定文本。</summary>
+        private System.Windows.Forms.TextBox textBoxBooleanNg;
+        /// <summary>启用节点级右下角固定文本。</summary>
+        private System.Windows.Forms.CheckBox checkBoxCornerTextBox;
+        /// <summary>背景颜色标签。</summary>
+        private System.Windows.Forms.Label labelCornerBackground;
+        /// <summary>文本框背景颜色选择面板。</summary>
+        private System.Windows.Forms.Panel panelCornerBackground;
+        /// <summary>文字颜色标签。</summary>
+        private System.Windows.Forms.Label labelCornerForeground;
+        /// <summary>文本框文字颜色选择面板。</summary>
+        private System.Windows.Forms.Panel panelCornerForeground;
+        /// <summary>右下角文本框使用说明。</summary>
+        private System.Windows.Forms.Label labelCornerHint;
+        /// <summary>独立固定内容标签。</summary>
+        private System.Windows.Forms.Label labelCornerText;
+        /// <summary>节点级固定文本输入框。</summary>
+        private System.Windows.Forms.TextBox textBoxCornerText;
+        /// <summary>独立字号标签。</summary>
+        private System.Windows.Forms.Label labelCornerFontSize;
+        /// <summary>节点级固定文本字号。</summary>
+        private System.Windows.Forms.NumericUpDown numericCornerFontSize;
         private System.Windows.Forms.Label labelTextCoordinateMode;
         private System.Windows.Forms.ComboBox comboBoxTextCoordinateMode;
         private System.Windows.Forms.Label labelMargin;

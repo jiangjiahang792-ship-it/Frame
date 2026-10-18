@@ -793,6 +793,7 @@ namespace TDJS_Vision.Forms.DispShowImage
 
                     rois.Add(new RoiContour(contour.Points, contour.Color)
                     {
+                        IsClosed = contour.IsClosed,
                         StrokeWidth = contour.LineWidth
                     });
                 }
@@ -813,17 +814,19 @@ namespace TDJS_Vision.Forms.DispShowImage
                         Math.Max(1, text.FontSize)));
                 }
 
-                foreach (var group in displayResult.Texts.Where(t => t != null && !t.UseImagePosition).GroupBy(t => new { t.Position, t.FontSize, t.Margin, t.Title, t.CoordinateMode }))
+                // 同一角落只建立一个排版块，保留输入顺序，避免不同字号或背景各自从角落重画。
+                foreach (var group in displayResult.Texts.Where(t => t != null && !t.UseImagePosition).GroupBy(t => new { t.Position, t.CoordinateMode }))
                 {
                     rois.Add(new RoiTextBlock(
-                        group.Key.Title,
-                        group.Select(t => (t.Text, t.Color)).ToList(),
+                        string.Empty,
+                        new List<(string text, Color color)>(),
                         10,
                         10,
-                        Math.Max(1, group.Key.FontSize))
+                        11)
                     {
+                        StyledLines = group.ToList(),
                         Position = group.Key.Position,
-                        Margin = Math.Max(0, group.Key.Margin),
+                        Margin = Math.Max(0, group.Min(t => t.Margin)),
                         ImageWidth = imageWidth,
                         ImageHeight = imageHeight,
                         UseControlCoordinate = group.Key.CoordinateMode == DisplayTextCoordinateMode.Control
@@ -1800,6 +1803,8 @@ namespace TDJS_Vision.Forms.DispShowImage
 
         public class RoiContour : IRoiShape
         {
+            /// <summary>有序轮廓点连为闭合线，旧散点轮廓保持原显示方式。</summary>
+            public bool IsClosed { get; set; }
             public List<PointF> Points; public Color ShapeColor { get; set; }
             public float StrokeWidth { get; set; } = 2F;
             public bool IsSelected { get; set; }
@@ -1811,6 +1816,16 @@ namespace TDJS_Vision.Forms.DispShowImage
             public void Draw(Graphics g, float s, PointF o)
             {
                 if (Points.Count == 0) return;
+                if (IsClosed && Points.Count >= 2)
+                {
+                    var screenPoints = Points.Select(p => new PointF(p.X * s + o.X, p.Y * s + o.Y)).ToArray();
+                    using (var pen = new Pen(ShapeColor, Math.Max(1F, StrokeWidth)))
+                    {
+                        if (screenPoints.Length >= 3) g.DrawPolygon(pen, screenPoints);
+                        else g.DrawLines(pen, screenPoints);
+                    }
+                    return;
+                }
                 using (Brush b = new SolidBrush(ShapeColor))
                 {
                     float dotSize = Math.Max(2.0f, StrokeWidth * Math.Max(0.7F, s));
@@ -2311,6 +2326,12 @@ namespace TDJS_Vision.Forms.DispShowImage
 
         public class RoiTextBlock : IRoiShape
         {
+            /// <summary>按订阅顺序排列的混合字号文本；为空时兼容原有统一字号文本块。</summary>
+            public List<ColorText> StyledLines { get; set; }
+
+            /// <summary>文本块背景色，透明时保持原有无背景绘制。</summary>
+            public Color BackgroundColor { get; set; } = Color.Transparent;
+
             private const float TextPadding = 6F;
             private const float StatusBarReservedHeight = 25F;
 
@@ -2382,6 +2403,11 @@ namespace TDJS_Vision.Forms.DispShowImage
 
             public void Draw(Graphics g, float s, PointF o)
             {
+                if (StyledLines != null)
+                {
+                    DrawStyledLines(g, s, o);
+                    return;
+                }
                 float titleSize = FontSize * 1.2f;
                 float lineSize = FontSize;
                 using (Font titleFont = new Font("Microsoft YaHei", titleSize, FontStyle.Bold))
@@ -2404,6 +2430,15 @@ namespace TDJS_Vision.Forms.DispShowImage
                     float x = topLeft.X;
                     float y = topLeft.Y;
 
+                    // 背景与文字共用屏幕坐标，内边距不随图像缩放，避免遮挡文字边缘。
+                    if (BackgroundColor.A > 0)
+                    {
+                        using (Brush background = new SolidBrush(BackgroundColor))
+                            g.FillRectangle(background, x, y, maxWidth + TextPadding * 2F, totalHeight + TextPadding * 2F);
+                        x += TextPadding;
+                        y += TextPadding;
+                    }
+
                     if (showTitle)
                     {
                         g.DrawString(Title, titleFont, Brushes.White, x, y);
@@ -2418,6 +2453,62 @@ namespace TDJS_Vision.Forms.DispShowImage
 
                         y += g.MeasureString(text, lineFont).Height + 2F;
                     }
+                }
+            }
+
+            /// <summary>测量全部文本后统一定位，逐行累加实际高度，保留各自字号、颜色和背景。</summary>
+            private void DrawStyledLines(Graphics graphics, float scale, PointF offset)
+            {
+                // 每次绘制按字号复用字体，并在结束时释放；不在连续刷新期间累积GDI对象。
+                var fonts = new Dictionary<int, Font>();
+                var sizes = new List<SizeF>(StyledLines.Count);
+                var contents = new List<string>(StyledLines.Count);
+                float width = 0F;
+                float height = 0F;
+                string previousTitle = null;
+                try
+                {
+                    foreach (ColorText line in StyledLines)
+                    {
+                        int size = Math.Max(1, line.FontSize);
+                        if (!fonts.ContainsKey(size))
+                            fonts.Add(size, new Font("Microsoft YaHei", size));
+                        string content = line.Text ?? string.Empty;
+                        if (!string.IsNullOrWhiteSpace(line.Title) && line.Title != previousTitle)
+                            content = line.Title + "\n" + content;
+                        previousTitle = line.Title;
+                        contents.Add(content);
+                        SizeF measured = graphics.MeasureString(content, fonts[size]);
+                        float padding = line.BackgroundColor.A > 0 ? TextPadding : 0F;
+                        var bounds = new SizeF(measured.Width + padding * 2F, measured.Height + padding * 2F + 2F);
+                        sizes.Add(bounds);
+                        width = Math.Max(width, bounds.Width + Math.Max(0, line.Margin - Margin));
+                        height += bounds.Height;
+                    }
+                    PointF topLeft = ResolveTopLeft(scale, offset, width, height);
+                    float y = topLeft.Y;
+                    for (int index = 0; index < StyledLines.Count; index++)
+                    {
+                        ColorText line = StyledLines[index];
+                        SizeF bounds = sizes[index];
+                        float inset = Math.Max(0, line.Margin - Margin);
+                        bool right = Position == DisplayTextPosition.TopRight || Position == DisplayTextPosition.BottomRight;
+                        float x = right ? topLeft.X + width - bounds.Width - inset : topLeft.X + inset;
+                        float padding = line.BackgroundColor.A > 0 ? TextPadding : 0F;
+                        if (line.BackgroundColor.A > 0)
+                        {
+                            using (var background = new SolidBrush(line.BackgroundColor))
+                                graphics.FillRectangle(background, x, y, bounds.Width, bounds.Height - 2F);
+                        }
+                        using (var foreground = new SolidBrush(line.Color))
+                            graphics.DrawString(contents[index], fonts[Math.Max(1, line.FontSize)], foreground, x + padding, y + padding);
+                        y += bounds.Height;
+                    }
+                }
+                finally
+                {
+                    foreach (Font font in fonts.Values)
+                        font.Dispose();
                 }
             }
 

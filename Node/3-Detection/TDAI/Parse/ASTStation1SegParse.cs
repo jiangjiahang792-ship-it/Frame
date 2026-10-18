@@ -9,12 +9,12 @@ using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 {
-    /// <summary>AST工位1五类SEG解析器，测量取真实掩膜，绝不以检测框替代缺失掩膜。</summary>
+    /// <summary>AST工位1六类SEG解析器，测量取真实掩膜，绝不以检测框替代缺失掩膜。</summary>
     public static class ASTStation1SegParse
     {
         /// <summary>与训练标签行顺序一致的类别名称。</summary>
         public static readonly IReadOnlyList<string> ClassNames = Array.AsReadOnly(new[]
-            { "insulation_glue", "shielding_mesh", "copper_ring", "rubber", "fly_line" });
+            { "insulation_glue", "shielding_mesh", "copper_ring", "rubber", "fly_line", "aluminum_foil" });
         /// <summary>按节点隔离学习会话，避免四个AI节点交叉累计。</summary>
         private static readonly ConditionalWeakTable<NodeParamTDAI, StudySession> Sessions =
             new ConditionalWeakTable<NodeParamTDAI, StudySession>();
@@ -119,7 +119,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     if (param.NeedConvert) value *= param.Scale;
                     value = ParseCommon.ApplyMeasurementCompensation(item, value);
                 }
-                bool isOk = hasValue && (param.IsAutoStudy || ParseCommon.IsValueWithinLimits(item, value));
+                // 尺寸项缺失时保留零值，按上下限判定；不施加补偿、不绘制箭头，也不加入学习样本。
+                // 数量项保留原有无效掩膜判定，有效实测值在学习期间仍默认通过。
+                bool isOk = hasValue
+                    ? param.IsAutoStudy || ParseCommon.IsValueWithinLimits(item, value)
+                    : !count && ParseCommon.IsValueWithinLimits(item, 0F);
                 string valueText = count || value == 0 ? value.ToString() : value.ToString("F2");
                 output.DetectResults[item.Name] = new List<SingleDetectResult> {
                     new SingleDetectResult { Name = item.Name, Value = valueText, IsOk = isOk } };
@@ -159,8 +163,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             nodeResult.AlgorithmResult = output;
             bool allOk = output.IsAllOk;
             if (allOk) process.OKNumber++; else process.NGNumber++;
-            // AST画面只显示最终判定结果，内部OK/NG计数仍保留给流程统计使用。
-            output.Texts.Add(new ColorText(LanguageManager.Format("Result.ProductResult", allOk ? "OK" : "NG"), allOk ? Color.Green : Color.Red));
+            // 仅输出检测项文本，整体判定由ROI布尔文本订阅显示；保留流程OK/NG统计。
             if (study != null && ++study.Count >= param.StudyNum)
             {
                 try
@@ -182,7 +185,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 case "绝缘胶顶部最低点到屏蔽网顶部最低点的距离": id = 0; dependency = 1; lowerTop = true; break;
                 case "绝缘胶顶部到铜环底部的距离": id = 0; dependency = 2; break;
                 case "L1-S2":
-                case "胶皮到铜环的距离": id = 2; dependency = 3; break;
+                // L1-S2固定测铜环与胶皮中央顶部最低点的Y差，重叠时也不改换边缘。
+                case "胶皮到铜环的距离": id = 2; dependency = 3; lowerTop = true; break;
                 case "L1-S3":
                 case "胶皮到屏蔽网的距离": id = 1; dependency = 3; break;
                 case "L1-S4":
@@ -195,6 +199,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 case "铜环宽度": id = 2; width = true; break;
                 case "绝缘胶高度": id = 0; break;
                 case "绝缘胶宽度": id = 0; width = true; break;
+                // 铝箔类别5的长度沿Y方向、宽度沿X方向，统一使用有效掩膜包围范围。
+                case "铝箔长度": id = 5; break;
+                case "铝箔宽度": id = 5; width = true; break;
                 case "胶皮高度": id = 3; break;
                 case "胶皮宽度": id = 3; width = true; break;
                 case "飞丝":

@@ -56,6 +56,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             var deteItems = Solution.Instance.DetectItemDic[param.CurDetectItemName];
             ParseCommon.NormalizeDetectItems(deteItems);
             DetectItemInfo 端子数量检测项 = 获取端子数量检测项(deteItems);
+            int requiredCount = 0;
+            if (端子数量检测项 != null && double.TryParse(端子数量检测项.MinValue, out double minimum))
+            {
+                if (double.IsNaN(minimum) || double.IsInfinity(minimum) || minimum > 10000)
+                    throw new InvalidOperationException("端子数量下限必须是0～10000范围内的有效数值。");
+                requiredCount = minimum > 0 ? (int)Math.Ceiling(minimum) : 0;
+            }
 
             // 用来保存检测结果的检测项OK/NG、带颜色的框、带颜色的文本
             var detectResults = new Dictionary<string, List<SingleDetectResult>>();
@@ -325,7 +332,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
 
 
-                        bool isOk = ParseCommon.IsValueWithinLimits(item, value) && countLimitOk;
+                        bool measurementOk = ParseCommon.IsValueWithinLimits(item, value);
+                        bool isOk = measurementOk && (countLimitOk || matchedResults.Count < requiredCount);
 
                         // 一旦有一个 false，则整体不是 OK
                         if (!isOk)
@@ -349,7 +357,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         }
 
                         // 添加不重复矩形框
-                        ParseCommon.AddRect(addedRectKeys, result.Box, param.IsAutoStudy ? true : isOk, ref nodeResult);
+                        // 实测框只体现自身尺寸状态，缺件另以补零结果标NG。
+                        ParseCommon.AddRect(addedRectKeys, result.Box, param.IsAutoStudy || measurementOk, ref nodeResult);
 
                         hasData = true;
                     }
@@ -412,6 +421,21 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 }
 
                 #endregion
+
+                if (!isCountItem && !IsIndependentCountItem(itemName) && matchedResults.Count < requiredCount)
+                {
+                    // 原无结果分支已生成单个0，替换为实际缺失数量；补零不生成框、不参与学习。
+                    if (matchedResults.Count == 0) singleResults.Clear();
+                    for (int missing = matchedResults.Count; missing < requiredCount; missing++)
+                        singleResults.Add(new SingleDetectResult { Name = itemName, Value = "0", IsOk = param.IsAutoStudy });
+                    string displayValue = string.Join(",", singleResults.Select(r => r.Value));
+                    string displayName = ParseCommon.GetDisplayName(itemName);
+                    texts.RemoveAll(t => t.Text.StartsWith(displayName + ":"));
+                    texts.Add(new ColorText(LanguageManager.Format("{0}: {1} 设定值: [{2}, {3}]",
+                        displayName, displayValue, item.MinValue, item.MaxValue), param.IsAutoStudy ? Color.Green : Color.Red));
+                    ParseCommon.SetDetectItemCurValue(ref param, itemName, displayValue);
+                    hasData = true;
+                }
 
                 // 添加一个检测项的结果数据
                 if (hasData)

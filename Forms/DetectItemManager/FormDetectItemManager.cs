@@ -273,6 +273,7 @@ namespace TDJS_Vision.Forms.DetectItemManager
                             Enable = item.Enable,
                             IsCountItem = item.IsCountItem,
                             Compensation = item.Compensation,
+                            PlugColor = item.PlugColor?.Clone(),
                             CurValue = item.CurValue
                         }).ToList();
                         string jsonContent = JsonConvert.SerializeObject(

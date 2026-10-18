@@ -97,6 +97,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 Enable = info.Enable,
                 IsCountItem = info.IsCountItem,
                 Compensation = info.Compensation,
+                PlugColor = info.PlugColor?.Clone(),
                 CurValue = info.CurValue
             };
         }
@@ -298,6 +299,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                         CurValue = ToCellText(row.Cells[CurrentValueColumnIndex].Value),
                         MaxValue = ToCellText(row.Cells[MaxValueColumnIndex].Value),
                         Compensation = ReadCompensation(row.Cells[CompensationColumnIndex].Value),
+                        PlugColor = item.Info?.PlugColor?.Clone(),
                         IsCountItem = ToCellBool(row.Cells[CountItemColumnIndex].Value)
                     };
 

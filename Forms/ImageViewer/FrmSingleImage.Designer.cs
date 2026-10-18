@@ -57,7 +57,7 @@
             // showImageControl1
             // 
             this.showImageControl1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(20)))), ((int)(((byte)(20)))), ((int)(((byte)(20)))));
-            this.showImageControl1.BackgroundColorCustom = System.Drawing.Color.White;
+            this.showImageControl1.BackgroundColorCustom = System.Drawing.Color.Black;
             this.showImageControl1.BackgroundImageCustom = null;
             this.showImageControl1.BackgroundLayoutMode = TDJS_Vision.Forms.DispShowImage.ShowImageControl.BackgroundImageLayoutMode.Fill;
             this.showImageControl1.BackgroundTransparency = 1F;

@@ -38,11 +38,23 @@ namespace TDJS_Vision.Forms.Workspace
                 caption.HandleCreated += HandleCreated;
                 caption.HandleDestroyed += HandleDestroyed;
                 caption.Disposed += CaptionDisposed;
+                UserPermissionContext.RoleChanged += RoleChanged;
+                ApplyPermissions();
                 if (caption.IsHandleCreated) AssignHandle(caption.Handle);
             }
 
             /// <summary>在每次句柄创建后重新安装保护。</summary>
             private void HandleCreated(object sender, EventArgs e) { AssignHandle(caption.Handle); }
+
+            /// <summary>登录切换时立即锁定标题栏，覆盖关闭、自动隐藏图钉和窗口菜单按钮。</summary>
+            private void RoleChanged(object sender, UserRole role) { ApplyPermissions(); }
+
+            /// <summary>禁用标题栏及其子按钮，但保持内容区和页签可正常操作。</summary>
+            private void ApplyPermissions()
+            {
+                if (!caption.IsDisposed)
+                    caption.Enabled = UserPermissionContext.CanEditWorkspaceLayout;
+            }
 
             /// <summary>解除已销毁句柄，避免原生句柄复用时影响其它窗口。</summary>
             private void HandleDestroyed(object sender, EventArgs e)
@@ -56,6 +68,7 @@ namespace TDJS_Vision.Forms.Workspace
                 caption.HandleCreated -= HandleCreated;
                 caption.HandleDestroyed -= HandleDestroyed;
                 caption.Disposed -= CaptionDisposed;
+                UserPermissionContext.RoleChanged -= RoleChanged;
                 if (Handle != IntPtr.Zero) ReleaseHandle();
             }
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.IO;
 using System.Reflection;
@@ -61,7 +61,7 @@ internal static class ImageDockPanelFloatingLayoutTests
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         // 浮动、合并和拖出属于高级权限功能，布局回归应在明确授权的测试角色下执行。
-        TDJS_Vision.Forms.Login.UserPermissionContext.UpdateRole(TDJS_Vision.Forms.Login.UserRole.Hight);
+        TDJS_Vision.Forms.Login.UserPermissionContext.UpdateRole(TDJS_Vision.Forms.Login.UserRole.Manufacturer);
         Console.WriteLine("Assembly: " + typeof(FrmImageViewer).Assembly.Location);
         if (Array.IndexOf(args, "--drag-size") >= 0) return DiagnoseDragSize(args);
         if (Array.IndexOf(args, "--merge-regression") >= 0) return CheckFloatMerge();

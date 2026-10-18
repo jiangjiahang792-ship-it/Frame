@@ -1,4 +1,4 @@
-﻿namespace TDJS_Vision.Node._3_Detection.TDAI
+namespace TDJS_Vision.Node._3_Detection.TDAI
 {
     partial class ParamFormTDAI
     {
@@ -269,7 +269,7 @@
             // 
             // comboBoxModelName
             // 
-            this.comboBoxModelName.Anchor = System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            this.comboBoxModelName.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
             this.comboBoxModelName.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxModelName.DropDownWidth = 280;
             this.comboBoxModelName.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
@@ -284,11 +284,12 @@
             "AST-工位1模型",
             "AST-工位2模型",
             "AST-工位3模型",
-            "AST工位1分割模型"});
-            this.comboBoxModelName.Location = new System.Drawing.Point(183, 331);
+            "AST工位1分割模型",
+            "新端子12类模型"});
+            this.comboBoxModelName.Location = new System.Drawing.Point(138, 331);
             this.comboBoxModelName.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxModelName.Name = "comboBoxModelName";
-            this.comboBoxModelName.Size = new System.Drawing.Size(208, 30);
+            this.comboBoxModelName.Size = new System.Drawing.Size(299, 30);
             this.comboBoxModelName.TabIndex = 10;
             // 
             // label4

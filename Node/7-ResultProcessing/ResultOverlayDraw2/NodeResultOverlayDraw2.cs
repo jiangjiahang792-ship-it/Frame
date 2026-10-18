@@ -1,4 +1,4 @@
-﻿using Logger;
+using Logger;
 using OpenCvSharp;
 using System;
 using System.Collections;
@@ -1057,6 +1057,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                 {
                     displayResult.Contours.Add(new ColorContour(contour.Points == null ? new List<PointF>() : contour.Points.ToList(), drawColor)
                     {
+                        IsClosed = contour.IsClosed,
                         LineWidth = Math.Max(1, item.LineWidth)
                     });
                 }

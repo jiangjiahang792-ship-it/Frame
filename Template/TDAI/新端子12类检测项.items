@@ -1,0 +1,245 @@
+[
+  {
+    "Name": "端子数量",
+    "MinValue": "1",
+    "MaxValue": "1",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "前铆脚露线芯长度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "前铆脚露线芯高度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "前铆脚面积",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "后铆脚露线芯长度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "后铆脚面积",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "咬胶长度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "前防水栓面积",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "前防水栓长度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "前防水栓高度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "前防水栓数量",
+    "MinValue": "1",
+    "MaxValue": "1",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "后防水栓面积",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "后防水栓长度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "后防水栓高度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "后防水栓数量",
+    "MinValue": "1",
+    "MaxValue": "1",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "线芯长度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "线芯高度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "线芯数量",
+    "MinValue": "1",
+    "MaxValue": "1",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "胶皮数量",
+    "MinValue": "1",
+    "MaxValue": "1",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "穿塞宽度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "穿塞高度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "飞丝",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "飞胶",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "防水栓破损",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "防水栓正反",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "前防水栓破损",
+    "MinValue": "0",
+    "MaxValue": "99999",
+    "Enable": false,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "后防水栓破损",
+    "MinValue": "0",
+    "MaxValue": "99999",
+    "Enable": false,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  }
+]

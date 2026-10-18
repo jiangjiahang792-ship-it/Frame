@@ -740,6 +740,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                     Enable = info.Enable,
                     IsCountItem = info.IsCountItem,
                     Compensation = info.Compensation,
+                    PlugColor = info.PlugColor?.Clone(),
                     CurValue = info.CurValue
                 });
             }

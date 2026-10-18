@@ -12,6 +12,25 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
     /// </summary>
     public class NodeParamResultOverlayDraw : INodeParam
     {
+        /// <summary>全部文本共用的坐标系，包含订阅文本、布尔文本和独立固定内容。</summary>
+        [JsonConverter(typeof(StringEnumConverter))]
+        public DisplayTextCoordinateMode TextCoordinateMode { get; set; } = DisplayTextCoordinateMode.Image;
+
+        /// <summary>是否额外显示独立的右下角固定文本，默认关闭。</summary>
+        public bool UseCornerTextBox { get; set; }
+
+        /// <summary>右下角固定输入的文本内容，与订阅绘制项无关。</summary>
+        public string CornerText { get; set; } = "0°";
+
+        /// <summary>右下角固定文本的独立字号。</summary>
+        public int CornerFontSize { get; set; } = 18;
+
+        /// <summary>右下角固定文本背景色，默认白色。</summary>
+        public int CornerBackgroundArgb { get; set; } = Color.White.ToArgb();
+
+        /// <summary>右下角固定文本文字色，默认绿色。</summary>
+        public int CornerForegroundArgb { get; set; } = Color.Green.ToArgb();
+
         /// <summary>
         /// 输入图像订阅节点文本。
         /// </summary>
@@ -25,7 +44,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// <summary>
         /// 来源结果自动判定为OK时使用的ARGB颜色值。
         /// </summary>
-        public int OkColorArgb { get; set; } = Color.Lime.ToArgb();
+        public int OkColorArgb { get; set; } = Color.Green.ToArgb();
 
         /// <summary>
         /// 来源结果自动判定为NG时使用的ARGB颜色值。
@@ -104,6 +123,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// </summary>
         public string ManualText { get; set; } = "OK";
 
+        /// <summary>布尔订阅为真（OK）时显示的自定义文本。</summary>
+        public string BooleanOkText { get; set; } = "合格";
+
+        /// <summary>布尔订阅为假（NG）时显示的自定义文本。</summary>
+        public string BooleanNgText { get; set; } = "不合格";
+
         /// <summary>
         /// 订阅文本显示前缀。
         /// </summary>
@@ -112,7 +137,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// <summary>
         /// 固定颜色ARGB，兼容旧配置。
         /// </summary>
-        public int ColorArgb { get; set; } = Color.Lime.ToArgb();
+        public int ColorArgb { get; set; } = Color.Green.ToArgb();
 
         /// <summary>
         /// 是否按源结果的判定OK状态自动选择OK/NG颜色。
@@ -122,7 +147,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// <summary>
         /// 判定OK时使用的颜色ARGB。
         /// </summary>
-        public int OkColorArgb { get; set; } = Color.Lime.ToArgb();
+        public int OkColorArgb { get; set; } = Color.Green.ToArgb();
 
         /// <summary>
         /// 判定NG时使用的颜色ARGB。
@@ -151,7 +176,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         public DisplayTextPosition TextPosition { get; set; } = DisplayTextPosition.TopLeft;
 
         /// <summary>
-        /// 文本四角定位使用的坐标系，默认按图像显示区域定位。
+        /// 旧方案文本坐标系兼容字段；运行时以节点级统一坐标系为准。
         /// </summary>
         [JsonConverter(typeof(StringEnumConverter))]
         public DisplayTextCoordinateMode TextCoordinateMode { get; set; } = DisplayTextCoordinateMode.Image;
@@ -216,6 +241,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 SourceText2 = SourceText2,
                 UseManualText = UseManualText,
                 ManualText = ManualText,
+                BooleanOkText = BooleanOkText,
+                BooleanNgText = BooleanNgText,
                 TextPrefix = TextPrefix,
                 ColorArgb = ColorArgb,
                 UseJudgeColor = UseJudgeColor,
@@ -258,6 +285,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// <summary>
         /// 按订阅值实际类型自动绘制全部ROI几何。
         /// </summary>
-        Roi
+        Roi,
+
+        /// <summary>订阅单个布尔结果，按真/假显示自定义OK/NG文本。</summary>
+        BooleanText
     }
 }

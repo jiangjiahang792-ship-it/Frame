@@ -56,6 +56,11 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         [DisplayName("检测区域")]
         public ColorRotatedRect DetectionRegion { get; set; }
 
+        /// <summary>全部位置修正后的检测区域；原单区域输出保留第一个区域以兼容旧订阅。</summary>
+        [SubscriptionOutput(SubscriptionDataCategory.Rectangle, Visibility = SubscriptionOutputVisibility.Advanced)]
+        [DisplayName("检测区域列表")]
+        public System.Collections.Generic.List<ColorRotatedRect> DetectionRegions { get; set; }
+
         /// <summary>
         /// 获取或设置二值化处理后的灰度图。
         /// </summary>

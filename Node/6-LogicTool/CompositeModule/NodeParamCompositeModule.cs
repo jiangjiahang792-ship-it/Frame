@@ -746,6 +746,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                 {
                     NodeType = node.NodeType,
                     NodeName = node.NodeName,
+                    Notes = node.Notes,
                     ID = node.ID,
                     Active = node.Active,
                     OutputLog = node.OutputLog,

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Threading;
@@ -117,7 +117,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <summary>
         /// 是否一键学习
         /// </summary>
-        public bool IsAutoStudy { get; set; }
+        public bool IsAutoStudy
+        {
+            get { return _isAutoStudy; }
+            set { if (value && !_isAutoStudy) StudyGeneration++; _isAutoStudy = value; }
+        }
+        /// <summary>学习开关状态。</summary>
+        private bool _isAutoStudy;
+        /// <summary>本进程的学习轮次，用于区分取消后重新开始的学习。</summary>
+        [JsonIgnore]
+        public int StudyGeneration { get; private set; }
         /// <summary>
         /// 学习次数
         /// </summary>
@@ -279,11 +288,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         超声波焊接侧面三类模型,
         /// <summary>AST工位1五类目标检测模型，输入尺寸为640。</summary>
         AST_工位1模型,
-        /// <summary>AST工位2七类CPU目标检测模型，输入尺寸为640。</summary>
+        /// <summary>AST工位2九类CPU目标检测模型，输入尺寸为640。</summary>
         AST_工位2模型,
         /// <summary>AST工位3三类CPU目标检测模型，输入尺寸为640。</summary>
         AST_工位3模型,
-        /// <summary>AST工位1五类实例分割模型，输入尺寸为640。</summary>
+        /// <summary>AST工位1六类实例分割模型，输入尺寸为640。</summary>
         AST工位1分割模型,
+        /// <summary>前后防水栓独立识别的新端子12类检测模型。</summary>
+        新端子12类模型,
     }
 }

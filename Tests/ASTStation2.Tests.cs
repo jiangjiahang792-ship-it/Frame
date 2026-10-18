@@ -288,7 +288,7 @@ internal static class ASTStation2Tests
             }
         }
         var template = JsonConvert.DeserializeObject<List<DetectItemInfo>>(File.ReadAllText("Template/TDAI/AST-工位2检测项.items"));
-        Check(template.Select(i => i.Name).SequenceEqual(Names), "发布模板检测项错误。");
+        Check(template.Select(i => i.Name).SequenceEqual(Names.Concat(new[] { "线芯长度", "线线宽度" })), "发布模板检测项错误。");
         Check(template.Single(i => i.Name == "飞丝").IsCountItem, "飞丝模板未设置为数量型。");
         Check((int)ModelName.超声波焊接侧面三类模型 == 5, "旧模型枚举值发生变化。");
     }
@@ -301,7 +301,7 @@ internal static class ASTStation2Tests
         var config = JsonConvert.DeserializeObject<AIInputInfo>(decoded);
         Check(config.ModelSize == 640 && config.ModelInfo.ModelType == ModelType.DET && config.ModelInfo.DeviceType == DeviceType.CPU && config.ModelInfo.IsEncrypted,
             "模型类型、尺寸或加密标志错误。");
-        Check(config.ClassNames.SequenceEqual(new[] { "terminal head", "exposed_wire_core", "insulation_glue", "shielding_mesh", "copper_ring", "rubber", "fly_line", "aluminum_foi" }),
+        Check(config.ClassNames.SequenceEqual(new[] { "terminal head", "exposed_wire_core", "insulation_glue", "shielding_mesh", "copper_ring", "rubber", "fly_line", "aluminum_foi", "line" }),
             "配置标签顺序与模型不一致。");
         Check(config.ModelName == "AST-工位2模型" && config.ModelInfo.ModelPath.EndsWith("model_encrypted.onnx"),
             "配置模型名称或文件错误。");
@@ -310,6 +310,43 @@ internal static class ASTStation2Tests
         LanguageManager.SetLanguage("zh-CN", false);
         Check(DetectItemLanguage.GetDisplayName(Names[0]) == Names[0], "切回中文后显示错误。");
     }
+    /// <summary>验证line与露线芯独立，覆盖多目标、缺失、换算、判定和学习。</summary>
+    private static void VerifyLineMeasurements()
+    {
+        var parameter = Parameter("线芯尺寸");
+        var items = Solution.Instance.DetectItemDic[parameter.CurDetectItemName];
+        items.Add(new DetectItemInfo { Name = "线芯长度", Enable = true, MinValue = "1", MaxValue = "100" });
+        items.Add(new DetectItemInfo { Name = "线线宽度", Enable = true, MinValue = "1", MaxValue = "20" });
+        var detections = Detections();
+        detections.Add(new DetResult { ClassId = 8, Box = new Rect(200, 100, 12, 65) });
+        var result = Parse(parameter, detections);
+        Check(result.DetectItemCount == 11 && result.IsOk, "新增线芯项未完整参与判定。");
+        Check(Value(result, "线芯长度") == 65 && Value(result, "线线宽度") == 12, "line尺寸或中文键归一化错误。");
+        Check(Value(result, "出线芯长度") == 27 && Value(result, "出线芯宽度") == 18, "line与露线芯类别混淆。");
+        Check(result.AlgorithmResult.Lines.Count == 50, "新增尺寸箭头缺失。");
+        parameter.NeedConvert = true; parameter.Scale = 0.1f;
+        result = Parse(parameter, detections);
+        Check(Value(result, "线芯长度") == 6.5f && Value(result, "线线宽度") == 1.2f, "line尺寸换算错误。");
+        parameter.NeedConvert = false;
+        detections.Add(new DetResult { ClassId = 8, Box = new Rect(250, 100, 25, 80) });
+        result = Parse(parameter, detections);
+        Check(result.AlgorithmResult.DetectResults["线线宽度"].Count == 2 && !result.IsOk, "多线芯明细或宽度超限判定错误。");
+        Check(result.AlgorithmResult.Rects.Single(r => r.RotatedRect.size.width == 25).Color == Color.Red, "线芯同框NG颜色错误。");
+        detections.RemoveAll(r => r.ClassId == 8);
+        result = Parse(parameter, detections);
+        Check(Value(result, "线芯长度") == 0 && Value(result, "线线宽度") == 0 && !result.IsOk, "缺少line没有清零判定。");
+        items[10].Enable = false;
+        Check(!Parse(parameter, detections).AlgorithmResult.DetectResults.ContainsKey("线线宽度"), "禁用线芯宽度仍输出。");
+        items[10].Enable = true;
+        parameter.IsAutoStudy = true; parameter.StudyNum = 1;
+        Parse(parameter, detections);
+        Check(items[9].MaxValue == "100" && items[10].MaxValue == "20", "缺失line污染学习范围。");
+        detections.Add(new DetResult { ClassId = 8, Box = new Rect(200, 100, 12, 65) });
+        parameter.IsAutoStudy = true;
+        Parse(parameter, detections);
+        Check(items[9].MinValue == "58.50" && items[10].MinValue == "10.80", "line自动学习范围错误。");
+    }
+
     /// <summary>执行离线回归。</summary>
     [STAThread]
     private static int Main()
@@ -319,7 +356,7 @@ internal static class ASTStation2Tests
             LanguageManager.SetLanguage("zh-CN", false);
             VerifyParsing(); VerifyUnsupportedItemDoesNotStopParsing(); VerifyStudy(); VerifySameNameStudyForms(); VerifyForm();
             Console.WriteLine("工位2解析、模板和窗体验证通过，共" + _checks + "项断言；继续验证模型配置。");
-            VerifyConfiguration();
+            VerifyConfiguration(); VerifyLineMeasurements();
             Console.WriteLine("AST工位2离线验证通过，共" + _checks + "项断言。"); return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }

@@ -175,6 +175,27 @@ internal static class RL12RubberTests
         Check(items[2].MinValue == "1" && items[2].MaxValue == "1", "飞胶数量学习错误。");
     }
 
+    /// <summary>旧模型缺件补零，实测合格框保持绿色，缺失项仍NG。</summary>
+    private static void VerifyMissingMeasurements()
+    {
+        var items = new List<DetectItemInfo> { Item("端子数量", "2", "2", true), Item("胶皮宽度", "1", "2") };
+        var boxes = new List<DetResult> { Box(6, 1, 5) };
+        var result = Parse(items, boxes);
+        Check(items[1].CurValue == "1.00,0", "旧模型未输出实测值及缺失零");
+        Check(Value(result, "胶皮宽度").IsOk && !result.AlgorithmResult.DetectResults["胶皮宽度"][1].IsOk && !result.IsOk, "旧模型缺件判定未分离");
+        Check(result.AlgorithmResult.Rects.Count == 1 && result.AlgorithmResult.Rects[0].Color == System.Drawing.Color.Green, "旧模型缺件把合格框染红");
+        result = Parse(items, new List<DetResult>());
+        Check(items[1].CurValue == "0,0" && result.AlgorithmResult.Rects.Count == 0, "全缺失补零错误");
+        items[1].MinValue = "0";
+        Check(!Parse(items, boxes).AlgorithmResult.DetectResults["胶皮宽度"][1].IsOk, "缺件零因尺寸范围含零而放行");
+        items[1].MaxValue = "0.5";
+        Check(Parse(items, boxes).AlgorithmResult.Rects[0].Color == System.Drawing.Color.Red, "实测超限未标红");
+        items[1].MaxValue = "2"; items[0].Enable = false;
+        Check(Parse(items, boxes).IsOk && items[1].CurValue == "1.00", "公共数量禁用仍补零");
+        items[0].Enable = true; items[0].MinValue = "1"; items[0].MaxValue = "3";
+        Check(Parse(items, boxes).IsOk && items[1].CurValue == "1.00", "按数量上限错误补零");
+    }
+
     /// <summary>执行全部行为验证并返回可供脚本判断的退出码。</summary>
     [STAThread]
     private static int Main()
@@ -182,7 +203,7 @@ internal static class RL12RubberTests
         try
         {
             LanguageManager.SetLanguage("zh-CN", false);
-            VerifyDimensions(); VerifyCounts(); VerifyComponentCounts(); VerifyConfigNames(); VerifyStudy();
+            VerifyDimensions(); VerifyCounts(); VerifyComponentCounts(); VerifyConfigNames(); VerifyStudy(); VerifyMissingMeasurements();
             Console.WriteLine("RL12胶皮、飞胶与部件数量验证通过，共" + _checks + "项断言。");
             return 0;
         }

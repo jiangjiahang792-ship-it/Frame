@@ -32,6 +32,9 @@ namespace TDJS_Vision.Forms.ImageViewer
         private Process _process;
         private int? _lastImageShowNodeId;
 
+        /// <summary>实际刷新当前窗口的图像显示节点，直接读取备注，避免每帧遍历流程节点。</summary>
+        private NodeImageShow _titleSourceNode;
+
         /// <summary>
         /// 当前窗口等待UI显示的最新帧，容量固定为1。
         /// </summary>
@@ -190,7 +193,9 @@ namespace TDJS_Vision.Forms.ImageViewer
             // 封装 UI 更新操作
             Action updateImage = () =>
             {
-                this.Text = process.ProcessName;
+                string title = ResolveImageWindowTitle(process, _titleSourceNode);
+                if (this.Text != title)
+                    this.Text = title;
             };
 
             // 跨线程安全调用
@@ -211,6 +216,17 @@ namespace TDJS_Vision.Forms.ImageViewer
             win.SetImage(mat);
             win.Show();
         }
+
+        /// <summary>窗口标题优先使用实际图像显示节点备注，未填写或默认无备注时回退流程名称。</summary>
+        private static string ResolveImageWindowTitle(Process process, NodeImageShow sourceNode)
+        {
+            string notes = sourceNode != null && ReferenceEquals(sourceNode.Process, process)
+                ? sourceNode.Notes?.Trim()
+                : null;
+            return !string.IsNullOrWhiteSpace(notes) && notes != "无备注"
+                ? notes
+                : process?.ProcessName ?? string.Empty;
+        }
         public void SetImage(Mat mat)
         {
             SetViewerImage(mat == null ? null : BitmapConverter.ToBitmap(mat));
@@ -227,6 +243,7 @@ namespace TDJS_Vision.Forms.ImageViewer
             // 同一个窗口可能被多个图像显示节点复用，这里记录真正刷新当前画面的节点。
             if (sender is NodeImageShow nodeShow)
             {
+                _titleSourceNode = nodeShow;
                 _process = nodeShow.Process;
                 _lastImageShowNodeId = nodeShow.ID;
                 _isBoundToProcess = true;
@@ -369,6 +386,8 @@ namespace TDJS_Vision.Forms.ImageViewer
                 return;
 
             frame.TransferBitmapOwnership();
+            // 每次节点新帧实际显示时恢复自适应，清除上一帧手动缩放/平移，保持完整图像居中。
+            showImageControl1.ShowFit();
             long setImageMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(uiStopwatch);
             if (frame.DiagnosticEnabled)
             {
@@ -406,6 +425,7 @@ namespace TDJS_Vision.Forms.ImageViewer
                 return;
 
             NodeImageShow.ImageShowChanged -= NodeImageShow_ImageShowChanged;
+            _titleSourceNode = null;
             NodeImageShow.ImageShowWindowNameChanged -= NodeImageShow_ImageShowWindowNameChanged1;
             SolRunParamControl.ImageShowChanged -= NodeImageShow_ImageShowChanged;
             LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
@@ -551,6 +571,7 @@ namespace TDJS_Vision.Forms.ImageViewer
 
             _process = null;
             _lastImageShowNodeId = null;
+            _titleSourceNode = null;
             _isBoundToProcess = false;
 
             if (Solution.Instance.AllProcesses == null)

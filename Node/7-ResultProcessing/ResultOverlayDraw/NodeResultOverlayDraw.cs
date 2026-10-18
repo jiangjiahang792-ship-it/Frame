@@ -1,4 +1,4 @@
-﻿using Logger;
+using Logger;
 using OpenCvSharp;
 using System;
 using System.Collections;
@@ -465,6 +465,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                             .ToList();
                     rotated.Contours.Add(new ColorContour(points, contour.Color)
                     {
+                        IsClosed = contour.IsClosed,
                         LineWidth = contour.LineWidth
                     });
                 }
@@ -526,6 +527,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             return new ColorText(source.Text, source.Color)
             {
                 FontSize = source.FontSize,
+                BackgroundColor = source.BackgroundColor,
                 Margin = source.Margin,
                 Title = source.Title,
                 CoordinateMode = source.CoordinateMode,
@@ -705,7 +707,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         {
             var displayResult = new AlgorithmResult();
             if (param.Items == null)
+            {
+                AppendCornerText(displayResult, param);
                 return displayResult;
+            }
 
             List<ResultOverlayDrawItem> enabledItems = param.Items.Where(i => i != null && i.Enabled).ToList();
             if (performanceDiagnostics != null)
@@ -717,6 +722,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 switch (item.ItemType)
                 {
                     case ResultOverlayDrawItemType.Text:
+                    case ResultOverlayDrawItemType.BooleanText:
                         AppendText(owner, displayResult, item, param);
                         if (performanceDiagnostics != null)
                         {
@@ -759,7 +765,33 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 }
             }
 
+            // 最后追加，避免订阅文本的重复提示合并逻辑影响独立固定内容。
+            AppendCornerText(displayResult, param);
+            // 不修改订阅源或保存的绘制项，统一本次生成的全部文本坐标系。
+            foreach (ColorText text in displayResult.Texts)
+            {
+                text.CoordinateMode = param.TextCoordinateMode;
+                if (param.TextCoordinateMode == DisplayTextCoordinateMode.Control)
+                    text.UseImagePosition = false;
+            }
             return displayResult;
+        }
+
+        /// <summary>额外添加节点级固定文本，不读取或修改任何订阅文本项。</summary>
+        private static void AppendCornerText(AlgorithmResult displayResult, NodeParamResultOverlayDraw param)
+        {
+            if (!param.UseCornerTextBox || string.IsNullOrWhiteSpace(param.CornerText))
+                return;
+
+            displayResult.Texts.Add(new ColorText(param.CornerText, Color.FromArgb(param.CornerForegroundArgb))
+            {
+                FontSize = Math.Max(1, param.CornerFontSize),
+                Position = DisplayTextPosition.BottomRight,
+                CoordinateMode = param.TextCoordinateMode,
+                BackgroundColor = Color.FromArgb(param.CornerBackgroundArgb),
+                Margin = 10,
+                Title = string.Empty
+            });
         }
 
         private static void AppendText(
@@ -768,6 +800,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             ResultOverlayDrawItem item,
             NodeParamResultOverlayDraw param)
         {
+            if (item.ItemType == ResultOverlayDrawItemType.BooleanText)
+            {
+                AppendBooleanText(owner, displayResult, item, param);
+                return;
+            }
             List<string> texts = new List<string>();
             bool usePrefix = false;
             object sourceValue = null;
@@ -823,6 +860,33 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     Title = string.Empty
                 }, IsMissingPromptText(displayText));
             }
+        }
+
+        /// <summary>读取明确的布尔输出，避免把整个算法结果或数值误解释为判定。</summary>
+        private static void AppendBooleanText(NodeBase owner, AlgorithmResult displayResult,
+            ResultOverlayDrawItem item, NodeParamResultOverlayDraw param)
+        {
+            object value;
+            NodeBase sourceNode;
+            if (!TryReadDrawItemValue(owner, item, out value, out sourceNode))
+            {
+                AppendMissingResultText(displayResult, item, sourceNode);
+                return;
+            }
+            if (!(value is bool))
+                throw new InvalidOperationException("布尔文本项必须订阅布尔类型的结果，请选择判定OK或条件结果。");
+
+            bool isOk = (bool)value;
+            displayResult.IsAllOk = displayResult.IsAllOk && isOk;
+            string content = isOk ? item.BooleanOkText : item.BooleanNgText;
+            AddDisplayText(displayResult, new ColorText(content, isOk ? param.OkColor : param.NgColor)
+            {
+                FontSize = Math.Max(1, item.FontSize),
+                Position = item.TextPosition,
+                CoordinateMode = item.TextCoordinateMode,
+                Margin = Math.Max(0, item.TextMargin),
+                Title = string.Empty
+            }, false);
         }
 
         /// <summary>
@@ -959,6 +1023,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 {
                     displayResult.Contours.Add(new ColorContour(contour.Points == null ? new List<PointF>() : contour.Points.ToList(), drawColor)
                     {
+                        IsClosed = contour.IsClosed,
                         LineWidth = Math.Max(1, item.LineWidth)
                     });
                 }

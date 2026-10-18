@@ -81,7 +81,7 @@ namespace TDJS_Vision.Forms.RuntimeDesigner
                     if (points != null)
                         foreach (var point in points) { CheckNumbers(point.X, point.Y); copy.Add(point); }
                     CheckNumbers(contour.LineWidth);
-                    builder.Add(new ShowImageControl.RoiContour(copy, contour.Color) { StrokeWidth = contour.LineWidth });
+                    builder.Add(new ShowImageControl.RoiContour(copy, contour.Color) { StrokeWidth = contour.LineWidth, IsClosed = contour.IsClosed });
                 }
             if (source.Texts != null)
             {

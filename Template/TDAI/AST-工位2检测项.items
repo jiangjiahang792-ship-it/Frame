@@ -70,5 +70,21 @@
     "Enable": true,
     "IsCountItem": false,
     "CurValue": "0"
+  },
+  {
+    "Name": "线芯长度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "线线宽度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
   }
 ]

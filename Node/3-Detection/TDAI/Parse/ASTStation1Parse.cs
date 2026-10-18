@@ -204,8 +204,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             bool allOk = detectResults.Values.SelectMany(list => list).All(r => r.IsOk);
             if (allOk) process.OKNumber++;
             else process.NGNumber++;
-            // AST画面只显示最终判定结果，内部OK/NG计数仍保留给流程统计使用。
-            texts.Add(new ColorText(LanguageManager.Format("Result.ProductResult", allOk ? "OK" : "NG"), allOk ? Color.Green : Color.Red));
+            // 仅输出检测项文本，整体判定由ROI布尔文本订阅显示；保留流程OK/NG统计。
             nodeResult.AlgorithmResult.Texts = texts;
 
             if (study != null && ++study.Count >= param.StudyNum)

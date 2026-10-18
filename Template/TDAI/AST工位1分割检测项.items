@@ -12,5 +12,7 @@
   { "Name": "绝缘胶宽度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
   { "Name": "胶皮高度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
   { "Name": "胶皮宽度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "飞丝", "MinValue": "0", "MaxValue": "0", "Enable": false, "IsCountItem": true, "CurValue": "0" }
+  { "Name": "飞丝", "MinValue": "0", "MaxValue": "0", "Enable": false, "IsCountItem": true, "CurValue": "0" },
+  { "Name": "铝箔长度", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0" },
+  { "Name": "铝箔宽度", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0" }
 ]

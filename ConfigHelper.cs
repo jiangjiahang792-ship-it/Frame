@@ -77,6 +77,7 @@ namespace TDJS_Vision
                         NodeConfig node = new NodeConfig();
                         node.NodeType = nodeConfig.NodeType;
                         node.NodeName = nodeConfig.NodeName;
+                        node.Notes = nodeConfig.Notes;
                         node.ID = nodeConfig.ID;
                         node.Active = nodeConfig.Active;
                         node.OutputLog = nodeConfig.OutputLog;
@@ -182,7 +183,7 @@ namespace TDJS_Vision
 
                     using (StartupAiRuntimeLoadGate.BeginTDAIDeferral())
                     {
-                        // 设备控件在主线程恢复；连接动作收集后并发执行，全部完成才恢复流程。
+                        // 设备控件在主线程恢复；并发尝试连接后恢复流程，设备离线不阻止方案打开。
                         using (var connections = new StartupDeviceConnectionBatch())
                         {
                             DeserializationCompletionEvent?.Invoke(null, flag);
@@ -584,6 +585,8 @@ namespace TDJS_Vision
         [JsonConverter(typeof(StringEnumConverter))]
         public NodeType NodeType;
         public string NodeName;
+        /// <summary>节点备注，随方案持久化；旧方案缺失时使用默认备注。</summary>
+        public string Notes = "无备注";
         public int ID;
         public bool Active;
         /// <summary>

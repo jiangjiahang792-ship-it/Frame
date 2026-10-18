@@ -710,6 +710,8 @@
     <Compile Include="Node\3-Detection\TDAI\Parse\ParseCommon.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12angondingParse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12Parse.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\NewTerminal12Parse.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\PlugColorPerimeter.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation1Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation1SegParse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\SegMaskGeometry.cs" />
@@ -2319,6 +2321,15 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Template\TDAI\AST-工位1模型配置.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\新端子12类检测项.items">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\新端子12类模型配置.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\新端子12类模型.ai">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Template\TDAI\AST-工位2检测项.items">

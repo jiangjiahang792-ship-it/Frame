@@ -1,0 +1,27 @@
+{
+  "ModelName": "新端子12类模型",
+  "ModelSize": 640,
+  "ScoreThreshold": 0.5,
+  "ScoreNMS": 0.5,
+  "ModelInfo": {
+    "ModelType": "DET",
+    "DeviceType": "CPU",
+    "IsEncrypted": false,
+    "ModelPath": "请选择实际的新端子12类模型.onnx",
+    "KeyPointNum": 0
+  },
+  "ClassNames": [
+    "out_line",
+    "front_foot",
+    "line",
+    "rubber",
+    "behind_foot",
+    "waterproof_plug_front",
+    "waterproof_plug_back",
+    "only_rubber",
+    "only_line",
+    "fly_line",
+    "fly_rubber",
+    "waterproof_plug_ng"
+  ]
+}

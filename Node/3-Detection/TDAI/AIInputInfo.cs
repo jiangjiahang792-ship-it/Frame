@@ -68,6 +68,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
     /// </summary>
     public class DetectItemInfo
     {
+        /// <summary>防水栓颜色学习参数，随检测项保存；旧项目缺省为空，不影响原检测逻辑。</summary>
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public Parse.PlugColorModel PlugColor { get; set; }
         /// <summary>
         /// 检测项名称
         /// </summary>

@@ -1,4 +1,4 @@
-﻿using Logger;
+using Logger;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using System;
@@ -316,6 +316,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageDraw
                     List<PointF> points = contourInfo.Points == null ? new List<PointF>() : new List<PointF>(contourInfo.Points);
                     target.Contours.Add(new ColorContour(points, contourInfo.Color)
                     {
+                        IsClosed = contourInfo.IsClosed,
                         LineWidth = lineWidth
                     });
                 }

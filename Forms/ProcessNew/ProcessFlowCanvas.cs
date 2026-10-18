@@ -61,7 +61,10 @@ namespace TDJS_Vision.Forms.ProcessNew
     {
         private const int GridSize = 24;
         private const int AnchorSize = 12;
-        private static readonly Size LogicalCanvasSize = new Size(3200, 2200);
+        /// <summary>
+        /// 流程编辑的逻辑范围，供滚动、节点边界和小地图统一换算；仅绘制可视区域以控制大画布刷新开销。
+        /// </summary>
+        private static readonly Size LogicalCanvasSize = new Size(6400, 4400);
         private static readonly Color CanvasBackColor = Color.FromArgb(48, 52, 56);
         private static readonly Color GridLineColor = Color.FromArgb(61, 67, 72);
         private static readonly Color GridMajorLineColor = Color.FromArgb(72, 79, 85);
@@ -2488,6 +2491,18 @@ namespace TDJS_Vision.Forms.ProcessNew
         {
             if (contour == null || contour.Points == null || contour.Points.Count == 0)
                 return;
+
+            // 有序外轮廓必须连线，简化后的顶点不能按散点显示。
+            if (contour.IsClosed && contour.Points.Count >= 2)
+            {
+                var points = contour.Points.Select(p => MapPreviewPoint(p, imageBounds, scaleX, scaleY)).ToArray();
+                using (var pen = new Pen(contour.Color, Math.Max(1F, contour.LineWidth * scale)))
+                {
+                    if (points.Length >= 3) graphics.DrawPolygon(pen, points);
+                    else graphics.DrawLines(pen, points);
+                }
+                return;
+            }
 
             int step = Math.Max(1, contour.Points.Count / 1200);
             float dotSize = Math.Max(1F, contour.LineWidth * Math.Max(0.7F, scale));

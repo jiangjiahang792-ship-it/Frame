@@ -899,10 +899,11 @@ namespace TDJS_Vision.Node
                 _frmNodeRename.ShowDialog();
         }
 
+        /// <summary>打开当前节点的备注编辑窗口，关闭后及时释放窗体资源。</summary>
         public void ShowNotesDialog()
         {
-            FormAddNotes formAddNotes = new FormAddNotes(this);
-            formAddNotes.ShowDialog();
+            using (FormAddNotes formAddNotes = new FormAddNotes(this))
+                formAddNotes.ShowDialog();
         }
     }
 

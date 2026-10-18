@@ -11,7 +11,7 @@ using TDJS_Vision.Node._3_Detection.TDAI;
 namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
 {
     /// <summary>
-    /// ROI结果绘制参数窗体，只向用户提供文本和自动ROI两种绘制项。
+    /// ROI结果绘制参数窗体，提供普通文本、布尔文本和自动ROI绘制项。
     /// </summary>
     public partial class NodeParamFormResultOverlayDraw : FormBase, INodeParamForm
     {
@@ -113,6 +113,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             panelOkColor.BackColor = param.OkColor;
             panelNgColor.BackColor = param.NgColor;
             SetRotationAngle(param.RotationAngle);
+            SetTextCoordinateMode(param.TextCoordinateMode);
+            checkBoxCornerTextBox.Checked = param.UseCornerTextBox;
+            textBoxCornerText.Text = param.CornerText ?? string.Empty;
+            numericCornerFontSize.Value = ClampNumeric(numericCornerFontSize, param.CornerFontSize);
+            panelCornerBackground.BackColor = Color.FromArgb(param.CornerBackgroundArgb);
+            panelCornerForeground.BackColor = Color.FromArgb(param.CornerForegroundArgb);
             _syncing = false;
 
             _items.Clear();
@@ -194,6 +200,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             AddItem(ResultOverlayDrawItemType.Roi);
         }
 
+        /// <summary>添加按布尔判定切换自定义文本的独立绘制项。</summary>
+        private void buttonAddBooleanText_Click(object sender, EventArgs e)
+        {
+            AddItem(ResultOverlayDrawItemType.BooleanText);
+        }
+
         /// <summary>
         /// 删除当前选中的绘制项。
         /// </summary>
@@ -208,6 +220,33 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             _items.RemoveAt(index);
             RefreshItemsGrid();
             SelectItem(Math.Min(index, _items.Count - 1));
+        }
+
+        /// <summary>将当前绘制项上移一行，改变输出文本顺序。</summary>
+        private void buttonMoveUp_Click(object sender, EventArgs e)
+        {
+            MoveCurrentItem(-1);
+        }
+
+        /// <summary>将当前绘制项下移一行，改变输出文本顺序。</summary>
+        private void buttonMoveDown_Click(object sender, EventArgs e)
+        {
+            MoveCurrentItem(1);
+        }
+
+        /// <summary>先保存当前编辑，再移动列表项并恢复选择，保存方案时保持该顺序。</summary>
+        private void MoveCurrentItem(int direction)
+        {
+            int index = _selectedItemIndex;
+            int target = index + direction;
+            if (index < 0 || target < 0 || target >= _items.Count)
+                return;
+            SaveCurrentItemFromControls();
+            ResultOverlayDrawItem item = _items[index];
+            _items.RemoveAt(index);
+            _items.Insert(target, item);
+            RefreshItemsGrid();
+            SelectItem(target);
         }
 
         /// <summary>
@@ -322,14 +361,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// <summary>
         /// 创建并添加指定用户可见类型的绘制项。
         /// </summary>
-        /// <param name="type">文本或自动ROI类型。</param>
+        /// <param name="type">普通文本、布尔文本或自动ROI类型。</param>
         private void AddItem(ResultOverlayDrawItemType type)
         {
             SaveCurrentItemFromControls();
             ResultOverlayDrawItem item = new ResultOverlayDrawItem
             {
                 ItemType = type,
-                Name = type == ResultOverlayDrawItemType.Text ? "文本" : "ROI",
+                Name = GetItemTypeText(type),
                 UseManualText = type == ResultOverlayDrawItemType.Text,
                 ManualText = type == ResultOverlayDrawItemType.Text ? "OK" : string.Empty,
                 Color = panelOkColor.BackColor,
@@ -380,6 +419,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 OkColor = panelOkColor.BackColor,
                 NgColor = panelNgColor.BackColor,
                 RotationAngle = GetRotationAngle(),
+                TextCoordinateMode = GetTextCoordinateMode(),
+                UseCornerTextBox = checkBoxCornerTextBox.Checked,
+                CornerText = textBoxCornerText.Text,
+                CornerFontSize = (int)numericCornerFontSize.Value,
+                CornerBackgroundArgb = panelCornerBackground.BackColor.ToArgb(),
+                CornerForegroundArgb = panelCornerForeground.BackColor.ToArgb(),
                 Items = _items.Select(item => item.Clone()).ToList()
             };
 
@@ -458,12 +503,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             labelCurrentTypeValue.Text = GetItemTypeText(item.ItemType);
             checkBoxManualText.Checked = item.UseManualText;
             textBoxManualText.Text = item.ManualText ?? string.Empty;
+            textBoxBooleanOk.Text = item.BooleanOkText ?? string.Empty;
+            textBoxBooleanNg.Text = item.BooleanNgText ?? string.Empty;
             textBoxTextPrefix.Text = item.TextPrefix ?? string.Empty;
             numericFontSize.Value = ClampNumeric(numericFontSize, item.FontSize);
             numericLineWidth.Value = ClampNumeric(numericLineWidth, item.LineWidth);
             numericMargin.Value = ClampNumeric(numericMargin, item.TextMargin);
             SetTextPosition(item.TextPosition);
-            SetTextCoordinateMode(item.TextCoordinateMode);
 
             if (string.IsNullOrWhiteSpace(item.SourceText1))
                 nodeSubscriptionSource.ClearText();
@@ -481,12 +527,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             labelCurrentTypeValue.Text = "未选择";
             checkBoxManualText.Checked = true;
             textBoxManualText.Text = string.Empty;
+            textBoxBooleanOk.Text = "合格";
+            textBoxBooleanNg.Text = "不合格";
             textBoxTextPrefix.Text = string.Empty;
             numericFontSize.Value = 18;
             numericLineWidth.Value = 2;
             numericMargin.Value = 10;
             SetTextPosition(DisplayTextPosition.TopLeft);
-            SetTextCoordinateMode(DisplayTextCoordinateMode.Image);
             nodeSubscriptionSource.ClearText();
         }
 
@@ -504,12 +551,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             item.SourceText2 = nodeSubscriptionSource.GetText2();
             item.UseManualText = item.ItemType == ResultOverlayDrawItemType.Text && checkBoxManualText.Checked;
             item.ManualText = textBoxManualText.Text;
+            item.BooleanOkText = textBoxBooleanOk.Text;
+            item.BooleanNgText = textBoxBooleanNg.Text;
             item.TextPrefix = textBoxTextPrefix.Text;
             item.FontSize = (int)numericFontSize.Value;
             item.LineWidth = (int)numericLineWidth.Value;
             item.TextMargin = (int)numericMargin.Value;
             item.TextPosition = GetTextPosition();
-            item.TextCoordinateMode = GetTextCoordinateMode();
             item.Name = BuildAutomaticItemName(item);
         }
 
@@ -519,7 +567,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// <param name="type">绘制项类型。</param>
         private void ApplySourceContract(ResultOverlayDrawItemType type)
         {
-            nodeSubscriptionSource.SetInputContract(type == ResultOverlayDrawItemType.Text
+            nodeSubscriptionSource.SetInputContract(type == ResultOverlayDrawItemType.BooleanText
+                ? SubscriptionInputContract.ForType(typeof(bool))
+                : type == ResultOverlayDrawItemType.Text
                 ? CreateTextInputContract()
                 : CreateRoiInputContract());
         }
@@ -530,17 +580,29 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         private void UpdateControlState()
         {
             bool hasItem = _selectedItemIndex >= 0 && _selectedItemIndex < _items.Count;
-            groupBoxItemSetting.Enabled = hasItem;
+            // 高级设置包含节点级固定文本，无绘制项时也必须可以编辑。
+            panelCommonSetting.Enabled = hasItem;
+            panelSourceSetting.Enabled = hasItem;
+            panelManualText.Enabled = hasItem;
+            panelTextPrefix.Enabled = hasItem;
+            panelTextStyle.Enabled = hasItem;
+            panelRoiStyle.Enabled = hasItem;
+            panelBooleanText.Enabled = hasItem;
+            numericMargin.Enabled = hasItem;
             buttonDeleteItem.Enabled = hasItem;
+            buttonMoveUp.Enabled = hasItem && _selectedItemIndex > 0;
+            buttonMoveDown.Enabled = hasItem && _selectedItemIndex < _items.Count - 1;
             if (!hasItem)
                 return;
 
             ResultOverlayDrawItem item = _items[_selectedItemIndex];
             bool isText = item.ItemType == ResultOverlayDrawItemType.Text;
+            bool isBooleanText = item.ItemType == ResultOverlayDrawItemType.BooleanText;
+            panelBooleanText.Visible = isBooleanText;
             panelManualText.Visible = isText;
             panelTextPrefix.Visible = isText;
-            panelTextStyle.Visible = isText;
-            panelRoiStyle.Visible = !isText;
+            panelTextStyle.Visible = isText || isBooleanText;
+            panelRoiStyle.Visible = !isText && !isBooleanText;
             checkBoxManualText.Enabled = isText;
             textBoxManualText.Enabled = isText && checkBoxManualText.Checked;
             textBoxTextPrefix.Enabled = isText && !checkBoxManualText.Checked;
@@ -567,6 +629,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             int legacyCount = _items.Count(item =>
                 item != null &&
                 item.ItemType != ResultOverlayDrawItemType.Text &&
+                item.ItemType != ResultOverlayDrawItemType.BooleanText &&
                 item.ItemType != ResultOverlayDrawItemType.Roi);
         }
 
@@ -585,9 +648,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// 获取用户可见的绘制项类型文本。
         /// </summary>
         /// <param name="type">内部绘制项类型。</param>
-        /// <returns>文本、ROI或ROI旧配置。</returns>
+        /// <returns>普通文本、布尔文本、ROI或ROI旧配置。</returns>
         private static string GetItemTypeText(ResultOverlayDrawItemType type)
         {
+            if (type == ResultOverlayDrawItemType.BooleanText)
+                return "布尔文本";
             if (type == ResultOverlayDrawItemType.Text)
                 return "文本";
             if (type == ResultOverlayDrawItemType.Roi)
@@ -616,7 +681,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// <returns>自动名称。</returns>
         private static string BuildAutomaticItemName(ResultOverlayDrawItem item)
         {
-            string typeText = item.ItemType == ResultOverlayDrawItemType.Text ? "文本" : "ROI";
+            string typeText = GetItemTypeText(item.ItemType);
             string summary = GetItemSummary(item);
             if (string.IsNullOrWhiteSpace(summary) || summary == "未选择订阅")
                 return typeText;
@@ -744,6 +809,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 if (dialog.ShowDialog() == DialogResult.OK)
                     panel.BackColor = dialog.Color;
             }
+        }
+
+        /// <summary>选择节点级固定文本的背景或文字颜色，保存节点时写入参数。</summary>
+        private void CornerColor_Click(object sender, EventArgs e)
+        {
+            ChoosePanelColor((Panel)sender);
         }
 
         /// <summary>

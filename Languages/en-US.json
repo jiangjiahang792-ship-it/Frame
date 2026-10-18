@@ -365,6 +365,9 @@
   "L1-FiLay(绝缘体长度)": "L1-FiLay (insulator length)",
   "铜环底部到屏蔽网顶部距离": "Copper ring bottom to shielding mesh top distance",
   "露线芯宽度": "Exposed wire core width",
+  "铝箔长度": "Aluminum foil length",
+  "铝箔宽度": "Aluminum foil width",
+  "线线宽度": "Wire core width",
   "出线芯宽度": "Outgoing wire core width",
   "露线芯长度": "Exposed wire core length",
   "出线芯长度": "Outgoing wire core length",
@@ -1244,5 +1247,9 @@
   "未运行": "Not run",
   "计时中": "Timing",
   "3D图像显示": "3D image display",
-  "未知节点": "Unknown node"
+  "未知节点": "Unknown node",
+  "穿塞宽度": "Seal insertion width",
+  "穿塞高度": "Seal insertion height",
+  "前防水栓破损": "Front waterproof plug damage",
+  "后防水栓破损": "Rear waterproof plug damage"
 }

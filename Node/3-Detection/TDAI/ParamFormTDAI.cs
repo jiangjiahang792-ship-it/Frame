@@ -1,4 +1,4 @@
-﻿using Logger;
+using Logger;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -375,6 +375,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 switch (comboBoxModelName.Text)
                 {
                    
+                    case "新端子12类模型":
+                        nodeParamTDAI.ModelName = ModelName.新端子12类模型;
+                        break;
                     case "RL_12类线芯模型":
                         nodeParamTDAI.ModelName = ModelName.RL_12类线芯模型;
                         break;

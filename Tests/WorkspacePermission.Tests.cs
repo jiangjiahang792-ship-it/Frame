@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -23,6 +23,7 @@ internal static class WorkspacePermissionTests
         try
         {
             Application.EnableVisualStyles();
+            VerifyManufacturerLogin();
             using (var main = new FormMain())
             using (var host = new Form { Text = "工作区权限回归", StartPosition = FormStartPosition.Manual,
                 Bounds = new Rectangle(80, 80, 1000, 700) })
@@ -41,26 +42,31 @@ internal static class WorkspacePermissionTests
                 var inner = Read<DockPanel>(viewer, "dockPanel1");
                 FrmSingleImage first = FrmImageViewer.FrmSingleImages[0];
 
-                foreach (UserRole role in new[] { UserRole.Low, UserRole.Hight, UserRole.Medium, UserRole.Hight, UserRole.Unknown, UserRole.Low })
+                foreach (UserRole role in new[] { UserRole.Low, UserRole.Manufacturer, UserRole.Hight, UserRole.Medium, UserRole.Manufacturer, UserRole.Unknown, UserRole.Low })
                 {
                     Invoke(main, "SetLockStatus", role);
-                    bool high = role == UserRole.Hight;
+                    bool layout = role == UserRole.Manufacturer;
+                    bool high = layout || role == UserRole.Hight;
                     bool save = high || role == UserRole.Low;
+                    Check(Read<ToolStripItem>(main, "视图ToolStripMenuItem").Enabled == layout, "只有厂家可操作视图布局菜单");
+                    Check(Read<ToolStripItem>(main, "运行界面设计ToolStripMenuItem").Enabled == layout, "只有厂家可编辑运行界面布局");
+                    Check(Read<ToolStripItem>(main, "画布设置ToolStripMenuItem").Enabled == layout, "只有厂家可设置画布布局");
+                    Check(UserPermissionContext.CanUseManualTuning == high, "厂家继承高级手动调参权限");
                     Check(Read<ToolStripItem>(main, "toolStripMenuItem1").Enabled == high, "AI训练主菜单权限");
                     Check(Read<ToolStripItem>(main, "tsbt_SolSave").Enabled == save, "保存按钮权限");
                     Check(Read<ToolStripItem>(main, "保存方案ToolStripMenuItem").Enabled == save, "保存菜单权限");
                     Check(Read<ToolStripItem>(main, "新建方案ToolStripMenuItem").Enabled == high, "不放开新建菜单");
                     Check(Read<ToolStripItem>(main, "另存方案ToolStripMenuItem").Enabled == high, "不放开另存菜单");
-                    Check(panel.AllowEndUserDocking == high && inner.AllowEndUserDocking == high, "两层面板拖动权限");
-                    foreach (IDockContent content in panel.Contents) CheckContent(content, high);
-                    foreach (IDockContent content in inner.Contents) CheckContent(content, high);
+                    Check(panel.AllowEndUserDocking == layout && inner.AllowEndUserDocking == layout, "两层面板拖动权限");
+                    foreach (IDockContent content in panel.Contents) CheckContent(content, layout);
+                    foreach (IDockContent content in inner.Contents) CheckContent(content, layout);
                     Invoke(main, "UpdateUI", true);
                     Check(!Read<ToolStripItem>(main, "tsbt_SolSave").Enabled, "运行中保存保护");
                     Check(!Read<ToolStripItem>(main, "toolStripMenuItem1").Enabled, "运行中训练保护");
                     Invoke(main, "UpdateUI", false);
                     Check(Read<ToolStripItem>(main, "tsbt_SolSave").Enabled == save, "停止后恢复角色保存权限");
                     Check(Read<ToolStripItem>(main, "toolStripMenuItem1").Enabled == high, "停止不越权开放训练");
-                    if (!high)
+                    if (!layout)
                     {
                         foreach (string name in new[] { "FrmImgeDlg", "FrmLoggerDlg", "FrmResultDlg", "FrmLogoDlg" })
                         {
@@ -68,6 +74,12 @@ internal static class WorkspacePermissionTests
                             content.Close();
                             Check(!content.IsHidden && !content.IsDisposed, "低权限不能关闭或隐藏：" + name);
                         }
+                        foreach (string menu in new[] { "默认视图", "检测图像视图", "检测结果视图", "运行日志视图", "公司Logo视图" })
+                            Invoke(main, menu + "ToolStripMenuItem_Click", null, EventArgs.Empty);
+                        Check(!viewer.IsHidden, "直接调用视图菜单不能绕过厂家权限");
+                    }
+                    if (!high)
+                    {
                         // 直接调用入口也必须返回，不能弹出训练窗口或加载训练依赖。
                         Invoke(main, "OpenUnsupervisedTrainForm");
                         Invoke(main, "OpenLargeModelTrainForm");
@@ -78,7 +90,7 @@ internal static class WorkspacePermissionTests
 
                 foreach (Screen screen in Screen.AllScreens)
                 {
-                    Invoke(main, "SetLockStatus", UserRole.Hight);
+                    Invoke(main, "SetLockStatus", UserRole.Manufacturer);
                     first.Show(inner, new Rectangle(screen.WorkingArea.Location + new Size(120, 100), new Size(600, 450)));
                     Application.DoEvents();
                     FloatWindow floating = first.Pane.FloatWindow;
@@ -104,13 +116,13 @@ internal static class WorkspacePermissionTests
                     {
                         late.Show(panel, DockState.Document);
                         CheckContent(late, false);
-                        Invoke(main, "SetLockStatus", UserRole.Hight);
+                        Invoke(main, "SetLockStatus", UserRole.Manufacturer);
                         CheckContent(late, true);
                         late.Close();
-                        Check(late.IsDisposed, "高级权限可以关闭窗格");
+                        Check(late.IsDisposed, "厂家权限可以关闭窗格");
                     }
                     SendWindowMessage(floating, 0x10, 0);
-                    Check(first.IsHidden, "高级权限可以通过浮窗关闭按钮隐藏图像");
+                    Check(first.IsHidden, "厂家权限可以通过浮窗关闭按钮隐藏图像");
                     first.Show(inner, DockState.Document);
                     var logger = ReadStatic<DockContent>("FrmLoggerDlg");
                     logger.Show(panel, new Rectangle(screen.WorkingArea.Location + new Size(120, 100), new Size(600, 450)));
@@ -118,9 +130,9 @@ internal static class WorkspacePermissionTests
                     Invoke(main, "SetLockStatus", UserRole.Low);
                     SendWindowMessage(logFloat, 0x10, 0);
                     Check(!logger.IsHidden && !logFloat.IsDisposed, "主面板的日志浮窗同样禁止关闭");
-                    Invoke(main, "SetLockStatus", UserRole.Hight);
+                    Invoke(main, "SetLockStatus", UserRole.Manufacturer);
                     SendWindowMessage(logFloat, 0x10, 0);
-                    Check(logger.IsHidden, "高级权限恢复日志浮窗关闭");
+                    Check(logger.IsHidden, "厂家权限恢复日志浮窗关闭");
                     logger.Show(panel, DockState.Document);
                     first.DockState = DockState.Document;
                     CheckCaptionPermissions(main, first, inner, screen);
@@ -130,7 +142,7 @@ internal static class WorkspacePermissionTests
                 host.Close();
                 Check(host.IsDisposed, "低权限不能阻止宿主退出");
             }
-            UserPermissionContext.UpdateRole(UserRole.Hight);
+            UserPermissionContext.UpdateRole(UserRole.Manufacturer);
             UserPermissionContext.UpdateRole(UserRole.Low);
             Check(true, "释放后角色切换不访问已释放窗格");
             Console.WriteLine("通过：工作区权限，" + checks + " 项断言。");
@@ -146,6 +158,24 @@ internal static class WorkspacePermissionTests
         Check(content.DockHandler.AllowEndUserDocking == allowed, "窗格拖动权限：" + content.DockHandler.Form.Text);
     }
 
+    /// <summary>通过真实登录控件验证厂家密码、默认初级选择及退出后的布局锁定。</summary>
+    private static void VerifyManufacturerLogin()
+    {
+        using (var login = new FormLogin())
+        {
+            var roles = Read<ComboBox>(login, "comboBox1");
+            Check(roles.SelectedItem.ToString() == "初级权限", "新增厂家不能改变默认初级选择");
+            roles.SelectedIndex = 0;
+            Check(roles.SelectedItem.ToString() == "厂家", "厂家选项应显示在最高位置");
+            Read<TextBox>(login, "textBoxPassword").Text = "tdjs";
+            Invoke(login, "buttonLogin_Click", null, EventArgs.Empty);
+            Check(UserPermissionContext.CurrentRole == UserRole.Manufacturer && UserPermissionContext.CanEditWorkspaceLayout,
+                "厂家正确密码应开放布局权限");
+            Invoke(login, "buttonQuit_Click", null, EventArgs.Empty);
+            Check(!UserPermissionContext.CanEditWorkspaceLayout, "退出厂家后应立即锁定布局");
+        }
+    }
+
     /// <summary>对独立测试窗口调用实际消息入口，不发送鼠标操作或生产命令。</summary>
     private static void SendWindowMessage(FloatWindow window, int message, int value)
     {
@@ -157,7 +187,7 @@ internal static class WorkspacePermissionTests
     /// <summary>验证两层面板的双击权限、角色恢复、低权限新建窗格及句柄重建。</summary>
     private static void CheckCaptionPermissions(FormMain main, DockContent content, DockPanel panel, Screen screen)
     {
-        foreach (UserRole role in new[] { UserRole.Low, UserRole.Medium, UserRole.Unknown })
+        foreach (UserRole role in new[] { UserRole.Low, UserRole.Medium, UserRole.Hight, UserRole.Unknown })
         {
             Invoke(main, "SetLockStatus", role);
             // 布局恢复通过程序接口创建浮窗，在低权限时也要自动带上双击保护。
@@ -165,23 +195,25 @@ internal static class WorkspacePermissionTests
             Application.DoEvents();
             FloatWindow floating = content.Pane.FloatWindow;
             Rectangle bounds = floating.Bounds;
+            Check(!FindCaption(content).Enabled, "非厂家不能使用标题栏的自动隐藏及关闭按钮");
             SendCaptionDoubleClick(content);
             Check(content.IsFloat && !floating.IsDisposed && floating.Bounds == bounds,
                 "低权限内部标题栏不回主屏：" + screen.DeviceName + "/" + role + "/" + content.Text);
             Invoke(FindCaption(content), "RecreateHandle");
             SendCaptionDoubleClick(content);
             Check(content.IsFloat && !floating.IsDisposed && floating.Bounds == bounds, "句柄重建后双击仍被拦截");
-            Invoke(main, "SetLockStatus", UserRole.Hight);
+            Invoke(main, "SetLockStatus", UserRole.Manufacturer);
+            Check(FindCaption(content).Enabled, "厂家应恢复标题栏布局按钮");
             SendCaptionDoubleClick(content);
-            Check(!content.IsFloat, "切回高级权限可双击恢复停靠");
+            Check(!content.IsFloat, "切回厂家权限可双击恢复停靠");
             Invoke(main, "SetLockStatus", role);
             DockPane pane = content.Pane;
             DockState state = content.DockState;
             SendCaptionDoubleClick(content);
             Check(!content.IsFloat && content.Pane == pane && content.DockState == state, "低权限停靠窗格双击也不能浮动");
-            Invoke(main, "SetLockStatus", UserRole.Hight);
+            Invoke(main, "SetLockStatus", UserRole.Manufacturer);
             SendCaptionDoubleClick(content);
-            Check(content.IsFloat, "高级权限可双击恢复浮动");
+            Check(content.IsFloat, "厂家权限可双击恢复浮动");
             content.Show(panel, DockState.Document);
         }
     }

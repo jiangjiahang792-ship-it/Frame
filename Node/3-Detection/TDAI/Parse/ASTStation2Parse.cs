@@ -11,7 +11,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 {
     /// <summary>
     /// AST工位2 DET/640结果解析，按RL12Parse的检测项提取、判定、绘制和学习结构实现。
-    /// 类别顺序：0端子头、1露线芯、2绝缘胶、3屏蔽网、4铜环、5胶皮、6飞丝、7铝箔。
+    /// 类别顺序：0端子头、1露线芯、2绝缘胶、3屏蔽网、4铜环、5胶皮、6飞丝、7铝箔、8线芯。
     /// </summary>
     public class ASTStation2Parse
     {
@@ -110,6 +110,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     // 公共归一化会将旧中文名称转为内部键，保持已有方案/订阅兼容。
                     case "DetectItem.ExposedCoreLength":
                         extractValueFunc = r => r.ClassId == 1 ? (float?)r.Box.Height : null;
+                        break;
+                    case "线芯长度":
+                    case "DetectItem.CoreLength":
+                        // line 与露线芯为不同类别，长度沿当前图像Y方向测量。
+                        extractValueFunc = r => r.ClassId == 8 ? (float?)r.Box.Height : null;
+                        break;
+                    case "线线宽度":
+                        // 保留检测项配置的中文名称，宽度沿当前图像X方向测量。
+                        isWidthMeasurement = true;
+                        extractValueFunc = r => r.ClassId == 8 ? (float?)r.Box.Width : null;
                         break;
                     case "L6_箔剥宽度":
                         isWidthMeasurement = true;
@@ -213,8 +223,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             bool allOk = detectResults.Values.SelectMany(list => list).All(r => r.IsOk);
             if (allOk) process.OKNumber++;
             else process.NGNumber++;
-            // AST画面只显示最终判定结果，内部OK/NG计数仍保留给流程统计使用。
-            texts.Add(new ColorText(LanguageManager.Format("Result.ProductResult", allOk ? "OK" : "NG"), allOk ? Color.Green : Color.Red));
+            // 仅输出检测项文本，整体判定由ROI布尔文本订阅显示；保留流程OK/NG统计。
             nodeResult.AlgorithmResult.Texts = texts;
 
             if (study != null && ++study.Count >= param.StudyNum)

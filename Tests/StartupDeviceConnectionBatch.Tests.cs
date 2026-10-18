@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
-/// <summary>验证设备恢复批次的并发执行、等待和失败传播。</summary>
+/// <summary>验证设备恢复批次的并发执行、等待和离线容错。</summary>
 internal static class StartupDeviceConnectionBatchTests
 {
     /// <summary>执行独立于真实设备的并发恢复测试。</summary>
@@ -61,12 +61,25 @@ internal static class StartupDeviceConnectionBatchTests
 
         using (IDisposable batch = (IDisposable)Activator.CreateInstance(batchType, true))
         {
-            queue.Invoke(null, new object[] { "失败设备", new Action(() =>
+            int finished = 0;
+            queue.Invoke(null, new object[] { "离线PLC", new Action(() =>
                 { throw new InvalidOperationException("连接失败"); }) });
+            queue.Invoke(null, new object[] { "离线相机", new Action(() =>
+                { throw new InvalidOperationException("相机未连接"); }) });
+            queue.Invoke(null, new object[] { "正常设备", new Action(() =>
+                { Thread.Sleep(100); Interlocked.Increment(ref finished); }) });
+            complete.Invoke(batch, null);
+            if (finished != 1)
+                throw new Exception("离线设备影响了其他设备恢复或批次未等待完成。");
+        }
+
+        // 批次释放后单独操作设备仍传播连接错误，避免把手动连接失败误报为成功。
+        {
             try
             {
-                complete.Invoke(batch, null);
-                throw new Exception("设备连接失败后批次仍然成功。");
+                queue.Invoke(null, new object[] { "手动连接", new Action(() =>
+                    { throw new InvalidOperationException("连接失败"); }) });
+                throw new Exception("手动连接失败未向调用方报告。");
             }
             catch (TargetInvocationException ex)
             {

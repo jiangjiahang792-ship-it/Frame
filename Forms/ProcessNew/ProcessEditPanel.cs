@@ -579,6 +579,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                     nodeBase.Selected = nodeInfo.Selected;
                     nodeBase.Active = nodeInfo.Active;
                     nodeBase.OutputLog = nodeInfo.OutputLog ?? true;
+                    nodeBase.SetNotes(nodeInfo.Notes ?? "无备注");
                     nodeBase.IsStartNode = nodeInfo.IsStartNode ||
                         (!processConfig.HasCanvasGraph && nodeIndex == 0);
                     if (nodeInfo.CanvasWidth > 0 && nodeInfo.CanvasHeight > 0)

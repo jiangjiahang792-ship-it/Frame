@@ -371,7 +371,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                     contour.Points == null ? new List<PointF>() : contour.Points.ToList(),
                     context.ResolveColor(contour.Color))
                 {
-                    LineWidth = lineWidth
+                    IsClosed = contour.IsClosed,
+                        LineWidth = lineWidth
                 });
                 addedCount++;
             }
@@ -520,7 +521,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                     contour.Points == null ? new List<PointF>() : contour.Points.ToList(),
                     context.ResolveColor(contour.Color))
                 {
-                    LineWidth = lineWidth
+                    IsClosed = contour.IsClosed,
+                        LineWidth = lineWidth
                 });
                 return true;
             }

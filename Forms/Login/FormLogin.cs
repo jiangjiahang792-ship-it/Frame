@@ -11,7 +11,7 @@ namespace TDJS_Vision.Forms.Login
         public FormLogin()
         {
             InitializeComponent();
-            comboBox1.SelectedIndex = 2;//默认选择“操作员”
+            comboBox1.SelectedIndex = 3;//默认选择初级权限。
         }
         /// <summary>
         /// 登录
@@ -25,18 +25,23 @@ namespace TDJS_Vision.Forms.Login
                 MessageBoxTD.Show("请输入密码！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            //高级
-            if (comboBox1.SelectedIndex == 0 && textBoxPassword.Text == "1111")
+            // 厂家拥有最高权限，额外开放窗口布局操作。
+            if (comboBox1.SelectedIndex == 0 && textBoxPassword.Text == "tdjs")
+            {
+                UserPermissionContext.UpdateRole(UserRole.Manufacturer);
+                LoginEvent?.Invoke(this, UserRole.Manufacturer);
+            }
+            else if (comboBox1.SelectedIndex == 1 && textBoxPassword.Text == "1111")
             {
                 UserPermissionContext.UpdateRole(UserRole.Hight);
                 LoginEvent?.Invoke(this, UserRole.Hight);
             }//中级
-            else if (comboBox1.SelectedIndex == 1 && textBoxPassword.Text == "888")
+            else if (comboBox1.SelectedIndex == 2 && textBoxPassword.Text == "888")
             {
                 UserPermissionContext.UpdateRole(UserRole.Medium);
                 LoginEvent?.Invoke(this, UserRole.Medium);
             }//初级
-            else if (comboBox1.SelectedIndex == 2 && textBoxPassword.Text == "666")
+            else if (comboBox1.SelectedIndex == 3 && textBoxPassword.Text == "666")
             {
                 UserPermissionContext.UpdateRole(UserRole.Low);
                 LoginEvent?.Invoke(this, UserRole.Low);
@@ -83,9 +88,15 @@ namespace TDJS_Vision.Forms.Login
     /// </summary>
     public enum UserRole
     {
-        Hight, // 最高权限
-        Medium,  // 中等权限
-        Low,  // 最低权限
-        Unknown  // 未知权限
+        /// <summary>高级权限，保留原有高级功能但不可修改布局。</summary>
+        Hight = 0,
+        /// <summary>中级权限。</summary>
+        Medium = 1,
+        /// <summary>初级权限。</summary>
+        Low = 2,
+        /// <summary>未登录或未知权限。</summary>
+        Unknown = 3,
+        /// <summary>厂家最高权限；追加枚举值以兼容原有角色数值。</summary>
+        Manufacturer = 4
     }
 }

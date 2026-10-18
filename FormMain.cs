@@ -713,10 +713,11 @@ namespace TDJS_Vision
         {
             UserPermissionContext.UpdateRole(role);
             Role = role;
-            运行界面设计ToolStripMenuItem.Enabled = role == UserRole.Hight;
+            运行界面设计ToolStripMenuItem.Enabled = UserPermissionContext.CanEditWorkspaceLayout;
             toolStrip1.Enabled = true;
             switch (role)
             {
+                case UserRole.Manufacturer:
                 case UserRole.Hight:
                     文件ToolStripMenuItem.Enabled = true;
                     设置ToolStripMenuItem.Enabled = true;
@@ -777,9 +778,13 @@ namespace TDJS_Vision
         /// <summary>统一训练与保存入口，角色切换和运行状态变化后均重新应用，避免相互覆盖。</summary>
         private void ApplyWorkspaceCommandPermissions(bool isRunning)
         {
+            bool canLayout = UserPermissionContext.CanEditWorkspaceLayout && !isRunning;
+            视图ToolStripMenuItem.Enabled = canLayout;
+            运行界面设计ToolStripMenuItem.Enabled = canLayout;
+            画布设置ToolStripMenuItem.Enabled = canLayout;
             bool canTrain = UserPermissionContext.CanTrainAi && !isRunning;
             bool canSave = UserPermissionContext.CanSaveSolution && !isRunning;
-            bool canManageFiles = Role == UserRole.Hight && !isRunning;
+            bool canManageFiles = UserPermissionContext.CanUseAdvancedFeatures && !isRunning;
             toolStripMenuItem1.Enabled = canTrain;
             toolStripMenuItem2.Enabled = canTrain;
             toolStripMenuItem3.Enabled = canTrain;
@@ -1238,6 +1243,7 @@ namespace TDJS_Vision
 
             switch (Role)
             {
+                case UserRole.Manufacturer:
                 case UserRole.Hight:
                     // 其他设置禁用/启用
                     tsbt_SolNew.Enabled = !isRun;
@@ -1369,7 +1375,7 @@ namespace TDJS_Vision
         /// <summary>通过方案列表选择文件，并复用已有加载动画及方案恢复管线。</summary>
         private void 打开方案ToolStripMenuItem_Click(object value1, object value2)
         {
-            if (Role != UserRole.Hight || runtimeRunController?.IsRunning == true || Solution.Instance.IsRunning)
+            if (!UserPermissionContext.CanUseAdvancedFeatures || runtimeRunController?.IsRunning == true || Solution.Instance.IsRunning)
                 return;
             var directories = new List<string> { Forms.SolutionBrowser.FileSolutionCatalog.DefaultDirectory };
             foreach (string path in new[] { Solution.Instance.SolFileName, Settings.Default.SolutionAddress })
@@ -1382,7 +1388,7 @@ namespace TDJS_Vision
             {
                 if (dialog.ShowDialog(this) != DialogResult.OK) return;
                 // 模态窗口有独立消息循环，确认后重新核验角色和运行状态。
-                if (Role != UserRole.Hight || runtimeRunController?.IsRunning == true || Solution.Instance.IsRunning)
+                if (!UserPermissionContext.CanUseAdvancedFeatures || runtimeRunController?.IsRunning == true || Solution.Instance.IsRunning)
                     return;
                 toolStripLabel1.Visible = true;
                 SetRunStatus(true); // 设置为正在加载方案状态
@@ -1435,15 +1441,16 @@ namespace TDJS_Vision
         /// <param name="e"></param>
         private void 画布设置ToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            if (!UserPermissionContext.CanEditWorkspaceLayout) return;
             canvasSet.ShowDialog();
         }
 
         /// <summary>打开当前方案的运行界面编辑副本。</summary>
         private void 运行界面设计ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (Role != UserRole.Hight)
+            if (!UserPermissionContext.CanEditWorkspaceLayout)
             {
-                MessageBoxTD.Show("当前用户没有权限编辑运行界面，请登录最高权限账号！");
+                MessageBoxTD.Show("当前用户没有权限编辑运行界面，请登录厂家账号！");
                 return;
             }
             if (RuntimeRunController.IsRunning)
@@ -1481,9 +1488,9 @@ namespace TDJS_Vision
         /// <summary>通过现有安全保存管线保存界面字段，保存失败时恢复原方案的界面引用。</summary>
         private bool SaveRuntimeInterfaces(IReadOnlyList<Forms.RuntimeDesigner.RuntimeInterfacePage> pages)
         {
-            if (Role != UserRole.Hight || RuntimeRunController.IsRunning)
+            if (!UserPermissionContext.CanEditWorkspaceLayout || RuntimeRunController.IsRunning)
             {
-                MessageBoxTD.Show("保存运行界面需要最高权限账号，且方案必须处于停止状态。");
+                MessageBoxTD.Show("保存运行界面需要厂家账号，且方案必须处于停止状态。");
                 return false;
             }
             var solution = Solution.Instance;
@@ -1501,7 +1508,7 @@ namespace TDJS_Vision
                 }
             }
             // 文件对话框有独立消息循环，期间可能注销、启动或切换方案，提交前重新校验。
-            if (Role != UserRole.Hight || RuntimeRunController.IsRunning ||
+            if (!UserPermissionContext.CanEditWorkspaceLayout || RuntimeRunController.IsRunning ||
                 !ReferenceEquals(solution, Solution.Instance) || !ReferenceEquals(previous, solution.RuntimeInterfaces) ||
                 !ReferenceEquals(configuration, ConfigHelper.SolConfig) || !roots.SequenceEqual(solution.AllProcesses) ||
                 !string.Equals(originalPath, solution.SolFileName, StringComparison.Ordinal))
@@ -1560,6 +1567,7 @@ namespace TDJS_Vision
 
         private void 默认视图ToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            if (!UserPermissionContext.CanEditWorkspaceLayout) return;
             CloseRuntimeInterfaceWindows();
             if(默认视图ToolStripMenuItem.Checked)
                 LoadDefaultDockPanel();
@@ -1567,6 +1575,7 @@ namespace TDJS_Vision
 
         private void 检测图像视图ToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            if (!UserPermissionContext.CanEditWorkspaceLayout) return;
             if (FrmImgeDlg.Visible)
             {
                 FrmImgeDlg.Hide(); // 如果窗口可见，隐藏它
@@ -1584,6 +1593,7 @@ namespace TDJS_Vision
 
         private void 检测结果视图ToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            if (!UserPermissionContext.CanEditWorkspaceLayout) return;
             if (FrmResultDlg.Visible)
             {
                 FrmResultDlg.Hide(); // 如果窗口可见，隐藏它
@@ -1601,6 +1611,7 @@ namespace TDJS_Vision
 
         private void 运行日志视图ToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            if (!UserPermissionContext.CanEditWorkspaceLayout) return;
             if (FrmLoggerDlg.Visible)
             {
                 FrmLoggerDlg.Hide(); // 如果窗口可见，隐藏它
@@ -1623,6 +1634,7 @@ namespace TDJS_Vision
 
         private void 公司Logo视图ToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            if (!UserPermissionContext.CanEditWorkspaceLayout) return;
             if (FrmLogoDlg.Visible)
             {
                 FrmLogoDlg.Hide(); // 如果窗口可见，隐藏它
