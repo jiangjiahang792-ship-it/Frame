@@ -400,3 +400,10 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# 本地测试产物与历史试验文件，不提交到远程仓库
+/.codex/PrivateMyComputerCoder/Test/
+/.codex-switch-backup/
+/Tests/Results/
+/outputs/Plug*/
+/outputs/Plug*.json
