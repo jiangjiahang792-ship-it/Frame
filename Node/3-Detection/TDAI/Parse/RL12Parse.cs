@@ -1,4 +1,4 @@
-﻿using Logger;
+using Logger;
 using OpenCvSharp;
 using OpenCvSharp.Dnn;
 using Sunny.UI;
@@ -269,7 +269,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                     {
                         texts.Add(new ColorText(
-                            LanguageManager.Format("{0}: {1} 设定值: [{2}, {3}]", ParseCommon.GetDisplayName(itemName), valueStr, item.MinValue, item.MaxValue),
+                            ParseCommon.GetDisplayName(itemName) + ": " + valueStr,
                             (param.IsAutoStudy ? true : isOk) ? Color.Green : Color.Red
                         ));
                     }
@@ -367,7 +367,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     {
                         // -------- 添加文本显示 --------0
                         texts.Add(new ColorText(
-                            LanguageManager.Format("{0}: {1} 设定值: [{2}, {3}]", ParseCommon.GetDisplayName(itemName), (matchedResults.Count > 0 ? valueStr : "0"), item.MinValue, item.MaxValue),
+                            LanguageManager.Format("{0}: {1} 范围值: [{2}, {3}]", ParseCommon.GetDisplayName(itemName), (matchedResults.Count > 0 ? valueStr : "0"), item.MinValue, item.MaxValue),
                             (param.IsAutoStudy ? true : allOk) ? Color.Green : Color.Red
                         ));
 
@@ -408,7 +408,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
                         {
                             texts.Add(new ColorText(
-                                LanguageManager.Format("{0}: 0 设定值: [{1}, {2}]", ParseCommon.GetDisplayName(itemName), item.MinValue, item.MaxValue),
+                                LanguageManager.Format("{0}: 0 范围值: [{1}, {2}]", ParseCommon.GetDisplayName(itemName), item.MinValue, item.MaxValue),
                                 (param.IsAutoStudy ? true : zeroIsOk) ? Color.Green : Color.Red
                             ));
                         }
@@ -431,7 +431,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     string displayValue = string.Join(",", singleResults.Select(r => r.Value));
                     string displayName = ParseCommon.GetDisplayName(itemName);
                     texts.RemoveAll(t => t.Text.StartsWith(displayName + ":"));
-                    texts.Add(new ColorText(LanguageManager.Format("{0}: {1} 设定值: [{2}, {3}]",
+                    texts.Add(new ColorText(LanguageManager.Format("{0}: {1} 范围值: [{2}, {3}]",
                         displayName, displayValue, item.MinValue, item.MaxValue), param.IsAutoStudy ? Color.Green : Color.Red));
                     ParseCommon.SetDetectItemCurValue(ref param, itemName, displayValue);
                     hasData = true;
@@ -461,17 +461,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             }
             else process.NGNumber++;
 
-            texts.Add(new ColorText(
-                   LanguageManager.Format("Result.TotalCount", process.OKNumber + process.NGNumber),
-                   Color.Green));
-
-            texts.Add(new ColorText(
-                   LanguageManager.Format("Result.OKCount", process.OKNumber),
-                   Color.Green));
-
-            texts.Add(new ColorText(
-                   LanguageManager.Format("Result.Yield", ((process.OKNumber * 1.0) / (process.OKNumber + process.NGNumber) * 100).ToString("F2")),
-                   Color.Green));
+            // 客户要求隐藏图像上的总数、良品数和良品率，保留流程内部统计。
+            // texts.Add(new ColorText(LanguageManager.Format("Result.TotalCount", process.OKNumber + process.NGNumber), Color.Green));
+            // texts.Add(new ColorText(LanguageManager.Format("Result.OKCount", process.OKNumber), Color.Green));
+            // texts.Add(new ColorText(LanguageManager.Format("Result.Yield", ((process.OKNumber * 1.0) / (process.OKNumber + process.NGNumber) * 100).ToString("F2")), Color.Green));
 
             texts.Add(new ColorText(
                    LanguageManager.Format("Result.ProductResult", allOk2 ? "OK" : "NG"),
@@ -565,7 +558,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(端子数量内部键)}:")))
             {
                 texts.Insert(0, new ColorText(
-                    LanguageManager.Format("{0}: {1} 设定值: [{2}, {3}]", ParseCommon.GetDisplayName(端子数量内部键), valueStr, item.MinValue, item.MaxValue),
+                    ParseCommon.GetDisplayName(端子数量内部键) + ": " + valueStr,
                     (isAutoStudy ? true : isOk) ? Color.Green : Color.Red
                 ));
             }

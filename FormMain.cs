@@ -1395,6 +1395,17 @@ namespace TDJS_Vision
                 try
                 {
                     solutionLoadingCoordinator.Load(this, dialog.SelectedSolutionPath, true);
+                    // 仅在加载成功后更新默认方案；系统设置每次打开时会读取此路径。
+                    // 保留用户的自动加载开关，保存失败不影响已经打开的方案。
+                    try
+                    {
+                        Settings.Default.SolutionAddress = dialog.SelectedSolutionPath;
+                        Settings.Default.Save();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.AddLog(MsgLevel.Warn, $"方案已打开，但默认方案路径保存失败：{ex.Message}", true);
+                    }
                     Forms.SolutionBrowser.FileSolutionCatalog.Default.Remember(dialog.SelectedSolutionPath);
                 }
                 catch (Exception ex)

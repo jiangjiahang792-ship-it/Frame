@@ -1251,5 +1251,20 @@
   "穿塞宽度": "Seal insertion width",
   "穿塞高度": "Seal insertion height",
   "前防水栓破损": "Front waterproof plug damage",
-  "后防水栓破损": "Rear waterproof plug damage"
+  "后防水栓破损": "Rear waterproof plug damage",
+  "轮廓相似度(%)": "Contour similarity (%)",
+  "容差轮廓相似度(%)": "Tolerance-aware contour similarity (%)",
+  "综合轮廓相似度(%)": "Combined contour similarity (%)",
+  "防水栓轮廓破损": "Whole seal contour damage",
+  "线芯直径": "Core diameter",
+  "正": "Forward",
+  "反": "Reverse",
+  "穿塞直径": "Plug insertion diameter",
+  "{0}: {1} 公差值: [{2}, {3}]": "{0}: {1} Tolerance: [{2}, {3}]",
+  "{0}: 0 公差值: [{1}, {2}]": "{0}: 0 Tolerance: [{1}, {2}]",
+  "前防水栓直径": "Front waterproof plug diameter",
+  "后防水栓直径": "Rear waterproof plug diameter",
+  "穿塞深度": "Seal insertion depth",
+  "{0}: {1} 范围值: [{2}, {3}]": "{0}: {1} Range: [{2}, {3}]",
+  "{0}: 0 范围值: [{1}, {2}]": "{0}: 0 Range: [{1}, {2}]"
 }

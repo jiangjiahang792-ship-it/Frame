@@ -22,15 +22,32 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         public int MinV { get; set; }
         /// <summary>亮度上限。</summary>
         public int MaxV { get; set; }
+        /// <summary>本轮各正常学习帧的独立轮廓模板，检测时不自动添加。</summary>
+        public List<PlugShapeTemplate> ShapeTemplates { get; set; }
+        /// <summary>差异评分允许的边缘偏差（像素），不改变原始轮廓；初始试验值需用正常品验证。</summary>
+        public int EdgeTolerancePixels { get; set; } = 3;
+        /// <summary>连续缺口容差带外面积基准（像素²），与深度、跨度共同归一化局部扣分。</summary>
+        public int LocalMissingArea { get; set; } = 100;
+        /// <summary>连续缺口深度下限（像素），必须大于边缘容差。</summary>
+        public double LocalMissingDepth { get; set; } = 6;
+        /// <summary>连续缺口外接框最大跨度下限（像素），不是轮廓总周长。</summary>
+        public int LocalMissingSpan { get; set; } = 10;
         /// <summary>生成独立副本，避免产品模板与编辑窗口共享可变参数。</summary>
-        public PlugColorModel Clone() { return (PlugColorModel)MemberwiseClone(); }
+        public PlugColorModel Clone()
+        {
+            var copy = (PlugColorModel)MemberwiseClone();
+            copy.ShapeTemplates = ShapeTemplates?.Select(t => t?.Clone()).ToList();
+            return copy;
+        }
     }
 
     /// <summary>单个独立轮廓的测量结果，坐标与模型输出一致。</summary>
     public sealed class PlugPerimeterRegion
     {
-        /// <summary>闭运算后的外轮廓；空轮廓表示该目标没有有效颜色区域。</summary>
+        /// <summary>面积过滤后的原始外轮廓，不做闭运算；空轮廓表示没有有效颜色区域。</summary>
         public Point[] Contour { get; set; } = new Point[0];
+        /// <summary>颜色连通域的实际像素面积，用于保留最大的有效区域。</summary>
+        public int PixelArea { get; set; }
         /// <summary>像素周长，不累加其它独立区域。</summary>
         public double Perimeter { get; set; }
         /// <summary>当前轮廓或缺失目标的外接框。</summary>
@@ -44,7 +61,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         List<PlugPerimeterRegion> Measure(OutputImage input, List<DetResult> boxes, ref PlugColorModel color);
     }
 
-    /// <summary>仅处理模型目标框：HSV颜色分割、面积过滤、闭运算、独立外轮廓测量。</summary>
+    /// <summary>仅处理模型目标框：HSV颜色分割、面积过滤、独立外轮廓测量，不做闭运算。</summary>
     public sealed class PlugColorPerimeter : IPlugColorPerimeter
     {
         /// <summary>面积门槛为原始像素面积，包含恰好2000的区域。</summary>
@@ -99,7 +116,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             throw new InvalidOperationException("防水栓颜色识别无法在输入图中定位完整目标框，请检查ROI偏移。");
         }
 
-        /// <summary>从首个有效学习帧的所有目标框提取主色；定步采样限制开销，随后固定颜色学习周长。</summary>
+        /// <summary>从首个有效学习帧的完整模型目标框采样主色；定步采样限制开销，后续学习帧保持颜色范围。</summary>
         private static PlugColorModel Learn(List<Mat> patches)
         {
             var pixels = new List<Vec3b>();
@@ -139,7 +156,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         /// <summary>计算环形色相距离。</summary>
         private static int HueDistance(int a, int b) { int d = Math.Abs(a - b); return Math.Min(d, 180 - d); }
 
-        /// <summary>先按连通域实际像素数去小区域，再闭运算；每个外轮廓独立计算，不累计孔洞周长。</summary>
+        /// <summary>按连通域实际像素数去小区域，直接提取外轮廓，保留边缘缺口。</summary>
         private static List<PlugPerimeterRegion> Extract(Mat hsv, PlugColorModel color, Rect offset)
         {
             if (color.Hue < 0 || color.Hue > 179 || color.HueTolerance < 0 || color.HueTolerance > 180 ||
@@ -151,7 +168,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             using (var labels = new Mat())
             using (var stats = new Mat())
             using (var centers = new Mat())
-            using (var kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new Size(3, 3)))
             {
                 int low = color.Hue - color.HueTolerance, high = color.Hue + color.HueTolerance;
                 Cv2.InRange(hsv, new Scalar(Math.Max(0, low), color.MinS, color.MinV),
@@ -166,15 +182,25 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 var keep = new bool[count];
                 for (int i = 1; i < count; i++) keep[i] = stats.At<int>(i, (int)ConnectedComponentsTypes.Area) >= MinimumArea;
                 var labelAccess = labels.GetGenericIndexer<int>();
-                var maskAccess = mask.GetGenericIndexer<byte>();
-                for (int y = 0; y < mask.Height; y++)
-                    for (int x = 0; x < mask.Width; x++) maskAccess[y, x] = keep[labelAccess[y, x]] ? (byte)255 : (byte)0;
-                Cv2.MorphologyEx(mask, mask, MorphTypes.Close, kernel);
+                FilterSmallComponents(labels, mask, keep);
                 Cv2.FindContours(mask, out Point[][] contours, out HierarchyIndex[] hierarchy,
                     RetrievalModes.External, ContourApproximationModes.ApproxSimple);
                 return contours.Select(c => new PlugPerimeterRegion { Perimeter = Cv2.ArcLength(c, true),
+                    PixelArea = stats.At<int>(labelAccess[c[0].Y, c[0].X], (int)ConnectedComponentsTypes.Area),
                     Contour = c.Select(p => new Point(p.X + offset.X, p.Y + offset.Y)).ToArray(),
                     Bounds = Move(Cv2.BoundingRect(c), offset) }).OrderBy(r => r.Bounds.Y).ThenBy(r => r.Bounds.X).ToList();
+            }
+        }
+
+        /// <summary>按行直接访问已验证的CV_32S标签和CV_8U掩膜，避免逐像素索引器的跨边界调用。</summary>
+        private static unsafe void FilterSmallComponents(Mat labels, Mat mask, bool[] keep)
+        {
+            int width = mask.Width, height = mask.Height;
+            for (int y = 0; y < height; y++)
+            {
+                int* source = (int*)labels.Ptr(y).ToPointer();
+                byte* target = (byte*)mask.Ptr(y).ToPointer();
+                for (int x = 0; x < width; x++) target[x] = keep[source[x]] ? (byte)255 : (byte)0;
             }
         }
 

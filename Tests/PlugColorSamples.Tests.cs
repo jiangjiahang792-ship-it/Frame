@@ -51,16 +51,20 @@ internal static class PlugColorSamples
                 using (var input = new OutputImage { Bitmaps = new List<Mat> { original } })
                     NewTerminal12Parse.Parse(Boxes, Boxes.Count, param, process, ref result, input);
                 File.WriteAllText(Path.Combine(directory, "learned-" + tolerance + ".items"), JsonConvert.SerializeObject(items, Formatting.Indented));
-                foreach (string name in new[] { "original.jpg", "small-notch.png", "large-tear.png", "surface-crack.png" })
+                foreach (string name in new[] { "original.jpg", "good1.jpg", "small-notch.png", "large-tear.png", "surface-crack.png" }
+                    .Where(name => File.Exists(Path.Combine(directory, name))))
                 {
                     using (var source = Cv2.ImRead(Path.Combine(directory, name)))
                     using (var image = new Mat())
                     {
                         // 生成器改变了分辨率，按原图1280×1024归一化，禁止直接比较不同像素尺度周长。
                         Cv2.Resize(source, image, new Size(1280, 1024), 0, 0, InterpolationFlags.Area);
+                        var watch = System.Diagnostics.Stopwatch.StartNew();
                         using (var input = new OutputImage { Bitmaps = new List<Mat> { image } })
                             NewTerminal12Parse.Parse(Boxes, Boxes.Count, param, process, ref result, input);
+                        watch.Stop();
                         summaries.Add(new { Image = name, OriginalWidth = source.Width, OriginalHeight = source.Height,
+                            ParseMilliseconds = watch.Elapsed.TotalMilliseconds,
                             Tolerance = tolerance, OverallOk = result.IsOk,
                             Items = items.Select(i => new { i.Name, i.MinValue, i.MaxValue, i.PlugColor,
                                 Regions = result.AlgorithmResult.DetectResults[i.Name].Select((r, index) =>

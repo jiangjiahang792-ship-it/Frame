@@ -712,6 +712,7 @@
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\NewTerminal12Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\PlugColorPerimeter.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\PlugContourSimilarity.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation1Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation1SegParse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\SegMaskGeometry.cs" />

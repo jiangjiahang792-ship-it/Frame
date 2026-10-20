@@ -25,6 +25,8 @@ namespace TDJS_Vision.Forms.DispShowImage
         private readonly object _roiLock = new object();
         private float _scale = 1f;
         private PointF _offset = PointF.Empty;
+        /// <summary>自适应状态随布局变化重新计算；手动缩放或平移后退出。</summary>
+        private bool _fitViewEnabled = true;
         private bool _isPanning = false;
         private Point _lastMouse;
 
@@ -80,6 +82,7 @@ namespace TDJS_Vision.Forms.DispShowImage
             this.BackColor = Color.FromArgb(20, 20, 20);
 
             this.MouseWheel += (s, e) => {
+                _fitViewEnabled = false;
                 _isInteracting = true; _interactionTimer.Stop(); _interactionTimer.Start();
                 float delta = e.Delta > 0 ? 1.25f : 0.8f;
                 PointF imgPt = ScreenToImage(e.Location);
@@ -340,12 +343,36 @@ namespace TDJS_Vision.Forms.DispShowImage
             {
                 lock (_imageLock)
                 {
-                    if (_image == null) return;
-                    _scale = Math.Min((float)Width / _image.Width, (float)Height / _image.Height);
-                    _offset = new PointF((Width - _image.Width * _scale) / 2f, (Height - _image.Height * _scale) / 2f);
+                    _fitViewEnabled = true;
+                    UpdateFitViewCore();
                 }
                 Invalidate();
             });
+        }
+
+        /// <summary>在持有图像锁时更新视口，布局尚未就绪时保留有效变换，等待尺寸恢复。</summary>
+        private void UpdateFitViewCore()
+        {
+            if (_image == null || ClientSize.Width <= 0 || ClientSize.Height <= 0)
+                return;
+
+            _scale = Math.Min((float)ClientSize.Width / _image.Width, (float)ClientSize.Height / _image.Height);
+            _offset = new PointF((ClientSize.Width - _image.Width * _scale) / 2f,
+                (ClientSize.Height - _image.Height * _scale) / 2f);
+        }
+
+        /// <summary>停靠、最小化恢复和布局调整后重新自适应，不改变手动查看的缩放位置。</summary>
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            // 基类构造期间也可能触发尺寸事件，此时字段尚未初始化。
+            if (_imageLock == null) return;
+            lock (_imageLock)
+            {
+                if (_fitViewEnabled)
+                    UpdateFitViewCore();
+            }
+            Invalidate();
         }
 
         public void ClearAll()
@@ -1104,6 +1131,11 @@ namespace TDJS_Vision.Forms.DispShowImage
                 {
                     if (_image != null)
                     {
+                        // 修复历史无效变换，并在绘制时使用最终布局尺寸，避免零缩放导致整帧空白。
+                        if (_fitViewEnabled || _scale <= 0 || float.IsNaN(_scale) || float.IsInfinity(_scale)
+                            || float.IsNaN(_offset.X) || float.IsInfinity(_offset.X)
+                            || float.IsNaN(_offset.Y) || float.IsInfinity(_offset.Y))
+                            UpdateFitViewCore();
                         float l = Math.Max(0, -_offset.X / _scale), t = Math.Max(0, -_offset.Y / _scale);
                         float r = Math.Min(_image.Width, (Width - _offset.X) / _scale), b = Math.Min(_image.Height, (Height - _offset.Y) / _scale);
                         RectangleF src = new RectangleF(l, t, r - l, b - t);
@@ -1111,7 +1143,8 @@ namespace TDJS_Vision.Forms.DispShowImage
                         // 加入 try-catch 防止外部线程同时锁定或释放该位图资源时引起 "对象当前正在其他地方使用" 的异常
                         try
                         {
-                            g.DrawImage(_image, new RectangleF(p1.X, p1.Y, p2.X - p1.X, p2.Y - p1.Y), src, GraphicsUnit.Pixel);
+                            if (src.Width > 0 && src.Height > 0)
+                                g.DrawImage(_image, new RectangleF(p1.X, p1.Y, p2.X - p1.X, p2.Y - p1.Y), src, GraphicsUnit.Pixel);
                         }
                         catch (InvalidOperationException)
                         {
@@ -1396,7 +1429,7 @@ namespace TDJS_Vision.Forms.DispShowImage
             }
 
             if (_activeRoi != null && e.Button == MouseButtons.Left) { _activeRoi.DragTo(imgPt, _handleIdx); OnDynamicRoiChanged(); Invalidate(); }
-            else if (_isPanning && e.Button == MouseButtons.Left) { _offset = new PointF(_offset.X + e.X - _lastMouse.X, _offset.Y + e.Y - _lastMouse.Y); _lastMouse = e.Location; Invalidate(); }
+            else if (_isPanning && e.Button == MouseButtons.Left) { _fitViewEnabled = false; _offset = new PointF(_offset.X + e.X - _lastMouse.X, _offset.Y + e.Y - _lastMouse.Y); _lastMouse = e.Location; Invalidate(); }
             else
             {
                 Cursor c = Cursors.Default;

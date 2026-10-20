@@ -72,7 +72,7 @@
     "Compensation": 0
   },
   {
-    "Name": "前防水栓长度",
+    "Name": "前防水栓直径",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -90,7 +90,7 @@
     "Compensation": 0
   },
   {
-    "Name": "前防水栓数量",
+    "Name": "防水栓数量",
     "MinValue": "1",
     "MaxValue": "1",
     "Enable": true,
@@ -108,7 +108,7 @@
     "Compensation": 0
   },
   {
-    "Name": "后防水栓长度",
+    "Name": "后防水栓直径",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -126,15 +126,6 @@
     "Compensation": 0
   },
   {
-    "Name": "后防水栓数量",
-    "MinValue": "1",
-    "MaxValue": "1",
-    "Enable": true,
-    "IsCountItem": true,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
     "Name": "线芯长度",
     "MinValue": "1",
     "MaxValue": "99999",
@@ -144,7 +135,7 @@
     "Compensation": 0
   },
   {
-    "Name": "线芯高度",
+    "Name": "线芯直径",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -171,7 +162,7 @@
     "Compensation": 0
   },
   {
-    "Name": "穿塞宽度",
+    "Name": "穿塞深度",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -180,7 +171,7 @@
     "Compensation": 0
   },
   {
-    "Name": "穿塞高度",
+    "Name": "穿塞直径",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -226,8 +217,8 @@
   },
   {
     "Name": "前防水栓破损",
-    "MinValue": "0",
-    "MaxValue": "99999",
+    "MinValue": "95",
+    "MaxValue": "100",
     "Enable": false,
     "IsCountItem": false,
     "CurValue": "0",
@@ -235,8 +226,17 @@
   },
   {
     "Name": "后防水栓破损",
-    "MinValue": "0",
-    "MaxValue": "99999",
+    "MinValue": "95",
+    "MaxValue": "100",
+    "Enable": false,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "防水栓轮廓破损",
+    "MinValue": "70",
+    "MaxValue": "100",
     "Enable": false,
     "IsCountItem": false,
     "CurValue": "0",

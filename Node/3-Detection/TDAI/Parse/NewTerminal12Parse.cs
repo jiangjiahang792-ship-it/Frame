@@ -10,14 +10,16 @@ using TDJS_Vision.Node._1_Acquisition.ImageSource;
 
 namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 {
-    /// <summary>新端子12类解析器：尺寸沿用RL12规则，前后防水栓分别测量，缺陷独立计数。</summary>
+    /// <summary>新端子12类解析器：尺寸沿用RL12规则，防水栓前后配对整体计数，缺陷独立判定。</summary>
     public static class NewTerminal12Parse
     {
         /// <summary>测量类型；方向值为反向组数，咬胶值为百分比。</summary>
-        private enum MeasureKind { Width, Height, Area, Count, Bite, Direction, TerminalCount, ColorPerimeter }
+        private enum MeasureKind { Width, Height, Area, Count, Bite, Direction, TerminalCount, ContourSimilarity, PlugCount }
 
         /// <summary>颜色测量服务；与解析和公差学习职责分离。</summary>
         private static readonly IPlugColorPerimeter ColorMeasurement = new PlugColorPerimeter();
+        /// <summary>分段轮廓相似度服务；输出百分数，不使用尺寸比例尺或补偿。</summary>
+        private static readonly IPlugContourSimilarity ContourMatcher = new PlugContourSimilarity();
 
         /// <summary>可扩展的检测项定义，集中维护类别映射及数量策略。</summary>
         private sealed class Definition
@@ -28,6 +30,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             public MeasureKind Kind;
             /// <summary>是否独立于端子公共数量校验。</summary>
             public bool Independent;
+            /// <summary>是否使用同一根线的前后框合并区域进行整栓颜色识别。</summary>
+            public bool WholePlug;
         }
 
         /// <summary>按中文名称定义、按系统兼容键查询的检测项注册表。</summary>
@@ -53,7 +57,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             public readonly Dictionary<string, List<float>> Values = new Dictionary<string, List<float>>();
         }
 
-        /// <summary>创建27项定义及2个旧名称别名；新项目使用中文键，已有项目复用系统名称兼容层。</summary>
+        /// <summary>创建检测项及旧名称别名；整栓轮廓项与模型破损数量项独立。</summary>
         private static Dictionary<string, Definition> CreateDefinitions()
         {
             var map = new Dictionary<string, Definition>();
@@ -70,23 +74,33 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             {
                 add(pair.Name + "面积", pair.Id, MeasureKind.Area, false);
                 add(pair.Name + "长度", pair.Id, MeasureKind.Width, false);
+                // 新名称继续使用原框宽测量，旧长度键保留以兼容历史方案订阅。
+                add(pair.Name + "直径", pair.Id, MeasureKind.Width, false);
                 add(pair.Name + "高度", pair.Id, MeasureKind.Height, false);
                 add(pair.Name + "数量", pair.Id, MeasureKind.Count, true);
-                add(pair.Name + "破损", pair.Id, MeasureKind.ColorPerimeter, false);
+                add(pair.Name + "破损", pair.Id, MeasureKind.ContourSimilarity, false);
             }
             add("线芯长度", 8, MeasureKind.Width, false);
             add("线芯高度", 8, MeasureKind.Height, false);
+            add("线芯直径", 8, MeasureKind.Height, false);
             add("线芯数量", 8, MeasureKind.Count, true);
             add("胶皮数量", 7, MeasureKind.Count, true);
             add("胶皮宽度", 7, MeasureKind.Width, false);
             add("胶皮高度", 7, MeasureKind.Height, false);
             // 旧键继续解析以兼容既有方案和结果订阅，新配置使用穿塞尺寸名称。
             add("穿塞宽度", 7, MeasureKind.Width, false);
+            // 穿塞深度沿用原宽度测量，旧名称继续支持历史方案订阅。
+            add("穿塞深度", 7, MeasureKind.Width, false);
+            add("穿塞直径", 7, MeasureKind.Height, false);
             add("穿塞高度", 7, MeasureKind.Height, false);
             add("飞丝", 9, MeasureKind.Count, true);
             add("飞胶", 10, MeasureKind.Count, true);
             add("防水栓破损", 11, MeasureKind.Count, true);
             add("防水栓正反", -1, MeasureKind.Direction, true);
+            add("防水栓轮廓破损", 5, MeasureKind.ContourSimilarity, false);
+            map[DetectItemLanguage.NormalizeName("防水栓轮廓破损")].WholePlug = true;
+            add("防水栓数量", 5, MeasureKind.PlugCount, true);
+            map["防水栓数量"].WholePlug = true;
             return map;
         }
 
@@ -121,7 +135,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 $"线芯8={DescribeBoxes(groups[8])} 前防水栓5={DescribeBoxes(groups[5])} " +
                 $"原胶皮7={DescribeBoxes(originalRubbers)} 保留胶皮7={DescribeBoxes(groups[7])}", true);
             var terminal = enabled.FirstOrDefault(i => Definitions[i.Name].Kind == MeasureKind.TerminalCount);
-            int requiredCount = GetRequiredTerminalCount(terminal);
+            bool useWholePlug = enabled.Any(i => Definitions[i.Name].WholePlug);
+            var wholePlugs = useWholePlug ? PairWholePlugs(groups[5], groups[6]) : new List<DetResult>();
+            bool incompletePairs = useWholePlug && (wholePlugs.Count != groups[5].Count || wholePlugs.Count != groups[6].Count);
+            var wholeQuantity = useWholePlug ? GetWholePlugQuantity(enabled, terminal) : null;
             int terminalCount = enabled.Where(i => !Definitions[i.Name].Independent)
                 .Select(i => groups[Definitions[i.Name].ClassId].Count).DefaultIfEmpty(0).Max();
             StudySession study = null;
@@ -141,19 +158,51 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             var perimeterResults = new Dictionary<string, List<PlugPerimeterRegion>>();
             try
             {
-                foreach (var item in enabled.Where(i => Definitions[i.Name].Kind == MeasureKind.ColorPerimeter))
+                foreach (var item in enabled.Where(i => Definitions[i.Name].Kind == MeasureKind.ContourSimilarity))
                 {
-                    var targets = groups[Definitions[item.Name].ClassId];
-                    if (study != null && terminal != null && !ParseCommon.IsValueWithinLimits(terminal, targets.Count))
-                        throw new InvalidOperationException(item.Name + "目标数量不符合端子数量要求，本轮学习未保存。");
+                    var definition = Definitions[item.Name];
+                    var targets = definition.WholePlug ? wholePlugs : groups[definition.ClassId];
+                    var quantity = definition.WholePlug ? wholeQuantity : FindQuantityItem(enabled, definition.ClassId, terminal);
+                    if (study != null && definition.WholePlug && (incompletePairs ||
+                        (quantity != null && !ParseCommon.IsValueWithinLimits(quantity, targets.Count))))
+                        throw new InvalidOperationException("防水栓前后框未完整配对，本轮整栓学习未保存。");
+                    int maximumColorRegions = GetMaximumColorRegions(quantity);
                     PlugColorModel color = item.PlugColor;
                     if (study != null) study.Colors.TryGetValue(item.Name, out color);
                     else if (color == null) throw new InvalidOperationException(item.Name + "尚未学习颜色，请先执行一键学习。");
+                    if (study == null && (color.ShapeTemplates == null || color.ShapeTemplates.Count == 0))
+                        throw new InvalidOperationException(item.Name + "缺少轮廓模板，旧周长配置不能直接使用，请重新一键学习。");
+                    if (study == null && (!double.TryParse(item.MinValue, out double lower) ||
+                        !double.TryParse(item.MaxValue, out double upper) || double.IsNaN(lower) || double.IsNaN(upper) ||
+                        lower < 0 || upper > 100 || lower > upper))
+                        throw new InvalidOperationException(item.Name + "现为轮廓相似度，公差必须为0～100，请重新学习或修改公差。");
+                    bool firstColorFrame = study != null && color == null;
                     var measured = ColorMeasurement.Measure(inputImage, targets, ref color);
+                    if (quantity != null)
+                    {
+                        // 前后分别汇总所有模型框内的有效颜色区域，先按实际像素面积取前N个，再恢复空间顺序。
+                        // 学习、评分和显示共用同一批区域，避免小碎片进入正常模板。
+                        measured = measured.Where(r => r.Contour.Length > 0)
+                            .OrderByDescending(r => r.PixelArea).ThenBy(r => r.Bounds.Y).ThenBy(r => r.Bounds.X)
+                            .Take(maximumColorRegions).OrderBy(r => r.Bounds.Y).ThenBy(r => r.Bounds.X).ToList();
+                    }
                     if (study != null)
                     {
+                        if (quantity != null && !ParseCommon.IsValueWithinLimits(quantity, measured.Count))
+                            throw new InvalidOperationException(item.Name + "有效颜色区域数量不符合" + quantity.Name + "要求，本轮学习未保存。");
                         if (measured.Count == 0 || measured.Any(r => r.Contour.Length == 0))
                             throw new InvalidOperationException(item.Name + "没有有效颜色区域（面积至少2000像素²），本轮学习未保存，请检查图像后重新学习。");
+                        if (firstColorFrame && item.PlugColor != null)
+                        {
+                            // 重新学习只替换颜色和正常模板，保留用户已标定的局部缺口参数。
+                            color.EdgeTolerancePixels = item.PlugColor.EdgeTolerancePixels;
+                            color.LocalMissingArea = item.PlugColor.LocalMissingArea;
+                            color.LocalMissingDepth = item.PlugColor.LocalMissingDepth;
+                            color.LocalMissingSpan = item.PlugColor.LocalMissingSpan;
+                        }
+                        // 学习模式的输入必须是人工确认的正常品；每帧独立区域均可加入，检测模式绝不扩充模板。
+                        if (color.ShapeTemplates == null) color.ShapeTemplates = ContourMatcher.Learn(measured);
+                        else ContourMatcher.AddTemplates(color.ShapeTemplates, measured);
                         study.Colors[item.Name] = color;
                     }
                     perimeterResults[item.Name] = measured;
@@ -166,21 +215,27 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             foreach (var item in enabled)
             {
                 var definition = Definitions[item.Name];
-                bool countItem = definition.Kind == MeasureKind.Count || definition.Kind == MeasureKind.Direction || definition.Kind == MeasureKind.TerminalCount;
+                bool countItem = definition.Kind == MeasureKind.Count || definition.Kind == MeasureKind.Direction ||
+                    definition.Kind == MeasureKind.TerminalCount || definition.Kind == MeasureKind.PlugCount;
+                List<bool> directions = definition.Kind == MeasureKind.Direction ? GetPlugDirections(groups[5], groups[6], groups[8]) : null;
                 item.IsCountItem = countItem;
-                var matches = definition.ClassId < 0 ? new List<DetResult>() : groups[definition.ClassId];
-                bool quantityOk = definition.Independent || terminal == null || ParseCommon.IsValueWithinLimits(terminal, matches.Count);
+                var matches = definition.WholePlug ? wholePlugs : definition.ClassId < 0 ? new List<DetResult>() : groups[definition.ClassId];
+                var quantity = definition.WholePlug ? wholeQuantity : FindQuantityItem(enabled, definition.ClassId, terminal);
+                int requiredCount = GetRequiredTerminalCount(quantity);
+                bool quantityOk = definition.Independent || quantity == null || ParseCommon.IsValueWithinLimits(quantity, matches.Count);
                 var values = new List<SingleDetectResult>();
-                if (definition.Kind == MeasureKind.ColorPerimeter)
+                if (definition.Kind == MeasureKind.ContourSimilarity)
                 {
                     foreach (var region in perimeterResults[item.Name])
                     {
                         bool valid = region.Contour.Length > 0;
-                        float value = valid ? (float)region.Perimeter : 0;
-                        if (valid && param.NeedConvert) value *= param.Scale;
-                        if (valid) value = ParseCommon.ApplyMeasurementCompensation(item, value);
+                        PlugColorModel model = study != null ? study.Colors[item.Name] : item.PlugColor;
+                        var assessment = valid ? ContourMatcher.Evaluate(region.Contour, model,
+                            study != null ? 0 : double.Parse(item.MinValue)) : null;
+                        float value = valid ? (float)assessment.Similarity : 0;
                         bool ok = valid && (param.IsAutoStudy || ParseCommon.IsValueWithinLimits(item, value));
                         values.Add(new SingleDetectResult { Name = item.Name, Value = value.ToString("F2"), IsOk = ok });
+                        // 前后防水栓仅由统一结果行显示相似度；无轮廓仍以零分NG参与判定。
                         if (valid) nodeResult.AlgorithmResult.Contours.Add(new ColorContour(
                             region.Contour.Select(p => new PointF(p.X, p.Y)).ToList(), ok ? Color.Green : Color.Red) { IsClosed = true });
                         else ParseCommon.AddRect(rectKeys, region.Bounds, false, ref nodeResult);
@@ -190,18 +245,21 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                             samples.Add(value);
                         }
                     }
-                    // 多区域不作为端子数量；缺失目标单独补零NG，不能用其它目标的碎片抵消。
-                    for (int missing = matches.Count; missing < requiredCount; missing++)
+                    // 破损项按保留的颜色区域数量补零；模型数量项仍按原有规则独立判定。
+                    for (int missing = values.Count; missing < requiredCount; missing++)
                         values.Add(new SingleDetectResult { Name = item.Name, Value = "0", IsOk = false });
                     if (values.Count == 0) values.Add(new SingleDetectResult { Name = item.Name, Value = "0", IsOk = false });
-                    if (!quantityOk && matches.Count >= requiredCount)
-                        foreach (var value in values) value.IsOk = false;
+                    // 缺失配对不能被其它整栓框中的多个颜色碎片抵消，即使分数公差放宽也必须NG。
+                    if (definition.WholePlug && (incompletePairs || matches.Count < requiredCount) && values.All(v => v.IsOk))
+                        values.Add(new SingleDetectResult { Name = item.Name, Value = "0", IsOk = false });
                 }
                 else if (countItem)
                 {
                     int count = definition.Kind == MeasureKind.TerminalCount ? terminalCount :
-                        definition.Kind == MeasureKind.Direction ? CountReversed(groups[5], groups[6], groups[8]) : matches.Count;
-                    bool ok = ParseCommon.IsValueWithinLimits(item, count);
+                        definition.Kind == MeasureKind.Direction ? directions.Count(forward => !forward) : matches.Count;
+                    // 整栓以完整配对计数，额外孤立前段或后段也不能被合格数量掩盖。
+                    bool ok = ParseCommon.IsValueWithinLimits(item, count) &&
+                        (definition.Kind != MeasureKind.PlugCount || !incompletePairs);
                     values.Add(new SingleDetectResult { Name = item.Name, Value = count.ToString(), IsOk = param.IsAutoStudy || ok });
                     if (definition.Kind == MeasureKind.Direction) matches = groups[5].Concat(groups[6]).ToList();
                     foreach (var box in matches) ParseCommon.AddRect(rectKeys, box.Box, param.IsAutoStudy || ok, ref nodeResult);
@@ -234,15 +292,22 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         IsOk = param.IsAutoStudy || (quantityOk && ParseCommon.IsValueWithinLimits(item, 0)) });
                 }
                 nodeResult.AlgorithmResult.DetectResults[item.Name] = values;
-                item.CurValue = string.Join(",", values.Select(v => v.Value));
-                texts.Add(new ColorText(LanguageManager.Format("{0}: {1} 设定值: [{2}, {3}]",
-                    GetMeasurementDisplayName(item.Name), item.CurValue, item.MinValue, item.MaxValue), values.All(v => v.IsOk) ? Color.Green : Color.Red));
+                // 正反逐只显示，通信结果继续保留反向数量和原公差判定，避免破坏PLC数值订阅。
+                item.CurValue = directions == null ? string.Join(",", values.Select(v => v.Value)) :
+                    string.Join(",", directions.Select(forward => LanguageManager.T(forward ? "正" : "反")));
+                string displayName = GetMeasurementDisplayName(item.Name);
+                // 数量项和正反项仅显示当前结果，范围仍用于原有判定。
+                string displayText = !countItem
+                    ? LanguageManager.Format("{0}: {1} 范围值: [{2}, {3}]", displayName, item.CurValue, item.MinValue, item.MaxValue)
+                    : displayName + ": " + item.CurValue;
+                texts.Add(new ColorText(displayText, values.All(v => v.IsOk) ? Color.Green : Color.Red));
             }
             bool allOk = nodeResult.AlgorithmResult.DetectResults.Values.SelectMany(v => v).All(v => v.IsOk);
             if (allOk) process.OKNumber++; else process.NGNumber++;
-            texts.Add(new ColorText(LanguageManager.Format("Result.TotalCount", process.OKNumber + process.NGNumber), Color.Green));
-            texts.Add(new ColorText(LanguageManager.Format("Result.OKCount", process.OKNumber), Color.Green));
-            texts.Add(new ColorText(LanguageManager.Format("Result.Yield", (100.0 * process.OKNumber / (process.OKNumber + process.NGNumber)).ToString("F2")), Color.Green));
+            // 客户要求隐藏图像上的生产统计；流程累计计数继续保留。
+            // texts.Add(new ColorText(LanguageManager.Format("Result.TotalCount", process.OKNumber + process.NGNumber), Color.Green));
+            // texts.Add(new ColorText(LanguageManager.Format("Result.OKCount", process.OKNumber), Color.Green));
+            // texts.Add(new ColorText(LanguageManager.Format("Result.Yield", (100.0 * process.OKNumber / (process.OKNumber + process.NGNumber)).ToString("F2")), Color.Green));
             texts.Add(new ColorText(LanguageManager.Format("Result.ProductResult", allOk ? "OK" : "NG"), allOk ? Color.Green : Color.Red));
             if (study != null && ++study.Count >= param.StudyNum)
             {
@@ -250,7 +315,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 {
                     ParseCommon.SetDetectItemMinMax(items, study.Values, param.StudyPercentage);
                     foreach (var item in enabled)
-                        if (study.Colors.TryGetValue(item.Name, out var learnedColor)) item.PlugColor = learnedColor.Clone();
+                        if (study.Colors.TryGetValue(item.Name, out var learnedColor))
+                        {
+                            item.PlugColor = learnedColor.Clone();
+                            // 相似度上限恒为100%，学习浮动不能产生大于100的尺寸公差。
+                            item.MaxValue = "100.00";
+                            item.MinValue = Math.Max(0, double.Parse(item.MinValue)).ToString("F2");
+                        }
                     param.IsAutoStudy = false;
                     ParseCommon.CloseAutoStudyEvent?.Invoke(param, param.NodeName);
                 }
@@ -261,9 +332,88 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         /// <summary>旧配置保留原订阅键，但新模型的算法文字统一显示穿塞尺寸名称。</summary>
         private static string GetMeasurementDisplayName(string name)
         {
-            if (name == "胶皮宽度") name = "穿塞宽度";
-            else if (name == "胶皮高度") name = "穿塞高度";
+            if (name == "前防水栓长度") name = "前防水栓直径";
+            else if (name == "后防水栓长度") name = "后防水栓直径";
+            if (name == "前防水栓破损" || name == "后防水栓破损" || name == "防水栓轮廓破损")
+                return ParseCommon.GetDisplayName(name) + " " + ParseCommon.GetDisplayName("综合轮廓相似度(%)");
+            if (name == "胶皮宽度" || name == "穿塞宽度") name = "穿塞深度";
+            else if (name == "胶皮高度" || name == "穿塞高度") name = "穿塞直径";
+            else if (name == DetectItemLanguage.NormalizeName("线芯高度")) name = "线芯直径";
             return ParseCommon.GetDisplayName(name);
+        }
+
+        /// <summary>优先使用整体防水栓数量；旧配置兼容前后数量交集，限制颜色区域数量。</summary>
+        private static DetectItemInfo GetWholePlugQuantity(List<DetectItemInfo> enabled, DetectItemInfo legacyTerminal)
+        {
+            var whole = enabled.FirstOrDefault(i => Definitions[i.Name].Kind == MeasureKind.PlugCount);
+            if (whole != null) return whole;
+            var front = FindQuantityItem(enabled, 5, legacyTerminal);
+            var back = FindQuantityItem(enabled, 6, legacyTerminal);
+            if (front == null) return back;
+            if (back == null) return front;
+            int minimum = Math.Max(GetRequiredTerminalCount(front), GetRequiredTerminalCount(back));
+            int maximum = Math.Min(GetMaximumColorRegions(front), GetMaximumColorRegions(back));
+            if (minimum > maximum) throw new InvalidOperationException("整栓检测要求前后防水栓数量范围有交集，请检查数量设置。");
+            return new DetectItemInfo { Name = "整栓配对数量", MinValue = minimum.ToString(), MaxValue = maximum.ToString() };
+        }
+
+        /// <summary>将同一行或同一列的前后框一对一配对，返回覆盖两框的最小轴对齐矩形；不旋转或拉伸图像。</summary>
+        private static List<DetResult> PairWholePlugs(List<DetResult> fronts, List<DetResult> backs)
+        {
+            var result = new List<DetResult>();
+            if (fronts.Count == 0 || backs.Count == 0) return result;
+            var a = OrderBoxes(fronts);
+            var b = OrderBoxes(backs);
+            int size = Math.Max(a.Count, b.Count);
+            var costs = new double[size, size];
+            double maximumDistance = a.Max(x => b.Max(y => Distance(x, y)));
+            double penalty = (maximumDistance + 1) * (size + 1);
+            for (int i = 0; i < size; i++)
+                for (int j = 0; j < size; j++)
+                {
+                    bool valid = false;
+                    if (i < a.Count && j < b.Count)
+                    {
+                        double dx = Math.Abs(a[i].X + a[i].Width * .5 - b[j].X - b[j].Width * .5);
+                        double dy = Math.Abs(a[i].Y + a[i].Height * .5 - b[j].Y - b[j].Height * .5);
+                        valid = dx >= dy
+                            ? Math.Max(a[i].Top, b[j].Top) < Math.Min(a[i].Bottom, b[j].Bottom)
+                            : Math.Max(a[i].Left, b[j].Left) < Math.Min(a[i].Right, b[j].Right);
+                    }
+                    costs[i, j] = valid ? Distance(a[i], b[j]) : penalty;
+                }
+            int[] matches = FindMinimumCostAssignment(costs);
+            for (int i = 0; i < a.Count; i++)
+            {
+                int j = matches[i];
+                if (j >= b.Count || costs[i, j] >= penalty) continue;
+                int left = Math.Min(a[i].Left, b[j].Left), top = Math.Min(a[i].Top, b[j].Top);
+                result.Add(new DetResult { ClassId = 5, Box = new Rect(left, top,
+                    Math.Max(a[i].Right, b[j].Right) - left, Math.Max(a[i].Bottom, b[j].Bottom) - top) });
+            }
+            return result.OrderBy(r => r.Box.Y).ThenBy(r => r.Box.X).ToList();
+        }
+
+        /// <summary>优先使用同类部件数量项，旧方案没有独立数量项时兼容公共端子数量。</summary>
+        private static DetectItemInfo FindQuantityItem(List<DetectItemInfo> enabled, int classId, DetectItemInfo legacyTerminal)
+        {
+            if (classId == 5 || classId == 6)
+            {
+                var whole = enabled.FirstOrDefault(i => Definitions[i.Name].Kind == MeasureKind.PlugCount);
+                if (whole != null) return whole;
+            }
+            return enabled.FirstOrDefault(i => Definitions[i.Name].Kind == MeasureKind.Count &&
+                Definitions[i.Name].ClassId == classId) ?? legacyTerminal;
+        }
+
+        /// <summary>对应数量项上限作为颜色区域保留上限；未启用时保留全部，不修改模型数量项。</summary>
+        private static int GetMaximumColorRegions(DetectItemInfo terminal)
+        {
+            if (terminal == null) return 0;
+            if (!double.TryParse(terminal.MaxValue, out double maximum) || double.IsNaN(maximum) ||
+                double.IsInfinity(maximum) || maximum < 0 || maximum > 10000)
+                throw new InvalidOperationException(terminal.Name + "上限必须是0～10000范围内的有效数值。");
+            return (int)Math.Floor(maximum);
         }
 
         /// <summary>公共数量下限向上取整为最低检出数量；未启用或无正下限时不补零。</summary>
@@ -271,7 +421,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         {
             if (terminal == null || !double.TryParse(terminal.MinValue, out double minimum) || minimum <= 0) return 0;
             if (double.IsNaN(minimum) || double.IsInfinity(minimum) || minimum > 10000)
-                throw new InvalidOperationException("端子数量下限必须是0～10000范围内的有效数值。");
+                throw new InvalidOperationException(terminal.Name + "下限必须是0～10000范围内的有效数值。");
             return (int)Math.Ceiling(minimum);
         }
 
@@ -441,19 +591,19 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             return x * x + y * y;
         }
 
-        /// <summary>横向输入以线芯所在侧为前方；各部件一对一匹配，缺框或方向不明确按反计数。</summary>
-        private static int CountReversed(List<DetResult> fronts, List<DetResult> backs, List<DetResult> cores)
+        /// <summary>横向输入以线芯所在侧为前方；按从上到下、从左到右输出逐只方向，缺框或方向不明确按反处理。</summary>
+        private static List<bool> GetPlugDirections(List<DetResult> fronts, List<DetResult> backs, List<DetResult> cores)
         {
-            if (fronts.Count == 0 && backs.Count == 0) return 1;
-            if (fronts.Count == 0 || backs.Count == 0) return Math.Max(fronts.Count, backs.Count);
+            if (fronts.Count == 0 && backs.Count == 0) return new List<bool> { false };
             var frontBoxes = OrderBoxes(fronts);
             var backBoxes = OrderBoxes(backs);
             int[] backMatches = MatchHorizontalBoxes(frontBoxes, backBoxes);
             var pairs = new List<(Rect Front, Rect Back)>();
             var pairBoxes = new List<Rect>();
+            var states = new List<(Rect Bounds, bool Forward)>();
             for (int i = 0; i < frontBoxes.Count; i++)
             {
-                if (backMatches[i] < 0) continue;
+                if (backMatches[i] < 0) { states.Add((frontBoxes[i], false)); continue; }
                 Rect front = frontBoxes[i];
                 Rect back = backBoxes[backMatches[i]];
                 pairs.Add((front, back));
@@ -463,12 +613,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 int left = Math.Min(front.Left, back.Left);
                 pairBoxes.Add(new Rect(left, top, Math.Max(front.Right, back.Right) - left, bottom - top));
             }
-            int reversed = fronts.Count + backs.Count - 2 * pairs.Count;
+            var matchedBacks = new HashSet<int>(backMatches.Where(index => index >= 0));
+            for (int i = 0; i < backBoxes.Count; i++)
+                if (!matchedBacks.Contains(i)) states.Add((backBoxes[i], false));
             var coreBoxes = OrderBoxes(cores);
             int[] coreMatches = MatchHorizontalBoxes(pairBoxes, coreBoxes);
             for (int i = 0; i < pairs.Count; i++)
             {
-                if (coreMatches[i] < 0) { reversed++; continue; }
+                if (coreMatches[i] < 0) { states.Add((pairBoxes[i], false)); continue; }
                 double frontX = pairs[i].Front.X + pairs[i].Front.Width * 0.5;
                 double backX = pairs[i].Back.X + pairs[i].Back.Width * 0.5;
                 Rect core = coreBoxes[coreMatches[i]];
@@ -476,9 +628,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 // 用部件中心确定顺序，避免框宽差异让右边缘比较颠倒；线芯必须在前后部件的同一外侧。
                 bool forward = (coreX > Math.Max(frontX, backX) && frontX > backX)
                     || (coreX < Math.Min(frontX, backX) && frontX < backX);
-                if (!forward) reversed++;
+                states.Add((pairBoxes[i], forward));
             }
-            return reversed;
+            return states.OrderBy(state => state.Bounds.Y).ThenBy(state => state.Bounds.X)
+                .Select(state => state.Forward).ToList();
         }
 
         /// <summary>稳定排列参考框，使输入检测列表顺序不影响距离相同的配对。</summary>
