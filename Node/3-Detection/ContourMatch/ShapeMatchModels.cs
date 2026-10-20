@@ -95,6 +95,12 @@ public sealed class ShapeMatchResult
     public string TemplateId { get; set; }
     /// <summary>产生本结果的模板名称。</summary>
     public string TemplateName { get; set; }
+    /// <summary>当前模板建模内容的稳定摘要。</summary>
+    internal string TemplateRevision { get; set; }
+    /// <summary>模板尺寸是否可唯一识别旧方案中的基准。</summary>
+    internal bool UniqueTemplateSize { get; set; }
+    /// <summary>同一目标的候选模板，用于在创建基准时记录不同中心间的关系。</summary>
+    internal List<ShapeMatchResult> ReferenceMatches { get; set; }
     /// <summary>该目标对应的局部模板轮廓，运行缓存所有，不跨方案序列化。</summary>
     internal IReadOnlyList<PointF[]> ModelContours { get; set; }
 

@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Linq;
+
 namespace TDJS_Vision.Node._3_Detection.MatchTemplate
 {
     /// <summary>
@@ -18,6 +21,18 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
         /// 获取或设置从一开始的目标序号。
         /// </summary>
         public int TargetIndex { get; set; }
+
+        /// <summary>产生位姿的模板身份；旧方案及旧模板节点为空。</summary>
+        public string TemplateId { get; set; }
+
+        /// <summary>建模内容版本，重新建模或擦除特征后旧基准不再适用。</summary>
+        public string TemplateRevision { get; set; }
+
+        /// <summary>该模板尺寸在当前模板集合中唯一，仅用于旧基准兼容识别。</summary>
+        public bool UniqueTemplateSize { get; set; }
+
+        /// <summary>同一帧同一目标的其他模板位姿，创建基准时一并保存；子项不再嵌套。</summary>
+        public List<TemplateMatchPose> ReferencePoses { get; set; }
 
         /// <summary>
         /// 获取或设置目标中心的 X 坐标。
@@ -73,6 +88,10 @@ namespace TDJS_Vision.Node._3_Detection.MatchTemplate
             return new TemplateMatchPose
             {
                 TargetIndex = TargetIndex,
+                TemplateId = TemplateId,
+                TemplateRevision = TemplateRevision,
+                UniqueTemplateSize = UniqueTemplateSize,
+                ReferencePoses = ReferencePoses?.Select(pose => pose.Clone()).ToList(),
                 CenterX = CenterX,
                 CenterY = CenterY,
                 Angle = Angle,

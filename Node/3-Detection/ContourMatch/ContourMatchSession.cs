@@ -4,6 +4,9 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Threading;
+using System.Security.Cryptography;
+using System.Text;
+using Newtonsoft.Json;
 using OpenCvSharp;
 
 namespace TDJS_Vision.Node._3_Detection.ContourMatch
@@ -52,6 +55,8 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
                             match.CenterX += bounds.X; match.CenterY += bounds.Y;
                             if (polygon != null && Cv2.PointPolygonTest(polygon, new Point2f((float)match.CenterX, (float)match.CenterY), false) < 0) continue;
                             match.TemplateId = model.Id; match.TemplateName = model.Name; match.ModelContours = model.Contours;
+                            match.TemplateRevision = model.Revision;
+                            match.UniqueTemplateSize = model.UniqueSize;
                             candidates.Add(match);
                         }
                     }
@@ -64,6 +69,13 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
                     if (accepted.Count >= parameters.FindOptions.MaximumMatches) break;
                 }
                 timer.Stop(); token.ThrowIfCancellationRequested();
+                // 保留被多模板去重隐藏的同目标位姿，不能把不同模板中心当成相同锚点。
+                foreach (var match in accepted)
+                    match.ReferenceMatches = candidates
+                        .Where(other => other.TemplateId != match.TemplateId && Overlap(match, other) > 0.5)
+                        .GroupBy(other => other.TemplateId)
+                        .Where(group => group.Count() == 1)
+                        .Select(group => group.Single()).ToList();
                 return new ContourMatchExecution { Matches = accepted, Milliseconds = timer.Elapsed.TotalMilliseconds };
             }
         }
@@ -81,7 +93,17 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
                 {
                     token.ThrowIfCancellationRequested();
                     var matcher = Restore(entry.Model, _factory);
-                    try { pending.Add(new CachedTemplate { Id = entry.Id, Name = entry.Name, Matcher = matcher, Contours = matcher.GetModelContours() }); }
+                    try
+                    {
+                        string revision;
+                        // 仅在模型恢复时计算，运行逐帧不序列化图片或计算摘要。
+                        using (var hash = SHA256.Create())
+                            revision = Convert.ToBase64String(hash.ComputeHash(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(entry.Model))));
+                        pending.Add(new CachedTemplate { Id = entry.Id, Name = entry.Name, Matcher = matcher,
+                            Revision = revision, UniqueSize = parameters.GetTemplates().Count(other =>
+                                other.Model?.ModelRoi.Size == entry.Model.ModelRoi.Size) == 1,
+                            Contours = matcher.GetModelContours() });
+                    }
                     catch { matcher.Dispose(); throw; }
                 }
                 token.ThrowIfCancellationRequested();
@@ -103,8 +125,8 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
         /// <summary>与Demo一致，以旋转框交集除以较小框面积判断重复目标。</summary>
         private static double Overlap(ShapeMatchResult first, ShapeMatchResult second)
         {
-            var a = new RotatedRect(new Point2f((float)first.CenterX, (float)first.CenterY), new Size2f((float)first.Width, (float)first.Height), (float)-first.AngleDegrees);
-            var b = new RotatedRect(new Point2f((float)second.CenterX, (float)second.CenterY), new Size2f((float)second.Width, (float)second.Height), (float)-second.AngleDegrees);
+            var a = new RotatedRect(new Point2f((float)first.CenterX, (float)first.CenterY), new Size2f((float)first.Width, (float)first.Height), (float)first.AngleDegrees);
+            var b = new RotatedRect(new Point2f((float)second.CenterX, (float)second.CenterY), new Size2f((float)second.Width, (float)second.Height), (float)second.AngleDegrees);
             Point2f[] intersection;
             double area = Cv2.IntersectConvexConvex(a.Points(), b.Points(), out intersection, true);
             return area / Math.Max(1, Math.Min(first.Width * first.Height, second.Width * second.Height));
@@ -139,6 +161,10 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             internal string Id;
             /// <summary>结果显示名称。</summary>
             internal string Name;
+            /// <summary>建模内容版本。</summary>
+            internal string Revision;
+            /// <summary>模板尺寸在完整集合中唯一。</summary>
+            internal bool UniqueSize;
             /// <summary>独占的原生实例。</summary>
             internal IShapeMatcher Matcher;
             /// <summary>绘制所需的局部轮廓。</summary>

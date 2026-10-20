@@ -70,6 +70,15 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             throw new InvalidOperationException("订阅图像为空，请先运行上游图像节点。");
         }
 
+        /// <summary>复制单个模板位姿及身份，不把候选对象图传入可序列化结果。</summary>
+        private static TemplateMatchPose CreatePose(ShapeMatchResult match, int targetIndex)
+        {
+            return new TemplateMatchPose { TargetIndex = targetIndex, TemplateId = match.TemplateId,
+                TemplateRevision = match.TemplateRevision, UniqueTemplateSize = match.UniqueTemplateSize,
+                CenterX = match.CenterX, CenterY = match.CenterY, Angle = match.AngleDegrees,
+                ScaleX = 1, ScaleY = 1, Score = match.Score, Width = match.Width, Height = match.Height, IsValid = true };
+        }
+
         /// <summary>输出Demo原始0～1得分及顺时针角度，并提供兼容位置修正的位姿列表。</summary>
         internal static NodeResultContourMatch BuildResult(ContourMatchExecution execution, OutputImage owner, Mat source)
         {
@@ -87,8 +96,11 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
                     ShapeMatchResult match = execution.Matches[index];
                     result.TemplateNames.Add(match.TemplateName ?? "模板1");
                     result.TemplateIds.Add(match.TemplateId ?? "legacy-1");
-                    result.Poses.Add(new TemplateMatchPose { TargetIndex = index + 1, CenterX = match.CenterX, CenterY = match.CenterY,
-                        Angle = match.AngleDegrees, ScaleX = 1, ScaleY = 1, Score = match.Score, Width = match.Width, Height = match.Height, IsValid = true });
+                    var pose = CreatePose(match, index + 1);
+                    pose.ReferencePoses = new List<TemplateMatchPose>();
+                    foreach (var reference in match.ReferenceMatches ?? new List<ShapeMatchResult>())
+                        pose.ReferencePoses.Add(CreatePose(reference, index + 1));
+                    result.Poses.Add(pose);
                     result.Result.Rects.Add(new ColorRotatedRect((float)match.CenterX, (float)match.CenterY, (float)match.Width, (float)match.Height, (float)match.AngleDegrees, Color.LimeGreen));
                     result.Result.Texts.Add(new ColorText($"目标{index + 1}：X={match.CenterX:F3}，Y={match.CenterY:F3}，角度={match.AngleDegrees:F3}°，得分={match.Score:F4}", Color.LimeGreen));
                     double radians = match.AngleDegrees * Math.PI / 180;

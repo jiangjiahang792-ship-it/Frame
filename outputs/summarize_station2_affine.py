@@ -2,10 +2,12 @@
 import csv
 import json
 import math
+import sys
 from pathlib import Path
 
 root = Path("outputs/station2-angle-audit")
-rows = [json.loads(line) for line in (root / "affine.jsonl").read_text(encoding="utf-8").splitlines()]
+input_name = sys.argv[1] if len(sys.argv) > 1 else "affine"
+rows = [json.loads(line) for line in (root / (input_name + ".jsonl")).read_text(encoding="utf-8").splitlines()]
 plan = json.loads(Path("D:/项目/AST-Fakra/软件数据/离线测试/ProjConfigs/Sol/9_21号方案_组合模块版_默认发OK.Sol").read_text(encoding="utf-8-sig"))
 flow = next(x for x in plan["ProcessInfos"] if x["ProcessName"] == "工位2主流程")
 module = next(x for x in flow["NodeInfos"] if x["NodeType"] == "CompositeModule" and x["Active"])
@@ -47,7 +49,7 @@ for index, row in enumerate(rows):
             records.append([index, Path(row["file"]).name, row["knownAngle"], row["dx"], row["dy"],
                             match, row[match]["TemplateNames"][0], center_error, angle_error,
                             node, max(errors), row[node].get("IsOk"), row[node].get("EdgePointCount")])
-with (root / "仿射定位核验.csv").open("w", encoding="utf-8-sig", newline="") as stream:
+with (root / (input_name + "-端点核验.csv")).open("w", encoding="utf-8-sig", newline="") as stream:
     writer = csv.writer(stream)
     writer.writerow(["序号", "图片", "施加角度", "施加X平移", "施加Y平移", "匹配节点", "模板",
                      "中心偏离理想位置像素", "角度偏离理想值度", "卡尺节点", "端点最大偏离像素", "卡尺成功", "边缘点数"])

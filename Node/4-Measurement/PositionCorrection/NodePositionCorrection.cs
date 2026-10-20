@@ -1,6 +1,7 @@
 using Logger;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Node._3_Detection.MatchTemplate;
@@ -81,6 +82,7 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
             {
                 LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因:{ex.Message}", true);
                 int time = SetRunResult(startTime, NodeStatus.Failed);
+                Result = BuildResult(new List<PositionCorrectionInfo>());
                 Result.RunTime = time;
                 throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
             }
@@ -121,10 +123,40 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
                 if (pose == null || !pose.IsValid)
                     continue;
 
-                items.Add(PositionCorrectionInfo.FromPoses(basePose, pose));
+                items.Add(BuildCompatibleCorrection(basePose, pose));
             }
 
             return items;
+        }
+
+        /// <summary>只使用同模板、同建模版本的基准；不同中心必须在同一基准帧标定。</summary>
+        private static PositionCorrectionInfo BuildCompatibleCorrection(TemplateMatchPose baseline, TemplateMatchPose current)
+        {
+            var currentPoses = new[] { current }.Concat(current.ReferencePoses ?? new List<TemplateMatchPose>())
+                .Where(pose => pose != null && pose.IsValid).ToList();
+            if (string.IsNullOrEmpty(baseline.TemplateId))
+            {
+                if (currentPoses.All(pose => string.IsNullOrEmpty(pose.TemplateId)))
+                    return PositionCorrectionInfo.FromPoses(baseline, current);
+                // 旧方案没有模板身份，只有完整模板集合中尺寸唯一时才能兼容；禁止猜测其他中心。
+                var legacy = currentPoses.Where(pose => pose.UniqueTemplateSize &&
+                    Math.Abs(pose.Width - baseline.Width) < 0.001 &&
+                    Math.Abs(pose.Height - baseline.Height) < 0.001).ToList();
+                if (legacy.Count == 1)
+                    return PositionCorrectionInfo.FromPoses(baseline, legacy[0]);
+                throw new InvalidOperationException("旧位置基准无法唯一对应当前模板，请在目标定位正确后重新创建基准并检查卡尺位置。");
+            }
+
+            // 优先沿用创建基准时的主模板；只有同步标定过的替代模板才允许接替。
+            var baselines = new[] { baseline }.Concat(baseline.ReferencePoses ?? new List<TemplateMatchPose>());
+            foreach (var reference in baselines.Where(pose => pose != null && pose.IsValid))
+            {
+                var matched = currentPoses.FirstOrDefault(pose => pose.TemplateId == reference.TemplateId &&
+                    pose.TemplateRevision == reference.TemplateRevision);
+                if (matched != null)
+                    return PositionCorrectionInfo.FromPoses(reference, matched);
+            }
+            throw new InvalidOperationException("当前模板未标定或模板已重新建模，请重新创建位置基准并检查卡尺位置。");
         }
 
         /// <summary>

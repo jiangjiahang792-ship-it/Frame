@@ -1165,7 +1165,8 @@ double rotatedOverlap(const MatchPose& first, const MatchPose& second)
         cv::Size2f(
             static_cast<float>(first.width),
             static_cast<float>(first.height)),
-        static_cast<float>(backendAngleDegrees(first.angleDegrees)));
+        // RotatedRect与图像坐标下的产品角度同向，不使用warpAffine的反号约定。
+        static_cast<float>(first.angleDegrees));
     const cv::RotatedRect secondRectangle(
         cv::Point2f(
             static_cast<float>(second.center.x),
@@ -1173,7 +1174,7 @@ double rotatedOverlap(const MatchPose& first, const MatchPose& second)
         cv::Size2f(
             static_cast<float>(second.width),
             static_cast<float>(second.height)),
-        static_cast<float>(backendAngleDegrees(second.angleDegrees)));
+        static_cast<float>(second.angleDegrees));
     std::vector<cv::Point2f> intersection;
     if (cv::rotatedRectangleIntersection(
             firstRectangle, secondRectangle, intersection)
@@ -1571,10 +1572,24 @@ bool CShapeMatchCV::find(
             message = centers.empty() ? "No shape match met the score." : "OK";
             return !centers.empty();
         }
-        const ShapeMatchProfile profile = profileFor(mode);
-        const int levelCount = numLevels > 0
+        ShapeMatchProfile profile = profileFor(mode);
+        // 长条模板的重复直边会产生多个近似峰；增加有界候选预算，
+        // 让原图层结构评分决定取舍，普通模板保持原运行预算。
+        const bool elongatedModel = std::max(impl_->modelSize.width, impl_->modelSize.height)
+            >= 2 * std::min(impl_->modelSize.width, impl_->modelSize.height);
+        if (elongatedModel) {
+            profile.coarseCandidateMinimum = std::max<std::size_t>(profile.coarseCandidateMinimum, 64);
+            profile.fineCandidateMinimum = std::max<std::size_t>(profile.fineCandidateMinimum, 32);
+        }
+        int levelCount = numLevels > 0
             ? std::min(numLevels, impl_->levels)
             : impl_->levels;
+        // 自动层数必须保留窄边结构。长条端子缩得过小后只剩两根直边，
+        // 粗层无法区分沿长轴的错位；后续局部精修无法找回被丢弃的正确位置。
+        if (elongatedModel && numLevels == 0)
+            while (levelCount > 1 && std::min(impl_->modelSize.width, impl_->modelSize.height)
+                / std::pow(2.0, levelCount - 1) < (mode == 0 ? 32.0 : 48.0))
+                --levelCount;
         std::vector<cv::Mat> pyramid(1, gray);
         pyramid.reserve(static_cast<std::size_t>(levelCount));
         for (int level = 1; level < levelCount; ++level) {
@@ -1641,7 +1656,7 @@ bool CShapeMatchCV::find(
 
         const int peaksPerAngle = std::min(
             profile.maximumPeaksPerAngle,
-            std::max(2, maxMatches));
+            std::max(elongatedModel ? 8 : 2, maxMatches));
         const double coarseMinimum = std::min(
             0.30, std::max(0.12, minScore * 0.42));
         std::vector<std::vector<Candidate>> angleCandidates(
@@ -1705,10 +1720,12 @@ bool CShapeMatchCV::find(
                 localCandidates.push_back({
                     templateIndex, level, location,
                     static_cast<float>(normalized)});
-                const int radiusX =
-                    std::max(2, templ.size.width / 4);
-                const int radiusY =
-                    std::max(2, templ.size.height / 4);
+                // 粗层只消除邻近峰，不能按长条模板高度删除整段候选。
+                // 否则重复直边的伪峰会提前抹掉真实端部，平移后随金字塔采样跳变。
+                const int peakRadius =
+                    std::max(2, std::min(templ.size.width, templ.size.height) / 8);
+                const int radiusX = elongatedModel ? peakRadius : std::max(2, templ.size.width / 4);
+                const int radiusY = elongatedModel ? peakRadius : std::max(2, templ.size.height / 4);
                 const int x = std::max(0, location.x - radiusX);
                 const int y = std::max(0, location.y - radiusY);
                 responseScores(cv::Rect(

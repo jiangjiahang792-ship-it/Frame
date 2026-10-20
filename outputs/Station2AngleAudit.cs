@@ -55,6 +55,14 @@ internal static class Station2AngleAudit
             foreach(var id in Order.Skip(1))
             {
                 var n=(JObject)inner.First(entry=>(int)entry["ID"]==id).DeepClone();
+                // 仅修改隔离副本，用于定位离散搜索与亚像素精修的差异。
+                if ((id==382||id==417) && args.Length>5)
+                {
+                    var matching=((JObject)n["NodeParam"]).Properties().First().Value;
+                    if(args[5]=="nosubpixel")matching["FindOptions"]["SubPixel"]=false;
+                    if(args[5]=="precise")matching["FindOptions"]["Mode"]=2;
+                    if(args[5]=="onelevel")matching["FindOptions"]["PyramidLevels"]=1;
+                }
                 if(id==286||id==289){var p=((JObject)n["NodeParam"]).Properties().First().Value;p["Text1"]="89.离线图像";p["Text2"]="输出图像";}
                 chosen.Add(n);
             }

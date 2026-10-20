@@ -142,7 +142,7 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
             if (param != null && param.HasBaseline && pose != null)
             {
                 labelBaselineStatus.Text =
-                    $"基准：第1目标，X {pose.CenterX:F3}, Y {pose.CenterY:F3}, 角度 {pose.Angle:F3}°，缩放 {pose.ScaleX:F3}/{pose.ScaleY:F3}";
+                    $"基准：第1目标，X {pose.CenterX:F3}, Y {pose.CenterY:F3}, 角度 {pose.Angle:F3}°，模板基准 {1 + (pose.ReferencePoses?.Count ?? 0)}套";
             }
             else
             {
@@ -169,7 +169,7 @@ namespace TDJS_Vision.Node._4_Measurement.PositionCorrection
                 PublishCorrectionItems(items);
                 UpdateBaselineStatus();
                 labelRuntimeStatus.Text = $"已创建基准，当前有效目标：{items.Count}个。";
-                MessageBoxTD.Show("位置修正基准创建成功，已默认使用模板位姿列表中的第一目标。");
+                MessageBoxTD.Show("位置修正基准创建成功，已同步记录第一个目标本次匹配到的模板基准。未匹配到的其他模板不能直接替代，请检查卡尺位置。");
             }
             catch (Exception ex)
             {
