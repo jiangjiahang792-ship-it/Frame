@@ -28,6 +28,21 @@
         /// </summary>
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
+            this.toolStripDiskCapacityLabel = new System.Windows.Forms.ToolStripLabel();
+            this.toolStripProgressBar1 = new System.Windows.Forms.ToolStripProgressBar();
+            this.diskUsageTimer = new System.Windows.Forms.Timer(this.components);
+            this.toolStripDiskCapacityLabel.Name = "toolStripDiskCapacityLabel";
+            this.toolStripDiskCapacityLabel.Text = "磁盘空间占用：正在读取……";
+            this.toolStripDiskCapacityLabel.Margin = new System.Windows.Forms.Padding(8, 2, 0, 3);
+            this.toolStripProgressBar1.Name = "toolStripProgressBar1";
+            this.toolStripProgressBar1.Size = new System.Drawing.Size(220, 28);
+            this.toolStripProgressBar1.Margin = new System.Windows.Forms.Padding(32, 4, 0, 4);
+            this.toolStripProgressBar1.Minimum = 0;
+            this.toolStripProgressBar1.Maximum = 100;
+            this.diskUsageTimer.Interval = 60000;
+            this.diskUsageTimer.Tick += new System.EventHandler(this.DiskUsageTimer_Tick);
+            this.Shown += new System.EventHandler(this.FormMain_DiskUsageShown);
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FormMain));
             this.menuStrip1 = new System.Windows.Forms.MenuStrip();
             this.文件ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -384,6 +399,8 @@
             this.tsbt_SolRunOnce,
             this.tsbt_SolRunLoop,
             this.tsbt_SolRunStop,
+            this.toolStripProgressBar1,
+            this.toolStripDiskCapacityLabel,
             this.toolStripLabel1});
             this.toolStrip1.Location = new System.Drawing.Point(0, 32);
             this.toolStrip1.Name = "toolStrip1";
@@ -708,6 +725,12 @@
         private System.Windows.Forms.ToolStripButton tsbt_SolRunLoop;
         private System.Windows.Forms.ToolStripButton tsbt_SolRunStop;
         private System.Windows.Forms.ToolStrip toolStrip1;
+        /// <summary>总容量、剩余容量和已用比例。</summary>
+        private System.Windows.Forms.ToolStripLabel toolStripDiskCapacityLabel;
+        /// <summary>磁盘已用比例进度条。</summary>
+        private System.Windows.Forms.ToolStripProgressBar toolStripProgressBar1;
+        /// <summary>随组件容器释放的刷新计时器。</summary>
+        private System.Windows.Forms.Timer diskUsageTimer;
         private System.Windows.Forms.ToolStripPanel BottomToolStripPanel;
         private System.Windows.Forms.ToolStripPanel TopToolStripPanel;
         private System.Windows.Forms.ToolStripPanel RightToolStripPanel;

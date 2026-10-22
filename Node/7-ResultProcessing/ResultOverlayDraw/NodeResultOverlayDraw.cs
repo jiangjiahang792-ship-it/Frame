@@ -158,7 +158,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         }
     }
 
-    internal static class ResultOverlayDrawBuilder
+    internal static partial class ResultOverlayDrawBuilder
     {
         /// <summary>
         /// 按来源结果类型缓存自动判定读取器，避免连续运行时每个绘制项重复反射。
@@ -217,6 +217,25 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 throw new Exception("订阅的图像类型不是 OutputImage！");
             if (performanceDiagnostics != null)
                 performanceDiagnostics.InputImageText = PerformanceSpikeDiagnostics.GetOutputImageText(inputImage);
+
+            // 截取为独立可选路径；关闭时沿用原有图像与文字处理。
+            if (param.EnableDisplayCrop)
+            {
+                using (var lease = inputImage.AcquireLease())
+                {
+                    var source = MeasurementNodeHelper.GetReadOnlyPreviewMat(inputImage);
+                    var originalDisplay = BuildDisplayResult(owner, param, performanceDiagnostics);
+                    outputImage = BuildCroppedOutput(source, originalDisplay, inputImage.Rectangles, param);
+                    displayResult = outputImage.DisplayResult;
+                    if (performanceDiagnostics != null)
+                    {
+                        performanceDiagnostics.TotalMs = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);
+                        performanceDiagnostics.CaptureDisplayResultCounts(displayResult);
+                        performanceDiagnostics.OutputImageText = PerformanceSpikeDiagnostics.GetOutputImageText(outputImage);
+                    }
+                    return;
+                }
+            }
 
             Mat cleanImage = MeasurementNodeHelper.GetFirstMat(inputImage);
             long afterGetCleanImage = PerformanceSpikeDiagnostics.GetElapsedMilliseconds(stopwatch);

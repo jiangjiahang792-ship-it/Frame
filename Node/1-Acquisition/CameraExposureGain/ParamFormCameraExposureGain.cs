@@ -103,7 +103,7 @@ namespace TDJS_Vision.Node._1_Acquisition.CameraExposureGain
         }
 
         /// <summary>
-        /// 按相机 SDK 返回的范围刷新数值框，避免保存越界参数。
+        /// 按相机 SDK 返回的范围刷新数值框；当前值只显示在标签，不覆盖用户设置值。
         /// </summary>
         /// <param name="camera">当前选中的相机。</param>
         private void RefreshCameraParameterRange(ICamera camera)
@@ -113,8 +113,8 @@ namespace TDJS_Vision.Node._1_Acquisition.CameraExposureGain
                 var exposure = camera.GetExposureTime();
                 numericUpDownExposure.Minimum = (decimal)exposure.Min;
                 numericUpDownExposure.Maximum = (decimal)exposure.Max;
-                SetNumericUpDownValueInRange(numericUpDownExposure, (decimal)exposure.CurValue);
-                labelExposure.Text = $"曝光(当前{exposure.CurValue})";
+                // 相机当前值仅供对照，输入框保留方案参数或用户输入（范围变化时由控件限幅）。
+                labelExposure.Text = $"曝光(当前{exposure.CurValue:0.##})";
 
                 var (gainInt, gainFloat) = camera.GetGain();
                 if (gainInt != null)
@@ -123,7 +123,6 @@ namespace TDJS_Vision.Node._1_Acquisition.CameraExposureGain
                     numericUpDownGain.Increment = 1;
                     numericUpDownGain.Minimum = gainInt.Min;
                     numericUpDownGain.Maximum = gainInt.Max;
-                    SetNumericUpDownValueInRange(numericUpDownGain, gainInt.CurValue);
                     labelGain.Text = $"增益(当前{gainInt.CurValue})";
                 }
                 else
@@ -132,8 +131,7 @@ namespace TDJS_Vision.Node._1_Acquisition.CameraExposureGain
                     numericUpDownGain.Increment = 0.1M;
                     numericUpDownGain.Minimum = (decimal)gainFloat.Min;
                     numericUpDownGain.Maximum = (decimal)gainFloat.Max;
-                    SetNumericUpDownValueInRange(numericUpDownGain, (decimal)gainFloat.CurValue);
-                    labelGain.Text = $"增益(当前{gainFloat.CurValue})";
+                    labelGain.Text = $"增益(当前{gainFloat.CurValue:0.##})";
                 }
             }
             catch (Exception ex)

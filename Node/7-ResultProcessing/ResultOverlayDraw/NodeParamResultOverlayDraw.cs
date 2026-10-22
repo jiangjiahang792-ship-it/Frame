@@ -13,6 +13,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
     /// </summary>
     public class NodeParamResultOverlayDraw : INodeParam
     {
+        /// <summary>是否按输入原图中的矩形截取显示；默认关闭以兼容已有方案。</summary>
+        public bool EnableDisplayCrop { get; set; }
+        /// <summary>独立的截取矩形，坐标在输入图像中，角度单位为弧度。</summary>
+        public OverlayDisplayCropRegion DisplayCropRegion { get; set; }
         /// <summary>全部文本共用的坐标系，包含订阅文本、布尔文本和独立固定内容。</summary>
         [JsonConverter(typeof(StringEnumConverter))]
         public DisplayTextCoordinateMode TextCoordinateMode { get; set; } = DisplayTextCoordinateMode.Image;

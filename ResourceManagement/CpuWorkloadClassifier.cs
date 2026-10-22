@@ -20,6 +20,7 @@ namespace TDJS_Vision.ResourceManagement
             {
                 case NodeType.ImageCrop:
                 case NodeType.GrayScale:
+                case NodeType.CombinationColor:
                 case NodeType.BlobAnalysis:
                 case NodeType.LineFind:
                 case NodeType.CircleFind:

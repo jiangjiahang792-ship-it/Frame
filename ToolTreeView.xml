@@ -50,6 +50,7 @@
     <Node Text="颜色检测" ImageName="检测识别" Tag="UNKNOWN" SelectedImageName="检测识别">
       <Nodes>
         <Node Text="LAB颜色识别" ImageName="颜色识别" Tag="RGBDiscern" SelectedImageName="颜色识别" />
+        <Node Text="组合颜色识别" ImageName="颜色识别" Tag="CombinationColor" SelectedImageName="颜色识别" />
       </Nodes>
     </Node>
     <Node Text="条码识别" ImageName="检测识别" Tag="UNKNOWN" SelectedImageName="检测识别">

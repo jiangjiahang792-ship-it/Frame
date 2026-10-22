@@ -1,4 +1,16 @@
 {
+  "磁盘空间占用：{0:F2}%": "Disk usage: {0:F2}%",
+  "磁盘空间占用：正在读取……": "Disk usage: reading...",
+  "截取显示": "Crop display",
+  "绘制截取ROI": "Draw crop ROI",
+  "确认截取ROI": "Confirm crop ROI",
+
+  "D盘：总容量 {0:F1} GB　剩余 {1:F1} GB　已用 {2:F1}%": "Drive D: Total {0:F1} GB  Free {1:F1} GB  Used {2:F1}%",
+  "磁盘容量每分钟刷新；容量按 1024 进制显示。": "Disk capacity refreshes every minute; capacities use base 1024.",
+  "D盘：容量暂不可用": "Drive D: capacity unavailable",
+  "D盘：正在读取容量……": "Drive D: reading capacity...",
+
+  "组合颜色识别": "Combination Color Recognition",
   "飞丝存在（侧面）": "Protruding wire strands (side view)",
   "后铆脚面积（侧面）": "Rear crimp area (side view)",
   "防水栓破损（侧面）": "Wire seal damage (side view)",

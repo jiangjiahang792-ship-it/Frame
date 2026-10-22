@@ -84,6 +84,71 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// </summary>
         public INodeParam Params { get; set; }
 
+        /// <summary>截取框的未保存编辑副本，始终使用输入原图坐标。</summary>
+        private OverlayDisplayCropRegion _displayCropRegion;
+        /// <summary>防止从截取后的预览图再次读取原图坐标。</summary>
+        private bool _editingDisplayCrop;
+
+        /// <summary>在输入原图上绘制可旋转的截取框，不使用已截取的预览图。</summary>
+        private void DrawDisplayCrop_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                CaptureDisplayCrop();
+                var input = ResultOverlayDrawBuilder.ReadSubscribedValue(_node, nodeSubscriptionImage.GetText1(), nodeSubscriptionImage.GetText2(), out NodeBase sourceNode) as OutputImage;
+                if (input == null) throw new InvalidOperationException("请先订阅并运行输入图像节点。");
+                using (var lease = input.AcquireLease())
+                {
+                    var image = TDJS_Vision.Node._4_Measurement.Common.MeasurementNodeHelper.GetReadOnlyPreviewMat(input);
+                    if (_displayCropRegion == null)
+                        _displayCropRegion = new OverlayDisplayCropRegion { Column = (image.Width - 1) / 2f, Row = (image.Height - 1) / 2f, Length1 = image.Width / 2f, Length2 = image.Height / 2f };
+                    showImageControl1.SetImage(BitmapConverter.ToBitmap(image), null);
+                    showImageControl1.ClearDynamicRoi();
+                    var roi = _displayCropRegion;
+                    showImageControl1.AddRoiRotatedRect(roi.Row, roi.Column, roi.Phi, roi.Length1, roi.Length2, 1.5f, Color.DodgerBlue, "截取显示区域");
+                    showImageControl1.ShowFit();
+                }
+                _editingDisplayCrop = true;
+                checkBoxDisplayCrop.Checked = true;
+                labelPreviewState.Text = "在输入原图上调整截取框，然后确认或预览";
+            }
+            catch (Exception ex) { MessageBoxTD.Show("绘制截取ROI失败：" + ex.Message); }
+        }
+
+        /// <summary>读取正在编辑的原图矩形；普通输出预览不会覆盖该坐标。</summary>
+        private void CaptureDisplayCrop()
+        {
+            if (!_editingDisplayCrop) return;
+            var rois = showImageControl1.GetAllRotatedRectInfos();
+            if (rois == null || rois.Count == 0) throw new InvalidOperationException("截取ROI不存在，请重新绘制。");
+            var roi = rois[0];
+            _displayCropRegion = new OverlayDisplayCropRegion { Row = roi.Row, Column = roi.Column, Phi = roi.Phi, Length1 = roi.Length1, Length2 = roi.Length2 };
+        }
+
+        /// <summary>确认截取框但不自动改变其它绘制参数。</summary>
+        private void ConfirmDisplayCrop_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                CaptureDisplayCrop();
+                if (_displayCropRegion == null) throw new InvalidOperationException("请先绘制截取ROI。");
+                showImageControl1.ClearDynamicRoi();
+                _editingDisplayCrop = false;
+                labelPreviewState.Text = "截取ROI已确认，点击预览查看截取结果";
+            }
+            catch (Exception ex) { MessageBoxTD.Show(ex.Message); }
+        }
+
+        /// <summary>关闭截取时保留框参数，清理编辑层；下一次预览输出完整原图。</summary>
+        private void DisplayCrop_CheckedChanged(object sender, EventArgs e)
+        {
+            if (_syncing || checkBoxDisplayCrop.Checked) return;
+            try { CaptureDisplayCrop(); }
+            catch (Exception ex) { labelPreviewState.Text = ex.Message; }
+            showImageControl1.ClearDynamicRoi();
+            _editingDisplayCrop = false;
+        }
+
         /// <summary>
         /// 设置当前参数窗体所属节点并初始化图像和绘制项订阅控件。
         /// </summary>
@@ -109,6 +174,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 return;
 
             _syncing = true;
+            _displayCropRegion = param.DisplayCropRegion?.Clone();
+            checkBoxDisplayCrop.Checked = param.EnableDisplayCrop;
+            _editingDisplayCrop = false;
+            showImageControl1.ClearDynamicRoi();
             nodeSubscriptionImage.SetText(param.ImageText1, param.ImageText2);
             panelOkColor.BackColor = param.OkColor;
             panelNgColor.BackColor = param.NgColor;
@@ -332,9 +401,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             if (!SaveParams(false))
                 return;
 
+            OutputImage outputImage = null;
             try
             {
-                OutputImage outputImage;
                 AlgorithmResult displayResult;
                 ResultOverlayDrawPerformanceDiagnostics performanceDiagnostics;
                 ResultOverlayDrawBuilder.Build(
@@ -352,6 +421,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 labelPreviewState.ForeColor = isOk
                     ? panelOkColor.BackColor
                     : panelNgColor.BackColor;
+                showImageControl1.ClearDynamicRoi();
+                _editingDisplayCrop = false;
                 showImageControl1.SetImage(BitmapConverter.ToBitmap(outputImage.Bitmaps[0]), displayResult);
                 showImageControl1.ShowFit();
             }
@@ -359,6 +430,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             {
                 MessageBoxTD.Show("预览失败：" + ex.Message, "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
+            finally { outputImage?.Dispose(); }
         }
 
         /// <summary>
@@ -441,6 +513,19 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// <returns>保存成功返回 true。</returns>
         private bool SaveParams(bool showMessage)
         {
+            try
+            {
+                CaptureDisplayCrop();
+                if (checkBoxDisplayCrop.Checked && _displayCropRegion == null)
+                    throw new InvalidOperationException("启用截取显示后，请先绘制截取ROI。");
+            }
+            catch (Exception ex)
+            {
+                labelPreviewState.Text = ex.Message;
+                labelPreviewState.ForeColor = Color.Red;
+                ShowValidationMessage(showMessage, ex.Message);
+                return false;
+            }
             SaveCurrentItemFromControls();
 
             if (string.IsNullOrWhiteSpace(nodeSubscriptionImage.GetText1()) ||
@@ -479,6 +564,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
 
             Params = new NodeParamResultOverlayDraw
             {
+                EnableDisplayCrop = checkBoxDisplayCrop.Checked,
+                DisplayCropRegion = _displayCropRegion?.Clone(),
                 ImageText1 = nodeSubscriptionImage.GetText1(),
                 ImageText2 = nodeSubscriptionImage.GetText2(),
                 OkColor = panelOkColor.BackColor,

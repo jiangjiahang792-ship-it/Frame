@@ -135,6 +135,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// 带颜色的文本
         /// </summary>
         public List<ColorText> Texts { get; set; } = new List<ColorText>();
+        /// <summary>截取显示时将图像坐标标注裁切到图像边界；控件坐标文字不受影响。</summary>
+        public bool ClipToImageBounds { get; set; }
         /// <summary>
         /// 带颜色的线段
         /// </summary>

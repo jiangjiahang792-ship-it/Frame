@@ -783,6 +783,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.NccMatchTemplate:
                     node = new NodeNccMatchTemplate(nodeId, nodeName, _process, nodeType);
                     break;
+                case NodeType.CombinationColor:
+                    node = new TDJS_Vision.Node._3_Detection.CombinationColor.NodeCombinationColor(nodeId, nodeName, _process, nodeType);
+                    break;
                 case NodeType.BlobAnalysis:
                     node = new NodeBlobAnalysis(nodeId, nodeName, _process, nodeType);
                     break;

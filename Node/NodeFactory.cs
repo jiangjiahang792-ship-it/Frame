@@ -121,6 +121,8 @@ namespace TDJS_Vision.Node
                     return new NodeCaliperEllipse(nodeId, nodeName, process, nodeType);
                 case NodeType.FindPoint:
                     return new NodeFindPoint(nodeId, nodeName, process, nodeType);
+                case NodeType.CombinationColor:
+                    return new TDJS_Vision.Node._3_Detection.CombinationColor.NodeCombinationColor(nodeId, nodeName, process, nodeType);
                 case NodeType.BlobAnalysis:
                     return new NodeBlobAnalysis(nodeId, nodeName, process, nodeType);
                 case NodeType.PositionCorrection:

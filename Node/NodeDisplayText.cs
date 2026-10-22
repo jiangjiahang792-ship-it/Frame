@@ -15,6 +15,7 @@ namespace TDJS_Vision.Node
             { NodeType.NamedImageSave, "命名存图" },
             { NodeType.ImageShow3D, "3D图像显示" },
             { NodeType.ResultSend, "结果发送" },
+            { NodeType.CombinationColor, "组合颜色识别" },
             { NodeType.UNKNOWN, "未知节点" }
         };
 

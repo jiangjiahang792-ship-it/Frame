@@ -272,6 +272,10 @@
     <Compile Include="FormMain.RuntimeInterface.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="Node\7-ResultProcessing\ResultOverlayDraw\ResultOverlayDisplayCrop.cs" />
+    <Compile Include="FormMain.DiskUsage.cs">
+      <DependentUpon>FormMain.cs</DependentUpon>
+    </Compile>
     <Compile Include="FormMain.RuntimeTuning.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -524,6 +528,28 @@
     <Compile Include="Node\4-Measurement\Common\MultiTargetPositionCorrectionResult.cs" />
     <Compile Include="Node\4-Measurement\Common\MultiTargetMeasurementRunner.cs" />
     <Compile Include="Node\4-Measurement\Common\MultiTargetMeasurementPairer.cs" />
+    <Compile Include="Node\3-Detection\CombinationColor\CombinationColorLearning.cs">
+    </Compile>
+    <Compile Include="Node\3-Detection\CombinationColor\GuideColorRangeModel.cs">
+    </Compile>
+    <Compile Include="Node\3-Detection\CombinationColor\GuideColorSampleSelector.cs">
+    </Compile>
+    <Compile Include="Node\3-Detection\CombinationColor\GuideColorSpaceConverter.cs">
+    </Compile>
+    <Compile Include="Node\3-Detection\CombinationColor\NodeCombinationColor.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\CombinationColor\NodeParamCombinationColor.cs">
+    </Compile>
+    <Compile Include="Node\3-Detection\CombinationColor\NodeParamFormCombinationColor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\CombinationColor\NodeParamFormCombinationColor.Designer.cs">
+      <DependentUpon>NodeParamFormCombinationColor.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\CombinationColor\NodeResultCombinationColor.cs">
+    </Compile>
+    <Compile Include="Node\3-Detection\CombinationColor\CombinationColorAlgorithm.cs" />
     <Compile Include="Node\4-Measurement\BlobAnalysis\NodeBlobAnalysis.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -2316,7 +2342,11 @@
     <Content Include="dll\FastColoredTextBox.dll" />
     <Content Include="dll\HslCommunication.dll" />
     <Content Include="dll\Mv3dLpNet.dll" />
-    <Content Include="Native\NewContourMatchNative.dll"><Link>NewContourMatchNative.dll</Link><TargetPath>NewContourMatchNative.dll</TargetPath><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="Native\NewContourMatchNative.dll">
+      <Link>NewContourMatchNative.dll</Link>
+      <TargetPath>NewContourMatchNative.dll</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Native\ShapeMatchNative.dll">
       <Link>ShapeMatchNative.dll</Link>
       <TargetPath>ShapeMatchNative.dll</TargetPath>

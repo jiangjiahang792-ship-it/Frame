@@ -611,11 +611,15 @@ namespace TDJS_Vision.Forms.DispShowImage
         /// <param name="displayResult">待显示的算法结果。</param>
         /// <param name="diagnostics">静态 ROI 构建诊断信息。</param>
         /// <returns>构建出的静态 ROI 数量。</returns>
+        /// <summary>仅截取显示结果启用图像边界裁切，旧结果默认保持原行为。</summary>
+        private bool _clipDisplayRoisToImage;
+
         private int ApplyDisplayResultCore(AlgorithmResult displayResult, out StaticRoiBuildDiagnostics diagnostics)
         {
             lock (_roiLock)
             {
                 ClearRoiShapes(_staticRois);
+                _clipDisplayRoisToImage = displayResult?.ClipToImageBounds == true;
                 int imageWidth = _image == null ? 0 : _image.Width;
                 int imageHeight = _image == null ? 0 : _image.Height;
                 List<IRoiShape> rois = BuildStaticRois(displayResult, imageWidth, imageHeight, out diagnostics);
@@ -1161,7 +1165,17 @@ namespace TDJS_Vision.Forms.DispShowImage
                                 if (textBlock != null)
                                     textBlock.SetControlBounds(Width, Height);
 
-                                roi.Draw(g, _scale, _offset);
+                                if (_clipDisplayRoisToImage && roi.IsStatic && !(textBlock?.UseControlCoordinate == true))
+                                {
+                                    var state = g.Save();
+                                    try
+                                    {
+                                        g.SetClip(new RectangleF(_offset.X, _offset.Y, _image.Width * _scale, _image.Height * _scale), System.Drawing.Drawing2D.CombineMode.Intersect);
+                                        roi.Draw(g, _scale, _offset);
+                                    }
+                                    finally { g.Restore(state); }
+                                }
+                                else roi.Draw(g, _scale, _offset);
                             }
                         }
                     }

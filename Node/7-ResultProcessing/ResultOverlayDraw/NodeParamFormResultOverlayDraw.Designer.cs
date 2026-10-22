@@ -6,6 +6,14 @@
         /// 必需的设计器变量。
         /// </summary>
         private System.ComponentModel.IContainer components = null;
+        /// <summary>截取显示操作栏。</summary>
+        private System.Windows.Forms.FlowLayoutPanel panelDisplayCrop;
+        /// <summary>截取显示开关，默认关闭。</summary>
+        private System.Windows.Forms.CheckBox checkBoxDisplayCrop;
+        /// <summary>在原图上绘制截取矩形。</summary>
+        private System.Windows.Forms.Button buttonDrawDisplayCrop;
+        /// <summary>确认截取矩形并保存其坐标。</summary>
+        private System.Windows.Forms.Button buttonConfirmDisplayCrop;
 
         /// <summary>
         /// 清理所有正在使用的资源。
@@ -115,6 +123,27 @@
             this.buttonPreview = new System.Windows.Forms.Button();
             this.groupBoxPreview = new System.Windows.Forms.GroupBox();
             this.tableLayoutPanelPreview = new System.Windows.Forms.TableLayoutPanel();
+            this.panelDisplayCrop = new System.Windows.Forms.FlowLayoutPanel();
+            this.checkBoxDisplayCrop = new System.Windows.Forms.CheckBox();
+            this.buttonDrawDisplayCrop = new System.Windows.Forms.Button();
+            this.buttonConfirmDisplayCrop = new System.Windows.Forms.Button();
+            this.panelDisplayCrop.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.panelDisplayCrop.Name = "panelDisplayCrop";
+            this.panelDisplayCrop.WrapContents = false;
+            this.checkBoxDisplayCrop.Text = "截取显示";
+            this.checkBoxDisplayCrop.Name = "checkBoxDisplayCrop";
+            this.checkBoxDisplayCrop.AutoSize = true;
+            this.checkBoxDisplayCrop.Margin = new System.Windows.Forms.Padding(6, 10, 12, 3);
+            this.checkBoxDisplayCrop.CheckedChanged += this.DisplayCrop_CheckedChanged;
+            this.buttonDrawDisplayCrop.Text = "绘制截取ROI";
+            this.buttonDrawDisplayCrop.Name = "buttonDrawDisplayCrop";
+            this.buttonDrawDisplayCrop.Size = new System.Drawing.Size(140, 34);
+            this.buttonDrawDisplayCrop.Click += this.DrawDisplayCrop_Click;
+            this.buttonConfirmDisplayCrop.Text = "确认截取ROI";
+            this.buttonConfirmDisplayCrop.Name = "buttonConfirmDisplayCrop";
+            this.buttonConfirmDisplayCrop.Size = new System.Drawing.Size(140, 34);
+            this.buttonConfirmDisplayCrop.Click += this.ConfirmDisplayCrop_Click;
+            this.panelDisplayCrop.Controls.AddRange(new System.Windows.Forms.Control[] { this.checkBoxDisplayCrop, this.buttonDrawDisplayCrop, this.buttonConfirmDisplayCrop });
             this.labelPreviewState = new System.Windows.Forms.Label();
             this.showImageControl1 = new TDJS_Vision.Forms.DispShowImage.ShowImageControl();
             this.tableLayoutPanelRoot.SuspendLayout();
@@ -965,12 +994,14 @@
             //
             this.tableLayoutPanelPreview.ColumnCount = 1;
             this.tableLayoutPanelPreview.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanelPreview.Controls.Add(this.labelPreviewState, 0, 0);
-            this.tableLayoutPanelPreview.Controls.Add(this.showImageControl1, 0, 1);
+            this.tableLayoutPanelPreview.Controls.Add(this.panelDisplayCrop, 0, 0);
+            this.tableLayoutPanelPreview.Controls.Add(this.labelPreviewState, 0, 1);
+            this.tableLayoutPanelPreview.Controls.Add(this.showImageControl1, 0, 2);
             this.tableLayoutPanelPreview.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanelPreview.Location = new System.Drawing.Point(3, 24);
             this.tableLayoutPanelPreview.Name = "tableLayoutPanelPreview";
-            this.tableLayoutPanelPreview.RowCount = 2;
+            this.tableLayoutPanelPreview.RowCount = 3;
+            this.tableLayoutPanelPreview.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 44F));
             this.tableLayoutPanelPreview.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 40F));
             this.tableLayoutPanelPreview.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
             this.tableLayoutPanelPreview.Size = new System.Drawing.Size(704, 807);

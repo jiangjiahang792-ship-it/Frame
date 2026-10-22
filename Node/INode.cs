@@ -506,5 +506,7 @@ namespace TDJS_Vision.Node
         NamedImageSave,
         /// <summary>采用 Demo 双版本轮廓算法的独立模板匹配节点。</summary>
         NewContourMatch,
+        /// <summary>组合模式颜色识别，支持旋转搜索区与面积筛选。</summary>
+        CombinationColor,
     }
 }

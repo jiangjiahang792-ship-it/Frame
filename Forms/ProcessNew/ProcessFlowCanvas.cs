@@ -4554,6 +4554,7 @@ namespace TDJS_Vision.Forms.ProcessNew
                 case NodeType.ImageRotate:
                 case NodeType.ImageSplit:
                 case NodeType.ImagePreprocess:
+                case NodeType.CombinationColor:
                 case NodeType.BlobAnalysis:
                     return Color.FromArgb(18, 132, 219);
                 case NodeType.If:
