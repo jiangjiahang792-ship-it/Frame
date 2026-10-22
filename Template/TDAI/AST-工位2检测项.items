@@ -1,6 +1,6 @@
 [
   {
-    "Name": "L1-S2(端子先端位置)",
+    "Name": "护套内导体位置",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -80,7 +80,7 @@
     "CurValue": "0"
   },
   {
-    "Name": "线线宽度",
+    "Name": "线芯宽度",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,

@@ -85,8 +85,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     ? !(results ?? new List<SegResult>()).Any(r => r.ClassId == id &&
                         (r.MaskGeometry == null || r.MaskGeometry.Bounds.Width <= 0 || r.MaskGeometry.Bounds.Height <= 0))
                     : hasTarget && (dependency < 0 || hasOther);
+                // 套筒压接位置的铜环使用完整有效掩膜的最小Y，胶皮仍使用中央60%顶部最低点。
+                bool useCopperHighestTop = id == 2 && dependency == 3 && lowerTop;
                 if (lowerTop && hasValue)
-                    hasValue = target.MaskGeometry.UpperEdgeLowestY >= 0 && other.MaskGeometry.UpperEdgeLowestY >= 0;
+                    hasValue = (useCopperHighestTop || target.MaskGeometry.UpperEdgeLowestY >= 0) &&
+                        other.MaskGeometry.UpperEdgeLowestY >= 0;
                 float value = 0;
                 int startY = 0, endY = 0;
                 if (count) value = valid.Count(r => r.ClassId == id);
@@ -99,7 +102,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         Rect otherBounds = other.MaskGeometry.Bounds;
                         if (lowerTop)
                         {
-                            startY = target.MaskGeometry.UpperEdgeLowestY;
+                            startY = useCopperHighestTop ? bounds.Top : target.MaskGeometry.UpperEdgeLowestY;
                             endY = other.MaskGeometry.UpperEdgeLowestY;
                         }
                         else if (id == 0 && dependency == 2)
@@ -184,11 +187,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             {
                 case "绝缘胶顶部最低点到屏蔽网顶部最低点的距离": id = 0; dependency = 1; lowerTop = true; break;
                 case "绝缘胶顶部到铜环底部的距离": id = 0; dependency = 2; break;
+                case "套筒压接位置":
+                // 兼容旧方案名称，测量算法保持不变。
                 case "L1-S2":
-                // L1-S2固定测铜环与胶皮中央顶部最低点的Y差，重叠时也不改换边缘。
+                // 套筒压接位置测铜环顶部最高点与胶皮中央顶部最低点的Y差。
                 case "胶皮到铜环的距离": id = 2; dependency = 3; lowerTop = true; break;
-                case "L1-S3":
-                case "胶皮到屏蔽网的距离": id = 1; dependency = 3; break;
+                case "护套剥离长度":
+                // 兼容旧方案名称，测量算法保持不变。
                 case "L1-S4":
                 case "胶皮到绝缘胶的位置": id = 0; dependency = 3; lowerTop = true; break;
                 // 屏蔽网高度按胶皮与屏蔽网上边缘最低点的Y差测量，不再取掩膜自身高度。

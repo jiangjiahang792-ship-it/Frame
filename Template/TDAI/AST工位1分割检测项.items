@@ -1,18 +1,122 @@
 [
-  { "Name": "绝缘胶顶部最低点到屏蔽网顶部最低点的距离", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "绝缘胶顶部到铜环底部的距离", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "L1-S2", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "L1-S3", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "L1-S4", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "L2_编组切割长度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "屏蔽网宽度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "铜环高度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "铜环宽度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "绝缘胶高度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "绝缘胶宽度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "胶皮高度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "胶皮宽度", "MinValue": "1", "MaxValue": "99999", "Enable": false, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "飞丝", "MinValue": "0", "MaxValue": "0", "Enable": false, "IsCountItem": true, "CurValue": "0" },
-  { "Name": "铝箔长度", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0" },
-  { "Name": "铝箔宽度", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0" }
+  {
+    "Name": "绝缘胶顶部最低点到屏蔽网顶部最低点的距离",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "绝缘胶顶部到铜环底部的距离",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "套筒压接位置",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": false,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "护套剥离长度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": false,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "L2_编组切割长度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": false,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "屏蔽网宽度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": false,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "铜环高度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": false,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "铜环宽度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": false,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "绝缘胶高度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": false,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "绝缘胶宽度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": false,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "胶皮高度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": false,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "胶皮宽度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": false,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "飞丝",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": false,
+    "IsCountItem": true,
+    "CurValue": "0"
+  },
+  {
+    "Name": "铝箔长度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "铝箔宽度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  }
 ]

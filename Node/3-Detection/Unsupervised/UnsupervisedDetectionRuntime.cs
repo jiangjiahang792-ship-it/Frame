@@ -107,8 +107,11 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
 
                     Stopwatch postprocessTimer = Stopwatch.StartNew();
                     List<DrawingRect> boxes = OffsetBoxesToSourceImage(nativeResult.Boxes, roiRect, sourceImage.Width, sourceImage.Height, inferImage.Width, inferImage.Height, manifest.InputWidth, manifest.InputHeight);
-                    bool isOk = nativeResult.ReturnCode == 0 && boxes.Count == 0;
-                    string message = BuildResultMessage(nativeResult, boxes.Count);
+                    bool isOk = ApplyScoreThreshold(nativeResult, threshold, boxes);
+                    string message = nativeResult.ReturnCode == 0 &&
+                        (float.IsNaN(nativeResult.Score) || float.IsInfinity(nativeResult.Score))
+                        ? "无监督推理分数无效"
+                        : BuildResultMessage(nativeResult, boxes.Count);
                     postprocessTimer.Stop();
 
                     long wrapperPostprocessMilliseconds = Math.Max(
@@ -130,6 +133,23 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                         postprocessTimer.ElapsedMilliseconds + wrapperPostprocessMilliseconds);
                 }
             }
+        }
+
+        /// <summary>
+        /// 使用本次有效识别阈值过滤总分不足的异常框，统一绘制、数量和OK/NG输出。
+        /// 推理失败或非有限分数不能通过过滤变为OK；等于阈值时保留面积过滤后的异常框。
+        /// </summary>
+        /// <param name="result">底层推理结果，保留原始总分供显示和订阅。</param>
+        /// <param name="threshold">已解析节点设置或模板默认值的有效阈值。</param>
+        /// <param name="boxes">当前帧的异常框；低于阈值时原地清空，避免额外图像分配。</param>
+        /// <returns>推理成功且过滤后没有异常框时返回true。</returns>
+        private static bool ApplyScoreThreshold(UnsupervisedAnomalibResult result, float threshold, List<DrawingRect> boxes)
+        {
+            if (result == null || result.ReturnCode != 0 || float.IsNaN(result.Score) || float.IsInfinity(result.Score))
+                return false;
+            if (result.Score < threshold)
+                boxes.Clear();
+            return boxes.Count == 0;
         }
 
         /// <summary>

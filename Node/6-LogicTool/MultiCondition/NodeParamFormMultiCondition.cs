@@ -259,6 +259,8 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             try
             {
                 Params = BuildParamFromForm();
+                // 条件名称、启用状态可能改变单项输出，通知下游订阅选择器刷新。
+                _node?.NotifyOutputDefinitionChanged();
             }
             catch (Exception ex)
             {

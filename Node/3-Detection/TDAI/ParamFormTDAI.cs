@@ -374,6 +374,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 // 设置模型解析的名称
                 switch (comboBoxModelName.Text)
                 {
+                    case "勒刚端子侧面15类OBB模型":
+                        nodeParamTDAI.ModelName = ModelName.勒刚端子侧面15类OBB模型;
+                        break;
                    
                     case "新端子12类模型":
                         nodeParamTDAI.ModelName = ModelName.新端子12类模型;

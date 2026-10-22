@@ -10,6 +10,7 @@ namespace TDJS_Vision.Node
         private static readonly Dictionary<NodeType, string> ChineseKeys = new Dictionary<NodeType, string>
         {
             { NodeType.ContourMatch, "轮廓模板匹配" },
+            { NodeType.NewContourMatch, "新版本轮廓模板匹配" },
             { NodeType.TerminalAngle, "端子角度" },
             { NodeType.NamedImageSave, "命名存图" },
             { NodeType.ImageShow3D, "3D图像显示" },

@@ -87,17 +87,16 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 Func<DetResult, float?> extractValueFunc;
                 switch (itemName)
                 {
-                    case "L1-S2":
+                    case "套筒压接位置":
+                // 兼容旧方案名称，测量算法保持不变。
+                case "L1-S2":
                     case "胶皮到铜环的距离":
                         isDistanceItem = true;
                         extractValueFunc = r => r.ClassId == 2 ? GetRubberDistance(r.Box, rubbers) : null;
                         break;
-                    case "L1-S3":
-                    case "胶皮到屏蔽网的距离":
-                        isDistanceItem = true;
-                        extractValueFunc = r => r.ClassId == 1 ? GetRubberDistance(r.Box, rubbers) : null;
-                        break;
-                    case "L1-S4":
+                    case "护套剥离长度":
+                // 兼容旧方案名称，测量算法保持不变。
+                case "L1-S4":
                     case "胶皮到绝缘胶的位置":
                         isDistanceItem = true;
                         extractValueFunc = r => r.ClassId == 0 ? GetRubberDistance(r.Box, rubbers) : null;

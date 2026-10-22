@@ -504,5 +504,7 @@ namespace TDJS_Vision.Node
         TerminalAngle,
         /// <summary>按逐行配置的多级文件夹及动态名称保存图像。</summary>
         NamedImageSave,
+        /// <summary>采用 Demo 双版本轮廓算法的独立模板匹配节点。</summary>
+        NewContourMatch,
     }
 }

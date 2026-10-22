@@ -244,9 +244,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     // 对输出数据存在宽高互换的情况进行处理
                                     ParseCommon.NormalizeObbResultsInPlace(obb_results);
 
-                                    //超日项目的结果解析
+                                    // 根据所选模型解析旋转框业务结果。
                                     switch (param.ModelName)
                                     {
+                                        case ModelName.勒刚端子侧面15类OBB模型:
+                                            TerminalSide_C15_Obb.Parse(obb_results, obb_results.Count, param, ref res);
+                                            break;
                                         default:
                                             throw new Exception("不存在的模型名称！");
                                     }

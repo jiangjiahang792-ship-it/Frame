@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -129,6 +130,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// <summary>布尔订阅为假（NG）时显示的自定义文本。</summary>
         public string BooleanNgText { get; set; } = "不合格";
 
+        /// <summary>组合布尔文本的逻辑，默认要求全部订阅满足。</summary>
+        [JsonConverter(typeof(StringEnumConverter))]
+        public OverlayBooleanMatchMode BooleanMatchMode { get; set; } = OverlayBooleanMatchMode.All;
+
+        /// <summary>组合布尔文本的独立订阅列表，不影响旧版单个布尔文本字段。</summary>
+        public List<OverlayBooleanSource> BooleanSources { get; set; } = new List<OverlayBooleanSource>();
+
         /// <summary>
         /// 订阅文本显示前缀。
         /// </summary>
@@ -243,6 +251,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 ManualText = ManualText,
                 BooleanOkText = BooleanOkText,
                 BooleanNgText = BooleanNgText,
+                BooleanMatchMode = BooleanMatchMode,
+                BooleanSources = BooleanSources == null ? new List<OverlayBooleanSource>()
+                    : BooleanSources.Select(source => source?.Clone()).ToList(),
                 TextPrefix = TextPrefix,
                 ColorArgb = ColorArgb,
                 UseJudgeColor = UseJudgeColor,
@@ -288,6 +299,32 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         Roi,
 
         /// <summary>订阅单个布尔结果，按真/假显示自定义OK/NG文本。</summary>
-        BooleanText
+        BooleanText,
+
+        /// <summary>组合多个布尔订阅，按全部或任一满足显示一个判定文本。</summary>
+        CombinedBooleanText
+    }
+
+    /// <summary>组合布尔文本支持的判定方式。</summary>
+    public enum OverlayBooleanMatchMode
+    {
+        /// <summary>全部订阅为真。</summary>
+        All,
+        /// <summary>至少一个订阅为真；所有订阅均必须有效。</summary>
+        Any
+    }
+
+    /// <summary>组合布尔文本的单个订阅，复用现有订阅控件的节点和结果标识。</summary>
+    public sealed class OverlayBooleanSource
+    {
+        /// <summary>节点编号及名称。</summary>
+        public string SourceText1 { get; set; }
+        /// <summary>订阅输出名称。</summary>
+        public string SourceText2 { get; set; }
+        /// <summary>用于订阅列表显示的中文说明。</summary>
+        [JsonIgnore]
+        public string DisplayText => SourceText1 + " / " + SourceText2;
+        /// <summary>复制编辑数据，避免修改已保存配置。</summary>
+        public OverlayBooleanSource Clone() => (OverlayBooleanSource)MemberwiseClone();
     }
 }

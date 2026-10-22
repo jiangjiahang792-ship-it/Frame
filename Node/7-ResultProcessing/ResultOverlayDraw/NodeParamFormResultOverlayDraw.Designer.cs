@@ -81,6 +81,13 @@
             this.buttonToggleAdvanced = new System.Windows.Forms.Button();
             this.panelAdvanced = new System.Windows.Forms.Panel();
             this.buttonAddBooleanText = new System.Windows.Forms.Button();
+            this.buttonAddCombinedBoolean = new System.Windows.Forms.Button();
+            this.panelCombinedBoolean = new System.Windows.Forms.Panel();
+            this.labelBooleanMatch = new System.Windows.Forms.Label();
+            this.comboBoxBooleanMatch = new System.Windows.Forms.ComboBox();
+            this.listBoxBooleanSources = new System.Windows.Forms.ListBox();
+            this.buttonAddBooleanSource = new System.Windows.Forms.Button();
+            this.buttonRemoveBooleanSource = new System.Windows.Forms.Button();
             this.buttonMoveUp = new System.Windows.Forms.Button();
             this.buttonMoveDown = new System.Windows.Forms.Button();
             this.panelBooleanText = new System.Windows.Forms.Panel();
@@ -318,7 +325,7 @@
             this.tableLayoutPanelItems.Location = new System.Drawing.Point(3, 24);
             this.tableLayoutPanelItems.Name = "tableLayoutPanelItems";
             this.tableLayoutPanelItems.RowCount = 2;
-            this.tableLayoutPanelItems.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 42F));
+            this.tableLayoutPanelItems.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 80F));
             this.tableLayoutPanelItems.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
             this.tableLayoutPanelItems.Size = new System.Drawing.Size(592, 222);
             this.tableLayoutPanelItems.TabIndex = 0;
@@ -328,6 +335,7 @@
             this.flowLayoutPanelItemButtons.Controls.Add(this.buttonAddText);
             this.flowLayoutPanelItemButtons.Controls.Add(this.buttonAddRoi);
             this.flowLayoutPanelItemButtons.Controls.Add(this.buttonAddBooleanText);
+            this.flowLayoutPanelItemButtons.Controls.Add(this.buttonAddCombinedBoolean);
             this.flowLayoutPanelItemButtons.Controls.Add(this.buttonDeleteItem);
             this.flowLayoutPanelItemButtons.Controls.Add(this.buttonMoveUp);
             this.flowLayoutPanelItemButtons.Controls.Add(this.buttonMoveDown);
@@ -387,6 +395,46 @@
             this.buttonAddBooleanText.TabIndex = 3;
             this.buttonAddBooleanText.UseVisualStyleBackColor = true;
             this.buttonAddBooleanText.Click += new System.EventHandler(this.buttonAddBooleanText_Click);
+            //
+            // 组合布尔文本及订阅列表
+            //
+            this.buttonAddCombinedBoolean.Name = "buttonAddCombinedBoolean";
+            this.buttonAddCombinedBoolean.Size = new System.Drawing.Size(160, 31);
+            this.buttonAddCombinedBoolean.Text = "添加组合布尔文本";
+            this.buttonAddCombinedBoolean.UseVisualStyleBackColor = true;
+            this.buttonAddCombinedBoolean.Click += new System.EventHandler(this.buttonAddCombinedBoolean_Click);
+            this.panelCombinedBoolean.Name = "panelCombinedBoolean";
+            this.panelCombinedBoolean.Size = new System.Drawing.Size(554, 184);
+            this.panelCombinedBoolean.Visible = false;
+            this.panelCombinedBoolean.Controls.Add(this.labelBooleanMatch);
+            this.panelCombinedBoolean.Controls.Add(this.comboBoxBooleanMatch);
+            this.panelCombinedBoolean.Controls.Add(this.listBoxBooleanSources);
+            this.panelCombinedBoolean.Controls.Add(this.buttonAddBooleanSource);
+            this.panelCombinedBoolean.Controls.Add(this.buttonRemoveBooleanSource);
+            this.labelBooleanMatch.Name = "labelBooleanMatch";
+            this.labelBooleanMatch.Location = new System.Drawing.Point(7, 9);
+            this.labelBooleanMatch.AutoSize = true;
+            this.labelBooleanMatch.Text = "组合方式";
+            this.comboBoxBooleanMatch.Name = "comboBoxBooleanMatch";
+            this.comboBoxBooleanMatch.Location = new System.Drawing.Point(145, 4);
+            this.comboBoxBooleanMatch.Size = new System.Drawing.Size(390, 28);
+            this.comboBoxBooleanMatch.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxBooleanMatch.Items.AddRange(new object[] { "全部满足（AND）", "任一满足（OR）" });
+            this.comboBoxBooleanMatch.SelectedIndexChanged += new System.EventHandler(this.ItemControl_ValueChanged);
+            this.listBoxBooleanSources.Name = "listBoxBooleanSources";
+            this.listBoxBooleanSources.Location = new System.Drawing.Point(7, 40);
+            this.listBoxBooleanSources.Size = new System.Drawing.Size(528, 92);
+            this.listBoxBooleanSources.HorizontalScrollbar = true;
+            this.buttonAddBooleanSource.Name = "buttonAddBooleanSource";
+            this.buttonAddBooleanSource.Location = new System.Drawing.Point(7, 142);
+            this.buttonAddBooleanSource.Size = new System.Drawing.Size(200, 31);
+            this.buttonAddBooleanSource.Text = "加入上方选中的订阅";
+            this.buttonAddBooleanSource.Click += new System.EventHandler(this.buttonAddBooleanSource_Click);
+            this.buttonRemoveBooleanSource.Name = "buttonRemoveBooleanSource";
+            this.buttonRemoveBooleanSource.Location = new System.Drawing.Point(217, 142);
+            this.buttonRemoveBooleanSource.Size = new System.Drawing.Size(150, 31);
+            this.buttonRemoveBooleanSource.Text = "移除选中订阅";
+            this.buttonRemoveBooleanSource.Click += new System.EventHandler(this.buttonRemoveBooleanSource_Click);
             this.panelBooleanText.Name = "panelBooleanText";
             this.panelBooleanText.Size = new System.Drawing.Size(554, 80);
             this.panelBooleanText.Visible = false;
@@ -480,6 +528,7 @@
             this.flowLayoutPanelSettings.AutoScroll = true;
             this.flowLayoutPanelSettings.Controls.Add(this.panelCommonSetting);
             this.flowLayoutPanelSettings.Controls.Add(this.panelSourceSetting);
+            this.flowLayoutPanelSettings.Controls.Add(this.panelCombinedBoolean);
             this.flowLayoutPanelSettings.Controls.Add(this.panelManualText);
             this.flowLayoutPanelSettings.Controls.Add(this.panelBooleanText);
             this.flowLayoutPanelSettings.Controls.Add(this.panelTextPrefix);
@@ -1060,6 +1109,20 @@
         private System.Windows.Forms.Panel panelAdvanced;
         /// <summary>添加独立布尔订阅文本项。</summary>
         private System.Windows.Forms.Button buttonAddBooleanText;
+        /// <summary>新增组合布尔文本项。</summary>
+        private System.Windows.Forms.Button buttonAddCombinedBoolean;
+        /// <summary>组合方式和多来源编辑区域。</summary>
+        private System.Windows.Forms.Panel panelCombinedBoolean;
+        /// <summary>组合方式说明。</summary>
+        private System.Windows.Forms.Label labelBooleanMatch;
+        /// <summary>选择全部满足或任一满足。</summary>
+        private System.Windows.Forms.ComboBox comboBoxBooleanMatch;
+        /// <summary>已经加入组合的布尔订阅。</summary>
+        private System.Windows.Forms.ListBox listBoxBooleanSources;
+        /// <summary>把当前订阅选择器的结果加入组合。</summary>
+        private System.Windows.Forms.Button buttonAddBooleanSource;
+        /// <summary>移除组合中选中的来源。</summary>
+        private System.Windows.Forms.Button buttonRemoveBooleanSource;
         /// <summary>上移选中绘制项。</summary>
         private System.Windows.Forms.Button buttonMoveUp;
         /// <summary>下移选中绘制项。</summary>

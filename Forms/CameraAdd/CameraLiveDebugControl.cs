@@ -1465,7 +1465,8 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// <param name="e">绘制参数。</param>
         private void PictureBoxPreview_Paint(object sender, PaintEventArgs e)
         {
-            DrawImageRoiOverlay(e.Graphics);
+            if (_isEditingQualityRoi)
+                DrawImageRoiOverlay(e.Graphics);
         }
 
         /// <summary>
@@ -2151,6 +2152,8 @@ namespace TDJS_Vision.Forms.CameraAdd
             }
 
             EnsureQualityRoiForImageSize(pictureBoxPreview.Image.Size);
+            pictureBoxPreview.NavigationEnabled = false;
+            pictureBoxPreview.ResetView();
             _isEditingQualityRoi = true;
             _isDraggingQualityRoi = false;
             buttonEditRoi.Enabled = false;
@@ -2168,6 +2171,7 @@ namespace TDJS_Vision.Forms.CameraAdd
         private void ButtonCompleteRoi_Click(object sender, EventArgs e)
         {
             _isEditingQualityRoi = false;
+            pictureBoxPreview.NavigationEnabled = true;
             _isDraggingQualityRoi = false;
             _qualityRoiHitArea = RoiHitArea.无;
             buttonEditRoi.Enabled = true;
@@ -2695,6 +2699,125 @@ namespace TDJS_Vision.Forms.CameraAdd
         {
             _treeGroupFont?.Dispose();
             _treeGroupFont = null;
+        }
+    }
+
+    /// <summary>相机二维实时预览：跨帧保留缩放和平移，ROI编辑时恢复标准自适应坐标。</summary>
+    public class CameraPreviewPictureBox : PictureBox
+    {
+        /// <summary>相对于自适应大小的缩放倍数。</summary>
+        private float _zoom = 1F;
+        /// <summary>显示坐标下的平移量。</summary>
+        private PointF _pan;
+        /// <summary>拖动的上一次鼠标位置。</summary>
+        private System.Drawing.Point _lastMouse;
+        /// <summary>是否正在平移图像。</summary>
+        private bool _panning;
+        /// <summary>记录上一帧尺寸，仅在分辨率变化时重置视图。</summary>
+        private System.Drawing.Size _imageSize;
+        /// <summary>普通预览允许看图操作；ROI编辑时由原有编辑逻辑处理鼠标。</summary>
+        public bool NavigationEnabled { get; set; } = true;
+        /// <summary>使预览可获得滚轮焦点并启用双缓冲。</summary>
+        public CameraPreviewPictureBox()
+        {
+            SetStyle(ControlStyles.Selectable | ControlStyles.OptimizedDoubleBuffer, true);
+        }
+        /// <summary>恢复全图自适应，结束当前平移。</summary>
+        public void ResetView()
+        {
+            _zoom = 1F;
+            _pan = PointF.Empty;
+            _panning = false;
+            Capture = false;
+            Invalidate();
+        }
+        /// <summary>计算缩放后完整图像在控件内的位置。</summary>
+        private RectangleF ImageBounds()
+        {
+            float fit = Math.Min(ClientSize.Width / (float)Image.Width, ClientSize.Height / (float)Image.Height);
+            float width = Image.Width * fit * _zoom, height = Image.Height * fit * _zoom;
+            return new RectangleF((ClientSize.Width - width) / 2F + _pan.X,
+                (ClientSize.Height - height) / 2F + _pan.Y, width, height);
+        }
+        /// <summary>直接绘制当前帧，无额外位图拷贝；编辑ROI时使用原PictureBox绘制。</summary>
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            if (Image != null && _imageSize != Image.Size)
+            {
+                _imageSize = Image.Size;
+                ResetView();
+            }
+            if (!NavigationEnabled || Image == null)
+            {
+                base.OnPaint(e);
+                return;
+            }
+            if (ClientSize.Width > 0 && ClientSize.Height > 0)
+                e.Graphics.DrawImage(Image, ImageBounds());
+        }
+        /// <summary>鼠标进入预览即获得滚轮焦点。</summary>
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            if (NavigationEnabled) Focus();
+            base.OnMouseEnter(e);
+        }
+        /// <summary>以鼠标位置为中心缩放，连续采集时保留当前视图。</summary>
+        protected override void OnMouseWheel(MouseEventArgs e)
+        {
+            if (NavigationEnabled && Image != null && ClientSize.Width > 0 && ClientSize.Height > 0)
+            {
+                RectangleF before = ImageBounds();
+                float previous = _zoom;
+                _zoom = Math.Max(1F, Math.Min(32F, _zoom * (float)Math.Pow(1.2, e.Delta / 120.0)));
+                float ratio = _zoom / previous;
+                if (_zoom == 1F) _pan = PointF.Empty;
+                else
+                {
+                    RectangleF after = ImageBounds();
+                    _pan.X += e.X - (e.X - before.X) * ratio - after.X;
+                    _pan.Y += e.Y - (e.Y - before.Y) * ratio - after.Y;
+                }
+                Invalidate();
+                if (e is HandledMouseEventArgs handled) handled.Handled = true;
+            }
+            base.OnMouseWheel(e);
+        }
+        /// <summary>左键开始平移，不占用ROI编辑模式。</summary>
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            if (NavigationEnabled && Image != null && e.Button == MouseButtons.Left)
+            {
+                Focus(); _lastMouse = e.Location; _panning = true; Capture = true;
+            }
+            base.OnMouseDown(e);
+        }
+        /// <summary>更新鼠标拖动的显示偏移。</summary>
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            if (NavigationEnabled && _panning)
+            {
+                _pan.X += e.X - _lastMouse.X; _pan.Y += e.Y - _lastMouse.Y;
+                _lastMouse = e.Location; Invalidate();
+            }
+            base.OnMouseMove(e);
+        }
+        /// <summary>鼠标释放时结束平移。</summary>
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            if (_panning && e.Button == MouseButtons.Left) { _panning = false; Capture = false; }
+            base.OnMouseUp(e);
+        }
+        /// <summary>捕获丢失时停止拖动，防止鼠标返回后图像跳动。</summary>
+        protected override void OnMouseCaptureChanged(EventArgs e)
+        {
+            if (!Capture) _panning = false;
+            base.OnMouseCaptureChanged(e);
+        }
+        /// <summary>双击恢复全图。</summary>
+        protected override void OnMouseDoubleClick(MouseEventArgs e)
+        {
+            if (NavigationEnabled && e.Button == MouseButtons.Left) ResetView();
+            base.OnMouseDoubleClick(e);
         }
     }
 }

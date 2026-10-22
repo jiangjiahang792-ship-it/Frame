@@ -173,6 +173,8 @@ namespace TDJS_Vision.Node
                     return new NodeQRScan(nodeId, nodeName, process, nodeType);
                 case NodeType.MatchTemplate:
                     return new NodeMatchTemplate(nodeId, nodeName, process, nodeType);
+                case NodeType.NewContourMatch:
+                    return new _3_Detection.NewContourMatch.NodeNewContourMatch(nodeId, nodeName, process, nodeType);
                 case NodeType.ContourMatch:
                     return new NodeContourMatch(nodeId, nodeName, process, nodeType);
                 case NodeType.NccMatchTemplate:

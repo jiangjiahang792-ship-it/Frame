@@ -75,6 +75,9 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 
     public class NodeConditionEvaluation
     {
+        /// <summary>来源被停用时不提供可订阅的单项合格结果；总判定保留原兼容行为。</summary>
+        public bool SourceDisabled { get; set; }
+
         /// <summary>
         /// 当前条件本次是否参与检测；禁用条件仍保留明细位置，避免界面行索引错位。
         /// </summary>
@@ -210,6 +213,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                         OperatorText = condition.Operator.ToString(),
                         ExpectedValue = BuildExpectedText(condition),
                         ActualValue = "源节点已禁用",
+                        SourceDisabled = true,
                         NullReason = string.Empty,
                         SourceRunState = BuildSourceRunState(currentNode, sourceNode),
                         SourceHasCurrentRunResult = sourceNode.HasSuccessfulResultForRun(currentNode.Process.CurrentRunId),

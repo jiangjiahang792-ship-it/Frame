@@ -1,13 +1,33 @@
 using Logger;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 {
-    public class NodeMultiCondition : NodeBase, INodeSubscriptionDependencyProvider
+    public class NodeMultiCondition : NodeBase, INodeSubscriptionDependencyProvider,
+        IDynamicResultVariableProvider, IDynamicResultVariableTypeProvider
     {
+        /// <summary>运行前依据配置发布单项条件端口，名称唯一才允许订阅，防止行顺序变化导致错配。</summary>
+        public IEnumerable<string> GetDynamicResultVariableNames()
+        {
+            var param = ParamForm?.Params as NodeParamMultiCondition;
+            return (param?.Conditions ?? new List<MultiConditionItem>())
+                .Where(c => c != null && !string.IsNullOrWhiteSpace(c.Name))
+                .GroupBy(c => c.Name, StringComparer.Ordinal)
+                .Where(g => g.Count() == 1 && g.First().Enabled)
+                .Select(g => NodeResultMultiCondition.ItemResultPrefix + g.Key);
+        }
+
+        /// <summary>声明可供布尔文本及组合布尔文本使用的单值类型。</summary>
+        public bool TryGetDynamicResultVariableType(string variableName, out Type valueType)
+        {
+            valueType = typeof(bool);
+            return GetDynamicResultVariableNames().Contains(DynamicResultVariableResolver.ExtractVariableName(variableName));
+        }
+
         /// <summary>
         /// 多条件节点运行成功并刷新条件明细后触发，供运行参数界面同步当前值。
         /// </summary>

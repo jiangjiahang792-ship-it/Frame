@@ -238,6 +238,7 @@
     <Compile Include="Diagnostics\ProcessPerformanceTrace.cs" />
     <Compile Include="Diagnostics\PerformanceSpikeDiagnostics.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\Ultrasound_Side_3Class.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\TerminalSide_C15_Obb.cs" />
     <Compile Include="ResourceManagement\ResourceProfileModels.cs" />
     <Compile Include="ResourceManagement\PerformanceResourceSettings.cs" />
     <Compile Include="ResourceManagement\IResourceProfileServices.cs" />
@@ -1325,6 +1326,53 @@
       <DependentUpon>ParamFormLargeModelDetection.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\3-Detection\LargeModel\LargeModelDetectionRuntime.cs" />
+    <Compile Include="Node\3-Detection\NewContourMatch\NewContourMatchSession.cs" />
+    <Compile Include="Node\3-Detection\NewContourMatch\TemplateRegion.cs" />
+    <Compile Include="Node\3-Detection\NewContourMatch\ImageCanvas.Regions.cs">
+      <DependentUpon>ImageCanvas.cs</DependentUpon>
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\NewContourMatch\ContourTemplateEditor.Regions.cs">
+      <DependentUpon>ContourTemplateEditor.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\NewContourMatch\ContourTemplateDefinition.cs" />
+    <Compile Include="Node\3-Detection\NewContourMatch\ContourTemplateEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\NewContourMatch\ContourTemplateEditor.Designer.cs">
+      <DependentUpon>ContourTemplateEditor.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\NewContourMatch\ContourTemplateEditor.Integration.cs">
+      <DependentUpon>ContourTemplateEditor.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\NewContourMatch\ImageCanvas.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\NewContourMatch\ImageFrame.cs" />
+    <Compile Include="Node\3-Detection\NewContourMatch\NativeMethods.cs" />
+    <Compile Include="Node\3-Detection\NewContourMatch\NativeShapeMatcher.cs" />
+    <Compile Include="Node\3-Detection\NewContourMatch\NodeNewContourMatch.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\NewContourMatch\NodeParamNewContourMatch.cs" />
+    <Compile Include="Node\3-Detection\NewContourMatch\NodeParamFormNewContourMatch.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\NewContourMatch\NodeParamFormNewContourMatch.Designer.cs">
+      <DependentUpon>NodeParamFormNewContourMatch.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\3-Detection\NewContourMatch\NodeParamFormNewContourMatch.Integration.cs">
+      <DependentUpon>NodeParamFormNewContourMatch.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\3-Detection\NewContourMatch\ShapeMatchModels.cs" />
+    <Compile Include="Node\3-Detection\MatchTemplate\FastTemplateMatcher.cs" />
+    <Compile Include="Node\3-Detection\MatchTemplate\TemplateMatchPose.cs" />
+    <Compile Include="Node\3-Detection\MatchTemplate\NodeParamFormMatchTemplate.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Node\3-Detection\ContourMatch\ContourMatchSession.cs" />
     <Compile Include="Node\3-Detection\ContourMatch\TemplateRegion.cs" />
     <Compile Include="Node\3-Detection\ContourMatch\ImageCanvas.Regions.cs">
@@ -2268,6 +2316,7 @@
     <Content Include="dll\FastColoredTextBox.dll" />
     <Content Include="dll\HslCommunication.dll" />
     <Content Include="dll\Mv3dLpNet.dll" />
+    <Content Include="Native\NewContourMatchNative.dll"><Link>NewContourMatchNative.dll</Link><TargetPath>NewContourMatchNative.dll</TargetPath><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
     <Content Include="Native\ShapeMatchNative.dll">
       <Link>ShapeMatchNative.dll</Link>
       <TargetPath>ShapeMatchNative.dll</TargetPath>
@@ -2301,6 +2350,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Languages\zh-CN.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\勒刚端子侧面15类检测项.items">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Template\TDAI\超声波焊接侧面三类检测项.json">

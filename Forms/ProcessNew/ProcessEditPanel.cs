@@ -1,4 +1,4 @@
-﻿using TDJS_Vision.Node._3_Detection.ContourMatch;
+using TDJS_Vision.Node._3_Detection.ContourMatch;
 using Logger;
 using Newtonsoft.Json;
 using System;
@@ -773,6 +773,9 @@ namespace TDJS_Vision.Forms.ProcessNew
                     break;
                 case NodeType.MatchTemplate:
                     node = new NodeMatchTemplate(nodeId, nodeName, _process, nodeType);
+                    break;
+                case NodeType.NewContourMatch:
+                    node = new TDJS_Vision.Node._3_Detection.NewContourMatch.NodeNewContourMatch(nodeId, nodeName, _process, nodeType);
                     break;
                 case NodeType.ContourMatch:
                     node = new NodeContourMatch(nodeId, nodeName, _process, nodeType);

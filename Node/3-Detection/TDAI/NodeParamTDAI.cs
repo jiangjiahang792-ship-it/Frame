@@ -296,5 +296,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         AST工位1分割模型,
         /// <summary>前后防水栓独立识别的新端子12类检测模型。</summary>
         新端子12类模型,
+        /// <summary>勒刚端子侧面15类旋转框检测模型。</summary>
+        勒刚端子侧面15类OBB模型,
     }
 }

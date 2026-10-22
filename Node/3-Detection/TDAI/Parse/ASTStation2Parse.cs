@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -93,12 +93,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 Func<DetResult, float?> extractValueFunc;
                 switch (itemName)
                 {
+                    case "护套内导体位置":
+                    // 新旧名称统一测端子头底边到胶皮顶边，箭头取点与测量边缘一致。
                     case "L1-S2(端子先端位置)":
                     case "铜环底部到端子头顶部的距离":
                         isDistanceItem = true;
-                        useDependencyBottom = true;
-                        findDependencyRectFunc = target => FindNearestCopperRing(target, copperRings);
-                        extractValueFunc = r => r.ClassId == 0 ? GetCopperRingDistance(r.Box, copperRings) : null;
+                        useTargetBottom = true;
+                        findDependencyRectFunc = target => FindNearestRubber(target, rubbers);
+                        extractValueFunc = r => r.ClassId == 0 ? GetRubberTopDistance(r.Box, rubbers, true) : null;
                         break;
                     case "出线芯宽度":
                     case "露线芯宽度":
@@ -116,6 +118,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         // line 与露线芯为不同类别，长度沿当前图像Y方向测量。
                         extractValueFunc = r => r.ClassId == 8 ? (float?)r.Box.Height : null;
                         break;
+                    case "线芯宽度":
+                    // 兼容旧方案中的误写名称，测量方式保持不变。
                     case "线线宽度":
                         // 保留检测项配置的中文名称，宽度沿当前图像X方向测量。
                         isWidthMeasurement = true;

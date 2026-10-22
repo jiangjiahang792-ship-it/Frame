@@ -17,8 +17,8 @@ internal static class ASTStation1Tests
 {
     /// <summary>已通过的断言数量。</summary>
     private static int _checks;
-    /// <summary>用户要求的十个检测项及输出顺序。</summary>
-    private static readonly string[] Names = { "L1-S2", "L1-S3", "L1-S4",
+    /// <summary>用户要求的九个检测项及输出顺序。</summary>
+    private static readonly string[] Names = { "套筒压接位置", "护套剥离长度",
         "屏蔽网高度", "屏蔽网宽度", "铜环高度", "铜环宽度", "绝缘胶高度", "绝缘胶宽度", "飞丝" };
     /// <summary>验证业务行为，失败时输出场景。</summary>
     private static void Check(bool value, string message)
@@ -65,31 +65,31 @@ internal static class ASTStation1Tests
         var parameter = Parameter("解析");
         var detections = Detections();
         var result = Parse(parameter, detections);
-        float[] expected = { 30, 60, 130, 14, 25, 16, 30, 12, 20, 1 };
-        Check(result.DetectItemCount == 10 && result.IsOk, "十项结果不完整或判定错误。");
+        float[] expected = { 30, 130, 14, 25, 16, 30, 12, 20, 1 };
+        Check(result.DetectItemCount == 9 && result.IsOk, "九项结果不完整或判定错误。");
         for (int i = 0; i < Names.Length; i++) Check(Value(result, Names[i]) == expected[i], Names[i] + "数值错误。");
         Check(result.AlgorithmResult.Rects.Count == 5, "检测框未去重或遗漏了飞丝。");
-        Check(result.AlgorithmResult.Lines.Count == 45 && result.AlgorithmResult.Lines.All(l => l.Color == Color.Yellow && !l.ShowCenterCross), "九项尺寸双向箭头缺失或颜色错误。");
+        Check(result.AlgorithmResult.Lines.Count == 40 && result.AlgorithmResult.Lines.All(l => l.Color == Color.Yellow && !l.ShowCenterCross), "八项尺寸双向箭头缺失或颜色错误。");
         Check(!result.AlgorithmResult.Texts.Single(t => t.Text.Contains("飞丝")).Text.EndsWith("mm"), "飞丝数量不应显示尺寸单位。");
         Check(Math.Abs(result.AlgorithmResult.Lines[0].P2.Y - result.AlgorithmResult.Lines[0].P1.Y) == 30, "胶皮间距箭头端点与测量不一致。");
         Check(!result.AlgorithmResult.Texts.Any(t => t.Color == Color.Yellow), "箭头不应显示黄色数值。");
         parameter.NeedConvert = true; parameter.Scale = 0.1f;
         result = Parse(parameter, detections);
         Check(Math.Abs(Value(result, Names[0]) - 3) < 0.001f, "距离换算错误。");
-        Check(Math.Abs(Value(result, Names[3]) - 1.4f) < 0.001f, "高度换算错误。");
+        Check(Math.Abs(Value(result, Names[2]) - 1.4f) < 0.001f, "高度换算错误。");
         parameter.NeedConvert = false;
         detections.RemoveAll(d => d.ClassId == 3);
         result = Parse(parameter, detections);
         Check(Value(result, Names[0]) == 0 && !result.IsOk, "缺少胶皮仍输出旧距离。");
-        Check(Value(result, Names[3]) == 14, "缺少胶皮中断了独立尺寸解析。");
+        Check(Value(result, Names[2]) == 14, "缺少胶皮中断了独立尺寸解析。");
         Check(result.AlgorithmResult.Lines.Count == 30, "缺少依赖框仍显示距离箭头。");
         var items = Solution.Instance.DetectItemDic["解析"];
         items[0].MinValue = "0"; items[0].MaxValue = "0";
         Check(Parse(parameter, detections).AlgorithmResult.DetectResults[Names[0]][0].IsOk, "缺失0未按上下限判定。");
         items[0].Enable = false;
-        items[4].MaxValue = "10";
+        items[3].MaxValue = "10";
         result = Parse(parameter, Detections());
-        Check(result.DetectItemCount == 9, "禁用项仍输出。");
+        Check(result.DetectItemCount == 8, "禁用项仍输出。");
         Check(result.AlgorithmResult.Rects.Single(r => r.RotatedRect.size.width == 25).Color == Color.Red,
             "同框宽度NG未合并颜色。");
         result = Parse(parameter, null);
@@ -111,7 +111,7 @@ internal static class ASTStation1Tests
         result = Parse(overlap, detections);
         Check(result.AlgorithmResult.DetectResults[Names[0]].Select(r => float.Parse(r.Value)).SequenceEqual(new[] { 30f, 120f }),
             "多目标距离匹配错误。");
-        Check(result.AlgorithmResult.DetectResults[Names[6]].Count == 2, "多铜环尺寸明细丢失。");
+        Check(result.AlgorithmResult.DetectResults[Names[5]].Count == 2, "多铜环尺寸明细丢失。");
     }
     /// <summary>不同节点学习样本不得串用，未检出不得进入尺寸学习。</summary>
     private static void VerifyStudy()

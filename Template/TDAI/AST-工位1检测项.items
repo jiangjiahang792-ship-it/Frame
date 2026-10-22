@@ -1,6 +1,6 @@
 [
   {
-    "Name": "L1-S2",
+    "Name": "套筒压接位置",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -8,15 +8,7 @@
     "CurValue": "0"
   },
   {
-    "Name": "L1-S3",
-    "MinValue": "1",
-    "MaxValue": "99999",
-    "Enable": true,
-    "IsCountItem": false,
-    "CurValue": "0"
-  },
-  {
-    "Name": "L1-S4",
+    "Name": "护套剥离长度",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,

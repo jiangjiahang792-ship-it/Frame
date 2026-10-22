@@ -111,8 +111,8 @@ internal static class ASTStation1SegTests
         foreach (var item in template) item.Enable = true;
         Solution.Instance.DetectItemDic[all.CurDetectItemName] = template;
         result = Parse(all, new List<SegResult> { Segment(0, 10, 35), Segment(1, 50, 70), Segment(2, 80, 100), Segment(3, 105, 119), Segment(5, 20, 60) });
-        Check(result.IsOk && result.DetectItemCount == 16 && result.AlgorithmResult.Lines.Count == 75, "全部检测项或铝箔箭头缺失。");
-        Check(result.AlgorithmResult.DetectResults["L1-S4"][0].Value == "95.00", "L1-S4未按胶皮顶部最低点到绝缘体顶部最低点计算。");
+        Check(result.IsOk && result.DetectItemCount == 15 && result.AlgorithmResult.Lines.Count == 70, "全部检测项或铝箔箭头缺失。");
+        Check(result.AlgorithmResult.DetectResults["护套剥离长度"][0].Value == "95.00", "护套剥离长度未按胶皮顶部最低点到绝缘体顶部最低点计算。");
     }
     /// <summary>验证铝箔掩膜尺寸、最高置信度选择、补偿、缺失和学习。</summary>
     private static void VerifyFoilMeasurements()
@@ -191,40 +191,43 @@ internal static class ASTStation1SegTests
         Check(Parse(p, new List<SegResult> { mesh, Segment(3, 105, 119) })
             .AlgorithmResult.DetectResults[item.Name][0].Value == "55.00", "旧名称的测量逻辑不兼容。");
     }
-    /// <summary>验证L1-S2固定使用铜环和胶皮顶部最低点，不使用相邻底边。</summary>
+    /// <summary>验证套筒压接位置固定使用铜环顶部最高点和胶皮顶部最低点，不使用相邻底边。</summary>
     private static void VerifyCopperTopDistance()
     {
         var p = Parameters("铜环顶部距离");
-        var item = new DetectItemInfo { Name = "L1-S2", Enable = true, MinValue = "0", MaxValue = "1000" };
+        var item = new DetectItemInfo { Name = "套筒压接位置", Enable = true, MinValue = "0", MaxValue = "1000" };
         Solution.Instance.DetectItemDic[p.CurDetectItemName] = new List<DetectItemInfo> { item };
         var copper = Segment(2, 50, 70);
         var rubber = Segment(3, 105, 119);
         var segments = new List<SegResult> { copper, rubber, Segment(2, 10, 30, 0.1f) };
         var result = Parse(p, segments);
-        Check(result.IsOk && item.CurValue == "55.00", "L1-S2未使用最高置信度铜环与胶皮顶部最低点。");
-        Check(result.AlgorithmResult.Lines.Count == 5 && result.AlgorithmResult.Lines[0].P1.Y == 252 &&
-            result.AlgorithmResult.Lines[0].P2.Y == 307, "L1-S2箭头端点与顶部最低点不一致。");
+        Check(result.IsOk && item.CurValue == "57.00", "套筒压接位置未使用最高置信度铜环与胶皮顶部最低点。");
+        Check(result.AlgorithmResult.Lines.Count == 5 && result.AlgorithmResult.Lines[0].P1.Y == 250 &&
+            result.AlgorithmResult.Lines[0].P2.Y == 307, "套筒压接位置箭头端点与顶部最低点不一致。");
         p.NeedConvert = true; p.Scale = 0.1f; item.Compensation = 0.5f;
         Parse(p, segments);
-        Check(item.CurValue == "6.00", "L1-S2换算或补偿错误。");
+        Check(item.CurValue == "6.20", "套筒压接位置换算或补偿错误。");
         p.NeedConvert = false; item.Compensation = 0;
         Parse(p, new List<SegResult> { copper, Segment(3, 40, 65) });
-        Check(item.CurValue == "10.00", "L1-S2重叠和反向时应保持顶部最低点差绝对值。");
-        Parse(p, new List<SegResult> { copper, Segment(3, 50, 65) });
-        Check(item.CurValue == "0", "L1-S2顶部同高应为0。");
+        Check(item.CurValue == "8.00", "套筒压接位置重叠和反向时应保持指定顶部取点Y差绝对值。");
+        Parse(p, new List<SegResult> { copper, Segment(3, 48, 65) });
+        Check(item.CurValue == "0", "套筒压接位置顶部同高应为0。");
         foreach (var missing in new[] { new List<SegResult> { copper }, new List<SegResult> { rubber } })
         {
             result = Parse(p, missing);
             Check(result.IsOk && item.CurValue == "0" && result.AlgorithmResult.Lines.Count == 0,
-                "L1-S2缺失目标应按零值判定且不绘制箭头。");
+                "套筒压接位置缺失目标应按零值判定且不绘制箭头。");
         }
+        // 铜环最低点数据不再参与该项测量；真实掩膜最高点仍有效。
+        copper.MaskGeometry.UpperEdgeLowestY = -1;
+        Check(Parse(p, segments).IsOk && item.CurValue == "57.00", "铜环最低点不应影响最高点测量。");
         rubber.MaskGeometry.UpperEdgeLowestY = -1;
-        Check(Parse(p, new List<SegResult> { copper, rubber }).IsOk && item.CurValue == "0", "L1-S2无效取点应输出0。");
+        Check(Parse(p, new List<SegResult> { copper, rubber }).IsOk && item.CurValue == "0", "套筒压接位置无效取点应输出0。");
         item.MinValue = "1";
-        Check(!Parse(p, new List<SegResult> { copper, rubber }).IsOk, "L1-S2缺失零值应受下限约束。");
+        Check(!Parse(p, new List<SegResult> { copper, rubber }).IsOk, "套筒压接位置缺失零值应受下限约束。");
         item.Name = "胶皮到铜环的距离";
         Parse(p, new List<SegResult> { copper, Segment(3, 105, 119) });
-        Check(item.CurValue == "55.00", "L1-S2旧名称未采用新测量口径。");
+        Check(item.CurValue == "57.00", "套筒压接位置旧名称未采用新测量口径。");
     }
 
     /// <summary>学习会话按节点隔离，无效缺失值不进入样本。</summary>

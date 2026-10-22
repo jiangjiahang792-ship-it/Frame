@@ -51,6 +51,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 if (item == null || !item.Enabled)
                     continue;
 
+                if (item.ItemType == ResultOverlayDrawItemType.CombinedBooleanText)
+                {
+                    foreach (OverlayBooleanSource source in item.BooleanSources ?? new List<OverlayBooleanSource>())
+                        AddNodeId(nodeIds, source?.SourceText1);
+                    continue;
+                }
+
                 bool needSource = item.ItemType != ResultOverlayDrawItemType.Text || !item.UseManualText;
                 if (needSource)
                     AddNodeId(nodeIds, item.SourceText1);
@@ -723,6 +730,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 {
                     case ResultOverlayDrawItemType.Text:
                     case ResultOverlayDrawItemType.BooleanText:
+                    case ResultOverlayDrawItemType.CombinedBooleanText:
                         AppendText(owner, displayResult, item, param);
                         if (performanceDiagnostics != null)
                         {
@@ -800,6 +808,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             ResultOverlayDrawItem item,
             NodeParamResultOverlayDraw param)
         {
+            if (item.ItemType == ResultOverlayDrawItemType.CombinedBooleanText)
+            {
+                AppendCombinedBooleanText(owner, displayResult, item, param);
+                return;
+            }
             if (item.ItemType == ResultOverlayDrawItemType.BooleanText)
             {
                 AppendBooleanText(owner, displayResult, item, param);
@@ -880,6 +893,56 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             displayResult.IsAllOk = displayResult.IsAllOk && isOk;
             string content = isOk ? item.BooleanOkText : item.BooleanNgText;
             AddDisplayText(displayResult, new ColorText(content, isOk ? param.OkColor : param.NgColor)
+            {
+                FontSize = Math.Max(1, item.FontSize),
+                Position = item.TextPosition,
+                CoordinateMode = item.TextCoordinateMode,
+                Margin = Math.Max(0, item.TextMargin),
+                Title = string.Empty
+            }, false);
+        }
+
+        /// <summary>
+        /// 读取全部布尔订阅后组合；任一来源缺失、失败或类型错误均显示异常，禁止OR短路掩盖失效输入。
+        /// </summary>
+        private static void AppendCombinedBooleanText(NodeBase owner, AlgorithmResult displayResult,
+            ResultOverlayDrawItem item, NodeParamResultOverlayDraw param)
+        {
+            bool isOk = item.BooleanMatchMode == OverlayBooleanMatchMode.All;
+            string error = null;
+            if (item.BooleanSources == null || item.BooleanSources.Count == 0)
+                error = "未配置订阅";
+            else if (!Enum.IsDefined(typeof(OverlayBooleanMatchMode), item.BooleanMatchMode))
+                error = "组合方式无效";
+            else
+            {
+                foreach (OverlayBooleanSource source in item.BooleanSources)
+                {
+                    var subscription = new ResultOverlayDrawItem
+                    {
+                        SourceText1 = source?.SourceText1,
+                        SourceText2 = source?.SourceText2
+                    };
+                    if (source == null || string.IsNullOrWhiteSpace(source.SourceText2)
+                        || !TryReadDrawItemValue(owner, subscription, out object value, out NodeBase sourceNode)
+                        || !sourceNode.Active || sourceNode.RuntimeStatus != NodeStatus.Successful)
+                    {
+                        error = "订阅结果不可用：" + source?.DisplayText;
+                        break;
+                    }
+                    if (!(value is bool result))
+                    {
+                        error = "订阅结果不是布尔值：" + source.DisplayText;
+                        break;
+                    }
+                    isOk = item.BooleanMatchMode == OverlayBooleanMatchMode.All ? isOk & result : isOk | result;
+                }
+            }
+            isOk = error == null && isOk;
+            displayResult.IsAllOk &= isOk;
+            AddDisplayText(displayResult, new ColorText(
+                error == null ? (isOk ? item.BooleanOkText : item.BooleanNgText) : "组合判定异常：" + error,
+                error != null ? Color.Red : isOk ? param.OkColor : param.NgColor)
             {
                 FontSize = Math.Max(1, item.FontSize),
                 Position = item.TextPosition,

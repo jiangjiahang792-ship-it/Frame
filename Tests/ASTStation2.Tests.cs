@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -18,7 +18,7 @@ internal static class ASTStation2Tests
     /// <summary>已通过的断言数量。</summary>
     private static int _checks;
     /// <summary>删除六项后保留的九项检测，顺序与发布模板一致。</summary>
-    private static readonly string[] Names = { "L1-S2(端子先端位置)", "出线芯宽度", "出线芯长度",
+    private static readonly string[] Names = { "护套内导体位置", "出线芯宽度", "出线芯长度",
         "编组反转代-1", "编组反转代-2", "L5_绝缘体长度", "飞丝", "L6_箔剥宽度", "L6_箔剥长度" };
     /// <summary>验证业务行为，失败时输出场景。</summary>
     private static void Check(bool value, string message)
@@ -99,7 +99,7 @@ internal static class ASTStation2Tests
         var parameter = Parameter("解析");
         var detections = Detections();
         var result = Parse(parameter, detections);
-        float[] expected = { 280, 18, 27, 120, 85, 200, 1, 30, 40 };
+        float[] expected = { 250, 18, 27, 120, 85, 200, 1, 30, 40 };
         Check(result.DetectItemCount == 9 && result.IsOk, "九项结果不完整或判定错误。");
         for (int i = 0; i < Names.Length; i++) Check(Value(result, Names[i]) == expected[i], Names[i] + "数值错误。");
         // 旧模板加载后必须输出新名称，同时旧订阅经公共归一化仍能读取相同数值。
@@ -116,25 +116,25 @@ internal static class ASTStation2Tests
             Check(Value(legacyResult, legacyNames[i]) == expected[renamedIndices[i]], "旧名称读取结果错误。");
             Check(DetectItemLanguage.GetConfigName(legacyNames[i]) == Names[renamedIndices[i]], "导出没有使用新名称。");
         }
-        Check(result.AlgorithmResult.Rects.Count == 7, "参与框去重错误或绘制了已删除的铝箔项。");
+        Check(result.AlgorithmResult.Rects.Count == 6, "参与框去重错误或绘制了已删除的铝箔项。");
         Check(result.AlgorithmResult.Lines.Count == 40 && result.AlgorithmResult.Lines.All(l => l.Color == Color.Yellow && !l.ShowCenterCross), "工位2尺寸箭头缺失或错误地绘制了数量项。");
-        Check(result.AlgorithmResult.Lines.Any(l => l.P1.Y == 100 && l.P2.Y == 380), "铜环到端子头箭头端点错误。");
+        Check(result.AlgorithmResult.Lines.Any(l => l.P1.Y == 160 && l.P2.Y == 410), "端子头底边到胶皮顶边箭头端点错误。");
         Check(!result.AlgorithmResult.Lines.Any(l => l.P1.Y == 260 && l.P2.Y == 380), "已删除的铝箔距离仍绘制箭头。");
         Check(!result.AlgorithmResult.Texts.Any(t => t.Color == Color.Yellow), "箭头不应显示黄色数值。");
         VerifyAnnotationProjection(result.AlgorithmResult);
         Check(result.AlgorithmResult.DetectResults.ContainsKey("出线芯长度"), "出线芯长度未按新检测项名称输出。");
         parameter.NeedConvert = true; parameter.Scale = 0.1f;
         result = Parse(parameter, detections);
-        Check(Value(result, Names[0]) == 28, "Y距离换算错误。");
+        Check(Value(result, Names[0]) == 25, "Y距离换算错误。");
         Check(Math.Abs(Value(result, "出线芯长度") - 2.7f) < 0.001f, "出线芯长度换算错误。");
         Check(Value(result, "绝缘体宽度") == 3 && Value(result, "绝缘体长度") == 4, "绝缘体尺寸换算错误。");
         Check(Value(result, "编组反转代-1") == 12 && Value(result, "编组反转代-2") == 8.5f && Value(result, "L5_绝缘体长度") == 20, "胶皮距离换算错误。");
-        Check(result.AlgorithmResult.Texts.Any(t => !t.UseImagePosition && t.Text.Contains("28.00mm")), "检测汇总文字未使用换算后的mm值。");
+        Check(result.AlgorithmResult.Texts.Any(t => !t.UseImagePosition && t.Text.Contains("25.00mm")), "检测汇总文字未使用换算后的mm值。");
         parameter.NeedConvert = false;
         detections.RemoveAll(d => d.ClassId == 4);
         result = Parse(parameter, detections);
-        Check(!result.IsOk && Value(result, Names[0]) == 0, "缺少铜环未将端子先端位置清零。");
-        Check(result.AlgorithmResult.Lines.Count == 35, "缺少铜环仍绘制依赖铜环的距离箭头。");
+        Check(result.IsOk && Value(result, Names[0]) == 250, "护套内导体位置不应依赖铜环。");
+        Check(result.AlgorithmResult.Lines.Count == 40, "缺少铜环不应影响距离箭头。");
         Check(Value(result, "出线芯宽度") == 18 && Value(result, "出线芯长度") == 27, "缺少铜环中断了出线芯解析。");
         Check(Value(result, "编组反转代-1") == 120 && Value(result, "L5_绝缘体长度") == 200, "缺少铜环影响了胶皮距离解析。");
         Check(Value(result, "绝缘体宽度") == 30 && Value(result, "绝缘体长度") == 40, "缺少铜环影响了绝缘体尺寸解析。");
@@ -142,7 +142,7 @@ internal static class ASTStation2Tests
         detections.RemoveAll(d => d.ClassId == 5);
         result = Parse(parameter, detections);
         Check(!result.IsOk && Names.Skip(3).Take(3).All(n => Value(result, n) == 0), "缺少胶皮未将三项清零。");
-        Check(Value(result, Names[0]) == 280 && Value(result, "出线芯宽度") == 18, "缺少胶皮影响了其他检测项。");
+        Check(Value(result, Names[0]) == 0 && Value(result, "出线芯宽度") == 18, "缺少胶皮影响了其他检测项。");
         detections = Detections();
         detections.RemoveAll(d => d.ClassId == 6);
         result = Parse(parameter, detections);
@@ -166,7 +166,7 @@ internal static class ASTStation2Tests
         var items = Solution.Instance.DetectItemDic["解析"];
         items[0].MinValue = items[0].MaxValue = "0";
         detections = Detections();
-        detections.RemoveAll(d => d.ClassId == 4);
+        detections.RemoveAll(d => d.ClassId == 5);
         Check(Parse(parameter, detections).AlgorithmResult.DetectResults[Names[0]][0].IsOk, "未检出0值上下限判定错误。");
         items[0].Enable = false; items[1].MaxValue = "10";
         result = Parse(parameter, Detections());
@@ -177,16 +177,16 @@ internal static class ASTStation2Tests
         var edges = Parameter("边缘");
         detections = Detections();
         detections[1] = new DetResult { ClassId = 0, Box = new Rect(800, 330, 35, 60) };
-        Check(Value(Parse(edges, detections), Names[0]) == 50, "Y重叠时固定铜环底边到目标顶边不能被归零。");
+        Check(Value(Parse(edges, detections), Names[0]) == 20, "X偏移不得改变端子头底边到胶皮顶边的Y距离。");
         detections[1] = new DetResult { ClassId = 0, Box = new Rect(100, 420, 35, 60) };
-        Check(Value(Parse(edges, detections), Names[0]) == 40, "反向目标应取指定Y边缘之差绝对值。");
-        detections[1] = new DetResult { ClassId = 0, Box = new Rect(100, 380, 35, 60) };
+        Check(Value(Parse(edges, detections), Names[0]) == 70, "反向目标应取指定Y边缘之差绝对值。");
+        detections[1] = new DetResult { ClassId = 0, Box = new Rect(100, 350, 35, 60) };
         Check(Value(Parse(edges, detections), Names[0]) == 0, "指定两条边重合应为0。");
         detections = Detections();
-        detections.Add(new DetResult { ClassId = 4, Box = new Rect(1000, 300, 40, 80) });
+        detections.Add(new DetResult { ClassId = 5, Box = new Rect(1000, 410, 40, 60) });
         detections.Add(new DetResult { ClassId = 0, Box = new Rect(1000, 180, 35, 60) });
         result = Parse(edges, detections);
-        Check(result.AlgorithmResult.DetectResults[Names[0]].Select(r => float.Parse(r.Value)).SequenceEqual(new[] { 280f, 200f }), "多目标铜环匹配错误。");
+        Check(result.AlgorithmResult.DetectResults[Names[0]].Select(r => float.Parse(r.Value)).SequenceEqual(new[] { 250f, 170f }), "多目标胶皮匹配错误。");
         detections.RemoveAll(d => d.ClassId == 0);
         result = Parse(edges, detections);
         Check(Value(result, Names[0]) == 0 && Value(result, "L5_绝缘体长度") == 200, "缺少端子头影响了其他距离。");
@@ -198,7 +198,7 @@ internal static class ASTStation2Tests
         Solution.Instance.DetectItemDic["未支持项容错"].Add(new DetectItemInfo {
             Name = "未接入的新检测项", Enable = true, MinValue = "1", MaxValue = "99999", CurValue = "0" });
         var result = Parse(parameter, Detections());
-        Check(result.IsOk && Value(result, Names[0]) == 280 && Value(result, "编组反转代-1") == 120,
+        Check(result.IsOk && Value(result, Names[0]) == 250 && Value(result, "编组反转代-1") == 120,
             "未支持检测项影响了其它检测项解析。");
         Check(!result.AlgorithmResult.DetectResults.ContainsKey("未接入的新检测项"),
             "未支持检测项不应输出伪造结果。");
@@ -222,7 +222,7 @@ internal static class ASTStation2Tests
         Check(first.IsAutoStudy && second.IsAutoStudy, "节点串用了学习计数。");
         Parse(first, Detections());
         Check(!first.IsAutoStudy && second.IsAutoStudy, "学习完成状态未隔离。");
-        Check(Solution.Instance.DetectItemDic["学习一"][0].MinValue == "252.00", "距离学习范围错误。");
+        Check(Solution.Instance.DetectItemDic["学习一"][0].MinValue == "225.00", "距离学习范围错误。");
         var missing = Parameter("空学习"); missing.IsAutoStudy = true; missing.StudyNum = 1;
         Parse(missing, null);
         Check(Solution.Instance.DetectItemDic["空学习"][0].MinValue == "1", "缺失值污染学习范围。");
@@ -288,7 +288,7 @@ internal static class ASTStation2Tests
             }
         }
         var template = JsonConvert.DeserializeObject<List<DetectItemInfo>>(File.ReadAllText("Template/TDAI/AST-工位2检测项.items"));
-        Check(template.Select(i => i.Name).SequenceEqual(Names.Concat(new[] { "线芯长度", "线线宽度" })), "发布模板检测项错误。");
+        Check(template.Select(i => i.Name).SequenceEqual(Names.Concat(new[] { "线芯长度", "线芯宽度" })), "发布模板检测项错误。");
         Check(template.Single(i => i.Name == "飞丝").IsCountItem, "飞丝模板未设置为数量型。");
         Check((int)ModelName.超声波焊接侧面三类模型 == 5, "旧模型枚举值发生变化。");
     }
@@ -306,7 +306,7 @@ internal static class ASTStation2Tests
         Check(config.ModelName == "AST-工位2模型" && config.ModelInfo.ModelPath.EndsWith("model_encrypted.onnx"),
             "配置模型名称或文件错误。");
         LanguageManager.SetLanguage("en-US", false);
-        Check(DetectItemLanguage.GetDisplayName(Names[0]) == "L1-S2 (terminal tip position)", "英文显示未使用中文键。");
+        Check(DetectItemLanguage.GetDisplayName(Names[0]) == "Sheath inner conductor position", "英文显示未使用中文键。");
         LanguageManager.SetLanguage("zh-CN", false);
         Check(DetectItemLanguage.GetDisplayName(Names[0]) == Names[0], "切回中文后显示错误。");
     }
@@ -316,27 +316,27 @@ internal static class ASTStation2Tests
         var parameter = Parameter("线芯尺寸");
         var items = Solution.Instance.DetectItemDic[parameter.CurDetectItemName];
         items.Add(new DetectItemInfo { Name = "线芯长度", Enable = true, MinValue = "1", MaxValue = "100" });
-        items.Add(new DetectItemInfo { Name = "线线宽度", Enable = true, MinValue = "1", MaxValue = "20" });
+        items.Add(new DetectItemInfo { Name = "线芯宽度", Enable = true, MinValue = "1", MaxValue = "20" });
         var detections = Detections();
         detections.Add(new DetResult { ClassId = 8, Box = new Rect(200, 100, 12, 65) });
         var result = Parse(parameter, detections);
         Check(result.DetectItemCount == 11 && result.IsOk, "新增线芯项未完整参与判定。");
-        Check(Value(result, "线芯长度") == 65 && Value(result, "线线宽度") == 12, "line尺寸或中文键归一化错误。");
+        Check(Value(result, "线芯长度") == 65 && Value(result, "线芯宽度") == 12, "line尺寸或中文键归一化错误。");
         Check(Value(result, "出线芯长度") == 27 && Value(result, "出线芯宽度") == 18, "line与露线芯类别混淆。");
         Check(result.AlgorithmResult.Lines.Count == 50, "新增尺寸箭头缺失。");
         parameter.NeedConvert = true; parameter.Scale = 0.1f;
         result = Parse(parameter, detections);
-        Check(Value(result, "线芯长度") == 6.5f && Value(result, "线线宽度") == 1.2f, "line尺寸换算错误。");
+        Check(Value(result, "线芯长度") == 6.5f && Value(result, "线芯宽度") == 1.2f, "line尺寸换算错误。");
         parameter.NeedConvert = false;
         detections.Add(new DetResult { ClassId = 8, Box = new Rect(250, 100, 25, 80) });
         result = Parse(parameter, detections);
-        Check(result.AlgorithmResult.DetectResults["线线宽度"].Count == 2 && !result.IsOk, "多线芯明细或宽度超限判定错误。");
+        Check(result.AlgorithmResult.DetectResults["线芯宽度"].Count == 2 && !result.IsOk, "多线芯明细或宽度超限判定错误。");
         Check(result.AlgorithmResult.Rects.Single(r => r.RotatedRect.size.width == 25).Color == Color.Red, "线芯同框NG颜色错误。");
         detections.RemoveAll(r => r.ClassId == 8);
         result = Parse(parameter, detections);
-        Check(Value(result, "线芯长度") == 0 && Value(result, "线线宽度") == 0 && !result.IsOk, "缺少line没有清零判定。");
+        Check(Value(result, "线芯长度") == 0 && Value(result, "线芯宽度") == 0 && !result.IsOk, "缺少line没有清零判定。");
         items[10].Enable = false;
-        Check(!Parse(parameter, detections).AlgorithmResult.DetectResults.ContainsKey("线线宽度"), "禁用线芯宽度仍输出。");
+        Check(!Parse(parameter, detections).AlgorithmResult.DetectResults.ContainsKey("线芯宽度"), "禁用线芯宽度仍输出。");
         items[10].Enable = true;
         parameter.IsAutoStudy = true; parameter.StudyNum = 1;
         Parse(parameter, detections);

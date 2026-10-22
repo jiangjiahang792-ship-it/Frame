@@ -1,0 +1,29 @@
+[
+  {
+    "Name": "后铆脚面积（侧面）",
+    "MinValue": "1",
+    "MaxValue": "99999999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "飞丝存在（侧面）",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "防水栓破损（侧面）",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0",
+    "Compensation": 0
+  }
+]

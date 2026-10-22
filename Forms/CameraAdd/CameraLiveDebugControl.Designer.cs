@@ -43,7 +43,7 @@ namespace TDJS_Vision.Forms.CameraAdd
             this.buttonStartCollect = new System.Windows.Forms.Button();
             this.panelPreviewStage = new System.Windows.Forms.Panel();
             this.labelEmptyPreview = new System.Windows.Forms.Label();
-            this.pictureBoxPreview = new System.Windows.Forms.PictureBox();
+            this.pictureBoxPreview = new CameraPreviewPictureBox();
             this.panelPropertyRoot = new System.Windows.Forms.Panel();
             this.tableLayoutPanelProperty = new System.Windows.Forms.TableLayoutPanel();
             this.treeViewProperty = new System.Windows.Forms.TreeView();
@@ -1296,7 +1296,7 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// <summary>
         /// 图像显示控件。
         /// </summary>
-        private System.Windows.Forms.PictureBox pictureBoxPreview;
+        private CameraPreviewPictureBox pictureBoxPreview;
         /// <summary>
         /// 无图像提示文本。
         /// </summary>

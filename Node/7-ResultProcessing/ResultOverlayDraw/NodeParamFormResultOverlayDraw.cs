@@ -206,6 +206,59 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             AddItem(ResultOverlayDrawItemType.BooleanText);
         }
 
+        /// <summary>创建可以聚合多个判定结果的文本项。</summary>
+        private void buttonAddCombinedBoolean_Click(object sender, EventArgs e)
+        {
+            AddItem(ResultOverlayDrawItemType.CombinedBooleanText);
+        }
+
+        /// <summary>将订阅选择器中选好的布尔输出加入当前组合，避免重复添加同一来源。</summary>
+        private void buttonAddBooleanSource_Click(object sender, EventArgs e)
+        {
+            if (_selectedItemIndex < 0 || _selectedItemIndex >= _items.Count)
+                return;
+            var item = _items[_selectedItemIndex];
+            if (item.ItemType != ResultOverlayDrawItemType.CombinedBooleanText)
+                return;
+            string node = nodeSubscriptionSource.GetText1();
+            string output = nodeSubscriptionSource.GetText2();
+            if (string.IsNullOrWhiteSpace(node) || string.IsNullOrWhiteSpace(output))
+            {
+                ShowValidationMessage(true, "请先在上方选择一个布尔订阅结果！");
+                return;
+            }
+            if (item.BooleanSources == null)
+                item.BooleanSources = new List<OverlayBooleanSource>();
+            if (item.BooleanSources.Any(s => s != null && s.SourceText1 == node && s.SourceText2 == output))
+                return;
+            item.BooleanSources.Add(new OverlayBooleanSource { SourceText1 = node, SourceText2 = output });
+            RefreshBooleanSources(item);
+            ItemControl_ValueChanged(sender, e);
+        }
+
+        /// <summary>删除组合中的选中订阅，不影响其他绘制项。</summary>
+        private void buttonRemoveBooleanSource_Click(object sender, EventArgs e)
+        {
+            if (_selectedItemIndex < 0 || _selectedItemIndex >= _items.Count)
+                return;
+            var item = _items[_selectedItemIndex];
+            int index = listBoxBooleanSources.SelectedIndex;
+            if (item.ItemType != ResultOverlayDrawItemType.CombinedBooleanText
+                || item.BooleanSources == null || index < 0 || index >= item.BooleanSources.Count)
+                return;
+            item.BooleanSources.RemoveAt(index);
+            RefreshBooleanSources(item);
+            ItemControl_ValueChanged(sender, e);
+        }
+
+        /// <summary>刷新当前组合的订阅列表。</summary>
+        private void RefreshBooleanSources(ResultOverlayDrawItem item)
+        {
+            listBoxBooleanSources.Items.Clear();
+            foreach (var source in item.BooleanSources ?? new List<OverlayBooleanSource>())
+                listBoxBooleanSources.Items.Add(source?.DisplayText ?? "无效订阅");
+        }
+
         /// <summary>
         /// 删除当前选中的绘制项。
         /// </summary>
@@ -403,6 +456,18 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 if (item == null || !item.Enabled)
                     continue;
 
+                if (item.ItemType == ResultOverlayDrawItemType.CombinedBooleanText)
+                {
+                    if (item.BooleanSources == null || item.BooleanSources.Count == 0
+                        || item.BooleanSources.Any(s => s == null || string.IsNullOrWhiteSpace(s.SourceText1)
+                            || string.IsNullOrWhiteSpace(s.SourceText2)))
+                    {
+                        ShowValidationMessage(showMessage, $"第{index + 1}个组合布尔文本请至少添加一个有效订阅！");
+                        return false;
+                    }
+                    continue;
+                }
+
                 bool needSource = item.ItemType != ResultOverlayDrawItemType.Text || !item.UseManualText;
                 if (needSource &&
                     (string.IsNullOrWhiteSpace(item.SourceText1) || string.IsNullOrWhiteSpace(item.SourceText2)))
@@ -505,6 +570,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             textBoxManualText.Text = item.ManualText ?? string.Empty;
             textBoxBooleanOk.Text = item.BooleanOkText ?? string.Empty;
             textBoxBooleanNg.Text = item.BooleanNgText ?? string.Empty;
+            comboBoxBooleanMatch.SelectedIndex = item.BooleanMatchMode == OverlayBooleanMatchMode.Any ? 1 : 0;
+            RefreshBooleanSources(item);
             textBoxTextPrefix.Text = item.TextPrefix ?? string.Empty;
             numericFontSize.Value = ClampNumeric(numericFontSize, item.FontSize);
             numericLineWidth.Value = ClampNumeric(numericLineWidth, item.LineWidth);
@@ -529,6 +596,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             textBoxManualText.Text = string.Empty;
             textBoxBooleanOk.Text = "合格";
             textBoxBooleanNg.Text = "不合格";
+            comboBoxBooleanMatch.SelectedIndex = 0;
+            listBoxBooleanSources.Items.Clear();
             textBoxTextPrefix.Text = string.Empty;
             numericFontSize.Value = 18;
             numericLineWidth.Value = 2;
@@ -553,6 +622,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             item.ManualText = textBoxManualText.Text;
             item.BooleanOkText = textBoxBooleanOk.Text;
             item.BooleanNgText = textBoxBooleanNg.Text;
+            item.BooleanMatchMode = comboBoxBooleanMatch.SelectedIndex == 1
+                ? OverlayBooleanMatchMode.Any : OverlayBooleanMatchMode.All;
             item.TextPrefix = textBoxTextPrefix.Text;
             item.FontSize = (int)numericFontSize.Value;
             item.LineWidth = (int)numericLineWidth.Value;
@@ -568,6 +639,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         private void ApplySourceContract(ResultOverlayDrawItemType type)
         {
             nodeSubscriptionSource.SetInputContract(type == ResultOverlayDrawItemType.BooleanText
+                || type == ResultOverlayDrawItemType.CombinedBooleanText
                 ? SubscriptionInputContract.ForType(typeof(bool))
                 : type == ResultOverlayDrawItemType.Text
                 ? CreateTextInputContract()
@@ -588,6 +660,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             panelTextStyle.Enabled = hasItem;
             panelRoiStyle.Enabled = hasItem;
             panelBooleanText.Enabled = hasItem;
+            panelCombinedBoolean.Enabled = hasItem;
+            panelCombinedBoolean.Visible = hasItem
+                && _items[_selectedItemIndex].ItemType == ResultOverlayDrawItemType.CombinedBooleanText;
             numericMargin.Enabled = hasItem;
             buttonDeleteItem.Enabled = hasItem;
             buttonMoveUp.Enabled = hasItem && _selectedItemIndex > 0;
@@ -597,7 +672,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
 
             ResultOverlayDrawItem item = _items[_selectedItemIndex];
             bool isText = item.ItemType == ResultOverlayDrawItemType.Text;
-            bool isBooleanText = item.ItemType == ResultOverlayDrawItemType.BooleanText;
+            bool isBooleanText = item.ItemType == ResultOverlayDrawItemType.BooleanText
+                || item.ItemType == ResultOverlayDrawItemType.CombinedBooleanText;
             panelBooleanText.Visible = isBooleanText;
             panelManualText.Visible = isText;
             panelTextPrefix.Visible = isText;
@@ -630,6 +706,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 item != null &&
                 item.ItemType != ResultOverlayDrawItemType.Text &&
                 item.ItemType != ResultOverlayDrawItemType.BooleanText &&
+                item.ItemType != ResultOverlayDrawItemType.CombinedBooleanText &&
                 item.ItemType != ResultOverlayDrawItemType.Roi);
         }
 
@@ -651,6 +728,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// <returns>普通文本、布尔文本、ROI或ROI旧配置。</returns>
         private static string GetItemTypeText(ResultOverlayDrawItemType type)
         {
+            if (type == ResultOverlayDrawItemType.CombinedBooleanText)
+                return "组合布尔文本";
             if (type == ResultOverlayDrawItemType.BooleanText)
                 return "布尔文本";
             if (type == ResultOverlayDrawItemType.Text)
@@ -669,6 +748,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         {
             if (item == null)
                 return string.Empty;
+            if (item.ItemType == ResultOverlayDrawItemType.CombinedBooleanText)
+                return (item.BooleanMatchMode == OverlayBooleanMatchMode.All ? "全部满足" : "任一满足")
+                    + $"（{item.BooleanSources?.Count ?? 0}个订阅）";
             if (item.ItemType == ResultOverlayDrawItemType.Text && item.UseManualText)
                 return string.IsNullOrWhiteSpace(item.ManualText) ? "手动文本" : item.ManualText;
             return string.IsNullOrWhiteSpace(item.SourceDisplay) ? "未选择订阅" : item.SourceDisplay;
