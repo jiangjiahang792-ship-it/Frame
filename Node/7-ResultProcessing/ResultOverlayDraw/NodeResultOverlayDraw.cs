@@ -1004,7 +1004,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
 
             bool isOk = (bool)value;
             displayResult.IsAllOk = displayResult.IsAllOk && isOk;
-            string content = isOk ? item.BooleanOkText : item.BooleanNgText;
+            // 布尔文本是方案可编辑的显示字段，必须和检测项名称、文本前缀一样经过显示层翻译。
+            // 方案仍保存中文原文，中文模式下 TranslateDisplay 会原样返回，避免改变配置和判定逻辑。
+            string content = LanguageManager.TranslateDisplay(isOk ? item.BooleanOkText : item.BooleanNgText);
             AddDisplayText(displayResult, new ColorText(content, isOk ? param.OkColor : param.NgColor)
             {
                 FontSize = Math.Max(1, item.FontSize),
@@ -1058,7 +1060,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             isOk = error == null && (evaluatedCount == 0 || isOk);
             displayResult.IsAllOk &= isOk;
             AddDisplayText(displayResult, new ColorText(
-                error == null ? (isOk ? item.BooleanOkText : item.BooleanNgText) : "组合判定异常：" + error,
+                error == null
+                    ? LanguageManager.TranslateDisplay(isOk ? item.BooleanOkText : item.BooleanNgText)
+                    : LanguageManager.T("组合判定异常：") + LanguageManager.TranslateDisplay(error),
                 error != null ? Color.Red : isOk ? param.OkColor : param.NgColor)
             {
                 FontSize = Math.Max(1, item.FontSize),
