@@ -119,7 +119,9 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             EnsureAllowed(process, validate);
             if (target == null) return false;
-            return SolRunParamControl.StartAutoLearningForNode(process, target);
+            var owner = FindOwner(process, target);
+            if (owner == null) throw new InvalidOperationException("当前画面的AI节点已不属于指定流程。");
+            return SolRunParamControl.StartAutoLearningForNode(owner, target);
         }
 
         /// <summary>收集目标根流程及组合模块的AI实例，不按名称或编号合并。</summary>

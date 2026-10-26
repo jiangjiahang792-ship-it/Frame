@@ -1,4 +1,4 @@
-using TDJS_Vision.Properties;
+﻿using TDJS_Vision.Properties;
 
 namespace Logger
 {
@@ -7,6 +7,15 @@ namespace Logger
     /// </summary>
     public static class LogLevelSettings
     {
+        /// <summary>日志初始化独立兜底，避免配置异常封死整个日志类型并阻断启动。</summary>
+        private static bool ReadInitial(System.Func<bool> read, bool fallback)
+        {
+            try { return read(); }
+            catch (System.Exception ex) when (ex is System.Configuration.ConfigurationErrorsException ||
+                ex is System.TypeInitializationException || RecoverableSettingsFile.IsFileError(ex))
+            { RecoverableSettingsFile.Report("日志开关读取失败，使用默认值：" + ex.Message); return fallback; }
+        }
+
         /// <summary>
         /// 调试日志记录缓存开关，避免高频日志入口反复读取配置集合。
         /// </summary>
@@ -15,22 +24,22 @@ namespace Logger
         /// <summary>
         /// 消息日志记录缓存开关，避免高频日志入口反复读取配置集合。
         /// </summary>
-        private static volatile bool _infoEnabled = Settings.Default.LogInfoEnabled;
+        private static volatile bool _infoEnabled = ReadInitial(() => Settings.Default.LogInfoEnabled, true);
 
         /// <summary>
         /// 警告日志记录缓存开关，避免高频日志入口反复读取配置集合。
         /// </summary>
-        private static volatile bool _warnEnabled = Settings.Default.LogWarnEnabled;
+        private static volatile bool _warnEnabled = ReadInitial(() => Settings.Default.LogWarnEnabled, true);
 
         /// <summary>
         /// 异常日志记录缓存开关，避免高频日志入口反复读取配置集合。
         /// </summary>
-        private static volatile bool _exceptionEnabled = Settings.Default.LogExceptionEnabled;
+        private static volatile bool _exceptionEnabled = ReadInitial(() => Settings.Default.LogExceptionEnabled, true);
 
         /// <summary>
         /// 致命日志记录缓存开关，避免高频日志入口反复读取配置集合。
         /// </summary>
-        private static volatile bool _fatalEnabled = Settings.Default.LogFatalEnabled;
+        private static volatile bool _fatalEnabled = ReadInitial(() => Settings.Default.LogFatalEnabled, true);
 
         /// <summary>
         /// 解析进程启动时的Debug记录开关；正式程序使用用户设置，性能验收子进程允许使用不落盘的环境覆盖值。
@@ -43,7 +52,7 @@ namespace Logger
                     "1",
                     System.StringComparison.Ordinal))
             {
-                return Settings.Default.LogDebugEnabled;
+                return ReadInitial(() => Settings.Default.LogDebugEnabled, false);
             }
 
             string overrideValue = System.Environment.GetEnvironmentVariable("TDJS_VISION_TEST_LOG_DEBUG_ENABLED");
@@ -57,7 +66,7 @@ namespace Logger
                 return false;
             }
 
-            return Settings.Default.LogDebugEnabled;
+            return ReadInitial(() => Settings.Default.LogDebugEnabled, false);
         }
 
         /// <summary>

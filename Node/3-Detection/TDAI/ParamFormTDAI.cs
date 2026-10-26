@@ -223,6 +223,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 // 还原界面显示
                 nodeSubscription1.SetText(param.Text1, param.Text2);
                 textBoxConfigPath.Text = param.ConfigPath;
+                // 从方案恢复学习参数，避免设计器默认值在再次保存时覆盖用户设置。
+                textBox_StudyNum.Text = param.StudyNum.ToString();
+                textBox_studyPercentage.Text = param.StudyPercentage.ToString("R");
 
                 // 先初始化下拉框
                 InitDetectItemList(comboBoxDetectConfig1);
@@ -345,6 +348,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 }
                 if (aIInputInfo == null)
                     throw new Exception("配置文件解析失败！");
+                // 保存前校验，拒绝无效学习次数及浮动百分率，保留原节点参数。
+                if (!int.TryParse(textBox_StudyNum.Text, out int studyNum) || studyNum < 1)
+                    throw new Exception("学习次数必须是大于0的整数！");
+                if (!float.TryParse(textBox_studyPercentage.Text, out float studyPercentage)
+                    || float.IsNaN(studyPercentage) || float.IsInfinity(studyPercentage) || studyPercentage < 0)
+                    throw new Exception("学习上下限浮动百分率必须是大于或等于0的有限数值！");
                 NodeParamTDAI nodeParamTDAI = new NodeParamTDAI();
                 nodeParamTDAI.Text1 = nodeSubscription1.GetText1();
                 nodeParamTDAI.Text2 = nodeSubscription1.GetText2();
@@ -357,8 +366,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 nodeParamTDAI.DeviceName = comboBoxDevice.Text;
                 nodeParamTDAI.DetectItemName2 = comboBoxDetectConfig2.Text;
                 nodeParamTDAI.IsAutoStudy = uiSwitch_Learning.Active;
-                nodeParamTDAI.StudyNum = int.Parse(textBox_StudyNum.Text);
-                nodeParamTDAI.StudyPercentage = float.Parse(textBox_studyPercentage.Text);
+                nodeParamTDAI.StudyNum = studyNum;
+                nodeParamTDAI.StudyPercentage = studyPercentage;
                 nodeParamTDAI.NeedConvert = uiSwitch_Convert.Active;
                 nodeParamTDAI.Scale = float.Parse(textBox_Scale.Text);
                 nodeParamTDAI.NodeName = _node.NodeName;
@@ -404,6 +413,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         break;
                     case "AST-工位2模型":
                         nodeParamTDAI.ModelName = ModelName.AST_工位2模型;
+                        break;
+                    case "AST高曝光线芯模型":
+                        nodeParamTDAI.ModelName = ModelName.AST高曝光线芯模型;
                         break;
                     case "AST-工位3模型":
                         nodeParamTDAI.ModelName = ModelName.AST_工位3模型;

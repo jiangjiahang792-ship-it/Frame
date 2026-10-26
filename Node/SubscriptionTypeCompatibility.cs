@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
@@ -50,6 +50,31 @@ namespace TDJS_Vision.Node
             if (type == typeof(string) || type == typeof(char))
                 return SubscriptionDataCategory.Text;
 
+            // 测量结果必须优先按接口识别，不能因类型名称包含 Line/Circle 而退化为几何元素。
+            if (typeof(_4_Measurement.Common.IMultiTargetMeasurementItem).IsAssignableFrom(type))
+                return SubscriptionDataCategory.MeasurementResult;
+
+            Type elementType = TryGetCollectionElementType(type);
+            if (elementType != null)
+            {
+                SubscriptionDataCategory elementCategory = ResolveCategory(elementType);
+                if (elementCategory == SubscriptionDataCategory.Point)
+                    return SubscriptionDataCategory.PointCollection;
+                if (elementCategory == SubscriptionDataCategory.Pose)
+                    return SubscriptionDataCategory.Pose;
+                if (elementCategory == SubscriptionDataCategory.PositionCorrection)
+                    return SubscriptionDataCategory.PositionCorrection;
+                if (elementCategory == SubscriptionDataCategory.MeasurementResult ||
+                    elementCategory == SubscriptionDataCategory.Line ||
+                    elementCategory == SubscriptionDataCategory.Circle ||
+                    elementCategory == SubscriptionDataCategory.Ellipse ||
+                    elementCategory == SubscriptionDataCategory.Rectangle)
+                    return elementCategory;
+                if (elementType == typeof(string))
+                    return SubscriptionDataCategory.Text;
+            }
+
+
             string name = type.Name;
             if (name == "OutputImage")
                 return SubscriptionDataCategory.Image;
@@ -70,19 +95,6 @@ namespace TDJS_Vision.Node
             if (name.IndexOf("Rect", StringComparison.OrdinalIgnoreCase) >= 0)
                 return SubscriptionDataCategory.Rectangle;
 
-            Type elementType = TryGetCollectionElementType(type);
-            if (elementType != null)
-            {
-                SubscriptionDataCategory elementCategory = ResolveCategory(elementType);
-                if (elementCategory == SubscriptionDataCategory.Point)
-                    return SubscriptionDataCategory.PointCollection;
-                if (elementCategory == SubscriptionDataCategory.Pose)
-                    return SubscriptionDataCategory.Pose;
-                if (elementCategory == SubscriptionDataCategory.PositionCorrection)
-                    return SubscriptionDataCategory.PositionCorrection;
-                if (elementType == typeof(string))
-                    return SubscriptionDataCategory.Text;
-            }
 
             return SubscriptionDataCategory.StructuredObject;
         }
@@ -199,6 +211,17 @@ namespace TDJS_Vision.Node
                     return arguments[0];
             }
             return null;
+        }
+
+        /// <summary>按声明类型识别动态输出的数量形态，不依赖结果是否已经运行或集合是否为空。</summary>
+        public static SubscriptionValueMultiplicity ResolveMultiplicity(Type valueType)
+        {
+            Type elementType = TryGetCollectionElementType(valueType);
+            if (elementType == null)
+                return SubscriptionValueMultiplicity.Single;
+            return typeof(_4_Measurement.Common.IMultiTargetMeasurementItem).IsAssignableFrom(elementType)
+                ? SubscriptionValueMultiplicity.MultiTarget
+                : SubscriptionValueMultiplicity.Collection;
         }
 
         /// <summary>

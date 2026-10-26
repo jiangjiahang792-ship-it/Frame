@@ -1,4 +1,4 @@
-using Logger;
+﻿using Logger;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -24,7 +24,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
     /// <summary>
     /// 组合模块节点，将已导入的流程快照作为当前节点的内部流程执行。
     /// </summary>
-    public class NodeCompositeModule : NodeBase, ICompositeModuleEditor, IDynamicResultVariableProvider, IDynamicResultVariableTypeProvider, INodeSubscriptionDependencyProvider
+    public class NodeCompositeModule : NodeBase, ICompositeModuleEditor, IDynamicResultVariableProvider, IDynamicResultVariableTypeProvider, INodeSubscriptionDependencyProvider, IFailedNodeCanContinueProvider
     {
         /// <summary>保护缓存与运行入口之间的状态切换。</summary>
         private readonly object _runtimeSync = new object();
@@ -161,6 +161,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                 EnsureOutputConnections(_runtimeProcess, !preparingRun);
                 var snapshot = CompositeModuleSnapshotBuilder.CreateFromProcess(_runtimeProcess);
                 snapshot.ModuleName = previous.ModuleName;
+                snapshot.ContinueDownstreamOnFailure = previous.ContinueDownstreamOnFailure;
                 snapshot.SourceProcessId = previous.SourceProcessId;
                 snapshot.SourceProcessName = previous.SourceProcessName;
                 snapshot.UsesDirectInputs = previous.UsesDirectInputs;
@@ -255,6 +256,10 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// 最近一次构建内部流程所使用的参数对象。
         /// </summary>
         private NodeParamCompositeModule _cachedParam;
+
+        /// <summary>仅显式开启时允许失败模块放行外部下游。</summary>
+        public bool CanContinueAfterFailure =>
+            (ParamForm?.Params as NodeParamCompositeModule)?.ContinueDownstreamOnFailure == true;
 
         /// <summary>
         /// 根据快照构建的内部流程，重复运行时复用以减少控件和参数对象创建成本。
@@ -433,6 +438,9 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         private async Task<NodeReturn> RunCore(CancellationToken token, bool showLog)
         {
             DateTime startTime = DateTime.Now;
+            // 记录内部运行批次，失败发生在校验或输入注入阶段时不能收集上轮结果。
+            int previousInternalRunId = -1;
+            bool internalRunRequested = false;
 
             if (!Active)
             {
@@ -459,6 +467,8 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                 Process runtimeProcess = GetOrCreateRuntimeProcess(param, showLog);
                 InjectInputValues(runtimeProcess, param);
                 bool internalSucceeded;
+                previousInternalRunId = runtimeProcess.CurrentRunId;
+                internalRunRequested = true;
                 // 仅显式模块调用继承父根，重复内部流程编号不参与日志归属判断。
                 using (RuntimeLogContext.BeginComposite(runtimeProcess, ID + "." + NodeName))
                     internalSucceeded = await runtimeProcess.RunWithResultAsync(false, token).ConfigureAwait(false);
@@ -469,6 +479,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
 
                 NodeResultCompositeModule result = BuildResult(param, runtimeProcess, true, string.Empty);
                 CollectOutputValues(result, runtimeProcess, param);
+                result.OutputRunId = Process.CurrentRunId;
                 int time = SetRunResult(startTime, NodeStatus.Successful);
                 result.RunTime = time;
                 Result = result;
@@ -494,9 +505,20 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             catch (Exception ex)
             {
                 LogHelper.AddLog(MsgLevel.Fatal, $"节点({ID}.{NodeName})运行失败！原因：{ex.Message}", true);
-                Result = BuildResult(param, _runtimeProcess, false, ex.Message);
+                var failedResult = BuildResult(param, _runtimeProcess, false, ex.Message);
+                if (internalRunRequested && _runtimeProcess != null && _runtimeProcess.CurrentRunId != previousInternalRunId)
+                {
+                    CollectOutputValues(failedResult, _runtimeProcess, param, true);
+                    failedResult.OutputRunId = Process.CurrentRunId;
+                }
+                Result = failedResult;
                 int time = SetRunResult(startTime, NodeStatus.Failed);
                 Result.RunTime = time;
+                // 仅把普通运行失败交回调度器继续处理，保持失败结果和红色状态。
+                // OperationCanceledException由前面的专用分支抛出，不能吞掉停止请求。
+                token.ThrowIfCancellationRequested();
+                if (param.ContinueDownstreamOnFailure)
+                    return new NodeReturn(NodeRunFlag.ContinueRun);
                 throw new Exception($"节点({ID}.{NodeName})运行失败，原因：{ex.Message}");
             }
         }
@@ -624,7 +646,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         private static void CollectOutputValues(
             NodeResultCompositeModule result,
             Process runtimeProcess,
-            NodeParamCompositeModule param)
+            NodeParamCompositeModule param, bool allowPartial = false)
         {
             if (result == null)
                 return;
@@ -635,19 +657,39 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             if (runtimeProcess == null || runtimeProcess.Nodes == null)
                 return;
 
+            // 兼容旧方案的组合输出节点：它可能因某一订阅失败而未运行，仍按声明逐端口检查真实来源。
+            if (allowPartial && !param.UsesDirectOutputs)
+            {
+                var ports = runtimeProcess.Nodes.Where(node => node.Active)
+                    .Select(node => node.ParamForm?.Params as NodeParamCompositeOutput)
+                    .Where(output => output?.Ports != null).SelectMany(output => output.Ports).ToList();
+                CollectOutputValues(result, runtimeProcess,
+                    new NodeParamCompositeModule { UsesDirectOutputs = true, OutputPorts = ports }, true);
+                return;
+            }
+
             if (param.UsesDirectOutputs)
             {
                 foreach (var port in param.OutputPorts)
                 {
-                    var source = runtimeProcess.Nodes.FirstOrDefault(node => node.ID == port.SourceNodeId);
-                    if (source == null && runtimeProcess.ModuleInputSource.SubscriptionNode.ID == port.SourceNodeId)
-                        source = runtimeProcess.ModuleInputSource.SubscriptionNode;
-                    if (source == null || !source.HasSuccessfulResultForRun(runtimeProcess.CurrentRunId))
-                        throw new InvalidOperationException("输出“" + port.Name + "”的来源本轮未成功运行。");
-                    object value = CompositePortValueHelper.ReadSourceValue(runtimeProcess.ModuleInputSource.SubscriptionNode,
-                        port.SourceNodeId, port.SourceNodeText, port.PropertyPath, port.PropertyDisplayName);
-                    result.OutputValues[port.Name] = CompositePortValueHelper.ConvertValue(value, port.ValueType, "输出“" + port.Name + "”");
-                    result.OutputValueTypes[port.Name] = port.ValueType;
+                    try
+                    {
+                        var source = runtimeProcess.Nodes.FirstOrDefault(node => node.ID == port.SourceNodeId);
+                        if (source == null && runtimeProcess.ModuleInputSource?.SubscriptionNode.ID == port.SourceNodeId)
+                            source = runtimeProcess.ModuleInputSource.SubscriptionNode;
+                        if (source == null || !CompositeSubscriptionResolver.CanRead(source, port.PropertyPath, true))
+                            throw new InvalidOperationException("输出“" + port.Name + "”的来源本轮未成功运行。");
+                        object value = CompositePortValueHelper.ReadSourceValue(runtimeProcess.ModuleInputSource?.SubscriptionNode ?? source,
+                            port.SourceNodeId, port.SourceNodeText, port.PropertyPath, port.PropertyDisplayName);
+                        result.OutputValues[port.Name] = CompositePortValueHelper.ConvertValue(value, port.ValueType, "输出“" + port.Name + "”");
+                        result.OutputValueTypes[port.Name] = port.ValueType;
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception error)
+                    {
+                        if (!allowPartial) throw;
+                        result.OutputErrors[port.Name] = error.Message;
+                    }
                 }
                 result.OutputValuesText = NodeResultCompositeModule.BuildValuesText(result.OutputValues);
                 return;

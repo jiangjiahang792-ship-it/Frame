@@ -1,4 +1,4 @@
-namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
+﻿namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
 {
     partial class NodeParamFormBlobAnalysis
     {
@@ -16,6 +16,16 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
 
         /// <summary>显示本次Blob分析的实际前景像素面积。</summary>
         private System.Windows.Forms.Label labelMeasuredArea;
+        /// <summary>面积过滤开关。</summary>
+        private System.Windows.Forms.CheckBox checkBoxAreaFilter;
+        /// <summary>最小像素面积。</summary>
+        private System.Windows.Forms.NumericUpDown numericMinArea;
+        /// <summary>最大像素面积。</summary>
+        private System.Windows.Forms.NumericUpDown numericMaxArea;
+        /// <summary>面积范围说明。</summary>
+        private System.Windows.Forms.Label labelAreaRange;
+        /// <summary>区域数量显示。</summary>
+        private System.Windows.Forms.Label labelRegionCount;
 
         /// <summary>
         /// 清理所有正在使用的资源。
@@ -37,6 +47,36 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         /// </summary>
         private void InitializeComponent()
         {
+            this.checkBoxAreaFilter = new System.Windows.Forms.CheckBox();
+            this.numericMinArea = new System.Windows.Forms.NumericUpDown();
+            this.numericMaxArea = new System.Windows.Forms.NumericUpDown();
+            this.labelAreaRange = new System.Windows.Forms.Label();
+            this.labelRegionCount = new System.Windows.Forms.Label();
+            this.checkBoxAreaFilter.Name = "checkBoxAreaFilter";
+            this.checkBoxAreaFilter.Text = "启用面积过滤";
+            this.checkBoxAreaFilter.Location = new System.Drawing.Point(18, 605);
+            this.checkBoxAreaFilter.Size = new System.Drawing.Size(170, 24);
+            this.labelAreaRange.Text = "面积范围（像素²）：最小 / 最大";
+            this.labelAreaRange.Location = new System.Drawing.Point(18, 635);
+            this.labelAreaRange.Size = new System.Drawing.Size(390, 24);
+            this.numericMinArea.Name = "numericMinArea";
+            this.numericMinArea.Location = new System.Drawing.Point(18, 663);
+            this.numericMinArea.Size = new System.Drawing.Size(180, 25);
+            this.numericMinArea.Maximum = 2147483647;
+            this.numericMaxArea.Name = "numericMaxArea";
+            this.numericMaxArea.Location = new System.Drawing.Point(218, 663);
+            this.numericMaxArea.Size = new System.Drawing.Size(190, 25);
+            this.numericMaxArea.Maximum = 2147483647;
+            this.numericMaxArea.Value = 2147483647;
+            this.labelRegionCount.Name = "labelRegionCount";
+            this.labelRegionCount.Text = "区域数量：未执行";
+            this.labelRegionCount.Location = new System.Drawing.Point(424, 700);
+            this.labelRegionCount.Size = new System.Drawing.Size(300, 28);
+            this.Controls.Add(this.checkBoxAreaFilter);
+            this.Controls.Add(this.labelAreaRange);
+            this.Controls.Add(this.numericMinArea);
+            this.Controls.Add(this.numericMaxArea);
+            this.Controls.Add(this.labelRegionCount);
             this.nodeSubscriptionImage = new TDJS_Vision.Node.NodeSubscription();
             this.groupBoxInput = new System.Windows.Forms.GroupBox();
             this.groupBoxPositionCorrection = new System.Windows.Forms.GroupBox();
@@ -73,7 +113,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             this.buttonRun = new System.Windows.Forms.Button();
             this.buttonSave = new System.Windows.Forms.Button();
             this.labelMeasuredArea = new System.Windows.Forms.Label();
-            this.labelMeasuredArea.Location = new System.Drawing.Point(18, 604);
+            this.labelMeasuredArea.Location = new System.Drawing.Point(18, 700);
             this.labelMeasuredArea.Size = new System.Drawing.Size(390, 28);
             this.labelMeasuredArea.Name = "labelMeasuredArea";
             this.labelMeasuredArea.Text = "识别区域面积：未执行";
@@ -87,6 +127,9 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             ((System.ComponentModel.ISupportInitialize)(this.trackBarMinGray)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericMaxGray)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarMaxGray)).BeginInit();
+            this.checkBoxAreaFilter.CheckedChanged += new System.EventHandler(this.OnOutputRegionModeChanged);
+            this.numericMinArea.ValueChanged += new System.EventHandler(this.OnOutputRegionModeChanged);
+            this.numericMaxArea.ValueChanged += new System.EventHandler(this.OnOutputRegionModeChanged);
             this.SuspendLayout();
             // 
             // nodeSubscriptionImage
@@ -446,7 +489,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(962, 646);
+            this.ClientSize = new System.Drawing.Size(962, 750);
             this.Controls.Add(this.buttonSave);
             this.Controls.Add(this.labelMeasuredArea);
             this.Controls.Add(this.buttonRun);

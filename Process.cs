@@ -1,4 +1,4 @@
-﻿using Logger;
+using Logger;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -611,7 +611,7 @@ namespace TDJS_Vision
                         continue;
                     }
 
-                    if (IsNodeFailedStatus(node))
+                    if (IsNodeFailedStatus(node) && !CanContinueAfterFailedStatus(node, result))
                     {
                         failedNodeIds.Add(node.ID);
                         AddConnectedNextNodes(node, pendingNodes, ProcessConnectionBranch.Default, true);
@@ -944,14 +944,16 @@ namespace TDJS_Vision
         /// </summary>
         private static bool CanContinueAfterFailedStatus(ConnectedNodeRunResult runResult)
         {
-            if (runResult == null || runResult.Exception != null)
-                return false;
+            return runResult != null && runResult.Exception == null &&
+                CanContinueAfterFailedStatus(runResult.Node, runResult.Return);
+        }
 
-            var provider = runResult.Node as IFailedNodeCanContinueProvider;
-            return provider != null &&
-                provider.CanContinueAfterFailure &&
-                runResult.Return != null &&
-                runResult.Return.Flag == NodeRunFlag.ContinueRun;
+        /// <summary>画布调度和顺序调度共用显式失败继续策略，不放行停止或取消结果。</summary>
+        private static bool CanContinueAfterFailedStatus(NodeBase node, NodeReturn result)
+        {
+            var provider = node as IFailedNodeCanContinueProvider;
+            return provider != null && provider.CanContinueAfterFailure &&
+                result != null && result.Flag == NodeRunFlag.ContinueRun;
         }
 
         private async Task<ConnectedNodeRunResult> RunConnectedNode(NodeBase node, NodeBase nodeToSkip)
@@ -2959,7 +2961,7 @@ namespace TDJS_Vision
                             FinalizeNodeRun(node);
                             process.RunTime += node.Result.RunTime;
 
-                            if (IsNodeFailedStatus(node))
+                            if (IsNodeFailedStatus(node) && !CanContinueAfterFailedStatus(node, result))
                                 break;
 
                             // 检查还要不要继续运行
@@ -3131,7 +3133,7 @@ namespace TDJS_Vision
                         FinalizeNodeRun(node);
                         RunTime += node.Result.RunTime;
 
-                        if (IsNodeFailedStatus(node))
+                        if (IsNodeFailedStatus(node) && !CanContinueAfterFailedStatus(node, result))
                             break;
 
                         // 检查还要不要继续运行
@@ -3331,7 +3333,7 @@ namespace TDJS_Vision
                         FinalizeNodeRun(node);
                         RunTime += node.Result.RunTime;
 
-                        if (IsNodeFailedStatus(node))
+                        if (IsNodeFailedStatus(node) && !CanContinueAfterFailedStatus(node, result))
                             break;
 
                         // 检查还要不要继续运行
@@ -3504,7 +3506,7 @@ namespace TDJS_Vision
                         FinalizeNodeRun(node);
                         RunTime += node.Result.RunTime;
 
-                        if (IsNodeFailedStatus(node))
+                        if (IsNodeFailedStatus(node) && !CanContinueAfterFailedStatus(node, result))
                             break;
 
                         // 检查还要不要继续运行

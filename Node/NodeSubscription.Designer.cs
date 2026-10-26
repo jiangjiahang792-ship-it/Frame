@@ -36,6 +36,8 @@
             this.comboBox2 = new System.Windows.Forms.ComboBox();
             this.contextMenuStripResults = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.toolStripMenuItemShowAdvancedResults = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripMenuItemExplanation = new System.Windows.Forms.ToolStripMenuItem();
+            this.subscriptionToolTip = new System.Windows.Forms.ToolTip(this.components);
             this.tableLayoutPanel1.SuspendLayout();
             this.contextMenuStripResults.SuspendLayout();
             this.SuspendLayout();
@@ -79,7 +81,9 @@
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(80, 18);
             this.label2.TabIndex = 0;
-            this.label2.Text = "节点结果";
+            this.label2.Text = "节点结果·说明";
+            this.label2.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.label2.Click += new System.EventHandler(this.ShowSubscriptionExplanation);
             //
             // comboBox1
             //
@@ -112,7 +116,9 @@
             //
             this.contextMenuStripResults.ImageScalingSize = new System.Drawing.Size(20, 20);
             this.contextMenuStripResults.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.toolStripMenuItemShowAdvancedResults});
+            this.toolStripMenuItemExplanation});
+            this.toolStripMenuItemExplanation.Text = "查看订阅说明";
+            this.toolStripMenuItemExplanation.Click += new System.EventHandler(this.ShowSubscriptionExplanation);
             this.contextMenuStripResults.Name = "contextMenuStripResults";
             this.contextMenuStripResults.Size = new System.Drawing.Size(173, 28);
             //
@@ -151,5 +157,9 @@
         private System.Windows.Forms.ContextMenuStrip contextMenuStripResults;
         /// <summary>控制是否显示高级订阅结果的可勾选菜单项。</summary>
         private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemShowAdvancedResults;
+        /// <summary>查看输出可用性与拒绝原因的菜单项。</summary>
+        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemExplanation;
+        /// <summary>订阅说明入口的悬停提示。</summary>
+        private System.Windows.Forms.ToolTip subscriptionToolTip;
     }
 }

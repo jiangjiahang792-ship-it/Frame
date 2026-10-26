@@ -244,6 +244,14 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 SelectRow(Math.Min(index, _conditionRows.Count - 1));
         }
 
+        /// <summary>
+        /// 按当前流程连线重新读取上游订阅目录，不重新加载参数，保留尚未保存的条件编辑。
+        /// </summary>
+        private void buttonRefreshSources_Click(object sender, EventArgs e)
+        {
+            RefreshSourceTree();
+        }
+
         private void buttonSelectProperty_Click(object sender, EventArgs e)
         {
             ApplySelectedPropertyToCurrentRow();
@@ -407,37 +415,44 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
         private void RefreshSourceTree()
         {
             treeViewSources.BeginUpdate();
-            treeViewSources.Nodes.Clear();
-
-            SubscriptionInputContract inputContract = new SubscriptionInputContract(
-                new[]
-                {
-                    SubscriptionDataCategory.Boolean,
-                    SubscriptionDataCategory.Number,
-                    SubscriptionDataCategory.Text
-                },
-                null,
-                new[] { SubscriptionValueMultiplicity.Single },
-                NumericConversionMode.SafeWidening);
-
-            TreeNode noneNode = new TreeNode("无");
-            treeViewSources.Nodes.Add(noneNode);
-
-            if (_node != null && _node.Process != null)
+            try
             {
-                List<NodeBase> upstreamNodes = _node.Process.GetUpstreamNodes(_node);
-                foreach (NodeBase sourceNode in upstreamNodes)
-                {
-                    TreeNode sourceTreeNode = new TreeNode(GetNodeText(sourceNode));
-                    treeViewSources.Nodes.Add(sourceTreeNode);
-                    AddCatalogOutputNodes(sourceTreeNode, sourceNode, inputContract);
-                    if (sourceTreeNode.Nodes.Count == 0)
-                        treeViewSources.Nodes.Remove(sourceTreeNode);
-                }
-            }
+                treeViewSources.Nodes.Clear();
 
-            treeViewSources.CollapseAll();
-            treeViewSources.EndUpdate();
+                SubscriptionInputContract inputContract = new SubscriptionInputContract(
+                    new[]
+                    {
+                        SubscriptionDataCategory.Boolean,
+                        SubscriptionDataCategory.Number,
+                        SubscriptionDataCategory.Text
+                    },
+                    null,
+                    new[] { SubscriptionValueMultiplicity.Single },
+                    NumericConversionMode.SafeWidening);
+
+                TreeNode noneNode = new TreeNode("无");
+                treeViewSources.Nodes.Add(noneNode);
+
+                if (_node != null && _node.Process != null)
+                {
+                    List<NodeBase> upstreamNodes = _node.Process.GetUpstreamNodes(_node);
+                    foreach (NodeBase sourceNode in upstreamNodes)
+                    {
+                        TreeNode sourceTreeNode = new TreeNode(GetNodeText(sourceNode));
+                        treeViewSources.Nodes.Add(sourceTreeNode);
+                        AddCatalogOutputNodes(sourceTreeNode, sourceNode, inputContract);
+                        if (sourceTreeNode.Nodes.Count == 0)
+                            treeViewSources.Nodes.Remove(sourceTreeNode);
+                    }
+                }
+
+                treeViewSources.CollapseAll();
+            }
+            finally
+            {
+                // 输出目录读取失败时也恢复树控件绘制，允许用户再次点击刷新。
+                treeViewSources.EndUpdate();
+            }
         }
 
         /// <summary>

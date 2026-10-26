@@ -154,11 +154,8 @@ namespace TDJS_Vision
                 {
                     string solutionName = Path.GetFileName(solFile);
                     StartupProgressContext.ReportItem("正在读取方案文件", solutionName, 1, 1, 30, 32);
-                    string json = File.ReadAllText(solFile);
                     StartupProgressContext.ReportItem("正在解析方案配置", solutionName, 1, 1, 32, 35);
-                    SolConfig = JsonConvert.DeserializeObject<SolConfig>(json);
-                    if (SolConfig == null)
-                        throw new Exception("方案配置文件已损坏！");
+                    SolConfig = ReadSolutionWithRecovery(solFile);
 
                     SolConfig.SolName = solFile;
 
@@ -296,6 +293,12 @@ namespace TDJS_Vision
         /// <param name="temporaryPath">待校验的临时方案文件路径。</param>
         private static void ValidateSolutionTemporaryFile(string temporaryPath)
         {
+            ReadValidatedSolution(temporaryPath);
+        }
+
+        /// <summary>完整解析并验证方案，校验失败前不修改当前运行方案或连接设备。</summary>
+        private static SolConfig ReadValidatedSolution(string temporaryPath)
+        {
             string json = File.ReadAllText(temporaryPath, Encoding.UTF8);
             if (string.IsNullOrWhiteSpace(json))
                 throw new InvalidOperationException("临时方案文件为空。");
@@ -308,6 +311,69 @@ namespace TDJS_Vision
                 throw new InvalidOperationException("临时方案文件无法反序列化为方案配置。");
 
             ValidateSolutionGraph(config);
+            return config;
+        }
+
+        /// <summary>仅将文件缺失或内容校验失败视为可恢复故障，设备连接失败不得触发旧版本回滚。</summary>
+        private static bool IsRecoverableSolutionError(Exception error) => error is JsonException ||
+            error is InvalidOperationException || error is FileNotFoundException || error is DirectoryNotFoundException;
+
+        /// <summary>主方案损坏时使用经过校验的备份；无有效备份则保留原文件并明确拒绝加载。</summary>
+        private static SolConfig ReadSolutionWithRecovery(string solFile)
+        {
+            string target = Path.GetFullPath(solFile);
+            lock (SolutionFileSaveLocker)
+            {
+                Exception original;
+                try { return ReadValidatedSolution(target); }
+                catch (Exception ex) when (IsRecoverableSolutionError(ex)) { original = ex; }
+
+                var candidates = new List<string> { BuildSingleSolutionBackupPath(target) };
+                // 兼容旧版本位于程序目录的时间戳备份，必须核对完整原路径，防止同名客户方案串用。
+                candidates.AddRange(Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory,
+                    Path.GetFileName(target) + ".bak-*").OrderByDescending(File.GetLastWriteTimeUtc));
+                foreach (string backup in candidates)
+                {
+                    if (!File.Exists(backup)) continue;
+                    SolConfig recovered;
+                    try
+                    {
+                        recovered = ReadValidatedSolution(backup);
+                        if (!string.Equals(backup, candidates[0], StringComparison.OrdinalIgnoreCase) &&
+                            (string.IsNullOrWhiteSpace(recovered.SolName) ||
+                            !string.Equals(recovered.SolName, target, StringComparison.OrdinalIgnoreCase))) continue;
+                    }
+                    catch (Exception ex) when (IsRecoverableSolutionError(ex) || ex is IOException || ex is UnauthorizedAccessException)
+                    { Properties.RecoverableSettingsFile.Report("跳过无效方案备份：" + backup + "；" + ex.Message); continue; }
+
+                    string temporary = target + ".restore-" + Guid.NewGuid().ToString("N");
+                    try
+                    {
+                        // 不序列化重写客户参数；恢复备份的原始文本，损坏现场独立保留。
+                        if (File.Exists(target)) File.Copy(target, target + ".corrupt-" + DateTime.Now.ToString("yyyyMMddHHmmssfff") + "-" + Guid.NewGuid().ToString("N") + ".bak");
+                        WriteTextWithFlush(temporary, File.ReadAllText(backup, Encoding.UTF8));
+                        ValidateSolutionTemporaryFile(temporary);
+                        if (File.Exists(target)) File.Replace(temporary, target, null, true);
+                        else File.Move(temporary, target);
+                    }
+                    catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                    {
+                        Properties.RecoverableSettingsFile.Report("方案恢复写盘失败，本次从备份加载：" + target + "；" + ex.Message);
+                    }
+                    finally { TryDeleteSolutionTemporary(temporary); }
+                    LogHelper.AddLog(MsgLevel.Warn, "方案文件损坏或缺失，已从备份加载：" + backup + "。请核对最近修改的检测参数。", true);
+                    return recovered;
+                }
+                throw new InvalidDataException("方案损坏或缺失，未找到有效备份，已保留原文件，未创建或覆盖为空方案：" + target, original);
+            }
+        }
+
+        /// <summary>清理临时文件失败只写诊断，不掩盖保存或恢复的原始异常。</summary>
+        private static void TryDeleteSolutionTemporary(string path)
+        {
+            try { if (File.Exists(path)) File.Delete(path); }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            { Properties.RecoverableSettingsFile.Report("方案临时文件清理失败：" + ex.Message); }
         }
 
         /// <summary>
@@ -316,6 +382,8 @@ namespace TDJS_Vision
         /// <param name="config">已经反序列化的方案配置。</param>
         private static void ValidateSolutionGraph(SolConfig config)
         {
+            if (config.Devices == null)
+                throw new InvalidOperationException("方案设备配置缺失或无法解析。");
             if (config.ProcessInfos == null)
                 throw new InvalidOperationException("方案缺少流程配置。");
 
@@ -333,8 +401,9 @@ namespace TDJS_Vision
                 HashSet<int> nodeIds = new HashSet<int>();
                 foreach (NodeConfig node in process.NodeInfos)
                 {
-                    if (node != null)
-                        nodeIds.Add(node.ID);
+                    if (node == null)
+                        throw new InvalidOperationException($"流程“{process.ProcessName}”存在空节点配置。");
+                    nodeIds.Add(node.ID);
                 }
 
                 foreach (ProcessConnectionConfig connection in process.ConnectionInfos)
@@ -352,23 +421,21 @@ namespace TDJS_Vision
         }
 
         /// <summary>
-        /// 生成带时间戳的单份方案备份路径，备份统一放到程序运行目录，避免方案目录中持续递增备份文件。
+        /// 生成与方案一同保存的固定备份路径，避免不同目录下的同名方案互相覆盖备份。
         /// </summary>
         /// <param name="targetPath">正式方案文件路径。</param>
-        /// <returns>程序运行目录下带时间戳的备份文件路径。</returns>
+        /// <returns>与方案同目录的固定备份文件路径。</returns>
         private static string BuildSingleSolutionBackupPath(string targetPath)
         {
-            string binDirectory = AppDomain.CurrentDomain.BaseDirectory;
-            Directory.CreateDirectory(binDirectory);
-            return Path.Combine(binDirectory, Path.GetFileName(targetPath) + ".bak-" + DateTime.Now.ToString("yyyyMMddHHmmssfff"));
+            return targetPath + ".bak";
         }
 
         /// <summary>
-        /// 使用同目录临时文件替换正式方案；已有正式方案时只保留程序运行目录中的单份备份。
+        /// 使用同目录临时文件替换正式方案；已有正式方案时保留上一版有效备份，首次保存也创建备份。
         /// </summary>
         /// <param name="targetPath">正式方案文件路径。</param>
         /// <param name="temporaryPath">已经校验通过的临时方案文件路径。</param>
-        /// <param name="backupPath">程序运行目录中的本次备份路径。</param>
+        /// <param name="backupPath">与方案同目录的备份路径。</param>
         private static void ReplaceSolutionFile(string targetPath, string temporaryPath, string backupPath)
         {
             if (File.Exists(targetPath))
@@ -378,38 +445,29 @@ namespace TDJS_Vision
             }
             else
             {
+                SaveSingleSolutionBackup(temporaryPath, backupPath);
                 File.Move(temporaryPath, targetPath);
             }
         }
 
         /// <summary>
-        /// 保存替换前的单份方案备份；同一方案旧备份存在时先删除，确保同一个方案只保留一个备份文件。
+        /// 验证旧方案并原子更新备份，完成前不删除既有备份。
         /// </summary>
         /// <param name="targetPath">正式方案文件路径。</param>
-        /// <param name="backupPath">程序运行目录中的固定备份路径。</param>
+        /// <param name="backupPath">与方案同目录的固定备份路径。</param>
         private static void SaveSingleSolutionBackup(string targetPath, string backupPath)
         {
-            DeleteExistingSolutionBackups(targetPath, backupPath);
-            File.Copy(targetPath, backupPath, false);
-        }
-
-        /// <summary>
-        /// 删除程序运行目录中同一方案的旧备份，避免每次保存都留下递增备份文件。
-        /// </summary>
-        /// <param name="targetPath">正式方案文件路径。</param>
-        /// <param name="backupPath">本次准备写入的备份文件路径。</param>
-        private static void DeleteExistingSolutionBackups(string targetPath, string backupPath)
-        {
-            string backupDirectory = Path.GetDirectoryName(backupPath);
-            if (string.IsNullOrWhiteSpace(backupDirectory) || !Directory.Exists(backupDirectory))
-                return;
-
-            string backupPattern = Path.GetFileName(targetPath) + ".bak-*";
-            foreach (string oldBackupPath in Directory.GetFiles(backupDirectory, backupPattern))
+            // 原文件损坏时禁止用它覆盖好备份，先恢复或人工处理后才能继续保存。
+            ValidateSolutionTemporaryFile(targetPath);
+            string temporary = backupPath + ".tmp-" + Guid.NewGuid().ToString("N");
+            try
             {
-                if (!string.Equals(oldBackupPath, backupPath, StringComparison.OrdinalIgnoreCase))
-                    File.Delete(oldBackupPath);
+                WriteTextWithFlush(temporary, File.ReadAllText(targetPath, Encoding.UTF8));
+                ValidateSolutionTemporaryFile(temporary);
+                if (File.Exists(backupPath)) File.Replace(temporary, backupPath, null, true);
+                else File.Move(temporary, backupPath);
             }
+            finally { TryDeleteSolutionTemporary(temporary); }
         }
 
         /// <summary>

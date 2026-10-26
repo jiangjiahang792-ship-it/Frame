@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="packages\OpenCvSharp4.runtime.win.4.10.0.20240616\build\net48\OpenCvSharp4.runtime.win.props" Condition="Exists('packages\OpenCvSharp4.runtime.win.4.10.0.20240616\build\net48\OpenCvSharp4.runtime.win.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
@@ -878,6 +878,7 @@
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Node\6-LogicTool\CompositeModule\NodeParamCompositeModule.cs" />
+    <Compile Include="Node\6-LogicTool\CompositeModule\CompositeSubscriptionResolver.cs" />
     <Compile Include="Node\6-LogicTool\CompositeModule\NodeParamCompositeInput.cs" />
     <Compile Include="Node\6-LogicTool\CompositeModule\NodeParamCompositeOutput.cs" />
     <Compile Include="Node\6-LogicTool\CompositeModule\NodeParamFormCompositeModule.cs">
@@ -2301,6 +2302,7 @@
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
+    <Compile Include="Properties\RecoverableSettingsProvider.cs" />
     <Compile Include="Properties\Settings.Designer.cs">
       <AutoGen>True</AutoGen>
       <DependentUpon>Settings.settings</DependentUpon>
@@ -2382,6 +2384,9 @@
     <Content Include="Languages\zh-CN.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Template\TDAI\合压模型数量检测项.items">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Template\TDAI\勒刚端子侧面15类检测项.items">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -2413,6 +2418,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Template\TDAI\新端子12类模型.ai">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\AST高曝光线芯检测项.items">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Template\TDAI\AST-工位2检测项.items">

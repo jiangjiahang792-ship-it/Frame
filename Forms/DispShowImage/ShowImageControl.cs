@@ -1165,17 +1165,21 @@ namespace TDJS_Vision.Forms.DispShowImage
                                 if (textBlock != null)
                                     textBlock.SetControlBounds(Width, Height);
 
-                                if (_clipDisplayRoisToImage && roi.IsStatic && !(textBlock?.UseControlCoordinate == true))
+                                // 单个辅助ROI失败不能中断后续文字，且必须恢复其变换与裁剪状态。
+                                var state = g.Save();
+                                try
                                 {
-                                    var state = g.Save();
-                                    try
-                                    {
+                                    if (_clipDisplayRoisToImage && roi.IsStatic && !(textBlock?.UseControlCoordinate == true))
                                         g.SetClip(new RectangleF(_offset.X, _offset.Y, _image.Width * _scale, _image.Height * _scale), System.Drawing.Drawing2D.CombineMode.Intersect);
-                                        roi.Draw(g, _scale, _offset);
-                                    }
-                                    finally { g.Restore(state); }
+                                    roi.Draw(g, _scale, _offset);
                                 }
-                                else roi.Draw(g, _scale, _offset);
+                                catch (Exception ex) when (ex is ArgumentException || ex is OverflowException ||
+                                    ex is System.Runtime.InteropServices.ExternalException || ex is OutOfMemoryException)
+                                {
+                                    // GDI+也会用“内存不足”报告退化几何；仅隔离本次绘制，不更改检测结果。
+                                    System.Diagnostics.Debug.WriteLine($"ROI绘制失败（{roi.GetType().Name}）：{ex.Message}");
+                                }
+                                finally { g.Restore(state); }
                             }
                         }
                     }
@@ -1800,10 +1804,20 @@ namespace TDJS_Vision.Forms.DispShowImage
             public void Draw(Graphics g, float s, PointF o)
             {
                 float scaledRadius = Radius * s;
-                if (scaledRadius <= 0.5F || Math.Abs(SweepAngle) <= 0.1F)
+                PointF screenCenter = new PointF(CX * s + o.X, CY * s + o.Y);
+                if (float.IsNaN(scaledRadius) || float.IsInfinity(scaledRadius) ||
+                    float.IsNaN(screenCenter.X) || float.IsInfinity(screenCenter.X) ||
+                    float.IsNaN(screenCenter.Y) || float.IsInfinity(screenCenter.Y) ||
+                    float.IsNaN(StartAngle) || float.IsInfinity(StartAngle) ||
+                    float.IsNaN(SweepAngle) || float.IsInfinity(SweepAngle) ||
+                    scaledRadius <= 0.5F || Math.Abs(SweepAngle) <= 0.1F)
                     return;
 
-                PointF screenCenter = new PointF(CX * s + o.X, CY * s + o.Y);
+                // 极短圆弧在自适应缩小时会使GDI+的圆头描边退化并报“内存不足”。
+                // 屏幕弧长不足一个像素时不绘制辅助弧，数值文字与真实测量结果保持不变。
+                double arcLength = scaledRadius * Math.Min(360D, Math.Abs((double)SweepAngle)) * Math.PI / 180D;
+                if (arcLength < 1D)
+                    return;
                 using (Pen pen = new Pen(ShapeColor, Math.Max(1F, StrokeWidth)))
                 {
                     pen.StartCap = LineCap.Round;

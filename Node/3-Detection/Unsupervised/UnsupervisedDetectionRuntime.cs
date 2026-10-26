@@ -106,7 +106,9 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                     inferenceCallTimer.Stop();
 
                     Stopwatch postprocessTimer = Stopwatch.StartNew();
-                    List<DrawingRect> boxes = OffsetBoxesToSourceImage(nativeResult.Boxes, roiRect, sourceImage.Width, sourceImage.Height, inferImage.Width, inferImage.Height, manifest.InputWidth, manifest.InputHeight);
+                    // 最小面积使用模型输入坐标的像素面积，必须在放大回原图前过滤。
+                    DrawingRect[] areaFilteredBoxes = FilterBoxesByMinimumArea(nativeResult.Boxes, miniArea);
+                    List<DrawingRect> boxes = OffsetBoxesToSourceImage(areaFilteredBoxes, roiRect, sourceImage.Width, sourceImage.Height, inferImage.Width, inferImage.Height, manifest.InputWidth, manifest.InputHeight);
                     bool isOk = ApplyScoreThreshold(nativeResult, threshold, boxes);
                     string message = nativeResult.ReturnCode == 0 &&
                         (float.IsNaN(nativeResult.Score) || float.IsInfinity(nativeResult.Score))
@@ -150,6 +152,25 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             if (result.Score < threshold)
                 boxes.Clear();
             return boxes.Count == 0;
+        }
+
+        /// <summary>
+        /// 对底层返回的异常框做框架面积复筛；面积为模型输入坐标下的宽×高，等于阈值保留。
+        /// 不修改底层原始结果，后续数量、绘制及判定统一使用过滤后的列表。
+        /// </summary>
+        private static DrawingRect[] FilterBoxesByMinimumArea(DrawingRect[] boxes, float minimumArea)
+        {
+            if (float.IsNaN(minimumArea) || float.IsInfinity(minimumArea) || minimumArea < 0)
+                throw new ArgumentOutOfRangeException(nameof(minimumArea), "最小面积必须为非负有限数值。");
+            if (boxes == null || boxes.Length == 0) return Array.Empty<DrawingRect>();
+            var filtered = new List<DrawingRect>(boxes.Length);
+            foreach (DrawingRect box in boxes)
+            {
+                // 先排除无效尺寸，再用64位乘法，避免大图面积发生整数溢出。
+                if (box.Width > 0 && box.Height > 0 && (long)box.Width * box.Height >= (double)minimumArea)
+                    filtered.Add(box);
+            }
+            return filtered.ToArray();
         }
 
         /// <summary>

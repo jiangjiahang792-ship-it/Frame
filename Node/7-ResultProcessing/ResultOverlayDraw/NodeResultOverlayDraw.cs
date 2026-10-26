@@ -1,3 +1,5 @@
+﻿using TDJS_Vision.Node._6_LogicTool.MultiCondition;
+using TDJS_Vision.Node._6_LogicTool.CompositeModule;
 using Logger;
 using OpenCvSharp;
 using System;
@@ -644,7 +646,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     continue;
 
                 sourceNode = node;
-                if (owner.Process.IsRuning && !node.HasSuccessfulResultForRun(owner.Process.CurrentRunId))
+                if (!CompositeSubscriptionResolver.CanRead(node, resultText, owner.Process.IsRuning))
                     throw new Exception($"节点({node.ID}.{node.NodeName})本次流程未成功运行，不能使用上次运行结果!");
 
                 if (string.IsNullOrWhiteSpace(resultText))
@@ -653,7 +655,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 // 动态输出变量不是真实属性，需要先按变量路径读取。
                 object dynamicValue;
                 if (DynamicResultVariableResolver.TryGetValue(node.Result, resultText, out dynamicValue))
+                {
+                    sourceNode = CompositeSubscriptionResolver.Resolve(node, resultText, out _) ?? node;
                     return dynamicValue;
+                }
 
                 PropertyInfo property = node.Result.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public)
                     .FirstOrDefault(item => GetDisplayName(item) == resultText || item.Name == resultText);
@@ -679,7 +684,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     continue;
 
                 sourceNode = node;
-                if (owner.Process.IsRuning && !node.HasSuccessfulResultForRun(owner.Process.CurrentRunId))
+                if (!CompositeSubscriptionResolver.CanRead(node, item.SourceText2, owner.Process.IsRuning))
                     return false;
 
                 if (node.Result == null)
@@ -696,6 +701,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 if (DynamicResultVariableResolver.TryGetValue(node.Result, item.SourceText2, out dynamicValue))
                 {
                     value = dynamicValue;
+                    // 保留内部测量的判定回写和颜色，不能将外层模块当作测量结果。
+                    sourceNode = CompositeSubscriptionResolver.Resolve(node, item.SourceText2, out _) ?? node;
                     return true;
                 }
 
@@ -726,6 +733,86 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// <param name="param">节点参数。</param>
         /// <param name="performanceDiagnostics">可选的性能诊断对象。</param>
         /// <returns>显示结果。</returns>
+        /// <summary>解析绘制订阅的真实节点和属性，跨组合模块时只沿声明端口追踪，不按名称猜测。</summary>
+        private static NodeBase ResolveOverlaySource(Process process, string nodeText, string property, out string leafProperty)
+        {
+            leafProperty = property;
+            var source = CompositeSubscriptionResolver.Find(process, 0, nodeText);
+            if (source == null) return null;
+            var leaf = CompositeSubscriptionResolver.Resolve(source, property, out leafProperty);
+            if (leaf == null) return null;
+            // 静态属性的显示名归一为属性名，兼容旧方案保存的中文订阅文本。
+            string selectedProperty = leafProperty;
+            var member = leaf.Result?.GetType().GetProperties().FirstOrDefault(p => GetDisplayName(p) == selectedProperty);
+            if (member != null) leafProperty = member.Name;
+            return leaf;
+        }
+
+        /// <summary>识别明确的单项条件订阅；只跳过唯一且明确禁用的条件，缺失配置继续走异常提示。</summary>
+        private static bool IsDisabledConditionSubscription(NodeBase owner, string nodeText, string property)
+        {
+            var leaf = ResolveOverlaySource(owner?.Process, nodeText, property, out string path);
+            if (!(leaf is NodeMultiCondition) || !(leaf.ParamForm?.Params is NodeParamMultiCondition param)) return false;
+            string name = DynamicResultVariableResolver.ExtractVariableName(path);
+            if (name == null || !name.StartsWith(NodeResultMultiCondition.ItemResultPrefix, StringComparison.Ordinal)) return false;
+            name = name.Substring(NodeResultMultiCondition.ItemResultPrefix.Length);
+            var matches = param.Conditions.Where(c => c != null && c.Name == name).Take(2).ToList();
+            return matches.Count == 1 && !matches[0].Enabled;
+        }
+
+        /// <summary>本次绘制的条件索引；以节点对象区分作用域，嵌套流程编号相同也不会相互串扰。</summary>
+        private sealed class ConditionOverlayVisibility
+        {
+            /// <summary>每个真实来源的属性及启用状态，仅在一次绘制内复用，不缓存调参结果。</summary>
+            private readonly Dictionary<NodeBase, List<Tuple<string, bool>>> _conditions = new Dictionary<NodeBase, List<Tuple<string, bool>>>();
+
+            /// <summary>遍历当前作用域和已存在的内部流程，不创建新流程或窗体。</summary>
+            public ConditionOverlayVisibility(Process process)
+            {
+                Collect(process, new HashSet<Process>());
+            }
+
+            /// <summary>递归收集条件配置，循环引用或重复流程只处理一次。</summary>
+            private void Collect(Process process, HashSet<Process> visited)
+            {
+                if (process?.Nodes == null || !visited.Add(process)) return;
+                // 外层明确配置优先，内部条件只补充外层未关联的来源。
+                var inheritedSources = new HashSet<NodeBase>(_conditions.Keys);
+                foreach (var node in process.Nodes)
+                {
+                    if (!node.Active) continue;
+                    if (node is NodeMultiCondition && node.ParamForm?.Params is NodeParamMultiCondition param)
+                    {
+                        foreach (var condition in param.Conditions.Where(c => c != null))
+                        {
+                            var source = CompositeSubscriptionResolver.Find(process, condition.SourceNodeId, condition.SourceNodeText);
+                            if (source == null) continue;
+                            var leaf = ResolveOverlaySource(process, GetNodeText(source), condition.PropertyPath, out string path);
+                            if (leaf == null || leaf is NodeMultiCondition || inheritedSources.Contains(leaf)) continue;
+                            if (!_conditions.TryGetValue(leaf, out var list))
+                                _conditions[leaf] = list = new List<Tuple<string, bool>>();
+                            list.Add(Tuple.Create(path, condition.Enabled));
+                        }
+                    }
+                }
+                foreach (var module in process.Nodes.OfType<NodeCompositeModule>().Where(n => n.Active))
+                    Collect(module.ExistingRuntimeProcess, visited);
+            }
+
+            /// <summary>单项文字按条件跳过；共享ROI仅在其来源全部关联条件禁用时跳过。</summary>
+            public bool ShouldSkip(NodeBase owner, ResultOverlayDrawItem item)
+            {
+                if (item.ItemType == ResultOverlayDrawItemType.CombinedBooleanText || (item.ItemType == ResultOverlayDrawItemType.Text && item.UseManualText)) return false;
+                if (IsDisabledConditionSubscription(owner, item.SourceText1, item.SourceText2)) return true;
+                var leaf = ResolveOverlaySource(owner?.Process, item.SourceText1, item.SourceText2, out string property);
+                if (leaf == null || !_conditions.TryGetValue(leaf, out var conditions)) return false;
+                bool geometry = item.ItemType == ResultOverlayDrawItemType.Roi || item.ItemType == ResultOverlayDrawItemType.Line ||
+                    item.ItemType == ResultOverlayDrawItemType.Rectangle || item.ItemType == ResultOverlayDrawItemType.Region;
+                var related = geometry ? conditions : conditions.Where(c => c.Item1 == property).ToList();
+                return related.Count > 0 && related.All(c => !c.Item2);
+            }
+        }
+
         private static AlgorithmResult BuildDisplayResult(
             NodeBase owner,
             NodeParamResultOverlayDraw param,
@@ -738,7 +825,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 return displayResult;
             }
 
-            List<ResultOverlayDrawItem> enabledItems = param.Items.Where(i => i != null && i.Enabled).ToList();
+            var visibility = new ConditionOverlayVisibility(owner.Process);
+            List<ResultOverlayDrawItem> enabledItems = param.Items.Where(i => i != null && i.Enabled && !visibility.ShouldSkip(owner, i)).ToList();
             if (performanceDiagnostics != null)
                 performanceDiagnostics.EnabledItemCount = enabledItems.Count;
 
@@ -905,6 +993,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 AppendMissingResultText(displayResult, item, sourceNode);
                 return;
             }
+            // 空结果属于未查到，保留异常提示并继续绘制其他项，不能作为类型错误中断整幅图。
+            if (value == null)
+            {
+                AppendMissingResultText(displayResult, item, sourceNode);
+                return;
+            }
             if (!(value is bool))
                 throw new InvalidOperationException("布尔文本项必须订阅布尔类型的结果，请选择判定OK或条件结果。");
 
@@ -928,6 +1022,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             ResultOverlayDrawItem item, NodeParamResultOverlayDraw param)
         {
             bool isOk = item.BooleanMatchMode == OverlayBooleanMatchMode.All;
+            int evaluatedCount = 0;
             string error = null;
             if (item.BooleanSources == null || item.BooleanSources.Count == 0)
                 error = "未配置订阅";
@@ -937,6 +1032,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             {
                 foreach (OverlayBooleanSource source in item.BooleanSources)
                 {
+                    // 禁用条件不参与组合运算，尤其不能把跳过产生的true当作OR的合格依据。
+                    if (source != null && IsDisabledConditionSubscription(owner, source.SourceText1, source.SourceText2)) continue;
+                    evaluatedCount++;
                     var subscription = new ResultOverlayDrawItem
                     {
                         SourceText1 = source?.SourceText1,
@@ -957,7 +1055,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     isOk = item.BooleanMatchMode == OverlayBooleanMatchMode.All ? isOk & result : isOk | result;
                 }
             }
-            isOk = error == null && isOk;
+            isOk = error == null && (evaluatedCount == 0 || isOk);
             displayResult.IsAllOk &= isOk;
             AddDisplayText(displayResult, new ColorText(
                 error == null ? (isOk ? item.BooleanOkText : item.BooleanNgText) : "组合判定异常：" + error,

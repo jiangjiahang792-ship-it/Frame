@@ -12,6 +12,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
     /// <summary>
     /// AST工位2 DET/640结果解析，按RL12Parse的检测项提取、判定、绘制和学习结构实现。
     /// 类别顺序：0端子头、1露线芯、2绝缘胶、3屏蔽网、4铜环、5胶皮、6飞丝、7铝箔、8线芯。
+    /// AST高曝光线芯模型复用相同尺寸逻辑，但仅解析类别0的out_line。
     /// </summary>
     public class ASTStation2Parse
     {
@@ -42,13 +43,30 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             if (param == null) throw new ArgumentNullException(nameof(param));
             if (process == null) throw new ArgumentNullException(nameof(process));
             if (nodeResult == null) throw new ArgumentNullException(nameof(nodeResult));
+            // 高曝光模型只有out_line，不能套用工位2其它部件的类别定义。
+            bool isHighExposure = param.ModelName == ModelName.AST高曝光线芯模型;
+            int exposedCoreClassId = isHighExposure ? 0 : 1;
             if (string.IsNullOrWhiteSpace(param.CurDetectItemName) ||
                 !Solution.Instance.DetectItemDic.TryGetValue(param.CurDetectItemName, out var deteItems) || deteItems == null)
-                throw new InvalidOperationException("AST工位2检测项配置不存在，请先导入并选择检测项模板。");
+                throw new InvalidOperationException("AST检测项配置不存在，请先导入并选择检测项模板。");
             if (param.NeedConvert && (param.Scale <= 0 || float.IsNaN(param.Scale) || float.IsInfinity(param.Scale)))
                 throw new InvalidOperationException("尺寸换算比例必须是大于0的有限数值。");
 
             ParseCommon.NormalizeDetectItems(deteItems);
+            if (isHighExposure)
+            {
+                // 先验证全部启用项，避免误用工位2模板后产生部分结果或错误学习数据。
+                foreach (var item in deteItems)
+                {
+                    if (item == null || !item.Enable) continue;
+                    if (item.Name != "出线芯宽度" && item.Name != "露线芯宽度" &&
+                        item.Name != "出线芯长度" && item.Name != "露线芯长度" &&
+                        item.Name != "DetectItem.ExposedCoreLength")
+                        throw new InvalidOperationException("AST高曝光线芯模型不支持检测项：" + ParseCommon.GetDisplayName(item.Name));
+                    // 宽度和长度始终作为尺寸测量，避免模板误勾数量型后输出框数。
+                    item.IsCountItem = false;
+                }
+            }
             StudySession study = null;
             if (param.IsAutoStudy)
             {
@@ -105,13 +123,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     case "出线芯宽度":
                     case "露线芯宽度":
                         isWidthMeasurement = true;
-                        extractValueFunc = r => r.ClassId == 1 ? (float?)r.Box.Width : null;
+                        extractValueFunc = r => r.ClassId == exposedCoreClassId ? (float?)r.Box.Width : null;
                         break;
                     case "出线芯长度":
                     case "露线芯长度":
                     // 公共归一化会将旧中文名称转为内部键，保持已有方案/订阅兼容。
                     case "DetectItem.ExposedCoreLength":
-                        extractValueFunc = r => r.ClassId == 1 ? (float?)r.Box.Height : null;
+                        extractValueFunc = r => r.ClassId == exposedCoreClassId ? (float?)r.Box.Height : null;
                         break;
                     case "线芯长度":
                     case "DetectItem.CoreLength":

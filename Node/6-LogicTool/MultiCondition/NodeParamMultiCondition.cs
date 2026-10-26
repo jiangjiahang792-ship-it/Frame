@@ -1,4 +1,5 @@
-using Logger;
+﻿using Logger;
+using TDJS_Vision.Node._6_LogicTool.CompositeModule;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -75,6 +76,8 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
 
     public class NodeConditionEvaluation
     {
+        /// <summary>本项来源没有可用结果，区别于已经完成检测但判定不合格。</summary>
+        public bool SourceUnavailable { get; set; }
         /// <summary>来源被停用时不提供可订阅的单项合格结果；总判定保留原兼容行为。</summary>
         public bool SourceDisabled { get; set; }
 
@@ -173,7 +176,6 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             if (failedUpstreamEvaluations.Count > 0)
             {
                 evaluations.AddRange(failedUpstreamEvaluations);
-                return false;
             }
 
             int enabledConditionCount = 0;
@@ -200,10 +202,48 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 }
 
                 enabledConditionCount++;
-                NodeBase sourceNode = FindSourceNode(currentNode, condition);
-                if (!sourceNode.Active)
+                try
                 {
-                    evaluations.Add(new NodeConditionEvaluation
+                    NodeBase sourceNode = FindSourceNode(currentNode, condition);
+                    if (!sourceNode.Active)
+                    {
+                        evaluations.Add(new NodeConditionEvaluation
+                        {
+                            IsEnabled = true,
+                            Name = conditionName,
+                            SourceNodeText = GetNodeText(sourceNode),
+                            PropertyPath = condition.PropertyPath,
+                            PropertyDisplayName = condition.PropertyDisplayName,
+                            OperatorText = condition.Operator.ToString(),
+                            ExpectedValue = BuildExpectedText(condition),
+                            ActualValue = "源节点已禁用",
+                            SourceDisabled = true,
+                            NullReason = string.Empty,
+                            SourceRunState = BuildSourceRunState(currentNode, sourceNode),
+                            SourceHasCurrentRunResult = sourceNode.HasSuccessfulResultForRun(currentNode.Process.CurrentRunId),
+                            DiagnosticText = "源节点已禁用，按当前兼容逻辑视为已满足。",
+                            IsMatched = true
+                        });
+                        continue;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(condition.PropertyPath))
+                        throw new Exception($"条件“{conditionName}”没有选择结果属性！");
+
+                    ConditionValueReadResult valueResult = ReadConditionValue(currentNode, sourceNode, condition);
+                    bool unavailable = !CompositeSubscriptionResolver.CanRead(sourceNode, condition.PropertyPath, currentNode.Process.IsRuning) || valueResult.ReadUnavailable;
+                    bool matched = !unavailable && (valueResult.IsMultiTarget
+                        ? valueResult.AreAllMultiTargetValuesMatched
+                        : CompareCondition(valueResult.Value, condition));
+                    bool judgeWriteBackApplied = false;
+                    string judgeWriteBackText = string.Empty;
+                    // 模块只改变封装层级，判定状态仍回写实际测量节点，保持绘制颜色一致。
+                    if (!unavailable)
+                    {
+                        var judgmentSource = CompositeSubscriptionResolver.Resolve(sourceNode, condition.PropertyPath, out _);
+                        ApplyJudgeWriteBack(judgmentSource ?? sourceNode, matched, out judgeWriteBackApplied, out judgeWriteBackText);
+                    }
+                    NodeConditionEvaluation evaluation = new NodeConditionEvaluation
                     {
                         IsEnabled = true,
                         Name = conditionName,
@@ -212,52 +252,42 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                         PropertyDisplayName = condition.PropertyDisplayName,
                         OperatorText = condition.Operator.ToString(),
                         ExpectedValue = BuildExpectedText(condition),
-                        ActualValue = "源节点已禁用",
-                        SourceDisabled = true,
-                        NullReason = string.Empty,
-                        SourceRunState = BuildSourceRunState(currentNode, sourceNode),
-                        SourceHasCurrentRunResult = sourceNode.HasSuccessfulResultForRun(currentNode.Process.CurrentRunId),
-                        DiagnosticText = "源节点已禁用，按当前兼容逻辑视为已满足。",
-                        IsMatched = true
-                    });
-                    continue;
+                        ActualValue = valueResult.IsMultiTarget
+                            ? Convert.ToString(valueResult.Value, CultureInfo.CurrentCulture)
+                            : FormatValue(valueResult.Value),
+                        NullReason = valueResult.NullReason,
+                        SourceRunState = valueResult.SourceRunState,
+                        SourceHasCurrentRunResult = valueResult.SourceHasCurrentRunResult,
+                        SourceUnavailable = unavailable,
+                        DiagnosticText = valueResult.DiagnosticText,
+                        IsMatched = matched,
+                        JudgeWriteBackApplied = judgeWriteBackApplied,
+                        JudgeWriteBackText = judgeWriteBackText
+                    };
+                    LogNullConditionIfNeeded(currentNode, evaluation);
+                    evaluations.Add(evaluation);
                 }
-
-                if (string.IsNullOrWhiteSpace(condition.PropertyPath))
-                    throw new Exception($"条件“{conditionName}”没有选择结果属性！");
-
-                ConditionValueReadResult valueResult = ReadConditionValue(currentNode, sourceNode, condition);
-                bool matched = valueResult.IsMultiTarget
-                    ? valueResult.AreAllMultiTargetValuesMatched
-                    : CompareCondition(valueResult.Value, condition);
-                bool judgeWriteBackApplied;
-                string judgeWriteBackText;
-                ApplyJudgeWriteBack(sourceNode, matched, out judgeWriteBackApplied, out judgeWriteBackText);
-                NodeConditionEvaluation evaluation = new NodeConditionEvaluation
+                catch (OperationCanceledException) { throw; }
+                catch (Exception error)
                 {
-                    IsEnabled = true,
-                    Name = conditionName,
-                    SourceNodeText = GetNodeText(sourceNode),
-                    PropertyPath = condition.PropertyPath,
-                    PropertyDisplayName = condition.PropertyDisplayName,
-                    OperatorText = condition.Operator.ToString(),
-                    ExpectedValue = BuildExpectedText(condition),
-                    ActualValue = valueResult.IsMultiTarget
-                        ? Convert.ToString(valueResult.Value, CultureInfo.CurrentCulture)
-                        : FormatValue(valueResult.Value),
-                    NullReason = valueResult.NullReason,
-                    SourceRunState = valueResult.SourceRunState,
-                    SourceHasCurrentRunResult = valueResult.SourceHasCurrentRunResult,
-                    DiagnosticText = valueResult.DiagnosticText,
-                    IsMatched = matched,
-                    JudgeWriteBackApplied = judgeWriteBackApplied,
-                    JudgeWriteBackText = judgeWriteBackText
-                };
-                evaluations.Add(evaluation);
-                LogNullConditionIfNeeded(currentNode, evaluation);
+                    // 每项有独立结果和错误原因，配置或读取异常不能清空其他条件的本轮输出。
+                    evaluations.Add(new NodeConditionEvaluation
+                    {
+                        IsEnabled = true, Name = conditionName, SourceNodeText = condition.SourceNodeText,
+                        PropertyPath = condition.PropertyPath, PropertyDisplayName = condition.PropertyDisplayName,
+                        OperatorText = condition.Operator.ToString(), ExpectedValue = BuildExpectedText(condition),
+                        ActualValue = "不可用", IsMatched = false, SourceUnavailable = true,
+                        NullReason = error.Message, DiagnosticText = "条件“" + conditionName + "”执行失败：" + error.Message
+                    });
+                }
             }
 
             // 工艺约定：全部条件禁用表示当前没有需要拦截的检测项，因此总体判定为 OK。
+            // 上游失败仍强制总NG，但不能提前抹掉其他视角本轮正常产生的单项结果。
+            if (failedUpstreamEvaluations.Count > 0)
+                return false;
+            if (evaluations.Exists(item => item.IsEnabled && item.SourceUnavailable))
+                return false;
             if (enabledConditionCount == 0)
                 return true;
 
@@ -444,11 +474,31 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                 return readResult;
             }
 
-            if (currentNode.Process.IsRuning && !readResult.SourceHasCurrentRunResult)
+            if (!CompositeSubscriptionResolver.CanRead(sourceNode, condition.PropertyPath, currentNode.Process.IsRuning))
             {
                 readResult.NullReason = "源节点本次流程尚未成功产生结果。";
                 readResult.DiagnosticText = BuildDiagnosticText(sourceNode, readResult);
                 return readResult;
+            }
+
+            // 从模块端口恢复原始结果语义，角度仍按全部目标判断，不能退化为首目标摘要。
+            if (sourceNode is NodeCompositeModule)
+            {
+                string originalPath;
+                var original = CompositeSubscriptionResolver.Resolve(sourceNode, condition.PropertyPath, out originalPath);
+                if (original != null && !ReferenceEquals(original, sourceNode))
+                {
+                    var originalCondition = new MultiConditionItem
+                    {
+                        Enabled = condition.Enabled, Name = condition.Name, Note = condition.Note,
+                        SourceNodeId = original.ID, SourceNodeText = original.ID + "." + original.NodeName,
+                        PropertyPath = originalPath, PropertyDisplayName = condition.PropertyDisplayName,
+                        Operator = condition.Operator, Value1 = condition.Value1, Value2 = condition.Value2,
+                        ValueTypeName = condition.ValueTypeName, EnableRunParamAdjust = condition.EnableRunParamAdjust
+                    };
+                    // 子流程拥有自己的运行编号；外层端口快照已确认有效，再检查内部来源。
+                    return ReadConditionValue(original, original, originalCondition);
+                }
             }
 
             ConditionValueReadResult multiTargetReadResult;
@@ -724,6 +774,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             IDynamicResultVariables dynamicVariables = sourceNode.Result as IDynamicResultVariables;
             if (dynamicVariables == null)
             {
+                readResult.ReadUnavailable = true;
                 readResult.NullReason = "源节点结果不支持动态输出变量。";
                 readResult.DiagnosticText = BuildDiagnosticText(sourceNode, readResult);
                 return readResult;
@@ -732,6 +783,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             object value;
             if (!dynamicVariables.TryGetDynamicVariable(variableName, out value))
             {
+                readResult.ReadUnavailable = true;
                 readResult.NullReason = "动态变量“" + variableName + "”不存在或本次未生成。";
                 readResult.DiagnosticText = BuildDiagnosticText(sourceNode, readResult);
                 return readResult;
@@ -1161,6 +1213,8 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
     /// </summary>
     internal sealed class ConditionValueReadResult
     {
+        /// <summary>订阅协议或端口不存在，不同于合法属性的空值。</summary>
+        public bool ReadUnavailable { get; set; }
         /// <summary>
         /// 条件读取到的实际对象值。
         /// </summary>

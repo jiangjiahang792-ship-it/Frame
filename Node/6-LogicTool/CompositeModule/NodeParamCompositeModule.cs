@@ -54,6 +54,9 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// <summary>输出由模块自身配置，在内部执行完成后读取来源结果。</summary>
         public bool UsesDirectOutputs { get; set; }
 
+        /// <summary>失败仍记录失败状态，但允许外部下游继续；默认关闭，取消不受此设置影响。</summary>
+        public bool ContinueDownstreamOnFailure { get; set; }
+
         /// <summary>
         /// 当前组合模块实例对输入端口的外部绑定。
         /// </summary>
@@ -466,7 +469,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                 throw new Exception("订阅来源节点已禁用：" + GetNodeText(sourceNode));
             if (sourceNode.Result == null)
                 throw new Exception("订阅来源节点还没有运行结果：" + GetNodeText(sourceNode));
-            if (currentNode.Process.IsRuning && !sourceNode.HasSuccessfulResultForRun(currentNode.Process.CurrentRunId))
+            if (currentNode.Process.IsRuning && !CompositeSubscriptionResolver.CanRead(sourceNode, propertyPath, true))
                 throw new Exception("订阅来源节点本次流程未成功运行：" + GetNodeText(sourceNode));
             if (string.IsNullOrWhiteSpace(propertyPath))
                 throw new Exception("没有选择订阅结果属性。");

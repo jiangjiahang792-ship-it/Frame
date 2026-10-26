@@ -56,7 +56,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         public int InferenceBatchSize { get; set; } = DefaultInferenceBatchSize;
 
         /// <summary>
-        /// 推理阶段过滤异常区域使用的最小缺陷面积。
+        /// 传给底层的最小缺陷面积；框架还会按模型输入坐标下异常框的宽×高复筛，小于此值剔除。
         /// </summary>
         public float MiniArea { get; set; } = DefaultMiniArea;
 

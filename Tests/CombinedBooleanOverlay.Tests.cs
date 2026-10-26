@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -142,6 +142,26 @@ internal static class CombinedBooleanOverlayTests
             Check(first.GetDynamicResultVariableNames().Count() == 2, "未运行时不能选择单项条件");
             Check(SubscriptionPortCatalog.GetOutputs(first, SubscriptionInputContract.ForType(typeof(bool)), true, null)
                 .Any(o => o.PropertyPath == "$variable:单项结果：线芯高度"), "布尔选择器没有提供单项端口");
+            var configured = (NodeParamMultiCondition)first.ParamForm.Params;
+            configured.Conditions[0].Enabled = false;
+            Check(first.GetDynamicResultVariableNames().Contains("单项结果：线芯高度"), "禁用导致配置端口消失");
+            configured.Conditions[0].Enabled = true;
+            // 禁用条件跳过来源读取；Any模式也不能用跳过项掩盖启用条件的NG。
+            var evaluate = typeof(NodeBase).Assembly.GetType("TDJS_Vision.Node._6_LogicTool.MultiCondition.MultiConditionEvaluator").GetMethod("Evaluate");
+            typeof(NodeBase).GetProperty("Result").SetValue(second, new NodeResultTDAI { JudgeOk = false });
+            second.SetStatus(NodeStatus.Successful, "0");
+            foreach (var mode in new[] { MultiConditionMatchMode.All, MultiConditionMatchMode.Any })
+            {
+                var disabled = new MultiConditionItem { Name = "已禁用项", Enabled = false, SourceNodeId = 999999, PropertyPath = "不存在" };
+                var parameters = new NodeParamMultiCondition { MatchMode = mode, Conditions = new List<MultiConditionItem> { disabled } };
+                var arguments = new object[] { first, parameters, null };
+                Check((bool)evaluate.Invoke(null, arguments), "全部禁用未跳过放行");
+                var disabledResult = new NodeResultMultiCondition { Details = (List<NodeConditionEvaluation>)arguments[2] };
+                Check(disabledResult.TryGetDynamicVariable("单项结果：已禁用项", out object bypass) && bypass is bool && (bool)bypass, "禁用项端口未输出true");
+                parameters.Conditions.Add(new MultiConditionItem { Name = "启用项", SourceNodeId = second.ID, PropertyPath = "JudgeOk", Operator = MultiConditionOperator.IsTrue });
+                arguments = new object[] { first, parameters, null };
+                Check(!(bool)evaluate.Invoke(null, arguments), "跳过项掩盖启用项NG");
+            }
             var details = new List<NodeConditionEvaluation> {
                 new NodeConditionEvaluation { Name = "线芯高度", IsEnabled = true, IsMatched = true },
                 new NodeConditionEvaluation { Name = "端子数量", IsEnabled = true, IsMatched = false }
@@ -162,11 +182,22 @@ internal static class CombinedBooleanOverlayTests
             Check(conditionResult.TryGetDynamicVariable("$variable:单项结果：线芯高度", out value) && (bool)value,
                 "行顺序变化导致读取另一项");
             details[1].IsEnabled = false;
-            assertError();
+            Check(conditionResult.TryGetDynamicVariable("单项结果：线芯高度", out value) && value is bool && (bool)value, "禁用条件未放行");
+            Check(render().Texts.Single().Text == "NG", "禁用项掩盖另一启用项NG或引发订阅异常");
+            details[0].IsEnabled = false;
+            Check(render().Texts.Single().Text == "OK", "全部禁用未放行");
+            details[0].IsEnabled = true;
             details[1].IsEnabled = true;
             details[1].SourceDisabled = true;
             assertError();
             details[1].SourceDisabled = false;
+            configured.Conditions[0].Enabled = false;
+            item.BooleanMatchMode = OverlayBooleanMatchMode.Any;
+            Check(render().Texts.Single().Text == "NG", "组合OR把禁用条件当作true导致放行");
+            configured.Conditions[1].Enabled = false;
+            Check(render().Texts.Single().Text == "OK", "组合全部禁用未跳过放行");
+            configured.Conditions[0].Enabled = configured.Conditions[1].Enabled = true;
+            item.BooleanMatchMode = OverlayBooleanMatchMode.All;
             details.Add(new NodeConditionEvaluation { Name = "线芯高度", IsEnabled = true, IsMatched = false });
             assertError();
             details.RemoveAt(2);

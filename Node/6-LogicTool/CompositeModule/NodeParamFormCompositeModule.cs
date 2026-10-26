@@ -218,6 +218,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
                     param.OutputPorts = outputs;
                     Params = param;
                 }
+                param.ContinueDownstreamOnFailure = checkBoxContinueOnFailure.Checked;
                 _pendingParam = CompositeModuleSnapshotBuilder.Clone(param);
                 Hide();
             }
@@ -482,6 +483,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// <param name="param">组合模块参数。</param>
         private void UpdatePreviewFromParam(NodeParamCompositeModule param)
         {
+            checkBoxContinueOnFailure.Checked = param?.ContinueDownstreamOnFailure == true;
             if (param == null)
             {
                 textBoxModuleName.Text = string.Empty;

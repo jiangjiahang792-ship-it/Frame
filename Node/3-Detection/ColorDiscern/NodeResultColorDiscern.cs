@@ -1,4 +1,4 @@
-using OpenCvSharp;
+﻿using OpenCvSharp;
 using System.ComponentModel;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
@@ -56,6 +56,10 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
     /// </summary>
     public class DetectionResult
     {
+        /// <summary>所属定位目标的序号。</summary>
+        public int TargetIndex { get; set; }
+        /// <summary>当前目标检测失败的原因。</summary>
+        public string ErrorMessage { get; set; }
         /// <summary>
         /// 颜色名称。
         /// </summary>

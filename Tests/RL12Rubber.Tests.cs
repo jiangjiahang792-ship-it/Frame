@@ -196,6 +196,29 @@ internal static class RL12RubberTests
         Check(Parse(items, boxes).IsOk && items[1].CurValue == "1.00", "按数量上限错误补零");
     }
 
+    /// <summary>验证端子五类区域的十项长宽、物理换算、超限与自动学习。</summary>
+    private static void VerifyTerminalDimensions()
+    {
+        string[] names = { "前铆脚长度", "前铆脚宽度", "后铆脚长度", "后铆脚宽度", "前铆脚露线芯长度", "前铆脚露线芯宽度", "后铆脚露线芯长度", "后铆脚露线芯宽度", "正插防水栓长度", "正插防水栓宽度" };
+        float[] expected = { 40, 12, 60, 18, 20, 6, 30, 8, 80, 24 };
+        var boxes = new List<DetResult> { Box(1,40,12,100), Box(4,60,18,200), Box(0,20,6,300), Box(2,30,8,400), Box(5,80,24,500), Box(3,99,77,600) };
+        var items = names.Select((n,i) => Item(n, expected[i].ToString(), expected[i].ToString())).ToList();
+        var result = Parse(items, boxes);
+        Check(result.IsOk && result.AlgorithmResult.Rects.Count == 5, "十项尺寸框去重或类别映射错误。");
+        for (int i=0;i<names.Length;i++) Check(float.Parse(Value(result,names[i]).Value)==expected[i], names[i]+"测量错误。");
+        for (int i=0;i<names.Length;i++) items[i].MinValue=items[i].MaxValue=(expected[i]/2).ToString();
+        result=Parse(items,boxes,true);
+        Check(result.IsOk,"十项尺寸物理换算判定错误。");
+        for (int i=0;i<names.Length;i++) Check(float.Parse(Value(result,names[i]).Value)==expected[i]/2,names[i]+"比例错误。");
+        items[1].MaxValue="5"; items[1].MinValue="0";
+        Check(!Parse(items,boxes,true).IsOk,"铆脚宽度超限未判NG。");
+        Check(!Parse(items,new List<DetResult>()).IsOk,"十项尺寸缺失未判NG。");
+        result=Parse(items,boxes,false,true);
+        Check(result.IsOk,"十项尺寸学习失败。");
+        for(int i=0;i<names.Length;i++) Check(Math.Abs(float.Parse(items[i].MinValue)-expected[i]*0.9f)<0.01f && Math.Abs(float.Parse(items[i].MaxValue)-expected[i]*1.1f)<0.01f,names[i]+"学习上下限错误。");
+        var legacy=Parse(new List<DetectItemInfo>{Item("前铆脚露线芯高度","6","6"),Item("正插防水栓高度","24","24")},boxes);
+        Check(legacy.IsOk,"旧高度名称兼容失败。");
+    }
     /// <summary>执行全部行为验证并返回可供脚本判断的退出码。</summary>
     [STAThread]
     private static int Main()
@@ -203,7 +226,7 @@ internal static class RL12RubberTests
         try
         {
             LanguageManager.SetLanguage("zh-CN", false);
-            VerifyDimensions(); VerifyCounts(); VerifyComponentCounts(); VerifyConfigNames(); VerifyStudy(); VerifyMissingMeasurements();
+            VerifyTerminalDimensions(); VerifyDimensions(); VerifyCounts(); VerifyComponentCounts(); VerifyConfigNames(); VerifyStudy(); VerifyMissingMeasurements();
             Console.WriteLine("RL12胶皮、飞胶与部件数量验证通过，共" + _checks + "项断言。");
             return 0;
         }

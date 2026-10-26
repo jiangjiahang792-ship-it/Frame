@@ -1,0 +1,18 @@
+[
+  {
+    "Name": "胶皮数量",
+    "MinValue": "1",
+    "MaxValue": "1",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0"
+  },
+  {
+    "Name": "露线芯数量",
+    "MinValue": "1",
+    "MaxValue": "1",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0"
+  }
+]

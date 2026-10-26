@@ -191,6 +191,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                             ASTStation1Parse.Parse(det_results, result_count, param, Process, ref res);
                                             break;
                                         case ModelName.AST_工位2模型:
+                                        case ModelName.AST高曝光线芯模型:
                                             ASTStation2Parse.Parse(det_results, result_count, param, Process, ref res);
                                             break;
                                         case ModelName.AST_工位3模型:

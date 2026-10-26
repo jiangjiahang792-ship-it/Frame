@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Linq;
@@ -12,6 +12,18 @@ using TDJS_Vision.Node._4_Measurement.Common;
 /// <summary>真实程序集的颜色学习、筛选、旋转跟随和方案持久化回归。</summary>
 internal static class CombinationColorTests
 {
+    /// <summary>输出原始异常信息，避免依赖框架异常格式化器。</summary>
+    [STAThread]
+    private static int Main()
+    {
+        try { RunTests(); return 0; }
+        catch (Exception error)
+        {
+            for (var current = error; current != null; current = current.InnerException)
+                Console.WriteLine(current.GetType().FullName + ": " + current.Message);
+            return 1;
+        }
+    }
     /// <summary>累计断言次数。</summary>
     private static int checks;
     /// <summary>调用内部纯算法，不触发设备通信。</summary>
@@ -31,7 +43,7 @@ internal static class CombinationColorTests
         => (NodeResultCombinationColor)Call("NodeCombinationColor", "ExecuteAnalysis", image, p, corrections);
     /// <summary>合成图覆盖实际用户要求，不依赖现场方案或相机。</summary>
     [STAThread]
-    private static void Main()
+    private static void RunTests()
     {
         var samples = Enumerable.Repeat(new Vec3b(0, 0, 255), 100).ToList();
         var models = (List<GuideColorRangeModel>)Call("CombinationColorLearning", "Learn", samples);
@@ -49,41 +61,52 @@ internal static class CombinationColorTests
                 Check(r.Count == 2 && r.Area == 300, space + "面积过滤包含等于阈值");
                 Check(r.Areas.SequenceEqual(new double[] { 200, 100 }), "面积降序且列表对应");
                 Check(r.Lengths[0] == 19 && r.Widths[0] == 9, "旋转框使用像素中心距离");
-                r.OutputImage.Dispose();
+                r.ReleaseResources();
             }
             p.OutputRegionMode = ColorOutputRegionMode.Max;
             var largest = Run(image, p);
             Check(largest.Count == 1 && largest.Area == 200, "最大模式");
-            largest.OutputImage.Dispose();
+            largest.ReleaseResources();
             p.MinimumArea = 201;
             var empty = Run(image, p);
             Check(empty.Count == 0 && empty.Area == 0 && empty.Areas.Count == 0, "过滤后无结果不返回旧值");
-            empty.OutputImage.Dispose();
+            empty.ReleaseResources();
             p.MinimumArea = 0; p.OutputRegionMode = ColorOutputRegionMode.All;
             p.EnableDetectionRegion = true; p.RegionColumn = 30; p.RegionRow = 25; p.RegionLength1 = 14; p.RegionLength2 = 8;
             var roi = Run(image, p);
-            Check(roi.Count == 1 && roi.Area == 200, "搜索区域排除其它颜色块"); roi.OutputImage.Dispose();
+            Check(roi.Count == 1 && roi.Area == 200, "搜索区域排除其它颜色块"); roi.ReleaseResources();
+            p.CorrectionText1 = "定位"; p.CorrectionText2 = "位置修正信息列表";
+            var targets = new List<PositionCorrectionInfo> { new PositionCorrectionInfo { IsValid = true, TargetIndex = 2 }, new PositionCorrectionInfo { IsValid = true, TargetIndex = 4, CurrentX = 55 } };
+            var multi = Run(image, p, targets);
+            Check(multi.Items.Count == 2 && multi.Items[0].Area == 200 && multi.Items[1].Area == 100 && multi.Area == 200 && multi.DetectionRegions.Count == 2, "颜色逐目标独立区域与首目标兼容");
+            Check(multi.Items[1].TargetIndex == 4 && Cv2.CountNonZero(multi.OutputImage.SrcImg) == 300, "颜色目标序号与合并掩膜");
+            multi.ReleaseResources();
+            targets[0].IsValid = false;
+            multi = Run(image, p, targets);
+            Check(!multi.IsOk && !multi.Items[0].IsOk && multi.Items[1].IsOk && multi.Items[1].Area == 100, "颜色失败目标不阻断后续目标");
+            multi.ReleaseResources();
+            p.CorrectionText1 = null; p.CorrectionText2 = null;
             p.Regions = new List<ColorDetectionRegion> {
                 new ColorDetectionRegion { Column = 30, Row = 25, Length1 = 14, Length2 = 8 },
                 new ColorDetectionRegion { Column = 85, Row = 25, Length1 = 10, Length2 = 10 } };
             var single = Run(image, p);
             Check(single.Count == 1 && single.Area == 200, "旧列表也只使用第一个搜索区域");
-            single.OutputImage.Dispose();
+            single.ReleaseResources();
             p.Regions = null;
             p.CorrectionText1 = "位置修正"; p.CorrectionText2 = "结果";
             var correction = new PositionCorrectionInfo { IsValid = true, BaseX = 30, BaseY = 25, CurrentX = 85, CurrentY = 25, CurrentAngle = 90 };
             var followed = Run(image, p, new List<PositionCorrectionInfo> { correction });
-            Check(followed.Count == 1 && followed.Area == 100, "搜索区域平移旋转跟随"); followed.OutputImage.Dispose();
+            Check(followed.Count == 1 && followed.Area == 100, "搜索区域平移旋转跟随"); followed.ReleaseResources();
             p.RegionCorrectionReference = correction;
             p.RegionColumn = 85; p.RegionPhi = (float)(Math.PI / 2);
             var snapshot = Run(image, p, new List<PositionCorrectionInfo> { correction });
-            Check(snapshot.Area == 100, "绘制基准快照避免重复仿射"); snapshot.OutputImage.Dispose();
-            bool failed = false;
-            try { Run(image, p); } catch (TargetInvocationException) { failed = true; }
-            Check(failed, "位置修正失败必须报错");
+            Check(snapshot.Area == 100, "绘制基准快照避免重复仿射"); snapshot.ReleaseResources();
+            var missing = Run(image, p);
+            Check(!missing.IsOk && !missing.JudgeOk && missing.Items.Count == 0, "位置修正无目标必须判NG，不回退原ROI");
+            missing.ReleaseResources();
             var restored = JsonConvert.DeserializeObject<NodeParamCombinationColor>(JsonConvert.SerializeObject(p));
             var persisted = Run(image, restored, new List<PositionCorrectionInfo> { correction });
-            Check(persisted.Area == 100 && restored.Models.Count == 4, "保存加载模型和跟随基准"); persisted.OutputImage.Dispose();
+            Check(persisted.Area == 100 && restored.Models.Count == 4, "保存加载模型和跟随基准"); persisted.ReleaseResources();
         }
         // 测量独立掩膜，确保孔洞不计入面积、八连通及阈值边界。
         using (var mask = new Mat(100, 100, MatType.CV_8UC1, Scalar.All(0)))
@@ -92,7 +115,7 @@ internal static class CombinationColorTests
             Cv2.Rectangle(mask, new Rect(15, 15, 10, 10), Scalar.All(0), -1);
             var r = (NodeResultCombinationColor)Call("CombinationColorAlgorithm", "Measure", mask, new NodeParamCombinationColor { MinimumArea = 300 });
             Check(r.Area == 300 && Cv2.CountNonZero(r.OutputImage.SrcImg) == 300, "面积和输出掩膜保留孔洞");
-            r.OutputImage.Dispose();
+            r.ReleaseResources();
         }
         using (var mask = new Mat(120, 120, MatType.CV_8UC1, Scalar.All(0)))
         {
@@ -100,7 +123,7 @@ internal static class CombinationColorTests
             Cv2.FillConvexPoly(mask, Array.ConvertAll(rotated.Points(), q => new Point(q.X, q.Y)), Scalar.All(255));
             var r = (NodeResultCombinationColor)Call("CombinationColorAlgorithm", "Measure", mask, new NodeParamCombinationColor());
             Check(r.Count == 1 && Math.Abs(r.Lengths[0] - 40) < 2 && Math.Abs(r.Widths[0] - 16) < 2, "45度旋转区域的长短边");
-            r.OutputImage.Dispose();
+            r.ReleaseResources();
         }
         bool ambiguous = false;
         try { Call("CombinationColorLearning", "Learn", Enumerable.Repeat(new Vec3b(0, 0, 255), 100).Concat(Enumerable.Repeat(new Vec3b(255, 0, 0), 100)).ToList()); }
@@ -112,7 +135,7 @@ internal static class CombinationColorTests
         {
             Cv2.CvtColor(hsv, bgr, ColorConversionCodes.HSV2BGR);
             var r = Run(bgr, new NodeParamCombinationColor { Models = models });
-            Check(r.Area == 800, "红色色相跨零"); r.OutputImage.Dispose();
+            Check(r.Area == 800, "红色色相跨零"); r.ReleaseResources();
         }
         using (var form = new NodeParamFormCombinationColor())
         {

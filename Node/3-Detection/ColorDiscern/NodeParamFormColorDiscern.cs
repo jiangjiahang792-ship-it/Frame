@@ -1,4 +1,4 @@
-using Logger;
+﻿using Logger;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using Sunny.UI;
@@ -493,32 +493,46 @@ namespace TDJS_Vision.Node._3_Detection.ColorDiscern
                 for (int i = 0; i < corrections.Count; i++)
                 {
                     PositionCorrectionInfo correction = corrections[i];
-                    Rect searchRect = BuildSearchRect(sourceImage, correction, usePositionCorrection);
-                    List<DetectionResult> targetResults;
-
-                    if (isOpenGeiGround)
+                    int targetIndex = correction != null && correction.TargetIndex > 0 ? correction.TargetIndex : i + 1;
+                    // 单个目标失败保留占位，后续目标仍独立检测。
+                    try
                     {
-                        LogRuntimeStep($"开始执行当前颜色检测，目标:{i + 1}，ROI:{searchRect}");
-                        targetResults = RunCurrentDetection(sourceImage, currentColor, searchRect);
-                        LogRuntimeStep($"当前颜色检测完毕，目标:{i + 1}，结果数量:{(targetResults == null ? 0 : targetResults.Count)}");
-                    }
-                    else
-                    {
-                        LogRuntimeStep($"开始执行全部颜色检测，目标:{i + 1}，模板数量:{colorParam.Profiles.Count}，ROI:{searchRect}");
-                        targetResults = RunDetection(sourceImage, searchRect);
-                        LogRuntimeStep($"全部颜色检测完毕，目标:{i + 1}，结果数量:{(targetResults == null ? 0 : targetResults.Count)}");
+                        Rect searchRect = BuildSearchRect(sourceImage, correction, usePositionCorrection);
+                        List<DetectionResult> targetResults;
 
-                        if (isOpenSort)
+                        if (isOpenGeiGround)
                         {
-                            LogRuntimeStep($"开始执行颜色排序校验，目标:{i + 1}");
-                            bool targetSortOk = SortAndCheckByProfile(targetResults, colorParam.Profiles, sortModel);
-                            allOk = allOk && targetSortOk;
-                            LogRuntimeStep($"颜色排序校验完毕，目标:{i + 1}，结果:{targetSortOk}");
+                            LogRuntimeStep($"开始执行当前颜色检测，目标:{i + 1}，ROI:{searchRect}");
+                            targetResults = RunCurrentDetection(sourceImage, currentColor, searchRect);
+                            LogRuntimeStep($"当前颜色检测完毕，目标:{i + 1}，结果数量:{(targetResults == null ? 0 : targetResults.Count)}");
+                        }
+                        else
+                        {
+                            LogRuntimeStep($"开始执行全部颜色检测，目标:{i + 1}，模板数量:{colorParam.Profiles.Count}，ROI:{searchRect}");
+                            targetResults = RunDetection(sourceImage, searchRect);
+                            LogRuntimeStep($"全部颜色检测完毕，目标:{i + 1}，结果数量:{(targetResults == null ? 0 : targetResults.Count)}");
+
+                            if (isOpenSort)
+                            {
+                                LogRuntimeStep($"开始执行颜色排序校验，目标:{i + 1}");
+                                bool targetSortOk = SortAndCheckByProfile(targetResults, colorParam.Profiles, sortModel);
+                                allOk = allOk && targetSortOk;
+                                LogRuntimeStep($"颜色排序校验完毕，目标:{i + 1}，结果:{targetSortOk}");
+                            }
+                        }
+
+                        if (targetResults != null)
+                        {
+                            foreach (var result in targetResults) result.TargetIndex = targetIndex;
+                            allMatchResults.AddRange(targetResults);
                         }
                     }
-
-                    if (targetResults != null)
-                        allMatchResults.AddRange(targetResults);
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception error)
+                    {
+                        allOk = false;
+                        allMatchResults.Add(new DetectionResult { TargetIndex = targetIndex, Name = "目标" + targetIndex + "定位检测失败", IsOk = false, ErrorMessage = error.Message });
+                    }
                 }
 
                 if (allMatchResults.Count == 0)

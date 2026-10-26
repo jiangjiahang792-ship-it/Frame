@@ -767,7 +767,7 @@ namespace TDJS_Vision.Forms.ImageViewer
                 return;
 
             filter.AddImageShowNodeId(nodeShow.ID);
-            TryAddRunParamFilterFromSubscription(process, showParam.Text1, filter);
+            TryAddRunParamFilterFromSubscription(nodeShow.Process ?? process, showParam.Text1, filter);
         }
 
         /// <summary>
@@ -784,14 +784,14 @@ namespace TDJS_Vision.Forms.ImageViewer
             if (sourceNode is NodeResultOverlayDraw &&
                 sourceNode.ParamForm.Params is NodeParamResultOverlayDraw overlayParam)
             {
-                AddResultOverlayDrawSources(filter, sourceNode.ID, overlayParam);
+                AddResultOverlayDrawSources(sourceNode.Process, filter, sourceNode.ID, overlayParam);
                 return;
             }
 
             if (sourceNode is NodeResultOverlayDraw2 &&
                 sourceNode.ParamForm.Params is NodeParamResultOverlayDraw2 overlayParam2)
             {
-                AddResultOverlayDraw2Sources(filter, sourceNode.ID, overlayParam2);
+                AddResultOverlayDraw2Sources(sourceNode.Process, filter, sourceNode.ID, overlayParam2);
             }
         }
 
@@ -802,7 +802,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         /// <param name="overlayNodeId">ROI绘制节点ID。</param>
         /// <param name="param">ROI绘制节点参数。</param>
         private static void AddResultOverlayDrawSources(
-            RunParamDisplayFilter filter,
+            Process process, RunParamDisplayFilter filter,
             int overlayNodeId,
             NodeParamResultOverlayDraw param)
         {
@@ -822,7 +822,7 @@ namespace TDJS_Vision.Forms.ImageViewer
 
                     bool needSource = item.ItemType != ResultOverlayDrawItemType.Text || !item.UseManualText;
                     if (needSource)
-                        AddSourceNodeTextToFilter(filter, item.SourceText1);
+                        filter.AddSourceSubscription(process, item.SourceText1, item.SourceText2);
                 }
             }
 
@@ -845,7 +845,7 @@ namespace TDJS_Vision.Forms.ImageViewer
         /// <param name="overlayNodeId">ROI绘制节点ID。</param>
         /// <param name="param">ROI绘制2节点参数。</param>
         private static void AddResultOverlayDraw2Sources(
-            RunParamDisplayFilter filter,
+            Process process, RunParamDisplayFilter filter,
             int overlayNodeId,
             NodeParamResultOverlayDraw2 param)
         {
@@ -865,35 +865,21 @@ namespace TDJS_Vision.Forms.ImageViewer
 
                     bool needSource = item.ItemType != ResultOverlayDraw2ItemType.Text || !item.UseManualText;
                     if (needSource)
-                        AddSourceNodeTextToFilter(filter, item.SourceText1);
+                        filter.AddSourceSubscription(process, item.SourceText1, item.SourceText2);
                 }
             }
 
             if (param.HasNewJudgeSubscription)
-                AddSourceNodeTextToFilter(filter, param.JudgeText1);
+                filter.AddSourceSubscription(process, param.JudgeText1, param.JudgeText2);
 
             if (!param.HasNewJudgeSubscription && param.ColorRules != null)
             {
                 foreach (ResultOverlayDraw2ColorRule rule in param.ColorRules)
                 {
                     if (rule != null && rule.Enabled)
-                        AddSourceNodeTextToFilter(filter, rule.SourceText1);
+                        filter.AddSourceSubscription(process, rule.SourceText1, rule.SourceText2);
                 }
             }
-        }
-
-        /// <summary>
-        /// 从订阅文本中解析节点ID并加入过滤范围。
-        /// </summary>
-        /// <param name="filter">待补充的过滤范围。</param>
-        /// <param name="nodeText">订阅节点文本。</param>
-        private static void AddSourceNodeTextToFilter(RunParamDisplayFilter filter, string nodeText)
-        {
-            if (filter == null)
-                return;
-
-            if (RunParamDisplayFilter.TryGetNodeId(nodeText, out int nodeId))
-                filter.AddSourceNodeId(nodeId);
         }
 
         /// <summary>
@@ -909,7 +895,7 @@ namespace TDJS_Vision.Forms.ImageViewer
 
             return EnumerateViewerNodes(process)
                 .OfType<NodeTDAI>()
-                .Where(node => filter.ContainsSourceNode(node.ID))
+                .Where(node => filter.ContainsSourceNode(node))
                 .ToList();
         }
 
@@ -979,14 +965,14 @@ namespace TDJS_Vision.Forms.ImageViewer
         {
             if (node == null || condition == null || filter == null)
                 return false;
-            if (filter.ContainsSourceNode(node.ID))
+            if (filter.ContainsSourceNode(node))
                 return true;
 
             int sourceNodeId = condition.SourceNodeId;
             if (sourceNodeId <= 0)
                 RunParamDisplayFilter.TryGetNodeId(condition.SourceNodeText, out sourceNodeId);
 
-            return sourceNodeId > 0 && filter.ContainsSourceNode(sourceNodeId);
+            return sourceNodeId > 0 && filter.ContainsSubscription(node.Process, sourceNodeId, condition.SourceNodeText, condition.PropertyPath);
         }
 
 

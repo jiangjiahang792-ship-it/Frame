@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -115,6 +115,9 @@ namespace TDJS_Vision.Node._3_Detection.NewContourMatch
             if (source == null) throw new InvalidOperationException("订阅源不在当前节点上游，请检查连线。");
             if (_node.Process.IsRuning && !source.HasSuccessfulResultForRun(_node.Process.CurrentRunId)) throw new InvalidOperationException("上游本轮未成功运行，不能使用历史结果。");
             var result = source.Result;
+            // 组合模块输入和其它命名输出使用动态变量；普通结果继续沿用原属性读取。
+            if (DynamicResultVariableResolver.TryGetValue(result, text2, out object dynamicValue))
+                return dynamicValue;
             var property = result?.GetType().GetProperties().FirstOrDefault(item => item.Name == text2 || ((DisplayNameAttribute)Attribute.GetCustomAttribute(item, typeof(DisplayNameAttribute)))?.DisplayName == text2);
             return property?.GetValue(result);
         }

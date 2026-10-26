@@ -37,6 +37,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             this.treeViewSources = new System.Windows.Forms.TreeView();
             this.panelSourceBottom = new System.Windows.Forms.Panel();
             this.buttonSelectProperty = new System.Windows.Forms.Button();
+            this.buttonRefreshSources = new System.Windows.Forms.Button();
             this.panelBottom = new System.Windows.Forms.Panel();
             this.buttonAdd = new System.Windows.Forms.Button();
             this.buttonRemove = new System.Windows.Forms.Button();
@@ -264,6 +265,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             // panelSourceBottom
             // 
             this.panelSourceBottom.Controls.Add(this.buttonSelectProperty);
+            this.panelSourceBottom.Controls.Add(this.buttonRefreshSources);
             this.panelSourceBottom.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.panelSourceBottom.Location = new System.Drawing.Point(3, 497);
             this.panelSourceBottom.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
@@ -273,6 +275,14 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             // 
             // buttonSelectProperty
             // 
+            this.buttonRefreshSources.Location = new System.Drawing.Point(10, 10);
+            this.buttonRefreshSources.Name = "buttonRefreshSources";
+            this.buttonRefreshSources.Size = new System.Drawing.Size(133, 37);
+            this.buttonRefreshSources.TabIndex = 1;
+            this.buttonRefreshSources.Text = "刷新订阅";
+            this.buttonRefreshSources.CausesValidation = false;
+            this.buttonRefreshSources.UseVisualStyleBackColor = true;
+            this.buttonRefreshSources.Click += new System.EventHandler(this.buttonRefreshSources_Click);
             this.buttonSelectProperty.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.buttonSelectProperty.Location = new System.Drawing.Point(178, 10);
             this.buttonSelectProperty.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
@@ -382,6 +392,8 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
         private System.Windows.Forms.GroupBox groupBoxSource;
         private System.Windows.Forms.TreeView treeViewSources;
         private System.Windows.Forms.Panel panelSourceBottom;
+        /// <summary>手动重新读取上游节点及可订阅输出。</summary>
+        private System.Windows.Forms.Button buttonRefreshSources;
         private System.Windows.Forms.Button buttonSelectProperty;
         private System.Windows.Forms.Panel panelBottom;
         private System.Windows.Forms.Button buttonAdd;

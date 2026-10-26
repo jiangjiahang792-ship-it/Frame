@@ -62,6 +62,7 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             this.flowLayoutPanelButtons = new System.Windows.Forms.FlowLayoutPanel();
             this.buttonCancel = new System.Windows.Forms.Button();
             this.buttonSave = new System.Windows.Forms.Button();
+            this.checkBoxContinueOnFailure = new System.Windows.Forms.CheckBox();
             this.tabVariables = new System.Windows.Forms.TabControl();
             this.tabInputs = new System.Windows.Forms.TabPage("输入变量");
             this.tabOutputs = new System.Windows.Forms.TabPage("输出变量");
@@ -467,6 +468,12 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
             this.flowLayoutPanelButtons.Controls.Add(this.buttonSave);
             this.flowLayoutPanelButtons.Controls.Add(this.buttonRemoveInput);
             this.flowLayoutPanelButtons.Controls.Add(this.buttonAddInput);
+            this.flowLayoutPanelButtons.Controls.Add(this.checkBoxContinueOnFailure);
+            this.checkBoxContinueOnFailure.AutoSize = true;
+            this.checkBoxContinueOnFailure.Name = "checkBoxContinueOnFailure";
+            this.checkBoxContinueOnFailure.Text = "失败后继续执行下游";
+            this.checkBoxContinueOnFailure.Margin = new System.Windows.Forms.Padding(12, 8, 12, 3);
+            this.checkBoxContinueOnFailure.UseVisualStyleBackColor = true;
             this.buttonAddInput.Text = "新增输入";
             this.buttonAddInput.Size = new System.Drawing.Size(96, 34);
             this.buttonAddInput.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
@@ -572,6 +579,8 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         private System.Windows.Forms.TreeView treeViewSources;
         private System.Windows.Forms.Panel panelSourceBottom;
         private System.Windows.Forms.Button buttonSelectInputSource;
+        /// <summary>模块失败后是否放行下游，默认不勾选。</summary>
+        private System.Windows.Forms.CheckBox checkBoxContinueOnFailure;
         private System.Windows.Forms.FlowLayoutPanel flowLayoutPanelButtons;
         private System.Windows.Forms.Button buttonSave;
         private System.Windows.Forms.Button buttonCancel;

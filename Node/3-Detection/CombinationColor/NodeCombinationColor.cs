@@ -77,7 +77,7 @@ namespace TDJS_Vision.Node._3_Detection.CombinationColor
                 if (!OutputImage.HasValidImage(gray))
                     throw new Exception("输入图像为空，请检查图像订阅。");
 
-                NodeResultCombinationColor nodeResult = ExecuteAnalysis(gray, param, form.GetPositionCorrections());
+                NodeResultCombinationColor nodeResult = ExecuteTargets(gray, param, form.GetPositionCorrections(), token);
                 Result = nodeResult;
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
@@ -132,38 +132,84 @@ namespace TDJS_Vision.Node._3_Detection.CombinationColor
                 return source.Clone();
             }
         }
-        /// <summary>解析搜索区域的位置跟随结果，失败时不退回未修正区域。</summary>
-        private static PositionCorrectionInfo ResolveDetectionCorrection(NodeParamCombinationColor param, List<PositionCorrectionInfo> corrections)
-        {
-            if (param == null || !param.EnableDetectionRegion)
-                return null;
-            if (string.IsNullOrWhiteSpace(param.CorrectionText1) || string.IsNullOrWhiteSpace(param.CorrectionText2))
-                return null;
-
-            PositionCorrectionInfo correction = corrections == null
-                ? null
-                : corrections.FirstOrDefault(item => item != null && item.IsValid);
-            PositionCorrectionHelper.EnsureValid(correction);
-
-            return correction;
-        }
-
         /// <summary>
         /// 执行彩色区间提取和面积统计。
         /// </summary>
         /// <param name="gray">输入彩色图。</param>
         /// <param name="param">组合颜色识别参数。</param>
-        /// <param name="detectionRegion">可选位置修正检测区域。</param>
+        /// <param name="corrections">按目标顺序排列的位置修正列表。</param>
         /// <returns>组合颜色识别结果。</returns>
         internal static NodeResultCombinationColor ExecuteAnalysis(Mat gray, NodeParamCombinationColor param, List<PositionCorrectionInfo> corrections)
         {
+            return ExecuteTargets(gray, param, corrections, CancellationToken.None);
+        }
+
+        /// <summary>按定位列表逐目标检测全部ROI，摘要保留首目标，图像与绘制结果合并所有目标。</summary>
+        private static NodeResultCombinationColor ExecuteTargets(Mat gray, NodeParamCombinationColor param, List<PositionCorrectionInfo> corrections, CancellationToken token)
+        {
+            bool follow = param.EnableDetectionRegion && !string.IsNullOrWhiteSpace(param.CorrectionText1) && !string.IsNullOrWhiteSpace(param.CorrectionText2);
+            var targets = follow ? (corrections ?? new List<PositionCorrectionInfo>()) : new List<PositionCorrectionInfo> { null };
+            var owned = new List<NodeResultCombinationColor>();
+            Mat segmented = null;
+            try
+            {
+                segmented = Algorithm.Segment(gray, param);
+                var items = MultiTargetMeasurementRunner.Run(targets, token, correction =>
+                {
+                    if (follow) PositionCorrectionHelper.EnsureValid(correction);
+                    var item = ExecuteSingle(segmented, param, correction);
+                    owned.Add(item);
+                    return item;
+                }, (correction, error) => new NodeResultCombinationColor { IsOk = false, JudgeOk = false, ErrorMessage = error.Message });
+                var first = items.FirstOrDefault() ?? new NodeResultCombinationColor();
+                var result = new NodeResultCombinationColor
+                {
+                    Items = items, IsOk = items.Count > 0 && items.All(item => item.IsOk),
+                    Count = first.Count, Area = first.Area, Width = first.Width, Height = first.Height,
+                    Areas = new List<double>(first.Areas), Lengths = new List<double>(first.Lengths), Widths = new List<double>(first.Widths),
+                    DetectionRegions = items.SelectMany(item => item.DetectionRegions ?? new List<ColorRotatedRect>()).ToList()
+                };
+                try
+                {
+                    result.JudgeOk = result.IsOk;
+                    result.ErrorMessage = items.Count == 0 ? "未找到定位目标。" : string.Join("；", items.Where(item => !item.IsOk).Select(item => "目标" + item.TargetIndex + "：" + item.ErrorMessage));
+                    if (!result.IsOk) result.Result.Texts.Add(new ColorText(result.ErrorMessage, Color.Red));
+                    result.DetectionRegion = result.DetectionRegions.FirstOrDefault();
+                    using (var merged = new Mat(gray.Rows, gray.Cols, MatType.CV_8UC1, Scalar.All(0)))
+                    {
+                        foreach (var item in items)
+                        {
+                            token.ThrowIfCancellationRequested();
+                            if (OutputImage.HasValidImage(item.OutputImage?.SrcImg)) Cv2.BitwiseOr(merged, item.OutputImage.SrcImg, merged);
+                            MeasurementNodeHelper.AppendAlgorithmResult(result.Result, item.Result);
+                        }
+                        var pixels = merged.Clone();
+                        result.OutputImage = OutputImage.FromOwnedSingleImage(pixels, pixels);
+                    }
+                    result.Result.IsAllOk = result.IsOk;
+                    result.OutputImage.DisplayResult = result.Result;
+                    return result;
+                }
+                catch { result.ReleaseResources(); throw; }
+            }
+            catch
+            {
+                foreach (var item in owned) item.ReleaseResources();
+                throw;
+            }
+            finally { segmented?.Dispose(); }
+        }
+
+        /// <summary>复用原单目标算法；各目标独立做面积过滤，多ROI仍合并为当前目标的检测掩膜。</summary>
+        private static NodeResultCombinationColor ExecuteSingle(Mat gray, NodeParamCombinationColor param, PositionCorrectionInfo correction)
+        {
             var polygons = new List<List<PointF>>();
-            var correction = ResolveDetectionCorrection(param, corrections);
+
             if (param.EnableDetectionRegion)
             {
                 polygons.Add(BuildRegionPoints(param.GetSearchRegion(), correction));
             }
-            using(var binary = Algorithm.Segment(gray,param))
+            using(var binary = gray.Clone())
             {
                 if(param.EnableDetectionRegion) ApplyDetectionRegionMask(binary,polygons);
                 var result = Algorithm.Analyze(binary,param);

@@ -1,4 +1,6 @@
 ﻿using System.ComponentModel;
+using System.Collections.Generic;
+using TDJS_Vision.Node._4_Measurement.Common;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 
@@ -7,8 +9,26 @@ namespace TDJS_Vision.Node._3_Detection.CombinationColor
     /// <summary>
     /// 组合颜色识别结果，输出二值化后的灰度图、面积和显示叠加信息。
     /// </summary>
-    public class NodeResultCombinationColor : INodeResult, IJudgmentResult
+    public class NodeResultCombinationColor : INodeResult, IJudgmentResult, IMultiTargetMeasurementItem, INodeResultResourceOwner
     {
+
+        /// <summary>按输入定位顺序保留全部目标结果，失败目标也占位。</summary>
+        [SubscriptionOutput(SubscriptionDataCategory.MeasurementResult, Multiplicity = SubscriptionValueMultiplicity.MultiTarget)]
+        [DisplayName("多目标检测结果")]
+        public List<NodeResultCombinationColor> Items { get; set; } = new List<NodeResultCombinationColor>();
+        /// <summary>目标序号；节点汇总结果为零。</summary>
+        public int TargetIndex { get; set; }
+        /// <summary>目标失败原因。</summary>
+        [SubscriptionOutput, DisplayName("失败原因")]
+        public string ErrorMessage { get; set; }
+        /// <summary>当前目标的位置修正信息。</summary>
+        public PositionCorrectionInfo Correction { get; set; }
+        /// <summary>释放汇总及每个目标独立拥有的图像，支持重复释放。</summary>
+        public void ReleaseResources()
+        {
+            OutputImage?.Dispose();
+            foreach (var item in Items) item.ReleaseResources();
+        }
         /// <summary>筛选后区域个数。</summary>
         [SubscriptionOutput, DisplayName("区域个数")]
         public int Count { get; set; }

@@ -1,4 +1,4 @@
-﻿using Logger;
+using Logger;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TDJS_Vision.Node._5_EquipmentCommunication.PlcRead;
+using TDJS_Vision.Node._6_LogicTool.CompositeModule;
 
 namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
 {
@@ -50,10 +51,7 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
             {
                 Type valueType = null;
                 bool hasWriter = false;
-                var nodes = Solution.Instance.AllProcesses.SelectMany(process => process.Nodes)
-                    .Concat(Solution.Instance.Nodes)
-                    .Concat(Process == null ? Enumerable.Empty<NodeBase>() : Process.Nodes)
-                    .OfType<NodeSharedVariable>().Distinct();
+                var nodes = EnumerateConfiguredNodes().OfType<NodeSharedVariable>();
                 foreach (NodeSharedVariable writer in nodes)
                 {
                     var writeParam = writer.ParamForm?.Params as NodeParamSharedVariable;
@@ -80,6 +78,29 @@ namespace TDJS_Vision.Node._6_LogicTool.SharedVariable
                 return NodeResultSharedVariable.GetElementType(valueType);
             }
             finally { visited.Remove(this); }
+        }
+
+        /// <summary>
+        /// 扫描实际节点实例及已构建的嵌套模块，内部节点编号只在本模块有效，按对象去重。
+        /// 不为刷新订阅创建控件、运行模块或保存快照，避免递归初始化和改变现场状态。
+        /// </summary>
+        private IEnumerable<NodeBase> EnumerateConfiguredNodes()
+        {
+            var roots = Solution.Instance.AllProcesses.SelectMany(process => process.Nodes)
+                .Concat(Solution.Instance.Nodes)
+                .Concat(Process == null ? Enumerable.Empty<NodeBase>() : Process.Nodes);
+            var pending = new Queue<NodeBase>(roots);
+            var seen = new HashSet<NodeBase>();
+            while (pending.Count > 0)
+            {
+                NodeBase node = pending.Dequeue();
+                if (node == null || !seen.Add(node)) continue;
+                yield return node;
+                var module = node as NodeCompositeModule;
+                Process inner = module?.ExistingRuntimeProcess;
+                if (inner == null) continue;
+                foreach (NodeBase child in inner.Nodes) pending.Enqueue(child);
+            }
         }
 
         /// <summary>统一配置推导与窗体恢复的来源定位规则，兼容上游节点改名。</summary>

@@ -16,6 +16,14 @@ namespace TDJS_Vision.Node._6_LogicTool.CompositeModule
         /// </summary>
         public int RunTime { get; set; }
 
+        /// <summary>输出快照所属外层流程批次，只允许读取本轮独立完成的端口。</summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
+        public int OutputRunId { get; set; } = -1;
+
+        /// <summary>各输出端口未能发布的原因，不影响其他有效端口。</summary>
+        [SubscriptionOutput(Visibility = SubscriptionOutputVisibility.Hidden)]
+        public Dictionary<string, string> OutputErrors { get; set; } = new Dictionary<string, string>();
+
         /// <summary>
         /// 本次运行的模块名称。
         /// </summary>

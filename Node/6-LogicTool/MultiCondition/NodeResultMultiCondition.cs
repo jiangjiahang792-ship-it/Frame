@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.ComponentModel;
 using System;
 using System.Linq;
@@ -10,17 +10,17 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
         /// <summary>单项布尔输出前缀，与节点的总条件结果区分。</summary>
         public const string ItemResultPrefix = "单项结果：";
 
-        /// <summary>只发布本轮启用且名称唯一的条件，避免重名时误读另一行。</summary>
+        /// <summary>发布本轮名称唯一的条件，禁用条件保留放行端口，避免下游订阅断开。</summary>
         public IEnumerable<string> GetDynamicVariableNames()
         {
             return (Details ?? new List<NodeConditionEvaluation>())
                 .Where(d => d != null && !string.IsNullOrWhiteSpace(d.Name))
                 .GroupBy(d => d.Name, StringComparer.Ordinal)
-                .Where(g => g.Count() == 1 && g.First().IsEnabled && !g.First().SourceDisabled)
+                .Where(g => g.Count() == 1 && (!g.First().IsEnabled || !g.First().SourceDisabled))
                 .Select(g => ItemResultPrefix + g.Key);
         }
 
-        /// <summary>按条件名称读取单项判定，不将禁用条件的兼容True作为检测结果输出。</summary>
+        /// <summary>按条件名称读取单项判定；禁用条件输出True表示跳过放行，明细保留禁用状态。</summary>
         public bool TryGetDynamicVariable(string variableName, out object value)
         {
             value = null;
@@ -30,9 +30,10 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             string conditionName = name.Substring(ItemResultPrefix.Length);
             var matches = (Details ?? new List<NodeConditionEvaluation>())
                 .Where(d => d != null && d.Name == conditionName).Take(2).ToList();
-            if (matches.Count != 1 || !matches[0].IsEnabled || matches[0].SourceDisabled)
+            if (matches.Count != 1 || (matches[0].IsEnabled && matches[0].SourceDisabled))
                 return false;
-            value = matches[0].IsMatched;
+            // 单项端口始终输出布尔值；来源异常判为不通过，具体原因保留在条件明细中。
+            value = !matches[0].IsEnabled || (!matches[0].SourceUnavailable && matches[0].IsMatched);
             return true;
         }
 

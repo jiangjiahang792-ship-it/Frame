@@ -150,7 +150,7 @@ namespace TDJS_Vision.Node
                     DisplayName = ToDisplayName(variableName),
                     ValueType = valueType,
                     Category = category,
-                    Multiplicity = SubscriptionValueMultiplicity.Single,
+                    Multiplicity = SubscriptionTypeCompatibility.ResolveMultiplicity(valueType),
                     Visibility = IsCoreCategory(category)
                         ? SubscriptionOutputVisibility.Core
                         : SubscriptionOutputVisibility.Advanced,

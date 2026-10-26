@@ -84,6 +84,7 @@ namespace TDJS_Vision.Node
         {
             _sourceSelector = sourceSelector ?? throw new ArgumentNullException(nameof(sourceSelector));
             InitializeComponent();
+            UpdateSubscriptionExplanation();
             comboBox1.FormattingEnabled = true;
             comboBox1.Format += FormatSourceDisplay;
             NodeBase.RefreshNodeSubControl += RenameChangeEvent;
@@ -405,8 +406,26 @@ namespace TDJS_Vision.Node
             {
                 comboBox2.EndUpdate();
                 _isUpdatingResultCombo = false;
+                UpdateSubscriptionExplanation();
                 NotifySelectionChanged();
             }
+        }
+        /// <summary>在现有标题处显示空候选提示，完整原因通过点击标题或右键菜单查看。</summary>
+        private void UpdateSubscriptionExplanation()
+        {
+            bool unavailable = comboBox2.SelectedIndex < 0 || _selectedOutput?.IsMissing == true || _selectedNode == null;
+            label2.Text = unavailable ? "不可用·说明" : "节点结果·说明";
+            label2.ForeColor = unavailable ? System.Drawing.Color.Firebrick : System.Drawing.SystemColors.ControlText;
+            subscriptionToolTip.SetToolTip(label2, "点击查看可订阅结果及不可用原因");
+            subscriptionToolTip.SetToolTip(comboBox2, "右键选择“查看订阅说明”，查看输出不可用的原因。");
+        }
+
+        /// <summary>按当前节点和输入要求实时生成说明，不将提示文本当作可保存的结果项。</summary>
+        private void ShowSubscriptionExplanation(object sender, EventArgs e)
+        {
+            System.Windows.Forms.MessageBox.Show(this,
+                SubscriptionPortCatalog.ExplainOutputs(GetSelectedNode(), _inputContract, _text2),
+                "订阅结果说明", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         /// <summary>
         /// 获取节点对应结果的值
@@ -555,6 +574,7 @@ namespace TDJS_Vision.Node
             SetNodeComboSelectedIndex(-1);
             comboBox2.Items.Clear();
             comboBox2.Text = string.Empty;
+            UpdateSubscriptionExplanation();
             NotifySelectionChanged();
         }
 
@@ -592,6 +612,7 @@ namespace TDJS_Vision.Node
                 }));
                 comboBox2.SelectedIndex = 0;
             }
+            UpdateSubscriptionExplanation();
             NotifySelectionChanged();
         }
 
@@ -759,7 +780,7 @@ namespace TDJS_Vision.Node
             if (_node != null &&
                 _node.Process != null &&
                 _node.Process.IsRuning &&
-                !_selectedNode.HasSuccessfulResultForRun(_node.Process.CurrentRunId))
+                !TDJS_Vision.Node._6_LogicTool.CompositeModule.CompositeSubscriptionResolver.CanRead(_selectedNode, _text2, true))
             {
                 throw new Exception($"节点({_selectedNode.ID}.{_selectedNode.NodeName})本次流程未成功运行，不能使用上次运行结果!");
             }

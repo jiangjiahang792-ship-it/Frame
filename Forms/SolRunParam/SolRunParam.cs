@@ -139,7 +139,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 _currentDetectItems = new List<DetectItemInfo>();
                 _windowsName = null;
                 SetEnable(false);
-                HashSet<NodeBase> inputNodes = GetTargetInputNodes(targetAiNode);
+                HashSet<NodeBase> inputNodes = GetTargetInputNodes(targetAiNode, process);
                 List<NodeMultiCondition> multiConditionNodes = new List<NodeMultiCondition>();
                 foreach (var node in EnumerateRunParamNodes(process))
                 {
@@ -199,7 +199,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                     if (node is NodeTDAI nodeTDAI &&
                         node.ParamForm.Params is NodeParamTDAI paramTDAI)
                     {
-                        if (!IsSourceNodeAllowedByRunParamFilter(nodeTDAI.ID))
+                        if (!IsSourceNodeAllowedByRunParamFilter(nodeTDAI))
                             continue;
 
                         if (_targetAiNode != null && !ReferenceEquals(nodeTDAI, _targetAiNode))
@@ -265,7 +265,7 @@ namespace TDJS_Vision.Forms.SolRunParam
         }
 
         /// <summary>沿指定AI的图像输入查找可调图像源和裁剪，禁止选中其他视角最后一个节点。</summary>
-        private static HashSet<NodeBase> GetTargetInputNodes(NodeTDAI target)
+        private static HashSet<NodeBase> GetTargetInputNodes(NodeTDAI target, Process root)
         {
             if (target == null) return null;
             var result = new HashSet<NodeBase>();
@@ -278,6 +278,21 @@ namespace TDJS_Vision.Forms.SolRunParam
                     param is NodeParamImageRotate rotate ? rotate.Text1 : null;
                 if (!RunParamDisplayFilter.TryGetNodeId(source, out int id) || current.Process?.Nodes == null)
                     break;
+                if (id == int.MaxValue)
+                {
+                    // 模块输入的实际图像来自外层绑定，沿该端口继续查找原来的裁剪节点。
+                    var owner = EnumerateRunParamNodes(root).OfType<NodeCompositeModule>()
+                        .FirstOrDefault(module => ReferenceEquals(module.ExistingRuntimeProcess, current.Process));
+                    var moduleParam = owner?.ParamForm?.Params as NodeParamCompositeModule;
+                    string portName = param is NodeParamTDAI inputAi ? inputAi.Text2 :
+                        param is NodeParamImageCrop inputCrop ? inputCrop.Text2 :
+                        param is NodeParamImageRotate inputRotate ? inputRotate.Text2 : null;
+                    if (portName?.StartsWith("变量.", StringComparison.Ordinal) == true) portName = portName.Substring(3);
+                    else if (portName?.StartsWith("$variable:", StringComparison.Ordinal) == true) portName = portName.Substring(10);
+                    var binding = moduleParam?.InputBindings.FirstOrDefault(item => item.PortName == portName);
+                    current = binding == null ? null : CompositeSubscriptionResolver.Find(owner.Process, binding.SourceNodeId, binding.SourceNodeText);
+                    continue;
+                }
                 var matches = current.Process.Nodes.Where(node => node != null && node.ID == id).Take(2).ToList();
                 current = matches.Count == 1 ? matches[0] : null;
             }
@@ -539,14 +554,14 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// <summary>
         /// 判断指定来源节点是否允许进入当前运行参数表。
         /// </summary>
-        /// <param name="sourceNodeId">来源节点ID。</param>
+        /// <param name="sourceNode">来源节点实例。</param>
         /// <returns>允许显示返回true。</returns>
-        private bool IsSourceNodeAllowedByRunParamFilter(int sourceNodeId)
+        private bool IsSourceNodeAllowedByRunParamFilter(NodeBase sourceNode)
         {
             if (_runParamDisplayFilter == null || !_runParamDisplayFilter.IsSourceNodeLimited)
                 return true;
 
-            return _runParamDisplayFilter.ContainsSourceNode(sourceNodeId);
+            return _runParamDisplayFilter.ContainsSourceNode(sourceNode);
         }
 
         /// <summary>
@@ -561,14 +576,14 @@ namespace TDJS_Vision.Forms.SolRunParam
                 return true;
             if (condition == null)
                 return false;
-            if (node != null && _runParamDisplayFilter.ContainsSourceNode(node.ID))
+            if (node != null && _runParamDisplayFilter.ContainsSourceNode(node))
                 return true;
 
             int sourceNodeId = condition.SourceNodeId;
             if (sourceNodeId <= 0)
                 RunParamDisplayFilter.TryGetNodeId(condition.SourceNodeText, out sourceNodeId);
 
-            return sourceNodeId > 0 && _runParamDisplayFilter.ContainsSourceNode(sourceNodeId);
+            return sourceNodeId > 0 && _runParamDisplayFilter.ContainsSubscription(node.Process, sourceNodeId, condition.SourceNodeText, condition.PropertyPath);
         }
 
         /// <summary>

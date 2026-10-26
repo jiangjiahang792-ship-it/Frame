@@ -1,5 +1,5 @@
-# 编译并运行独立颜色识别回归，不启动任何相机或通信。
-param([string]$BuildDirectory = 'bin/CombinedBooleanValidation')
+﻿# 编译并运行独立颜色识别回归，不启动任何相机或通信。
+param([string]$BuildDirectory = 'bin/x64/Debug')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $directory = Join-Path $root $BuildDirectory

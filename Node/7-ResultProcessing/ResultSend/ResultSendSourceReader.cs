@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._4_Measurement.Common;
+using TDJS_Vision.Node._6_LogicTool.CompositeModule;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
 {
@@ -43,8 +44,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
                 }
                 else if (output.ValueType == typeof(AlgorithmResult))
                 {
-                    var names = GetConfiguredAiItemNames(node);
-                    var algorithm = ReadProperty(node.Result, output.PropertyPath) as AlgorithmResult;
+                    // 模块输出属于动态端口；配置阶段尚未运行时也要从内部AI取得检测项目录。
+                    var original = CompositeSubscriptionResolver.ResolveParameter(node, output.PropertyPath);
+                    var names = GetConfiguredAiItemNames(node, original);
+                    object configuredValue;
+                    if (DynamicResultVariableResolver.IsDynamicVariablePath(output.PropertyPath))
+                        DynamicResultVariableResolver.TryGetValue(node.Result, output.PropertyPath, out configuredValue);
+                    else configuredValue = ReadProperty(node.Result, output.PropertyPath);
+                    var algorithm = configuredValue as AlgorithmResult;
                     if (algorithm?.DetectResults != null)
                         foreach (var name in algorithm.DetectResults.Keys)
                             if (!string.IsNullOrWhiteSpace(name)) names.Add(DetectItemLanguage.NormalizeName(name));
@@ -94,10 +101,10 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
         }
 
         /// <summary>直接读取方案中的检测项定义，包含未启用项，不等待模型加载或首次运行。</summary>
-        private static HashSet<string> GetConfiguredAiItemNames(NodeBase node)
+        private static HashSet<string> GetConfiguredAiItemNames(NodeBase node, INodeParam sourceParameter = null)
         {
             var names = new HashSet<string>(StringComparer.Ordinal);
-            var parameter = node.ParamForm?.Params as NodeParamTDAI;
+            var parameter = (sourceParameter ?? node.ParamForm?.Params) as NodeParamTDAI;
             if (parameter == null)
             {
                 // 兼容仅提供运行时目录的扩展节点；标准AI节点以自己的方案配置为准，避免同名节点串项。
@@ -184,9 +191,21 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             if (upstream != null) upstream.TryGetValue(source.NodeId, out node);
             else node = owner.Process.GetUpstreamNodes(owner).FirstOrDefault(item => item.ID == source.NodeId);
             if (node == null || !node.Active) throw new InvalidOperationException("订阅源已删除、禁用或不再是上游节点。");
+            // 显式禁用的AI专项判定跳过放行，数值发送仍读取实际结果，不能伪造测量值。
+            if ((source.Kind == ResultSendSourceKind.AiFlags || source.Kind == ResultSendSourceKind.AiJudgment) &&
+                (CompositeSubscriptionResolver.ResolveParameter(node, source.Path) ?? node.ParamForm?.Params) is NodeParamTDAI aiParam)
+            {
+                string configuration = aiParam.IsFixed ? aiParam.DetectItemName1 : aiParam.CurDetectItemName;
+                if (string.IsNullOrWhiteSpace(configuration)) configuration = aiParam.CurDetectItemName;
+                if (configuration != null && Solution.Instance.DetectItemDic.TryGetValue(configuration, out var definitions))
+                {
+                    var matching = definitions.Where(item => DetectItemLanguage.NormalizeName(item.Name) == DetectItemLanguage.NormalizeName(source.ItemName)).ToList();
+                    if (matching.Count == 1 && !matching[0].Enable) return new List<object> { true };
+                }
+            }
             // 检测、测量或运算节点在本轮没有成功结果时，结果发送仍要写入对应类型默认值，
             // 避免 PLC 沿用上一轮数据，也避免“未检出”把通信发送节点判为失败。
-            if (requireCurrentRun && !node.HasSuccessfulResultForRun(owner.Process.CurrentRunId))
+            if (requireCurrentRun && !CompositeSubscriptionResolver.CanRead(node, source.Path, true))
                 return new List<object>();
             object value;
             if (DynamicResultVariableResolver.IsDynamicVariablePath(source.Path))

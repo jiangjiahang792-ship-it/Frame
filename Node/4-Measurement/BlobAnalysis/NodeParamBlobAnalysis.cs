@@ -1,4 +1,4 @@
-namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
+﻿namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
 {
     /// <summary>
     /// Blob输出区域筛选模式。
@@ -60,6 +60,12 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         /// 获取或设置感兴趣区域的最小灰度值。
         /// </summary>
         public int MinGray { get; set; }
+        /// <summary>启用单个连通区域面积过滤，旧方案默认关闭。</summary>
+        public bool EnableAreaFilter { get; set; }
+        /// <summary>区域最小像素面积，包含边界。</summary>
+        public int MinArea { get; set; }
+        /// <summary>区域最大像素面积，包含边界。</summary>
+        public int MaxArea { get; set; } = int.MaxValue;
 
         /// <summary>
         /// 获取或设置感兴趣区域的最大灰度值。

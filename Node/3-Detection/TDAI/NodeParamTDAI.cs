@@ -298,5 +298,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         新端子12类模型,
         /// <summary>勒刚端子侧面15类旋转框检测模型。</summary>
         勒刚端子侧面15类OBB模型,
+        /// <summary>AST高曝光单类目标检测模型，类别0为出线芯out_line。</summary>
+        AST高曝光线芯模型,
     }
 }

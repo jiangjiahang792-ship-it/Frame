@@ -1,5 +1,7 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
+using TDJS_Vision.Node;
+using TDJS_Vision.Node._6_LogicTool.CompositeModule;
 
 namespace TDJS_Vision.Forms.SolRunParam
 {
@@ -12,6 +14,37 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// 当前过滤范围所属的图像窗口名称。
         /// </summary>
         public string WindowName { get; set; }
+
+        /// <summary>真实来源对象集合，避免不同配方中相同节点编号互相串用。</summary>
+        private readonly HashSet<NodeBase> scopedSources = new HashSet<NodeBase>();
+        /// <summary>已经使用作用域绑定；空集合也不能回退到全工位。</summary>
+        private bool hasScopedSources;
+
+        /// <summary>按输出端口追踪并登记真实来源，不把模块所有输出一并加入当前画面。</summary>
+        public void AddSourceSubscription(Process process, string nodeText, string property)
+        {
+            hasScopedSources = true;
+            var source = CompositeSubscriptionResolver.Find(process, 0, nodeText);
+            var resolved = CompositeSubscriptionResolver.Resolve(source, property, out _);
+            if (resolved == null) return;
+            scopedSources.Add(resolved);
+            AddSourceNodeId(resolved.ID);
+        }
+
+        /// <summary>使用节点对象检查当前画面的来源；兼容旧的纯编号过滤调用。</summary>
+        public bool ContainsSourceNode(NodeBase node)
+        {
+            return node != null && (!IsSourceNodeLimited ||
+                (hasScopedSources ? scopedSources.Contains(node) : SourceNodeIds.Contains(node.ID)));
+        }
+
+        /// <summary>条件订阅必须追踪到与画面相同的内部来源，不能仅匹配外层模块编号。</summary>
+        public bool ContainsSubscription(Process process, int id, string text, string property)
+        {
+            var source = CompositeSubscriptionResolver.Find(process, id, text);
+            return ContainsSourceNode(CompositeSubscriptionResolver.Resolve(source, property, out _));
+        }
+
 
         /// <summary>
         /// 是否限制为指定来源节点；为true时来源集合为空也表示不显示任何来源参数。

@@ -29,21 +29,10 @@
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FormMain));
             this.toolStripDiskCapacityLabel = new System.Windows.Forms.ToolStripLabel();
             this.toolStripProgressBar1 = new System.Windows.Forms.ToolStripProgressBar();
             this.diskUsageTimer = new System.Windows.Forms.Timer(this.components);
-            this.toolStripDiskCapacityLabel.Name = "toolStripDiskCapacityLabel";
-            this.toolStripDiskCapacityLabel.Text = "磁盘空间占用：正在读取……";
-            this.toolStripDiskCapacityLabel.Margin = new System.Windows.Forms.Padding(8, 2, 0, 3);
-            this.toolStripProgressBar1.Name = "toolStripProgressBar1";
-            this.toolStripProgressBar1.Size = new System.Drawing.Size(220, 28);
-            this.toolStripProgressBar1.Margin = new System.Windows.Forms.Padding(32, 4, 0, 4);
-            this.toolStripProgressBar1.Minimum = 0;
-            this.toolStripProgressBar1.Maximum = 100;
-            this.diskUsageTimer.Interval = 60000;
-            this.diskUsageTimer.Tick += new System.EventHandler(this.DiskUsageTimer_Tick);
-            this.Shown += new System.EventHandler(this.FormMain_DiskUsageShown);
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FormMain));
             this.menuStrip1 = new System.Windows.Forms.MenuStrip();
             this.文件ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.新建方案ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -68,6 +57,7 @@
             this.使用教程ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.联系我们ToolStripMenuItem1 = new System.Windows.Forms.ToolStripMenuItem();
             this.关于TDJS_VisionToolStripMenuItem1 = new System.Windows.Forms.ToolStripMenuItem();
+            this.授权ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripMenuItem1 = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripMenuItem2 = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripMenuItem3 = new System.Windows.Forms.ToolStripMenuItem();
@@ -99,11 +89,28 @@
             this.LeftToolStripPanel = new System.Windows.Forms.ToolStripPanel();
             this.ContentPanel = new System.Windows.Forms.ToolStripContentPanel();
             this.tableLayoutPanel2 = new System.Windows.Forms.TableLayoutPanel();
-            this.授权ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.toolStrip1.SuspendLayout();
             this.tableLayoutPanel2.SuspendLayout();
             this.SuspendLayout();
+            // 
+            // toolStripDiskCapacityLabel
+            // 
+            this.toolStripDiskCapacityLabel.Margin = new System.Windows.Forms.Padding(8, 2, 0, 3);
+            this.toolStripDiskCapacityLabel.Name = "toolStripDiskCapacityLabel";
+            this.toolStripDiskCapacityLabel.Size = new System.Drawing.Size(238, 36);
+            this.toolStripDiskCapacityLabel.Text = "磁盘空间占用：正在读取……";
+            // 
+            // toolStripProgressBar1
+            // 
+            this.toolStripProgressBar1.Margin = new System.Windows.Forms.Padding(32, 4, 0, 4);
+            this.toolStripProgressBar1.Name = "toolStripProgressBar1";
+            this.toolStripProgressBar1.Size = new System.Drawing.Size(220, 33);
+            // 
+            // diskUsageTimer
+            // 
+            this.diskUsageTimer.Interval = 60000;
+            this.diskUsageTimer.Tick += new System.EventHandler(this.DiskUsageTimer_Tick);
             // 
             // menuStrip1
             // 
@@ -120,7 +127,7 @@
             this.登录ToolStripMenuItem});
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
-            this.menuStrip1.Size = new System.Drawing.Size(1552, 32);
+            this.menuStrip1.Size = new System.Drawing.Size(1552, 36);
             this.menuStrip1.TabIndex = 0;
             this.menuStrip1.Text = "menuStrip1";
             // 
@@ -133,7 +140,7 @@
             this.保存方案ToolStripMenuItem,
             this.另存方案ToolStripMenuItem});
             this.文件ToolStripMenuItem.Name = "文件ToolStripMenuItem";
-            this.文件ToolStripMenuItem.Size = new System.Drawing.Size(62, 28);
+            this.文件ToolStripMenuItem.Size = new System.Drawing.Size(62, 30);
             this.文件ToolStripMenuItem.Text = "文件";
             // 
             // 新建方案ToolStripMenuItem
@@ -180,15 +187,20 @@
             this.运行日志ToolStripMenuItem,
             this.公司Logo视图ToolStripMenuItem});
             this.视图ToolStripMenuItem.Name = "视图ToolStripMenuItem";
-            this.视图ToolStripMenuItem.Size = new System.Drawing.Size(62, 28);
+            this.视图ToolStripMenuItem.Size = new System.Drawing.Size(62, 30);
             this.视图ToolStripMenuItem.Text = "视图";
-            //
+            // 
             // 运行界面设计ToolStripMenuItem
-            //
+            // 
             this.运行界面设计ToolStripMenuItem.Name = "运行界面设计ToolStripMenuItem";
+            this.运行界面设计ToolStripMenuItem.Size = new System.Drawing.Size(236, 34);
             this.运行界面设计ToolStripMenuItem.Text = "运行界面设计";
             this.运行界面设计ToolStripMenuItem.Click += new System.EventHandler(this.运行界面设计ToolStripMenuItem_Click);
+            // 
+            // 自定义运行界面ToolStripMenuItem
+            // 
             this.自定义运行界面ToolStripMenuItem.Name = "自定义运行界面ToolStripMenuItem";
+            this.自定义运行界面ToolStripMenuItem.Size = new System.Drawing.Size(236, 34);
             this.自定义运行界面ToolStripMenuItem.Text = "自定义运行界面";
             this.自定义运行界面ToolStripMenuItem.Click += new System.EventHandler(this.自定义运行界面ToolStripMenuItem_Click);
             // 
@@ -198,7 +210,7 @@
             this.默认视图ToolStripMenuItem.CheckOnClick = true;
             this.默认视图ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.默认视图ToolStripMenuItem.Name = "默认视图ToolStripMenuItem";
-            this.默认视图ToolStripMenuItem.Size = new System.Drawing.Size(225, 34);
+            this.默认视图ToolStripMenuItem.Size = new System.Drawing.Size(236, 34);
             this.默认视图ToolStripMenuItem.Text = "默认视图";
             this.默认视图ToolStripMenuItem.Click += new System.EventHandler(this.默认视图ToolStripMenuItem_Click);
             // 
@@ -208,7 +220,7 @@
             this.图像显示ToolStripMenuItem.CheckOnClick = true;
             this.图像显示ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.图像显示ToolStripMenuItem.Name = "图像显示ToolStripMenuItem";
-            this.图像显示ToolStripMenuItem.Size = new System.Drawing.Size(225, 34);
+            this.图像显示ToolStripMenuItem.Size = new System.Drawing.Size(236, 34);
             this.图像显示ToolStripMenuItem.Text = "检测图像视图";
             this.图像显示ToolStripMenuItem.Click += new System.EventHandler(this.检测图像视图ToolStripMenuItem_Click);
             // 
@@ -218,7 +230,7 @@
             this.检测结果ToolStripMenuItem.CheckOnClick = true;
             this.检测结果ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.检测结果ToolStripMenuItem.Name = "检测结果ToolStripMenuItem";
-            this.检测结果ToolStripMenuItem.Size = new System.Drawing.Size(225, 34);
+            this.检测结果ToolStripMenuItem.Size = new System.Drawing.Size(236, 34);
             this.检测结果ToolStripMenuItem.Text = "检测结果视图";
             this.检测结果ToolStripMenuItem.Click += new System.EventHandler(this.检测结果视图ToolStripMenuItem_Click);
             // 
@@ -228,7 +240,7 @@
             this.运行日志ToolStripMenuItem.CheckOnClick = true;
             this.运行日志ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.运行日志ToolStripMenuItem.Name = "运行日志ToolStripMenuItem";
-            this.运行日志ToolStripMenuItem.Size = new System.Drawing.Size(225, 34);
+            this.运行日志ToolStripMenuItem.Size = new System.Drawing.Size(236, 34);
             this.运行日志ToolStripMenuItem.Text = "运行日志视图";
             this.运行日志ToolStripMenuItem.Click += new System.EventHandler(this.运行日志视图ToolStripMenuItem_Click);
             // 
@@ -237,7 +249,7 @@
             this.公司Logo视图ToolStripMenuItem.Checked = true;
             this.公司Logo视图ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.公司Logo视图ToolStripMenuItem.Name = "公司Logo视图ToolStripMenuItem";
-            this.公司Logo视图ToolStripMenuItem.Size = new System.Drawing.Size(225, 34);
+            this.公司Logo视图ToolStripMenuItem.Size = new System.Drawing.Size(236, 34);
             this.公司Logo视图ToolStripMenuItem.Text = "公司Logo视图";
             this.公司Logo视图ToolStripMenuItem.Click += new System.EventHandler(this.公司Logo视图ToolStripMenuItem_Click);
             // 
@@ -251,7 +263,7 @@
             this.系统设置ToolStripMenuItem,
             this.全局信号设置ToolStripMenuItem});
             this.设置ToolStripMenuItem.Name = "设置ToolStripMenuItem";
-            this.设置ToolStripMenuItem.Size = new System.Drawing.Size(62, 28);
+            this.设置ToolStripMenuItem.Size = new System.Drawing.Size(62, 30);
             this.设置ToolStripMenuItem.Text = "设置";
             // 
             // aI配置工具ToolStripMenuItem
@@ -298,38 +310,45 @@
             this.关于TDJS_VisionToolStripMenuItem1,
             this.授权ToolStripMenuItem});
             this.帮助ToolStripMenuItem.Name = "帮助ToolStripMenuItem";
-            this.帮助ToolStripMenuItem.Size = new System.Drawing.Size(62, 28);
+            this.帮助ToolStripMenuItem.Size = new System.Drawing.Size(62, 30);
             this.帮助ToolStripMenuItem.Text = "帮助";
             // 
             // 使用教程ToolStripMenuItem
             // 
             this.使用教程ToolStripMenuItem.Name = "使用教程ToolStripMenuItem";
-            this.使用教程ToolStripMenuItem.Size = new System.Drawing.Size(270, 34);
+            this.使用教程ToolStripMenuItem.Size = new System.Drawing.Size(182, 34);
             this.使用教程ToolStripMenuItem.Text = "使用教程";
             // 
             // 联系我们ToolStripMenuItem1
             // 
             this.联系我们ToolStripMenuItem1.Name = "联系我们ToolStripMenuItem1";
-            this.联系我们ToolStripMenuItem1.Size = new System.Drawing.Size(270, 34);
+            this.联系我们ToolStripMenuItem1.Size = new System.Drawing.Size(182, 34);
             this.联系我们ToolStripMenuItem1.Text = "联系我们";
             this.联系我们ToolStripMenuItem1.Click += new System.EventHandler(this.联系我们ToolStripMenuItem_Click);
             // 
             // 关于TDJS_VisionToolStripMenuItem1
             // 
             this.关于TDJS_VisionToolStripMenuItem1.Name = "关于TDJS_VisionToolStripMenuItem1";
-            this.关于TDJS_VisionToolStripMenuItem1.Size = new System.Drawing.Size(270, 34);
+            this.关于TDJS_VisionToolStripMenuItem1.Size = new System.Drawing.Size(182, 34);
             this.关于TDJS_VisionToolStripMenuItem1.Text = "关于";
             this.关于TDJS_VisionToolStripMenuItem1.Click += new System.EventHandler(this.关于TDJS_VisionToolStripMenuItem1_Click);
+            // 
+            // 授权ToolStripMenuItem
+            // 
+            this.授权ToolStripMenuItem.Name = "授权ToolStripMenuItem";
+            this.授权ToolStripMenuItem.Size = new System.Drawing.Size(182, 34);
+            this.授权ToolStripMenuItem.Text = "授权";
+            this.授权ToolStripMenuItem.Click += new System.EventHandler(this.授权ToolStripMenuItem_Click);
             // 
             // toolStripMenuItem1
             // 
             this.toolStripMenuItem1.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.toolStripMenuItem2,
             this.toolStripMenuItem3});
-            this.toolStripMenuItem1.Name = "toolStripMenuItem1";
-            this.toolStripMenuItem1.Size = new System.Drawing.Size(80, 28);
-            this.toolStripMenuItem1.Text = "AI训练";
             this.toolStripMenuItem1.Enabled = false;
+            this.toolStripMenuItem1.Name = "toolStripMenuItem1";
+            this.toolStripMenuItem1.Size = new System.Drawing.Size(80, 30);
+            this.toolStripMenuItem1.Text = "AI训练";
             // 
             // toolStripMenuItem2
             // 
@@ -351,7 +370,7 @@
             this.登录ToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.登录ToolStripMenuItem.Image = global::TDJS_Vision.Properties.Resources.用户登录;
             this.登录ToolStripMenuItem.Name = "登录ToolStripMenuItem";
-            this.登录ToolStripMenuItem.Size = new System.Drawing.Size(40, 28);
+            this.登录ToolStripMenuItem.Size = new System.Drawing.Size(40, 30);
             this.登录ToolStripMenuItem.Click += new System.EventHandler(this.登录ToolStripMenuItem_Click);
             // 
             // dockPanel1
@@ -360,11 +379,11 @@
             this.dockPanel1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.dockPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.dockPanel1.DockBackColor = System.Drawing.Color.FromArgb(((int)(((byte)(238)))), ((int)(((byte)(238)))), ((int)(((byte)(242)))));
-            this.dockPanel1.Location = new System.Drawing.Point(3, 75);
+            this.dockPanel1.Location = new System.Drawing.Point(3, 79);
             this.dockPanel1.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.dockPanel1.Name = "dockPanel1";
             this.dockPanel1.ShowAutoHideContentOnHover = false;
-            this.dockPanel1.Size = new System.Drawing.Size(1546, 809);
+            this.dockPanel1.Size = new System.Drawing.Size(1546, 805);
             this.dockPanel1.TabIndex = 2;
             // 
             // saveFileDialog1
@@ -402,7 +421,7 @@
             this.toolStripProgressBar1,
             this.toolStripDiskCapacityLabel,
             this.toolStripLabel1});
-            this.toolStrip1.Location = new System.Drawing.Point(0, 32);
+            this.toolStrip1.Location = new System.Drawing.Point(0, 36);
             this.toolStrip1.Name = "toolStrip1";
             this.toolStrip1.Size = new System.Drawing.Size(1552, 41);
             this.toolStrip1.TabIndex = 1;
@@ -591,7 +610,7 @@
             this.toolStripLabel1.ForeColor = System.Drawing.Color.Brown;
             this.toolStripLabel1.Margin = new System.Windows.Forms.Padding(50, 2, 0, 3);
             this.toolStripLabel1.Name = "toolStripLabel1";
-            this.toolStripLabel1.Size = new System.Drawing.Size(307, 36);
+            this.toolStripLabel1.Size = new System.Drawing.Size(293, 23);
             this.toolStripLabel1.Text = "方案加载中，请耐心等待……";
             this.toolStripLabel1.Visible = false;
             // 
@@ -650,13 +669,6 @@
             this.tableLayoutPanel2.Size = new System.Drawing.Size(1552, 886);
             this.tableLayoutPanel2.TabIndex = 5;
             // 
-            // 授权ToolStripMenuItem
-            // 
-            this.授权ToolStripMenuItem.Name = "授权ToolStripMenuItem";
-            this.授权ToolStripMenuItem.Size = new System.Drawing.Size(270, 34);
-            this.授权ToolStripMenuItem.Text = "授权";
-            this.授权ToolStripMenuItem.Click += new System.EventHandler(this.授权ToolStripMenuItem_Click);
-            // 
             // FormMain
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
@@ -674,6 +686,7 @@
             this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FormMain_FormClosing);
             this.Load += new System.EventHandler(this.FormMain_Load);
+            this.Shown += new System.EventHandler(this.FormMain_DiskUsageShown);
             this.Controls.SetChildIndex(this.tableLayoutPanel2, 0);
             this.menuStrip1.ResumeLayout(false);
             this.menuStrip1.PerformLayout();

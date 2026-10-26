@@ -1,4 +1,4 @@
-using Logger;
+﻿using Logger;
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
@@ -51,6 +51,13 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         /// <summary>刷新区域列表期间禁止选择事件回写。</summary>
         private bool _syncingRegions;
 
+        /// <summary>当前显示的编辑框，用于识别是否真正发生拖动，避免仅查看就改变保存几何。</summary>
+        private BlobDetectionRegion _displayedRegion;
+        /// <summary>编辑框所在图像的定位快照，提交拖动时使用，不读取随后运行产生的新位姿。</summary>
+        private PositionCorrectionInfo _editingCorrectionReference;
+        /// <summary>保留编辑框刷新失败原因，显式绘制时提示，输入数值未完成时不弹窗。</summary>
+        private string _roiRefreshError;
+
         /// <summary>
         /// 初始化Blob分析工具参数窗体。
         /// </summary>
@@ -89,6 +96,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         public void SetParam2Form()
         {
             labelMeasuredArea.Text = "识别区域面积：未执行";
+            labelRegionCount.Text = "区域数量：未执行";
             NodeParamBlobAnalysis param = Params as NodeParamBlobAnalysis;
             if (param == null)
                 return;
@@ -107,6 +115,9 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 nodeSubscriptionPositionCorrection.SetText(param.CorrectionText1, param.CorrectionText2);
                 SyncGrayControls(ClampGray(param.MinGray), ClampGray(param.MaxGray), false);
                 comboBoxOutputRegionMode.SelectedItem = param.OutputRegionMode;
+                checkBoxAreaFilter.Checked = param.EnableAreaFilter;
+                numericMinArea.Value = Math.Max(0, param.MinArea);
+                numericMaxArea.Value = Math.Max(0, param.MaxArea);
                 textBoxRegionColumn.Text = param.RegionColumn.ToString("F2");
                 textBoxRegionRow.Text = param.RegionRow.ToString("F2");
                 textBoxRegionLength1.Text = param.RegionLength1.ToString("F2");
@@ -230,7 +241,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         /// <param name="e">事件参数。</param>
         private void OnOutputRegionModeChanged(object sender, EventArgs e)
         {
-            RefreshPreviewQuietly();
+            if (!_isSyncingRoi) RefreshPreviewQuietly();
         }
 
         /// <summary>
@@ -255,6 +266,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         private void buttonRun_Click(object sender, EventArgs e)
         {
             labelMeasuredArea.Text = "识别区域面积：未执行";
+            labelRegionCount.Text = "区域数量：未执行";
             if (!SaveParams())
                 return;
 
@@ -272,6 +284,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 showImageControl1.SetImage(MeasurementNodeHelper.ToPreviewBitmap(result.OutputImage.SrcImg));
                 showImageControl1.SetDisplayResult(result.Result);
                 ShowMeasuredArea(result.Area);
+                labelRegionCount.Text = "区域数量：" + result.Count;
             }
             catch (Exception ex)
             {
@@ -295,9 +308,12 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         private void buttonRefresh_Click(object sender, EventArgs e)
         {
             labelMeasuredArea.Text = "识别区域面积：未执行";
+            labelRegionCount.Text = "区域数量：未执行";
             try
             {
+                TryReadRoiToFields();
                 RefreshGrayPreview();
+                if (_roiVisible) RefreshRoiFromFields();
                 showImageControl1.ShowFit();
             }
             catch (Exception ex)
@@ -315,10 +331,11 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         {
             try
             {
-                _regionCorrectionReference = null;
+                TryReadRoiToFields();
                 GetRegionCorrectionReference();
                 RefreshGrayPreview();
                 RefreshRoiFromFields();
+                if (!_roiVisible) throw new InvalidOperationException(_roiRefreshError ?? "无法显示当前图像的ROI。");
             }
             catch (Exception ex)
             {
@@ -393,6 +410,8 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 if (numericMinGray.Value > numericMaxGray.Value)
                     throw new Exception("最小灰度值不能大于最大灰度值。");
 
+                if (checkBoxAreaFilter.Checked && numericMinArea.Value > numericMaxArea.Value)
+                    throw new Exception("最小面积不能大于最大面积。");
                 Params = new NodeParamBlobAnalysis
                 {
                     Regions = SnapshotRegions(),
@@ -405,6 +424,9 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                     MinGray = (int)numericMinGray.Value,
                     MaxGray = (int)numericMaxGray.Value,
                     OutputRegionMode = GetSelectedOutputRegionMode(),
+                    EnableAreaFilter = checkBoxAreaFilter.Checked,
+                    MinArea = (int)numericMinArea.Value,
+                    MaxArea = (int)numericMaxArea.Value,
                     RegionColumn = ParseFloat(textBoxRegionColumn, "中心X"),
                     RegionRow = ParseFloat(textBoxRegionRow, "中心Y"),
                     RegionLength1 = ParsePositiveFloat(textBoxRegionLength1, "半宽"),
@@ -447,6 +469,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 showImageControl1.SetImage(MeasurementNodeHelper.ToPreviewBitmap(gray));
                 showImageControl1.SetDisplayResult(null);
                 labelMeasuredArea.Text = "识别区域面积：未执行";
+            labelRegionCount.Text = "区域数量：未执行";
             }
             finally
             {
@@ -510,10 +533,12 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 showImageControl1.SetImage(MeasurementNodeHelper.ToPreviewBitmap(result.OutputImage.SrcImg));
                 showImageControl1.SetDisplayResult(result.Result);
                 ShowMeasuredArea(result.Area);
+                labelRegionCount.Text = "区域数量：" + result.Count;
             }
             catch
             {
                 labelMeasuredArea.Text = "识别区域面积：暂无结果";
+                labelRegionCount.Text = "区域数量：暂无结果";
             }
             finally
             {
@@ -553,6 +578,9 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 MinGray = (int)numericMinGray.Value,
                 MaxGray = (int)numericMaxGray.Value,
                 OutputRegionMode = GetSelectedOutputRegionMode(),
+                    EnableAreaFilter = checkBoxAreaFilter.Checked,
+                    MinArea = (int)numericMinArea.Value,
+                    MaxArea = (int)numericMaxArea.Value,
                 RegionColumn = ParseFloat(textBoxRegionColumn, "中心X"),
                 RegionRow = ParseFloat(textBoxRegionRow, "中心Y"),
                 RegionLength1 = ParsePositiveFloat(textBoxRegionLength1, "半宽"),
@@ -574,13 +602,51 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 float length2 = ParsePositiveFloat(textBoxRegionLength2, string.Empty);
                 float phi = (float)(ParseFloat(textBoxRegionPhi, string.Empty) * Math.PI / 180.0);
 
+                PositionCorrectionInfo current = null;
+                if (checkBoxEnableDetectionRegion.Checked && checkBoxUsePositionCorrection.Checked)
+                {
+                    GetRegionCorrectionReference();
+                    current = GetPositionCorrections().Find(item => item != null && item.IsValid);
+                    PositionCorrectionHelper.EnsureValid(current);
+                    // 与运行共用顶点变换，旧图像的绘制基准不能被当前定位直接覆盖。
+                    var points = NodeBlobAnalysis.BuildRegionPoints(new NodeParamBlobAnalysis
+                    {
+                        RegionColumn = column, RegionRow = row, RegionLength1 = length1,
+                        RegionLength2 = length2, RegionPhi = phi, RegionCorrectionReference = _regionCorrectionReference
+                    }, current);
+                    var vertices = new List<Point2f>();
+                    foreach (var point in points) vertices.Add(new Point2f(point.X, point.Y));
+                    var rectangle = Cv2.MinAreaRect(vertices);
+                    column = rectangle.Center.X; row = rectangle.Center.Y;
+                    length1 = rectangle.Size.Width / 2; length2 = rectangle.Size.Height / 2;
+                    phi = (float)(rectangle.Angle * Math.PI / 180.0);
+                }
+
                 showImageControl1.ClearDynamicRoi();
                 showImageControl1.AddRoiRotatedRect(row, column, phi, length1, length2, 1.5F, Color.DodgerBlue, "Blob ROI");
+                _displayedRegion = new BlobDetectionRegion { Row = row, Column = column, Phi = phi, Length1 = length1, Length2 = length2 };
+                _editingCorrectionReference = current == null ? null : CopyCorrection(current);
+                _roiRefreshError = null;
                 _roiVisible = true;
             }
-            catch
+            catch (Exception error)
             {
+                ClearEditingRoi();
+                _roiRefreshError = error.Message;
             }
+        }
+
+        /// <summary>复制定位数值，避免下一次上游运行改变正在编辑的图像基准。</summary>
+        private static PositionCorrectionInfo CopyCorrection(PositionCorrectionInfo correction)
+        {
+            return new PositionCorrectionInfo
+            {
+                IsValid = correction.IsValid, TargetIndex = correction.TargetIndex,
+                BaseX = correction.BaseX, BaseY = correction.BaseY, BaseAngle = correction.BaseAngle,
+                BaseScaleX = correction.BaseScaleX, BaseScaleY = correction.BaseScaleY,
+                CurrentX = correction.CurrentX, CurrentY = correction.CurrentY, CurrentAngle = correction.CurrentAngle,
+                CurrentScaleX = correction.CurrentScaleX, CurrentScaleY = correction.CurrentScaleY
+            };
         }
 
         /// <summary>记录当前绘制坐标对应的修正快照；同一ROI后续预览和保存复用快照，不随运行结果漂移。</summary>
@@ -621,6 +687,14 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 return;
 
             var roi = rois[0];
+            if (_displayedRegion != null &&
+                Math.Abs(roi.Row - _displayedRegion.Row) < 0.001 && Math.Abs(roi.Column - _displayedRegion.Column) < 0.001 &&
+                Math.Abs(roi.Phi - _displayedRegion.Phi) < 0.00001 && Math.Abs(roi.Length1 - _displayedRegion.Length1) < 0.001 &&
+                Math.Abs(roi.Length2 - _displayedRegion.Length2) < 0.001)
+                return;
+            // 用户修改的是当前图像中的框，坐标与基准必须一起更新，防止下一帧重复叠加偏移。
+            _regionCorrectionReference = _editingCorrectionReference;
+            _displayedRegion = new BlobDetectionRegion { Row = roi.Row, Column = roi.Column, Phi = roi.Phi, Length1 = roi.Length1, Length2 = roi.Length2 };
             _isSyncingRoi = true;
             try
             {
@@ -643,6 +717,8 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         {
             showImageControl1.ClearDynamicRoi();
             _roiVisible = false;
+            _displayedRegion = null;
+            _editingCorrectionReference = null;
         }
 
         /// <summary>提交当前区域的拖动结果、数值参数及独立位置修正基准。</summary>
@@ -734,7 +810,6 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 CommitSelectedRegion();
                 var region = BlobDetectionRegion.FromParameters(_regions[_selectedRegionIndex].ToParameters());
                 region.Column += 20; region.Row += 20;
-                region.CorrectionReference = null;
                 _regions.Add(region);
                 RefreshRegionList(_regions.Count - 1);
                 LoadSelectedRegion(false);

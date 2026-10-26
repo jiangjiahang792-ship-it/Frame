@@ -63,6 +63,15 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                 switch (itemName)
                 {
+                    // 数量检测与尺寸检测共用模型类别，按检出框个数统计。
+                    case "胶皮数量":
+                        item.IsCountItem = true;
+                        extractValueFunc = r => r.ClassId == 0 ? "1" : null;
+                        break;
+                    case "露线芯数量":
+                        item.IsCountItem = true;
+                        extractValueFunc = r => r.ClassId == 1 ? "1" : null;
+                        break;
                     case "DetectItem.RubberLength":
                         extractValueFunc = r => r.ClassId == 0 ? r.Box.Width.ToString("F2") : null;
                         break;

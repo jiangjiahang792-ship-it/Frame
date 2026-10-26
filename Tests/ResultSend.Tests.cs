@@ -131,6 +131,7 @@ internal static class ResultSendTests
         var scaledInteger = Row(ResultSendType.UInt16);
         scaledInteger.DecimalToIntegerByHundred = true;
         Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { 0.2 }, 1).Values)[0] == 20, "小数百分位整数发送失败。");
+        Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { 1.80 }, 1).Values)[0] == 180, "1.80未发送180。");
         Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { "48.28" }, 1).Values)[0] == 4828, "字符串小数百分位整数发送失败。");
         Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { 0.123 }, 1).Values)[0] == 12, "三位小数没有自动保留两位后发送。");
         Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { 48.286 }, 1).Values)[0] == 4829, "百分位整数发送没有按两位小数四舍五入。");
@@ -317,8 +318,15 @@ internal static class ResultSendTests
             Check(plc.ReadFloat("DM310", 5).Content.SequenceEqual(new[] { 12.3f, 15.6f, 0f, 0f, 0f }), "PLC数组补零错误。");
             var failureWriter = new RecordingWriter { Device = plc, FailAt = 2 };
             var failureResult = new NodeResultResultSend();
-            Reject(() => Pump(NodeResultSend.SendPreparedAsync(failureWriter, prepared, failureResult)), "设备失败必须停止发送。");
-            Check(!failureResult.Success && failureResult.SentCount == 1 && failureResult.FailedRow == 2 && failureWriter.Calls.Count == 2, "部分失败的行号或成功条数不准确。");
+            Reject(() => Pump(NodeResultSend.SendPreparedAsync(failureWriter, prepared, failureResult)), "设备失败后应保留整体失败。");
+            Check(!failureResult.Success && failureResult.SentCount == 3 && failureResult.FailedRow == 2 && failureWriter.Calls.Count == 4, "部分失败的行号或成功条数不准确。");
+            for (int failureAt = 1; failureAt <= 5; failureAt++)
+            {
+                var probe = new RecordingWriter { Device = plc, FailAt = failureAt };
+                var probeResult = new NodeResultResultSend();
+                Reject(() => Pump(NodeResultSend.SendPreparedAsync(probe, prepared, probeResult)), "坏行未保留失败状态");
+                Check(probeResult.SentCount == 3 && probe.Calls.Count == (failureAt == 2 ? 4 : 5), "首行/中间行/末行失败导致其他行未发送");
+            }
             var invalid = param.Copy(); invalid.Rows[1].CountAddress = "DM312";
             Reject(() => sender.PrepareRows(invalid, writer, true), "数量地址与数据重叠必须拒绝。");
             ((NodeResultCaliperCircle)measure.Result).Items[1].IsOk = false;
@@ -376,13 +384,13 @@ internal static class ResultSendTests
             var failureReturn = Pump(sender.Run(CancellationToken.None, false));
             var invalidResult = (NodeResultResultSend)sender.Result;
             Check(failureReturn.Flag == NodeRunFlag.ContinueRun && !invalidResult.Success &&
-                recording.Calls.Count == 0 && invalidResult.FailedRow == 2, "整批预检失败后应记录失败并允许后续节点继续。");
+                recording.Calls.Count == 3 && invalidResult.SentCount == 3 && invalidResult.FailedRow == 2, "单行预检失败后应发送其余三行并允许后续节点继续。");
             sender.ParamForm.Params = param.Copy();
             recording = new RecordingWriter { Device = plc, FailAt = 2 };
             failureReturn = Pump(sender.Run(CancellationToken.None, false));
             var failed = (NodeResultResultSend)sender.Result;
             Check(failureReturn.Flag == NodeRunFlag.ContinueRun && !failed.Success && failed.FailedRow == 2 &&
-                failed.SentCount == 1 && recording.Calls.Count == 2, "部分失败后应记录失败并允许后续节点继续。");
+                failed.SentCount == 3 && recording.Calls.Count == 4, "部分失败后应记录失败并允许后续节点继续。");
             recording = new RecordingWriter { Device = plc };
             Pump(sender.Run(CancellationToken.None, false));
             Check(((NodeResultResultSend)sender.Result).Success && recording.Calls.Count == 5, "上次失败冻结了后续直接发送。");
@@ -519,10 +527,35 @@ internal static class ResultSendTests
     }
 
     /// <summary>执行验证并返回进程退出码。</summary>
-    [STAThread]
-    private static int Main()
+    /// <summary>真实反序列化交付方案的全部发送行，验证类型、缩放、判定编码和地址无重叠，不写PLC。</summary>
+    private static void VerifySchemeRows(string path)
     {
-        try { LanguageManager.SetLanguage("zh-CN", false); VerifyConversion(); VerifyMissingValues(); VerifyCompiler(); Console.WriteLine("转换专项完成，开始本机通信。"); VerifyDevices(); VerifyConfiguredAiSources(); Console.WriteLine("结果发送专项通过：中文检测项、八类型默认值与协议、四类订阅、多目标、方案恢复、精简窗体、直接发送、前序未完成及故障不阻塞、快照隔离、发送完成等待、发送前取消和部分失败。"); return 0; }
+        var root = Newtonsoft.Json.Linq.JObject.Parse(System.IO.File.ReadAllText(path));
+        int count = 0;
+        foreach (var node in root.Descendants().OfType<Newtonsoft.Json.Linq.JObject>().Where(n => (string)n["NodeType"] == "ResultSend"))
+        {
+            var parameter = ((Newtonsoft.Json.Linq.JObject)node["NodeParam"]).Properties().Single().Value.ToObject<NodeParamResultSend>();
+            var prepared = new List<ResultSendPreparedRow>();
+            foreach (var row in parameter.Rows)
+            {
+                ResultSendValueConverter.ValidateConfiguration(row);
+                bool verdict = !row.DecimalToIntegerByHundred;
+                var values = verdict ? new List<object> { true, true } : new List<object> { 1.80 };
+                var actual = ResultSendValueConverter.Prepare(row, values, prepared.Count + 1);
+                Check(Convert.ToInt32(actual.Values.GetValue(0)) == (verdict ? 1 : 180), "交付方案编码错误：" + row.Address);
+                var negative = ResultSendValueConverter.Prepare(row, verdict ? new List<object> { true, false } : new List<object> { row.DataType == ResultSendType.Int16 ? -1.8 : 1.8 }, 1);
+                Check(Convert.ToInt32(negative.Values.GetValue(0)) == (verdict ? 2 : row.DataType == ResultSendType.Int16 ? -180 : 180), "交付方案NG或负角度编码错误：" + row.Address);
+                prepared.Add(actual); count++;
+            }
+            ResultSendAddressValidator.Validate(prepared, null);
+        }
+        Console.WriteLine("交付方案发送行检查通过：" + count + "行，1.80→180，负角度→负整数，全部OK→1，任一NG→2，无地址重叠。");
+    }
+
+    [STAThread]
+    private static int Main(string[] args)
+    {
+        try { if (args.Length > 0) { VerifySchemeRows(args[0]); return 0; } LanguageManager.SetLanguage("zh-CN", false); VerifyConversion(); VerifyMissingValues(); VerifyCompiler(); Console.WriteLine("转换专项完成，开始本机通信。"); VerifyDevices(); VerifyConfiguredAiSources(); Console.WriteLine("结果发送专项通过：中文检测项、八类型默认值与协议、四类订阅、多目标、方案恢复、精简窗体、直接发送、前序未完成及故障不阻塞、快照隔离、发送完成等待、发送前取消和部分失败。"); return 0; }
         catch (Exception exception) { Console.Error.WriteLine(exception); return 1; }
     }
 }

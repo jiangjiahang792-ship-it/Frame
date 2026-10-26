@@ -99,9 +99,30 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                 switch (itemName)
                 {
+                    // 前铆脚长度取类别1的检测框尺寸，统一参与换算、判定和学习。
+                    case "前铆脚长度":
+                        extractValueFunc = r => r.ClassId == 1 ? r.Box.Width.ToString("F2") : null;
+                        break;
+                    // 前铆脚宽度取类别1的检测框尺寸，统一参与换算、判定和学习。
+                    case "前铆脚宽度":
+                        extractValueFunc = r => r.ClassId == 1 ? r.Box.Height.ToString("F2") : null;
+                        break;
+                    // 后铆脚长度取类别4的检测框尺寸，统一参与换算、判定和学习。
+                    case "后铆脚长度":
+                        extractValueFunc = r => r.ClassId == 4 ? r.Box.Width.ToString("F2") : null;
+                        break;
+                    // 后铆脚宽度取类别4的检测框尺寸，统一参与换算、判定和学习。
+                    case "后铆脚宽度":
+                        extractValueFunc = r => r.ClassId == 4 ? r.Box.Height.ToString("F2") : null;
+                        break;
+                    // 后铆脚露线芯宽度取类别2的检测框尺寸，统一参与换算、判定和学习。
+                    case "后铆脚露线芯宽度":
+                        extractValueFunc = r => r.ClassId == 2 ? r.Box.Height.ToString("F2") : null;
+                        break;
                     case "DetectItem.FrontRivetCoreLength":
                         extractValueFunc = r => r.ClassId == 0 ? r.Box.Width.ToString("F2") : null;
                         break;
+                    case "前铆脚露线芯宽度":
                     case "DetectItem.FrontRivetCoreHeight":
                         extractValueFunc = r => r.ClassId == 0 ? r.Box.Height.ToString("F2") : null;
                         break;
@@ -181,6 +202,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         extractValueFunc = r => r.ClassId == 5 ? r.Box.Width.ToString("F2") : null;
                         break;
 
+                    case "正插防水栓宽度":
                     case "DetectItem.ForwardWaterproofPlugHeight":
                         extractValueFunc = r => r.ClassId == 5 ? r.Box.Height.ToString("F2") : null;
                         break;

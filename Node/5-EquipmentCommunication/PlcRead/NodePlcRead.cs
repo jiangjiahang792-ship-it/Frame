@@ -11,6 +11,19 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
     /// <summary>读取 PLC 数据，并按当前配置公开可订阅的单值结果。</summary>
     public class NodePlcRead : NodeBase, IDynamicResultVariableProvider, IDynamicResultVariableTypeProvider
     {
+        /// <summary>基恩士字符串遇到空白或空字符终止符时截断；其它品牌沿用去除首尾空白的行为。</summary>
+        internal static string NormalizeReadString(string value, TDJS_Vision.Device.DeviceBrand brand)
+        {
+            string trimmed = value?.Trim();
+            if (brand != TDJS_Vision.Device.DeviceBrand.Keyence || string.IsNullOrEmpty(trimmed))
+                return trimmed;
+
+            // 单次扫描且不创建拆分数组；空白分隔字段，空字符终止字符串，避免拼入PLC缓冲区残留内容。
+            for (int index = 0; index < trimmed.Length; index++)
+                if (trimmed[index] == '\0' || char.IsWhiteSpace(trimmed[index])) return trimmed.Substring(0, index);
+            return trimmed;
+        }
+
         /// <summary>初始化 PLC 读取节点和参数界面。</summary>
         public NodePlcRead(int nodeId, string nodeName, Process process, NodeType nodeType) : base(nodeId, nodeName, process, nodeType)
         {
@@ -169,7 +182,7 @@ namespace TDJS_Vision.Node._5_EquipmentCommunication.PlcRead
                             var result = await param.Plc.ReadStringAsync(param.Address, param.Length, param.StringByteOrder);
                             if (!result.IsSuccess) throw new Exception("读取失败！");
                             // 统一清理PLC字符串的首尾空白，保留中间空格和前导零，所有下游订阅共用处理结果。
-                            res.ReadResult = new PlcReadResult(result.Content?.Trim(), type, param.Address);
+                            res.ReadResult = new PlcReadResult(NormalizeReadString(result.Content, param.Plc.Brand), type, param.Address);
                         }
                     }
                     else

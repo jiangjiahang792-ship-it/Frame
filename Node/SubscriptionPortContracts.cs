@@ -218,7 +218,7 @@ namespace TDJS_Vision.Node
         /// <returns>与该类型对应的输入契约。</returns>
         public static SubscriptionInputContract ForType(Type expectedType)
         {
-            if (expectedType == null)
+            if (expectedType == null || expectedType == typeof(object))
                 return AnyVisible();
 
             SubscriptionDataCategory category = SubscriptionTypeCompatibility.ResolveCategory(expectedType);
@@ -289,13 +289,15 @@ namespace TDJS_Vision.Node
 
             if (!_acceptedCategories.Contains(output.Category))
             {
-                reason = string.Format("输入不接受“{0}”类别。", output.Category);
+                reason = "当前输入不支持此类结果（" + GetCategoryText(output.Category) + "）；允许：" +
+                    string.Join("、", _acceptedCategories.Select(GetCategoryText)) + "。";
                 return false;
             }
 
             if (!_acceptedMultiplicities.Contains(output.Multiplicity))
             {
-                reason = string.Format("输入不接受“{0}”数量形态。", output.Multiplicity);
+                reason = "当前输入不支持" + (output.Multiplicity == SubscriptionValueMultiplicity.MultiTarget ? "多目标结果" :
+                    output.Multiplicity == SubscriptionValueMultiplicity.Collection ? "结果集合" : "单值结果") + "。";
                 return false;
             }
 
@@ -313,6 +315,32 @@ namespace TDJS_Vision.Node
             }
 
             return true;
+        }
+
+        /// <summary>提供订阅诊断使用的简体中文类别名称。</summary>
+        private static string GetCategoryText(SubscriptionDataCategory category)
+        {
+            switch (category)
+            {
+                case SubscriptionDataCategory.Boolean: return "布尔值";
+                case SubscriptionDataCategory.Number: return "数值";
+                case SubscriptionDataCategory.Text: return "文本";
+                case SubscriptionDataCategory.Image: return "图像";
+                case SubscriptionDataCategory.Point: return "点";
+                case SubscriptionDataCategory.PointCollection: return "点集合";
+                case SubscriptionDataCategory.Contour: return "轮廓";
+                case SubscriptionDataCategory.Line: return "直线";
+                case SubscriptionDataCategory.Circle: return "圆";
+                case SubscriptionDataCategory.Ellipse: return "椭圆";
+                case SubscriptionDataCategory.Rectangle: return "矩形";
+                case SubscriptionDataCategory.Region: return "区域";
+                case SubscriptionDataCategory.Pose: return "目标位姿";
+                case SubscriptionDataCategory.PositionCorrection: return "位置修正";
+                case SubscriptionDataCategory.AlgorithmResult: return "算法结果";
+                case SubscriptionDataCategory.MeasurementResult: return "测量结果";
+                case SubscriptionDataCategory.StructuredObject: return "结构化对象";
+                default: return "未知类型";
+            }
         }
     }
 }

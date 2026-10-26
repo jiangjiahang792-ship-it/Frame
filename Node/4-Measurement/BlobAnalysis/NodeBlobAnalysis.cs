@@ -1,4 +1,4 @@
-using Logger;
+﻿using Logger;
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
@@ -73,7 +73,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 if (!OutputImage.HasValidImage(gray))
                     throw new Exception("输入图像为空，请检查图像订阅。");
 
-                NodeResultBlobAnalysis nodeResult = ExecuteAnalysis(gray, param, form.GetPositionCorrections());
+                NodeResultBlobAnalysis nodeResult = ExecuteTargets(gray, param, form.GetPositionCorrections(), token);
                 Result = nodeResult;
 
                 int time = SetRunResult(startTime, NodeStatus.Successful);
@@ -84,7 +84,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                 {
                     LogHelper.AddLog(
                         MsgLevel.Info,
-                        $"节点({ID}.{NodeName})Blob分析完成！耗时：{time} ms，面积：{nodeResult.Area:F0}，宽：{nodeResult.Width:F0}，高：{nodeResult.Height:F0}",
+                        $"节点({ID}.{NodeName})Blob分析完成！耗时：{time} ms，区域数量：{nodeResult.Count}，面积：{nodeResult.Area:F0}，宽：{nodeResult.Width:F0}，高：{nodeResult.Height:F0}",
                         true);
                 }
 
@@ -144,40 +144,80 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         }
 
         /// <summary>
-        /// 根据参数从位置修正列表中解析当前检测区域。
-        /// </summary>
-        /// <param name="param">Blob分析参数。</param>
-        /// <param name="corrections">位置修正列表。</param>
-        /// <returns>检测区域；未启用时返回 null。</returns>
-        private static PositionCorrectionInfo ResolveDetectionCorrection(NodeParamBlobAnalysis param, List<PositionCorrectionInfo> corrections)
-        {
-            if (param == null || !param.EnableDetectionRegion)
-                return null;
-            if (string.IsNullOrWhiteSpace(param.CorrectionText1) || string.IsNullOrWhiteSpace(param.CorrectionText2))
-                return null;
-
-            PositionCorrectionInfo correction = corrections == null
-                ? null
-                : corrections.FirstOrDefault(item => item != null && item.IsValid);
-            PositionCorrectionHelper.EnsureValid(correction);
-
-            return correction;
-        }
-
-        /// <summary>
         /// 执行灰度区间提取和面积统计。
         /// </summary>
         /// <param name="gray">输入灰度图。</param>
         /// <param name="param">Blob分析参数。</param>
-        /// <param name="detectionRegion">可选位置修正检测区域。</param>
+        /// <param name="corrections">按目标顺序排列的位置修正列表。</param>
         /// <returns>Blob分析结果。</returns>
         internal static NodeResultBlobAnalysis ExecuteAnalysis(Mat gray, NodeParamBlobAnalysis param, List<PositionCorrectionInfo> corrections)
         {
-            using (Mat binary = new Mat())
+            return ExecuteTargets(gray, param, corrections, CancellationToken.None);
+        }
+
+        /// <summary>按定位列表逐目标检测全部ROI，摘要保留首目标，图像与绘制结果合并所有目标。</summary>
+        private static NodeResultBlobAnalysis ExecuteTargets(Mat gray, NodeParamBlobAnalysis param, List<PositionCorrectionInfo> corrections, CancellationToken token)
+        {
+            bool follow = param.EnableDetectionRegion && !string.IsNullOrWhiteSpace(param.CorrectionText1) && !string.IsNullOrWhiteSpace(param.CorrectionText2);
+            var targets = follow ? (corrections ?? new List<PositionCorrectionInfo>()) : new List<PositionCorrectionInfo> { null };
+            var owned = new List<NodeResultBlobAnalysis>();
+            Mat segmented = null;
+            try
             {
-                Cv2.InRange(gray, new Scalar(param.MinGray), new Scalar(param.MaxGray), binary);
+                segmented = new Mat();
+                Cv2.InRange(gray, new Scalar(param.MinGray), new Scalar(param.MaxGray), segmented);
+                var items = MultiTargetMeasurementRunner.Run(targets, token, correction =>
+                {
+                    if (follow) PositionCorrectionHelper.EnsureValid(correction);
+                    var item = ExecuteSingle(segmented, param, correction);
+                    owned.Add(item);
+                    return item;
+                }, (correction, error) => new NodeResultBlobAnalysis { IsOk = false, JudgeOk = false, ErrorMessage = error.Message });
+                var first = items.FirstOrDefault() ?? new NodeResultBlobAnalysis();
+                var result = new NodeResultBlobAnalysis
+                {
+                    Items = items, IsOk = items.Count > 0 && items.All(item => item.IsOk),
+                    Count = first.Count, Area = first.Area, Width = first.Width, Height = first.Height,
+                    DetectionRegions = items.SelectMany(item => item.DetectionRegions ?? new List<ColorRotatedRect>()).ToList()
+                };
+                try
+                {
+                    result.JudgeOk = result.IsOk;
+                    result.ErrorMessage = items.Count == 0 ? "未找到定位目标。" : string.Join("；", items.Where(item => !item.IsOk).Select(item => "目标" + item.TargetIndex + "：" + item.ErrorMessage));
+                    if (!result.IsOk) result.Result.Texts.Add(new ColorText(result.ErrorMessage, Color.Red));
+                    result.DetectionRegion = result.DetectionRegions.FirstOrDefault();
+                    using (var merged = new Mat(gray.Rows, gray.Cols, MatType.CV_8UC1, Scalar.All(0)))
+                    {
+                        foreach (var item in items)
+                        {
+                            token.ThrowIfCancellationRequested();
+                            if (OutputImage.HasValidImage(item.OutputImage?.SrcImg)) Cv2.BitwiseOr(merged, item.OutputImage.SrcImg, merged);
+                            MeasurementNodeHelper.AppendAlgorithmResult(result.Result, item.Result);
+                        }
+                        var pixels = merged.Clone();
+                        result.OutputImage = OutputImage.FromOwnedSingleImage(pixels, pixels);
+                    }
+                    result.Result.IsAllOk = result.IsOk;
+                    result.OutputImage.DisplayResult = result.Result;
+                    return result;
+                }
+                catch { result.ReleaseResources(); throw; }
+            }
+            catch
+            {
+                foreach (var item in owned) item.ReleaseResources();
+                throw;
+            }
+            finally { segmented?.Dispose(); }
+        }
+
+        /// <summary>复用原单目标算法；各目标独立做面积过滤，多ROI仍合并为当前目标的检测掩膜。</summary>
+        private static NodeResultBlobAnalysis ExecuteSingle(Mat gray, NodeParamBlobAnalysis param, PositionCorrectionInfo correction)
+        {
+            using (Mat binary = gray.Clone())
+            {
                 var regionPolygons = new List<List<PointF>>();
-                PositionCorrectionInfo correction = ResolveDetectionCorrection(param, corrections);
+
                 if (param.EnableDetectionRegion)
                 {
                     if (param.Regions != null && param.Regions.Count > 0)
@@ -192,7 +232,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                     else regionPolygons.Add(BuildRegionPoints(param, correction));
                     ApplyDetectionRegionMask(binary, regionPolygons);
                 }
-                ApplyOutputRegionMode(binary, param.OutputRegionMode);
+                int count = FilterConnectedRegions(binary, param);
 
                 double area = Cv2.CountNonZero(binary);
                 Rect foregroundBounds = CalculateForegroundBounds(binary);
@@ -211,6 +251,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
                         IsOk = true,
                         JudgeOk = true,
                         Area = area,
+                        Count = count,
                         Width = foregroundBounds.Width,
                         Height = foregroundBounds.Height,
                         DetectionRegion = detectionRegion,
@@ -233,7 +274,7 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
         /// <param name="param">Blob分析参数。</param>
         /// <param name="correction">可选位置修正信息。</param>
         /// <returns>检测区域顶点。</returns>
-        private static List<PointF> BuildRegionPoints(NodeParamBlobAnalysis param, PositionCorrectionInfo correction)
+        internal static List<PointF> BuildRegionPoints(NodeParamBlobAnalysis param, PositionCorrectionInfo correction)
         {
             OpenCvSharp.RotatedRect rect = new OpenCvSharp.RotatedRect(
                 new Point2f(param.RegionColumn, param.RegionRow),
@@ -283,43 +324,43 @@ namespace TDJS_Vision.Node._4_Measurement.BlobAnalysis
             }
         }
 
-        /// <summary>
-        /// 根据输出区域模式保留全部、最大或最小连通区域。
-        /// </summary>
-        /// <param name="binary">待筛选二值图。</param>
-        /// <param name="mode">输出区域筛选模式。</param>
-        private static void ApplyOutputRegionMode(Mat binary, BlobOutputRegionMode mode)
+        /// <summary>按八连通前景像素面积过滤和选择区域，空洞不计面积，仅进行一次连通域标记。</summary>
+        /// <param name="binary">原位更新的二值图。</param>
+        /// <param name="param">面积范围和输出模式。</param>
+        /// <returns>最终保留的区域数量。</returns>
+        private static int FilterConnectedRegions(Mat binary, NodeParamBlobAnalysis param)
         {
-            if (mode == BlobOutputRegionMode.All)
-                return;
-
-            using (Mat contourSource = binary.Clone())
-            using (Mat selectedMask = new Mat(binary.Size(), MatType.CV_8UC1, Scalar.Black))
+            if (param.EnableAreaFilter && (param.MinArea < 0 || param.MaxArea < param.MinArea))
+                throw new ArgumentException("最小面积应非负且不能大于最大面积。");
+            using (var labels = new Mat())
+            using (var stats = new Mat())
+            using (var centers = new Mat())
             {
-                OpenCvSharp.Point[][] contours;
-                HierarchyIndex[] hierarchy;
-                Cv2.FindContours(contourSource, out contours, out hierarchy, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
-                if (contours == null || contours.Length == 0)
+                int total = Cv2.ConnectedComponentsWithStats(binary, labels, stats, centers, PixelConnectivity.Connectivity8);
+                var keep = new bool[total];
+                int count = 0, selected = 0, selectedArea = 0;
+                for (int label = 1; label < total; label++)
                 {
-                    binary.SetTo(Scalar.Black);
-                    return;
+                    int area = stats.At<int>(label, (int)ConnectedComponentsTypes.Area);
+                    if (param.EnableAreaFilter && (area < param.MinArea || area > param.MaxArea)) continue;
+                    if (param.OutputRegionMode == BlobOutputRegionMode.All) { keep[label] = true; count++; }
+                    else if (selected == 0 ||
+                        (param.OutputRegionMode == BlobOutputRegionMode.Max && area > selectedArea) ||
+                        (param.OutputRegionMode == BlobOutputRegionMode.Min && area < selectedArea))
+                    { selected = label; selectedArea = area; }
                 }
-
-                int selectedIndex = 0;
-                double selectedArea = Cv2.ContourArea(contours[0]);
-                for (int i = 1; i < contours.Length; i++)
+                if (selected > 0) { keep[selected] = true; count = 1; }
+                // 全部保留时直接复用二值图；过滤时按行重建，避免为每个区域扫描整图。
+                if (count == total - 1) return count;
+                var labelRow = new int[binary.Cols];
+                var outputRow = new byte[binary.Cols];
+                for (int y = 0; y < binary.Rows; y++)
                 {
-                    double area = Cv2.ContourArea(contours[i]);
-                    if ((mode == BlobOutputRegionMode.Max && area > selectedArea) ||
-                        (mode == BlobOutputRegionMode.Min && area < selectedArea))
-                    {
-                        selectedArea = area;
-                        selectedIndex = i;
-                    }
+                    System.Runtime.InteropServices.Marshal.Copy(labels.Ptr(y), labelRow, 0, labelRow.Length);
+                    for (int x = 0; x < outputRow.Length; x++) outputRow[x] = keep[labelRow[x]] ? (byte)255 : (byte)0;
+                    System.Runtime.InteropServices.Marshal.Copy(outputRow, 0, binary.Ptr(y), outputRow.Length);
                 }
-
-                Cv2.DrawContours(selectedMask, contours, selectedIndex, Scalar.White, -1);
-                Cv2.BitwiseAnd(binary, selectedMask, binary);
+                return count;
             }
         }
 

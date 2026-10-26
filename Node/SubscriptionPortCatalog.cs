@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -43,6 +43,41 @@ namespace TDJS_Vision.Node
             bool includeAdvanced,
             string selectedPath)
         {
+            var allOutputs = GetDeclaredOutputs(node);
+
+            SubscriptionInputContract contract = inputContract ?? SubscriptionInputContract.AnyVisible();
+            var candidates = new List<SubscriptionOutputDescriptor>();
+            foreach (SubscriptionOutputDescriptor output in allOutputs)
+            {
+                string reason;
+                if (!contract.Accepts(output, out reason))
+                    continue;
+
+                bool isSelected = MatchesPath(output, selectedPath);
+                if (output.Visibility == SubscriptionOutputVisibility.Hidden)
+                {
+                    if (!isSelected) continue;
+                    output.IsLegacySelection = true;
+                }
+                // 兼容的高级结果也允许直接订阅；高级级别不再充当数据可用性的过滤条件。
+                AddDistinct(candidates, output);
+            }
+            if (!string.IsNullOrWhiteSpace(selectedPath) &&
+                !allOutputs.Any(output => MatchesPath(output, selectedPath)))
+            {
+                candidates.Add(new SubscriptionOutputDescriptor
+                {
+                    SourceNode = node, PropertyPath = selectedPath, DisplayName = selectedPath,
+                    ValueType = typeof(object), Category = SubscriptionDataCategory.Unknown,
+                    Visibility = SubscriptionOutputVisibility.Hidden, IsMissing = true
+                });
+            }
+            return candidates;
+        }
+
+        /// <summary>获取输出声明的独立副本，供候选筛选和原因说明共享，避免两套规则不一致。</summary>
+        private static List<SubscriptionOutputDescriptor> GetDeclaredOutputs(NodeBase node)
+        {
             var allOutputs = new List<SubscriptionOutputDescriptor>();
             // 模块作用域输入只公开声明变量，避免把适配器运行状态误当作布尔输入。
             if (node != null && node.Result != null && node.Process?.ModuleInputSource?.SubscriptionNode.ID != node.ID)
@@ -58,54 +93,33 @@ namespace TDJS_Vision.Node
             if (node != null)
                 allOutputs.AddRange(DynamicResultVariableResolver.GetDescriptors(node));
 
-            SubscriptionInputContract contract = inputContract ?? SubscriptionInputContract.AnyVisible();
-            var candidates = new List<SubscriptionOutputDescriptor>();
-            foreach (SubscriptionOutputDescriptor output in allOutputs)
-            {
-                string reason;
-                if (!contract.Accepts(output, out reason))
-                    continue;
-
-                bool isSelected = MatchesPath(output, selectedPath);
-                bool shouldShow = output.Visibility == SubscriptionOutputVisibility.Core ||
-                    (output.Visibility == SubscriptionOutputVisibility.Advanced &&
-                        (includeAdvanced || ShouldAutoIncludeAdvanced(contract, output.Category))) ||
-                    isSelected;
-                if (!shouldShow)
-                    continue;
-
-                if (output.Visibility == SubscriptionOutputVisibility.Hidden)
-                {
-                    if (!isSelected)
-                        continue;
-                    output.IsLegacySelection = true;
-                }
-
-                AddDistinct(candidates, output);
-            }
-
-            if (!string.IsNullOrWhiteSpace(selectedPath) &&
-                !allOutputs.Any(output => MatchesPath(output, selectedPath)))
-            {
-                candidates.Add(new SubscriptionOutputDescriptor
-                {
-                    SourceNode = node,
-                    PropertyPath = selectedPath,
-                    DisplayName = selectedPath,
-                    ValueType = typeof(object),
-                    Category = SubscriptionDataCategory.Unknown,
-                    Multiplicity = SubscriptionValueMultiplicity.Single,
-                    Visibility = SubscriptionOutputVisibility.Hidden,
-                    IsMissing = true
-                });
-            }
-
-            return candidates;
+            return allOutputs;
         }
 
-        /// <summary>
-        /// 清空静态输出缓存，供结构测试和运行时插件重新加载时使用。
-        /// </summary>
+        /// <summary>说明全部已声明输出的可用性；不创建模块内部窗体，也不改变订阅配置。</summary>
+        public static string ExplainOutputs(NodeBase node, SubscriptionInputContract inputContract, string selectedPath)
+        {
+            if (node == null) return "请先选择有效的来源节点；节点不存在或不在当前可订阅范围时，无法读取输出。";
+            var contract = inputContract ?? SubscriptionInputContract.AnyVisible();
+            var outputs = GetDeclaredOutputs(node);
+            var lines = new List<string>();
+            if (node is _6_LogicTool.CompositeModule.NodeCompositeModule)
+                lines.Add("组合模块仅公开已配置的输出端口。内部节点存在某个结果，并不代表模块已经导出该结果。");
+            if (outputs.Count == 0) lines.Add("该节点尚未声明可订阅输出，请检查输出配置。");
+            foreach (var output in outputs)
+            {
+                string reason;
+                bool accepted = contract.Accepts(output, out reason);
+                if (accepted && output.Visibility == SubscriptionOutputVisibility.Hidden)
+                    reason = MatchesPath(output, selectedPath) ? "仅保留已有订阅，不支持新选。" : "内部或诊断结果，不对新订阅开放。";
+                lines.Add(output.DisplayName + "：" + (string.IsNullOrEmpty(reason) ? "可订阅。" : reason));
+            }
+            if (!string.IsNullOrWhiteSpace(selectedPath) && !outputs.Any(output => MatchesPath(output, selectedPath)))
+                lines.Add("原订阅“" + selectedPath + "”已不存在，请检查端口是否被删除或改名；不会自动替换为其他结果。");
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        /// <summary>清空静态输出缓存。</summary>
         public static void ClearCache()
         {
             StaticCache.Clear();
@@ -167,39 +181,6 @@ namespace TDJS_Vision.Node
             }
 
             return SubscriptionOutputVisibility.Advanced;
-        }
-
-        /// <summary>
-        /// 判断明确的复杂类型输入是否应自动看到相同类别的高级结果。
-        /// </summary>
-        /// <param name="contract">输入契约。</param>
-        /// <param name="category">输出数据类别。</param>
-        /// <returns>应自动显示时返回 true。</returns>
-        private static bool ShouldAutoIncludeAdvanced(
-            SubscriptionInputContract contract,
-            SubscriptionDataCategory category)
-        {
-            if (contract == null || contract.AcceptedCategories.Count == 0 ||
-                !contract.AcceptedCategories.Contains(category))
-                return false;
-
-            if (category == SubscriptionDataCategory.Boolean ||
-                category == SubscriptionDataCategory.Number ||
-                category == SubscriptionDataCategory.Text ||
-                category == SubscriptionDataCategory.Unknown)
-            {
-                return false;
-            }
-
-            int visibleCategoryCount = Enum
-                .GetValues(typeof(SubscriptionDataCategory))
-                .Cast<SubscriptionDataCategory>()
-                .Count(item => item != SubscriptionDataCategory.Unknown);
-            if (contract.AcceptedCategories.Count >= visibleCategoryCount)
-                return false;
-
-            // 文本绘制这类混合输入会显式接受 AlgorithmResult，不能因为同时接受基础文本而隐藏 AI 输出结果。
-            return true;
         }
 
         /// <summary>

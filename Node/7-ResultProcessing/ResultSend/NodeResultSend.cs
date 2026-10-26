@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -8,7 +8,7 @@ using TDJS_Vision.ResourceManagement;
 
 namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
 {
-    /// <summary>整批预检多个上游基础结果，到达节点后直接逐行发送，不参与工件有序排队。</summary>
+    /// <summary>独立预检并逐行发送上游结果，保留失败明细并继续其余行，不参与工件有序排队。</summary>
     public sealed class NodeResultSend : NodeBase, INodeSubscriptionDependencyProvider, IFailedNodeCanContinueProvider
     {
         /// <summary>结果发送失败只影响通信结果，不阻断后续节点继续运行。</summary>
@@ -39,8 +39,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
             return ResultSendWriterFactory.Create(devices[0]);
         }
 
-        /// <summary>读取并转换所有启用行；任何一行失败时尚未进行设备写入。</summary>
-        public List<ResultSendPreparedRow> PrepareRows(NodeParamResultSend param, IResultSendWriter writer, bool requireCurrentRun)
+        /// <summary>读取并转换启用行；运行时记录错误并跳过坏行，独立预检调用仍可抛出异常。</summary>
+        public List<ResultSendPreparedRow> PrepareRows(NodeParamResultSend param, IResultSendWriter writer, bool requireCurrentRun, NodeResultResultSend errors = null)
         {
             if (param?.Rows == null || !param.Rows.Any(row => row != null && row.Enabled)) throw new InvalidOperationException("至少启用一个发送项。");
             var prepared = new List<ResultSendPreparedRow>();
@@ -57,11 +57,15 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
                     var item = ResultSendValueConverter.Prepare(row, values, index + 1);
                     writer.Validate(row.Address, row.DataType, item.Values);
                     if (row.Mode == ResultSendMode.All) writer.Validate(row.CountAddress, ResultSendType.UInt16, new ushort[] { item.Count });
+                    // 只接受与已准备行不冲突的当前行，错误行不能阻断其余地址。
+                    ResultSendAddressValidator.Validate(prepared.Concat(new[] { item }).ToList(), writer);
                     prepared.Add(item);
                 }
+                catch (OperationCanceledException) { throw; }
                 catch (Exception exception)
                 {
-                    throw new ResultSendRowException(index + 1, exception);
+                    if (errors == null) throw new ResultSendRowException(index + 1, exception);
+                    RecordRowError(errors, index + 1, "准备失败：" + exception.Message);
                 }
             }
             ResultSendAddressValidator.Validate(prepared, writer);
@@ -76,7 +80,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
                 sources = sources.Take(1).ToList();
             var values = new List<object>();
             foreach (var source in sources)
-                values.AddRange(ResultSendSourceReader.Read(this, source, requireCurrentRun, upstream));
+            {
+                var read = ResultSendSourceReader.Read(this, source, requireCurrentRun, upstream);
+                // 判定来源缺失不能在All汇总中被静默忽略，否则会误发OK。
+                if (read.Count == 0 && source.Boolean && row.Mode == ResultSendMode.Aggregate)
+                    read.Add(false);
+                values.AddRange(read);
+            }
             return values;
         }
 
@@ -92,47 +102,50 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
                 var writer = GetWriter(param);
                 // 保留适配器端点配置校验，但不使用端点键申请发送权。
                 _ = writer.EndpointKey;
-                var rows = PrepareRows(param, writer, true);
+                var rows = PrepareRows(param, writer, true, result);
                 token.ThrowIfCancellationRequested();
-                return SendPreparedAsync(writer, rows, result);
+                return SendPreparedAsync(writer, rows, result, token);
             }
             catch (Exception exception)
             {
                 result.Error = exception.Message;
-                result.FailedRow = (exception as ResultSendRowException)?.RowNumber ?? 0;
+                if (result.FailedRow == 0) result.FailedRow = (exception as ResultSendRowException)?.RowNumber ?? 0;
                 throw;
             }
         }
 
         /// <summary>在本次调用内逐行发送；每行数据成功后才写有效数量，失败不自动重试。</summary>
-        public static async Task<OrderedSignalSendResult> SendPreparedAsync(IResultSendWriter writer, List<ResultSendPreparedRow> rows, NodeResultResultSend result)
+        public static async Task<OrderedSignalSendResult> SendPreparedAsync(IResultSendWriter writer, List<ResultSendPreparedRow> rows, NodeResultResultSend result, CancellationToken token = default(CancellationToken))
         {
-            bool anyWriteCompleted = false;
             foreach (var row in rows)
             {
+                token.ThrowIfCancellationRequested();
                 try
                 {
                     await writer.WriteAsync(row.Configuration.Address, row.Configuration.DataType, row.Values).ConfigureAwait(false);
-                    anyWriteCompleted = true;
+
                     if (row.Configuration.Mode == ResultSendMode.All)
                         await writer.WriteAsync(row.Configuration.CountAddress, ResultSendType.UInt16, new ushort[] { row.Count }).ConfigureAwait(false);
                     result.SentCount++;
                 }
-                catch (DeviceSendNotStartedException exception) when (!anyWriteCompleted)
-                {
-                    result.FailedRow = row.RowNumber;
-                    result.Error = "第" + row.RowNumber + "行发送前检查失败：" + exception.Message + "本次结果未写入，后续行未发送。";
-                    throw new DeviceSendNotStartedException(result.Error);
-                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
                 catch (Exception exception)
                 {
-                    result.FailedRow = row.RowNumber;
-                    result.Error = "第" + row.RowNumber + "行发送失败：" + exception.Message + "；本行可能已部分写入，后续行未发送。";
-                    throw new InvalidOperationException(result.Error, exception);
+                    RecordRowError(result, row.RowNumber, "发送失败：" + exception.Message + "；不重试本行，继续后续行。");
                 }
             }
+            if (!string.IsNullOrWhiteSpace(result.Error))
+                throw new InvalidOperationException(result.Error + "；其余行已尝试发送，成功行数=" + result.SentCount);
             result.Success = true;
             return new OrderedSignalSendResult(OrderedSignalSendStatus.DeviceAcknowledged, "全部结果写入成功。", "完成行数=" + result.SentCount);
+        }
+
+        /// <summary>保留首个失败行与所有逐行错误，不覆盖已成功发送的计数。</summary>
+        private static void RecordRowError(NodeResultResultSend result, int row, string reason)
+        {
+            result.Success = false;
+            if (result.FailedRow == 0) result.FailedRow = row;
+            result.Error = (string.IsNullOrEmpty(result.Error) ? "" : result.Error + "；") + "第" + row + "行" + reason;
         }
 
         /// <summary>节点执行入口，等待实际设备写入完成后才允许后续节点继续。</summary>

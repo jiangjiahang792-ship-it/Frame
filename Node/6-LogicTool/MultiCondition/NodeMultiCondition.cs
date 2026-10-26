@@ -1,4 +1,4 @@
-using Logger;
+﻿using Logger;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,7 +17,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             return (param?.Conditions ?? new List<MultiConditionItem>())
                 .Where(c => c != null && !string.IsNullOrWhiteSpace(c.Name))
                 .GroupBy(c => c.Name, StringComparer.Ordinal)
-                .Where(g => g.Count() == 1 && g.First().Enabled)
+                .Where(g => g.Count() == 1)
                 .Select(g => NodeResultMultiCondition.ItemResultPrefix + g.Key);
         }
 
