@@ -143,19 +143,22 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultSend
                 if (float.IsInfinity(number) || float.IsNaN(number)) throw new OverflowException("数值超出float范围。");
                 return number;
             }
-            decimal integer = value is string text ? decimal.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture) : Convert.ToDecimal(value, CultureInfo.InvariantCulture);
-            if (decimal.Truncate(integer) != integer)
+            decimal integerValue = value is string text ? decimal.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture) : Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+            if (row.DecimalToIntegerByHundred)
             {
-                if (!row.DecimalToIntegerByHundred) throw new InvalidOperationException("小数不能直接写入整数，请先在四则运算中取整。");
-                // 结果发送按百分位写整数时，先保留两位小数，再放大为PLC整数值。
-                integer = decimal.Round(integer, 2, MidpointRounding.AwayFromZero) * 100m;
+                // 勾选“写整数”后，所有测量值统一按百分位写入：整数6也必须发送600。
+                integerValue = decimal.Round(integerValue, 2, MidpointRounding.AwayFromZero) * 100m;
+            }
+            else if (decimal.Truncate(integerValue) != integerValue)
+            {
+                throw new InvalidOperationException("小数不能直接写入整数，请先在四则运算中取整或勾选小数按百分位写整数。");
             }
             switch (type)
             {
-                case ResultSendType.Int16: return checked((short)integer);
-                case ResultSendType.UInt16: return checked((ushort)integer);
-                case ResultSendType.Int32: return checked((int)integer);
-                case ResultSendType.UInt32: return checked((uint)integer);
+                case ResultSendType.Int16: return checked((short)integerValue);
+                case ResultSendType.UInt16: return checked((ushort)integerValue);
+                case ResultSendType.Int32: return checked((int)integerValue);
+                case ResultSendType.UInt32: return checked((uint)integerValue);
                 default: throw new NotSupportedException("未知写入类型。");
             }
         }

@@ -132,6 +132,7 @@ internal static class ResultSendTests
         scaledInteger.DecimalToIntegerByHundred = true;
         Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { 0.2 }, 1).Values)[0] == 20, "小数百分位整数发送失败。");
         Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { 1.80 }, 1).Values)[0] == 180, "1.80未发送180。");
+        Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { 6 }, 1).Values)[0] == 600, "勾选小数按百分位后整数6未发送600。");
         Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { "48.28" }, 1).Values)[0] == 4828, "字符串小数百分位整数发送失败。");
         Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { 0.123 }, 1).Values)[0] == 12, "三位小数没有自动保留两位后发送。");
         Check(((ushort[])ResultSendValueConverter.Prepare(scaledInteger, new List<object> { 48.286 }, 1).Values)[0] == 4829, "百分位整数发送没有按两位小数四舍五入。");
