@@ -424,6 +424,8 @@
   "导体有无：NG": "Conductor presence: NG",
   "无飞丝": "No flying wire",
   "胶皮OK": "Rubber OK",
+  "3.胶皮OK": "3. Rubber OK",
+  "3.胶皮NG": "3. Rubber NG",
   "组合判定异常：": "Combined judgment error: ",
   "未配置订阅": "No subscriptions configured",
   "组合方式无效": "Invalid combination mode",

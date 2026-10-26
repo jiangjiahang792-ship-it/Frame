@@ -35,6 +35,7 @@ internal static class LocalizationTests
             Check(LanguageManager.TranslatePrefix("胶皮长度： ") == "Rubber length： ", "ROI前缀翻译及标点保留");
             Check(LanguageManager.TranslatePrefix("前后仰角度：") == "Front/rear tilt angle: ", "方案自定义角度前缀英文翻译缺失");
             Check(LanguageManager.TranslateDisplay("4.无飞丝") == "4. No flying wire", "方案自定义布尔文本英文翻译缺失");
+            Check(LanguageManager.TranslateDisplay("3.胶皮OK") == "3. Rubber OK", "算法结果文本英文翻译缺失");
             Check(LanguageManager.TranslatePrefix("客户自定义前缀：") == "客户自定义前缀：", "未知前缀不得被拆词翻译");
             string raw = "节点(3.用户节点)运行失败！原因：第三方中文错误";
             Check(LanguageManager.TranslateDisplay(raw) == "Node (3.用户节点) failed: 第三方中文错误", "日志句式应保留用户名称和异常参数");

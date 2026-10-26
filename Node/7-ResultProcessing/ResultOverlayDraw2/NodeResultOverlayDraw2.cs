@@ -1249,7 +1249,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
                         if (string.IsNullOrWhiteSpace(line))
                             continue;
 
-                        string displayText = usePrefix ? LanguageManager.TranslatePrefix(item.TextPrefix) + line : line;
+                        string translatedLine = LanguageManager.TranslateDisplay(line);
+                        string displayText = usePrefix ? LanguageManager.TranslatePrefix(item.TextPrefix) + translatedLine : translatedLine;
                         AddDisplayText(displayResult, new ColorText(displayText, textInfo.Color)
                         {
                             FontSize = Math.Max(1, item.FontSize),
