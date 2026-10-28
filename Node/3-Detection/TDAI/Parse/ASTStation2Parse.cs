@@ -173,8 +173,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     case "DetectItem.FlyingWire":
                         // 飞丝是数量型检测项，模板配置错误时也按数量统计，避免输出单个框的伪尺寸。
                         isCountItem = true;
-                        // 仅忽略完整位于铝箔区域内部的飞丝；区域外或跨越铝箔边界的飞丝继续报警。
-                        extractValueFunc = r => r.ClassId == 6 && !IsInsideAnyAluminumFoil(r.Box, aluminumFoils)
+                        // 飞丝框与任一铝箔框的交叠达到自身面积30%时忽略；低于阈值继续报警。
+                        extractValueFunc = r => r.ClassId == 6 && !HasAluminumFoilOverlap(r.Box, aluminumFoils)
                             ? (float?)1F : null;
                         break;
                     default:
@@ -332,15 +332,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             return nearest;
         }
 
-        /// <summary>判断飞丝框是否完整位于任一铝箔框内部；没有铝箔时不屏蔽任何飞丝。</summary>
-        private static bool IsInsideAnyAluminumFoil(Rect flyingWire, List<DetResult> aluminumFoils)
+        /// <summary>飞丝框与任一铝箔框交叠达到飞丝自身面积30%时屏蔽；没有铝箔时不屏蔽。</summary>
+        private static bool HasAluminumFoilOverlap(Rect flyingWire, List<DetResult> aluminumFoils)
         {
-            if (aluminumFoils == null || aluminumFoils.Count == 0) return false;
+            if (flyingWire.Width <= 0 || flyingWire.Height <= 0 || aluminumFoils == null || aluminumFoils.Count == 0)
+                return false;
+            long flyingWireArea = (long)flyingWire.Width * flyingWire.Height;
             foreach (DetResult aluminumFoil in aluminumFoils)
             {
                 Rect foil = aluminumFoil.Box;
-                if (flyingWire.Left >= foil.Left && flyingWire.Top >= foil.Top &&
-                    flyingWire.Right <= foil.Right && flyingWire.Bottom <= foil.Bottom)
+                int overlapWidth = Math.Max(0, Math.Min(flyingWire.Right, foil.Right) - Math.Max(flyingWire.Left, foil.Left));
+                int overlapHeight = Math.Max(0, Math.Min(flyingWire.Bottom, foil.Bottom) - Math.Max(flyingWire.Top, foil.Top));
+                long overlapArea = (long)overlapWidth * overlapHeight;
+                // 使用整数交叉相乘避免浮点边界误差；正好30%也按达到阈值处理。
+                if (overlapArea * 100L >= flyingWireArea * 30L)
                     return true;
             }
             return false;

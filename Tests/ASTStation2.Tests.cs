@@ -128,10 +128,16 @@ internal static class ASTStation2Tests
         Check(Value(result, "飞丝") == 1, "铝箔区域内部的飞丝没有被筛除。");
         foilFilterDetections.Add(new DetResult { ClassId = 6, Box = new Rect(95, 265, 10, 4) });
         result = Parse(foilFilter, foilFilterDetections);
-        Check(Value(result, "飞丝") == 2, "跨越铝箔区域边界的飞丝被错误屏蔽。");
+        Check(Value(result, "飞丝") == 1, "与铝箔交叠50%的飞丝没有被筛除。");
+        foilFilterDetections.Add(new DetResult { ClassId = 6, Box = new Rect(93, 265, 10, 4) });
+        result = Parse(foilFilter, foilFilterDetections);
+        Check(Value(result, "飞丝") == 1, "与铝箔交叠正好30%的飞丝没有按阈值筛除。");
+        foilFilterDetections.Add(new DetResult { ClassId = 6, Box = new Rect(88, 265, 15, 4) });
+        result = Parse(foilFilter, foilFilterDetections);
+        Check(Value(result, "飞丝") == 2, "与铝箔交叠低于30%的飞丝被错误屏蔽。");
         foilFilterDetections.RemoveAll(d => d.ClassId == 7);
         result = Parse(foilFilter, foilFilterDetections);
-        Check(Value(result, "飞丝") == 3, "未检出铝箔区域时不应屏蔽飞丝。");
+        Check(Value(result, "飞丝") == 5, "未检出铝箔区域时不应屏蔽飞丝。");
         VerifyAnnotationProjection(result.AlgorithmResult);
         Check(result.AlgorithmResult.DetectResults.ContainsKey("出线芯长度"), "出线芯长度未按新检测项名称输出。");
         parameter.NeedConvert = true; parameter.Scale = 0.1f;
