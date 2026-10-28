@@ -121,6 +121,17 @@ internal static class ASTStation2Tests
         Check(result.AlgorithmResult.Lines.Any(l => l.P1.Y == 160 && l.P2.Y == 410), "端子头底边到胶皮顶边箭头端点错误。");
         Check(!result.AlgorithmResult.Lines.Any(l => l.P1.Y == 260 && l.P2.Y == 380), "已删除的铝箔距离仍绘制箭头。");
         Check(!result.AlgorithmResult.Texts.Any(t => t.Color == Color.Yellow), "箭头不应显示黄色数值。");
+        var foilFilter = Parameter("铝箔区域飞丝筛选");
+        var foilFilterDetections = Detections();
+        foilFilterDetections.Add(new DetResult { ClassId = 6, Box = new Rect(110, 265, 4, 4) });
+        result = Parse(foilFilter, foilFilterDetections);
+        Check(Value(result, "飞丝") == 1, "铝箔区域内部的飞丝没有被筛除。");
+        foilFilterDetections.Add(new DetResult { ClassId = 6, Box = new Rect(95, 265, 10, 4) });
+        result = Parse(foilFilter, foilFilterDetections);
+        Check(Value(result, "飞丝") == 2, "跨越铝箔区域边界的飞丝被错误屏蔽。");
+        foilFilterDetections.RemoveAll(d => d.ClassId == 7);
+        result = Parse(foilFilter, foilFilterDetections);
+        Check(Value(result, "飞丝") == 3, "未检出铝箔区域时不应屏蔽飞丝。");
         VerifyAnnotationProjection(result.AlgorithmResult);
         Check(result.AlgorithmResult.DetectResults.ContainsKey("出线芯长度"), "出线芯长度未按新检测项名称输出。");
         parameter.NeedConvert = true; parameter.Scale = 0.1f;

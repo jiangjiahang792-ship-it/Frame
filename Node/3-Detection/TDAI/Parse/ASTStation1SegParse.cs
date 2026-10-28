@@ -64,6 +64,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             var best = valid.GroupBy(r => r.ClassId).ToDictionary(g => g.Key,
                 g => g.OrderByDescending(r => r.Score).ThenBy(r => r.MaskGeometry.Bounds.X)
                     .ThenBy(r => r.MaskGeometry.Bounds.Y).First());
+            SegResult copperRing;
+            if (best.TryGetValue(2, out copperRing))
+            {
+                // 铜环底边为水平筛选基准；只有完整处于底边以下的飞丝才忽略，跨越底边的飞丝仍报警。
+                int copperBottomLineY = copperRing.MaskGeometry.Bounds.Bottom;
+                valid = valid.Where(r => r.ClassId != 4 || r.MaskGeometry.Bounds.Top < copperBottomLineY).ToList();
+            }
             var colors = valid.Select(r => r.ClassId).Distinct().ToDictionary(id => id, id => Color.Green);
             var output = new AlgorithmResult();
             int number = 0;

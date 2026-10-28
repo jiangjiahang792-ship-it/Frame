@@ -89,6 +89,20 @@ internal static class ASTStation1SegTests
         Check(!result.IsOk && result.AlgorithmResult.DetectResults["DetectItem.FlyingWire"][0].Value == "1", "飞丝类别没有按标签4判定。");
         Check(result.AlgorithmResult.Rects.Last().Color == Color.Red,
             "飞丝NG目标的矩形框颜色错误。");
+        // 铜环掩膜底边为301：完全位于其下方的飞丝忽略，跨越底边的飞丝仍计数报警。
+        var belowCopper = Segment(4, 105, 119);
+        result = Parse(p, new List<SegResult> { Segment(2, 80, 100), belowCopper });
+        Check(result.AlgorithmResult.DetectResults["DetectItem.FlyingWire"][0].IsOk &&
+            result.AlgorithmResult.DetectResults["DetectItem.FlyingWire"][0].Value == "0" &&
+            result.AlgorithmResult.Rects.All(r => r.RotatedRect.center.y < belowCopper.MaskGeometry.Bounds.Top),
+            "铜环底边以下的飞丝没有被筛除或仍被绘制。");
+        var crossingCopperBottom = Segment(4, 95, 110);
+        result = Parse(p, new List<SegResult> { Segment(2, 80, 100), crossingCopperBottom });
+        Check(!result.IsOk && result.AlgorithmResult.DetectResults["DetectItem.FlyingWire"][0].Value == "1",
+            "跨越铜环底边的飞丝被错误屏蔽。");
+        result = Parse(p, new List<SegResult> { belowCopper });
+        Check(!result.IsOk && result.AlgorithmResult.DetectResults["DetectItem.FlyingWire"][0].Value == "1",
+            "未检出铜环时不应屏蔽飞丝。");
         segments.RemoveAll(r => r.ClassId == 1);
         result = Parse(p, segments);
         Check(!result.IsOk && result.AlgorithmResult.Lines.Count == 5 &&

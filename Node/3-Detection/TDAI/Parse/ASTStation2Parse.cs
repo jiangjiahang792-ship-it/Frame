@@ -88,6 +88,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 results.Where(r => r.Box.Width > 0 && r.Box.Height > 0).ToList();
             var copperRings = results.Where(r => r.ClassId == 4).ToList();
             var rubbers = results.Where(r => r.ClassId == 5).ToList();
+            var aluminumFoils = results.Where(r => r.ClassId == 7).ToList();
             var detectResults = new Dictionary<string, List<SingleDetectResult>>();
             var texts = new List<ColorText>();
             var addedRectKeys = new HashSet<string>();
@@ -172,7 +173,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     case "DetectItem.FlyingWire":
                         // 飞丝是数量型检测项，模板配置错误时也按数量统计，避免输出单个框的伪尺寸。
                         isCountItem = true;
-                        extractValueFunc = r => r.ClassId == 6 ? (float?)1F : null;
+                        // 仅忽略完整位于铝箔区域内部的飞丝；区域外或跨越铝箔边界的飞丝继续报警。
+                        extractValueFunc = r => r.ClassId == 6 && !IsInsideAnyAluminumFoil(r.Box, aluminumFoils)
+                            ? (float?)1F : null;
                         break;
                     default:
                         LogUnsupportedDetectItem(itemName, param);
@@ -327,6 +330,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 }
             }
             return nearest;
+        }
+
+        /// <summary>判断飞丝框是否完整位于任一铝箔框内部；没有铝箔时不屏蔽任何飞丝。</summary>
+        private static bool IsInsideAnyAluminumFoil(Rect flyingWire, List<DetResult> aluminumFoils)
+        {
+            if (aluminumFoils == null || aluminumFoils.Count == 0) return false;
+            foreach (DetResult aluminumFoil in aluminumFoils)
+            {
+                Rect foil = aluminumFoil.Box;
+                if (flyingWire.Left >= foil.Left && flyingWire.Top >= foil.Top &&
+                    flyingWire.Right <= foil.Right && flyingWire.Bottom <= foil.Bottom)
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>记录工位2解析器尚未接入的检测项，并允许其它检测项继续解析。</summary>
