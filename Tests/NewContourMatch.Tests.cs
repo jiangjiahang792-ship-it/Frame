@@ -128,6 +128,20 @@ internal static class NewContourMatchTests
             bool cancelled=false;try{node.Run(new CancellationToken(true),false).GetAwaiter().GetResult();}catch(OperationCanceledException){cancelled=true;}
             Check(cancelled && ((NodeResultNewContourMatch)node.Result).MatchCount==0,"取消后残留旧结果");
             form.Show();Application.DoEvents();
+            var canvas=(ImageCanvas)form.GetType().GetField("imageCanvas",Flags).GetValue(form);
+            var tabs=(TabControl)form.GetType().GetField("parameterTabs",Flags).GetValue(form);
+            var execute=(Button)form.GetType().GetField("executeButton",Flags).GetValue(form);
+            tabs.SelectedIndex=0;
+            canvas.BeginCreate();tabs.Enabled=false;execute.Enabled=false;
+            typeof(ImageCanvas).GetField("_draftRoi",Flags).SetValue(canvas,new Rectangle(24,32,120,96));
+            FormClosingEventHandler keepFormForReuse=(sender,args)=>args.Cancel=true;
+            form.FormClosing+=keepFormForReuse;form.Close();
+            var closeParameters=(NodeParamNewContourMatch)form.Params;
+            Check(tabs.Enabled && execute.Enabled && canvas.EditorMode==CanvasEditorMode.查看,
+                "新版节点直接确定后搜索区域编辑状态或按钮未恢复。");
+            Check(!closeParameters.AllSearch && closeParameters.SearchRegion==new Rectangle(24,32,120,96),
+                "新版节点直接确定没有提交有效搜索区域。");
+            form.FormClosing-=keepFormForReuse;
             ((TabControl)form.GetType().GetField("parameterTabs",Flags).GetValue(form)).SelectedIndex=2;Application.DoEvents();
             using(var bmp=new Bitmap(form.Width,form.Height)){form.DrawToBitmap(bmp,new Rectangle(0,0,bmp.Width,bmp.Height));bmp.Save(Path.Combine(directory,"新版本轮廓节点.png"));}
             form.Close();source.Dispose();owner.Dispose();

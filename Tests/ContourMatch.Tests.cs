@@ -447,7 +447,20 @@ internal static class ContourMatchTests
             Check(((NodeParamContourMatch)form.Params).FindOptions.AngleStartDegrees==100,"暂时无效的角度范围被静默替换成旧值。");
             form.SetParam2Form();
             Check(Field<NumericUpDown>(form,"findAngleStartNumeric").Value==100,"重新打开未恢复当前填写值。");
+            tabs.SelectedIndex=0;
+            Click(form,"DrawRegionButton_Click");
+            Mouse(canvas,"OnMouseDown",CanvasPoint(canvas,42,62),MouseButtons.Left);
+            Mouse(canvas,"OnMouseUp",CanvasPoint(canvas,182,192),MouseButtons.Left);
+            FormClosingEventHandler keepFormForReuse=(sender,args)=>args.Cancel=true;
+            form.FormClosing+=keepFormForReuse;
             Click(form,"CloseButton_Click");
+            var closedDraft=(NodeParamContourMatch)form.Params;
+            Check(tabs.Enabled && Field<Button>(form,"executeButton").Enabled && canvas.EditorMode==CanvasEditorMode.查看,
+                "直接确定后搜索区域编辑状态或按钮未恢复。");
+            Check(!closedDraft.AllSearch && Math.Abs(closedDraft.SearchRegion.X-42)<=1 && Math.Abs(closedDraft.SearchRegion.Y-62)<=1,
+                "直接确定没有提交已绘制的有效搜索区域。");
+            form.FormClosing-=keepFormForReuse;
+            form.Hide();
             Check(!form.Visible && ((NodeParamContourMatch)form.Params).FindOptions.AngleStartDegrees==100,"确定未直接关闭或意外撤销参数。");
         }
     }

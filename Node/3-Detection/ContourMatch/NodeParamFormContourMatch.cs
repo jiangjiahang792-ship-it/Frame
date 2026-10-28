@@ -242,6 +242,31 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
         }
         /// <summary>确定仅关闭窗口，参数已在修改时生效。</summary>
         private void CloseButton_Click(object sender, EventArgs e) { Close(); }
+        /// <summary>关闭前结束搜索区域编辑；有效临时框直接提交，无效临时框取消并保留原区域。</summary>
+        private void FinishPendingSearchRegionBeforeClose()
+        {
+            if (imageCanvas.EditorMode == CanvasEditorMode.查看)
+            {
+                // 防御旧版本遗留的禁用状态，保证参数窗体再次打开时所有操作可用。
+                parameterTabs.Enabled = true;
+                executeButton.Enabled = true;
+                return;
+            }
+            Rectangle region = imageCanvas.Roi;
+            if (imageCanvas.EditorMode == CanvasEditorMode.创建模板 && region.Width >= 8 && region.Height >= 8)
+            {
+                _draft.SearchRegion = region;
+                allSearchCheckBox.Checked = false;
+                imageCanvas.EndEdit();
+                FinishRegionEdit();
+                ApplyParameters();
+                statusLabel.Text = "搜索区域已确认";
+                return;
+            }
+            imageCanvas.EndEdit();
+            FinishRegionEdit();
+            statusLabel.Text = "未完成的区域绘制已取消";
+        }
         /// <summary>锁定编辑及关闭，保护预览调用中的图像。</summary>
         private void SetBusy(bool busy)
         {
@@ -251,6 +276,15 @@ namespace TDJS_Vision.Node._3_Detection.ContourMatch
             if (!busy) _busy = false;
         }
         /// <summary>等待正在执行的预览完成后才允许关闭。</summary>
-        protected override void OnFormClosing(FormClosingEventArgs e) { if (_busy) { e.Cancel = true; statusLabel.Text = "当前操作尚未完成"; } base.OnFormClosing(e); }
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (_busy)
+            {
+                e.Cancel = true;
+                statusLabel.Text = "当前操作尚未完成";
+            }
+            else FinishPendingSearchRegionBeforeClose();
+            base.OnFormClosing(e);
+        }
     }
 }
