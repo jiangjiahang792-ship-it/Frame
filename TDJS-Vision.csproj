@@ -741,6 +741,7 @@
     <Compile Include="Node\3-Detection\TDAI\Parse\PlugColorPerimeter.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\PlugContourSimilarity.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation1Parse.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\JunweiPlasticParse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation1SegParse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Yolo8\SegMaskGeometry.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation2Parse.cs" />

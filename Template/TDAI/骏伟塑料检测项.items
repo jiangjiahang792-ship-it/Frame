@@ -1,0 +1,65 @@
+[
+  {
+    "Name": "front",
+    "MinValue": "1",
+    "MaxValue": "99999999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "side",
+    "MinValue": "1",
+    "MaxValue": "99999999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "bottom",
+    "MinValue": "1",
+    "MaxValue": "99999999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "surface_roughness",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "broken_post",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "damage",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0",
+    "Compensation": 0
+  },
+  {
+    "Name": "other_ng",
+    "MinValue": "0",
+    "MaxValue": "0",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0",
+    "Compensation": 0
+  }
+]

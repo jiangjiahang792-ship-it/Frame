@@ -114,7 +114,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     case "右线芯宽度": matches = rightCores; useWidth = false; break;
                     case "焊接区域长度": matches = welds; break;
                     case "焊接区域宽度": matches = welds; useWidth = false; break;
-                    case "飞丝": matches = flyingWires; isFlyingWire = true; break;
+                    case "飞丝":
+                    // 检测项公共归一化会把中文名称转换为内部键，两个名称都要兼容。
+                    case "DetectItem.FlyingWire":
+                        matches = flyingWires;
+                        isFlyingWire = true;
+                        break;
                     default:
                         throw new InvalidOperationException($"超声波焊接侧面三类模型不支持检测项：{ParseCommon.GetDisplayName(item.Name)}。");
                 }

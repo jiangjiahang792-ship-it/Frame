@@ -846,7 +846,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                         }
                         break;
                     case ResultOverlayDrawItemType.Line:
-                        AppendLines(owner, displayResult, item);
+                        AppendLines(owner, displayResult, item, param);
                         if (performanceDiagnostics != null)
                         {
                             performanceDiagnostics.LineItemCount++;
@@ -854,7 +854,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                         }
                         break;
                     case ResultOverlayDrawItemType.Rectangle:
-                        AppendRectangles(owner, displayResult, item);
+                        AppendRectangles(owner, displayResult, item, param);
                         if (performanceDiagnostics != null)
                         {
                             performanceDiagnostics.RectangleItemCount++;
@@ -862,7 +862,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                         }
                         break;
                     case ResultOverlayDrawItemType.Region:
-                        AppendRegions(owner, displayResult, item);
+                        AppendRegions(owner, displayResult, item, param);
                         if (performanceDiagnostics != null)
                         {
                             performanceDiagnostics.RegionItemCount++;
@@ -945,7 +945,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 if (sourceAlgorithmResult != null)
                 {
                     displayResult.IsAllOk = displayResult.IsAllOk && sourceAlgorithmResult.IsAllOk;
-                    AppendAlgorithmResultTexts(displayResult, sourceAlgorithmResult, item);
+                    AppendAlgorithmResultTexts(displayResult, sourceAlgorithmResult, item, param.OkColor, param.NgColor);
                     return;
                 }
 
@@ -1099,15 +1099,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             bool isOk = ResolveAutomaticJudgeOk(value, sourceNode == null ? null : sourceNode.Result);
             displayResult.IsAllOk = displayResult.IsAllOk && isOk;
             Color displayColor = isOk ? param.OkColor : param.NgColor;
-            // 自动ROI保留各检测项自身颜色；整体NG只参与汇总，不能把其他OK框一起染红。
-            // UseJudgeColor是旧绘制项字段，新版自动ROI不依赖该字段，兼容已保存为false的方案。
-            AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
-            bool preserveElementColor = algorithmResult != null &&
-                algorithmResult.DetectResults != null && algorithmResult.DetectResults.Count > 0;
+            // 来源元素只提供OK/NG语义，最终颜色必须统一映射到本节点顶部配置的OK/NG颜色。
+            // 这样既保留单个检测项的判定差异，也不会继续透传目标检测节点写死的红绿颜色。
             OverlayGeometryRenderContext context = new OverlayGeometryRenderContext
             {
                 FallbackColor = displayColor,
-                OverrideColor = preserveElementColor ? (Color?)null : displayColor,
+                UseJudgePalette = true,
+                OkColor = param.OkColor,
+                NgColor = param.NgColor,
                 LineWidth = Math.Max(1, item.LineWidth)
             };
 
@@ -1153,7 +1152,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 : SubscriptionTypeCompatibility.ResolveCategory(value.GetType());
         }
 
-        private static void AppendLines(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
+        private static void AppendLines(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item, NodeParamResultOverlayDraw param)
         {
             if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
             {
@@ -1161,7 +1160,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 return;
             }
 
-            Color drawColor = ResolveItemColor(item, value, sourceNode);
+            Color drawColor = ResolveItemColor(param, value, sourceNode);
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
             if (algorithmResult != null && algorithmResult.Lines.Count > 0)
             {
@@ -1191,7 +1190,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             return;
         }
 
-        private static void AppendRegions(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
+        private static void AppendRegions(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item, NodeParamResultOverlayDraw param)
         {
             if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
             {
@@ -1199,7 +1198,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 return;
             }
 
-            Color drawColor = ResolveItemColor(item, value, sourceNode);
+            Color drawColor = ResolveItemColor(param, value, sourceNode);
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
             if (algorithmResult != null && algorithmResult.Contours.Count > 0)
             {
@@ -1243,7 +1242,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             return;
         }
 
-        private static void AppendRectangles(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item)
+        private static void AppendRectangles(NodeBase owner, AlgorithmResult displayResult, ResultOverlayDrawItem item, NodeParamResultOverlayDraw param)
         {
             if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode))
             {
@@ -1251,7 +1250,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 return;
             }
 
-            Color drawColor = ResolveItemColor(item, value, sourceNode);
+            Color drawColor = ResolveItemColor(param, value, sourceNode);
             AlgorithmResult algorithmResult = TryGetAlgorithmResult(value) ?? TryGetAlgorithmResult(sourceNode == null ? null : sourceNode.Result);
             if (algorithmResult != null)
             {
@@ -1376,6 +1375,24 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// <param name="item">当前绘制项。</param>
         private static void AppendAlgorithmResultTexts(AlgorithmResult displayResult, AlgorithmResult algorithmResult, ResultOverlayDrawItem item)
         {
+            AppendAlgorithmResultTexts(displayResult, algorithmResult, item, item.OkColor, item.NgColor);
+        }
+
+        /// <summary>
+        /// 按AI检测项自身的OK/NG语义追加文本，并统一使用结果绘制节点配置的颜色。
+        /// </summary>
+        /// <param name="displayResult">目标显示结果。</param>
+        /// <param name="algorithmResult">源算法结果。</param>
+        /// <param name="item">当前绘制项。</param>
+        /// <param name="okColor">结果绘制节点配置的OK颜色。</param>
+        /// <param name="ngColor">结果绘制节点配置的NG颜色。</param>
+        private static void AppendAlgorithmResultTexts(
+            AlgorithmResult displayResult,
+            AlgorithmResult algorithmResult,
+            ResultOverlayDrawItem item,
+            Color okColor,
+            Color ngColor)
+        {
             if (displayResult == null || algorithmResult == null || item == null)
                 return;
 
@@ -1396,7 +1413,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
 
                         string translatedLine = LanguageManager.TranslateDisplay(line);
                         string displayText = usePrefix ? LanguageManager.TranslatePrefix(item.TextPrefix) + translatedLine : translatedLine;
-                        AddDisplayText(displayResult, new ColorText(displayText, textInfo.Color)
+                        Color mappedColor = IsNgSourceColor(textInfo.Color) ? ngColor : okColor;
+                        AddDisplayText(displayResult, new ColorText(displayText, mappedColor)
                         {
                             FontSize = Math.Max(1, item.FontSize),
                             Position = item.TextPosition,
@@ -1426,7 +1444,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
 
                     string text = $"{result.Name}:{result.Value} {(result.IsOk ? "OK" : "NG")}";
                     string displayText = usePrefix ? LanguageManager.TranslatePrefix(item.TextPrefix) + text : text;
-                    AddDisplayText(displayResult, new ColorText(displayText, result.IsOk ? item.OkColor : item.NgColor)
+                    AddDisplayText(displayResult, new ColorText(displayText, result.IsOk ? okColor : ngColor)
                     {
                         FontSize = Math.Max(1, item.FontSize),
                         Position = item.TextPosition,
@@ -1436,6 +1454,18 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     }, IsMissingPromptText(displayText));
                 }
             }
+        }
+
+        /// <summary>
+        /// 判断来源文本颜色是否表达NG语义；检测节点约定红色系表示NG。
+        /// </summary>
+        /// <param name="sourceColor">来源文本颜色。</param>
+        /// <returns>来源颜色表示NG时返回true。</returns>
+        private static bool IsNgSourceColor(Color sourceColor)
+        {
+            return !sourceColor.IsEmpty &&
+                sourceColor.R > sourceColor.G &&
+                sourceColor.R > sourceColor.B;
         }
 
         /// <summary>
@@ -1501,21 +1531,24 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         }
 
         /// <summary>
-        /// 根据绘制项颜色模式和源结果判定状态解析最终绘制颜色。
+        /// 根据源结果判定状态解析顶部统一配置的最终绘制颜色。
         /// </summary>
-        private static Color ResolveItemColor(ResultOverlayDrawItem item, object value, NodeBase sourceNode)
+        /// <param name="param">包含顶部OK/NG颜色的节点参数。</param>
+        /// <param name="value">订阅值。</param>
+        /// <param name="sourceNode">订阅来源节点。</param>
+        /// <returns>顶部OK或NG颜色。</returns>
+        private static Color ResolveItemColor(NodeParamResultOverlayDraw param, object value, NodeBase sourceNode)
         {
-            if (item == null || !item.UseJudgeColor)
-                return item == null ? Color.Lime : item.Color;
-
             bool judgeOk;
             if ((sourceNode != null && TryReadJudgeOk(sourceNode.Result, out judgeOk)) ||
                 TryReadJudgeOk(value, out judgeOk))
             {
-                return judgeOk ? item.OkColor : item.NgColor;
+                return judgeOk ? param.OkColor : param.NgColor;
             }
 
-            return item.Color;
+            return ResolveAutomaticJudgeOk(value, sourceNode == null ? null : sourceNode.Result)
+                ? param.OkColor
+                : param.NgColor;
         }
 
         /// <summary>

@@ -105,6 +105,7 @@
   "DetectItem.ACTailInPlace": "A_C插尾到位",
   "DetectItem.ACPlugInPlace": "A_C插头到位",
   "DetectItem.Positioning": "定位",
+  "DetectItem.PositioningArea": "定位面积",
   "DetectItem.FrontRivetCoreLength": "前铆脚露线芯长度",
   "DetectItem.FrontRivetCoreHeight": "前铆脚露线芯高度",
   "DetectItem.FrontRivetArea": "前铆脚面积",

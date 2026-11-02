@@ -287,7 +287,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             "AST工位1分割模型",
             "新端子12类模型",
             "勒刚端子侧面15类OBB模型",
-            "AST高曝光线芯模型"});
+            "AST高曝光线芯模型",
+            "骏伟塑料模型",
+            "亿方舟注塑前模型",
+            "亿方舟注塑后模型",
+            "亿方舟多端子九类模型"});
             this.comboBoxModelName.Location = new System.Drawing.Point(138, 331);
             this.comboBoxModelName.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.comboBoxModelName.Name = "comboBoxModelName";

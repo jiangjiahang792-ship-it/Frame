@@ -197,6 +197,18 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                         case ModelName.AST_工位3模型:
                                             ASTStation3Parse.Parse(det_results, result_count, param, Process, ref res);
                                             break;
+                                        case ModelName.骏伟塑料模型:
+                                            JunweiPlasticParse.Parse(det_results, result_count, param, Process, ref res);
+                                            break;
+                                        case ModelName.亿方舟注塑前模型:
+                                            YFZ_Filling_rubber_Front.Parse(det_results, result_count, param, Process, ref res);
+                                            break;
+                                        case ModelName.亿方舟注塑后模型:
+                                            YFZ_Filling_rubber_Back.Parse(det_results, result_count, param, Process, ref res);
+                                            break;
+                                        case ModelName.亿方舟多端子九类模型:
+                                            YFZ_More_Terminal_9Class.Parse(det_results, result_count, param, ref res);
+                                            break;
                                         case ModelName.XM_Fakra模型:
                                             XMSGParse.Parse(det_results, result_count, param, Process,ref res);
                                             break;

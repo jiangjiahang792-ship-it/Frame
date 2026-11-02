@@ -1,0 +1,22 @@
+{
+  "ModelName": "骏伟塑料模型",
+  "ModelSize": 640,
+  "ScoreThreshold": 0.5,
+  "ScoreNMS": 0.5,
+  "ModelInfo": {
+    "ModelType": "DET",
+    "DeviceType": "CPU",
+    "IsEncrypted": true,
+    "ModelPath": "请在AI配置工具中选择骏伟塑料模型权重文件",
+    "KeyPointNum": 0
+  },
+  "ClassNames": [
+    "front",
+    "side",
+    "bottom",
+    "surface_roughness",
+    "broken_post",
+    "damage",
+    "other_ng"
+  ]
+}

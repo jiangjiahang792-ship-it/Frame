@@ -420,6 +420,18 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     case "AST-工位3模型":
                         nodeParamTDAI.ModelName = ModelName.AST_工位3模型;
                         break;
+                    case "骏伟塑料模型":
+                        nodeParamTDAI.ModelName = ModelName.骏伟塑料模型;
+                        break;
+                    case "亿方舟注塑前模型":
+                        nodeParamTDAI.ModelName = ModelName.亿方舟注塑前模型;
+                        break;
+                    case "亿方舟注塑后模型":
+                        nodeParamTDAI.ModelName = ModelName.亿方舟注塑后模型;
+                        break;
+                    case "亿方舟多端子九类模型":
+                        nodeParamTDAI.ModelName = ModelName.亿方舟多端子九类模型;
+                        break;
                     case "AST工位1分割模型":
                         nodeParamTDAI.ModelName = ModelName.AST工位1分割模型;
                         break;

@@ -155,15 +155,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     case "DetectItem.BiteGlueLength":
                         extractValueFunc = r =>
                         {
-                            if (r.ClassId == 1)
+                            // 咬胶长度由后铆脚右边缘与后铆脚露线芯左边缘之间的水平距离计算。
+                            // 类别4作为依赖框保存，类别2作为每一项咬胶测量的基准框。
+                            if (r.ClassId == 4)
                             {
                                 valuePairs.Add((r.ClassId, r.Box));
                             }
-                            else if (r.ClassId == 4)
-                            {
-                                valuePairs.Add((r.ClassId, r.Box));
-                            }
-                            return r.ClassId == 3 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
+                            return r.ClassId == 2 ? "0" : null;
                         };
 
                         break;
@@ -316,29 +314,20 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                         if (itemName == "DetectItem.BiteGlueLength")
                         {
-                            bool exists = valuePairs.Any(v => v.classId == 1) && valuePairs.Any(v => v.classId == 4);
-                            if (exists)
+                            // 多组端子时按水平方向最近的后铆脚配对，避免使用其它端子的依赖框。
+                            Rect? behindFoot = valuePairs
+                                .Where(v => v.classId == 4)
+                                .Select(v => (Rect?)v.value)
+                                .OrderBy(v => Math.Abs(v.Value.Right - result.Box.Left))
+                                .FirstOrDefault();
+                            if (behindFoot.HasValue)
                             {
-                                int frontFootLeft = valuePairs.Where(v => v.classId == 1).Select(v => v.value).FirstOrDefault().Left;
-                                int behindFootRight = valuePairs.Where(v => v.classId == 4).Select(v => v.value).FirstOrDefault().Right;
-
-                                int sum = frontFootLeft - behindFootRight;
-
-                                if (sum == 0)
-                                {
-                                    // 依赖框重叠导致比例无效时，仅将当前检测项判为NG，避免整段AI解析提前结束。
-                                    allOk = false;
-                                    value = 0;
-                                    rawValue = "0";
-                                }
-                                else
-                                {
-                                    value = (float)Math.Abs((result.Box.Width / (sum * 1.0) * 100));
-                                }
+                                value = Math.Abs(behindFoot.Value.Right - result.Box.Left);
+                                rawValue = value.ToString("F2");
                             }
                             else
                             {
-                                // 咬胶长度需要前后端子脚框共同参与计算，缺任一依赖框时继续输出文本和已解析矩形。
+                                // 缺少后铆脚依赖框时仅将当前检测项判为NG，继续输出其它检测结果。
                                 allOk = false;
                                 value = 0;
                                 rawValue = "0";

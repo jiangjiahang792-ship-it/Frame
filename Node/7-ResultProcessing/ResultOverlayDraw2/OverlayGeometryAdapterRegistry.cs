@@ -58,6 +58,21 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         public Color? OverrideColor { get; set; }
 
         /// <summary>
+        /// 获取或设置是否把来源元素的OK/NG语义映射到结果绘制节点的统一颜色。
+        /// </summary>
+        public bool UseJudgePalette { get; set; }
+
+        /// <summary>
+        /// 获取或设置来源元素判定为OK时使用的统一颜色。
+        /// </summary>
+        public Color OkColor { get; set; } = Color.Green;
+
+        /// <summary>
+        /// 获取或设置来源元素判定为NG时使用的统一颜色。
+        /// </summary>
+        public Color NgColor { get; set; } = Color.Red;
+
+        /// <summary>
         /// 获取或设置统一绘制线宽。
         /// </summary>
         public float LineWidth { get; set; } = 2F;
@@ -76,7 +91,23 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw2
         {
             if (OverrideColor.HasValue)
                 return OverrideColor.Value;
-            return sourceColor.IsEmpty ? FallbackColor : sourceColor;
+            if (sourceColor.IsEmpty)
+                return FallbackColor;
+            if (UseJudgePalette)
+                return IsNgSourceColor(sourceColor) ? NgColor : OkColor;
+            return sourceColor;
+        }
+
+        /// <summary>
+        /// 根据来源绘制颜色识别NG语义；检测节点约定红色表示NG，其余有效颜色表示OK。
+        /// </summary>
+        /// <param name="sourceColor">来源元素颜色。</param>
+        /// <returns>来源颜色表示NG时返回true。</returns>
+        private static bool IsNgSourceColor(Color sourceColor)
+        {
+            return !sourceColor.IsEmpty &&
+                sourceColor.R > sourceColor.G &&
+                sourceColor.R > sourceColor.B;
         }
 
         /// <summary>

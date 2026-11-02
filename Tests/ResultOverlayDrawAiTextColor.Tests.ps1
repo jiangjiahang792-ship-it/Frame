@@ -26,9 +26,9 @@ if ($appendTextStart -lt 0 -or $autoRoiStart -le $appendTextStart) {
 $appendText = $builder.Substring($appendTextStart, $autoRoiStart - $appendTextStart)
 
 Assert-Contains $appendText "AlgorithmResult sourceAlgorithmResult = TryGetAlgorithmResult(sourceValue);" "Text drawing must detect direct AlgorithmResult subscription."
-Assert-Contains $appendText "AppendAlgorithmResultTexts(displayResult, sourceAlgorithmResult, item);" "AI result text drawing must preserve per-line ColorText colors."
+Assert-Contains $appendText "AppendAlgorithmResultTexts(displayResult, sourceAlgorithmResult, item, param.OkColor, param.NgColor);" "AI result text drawing must use the overlay OK/NG palette."
 Assert-Contains $appendText "return;" "AI result text drawing must not fall through to the unified source OK/NG color path."
-Assert-Contains $builder "new ColorText(displayText, textInfo.Color)" "AI result text copy must keep original ColorText color."
-Assert-Contains $builder "result.IsOk ? item.OkColor : item.NgColor" "DetectResults fallback must color each detection item by its own IsOk value."
+Assert-Contains $builder "IsNgSourceColor(textInfo.Color) ? ngColor : okColor" "AI result text must map source judgment semantics to overlay colors."
+Assert-Contains $builder "result.IsOk ? okColor : ngColor" "DetectResults fallback must use overlay colors by each detection item's IsOk value."
 
 Write-Host "ResultOverlayDraw AI text color checks passed."

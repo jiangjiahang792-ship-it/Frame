@@ -96,6 +96,16 @@ internal static class ASTStation1SegTests
             result.AlgorithmResult.DetectResults["DetectItem.FlyingWire"][0].Value == "0" &&
             result.AlgorithmResult.Rects.All(r => r.RotatedRect.center.y < belowCopper.MaskGeometry.Bounds.Top),
             "铜环底边以下的飞丝没有被筛除或仍被绘制。");
+        var copperWithTrailingNoise = Segment(2, 80, 100);
+        copperWithTrailingNoise.MaskGeometry.Bounds = new Rect(
+            copperWithTrailingNoise.MaskGeometry.Bounds.X,
+            copperWithTrailingNoise.MaskGeometry.Bounds.Y,
+            copperWithTrailingNoise.MaskGeometry.Bounds.Width,
+            100);
+        result = Parse(p, new List<SegResult> { copperWithTrailingNoise, belowCopper });
+        Check(result.AlgorithmResult.DetectResults["DetectItem.FlyingWire"][0].IsOk &&
+            result.AlgorithmResult.DetectResults["DetectItem.FlyingWire"][0].Value == "0",
+            "铜环掩膜拖尾把有效底边拉低后，底部飞丝仍被误报。");
         var crossingCopperBottom = Segment(4, 95, 110);
         result = Parse(p, new List<SegResult> { Segment(2, 80, 100), crossingCopperBottom });
         Check(!result.IsOk && result.AlgorithmResult.DetectResults["DetectItem.FlyingWire"][0].Value == "1",

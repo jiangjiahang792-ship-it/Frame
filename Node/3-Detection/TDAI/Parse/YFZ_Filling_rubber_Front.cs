@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Text;
@@ -31,11 +32,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         /// <param name="results"></param>
         /// <param name="resultCount"></param>
         /// <param name="nodeResult"></param>
-        public static void Parse(List<DetResult> results, int resultCount, NodeParamTDAI param, ref NodeResultTDAI nodeResult)
+        public static void Parse(List<DetResult> results, int resultCount, NodeParamTDAI param, Process process, ref NodeResultTDAI nodeResult)
         {
             // 当前使用的检测项配置
             var deteItems = Solution.Instance.DetectItemDic[param.CurDetectItemName];
-            ParseCommon.NormalizeDetectItems(deteItems);
 
             // 用来保存检测结果的检测项OK/NG、带颜色的框、带颜色的文本
             var detectResults = new Dictionary<string, List<SingleDetectResult>>();
@@ -51,7 +51,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
             foreach (var item in deteItems)
             {
-                string itemName = item.Name;
+                // 配置加载后保存的是内部语言键，解析规则使用中文配置名称匹配。
+                string itemName = DetectItemLanguage.GetConfigName(item.Name);
                 // 检测项没启用就不用处理
                 if (!item.Enable) continue;
 
@@ -63,22 +64,25 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                 switch (itemName)
                 {
-                    case "DetectItem.Positioning":
+                    case "定位":
                         extractValueFunc = r => r.ClassId == 0 ? "1": null;
                         break;
-                    case "DetectItem.TerminalCount":
+                    case "定位面积":
+                        extractValueFunc = r => r.ClassId == 0 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
+                        break;
+                    case "端子数量":
                         extractValueFunc = r => r.ClassId == 1 ? "1" : null;
                         break;
-                    case "DetectItem.Spacing":
+                    case "间距":
                         extractValueFunc = r => r.ClassId == 1 ? "1" : null;
                         break;
-                    case "DetectItem.WireBent":
+                    case "线弯曲":
                         extractValueFunc = r => r.ClassId == 2 ?"1" : null;
                         break;
-                    case "DetectItem.WireInSlot":
+                    case "线在槽":
                         extractValueFunc = r => r.ClassId == 3 ? "1" : null;
                         break;
-                    case "DetectItem.WireOutOfSlot":
+                    case "线不在槽":
                         extractValueFunc = r => r.ClassId == 4 ? "1" : null;
                         break;        
                     default:
@@ -125,8 +129,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                     List<string> ngCountItems = new List<string>()
                     {
-                        "DetectItem.WireOutOfSlot",
-                        "DetectItem.WireBent"
+                        "线不在槽",
+                        "线弯曲"
 
                     };
 
@@ -140,11 +144,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         isOk = minOk && maxOk;
 
                         // 规则覆盖：当存在“线不在槽”(class_id=5)时，“线在槽”(class_id=4)的框必须为绿色
-                        if (itemName == "DetectItem.WireInSlot" && hasClass4)
+                        if (itemName == "线在槽" && hasClass4)
                             isOk = true;
 
                         // 规则覆盖：当“线不在槽”数量>0时，其框必须为红色
-                        if (itemName == "DetectItem.WireOutOfSlot" && count > 0)
+                        if (itemName == "线不在槽" && count > 0)
                             isOk = false;
                     }
                     else
@@ -187,13 +191,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         foreach (var aiRes in matchedResults)
                         {
                             // “线在槽”在存在 class_id=5 时绿框
-                            if (itemName == "DetectItem.WireInSlot" && results != null && results.Any(r => r.ClassId == 4))
+                            if (itemName == "线在槽" && results != null && results.Any(r => r.ClassId == 4))
                             {
                                 ParseCommon.AddRect(addedRectKeys, aiRes.Box, true, ref nodeResult);
                                 continue;
                             }
                             // “线不在槽”只要 count>0 红框
-                            if (itemName == "DetectItem.WireOutOfSlot" && count > 0)
+                            if (itemName == "线不在槽" && count > 0)
                             {
                                 ParseCommon.AddRect(addedRectKeys, aiRes.Box, false, ref nodeResult);
                                 continue;
@@ -209,10 +213,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     #region 添加文本信息
 
                     var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
+                    if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
                     {
                         texts.Add(new ColorText(
-                            $"{ParseCommon.GetDisplayName(itemName)}: {((param.IsAutoStudy ? true : isOk) ? "OK" : "NG")}",
+                            $"{itemName}: {((param.IsAutoStudy ? true : isOk) ? "OK" : "NG")}",
                             (param.IsAutoStudy ? true : isOk) ? Color.Green : Color.Red
                         ));
                     }
@@ -229,7 +233,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     bool allOk = true;
                     var valueStr = "";
 
-                    if (itemName == "DetectItem.Spacing")
+                    if (itemName == "间距")
                     {
                         shrapnelRes = matchedResults;
                         continue;
@@ -291,7 +295,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                             rawValue = value.ToString("F2"); // 保留两位小数
                         }
 
-                        if (itemName == "DetectItem.BiteGlueRatio")
+                        if (itemName == "咬胶占比")
                         {
                             rubber_left = result.Box.Left;
                             rubber_right = result.Box.Right;
@@ -299,7 +303,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                             continue;
                         }
                         // 保存“咬胶占比”所需的数据
-                        if (itemName == "DetectItem.BackRivetCoreLength")
+                        if (itemName == "后铆脚露线芯长度")
                             line_right = result.Box.Right;
 
                         
@@ -337,14 +341,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     }
 
                     // 不是“咬胶占比”时
-                    if (itemName != "DetectItem.BiteGlueRatio")
+                    if (itemName != "咬胶占比")
                     {
                         // 遍历完成后统一添加文本信息
                         var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
+                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
                         {
                             texts.Add(new ColorText(
-                                $"{ParseCommon.GetDisplayName(itemName)}: {((param.IsAutoStudy ? true : allOk) ? "OK" : "NG")}",
+                                $"{itemName}: {((param.IsAutoStudy ? true : allOk) ? "OK" : "NG")}",
                                 (param.IsAutoStudy ? true : allOk) ? Color.Green : Color.Red
                             ));
                         }
@@ -369,7 +373,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
 
                     //对于“存在”即NG的检测项要这样设置
-                    if (itemName == "DetectItem.WireOutOfSlot"|| itemName == "DetectItem.WireBent")
+                    if (itemName == "线不在槽"|| itemName == "线弯曲")
                     {
                         defaultValue = "0";
                         isSpecialCaseOk = true;
@@ -388,10 +392,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                         // 添加文本
                         var isEnable = ParseCommon.GetItemEnableStatus(deteItems, itemName);
-                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName(itemName)}:")))
+                        if (isEnable && !texts.Any(t => t.Text.StartsWith($"{itemName}:")))
                         {
                             texts.Add(new ColorText(
-                                $"{ParseCommon.GetDisplayName(itemName)}: {(isSpecialCaseOk ? "OK" : "NG")}",
+                                $"{itemName}: {(isSpecialCaseOk ? "OK" : "NG")}",
                                 isSpecialCaseOk ? Color.Green : Color.Red
                             ));
                         }
@@ -414,7 +418,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             #region 单独处理“咬胶占比”结果
 
 
-            //string name = "DetectItem.BiteGlueRatio";
+            //string name = "咬胶占比";
             //var resultList = new List<SingleDetectResult>();
             //var res = new SingleDetectResult();
             //res.Name = name;
@@ -454,8 +458,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
             var resultList = new List<SingleDetectResult>();
             string valueRes = string.Empty;
-            var enable = ParseCommon.GetItemEnableStatus(deteItems, "DetectItem.Spacing");
-            var itemInfo = deteItems.Find(i => i.Name == "DetectItem.Spacing");
+            var enable = ParseCommon.GetItemEnableStatus(deteItems, "间距");
+            string spacingKey = DetectItemLanguage.NormalizeName("间距");
+            var itemInfo = deteItems.Find(i => i.Name == spacingKey);
 
             if (enable)
             {
@@ -464,19 +469,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     float.TryParse(itemInfo.MinValue, out float minI);
                     float.TryParse(itemInfo.MaxValue, out float maxI);
 
-                    // 分别取 class 0 与 class 1，按 X 从左到右成对
-                    var class0ListAll = results?.Where(r => r.ClassId == 0).OrderBy(r => r.Box.X).ToList() ?? new List<DetResult>();
+                    // 取 class 1，按 X 从左到右计算每个框上边到图片顶边（Y=0）的垂直距离
                     var class1ListAll = results?.Where(r => r.ClassId == 1).OrderBy(r => r.Box.X).ToList() ?? new List<DetResult>();
-                    int pairCount = Math.Min(class0ListAll.Count, class1ListAll.Count);
 
                     bool allOk = true;
-                    for (int i = 0; i < pairCount; i++)
+                    foreach (var class1Result in class1ListAll)
                     {
-                        var b0 = class0ListAll[i].Box; // 下方：取底边
-                        var b1 = class1ListAll[i].Box; // 上方：取顶边
-                        float y0 = b0.Y + b0.Height;   // class 0 底边 Y
-                        float y1 = b1.Y;               // class 1 顶边 Y
-                        float d = y1 - y0;
+                        var b1 = class1Result.Box;
+                        float d = b1.Top;
                         if (param.NeedConvert) d = d * param.Scale;
 
                         var raw = d.ToString("F2");
@@ -489,37 +489,36 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                         resultList.Add(new SingleDetectResult
                         {
-                            Name = "DetectItem.Spacing",
+                            Name = "间距",
                             Value = raw,
                             IsOk = param.IsAutoStudy ? true : isOk
                         });
 
-                        // 矩形框显示：同时标注上下两个框
-                        ParseCommon.AddRect(addedRectKeys, b0, param.IsAutoStudy ? true : isOk, ref nodeResult);
+                        // 矩形框显示：标注参与间距判断的 class 1 框
                         ParseCommon.AddRect(addedRectKeys, b1, param.IsAutoStudy ? true : isOk, ref nodeResult);
 
                         // 自动学习
                         if (param.IsAutoStudy)
                         {
-                            if (!_autoStudyDatas.ContainsKey("DetectItem.Spacing"))
-                                _autoStudyDatas.Add("DetectItem.Spacing", new List<float>());
-                            _autoStudyDatas["DetectItem.Spacing"].Add(d);
+                            if (!_autoStudyDatas.ContainsKey("间距"))
+                                _autoStudyDatas.Add("间距", new List<float>());
+                            _autoStudyDatas["间距"].Add(d);
                         }
                     }
 
                     // 汇总文本
 
-                    if (enable && !texts.Any(t => t.Text.StartsWith($"{ParseCommon.GetDisplayName("DetectItem.Spacing")}:")))
+                    if (enable && !texts.Any(t => t.Text.StartsWith("间距:")))
                     {
                         texts.Add(new ColorText(
-                            $"{ParseCommon.GetDisplayName("DetectItem.Spacing")}: {(param.IsAutoStudy ? "OK" : (allOk ? "OK" : "NG"))}",
+                            $"间距: {(param.IsAutoStudy ? "OK" : (allOk ? "OK" : "NG"))}",
                             (param.IsAutoStudy ? true : allOk) ? Color.Green : Color.Red
                         ));
                     }
 
                     // 设置当前检测项的值到结果中
-                    ParseCommon.SetDetectItemCurValue(ref param, "DetectItem.Spacing", valueRes.TrimEnd(','));
-                    detectResults["DetectItem.Spacing"] = resultList;
+                    ParseCommon.SetDetectItemCurValue(ref param, "间距", valueRes.TrimEnd(','));
+                    detectResults["间距"] = resultList;
                 }
 
             }
@@ -528,6 +527,31 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
             // 更新 AlgorithmResult
             nodeResult.AlgorithmResult.DetectResults = detectResults;
+            //写入当前结果
+            bool allOk2 = detectResults.Values
+                .SelectMany(list => list)     // 展开所有 List
+                .All(r => r.IsOk);            // 只要有一个 false 就返回 false
+
+
+            if (allOk2)
+            {
+                process.OKNumber++;
+            }
+            else process.NGNumber++;
+            texts.Add(new ColorText(
+            $"当前产品总数量: {process.OKNumber + process.NGNumber}",
+            Color.Green));
+
+            texts.Add(new ColorText(
+                   $"当前良品总数量: {process.OKNumber}",
+                   Color.Green));
+
+            texts.Add(new ColorText(
+            $"当前良品率: {((process.OKNumber * 1.0) / (process.OKNumber + process.NGNumber) * 100).ToString("F2")}",
+            Color.Green));
+            texts.Add(new ColorText(
+            $"当前产品结果: {(allOk2 ? "OK" : "NG")}",
+                   allOk2 ? Color.Green : Color.Red));
             //nodeResult.AlgorithmResult.Rects = rects;
             nodeResult.AlgorithmResult.Texts = texts;
 
@@ -603,9 +627,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         // 添加自动学习数据
                         if (param.IsAutoStudy)
                         {
-                            if (!_autoStudyDatas.ContainsKey("DetectItem.BiteGlueRatio"))
-                                _autoStudyDatas.Add("DetectItem.BiteGlueRatio", new List<float>());
-                            _autoStudyDatas["DetectItem.BiteGlueRatio"].Add(d);
+                            if (!_autoStudyDatas.ContainsKey("咬胶占比"))
+                                _autoStudyDatas.Add("咬胶占比", new List<float>());
+                            _autoStudyDatas["咬胶占比"].Add(d);
                         }
 
                         value += d.ToString("F2") + ",";

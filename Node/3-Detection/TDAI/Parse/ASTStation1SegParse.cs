@@ -67,8 +67,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             SegResult copperRing;
             if (best.TryGetValue(2, out copperRing))
             {
-                // 铜环底边为水平筛选基准；只有完整处于底边以下的飞丝才忽略，跨越底边的飞丝仍报警。
-                int copperBottomLineY = copperRing.MaskGeometry.Bounds.Bottom;
+                // 铜环底边以面积最大的主体轮廓为准，避免零散掩膜像素或细小拖尾把底边错误拉低。
+                // 只有完整处于主体底边以下的飞丝才忽略，跨越底边的飞丝仍报警。
+                int copperBottomLineY = GetDominantContourBottom(copperRing.MaskGeometry);
                 valid = valid.Where(r => r.ClassId != 4 || r.MaskGeometry.Bounds.Top < copperBottomLineY).ToList();
             }
             var colors = valid.Select(r => r.ClassId).Distinct().ToDictionary(id => id, id => Color.Green);
@@ -221,6 +222,39 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 default: return false;
             }
             return true;
+        }
+
+        /// <summary>获取分割目标面积最大主体轮廓的排他底边，忽略与主体断开的掩膜噪点。</summary>
+        /// <param name="geometry">包含原图轮廓和包围范围的分割几何。</param>
+        /// <returns>主体轮廓最大Y的下一行；没有有效轮廓时回退到整体包围范围底边。</returns>
+        private static int GetDominantContourBottom(SegMaskGeometry geometry)
+        {
+            if (geometry == null || geometry.Contours == null || geometry.Contours.Length == 0)
+                return geometry == null ? 0 : geometry.Bounds.Bottom;
+
+            PointF[] dominantContour = geometry.Contours
+                .Where(contour => contour != null && contour.Length > 0)
+                .OrderByDescending(GetContourArea)
+                .FirstOrDefault();
+            return dominantContour == null
+                ? geometry.Bounds.Bottom
+                : (int)Math.Floor(dominantContour.Max(point => point.Y)) + 1;
+        }
+
+        /// <summary>使用鞋带公式计算轮廓面积，供主体轮廓选择使用。</summary>
+        /// <param name="contour">原图坐标轮廓。</param>
+        /// <returns>轮廓绝对面积；点数不足时返回0。</returns>
+        private static double GetContourArea(PointF[] contour)
+        {
+            if (contour == null || contour.Length < 3) return 0D;
+            double twiceArea = 0D;
+            for (int index = 0; index < contour.Length; index++)
+            {
+                PointF current = contour[index];
+                PointF next = contour[(index + 1) % contour.Length];
+                twiceArea += current.X * next.Y - next.X * current.Y;
+            }
+            return Math.Abs(twiceArea) * 0.5D;
         }
     }
 }

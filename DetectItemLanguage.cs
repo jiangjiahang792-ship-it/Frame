@@ -47,6 +47,7 @@ namespace TDJS_Vision
             { "A_C插尾到位", "DetectItem.ACTailInPlace" },
             { "A_C插头到位", "DetectItem.ACPlugInPlace" },
             { "定位", "DetectItem.Positioning" },
+            { "定位面积", "DetectItem.PositioningArea" },
             { "前铆脚露线芯长度", "DetectItem.FrontRivetCoreLength" },
             { "前铆脚露线芯高度", "DetectItem.FrontRivetCoreHeight" },
             { "前铆脚面积", "DetectItem.FrontRivetArea" },

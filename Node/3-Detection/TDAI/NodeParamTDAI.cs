@@ -300,5 +300,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         勒刚端子侧面15类OBB模型,
         /// <summary>AST高曝光单类目标检测模型，类别0为出线芯out_line。</summary>
         AST高曝光线芯模型,
+        /// <summary>骏伟塑料七类目标检测模型，视角按面积、缺陷按数量统计。</summary>
+        骏伟塑料模型,
+        /// <summary>亿方舟注塑前目标检测模型。</summary>
+        亿方舟注塑前模型,
+        /// <summary>亿方舟注塑后目标检测模型。</summary>
+        亿方舟注塑后模型,
+        /// <summary>亿方舟九类多端子目标检测模型。</summary>
+        亿方舟多端子九类模型,
     }
 }

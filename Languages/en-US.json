@@ -105,6 +105,7 @@
   "DetectItem.ACTailInPlace": "A_C tail in place",
   "DetectItem.ACPlugInPlace": "A_C plug in place",
   "DetectItem.Positioning": "Positioning",
+  "DetectItem.PositioningArea": "Positioning area",
   "DetectItem.FrontRivetCoreLength": "Front rivet exposed core length",
   "DetectItem.FrontRivetCoreHeight": "Front rivet exposed core height",
   "DetectItem.FrontRivetArea": "Front rivet area",

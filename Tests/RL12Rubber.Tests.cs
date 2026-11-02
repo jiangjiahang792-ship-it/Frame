@@ -219,6 +219,32 @@ internal static class RL12RubberTests
         var legacy=Parse(new List<DetectItemInfo>{Item("前铆脚露线芯高度","6","6"),Item("正插防水栓高度","24","24")},boxes);
         Check(legacy.IsOk,"旧高度名称兼容失败。");
     }
+
+    /// <summary>验证咬胶长度取后铆脚右边缘到后铆脚露线芯左边缘的水平距离。</summary>
+    private static void VerifyBiteGlueLength()
+    {
+        var items = new List<DetectItemInfo> { Item("咬胶长度", "25", "25") };
+        var boxes = new List<DetResult>
+        {
+            Box(4, 40, 18, 100),
+            Box(2, 30, 8, 165),
+            Box(3, 999, 999, 500)
+        };
+
+        var result = Parse(items, boxes);
+        Check(result.IsOk && float.Parse(Value(result, "咬胶长度").Value) == 25,
+            "咬胶长度未按后铆脚右边缘到后铆脚露线芯左边缘计算。");
+
+        items[0].MinValue = items[0].MaxValue = "12.5";
+        result = Parse(items, boxes, true);
+        Check(result.IsOk && float.Parse(Value(result, "咬胶长度").Value) == 12.5f,
+            "咬胶长度物理比例换算错误。");
+
+        result = Parse(items, new List<DetResult> { Box(2, 30, 8, 165) }, true);
+        Check(!result.IsOk && float.Parse(Value(result, "咬胶长度").Value) == 0,
+            "缺少后铆脚依赖框时咬胶长度未输出0并判NG。");
+    }
+
     /// <summary>执行全部行为验证并返回可供脚本判断的退出码。</summary>
     [STAThread]
     private static int Main()
@@ -226,7 +252,7 @@ internal static class RL12RubberTests
         try
         {
             LanguageManager.SetLanguage("zh-CN", false);
-            VerifyTerminalDimensions(); VerifyDimensions(); VerifyCounts(); VerifyComponentCounts(); VerifyConfigNames(); VerifyStudy(); VerifyMissingMeasurements();
+            VerifyTerminalDimensions(); VerifyBiteGlueLength(); VerifyDimensions(); VerifyCounts(); VerifyComponentCounts(); VerifyConfigNames(); VerifyStudy(); VerifyMissingMeasurements();
             Console.WriteLine("RL12胶皮、飞胶与部件数量验证通过，共" + _checks + "项断言。");
             return 0;
         }

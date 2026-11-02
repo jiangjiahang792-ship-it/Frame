@@ -105,6 +105,7 @@
   "DetectItem.ACTailInPlace": "A_C末端コネクターの挿入完了",
   "DetectItem.ACPlugInPlace": "A_Cプラグの挿入完了",
   "DetectItem.Positioning": "位置決め",
+  "DetectItem.PositioningArea": "位置決め面積",
   "DetectItem.FrontRivetCoreLength": "前側圧着部の芯線露出長さ",
   "DetectItem.FrontRivetCoreHeight": "前側圧着部の芯線露出高さ",
   "DetectItem.FrontRivetArea": "前側圧着部の面積",
