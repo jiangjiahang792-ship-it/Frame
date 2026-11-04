@@ -3,9 +3,11 @@ using Logger;
 using Sunny.UI;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Device.Camera;
+using TDJS_Vision.Device.Camera.LineScan;
 using TDJS_Vision.Device._3D;
 using TDJS_Vision.Forms.YTMessageBox;
 
@@ -22,6 +24,9 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// 添加 3D 相机设备事件。
         /// </summary>
         public static event EventHandler<Camera3DParam> AddCamera3DDevEvent;
+
+        /// <summary>添加海康线扫相机事件。</summary>
+        public static event EventHandler<LineScanCameraParam> AddLineScanCameraDevEvent;
 
         /// <summary>
         /// 海康名称计数
@@ -47,6 +52,12 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// 海康 3D 名称计数。
         /// </summary>
         private static int _Hik3DCount = 1;
+
+        /// <summary>海康线扫相机名称计数。</summary>
+        private static int _HikLineScanCount = 1;
+
+        /// <summary>在线海康线扫相机列表。</summary>
+        private List<HikNativeDeviceInfo> _lineScanInfoList = HikLineScanDeviceDiscovery.FindDevices();
 
         /// <summary>
         /// 相机信息列表
@@ -145,6 +156,8 @@ namespace TDJS_Vision.Forms.CameraAdd
 
             if (addedBrands.Add("海康3D"))
                 comboBoxCameraBrand.Items.Add("海康3D");
+            if (addedBrands.Add("海康线扫"))
+                comboBoxCameraBrand.Items.Add("海康线扫");
 
             if (comboBoxCameraBrand.Items.Count > 0)
                 comboBoxCameraBrand.SelectedIndex = 0;
@@ -158,6 +171,10 @@ namespace TDJS_Vision.Forms.CameraAdd
             comboBoxCameraList.Items.Clear();
             switch (brand)
             {
+                case "海康线扫":
+                    foreach (HikNativeDeviceInfo info in _lineScanInfoList)
+                        comboBoxCameraList.Items.Add(CameraHik.GetDevNameByDevInfo(info));
+                    break;
                 case "海康3D":
                     foreach (var info in _camera3DInfoList)
                     {
@@ -167,7 +184,8 @@ namespace TDJS_Vision.Forms.CameraAdd
                 case "海康":
                     foreach (var info in infoList)
                     {
-                        if (info.ManufacturerName == "Hikrobot" || info.ManufacturerName == "GEV")
+                        if ((info.ManufacturerName == "Hikrobot" || info.ManufacturerName == "GEV") &&
+                            !_lineScanInfoList.Any(lineScan => string.Equals(lineScan.SerialNumber, info.SerialNumber, StringComparison.OrdinalIgnoreCase)))
                         {
                             comboBoxCameraList.Items.Add(CameraHik.GetDevNameByDevInfo(info));
                         }
@@ -232,6 +250,7 @@ namespace TDJS_Vision.Forms.CameraAdd
             foreach (var info in infoList)
                 _mapCamera[CameraHik.GetDevNameByDevInfo(info)] = info;
             _camera3DInfoList = CameraHik3D.FindCamera();
+            _lineScanInfoList = HikLineScanDeviceDiscovery.FindDevices();
             RefreshCamera3DMap();
             // 初始化相机品牌和相机设备下拉列表
             InitCameraBrandList();
@@ -248,6 +267,8 @@ namespace TDJS_Vision.Forms.CameraAdd
             InitCameraList(comboBoxCameraBrand.Text);
             textBoxUserName.Text = comboBoxCameraBrand.Text == "海康3D"
                 ? $"{comboBoxCameraBrand.Text}相机{_Hik3DCount}"
+                : comboBoxCameraBrand.Text == "海康线扫"
+                ? $"海康线扫相机{_HikLineScanCount}"
                 : $"{comboBoxCameraBrand.Text}相机{_HikCount}";
         }
 
@@ -303,6 +324,19 @@ namespace TDJS_Vision.Forms.CameraAdd
                     _Hik3DCount++;
                     AddCamera3DDevEvent?.Invoke(this, camera3DParam);
                     this.Hide();
+                    return;
+                }
+
+                if (comboBoxCameraBrand.Text == "海康线扫")
+                {
+                    HikNativeDeviceInfo lineScanInfo = _lineScanInfoList.First(item => CameraHik.GetDevNameByDevInfo(item) == comboBoxCameraList.Text);
+                    AddLineScanCameraDevEvent?.Invoke(this, new LineScanCameraParam
+                    {
+                        DevInfo = lineScanInfo,
+                        UserDefinedName = textBoxUserName.Text
+                    });
+                    _HikLineScanCount++;
+                    Hide();
                     return;
                 }
 
@@ -382,6 +416,16 @@ namespace TDJS_Vision.Forms.CameraAdd
         /// <summary>
         /// 用户自定义设备名。
         /// </summary>
+        public string UserDefinedName;
+    }
+
+    /// <summary>海康线扫相机添加参数。</summary>
+    public struct LineScanCameraParam
+    {
+        /// <summary>海康原生设备信息。</summary>
+        public HikNativeDeviceInfo DevInfo;
+
+        /// <summary>框架内用户名称。</summary>
         public string UserDefinedName;
     }
 }

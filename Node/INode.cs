@@ -333,6 +333,10 @@ namespace TDJS_Vision.Node
         /// </summary>
         ImageSource,
         /// <summary>
+        /// 线扫图像源
+        /// </summary>
+        LineScanImageSource,
+        /// <summary>
         /// 3D图像源
         /// </summary>
         ImageSource3D,

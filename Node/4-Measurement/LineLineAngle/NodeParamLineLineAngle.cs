@@ -2,6 +2,20 @@ using TDJS_Vision.Node._4_Measurement.Common;
 
 namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
 {
+    /// <summary>AI 检测框可转换为直线的边。</summary>
+    public enum AiDetectionBoxEdge
+    {
+        /// <summary>检测框上边。</summary>
+        Top = 0,
+        /// <summary>检测框下边。</summary>
+        Bottom = 1,
+        /// <summary>检测框左边。</summary>
+        Left = 2,
+        /// <summary>检测框右边。</summary>
+        Right = 3
+    }
+
+    /// <summary>线线夹角节点的持久化参数。</summary>
     public class NodeParamLineLineAngle : INodeParam
     {
         public string ImageText1 { get; set; }
@@ -9,8 +23,12 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         public MeasurementDataSourceMode SourceMode { get; set; } = MeasurementDataSourceMode.Draw;
         public string Line1Text1 { get; set; }
         public string Line1Text2 { get; set; }
+        /// <summary>直线1订阅 AI 检测框时使用的框边。</summary>
+        public AiDetectionBoxEdge Line1BoxEdge { get; set; } = AiDetectionBoxEdge.Top;
         public string Line2Text1 { get; set; }
         public string Line2Text2 { get; set; }
+        /// <summary>直线2订阅 AI 检测框时使用的框边。</summary>
+        public AiDetectionBoxEdge Line2BoxEdge { get; set; } = AiDetectionBoxEdge.Top;
         public bool UsePositionCorrection { get; set; }
         public string CorrectionText1 { get; set; }
         public string CorrectionText2 { get; set; }

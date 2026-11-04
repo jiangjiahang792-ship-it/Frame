@@ -322,6 +322,10 @@ namespace TDJS_Vision.Device.Camera
         LINE2,
         LINE3,
         LINE4,
+        /// <summary>线扫相机编码器模块输出，对应EncoderModuleOut。</summary>
+        EncoderModuleOut,
+        /// <summary>线扫相机分频器输出，对应FrequencyConverter。</summary>
+        FrequencyConverter,
     }
 
     /// <summary>

@@ -11,6 +11,7 @@ using TDJS_Vision.Forms.ModbusAdd;
 using TDJS_Vision.Forms.PLCAdd;
 using TDJS_Vision.Device;
 using TDJS_Vision.Device.Camera;
+using TDJS_Vision.Device.Camera.LineScan;
 using TDJS_Vision.Device._3D;
 using TDJS_Vision.Device.Light;
 using TDJS_Vision.Device.Modbus;
@@ -184,6 +185,9 @@ namespace TDJS_Vision
         /// 相机设备
         /// </summary>
         public List<ICamera> CameraDevices => AllDevices.OfType<ICamera>().ToList();
+
+        /// <summary>线扫相机设备。</summary>
+        public List<ILineScanCamera> LineScanCameraDevices => AllDevices.OfType<ILineScanCamera>().ToList();
 
         /// <summary>
         /// 流程运行前的相机触发配置校验器，允许后续替换为自定义实现。

@@ -27,8 +27,10 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             this.groupBoxSubscribed = new System.Windows.Forms.GroupBox();
             this.labelLine1Source = new System.Windows.Forms.Label();
             this.nodeSubscriptionLine1 = new TDJS_Vision.Node.NodeSubscription();
+            this.comboBoxLine1BoxEdge = new System.Windows.Forms.ComboBox();
             this.labelLine2Source = new System.Windows.Forms.Label();
             this.nodeSubscriptionLine2 = new TDJS_Vision.Node.NodeSubscription();
+            this.comboBoxLine2BoxEdge = new System.Windows.Forms.ComboBox();
             this.groupBoxPositionCorrection = new System.Windows.Forms.GroupBox();
             this.checkBoxUsePositionCorrection = new System.Windows.Forms.CheckBox();
             this.nodeSubscriptionPositionCorrection = new TDJS_Vision.Node.NodeSubscription();
@@ -179,8 +181,10 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             // 
             this.groupBoxSubscribed.Controls.Add(this.labelLine1Source);
             this.groupBoxSubscribed.Controls.Add(this.nodeSubscriptionLine1);
+            this.groupBoxSubscribed.Controls.Add(this.comboBoxLine1BoxEdge);
             this.groupBoxSubscribed.Controls.Add(this.labelLine2Source);
             this.groupBoxSubscribed.Controls.Add(this.nodeSubscriptionLine2);
+            this.groupBoxSubscribed.Controls.Add(this.comboBoxLine2BoxEdge);
             this.groupBoxSubscribed.Location = new System.Drawing.Point(11, 227);
             this.groupBoxSubscribed.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxSubscribed.Name = "groupBoxSubscribed";
@@ -205,9 +209,18 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             this.nodeSubscriptionLine1.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
             this.nodeSubscriptionLine1.MinimumSize = new System.Drawing.Size(292, 72);
             this.nodeSubscriptionLine1.Name = "nodeSubscriptionLine1";
-            this.nodeSubscriptionLine1.Size = new System.Drawing.Size(324, 72);
+            this.nodeSubscriptionLine1.Size = new System.Drawing.Size(235, 72);
             this.nodeSubscriptionLine1.TabIndex = 1;
-            // 
+            //
+            // comboBoxLine1BoxEdge
+            //
+            this.comboBoxLine1BoxEdge.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxLine1BoxEdge.FormattingEnabled = true;
+            this.comboBoxLine1BoxEdge.Location = new System.Drawing.Point(315, 48);
+            this.comboBoxLine1BoxEdge.Name = "comboBoxLine1BoxEdge";
+            this.comboBoxLine1BoxEdge.Size = new System.Drawing.Size(83, 26);
+            this.comboBoxLine1BoxEdge.TabIndex = 2;
+            //
             // labelLine2Source
             // 
             this.labelLine2Source.AutoSize = true;
@@ -223,9 +236,18 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             this.nodeSubscriptionLine2.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
             this.nodeSubscriptionLine2.MinimumSize = new System.Drawing.Size(292, 72);
             this.nodeSubscriptionLine2.Name = "nodeSubscriptionLine2";
-            this.nodeSubscriptionLine2.Size = new System.Drawing.Size(324, 72);
-            this.nodeSubscriptionLine2.TabIndex = 3;
-            // 
+            this.nodeSubscriptionLine2.Size = new System.Drawing.Size(235, 72);
+            this.nodeSubscriptionLine2.TabIndex = 4;
+            //
+            // comboBoxLine2BoxEdge
+            //
+            this.comboBoxLine2BoxEdge.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxLine2BoxEdge.FormattingEnabled = true;
+            this.comboBoxLine2BoxEdge.Location = new System.Drawing.Point(315, 121);
+            this.comboBoxLine2BoxEdge.Name = "comboBoxLine2BoxEdge";
+            this.comboBoxLine2BoxEdge.Size = new System.Drawing.Size(83, 26);
+            this.comboBoxLine2BoxEdge.TabIndex = 5;
+            //
             // groupBoxPositionCorrection
             // 
             this.groupBoxPositionCorrection.Controls.Add(this.checkBoxUsePositionCorrection);
@@ -806,8 +828,10 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         private System.Windows.Forms.GroupBox groupBoxSubscribed;
         private System.Windows.Forms.Label labelLine1Source;
         private TDJS_Vision.Node.NodeSubscription nodeSubscriptionLine1;
+        private System.Windows.Forms.ComboBox comboBoxLine1BoxEdge;
         private System.Windows.Forms.Label labelLine2Source;
         private TDJS_Vision.Node.NodeSubscription nodeSubscriptionLine2;
+        private System.Windows.Forms.ComboBox comboBoxLine2BoxEdge;
         private System.Windows.Forms.GroupBox groupBoxPositionCorrection;
         private System.Windows.Forms.CheckBox checkBoxUsePositionCorrection;
         private TDJS_Vision.Node.NodeSubscription nodeSubscriptionPositionCorrection;

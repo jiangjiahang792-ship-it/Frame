@@ -827,6 +827,7 @@ namespace TDJS_Vision.Forms.ProcessNew
             switch (nodeType)
             {
                 case NodeType.ImageSource:
+                case NodeType.LineScanImageSource:
                 case NodeType.CameraExposureGain:
                 case NodeType.ImageSource3D:
                 case NodeType.ImageShow:
@@ -924,6 +925,8 @@ namespace TDJS_Vision.Forms.ProcessNew
             {
                 case NodeType.ImageSource:
                     return "IN";
+                case NodeType.LineScanImageSource:
+                    return "LS";
                 case NodeType.CameraExposureGain:
                     return "EG";
                 case NodeType.ImageSource3D:
@@ -1098,7 +1101,8 @@ namespace TDJS_Vision.Forms.ProcessNew
         /// </summary>
         private void Init()
         {
-            string filePath = "ToolTreeView.xml";
+            // 工具树必须与当前运行程序使用同一版本，禁止因启动工作目录不同误读其他工作区的XML。
+            string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ToolTreeView.xml");
             if (File.Exists(filePath))
             {
                 try

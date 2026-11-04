@@ -635,6 +635,7 @@
       <DependentUpon>NodeParamFormTerminalAngle.cs</DependentUpon>
     </Compile>
     <Compile Include="Node\4-Measurement\LineLineAngle\NodeParamLineLineAngle.cs" />
+    <Compile Include="Node\4-Measurement\LineLineAngle\AiDetectionBoxEdgeConverter.cs" />
     <Compile Include="Node\4-Measurement\LineLineAngle\NodeParamFormLineLineAngle.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -1294,6 +1295,33 @@
       <DependentUpon>SinglePLC.cs</DependentUpon>
     </Compile>
     <Compile Include="Device\Camera\CameraHik.cs" />
+    <Compile Include="Device\Camera\LineScan\CameraHikLineScan.cs" />
+    <Compile Include="Device\Camera\LineScan\HikLineScanDeviceDiscovery.cs" />
+    <Compile Include="Device\Camera\LineScan\ILineScanCamera.cs" />
+    <Compile Include="Device\Camera\LineScan\LineScanCameraSettings.cs" />
+    <Compile Include="Forms\CameraAdd\SingleLineScanCamera.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Forms\CameraAdd\SingleLineScanCamera.Designer.cs">
+      <DependentUpon>SingleLineScanCamera.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\CameraAdd\LineScanCameraLiveDebugControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Forms\CameraAdd\LineScanCameraLiveDebugControl.Designer.cs">
+      <DependentUpon>LineScanCameraLiveDebugControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Node\1-Acquisition\LineScanImageSource\NodeLineScanImageSource.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Node\1-Acquisition\LineScanImageSource\NodeParamLineScanImageSource.cs" />
+    <Compile Include="Node\1-Acquisition\LineScanImageSource\NodeResultLineScanImageSource.cs" />
+    <Compile Include="Node\1-Acquisition\LineScanImageSource\ParamFormLineScanImageSource.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Node\1-Acquisition\LineScanImageSource\ParamFormLineScanImageSource.Designer.cs">
+      <DependentUpon>ParamFormLineScanImageSource.cs</DependentUpon>
+    </Compile>
     <Compile Include="Device\Camera\HikNativeCameraModels.cs" />
     <Compile Include="Device\Camera\ICamera.cs" />
     <Compile Include="Device\Camera\Vendor\MVCamera.cs" />

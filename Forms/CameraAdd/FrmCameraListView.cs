@@ -1,5 +1,6 @@
 ﻿using TDJS_Vision.Device.Camera;
 using System;
+using TDJS_Vision.Device.Camera.LineScan;
 using TDJS_Vision.Device._3D;
 using System.Windows.Forms;
 using Logger;
@@ -50,10 +51,13 @@ namespace TDJS_Vision.Forms.CameraAdd
             InitializeComponent();
             FrmCameraInfo.AddCameraDevEvent += FrmCameraInfo_AddCameraDevEvent;
             FrmCameraInfo.AddCamera3DDevEvent += FrmCameraInfo_AddCamera3DDevEvent;
+            FrmCameraInfo.AddLineScanCameraDevEvent += FrmCameraInfo_AddLineScanCameraDevEvent;
             SingleCamera.SelectedChange += SingleCamera_SingleCameraSelectedChanged;
             SingleCamera.SingleCameraRemoveEvent += SingleCamera_SingleCameraRemoveEvent;
             SingleCamera3D.SelectedChange += SingleCamera3D_SelectedChange;
             SingleCamera3D.SingleCamera3DRemoveEvent += SingleCamera3D_SingleCamera3DRemoveEvent;
+            SingleLineScanCamera.SelectedChange += SingleLineScanCamera_SelectedChange;
+            SingleLineScanCamera.RemoveRequested += SingleLineScanCamera_RemoveRequested;
             FrmLightListView.OnLightDeserializationCompletionEvent += Deserialization;
             Shown += FrmCameraListView_Shown;
             this.KeyPreview = true;
@@ -84,7 +88,7 @@ namespace TDJS_Vision.Forms.CameraAdd
                 if (e)
                     LogHelper.AddLog(MsgLevel.Debug, $"================================================= 正在加载【相机设备列表】=================================================", true);
                 var cameras = ConfigHelper.SolConfig.Devices
-                    .Where(dev => dev is I3DCamera || dev is ICamera)
+                    .Where(dev => dev is I3DCamera || dev is ICamera || dev is ILineScanCamera)
                     .ToList();
                 // 先登记完整相机集合，避免前几台恢复取流时按不完整数量独占缓冲预算。
                 foreach (var cameraDevice in cameras)
@@ -106,6 +110,11 @@ namespace TDJS_Vision.Forms.CameraAdd
                         flowLayoutPanel1.Controls.Add(singleCamera3D);
                         if (e)
                             LogHelper.AddLog(MsgLevel.Info, $"3D相机设备【{dev.DevName}】已加载！", true);
+                    }
+                    else if (dev is ILineScanCamera lineScanCamera)
+                    {
+                        flowLayoutPanel1.Controls.Add(new SingleLineScanCamera(lineScanCamera));
+                        if (e) LogHelper.AddLog(MsgLevel.Info, $"线扫相机设备【{dev.DevName}】已加载！", true);
                     }
                     else if (dev is ICamera camera)
                     {
@@ -229,6 +238,28 @@ namespace TDJS_Vision.Forms.CameraAdd
                 LogHelper.AddLog(MsgLevel.Fatal, $"添加3D相机失败:{ex.Message}", true);
                 MessageBoxTD.Show("添加失败！原因：" + ex.Message);
             }
+        }
+
+        /// <summary>把新建线扫相机添加到相机管理列表。</summary>
+        private void FrmCameraInfo_AddLineScanCameraDevEvent(object sender, LineScanCameraParam e)
+        {
+            flowLayoutPanel1.Controls.Add(new SingleLineScanCamera(e));
+        }
+
+        /// <summary>在线扫相机被选中时显示设备基础信息。</summary>
+        private void SingleLineScanCamera_SelectedChange(object sender, SingleLineScanCamera e)
+        {
+            ShowPreviewControl(new LineScanCameraLiveDebugControl(e.Camera));
+        }
+
+        /// <summary>移除并释放线扫相机。</summary>
+        private void SingleLineScanCamera_RemoveRequested(object sender, SingleLineScanCamera e)
+        {
+            e.Camera.Dispose();
+            Solution.Instance.AllDevices.Remove(e.Camera);
+            SingleLineScanCamera.CameraControls.Remove(e);
+            flowLayoutPanel1.Controls.Remove(e);
+            ClearPreviewPanel();
         }
         
         /// <summary>aq

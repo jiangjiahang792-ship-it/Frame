@@ -3,6 +3,7 @@ using System;
 using TDJS_Vision.Node._1_Acquisition.CameraExposureGain;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._1_Acquisition.ImageSource3D;
+using TDJS_Vision.Node._1_Acquisition.LineScanImageSource;
 using TDJS_Vision.Node._1_Acquisition.ImageShow3D;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImagePreprocess;
@@ -165,6 +166,8 @@ namespace TDJS_Vision.Node
                     return new NodeCameraExposureGain(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageSource:
                     return new NodeImageSource(nodeId, nodeName, process, nodeType);
+                case NodeType.LineScanImageSource:
+                    return new NodeLineScanImageSource(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageSource3D:
                     return new NodeImageSource3D(nodeId, nodeName, process, nodeType);
                 case NodeType.ImageSplit:
