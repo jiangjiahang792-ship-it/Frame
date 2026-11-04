@@ -91,6 +91,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// 是否为统计“数量型”检测项
         /// </summary>
         public bool IsCountItem { get; set; }
+        /// <summary>
+        /// 是否在非厂家权限的手动调参界面中隐藏；旧配置缺省为false，保持原有全部显示行为。
+        /// </summary>
+        public bool IsManualTuningHidden { get; set; }
         /// <summary>尺寸换算后叠加的补偿值；旧配置缺省为0，数量项和未检出结果不补偿。</summary>
         public float Compensation { get; set; }
         /// <summary>

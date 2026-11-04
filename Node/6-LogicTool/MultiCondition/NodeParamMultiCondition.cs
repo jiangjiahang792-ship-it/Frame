@@ -48,6 +48,11 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
         /// 是否把当前条件加入运行参数表，便于在单图调试时快速修改上下限。
         /// </summary>
         public bool EnableRunParamAdjust { get; set; }
+
+        /// <summary>
+        /// 是否在非厂家权限的手动调参界面中隐藏；厂家仍可查看并恢复显示。
+        /// </summary>
+        public bool IsManualTuningHidden { get; set; }
     }
 
     public enum MultiConditionMatchMode
@@ -494,7 +499,8 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                         SourceNodeId = original.ID, SourceNodeText = original.ID + "." + original.NodeName,
                         PropertyPath = originalPath, PropertyDisplayName = condition.PropertyDisplayName,
                         Operator = condition.Operator, Value1 = condition.Value1, Value2 = condition.Value2,
-                        ValueTypeName = condition.ValueTypeName, EnableRunParamAdjust = condition.EnableRunParamAdjust
+                        ValueTypeName = condition.ValueTypeName, EnableRunParamAdjust = condition.EnableRunParamAdjust,
+                        IsManualTuningHidden = condition.IsManualTuningHidden
                     };
                     // 子流程拥有自己的运行编号；外层端口快照已确认有效，再检查内部来源。
                     return ReadConditionValue(original, original, originalCondition);

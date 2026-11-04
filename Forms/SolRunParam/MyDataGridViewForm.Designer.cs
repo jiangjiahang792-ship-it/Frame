@@ -79,13 +79,18 @@
             this.compensationColumn.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
             this.compensationColumn.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
             this.countColumn = new System.Windows.Forms.DataGridViewCheckBoxColumn();
+            this.hiddenColumn = new System.Windows.Forms.DataGridViewCheckBoxColumn();
             this.countColumn.Name = "IsCountItem";
             this.countColumn.HeaderText = "数量型";
             this.countColumn.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
             this.countColumn.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
+            this.hiddenColumn.Name = "IsManualTuningHidden";
+            this.hiddenColumn.HeaderText = "是否隐藏";
+            this.hiddenColumn.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
+            this.hiddenColumn.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
             this.nameColumn.ReadOnly = true;
             this.valueColumn.ReadOnly = true;
-            this.dataGridView1.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] { this.enableColumn, this.nameColumn, this.minColumn, this.valueColumn, this.maxColumn, this.compensationColumn, this.countColumn });
+            this.dataGridView1.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] { this.enableColumn, this.nameColumn, this.minColumn, this.valueColumn, this.maxColumn, this.compensationColumn, this.countColumn, this.hiddenColumn });
             this.dataGridView1.ColumnHeadersHeight = 64;
             this.dataGridView1.DefaultCellStyle.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleCenter;
             this.dataGridView1.ColumnHeadersDefaultCellStyle.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleCenter;
@@ -121,5 +126,7 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn compensationColumn;
         /// <summary>数量型列。</summary>
         private System.Windows.Forms.DataGridViewCheckBoxColumn countColumn;
+        /// <summary>非厂家权限隐藏列，仅厂家权限可见和编辑。</summary>
+        private System.Windows.Forms.DataGridViewCheckBoxColumn hiddenColumn;
     }
 }

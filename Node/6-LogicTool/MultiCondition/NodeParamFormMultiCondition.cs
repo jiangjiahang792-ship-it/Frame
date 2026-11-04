@@ -541,6 +541,9 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
             /// </summary>
             public bool EnableRunParamAdjust { get; set; }
 
+            /// <summary>是否在非厂家权限的手动调参界面中隐藏。</summary>
+            public bool IsManualTuningHidden { get; set; }
+
             public string Note { get; set; }
 
             public int SourceNodeId { get; set; }
@@ -564,6 +567,7 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                     Value1 = condition.Value1,
                     Value2 = condition.Value2,
                     EnableRunParamAdjust = condition.EnableRunParamAdjust,
+                    IsManualTuningHidden = condition.IsManualTuningHidden,
                     Note = condition.Note,
                     SourceNodeId = condition.SourceNodeId,
                     PropertyPath = condition.PropertyPath,
@@ -631,7 +635,8 @@ namespace TDJS_Vision.Node._6_LogicTool.MultiCondition
                     Operator = Operator,
                     Value1 = Value1,
                     Value2 = Value2,
-                    EnableRunParamAdjust = EnableRunParamAdjust
+                    EnableRunParamAdjust = EnableRunParamAdjust,
+                    IsManualTuningHidden = IsManualTuningHidden
                 };
             }
         }

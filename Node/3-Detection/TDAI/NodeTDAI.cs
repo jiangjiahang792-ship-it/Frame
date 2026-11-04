@@ -905,6 +905,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 MaxValue = item.MaxValue,
                 Enable = item.Enable,
                 IsCountItem = item.IsCountItem,
+                IsManualTuningHidden = item.IsManualTuningHidden,
                 Compensation = item.Compensation,
                 PlugColor = item.PlugColor?.Clone(),
                 CurValue = item.CurValue

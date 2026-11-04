@@ -11,6 +11,7 @@ using Logger;
 using Sunny.UI;
 using TDJS_Vision.Node;
 using TDJS_Vision.Node._3_Detection.TDAI;
+using TDJS_Vision.Forms.Login;
 
 namespace TDJS_Vision.Forms.SolRunParam
 {
@@ -96,6 +97,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 MaxValue = info.MaxValue,
                 Enable = info.Enable,
                 IsCountItem = info.IsCountItem,
+                IsManualTuningHidden = info.IsManualTuningHidden,
                 Compensation = info.Compensation,
                 PlugColor = info.PlugColor?.Clone(),
                 CurValue = info.CurValue
@@ -134,6 +136,8 @@ namespace TDJS_Vision.Forms.SolRunParam
         /// 数量型列索引。
         /// </summary>
         private const int CountItemColumnIndex = 6;
+        /// <summary>是否对非厂家权限隐藏列索引。</summary>
+        private const int HiddenColumnIndex = 7;
         /// <summary>补偿值位于倒数第二列。</summary>
         private const int CompensationColumnIndex = 5;
 
@@ -143,7 +147,12 @@ namespace TDJS_Vision.Forms.SolRunParam
             TDJS_Vision.UiLocalization.Attach(this);
             Init();
             LanguageManager.LanguageChanged += LanguageManager_LanguageChanged;
-            Disposed += (s, e) => LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+            UserPermissionContext.RoleChanged += UserPermissionContext_RoleChanged;
+            Disposed += (s, e) =>
+            {
+                LanguageManager.LanguageChanged -= LanguageManager_LanguageChanged;
+                UserPermissionContext.RoleChanged -= UserPermissionContext_RoleChanged;
+            };
         }
 
         private void LanguageManager_LanguageChanged(object sender, EventArgs e)
@@ -174,6 +183,43 @@ namespace TDJS_Vision.Forms.SolRunParam
                 dataGridView1.Columns["MaxValue"].HeaderText = LanguageManager.T("SolRunParam.MaxValue");
             dataGridView1.Columns[CompensationColumnIndex].HeaderText = LanguageManager.T("补偿值");
             dataGridView1.Columns[CountItemColumnIndex].HeaderText = LanguageManager.T("SolRunParam.CountItem");
+            dataGridView1.Columns[HiddenColumnIndex].HeaderText = LanguageManager.T("是否隐藏");
+            ApplyPermissionVisibility();
+        }
+
+        /// <summary>登录角色变化后立即刷新厂家专属列和隐藏行。</summary>
+        private void UserPermissionContext_RoleChanged(object sender, UserRole role)
+        {
+            if (IsDisposed) return;
+            if (InvokeRequired)
+            {
+                if (IsHandleCreated)
+                    BeginInvoke(new Action(ApplyPermissionVisibility));
+                return;
+            }
+
+            ApplyPermissionVisibility();
+        }
+
+        /// <summary>仅厂家显示隐藏设置列；非厂家同时过滤已标记隐藏的参数行。</summary>
+        private void ApplyPermissionVisibility()
+        {
+            bool isManufacturer = UserPermissionContext.CurrentRole == UserRole.Manufacturer;
+            hiddenColumn.Visible = isManufacturer;
+            hiddenColumn.ReadOnly = !isManufacturer;
+            if (!isManufacturer && dataGridView1.CurrentRow?.Tag is RunParamGridItem currentItem &&
+                currentItem.Info?.IsManualTuningHidden == true)
+            {
+                // 当前单元格所在行不能直接隐藏，先释放选中位置再批量应用可见性。
+                dataGridView1.CurrentCell = null;
+            }
+
+            foreach (DataGridViewRow row in dataGridView1.Rows)
+            {
+                if (row.IsNewRow) continue;
+                RunParamGridItem item = row.Tag as RunParamGridItem;
+                row.Visible = isManufacturer || item?.Info?.IsManualTuningHidden != true;
+            }
         }
 
         private void RefreshDetectItemNames()
@@ -246,10 +292,13 @@ namespace TDJS_Vision.Forms.SolRunParam
                 row.Cells[MaxValueColumnIndex].Value = info.MaxValue;
                 row.Cells[CountItemColumnIndex].Value = info.IsCountItem;
                 row.Cells[CompensationColumnIndex].Value = info.Compensation;
+                row.Cells[HiddenColumnIndex].Value = info.IsManualTuningHidden;
                 row.Cells[CompensationColumnIndex].ReadOnly = item.SourceType == RunParamGridSourceType.MultiCondition;
 
                 dataGridView1.Rows.Add(row);
             }
+
+            ApplyPermissionVisibility();
         }
 
         /// <summary>
@@ -300,7 +349,10 @@ namespace TDJS_Vision.Forms.SolRunParam
                         MaxValue = ToCellText(row.Cells[MaxValueColumnIndex].Value),
                         Compensation = ReadCompensation(row.Cells[CompensationColumnIndex].Value),
                         PlugColor = item.Info?.PlugColor?.Clone(),
-                        IsCountItem = ToCellBool(row.Cells[CountItemColumnIndex].Value)
+                        IsCountItem = ToCellBool(row.Cells[CountItemColumnIndex].Value),
+                        IsManualTuningHidden = UserPermissionContext.CurrentRole == UserRole.Manufacturer
+                            ? ToCellBool(row.Cells[HiddenColumnIndex].Value)
+                            : item.Info?.IsManualTuningHidden == true
                     };
 
                     item.Info = info;

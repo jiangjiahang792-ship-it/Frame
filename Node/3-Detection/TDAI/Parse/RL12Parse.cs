@@ -477,10 +477,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             // texts.Add(new ColorText(LanguageManager.Format("Result.OKCount", process.OKNumber), Color.Green));
             // texts.Add(new ColorText(LanguageManager.Format("Result.Yield", ((process.OKNumber * 1.0) / (process.OKNumber + process.NGNumber) * 100).ToString("F2")), Color.Green));
 
-            texts.Add(new ColorText(
-                   LanguageManager.Format("Result.ProductResult", allOk2 ? "OK" : "NG"),
-                   allOk2 ? Color.Green : Color.Red));
-
             //nodeResult.AlgorithmResult.Rects = rects;
             nodeResult.AlgorithmResult.Texts = texts;
 

@@ -11,6 +11,7 @@ using Logger;
 using Newtonsoft.Json;
 using TDJS_Vision.Device.Camera;
 using TDJS_Vision.Forms.ImageViewer;
+using TDJS_Vision.Forms.Login;
 using TDJS_Vision.Forms.YTMessageBox;
 using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._2_ImagePreprocessing.ImageCrop;
@@ -626,7 +627,8 @@ namespace TDJS_Vision.Forms.SolRunParam
                         MinValue = GetRunParamMinValue(condition),
                         CurValue = GetRunParamCurrentValue(details, index),
                         MaxValue = GetRunParamMaxValue(condition),
-                        IsCountItem = false
+                        IsCountItem = false,
+                        IsManualTuningHidden = condition.IsManualTuningHidden
                     }
                 });
             }
@@ -754,6 +756,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                     MaxValue = info.MaxValue,
                     Enable = info.Enable,
                     IsCountItem = info.IsCountItem,
+                    IsManualTuningHidden = info.IsManualTuningHidden,
                     Compensation = info.Compensation,
                     PlugColor = info.PlugColor?.Clone(),
                     CurValue = info.CurValue
@@ -1122,6 +1125,8 @@ namespace TDJS_Vision.Forms.SolRunParam
                     continue;
 
                 condition.Enabled = item.Info.Enable;
+                if (UserPermissionContext.CurrentRole == UserRole.Manufacturer)
+                    condition.IsManualTuningHidden = item.Info.IsManualTuningHidden;
                 ApplyRunParamValueToCondition(condition, item.Info);
                 node.ParamForm.Params = param;
             }
