@@ -1,42 +1,42 @@
 [
   {
-    "Name": "端子数量",
-    "MinValue": "1",
-    "MaxValue": "1",
-    "Enable": true,
-    "IsCountItem": true,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
     "Name": "前铆脚露线芯长度",
-    "MinValue": "1",
-    "MaxValue": "99999",
+    "MinValue": "14.00",
+    "MaxValue": "26.00",
     "Enable": true,
     "IsCountItem": false,
-    "CurValue": "0",
+    "CurValue": "20.00",
     "Compensation": 0
   },
   {
     "Name": "前铆脚露线芯高度",
-    "MinValue": "1",
-    "MaxValue": "99999",
+    "MinValue": "30.80",
+    "MaxValue": "57.20",
     "Enable": true,
     "IsCountItem": false,
-    "CurValue": "0",
+    "CurValue": "44.00",
     "Compensation": 0
   },
   {
     "Name": "前铆脚面积",
-    "MinValue": "1",
-    "MaxValue": "99999",
+    "MinValue": "3421.60",
+    "MaxValue": "6476.60",
     "Enable": true,
     "IsCountItem": false,
-    "CurValue": "0",
+    "CurValue": "5035.00",
     "Compensation": 0
   },
   {
     "Name": "后铆脚露线芯长度",
+    "MinValue": "7.70",
+    "MaxValue": "14.30",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "11.00",
+    "Compensation": 0
+  },
+  {
+    "Name": "后铆脚露线芯高度",
     "MinValue": "1",
     "MaxValue": "99999",
     "Enable": true,
@@ -46,159 +46,42 @@
   },
   {
     "Name": "后铆脚面积",
-    "MinValue": "1",
-    "MaxValue": "99999",
+    "MinValue": "1372.00",
+    "MaxValue": "2600.00",
     "Enable": true,
     "IsCountItem": false,
-    "CurValue": "0",
+    "CurValue": "2000.00",
     "Compensation": 0
   },
   {
     "Name": "咬胶长度",
-    "MinValue": "1",
-    "MaxValue": "99999",
+    "MinValue": "9.75",
+    "MaxValue": "18.10",
     "Enable": true,
     "IsCountItem": false,
-    "CurValue": "0",
+    "CurValue": "13.92",
     "Compensation": 0
   },
   {
     "Name": "前防水栓面积",
-    "MinValue": "1",
-    "MaxValue": "99999",
+    "MinValue": "8232.00",
+    "MaxValue": "15415.40",
     "Enable": true,
     "IsCountItem": false,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
-    "Name": "前防水栓直径",
-    "MinValue": "1",
-    "MaxValue": "99999",
-    "Enable": true,
-    "IsCountItem": false,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
-    "Name": "前防水栓高度",
-    "MinValue": "1",
-    "MaxValue": "99999",
-    "Enable": true,
-    "IsCountItem": false,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
-    "Name": "防水栓数量",
-    "MinValue": "1",
-    "MaxValue": "1",
-    "Enable": true,
-    "IsCountItem": true,
-    "CurValue": "0",
+    "CurValue": "11858.00",
     "Compensation": 0
   },
   {
     "Name": "后防水栓面积",
-    "MinValue": "1",
-    "MaxValue": "99999",
+    "MinValue": "13798.40",
+    "MaxValue": "25825.60",
     "Enable": true,
     "IsCountItem": false,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
-    "Name": "后防水栓直径",
-    "MinValue": "1",
-    "MaxValue": "99999",
-    "Enable": true,
-    "IsCountItem": false,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
-    "Name": "后防水栓高度",
-    "MinValue": "1",
-    "MaxValue": "99999",
-    "Enable": true,
-    "IsCountItem": false,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
-    "Name": "线芯长度",
-    "MinValue": "1",
-    "MaxValue": "99999",
-    "Enable": true,
-    "IsCountItem": false,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
-    "Name": "线芯直径",
-    "MinValue": "1",
-    "MaxValue": "99999",
-    "Enable": true,
-    "IsCountItem": false,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
-    "Name": "线芯数量",
-    "MinValue": "1",
-    "MaxValue": "1",
-    "Enable": true,
-    "IsCountItem": true,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
-    "Name": "胶皮数量",
-    "MinValue": "1",
-    "MaxValue": "1",
-    "Enable": true,
-    "IsCountItem": true,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
-    "Name": "穿塞深度",
-    "MinValue": "1",
-    "MaxValue": "99999",
-    "Enable": true,
-    "IsCountItem": false,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
-    "Name": "穿塞直径",
-    "MinValue": "1",
-    "MaxValue": "99999",
-    "Enable": true,
-    "IsCountItem": false,
-    "CurValue": "0",
+    "CurValue": "19712.00",
     "Compensation": 0
   },
   {
     "Name": "飞丝",
-    "MinValue": "0",
-    "MaxValue": "0",
-    "Enable": true,
-    "IsCountItem": true,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
-    "Name": "飞胶",
-    "MinValue": "0",
-    "MaxValue": "0",
-    "Enable": true,
-    "IsCountItem": true,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
-    "Name": "防水栓破损",
     "MinValue": "0",
     "MaxValue": "0",
     "Enable": true,
@@ -216,30 +99,12 @@
     "Compensation": 0
   },
   {
-    "Name": "前防水栓破损",
-    "MinValue": "95",
-    "MaxValue": "100",
-    "Enable": false,
-    "IsCountItem": false,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
-    "Name": "后防水栓破损",
-    "MinValue": "95",
-    "MaxValue": "100",
-    "Enable": false,
-    "IsCountItem": false,
-    "CurValue": "0",
-    "Compensation": 0
-  },
-  {
     "Name": "防水栓轮廓破损",
-    "MinValue": "70",
-    "MaxValue": "100",
-    "Enable": false,
+    "MinValue": "70.00",
+    "MaxValue": "100.00",
+    "Enable": true,
     "IsCountItem": false,
-    "CurValue": "0",
+    "CurValue": "99.83",
     "Compensation": 0
   }
 ]

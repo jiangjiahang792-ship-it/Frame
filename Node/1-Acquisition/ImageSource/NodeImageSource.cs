@@ -17,9 +17,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
 {
     public class NodeImageSource : NodeBase
     {
-        /// <summary>相机连接后首个软件触发生产帧追加的冷启动宽限，单位为毫秒。</summary>
-        private const int InitialProductionFrameStartupGraceMilliseconds = 500;
-
         /// <summary>生产工件图像使用流程图像总预算的比例，剩余预算留给原始缓冲和下游派生图。</summary>
         private const double WorkpieceFrameMemoryBudgetRatio = 0.50D;
 
@@ -605,11 +602,11 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 ? CameraTriggerKind.Continuous
                 : GetProductionCameraTriggerKind(param.TriggerSource);
             bool isSoftwareTrigger = triggerKind == CameraTriggerKind.Software;
-            bool initialFrameStartupGraceApplied = false;
+            bool waitsUntilStopped = triggerKind == CameraTriggerKind.Software ||
+                triggerKind == CameraTriggerKind.Hardware;
 
             CameraTriggerTicket ticket = null;
             CameraFrameEnvelope envelope = null;
-            IProductionCameraStartupGraceReservation startupGraceReservation = null;
             bool callbackOwnerRegistered = false;
             bool callbackBound = false;
             CancellationTokenSource productionCancellation =
@@ -632,19 +629,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 callbackOwnerRegistered = true;
                 productionCancellation.Token.ThrowIfCancellationRequested();
 
-                IProductionCameraStartupGraceProvider startupGraceProvider =
-                    camera as IProductionCameraStartupGraceProvider;
-                if (isSoftwareTrigger && startupGraceProvider != null)
-                {
-                    startupGraceReservation =
-                        startupGraceProvider.TryReserveInitialProductionFrameGrace();
-                }
-                initialFrameStartupGraceApplied = startupGraceReservation != null;
-                timeoutMilliseconds = AddInitialProductionFrameStartupGrace(
-                    configuredTimeoutMilliseconds,
-                    initialFrameStartupGraceApplied);
-                // 线路硬触发等待外部信号；连续采集和软件触发均受节点超时约束。
-                DateTime deadlineUtc = triggerKind == CameraTriggerKind.Hardware
+                // 软硬触发都持续等待实际图像，仅由流程停止等取消通道终止；连续采集保留节点超时。
+                DateTime deadlineUtc = waitsUntilStopped
                     ? DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc)
                     : DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds);
 
@@ -669,19 +655,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         deadlineUtc,
                         estimatedFrameBytes,
                         memoryBudgetBytes);
-                startupGraceReservation?.Commit();
-                startupGraceReservation?.Dispose();
-                startupGraceReservation = null;
-
-                if (initialFrameStartupGraceApplied)
-                {
-                    LogHelper.AddLog(
-                        MsgLevel.Info,
-                        $"相机【{camera.UserDefinedName}】当前连接的首个成功登记生产票据启用启动宽限：" +
-                        $"方案超时={configuredTimeoutMilliseconds}ms，附加宽限={InitialProductionFrameStartupGraceMilliseconds}ms，" +
-                        $"本次等待上限={timeoutMilliseconds}ms；后续帧恢复方案超时。",
-                        true);
-                }
                 productionCancellation.Token.ThrowIfCancellationRequested();
 
                 PerformanceSpikeDiagnostics.LogIfEnabled(
@@ -735,7 +708,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                 return outputImage;
             }
             catch (TimeoutException timeoutException) when (
-                triggerKind != CameraTriggerKind.Hardware &&
+                triggerKind == CameraTriggerKind.Continuous &&
                 !(timeoutException is SoftwareTriggerCommandTimeoutException) &&
                 !productionCancellation.IsCancellationRequested)
             {
@@ -746,10 +719,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
                         productionCancellation.Token);
                     LogHelper.AddLog(
                         MsgLevel.Warn,
-                        $"相机【{camera.UserDefinedName}】本次采图等待超过{timeoutMilliseconds}ms" +
-                        (initialFrameStartupGraceApplied
-                            ? $"（方案超时{configuredTimeoutMilliseconds}ms+首次启动宽限{InitialProductionFrameStartupGraceMilliseconds}ms）"
-                            : string.Empty) + "，" +
+                        $"相机【{camera.UserDefinedName}】本次采图等待超过{timeoutMilliseconds}ms，" +
                         $"工件{workpieceContext.Identity}按取帧失败结束；该相机已停流排空并重新取流，方案继续运行。",
                         true);
                 }
@@ -772,7 +742,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             }
             finally
             {
-                try { startupGraceReservation?.Dispose(); } catch { }
                 if (callbackOwnerRegistered)
                 {
                     try { camera.UnregisterImageCallbackOwner(this); } catch { }
@@ -809,7 +778,7 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             camera.StartGrabbing();
         }
 
-        /// <summary>等待票据完成或流程取消；连续采集和软件触发受节点采图超时约束。</summary>
+        /// <summary>等待票据完成或流程取消；软硬触发一直等待图像，连续采集受节点采图超时约束。</summary>
         private static async Task<CameraFrameEnvelope> WaitForProductionFrameAsync(
             CameraTriggerTicketRegistry registry,
             CameraTriggerTicket ticket,
@@ -820,7 +789,8 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             using (CancellationTokenSource timeoutCancellation =
                 CancellationTokenSource.CreateLinkedTokenSource(token))
             {
-                bool waitsUntilStopped = ticket.TriggerKind == CameraTriggerKind.Hardware;
+                bool waitsUntilStopped = ticket.TriggerKind == CameraTriggerKind.Hardware ||
+                    ticket.TriggerKind == CameraTriggerKind.Software;
                 Task timeoutTask = waitsUntilStopped
                     ? Task.Delay(Timeout.Infinite, timeoutCancellation.Token)
                     : Task.Delay(timeoutMilliseconds, timeoutCancellation.Token);
@@ -987,23 +957,6 @@ namespace TDJS_Vision.Node._1_Acquisition.ImageSource
             if (configuredTimeout == 0U)
                 configuredTimeout = 2000U;
             return configuredTimeout > int.MaxValue ? int.MaxValue : Math.Max(1, (int)configuredTimeout);
-        }
-
-        /// <summary>在不溢出的前提下，为相机连接后的首个软件触发生产帧追加一次启动宽限。</summary>
-        /// <param name="configuredTimeoutMilliseconds">图像源保存的稳态超时。</param>
-        /// <param name="applyStartupGrace">当前票据是否取得连接会话的唯一宽限资格。</param>
-        /// <returns>当前票据实际使用的等待上限。</returns>
-        private static int AddInitialProductionFrameStartupGrace(
-            int configuredTimeoutMilliseconds,
-            bool applyStartupGrace)
-        {
-            if (!applyStartupGrace)
-                return configuredTimeoutMilliseconds;
-            long effectiveTimeout = (long)configuredTimeoutMilliseconds +
-                InitialProductionFrameStartupGraceMilliseconds;
-            return effectiveTimeout > int.MaxValue
-                ? int.MaxValue
-                : (int)effectiveTimeout;
         }
 
         /// <summary>把旧默认Auto归一为软触发，只把明确线路源归类为硬触发。</summary>

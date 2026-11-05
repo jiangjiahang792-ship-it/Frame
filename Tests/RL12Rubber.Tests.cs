@@ -234,6 +234,11 @@ internal static class RL12RubberTests
         var result = Parse(items, boxes);
         Check(result.IsOk && float.Parse(Value(result, "咬胶长度").Value) == 25,
             "咬胶长度未按后铆脚右边缘到后铆脚露线芯左边缘计算。");
+        var biteRect = result.AlgorithmResult.Rects.Single().RotatedRect;
+        Check(Math.Abs(biteRect.center.x - 152.5f) < 0.01f &&
+              Math.Abs(biteRect.size.width - 25f) < 0.01f &&
+              Math.Abs(biteRect.size.height - 8f) < 0.01f,
+            "咬胶长度ROI未覆盖后铆脚右边缘到露线芯左边缘的实际测量区域。");
 
         items[0].MinValue = items[0].MaxValue = "12.5";
         result = Parse(items, boxes, true);

@@ -868,7 +868,8 @@ catch {
 Assert-True $timeoutFollowerStopped '前序超时后尚未到期的后续工件也必须明确停止等待。'
 Assert-True ($budget.GetSnapshot().ActiveLeaseCount -eq 0) '超时票据必须归还触发前预算。'
 
-# 直接执行节点等待方法，确认软触发成功发出但没有返回帧时仍按配置超时。
+# 旧软触发超时恢复场景保留作为历史参考，新语义不再执行该组超时断言。
+if ($false) {
 $timeoutFaultSnapshotBefore = $registry.GetSnapshot()
 $independentCameraTicket = $registry.Register(
     'CAMERA-SOFTWARE-TIMEOUT-INDEPENDENT',
@@ -1021,6 +1022,32 @@ catch {
 }
 Assert-True $previewAfterFaultRejected '生产触发故障后，物理停流重启确认前必须同时禁止预览软件触发。'
 Confirm-CameraStreamReset 'CAMERA-STUCK-TRIGGER'
+}
+
+# 软触发必须忽略节点超时，一直等待图像，并在流程停止取消时立即退出。
+$softwareInfiniteDeadline = [DateTime]::SpecifyKind([DateTime]::MaxValue, [DateTimeKind]::Utc)
+$softwareInfiniteWaitTicket = $registry.Register(
+    'CAMERA-SOFTWARE-INFINITE-WAIT',
+    (New-Context '产线软触发无超时等待'),
+    $softwareTrigger,
+    $softwareInfiniteDeadline,
+    [long]256,
+    [long]4096)
+$softwareInfiniteWaitTicket.IssueSoftwareTrigger($noOpTrigger)
+$softwareStopCancellation = [Threading.CancellationTokenSource]::new()
+$softwareInfiniteWaitTask = $waitForProductionFrameMethod.Invoke(
+    $null,
+    @($registry, $softwareInfiniteWaitTicket, [Threading.Tasks.Task]::CompletedTask, [int]20, $softwareStopCancellation.Token))
+[Threading.Thread]::Sleep(80)
+Assert-True (-not $softwareInfiniteWaitTask.IsCompleted) '软触发在配置超时后错误结束等待。'
+$softwareStopCancellation.Cancel()
+$softwareWaitCancelled = $false
+try { $null = $softwareInfiniteWaitTask.GetAwaiter().GetResult() } catch {
+    $softwareWaitCancelled = (Get-InnermostException $_.Exception) -is [OperationCanceledException]
+}
+Assert-True $softwareWaitCancelled '流程停止取消后，软触发等待没有终止。'
+$softwareInfiniteWaitTicket.Dispose()
+$softwareStopCancellation.Dispose()
 
 $smallBudgetContext = New-Context '产线C'
 $budgetRejected = $false

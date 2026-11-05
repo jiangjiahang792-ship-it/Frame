@@ -43,8 +43,14 @@ internal static class SolutionBrowserTests
             var entries = reopened.Read(new string[0]);
             Check(entries.Count == 3, "重启后恢复历史并发现相邻方案，排除模板和子目录");
             Check(entries.Count(p => p.Name == "产品一") == 2, "不同路径的同名方案应保留");
+            reopened.Forget(other);
+            Check(File.Exists(other), "删除记录不得删除方案文件");
+            Check(reopened.Read(new string[0]).All(p => p.FullPath != other), "删除的记录刷新后不应被目录扫描重新显示");
+            reopened.Remember(other);
+            Check(reopened.Read(new string[0]).Any(p => p.FullPath == other), "重新打开方案后应恢复记录");
+            int validHistoryCount = File.ReadAllLines(history).Length;
             catalog.Remember(Path.Combine(root, "不存在.Sol"));
-            Check(File.ReadAllLines(history).Length == 2, "不存在的方案不加入历史");
+            Check(File.ReadAllLines(history).Length == validHistoryCount, "不存在的方案不加入历史");
             File.Delete(first);
             Check(reopened.Read(new string[0]).Count == 2, "已删除文件不应显示");
             File.AppendAllText(history, "\r\n无效\0路径\r\n");
@@ -58,6 +64,7 @@ internal static class SolutionBrowserTests
                 Field<TextBox>(form, "searchBox").Text = "未匹配";
                 Check(!Field<Button>(form, "openButton").Enabled, "空列表不能确认打开");
                 Field<TextBox>(form, "searchBox").Text = "产品";
+                Check(Field<Button>(form, "deleteRecordButton").Text == "删除记录", "缺少只删除列表记录的按钮");
                 // 隐形创建窗口句柄，确保子控件参与离屏绘制，不打扰正在使用的桌面。
                 form.Opacity = 0;
                 form.Show();

@@ -18,8 +18,10 @@ namespace TDJS_Vision.Forms.SolRunParam
         private string selectedProcessName = string.Empty;
         private Process selectedProcess;
         private bool showSingleProcessOnly = false;
-        // 外部指定的AI检测节点，用于多个AI节点时精准打开对应参数。
+        // 外部指定的AI检测节点，用于单个AI节点时精准打开对应参数。
         private NodeTDAI targetAiNode = null;
+        /// <summary>外部指定的AI检测节点集合；同一画面关联多个AI时分别生成独立页签。</summary>
+        private List<NodeTDAI> targetAiNodes = new List<NodeTDAI>();
         /// <summary>
         /// 外部指定的运行参数显示范围，用于图像窗口手动调参时按ROI绘制来源过滤。
         /// </summary>
@@ -101,6 +103,24 @@ namespace TDJS_Vision.Forms.SolRunParam
         {
             selectedProcess = process;
         }
+
+        /// <summary>
+        /// 初始化指定流程的多AI运行参数窗体，每个AI节点使用独立页签和保存目标。
+        /// </summary>
+        /// <param name="process">指定流程对象。</param>
+        /// <param name="targets">当前画面关联的AI检测节点集合。</param>
+        /// <param name="runParamDisplayFilter">运行参数显示范围。</param>
+        public FormSolRunParam(Process process, IEnumerable<NodeTDAI> targets, RunParamDisplayFilter runParamDisplayFilter)
+            : this(process == null ? string.Empty : process.ProcessName)
+        {
+            selectedProcess = process;
+            this.runParamDisplayFilter = runParamDisplayFilter;
+            targetAiNodes = (targets ?? Enumerable.Empty<NodeTDAI>())
+                .Where(node => node != null)
+                .Distinct()
+                .ToList();
+            targetAiNode = targetAiNodes.Count == 1 ? targetAiNodes[0] : null;
+        }
         /// <summary>
         /// 窗体显示事件
         /// </summary>
@@ -127,37 +147,37 @@ namespace TDJS_Vision.Forms.SolRunParam
                 if (selectedProcess == null && showSingleProcessOnly && process.ProcessName != selectedProcessName)
                     continue;
 
-                SolRunParamControl solRunParam = new SolRunParamControl();
-                TabPage page = new TabPage();
-                page.Text = targetAiNode == null ? process.ProcessName : targetAiNode.NodeName;
-                Stopwatch processStopwatch = Stopwatch.StartNew();
-                LogHelper.AddLog(
-                    MsgLevel.Info,
-                    $"【手动调参诊断】开始初始化流程运行参数，流程={process.ProcessName}，节点数={(process.Nodes == null ? 0 : process.Nodes.Count)}，过滤范围={(runParamDisplayFilter == null ? "空" : runParamDisplayFilter.ToLogText())}。",
-                    true);
-                try
+                List<NodeTDAI> pageTargets = targetAiNodes.Count > 0
+                    ? targetAiNodes
+                    : new List<NodeTDAI> { targetAiNode };
+                foreach (NodeTDAI pageTarget in pageTargets)
                 {
-                    RunParamDisplayFilter processFilter = selectedProcess != null || showSingleProcessOnly && process.ProcessName == selectedProcessName
-                        ? runParamDisplayFilter
-                        : null;
-                    // 在挂入可见窗口前一次性填充数据，减少每行绑定触发布局和绘制。
-                    solRunParam.Init(process, showSingleProcessOnly ? targetAiNode : null, processFilter);
-                    page.Controls.Add(solRunParam);
-                    tabControl1.Controls.Add(page);
+                    SolRunParamControl solRunParam = new SolRunParamControl();
+                    TabPage page = new TabPage();
+                    page.Text = pageTarget == null ? process.ProcessName : pageTarget.NodeName;
+                    Stopwatch processStopwatch = Stopwatch.StartNew();
                     LogHelper.AddLog(
                         MsgLevel.Info,
-                        $"【手动调参诊断】流程运行参数初始化完成，流程={process.ProcessName}，耗时={processStopwatch.ElapsedMilliseconds}ms。",
+                        $"【手动调参诊断】开始初始化流程运行参数，流程={process.ProcessName}，AI节点={(pageTarget == null ? "未指定" : pageTarget.ID + "." + pageTarget.NodeName)}，节点数={(process.Nodes == null ? 0 : process.Nodes.Count)}，过滤范围={(runParamDisplayFilter == null ? "空" : runParamDisplayFilter.ToLogText())}。",
                         true);
-                }
-                catch (Exception ex)
-                {
-                    solRunParam.Dispose();
-                    page.Dispose();
-                    LogHelper.AddLog(
-                        MsgLevel.Exception,
-                        $"【手动调参诊断】流程运行参数初始化异常，流程={process.ProcessName}，耗时={processStopwatch.ElapsedMilliseconds}ms，原因={ex.Message}",
-                        true);
-                    LogHelper.AddLog(MsgLevel.Fatal, LanguageManager.Format("SolRunParam.LoadProcessParamFailed", process.ProcessName, ex.Message), true);
+                    try
+                    {
+                        RunParamDisplayFilter processFilter = selectedProcess != null || showSingleProcessOnly && process.ProcessName == selectedProcessName
+                            ? runParamDisplayFilter
+                            : null;
+                        // 在挂入可见窗口前一次性填充数据，减少每行绑定触发布局和绘制。
+                        solRunParam.Init(process, showSingleProcessOnly ? pageTarget : null, processFilter);
+                        page.Controls.Add(solRunParam);
+                        tabControl1.Controls.Add(page);
+                        LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】流程运行参数初始化完成，流程={process.ProcessName}，AI节点={pageTarget?.NodeName ?? "未指定"}，耗时={processStopwatch.ElapsedMilliseconds}ms。", true);
+                    }
+                    catch (Exception ex)
+                    {
+                        solRunParam.Dispose();
+                        page.Dispose();
+                        LogHelper.AddLog(MsgLevel.Exception, $"【手动调参诊断】流程运行参数初始化异常，流程={process.ProcessName}，AI节点={pageTarget?.NodeName ?? "未指定"}，耗时={processStopwatch.ElapsedMilliseconds}ms，原因={ex.Message}", true);
+                        LogHelper.AddLog(MsgLevel.Fatal, LanguageManager.Format("SolRunParam.LoadProcessParamFailed", process.ProcessName, ex.Message), true);
+                    }
                 }
             }
 
@@ -242,6 +262,8 @@ namespace TDJS_Vision.Forms.SolRunParam
             ApplyParityItems();
             if (targetAiNode != null)
                 Text = $"手动调参 - {FrmWindowName()} - {targetAiNode.NodeName}";
+            else if (targetAiNodes.Count > 1)
+                Text = $"手动调参 - {FrmWindowName()} - {targetAiNodes.Count}个AI节点";
             else if (showSingleProcessOnly)
                 Text = $"手动调参 - {FrmWindowName()}";
         }

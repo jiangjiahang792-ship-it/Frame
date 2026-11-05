@@ -25,6 +25,8 @@ namespace TDJS_Vision.Forms.SolutionBrowser
         private System.Windows.Forms.Button browseButton;
         /// <summary>打开所选方案按钮。</summary>
         private System.Windows.Forms.Button openButton;
+        /// <summary>仅删除列表记录按钮。</summary>
+        private System.Windows.Forms.Button deleteRecordButton;
         /// <summary>取消按钮。</summary>
         private System.Windows.Forms.Button cancelButton;
         /// <summary>备用文件选择器。</summary>
@@ -51,6 +53,7 @@ namespace TDJS_Vision.Forms.SolutionBrowser
             this.refreshButton = new System.Windows.Forms.Button();
             this.browseButton = new System.Windows.Forms.Button();
             this.openButton = new System.Windows.Forms.Button();
+            this.deleteRecordButton = new System.Windows.Forms.Button();
             this.cancelButton = new System.Windows.Forms.Button();
             this.browseDialog = new System.Windows.Forms.OpenFileDialog();
             this.components.Add(this.browseDialog);
@@ -83,6 +86,7 @@ namespace TDJS_Vision.Forms.SolutionBrowser
             this.solutionGrid.RowTemplate.Height = 32;
             this.solutionGrid.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] { this.nameColumn, this.modifiedColumn, this.pathColumn });
             this.solutionGrid.CellDoubleClick += new System.Windows.Forms.DataGridViewCellEventHandler(this.SolutionGrid_CellDoubleClick);
+            this.solutionGrid.SelectionChanged += new System.EventHandler(this.SolutionGrid_SelectionChanged);
             this.nameColumn.DataPropertyName = "Name";
             this.nameColumn.HeaderText = "方案名称";
             this.nameColumn.FillWeight = 26F;
@@ -102,6 +106,12 @@ namespace TDJS_Vision.Forms.SolutionBrowser
             this.browseButton.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
             this.browseButton.Text = "浏览其他方案";
             this.browseButton.Click += new System.EventHandler(this.BrowseButton_Click);
+            this.deleteRecordButton.Location = new System.Drawing.Point(204, 484);
+            this.deleteRecordButton.Size = new System.Drawing.Size(130, 36);
+            this.deleteRecordButton.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
+            this.deleteRecordButton.Text = "删除记录";
+            this.deleteRecordButton.Enabled = false;
+            this.deleteRecordButton.Click += new System.EventHandler(this.DeleteRecordButton_Click);
             this.openButton.Location = new System.Drawing.Point(590, 484);
             this.openButton.Size = new System.Drawing.Size(130, 36);
             this.openButton.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
@@ -133,6 +143,7 @@ namespace TDJS_Vision.Forms.SolutionBrowser
             this.Controls.Add(this.solutionGrid);
             this.Controls.Add(this.statusLabel);
             this.Controls.Add(this.browseButton);
+            this.Controls.Add(this.deleteRecordButton);
             this.Controls.Add(this.openButton);
             this.Controls.Add(this.cancelButton);
             this.Shown += new System.EventHandler(this.FormSolutionBrowser_Shown);

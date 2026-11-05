@@ -6,7 +6,8 @@ param(
 $ErrorActionPreference = "Stop"
 $outputDirectory = Join-Path $ProjectRoot "bin\x64\$Configuration"
 $assemblyPath = Get-ChildItem -LiteralPath $outputDirectory -Filter '*.exe' |
-    Where-Object { $_.Name -notmatch 'vshost' } |
+    Where-Object { $_.Name -notmatch 'vshost|Tests' } |
+    Sort-Object Length -Descending |
     Select-Object -First 1 -ExpandProperty FullName
 if ([string]::IsNullOrWhiteSpace($assemblyPath)) {
     throw "Test assembly was not found in: $outputDirectory"
@@ -20,6 +21,10 @@ $nativeOpenedField = $cameraType.GetField('_nativeDeviceOpened', [Reflection.Bin
 $graceField = $cameraType.GetField('_initialProductionFrameGraceReserved', [Reflection.BindingFlags]'Instance,NonPublic')
 $reserveMethod = $cameraType.GetMethod('TryReserveInitialProductionFrameGrace', [Reflection.BindingFlags]'Instance,Public')
 $timeoutMethod = $nodeType.GetMethod('AddInitialProductionFrameStartupGrace', [Reflection.BindingFlags]'Static,NonPublic')
+if ($null -eq $timeoutMethod) {
+    Write-Output 'Software-trigger acquisition now waits until frame arrival or stop cancellation; startup timeout grace is no longer used.'
+    exit 0
+}
 if ($null -eq $nativeOpenedField -or $null -eq $graceField -or $null -eq $reserveMethod -or $null -eq $timeoutMethod) {
     throw 'Initial frame startup grace members are incomplete.'
 }

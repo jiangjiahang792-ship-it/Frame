@@ -13,7 +13,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
     /// <summary>新端子12类解析器：尺寸沿用RL12规则，防水栓前后配对整体计数，缺陷独立判定。</summary>
     public static class NewTerminal12Parse
     {
-        /// <summary>测量类型；方向值为反向组数，咬胶值为百分比。</summary>
+        /// <summary>测量类型；方向值为反向组数，咬胶值为后铆脚与露线芯框之间的水平长度。</summary>
         private enum MeasureKind { Width, Height, Area, Count, Bite, Direction, TerminalCount, ContourSimilarity, PlugCount }
 
         /// <summary>颜色测量服务；与解析和公差学习职责分离。</summary>
@@ -68,8 +68,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             add("前铆脚露线芯高度", 0, MeasureKind.Height, false);
             add("前铆脚面积", 1, MeasureKind.Area, false);
             add("后铆脚露线芯长度", 2, MeasureKind.Width, false);
+            add("后铆脚露线芯高度", 2, MeasureKind.Height, false);
             add("后铆脚面积", 4, MeasureKind.Area, false);
-            add("咬胶长度", 3, MeasureKind.Bite, false);
+            // 咬胶以类别2后铆脚露线芯框为基准，类别3 rubber 不参与该尺寸计算。
+            add("咬胶长度", 2, MeasureKind.Bite, false);
             foreach (var pair in new[] { new { Name = "前防水栓", Id = 5 }, new { Name = "后防水栓", Id = 6 } })
             {
                 add(pair.Name + "面积", pair.Id, MeasureKind.Area, false);
@@ -165,7 +167,12 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     var quantity = definition.WholePlug ? wholeQuantity : FindQuantityItem(enabled, definition.ClassId, terminal);
                     if (study != null && definition.WholePlug && (incompletePairs ||
                         (quantity != null && !ParseCommon.IsValueWithinLimits(quantity, targets.Count))))
-                        throw new InvalidOperationException("防水栓前后框未完整配对，本轮整栓学习未保存。");
+                    {
+                        // 学习期间单帧缺少目标只跳过当前轮廓样本；达到设定次数仍从未成功时统一禁用该项。
+                        perimeterResults[item.Name] = new List<PlugPerimeterRegion>();
+                        LogHelper.AddLog(MsgLevel.Warn, item.Name + "本帧前后框未完整配对，已跳过该项学习，其它检测项继续处理。", true);
+                        continue;
+                    }
                     int maximumColorRegions = GetMaximumColorRegions(quantity);
                     PlugColorModel color = item.PlugColor;
                     if (study != null) study.Colors.TryGetValue(item.Name, out color);
@@ -177,7 +184,18 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         lower < 0 || upper > 100 || lower > upper))
                         throw new InvalidOperationException(item.Name + "现为轮廓相似度，公差必须为0～100，请重新学习或修改公差。");
                     bool firstColorFrame = study != null && color == null;
-                    var measured = ColorMeasurement.Measure(inputImage, targets, ref color);
+                    List<PlugPerimeterRegion> measured;
+                    try
+                    {
+                        measured = ColorMeasurement.Measure(inputImage, targets, ref color);
+                    }
+                    catch (Exception ex) when (study != null)
+                    {
+                        // 轮廓学习失败不能吞掉已经完成的目标检测结果，留到整轮结束决定是否禁用。
+                        perimeterResults[item.Name] = new List<PlugPerimeterRegion>();
+                        LogHelper.AddLog(MsgLevel.Warn, item.Name + "本帧轮廓学习失败，已跳过该项：" + ex.Message, true);
+                        continue;
+                    }
                     if (quantity != null)
                     {
                         // 前后分别汇总所有模型框内的有效颜色区域，先按实际像素面积取前N个，再恢复空间顺序。
@@ -189,9 +207,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     if (study != null)
                     {
                         if (quantity != null && !ParseCommon.IsValueWithinLimits(quantity, measured.Count))
-                            throw new InvalidOperationException(item.Name + "有效颜色区域数量不符合" + quantity.Name + "要求，本轮学习未保存。");
+                        {
+                            perimeterResults[item.Name] = new List<PlugPerimeterRegion>();
+                            LogHelper.AddLog(MsgLevel.Warn, item.Name + "本帧有效颜色区域数量不符合" + quantity.Name + "要求，已跳过该项学习。", true);
+                            continue;
+                        }
                         if (measured.Count == 0 || measured.Any(r => r.Contour.Length == 0))
-                            throw new InvalidOperationException(item.Name + "没有有效颜色区域（面积至少2000像素²），本轮学习未保存，请检查图像后重新学习。");
+                        {
+                            perimeterResults[item.Name] = new List<PlugPerimeterRegion>();
+                            LogHelper.AddLog(MsgLevel.Warn, item.Name + "本帧没有有效颜色区域（面积至少2000像素²），已跳过该项学习。", true);
+                            continue;
+                        }
                         if (firstColorFrame && item.PlugColor != null)
                         {
                             // 重新学习只替换颜色和正常模板，保留用户已标定的局部缺口参数。
@@ -217,7 +243,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 var definition = Definitions[item.Name];
                 bool countItem = definition.Kind == MeasureKind.Count || definition.Kind == MeasureKind.Direction ||
                     definition.Kind == MeasureKind.TerminalCount || definition.Kind == MeasureKind.PlugCount;
-                List<bool> directions = definition.Kind == MeasureKind.Direction ? GetPlugDirections(groups[5], groups[6], groups[8]) : null;
+                List<bool> directions = definition.Kind == MeasureKind.Direction ? GetPlugDirections(groups[5], groups[6]) : null;
                 item.IsCountItem = countItem;
                 var matches = definition.WholePlug ? wholePlugs : definition.ClassId < 0 ? new List<DetResult>() : groups[definition.ClassId];
                 var quantity = definition.WholePlug ? wholeQuantity : FindQuantityItem(enabled, definition.ClassId, terminal);
@@ -271,8 +297,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     {
                         float value;
                         bool valid = TryMeasure(definition.Kind, box.Box, groups, out value);
-                        // 沿用RL12面积比例规则；咬胶为百分比，不乘物理比例。
-                        if (valid && param.NeedConvert && definition.Kind != MeasureKind.Bite) value *= param.Scale;
+                        // 咬胶现为实际水平距离，与其它尺寸项一样执行一次物理比例换算。
+                        if (valid && param.NeedConvert) value *= param.Scale;
                         if (valid) value = ParseCommon.ApplyMeasurementCompensation(item, value);
                         bool measurementOk = valid && ParseCommon.IsValueWithinLimits(item, value);
                         // 缺件由独立的补零结果承担NG，不能把已检出的合格部件误标为尺寸不良。
@@ -313,6 +339,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             {
                 try
                 {
+                    foreach (var item in enabled.Where(i => IsLearnableMeasurement(Definitions[i.Name])))
+                    {
+                        if (study.Values.TryGetValue(item.Name, out var samples) && samples.Count > 0) continue;
+                        item.Enable = false;
+                        LogHelper.AddLog(MsgLevel.Warn,
+                            $"一键学习已完成{study.Count}次，检测项“{ParseCommon.GetDisplayName(item.Name)}”始终没有有效结果，已自动禁用。", true);
+                    }
+                    // 公差生成会消费并清空样本，必须在自动禁用判断之后执行。
                     ParseCommon.SetDetectItemMinMax(items, study.Values, param.StudyPercentage);
                     foreach (var item in enabled)
                         if (study.Colors.TryGetValue(item.Name, out var learnedColor))
@@ -327,6 +361,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 }
                 finally { Sessions.Remove(param); }
             }
+        }
+
+        /// <summary>判断检测项是否必须依靠有效实测样本完成一键学习；零检出有业务含义的数量项不自动禁用。</summary>
+        private static bool IsLearnableMeasurement(Definition definition)
+        {
+            return definition.Kind == MeasureKind.Width || definition.Kind == MeasureKind.Height ||
+                definition.Kind == MeasureKind.Area || definition.Kind == MeasureKind.Bite ||
+                definition.Kind == MeasureKind.ContourSimilarity;
         }
 
         /// <summary>旧配置保留原订阅键，但新模型的算法文字统一显示穿塞尺寸名称。</summary>
@@ -564,7 +606,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             return assignment;
         }
 
-        /// <summary>测量尺寸；咬胶使用最近的前后铆脚，缺依赖或间距为零返回无效。</summary>
+        /// <summary>测量尺寸；咬胶取后铆脚露线芯左上角X到最近后铆脚右上角X的水平距离。</summary>
         private static bool TryMeasure(MeasureKind kind, Rect box, List<DetResult>[] groups, out float value)
         {
             value = 0;
@@ -573,12 +615,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             else if (kind == MeasureKind.Area) value = (float)box.Width * box.Height;
             else if (kind == MeasureKind.Bite)
             {
-                if (groups[1].Count == 0 || groups[4].Count == 0) return false;
-                var front = groups[1].OrderBy(r => Distance(box, r.Box)).First().Box;
-                var back = groups[4].OrderBy(r => Distance(box, r.Box)).First().Box;
-                double gap = (double)front.Left - back.Right;
-                if (gap == 0) return false;
-                value = (float)Math.Abs(box.Width / gap * 100);
+                if (groups[4].Count == 0) return false;
+                // 多组端子按两个测量边的水平距离选择最近后铆脚，避免中心点受框宽影响而串组。
+                Rect backFoot = groups[4].OrderBy(r => Math.Abs(r.Box.Right - box.Left)).First().Box;
+                value = Math.Abs(box.Left - backFoot.Right);
             }
             return true;
         }
@@ -591,45 +631,29 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             return x * x + y * y;
         }
 
-        /// <summary>横向输入以线芯所在侧为前方；按从上到下、从左到右输出逐只方向，缺框或方向不明确按反处理。</summary>
-        private static List<bool> GetPlugDirections(List<DetResult> fronts, List<DetResult> backs, List<DetResult> cores)
+        /// <summary>按前后防水栓右上角X坐标判断方向；后防水栓位于前防水栓左侧为正，缺框或坐标相等按反处理。</summary>
+        private static List<bool> GetPlugDirections(List<DetResult> fronts, List<DetResult> backs)
         {
             if (fronts.Count == 0 && backs.Count == 0) return new List<bool> { false };
             var frontBoxes = OrderBoxes(fronts);
             var backBoxes = OrderBoxes(backs);
             int[] backMatches = MatchHorizontalBoxes(frontBoxes, backBoxes);
-            var pairs = new List<(Rect Front, Rect Back)>();
-            var pairBoxes = new List<Rect>();
             var states = new List<(Rect Bounds, bool Forward)>();
             for (int i = 0; i < frontBoxes.Count; i++)
             {
                 if (backMatches[i] < 0) { states.Add((frontBoxes[i], false)); continue; }
                 Rect front = frontBoxes[i];
                 Rect back = backBoxes[backMatches[i]];
-                pairs.Add((front, back));
-                // 使用共同纵向范围匹配本根线芯，避免其它行的线芯提供错误方向。
-                int top = Math.Max(front.Top, back.Top);
-                int bottom = Math.Min(front.Bottom, back.Bottom);
                 int left = Math.Min(front.Left, back.Left);
-                pairBoxes.Add(new Rect(left, top, Math.Max(front.Right, back.Right) - left, bottom - top));
+                int top = Math.Min(front.Top, back.Top);
+                var bounds = new Rect(left, top, Math.Max(front.Right, back.Right) - left,
+                    Math.Max(front.Bottom, back.Bottom) - top);
+                // OpenCV矩形的Right即右上角X；严格小于保证后防水栓确实位于前防水栓左侧。
+                states.Add((bounds, back.Right < front.Right));
             }
             var matchedBacks = new HashSet<int>(backMatches.Where(index => index >= 0));
             for (int i = 0; i < backBoxes.Count; i++)
                 if (!matchedBacks.Contains(i)) states.Add((backBoxes[i], false));
-            var coreBoxes = OrderBoxes(cores);
-            int[] coreMatches = MatchHorizontalBoxes(pairBoxes, coreBoxes);
-            for (int i = 0; i < pairs.Count; i++)
-            {
-                if (coreMatches[i] < 0) { states.Add((pairBoxes[i], false)); continue; }
-                double frontX = pairs[i].Front.X + pairs[i].Front.Width * 0.5;
-                double backX = pairs[i].Back.X + pairs[i].Back.Width * 0.5;
-                Rect core = coreBoxes[coreMatches[i]];
-                double coreX = core.X + core.Width * 0.5;
-                // 用部件中心确定顺序，避免框宽差异让右边缘比较颠倒；线芯必须在前后部件的同一外侧。
-                bool forward = (coreX > Math.Max(frontX, backX) && frontX > backX)
-                    || (coreX < Math.Min(frontX, backX) && frontX < backX);
-                states.Add((pairBoxes[i], forward));
-            }
             return states.OrderBy(state => state.Bounds.Y).ThenBy(state => state.Bounds.X)
                 .Select(state => state.Forward).ToList();
         }

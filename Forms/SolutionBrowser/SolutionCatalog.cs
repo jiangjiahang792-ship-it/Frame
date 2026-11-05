@@ -14,6 +14,8 @@ namespace TDJS_Vision.Forms.SolutionBrowser
         IReadOnlyList<SolutionCatalogEntry> Read(IEnumerable<string> directories);
         /// <summary>记录已经成功保存或打开的方案。</summary>
         void Remember(string path);
+        /// <summary>仅移除列表记录并持续忽略该路径，不删除对应的方案文件。</summary>
+        void Forget(string path);
     }
 
     /// <summary>列表中的方案文件元数据，不加载设备、模型或方案内容。</summary>
@@ -39,15 +41,46 @@ namespace TDJS_Vision.Forms.SolutionBrowser
         private static readonly object SyncRoot = new object();
         /// <summary>历史文件完整路径。</summary>
         private readonly string historyPath;
+        /// <summary>用户主动删除的列表记录路径；独立保存可避免目录扫描再次显示。</summary>
+        private readonly string ignoredPath;
 
         /// <summary>使用指定文件构建服务，便于隔离测试或更换存储位置。</summary>
-        public FileSolutionCatalog(string historyPath) { this.historyPath = Path.GetFullPath(historyPath); }
+        public FileSolutionCatalog(string historyPath)
+        {
+            this.historyPath = Path.GetFullPath(historyPath);
+            ignoredPath = this.historyPath + ".忽略";
+        }
 
         /// <summary>读取历史；失败时仍允许通过目录发现方案。</summary>
         private List<string> ReadHistory()
         {
             try { return File.Exists(historyPath) ? File.ReadAllLines(historyPath, Encoding.UTF8).ToList() : new List<string>(); }
             catch (Exception ex) { ReportFailure(ex); return new List<string>(); }
+        }
+
+        /// <summary>读取用户主动删除的记录；读取失败时按没有忽略项处理。</summary>
+        private List<string> ReadIgnored()
+        {
+            try { return File.Exists(ignoredPath) ? File.ReadAllLines(ignoredPath, Encoding.UTF8).ToList() : new List<string>(); }
+            catch (Exception ex) { ReportFailure(ex); return new List<string>(); }
+        }
+
+        /// <summary>原子写入路径记录，避免客户端异常退出留下半写文件。</summary>
+        private static void WritePaths(string targetPath, IEnumerable<string> paths)
+        {
+            string temporaryPath = targetPath + ".tmp";
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(targetPath));
+                File.WriteAllLines(temporaryPath, paths, new UTF8Encoding(false));
+                if (File.Exists(targetPath)) File.Replace(temporaryPath, targetPath, null);
+                else File.Move(temporaryPath, targetPath);
+            }
+            finally
+            {
+                try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); }
+                catch (Exception ex) { ReportFailure(ex); }
+            }
         }
 
         /// <summary>仅接收有效方案路径，排除内部空方案模板。</summary>
@@ -70,23 +103,40 @@ namespace TDJS_Vision.Forms.SolutionBrowser
             if (fullPath == null || !File.Exists(fullPath)) return;
             lock (SyncRoot)
             {
-                string temporaryPath = historyPath + ".tmp";
                 try
                 {
                     var paths = ReadHistory().Select(Normalize).Where(p => p != null).ToList();
                     paths.RemoveAll(p => string.Equals(p, fullPath, StringComparison.OrdinalIgnoreCase));
                     paths.Insert(0, fullPath);
-                    Directory.CreateDirectory(Path.GetDirectoryName(historyPath));
-                    File.WriteAllLines(temporaryPath, paths.Distinct(StringComparer.OrdinalIgnoreCase), new UTF8Encoding(false));
-                    if (File.Exists(historyPath)) File.Replace(temporaryPath, historyPath, null);
-                    else File.Move(temporaryPath, historyPath);
+                    WritePaths(historyPath, paths.Distinct(StringComparer.OrdinalIgnoreCase));
+
+                    var ignored = ReadIgnored().Select(Normalize).Where(p => p != null).ToList();
+                    ignored.RemoveAll(p => string.Equals(p, fullPath, StringComparison.OrdinalIgnoreCase));
+                    WritePaths(ignoredPath, ignored.Distinct(StringComparer.OrdinalIgnoreCase));
                 }
                 catch (Exception ex) { ReportFailure(ex); }
-                finally
+            }
+        }
+
+        /// <summary>删除列表记录并加入忽略集合，绝不删除方案文件。</summary>
+        public void Forget(string path)
+        {
+            string fullPath = Normalize(path);
+            if (fullPath == null) return;
+            lock (SyncRoot)
+            {
+                try
                 {
-                    try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); }
-                    catch (Exception ex) { ReportFailure(ex); }
+                    var history = ReadHistory().Select(Normalize).Where(p => p != null).ToList();
+                    history.RemoveAll(p => string.Equals(p, fullPath, StringComparison.OrdinalIgnoreCase));
+                    WritePaths(historyPath, history.Distinct(StringComparer.OrdinalIgnoreCase));
+
+                    var ignored = ReadIgnored().Select(Normalize).Where(p => p != null).ToList();
+                    ignored.RemoveAll(p => string.Equals(p, fullPath, StringComparison.OrdinalIgnoreCase));
+                    ignored.Insert(0, fullPath);
+                    WritePaths(ignoredPath, ignored.Distinct(StringComparer.OrdinalIgnoreCase));
                 }
+                catch (Exception ex) { ReportFailure(ex); }
             }
         }
 
@@ -94,8 +144,21 @@ namespace TDJS_Vision.Forms.SolutionBrowser
         public IReadOnlyList<SolutionCatalogEntry> Read(IEnumerable<string> directories)
         {
             List<string> history;
-            lock (SyncRoot) history = ReadHistory();
-            var paths = new HashSet<string>(history.Select(Normalize).Where(p => p != null), StringComparer.OrdinalIgnoreCase);
+            HashSet<string> ignored;
+            lock (SyncRoot)
+            {
+                history = ReadHistory();
+                ignored = new HashSet<string>(ReadIgnored().Select(Normalize).Where(p => p != null), StringComparer.OrdinalIgnoreCase);
+                // 顺手清理已经不存在的历史记录，避免无效路径长期积累。
+                var existingHistory = history.Select(Normalize).Where(p => p != null && File.Exists(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                if (existingHistory.Count != history.Count)
+                {
+                    try { WritePaths(historyPath, existingHistory); }
+                    catch (Exception ex) { ReportFailure(ex); }
+                }
+                history = existingHistory;
+            }
+            var paths = new HashSet<string>(history.Where(p => !ignored.Contains(p)), StringComparer.OrdinalIgnoreCase);
             var folders = new HashSet<string>((directories ?? Enumerable.Empty<string>()).Where(p => !string.IsNullOrWhiteSpace(p)), StringComparer.OrdinalIgnoreCase);
             foreach (string path in paths) folders.Add(Path.GetDirectoryName(path));
             foreach (string folder in folders)
@@ -105,7 +168,7 @@ namespace TDJS_Vision.Forms.SolutionBrowser
                     foreach (string path in Directory.EnumerateFiles(folder, "*.Sol", SearchOption.TopDirectoryOnly))
                     {
                         string normalized = Normalize(path);
-                        if (normalized != null) paths.Add(normalized);
+                        if (normalized != null && !ignored.Contains(normalized)) paths.Add(normalized);
                     }
                 }
                 catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException || ex is NotSupportedException)

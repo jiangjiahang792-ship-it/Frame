@@ -312,6 +312,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         if (!float.TryParse(rawValue, out float value))
                             continue;
 
+                        // 默认绘制模型自身检测框；咬胶长度改为绘制两个测量边之间的实际区域。
+                        Rect measurementRect = result.Box;
+
                         if (itemName == "DetectItem.BiteGlueLength")
                         {
                             // 多组端子时按水平方向最近的后铆脚配对，避免使用其它端子的依赖框。
@@ -324,6 +327,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                             {
                                 value = Math.Abs(behindFoot.Value.Right - result.Box.Left);
                                 rawValue = value.ToString("F2");
+                                measurementRect = 创建咬胶测量区域(behindFoot.Value, result.Box);
                             }
                             else
                             {
@@ -369,7 +373,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
                         // 添加不重复矩形框
                         // 实测框只体现自身尺寸状态，缺件另以补零结果标NG。
-                        ParseCommon.AddRect(addedRectKeys, result.Box, param.IsAutoStudy || measurementOk, ref nodeResult);
+                        ParseCommon.AddRect(addedRectKeys, measurementRect, param.IsAutoStudy || measurementOk, ref nodeResult);
 
                         hasData = true;
                     }
@@ -585,6 +589,29 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 || string.Equals(itemName, "DetectItem.CoreCount", StringComparison.Ordinal)
                 || string.Equals(itemName, "胶皮数量", StringComparison.Ordinal)
                 || string.Equals(itemName, "防水栓数量", StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// 创建咬胶长度的可视化测量区域，横向严格覆盖后铆脚右边缘到露线芯左边缘。
+        /// </summary>
+        /// <param name="behindFoot">类别4后铆脚检测框。</param>
+        /// <param name="exposedCore">类别2后铆脚露线芯检测框。</param>
+        /// <returns>用于结果绘制的咬胶测量矩形。</returns>
+        private static Rect 创建咬胶测量区域(Rect behindFoot, Rect exposedCore)
+        {
+            int left = Math.Min(behindFoot.Right, exposedCore.Left);
+            int width = Math.Max(1, Math.Abs(behindFoot.Right - exposedCore.Left));
+
+            // 优先使用两个框的垂直重叠区域，使ROI落在真实咬胶位置；无重叠时覆盖两框之间的完整高度。
+            int top = Math.Max(behindFoot.Top, exposedCore.Top);
+            int bottom = Math.Min(behindFoot.Bottom, exposedCore.Bottom);
+            if (bottom <= top)
+            {
+                top = Math.Min(behindFoot.Top, exposedCore.Top);
+                bottom = Math.Max(behindFoot.Bottom, exposedCore.Bottom);
+            }
+
+            return new Rect(left, top, width, Math.Max(1, bottom - top));
         }
 
         /// <summary>

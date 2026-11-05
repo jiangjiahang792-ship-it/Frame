@@ -922,6 +922,28 @@ namespace TDJS_Vision.Forms.ImageViewer
         }
 
         /// <summary>
+        /// 解析当前画面关联的全部AI节点；多AI画面由手动调参窗口分别生成页签，不要求用户额外选择。
+        /// </summary>
+        /// <param name="process">当前图像窗口所属流程。</param>
+        /// <param name="filter">当前画面的ROI绘制来源过滤范围。</param>
+        /// <returns>当前画面关联的AI节点集合；纯传统检测画面返回空集合。</returns>
+        private List<NodeTDAI> ResolveManualTuningTargets(Process process, RunParamDisplayFilter filter)
+        {
+            List<NodeTDAI> aiNodes = filter != null && filter.IsSourceNodeLimited
+                ? GetAiNodesByRunParamFilter(process, filter)
+                : ResolveAiNodesByWindow(process);
+            aiNodes = DistinctAiNodes(aiNodes);
+            if (aiNodes.Count > 0)
+                return aiNodes;
+
+            if (HasAdjustableMultiCondition(process, filter))
+                return new List<NodeTDAI>();
+
+            throw new InvalidOperationException(
+                $"画面“{GetWindowDisplayName(FormName)}”未关联可调整的运行参数，请检查ROI结果绘制订阅，或在多条件节点中勾选“允许运行参数调整”。");
+        }
+
+        /// <summary>
         /// 判断当前画面的ROI绘制来源是否关联了允许运行参数调整的多条件项。
         /// </summary>
         /// <param name="process">当前图像窗口所属流程。</param>
@@ -1156,26 +1178,32 @@ namespace TDJS_Vision.Forms.ImageViewer
                 }
 
                 LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】开始解析当前画面运行参数，流程={process.ProcessName}。", true);
-                NodeTDAI targetAiNode = ResolveManualTuningTarget(process, runParamDisplayFilter);
+                List<NodeTDAI> targetAiNodes = ResolveManualTuningTargets(process, runParamDisplayFilter);
+                NodeTDAI targetAiNode = targetAiNodes.Count == 1 ? targetAiNodes[0] : null;
 
                 LogHelper.AddLog(
                     MsgLevel.Info,
-                    $"【手动调参诊断】运行参数解析完成，AI节点={(targetAiNode == null ? "无（传统检测参数）" : targetAiNode.ID + "." + targetAiNode.NodeName)}，耗时={stopwatch.ElapsedMilliseconds}ms。",
+                    $"【手动调参诊断】运行参数解析完成，AI节点数={targetAiNodes.Count}，AI节点={(targetAiNodes.Count == 0 ? "无（传统检测参数）" : string.Join("、", targetAiNodes.Select(node => node.ID + "." + node.NodeName)))}，耗时={stopwatch.ElapsedMilliseconds}ms。",
                     true);
 
                 if (runParamDisplayFilter == null)
                 {
                     runParamDisplayFilter = new RunParamDisplayFilter { WindowName = FormName };
                     runParamDisplayFilter.EnableSourceNodeLimit();
-                    runParamDisplayFilter.AddSourceNodeId(targetAiNode.ID);
+                    foreach (NodeTDAI aiNode in targetAiNodes)
+                        runParamDisplayFilter.AddSourceNodeId(aiNode.ID);
                 }
 
                 LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】开始打开运行参数窗体，流程={process.ProcessName}。", true);
-                ProcessTuningService.ShowManualParameters(this, process, targetAiNode, runParamDisplayFilter, () =>
+                Action validate = () =>
                 {
                     if (IsDisposed || !ReferenceEquals(GetCurrentProcess(), process))
                         throw new InvalidOperationException("当前图像窗口对应流程已变更，请重新打开手动调参。");
-                });
+                };
+                if (targetAiNodes.Count > 1)
+                    ProcessTuningService.ShowManualParameters(this, process, targetAiNodes, runParamDisplayFilter, validate);
+                else
+                    ProcessTuningService.ShowManualParameters(this, process, targetAiNode, runParamDisplayFilter, validate);
                 LogHelper.AddLog(MsgLevel.Info, $"【手动调参诊断】运行参数窗体已非模态打开，流程={process.ProcessName}，耗时={stopwatch.ElapsedMilliseconds}ms。", true);
             }
             catch (Exception ex)

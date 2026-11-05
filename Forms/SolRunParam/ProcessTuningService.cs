@@ -33,7 +33,7 @@ namespace TDJS_Vision.Forms.SolRunParam
             Process root = ResolveRoot(processId);
             if (!learning)
             {
-                ShowManualParameters(owner, root, null, null, () => ResolveRoot(processId));
+                ShowManualParameters(owner, root, (NodeTDAI)null, null, () => ResolveRoot(processId));
                 return;
             }
 
@@ -105,6 +105,28 @@ namespace TDJS_Vision.Forms.SolRunParam
             {
                 EnsureAllowed(process, validate);
                 // 非模态窗口由关闭事件释放，不能用using在Show返回后立即销毁。
+                form.ShowModeless(owner, () => EnsureAllowed(process, validate));
+            }
+            catch
+            {
+                form.Dispose();
+                throw;
+            }
+        }
+
+        /// <summary>非模态打开同一画面关联的多个AI参数，每个AI使用独立页签。</summary>
+        public static void ShowManualParameters(IWin32Window owner, Process process, IEnumerable<NodeTDAI> targets,
+            RunParamDisplayFilter filter, Action validate = null)
+        {
+            EnsureAllowed(process, validate);
+            List<NodeTDAI> targetList = (targets ?? Enumerable.Empty<NodeTDAI>()).Where(node => node != null).Distinct().ToList();
+            if (targetList.Count == 0)
+                throw new InvalidOperationException("当前画面未关联AI检测节点，无法打开手动调参。");
+
+            var form = new FormSolRunParam(process, targetList, filter);
+            try
+            {
+                EnsureAllowed(process, validate);
                 form.ShowModeless(owner, () => EnsureAllowed(process, validate));
             }
             catch

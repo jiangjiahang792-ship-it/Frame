@@ -48,28 +48,27 @@ internal static class NewTerminal12Tests
     {
         return result.AlgorithmResult.DetectResults[DetectItemLanguage.NormalizeName(name)][0];
     }
-    /// <summary>验证横向线芯方向、独立反向计数、缺侧及一对一配对。</summary>
+    /// <summary>验证前后防水栓右上角X方向、独立反向计数、缺侧及一对一配对。</summary>
     private static void Direction()
     {
         var cases = new[] {
-            new { Boxes = new List<DetResult> { Box(5, 20), Box(6), Box(8, 40) }, Expected = 0 },
-            new { Boxes = new List<DetResult> { Box(5), Box(6, 20), Box(8, -20) }, Expected = 0 },
-            new { Boxes = new List<DetResult> { Box(5), Box(6, 20), Box(8, 40) }, Expected = 1 },
-            new { Boxes = new List<DetResult> { Box(5, 20), Box(6), Box(8, -20) }, Expected = 1 },
+            new { Boxes = new List<DetResult> { Box(5, 20), Box(6) }, Expected = 0 },
+            new { Boxes = new List<DetResult> { Box(5), Box(6, 20) }, Expected = 1 },
+            // 左上角顺序与右上角顺序相反，必须以X+Width的右上角X为准。
+            new { Boxes = new List<DetResult> { Box(5, 20, 0, 10), Box(6, 0, 0, 35) }, Expected = 1 },
+            new { Boxes = new List<DetResult> { Box(5, 20, 0, 30), Box(6, 30, 0, 10) }, Expected = 0 },
+            // 右上角X相等时方向不明确，按反处理。
+            new { Boxes = new List<DetResult> { Box(5, 20, 0, 10), Box(6, 0, 0, 30) }, Expected = 1 },
             new { Boxes = new List<DetResult> { Box(5) }, Expected = 1 },
             new { Boxes = new List<DetResult> { Box(6) }, Expected = 1 },
             new { Boxes = new List<DetResult>(), Expected = 1 },
-            new { Boxes = new List<DetResult> { Box(5), Box(6), Box(8, 40) }, Expected = 1 },
-            new { Boxes = new List<DetResult> { Box(5, 20), Box(6) }, Expected = 1 },
-            new { Boxes = new List<DetResult> { Box(5, 40), Box(6), Box(8, 20) }, Expected = 1 },
-            new { Boxes = new List<DetResult> { Box(5, 20), Box(6), Box(8, 40, 100) }, Expected = 1 },
-            new { Boxes = new List<DetResult> { Box(5), Box(6, 20), Box(8, 40), Box(5, 20, 100), Box(6, 0, 100), Box(8, 40, 100) }, Expected = 1 },
-            new { Boxes = new List<DetResult> { Box(5, 20), Box(6), Box(8, 40), Box(5, 20, 100) }, Expected = 1 },
-            new { Boxes = new List<DetResult> { Box(5), Box(6, 20), Box(8, 40), Box(5, 0, 100), Box(6, 20, 100), Box(8, 40, 100) }, Expected = 2 },
-            new { Boxes = new List<DetResult> { Box(5, 20), Box(6), Box(5, 120), Box(6, 100), Box(8, 140) }, Expected = 1 },
-            // 近似用户截图：右侧较窄前段、左侧带褶皱后段，两根线芯均在右侧。
-            new { Boxes = new List<DetResult> { Box(5, 354, 183, 144, 176), Box(6, 150, 132, 204, 264), Box(8, 536, 254, 160, 47),
-                Box(5, 376, 460, 138, 179), Box(6, 169, 441, 207, 269), Box(8, 560, 511, 154, 52) }, Expected = 0 }
+            // 线芯位置不再参与方向判定。
+            new { Boxes = new List<DetResult> { Box(5, 20), Box(6), Box(8, -100) }, Expected = 0 },
+            new { Boxes = new List<DetResult> { Box(5, 20), Box(6, 0, 100), Box(8, 40) }, Expected = 2 },
+            new { Boxes = new List<DetResult> { Box(5, 20), Box(6), Box(5, 120, 100), Box(6, 100, 100) }, Expected = 0 },
+            // 近似用户截图：两组后防水栓右上角均在前防水栓右上角左侧。
+            new { Boxes = new List<DetResult> { Box(5, 354, 183, 144, 176), Box(6, 150, 132, 204, 264),
+                Box(5, 376, 460, 138, 179), Box(6, 169, 441, 207, 269) }, Expected = 0 }
         };
         foreach (var test in cases)
         {
@@ -101,7 +100,8 @@ internal static class NewTerminal12Tests
                 Check(value.IsOk == present, "独立数量判定错误");
             }
         }
-        var dimensions = new[] { new { Name = "前防水栓长度", Id = 5, Value = "10" },
+        var dimensions = new[] { new { Name = "后铆脚露线芯高度", Id = 2, Value = "5" },
+            new { Name = "前防水栓长度", Id = 5, Value = "10" },
             new { Name = "后防水栓高度", Id = 6, Value = "5" }, new { Name = "穿塞深度", Id = 7, Value = "10" },
             new { Name = "线芯长度", Id = 8, Value = "10" }, new { Name = "前防水栓面积", Id = 5, Value = "50" } };
         foreach (var test in dimensions)
@@ -118,9 +118,10 @@ internal static class NewTerminal12Tests
         var defects = new List<DetectItemInfo> { Item("防水栓破损"), Item("防水栓正反") };
         Parse(defects, new List<DetResult> { Box(11), Box(5, 20), Box(6) }, true);
         Check(defects.All(i => i.MinValue == "0" && i.MaxValue == "0"), "学习覆盖缺陷0～0约束");
-        var bite = new List<DetectItemInfo> { Item("咬胶长度", "50", "50") };
-        Check(Parse(bite, new List<DetResult> { Box(3), Box(1, 30), Box(4) }, false, true).IsOk, "咬胶百分比被物理比例改变");
-        Check(!Parse(bite, new List<DetResult> { Box(3), Box(1, 30) }).IsOk, "咬胶缺依赖误判OK");
+        var bite = new List<DetectItemInfo> { Item("咬胶长度", "10", "10") };
+        Check(Parse(bite, new List<DetResult> { Box(2, 30), Box(4), Box(3, 500, 0, 200) }, false, true).IsOk,
+            "咬胶未按露线芯左上角X到后铆脚右上角X计算或仍依赖类别3");
+        Check(!Parse(bite, new List<DetResult> { Box(2, 30), Box(3) }).IsOk, "咬胶缺少后铆脚依赖仍误判OK");
     }
     /// <summary>缺件由补零结果判NG，实际合格框保持绿色，缺失值不污染学习。</summary>
     private static void MissingMeasurements()
@@ -211,7 +212,7 @@ internal static class NewTerminal12Tests
             screenshot = screenshot.Select(r => Box(r.ClassId, 1200 - r.Box.Bottom, r.Box.Left, r.Box.Height, r.Box.Width)).ToList();
         }
     }
-    /// <summary>验证25项模板、标签及可导入加密配置。</summary>
+    /// <summary>验证精简检测项模板、历史解析兼容、标签及可导入加密配置。</summary>
     private static void Templates()
     {
         var legacy = new List<DetectItemInfo> { Item("胶皮宽度", "10", "10"), Item("胶皮高度", "5", "5") };
@@ -220,13 +221,12 @@ internal static class NewTerminal12Tests
         Check(legacyResult.AlgorithmResult.Texts.Any(t => t.Text.StartsWith("穿塞深度:")) &&
             legacyResult.AlgorithmResult.Texts.Any(t => t.Text.StartsWith("穿塞直径:")), "旧配置显示未使用穿塞名称");
         var items = JsonConvert.DeserializeObject<List<DetectItemInfo>>(File.ReadAllText("Template/TDAI/新端子12类检测项.items"));
-        Check(items.Any(i => i.Name == "穿塞深度") && items.Any(i => i.Name == "穿塞直径") &&
-            !items.Any(i => i.Name == "胶皮宽度" || i.Name == "胶皮高度"), "模板未更新穿塞尺寸名称");
-        Check(items.Count == 27 && items.Select(i => i.Name).Distinct().Count() == 27, "模板项目缺失或重复");
-        Check(items.Count(i => i.Name == "前防水栓破损" || i.Name == "后防水栓破损") == 2,
-            "缺少前后防水栓颜色检测项");
-        var result = Parse(items, Enumerable.Range(0, 12).Select(id => Box(id, id * 20)).ToList());
-        Check(result.DetectItemCount == 24, "模板项目未全部输出");
+        string[] expectedItems = { "前铆脚露线芯长度", "前铆脚露线芯高度", "前铆脚面积",
+            "后铆脚露线芯长度", "后铆脚露线芯高度", "后铆脚面积", "咬胶长度",
+            "前防水栓面积", "后防水栓面积", "飞丝", "防水栓正反", "防水栓轮廓破损" };
+        Check(items.Count == expectedItems.Length && items.Select(i => i.Name).SequenceEqual(expectedItems) &&
+            items.All(i => i.Enable), "精简模板项目、顺序或启用状态错误");
+        Check(items.Select(i => i.Name).Distinct().Count() == expectedItems.Length, "精简模板存在重复检测项");
         Check(!items.Any(i => i.Name.Contains("正插") || i.Name.Contains("反插")), "遗留旧防水栓项目");
         string source = File.ReadAllText("Template/TDAI/新端子12类模型配置.json");
         Check(StringCipher.Decrypt(File.ReadAllText("Template/TDAI/新端子12类模型.ai")) == source, "AI配置加密回读失败");
@@ -247,8 +247,31 @@ internal static class NewTerminal12Tests
     [STAThread]
     private static int Main()
     {
-        try { Direction(); Mapping(); RubberFiltering(); MissingMeasurements(); Templates(); ColorPerimeters(); ShapeMatching(); WholePlugMatching(); CustomerDisplayAndWholeCount(); Console.WriteLine("新端子12类验证通过，共" + checks + "项断言。"); return 0; }
+        try { Direction(); Mapping(); RubberFiltering(); MissingMeasurements(); Templates(); AutoDisableMissingStudyItems(); ColorPerimeters(); ShapeMatching(); WholePlugMatching(); CustomerDisplayAndWholeCount(); Console.WriteLine("新端子12类验证通过，共" + checks + "项断言。"); return 0; }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+    }
+
+    /// <summary>验证学习达到设定次数后只禁用始终无有效样本的尺寸和轮廓项，数量缺陷项保持启用。</summary>
+    private static void AutoDisableMissingStudyItems()
+    {
+        const string key = "学习缺失自动禁用";
+        var frontLength = Item("前铆脚露线芯长度", "1", "99999");
+        var backHeight = Item("后铆脚露线芯高度", "1", "99999");
+        var contour = Item("防水栓轮廓破损", "70", "100");
+        var flyingWire = Item("飞丝", "0", "0");
+        var items = new List<DetectItemInfo> { frontLength, backHeight, contour, flyingWire };
+        Solution.Instance.DetectItemDic[key] = items;
+        var param = new NodeParamTDAI { CurDetectItemName = key, NodeName = key,
+            IsAutoStudy = true, StudyNum = 2, StudyPercentage = 10 };
+        var process = new TDJS_Vision.Process(key);
+        var result = new NodeResultTDAI();
+        NewTerminal12Parse.Parse(new List<DetResult>(), 0, param, process, ref result);
+        Check(items.All(i => i.Enable) && param.IsAutoStudy, "学习未达到设定次数就提前禁用检测项");
+        NewTerminal12Parse.Parse(new List<DetResult> { Box(0, 20, 20, 10, 5) }, 1, param, process, ref result);
+        Check(frontLength.Enable, "学习轮次内曾检出的尺寸项被错误禁用");
+        Check(!backHeight.Enable && !contour.Enable, "整轮始终无结果的尺寸或轮廓项没有自动禁用");
+        Check(flyingWire.Enable, "零检出即正常的缺陷数量项被错误禁用");
+        Check(!param.IsAutoStudy, "达到学习次数后未自动结束学习");
     }
 
     /// <summary>验证整体计数、逐只方向显示、新尺寸名称和两个模型隐藏统计，不修改用户公差。</summary>
@@ -337,10 +360,10 @@ internal static class NewTerminal12Tests
             Check(result.AlgorithmResult.DetectResults[name].Any(r=>!r.IsOk && r.Value=="0"), "不完整配对被其他颜色区域抵消");
             string saved = JsonConvert.SerializeObject(item.PlugColor);
             param.IsAutoStudy=true;
-            bool rejected=false;
-            try { NewTerminal12Parse.Parse(incomplete,incomplete.Count,param,process,ref result,input); }
-            catch(InvalidOperationException e) { rejected=e.Message.Contains("配对"); }
-            Check(rejected && JsonConvert.SerializeObject(item.PlugColor)==saved, "不完整配对学习未拒绝或污染正式模板");
+            NewTerminal12Parse.Parse(incomplete,incomplete.Count,param,process,ref result,input);
+            Check(!item.Enable && JsonConvert.SerializeObject(item.PlugColor)==saved,
+                "不完整配对在整轮无有效样本时未禁用检测项或污染正式模板");
+            item.Enable = true;
             // 即使一只整栓被分成两个有效颜色区域，也不能冒充两只完整配对。
             param.IsAutoStudy=false;
             image.SetTo(Scalar.White);
@@ -506,12 +529,17 @@ internal static class NewTerminal12Tests
             image.SetTo(Scalar.White);
             NewTerminal12Parse.Parse(boxes, boxes.Count, param, process, ref result, input);
             Check(!result.IsOk && Value(result, front).Value == "0.00", "无颜色区域误判OK");
-            string before = JsonConvert.SerializeObject(restored);
+            string beforeColors = JsonConvert.SerializeObject(restored.Select(i => i.PlugColor));
+            string[] beforeLimits = restored.Select(i => i.MinValue + "|" + i.MaxValue).ToArray();
             param.IsAutoStudy = true;
-            bool failed = false;
-            try { NewTerminal12Parse.Parse(new List<DetResult>(), 0, param, process, ref result, input); }
-            catch (InvalidOperationException) { failed = true; }
-            Check(failed && JsonConvert.SerializeObject(restored) == before, "空目标学习覆盖原颜色或公差");
+            NewTerminal12Parse.Parse(new List<DetResult>(), 0, param, process, ref result, input);
+            Check(restored.All(i => i.Enable) && param.IsAutoStudy, "单帧空目标提前禁用轮廓项或结束学习");
+            NewTerminal12Parse.Parse(new List<DetResult>(), 0, param, process, ref result, input);
+            Check(restored.All(i => !i.Enable) && !param.IsAutoStudy,
+                "达到学习次数仍无轮廓结果时没有自动禁用对应项");
+            Check(JsonConvert.SerializeObject(restored.Select(i => i.PlugColor)) == beforeColors &&
+                restored.Select(i => i.MinValue + "|" + i.MaxValue).SequenceEqual(beforeLimits),
+                "空目标学习覆盖原颜色或公差");
         }
         // 两个不足面积门槛的区域即使闭运算能够合并，也必须先被去除。
         using (var image = new Mat(120, 140, MatType.CV_8UC3, Scalar.White))

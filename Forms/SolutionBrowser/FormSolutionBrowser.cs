@@ -62,6 +62,7 @@ namespace TDJS_Vision.Forms.SolutionBrowser
                 || p.FullPath.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
             solutionGrid.DataSource = matches;
             openButton.Enabled = matches.Count > 0;
+            deleteRecordButton.Enabled = solutionGrid.CurrentRow?.DataBoundItem is SolutionCatalogEntry;
             statusLabel.Text = matches.Count == 0 ? LanguageManager.T("没有找到方案，可点击“浏览其他方案”添加。")
                 : string.Format(LanguageManager.T("共 {0} 个方案，双击即可打开。"), matches.Count);
         }
@@ -79,6 +80,24 @@ namespace TDJS_Vision.Forms.SolutionBrowser
         /// <summary>双击数据行时直接确认，忽略表头。</summary>
         private void SolutionGrid_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
         { if (e.RowIndex >= 0) OpenButton_Click(sender, EventArgs.Empty); }
+
+        /// <summary>列表选择变化时同步删除记录按钮状态。</summary>
+        private void SolutionGrid_SelectionChanged(object sender, EventArgs e)
+        {
+            deleteRecordButton.Enabled = solutionGrid.CurrentRow?.DataBoundItem is SolutionCatalogEntry;
+        }
+
+        /// <summary>只从方案列表移除当前记录，绝不删除磁盘上的方案文件。</summary>
+        private void DeleteRecordButton_Click(object sender, EventArgs e)
+        {
+            var entry = solutionGrid.CurrentRow?.DataBoundItem as SolutionCatalogEntry;
+            if (entry == null) return;
+
+            catalog.Forget(entry.FullPath);
+            entries = entries.Where(item => !string.Equals(item.FullPath, entry.FullPath, StringComparison.OrdinalIgnoreCase)).ToList();
+            ApplyFilter();
+            statusLabel.Text = LanguageManager.T("记录已删除，方案文件仍保留在原位置。");
+        }
 
         /// <summary>只在用户明确选择其他方案时打开系统文件浏览器。</summary>
         private void BrowseButton_Click(object sender, EventArgs e)
