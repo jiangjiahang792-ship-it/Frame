@@ -273,9 +273,9 @@ namespace TDJS_Vision.Node._3_Detection.NewContourMatch
             runtimeLabel0.AutoSize = true;
             runtimeLabel0.Margin = new Padding(3, 10, 3, 10);
             findAngleStartNumeric = new NumericUpDown();
-            findAngleStartNumeric.Minimum = -180M;
-            findAngleStartNumeric.Maximum = 180M;
-            findAngleStartNumeric.Value = -30M;
+            findAngleStartNumeric.Minimum = -360M;
+            findAngleStartNumeric.Maximum = 360M;
+            findAngleStartNumeric.Value = -360M;
             findAngleStartNumeric.DecimalPlaces = 1;
             findAngleStartNumeric.Increment = 1M;
             findAngleStartNumeric.Dock = DockStyle.Fill;
@@ -286,9 +286,9 @@ namespace TDJS_Vision.Node._3_Detection.NewContourMatch
             runtimeLabel1.AutoSize = true;
             runtimeLabel1.Margin = new Padding(3, 10, 3, 10);
             findAngleEndNumeric = new NumericUpDown();
-            findAngleEndNumeric.Minimum = -180M;
-            findAngleEndNumeric.Maximum = 180M;
-            findAngleEndNumeric.Value = 30M;
+            findAngleEndNumeric.Minimum = -360M;
+            findAngleEndNumeric.Maximum = 360M;
+            findAngleEndNumeric.Value = 360M;
             findAngleEndNumeric.DecimalPlaces = 1;
             findAngleEndNumeric.Increment = 1M;
             findAngleEndNumeric.Dock = DockStyle.Fill;

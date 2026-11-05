@@ -82,8 +82,23 @@ namespace TDJS_Vision.Node._3_Detection.NewContourMatch
         /// <summary>验证角度范围，拒绝非有限坐标。</summary>
         private static void ValidateAngles(double start, double end)
         {
-            if (!ContourCompatibility.IsFinite(start) || !ContourCompatibility.IsFinite(end) || start < -180 || end > 180 || start > end)
-                throw new ArgumentException("起始角不能大于结束角，角度范围为-180～180度。");
+            if (!ContourCompatibility.IsFinite(start) || !ContourCompatibility.IsFinite(end) || start < -360 || end > 360 || start > end)
+                throw new ArgumentException("起始角不能大于结束角，角度范围为-360～360度。");
+        }
+
+        /// <summary>
+        /// 原生算法用 -180～180 表示完整圆；配置层允许 -360～360，完整圆范围在调用前等价归一化。
+        /// </summary>
+        private static void NormalizeNativeAngles(double start, double end, out double nativeStart, out double nativeEnd)
+        {
+            if (start <= -180D && end >= 180D)
+            {
+                nativeStart = -180D;
+                nativeEnd = 180D;
+                return;
+            }
+            nativeStart = Math.Max(-180D, start);
+            nativeEnd = Math.Min(180D, end);
         }
 
         /// <summary>检查图像深度和通道；允许非连续ROI，原生函数按真实行步长访问。</summary>
@@ -122,12 +137,15 @@ namespace TDJS_Vision.Node._3_Detection.NewContourMatch
                 (long)roi.X + roi.Width > image.Width || (long)roi.Y + roi.Height > image.Height)
                 throw new ArgumentException("模板ROI必须位于图像内，且至少为8×8像素。");
             EnsureHandle();
+            double nativeAngleStart;
+            double nativeAngleEnd;
+            NormalizeNativeAngles(options.AngleStartDegrees, options.AngleEndDegrees, out nativeAngleStart, out nativeAngleEnd);
             GCHandle pinned = default(GCHandle);
             try
             {
             if (mask != null) pinned = GCHandle.Alloc(mask, GCHandleType.Pinned);
             if (NativeMethods.CreateModel(_handle, image.Data, image.Width, image.Height, checked((int)image.Step()), image.Channels(),
-                roi.X, roi.Y, roi.Width, roi.Height, options.PyramidLevels, options.AngleStartDegrees, options.AngleEndDegrees,
+                roi.X, roi.Y, roi.Width, roi.Height, options.PyramidLevels, nativeAngleStart, nativeAngleEnd,
                 options.AngleStepDegrees, options.Metric == ShapeMetric.忽略极性 ? "ignore_polarity" : "use_polarity",
                 options.AutoContrast ? 0 : options.Contrast, options.MinimumContrast, options.FeatureCount,
                 mask == null ? IntPtr.Zero : pinned.AddrOfPinnedObject(), mask == null ? 0 : image.Width, options.AlgorithmVersion, options.ScaleToleranceX, options.ScaleToleranceY, options.LowThreshold, options.MinimumContourLength, options.TimeoutMilliseconds) == 0)
@@ -187,12 +205,15 @@ namespace TDJS_Vision.Node._3_Detection.NewContourMatch
             ValidateImage(image); ValidateFind(options);
             if (!HasModel) throw new InvalidOperationException("请先创建轮廓模板。");
             var buffer = new NativeMatch[options.MaximumMatches];
+            double nativeAngleStart;
+            double nativeAngleEnd;
+            NormalizeNativeAngles(options.AngleStartDegrees, options.AngleEndDegrees, out nativeAngleStart, out nativeAngleEnd);
             GCHandle pin = GCHandle.Alloc(buffer, GCHandleType.Pinned);
             try
             {
                 int count;
                 if (NativeMethods.Find(_handle, image.Data, image.Width, image.Height, checked((int)image.Step()), image.Channels(),
-                    options.AngleStartDegrees, options.AngleEndDegrees, options.MinimumScore, options.MaximumMatches,
+                    nativeAngleStart, nativeAngleEnd, options.MinimumScore, options.MaximumMatches,
                     options.MaximumOverlap, options.SubPixel ? 1 : 0, options.PyramidLevels, (int)options.Mode,
                     pin.AddrOfPinnedObject(), buffer.Length, out count) == 0) throw NativeError("轮廓搜索失败");
                 if (count < 0 || count > buffer.Length) throw new InvalidOperationException("原生匹配结果数量异常。");

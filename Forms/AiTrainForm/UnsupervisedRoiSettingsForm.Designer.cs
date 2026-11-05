@@ -22,6 +22,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
             this.checkBoxEnableCrop = new System.Windows.Forms.CheckBox();
             this.buttonDrawRoi = new System.Windows.Forms.Button();
             this.buttonClearRoi = new System.Windows.Forms.Button();
+            this.labelRoiShape = new System.Windows.Forms.Label();
+            this.comboBoxRoiShape = new System.Windows.Forms.ComboBox();
             this.checkBoxEnableTemplateMatch = new System.Windows.Forms.CheckBox();
             this.buttonConfigureTemplate = new System.Windows.Forms.Button();
             this.labelTemplateDefaults = new System.Windows.Forms.Label();
@@ -53,6 +55,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
             this.panelOptions.Controls.Add(this.checkBoxEnableCrop);
             this.panelOptions.Controls.Add(this.buttonDrawRoi);
             this.panelOptions.Controls.Add(this.buttonClearRoi);
+            this.panelOptions.Controls.Add(this.labelRoiShape);
+            this.panelOptions.Controls.Add(this.comboBoxRoiShape);
             this.panelOptions.Controls.Add(this.checkBoxEnableTemplateMatch);
             this.panelOptions.Controls.Add(this.buttonConfigureTemplate);
             this.panelOptions.Controls.Add(this.labelTemplateDefaults);
@@ -78,6 +82,20 @@ namespace TDJS_Vision.Forms.AiTrainForm
             this.buttonClearRoi.Size = new System.Drawing.Size(108, 34);
             this.buttonClearRoi.Text = "清空ROI";
             this.buttonClearRoi.Click += new System.EventHandler(this.buttonClearRoi_Click);
+            //
+            // labelRoiShape
+            //
+            this.labelRoiShape.AutoSize = true;
+            this.labelRoiShape.Location = new System.Drawing.Point(394, 14);
+            this.labelRoiShape.Text = "ROI形状";
+            //
+            // comboBoxRoiShape
+            //
+            this.comboBoxRoiShape.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxRoiShape.Items.AddRange(new object[] { "矩形", "圆形" });
+            this.comboBoxRoiShape.Location = new System.Drawing.Point(474, 9);
+            this.comboBoxRoiShape.Size = new System.Drawing.Size(112, 31);
+            this.comboBoxRoiShape.SelectedIndex = 0;
             // 
             // checkBoxEnableTemplateMatch
             // 
@@ -115,23 +133,23 @@ namespace TDJS_Vision.Forms.AiTrainForm
             // labelRoiStatus
             // 
             this.labelRoiStatus.AutoEllipsis = true;
-            this.labelRoiStatus.Location = new System.Drawing.Point(14, 15);
-            this.labelRoiStatus.Size = new System.Drawing.Size(600, 30);
+            this.labelRoiStatus.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.labelRoiStatus.Padding = new System.Windows.Forms.Padding(14, 15, 0, 0);
             this.labelRoiStatus.Text = "ROI：未绘制";
             // 
             // buttonCancel
             // 
-            this.buttonCancel.Anchor = System.Windows.Forms.AnchorStyles.Right;
             this.buttonCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.buttonCancel.Location = new System.Drawing.Point(684, 10);
-            this.buttonCancel.Size = new System.Drawing.Size(104, 36);
+            this.buttonCancel.Dock = System.Windows.Forms.DockStyle.Right;
+            this.buttonCancel.Margin = new System.Windows.Forms.Padding(8, 10, 8, 10);
+            this.buttonCancel.Size = new System.Drawing.Size(112, 58);
             this.buttonCancel.Text = "取消";
             // 
             // buttonOk
             // 
-            this.buttonOk.Anchor = System.Windows.Forms.AnchorStyles.Right;
-            this.buttonOk.Location = new System.Drawing.Point(796, 10);
-            this.buttonOk.Size = new System.Drawing.Size(104, 36);
+            this.buttonOk.Dock = System.Windows.Forms.DockStyle.Right;
+            this.buttonOk.Margin = new System.Windows.Forms.Padding(8, 10, 8, 10);
+            this.buttonOk.Size = new System.Drawing.Size(112, 58);
             this.buttonOk.Text = "确定";
             this.buttonOk.Click += new System.EventHandler(this.buttonOk_Click);
             // 
@@ -160,6 +178,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
         private System.Windows.Forms.CheckBox checkBoxEnableCrop;
         private System.Windows.Forms.Button buttonDrawRoi;
         private System.Windows.Forms.Button buttonClearRoi;
+        private System.Windows.Forms.Label labelRoiShape;
+        private System.Windows.Forms.ComboBox comboBoxRoiShape;
         private System.Windows.Forms.CheckBox checkBoxEnableTemplateMatch;
         private System.Windows.Forms.Button buttonConfigureTemplate;
         private System.Windows.Forms.Label labelTemplateDefaults;

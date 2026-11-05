@@ -42,7 +42,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
     {
         /// <summary>
         /// 创建固定为单目标、0.5 分数、整圆搜索的运行参数副本。
-        /// 原生算法以 -180～180 表示一个完整圆，因此执行层使用该等价范围。
+        /// 执行层按配置直接使用 -360～360 度完整搜索范围。
         /// </summary>
         internal static NodeParamNewContourMatch CreateRuntimeParameters(NodeParamNewContourMatch source)
         {
@@ -52,8 +52,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
             result.FindOptions = result.FindOptions ?? new FindOptions();
             result.FindOptions.MaximumMatches = UnsupervisedTemplateMatchSettings.DefaultMaximumMatches;
             result.FindOptions.MinimumScore = UnsupervisedTemplateMatchSettings.DefaultMinimumScore;
-            result.FindOptions.AngleStartDegrees = -180D;
-            result.FindOptions.AngleEndDegrees = 180D;
+            result.FindOptions.AngleStartDegrees = UnsupervisedTemplateMatchSettings.DefaultAngleStart;
+            result.FindOptions.AngleEndDegrees = UnsupervisedTemplateMatchSettings.DefaultAngleEnd;
             return result;
         }
 

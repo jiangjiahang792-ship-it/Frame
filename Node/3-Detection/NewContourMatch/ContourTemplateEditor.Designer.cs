@@ -398,10 +398,10 @@ namespace TDJS_Vision.Node._3_Detection.NewContourMatch
         // modelAngleStartNumeric
         //
         modelAngleStartNumeric.DecimalPlaces = 1;
-        modelAngleStartNumeric.Maximum = 180;
-        modelAngleStartNumeric.Minimum = -180;
+        modelAngleStartNumeric.Maximum = 360;
+        modelAngleStartNumeric.Minimum = -360;
         modelAngleStartNumeric.Size = new Size(70, 23);
-        modelAngleStartNumeric.Value = -30;
+        modelAngleStartNumeric.Value = -360;
         //
         // modelAngleEndLabel
         //
@@ -412,10 +412,10 @@ namespace TDJS_Vision.Node._3_Detection.NewContourMatch
         // modelAngleEndNumeric
         //
         modelAngleEndNumeric.DecimalPlaces = 1;
-        modelAngleEndNumeric.Maximum = 180;
-        modelAngleEndNumeric.Minimum = -180;
+        modelAngleEndNumeric.Maximum = 360;
+        modelAngleEndNumeric.Minimum = -360;
         modelAngleEndNumeric.Size = new Size(70, 23);
-        modelAngleEndNumeric.Value = 30;
+        modelAngleEndNumeric.Value = 360;
         //
         // angleStepLabel
         //
@@ -522,9 +522,12 @@ namespace TDJS_Vision.Node._3_Detection.NewContourMatch
             lengthNumeric = new NumericUpDown { Name = "lengthNumeric", Minimum = 0M, Maximum = 10000M, Value = 0M, DecimalPlaces = 1, Increment = 1M, Dock = DockStyle.Fill };
             lengthNumericLabel = new Label { Text = "最小轮廓长度", AutoSize = true, Anchor = AnchorStyles.Left };
             modelParametersFlow.Controls.Add(lengthNumericLabel, 0, 11); modelParametersFlow.Controls.Add(lengthNumeric, 1, 11);
-            timeoutNumeric = new NumericUpDown { Name = "timeoutNumeric", Minimum = 0M, Maximum = 600000M, Value = 0M, DecimalPlaces = 0, Increment = 100M, Dock = DockStyle.Fill };
-            timeoutNumericLabel = new Label { Text = "搜索超时(毫秒)", AutoSize = true, Anchor = AnchorStyles.Left };
-            modelParametersFlow.Controls.Add(timeoutNumericLabel, 0, 12); modelParametersFlow.Controls.Add(timeoutNumeric, 1, 12);
+            timeoutNumeric = new NumericUpDown { Name = "timeoutNumeric", Minimum = 0M, Maximum = 600000M, Value = 0M, DecimalPlaces = 0, Increment = 100M, Dock = DockStyle.Fill, Margin = new Padding(3, 3, 3, 3) };
+            timeoutNumericLabel = new Label { Text = "搜索超时(毫秒)", AutoSize = false, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Margin = new Padding(3, 0, 3, 0) };
+            modelParametersFlow.Controls.Add(timeoutNumericLabel, 0, 12);
+            modelParametersFlow.Controls.Add(timeoutNumeric, 1, 12);
+            modelParametersFlow.SetRow(timeoutNumericLabel, 12); modelParametersFlow.SetColumn(timeoutNumericLabel, 0);
+            modelParametersFlow.SetRow(timeoutNumeric, 12); modelParametersFlow.SetColumn(timeoutNumeric, 1);
             modelParametersGroup.Text = "轮廓提取";
             imageCanvas.Dock = DockStyle.Fill; imageCanvas.Margin = Padding.Empty;
             imageCanvas.ConfirmRequested += ImageCanvas_ConfirmRequested; imageCanvas.EditCancelled += ImageCanvas_EditCancelled; imageCanvas.EditChanged += ImageCanvas_EditChanged;

@@ -30,6 +30,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             _initialRoi = initialRoi;
             _templateMatchSettings = templateMatchSettings;
             InitializeComponent();
+            imageRoiEditor.MaximumRoiCount = 1;
             LoadPreview();
             checkBoxEnableCrop.Checked = cropEnabled;
             checkBoxEnableTemplateMatch.Checked = cropEnabled && templateMatchSettings != null;
@@ -83,7 +84,9 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 MessageBoxTD.Show(this, "当前只允许一个 ROI，请先清空已有 ROI。");
                 return;
             }
-            imageRoiEditor.BeginDrawRectangleRoi();
+            imageRoiEditor.BeginDrawRoi(comboBoxRoiShape.SelectedIndex == 1
+                ? TDJS_Vision.Forms.ShapeDraw.ROIType.Circle
+                : TDJS_Vision.Forms.ShapeDraw.ROIType.Rectangle);
         }
 
         /// <summary>清空当前 ROI。</summary>

@@ -27,6 +27,11 @@ namespace TDJS_Vision.Forms.ShapeDraw
         /// </summary>
         public bool RoiEditingEnabled { get; set; } = true;
 
+        /// <summary>
+        /// 允许创建的 ROI 最大数量；小于等于零表示不限制。
+        /// </summary>
+        public int MaximumRoiCount { get; set; }
+
         public ImageROIEditControl()
         {
             InitializeComponent();
@@ -107,9 +112,18 @@ namespace TDJS_Vision.Forms.ShapeDraw
         /// </summary>
         public void BeginDrawRectangleRoi()
         {
-            selectedROIType = ROIType.Rectangle;
-            矩形ToolStripMenuItem1.Checked = true;
-            圆形ToolStripMenuItem1.Checked = false;
+            BeginDrawRoi(ROIType.Rectangle);
+        }
+
+        /// <summary>
+        /// 按指定形状进入 ROI 绘制状态。
+        /// </summary>
+        /// <param name="type">矩形或圆形。</param>
+        public void BeginDrawRoi(ROIType type)
+        {
+            selectedROIType = type;
+            矩形ToolStripMenuItem1.Checked = type == ROIType.Rectangle;
+            圆形ToolStripMenuItem1.Checked = type == ROIType.Circle;
             绘制状态ToolStripMenuItem.Checked = true;
             CurStatus = Status.ReadyDraw;
         }
@@ -203,6 +217,12 @@ namespace TDJS_Vision.Forms.ShapeDraw
         {
             if (!RoiEditingEnabled) return;
             if (e.Button == MouseButtons.Right) { return; }
+            if ((CurStatus == Status.ReadyDraw || CurStatus == Status.EndDraw) &&
+                MaximumRoiCount > 0 && roiManager.ROIs.Count >= MaximumRoiCount)
+            {
+                CurStatus = Status.ReadyMove;
+                return;
+            }
             startPoint = e.Location;
 
             // 处于绘制ROI的状态

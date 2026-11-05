@@ -52,10 +52,10 @@ public sealed class CreateModelOptions
     public int PyramidLevels { get; set; }
 
     /// <summary>建模起始角度，单位为度。</summary>
-    public double AngleStartDegrees { get; set; } = -30D;
+    public double AngleStartDegrees { get; set; } = -360D;
 
     /// <summary>建模结束角度，单位为度。</summary>
-    public double AngleEndDegrees { get; set; } = 30D;
+    public double AngleEndDegrees { get; set; } = 360D;
 
     /// <summary>离散模板角度间隔，单位为度。</summary>
     public double AngleStepDegrees { get; set; } = 1D;
@@ -77,10 +77,10 @@ public sealed class CreateModelOptions
 public sealed class FindOptions
 {
     /// <summary>搜索起始角度，单位为度。</summary>
-    public double AngleStartDegrees { get; set; } = -30D;
+    public double AngleStartDegrees { get; set; } = -360D;
 
     /// <summary>搜索结束角度，单位为度。</summary>
-    public double AngleEndDegrees { get; set; } = 30D;
+    public double AngleEndDegrees { get; set; } = 360D;
 
     /// <summary>最终结果必须达到的归一化分数。</summary>
     public double MinimumScore { get; set; } = 0.65D;
