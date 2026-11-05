@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using OpenCvSharp;
+using TDJS_Vision.Node._3_Detection.NewContourMatch;
 using CvRect = OpenCvSharp.Rect;
 
 namespace TDJS_Vision.Forms.AiTrainForm
@@ -322,38 +323,46 @@ namespace TDJS_Vision.Forms.AiTrainForm
             bool canReserveCalibrationImages = sourceOkCount > 1 && sourceNgCount > 1;
             string calibrationOkImagePath = null;
             string calibrationNgImagePath = null;
-            foreach (UnsupervisedImageItem item in request.Images)
+            NewContourMatchSession templateMatchSession = request.TemplateMatchSettings == null ? null : new NewContourMatchSession();
+            try
             {
-                token.ThrowIfCancellationRequested();
-                bool isNg = item.Category == UnsupervisedImageCategory.NG;
-                bool reserveForCalibration = canReserveCalibrationImages &&
-                    (isNg
-                        ? string.IsNullOrWhiteSpace(calibrationNgImagePath)
-                        : string.IsNullOrWhiteSpace(calibrationOkImagePath));
-                string targetFolder = reserveForCalibration
-                    ? (isNg ? calibrationNgPath : calibrationOkPath)
-                    : (isNg ? ngPath : okPath);
-                string savedPath = request.RoiRect.HasValue
-                    ? CropImageToRoi(item.FilePath, targetFolder, request.RoiRect.Value, index)
-                    : CopyImageToDataset(item.FilePath, targetFolder, index);
-
-                if (!string.IsNullOrWhiteSpace(savedPath))
+                foreach (UnsupervisedImageItem item in request.Images)
                 {
-                    if (reserveForCalibration)
+                    token.ThrowIfCancellationRequested();
+                    bool isNg = item.Category == UnsupervisedImageCategory.NG;
+                    bool reserveForCalibration = canReserveCalibrationImages &&
+                        (isNg
+                            ? string.IsNullOrWhiteSpace(calibrationNgImagePath)
+                            : string.IsNullOrWhiteSpace(calibrationOkImagePath));
+                    string targetFolder = reserveForCalibration
+                        ? (isNg ? calibrationNgPath : calibrationOkPath)
+                        : (isNg ? ngPath : okPath);
+                    string savedPath = request.RoiRect.HasValue
+                        ? CropImageToRoi(item.FilePath, targetFolder, request.RoiRect.Value, request.TemplateMatchSettings, templateMatchSession, index)
+                        : CopyImageToDataset(item.FilePath, targetFolder, index);
+
+                    if (!string.IsNullOrWhiteSpace(savedPath))
                     {
-                        if (isNg) calibrationNgImagePath = savedPath;
-                        else calibrationOkImagePath = savedPath;
+                        if (reserveForCalibration)
+                        {
+                            if (isNg) calibrationNgImagePath = savedPath;
+                            else calibrationOkImagePath = savedPath;
+                        }
+                        else if (isNg)
+                        {
+                            ngCount++;
+                        }
+                        else
+                        {
+                            okCount++;
+                        }
                     }
-                    else if (isNg)
-                    {
-                        ngCount++;
-                    }
-                    else
-                    {
-                        okCount++;
-                    }
+                    index++;
                 }
-                index++;
+            }
+            finally
+            {
+                templateMatchSession?.Dispose();
             }
 
             if (okCount == 0)
@@ -388,7 +397,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <param name="roi">图像坐标系 ROI。</param>
         /// <param name="index">图片序号。</param>
         /// <returns>保存成功返回目标路径，失败返回 null。</returns>
-        private static string CropImageToRoi(string sourceFile, string targetFolder, CvRect roi, int index)
+        private static string CropImageToRoi(string sourceFile, string targetFolder, CvRect roi, UnsupervisedTemplateMatchSettings templateMatchSettings, NewContourMatchSession templateMatchSession, int index)
         {
             if (!File.Exists(sourceFile)) return null;
 
@@ -396,10 +405,19 @@ namespace TDJS_Vision.Forms.AiTrainForm
             {
                 if (image.Empty()) return null;
 
-                CvRect rect = ClampRect(roi, image.Width, image.Height);
-                if (rect.Width <= 0 || rect.Height <= 0) return null;
+                Mat croppedImage;
+                if (templateMatchSettings != null)
+                {
+                    croppedImage = UnsupervisedTemplateRoiMatcher.Crop(image, roi, templateMatchSettings, templateMatchSession);
+                }
+                else
+                {
+                    CvRect rect = ClampRect(roi, image.Width, image.Height);
+                    if (rect.Width <= 0 || rect.Height <= 0) return null;
+                    croppedImage = new Mat(image, rect).Clone();
+                }
 
-                using (Mat crop = new Mat(image, rect).Clone())
+                using (Mat crop = croppedImage)
                 {
                     string targetFile = Path.Combine(targetFolder, BuildDatasetFileName(sourceFile, index, ".png"));
                     return Cv2.ImWrite(targetFile, crop) ? targetFile : null;
@@ -609,6 +627,13 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 RoiY = request.RoiRect.HasValue ? roi.Y : 0,
                 RoiWidth = request.RoiRect.HasValue ? roi.Width : 0,
                 RoiHeight = request.RoiRect.HasValue ? roi.Height : 0,
+                TemplateMatchEnabled = request.TemplateMatchSettings != null,
+                TemplateMatchParameters = request.TemplateMatchSettings?.Parameters?.Copy(),
+                TemplateBaselineCenterX = request.TemplateMatchSettings?.BaselineCenterX ?? 0D,
+                TemplateBaselineCenterY = request.TemplateMatchSettings?.BaselineCenterY ?? 0D,
+                TemplateBaselineAngle = request.TemplateMatchSettings?.BaselineAngle ?? 0D,
+                TemplateMatchAngleStart = request.TemplateMatchSettings?.AngleStart ?? UnsupervisedTemplateMatchSettings.DefaultAngleStart,
+                TemplateMatchAngleEnd = request.TemplateMatchSettings?.AngleEnd ?? UnsupervisedTemplateMatchSettings.DefaultAngleEnd,
                 SourceImageCount = request.Images.Count,
                 OkCount = dataset.OkCount,
                 NgCount = dataset.NgCount

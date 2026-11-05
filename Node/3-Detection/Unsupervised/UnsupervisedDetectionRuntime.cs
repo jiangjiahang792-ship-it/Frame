@@ -7,6 +7,7 @@ using System.IO;
 using Logger;
 using OpenCvSharp;
 using TDJS_Vision.Forms.AiTrainForm;
+using TDJS_Vision.Node._3_Detection.NewContourMatch;
 using CvRect = OpenCvSharp.Rect;
 using DrawingRect = System.Drawing.Rectangle;
 
@@ -68,6 +69,11 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         private UnsupervisedAnomalibDetector _detector;
 
         /// <summary>
+        /// 模板初匹配会话，跨帧复用已经恢复的原生轮廓模板，避免重复建模。
+        /// </summary>
+        private readonly NewContourMatchSession _templateMatchSession = new NewContourMatchSession();
+
+        /// <summary>
         /// 执行一次无监督检测。
         /// </summary>
         /// <param name="sourceImage">流程输入图像。</param>
@@ -86,7 +92,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                 UnsupervisedTemplateManifest manifest = _extractResult.Manifest;
                 CvRect? roiRect = null;
                 Stopwatch imageTimer = Stopwatch.StartNew();
-                Mat inferImage = BuildInferenceImage(sourceImage, manifest, out roiRect);
+                Mat inferImage = BuildInferenceImage(sourceImage, manifest, _templateMatchSession, out roiRect);
                 imageTimer.Stop();
                 using (inferImage)
                 {
@@ -196,6 +202,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             lock (_syncRoot)
             {
                 ReleaseDetector();
+                _templateMatchSession.Dispose();
             }
         }
 
@@ -608,7 +615,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// <param name="manifest">模板清单。</param>
         /// <param name="roiRect">实际使用的 ROI。</param>
         /// <returns>待推理图像。</returns>
-        private static Mat BuildInferenceImage(Mat sourceImage, UnsupervisedTemplateManifest manifest, out CvRect? roiRect)
+        private static Mat BuildInferenceImage(Mat sourceImage, UnsupervisedTemplateManifest manifest, NewContourMatchSession templateMatchSession, out CvRect? roiRect)
         {
             roiRect = null;
             if (manifest == null || !manifest.RoiEnabled)
@@ -619,6 +626,19 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                 throw new InvalidOperationException("无监督模板 ROI 超出当前图像范围。");
 
             roiRect = rect;
+            if (manifest.TemplateMatchEnabled)
+            {
+                var settings = new UnsupervisedTemplateMatchSettings
+                {
+                    Parameters = manifest.TemplateMatchParameters,
+                    BaselineCenterX = manifest.TemplateBaselineCenterX,
+                    BaselineCenterY = manifest.TemplateBaselineCenterY,
+                    BaselineAngle = manifest.TemplateBaselineAngle,
+                    AngleStart = manifest.TemplateMatchAngleStart,
+                    AngleEnd = manifest.TemplateMatchAngleEnd
+                };
+                return UnsupervisedTemplateRoiMatcher.Crop(sourceImage, rect, settings, templateMatchSession);
+            }
             return new Mat(sourceImage, rect).Clone();
         }
 

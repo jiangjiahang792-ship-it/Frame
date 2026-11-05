@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
+using TDJS_Vision.Node._3_Detection.NewContourMatch;
 using CvRect = OpenCvSharp.Rect;
 using Logger;
 
@@ -132,6 +133,11 @@ namespace TDJS_Vision.Forms.AiTrainForm
         private bool _runtimeResourcesReleased;
 
         /// <summary>
+        /// 已配置的模板初匹配设置；训练请求会复制到无监督模板清单中。
+        /// </summary>
+        private UnsupervisedTemplateMatchSettings _templateMatchSettings;
+
+        /// <summary>
         /// 初始化无监督训练窗体。
         /// </summary>
         public UnsupervisedTrainForm()
@@ -159,6 +165,60 @@ namespace TDJS_Vision.Forms.AiTrainForm
             UpdateImageCountText();
             UpdateSelectionActionState();
             UpdateRoiStatus();
+            UpdateTemplateMatchControls();
+        }
+
+        /// <summary>
+        /// 切换模板匹配初匹配功能，并刷新设置按钮状态。
+        /// </summary>
+        private void checkBoxTemplateInitialMatch_CheckedChanged(object sender, EventArgs e)
+        {
+            UpdateTemplateMatchControls();
+        }
+
+        /// <summary>
+        /// 使用当前选中图片打开最新轮廓模板编辑器，并记录该图上的基准匹配位姿。
+        /// </summary>
+        private void buttonConfigureTemplateMatch_Click(object sender, EventArgs e)
+        {
+            if (_selectedImage == null)
+            {
+                MessageBoxTD.Show(this, "请先选择一张基准图片。");
+                return;
+            }
+
+            try
+            {
+                using (OpenCvSharp.Mat image = OpenCvSharp.Cv2.ImRead(_selectedImage.FilePath))
+                using (var editor = new ContourTemplateEditor())
+                {
+                    if (image.Empty()) throw new InvalidDataException("基准图片无法读取。");
+                    editor.Configure(_templateMatchSettings?.Parameters, image);
+                    if (editor.ShowDialog(this) != DialogResult.OK) return;
+
+                    NodeParamNewContourMatch parameters = editor.Params;
+                    if (parameters == null) throw new InvalidOperationException("请先在模板编辑器中创建并保存模板。");
+                    parameters = UnsupervisedTemplateRoiMatcher.CreateRuntimeParameters(parameters);
+                    _templateMatchSettings = UnsupervisedTemplateRoiMatcher.CreateSettings(image, parameters);
+                    checkBoxTemplateInitialMatch.Checked = true;
+                    labelTemplateMatchStatus.Text = "已设置：1个，0.5，-360°～360°";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show(this, "设置模板初匹配失败：" + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// 刷新模板初匹配控件状态和中文提示。
+        /// </summary>
+        private void UpdateTemplateMatchControls()
+        {
+            buttonConfigureTemplateMatch.Enabled = checkBoxTemplateInitialMatch.Checked;
+            labelTemplateMatchStatus.Text = _templateMatchSettings == null
+                ? (checkBoxTemplateInitialMatch.Checked ? "请设置模板" : "未启用")
+                : "已设置：1个，0.5，-360°～360°";
         }
 
         /// <summary>
@@ -703,6 +763,10 @@ namespace TDJS_Vision.Forms.AiTrainForm
 
             CvRect? roiRect = GetTrainingRoiRectOrNull();
             FullImageTrainingWhenNoRoi(roiRect);
+            if (checkBoxTemplateInitialMatch.Checked && !roiRect.HasValue)
+                throw new InvalidOperationException("模板匹配初匹配必须先绘制一个跟随 ROI。");
+            if (checkBoxTemplateInitialMatch.Checked && _templateMatchSettings == null)
+                throw new InvalidOperationException("已勾选模板匹配初匹配，请先点击“设置模板”创建模板。");
 
             return new UnsupervisedTrainingRequest
             {
@@ -718,7 +782,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 MaxEpochs = (int)numericUpDownEpochs.Value,
                 BatchSize = (int)numericUpDownBatchSize.Value,
                 Device = comboBoxDevice.Text,
-                RoiRect = roiRect
+                RoiRect = roiRect,
+                TemplateMatchSettings = checkBoxTemplateInitialMatch.Checked ? _templateMatchSettings : null
             };
         }
 

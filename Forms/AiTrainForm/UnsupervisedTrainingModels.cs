@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using OpenCvSharp;
+using TDJS_Vision.Node._3_Detection.NewContourMatch;
 
 namespace TDJS_Vision.Forms.AiTrainForm
 {
@@ -133,6 +134,11 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// 可选 ROI；为空时按整图训练。
         /// </summary>
         public Rect? RoiRect { get; set; }
+
+        /// <summary>
+        /// 可选的模板初匹配参数；启用后每张图先定位模板，再按基准位姿截取 ROI。
+        /// </summary>
+        public UnsupervisedTemplateMatchSettings TemplateMatchSettings { get; set; }
     }
 
     /// <summary>
@@ -261,6 +267,41 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// ROI 高度。
         /// </summary>
         public int RoiHeight { get; set; }
+
+        /// <summary>
+        /// 是否在裁剪 ROI 前执行新版本轮廓模板初匹配。
+        /// </summary>
+        public bool TemplateMatchEnabled { get; set; }
+
+        /// <summary>
+        /// 新版本轮廓模板及搜索参数快照。
+        /// </summary>
+        public NodeParamNewContourMatch TemplateMatchParameters { get; set; }
+
+        /// <summary>
+        /// 训练基准图上的模板匹配中心 X。
+        /// </summary>
+        public double TemplateBaselineCenterX { get; set; }
+
+        /// <summary>
+        /// 训练基准图上的模板匹配中心 Y。
+        /// </summary>
+        public double TemplateBaselineCenterY { get; set; }
+
+        /// <summary>
+        /// 训练基准图上的模板角度。
+        /// </summary>
+        public double TemplateBaselineAngle { get; set; }
+
+        /// <summary>
+        /// 模板初匹配的配置起始角度；完整圆搜索默认保存为 -360 度。
+        /// </summary>
+        public double TemplateMatchAngleStart { get; set; }
+
+        /// <summary>
+        /// 模板初匹配的配置结束角度；完整圆搜索默认保存为 360 度。
+        /// </summary>
+        public double TemplateMatchAngleEnd { get; set; }
 
         /// <summary>
         /// 源图总数。

@@ -384,6 +384,7 @@
     <Compile Include="Forms\AiTrainForm\UnsupervisedNativeDatasetPreparer.cs" />
     <Compile Include="Forms\AiTrainForm\UnsupervisedRuntimeBootstrapper.cs" />
     <Compile Include="Forms\AiTrainForm\UnsupervisedTemplatePackage.cs" />
+    <Compile Include="Forms\AiTrainForm\UnsupervisedTemplateRoiMatcher.cs" />
     <Compile Include="Forms\AiTrainForm\UnsupervisedTrainingModels.cs" />
     <Compile Include="Forms\AiTrainForm\UnsupervisedTrainingService.cs" />
     <Compile Include="Forms\AiTrainForm\LargeModelTrainForm.cs">
