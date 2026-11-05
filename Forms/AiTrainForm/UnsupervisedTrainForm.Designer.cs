@@ -54,11 +54,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             this.panelRoiToolbar = new System.Windows.Forms.Panel();
             this.tableLayoutPanelRoiToolbar = new System.Windows.Forms.TableLayoutPanel();
             this.labelPreviewTitle = new System.Windows.Forms.Label();
-            this.buttonDrawRoi = new System.Windows.Forms.Button();
-            this.buttonClearRoi = new System.Windows.Forms.Button();
-            this.checkBoxTemplateInitialMatch = new System.Windows.Forms.CheckBox();
-            this.buttonConfigureTemplateMatch = new System.Windows.Forms.Button();
-            this.labelTemplateMatchStatus = new System.Windows.Forms.Label();
+            this.buttonRoiSettings = new System.Windows.Forms.Button();
             this.imageROIEditControlPreview = new TDJS_Vision.Forms.ShapeDraw.ImageROIEditControl();
             this.panelCheckStatus = new System.Windows.Forms.Panel();
             this.labelRoiStatus = new System.Windows.Forms.Label();
@@ -279,7 +275,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             this.tableLayoutPanelCheckBody.ColumnCount = 3;
             this.tableLayoutPanelCheckBody.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 200F));
             this.tableLayoutPanelCheckBody.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanelCheckBody.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 520F));
+            this.tableLayoutPanelCheckBody.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 650F));
             this.tableLayoutPanelCheckBody.Controls.Add(this.panelCategory, 0, 0);
             this.tableLayoutPanelCheckBody.Controls.Add(this.flowLayoutPanelImages, 1, 0);
             this.tableLayoutPanelCheckBody.Controls.Add(this.tableLayoutPanelPreview, 2, 0);
@@ -389,7 +385,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             this.tableLayoutPanelPreview.Location = new System.Drawing.Point(637, 3);
             this.tableLayoutPanelPreview.Name = "tableLayoutPanelPreview";
             this.tableLayoutPanelPreview.RowCount = 2;
-            this.tableLayoutPanelPreview.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 132F));
+            this.tableLayoutPanelPreview.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 48F));
             this.tableLayoutPanelPreview.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
             this.tableLayoutPanelPreview.Size = new System.Drawing.Size(514, 528);
             this.tableLayoutPanelPreview.TabIndex = 2;
@@ -405,95 +401,41 @@ namespace TDJS_Vision.Forms.AiTrainForm
             // 
             // tableLayoutPanelRoiToolbar
             // 
-            this.tableLayoutPanelRoiToolbar.ColumnCount = 3;
+            this.tableLayoutPanelRoiToolbar.ColumnCount = 2;
             this.tableLayoutPanelRoiToolbar.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanelRoiToolbar.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 112F));
-            this.tableLayoutPanelRoiToolbar.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 112F));
+            this.tableLayoutPanelRoiToolbar.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 120F));
             this.tableLayoutPanelRoiToolbar.Controls.Add(this.labelPreviewTitle, 0, 0);
-            this.tableLayoutPanelRoiToolbar.Controls.Add(this.buttonDrawRoi, 1, 1);
-            this.tableLayoutPanelRoiToolbar.Controls.Add(this.buttonClearRoi, 2, 1);
-            this.tableLayoutPanelRoiToolbar.Controls.Add(this.checkBoxTemplateInitialMatch, 0, 2);
-            this.tableLayoutPanelRoiToolbar.Controls.Add(this.buttonConfigureTemplateMatch, 1, 2);
-            this.tableLayoutPanelRoiToolbar.Controls.Add(this.labelTemplateMatchStatus, 2, 2);
+            this.tableLayoutPanelRoiToolbar.Controls.Add(this.buttonRoiSettings, 1, 0);
             this.tableLayoutPanelRoiToolbar.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanelRoiToolbar.Location = new System.Drawing.Point(0, 0);
             this.tableLayoutPanelRoiToolbar.Name = "tableLayoutPanelRoiToolbar";
-            this.tableLayoutPanelRoiToolbar.RowCount = 3;
-            this.tableLayoutPanelRoiToolbar.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 34F));
+            this.tableLayoutPanelRoiToolbar.RowCount = 1;
             this.tableLayoutPanelRoiToolbar.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanelRoiToolbar.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 43F));
             this.tableLayoutPanelRoiToolbar.Size = new System.Drawing.Size(508, 83);
             this.tableLayoutPanelRoiToolbar.TabIndex = 3;
             //
-            // checkBoxTemplateInitialMatch
+            // buttonRoiSettings
             //
-            this.checkBoxTemplateInitialMatch.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.checkBoxTemplateInitialMatch.AutoSize = true;
-            this.checkBoxTemplateInitialMatch.Name = "checkBoxTemplateInitialMatch";
-            this.checkBoxTemplateInitialMatch.Size = new System.Drawing.Size(178, 35);
-            this.checkBoxTemplateInitialMatch.TabIndex = 3;
-            this.checkBoxTemplateInitialMatch.Text = "模板匹配初匹配";
-            this.checkBoxTemplateInitialMatch.UseVisualStyleBackColor = true;
-            this.checkBoxTemplateInitialMatch.CheckedChanged += new System.EventHandler(this.checkBoxTemplateInitialMatch_CheckedChanged);
-            //
-            // buttonConfigureTemplateMatch
-            //
-            this.buttonConfigureTemplateMatch.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.buttonConfigureTemplateMatch.Font = new System.Drawing.Font("Microsoft YaHei UI", 9F);
-            this.buttonConfigureTemplateMatch.Name = "buttonConfigureTemplateMatch";
-            this.buttonConfigureTemplateMatch.Size = new System.Drawing.Size(106, 37);
-            this.buttonConfigureTemplateMatch.TabIndex = 4;
-            this.buttonConfigureTemplateMatch.Text = "设置模板";
-            this.buttonConfigureTemplateMatch.UseVisualStyleBackColor = true;
-            this.buttonConfigureTemplateMatch.Click += new System.EventHandler(this.buttonConfigureTemplateMatch_Click);
-            //
-            // labelTemplateMatchStatus
-            //
-            this.labelTemplateMatchStatus.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.labelTemplateMatchStatus.AutoEllipsis = true;
-            this.labelTemplateMatchStatus.Name = "labelTemplateMatchStatus";
-            this.labelTemplateMatchStatus.Size = new System.Drawing.Size(106, 31);
-            this.labelTemplateMatchStatus.TabIndex = 5;
-            this.labelTemplateMatchStatus.Text = "未设置";
+            this.buttonRoiSettings.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.buttonRoiSettings.Font = new System.Drawing.Font("Microsoft YaHei UI", 9F);
+            this.buttonRoiSettings.Margin = new System.Windows.Forms.Padding(4);
+            this.buttonRoiSettings.Name = "buttonRoiSettings";
+            this.buttonRoiSettings.TabIndex = 1;
+            this.buttonRoiSettings.Text = "ROI设置";
+            this.buttonRoiSettings.UseVisualStyleBackColor = true;
+            this.buttonRoiSettings.Click += new System.EventHandler(this.buttonRoiSettings_Click);
             // 
             // labelPreviewTitle
             // 
             this.labelPreviewTitle.AutoEllipsis = true;
-            this.tableLayoutPanelRoiToolbar.SetColumnSpan(this.labelPreviewTitle, 3);
             this.labelPreviewTitle.Dock = System.Windows.Forms.DockStyle.Fill;
             this.labelPreviewTitle.Font = new System.Drawing.Font("Microsoft YaHei UI", 10F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.labelPreviewTitle.Location = new System.Drawing.Point(3, 0);
             this.labelPreviewTitle.Name = "labelPreviewTitle";
             this.labelPreviewTitle.Size = new System.Drawing.Size(502, 34);
             this.labelPreviewTitle.TabIndex = 0;
-            this.labelPreviewTitle.Text = "图像预览 / ROI编辑";
+            this.labelPreviewTitle.Text = "图像预览";
             this.labelPreviewTitle.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            // 
-            // buttonDrawRoi
-            // 
-            this.buttonDrawRoi.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.buttonDrawRoi.Font = new System.Drawing.Font("Microsoft YaHei UI", 9F);
-            this.buttonDrawRoi.Location = new System.Drawing.Point(288, 38);
-            this.buttonDrawRoi.Margin = new System.Windows.Forms.Padding(4);
-            this.buttonDrawRoi.Name = "buttonDrawRoi";
-            this.buttonDrawRoi.Size = new System.Drawing.Size(104, 41);
-            this.buttonDrawRoi.TabIndex = 1;
-            this.buttonDrawRoi.Text = "绘制ROI";
-            this.buttonDrawRoi.UseVisualStyleBackColor = true;
-            this.buttonDrawRoi.Click += new System.EventHandler(this.buttonDrawRoi_Click);
-            // 
-            // buttonClearRoi
-            // 
-            this.buttonClearRoi.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.buttonClearRoi.Font = new System.Drawing.Font("Microsoft YaHei UI", 9F);
-            this.buttonClearRoi.Location = new System.Drawing.Point(400, 38);
-            this.buttonClearRoi.Margin = new System.Windows.Forms.Padding(4);
-            this.buttonClearRoi.Name = "buttonClearRoi";
-            this.buttonClearRoi.Size = new System.Drawing.Size(104, 41);
-            this.buttonClearRoi.TabIndex = 2;
-            this.buttonClearRoi.Text = "清空ROI";
-            this.buttonClearRoi.UseVisualStyleBackColor = true;
-            this.buttonClearRoi.Click += new System.EventHandler(this.buttonClearRoi_Click);
             // 
             // imageROIEditControlPreview
             // 
@@ -1090,11 +1032,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanelPreview;
         private System.Windows.Forms.Panel panelRoiToolbar;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanelRoiToolbar;
-        private System.Windows.Forms.Button buttonClearRoi;
-        private System.Windows.Forms.CheckBox checkBoxTemplateInitialMatch;
-        private System.Windows.Forms.Button buttonConfigureTemplateMatch;
-        private System.Windows.Forms.Label labelTemplateMatchStatus;
-        private System.Windows.Forms.Button buttonDrawRoi;
+        private System.Windows.Forms.Button buttonRoiSettings;
         private System.Windows.Forms.Label labelPreviewTitle;
         private TDJS_Vision.Forms.ShapeDraw.ImageROIEditControl imageROIEditControlPreview;
         private System.Windows.Forms.Panel panelCheckStatus;

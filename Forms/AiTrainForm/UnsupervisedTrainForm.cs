@@ -11,7 +11,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TDJS_Vision.Forms.YTMessageBox;
-using TDJS_Vision.Node._3_Detection.NewContourMatch;
 using CvRect = OpenCvSharp.Rect;
 using Logger;
 
@@ -137,6 +136,12 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// </summary>
         private UnsupervisedTemplateMatchSettings _templateMatchSettings;
 
+        /// <summary>是否启用截取 ROI；关闭时模板匹配设置不会参与训练。</summary>
+        private bool _roiCropEnabled;
+
+        /// <summary>ROI 设置弹窗确认的原图像素坐标矩形。</summary>
+        private CvRect? _configuredRoiRect;
+
         /// <summary>
         /// 初始化无监督训练窗体。
         /// </summary>
@@ -158,6 +163,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             comboBoxDevice.SelectedIndex = 0;
             buttonStopTraining.Enabled = false;
             imageROIEditControlPreview.RoiChanged += imageROIEditControlPreview_RoiChanged;
+            imageROIEditControlPreview.RoiEditingEnabled = false;
             textBoxTemplateName.Text = "无监督模板_" + DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
             RestoreLastImageFolder();
             UpdateGeneratedModelPath();
@@ -165,60 +171,6 @@ namespace TDJS_Vision.Forms.AiTrainForm
             UpdateImageCountText();
             UpdateSelectionActionState();
             UpdateRoiStatus();
-            UpdateTemplateMatchControls();
-        }
-
-        /// <summary>
-        /// 切换模板匹配初匹配功能，并刷新设置按钮状态。
-        /// </summary>
-        private void checkBoxTemplateInitialMatch_CheckedChanged(object sender, EventArgs e)
-        {
-            UpdateTemplateMatchControls();
-        }
-
-        /// <summary>
-        /// 使用当前选中图片打开最新轮廓模板编辑器，并记录该图上的基准匹配位姿。
-        /// </summary>
-        private void buttonConfigureTemplateMatch_Click(object sender, EventArgs e)
-        {
-            if (_selectedImage == null)
-            {
-                MessageBoxTD.Show(this, "请先选择一张基准图片。");
-                return;
-            }
-
-            try
-            {
-                using (OpenCvSharp.Mat image = OpenCvSharp.Cv2.ImRead(_selectedImage.FilePath))
-                using (var editor = new ContourTemplateEditor())
-                {
-                    if (image.Empty()) throw new InvalidDataException("基准图片无法读取。");
-                    editor.Configure(_templateMatchSettings?.Parameters, image);
-                    if (editor.ShowDialog(this) != DialogResult.OK) return;
-
-                    NodeParamNewContourMatch parameters = editor.Params;
-                    if (parameters == null) throw new InvalidOperationException("请先在模板编辑器中创建并保存模板。");
-                    parameters = UnsupervisedTemplateRoiMatcher.CreateRuntimeParameters(parameters);
-                    _templateMatchSettings = UnsupervisedTemplateRoiMatcher.CreateSettings(image, parameters);
-                    checkBoxTemplateInitialMatch.Checked = true;
-                    labelTemplateMatchStatus.Text = "已设置：1个，0.5，-360°～360°";
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBoxTD.Show(this, "设置模板初匹配失败：" + ex.Message);
-            }
-        }
-
-        /// <summary>
-        /// 刷新模板初匹配控件状态和中文提示。
-        /// </summary>
-        private void UpdateTemplateMatchControls()
-        {
-            buttonConfigureTemplateMatch.Enabled = checkBoxTemplateInitialMatch.Checked;
-            labelTemplateMatchStatus.Text = _templateMatchSettings == null
-                ? (checkBoxTemplateInitialMatch.Checked ? "请设置模板" : "未启用")
-                : "已设置：1个，0.5，-360°～360°";
         }
 
         /// <summary>
@@ -372,9 +324,9 @@ namespace TDJS_Vision.Forms.AiTrainForm
         }
 
         /// <summary>
-        /// 进入 ROI 绘制状态。
+        /// 打开独立 ROI 设置窗体，集中配置截取区域和模板初匹配。
         /// </summary>
-        private void buttonDrawRoi_Click(object sender, EventArgs e)
+        private void buttonRoiSettings_Click(object sender, EventArgs e)
         {
             if (_selectedImage == null)
             {
@@ -382,22 +334,18 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 return;
             }
 
-            if (imageROIEditControlPreview.GetRoiCount() >= 1)
+            using (var dialog = new UnsupervisedRoiSettingsForm(
+                _selectedImage.FilePath,
+                _configuredRoiRect,
+                _roiCropEnabled,
+                _templateMatchSettings))
             {
-                MessageBoxTD.Show(this, "当前只允许一个 ROI，请先清空已有 ROI。");
-                return;
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                _roiCropEnabled = dialog.CropEnabled;
+                _configuredRoiRect = dialog.RoiRect;
+                _templateMatchSettings = dialog.TemplateMatchSettings;
             }
-
-            imageROIEditControlPreview.BeginDrawRectangleRoi();
-            AppendTrainingLog("已进入 ROI 绘制状态。");
-        }
-
-        /// <summary>
-        /// 清空 ROI。
-        /// </summary>
-        private void buttonClearRoi_Click(object sender, EventArgs e)
-        {
-            imageROIEditControlPreview.ClearROI();
+            ApplyConfiguredRoiToPreview();
             UpdateRoiStatus();
         }
 
@@ -688,7 +636,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             try
             {
                 SetPreviewImage(LoadBitmapWithoutLock(item.FilePath));
-                labelPreviewTitle.Text = "图像预览 / ROI编辑：" + item.DisplayName;
+                labelPreviewTitle.Text = "图像预览：" + item.DisplayName;
                 FitLabelText(labelPreviewTitle, 10F, 7F, FontStyle.Bold);
                 InvalidateImageCard(previous);
                 InvalidateImageCard(item);
@@ -763,10 +711,6 @@ namespace TDJS_Vision.Forms.AiTrainForm
 
             CvRect? roiRect = GetTrainingRoiRectOrNull();
             FullImageTrainingWhenNoRoi(roiRect);
-            if (checkBoxTemplateInitialMatch.Checked && !roiRect.HasValue)
-                throw new InvalidOperationException("模板匹配初匹配必须先绘制一个跟随 ROI。");
-            if (checkBoxTemplateInitialMatch.Checked && _templateMatchSettings == null)
-                throw new InvalidOperationException("已勾选模板匹配初匹配，请先点击“设置模板”创建模板。");
 
             return new UnsupervisedTrainingRequest
             {
@@ -783,7 +727,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 BatchSize = (int)numericUpDownBatchSize.Value,
                 Device = comboBoxDevice.Text,
                 RoiRect = roiRect,
-                TemplateMatchSettings = checkBoxTemplateInitialMatch.Checked ? _templateMatchSettings : null
+                TemplateMatchSettings = _roiCropEnabled ? _templateMatchSettings : null
             };
         }
 
@@ -793,21 +737,14 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <returns>图像坐标系 ROI，空表示整图。</returns>
         private CvRect? GetTrainingRoiRectOrNull()
         {
-            int roiCount = imageROIEditControlPreview.GetRoiCount();
-            if (roiCount == 0)
+            if (!_roiCropEnabled || !_configuredRoiRect.HasValue)
                 return null;
-            if (roiCount > 1)
-                throw new InvalidOperationException("当前只支持一个 ROI，请删除多余 ROI。");
             if (_selectedImage == null)
                 throw new InvalidOperationException("请先选择一张用于读取 ROI 坐标的图像。");
 
             using (Bitmap bitmap = LoadBitmapWithoutLock(_selectedImage.FilePath))
             {
-                List<CvRect> rects = imageROIEditControlPreview.GetImageROIRects(bitmap.Width, bitmap.Height);
-                if (rects.Count == 0)
-                    return null;
-
-                CvRect rect = ClampRect(rects[0], bitmap.Width, bitmap.Height);
+                CvRect rect = ClampRect(_configuredRoiRect.Value, bitmap.Width, bitmap.Height);
                 if (rect.Width <= 0 || rect.Height <= 0)
                     throw new InvalidOperationException("ROI 区域无效，请重新绘制。");
 
@@ -912,15 +849,9 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <returns>ROI 矩形。</returns>
         private CvRect? GetTrainingRoiPreviewRectOrNull()
         {
-            if (_previewBitmap == null || imageROIEditControlPreview.GetRoiCount() == 0)
+            if (!_roiCropEnabled || !_configuredRoiRect.HasValue || _previewBitmap == null)
                 return null;
-            if (imageROIEditControlPreview.GetRoiCount() > 1)
-                throw new InvalidOperationException("超过一个 ROI");
-
-            List<CvRect> rects = imageROIEditControlPreview.GetImageROIRects(_previewBitmap.Width, _previewBitmap.Height);
-            if (rects.Count == 0)
-                return null;
-            return ClampRect(rects[0], _previewBitmap.Width, _previewBitmap.Height);
+            return ClampRect(_configuredRoiRect.Value, _previewBitmap.Width, _previewBitmap.Height);
         }
 
         /// <summary>
@@ -1013,8 +944,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             ApplyActionButtonStyle(buttonReloadImages);
             ApplyActionButtonStyle(buttonSetSelectedOk);
             ApplyActionButtonStyle(buttonSetSelectedNg);
-            ApplyActionButtonStyle(buttonDrawRoi);
-            ApplyActionButtonStyle(buttonClearRoi);
+            ApplyActionButtonStyle(buttonRoiSettings);
             HighlightFilterButton();
             ApplyTrainingTheme();
             UpdateNavigationButtonState();
@@ -1138,8 +1068,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             FitButtonText(buttonFilterNg, FilterButtonFont.SizeInPoints, 8F, FontStyle.Bold);
             FitButtonText(buttonSelectImageFolder, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
             FitButtonText(buttonReloadImages, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
-            FitButtonText(buttonDrawRoi, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
-            FitButtonText(buttonClearRoi, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
+            FitButtonText(buttonRoiSettings, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
             FitButtonText(buttonSelectModelOutput, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
             FitButtonText(buttonStartTraining, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
             FitButtonText(buttonStopTraining, ActionButtonFont.SizeInPoints, 7F, FontStyle.Bold);
@@ -1278,6 +1207,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
             if (imageROIEditControlPreview != null && !imageROIEditControlPreview.IsDisposed)
             {
                 imageROIEditControlPreview.SetImage(bitmap);
+                ApplyConfiguredRoiToPreview();
                 old = null;
             }
             old?.Dispose();
@@ -1307,10 +1237,21 @@ namespace TDJS_Vision.Forms.AiTrainForm
             UnsupervisedImageItem previous = _selectedImage;
             _selectedImage = null;
             SetPreviewImage(null);
-            labelPreviewTitle.Text = "图像预览 / ROI编辑";
+            labelPreviewTitle.Text = "图像预览";
             InvalidateImageCard(previous);
             UpdateSelectionActionState();
             UpdateRoiStatus();
+        }
+
+        /// <summary>把弹窗确认的 ROI 显示到主界面预览图；关闭截取时保持纯图像预览。</summary>
+        private void ApplyConfiguredRoiToPreview()
+        {
+            if (imageROIEditControlPreview == null || imageROIEditControlPreview.IsDisposed || _previewBitmap == null)
+                return;
+            if (_roiCropEnabled && _configuredRoiRect.HasValue)
+                imageROIEditControlPreview.SetImageRectangleRoi(_configuredRoiRect.Value);
+            else
+                imageROIEditControlPreview.ClearROI();
         }
 
         /// <summary>

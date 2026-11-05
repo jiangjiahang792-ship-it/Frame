@@ -30,8 +30,8 @@ function Assert-NotContains {
 
 $designer = Get-Content -LiteralPath $designerPath -Encoding UTF8 -Raw
 $code = Get-Content -LiteralPath $codePath -Encoding UTF8 -Raw
-$setSelectedOkText = -join @([char]0x9009, [char]0x4E2D, [char]0x8BBE, [char]0x4F, [char]0x4B)
-$setSelectedNgText = -join @([char]0x9009, [char]0x4E2D, [char]0x8BBE, [char]0x4E, [char]0x47)
+$setSelectedOkText = -join @([char]0x8BBE, [char]0x4F, [char]0x4B)
+$setSelectedNgText = -join @([char]0x8BBE, [char]0x4E, [char]0x47)
 
 Assert-Contains $designer "tabControlMain" "Missing main TabControl."
 Assert-Contains $designer "tabPageCheck" "Missing check tab."
@@ -51,8 +51,7 @@ Assert-Contains $designer "this.buttonSetSelectedOk.Click += new System.EventHan
 Assert-Contains $designer "this.buttonSetSelectedNg.Click += new System.EventHandler(this.buttonSetSelectedNg_Click);" "Selected NG assignment button must be wired."
 Assert-Contains $designer "flowLayoutPanelImages" "Missing thumbnail container."
 Assert-Contains $designer "imageROIEditControlPreview" "Missing ROI preview control."
-Assert-Contains $designer "buttonDrawRoi" "Missing draw ROI action."
-Assert-Contains $designer "buttonClearRoi" "Missing clear ROI action."
+Assert-Contains $designer "buttonRoiSettings" "Missing ROI settings action."
 Assert-Contains $designer "tableLayoutPanelMainRoot" "Main form must use a root layout panel so the top navigation background matches the workspace."
 Assert-Contains $designer "panelMainNavigation" "Missing dark top navigation panel."
 Assert-Contains $designer "buttonNavCheck" "Missing custom check navigation button."
@@ -68,7 +67,7 @@ Assert-Contains $designer "this.buttonFilterOk.Size = new System.Drawing.Size(17
 Assert-Contains $designer "this.buttonFilterNg.Size = new System.Drawing.Size(175, 63);" "NG filter button must be large enough for category labels."
 Assert-Contains $designer "tableLayoutPanelRoiToolbar" "ROI toolbar must use a layout panel to prevent title and buttons from overlapping."
 Assert-Contains $designer "this.tableLayoutPanelRoiToolbar.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));" "ROI toolbar title column must take remaining width."
-Assert-Contains $designer "this.tableLayoutPanelRoiToolbar.SetColumnSpan(this.labelPreviewTitle, 3);" "Preview title must use the full toolbar width."
+Assert-Contains $designer "this.tableLayoutPanelRoiToolbar.Controls.Add(this.buttonRoiSettings, 1, 0);" "ROI settings button must be placed beside the preview title."
 Assert-Contains $designer "this.labelPreviewTitle.AutoEllipsis = true;" "Preview title must ellipsize long file names instead of overlapping buttons."
 Assert-Contains $designer "comboBoxModelType" "Missing model type control."
 Assert-Contains $designer "numericUpDownThreshold" "Missing threshold control."

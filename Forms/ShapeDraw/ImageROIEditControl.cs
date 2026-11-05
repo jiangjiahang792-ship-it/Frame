@@ -22,6 +22,11 @@ namespace TDJS_Vision.Forms.ShapeDraw
         /// </summary>
         public event EventHandler RoiChanged;
 
+        /// <summary>
+        /// 是否允许鼠标绘制、移动和缩放 ROI；主界面纯预览时关闭，设置弹窗中开启。
+        /// </summary>
+        public bool RoiEditingEnabled { get; set; } = true;
+
         public ImageROIEditControl()
         {
             InitializeComponent();
@@ -154,6 +159,29 @@ namespace TDJS_Vision.Forms.ShapeDraw
             this.Parent?.Refresh();
             OnRoiChanged();
         }
+
+        /// <summary>
+        /// 按原图像素坐标设置唯一矩形 ROI，供不同尺寸预览控件之间准确传递区域。
+        /// </summary>
+        /// <param name="imageRect">原图像素坐标矩形。</param>
+        public void SetImageRectangleRoi(Rect imageRect)
+        {
+            if (pictureBox1.Image == null)
+                throw new InvalidOperationException("请先设置预览图像。");
+
+            roiManager.ROIs.Clear();
+            if (imageRect.Width > 0 && imageRect.Height > 0)
+            {
+                RectangleF clientRect = ROI.ConvertImageRectToClientRect(
+                    new RectangleF(imageRect.X, imageRect.Y, imageRect.Width, imageRect.Height),
+                    pictureBox1);
+                var roi = new RectangleROI(clientRect, 0F) { IsSelected = true };
+                roiManager.AddROI(roi);
+                currentROI = roi;
+            }
+            pictureBox1.Invalidate();
+            OnRoiChanged();
+        }
         /// <summary>
         /// 移除上一个ROI
         /// </summary>
@@ -173,6 +201,7 @@ namespace TDJS_Vision.Forms.ShapeDraw
         /// <param name="e"></param>
         private void pictureBox1_MouseDown(object sender, MouseEventArgs e)
         {
+            if (!RoiEditingEnabled) return;
             if (e.Button == MouseButtons.Right) { return; }
             startPoint = e.Location;
 
