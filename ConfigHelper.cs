@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using TDJS_Vision.Forms.GlobalSignalSettings;
 using TDJS_Vision.Forms.ImageViewer;
 using TDJS_Vision.Node;
@@ -28,6 +29,11 @@ namespace TDJS_Vision
         /// 保存失败日志标记键，用于避免同一次保存异常被内外层重复记录。
         /// </summary>
         private const string SolutionSaveFailureLoggedKey = "TDJS_Vision.SolutionSaveFailureLogged";
+
+        /// <summary>
+        /// 原子替换遇到杀毒扫描、索引或其它进程的短暂占用时允许的最大尝试次数。
+        /// </summary>
+        private const int SolutionFileOperationAttemptCount = 6;
 
         public static SolConfig SolConfig = new SolConfig();
         public static EventHandler<bool> DeserializationCompletionEvent;
@@ -441,12 +447,16 @@ namespace TDJS_Vision
             if (File.Exists(targetPath))
             {
                 SaveSingleSolutionBackup(targetPath, backupPath);
-                File.Replace(temporaryPath, targetPath, null, true);
+                ExecuteSolutionFileOperationWithRetry(
+                    () => File.Replace(temporaryPath, targetPath, null, true),
+                    "替换正式方案");
             }
             else
             {
                 SaveSingleSolutionBackup(temporaryPath, backupPath);
-                File.Move(temporaryPath, targetPath);
+                ExecuteSolutionFileOperationWithRetry(
+                    () => File.Move(temporaryPath, targetPath),
+                    "生成正式方案");
             }
         }
 
@@ -464,10 +474,54 @@ namespace TDJS_Vision
             {
                 WriteTextWithFlush(temporary, File.ReadAllText(targetPath, Encoding.UTF8));
                 ValidateSolutionTemporaryFile(temporary);
-                if (File.Exists(backupPath)) File.Replace(temporary, backupPath, null, true);
-                else File.Move(temporary, backupPath);
+                if (File.Exists(backupPath))
+                {
+                    ExecuteSolutionFileOperationWithRetry(
+                        () => File.Replace(temporary, backupPath, null, true),
+                        "更新方案备份");
+                }
+                else
+                {
+                    ExecuteSolutionFileOperationWithRetry(
+                        () => File.Move(temporary, backupPath),
+                        "生成方案备份");
+                }
             }
             finally { TryDeleteSolutionTemporary(temporary); }
+        }
+
+        /// <summary>
+        /// 对方案文件的原子替换或移动执行有限重试，规避客户端杀毒扫描和文件索引造成的瞬时占用。
+        /// </summary>
+        /// <param name="operation">需要执行的文件操作。</param>
+        /// <param name="stage">用于日志和界面诊断的保存阶段。</param>
+        private static void ExecuteSolutionFileOperationWithRetry(Action operation, string stage)
+        {
+            if (operation == null)
+                throw new ArgumentNullException(nameof(operation));
+
+            Exception lastError = null;
+            for (int attempt = 1; attempt <= SolutionFileOperationAttemptCount; attempt++)
+            {
+                try
+                {
+                    operation();
+                    return;
+                }
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                {
+                    lastError = ex;
+                    if (attempt >= SolutionFileOperationAttemptCount)
+                        break;
+
+                    // 逐步延长等待，总时长约0.9秒，不影响正常保存路径。
+                    Thread.Sleep(attempt * 60);
+                }
+            }
+
+            throw new IOException(
+                stage + "失败，文件可能正被杀毒软件、索引程序或其它软件实例占用：" + lastError?.Message,
+                lastError);
         }
 
         /// <summary>

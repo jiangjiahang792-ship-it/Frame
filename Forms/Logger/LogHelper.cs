@@ -38,7 +38,7 @@ namespace Logger
         /// </summary>
         private readonly ILogUiBuffer _logUiBuffer;
 
-        static readonly string LogDictory = Environment.CurrentDirectory + @"\Logs\";
+        static readonly string LogDictory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs") + Path.DirectorySeparatorChar;
         static event EventHandler<LevelAndInfo> LogAddEvent;
         private static readonly BlockingCollection<Action> _logQueue = new BlockingCollection<Action>();
 
@@ -607,7 +607,7 @@ namespace Logger
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = "explorer.exe",
-                Arguments = LogDictory,
+                Arguments = "\"" + LogDictory + "\"",
                 UseShellExecute = true
             };
             Process.Start(startInfo);
