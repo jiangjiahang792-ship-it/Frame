@@ -91,8 +91,9 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                 EnsureModelLoaded(param);
                 UnsupervisedTemplateManifest manifest = _extractResult.Manifest;
                 CvRect? roiRect = null;
+                RotatedRect? affineRoi = null;
                 Stopwatch imageTimer = Stopwatch.StartNew();
-                Mat inferImage = BuildInferenceImage(sourceImage, manifest, _templateMatchSession, out roiRect);
+                Mat inferImage = BuildInferenceImage(sourceImage, manifest, _templateMatchSession, out roiRect, out affineRoi);
                 imageTimer.Stop();
                 using (inferImage)
                 {
@@ -129,6 +130,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                         nativeResult,
                         manifest,
                         roiRect,
+                        affineRoi,
                         boxes,
                         isOk,
                         message,
@@ -615,9 +617,10 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// <param name="manifest">模板清单。</param>
         /// <param name="roiRect">实际使用的 ROI。</param>
         /// <returns>待推理图像。</returns>
-        private static Mat BuildInferenceImage(Mat sourceImage, UnsupervisedTemplateManifest manifest, NewContourMatchSession templateMatchSession, out CvRect? roiRect)
+        private static Mat BuildInferenceImage(Mat sourceImage, UnsupervisedTemplateManifest manifest, NewContourMatchSession templateMatchSession, out CvRect? roiRect, out RotatedRect? affineRoi)
         {
             roiRect = null;
+            affineRoi = null;
             if (manifest == null || !manifest.RoiEnabled)
                 return sourceImage.Clone();
 
@@ -626,18 +629,25 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                 throw new InvalidOperationException("无监督模板 ROI 超出当前图像范围。");
 
             roiRect = rect;
+            affineRoi = new RotatedRect(
+                new Point2f(rect.X + rect.Width / 2F, rect.Y + rect.Height / 2F),
+                new Size2f(rect.Width, rect.Height),
+                0F);
             if (manifest.TemplateMatchEnabled)
             {
                 var settings = new UnsupervisedTemplateMatchSettings
                 {
-                    Parameters = manifest.TemplateMatchParameters,
+                    Parameters = UnsupervisedTemplateRoiMatcher.CreateRecognitionParameters(manifest.TemplateMatchParameters),
                     BaselineCenterX = manifest.TemplateBaselineCenterX,
                     BaselineCenterY = manifest.TemplateBaselineCenterY,
                     BaselineAngle = manifest.TemplateBaselineAngle,
                     AngleStart = manifest.TemplateMatchAngleStart,
                     AngleEnd = manifest.TemplateMatchAngleEnd
                 };
-                return UnsupervisedTemplateRoiMatcher.Crop(sourceImage, rect, settings, templateMatchSession);
+                RotatedRect followedRoi;
+                Mat cropped = UnsupervisedTemplateRoiMatcher.Crop(sourceImage, rect, settings, templateMatchSession, out followedRoi);
+                affineRoi = followedRoi;
+                return cropped;
             }
             return new Mat(sourceImage, rect).Clone();
         }
@@ -828,6 +838,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// <param name="nativeResult">native 推理结果。</param>
         /// <param name="manifest">模板清单。</param>
         /// <param name="roiRect">实际推理 ROI。</param>
+        /// <param name="affineRoi">源图坐标系中的仿射 ROI。</param>
         /// <param name="boxes">源图坐标系异常矩形。</param>
         /// <param name="isOk">最终 OK/NG 判定。</param>
         /// <param name="message">结果摘要。</param>
@@ -842,6 +853,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             UnsupervisedAnomalibResult nativeResult,
             UnsupervisedTemplateManifest manifest,
             CvRect? roiRect,
+            RotatedRect? affineRoi,
             List<DrawingRect> boxes,
             bool isOk,
             string message,
@@ -856,6 +868,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             NativeResult = nativeResult;
             Manifest = manifest;
             RoiRect = roiRect;
+            AffineRoi = affineRoi;
             Boxes = boxes ?? new List<DrawingRect>();
             IsOk = isOk;
             Message = message;
@@ -882,6 +895,11 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// 实际推理 ROI；为空表示整图推理。
         /// </summary>
         public CvRect? RoiRect { get; }
+
+        /// <summary>
+        /// 源图坐标系中的实际仿射 ROI；为空表示整图推理。
+        /// </summary>
+        public RotatedRect? AffineRoi { get; }
 
         /// <summary>
         /// 源图坐标系异常矩形。

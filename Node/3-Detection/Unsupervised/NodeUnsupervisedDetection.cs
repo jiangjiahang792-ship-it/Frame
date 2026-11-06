@@ -211,6 +211,18 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
 
             Color drawColor = runResult.IsOk ? Color.Lime : Color.Red;
             algorithmResult.Texts.Add(new ColorText(BuildDisplayText(runResult), drawColor));
+            if (runResult.AffineRoi.HasValue)
+            {
+                // ROI 使用独立颜色显示模板匹配后的真实中心、尺寸和旋转角度。
+                OpenCvSharp.RotatedRect roi = runResult.AffineRoi.Value;
+                algorithmResult.Rects.Add(new ColorRotatedRect(
+                    roi.Center.X,
+                    roi.Center.Y,
+                    roi.Size.Width,
+                    roi.Size.Height,
+                    roi.Angle,
+                    Color.DeepSkyBlue));
+            }
             if (runResult.Boxes.Count == 0)
                 return;
 

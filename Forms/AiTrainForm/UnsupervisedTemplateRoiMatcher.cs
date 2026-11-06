@@ -16,6 +16,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
         public const int DefaultMaximumMatches = 1;
         /// <summary>默认最低匹配分数。</summary>
         public const double DefaultMinimumScore = 0.5D;
+        /// <summary>无监督节点运行识别时的默认最低匹配分数。</summary>
+        public const double DefaultRecognitionMinimumScore = 0.1D;
         /// <summary>配置层默认起始角度。</summary>
         public const double DefaultAngleStart = -360D;
         /// <summary>配置层默认结束角度。</summary>
@@ -46,12 +48,24 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// </summary>
         internal static NodeParamNewContourMatch CreateRuntimeParameters(NodeParamNewContourMatch source)
         {
+            return CreateRuntimeParameters(source, UnsupervisedTemplateMatchSettings.DefaultMinimumScore);
+        }
+
+        /// <summary>创建无监督节点运行识别参数，固定单目标和0.1最低分数。</summary>
+        internal static NodeParamNewContourMatch CreateRecognitionParameters(NodeParamNewContourMatch source)
+        {
+            return CreateRuntimeParameters(source, UnsupervisedTemplateMatchSettings.DefaultRecognitionMinimumScore);
+        }
+
+        /// <summary>按指定最低分数创建单目标整圆搜索参数。</summary>
+        private static NodeParamNewContourMatch CreateRuntimeParameters(NodeParamNewContourMatch source, double minimumScore)
+        {
             if (source == null) throw new ArgumentNullException(nameof(source));
             NodeParamNewContourMatch result = source.Copy();
             result.AllSearch = true;
             result.FindOptions = result.FindOptions ?? new FindOptions();
             result.FindOptions.MaximumMatches = UnsupervisedTemplateMatchSettings.DefaultMaximumMatches;
-            result.FindOptions.MinimumScore = UnsupervisedTemplateMatchSettings.DefaultMinimumScore;
+            result.FindOptions.MinimumScore = minimumScore;
             result.FindOptions.AngleStartDegrees = UnsupervisedTemplateMatchSettings.DefaultAngleStart;
             result.FindOptions.AngleEndDegrees = UnsupervisedTemplateMatchSettings.DefaultAngleEnd;
             return result;
@@ -83,6 +97,13 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <summary>使用调用方持有的匹配会话裁剪，连续图片可复用已恢复的原生模板缓存。</summary>
         internal static Mat Crop(Mat source, CvRect baselineRoi, UnsupervisedTemplateMatchSettings settings, NewContourMatchSession session)
         {
+            RotatedRect ignoredRoi;
+            return Crop(source, baselineRoi, settings, session, out ignoredRoi);
+        }
+
+        /// <summary>匹配并裁剪 ROI，同时返回当前源图坐标系中的仿射 ROI。</summary>
+        internal static Mat Crop(Mat source, CvRect baselineRoi, UnsupervisedTemplateMatchSettings settings, NewContourMatchSession session, out RotatedRect affineRoi)
+        {
             if (source == null || source.Empty()) throw new ArgumentException("模板初匹配输入图像为空。", nameof(source));
             if (settings?.Parameters == null) throw new InvalidOperationException("模板初匹配参数不完整。请重新训练模板。");
             CvRect roi = ClampRect(baselineRoi, source.Width, source.Height);
@@ -90,6 +111,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
 
             if (session == null) throw new ArgumentNullException(nameof(session));
             ShapeMatchResult current = MatchFirst(source, settings.Parameters, session);
+            affineRoi = TransformBaselineRoi(baselineRoi, settings, current);
             double radians = (settings.BaselineAngle - current.AngleDegrees) * Math.PI / 180D;
             double cosine = Math.Cos(radians);
             double sine = Math.Sin(radians);
@@ -103,6 +125,25 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 Cv2.WarpAffine(source, aligned, matrix, source.Size(), InterpolationFlags.Linear, BorderTypes.Constant, Scalar.Black);
                 return new Mat(aligned, roi).Clone();
             }
+        }
+
+        /// <summary>将基准 ROI 按模板当前位姿变换到源图坐标系。</summary>
+        private static RotatedRect TransformBaselineRoi(CvRect baselineRoi, UnsupervisedTemplateMatchSettings settings, ShapeMatchResult current)
+        {
+            double deltaDegrees = current.AngleDegrees - settings.BaselineAngle;
+            double radians = deltaDegrees * Math.PI / 180D;
+            double cosine = Math.Cos(radians);
+            double sine = Math.Sin(radians);
+            double baselineCenterX = baselineRoi.X + baselineRoi.Width / 2D;
+            double baselineCenterY = baselineRoi.Y + baselineRoi.Height / 2D;
+            double relativeX = baselineCenterX - settings.BaselineCenterX;
+            double relativeY = baselineCenterY - settings.BaselineCenterY;
+            float centerX = (float)(current.CenterX + cosine * relativeX - sine * relativeY);
+            float centerY = (float)(current.CenterY + sine * relativeX + cosine * relativeY);
+            return new RotatedRect(
+                new Point2f(centerX, centerY),
+                new Size2f(baselineRoi.Width, baselineRoi.Height),
+                (float)deltaDegrees);
         }
 
         /// <summary>执行新版本轮廓匹配并返回唯一的最高分目标。</summary>
@@ -119,7 +160,10 @@ namespace TDJS_Vision.Forms.AiTrainForm
         {
             NewContourMatchExecution execution = session.Execute(image, parameters, CancellationToken.None);
             if (execution.Matches == null || execution.Matches.Count == 0)
-                throw new InvalidOperationException("模板初匹配失败：未找到分数不低于 0.5 的目标。");
+                throw new InvalidOperationException(
+                    "模板初匹配失败：未找到分数不低于 " +
+                    parameters.FindOptions.MinimumScore.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) +
+                    " 的目标。");
             return execution.Matches[0];
         }
 
