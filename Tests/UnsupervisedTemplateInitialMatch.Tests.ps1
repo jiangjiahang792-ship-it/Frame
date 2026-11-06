@@ -15,6 +15,11 @@ function Assert-Contains {
     if (-not $text.Contains($value)) { throw $message }
 }
 
+function Assert-NotContains {
+    param([string]$text, [string]$value, [string]$message)
+    if ($text.Contains($value)) { throw $message }
+}
+
 Assert-Contains $designer 'this.buttonRoiSettings.Click +=' "Main form must expose one ROI settings entry."
 Assert-Contains $roiDesigner 'this.checkBoxEnableCrop.CheckedChanged +=' "ROI dialog must expose crop enable state."
 Assert-Contains $roiDesigner 'this.checkBoxEnableTemplateMatch.CheckedChanged +=' "ROI dialog must expose template-match state."
@@ -29,8 +34,9 @@ Assert-Contains $matcher 'DefaultAngleStart = -360D' "Default start angle must b
 Assert-Contains $matcher 'DefaultAngleEnd = 360D' "Default end angle must be 360 degrees."
 Assert-Contains $matcher 'result.FindOptions.AngleStartDegrees = UnsupervisedTemplateMatchSettings.DefaultAngleStart' "Runtime start angle must remain -360 degrees."
 Assert-Contains $matcher 'result.FindOptions.AngleEndDegrees = UnsupervisedTemplateMatchSettings.DefaultAngleEnd' "Runtime end angle must remain 360 degrees."
-Assert-Contains $service 'UnsupervisedTemplateRoiMatcher.Crop(image, roi, templateMatchSettings, templateMatchSession)' "Training must crop a template-following ROI."
-Assert-Contains $service 'NewContourMatchSession templateMatchSession' "Training must reuse the template matcher cache."
+Assert-Contains $service 'Mat croppedImage = new Mat(image, rect).Clone();' "Training must crop the configured fixed ROI directly."
+Assert-NotContains $service 'UnsupervisedTemplateRoiMatcher.Crop(image' "Training must not execute template matching."
+Assert-NotContains $service 'NewContourMatchSession templateMatchSession' "Training must not create a template matcher session."
 Assert-Contains $service 'TemplateMatchParameters = request.TemplateMatchSettings?.Parameters?.Copy()' "Manifest must persist template-match parameters."
 Assert-Contains $matcher 'Cv2.WarpAffine' "Template-following ROI must use affine alignment."
 Assert-Contains $runtime 'UnsupervisedTemplateRoiMatcher.Crop(sourceImage, rect, settings, templateMatchSession)' "Runtime must crop the same template-following ROI."

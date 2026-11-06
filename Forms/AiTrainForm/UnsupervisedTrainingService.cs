@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using OpenCvSharp;
-using TDJS_Vision.Node._3_Detection.NewContourMatch;
 using CvRect = OpenCvSharp.Rect;
 
 namespace TDJS_Vision.Forms.AiTrainForm
@@ -323,46 +322,38 @@ namespace TDJS_Vision.Forms.AiTrainForm
             bool canReserveCalibrationImages = sourceOkCount > 1 && sourceNgCount > 1;
             string calibrationOkImagePath = null;
             string calibrationNgImagePath = null;
-            NewContourMatchSession templateMatchSession = request.TemplateMatchSettings == null ? null : new NewContourMatchSession();
-            try
+            foreach (UnsupervisedImageItem item in request.Images)
             {
-                foreach (UnsupervisedImageItem item in request.Images)
-                {
-                    token.ThrowIfCancellationRequested();
-                    bool isNg = item.Category == UnsupervisedImageCategory.NG;
-                    bool reserveForCalibration = canReserveCalibrationImages &&
-                        (isNg
-                            ? string.IsNullOrWhiteSpace(calibrationNgImagePath)
-                            : string.IsNullOrWhiteSpace(calibrationOkImagePath));
-                    string targetFolder = reserveForCalibration
-                        ? (isNg ? calibrationNgPath : calibrationOkPath)
-                        : (isNg ? ngPath : okPath);
-                    string savedPath = request.RoiRect.HasValue
-                        ? CropImageToRoi(item.FilePath, targetFolder, request.RoiRect.Value, request.TemplateMatchSettings, templateMatchSession, index)
-                        : CopyImageToDataset(item.FilePath, targetFolder, index);
+                token.ThrowIfCancellationRequested();
+                bool isNg = item.Category == UnsupervisedImageCategory.NG;
+                bool reserveForCalibration = canReserveCalibrationImages &&
+                    (isNg
+                        ? string.IsNullOrWhiteSpace(calibrationNgImagePath)
+                        : string.IsNullOrWhiteSpace(calibrationOkImagePath));
+                string targetFolder = reserveForCalibration
+                    ? (isNg ? calibrationNgPath : calibrationOkPath)
+                    : (isNg ? ngPath : okPath);
+                string savedPath = request.RoiRect.HasValue
+                    ? CropImageToRoi(item.FilePath, targetFolder, request.RoiRect.Value, index)
+                    : CopyImageToDataset(item.FilePath, targetFolder, index);
 
-                    if (!string.IsNullOrWhiteSpace(savedPath))
+                if (!string.IsNullOrWhiteSpace(savedPath))
+                {
+                    if (reserveForCalibration)
                     {
-                        if (reserveForCalibration)
-                        {
-                            if (isNg) calibrationNgImagePath = savedPath;
-                            else calibrationOkImagePath = savedPath;
-                        }
-                        else if (isNg)
-                        {
-                            ngCount++;
-                        }
-                        else
-                        {
-                            okCount++;
-                        }
+                        if (isNg) calibrationNgImagePath = savedPath;
+                        else calibrationOkImagePath = savedPath;
                     }
-                    index++;
+                    else if (isNg)
+                    {
+                        ngCount++;
+                    }
+                    else
+                    {
+                        okCount++;
+                    }
                 }
-            }
-            finally
-            {
-                templateMatchSession?.Dispose();
+                index++;
             }
 
             if (okCount == 0)
@@ -397,7 +388,7 @@ namespace TDJS_Vision.Forms.AiTrainForm
         /// <param name="roi">图像坐标系 ROI。</param>
         /// <param name="index">图片序号。</param>
         /// <returns>保存成功返回目标路径，失败返回 null。</returns>
-        private static string CropImageToRoi(string sourceFile, string targetFolder, CvRect roi, UnsupervisedTemplateMatchSettings templateMatchSettings, NewContourMatchSession templateMatchSession, int index)
+        private static string CropImageToRoi(string sourceFile, string targetFolder, CvRect roi, int index)
         {
             if (!File.Exists(sourceFile)) return null;
 
@@ -405,17 +396,10 @@ namespace TDJS_Vision.Forms.AiTrainForm
             {
                 if (image.Empty()) return null;
 
-                Mat croppedImage;
-                if (templateMatchSettings != null)
-                {
-                    croppedImage = UnsupervisedTemplateRoiMatcher.Crop(image, roi, templateMatchSettings, templateMatchSession);
-                }
-                else
-                {
-                    CvRect rect = ClampRect(roi, image.Width, image.Height);
-                    if (rect.Width <= 0 || rect.Height <= 0) return null;
-                    croppedImage = new Mat(image, rect).Clone();
-                }
+                // 训练阶段只使用基准图上配置的固定 ROI；模板匹配仅在生产识别时用于定位跟随。
+                CvRect rect = ClampRect(roi, image.Width, image.Height);
+                if (rect.Width <= 0 || rect.Height <= 0) return null;
+                Mat croppedImage = new Mat(image, rect).Clone();
 
                 using (Mat crop = croppedImage)
                 {
