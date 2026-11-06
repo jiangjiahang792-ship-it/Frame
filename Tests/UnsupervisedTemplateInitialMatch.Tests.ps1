@@ -45,6 +45,7 @@ Assert-Contains $runtime 'private readonly NewContourMatchSession _templateMatch
 Assert-Contains $runtime 'CreateRecognitionParameters(manifest.TemplateMatchParameters)' "Runtime must use the 0.1 recognition parameters."
 Assert-Contains $runtime 'out RotatedRect? affineRoi' "Runtime must return the affine ROI geometry."
 Assert-Contains $matcher 'TransformBaselineRoi' "Template following must transform the baseline ROI for display."
+Assert-Contains $runtime 'out List<RotatedRect> affineBoxes' "Anomaly boxes must use the same inverse affine transform as the ROI."
 Assert-Contains $form 'TemplateMatchSettings = _roiCropEnabled ? _templateMatchSettings : null' "Training settings must remain persisted."
 
 Write-Host "Unsupervised template initial-match checks passed."

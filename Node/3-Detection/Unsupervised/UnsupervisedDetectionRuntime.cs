@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using Logger;
 using OpenCvSharp;
 using TDJS_Vision.Forms.AiTrainForm;
@@ -115,7 +116,18 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                     Stopwatch postprocessTimer = Stopwatch.StartNew();
                     // 最小面积使用模型输入坐标的像素面积，必须在放大回原图前过滤。
                     DrawingRect[] areaFilteredBoxes = FilterBoxesByMinimumArea(nativeResult.Boxes, miniArea);
-                    List<DrawingRect> boxes = OffsetBoxesToSourceImage(areaFilteredBoxes, roiRect, sourceImage.Width, sourceImage.Height, inferImage.Width, inferImage.Height, manifest.InputWidth, manifest.InputHeight);
+                    List<RotatedRect> affineBoxes;
+                    List<DrawingRect> boxes = OffsetBoxesToSourceImage(
+                        areaFilteredBoxes,
+                        roiRect,
+                        affineRoi,
+                        sourceImage.Width,
+                        sourceImage.Height,
+                        inferImage.Width,
+                        inferImage.Height,
+                        manifest.InputWidth,
+                        manifest.InputHeight,
+                        out affineBoxes);
                     bool isOk = ApplyScoreThreshold(nativeResult, threshold, boxes);
                     string message = nativeResult.ReturnCode == 0 &&
                         (float.IsNaN(nativeResult.Score) || float.IsInfinity(nativeResult.Score))
@@ -132,6 +144,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                         roiRect,
                         affineRoi,
                         boxes,
+                        affineBoxes,
                         isOk,
                         message,
                         _loadedDevice,
@@ -666,7 +679,37 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// <returns>源图坐标系异常矩形。</returns>
         internal static List<DrawingRect> OffsetBoxesToSourceImage(DrawingRect[] boxes, CvRect? roiRect, int imageWidth, int imageHeight, int inferenceImageWidth, int inferenceImageHeight, int modelInputWidth, int modelInputHeight)
         {
+            List<RotatedRect> ignored;
+            return OffsetBoxesToSourceImage(
+                boxes,
+                roiRect,
+                null,
+                imageWidth,
+                imageHeight,
+                inferenceImageWidth,
+                inferenceImageHeight,
+                modelInputWidth,
+                modelInputHeight,
+                out ignored);
+        }
+
+        /// <summary>
+        /// 将裁剪图异常框按实际仿射 ROI 逆变换回源图，保证显示位置与送入模型的图像区域一致。
+        /// </summary>
+        private static List<DrawingRect> OffsetBoxesToSourceImage(
+            DrawingRect[] boxes,
+            CvRect? roiRect,
+            RotatedRect? affineRoi,
+            int imageWidth,
+            int imageHeight,
+            int inferenceImageWidth,
+            int inferenceImageHeight,
+            int modelInputWidth,
+            int modelInputHeight,
+            out List<RotatedRect> affineBoxes)
+        {
             List<DrawingRect> result = new List<DrawingRect>();
+            affineBoxes = new List<RotatedRect>();
             if (boxes == null || imageWidth <= 0 || imageHeight <= 0 || inferenceImageWidth <= 0 || inferenceImageHeight <= 0)
                 return result;
 
@@ -675,10 +718,49 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             foreach (DrawingRect box in boxes)
             {
                 DrawingRect scaled = ScaleBoxToInferenceImage(box, inferenceImageWidth, inferenceImageHeight, modelInputWidth, modelInputHeight);
+                scaled = ClampDrawingRect(scaled, inferenceImageWidth, inferenceImageHeight);
+                if (scaled.Width <= 0 || scaled.Height <= 0)
+                    continue;
+
+                if (affineRoi.HasValue)
+                {
+                    RotatedRect roi = affineRoi.Value;
+                    double radians = roi.Angle * Math.PI / 180D;
+                    double cosine = Math.Cos(radians);
+                    double sine = Math.Sin(radians);
+                    double relativeX = scaled.X + scaled.Width / 2D - inferenceImageWidth / 2D;
+                    double relativeY = scaled.Y + scaled.Height / 2D - inferenceImageHeight / 2D;
+                    var transformed = new RotatedRect(
+                        new Point2f(
+                            (float)(roi.Center.X + cosine * relativeX - sine * relativeY),
+                            (float)(roi.Center.Y + sine * relativeX + cosine * relativeY)),
+                        new Size2f(scaled.Width, scaled.Height),
+                        roi.Angle);
+                    affineBoxes.Add(transformed);
+                    Point2f[] points = transformed.Points();
+                    int left = (int)Math.Floor(points.Min(point => point.X));
+                    int top = (int)Math.Floor(points.Min(point => point.Y));
+                    int right = (int)Math.Ceiling(points.Max(point => point.X));
+                    int bottom = (int)Math.Ceiling(points.Max(point => point.Y));
+                    DrawingRect bounds = ClampDrawingRect(
+                        new DrawingRect(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top)),
+                        imageWidth,
+                        imageHeight);
+                    if (bounds.Width > 0 && bounds.Height > 0)
+                        result.Add(bounds);
+                    continue;
+                }
+
                 DrawingRect shifted = new DrawingRect(scaled.X + offsetX, scaled.Y + offsetY, scaled.Width, scaled.Height);
                 DrawingRect clamped = ClampDrawingRect(shifted, imageWidth, imageHeight);
                 if (clamped.Width > 0 && clamped.Height > 0)
+                {
                     result.Add(clamped);
+                    affineBoxes.Add(new RotatedRect(
+                        new Point2f(clamped.X + clamped.Width / 2F, clamped.Y + clamped.Height / 2F),
+                        new Size2f(clamped.Width, clamped.Height),
+                        0F));
+                }
             }
 
             return result;
@@ -840,6 +922,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// <param name="roiRect">实际推理 ROI。</param>
         /// <param name="affineRoi">源图坐标系中的仿射 ROI。</param>
         /// <param name="boxes">源图坐标系异常矩形。</param>
+        /// <param name="affineBoxes">源图坐标系仿射异常框。</param>
         /// <param name="isOk">最终 OK/NG 判定。</param>
         /// <param name="message">结果摘要。</param>
         /// <param name="actualDevice">实际推理设备。</param>
@@ -855,6 +938,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             CvRect? roiRect,
             RotatedRect? affineRoi,
             List<DrawingRect> boxes,
+            List<RotatedRect> affineBoxes,
             bool isOk,
             string message,
             string actualDevice,
@@ -870,6 +954,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
             RoiRect = roiRect;
             AffineRoi = affineRoi;
             Boxes = boxes ?? new List<DrawingRect>();
+            AffineBoxes = affineBoxes ?? new List<RotatedRect>();
             IsOk = isOk;
             Message = message;
             ActualDevice = actualDevice;
@@ -905,6 +990,11 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
         /// 源图坐标系异常矩形。
         /// </summary>
         public List<DrawingRect> Boxes { get; }
+
+        /// <summary>
+        /// 从实际裁剪 ROI 逆仿射回源图的异常旋转框。
+        /// </summary>
+        public List<RotatedRect> AffineBoxes { get; }
 
         /// <summary>
         /// 当前检测是否 OK。

@@ -227,12 +227,17 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                 return;
 
             List<ColorRotatedRect> ngRects = new List<ColorRotatedRect>();
-            foreach (DrawingRect box in runResult.Boxes)
+            foreach (OpenCvSharp.RotatedRect box in runResult.AffineBoxes)
             {
-                Rect cvRect = new Rect(box.X, box.Y, box.Width, box.Height);
-                ColorRotatedRect drawRect = new ColorRotatedRect(cvRect, Color.Red);
+                ColorRotatedRect drawRect = new ColorRotatedRect(
+                    box.Center.X,
+                    box.Center.Y,
+                    box.Size.Width,
+                    box.Size.Height,
+                    box.Angle,
+                    Color.Red);
                 algorithmResult.Rects.Add(drawRect);
-                ngRects.Add(new ColorRotatedRect(cvRect, Color.Red));
+                ngRects.Add(drawRect);
             }
 
             algorithmResult.RectsNgMap["无监督异常"] = ngRects;
