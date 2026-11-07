@@ -121,6 +121,7 @@ Assert-Contains $runtime "OffsetBoxesToSourceImage" "Runtime adapter must offset
 Assert-Contains $runtime "List<RotatedRect> affineBoxes;" "Runtime adapter must retain inverse-affine anomaly boxes."
 Assert-Contains $runtime "relativeX = scaled.X + scaled.Width / 2D - inferenceImageWidth / 2D" "Runtime adapter must map crop-local boxes from the ROI center."
 Assert-Contains $runtime "affineBoxes.Add(transformed);" "Runtime adapter must publish transformed anomaly boxes."
+Assert-Contains $runtime "corners.All(point => IsPointInsideRotatedRect(point, affineRoi.Value))" "Runtime must keep only boxes fully inside the affine ROI."
 Assert-Contains $runtime "ScaleBoxToInferenceImage" "Runtime adapter must convert native model-coordinate boxes to inference image coordinates."
 Assert-Contains $runtime "modelInputWidth" "Runtime adapter must use the template model input width when scaling boxes."
 Assert-Contains $runtime "modelInputHeight" "Runtime adapter must use the template model input height when scaling boxes."

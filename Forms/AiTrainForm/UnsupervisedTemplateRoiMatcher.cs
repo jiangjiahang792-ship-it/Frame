@@ -127,6 +127,16 @@ namespace TDJS_Vision.Forms.AiTrainForm
             }
         }
 
+        /// <summary>仅定位模板并返回当前源图中的仿射 ROI，不裁剪图像。</summary>
+        internal static RotatedRect LocateAffineRoi(Mat source, CvRect baselineRoi, UnsupervisedTemplateMatchSettings settings, NewContourMatchSession session)
+        {
+            if (source == null || source.Empty()) throw new ArgumentException("模板初匹配输入图像为空。", nameof(source));
+            if (settings?.Parameters == null) throw new InvalidOperationException("模板初匹配参数不完整。请重新训练模板。");
+            if (session == null) throw new ArgumentNullException(nameof(session));
+            ShapeMatchResult current = MatchFirst(source, settings.Parameters, session);
+            return TransformBaselineRoi(baselineRoi, settings, current);
+        }
+
         /// <summary>将基准 ROI 按模板当前位姿变换到源图坐标系。</summary>
         private static RotatedRect TransformBaselineRoi(CvRect baselineRoi, UnsupervisedTemplateMatchSettings settings, ShapeMatchResult current)
         {

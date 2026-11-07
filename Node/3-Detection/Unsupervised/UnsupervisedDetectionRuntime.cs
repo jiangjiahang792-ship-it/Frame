@@ -119,8 +119,8 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                     List<RotatedRect> affineBoxes;
                     List<DrawingRect> boxes = OffsetBoxesToSourceImage(
                         areaFilteredBoxes,
-                        roiRect,
-                        affineRoi,
+                        null,
+                        null,
                         sourceImage.Width,
                         sourceImage.Height,
                         inferImage.Width,
@@ -128,6 +128,7 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                         manifest.InputWidth,
                         manifest.InputHeight,
                         out affineBoxes);
+                    FilterBoxesOutsideRoi(boxes, affineBoxes, affineRoi);
                     bool isOk = ApplyScoreThreshold(nativeResult, threshold, boxes);
                     string message = nativeResult.ReturnCode == 0 &&
                         (float.IsNaN(nativeResult.Score) || float.IsInfinity(nativeResult.Score))
@@ -657,12 +658,42 @@ namespace TDJS_Vision.Node._3_Detection.Unsupervised
                     AngleStart = manifest.TemplateMatchAngleStart,
                     AngleEnd = manifest.TemplateMatchAngleEnd
                 };
-                RotatedRect followedRoi;
-                Mat cropped = UnsupervisedTemplateRoiMatcher.Crop(sourceImage, rect, settings, templateMatchSession, out followedRoi);
-                affineRoi = followedRoi;
-                return cropped;
+                affineRoi = UnsupervisedTemplateRoiMatcher.LocateAffineRoi(sourceImage, rect, settings, templateMatchSession);
             }
-            return new Mat(sourceImage, rect).Clone();
+            // ROI 只约束结果显示和判定；模型始终使用整图推理，与整图训练保持一致。
+            return sourceImage.Clone();
+        }
+
+        /// <summary>过滤不完全位于实际仿射 ROI 内的异常框。</summary>
+        private static void FilterBoxesOutsideRoi(List<DrawingRect> boxes, List<RotatedRect> affineBoxes, RotatedRect? affineRoi)
+        {
+            if (!affineRoi.HasValue || boxes == null || affineBoxes == null)
+                return;
+
+            for (int index = Math.Min(boxes.Count, affineBoxes.Count) - 1; index >= 0; index--)
+            {
+                Point2f[] corners = affineBoxes[index].Points();
+                if (corners.All(point => IsPointInsideRotatedRect(point, affineRoi.Value)))
+                    continue;
+
+                boxes.RemoveAt(index);
+                affineBoxes.RemoveAt(index);
+            }
+        }
+
+        /// <summary>判断源图点是否位于旋转 ROI 内部或边界上。</summary>
+        private static bool IsPointInsideRotatedRect(Point2f point, RotatedRect roi)
+        {
+            double radians = -roi.Angle * Math.PI / 180D;
+            double cosine = Math.Cos(radians);
+            double sine = Math.Sin(radians);
+            double offsetX = point.X - roi.Center.X;
+            double offsetY = point.Y - roi.Center.Y;
+            double localX = cosine * offsetX - sine * offsetY;
+            double localY = sine * offsetX + cosine * offsetY;
+            const double tolerance = 0.5D;
+            return Math.Abs(localX) <= roi.Size.Width / 2D + tolerance &&
+                Math.Abs(localY) <= roi.Size.Height / 2D + tolerance;
         }
 
         /// <summary>

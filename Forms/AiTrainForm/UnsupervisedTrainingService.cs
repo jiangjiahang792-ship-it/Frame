@@ -333,9 +333,8 @@ namespace TDJS_Vision.Forms.AiTrainForm
                 string targetFolder = reserveForCalibration
                     ? (isNg ? calibrationNgPath : calibrationOkPath)
                     : (isNg ? ngPath : okPath);
-                string savedPath = request.RoiRect.HasValue
-                    ? CropImageToRoi(item.FilePath, targetFolder, request.RoiRect.Value, index)
-                    : CopyImageToDataset(item.FilePath, targetFolder, index);
+                // ROI 只用于生产识别结果过滤；训练始终保留整图上下文。
+                string savedPath = CopyImageToDataset(item.FilePath, targetFolder, index);
 
                 if (!string.IsNullOrWhiteSpace(savedPath))
                 {
@@ -378,35 +377,6 @@ namespace TDJS_Vision.Forms.AiTrainForm
             string targetFile = Path.Combine(targetFolder, BuildDatasetFileName(sourceFile, index, extension));
             File.Copy(sourceFile, targetFile, true);
             return targetFile;
-        }
-
-        /// <summary>
-        /// 裁剪 ROI 到训练数据集。
-        /// </summary>
-        /// <param name="sourceFile">源图路径。</param>
-        /// <param name="targetFolder">目标目录。</param>
-        /// <param name="roi">图像坐标系 ROI。</param>
-        /// <param name="index">图片序号。</param>
-        /// <returns>保存成功返回目标路径，失败返回 null。</returns>
-        private static string CropImageToRoi(string sourceFile, string targetFolder, CvRect roi, int index)
-        {
-            if (!File.Exists(sourceFile)) return null;
-
-            using (Mat image = Cv2.ImRead(sourceFile))
-            {
-                if (image.Empty()) return null;
-
-                // 训练阶段只使用基准图上配置的固定 ROI；模板匹配仅在生产识别时用于定位跟随。
-                CvRect rect = ClampRect(roi, image.Width, image.Height);
-                if (rect.Width <= 0 || rect.Height <= 0) return null;
-                Mat croppedImage = new Mat(image, rect).Clone();
-
-                using (Mat crop = croppedImage)
-                {
-                    string targetFile = Path.Combine(targetFolder, BuildDatasetFileName(sourceFile, index, ".png"));
-                    return Cv2.ImWrite(targetFile, crop) ? targetFile : null;
-                }
-            }
         }
 
         /// <summary>
