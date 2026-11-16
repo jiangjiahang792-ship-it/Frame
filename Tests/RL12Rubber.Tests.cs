@@ -33,6 +33,12 @@ internal static class RL12RubberTests
         return new DetResult { ClassId = id, Box = new Rect(x, 10, width, height) };
     }
 
+    /// <summary>创建一个具有明确类别、尺寸和模型置信度的检测结果。</summary>
+    private static DetResult ScoredBox(int id, int width, int height, float score, int x = 0)
+    {
+        return new DetResult { ClassId = id, Score = score, Box = new Rect(x, 10, width, height) };
+    }
+
     /// <summary>执行真实解析流程，不加载模型或连接现场设备。</summary>
     private static NodeResultTDAI Parse(List<DetectItemInfo> items, List<DetResult> boxes,
         bool convert = false, bool study = false)
@@ -101,6 +107,102 @@ internal static class RL12RubberTests
         Check(Value(result, "飞胶").Value == "2" && Value(result, "飞胶").IsOk, "飞丝污染飞胶结果。");
         items[2].Enable = false;
         Check(!Parse(items, boxes).AlgorithmResult.DetectResults.ContainsKey("飞胶"), "禁用飞胶仍输出结果。");
+    }
+
+    /// <summary>验证四个端子部件数量项的类别映射、强制数量型、独立上下限和缺失补零。</summary>
+    private static void VerifyTerminalComponentCounts()
+    {
+        string[] names = { "前铆脚露线芯数量", "前铆脚数量", "后铆脚数量", "后铆脚露线芯数量" };
+        var items = names.Select(name => Item(name, "2", "2", false)).ToList();
+        items.Add(Item("端子数量", "99", "99", true));
+        var boxes = new List<DetResult>
+        {
+            Box(0, 20, 6), Box(0, 21, 7, 100),
+            Box(1, 40, 12), Box(1, 41, 13, 100),
+            Box(4, 60, 18), Box(4, 61, 19, 100),
+            Box(2, 30, 8), Box(2, 31, 9, 100)
+        };
+
+        var result = Parse(items, boxes, true);
+        foreach (string name in names)
+            Check(Value(result, name).Value == "2" && Value(result, name).IsOk,
+                name + "类别映射、物理换算隔离或独立上下限判断错误。");
+        Check(items.Take(4).All(item => item.IsCountItem), "端子部件数量项未强制设置为数量型。");
+        Check(!Value(result, "端子数量").IsOk,
+            "测试前提无效：端子数量公共检测项应当因99～99范围判NG。");
+
+        items[4].Enable = false;
+        result = Parse(items, new List<DetResult>());
+        foreach (string name in names)
+            Check(Value(result, name).Value == "0" && !Value(result, name).IsOk, name + "缺失时未按0判NG。");
+
+        items.Take(4).ToList().ForEach(item => { item.MinValue = "0"; item.MaxValue = "0"; });
+        Check(Parse(items, new List<DetResult>()).IsOk, "端子部件数量项0～0范围未按自身上下限判定。");
+    }
+
+    /// <summary>验证飞丝取消数量型后按每个类别8检测框计算面积，而不是继续输出固定值1。</summary>
+    private static void VerifyFlyingWireArea()
+    {
+        var item = Item("飞丝", "10", "100", false);
+        var boxes = new List<DetResult> { Box(8, 8, 9), Box(8, 3, 4, 100), Box(9, 20, 30, 200) };
+
+        var result = Parse(new List<DetectItemInfo> { item }, boxes);
+        var values = result.AlgorithmResult.DetectResults["DetectItem.FlyingWire"];
+        Check(values.Count == 2 && values[0].Value == "72.00" && values[1].Value == "12.00",
+            "飞丝取消数量型后未按类别8检测框逐个计算面积。");
+        Check(result.IsOk && item.CurValue == "72.00,12.00",
+            "飞丝面积上下限判定或当前值更新错误。");
+        Check(result.AlgorithmResult.Rects.Count == 2,
+            "飞丝面积模式遗漏检测框或混入类别9飞胶框。");
+
+        item.MinValue = "6";
+        item.MaxValue = "36";
+        result = Parse(new List<DetectItemInfo> { item }, boxes, true);
+        values = result.AlgorithmResult.DetectResults["DetectItem.FlyingWire"];
+        Check(values[0].Value == "36.00" && values[1].Value == "6.00" && result.IsOk,
+            "飞丝面积没有沿用RL12现有比例换算规则。");
+    }
+
+    /// <summary>验证米岸端子四个主体类别多框时各自只保留得分最高的框，其它类别不筛选。</summary>
+    private static void VerifyMiAnHighestScores()
+    {
+        var items = new List<DetectItemInfo>
+        {
+            Item("前铆脚露线芯长度", "30", "30"),
+            Item("前铆脚面积", "100", "100"),
+            Item("后铆脚露线芯长度", "18", "18"),
+            Item("后铆脚面积", "225", "225"),
+            Item("飞丝", "2", "2", true)
+        };
+        var boxes = new List<DetResult>
+        {
+            ScoredBox(0, 30, 10, 0.95F), ScoredBox(0, 20, 20, 0.60F, 100),
+            ScoredBox(1, 10, 10, 0.90F), ScoredBox(1, 12, 12, 0.70F, 100),
+            ScoredBox(2, 25, 10, 0.55F), ScoredBox(2, 18, 18, 0.85F, 100),
+            ScoredBox(4, 20, 10, 0.65F), ScoredBox(4, 15, 15, 0.92F, 100),
+            Box(8, 3, 4), Box(8, 5, 6, 100)
+        };
+
+        Solution.Instance.DetectItemDic["米岸端子离线测试"] = items;
+        var parameter = new NodeParamTDAI
+        {
+            CurDetectItemName = "米岸端子离线测试",
+            NodeName = "米岸端子离线测试"
+        };
+        var result = new NodeResultTDAI();
+        MiAnTerminalParse.Parse(boxes, boxes.Count, parameter,
+            new TDJS_Vision.Process("米岸端子离线测试"), ref result);
+
+        Check(float.Parse(Value(result, "前铆脚露线芯长度").Value) == 30F,
+            "米岸前铆脚露线芯未保留最高得分框。");
+        Check(float.Parse(Value(result, "前铆脚面积").Value) == 100F,
+            "米岸前铆脚面积未保留最高得分框。");
+        Check(float.Parse(Value(result, "后铆脚露线芯长度").Value) == 18F,
+            "米岸后铆脚露线芯未保留最高得分框。");
+        Check(float.Parse(Value(result, "后铆脚面积").Value) == 225F,
+            "米岸后铆脚面积未保留最高得分框。");
+        Check(Value(result, "飞丝").Value == "2", "米岸最高得分筛选错误影响了飞丝数量。");
+        Check(result.IsOk, "米岸最高得分筛选后的检测结果判定错误。");
     }
 
     /// <summary>验证线芯、胶皮和正插防水栓各自按对应模型类别计数。</summary>
@@ -257,7 +359,7 @@ internal static class RL12RubberTests
         try
         {
             LanguageManager.SetLanguage("zh-CN", false);
-            VerifyTerminalDimensions(); VerifyBiteGlueLength(); VerifyDimensions(); VerifyCounts(); VerifyComponentCounts(); VerifyConfigNames(); VerifyStudy(); VerifyMissingMeasurements();
+            VerifyTerminalDimensions(); VerifyBiteGlueLength(); VerifyDimensions(); VerifyCounts(); VerifyTerminalComponentCounts(); VerifyFlyingWireArea(); VerifyMiAnHighestScores(); VerifyComponentCounts(); VerifyConfigNames(); VerifyStudy(); VerifyMissingMeasurements();
             Console.WriteLine("RL12胶皮、飞胶与部件数量验证通过，共" + _checks + "项断言。");
             return 0;
         }

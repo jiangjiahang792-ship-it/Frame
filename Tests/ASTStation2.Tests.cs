@@ -73,7 +73,9 @@ internal static class ASTStation2Tests
             var itemType = assembly.GetType(ns + suffix + "Item");
             Check(nodeType != null && itemType != null, suffix + "绘图类型不存在。");
             var projected = new AlgorithmResult();
-            var append = nodeType.GetMethod("AppendAlgorithmResultTexts", BindingFlags.Static | BindingFlags.NonPublic);
+            // 构建器可能同时保留带颜色参数的重载，按三参数签名精确定位既有投影入口。
+            var append = nodeType.GetMethod("AppendAlgorithmResultTexts", BindingFlags.Static | BindingFlags.NonPublic,
+                null, new[] { typeof(AlgorithmResult), typeof(AlgorithmResult), itemType }, null);
             Check(append != null, suffix + "文本投影方法不存在。");
             append.Invoke(null, new[] { (object)projected, source, Activator.CreateInstance(itemType) });
             var original = source.Texts.Where(t => t.UseImagePosition).ToList();
@@ -138,6 +140,17 @@ internal static class ASTStation2Tests
         foilFilterDetections.RemoveAll(d => d.ClassId == 7);
         result = Parse(foilFilter, foilFilterDetections);
         Check(Value(result, "飞丝") == 5, "未检出铝箔区域时不应屏蔽飞丝。");
+        var copperBottomFilter = Parameter("铜环底部飞丝筛选");
+        var copperBottomDetections = Detections();
+        copperBottomDetections.Add(new DetResult { ClassId = 6, Box = new Rect(105, 380, 4, 4) });
+        result = Parse(copperBottomFilter, copperBottomDetections);
+        Check(Value(result, "飞丝") == 1, "完整位于铜环底部以下的飞丝没有被屏蔽。");
+        copperBottomDetections.Add(new DetResult { ClassId = 6, Box = new Rect(105, 378, 4, 4) });
+        result = Parse(copperBottomFilter, copperBottomDetections);
+        Check(Value(result, "飞丝") == 2, "跨越铜环底边的飞丝被错误屏蔽。");
+        copperBottomDetections.RemoveAll(d => d.ClassId == 4);
+        result = Parse(copperBottomFilter, copperBottomDetections);
+        Check(Value(result, "飞丝") == 3, "未检出铜环时不应屏蔽飞丝。");
         VerifyAnnotationProjection(result.AlgorithmResult);
         Check(result.AlgorithmResult.DetectResults.ContainsKey("出线芯长度"), "出线芯长度未按新检测项名称输出。");
         parameter.NeedConvert = true; parameter.Scale = 0.1f;

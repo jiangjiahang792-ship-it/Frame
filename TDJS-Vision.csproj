@@ -357,6 +357,7 @@
     <Compile Include="Forms\Workspace\ExclusiveWorkspacePresenter.cs" />
     <Compile Include="Forms\Common\WindowIconProvider.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\MultiTerminalParse.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\MultiCoreParse.cs" />
     <Compile Include="Startup\IStartupProgressReporter.cs" />
     <Compile Include="Startup\ISolutionLoadingCoordinator.cs" />
     <Compile Include="Startup\IDeviceLicenseSynchronizer.cs" />
@@ -745,7 +746,9 @@
     <Compile Include="Node\3-Detection\TDAI\Parse\ParseCommon.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12angondingParse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\RL12Parse.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\MiAnTerminalParse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\NewTerminal12Parse.cs" />
+    <Compile Include="Node\3-Detection\TDAI\Parse\HongShengTerminal12Parse.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\PlugColorPerimeter.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\PlugContourSimilarity.cs" />
     <Compile Include="Node\3-Detection\TDAI\Parse\ASTStation1Parse.cs" />
@@ -2423,6 +2426,24 @@
     <Content Include="Template\TDAI\合压模型数量检测项.items">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Template\TDAI\多线芯模型检测项.items">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\多端子模型配置.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\多端子模型.ai">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\多端子模型检测项.items">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\多线芯模型配置.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\多线芯模型.ai">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Template\TDAI\勒刚端子侧面15类检测项.items">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -2454,6 +2475,15 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Template\TDAI\新端子12类模型.ai">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\宏晟端子12类检测项.items">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\宏晟端子12类模型配置.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Template\TDAI\宏晟端子12类模型.ai">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Template\TDAI\AST高曝光线芯检测项.items">

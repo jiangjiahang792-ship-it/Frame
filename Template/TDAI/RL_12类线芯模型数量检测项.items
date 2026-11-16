@@ -1,0 +1,34 @@
+[
+  {
+    "Name": "前铆脚露线芯数量",
+    "MinValue": "1",
+    "MaxValue": "1",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0"
+  },
+  {
+    "Name": "前铆脚数量",
+    "MinValue": "1",
+    "MaxValue": "1",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0"
+  },
+  {
+    "Name": "后铆脚数量",
+    "MinValue": "1",
+    "MaxValue": "1",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0"
+  },
+  {
+    "Name": "后铆脚露线芯数量",
+    "MinValue": "1",
+    "MaxValue": "1",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0"
+  }
+]

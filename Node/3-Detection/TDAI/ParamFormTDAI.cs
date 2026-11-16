@@ -390,8 +390,14 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     case "新端子12类模型":
                         nodeParamTDAI.ModelName = ModelName.新端子12类模型;
                         break;
+                    case "宏晟端子12类模型":
+                        nodeParamTDAI.ModelName = ModelName.宏晟端子12类模型;
+                        break;
                     case "RL_12类线芯模型":
                         nodeParamTDAI.ModelName = ModelName.RL_12类线芯模型;
+                        break;
+                    case "米岸端子模型":
+                        nodeParamTDAI.ModelName = ModelName.米岸端子模型;
                         break;
                     case "RL_线芯截面":
                         nodeParamTDAI.ModelName = ModelName.RL_线芯截面;
@@ -404,6 +410,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         break;
                     case "多端子模型":
                         nodeParamTDAI.ModelName = ModelName.多端子模型;
+                        break;
+                    case "多线芯模型":
+                        nodeParamTDAI.ModelName = ModelName.多线芯模型;
                         break;
                     case "超声波焊接侧面三类模型":
                         nodeParamTDAI.ModelName = ModelName.超声波焊接侧面三类模型;
@@ -659,10 +668,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
         private void uiSwitch_Learning_ValueChanged(object sender, bool value)
         {
-            label_studyNum.Enabled = value;
-            textBox_StudyNum.Enabled = value;
-            label_studyPercentage.Enabled = value;
-            textBox_studyPercentage.Enabled = value;
+            // 学习参数同时用于通信新配方的首次自动学习，必须允许用户在不开启手动一键学习时预先设置。
+            label_studyNum.Enabled = true;
+            textBox_StudyNum.Enabled = true;
+            label_studyPercentage.Enabled = true;
+            textBox_studyPercentage.Enabled = true;
         }
 
         /// <summary>
@@ -701,23 +711,22 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         }
 
         /// <summary>
-        /// 刷新上游节点并获取当前可用于 ROI 绘制的图像。
+        /// 获取订阅节点当前已经保留、可用于 ROI 绘制的图像，不主动运行流程或触发相机。
         /// </summary>
         /// <returns>最新订阅图像对应的位图，调用方负责释放。</returns>
-        private async Task<Bitmap> GetCurrentRoiBitmapAsync()
+        private Task<Bitmap> GetCurrentRoiBitmapAsync()
         {
             if (_node == null)
                 throw new Exception("当前节点为空，无法绘制ROI。");
             if (string.IsNullOrWhiteSpace(nodeSubscription1.GetText1()) || string.IsNullOrWhiteSpace(nodeSubscription1.GetText2()))
                 throw new Exception("请先选择输入图像。");
 
-            await _node.Process.RunForUpdateImages(_node);
             OutputImage outputImage = GetOutputImage();
             Mat sourceImage = GetFirstValidImage(outputImage);
             if (sourceImage == null || sourceImage.Empty())
-                throw new Exception("订阅的图像为空，无法绘制ROI。");
+                throw new Exception("当前没有可用图像，请先触发一次相机或先运行一次流程，再绘制ROI。");
 
-            return BitmapConverter.ToBitmap(sourceImage);
+            return Task.FromResult(BitmapConverter.ToBitmap(sourceImage));
         }
 
         /// <summary>

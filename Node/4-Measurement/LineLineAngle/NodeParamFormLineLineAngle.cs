@@ -119,6 +119,8 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             BindRoiRefreshEvents();
             nodeSubscriptionLine1.HideText2();
             nodeSubscriptionLine2.HideText2();
+            nodeSubscriptionLine1.SelectionChanged += SubscriptionLine1_SelectionChanged;
+            nodeSubscriptionLine2.SelectionChanged += SubscriptionLine2_SelectionChanged;
             UpdateSourceModeEnabled();
         }
 
@@ -128,7 +130,9 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         {
             nodeSubscriptionImage.SetExpectedValueType<OutputImage>();
             nodeSubscriptionImage.Init(node);
+            nodeSubscriptionLine1.IncludeProcessNodeTypes(NodeType.AITD);
             nodeSubscriptionLine1.Init(node);
+            nodeSubscriptionLine2.IncludeProcessNodeTypes(NodeType.AITD);
             nodeSubscriptionLine2.Init(node);
             nodeSubscriptionPositionCorrection.SetExpectedValueType<List<PositionCorrectionInfo>>();
             nodeSubscriptionPositionCorrection.Init(node);
@@ -147,8 +151,12 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 radioButtonSubscribe.Checked = param.SourceMode == MeasurementDataSourceMode.Subscribe;
                 radioButtonDraw.Checked = param.SourceMode != MeasurementDataSourceMode.Subscribe;
                 nodeSubscriptionLine1.SetText(param.Line1Text1, param.Line1Text2);
-                comboBoxLine1BoxEdge.SelectedItem = param.Line1BoxEdge;
                 nodeSubscriptionLine2.SetText(param.Line2Text1, param.Line2Text2);
+                RefreshClassSelector(nodeSubscriptionLine1, comboBoxLine1Class, comboBoxLine1BoxEdge,
+                    labelLine1Class, labelLine1BoxEdge, param.Line1ClassName);
+                RefreshClassSelector(nodeSubscriptionLine2, comboBoxLine2Class, comboBoxLine2BoxEdge,
+                    labelLine2Class, labelLine2BoxEdge, param.Line2ClassName);
+                comboBoxLine1BoxEdge.SelectedItem = param.Line1BoxEdge;
                 comboBoxLine2BoxEdge.SelectedItem = param.Line2BoxEdge;
                 checkBoxUsePositionCorrection.Checked = param.UsePositionCorrection;
                 nodeSubscriptionPositionCorrection.SetText(param.CorrectionText1, param.CorrectionText2);
@@ -220,9 +228,9 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             CancellationToken token)
         {
             List<IndexedMeasurementValue<LineMeasurementInput>> lines1 =
-                ReadSubscribedLineTargets(nodeSubscriptionLine1, "直线1", param.Line1BoxEdge);
+                ReadSubscribedLineTargets(nodeSubscriptionLine1, "直线1", param.Line1ClassName, param.Line1BoxEdge);
             List<IndexedMeasurementValue<LineMeasurementInput>> lines2 =
-                ReadSubscribedLineTargets(nodeSubscriptionLine2, "直线2", param.Line2BoxEdge);
+                ReadSubscribedLineTargets(nodeSubscriptionLine2, "直线2", param.Line2ClassName, param.Line2BoxEdge);
             List<IndexedMeasurementPair<LineMeasurementInput, LineMeasurementInput>> pairs =
                 MultiTargetMeasurementPairer.PairByTargetIndex(lines1, lines2, "直线1结果", "直线2结果");
             if (pairs.Count == 0)
@@ -278,8 +286,8 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             LineMeasurementInput input2;
             if (param.SourceMode == MeasurementDataSourceMode.Subscribe)
             {
-                input1 = ReadSubscribedLineInput(nodeSubscriptionLine1, "直线1", param.Line1BoxEdge);
-                input2 = ReadSubscribedLineInput(nodeSubscriptionLine2, "直线2", param.Line2BoxEdge);
+                input1 = ReadSubscribedLineInput(nodeSubscriptionLine1, "直线1", param.Line1ClassName, param.Line1BoxEdge);
+                input2 = ReadSubscribedLineInput(nodeSubscriptionLine2, "直线2", param.Line2ClassName, param.Line2BoxEdge);
             }
             else
             {
@@ -388,7 +396,82 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             comboBoxSamplingMode.SelectedIndex = 0;
         }
 
-        /// <summary>初始化 AI 检测框边选择项。</summary>
+        /// <summary>直线1订阅来源变化后自动更新类别下拉框。</summary>
+        private void SubscriptionLine1_SelectionChanged(object sender, EventArgs e)
+        {
+            RefreshClassSelector(
+                nodeSubscriptionLine1,
+                comboBoxLine1Class,
+                comboBoxLine1BoxEdge,
+                labelLine1Class,
+                labelLine1BoxEdge,
+                comboBoxLine1Class.Text);
+        }
+
+        /// <summary>直线2订阅来源变化后自动更新类别下拉框。</summary>
+        private void SubscriptionLine2_SelectionChanged(object sender, EventArgs e)
+        {
+            RefreshClassSelector(
+                nodeSubscriptionLine2,
+                comboBoxLine2Class,
+                comboBoxLine2BoxEdge,
+                labelLine2Class,
+                labelLine2BoxEdge,
+                comboBoxLine2Class.Text);
+        }
+
+        /// <summary>仅当来源为目标分类节点时显示并填充模型类别。</summary>
+        private static void RefreshClassSelector(
+            NodeSubscription subscription,
+            ComboBox classSelector,
+            ComboBox edgeSelector,
+            Label classLabel,
+            Label edgeLabel,
+            string selectedClassName)
+        {
+            classSelector.Items.Clear();
+            if (string.IsNullOrWhiteSpace(subscription.GetText1()))
+            {
+                SetAiSelectorsVisible(classSelector, edgeSelector, classLabel, edgeLabel, false);
+                return;
+            }
+
+            // 组合模块反序列化时会先恢复参数文本，再分阶段绑定内部上游节点。
+            // 此阶段只隐藏附加选择控件并等待后续 SelectionChanged，不能中断整个模块加载。
+            if (!subscription.TryGetSelectedNode(out NodeBase sourceNode))
+            {
+                SetAiSelectorsVisible(classSelector, edgeSelector, classLabel, edgeLabel, false);
+                return;
+            }
+            NodeParamTDAI aiParam = sourceNode?.ParamForm?.Params as NodeParamTDAI;
+            if (aiParam?.AIInputInfo?.ClassNames == null)
+            {
+                SetAiSelectorsVisible(classSelector, edgeSelector, classLabel, edgeLabel, false);
+                return;
+            }
+
+            foreach (string className in aiParam.AIInputInfo.ClassNames.Where(name => !string.IsNullOrWhiteSpace(name)))
+                classSelector.Items.Add(className);
+            SetAiSelectorsVisible(classSelector, edgeSelector, classLabel, edgeLabel, true);
+            int selectedIndex = classSelector.Items.IndexOf(selectedClassName);
+            classSelector.SelectedIndex = selectedIndex >= 0 ? selectedIndex : classSelector.Items.Count > 0 ? 0 : -1;
+        }
+
+        /// <summary>统一切换目标分类检测项与框边控件的显示状态。</summary>
+        private static void SetAiSelectorsVisible(
+            ComboBox classSelector,
+            ComboBox edgeSelector,
+            Label classLabel,
+            Label edgeLabel,
+            bool visible)
+        {
+            classSelector.Visible = visible;
+            edgeSelector.Visible = visible;
+            classLabel.Visible = visible;
+            edgeLabel.Visible = visible;
+        }
+
+        /// <summary>初始化四个检测框边选项，并使用简体中文显示。</summary>
         private void InitializeBoxEdgeCombos()
         {
             object[] edges = { AiDetectionBoxEdge.Top, AiDetectionBoxEdge.Bottom, AiDetectionBoxEdge.Left, AiDetectionBoxEdge.Right };
@@ -400,7 +483,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             comboBoxLine2BoxEdge.Format += FormatBoxEdge;
         }
 
-        /// <summary>把框边枚举显示为简体中文。</summary>
+        /// <summary>把检测框边枚举显示为中文。</summary>
         private static void FormatBoxEdge(object sender, ListControlConvertEventArgs e)
         {
             if (!(e.ListItem is AiDetectionBoxEdge edge))
@@ -606,17 +689,26 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             result.DisplayImageHeight = preview.Height;
         }
 
-        private LineMeasurementInput ReadSubscribedLineInput(NodeSubscription subscription, string name, AiDetectionBoxEdge boxEdge)
+        private LineMeasurementInput ReadSubscribedLineInput(
+            NodeSubscription subscription,
+            string name,
+            string className,
+            AiDetectionBoxEdge boxEdge)
         {
             NodeBase sourceNode = subscription.GetSelectedNode();
             MeasuredLine line;
             bool readStandardLine = !(sourceNode.Result is NodeResultTDAI);
             if (sourceNode.Result is NodeResultTDAI aiResult)
-                AiDetectionBoxEdgeConverter.TryReadFirstBoxEdge(aiResult.AlgorithmResult, boxEdge, out line);
+                AiDetectionBoxEdgeConverter.TryReadFirstClassEdge(aiResult.AlgorithmResult, className, boxEdge, out line);
             else
                 MeasurementResultReader.TryReadLine(sourceNode.Result, out line);
             if (line == null || !line.IsValid)
-                throw new Exception($"{name}订阅节点({sourceNode.ID}.{sourceNode.NodeName})没有可用直线或AI检测框结果。");
+            {
+                string reason = sourceNode.Result is NodeResultTDAI
+                    ? $"类别“{className}”没有可用检测框"
+                    : "没有可用直线结果";
+                throw new Exception($"{name}订阅节点({sourceNode.ID}.{sourceNode.NodeName}){reason}。");
+            }
 
             List<PointF> points;
             if (!readStandardLine || !MeasurementResultReader.TryReadLinePoints(sourceNode.Result, out points))
@@ -866,6 +958,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         private List<IndexedMeasurementValue<LineMeasurementInput>> ReadSubscribedLineTargets(
             NodeSubscription subscription,
             string name,
+            string className,
             AiDetectionBoxEdge boxEdge)
         {
             NodeBase sourceNode = subscription.GetSelectedNode();
@@ -873,7 +966,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 sourceNode.Result,
                 out List<IMultiTargetMeasurementItem> sourceItems))
             {
-                LineMeasurementInput input = ReadSubscribedLineInput(subscription, name, boxEdge);
+                LineMeasurementInput input = ReadSubscribedLineInput(subscription, name, className, boxEdge);
                 return new List<IndexedMeasurementValue<LineMeasurementInput>>
                 {
                     new IndexedMeasurementValue<LineMeasurementInput>(1, true, input, string.Empty)
@@ -961,6 +1054,8 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 ImageText1 = param.ImageText1,
                 ImageText2 = param.ImageText2,
                 SourceMode = param.SourceMode,
+                Line1ClassName = param.Line1ClassName,
+                Line2ClassName = param.Line2ClassName,
                 Line1BoxEdge = param.Line1BoxEdge,
                 Line2BoxEdge = param.Line2BoxEdge,
                 UsePositionCorrection = param.UsePositionCorrection,
@@ -1055,6 +1150,10 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                 {
                     if (string.IsNullOrWhiteSpace(nodeSubscriptionLine1.GetText1()) || string.IsNullOrWhiteSpace(nodeSubscriptionLine2.GetText1()))
                         throw new Exception("请选择两条上游直线结果。");
+                    if (comboBoxLine1Class.Visible && string.IsNullOrWhiteSpace(comboBoxLine1Class.Text))
+                        throw new Exception("请选择直线1使用的目标分类检测项。");
+                    if (comboBoxLine2Class.Visible && string.IsNullOrWhiteSpace(comboBoxLine2Class.Text))
+                        throw new Exception("请选择直线2使用的目标分类检测项。");
                 }
                 else
                 {
@@ -1079,10 +1178,12 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                     SourceMode = sourceMode,
                     Line1Text1 = nodeSubscriptionLine1.GetText1(),
                     Line1Text2 = nodeSubscriptionLine1.GetText2(),
-                    Line1BoxEdge = (AiDetectionBoxEdge)comboBoxLine1BoxEdge.SelectedItem,
+                    Line1ClassName = comboBoxLine1Class.Visible ? comboBoxLine1Class.Text : string.Empty,
+                    Line1BoxEdge = comboBoxLine1BoxEdge.Visible ? (AiDetectionBoxEdge)comboBoxLine1BoxEdge.SelectedItem : AiDetectionBoxEdge.Top,
                     Line2Text1 = nodeSubscriptionLine2.GetText1(),
                     Line2Text2 = nodeSubscriptionLine2.GetText2(),
-                    Line2BoxEdge = (AiDetectionBoxEdge)comboBoxLine2BoxEdge.SelectedItem,
+                    Line2ClassName = comboBoxLine2Class.Visible ? comboBoxLine2Class.Text : string.Empty,
+                    Line2BoxEdge = comboBoxLine2BoxEdge.Visible ? (AiDetectionBoxEdge)comboBoxLine2BoxEdge.SelectedItem : AiDetectionBoxEdge.Top,
                     UsePositionCorrection = checkBoxUsePositionCorrection.Checked,
                     CorrectionText1 = nodeSubscriptionPositionCorrection.GetText1(),
                     CorrectionText2 = nodeSubscriptionPositionCorrection.GetText2(),

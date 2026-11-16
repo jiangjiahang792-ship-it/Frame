@@ -1,0 +1,50 @@
+[
+  {
+    "Name": "线芯宽度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "线芯高度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "胶皮宽度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "胶皮高度",
+    "MinValue": "1",
+    "MaxValue": "99999",
+    "Enable": true,
+    "IsCountItem": false,
+    "CurValue": "0"
+  },
+  {
+    "Name": "胶皮数量",
+    "MinValue": "1",
+    "MaxValue": "1",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0"
+  },
+  {
+    "Name": "线序数量",
+    "MinValue": "1",
+    "MaxValue": "1",
+    "Enable": true,
+    "IsCountItem": true,
+    "CurValue": "0"
+  }
+]

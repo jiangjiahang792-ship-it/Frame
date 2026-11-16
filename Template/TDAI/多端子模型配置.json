@@ -1,0 +1,25 @@
+{
+  "ModelName": "多端子模型",
+  "ModelSize": 640,
+  "ScoreThreshold": 0.5,
+  "ScoreNMS": 0.5,
+  "ModelInfo": {
+    "ModelType": "DET",
+    "DeviceType": "GPU",
+    "IsEncrypted": true,
+    "ModelPath": "D:\\模型\\多端子模型\\Terminal_encrypted.onnx",
+    "KeyPointNum": 0
+  },
+  "ClassNames": [
+    "out_line",
+    "front_foot",
+    "line",
+    "rubber",
+    "behind_foot",
+    "head",
+    "fly_line",
+    "fly_rubber",
+    "trumpet_mouth",
+    "line_ng"
+  ]
+}

@@ -3,6 +3,7 @@ using OpenCvSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -61,6 +62,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                     {
                         OutputImage subscribedInputImage = null;
                         OutputImage inputImage = null;
+                        int? configuredStudyNum = null;
+                        List<DetectItemInfo> initialStudyItems = null;
                         try
                         {
                             SetStatus(NodeStatus.Unexecuted, "*");
@@ -131,6 +134,18 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                     }
                                     EnsureDetectItemConfig(configName, param.DetectItemName2);
                                     param.CurDetectItemName = configName;
+                                    if (Solution.Instance.DetectItemDic.TryGetValue(configName, out initialStudyItems) &&
+                                        initialStudyItems != null &&
+                                        initialStudyItems.Any(item => item != null && item.NeedsInitialAutoStudy))
+                                    {
+                                        // 通信新配方只使用当前图像学习一次；浮动百分比继续使用参数界面的设置。
+                                        configuredStudyNum = param.StudyNum;
+                                        param.StudyNum = 1;
+                                        param.IsAutoStudy = true;
+                                        LogHelper.AddLog(MsgLevel.Info,
+                                            $"检测项({configName})首次运行，开始使用当前图像自动学习一次，学习百分比={param.StudyPercentage}%。",
+                                            true);
+                                    }
                                     OnDetectItemConfigChanged(configName);
                                 }
                                 else
@@ -180,9 +195,35 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                         case ModelName.新端子12类模型:
                                             NewTerminal12Parse.Parse(det_results, det_results.Count, param, Process, ref res, inputImage);
                                             break;
+                                        case ModelName.宏晟端子12类模型:
+                                            HongShengTerminal12Parse.Parse(det_results, det_results.Count, param, Process, ref res);
+                                            if (configuredStudyNum.HasValue && !det_results.Any(result => result.ClassId == 1))
+                                            {
+                                                // 宏晟通信新配方必须由包含前铆脚的正常品完成首次学习；失败时撤销临时配方并继续输出NG。
+                                                string failedConfigName = param.CurDetectItemName;
+                                                Solution.Instance.DetectItemDic.Remove(failedConfigName);
+                                                res.AlgorithmResult.DetectResults["缺失前铆脚"] = new List<SingleDetectResult>
+                                                {
+                                                    new SingleDetectResult { Name = "缺失前铆脚", Value = "1", IsOk = false }
+                                                };
+                                                res.AlgorithmResult.Texts.Add(new ColorText("缺失前铆脚", Color.Red));
+                                                res.AlgorithmResult.IsAllOk = false;
+                                                param.IsAutoStudy = false;
+                                                param.StudyNum = configuredStudyNum.Value;
+                                                configuredStudyNum = null;
+                                                initialStudyItems = null;
+                                                LogHelper.AddLog(MsgLevel.Warn,
+                                                    $"宏晟通信新配方({failedConfigName})首次学习失败：缺失前铆脚；已撤销该配方并输出NG。", true);
+                                                OnDetectItemConfigChanged(failedConfigName);
+                                            }
+                                            break;
                                         case ModelName.RL_12类线芯模型:
                                             RL12Parse.Parse(det_results, result_count, param, Process,ref res);
                                             LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}AI检测结果运算完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
+                                            break;
+                                        case ModelName.米岸端子模型:
+                                            MiAnTerminalParse.Parse(det_results, result_count, param, Process, ref res);
+                                            LogHelper.AddLog(MsgLevel.Debug, $"流程{Process.ProcessName}米岸端子AI检测结果运算完毕{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}！", true);
                                             break;
                                         case ModelName.合压模型:
                                             ClosingTerminals_encrypted_Parse.Parse(det_results, result_count, param, Process,ref res);
@@ -215,12 +256,17 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                         case ModelName.多端子模型:
                                             MultiTerminalParse.Parse(det_results, result_count, param, Process,ref res);
                                             break;
+                                        case ModelName.多线芯模型:
+                                            // 兼容现场已有DET配置；OBB配置在旋转框分支使用同名解析器。
+                                            MultiCoreParse.Parse(det_results, det_results.Count, param, Process, ref res);
+                                            break;
                                         case ModelName.超声波焊接侧面三类模型:
                                             Ultrasound_Side_3Class.Parse(det_results, det_results.Count, param, ref res);
                                             break;
                                         default:
                                             throw new Exception("不存在的模型名称！");
                                     }
+                                    PopulateClassRects(res.AlgorithmResult, param.AIInputInfo, det_results);
                                     #endregion
 
                                     break;
@@ -263,9 +309,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                         case ModelName.勒刚端子侧面15类OBB模型:
                                             TerminalSide_C15_Obb.Parse(obb_results, obb_results.Count, param, ref res);
                                             break;
+                                        case ModelName.多线芯模型:
+                                            MultiCoreParse.Parse(obb_results, obb_results.Count, param, Process, ref res);
+                                            break;
                                         default:
                                             throw new Exception("不存在的模型名称！");
                                     }
+                                    PopulateClassRects(res.AlgorithmResult, param.AIInputInfo, obb_results);
 
                                     #endregion
 
@@ -323,6 +373,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                                         default:
                                             throw new Exception($"SEG模型名称({param.ModelName})没有对应解析逻辑，请选择支持SEG的模型名称！");
                                     }
+                                    PopulateClassRects(res.AlgorithmResult, param.AIInputInfo, seg_results);
                                     break;
 
                                     #endregion
@@ -334,6 +385,24 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
 
                                 default:
                                     break;
+                            }
+
+                            if (configuredStudyNum.HasValue)
+                            {
+                                CompleteInitialCommunicationStudy(param, res, initialStudyItems);
+                                // 只有解析和学习完整成功后才清除标记；异常时保留，下一张图像继续重试。
+                                foreach (DetectItemInfo item in initialStudyItems)
+                                {
+                                    if (item != null)
+                                        item.NeedsInitialAutoStudy = false;
+                                }
+                                param.IsAutoStudy = false;
+                                param.StudyNum = configuredStudyNum.Value;
+                                configuredStudyNum = null;
+                                LogHelper.AddLog(MsgLevel.Info,
+                                    $"检测项({param.CurDetectItemName})首次自动学习完成，本次结果已使用学习后的上下限输出。",
+                                    true);
+                                OnDetectItemConfigChanged(param.CurDetectItemName);
                             }
 
                             var time = SetRunResult(startTime, NodeStatus.Successful);
@@ -374,6 +443,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                         }
                         finally
                         {
+                            if (configuredStudyNum.HasValue)
+                            {
+                                param.IsAutoStudy = false;
+                                param.StudyNum = configuredStudyNum.Value;
+                            }
                             if (inputImage != null && !ReferenceEquals(inputImage, subscribedInputImage))
                                 inputImage.Dispose();
                         }
@@ -640,6 +714,60 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             return new Rect();
         }
 
+        /// <summary>按模型类别名称保存 DET 原始框，保持推理输出顺序。</summary>
+        private static void PopulateClassRects(AlgorithmResult output, AIInputInfo inputInfo, IEnumerable<DetResult> results)
+        {
+            PopulateClassRects(output, inputInfo, results, item => item.ClassId, item => new ColorRotatedRect(item.Box));
+        }
+
+        /// <summary>按模型类别名称保存 OBB 原始框，保持推理输出顺序。</summary>
+        private static void PopulateClassRects(AlgorithmResult output, AIInputInfo inputInfo, IEnumerable<ObbResult> results)
+        {
+            PopulateClassRects(output, inputInfo, results, item => item.class_id, item => new ColorRotatedRect(item));
+        }
+
+        /// <summary>按模型类别名称保存 SEG 外接框，保持推理输出顺序。</summary>
+        private static void PopulateClassRects(AlgorithmResult output, AIInputInfo inputInfo, IEnumerable<SegResult> results)
+        {
+            PopulateClassRects(output, inputInfo, results, item => item.ClassId, item => new ColorRotatedRect(item.Rect));
+        }
+
+        /// <summary>将有效模型输出写入类别框字典，避免测量节点重复扫描或推断类别。</summary>
+        private static void PopulateClassRects<T>(
+            AlgorithmResult output,
+            AIInputInfo inputInfo,
+            IEnumerable<T> results,
+            Func<T, int> classIdSelector,
+            Func<T, ColorRotatedRect> rectSelector)
+        {
+            if (output == null)
+                return;
+
+            output.ClassRects.Clear();
+            if (inputInfo?.ClassNames == null || results == null)
+                return;
+
+            foreach (T item in results)
+            {
+                int classId = classIdSelector(item);
+                if (classId < 0 || classId >= inputInfo.ClassNames.Count)
+                    continue;
+
+                string className = inputInfo.ClassNames[classId];
+                if (string.IsNullOrWhiteSpace(className))
+                    className = "类别" + classId;
+                if (!output.ClassRects.TryGetValue(className, out List<ColorRotatedRect> classRects))
+                {
+                    classRects = new List<ColorRotatedRect>();
+                    output.ClassRects[className] = classRects;
+                }
+
+                ColorRotatedRect rect = rectSelector(item);
+                if (rect != null && rect.RotatedRect.size.width > 0F && rect.RotatedRect.size.height > 0F)
+                    classRects.Add(rect);
+            }
+        }
+
         /// <summary>
         /// 将 ROI 矩形限制在图像范围内。
         /// </summary>
@@ -853,8 +981,87 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             if (!Solution.Instance.DetectItemDic.TryGetValue(defaultTemplateName, out List<DetectItemInfo> defaultTemplate) || defaultTemplate == null)
                 throw new Exception($"检测项({detectItemName})不存在，且默认模板({defaultTemplateName})不存在！");
 
-            Solution.Instance.DetectItemDic[detectItemName] = CloneDetectItems(defaultTemplate);
+            List<DetectItemInfo> newItems = CloneDetectItems(defaultTemplate);
+            if (newItems.Count == 0)
+                throw new Exception($"检测项({detectItemName})无法创建，默认模板({defaultTemplateName})没有检测项！");
+
+            // 配方可能在通信配置界面提前创建，因此把待学习状态随配方本身保存到方案中。
+            newItems[0].NeedsInitialAutoStudy = true;
+            Solution.Instance.DetectItemDic[detectItemName] = newItems;
             LogHelper.AddLog(MsgLevel.Info, $"检测项({detectItemName})不存在，已从默认模板({defaultTemplateName})复制。", true);
+        }
+
+        /// <summary>
+        /// 完成通信新配方的首次学习，并按照学习后的上下限刷新本次可订阅判定结果。
+        /// 已实现一键学习的解析器会直接使用其学习结果；未实现学习收尾的解析器使用检测明细兜底生成数值公差。
+        /// </summary>
+        /// <param name="param">当前目标分类节点参数。</param>
+        /// <param name="result">当前图像的解析结果。</param>
+        /// <param name="items">当前通信配方检测项。</param>
+        private static void CompleteInitialCommunicationStudy(
+            NodeParamTDAI param,
+            NodeResultTDAI result,
+            List<DetectItemInfo> items)
+        {
+            if (param == null || result?.AlgorithmResult == null || items == null)
+                throw new InvalidOperationException("通信新配方首次学习失败：检测参数或结果为空。");
+
+            Dictionary<string, List<SingleDetectResult>> detectResults = result.AlgorithmResult.DetectResults;
+            if (param.IsAutoStudy)
+            {
+                var samples = new Dictionary<string, List<float>>();
+                if (detectResults != null)
+                {
+                    foreach (KeyValuePair<string, List<SingleDetectResult>> pair in detectResults)
+                    {
+                        List<float> values = pair.Value?
+                            .Where(value => value != null)
+                            .Select(value => TryParseStudyValue(value.Value, out float number) ? (float?)number : null)
+                            .Where(value => value.HasValue)
+                            .Select(value => value.Value)
+                            .ToList();
+                        if (values != null && values.Count > 0)
+                            samples[pair.Key] = values;
+                    }
+                }
+
+                if (samples.Count == 0)
+                    throw new InvalidOperationException("通信新配方首次学习失败：当前图像没有可用于学习的数值检测结果。");
+
+                ParseCommon.SetDetectItemMinMax(items, samples, param.StudyPercentage);
+                param.IsAutoStudy = false;
+            }
+
+            // 学习模式下解析器通常先按OK显示；这里使用刚生成的上下限重新计算正式输出。
+            if (detectResults == null)
+                return;
+
+            foreach (KeyValuePair<string, List<SingleDetectResult>> pair in detectResults)
+            {
+                DetectItemInfo item = items.FirstOrDefault(candidate =>
+                    candidate != null && string.Equals(candidate.Name, pair.Key, StringComparison.Ordinal));
+                if (item == null || pair.Value == null)
+                    continue;
+
+                foreach (SingleDetectResult singleResult in pair.Value)
+                {
+                    if (singleResult != null && TryParseStudyValue(singleResult.Value, out float value))
+                        singleResult.IsOk = ParseCommon.IsValueWithinLimits(item, value);
+                }
+            }
+
+            result.AlgorithmResult.IsAllOk = detectResults.Values
+                .Where(values => values != null)
+                .SelectMany(values => values)
+                .Where(value => value != null)
+                .All(value => value.IsOk);
+        }
+
+        /// <summary>按当前客户端区域和不变区域依次解析学习数值。</summary>
+        private static bool TryParseStudyValue(string text, out float value)
+        {
+            return float.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value) ||
+                   float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
         }
 
         /// <summary>
@@ -907,6 +1114,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
                 IsCountItem = item.IsCountItem,
                 IsManualTuningHidden = item.IsManualTuningHidden,
                 Compensation = item.Compensation,
+                NeedsInitialAutoStudy = item.NeedsInitialAutoStudy,
                 PlugColor = item.PlugColor?.Clone(),
                 CurValue = item.CurValue
             }).ToList();

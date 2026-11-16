@@ -27,9 +27,15 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             this.groupBoxSubscribed = new System.Windows.Forms.GroupBox();
             this.labelLine1Source = new System.Windows.Forms.Label();
             this.nodeSubscriptionLine1 = new TDJS_Vision.Node.NodeSubscription();
+            this.labelLine1Class = new System.Windows.Forms.Label();
+            this.comboBoxLine1Class = new System.Windows.Forms.ComboBox();
+            this.labelLine1BoxEdge = new System.Windows.Forms.Label();
             this.comboBoxLine1BoxEdge = new System.Windows.Forms.ComboBox();
             this.labelLine2Source = new System.Windows.Forms.Label();
             this.nodeSubscriptionLine2 = new TDJS_Vision.Node.NodeSubscription();
+            this.labelLine2Class = new System.Windows.Forms.Label();
+            this.comboBoxLine2Class = new System.Windows.Forms.ComboBox();
+            this.labelLine2BoxEdge = new System.Windows.Forms.Label();
             this.comboBoxLine2BoxEdge = new System.Windows.Forms.ComboBox();
             this.groupBoxPositionCorrection = new System.Windows.Forms.GroupBox();
             this.checkBoxUsePositionCorrection = new System.Windows.Forms.CheckBox();
@@ -111,6 +117,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             this.tabPageBasic.Controls.Add(this.groupBoxPositionCorrection);
             this.tabPageBasic.Controls.Add(this.groupBoxGeometry);
             this.tabPageBasic.Location = new System.Drawing.Point(4, 28);
+            this.tabPageBasic.AutoScroll = true;
             this.tabPageBasic.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.tabPageBasic.Name = "tabPageBasic";
             this.tabPageBasic.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
@@ -181,15 +188,21 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             // 
             this.groupBoxSubscribed.Controls.Add(this.labelLine1Source);
             this.groupBoxSubscribed.Controls.Add(this.nodeSubscriptionLine1);
+            this.groupBoxSubscribed.Controls.Add(this.labelLine1Class);
+            this.groupBoxSubscribed.Controls.Add(this.comboBoxLine1Class);
+            this.groupBoxSubscribed.Controls.Add(this.labelLine1BoxEdge);
             this.groupBoxSubscribed.Controls.Add(this.comboBoxLine1BoxEdge);
             this.groupBoxSubscribed.Controls.Add(this.labelLine2Source);
             this.groupBoxSubscribed.Controls.Add(this.nodeSubscriptionLine2);
+            this.groupBoxSubscribed.Controls.Add(this.labelLine2Class);
+            this.groupBoxSubscribed.Controls.Add(this.comboBoxLine2Class);
+            this.groupBoxSubscribed.Controls.Add(this.labelLine2BoxEdge);
             this.groupBoxSubscribed.Controls.Add(this.comboBoxLine2BoxEdge);
             this.groupBoxSubscribed.Location = new System.Drawing.Point(11, 227);
             this.groupBoxSubscribed.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxSubscribed.Name = "groupBoxSubscribed";
             this.groupBoxSubscribed.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
-            this.groupBoxSubscribed.Size = new System.Drawing.Size(416, 170);
+            this.groupBoxSubscribed.Size = new System.Drawing.Size(416, 245);
             this.groupBoxSubscribed.TabIndex = 2;
             this.groupBoxSubscribed.TabStop = false;
             this.groupBoxSubscribed.Text = "订阅直线";
@@ -209,22 +222,54 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             this.nodeSubscriptionLine1.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
             this.nodeSubscriptionLine1.MinimumSize = new System.Drawing.Size(292, 72);
             this.nodeSubscriptionLine1.Name = "nodeSubscriptionLine1";
-            this.nodeSubscriptionLine1.Size = new System.Drawing.Size(235, 72);
+            this.nodeSubscriptionLine1.Size = new System.Drawing.Size(324, 72);
             this.nodeSubscriptionLine1.TabIndex = 1;
+            //
+            // labelLine1Class
+            //
+            this.labelLine1Class.AutoSize = true;
+            this.labelLine1Class.Location = new System.Drawing.Point(74, 105);
+            this.labelLine1Class.Name = "labelLine1Class";
+            this.labelLine1Class.Size = new System.Drawing.Size(62, 18);
+            this.labelLine1Class.TabIndex = 2;
+            this.labelLine1Class.Text = "检测项";
+            this.labelLine1Class.Visible = false;
+            //
+            // comboBoxLine1Class
+            //
+            this.comboBoxLine1Class.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxLine1Class.FormattingEnabled = true;
+            this.comboBoxLine1Class.DropDownWidth = 220;
+            this.comboBoxLine1Class.Location = new System.Drawing.Point(139, 101);
+            this.comboBoxLine1Class.Name = "comboBoxLine1Class";
+            this.comboBoxLine1Class.Size = new System.Drawing.Size(143, 26);
+            this.comboBoxLine1Class.TabIndex = 3;
+            this.comboBoxLine1Class.Visible = false;
+            //
+            // labelLine1BoxEdge
+            //
+            this.labelLine1BoxEdge.AutoSize = true;
+            this.labelLine1BoxEdge.Location = new System.Drawing.Point(288, 105);
+            this.labelLine1BoxEdge.Name = "labelLine1BoxEdge";
+            this.labelLine1BoxEdge.Size = new System.Drawing.Size(44, 18);
+            this.labelLine1BoxEdge.TabIndex = 4;
+            this.labelLine1BoxEdge.Text = "框边";
+            this.labelLine1BoxEdge.Visible = false;
             //
             // comboBoxLine1BoxEdge
             //
             this.comboBoxLine1BoxEdge.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxLine1BoxEdge.FormattingEnabled = true;
-            this.comboBoxLine1BoxEdge.Location = new System.Drawing.Point(315, 48);
+            this.comboBoxLine1BoxEdge.Location = new System.Drawing.Point(335, 101);
             this.comboBoxLine1BoxEdge.Name = "comboBoxLine1BoxEdge";
-            this.comboBoxLine1BoxEdge.Size = new System.Drawing.Size(83, 26);
-            this.comboBoxLine1BoxEdge.TabIndex = 2;
+            this.comboBoxLine1BoxEdge.Size = new System.Drawing.Size(63, 26);
+            this.comboBoxLine1BoxEdge.TabIndex = 5;
+            this.comboBoxLine1BoxEdge.Visible = false;
             //
             // labelLine2Source
             // 
             this.labelLine2Source.AutoSize = true;
-            this.labelLine2Source.Location = new System.Drawing.Point(10, 135);
+            this.labelLine2Source.Location = new System.Drawing.Point(14, 165);
             this.labelLine2Source.Name = "labelLine2Source";
             this.labelLine2Source.Size = new System.Drawing.Size(53, 18);
             this.labelLine2Source.TabIndex = 2;
@@ -232,27 +277,59 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             // 
             // nodeSubscriptionLine2
             // 
-            this.nodeSubscriptionLine2.Location = new System.Drawing.Point(74, 99);
+            this.nodeSubscriptionLine2.Location = new System.Drawing.Point(74, 132);
             this.nodeSubscriptionLine2.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
             this.nodeSubscriptionLine2.MinimumSize = new System.Drawing.Size(292, 72);
             this.nodeSubscriptionLine2.Name = "nodeSubscriptionLine2";
-            this.nodeSubscriptionLine2.Size = new System.Drawing.Size(235, 72);
-            this.nodeSubscriptionLine2.TabIndex = 4;
+            this.nodeSubscriptionLine2.Size = new System.Drawing.Size(324, 72);
+            this.nodeSubscriptionLine2.TabIndex = 7;
+            //
+            // labelLine2Class
+            //
+            this.labelLine2Class.AutoSize = true;
+            this.labelLine2Class.Location = new System.Drawing.Point(74, 211);
+            this.labelLine2Class.Name = "labelLine2Class";
+            this.labelLine2Class.Size = new System.Drawing.Size(62, 18);
+            this.labelLine2Class.TabIndex = 8;
+            this.labelLine2Class.Text = "检测项";
+            this.labelLine2Class.Visible = false;
+            //
+            // comboBoxLine2Class
+            //
+            this.comboBoxLine2Class.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxLine2Class.FormattingEnabled = true;
+            this.comboBoxLine2Class.DropDownWidth = 220;
+            this.comboBoxLine2Class.Location = new System.Drawing.Point(139, 207);
+            this.comboBoxLine2Class.Name = "comboBoxLine2Class";
+            this.comboBoxLine2Class.Size = new System.Drawing.Size(143, 26);
+            this.comboBoxLine2Class.TabIndex = 9;
+            this.comboBoxLine2Class.Visible = false;
+            //
+            // labelLine2BoxEdge
+            //
+            this.labelLine2BoxEdge.AutoSize = true;
+            this.labelLine2BoxEdge.Location = new System.Drawing.Point(288, 211);
+            this.labelLine2BoxEdge.Name = "labelLine2BoxEdge";
+            this.labelLine2BoxEdge.Size = new System.Drawing.Size(44, 18);
+            this.labelLine2BoxEdge.TabIndex = 10;
+            this.labelLine2BoxEdge.Text = "框边";
+            this.labelLine2BoxEdge.Visible = false;
             //
             // comboBoxLine2BoxEdge
             //
             this.comboBoxLine2BoxEdge.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxLine2BoxEdge.FormattingEnabled = true;
-            this.comboBoxLine2BoxEdge.Location = new System.Drawing.Point(315, 121);
+            this.comboBoxLine2BoxEdge.Location = new System.Drawing.Point(335, 207);
             this.comboBoxLine2BoxEdge.Name = "comboBoxLine2BoxEdge";
-            this.comboBoxLine2BoxEdge.Size = new System.Drawing.Size(83, 26);
-            this.comboBoxLine2BoxEdge.TabIndex = 5;
+            this.comboBoxLine2BoxEdge.Size = new System.Drawing.Size(63, 26);
+            this.comboBoxLine2BoxEdge.TabIndex = 11;
+            this.comboBoxLine2BoxEdge.Visible = false;
             //
             // groupBoxPositionCorrection
             // 
             this.groupBoxPositionCorrection.Controls.Add(this.checkBoxUsePositionCorrection);
             this.groupBoxPositionCorrection.Controls.Add(this.nodeSubscriptionPositionCorrection);
-            this.groupBoxPositionCorrection.Location = new System.Drawing.Point(11, 408);
+            this.groupBoxPositionCorrection.Location = new System.Drawing.Point(11, 482);
             this.groupBoxPositionCorrection.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxPositionCorrection.Name = "groupBoxPositionCorrection";
             this.groupBoxPositionCorrection.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
@@ -301,7 +378,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
             this.groupBoxGeometry.Controls.Add(this.textBoxL2EndX);
             this.groupBoxGeometry.Controls.Add(this.labelL2EndY);
             this.groupBoxGeometry.Controls.Add(this.textBoxL2EndY);
-            this.groupBoxGeometry.Location = new System.Drawing.Point(11, 562);
+            this.groupBoxGeometry.Location = new System.Drawing.Point(11, 636);
             this.groupBoxGeometry.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
             this.groupBoxGeometry.Name = "groupBoxGeometry";
             this.groupBoxGeometry.Padding = new System.Windows.Forms.Padding(3, 4, 3, 4);
@@ -828,9 +905,15 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
         private System.Windows.Forms.GroupBox groupBoxSubscribed;
         private System.Windows.Forms.Label labelLine1Source;
         private TDJS_Vision.Node.NodeSubscription nodeSubscriptionLine1;
+        private System.Windows.Forms.Label labelLine1Class;
+        private System.Windows.Forms.ComboBox comboBoxLine1Class;
+        private System.Windows.Forms.Label labelLine1BoxEdge;
         private System.Windows.Forms.ComboBox comboBoxLine1BoxEdge;
         private System.Windows.Forms.Label labelLine2Source;
         private TDJS_Vision.Node.NodeSubscription nodeSubscriptionLine2;
+        private System.Windows.Forms.Label labelLine2Class;
+        private System.Windows.Forms.ComboBox comboBoxLine2Class;
+        private System.Windows.Forms.Label labelLine2BoxEdge;
         private System.Windows.Forms.ComboBox comboBoxLine2BoxEdge;
         private System.Windows.Forms.GroupBox groupBoxPositionCorrection;
         private System.Windows.Forms.CheckBox checkBoxUsePositionCorrection;

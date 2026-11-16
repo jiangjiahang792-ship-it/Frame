@@ -130,5 +130,6 @@ namespace TDJS_Vision.Properties {
                 this["LogFatalEnabled"] = value;
             }
         }
+
     }
 }

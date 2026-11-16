@@ -19,7 +19,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         private const float MinimumRoiSize = 5F;
 
         /// <summary>
-        /// 获取当前订阅图像的异步委托，由参数窗体负责刷新上游并返回最新图像。
+        /// 获取当前订阅图像的异步委托；只读取上游已经保留的图像，不运行流程或触发相机。
         /// </summary>
         private readonly Func<Task<Bitmap>> _currentImageProvider;
 

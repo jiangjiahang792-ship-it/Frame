@@ -89,11 +89,16 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// <summary>防止从截取后的预览图再次读取原图坐标。</summary>
         private bool _editingDisplayCrop;
 
+        /// <summary>当前正在预览区编辑的自定义ROI绘制项索引；-1表示未编辑。</summary>
+        private int _editingCustomRoiIndex = -1;
+
         /// <summary>在输入原图上绘制可旋转的截取框，不使用已截取的预览图。</summary>
         private void DrawDisplayCrop_Click(object sender, EventArgs e)
         {
             try
             {
+                CaptureCustomRoi();
+                _editingCustomRoiIndex = -1;
                 CaptureDisplayCrop();
                 var input = ResultOverlayDrawBuilder.ReadSubscribedValue(_node, nodeSubscriptionImage.GetText1(), nodeSubscriptionImage.GetText2(), out NodeBase sourceNode) as OutputImage;
                 if (input == null) throw new InvalidOperationException("请先订阅并运行输入图像节点。");
@@ -177,6 +182,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             _displayCropRegion = param.DisplayCropRegion?.Clone();
             checkBoxDisplayCrop.Checked = param.EnableDisplayCrop;
             _editingDisplayCrop = false;
+            _editingCustomRoiIndex = -1;
             showImageControl1.ClearDynamicRoi();
             nodeSubscriptionImage.SetText(param.ImageText1, param.ImageText2);
             panelOkColor.BackColor = param.OkColor;
@@ -267,6 +273,100 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         private void buttonAddRoi_Click(object sender, EventArgs e)
         {
             AddItem(ResultOverlayDrawItemType.Roi);
+        }
+
+        /// <summary>添加一个由布尔结果控制OK/NG颜色的自定义ROI绘制项。</summary>
+        private void buttonAddCustomRoi_Click(object sender, EventArgs e)
+        {
+            AddItem(ResultOverlayDrawItemType.CustomRoi);
+        }
+
+        /// <summary>在输入原图上显示并编辑当前自定义ROI的位置和大小。</summary>
+        private void buttonDrawCustomRoi_Click(object sender, EventArgs e)
+        {
+            if (_selectedItemIndex < 0 || _selectedItemIndex >= _items.Count ||
+                _items[_selectedItemIndex].ItemType != ResultOverlayDrawItemType.CustomRoi)
+                return;
+
+            try
+            {
+                SaveCurrentItemFromControls();
+                OutputImage input = ResultOverlayDrawBuilder.ReadSubscribedValue(
+                    _node,
+                    nodeSubscriptionImage.GetText1(),
+                    nodeSubscriptionImage.GetText2(),
+                    out NodeBase sourceNode) as OutputImage;
+                if (input == null)
+                    throw new InvalidOperationException("请先订阅并运行输入图像节点。");
+
+                using (var lease = input.AcquireLease())
+                {
+                    var image = TDJS_Vision.Node._4_Measurement.Common.MeasurementNodeHelper.GetReadOnlyPreviewMat(input);
+                    ResultOverlayDrawItem item = _items[_selectedItemIndex];
+                    if (item.CustomRoiLength1 <= 0F || item.CustomRoiLength2 <= 0F)
+                    {
+                        item.CustomRoiColumn = (image.Width - 1) / 2F;
+                        item.CustomRoiRow = (image.Height - 1) / 2F;
+                        item.CustomRoiLength1 = Math.Max(1F, image.Width / 4F);
+                        item.CustomRoiLength2 = Math.Max(1F, image.Height / 4F);
+                    }
+
+                    showImageControl1.SetImage(BitmapConverter.ToBitmap(image), null);
+                    showImageControl1.ClearDynamicRoi();
+                    showImageControl1.AddRoiRotatedRect(
+                        item.CustomRoiRow, item.CustomRoiColumn, item.CustomRoiPhi,
+                        item.CustomRoiLength1, item.CustomRoiLength2, 1.5F,
+                        Color.DodgerBlue, "自定义ROI");
+                    showImageControl1.ShowFit();
+                }
+
+                _editingDisplayCrop = false;
+                _editingCustomRoiIndex = _selectedItemIndex;
+                labelPreviewState.Text = "请调整自定义ROI的位置和大小，然后点击确认ROI";
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show("绘制自定义ROI失败：" + ex.Message);
+            }
+        }
+
+        /// <summary>确认预览区中的自定义ROI，并保存为当前绘制项的图像坐标。</summary>
+        private void buttonConfirmCustomRoi_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                CaptureCustomRoi();
+                showImageControl1.ClearDynamicRoi();
+                _editingCustomRoiIndex = -1;
+                RefreshItemsGrid();
+                labelPreviewState.Text = "自定义ROI已确认，点击预览查看布尔着色效果";
+            }
+            catch (Exception ex)
+            {
+                MessageBoxTD.Show(ex.Message);
+            }
+        }
+
+        /// <summary>读取预览区当前旋转矩形并写回对应自定义ROI绘制项。</summary>
+        private void CaptureCustomRoi()
+        {
+            if (_editingCustomRoiIndex < 0)
+                return;
+            if (_editingCustomRoiIndex >= _items.Count ||
+                _items[_editingCustomRoiIndex].ItemType != ResultOverlayDrawItemType.CustomRoi)
+                throw new InvalidOperationException("正在编辑的自定义ROI绘制项已不存在。");
+
+            var rois = showImageControl1.GetAllRotatedRectInfos();
+            if (rois == null || rois.Count == 0)
+                throw new InvalidOperationException("自定义ROI不存在，请重新绘制。");
+
+            var roi = rois[0];
+            ResultOverlayDrawItem item = _items[_editingCustomRoiIndex];
+            item.CustomRoiRow = roi.Row;
+            item.CustomRoiColumn = roi.Column;
+            item.CustomRoiPhi = roi.Phi;
+            item.CustomRoiLength1 = roi.Length1;
+            item.CustomRoiLength2 = roi.Length2;
         }
 
         /// <summary>添加按布尔判定切换自定义文本的独立绘制项。</summary>
@@ -398,8 +498,24 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// <param name="e">事件参数。</param>
         private void buttonPreview_Click(object sender, EventArgs e)
         {
-            if (!SaveParams(false))
+            SaveCurrentItemFromControls();
+            int unconfiguredCustomRoiIndex = _items.FindIndex(item => item != null && item.Enabled &&
+                item.ItemType == ResultOverlayDrawItemType.CustomRoi &&
+                (item.CustomRoiLength1 <= 0F || item.CustomRoiLength2 <= 0F));
+            if (unconfiguredCustomRoiIndex >= 0)
+            {
+                SelectItem(unconfiguredCustomRoiIndex);
+                buttonDrawCustomRoi_Click(sender, e);
+                labelPreviewState.Text = "请先在右侧调整并确认自定义ROI，然后再次预览";
+                labelPreviewState.ForeColor = Color.DarkOrange;
                 return;
+            }
+
+            if (!SaveParams(false))
+            {
+                ShowCustomRoiEditingPreview();
+                return;
+            }
 
             OutputImage outputImage = null;
             try
@@ -423,14 +539,30 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     : panelNgColor.BackColor;
                 showImageControl1.ClearDynamicRoi();
                 _editingDisplayCrop = false;
+                _editingCustomRoiIndex = -1;
                 showImageControl1.SetImage(BitmapConverter.ToBitmap(outputImage.Bitmaps[0]), displayResult);
                 showImageControl1.ShowFit();
             }
             catch (Exception ex)
             {
+                ShowCustomRoiEditingPreview();
                 MessageBoxTD.Show("预览失败：" + ex.Message, "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             finally { outputImage?.Dispose(); }
+        }
+
+        /// <summary>
+        /// 参数未完成或构建失败时恢复输入底图和当前自定义ROI，保证用户仍可继续调节。
+        /// </summary>
+        private void ShowCustomRoiEditingPreview()
+        {
+            if (_selectedItemIndex < 0 || _selectedItemIndex >= _items.Count ||
+                _items[_selectedItemIndex].ItemType != ResultOverlayDrawItemType.CustomRoi)
+                return;
+
+            buttonDrawCustomRoi_Click(buttonPreview, EventArgs.Empty);
+            labelPreviewState.Text = "参数尚未完整，已保留输入图像和自定义ROI供继续调节";
+            labelPreviewState.ForeColor = Color.DarkOrange;
         }
 
         /// <summary>
@@ -515,6 +647,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         {
             try
             {
+                CaptureCustomRoi();
                 CaptureDisplayCrop();
                 if (checkBoxDisplayCrop.Checked && _displayCropRegion == null)
                     throw new InvalidOperationException("启用截取显示后，请先绘制截取ROI。");
@@ -551,6 +684,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                         return false;
                     }
                     continue;
+                }
+
+                if (item.ItemType == ResultOverlayDrawItemType.CustomRoi &&
+                    (item.CustomRoiLength1 <= 0F || item.CustomRoiLength2 <= 0F))
+                {
+                    ShowValidationMessage(showMessage, $"第{index + 1}个自定义ROI还没有绘制位置和大小！");
+                    return false;
                 }
 
                 bool needSource = item.ItemType != ResultOverlayDrawItemType.Text || !item.UseManualText;
@@ -727,6 +867,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         {
             nodeSubscriptionSource.SetInputContract(type == ResultOverlayDrawItemType.BooleanText
                 || type == ResultOverlayDrawItemType.CombinedBooleanText
+                || type == ResultOverlayDrawItemType.CustomRoi
                 ? SubscriptionInputContract.ForType(typeof(bool))
                 : type == ResultOverlayDrawItemType.Text
                 ? CreateTextInputContract()
@@ -748,8 +889,11 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
             panelRoiStyle.Enabled = hasItem;
             panelBooleanText.Enabled = hasItem;
             panelCombinedBoolean.Enabled = hasItem;
+            panelCustomRoi.Enabled = hasItem;
             panelCombinedBoolean.Visible = hasItem
                 && _items[_selectedItemIndex].ItemType == ResultOverlayDrawItemType.CombinedBooleanText;
+            panelCustomRoi.Visible = hasItem
+                && _items[_selectedItemIndex].ItemType == ResultOverlayDrawItemType.CustomRoi;
             numericMargin.Enabled = hasItem;
             buttonDeleteItem.Enabled = hasItem;
             buttonMoveUp.Enabled = hasItem && _selectedItemIndex > 0;
@@ -794,6 +938,7 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 item.ItemType != ResultOverlayDrawItemType.Text &&
                 item.ItemType != ResultOverlayDrawItemType.BooleanText &&
                 item.ItemType != ResultOverlayDrawItemType.CombinedBooleanText &&
+                item.ItemType != ResultOverlayDrawItemType.CustomRoi &&
                 item.ItemType != ResultOverlayDrawItemType.Roi);
         }
 
@@ -823,6 +968,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 return "文本";
             if (type == ResultOverlayDrawItemType.Roi)
                 return "ROI";
+            if (type == ResultOverlayDrawItemType.CustomRoi)
+                return "自定义ROI";
             return "ROI（旧配置）";
         }
 
@@ -840,6 +987,13 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                     + $"（{item.BooleanSources?.Count ?? 0}个订阅）";
             if (item.ItemType == ResultOverlayDrawItemType.Text && item.UseManualText)
                 return string.IsNullOrWhiteSpace(item.ManualText) ? "手动文本" : item.ManualText;
+            if (item.ItemType == ResultOverlayDrawItemType.CustomRoi)
+            {
+                string geometry = item.CustomRoiLength1 > 0F && item.CustomRoiLength2 > 0F
+                    ? $"中心({item.CustomRoiColumn:0.#},{item.CustomRoiRow:0.#}) 大小({item.CustomRoiLength1 * 2F:0.#}×{item.CustomRoiLength2 * 2F:0.#})"
+                    : "未绘制";
+                return geometry + " / " + (string.IsNullOrWhiteSpace(item.SourceDisplay) ? "未选择布尔订阅" : item.SourceDisplay);
+            }
             return string.IsNullOrWhiteSpace(item.SourceDisplay) ? "未选择订阅" : item.SourceDisplay;
         }
 

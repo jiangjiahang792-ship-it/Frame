@@ -56,6 +56,7 @@
             this.flowLayoutPanelItemButtons = new System.Windows.Forms.FlowLayoutPanel();
             this.buttonAddText = new System.Windows.Forms.Button();
             this.buttonAddRoi = new System.Windows.Forms.Button();
+            this.buttonAddCustomRoi = new System.Windows.Forms.Button();
             this.buttonDeleteItem = new System.Windows.Forms.Button();
             this.dataGridViewItems = new System.Windows.Forms.DataGridView();
             this.ColumnItemEnabled = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -86,6 +87,10 @@
             this.panelRoiStyle = new System.Windows.Forms.Panel();
             this.labelLineWidth = new System.Windows.Forms.Label();
             this.numericLineWidth = new System.Windows.Forms.NumericUpDown();
+            this.panelCustomRoi = new System.Windows.Forms.Panel();
+            this.labelCustomRoiHint = new System.Windows.Forms.Label();
+            this.buttonDrawCustomRoi = new System.Windows.Forms.Button();
+            this.buttonConfirmCustomRoi = new System.Windows.Forms.Button();
             this.buttonToggleAdvanced = new System.Windows.Forms.Button();
             this.panelAdvanced = new System.Windows.Forms.Panel();
             this.buttonAddBooleanText = new System.Windows.Forms.Button();
@@ -363,6 +368,7 @@
             //
             this.flowLayoutPanelItemButtons.Controls.Add(this.buttonAddText);
             this.flowLayoutPanelItemButtons.Controls.Add(this.buttonAddRoi);
+            this.flowLayoutPanelItemButtons.Controls.Add(this.buttonAddCustomRoi);
             this.flowLayoutPanelItemButtons.Controls.Add(this.buttonAddBooleanText);
             this.flowLayoutPanelItemButtons.Controls.Add(this.buttonAddCombinedBoolean);
             this.flowLayoutPanelItemButtons.Controls.Add(this.buttonDeleteItem);
@@ -393,6 +399,15 @@
             this.buttonAddRoi.Text = "添加ROI";
             this.buttonAddRoi.UseVisualStyleBackColor = true;
             this.buttonAddRoi.Click += new System.EventHandler(this.buttonAddRoi_Click);
+            //
+            // buttonAddCustomRoi
+            //
+            this.buttonAddCustomRoi.Name = "buttonAddCustomRoi";
+            this.buttonAddCustomRoi.Size = new System.Drawing.Size(140, 31);
+            this.buttonAddCustomRoi.TabIndex = 2;
+            this.buttonAddCustomRoi.Text = "添加自定义ROI";
+            this.buttonAddCustomRoi.UseVisualStyleBackColor = true;
+            this.buttonAddCustomRoi.Click += new System.EventHandler(this.buttonAddCustomRoi_Click);
             //
             // buttonDeleteItem
             //
@@ -563,6 +578,7 @@
             this.flowLayoutPanelSettings.Controls.Add(this.panelTextPrefix);
             this.flowLayoutPanelSettings.Controls.Add(this.panelTextStyle);
             this.flowLayoutPanelSettings.Controls.Add(this.panelRoiStyle);
+            this.flowLayoutPanelSettings.Controls.Add(this.panelCustomRoi);
             this.flowLayoutPanelSettings.Controls.Add(this.buttonToggleAdvanced);
             this.flowLayoutPanelSettings.Controls.Add(this.panelAdvanced);
             this.flowLayoutPanelSettings.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -812,6 +828,40 @@
             0,
             0});
             this.numericLineWidth.ValueChanged += new System.EventHandler(this.ItemControl_ValueChanged);
+            //
+            // panelCustomRoi
+            //
+            this.panelCustomRoi.Controls.Add(this.labelCustomRoiHint);
+            this.panelCustomRoi.Controls.Add(this.buttonDrawCustomRoi);
+            this.panelCustomRoi.Controls.Add(this.buttonConfirmCustomRoi);
+            this.panelCustomRoi.Name = "panelCustomRoi";
+            this.panelCustomRoi.Size = new System.Drawing.Size(554, 76);
+            this.panelCustomRoi.Visible = false;
+            //
+            // labelCustomRoiHint
+            //
+            this.labelCustomRoiHint.AutoSize = true;
+            this.labelCustomRoiHint.Location = new System.Drawing.Point(4, 8);
+            this.labelCustomRoiHint.Name = "labelCustomRoiHint";
+            this.labelCustomRoiHint.Text = "在输入原图上拖动ROI，订阅为真显示OK颜色，假显示NG颜色";
+            //
+            // buttonDrawCustomRoi
+            //
+            this.buttonDrawCustomRoi.Location = new System.Drawing.Point(7, 36);
+            this.buttonDrawCustomRoi.Name = "buttonDrawCustomRoi";
+            this.buttonDrawCustomRoi.Size = new System.Drawing.Size(150, 31);
+            this.buttonDrawCustomRoi.Text = "绘制/修改ROI";
+            this.buttonDrawCustomRoi.UseVisualStyleBackColor = true;
+            this.buttonDrawCustomRoi.Click += new System.EventHandler(this.buttonDrawCustomRoi_Click);
+            //
+            // buttonConfirmCustomRoi
+            //
+            this.buttonConfirmCustomRoi.Location = new System.Drawing.Point(169, 36);
+            this.buttonConfirmCustomRoi.Name = "buttonConfirmCustomRoi";
+            this.buttonConfirmCustomRoi.Size = new System.Drawing.Size(130, 31);
+            this.buttonConfirmCustomRoi.Text = "确认ROI";
+            this.buttonConfirmCustomRoi.UseVisualStyleBackColor = true;
+            this.buttonConfirmCustomRoi.Click += new System.EventHandler(this.buttonConfirmCustomRoi_Click);
             //
             // buttonToggleAdvanced
             //
@@ -1106,6 +1156,7 @@
         private System.Windows.Forms.FlowLayoutPanel flowLayoutPanelItemButtons;
         private System.Windows.Forms.Button buttonAddText;
         private System.Windows.Forms.Button buttonAddRoi;
+        private System.Windows.Forms.Button buttonAddCustomRoi;
         private System.Windows.Forms.Button buttonDeleteItem;
         private System.Windows.Forms.DataGridView dataGridViewItems;
         private System.Windows.Forms.DataGridViewTextBoxColumn ColumnItemEnabled;
@@ -1136,6 +1187,10 @@
         private System.Windows.Forms.Panel panelRoiStyle;
         private System.Windows.Forms.Label labelLineWidth;
         private System.Windows.Forms.NumericUpDown numericLineWidth;
+        private System.Windows.Forms.Panel panelCustomRoi;
+        private System.Windows.Forms.Label labelCustomRoiHint;
+        private System.Windows.Forms.Button buttonDrawCustomRoi;
+        private System.Windows.Forms.Button buttonConfirmCustomRoi;
         private System.Windows.Forms.Button buttonToggleAdvanced;
         private System.Windows.Forms.Panel panelAdvanced;
         /// <summary>添加独立布尔订阅文本项。</summary>

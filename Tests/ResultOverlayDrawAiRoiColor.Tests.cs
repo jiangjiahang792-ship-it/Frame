@@ -8,6 +8,7 @@ using Newtonsoft.Json.Linq;
 using OpenCvSharp;
 using TDJS_Vision;
 using TDJS_Vision.Node;
+using TDJS_Vision.Node._1_Acquisition.ImageSource;
 using TDJS_Vision.Node._3_Detection.TDAI;
 using TDJS_Vision.Node._3_Detection.TDAI.Parse;
 using TDJS_Vision.Node._3_Detection.TDAI.Yolo8;
@@ -176,6 +177,100 @@ internal static class ResultOverlayDrawAiRoiColorTests
         Console.WriteLine("绘制2默认保色、旧规则兼容和显式布尔覆盖通过。");
     }
 
+    /// <summary>验证自定义ROI的位置、大小、旋转角度、布尔配色、依赖和序列化。</summary>
+    private static void VerifyCustomRoi(NodeBase owner, NodeBase source)
+    {
+        var item = new ResultOverlayDrawItem
+        {
+            ItemType = ResultOverlayDrawItemType.CustomRoi,
+            SourceText1 = "19.目标分类",
+            SourceText2 = "判定OK",
+            CustomRoiColumn = 120F,
+            CustomRoiRow = 80F,
+            CustomRoiPhi = (float)Math.PI / 6F,
+            CustomRoiLength1 = 30F,
+            CustomRoiLength2 = 20F,
+            LineWidth = 4
+        };
+        var parameter = new NodeParamResultOverlayDraw
+        {
+            OkColor = Color.Cyan,
+            NgColor = Color.Orange,
+            Items = new List<ResultOverlayDrawItem> { item }
+        };
+        var result = new NodeResultTDAI();
+        SetResult(source, result);
+
+        foreach (bool expected in new[] { true, false })
+        {
+            result.JudgeOk = expected;
+            AlgorithmResult display = Draw(owner, parameter);
+            ColorRotatedRect rectangle = display.Rects.Single();
+            Check(display.IsAllOk == expected, "自定义ROI整体判定与布尔订阅不一致。");
+            Check(rectangle.Color.ToArgb() == (expected ? Color.Cyan : Color.Orange).ToArgb(), "自定义ROI没有使用节点OK/NG颜色。");
+            Check(rectangle.RotatedRect.center.x == 120F && rectangle.RotatedRect.center.y == 80F, "自定义ROI中心位置改变。");
+            Check(rectangle.RotatedRect.size.width == 60F && rectangle.RotatedRect.size.height == 40F, "自定义ROI大小改变。");
+            Check(Math.Abs(rectangle.RotatedRect.angle - 30F) < 0.01F && rectangle.LineWidth == 4F, "自定义ROI角度或线宽错误。");
+        }
+
+        using (var dependencyOwner = new NodeResultOverlayDraw(26, "自定义ROI依赖", owner.Process, NodeType.ResultOverlayDraw))
+        {
+            dependencyOwner.ParamForm.Params = parameter;
+            Check(dependencyOwner.GetSubscriptionDependencyNodeIds().Single() == source.ID, "自定义ROI布尔订阅未登记为运行依赖。");
+        }
+        ResultOverlayDrawItem restored = Newtonsoft.Json.JsonConvert.DeserializeObject<NodeParamResultOverlayDraw>(
+            Newtonsoft.Json.JsonConvert.SerializeObject(parameter)).Items.Single();
+        Check(restored.ItemType == ResultOverlayDrawItemType.CustomRoi && restored.CustomRoiColumn == 120F &&
+            restored.CustomRoiLength2 == 20F, "自定义ROI方案保存恢复丢失。");
+        Check(typeof(NodeParamFormResultOverlayDraw).GetField("buttonAddCustomRoi", BindingFlags.Instance | BindingFlags.NonPublic) != null &&
+            typeof(NodeParamFormResultOverlayDraw).GetField("buttonDrawCustomRoi", BindingFlags.Instance | BindingFlags.NonPublic) != null,
+            "自定义ROI控件没有放入设计器文件。");
+
+        var imageNode = new NodeBase(27, "预览图像", owner.Process, NodeType.ImageSource);
+        using (var previewOwner = new NodeResultOverlayDraw(28, "自定义ROI预览", owner.Process, NodeType.ResultOverlayDraw))
+        using (var input = new OutputImage())
+        {
+            input.SrcImg = new Mat(80, 100, MatType.CV_8UC3, Scalar.Black);
+            SetResult(imageNode, new NodeResultImageSource { OutputImage = input });
+            imageNode.SetStatus(NodeStatus.Successful, "0");
+            owner.Process.Nodes.Add(imageNode);
+            owner.Process.Nodes.Add(previewOwner);
+            owner.Process.Connections.Add(new ProcessConnection { FromNodeId = imageNode.ID, ToNodeId = previewOwner.ID });
+            var previewParameter = new NodeParamResultOverlayDraw
+            {
+                ImageText1 = "27.预览图像",
+                ImageText2 = "输出图像",
+                Items = new List<ResultOverlayDrawItem>
+                {
+                    new ResultOverlayDrawItem
+                    {
+                        ItemType = ResultOverlayDrawItemType.CustomRoi,
+                        SourceText1 = "19.目标分类",
+                        SourceText2 = "判定OK"
+                    }
+                }
+            };
+            var form = (NodeParamFormResultOverlayDraw)previewOwner.ParamForm;
+            form.Params = previewParameter;
+            form.SetParam2Form();
+            form.ShowInTaskbar = false;
+            form.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
+            form.Location = new System.Drawing.Point(-10000, -10000);
+            form.Show();
+            System.Windows.Forms.Application.DoEvents();
+            form.GetType().GetMethod("buttonPreview_Click", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(form, new object[] { form, EventArgs.Empty });
+            System.Windows.Forms.Application.DoEvents();
+            var viewer = (TDJS_Vision.Forms.DispShowImage.ShowImageControl)form.GetType()
+                .GetField("showImageControl1", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(form);
+            Console.WriteLine("预览诊断：图像=" + (viewer.ImageBitmap != null) + "，动态ROI=" + viewer.DynamicRoiCount);
+            Check(viewer.ImageBitmap != null && viewer.DynamicRoiCount == 1,
+                "未确认自定义ROI时点击预览没有在右侧保留输入图像和可编辑ROI。");
+            form.Hide();
+        }
+        Console.WriteLine("自定义ROI布尔配色、几何、依赖、序列化及设计器控件通过。");
+    }
+
     /// <summary>运行离线回归；可选传入方案路径，只读取检测项和绘制参数。</summary>
     [STAThread]
     private static int Main(string[] arguments)
@@ -194,6 +289,12 @@ internal static class ResultOverlayDrawAiRoiColorTests
                 Item("DetectItem.FrontRivetCoreLength", "70", "80"),
                 Item("DetectItem.BackRivetCoreLength", "20", "35")
             };
+            if (arguments.Length > 0 && arguments[0] == "--custom-only")
+            {
+                VerifyCustomRoi(owner, source);
+                Console.WriteLine("自定义ROI专项全部通过。");
+                return 0;
+            }
             VerifyParserAndDrawing(owner, source, parameter, items, aiParameter);
             if (arguments.Length > 0)
             {
@@ -207,6 +308,7 @@ internal static class ResultOverlayDrawAiRoiColorTests
             }
             VerifySharedGeometry(owner, source);
             VerifyDraw2(owner, source);
+            VerifyCustomRoi(owner, source);
             Console.WriteLine("AI矩形颜色专项全部通过。");
             return 0;
         }

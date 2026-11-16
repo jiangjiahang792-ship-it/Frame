@@ -193,6 +193,21 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         [JsonConverter(typeof(StringEnumConverter))]
         public DisplayTextCoordinateMode TextCoordinateMode { get; set; } = DisplayTextCoordinateMode.Image;
 
+        /// <summary>自定义ROI中心的图像行坐标。</summary>
+        public float CustomRoiRow { get; set; }
+
+        /// <summary>自定义ROI中心的图像列坐标。</summary>
+        public float CustomRoiColumn { get; set; }
+
+        /// <summary>自定义ROI旋转角度，单位为弧度。</summary>
+        public float CustomRoiPhi { get; set; }
+
+        /// <summary>自定义ROI沿局部X轴的半长度，必须大于零。</summary>
+        public float CustomRoiLength1 { get; set; }
+
+        /// <summary>自定义ROI沿局部Y轴的半长度，必须大于零。</summary>
+        public float CustomRoiLength2 { get; set; }
+
         /// <summary>
         /// 固定绘制颜色。
         /// </summary>
@@ -267,7 +282,12 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 LineWidth = LineWidth,
                 TextMargin = TextMargin,
                 TextPosition = TextPosition,
-                TextCoordinateMode = TextCoordinateMode
+                TextCoordinateMode = TextCoordinateMode,
+                CustomRoiRow = CustomRoiRow,
+                CustomRoiColumn = CustomRoiColumn,
+                CustomRoiPhi = CustomRoiPhi,
+                CustomRoiLength1 = CustomRoiLength1,
+                CustomRoiLength2 = CustomRoiLength2
             };
         }
     }
@@ -301,6 +321,9 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
         /// 按订阅值实际类型自动绘制全部ROI几何。
         /// </summary>
         Roi,
+
+        /// <summary>绘制用户在输入图像上指定的ROI，并由布尔订阅决定OK/NG颜色。</summary>
+        CustomRoi,
 
         /// <summary>订阅单个布尔结果，按真/假显示自定义OK/NG文本。</summary>
         BooleanText,

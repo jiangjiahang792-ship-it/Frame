@@ -34,6 +34,33 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         /// </summary>
         private const string 飞胶内部键 = "飞胶";
 
+        /// <summary>前铆脚露线芯数量检测项内部键，对应模型类别0。</summary>
+        private const string 前铆脚露线芯数量内部键 = "DetectItem.FrontRivetCoreCount";
+
+        /// <summary>前铆脚数量检测项内部键，对应模型类别1。</summary>
+        private const string 前铆脚数量内部键 = "DetectItem.FrontRivetCount";
+
+        /// <summary>后铆脚数量检测项内部键，对应模型类别4。</summary>
+        private const string 后铆脚数量内部键 = "DetectItem.BackRivetCount";
+
+        /// <summary>后铆脚露线芯数量检测项内部键，对应模型类别2。</summary>
+        private const string 后铆脚露线芯数量内部键 = "DetectItem.BackRivetCoreCount";
+
+        /// <summary>
+        /// 正插防水栓主体在RL线芯模型中的类别编号，通信新配方首次学习时据此选择检测项。
+        /// </summary>
+        private const int 正插防水栓类别编号 = 5;
+
+        /// <summary>
+        /// 咬胶长度检测项内部键；检出防水栓时，新配方不启用该互斥检测项。
+        /// </summary>
+        private const string 咬胶长度内部键 = "DetectItem.BiteGlueLength";
+
+        /// <summary>
+        /// 后铆脚露线芯长度内部键；检出防水栓时与咬胶项目一并停用。
+        /// </summary>
+        private const string 后铆脚露线芯长度内部键 = "DetectItem.BackRivetCoreLength";
+
         /// <summary>
         /// 用于记录检测结果数量，自动学习模式下使用
         /// </summary>
@@ -55,6 +82,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             // 当前使用的检测项配置
             var deteItems = Solution.Instance.DetectItemDic[param.CurDetectItemName];
             ParseCommon.NormalizeDetectItems(deteItems);
+            ApplyInitialCommunicationRecipeItemRules(results, param, deteItems);
             DetectItemInfo 端子数量检测项 = 获取端子数量检测项(deteItems);
             int requiredCount = 0;
             if (端子数量检测项 != null && double.TryParse(端子数量检测项.MinValue, out double minimum))
@@ -86,6 +114,13 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 bool isCountItem = item.IsCountItem;
                 // 检测项没启用就不用处理
                 if (!item.Enable) continue;
+
+                // 四个端子部件数量项固定按目标框数量判断，避免配置文件误取消“数量型”后被当作尺寸处理。
+                if (IsTerminalComponentCountItem(itemName))
+                {
+                    item.IsCountItem = true;
+                    isCountItem = true;
+                }
 
                 // 端子数量只作为除飞丝、飞胶外其它检测项的公共数量上下限，不单独绑定模型类别解析。
                 if (itemName == 端子数量内部键)
@@ -135,11 +170,27 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     case "DetectItem.BackRivetArea":
                         extractValueFunc = r => r.ClassId == 4 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
                         break;
+                    case 前铆脚露线芯数量内部键:
+                        extractValueFunc = r => r.ClassId == 0 ? "1" : null;
+                        break;
+                    case 前铆脚数量内部键:
+                        extractValueFunc = r => r.ClassId == 1 ? "1" : null;
+                        break;
+                    case 后铆脚数量内部键:
+                        extractValueFunc = r => r.ClassId == 4 ? "1" : null;
+                        break;
+                    case 后铆脚露线芯数量内部键:
+                        extractValueFunc = r => r.ClassId == 2 ? "1" : null;
+                        break;
                     case "DetectItem.ForwardWaterproofPlugArea":
                         extractValueFunc = r => r.ClassId == 5 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
                         break;
                     case "DetectItem.FlyingWire":
-                        extractValueFunc = r => r.ClassId == 8 ? "1" : null;
+                        // 飞丝勾选数量型时按目标个数统计；取消数量型时按每个检测框的宽×高输出面积。
+                        // 两种模式复用后续的上下限、比例换算、补偿、学习和结果绘制流程。
+                        extractValueFunc = r => r.ClassId == 8
+                            ? (isCountItem ? "1" : (r.Box.Width * r.Box.Height).ToString("F2"))
+                            : null;
                         break;
                     case 飞胶内部键:
                         // fly_rubber 为类别9，每个模型结果计为一个飞胶，沿用数量型上下限判断。
@@ -510,6 +561,78 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         }
 
         /// <summary>
+        /// 通信新配方首次学习时，根据当前图像是否检出防水栓自动选择互斥检测项。
+        /// 没有防水栓时停用全部防水栓相关项；存在防水栓时停用咬胶长度和后铆脚露线芯相关项。
+        /// </summary>
+        /// <param name="results">当前图像的RL模型检测框。</param>
+        /// <param name="param">当前目标分类节点参数。</param>
+        /// <param name="detectItems">当前通信新配方检测项。</param>
+        internal static void ApplyInitialCommunicationRecipeItemRules(
+            IEnumerable<DetResult> results,
+            NodeParamTDAI param,
+            IList<DetectItemInfo> detectItems)
+        {
+            if (param == null || param.ModelName != ModelName.RL_12类线芯模型 ||
+                !param.IsAutoStudy || detectItems == null ||
+                !detectItems.Any(item => item != null && item.NeedsInitialAutoStudy))
+            {
+                return;
+            }
+
+            bool hasWaterproofPlug = results != null &&
+                results.Any(result => result.ClassId == 正插防水栓类别编号);
+
+            foreach (DetectItemInfo item in detectItems)
+            {
+                if (item == null)
+                    continue;
+
+                string normalizedName = DetectItemLanguage.NormalizeName(item.Name);
+                if (hasWaterproofPlug)
+                {
+                    if (string.Equals(normalizedName, 咬胶长度内部键, StringComparison.Ordinal) ||
+                        IsBackRivetExposedCoreDetectItem(normalizedName))
+                        item.Enable = false;
+                }
+                else if (IsWaterproofPlugDetectItem(normalizedName))
+                {
+                    item.Enable = false;
+                }
+            }
+
+            LogHelper.AddLog(
+                MsgLevel.Info,
+                hasWaterproofPlug
+                    ? $"通信新配方({param.CurDetectItemName})首次学习检出防水栓，已停用咬胶长度及后铆脚露线芯相关检测项。"
+                    : $"通信新配方({param.CurDetectItemName})首次学习未检出防水栓，已停用全部防水栓相关检测项。",
+                true);
+        }
+
+        /// <summary>判断检测项是否属于后铆脚露线芯长度或宽度项目。</summary>
+        private static bool IsBackRivetExposedCoreDetectItem(string itemName)
+        {
+            if (string.IsNullOrWhiteSpace(itemName))
+                return false;
+
+            return string.Equals(itemName, 后铆脚露线芯长度内部键, StringComparison.Ordinal) ||
+                   itemName.IndexOf("后铆脚露线芯", StringComparison.Ordinal) >= 0;
+        }
+
+        /// <summary>判断检测项是否属于RL线芯模型的防水栓相关项目。</summary>
+        private static bool IsWaterproofPlugDetectItem(string itemName)
+        {
+            if (string.IsNullOrWhiteSpace(itemName))
+                return false;
+
+            return itemName.IndexOf("防水栓", StringComparison.Ordinal) >= 0 ||
+                   string.Equals(itemName, "DetectItem.ForwardWaterproofPlugArea", StringComparison.Ordinal) ||
+                   string.Equals(itemName, "DetectItem.ReverseWaterproofPlug", StringComparison.Ordinal) ||
+                   string.Equals(itemName, "DetectItem.WaterproofPlugDamaged", StringComparison.Ordinal) ||
+                   string.Equals(itemName, "DetectItem.ForwardWaterproofPlugLength", StringComparison.Ordinal) ||
+                   string.Equals(itemName, "DetectItem.ForwardWaterproofPlugHeight", StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// 获取启用的端子数量公共检测项配置。
         /// </summary>
         /// <param name="detectItemInfos">当前方案检测项集合。</param>
@@ -588,7 +711,21 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                 || string.Equals(itemName, 飞胶内部键, StringComparison.Ordinal)
                 || string.Equals(itemName, "DetectItem.CoreCount", StringComparison.Ordinal)
                 || string.Equals(itemName, "胶皮数量", StringComparison.Ordinal)
-                || string.Equals(itemName, "防水栓数量", StringComparison.Ordinal);
+                || string.Equals(itemName, "防水栓数量", StringComparison.Ordinal)
+                || IsTerminalComponentCountItem(itemName);
+        }
+
+        /// <summary>
+        /// 判断是否为RL模型新增的端子部件数量检测项。
+        /// </summary>
+        /// <param name="itemName">当前检测项内部键。</param>
+        /// <returns>属于四个端子部件数量项时返回 true。</returns>
+        private static bool IsTerminalComponentCountItem(string itemName)
+        {
+            return string.Equals(itemName, 前铆脚露线芯数量内部键, StringComparison.Ordinal)
+                || string.Equals(itemName, 前铆脚数量内部键, StringComparison.Ordinal)
+                || string.Equals(itemName, 后铆脚数量内部键, StringComparison.Ordinal)
+                || string.Equals(itemName, 后铆脚露线芯数量内部键, StringComparison.Ordinal);
         }
 
         /// <summary>

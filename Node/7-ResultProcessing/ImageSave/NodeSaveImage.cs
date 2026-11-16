@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenCvSharp;
@@ -330,7 +331,31 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ImageSave
             }
 
             foreach (string categoryName in imageSaveJudgment.NgCategoryNames)
-                paths.Add(Path.Combine(imageSavePath, categoryName));
+            {
+                // 检测结果字典使用稳定的内部键，目录名称应跟随主界面当前语言显示。
+                string displayName = DetectItemLanguage.GetDisplayName(categoryName);
+                paths.Add(Path.Combine(imageSavePath, GetSafeCategoryDirectoryName(displayName, categoryName)));
+            }
+        }
+
+        /// <summary>
+        /// 生成可用于客户端文件系统的检测项目录名称；翻译缺失时回退原检测项名称。
+        /// </summary>
+        /// <param name="displayName">当前界面语言下的检测项显示名。</param>
+        /// <param name="fallbackName">翻译为空时使用的内部名称。</param>
+        /// <returns>不含Windows非法文件名字符的目录名称。</returns>
+        private static string GetSafeCategoryDirectoryName(string displayName, string fallbackName)
+        {
+            string name = string.IsNullOrWhiteSpace(displayName) ? fallbackName : displayName;
+            if (string.IsNullOrWhiteSpace(name))
+                return "未命名检测项";
+
+            char[] invalidCharacters = Path.GetInvalidFileNameChars();
+            string safeName = new string(name.Trim()
+                .Select(character => invalidCharacters.Contains(character) ? '＿' : character)
+                .ToArray())
+                .TrimEnd('.', ' ');
+            return string.IsNullOrWhiteSpace(safeName) ? "未命名检测项" : safeName;
         }
 
         /// <summary>

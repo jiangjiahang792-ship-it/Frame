@@ -539,6 +539,32 @@ Assert-True ($racePublishedCount -gt 0) '硬触发停止与到帧竞态没有实
 Assert-True ($raceCancelledBeforePublishCount -gt 0) '硬触发停止与到帧竞态没有实际覆盖票据取消先完成。'
 Assert-True ($budget.GetSnapshot().ReservedBytes -eq 0) '硬触发停止与到帧100轮竞态后仍有图像预算残留。'
 
+# 海康部分设备的SDK帧号实际为1至65535循环，65535之后回到1必须视为连续帧。
+$rolloverBudget = [Activator]::CreateInstance($budgetType)
+$rolloverRegistry = [Activator]::CreateInstance($registryType, @($rolloverBudget))
+try {
+    $rolloverTicket1 = $rolloverRegistry.Register('CAMERA-ROLLOVER', (New-Context '帧号回卷'), $softwareTrigger, $deadline, [long]256, [long]4096)
+    $rolloverTicket1.IssueSoftwareTrigger($noOpTrigger)
+    $rolloverFrame1 = New-TestMat
+    Assert-True ($rolloverRegistry.TryPublishFrame('CAMERA-ROLLOVER', [long]1, [uint32]65535, [Diagnostics.Stopwatch]::GetTimestamp(), $rolloverFrame1, $null)) 'SDK帧号65535没有正常交付。'
+    $rolloverTicket1.Completion.GetAwaiter().GetResult().Dispose()
+    $rolloverTicket1.Dispose()
+
+    $rolloverTicket2 = $rolloverRegistry.Register('CAMERA-ROLLOVER', (New-Context '帧号回卷'), $softwareTrigger, $deadline, [long]256, [long]4096)
+    $rolloverTicket2.IssueSoftwareTrigger($noOpTrigger)
+    $rolloverFrame2 = New-TestMat
+    Assert-True ($rolloverRegistry.TryPublishFrame('CAMERA-ROLLOVER', [long]2, [uint32]1, [Diagnostics.Stopwatch]::GetTimestamp(), $rolloverFrame2, $null)) 'SDK帧号65535回卷到1被误判为断层。'
+    $rolloverEnvelope2 = $rolloverTicket2.Completion.GetAwaiter().GetResult()
+    Assert-True ($rolloverEnvelope2.SdkFrameNumber -eq 1) '回卷后的SDK帧号没有原样交付。'
+    $rolloverEnvelope2.Dispose()
+    $rolloverTicket2.Dispose()
+    Assert-True ($rolloverRegistry.GetSnapshot().FrameSequenceFaultCount -eq 0) '正常的16位帧号回卷错误累计了断层诊断。'
+    Assert-True ($rolloverBudget.GetSnapshot().ActiveLeaseCount -eq 0) '帧号回卷测试泄漏了图像预算。'
+}
+finally {
+    $rolloverRegistry.Dispose()
+}
+
 $context3 = New-Context '产线A'
 $ticket3 = $registry.Register('CAMERA-1', $context3, $softwareTrigger, $deadline, [long]256, [long]4096)
 $context4 = New-Context '产线A'

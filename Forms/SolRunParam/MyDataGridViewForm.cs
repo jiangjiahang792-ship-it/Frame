@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -67,6 +68,16 @@ namespace TDJS_Vision.Forms.SolRunParam
         public DetectItemInfo Info { get; set; }
 
         /// <summary>
+        /// 是否具有来源节点给出的明确判定；AI检测项可直接按数值上下限计算，多条件项使用运行明细判定。
+        /// </summary>
+        public bool HasExplicitJudgment { get; set; }
+
+        /// <summary>
+        /// 来源节点给出的本次明确判定结果，仅在HasExplicitJudgment为true时使用。
+        /// </summary>
+        public bool ExplicitJudgmentOk { get; set; }
+
+        /// <summary>
         /// 从AI检测项创建运行参数表格行。
         /// </summary>
         /// <param name="info">AI检测项配置。</param>
@@ -99,6 +110,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                 IsCountItem = info.IsCountItem,
                 IsManualTuningHidden = info.IsManualTuningHidden,
                 Compensation = info.Compensation,
+                NeedsInitialAutoStudy = info.NeedsInitialAutoStudy,
                 PlugColor = info.PlugColor?.Clone(),
                 CurValue = info.CurValue
             };
@@ -295,10 +307,86 @@ namespace TDJS_Vision.Forms.SolRunParam
                 row.Cells[HiddenColumnIndex].Value = info.IsManualTuningHidden;
                 row.Cells[CompensationColumnIndex].ReadOnly = item.SourceType == RunParamGridSourceType.MultiCondition;
 
+                ApplyJudgmentCellColors(row, item);
+
                 dataGridView1.Rows.Add(row);
             }
 
             ApplyPermissionVisibility();
+        }
+
+        /// <summary>
+        /// 按当前值与上下限关系设置手动参数行颜色；NG当前值标红，越过哪一侧就同时标红对应限值。
+        /// </summary>
+        /// <param name="row">待设置颜色的表格行。</param>
+        /// <param name="item">当前运行参数项。</param>
+        private static void ApplyJudgmentCellColors(DataGridViewRow row, RunParamGridItem item)
+        {
+            if (row == null || item?.Info == null)
+                return;
+
+            ResetJudgmentCellColor(row.Cells[MinValueColumnIndex]);
+            ResetJudgmentCellColor(row.Cells[CurrentValueColumnIndex]);
+            ResetJudgmentCellColor(row.Cells[MaxValueColumnIndex]);
+
+            DetectItemInfo info = item.Info;
+            if (!info.Enable)
+                return;
+
+            bool hasMin = TryParseFiniteNumber(info.MinValue, out double minValue);
+            bool hasMax = TryParseFiniteNumber(info.MaxValue, out double maxValue);
+            List<double> currentValues = ParseCurrentValues(info.CurValue);
+            bool belowMin = hasMin && currentValues.Any(value => value < minValue);
+            bool aboveMax = hasMax && currentValues.Any(value => value > maxValue);
+            bool isNg = belowMin || aboveMax || (item.HasExplicitJudgment && !item.ExplicitJudgmentOk);
+
+            if (isNg)
+                SetNgCellColor(row.Cells[CurrentValueColumnIndex]);
+            if (belowMin)
+                SetNgCellColor(row.Cells[MinValueColumnIndex]);
+            if (aboveMax)
+                SetNgCellColor(row.Cells[MaxValueColumnIndex]);
+        }
+
+        /// <summary>解析一个当前值单元格中的一个或多个有限数值，支持中英文逗号和分号分隔。</summary>
+        private static List<double> ParseCurrentValues(string text)
+        {
+            var values = new List<double>();
+            if (string.IsNullOrWhiteSpace(text))
+                return values;
+
+            foreach (string part in text.Split(new[] { ',', '，', ';', '；' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (TryParseFiniteNumber(part, out double value))
+                    values.Add(value);
+            }
+            return values;
+        }
+
+        /// <summary>按客户端当前区域和不变区域解析有限数值。</summary>
+        private static bool TryParseFiniteNumber(string text, out double value)
+        {
+            bool parsed = double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value) ||
+                          double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+            return parsed && !double.IsNaN(value) && !double.IsInfinity(value);
+        }
+
+        /// <summary>设置NG单元格为红底白字。</summary>
+        private static void SetNgCellColor(DataGridViewCell cell)
+        {
+            cell.Style.BackColor = Color.Red;
+            cell.Style.ForeColor = Color.White;
+            cell.Style.SelectionBackColor = Color.DarkRed;
+            cell.Style.SelectionForeColor = Color.White;
+        }
+
+        /// <summary>恢复单元格默认颜色，避免上一次NG颜色残留。</summary>
+        private static void ResetJudgmentCellColor(DataGridViewCell cell)
+        {
+            cell.Style.BackColor = Color.Empty;
+            cell.Style.ForeColor = Color.Empty;
+            cell.Style.SelectionBackColor = Color.Empty;
+            cell.Style.SelectionForeColor = Color.Empty;
         }
 
         /// <summary>
@@ -348,6 +436,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                         CurValue = ToCellText(row.Cells[CurrentValueColumnIndex].Value),
                         MaxValue = ToCellText(row.Cells[MaxValueColumnIndex].Value),
                         Compensation = ReadCompensation(row.Cells[CompensationColumnIndex].Value),
+                        NeedsInitialAutoStudy = item.Info?.NeedsInitialAutoStudy ?? false,
                         PlugColor = item.Info?.PlugColor?.Clone(),
                         IsCountItem = ToCellBool(row.Cells[CountItemColumnIndex].Value),
                         IsManualTuningHidden = UserPermissionContext.CurrentRole == UserRole.Manufacturer

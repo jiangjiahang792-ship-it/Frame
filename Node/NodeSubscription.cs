@@ -61,6 +61,8 @@ namespace TDJS_Vision.Node
         private bool _clearedByUser;
         /// <summary>仅选择节点的控件不要求该节点存在兼容输出端口。</summary>
         private bool _nodeOnly;
+        /// <summary>专用工具明确允许追加到候选列表的同流程节点类型。</summary>
+        private readonly HashSet<NodeType> _additionalProcessNodeTypes = new HashSet<NodeType>();
 
         /// <summary>订阅节点或结果路径完成变更后通知调用方，程序恢复和清空同样生效。</summary>
         public event EventHandler SelectionChanged;
@@ -289,7 +291,7 @@ namespace TDJS_Vision.Node
 
             string selectedNodeText = preserveSelection && !_automaticSelection ? _text1 : string.Empty;
             string selectedResultText = _text2;
-            IReadOnlyList<NodeBase> upstreamNodes = _sourceSelector.GetUpstreamNodes(_node);
+            IReadOnlyList<NodeBase> upstreamNodes = GetCandidateNodes();
             _isUpdatingNodeCombo = true;
             try
             {
@@ -466,6 +468,22 @@ namespace TDJS_Vision.Node
             return _selectedNode;
         }
 
+        /// <summary>
+        /// 尝试获取已完成绑定的上游节点；组合模块分阶段反序列化期间尚未绑定时返回 false。
+        /// </summary>
+        /// <param name="selectedNode">已绑定的上游节点。</param>
+        /// <returns>上游节点已经可用时返回 true。</returns>
+        public bool TryGetSelectedNode(out NodeBase selectedNode)
+        {
+            selectedNode = _selectedNode;
+            if (selectedNode == null)
+                return false;
+
+            EnsureSelectedNodeFresh();
+            selectedNode = _selectedNode;
+            return selectedNode != null;
+        }
+
         public T GetSelectedResult<T>() where T : class
         {
             NodeBase selectedNode = GetSelectedNode();
@@ -499,6 +517,22 @@ namespace TDJS_Vision.Node
             label2.Visible = false;
             comboBox2.Visible = false;
             if (_automaticSelection) RefreshNodeIdList(true);
+        }
+
+        /// <summary>
+        /// 允许指定类型的同流程节点作为额外订阅来源；公共默认规则仍只显示连线上游。
+        /// </summary>
+        /// <param name="nodeTypes">需要额外开放的节点类型。</param>
+        public void IncludeProcessNodeTypes(params NodeType[] nodeTypes)
+        {
+            if (nodeTypes != null)
+            {
+                foreach (NodeType nodeType in nodeTypes)
+                    _additionalProcessNodeTypes.Add(nodeType);
+            }
+
+            if (_node != null)
+                RefreshNodeIdList(true);
         }
 
         public void ClearText()
@@ -678,7 +712,7 @@ namespace TDJS_Vision.Node
             if (_node == null || _node.Process == null || string.IsNullOrWhiteSpace(nodeText))
                 return false;
 
-            IReadOnlyList<NodeBase> upstreamNodes = _sourceSelector.GetUpstreamNodes(_node);
+            IReadOnlyList<NodeBase> upstreamNodes = GetCandidateNodes();
             foreach (NodeBase upstreamNode in upstreamNodes)
             {
                 string upstreamText = GetNodeText(upstreamNode);
@@ -700,6 +734,29 @@ namespace TDJS_Vision.Node
 
             canonicalText = GetNodeText(node);
             return true;
+        }
+
+        /// <summary>获取连线上游，并追加专用工具允许的同流程节点。</summary>
+        private IReadOnlyList<NodeBase> GetCandidateNodes()
+        {
+            var candidates = _sourceSelector.GetUpstreamNodes(_node).ToList();
+            if (_node?.Process == null || _additionalProcessNodeTypes.Count == 0)
+                return candidates;
+
+            var existingIds = new HashSet<int>(candidates.Select(item => item.ID));
+            foreach (NodeBase processNode in _node.Process.Nodes)
+            {
+                if (processNode == null || processNode.ID == _node.ID ||
+                    !_additionalProcessNodeTypes.Contains(processNode.NodeType) ||
+                    !existingIds.Add(processNode.ID))
+                {
+                    continue;
+                }
+
+                candidates.Add(processNode);
+            }
+
+            return candidates;
         }
 
         private static string GetNodeText(NodeBase node)

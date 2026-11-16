@@ -407,3 +407,9 @@ FodyWeavers.xsd
 /Tests/Results/
 /outputs/Plug*/
 /outputs/Plug*.json
+
+# AI 工具、临时分析与批量输出目录，不属于项目源码或运行资源
+/.codex-tmp/
+/output/
+/outputs/
+/tmp/

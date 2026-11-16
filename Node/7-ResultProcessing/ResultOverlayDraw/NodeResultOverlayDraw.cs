@@ -807,7 +807,8 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 var leaf = ResolveOverlaySource(owner?.Process, item.SourceText1, item.SourceText2, out string property);
                 if (leaf == null || !_conditions.TryGetValue(leaf, out var conditions)) return false;
                 bool geometry = item.ItemType == ResultOverlayDrawItemType.Roi || item.ItemType == ResultOverlayDrawItemType.Line ||
-                    item.ItemType == ResultOverlayDrawItemType.Rectangle || item.ItemType == ResultOverlayDrawItemType.Region;
+                    item.ItemType == ResultOverlayDrawItemType.Rectangle || item.ItemType == ResultOverlayDrawItemType.Region ||
+                    item.ItemType == ResultOverlayDrawItemType.CustomRoi;
                 var related = geometry ? conditions : conditions.Where(c => c.Item1 == property).ToList();
                 return related.Count > 0 && related.All(c => !c.Item2);
             }
@@ -871,6 +872,14 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                         break;
                     case ResultOverlayDrawItemType.Roi:
                         AppendAutomaticRoi(owner, displayResult, item, param);
+                        if (performanceDiagnostics != null)
+                        {
+                            performanceDiagnostics.RoiItemCount++;
+                            performanceDiagnostics.RoiItemsMs += itemWatch.ElapsedMilliseconds;
+                        }
+                        break;
+                    case ResultOverlayDrawItemType.CustomRoi:
+                        AppendCustomRoi(owner, displayResult, item, param);
                         if (performanceDiagnostics != null)
                         {
                             performanceDiagnostics.RoiItemCount++;
@@ -1119,6 +1128,47 @@ namespace TDJS_Vision.Node._7_ResultProcessing.ResultOverlayDraw
                 out int addedCount);
             if (!recognized || addedCount == 0)
                 AppendMissingResultText(displayResult, item, sourceNode);
+        }
+
+        /// <summary>
+        /// 绘制用户指定的旋转矩形，并严格按布尔订阅选择节点级OK/NG颜色。
+        /// </summary>
+        /// <param name="owner">当前ROI结果绘制节点。</param>
+        /// <param name="displayResult">本次输出的叠加结果。</param>
+        /// <param name="item">包含矩形位置、大小及布尔订阅的绘制项。</param>
+        /// <param name="param">提供统一OK/NG颜色的节点参数。</param>
+        private static void AppendCustomRoi(
+            NodeBase owner,
+            AlgorithmResult displayResult,
+            ResultOverlayDrawItem item,
+            NodeParamResultOverlayDraw param)
+        {
+            if (!TryReadDrawItemValue(owner, item, out object value, out NodeBase sourceNode) ||
+                !TryConvertToBoolean(value, out bool isOk))
+            {
+                AppendMissingResultText(displayResult, item, sourceNode);
+                return;
+            }
+
+            if (item.CustomRoiLength1 <= 0F || item.CustomRoiLength2 <= 0F)
+            {
+                AppendMissingResultText(displayResult, item, sourceNode);
+                return;
+            }
+
+            displayResult.IsAllOk = displayResult.IsAllOk && isOk;
+            Color color = isOk ? param.OkColor : param.NgColor;
+            float angleDegrees = item.CustomRoiPhi * 180F / (float)Math.PI;
+            displayResult.Rects.Add(new ColorRotatedRect(
+                item.CustomRoiColumn,
+                item.CustomRoiRow,
+                item.CustomRoiLength1 * 2F,
+                item.CustomRoiLength2 * 2F,
+                angleDegrees,
+                color)
+            {
+                LineWidth = Math.Max(1, item.LineWidth)
+            });
         }
 
         /// <summary>

@@ -31,7 +31,7 @@ namespace TDJS_Vision
         /// <summary>
         /// 标题栏是否正在拖动。
         /// </summary>
-        private bool dragging = false;
+        private bool dragging;
 
         /// <summary>
         /// 标题栏拖动时的鼠标偏移。
@@ -99,6 +99,7 @@ namespace TDJS_Vision
         {
             InitializeComponent();
         }
+
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
@@ -356,6 +357,7 @@ namespace TDJS_Vision
         {
             dragging = false;
         }
+
         /// <summary>
         /// 双击标题栏切换窗口状态（最大化/还原）
         /// </summary>

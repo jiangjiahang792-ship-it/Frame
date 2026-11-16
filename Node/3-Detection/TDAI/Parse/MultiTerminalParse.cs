@@ -24,7 +24,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         /// </summary>
         private static readonly Dictionary<string, string> 检测项中文名到内部键 = new Dictionary<string, string>
         {
-            { "后铆脚数量", "后铆脚数量" },
+            { "后铆脚数量", "DetectItem.BackRivetCount" },
             { "前铆脚露线芯长度", "DetectItem.FrontRivetCoreLength" },
             { "前铆脚露线芯高度", "DetectItem.FrontRivetCoreHeight" },
             { "前铆脚面积", "DetectItem.FrontRivetArea" },
@@ -78,8 +78,6 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
 
             foreach (var item in deteItems)
             {
-                List<(int classId, Rect value)> valuePairs = new List<(int classId, Rect value)>();    //不是数量型检测项数据收集
-
                 string itemKey = item.Name;
                 string itemName = 获取检测项中文名(itemKey);
                 bool isCountItem = item.IsCountItem;
@@ -130,19 +128,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                         break;
 
                     case "咬胶长度":
-                        extractValueFunc = r =>
-                        {
-                            if (r.ClassId == 1)
-                            {
-                                valuePairs.Add((r.ClassId, r.Box));
-                            }
-                            else if (r.ClassId == 4)
-                            {
-                                valuePairs.Add((r.ClassId, r.Box));
-                            }
-                            return r.ClassId == 3 ? (r.Box.Width * r.Box.Height).ToString("F2") : null;
-                        };
-
+                        // 多物料竖向排列时，咬胶只取X方向宽度；物料配对在结果处理阶段按中心Y排序完成。
+                        extractValueFunc = r => r.ClassId == 3 ? r.Box.Width.ToString("F2") : null;
                         break;
 
                     case "线芯长度":
@@ -255,23 +242,33 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     bool allOk = true;
                     var valueStr = "";
 
-                    foreach (var result in matchedResults)
+                    List<DetResult> orderedFrontFeet = null;
+                    List<DetResult> orderedBehindFeet = null;
+                    if (itemName == "咬胶长度")
                     {
+                        matchedResults = 按纵向物料位置排序(matchedResults);
+                        orderedFrontFeet = 按纵向物料位置排序(results.Where(r => r.ClassId == 1));
+                        orderedBehindFeet = 按纵向物料位置排序(results.Where(r => r.ClassId == 4));
+                    }
+
+                    for (int resultIndex = 0; resultIndex < matchedResults.Count; resultIndex++)
+                    {
+                        DetResult result = matchedResults[resultIndex];
                         string rawValue = extractValueFunc(result);
                         if (!float.TryParse(rawValue, out float value))
                             continue;
 
                         if (itemName == "咬胶长度")
                         {
-                            bool exists = valuePairs.Any(v => v.classId == 1) && valuePairs.Any(v => v.classId == 4);
-                            if (exists)
+                            bool hasMatchedFeet = resultIndex < orderedFrontFeet.Count &&
+                                                  resultIndex < orderedBehindFeet.Count;
+                            if (hasMatchedFeet)
                             {
-                                int frontFootLeft = valuePairs.Where(v => v.classId == 1).Select(v => v.value).FirstOrDefault().Left;
-                                int behindFootRight = valuePairs.Where(v => v.classId == 4).Select(v => v.value).FirstOrDefault().Right;
+                                int frontFootLeft = orderedFrontFeet[resultIndex].Box.Left;
+                                int behindFootRight = orderedBehindFeet[resultIndex].Box.Right;
+                                int horizontalDistance = Math.Abs(frontFootLeft - behindFootRight);
 
-                                int sum = frontFootLeft - behindFootRight;
-
-                                if (sum == 0)
+                                if (horizontalDistance == 0)
                                 {
                                     // 依赖框重叠导致比例无效时，仅将当前检测项判为NG，避免整段AI解析提前结束。
                                     allOk = false;
@@ -280,7 +277,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                                 }
                                 else
                                 {
-                                    value = (float)Math.Abs((result.Box.Width / (sum * 1.0) * 100));
+                                    // 咬胶占用量只比较X方向：咬胶框宽度 / 同物料前后铆脚水平间距。
+                                    value = result.Box.Width / (float)horizontalDistance * 100F;
+                                    rawValue = value.ToString("F2");
                                 }
                             }
                             else
@@ -469,6 +468,19 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
             }
 
             return itemKey;
+        }
+
+        /// <summary>
+        /// 按竖向排列物料的空间位置从上到下排序，同一高度时再按X坐标保证结果稳定。
+        /// </summary>
+        /// <param name="results">待排序的目标检测结果。</param>
+        /// <returns>按检测框中心Y、中心X依次升序排列的新列表。</returns>
+        private static List<DetResult> 按纵向物料位置排序(IEnumerable<DetResult> results)
+        {
+            return (results ?? Enumerable.Empty<DetResult>())
+                .OrderBy(result => result.Box.Y + result.Box.Height / 2.0)
+                .ThenBy(result => result.Box.X + result.Box.Width / 2.0)
+                .ToList();
         }
 
         /// <summary>

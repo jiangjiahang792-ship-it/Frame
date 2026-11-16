@@ -98,6 +98,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// <summary>尺寸换算后叠加的补偿值；旧配置缺省为0，数量项和未检出结果不补偿。</summary>
         public float Compensation { get; set; }
         /// <summary>
+        /// 当前通信配方是否等待使用首张有效图像自动学习；旧配置缺省为false，避免已有现场配方被重新学习。
+        /// 该标记仅放在新复制配方的首个检测项上，学习成功后清除并随方案保存。
+        /// </summary>
+        public bool NeedsInitialAutoStudy { get; set; }
+        /// <summary>
         /// 当前检测项的值
         /// </summary>
         public string CurValue { get; set; }

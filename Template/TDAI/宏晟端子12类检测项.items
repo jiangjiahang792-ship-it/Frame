@@ -1,0 +1,15 @@
+[
+  { "Name": "前铆露线芯高度", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0", "Compensation": 0 },
+  { "Name": "前铆露线芯长度", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0", "Compensation": 0 },
+  { "Name": "前铆露线芯面积", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0", "Compensation": 0 },
+  { "Name": "后铆露线芯高度", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0", "Compensation": 0 },
+  { "Name": "后铆露线芯长度", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0", "Compensation": 0 },
+  { "Name": "后铆露线芯面积", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0", "Compensation": 0 },
+  { "Name": "飞丝", "MinValue": "0", "MaxValue": "0", "Enable": true, "IsCountItem": true, "CurValue": "0", "Compensation": 0 },
+  { "Name": "前铆脚面积", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0", "Compensation": 0 },
+  { "Name": "后铆脚面积", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0", "Compensation": 0 },
+  { "Name": "咬胶长度", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0", "Compensation": 0 },
+  { "Name": "防水栓反装", "MinValue": "0", "MaxValue": "0", "Enable": true, "IsCountItem": true, "CurValue": "0", "Compensation": 0 },
+  { "Name": "正向防水栓面积", "MinValue": "1", "MaxValue": "99999", "Enable": true, "IsCountItem": false, "CurValue": "0", "Compensation": 0 },
+  { "Name": "防水栓破损", "MinValue": "0", "MaxValue": "0", "Enable": true, "IsCountItem": true, "CurValue": "0", "Compensation": 0 }
+]

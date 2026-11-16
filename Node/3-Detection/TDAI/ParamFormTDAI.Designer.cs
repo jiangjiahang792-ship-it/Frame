@@ -276,16 +276,19 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             this.comboBoxModelName.FormattingEnabled = true;
             this.comboBoxModelName.Items.AddRange(new object[] {
             "RL_12类线芯模型",
+            "米岸端子模型",
             "RL_线芯截面",
             "XM_Fakra模型",
             "合压模型",
             "多端子模型",
+            "多线芯模型",
             "超声波焊接侧面三类模型",
             "AST-工位1模型",
             "AST-工位2模型",
             "AST-工位3模型",
             "AST工位1分割模型",
             "新端子12类模型",
+            "宏晟端子12类模型",
             "勒刚端子侧面15类OBB模型",
             "AST高曝光线芯模型",
             "骏伟塑料模型",
@@ -351,7 +354,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             // 
             this.label_studyNum.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label_studyNum.AutoSize = true;
-            this.label_studyNum.Enabled = false;
+            this.label_studyNum.Enabled = true;
             this.label_studyNum.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.label_studyNum.Location = new System.Drawing.Point(18, 441);
             this.label_studyNum.Name = "label_studyNum";
@@ -362,7 +365,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             // textBox_StudyNum
             // 
             this.textBox_StudyNum.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.textBox_StudyNum.Enabled = false;
+            this.textBox_StudyNum.Enabled = true;
             this.textBox_StudyNum.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.textBox_StudyNum.Location = new System.Drawing.Point(231, 436);
             this.textBox_StudyNum.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);
@@ -376,7 +379,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             // 
             this.label_studyPercentage.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.label_studyPercentage.AutoSize = true;
-            this.label_studyPercentage.Enabled = false;
+            this.label_studyPercentage.Enabled = true;
             this.label_studyPercentage.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.label_studyPercentage.Location = new System.Drawing.Point(516, 441);
             this.label_studyPercentage.Name = "label_studyPercentage";
@@ -387,7 +390,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
             // textBox_studyPercentage
             // 
             this.textBox_studyPercentage.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.textBox_studyPercentage.Enabled = false;
+            this.textBox_studyPercentage.Enabled = true;
             this.textBox_studyPercentage.Font = new System.Drawing.Font("宋体", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.textBox_studyPercentage.Location = new System.Drawing.Point(781, 436);
             this.textBox_studyPercentage.Margin = new System.Windows.Forms.Padding(3, 4, 3, 4);

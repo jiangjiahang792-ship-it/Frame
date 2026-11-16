@@ -7,6 +7,13 @@ function Assert-ContainsText {
     }
 }
 
+function Assert-NotContainsText {
+    param([string]$Content, [string]$Unexpected, [string]$Message)
+    if ($Content.Contains($Unexpected)) {
+        throw $Message
+    }
+}
+
 function Assert-ProjectIncludes {
     param([string]$Project, [string]$RelativePath)
     $projectPath = $RelativePath.Replace('/', '\')
@@ -56,8 +63,9 @@ Assert-ContainsText $designer ('this.linkLabelRoiEdit.Text = "' + $drawRegionTex
 Assert-ContainsText $form 'nodeParamTDAI.RoiEnable = uiSwitch_RoiEnable.Active;' 'SaveParams must write the ROI enable state.'
 Assert-ContainsText $form 'nodeParamTDAI.RoiRegions = CloneRoiRegions(_roiRegions);' 'SaveParams must write the ROI region collection.'
 Assert-ContainsText $form 'new ParamFormTDAIRoiEditor(bitmap, _roiRegions, GetCurrentRoiBitmapAsync)' 'The edit link must open the ROI editor form with a current-image provider.'
-Assert-ContainsText $form 'private async Task<Bitmap> GetCurrentRoiBitmapAsync()' 'The form must centralize current-image refresh for entering and manual refresh.'
-Assert-ContainsText $form 'await _node.Process.RunForUpdateImages(_node);' 'The ROI editor must refresh the subscribed image before opening.'
+Assert-ContainsText $form 'private Task<Bitmap> GetCurrentRoiBitmapAsync()' 'The form must centralize current-image access for entering and manual refresh.'
+Assert-ContainsText $form 'OutputImage outputImage = GetOutputImage();' 'The ROI editor must read the image already retained by the subscribed node.'
+Assert-NotContainsText $form 'await _node.Process.RunForUpdateImages(_node);' 'Opening or refreshing the ROI editor must not run the process or trigger a hard-trigger camera.'
 
 Assert-ContainsText $editor 'showImageControl1.EnableRectangleRoiDrawing = true;' 'The ROI editor must enable rectangle drawing on ShowImageControl.'
 Assert-ContainsText $editor 'GetAllRotatedRectInfos()' 'The ROI editor must read multiple dynamic ROI rectangles from ShowImageControl.'

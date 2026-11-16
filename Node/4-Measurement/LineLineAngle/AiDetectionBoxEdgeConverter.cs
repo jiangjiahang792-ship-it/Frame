@@ -5,17 +5,23 @@ using TDJS_Vision.Node._4_Measurement.Common;
 
 namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
 {
-    /// <summary>将 AI 检测旋转框的指定边转换为测量直线。</summary>
+    /// <summary>将 AI 检测旋转框自动转换为测量直线。</summary>
     internal static class AiDetectionBoxEdgeConverter
     {
-        /// <summary>从 AI 算法结果的第一个检测框读取指定框边。</summary>
-        public static bool TryReadFirstBoxEdge(AlgorithmResult algorithmResult, AiDetectionBoxEdge edge, out MeasuredLine line)
+        /// <summary>读取指定类别的第一个检测框，并将用户选择的框边转换为测量直线。</summary>
+        public static bool TryReadFirstClassEdge(
+            AlgorithmResult algorithmResult,
+            string className,
+            AiDetectionBoxEdge edge,
+            out MeasuredLine line)
         {
             line = null;
-            if (algorithmResult?.Rects == null || algorithmResult.Rects.Count == 0 || algorithmResult.Rects[0] == null)
+            if (algorithmResult?.ClassRects == null || string.IsNullOrWhiteSpace(className) ||
+                !algorithmResult.ClassRects.TryGetValue(className, out System.Collections.Generic.List<ColorRotatedRect> classRects) ||
+                classRects == null || classRects.Count == 0 || classRects[0] == null)
                 return false;
 
-            var rect = algorithmResult.Rects[0].RotatedRect;
+            var rect = classRects[0].RotatedRect;
             float halfWidth = rect.size.width * 0.5F;
             float halfHeight = rect.size.height * 0.5F;
             if (halfWidth <= 0F || halfHeight <= 0F)
@@ -47,7 +53,7 @@ namespace TDJS_Vision.Node._4_Measurement.LineLineAngle
                     break;
             }
 
-            line = new MeasuredLine { Start = start, End = end, Source = "AI首个检测框" };
+            line = new MeasuredLine { Start = start, End = end, Source = "AI类别首个检测框边" };
             return line.IsValid;
         }
 

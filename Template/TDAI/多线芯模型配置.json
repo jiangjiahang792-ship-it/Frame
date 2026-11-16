@@ -1,0 +1,17 @@
+{
+  "ModelName": "多线芯模型",
+  "ModelSize": 640,
+  "ScoreThreshold": 0.5,
+  "ScoreNMS": 0.5,
+  "ModelInfo": {
+    "ModelType": "OBB",
+    "DeviceType": "GPU",
+    "IsEncrypted": true,
+    "ModelPath": "D:\\模型\\多线芯模型\\Line.onnx.encrypted",
+    "KeyPointNum": 0
+  },
+  "ClassNames": [
+    "line",
+    "rubber"
+  ]
+}

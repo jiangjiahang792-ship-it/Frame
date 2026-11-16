@@ -282,6 +282,8 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         合压模型,
         XM_Fakra模型,
         多端子模型,
+        /// <summary>剥皮工位两类多线芯模型，类别0为线芯line，类别1为胶皮rubber。</summary>
+        多线芯模型,
         /// <summary>
         /// 超声波焊接侧面三类检测：线芯、焊接区域和飞丝。
         /// </summary>
@@ -308,5 +310,9 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         亿方舟注塑后模型,
         /// <summary>亿方舟九类多端子目标检测模型。</summary>
         亿方舟多端子九类模型,
+        /// <summary>米岸端子目标检测模型，当前解析规则与RL_12类线芯模型一致。</summary>
+        米岸端子模型,
+        /// <summary>宏晟端子12类目标检测模型，类别编号与RL_12类线芯模型一致。</summary>
+        宏晟端子12类模型,
     }
 }

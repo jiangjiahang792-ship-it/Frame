@@ -128,6 +128,11 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         /// </summary>
         public List<ColorRotatedRect> Rects { get; set; } = new List<ColorRotatedRect>();
         /// <summary>
+        /// 按模型类别名称分组的原始检测框，供测量节点选择指定类别；每组保持模型输出顺序。
+        /// </summary>
+        public Dictionary<string, List<ColorRotatedRect>> ClassRects { get; set; } =
+            new Dictionary<string, List<ColorRotatedRect>>();
+        /// <summary>
         /// 带颜色的缓存上次NG结果的检测框
         /// </summary>
         public Dictionary<string, List<ColorRotatedRect>> RectsNgMap { get; set; } = new Dictionary<string, List<ColorRotatedRect>>();
@@ -162,6 +167,7 @@ namespace TDJS_Vision.Node._3_Detection.TDAI
         {
             DetectResults.Clear();
             Rects.Clear();
+            ClassRects.Clear();
             RectsNgMap.Clear();
             Texts.Clear();
             Lines.Clear();

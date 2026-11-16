@@ -620,6 +620,9 @@ namespace TDJS_Vision.Forms.SolRunParam
                     SourceNode = node,
                     SourceIndex = index,
                     DisplayName = GetMultiConditionDisplayName(node, condition, index),
+                    HasExplicitJudgment = details != null && index >= 0 && index < details.Count && details[index] != null,
+                    ExplicitJudgmentOk = details != null && index >= 0 && index < details.Count &&
+                        details[index] != null && details[index].IsMatched,
                     Info = new DetectItemInfo
                     {
                         Enable = condition.Enabled,
@@ -758,6 +761,7 @@ namespace TDJS_Vision.Forms.SolRunParam
                     IsCountItem = info.IsCountItem,
                     IsManualTuningHidden = info.IsManualTuningHidden,
                     Compensation = info.Compensation,
+                    NeedsInitialAutoStudy = info.NeedsInitialAutoStudy,
                     PlugColor = info.PlugColor?.Clone(),
                     CurValue = info.CurValue
                 });

@@ -173,8 +173,10 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
                     case "DetectItem.FlyingWire":
                         // 飞丝是数量型检测项，模板配置错误时也按数量统计，避免输出单个框的伪尺寸。
                         isCountItem = true;
-                        // 飞丝框与任一铝箔框的交叠达到自身面积30%时忽略；低于阈值继续报警。
-                        extractValueFunc = r => r.ClassId == 6 && !HasAluminumFoilOverlap(r.Box, aluminumFoils)
+                        // 与工位1 SEG保持一致：完整位于最近铜环底边以下的飞丝忽略，跨越底边的飞丝仍报警。
+                        // 继续叠加既有铝箔交叠过滤，任一屏蔽条件满足时都不计入飞丝数量。
+                        extractValueFunc = r => r.ClassId == 6 && !IsFullyBelowCopperRing(r.Box, copperRings) &&
+                            !HasAluminumFoilOverlap(r.Box, aluminumFoils)
                             ? (float?)1F : null;
                         break;
                     default:
@@ -303,6 +305,18 @@ namespace TDJS_Vision.Node._3_Detection.TDAI.Parse
         private static Rect? FindNearestCopperRing(Rect target, List<DetResult> copperRings)
         {
             return FindNearestBox(target, copperRings);
+        }
+
+        /// <summary>
+        /// 判断飞丝是否完整位于最近铜环底边以下；未检出铜环或飞丝跨越底边时不屏蔽。
+        /// </summary>
+        /// <param name="flyingWire">飞丝检测框。</param>
+        /// <param name="copperRings">当前图像中的铜环检测结果。</param>
+        /// <returns>完整位于最近铜环底边以下时返回 true。</returns>
+        private static bool IsFullyBelowCopperRing(Rect flyingWire, List<DetResult> copperRings)
+        {
+            Rect? nearestCopperRing = FindNearestCopperRing(flyingWire, copperRings);
+            return nearestCopperRing.HasValue && flyingWire.Top >= nearestCopperRing.Value.Bottom;
         }
 
         /// <summary>为每个部件选择中心最近的胶皮；同距时按坐标稳定选择，避免依赖模型输出顺序。</summary>

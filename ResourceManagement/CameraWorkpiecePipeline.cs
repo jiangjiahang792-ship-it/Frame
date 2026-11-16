@@ -2430,7 +2430,7 @@ namespace TDJS_Vision.ResourceManagement
             }
         }
 
-        /// <summary>检查内部帧号和SDK帧号均严格前进。</summary>
+        /// <summary>检查内部帧号和SDK帧号均严格前进，并兼容相机16位帧号从65535回卷到1。</summary>
         private static bool IsNextFrameNumber(
             CameraTicketQueueState state,
             long frameId,
@@ -2454,7 +2454,10 @@ namespace TDJS_Vision.ResourceManagement
             }
 
             uint expectedSdkFrameNumber = unchecked(state.LastSdkFrameNumber + 1U);
-            if (sdkFrameNumber != expectedSdkFrameNumber)
+            // 部分海康相机虽然SDK字段为uint，但设备实际只输出1至65535，达到上限后从1重新计数。
+            // 只放行这个明确边界，避免把其他真实跳号误判为正常回卷。
+            bool isSixteenBitRollover = state.LastSdkFrameNumber == ushort.MaxValue && sdkFrameNumber == 1U;
+            if (sdkFrameNumber != expectedSdkFrameNumber && !isSixteenBitRollover)
             {
                 reason = $"相机SDK帧号断层：上一帧={state.LastSdkFrameNumber}，当前帧={sdkFrameNumber}。";
                 return false;
